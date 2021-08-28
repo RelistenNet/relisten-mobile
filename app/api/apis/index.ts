@@ -1,3 +1,5 @@
+/* tslint:disable */
+/* eslint-disable */
 export * from './ArtistsApi';
 export * from './ErasApi';
 export * from './LiveApi';

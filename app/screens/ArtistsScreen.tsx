@@ -1,41 +1,23 @@
 import React from 'react';
 import {FlatList, StyleSheet, Text, View} from 'react-native';
-import {RootState} from '../store';
-import {useSelector} from 'react-redux';
-import {useRequest} from 'redux-query-react';
-import {apiV2ArtistsGet, ArtistWithCounts} from '../api';
+import {ArtistWithCounts} from '../api';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
-
-const getArtists = (state: RootState) => state.entities.artists;
-const artistsQuery = apiV2ArtistsGet({
-  update: {
-    artists: (
-      oldValue: ArtistWithCounts[] | undefined,
-      newValue: ArtistWithCounts[],
-    ) => newValue,
-  },
-  transform: body => {
-    return {artists: body};
-  },
-});
+import {useObservableState} from 'observable-hooks';
+import {RelistenDb} from '../db/database';
 
 const ArtistsScreen = () => {
-  const artists: ArtistWithCounts[] = useSelector(getArtists) || [];
+  const artistsRes = useObservableState(RelistenDb.instance.artists(), {
+    isLoading: true,
+  });
 
-  const [{isPending, status}, refresh] = useRequest(artistsQuery);
-
-  if (isPending) {
+  if (artistsRes.isLoading) {
     return <Text>Loading...</Text>;
-  }
-
-  if (typeof status === 'number' && status != 200) {
-    return <Text>Error??</Text>;
   }
 
   return (
     <SafeAreaProvider>
       <FlatList
-        data={artists}
+        data={artistsRes.data}
         renderItem={({item: artist, _index}) => (
           <ArtistListItem artist={artist} />
         )}

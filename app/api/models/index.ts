@@ -1,3 +1,5 @@
+/* tslint:disable */
+/* eslint-disable */
 export * from './ApiErrorCode';
 export * from './Artist';
 export * from './ArtistUpstreamSource';
