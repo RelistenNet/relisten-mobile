@@ -1,7 +1,7 @@
 export interface RelistenObject {
-    uuid: string;
+  uuid: string;
 }
 
 export interface RelistenUpdatableObject {
-    updated_at: string;
+  updated_at: string;
 }
