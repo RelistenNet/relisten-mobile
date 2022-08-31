@@ -2,12 +2,12 @@
 import 'react-native-get-random-values';
 import 'uuid';
 
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
-import { RelistenApiProvider } from './relisten/api/context';
-import { HomeScreen } from './relisten/screens/Home';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { StatusBar } from 'expo-status-bar';
+import { StyleSheet } from 'react-native';
+import { RelistenApiProvider } from './relisten/api/context';
+import { HomeScreen } from './relisten/screens/Home';
 import { YearsScreen } from './relisten/screens/Years';
 import { YearShowsScreen } from './relisten/screens/YearShows';
 

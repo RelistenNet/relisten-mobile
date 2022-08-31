@@ -4,54 +4,31 @@
  */
 
 export interface paths {
-  "/api/v2/artists": {
+  '/api/v2/artists': {
     get: {
       responses: {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["ArtistWithCounts"][];
+            'application/json': components['schemas']['ArtistWithCounts'][];
           };
         };
       };
     };
   };
-  "/api/v3/artists": {
+  '/api/v3/artists': {
     get: {
       responses: {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["ArtistWithCounts"][];
+            'application/json': components['schemas']['ArtistWithCounts'][];
           };
         };
       };
     };
   };
-  "/api/v2/artists/{artistIdOrSlug}": {
-    get: {
-      parameters: {
-        path: {
-          artistIdOrSlug: string;
-        };
-      };
-      responses: {
-        /** Success */
-        200: {
-          content: {
-            "application/json": components["schemas"]["ArtistWithCounts"];
-          };
-        };
-        /** Not Found */
-        404: {
-          content: {
-            "application/json": components["schemas"]["BooleanResponseEnvelope"];
-          };
-        };
-      };
-    };
-  };
-  "/api/v3/artists/{artistIdOrSlug}": {
+  '/api/v2/artists/{artistIdOrSlug}': {
     get: {
       parameters: {
         path: {
@@ -62,19 +39,42 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["ArtistWithCounts"];
+            'application/json': components['schemas']['ArtistWithCounts'];
           };
         };
         /** Not Found */
         404: {
           content: {
-            "application/json": components["schemas"]["BooleanResponseEnvelope"];
+            'application/json': components['schemas']['BooleanResponseEnvelope'];
           };
         };
       };
     };
   };
-  "/api/v3/artists/{artistUuid}/normalized": {
+  '/api/v3/artists/{artistIdOrSlug}': {
+    get: {
+      parameters: {
+        path: {
+          artistIdOrSlug: string;
+        };
+      };
+      responses: {
+        /** Success */
+        200: {
+          content: {
+            'application/json': components['schemas']['ArtistWithCounts'];
+          };
+        };
+        /** Not Found */
+        404: {
+          content: {
+            'application/json': components['schemas']['BooleanResponseEnvelope'];
+          };
+        };
+      };
+    };
+  };
+  '/api/v3/artists/{artistUuid}/normalized': {
     get: {
       parameters: {
         path: {
@@ -85,19 +85,19 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["FullArtist"];
+            'application/json': components['schemas']['FullArtist'];
           };
         };
         /** Not Found */
         404: {
           content: {
-            "application/json": components["schemas"]["BooleanResponseEnvelope"];
+            'application/json': components['schemas']['BooleanResponseEnvelope'];
           };
         };
       };
     };
   };
-  "/api/v2/artists/{artistIdOrSlug}/eras": {
+  '/api/v2/artists/{artistIdOrSlug}/eras': {
     get: {
       parameters: {
         path: {
@@ -108,19 +108,19 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["Era"][];
+            'application/json': components['schemas']['Era'][];
           };
         };
         /** Not Found */
         404: {
           content: {
-            "application/json": components["schemas"]["BooleanResponseEnvelope"];
+            'application/json': components['schemas']['BooleanResponseEnvelope'];
           };
         };
       };
     };
   };
-  "/api/v2/live/play": {
+  '/api/v2/live/play': {
     post: {
       parameters: {
         query: {
@@ -134,7 +134,7 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["SourceTrackPlayResponseEnvelope"];
+            'application/json': components['schemas']['SourceTrackPlayResponseEnvelope'];
           };
         };
         /** Bad Request */
@@ -142,13 +142,13 @@ export interface paths {
         /** Not Found */
         404: {
           content: {
-            "application/json": components["schemas"]["BooleanResponseEnvelope"];
+            'application/json': components['schemas']['BooleanResponseEnvelope'];
           };
         };
       };
     };
   };
-  "/api/v2/live/history": {
+  '/api/v2/live/history': {
     get: {
       parameters: {
         query: {
@@ -160,13 +160,13 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["SourceTrackPlay"][];
+            'application/json': components['schemas']['SourceTrackPlay'][];
           };
         };
       };
     };
   };
-  "/api/v2/artists/{artistIdOrSlug}/shows/recently-added": {
+  '/api/v2/artists/{artistIdOrSlug}/shows/recently-added': {
     get: {
       parameters: {
         path: {
@@ -181,23 +181,23 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "text/plain": components["schemas"]["ShowWithArtist"][];
-            "application/json": components["schemas"]["ShowWithArtist"][];
-            "text/json": components["schemas"]["ShowWithArtist"][];
+            'text/plain': components['schemas']['ShowWithArtist'][];
+            'application/json': components['schemas']['ShowWithArtist'][];
+            'text/json': components['schemas']['ShowWithArtist'][];
           };
         };
         /** Not Found */
         404: {
           content: {
-            "text/plain": components["schemas"]["BooleanResponseEnvelope"];
-            "application/json": components["schemas"]["BooleanResponseEnvelope"];
-            "text/json": components["schemas"]["BooleanResponseEnvelope"];
+            'text/plain': components['schemas']['BooleanResponseEnvelope'];
+            'application/json': components['schemas']['BooleanResponseEnvelope'];
+            'text/json': components['schemas']['BooleanResponseEnvelope'];
           };
         };
       };
     };
   };
-  "/api/v2/artists/shows/recently-added": {
+  '/api/v2/artists/shows/recently-added': {
     get: {
       parameters: {
         query: {
@@ -208,23 +208,23 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "text/plain": components["schemas"]["ShowWithArtist"][];
-            "application/json": components["schemas"]["ShowWithArtist"][];
-            "text/json": components["schemas"]["ShowWithArtist"][];
+            'text/plain': components['schemas']['ShowWithArtist'][];
+            'application/json': components['schemas']['ShowWithArtist'][];
+            'text/json': components['schemas']['ShowWithArtist'][];
           };
         };
         /** Not Found */
         404: {
           content: {
-            "text/plain": components["schemas"]["BooleanResponseEnvelope"];
-            "application/json": components["schemas"]["BooleanResponseEnvelope"];
-            "text/json": components["schemas"]["BooleanResponseEnvelope"];
+            'text/plain': components['schemas']['BooleanResponseEnvelope'];
+            'application/json': components['schemas']['BooleanResponseEnvelope'];
+            'text/json': components['schemas']['BooleanResponseEnvelope'];
           };
         };
       };
     };
   };
-  "/api/v2/shows/recently-added": {
+  '/api/v2/shows/recently-added': {
     get: {
       parameters: {
         query: {
@@ -236,23 +236,23 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "text/plain": components["schemas"]["ShowWithArtist"][];
-            "application/json": components["schemas"]["ShowWithArtist"][];
-            "text/json": components["schemas"]["ShowWithArtist"][];
+            'text/plain': components['schemas']['ShowWithArtist'][];
+            'application/json': components['schemas']['ShowWithArtist'][];
+            'text/json': components['schemas']['ShowWithArtist'][];
           };
         };
         /** Not Found */
         404: {
           content: {
-            "text/plain": components["schemas"]["BooleanResponseEnvelope"];
-            "application/json": components["schemas"]["BooleanResponseEnvelope"];
-            "text/json": components["schemas"]["BooleanResponseEnvelope"];
+            'text/plain': components['schemas']['BooleanResponseEnvelope'];
+            'application/json': components['schemas']['BooleanResponseEnvelope'];
+            'text/json': components['schemas']['BooleanResponseEnvelope'];
           };
         };
       };
     };
   };
-  "/api/v2/search": {
+  '/api/v2/search': {
     get: {
       parameters: {
         query: {
@@ -264,25 +264,25 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["SearchResults"];
+            'application/json': components['schemas']['SearchResults'];
           };
         };
       };
     };
   };
-  "/api/v2/shows/today": {
+  '/api/v2/shows/today': {
     get: {
       responses: {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["ShowWithArtist"][];
+            'application/json': components['schemas']['ShowWithArtist'][];
           };
         };
       };
     };
   };
-  "/api/v2/shows/on-date": {
+  '/api/v2/shows/on-date': {
     get: {
       parameters: {
         query: {
@@ -294,13 +294,13 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["ShowWithArtist"][];
+            'application/json': components['schemas']['ShowWithArtist'][];
           };
         };
       };
     };
   };
-  "/api/v2/shows/recently-performed": {
+  '/api/v2/shows/recently-performed': {
     get: {
       parameters: {
         query: {
@@ -313,13 +313,13 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["ShowWithArtist"][];
+            'application/json': components['schemas']['ShowWithArtist'][];
           };
         };
       };
     };
   };
-  "/api/v2/shows/recently-updated": {
+  '/api/v2/shows/recently-updated': {
     get: {
       parameters: {
         query: {
@@ -332,13 +332,13 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["ShowWithArtist"][];
+            'application/json': components['schemas']['ShowWithArtist'][];
           };
         };
       };
     };
   };
-  "/api/v2/artists/{artistIdOrSlug}/shows/today": {
+  '/api/v2/artists/{artistIdOrSlug}/shows/today': {
     get: {
       parameters: {
         path: {
@@ -349,46 +349,19 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["ShowWithArtist"][];
+            'application/json': components['schemas']['ShowWithArtist'][];
           };
         };
         /** Not Found */
         404: {
           content: {
-            "application/json": components["schemas"]["BooleanResponseEnvelope"];
+            'application/json': components['schemas']['BooleanResponseEnvelope'];
           };
         };
       };
     };
   };
-  "/api/v2/artists/{artistIdOrSlug}/shows/recently-performed": {
-    get: {
-      parameters: {
-        path: {
-          artistIdOrSlug: string;
-        };
-        query: {
-          shows?: number;
-          days?: number;
-        };
-      };
-      responses: {
-        /** Success */
-        200: {
-          content: {
-            "application/json": components["schemas"]["ShowWithArtist"][];
-          };
-        };
-        /** Not Found */
-        404: {
-          content: {
-            "application/json": components["schemas"]["BooleanResponseEnvelope"];
-          };
-        };
-      };
-    };
-  };
-  "/api/v2/artists/{artistIdOrSlug}/shows/recently-updated": {
+  '/api/v2/artists/{artistIdOrSlug}/shows/recently-performed': {
     get: {
       parameters: {
         path: {
@@ -403,19 +376,46 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["ShowWithArtist"][];
+            'application/json': components['schemas']['ShowWithArtist'][];
           };
         };
         /** Not Found */
         404: {
           content: {
-            "application/json": components["schemas"]["BooleanResponseEnvelope"];
+            'application/json': components['schemas']['BooleanResponseEnvelope'];
           };
         };
       };
     };
   };
-  "/api/v2/artists/{artistIdOrSlug}/shows/on-date": {
+  '/api/v2/artists/{artistIdOrSlug}/shows/recently-updated': {
+    get: {
+      parameters: {
+        path: {
+          artistIdOrSlug: string;
+        };
+        query: {
+          shows?: number;
+          days?: number;
+        };
+      };
+      responses: {
+        /** Success */
+        200: {
+          content: {
+            'application/json': components['schemas']['ShowWithArtist'][];
+          };
+        };
+        /** Not Found */
+        404: {
+          content: {
+            'application/json': components['schemas']['BooleanResponseEnvelope'];
+          };
+        };
+      };
+    };
+  };
+  '/api/v2/artists/{artistIdOrSlug}/shows/on-date': {
     get: {
       parameters: {
         path: {
@@ -430,13 +430,13 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["ShowWithArtist"][];
+            'application/json': components['schemas']['ShowWithArtist'][];
           };
         };
       };
     };
   };
-  "/api/v2/artists/{artistIdOrSlug}/shows/top": {
+  '/api/v2/artists/{artistIdOrSlug}/shows/top': {
     get: {
       parameters: {
         path: {
@@ -450,19 +450,19 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["Show"][];
+            'application/json': components['schemas']['Show'][];
           };
         };
         /** Not Found */
         404: {
           content: {
-            "application/json": components["schemas"]["BooleanResponseEnvelope"];
+            'application/json': components['schemas']['BooleanResponseEnvelope'];
           };
         };
       };
     };
   };
-  "/api/v2/artists/{artistIdOrSlug}/shows/random": {
+  '/api/v2/artists/{artistIdOrSlug}/shows/random': {
     get: {
       parameters: {
         path: {
@@ -473,19 +473,19 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["ShowWithSources"];
+            'application/json': components['schemas']['ShowWithSources'];
           };
         };
         /** Not Found */
         404: {
           content: {
-            "application/json": components["schemas"]["BooleanResponseEnvelope"];
+            'application/json': components['schemas']['BooleanResponseEnvelope'];
           };
         };
       };
     };
   };
-  "/api/v2/artists/{artistIdOrSlug}/shows/{showDate}": {
+  '/api/v2/artists/{artistIdOrSlug}/shows/{showDate}': {
     get: {
       parameters: {
         path: {
@@ -497,19 +497,19 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["ShowWithSources"];
+            'application/json': components['schemas']['ShowWithSources'];
           };
         };
         /** Not Found */
         404: {
           content: {
-            "application/json": components["schemas"]["BooleanResponseEnvelope"];
+            'application/json': components['schemas']['BooleanResponseEnvelope'];
           };
         };
       };
     };
   };
-  "/api/v3/shows/{showUuid}": {
+  '/api/v3/shows/{showUuid}': {
     get: {
       parameters: {
         path: {
@@ -520,19 +520,19 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["ShowWithSources"];
+            'application/json': components['schemas']['ShowWithSources'];
           };
         };
         /** Not Found */
         404: {
           content: {
-            "application/json": components["schemas"]["BooleanResponseEnvelope"];
+            'application/json': components['schemas']['BooleanResponseEnvelope'];
           };
         };
       };
     };
   };
-  "/api/v2/artists/{artistIdOrSlug}/sources/{sourceId}/reviews": {
+  '/api/v2/artists/{artistIdOrSlug}/sources/{sourceId}/reviews': {
     get: {
       parameters: {
         path: {
@@ -544,19 +544,19 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["SourceReview"][];
+            'application/json': components['schemas']['SourceReview'][];
           };
         };
         /** Not Found */
         404: {
           content: {
-            "application/json": components["schemas"]["BooleanResponseEnvelope"];
+            'application/json': components['schemas']['BooleanResponseEnvelope'];
           };
         };
       };
     };
   };
-  "/api/v2/artists/{artistIdOrSlug}/songs": {
+  '/api/v2/artists/{artistIdOrSlug}/songs': {
     get: {
       parameters: {
         path: {
@@ -567,66 +567,19 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["SetlistSongWithPlayCount"][];
+            'application/json': components['schemas']['SetlistSongWithPlayCount'][];
           };
         };
         /** Not Found */
         404: {
           content: {
-            "application/json": components["schemas"]["BooleanResponseEnvelope"];
+            'application/json': components['schemas']['BooleanResponseEnvelope'];
           };
         };
       };
     };
   };
-  "/api/v2/artists/{artistIdOrSlug}/songs/{idAndSlug}": {
-    get: {
-      parameters: {
-        path: {
-          artistIdOrSlug: string;
-          idAndSlug: string;
-        };
-      };
-      responses: {
-        /** Success */
-        200: {
-          content: {
-            "application/json": components["schemas"]["SetlistSongWithShows"];
-          };
-        };
-        /** Not Found */
-        404: {
-          content: {
-            "application/json": components["schemas"]["BooleanResponseEnvelope"];
-          };
-        };
-      };
-    };
-  };
-  "/api/v2/artists/{artistIdOrSlug}/tours": {
-    get: {
-      parameters: {
-        path: {
-          artistIdOrSlug: string;
-        };
-      };
-      responses: {
-        /** Success */
-        200: {
-          content: {
-            "application/json": components["schemas"]["TourWithShowCount"][];
-          };
-        };
-        /** Not Found */
-        404: {
-          content: {
-            "application/json": components["schemas"]["BooleanResponseEnvelope"];
-          };
-        };
-      };
-    };
-  };
-  "/api/v2/artists/{artistIdOrSlug}/tours/{idAndSlug}": {
+  '/api/v2/artists/{artistIdOrSlug}/songs/{idAndSlug}': {
     get: {
       parameters: {
         path: {
@@ -638,19 +591,19 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["TourWithShows"];
+            'application/json': components['schemas']['SetlistSongWithShows'];
           };
         };
         /** Not Found */
         404: {
           content: {
-            "application/json": components["schemas"]["BooleanResponseEnvelope"];
+            'application/json': components['schemas']['BooleanResponseEnvelope'];
           };
         };
       };
     };
   };
-  "/api/v2/artists/{artistIdOrSlug}/venues": {
+  '/api/v2/artists/{artistIdOrSlug}/tours': {
     get: {
       parameters: {
         path: {
@@ -661,19 +614,19 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["VenueWithShowCount"][];
+            'application/json': components['schemas']['TourWithShowCount'][];
           };
         };
         /** Not Found */
         404: {
           content: {
-            "application/json": components["schemas"]["BooleanResponseEnvelope"];
+            'application/json': components['schemas']['BooleanResponseEnvelope'];
           };
         };
       };
     };
   };
-  "/api/v2/artists/{artistIdOrSlug}/venues/{idAndSlug}": {
+  '/api/v2/artists/{artistIdOrSlug}/tours/{idAndSlug}': {
     get: {
       parameters: {
         path: {
@@ -685,19 +638,19 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["VenueWithShows"];
+            'application/json': components['schemas']['TourWithShows'];
           };
         };
         /** Not Found */
         404: {
           content: {
-            "application/json": components["schemas"]["BooleanResponseEnvelope"];
+            'application/json': components['schemas']['BooleanResponseEnvelope'];
           };
         };
       };
     };
   };
-  "/api/v2/artists/{artistIdOrSlug}/years": {
+  '/api/v2/artists/{artistIdOrSlug}/venues': {
     get: {
       parameters: {
         path: {
@@ -708,19 +661,66 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["Year"][];
+            'application/json': components['schemas']['VenueWithShowCount'][];
           };
         };
         /** Not Found */
         404: {
           content: {
-            "application/json": components["schemas"]["BooleanResponseEnvelope"];
+            'application/json': components['schemas']['BooleanResponseEnvelope'];
           };
         };
       };
     };
   };
-  "/api/v2/artists/{artistIdOrSlug}/years/{year}": {
+  '/api/v2/artists/{artistIdOrSlug}/venues/{idAndSlug}': {
+    get: {
+      parameters: {
+        path: {
+          artistIdOrSlug: string;
+          idAndSlug: string;
+        };
+      };
+      responses: {
+        /** Success */
+        200: {
+          content: {
+            'application/json': components['schemas']['VenueWithShows'];
+          };
+        };
+        /** Not Found */
+        404: {
+          content: {
+            'application/json': components['schemas']['BooleanResponseEnvelope'];
+          };
+        };
+      };
+    };
+  };
+  '/api/v2/artists/{artistIdOrSlug}/years': {
+    get: {
+      parameters: {
+        path: {
+          artistIdOrSlug: string;
+        };
+      };
+      responses: {
+        /** Success */
+        200: {
+          content: {
+            'application/json': components['schemas']['Year'][];
+          };
+        };
+        /** Not Found */
+        404: {
+          content: {
+            'application/json': components['schemas']['BooleanResponseEnvelope'];
+          };
+        };
+      };
+    };
+  };
+  '/api/v2/artists/{artistIdOrSlug}/years/{year}': {
     get: {
       parameters: {
         path: {
@@ -732,19 +732,19 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["YearWithShows"];
+            'application/json': components['schemas']['YearWithShows'];
           };
         };
         /** Not Found */
         404: {
           content: {
-            "application/json": components["schemas"]["BooleanResponseEnvelope"];
+            'application/json': components['schemas']['BooleanResponseEnvelope'];
           };
         };
       };
     };
   };
-  "/api/v2/artists/{artistIdOrSlug}/years/{year}/{showDate}": {
+  '/api/v2/artists/{artistIdOrSlug}/years/{year}/{showDate}': {
     get: {
       parameters: {
         path: {
@@ -757,13 +757,13 @@ export interface paths {
         /** Success */
         200: {
           content: {
-            "application/json": components["schemas"]["ShowWithSources"];
+            'application/json': components['schemas']['ShowWithSources'];
           };
         };
         /** Not Found */
         404: {
           content: {
-            "application/json": components["schemas"]["BooleanResponseEnvelope"];
+            'application/json': components['schemas']['BooleanResponseEnvelope'];
           };
         };
       };
@@ -791,8 +791,8 @@ export interface components {
       sort_name: string;
       /** Format: uuid */
       uuid: string;
-      features: components["schemas"]["Features"];
-      upstream_sources: components["schemas"]["ArtistUpstreamSource"][];
+      features: components['schemas']['Features'];
+      upstream_sources: components['schemas']['ArtistUpstreamSource'][];
     } & {
       id: unknown;
     };
@@ -802,7 +802,7 @@ export interface components {
       upstream_identifier?: string | null;
       /** Format: uuid */
       artist_uuid: string;
-      upstream_source?: components["schemas"]["UpstreamSource"];
+      upstream_source?: components['schemas']['UpstreamSource'];
     } & {
       artist_id: unknown;
     };
@@ -819,8 +819,8 @@ export interface components {
       sort_name: string;
       /** Format: uuid */
       uuid: string;
-      features: components["schemas"]["Features"];
-      upstream_sources: components["schemas"]["ArtistUpstreamSource"][];
+      features: components['schemas']['Features'];
+      upstream_sources: components['schemas']['ArtistUpstreamSource'][];
       /** Format: int32 */
       show_count: number;
       /** Format: int32 */
@@ -830,7 +830,7 @@ export interface components {
     };
     BooleanResponseEnvelope: {
       success: boolean;
-      error_code: components["schemas"]["ApiErrorCode"];
+      error_code: components['schemas']['ApiErrorCode'];
       data: boolean;
     };
     Era: {
@@ -882,12 +882,12 @@ export interface components {
      */
     FlacType: 0 | 1 | 2 | 3;
     FullArtist: {
-      artist: components["schemas"]["ArtistWithCounts"];
-      venues: components["schemas"]["VenueWithShowCount"][];
-      songs: components["schemas"]["SetlistSongWithPlayCount"][];
-      tours: components["schemas"]["TourWithShowCount"][];
-      years: components["schemas"]["Year"][];
-      shows: components["schemas"]["Show"][];
+      artist: components['schemas']['ArtistWithCounts'];
+      venues: components['schemas']['VenueWithShowCount'][];
+      songs: components['schemas']['SetlistSongWithPlayCount'][];
+      tours: components['schemas']['TourWithShowCount'][];
+      years: components['schemas']['Year'][];
+      shows: components['schemas']['Show'][];
     };
     ImporterBase: {
       importerName?: string | null;
@@ -910,16 +910,16 @@ export interface components {
       id: unknown;
     };
     PlayedSourceTrack: {
-      source: components["schemas"]["SlimSourceWithShowVenueAndArtist"];
-      track: components["schemas"]["SourceTrack"];
+      source: components['schemas']['SlimSourceWithShowVenueAndArtist'];
+      track: components['schemas']['SourceTrack'];
     };
     SearchResults: {
-      artists: components["schemas"]["SlimArtist"][];
-      shows: components["schemas"]["ShowWithSlimArtist"][];
-      songs: components["schemas"]["SetlistSongWithSlimArtist"][];
-      source: components["schemas"]["SourceWithSlimArtist"][];
-      tours: components["schemas"]["TourWithSlimArtist"][];
-      venues: components["schemas"]["VenueWithSlimArtist"][];
+      artists: components['schemas']['SlimArtist'][];
+      shows: components['schemas']['ShowWithSlimArtist'][];
+      songs: components['schemas']['SetlistSongWithSlimArtist'][];
+      source: components['schemas']['SourceWithSlimArtist'][];
+      tours: components['schemas']['TourWithSlimArtist'][];
+      venues: components['schemas']['VenueWithSlimArtist'][];
     };
     SetlistSongWithPlayCount: {
       /** Format: date-time */
@@ -953,7 +953,7 @@ export interface components {
       sortName: string;
       /** Format: uuid */
       uuid: string;
-      shows: components["schemas"]["Show"][];
+      shows: components['schemas']['Show'][];
     } & {
       artist_id: unknown;
       id: unknown;
@@ -973,7 +973,7 @@ export interface components {
       uuid: string;
       /** Format: int32 */
       shows_played_at: number;
-      slim_artist: components["schemas"]["SlimArtist"];
+      slim_artist: components['schemas']['SlimArtist'];
     } & {
       artist_id: unknown;
       id: unknown;
@@ -985,16 +985,16 @@ export interface components {
       updated_at: string;
       /** Format: uuid */
       artist_uuid: string;
-      venue?: components["schemas"]["VenueWithShowCount"];
+      venue?: components['schemas']['VenueWithShowCount'];
       /** Format: uuid */
       venue_uuid?: string | null;
       /** Format: uuid */
       tour_uuid?: string | null;
-      tour?: components["schemas"]["Tour"];
+      tour?: components['schemas']['Tour'];
       /** Format: uuid */
       year_uuid?: string;
-      year?: components["schemas"]["Year"];
-      era?: components["schemas"]["Era"];
+      year?: components['schemas']['Year'];
+      era?: components['schemas']['Era'];
       /** Format: date-time */
       date: string;
       /** Format: float */
@@ -1021,16 +1021,16 @@ export interface components {
       updated_at: string;
       /** Format: uuid */
       artist_uuid: string;
-      venue?: components["schemas"]["VenueWithShowCount"];
+      venue?: components['schemas']['VenueWithShowCount'];
       /** Format: uuid */
       venue_uuid?: string | null;
       /** Format: uuid */
       tour_uuid?: string | null;
-      tour?: components["schemas"]["Tour"];
+      tour?: components['schemas']['Tour'];
       /** Format: uuid */
       year_uuid?: string;
-      year?: components["schemas"]["Year"];
-      era?: components["schemas"]["Era"];
+      year?: components['schemas']['Year'];
+      era?: components['schemas']['Era'];
       /** Format: date-time */
       date: string;
       /** Format: float */
@@ -1046,7 +1046,7 @@ export interface components {
       source_count: number;
       /** Format: uuid */
       uuid: string;
-      artist: components["schemas"]["Artist"];
+      artist: components['schemas']['Artist'];
     } & {
       artist_id: unknown;
       id: unknown;
@@ -1058,16 +1058,16 @@ export interface components {
       updated_at: string;
       /** Format: uuid */
       artist_uuid: string;
-      venue?: components["schemas"]["VenueWithShowCount"];
+      venue?: components['schemas']['VenueWithShowCount'];
       /** Format: uuid */
       venue_uuid?: string | null;
       /** Format: uuid */
       tour_uuid?: string | null;
-      tour?: components["schemas"]["Tour"];
+      tour?: components['schemas']['Tour'];
       /** Format: uuid */
       year_uuid?: string;
-      year?: components["schemas"]["Year"];
-      era?: components["schemas"]["Era"];
+      year?: components['schemas']['Year'];
+      era?: components['schemas']['Era'];
       /** Format: date-time */
       date: string;
       /** Format: float */
@@ -1083,7 +1083,7 @@ export interface components {
       source_count: number;
       /** Format: uuid */
       uuid: string;
-      slim_artist: components["schemas"]["SlimArtist"];
+      slim_artist: components['schemas']['SlimArtist'];
     } & {
       artist_id: unknown;
       id: unknown;
@@ -1095,16 +1095,16 @@ export interface components {
       updated_at: string;
       /** Format: uuid */
       artist_uuid: string;
-      venue?: components["schemas"]["VenueWithShowCount"];
+      venue?: components['schemas']['VenueWithShowCount'];
       /** Format: uuid */
       venue_uuid?: string | null;
       /** Format: uuid */
       tour_uuid?: string | null;
-      tour?: components["schemas"]["Tour"];
+      tour?: components['schemas']['Tour'];
       /** Format: uuid */
       year_uuid?: string;
-      year?: components["schemas"]["Year"];
-      era?: components["schemas"]["Era"];
+      year?: components['schemas']['Year'];
+      era?: components['schemas']['Era'];
       /** Format: date-time */
       date: string;
       /** Format: float */
@@ -1120,7 +1120,7 @@ export interface components {
       source_count: number;
       /** Format: uuid */
       uuid: string;
-      sources: components["schemas"]["SourceFull"][];
+      sources: components['schemas']['SourceFull'][];
     } & {
       artist_id: unknown;
       id: unknown;
@@ -1154,7 +1154,7 @@ export interface components {
       sort_name: string;
       /** Format: uuid */
       uuid: string;
-      features: components["schemas"]["Features"];
+      features: components['schemas']['Features'];
     } & {
       id: unknown;
     };
@@ -1167,7 +1167,7 @@ export interface components {
       artist_uuid: string;
       /** Format: uuid */
       venue_uuid: string;
-      venue?: components["schemas"]["Venue"];
+      venue?: components['schemas']['Venue'];
       display_date: string;
       is_soundboard: boolean;
       is_remaster: boolean;
@@ -1187,8 +1187,8 @@ export interface components {
       uuid: string;
       /** Format: uuid */
       show_uuid: string;
-      show?: components["schemas"]["Show"];
-      artist: components["schemas"]["SlimArtistWithFeatures"];
+      show?: components['schemas']['Show'];
+      artist: components['schemas']['SlimArtistWithFeatures'];
     } & {
       artist_id: unknown;
       id: unknown;
@@ -1204,7 +1204,7 @@ export interface components {
       artist_uuid: string;
       /** Format: uuid */
       venue_uuid: string;
-      venue?: components["schemas"]["Venue"];
+      venue?: components['schemas']['Venue'];
       display_date: string;
       is_soundboard: boolean;
       is_remaster: boolean;
@@ -1224,18 +1224,18 @@ export interface components {
       uuid: string;
       /** Format: uuid */
       show_uuid: string;
-      show?: components["schemas"]["Show"];
+      show?: components['schemas']['Show'];
       description: string;
       taper_notes: string;
       source: string;
       taper: string;
       transferrer: string;
       lineage: string;
-      flac_type: components["schemas"]["FlacType"];
+      flac_type: components['schemas']['FlacType'];
       /** Format: int32 */
       review_count: number;
-      sets: components["schemas"]["SourceSet"][];
-      links: components["schemas"]["Link"][];
+      sets: components['schemas']['SourceSet'][];
+      links: components['schemas']['Link'][];
     } & {
       artist_id: unknown;
       id: unknown;
@@ -1274,7 +1274,7 @@ export interface components {
       index: number;
       is_encore: boolean;
       name: string;
-      tracks: components["schemas"]["SourceTrack"][];
+      tracks: components['schemas']['SourceTrack'][];
     } & {
       artist_id: unknown;
       id: unknown;
@@ -1318,9 +1318,9 @@ export interface components {
       source_track_uuid: string;
       /** Format: uuid */
       user_uuid: string;
-      app_type: components["schemas"]["SourceTrackPlayAppType"];
-      app_type_description: components["schemas"]["SourceTrackPlayAppType"];
-      track?: components["schemas"]["PlayedSourceTrack"];
+      app_type: components['schemas']['SourceTrackPlayAppType'];
+      app_type_description: components['schemas']['SourceTrackPlayAppType'];
+      track?: components['schemas']['PlayedSourceTrack'];
     };
     /**
      * Format: int32
@@ -1329,8 +1329,8 @@ export interface components {
     SourceTrackPlayAppType: 0 | 1 | 2 | 3;
     SourceTrackPlayResponseEnvelope: {
       success: boolean;
-      error_code: components["schemas"]["ApiErrorCode"];
-      data: components["schemas"]["SourceTrackPlay"];
+      error_code: components['schemas']['ApiErrorCode'];
+      data: components['schemas']['SourceTrackPlay'];
     };
     SourceWithSlimArtist: {
       /** Format: date-time */
@@ -1341,7 +1341,7 @@ export interface components {
       artist_uuid: string;
       /** Format: uuid */
       venue_uuid: string;
-      venue?: components["schemas"]["Venue"];
+      venue?: components['schemas']['Venue'];
       display_date: string;
       is_soundboard: boolean;
       is_remaster: boolean;
@@ -1361,15 +1361,15 @@ export interface components {
       uuid: string;
       /** Format: uuid */
       show_uuid: string;
-      show?: components["schemas"]["Show"];
+      show?: components['schemas']['Show'];
       description: string;
       taper_notes: string;
       source: string;
       taper: string;
       transferrer: string;
       lineage: string;
-      flac_type: components["schemas"]["FlacType"];
-      slim_artist: components["schemas"]["SlimArtist"];
+      flac_type: components['schemas']['FlacType'];
+      slim_artist: components['schemas']['SlimArtist'];
     } & {
       artist_id: unknown;
       id: unknown;
@@ -1434,7 +1434,7 @@ export interface components {
       upstream_identifier: string;
       /** Format: uuid */
       uuid: string;
-      shows: components["schemas"]["Show"][];
+      shows: components['schemas']['Show'][];
     } & {
       artist_id: unknown;
       id: unknown;
@@ -1455,7 +1455,7 @@ export interface components {
       upstream_identifier: string;
       /** Format: uuid */
       uuid: string;
-      slim_artist: components["schemas"]["SlimArtist"];
+      slim_artist: components['schemas']['SlimArtist'];
     } & {
       artist_id: unknown;
       id: unknown;
@@ -1465,7 +1465,7 @@ export interface components {
       url: string;
       description: string;
       credit_line: string;
-      importer?: components["schemas"]["ImporterBase"];
+      importer?: components['schemas']['ImporterBase'];
     } & {
       id: unknown;
     };
@@ -1538,7 +1538,7 @@ export interface components {
       uuid: string;
       /** Format: int32 */
       shows_at_venue: number;
-      shows: components["schemas"]["Show"][];
+      shows: components['schemas']['Show'][];
     } & {
       artist_id: unknown;
       id: unknown;
@@ -1562,7 +1562,7 @@ export interface components {
       sortName: string;
       /** Format: uuid */
       uuid: string;
-      slim_artist: components["schemas"]["SlimArtist"];
+      slim_artist: components['schemas']['SlimArtist'];
     } & {
       artist_id: unknown;
       id: unknown;
@@ -1611,7 +1611,7 @@ export interface components {
       artist_uuid: string;
       /** Format: uuid */
       uuid: string;
-      shows: components["schemas"]["Show"][];
+      shows: components['schemas']['Show'][];
     } & {
       artist_id: unknown;
       id: unknown;

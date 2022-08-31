@@ -1930,10 +1930,10 @@
   resolved "https://registry.yarnpkg.com/@sindresorhus/is/-/is-0.14.0.tgz#9fb3a3cf3132328151f353de4632e01e52102bea"
   integrity sha512-9NET910DNaIPngYnLLPeg+Ogzqsi9uM4mSboU5y6p8S5DzMTVEsJZrawi+BoDNUVBa2DhJqQYUFvMDfgU062LQ==
 
-"@switz/eslint-config@^7.2.0":
-  version "7.2.0"
-  resolved "https://registry.yarnpkg.com/@switz/eslint-config/-/eslint-config-7.2.0.tgz#f548221fbb37d7a71beec727bebcc12a78da0da1"
-  integrity sha512-GpuPHC82/jdYYCxyrd9dlIVV7i3M8WuO+Mc6F5fasHtXRZt4ufX4e33rn+rqxAP/83irfbV9efujA+z/yyhf+A==
+"@switz/eslint-config@^7.3.0":
+  version "7.3.0"
+  resolved "https://registry.yarnpkg.com/@switz/eslint-config/-/eslint-config-7.3.0.tgz#255e50c65ffb6eb1697dc6f7cce6f680908ad048"
+  integrity sha512-iOd+N0GH1oAcExiWZ41+RWFs+c3BUEfz542O6eKnBgLxeQfrjYVx0x/qgKMaDA6OKd10n+o309aEJqFMXYr5Gg==
   dependencies:
     "@babel/eslint-parser" "^7.18.2"
     "@typescript-eslint/eslint-plugin" "^5.26.0"
