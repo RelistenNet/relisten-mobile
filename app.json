@@ -18,7 +18,8 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.alecgorge.ios.Listen-to-the-Dead"
     },
     "android": {
       "adaptiveIcon": {
@@ -28,6 +29,10 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-file-system",
+      "./watermelondb-config-plugin.js"
+    ]
   }
 }
