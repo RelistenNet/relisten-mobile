@@ -16,7 +16,7 @@ export const YearShowsScreen: React.FC<PropsWithChildren<{} & NavigationProps>> 
 
   // TODO: load artist object to set title
 
-  const { isLoading, error, data: shows, dataSource } = useArtistYearShowsQuery(artistId, yearId)();
+  const { isLoading, error, data: shows } = useArtistYearShowsQuery(artistId, yearId)();
 
   if (isLoading || !shows) {
     return <Text>Loading...</Text>;

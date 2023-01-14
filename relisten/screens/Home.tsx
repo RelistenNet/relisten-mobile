@@ -98,7 +98,7 @@ export const HomeScreen: React.FC<PropsWithChildren<{} & NavigationProps>> = ({
   route,
   navigation,
 }) => {
-  const { isLoading, error, data: artists, dataSource } = useAllArtistsQuery();
+  const { isLoading, error, data: artists } = useAllArtistsQuery();
 
   if (isLoading || !artists) {
     return <Text>Loading...</Text>;

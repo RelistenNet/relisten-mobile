@@ -1,10 +1,16 @@
-import wretch from 'wretch';
+import wretch, { ConfiguredMiddleware } from 'wretch';
 import { ArtistWithCounts, FullArtist } from './models/artist';
+
+const loggingMiddleware: ConfiguredMiddleware = (next) => (url, opts) => {
+  console.debug(`[NETWORK] ${opts.method} ${url}`);
+
+  return next(url, opts);
+};
 
 export class RelistenApiClient {
   static API_BASE = 'https://api.relisten.net/api';
 
-  private api = wretch(RelistenApiClient.API_BASE);
+  private api = wretch(RelistenApiClient.API_BASE).middlewares([loggingMiddleware]);
   // TODO: wretch error handling
 
   public artists(): Promise<ArtistWithCounts[]> {

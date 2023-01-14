@@ -11,7 +11,7 @@ import Show from './models/show';
 import Year from './models/year';
 
 logger.log = (...messages) => console.info(...messages);
-logger.warn = (...messages) => console.error(...messages);
+logger.warn = (...messages) => console.warn(...messages);
 logger.error = (...messages) => console.error(...messages);
 
 export interface CopyableFromApi<T extends RelistenObject> {
