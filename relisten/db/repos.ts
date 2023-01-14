@@ -3,7 +3,7 @@ import { Columns, Tables } from './schema';
 import { createRepoQueryHook } from './repo_query_hook';
 import { Q } from '@nozbe/watermelondb';
 import Year from './models/year';
-import Show from './models/show'; // tree-shaking supported!
+import Show from './models/show';
 
 export const useAllArtistsQuery = createRepoQueryHook(
   Tables.artists,

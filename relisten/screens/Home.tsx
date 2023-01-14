@@ -1,4 +1,4 @@
-import React, { PropsWithChildren, useMemo } from 'react';
+import React, { PropsWithChildren, useCallback, useMemo } from 'react';
 import { LayoutAnimation, SectionList, StyleSheet } from 'react-native';
 import { useAllArtistsQuery } from '../db/repos';
 import withObservables from '@nozbe/with-observables';
@@ -19,24 +19,21 @@ const ArtistListItem: React.FC<{ artist: Artist; isFavorite: boolean } & Navigat
   navigation,
 }) => {
   const styles = useArtistListItemStyles();
+  const listItemOnPress = useCallback(() => {
+    navigation.navigate('Years', { artistId: artist.id });
+  }, [artist]);
+  const favoriteOnPress = useCallback(() => {
+    LayoutAnimation.configureNext(DefaultLayoutAnimationConfig);
+    artist.setIsFavorite(!isFavorite);
+  }, [artist, isFavorite]);
 
   return (
-    <ListItem
-      style={styles.listItem}
-      onPress={() => {
-        navigation.navigate('Years', { artistId: artist.id });
-      }}
-    >
+    <ListItem style={styles.listItem} onPress={listItemOnPress}>
       <ListItem.Part middle>
         <Text>{artist.name}</Text>
       </ListItem.Part>
       <ListItem.Part right>
-        <TouchableOpacity
-          onPress={() => {
-            LayoutAnimation.configureNext(DefaultLayoutAnimationConfig);
-            artist.setIsFavorite(!isFavorite);
-          }}
-        >
+        <TouchableOpacity onPress={favoriteOnPress}>
           <Text>favorite: {isFavorite ? 'yes' : 'no'}</Text>
         </TouchableOpacity>
       </ListItem.Part>
