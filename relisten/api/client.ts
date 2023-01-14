@@ -17,7 +17,23 @@ export class RelistenApiClient {
     return this.api.get('/v3/artists').json();
   }
 
+  private inflightArtistRequests: { [artistUuid: string]: Promise<FullArtist> } = {};
+
   public fullNormalizedArtist(artistUuid: string): Promise<FullArtist> {
-    return this.api.get(`/v3/artists/${artistUuid}/normalized`).json();
+    if (!this.inflightArtistRequests[artistUuid]) {
+      const req: Promise<FullArtist> = this.api.get(`/v3/artists/${artistUuid}/normalized`).json();
+
+      this.inflightArtistRequests[artistUuid] = req
+        .catch((err) => {
+          delete this.inflightArtistRequests[artistUuid];
+          throw err;
+        })
+        .then((res) => {
+          delete this.inflightArtistRequests[artistUuid];
+          return res;
+        });
+    }
+
+    return this.inflightArtistRequests[artistUuid];
   }
 }
