@@ -5,14 +5,14 @@ import { useArtistYearShowsQuery } from '../../db/repos';
 import { EnhancedShowsList } from '../../components/shows_list';
 import Show from '../../db/models/show';
 import { AllArtistsTabStackParams } from '../Artist';
+import { NavigationProp, useNavigation } from '@react-navigation/native';
+import { HomeTabsParamList } from '../Home';
 
 type NavigationProps = NativeStackScreenProps<AllArtistsTabStackParams, 'ArtistYearShows'>;
 
-export const YearShowsScreen: React.FC<PropsWithChildren<{} & NavigationProps>> = ({
-  route,
-  navigation,
-}) => {
+export const YearShowsScreen: React.FC<PropsWithChildren<{} & NavigationProps>> = ({ route }) => {
   const { artistId, yearId } = route.params;
+  const navigation = useNavigation<NavigationProp<HomeTabsParamList>>();
 
   // TODO: load artist object to set title
 
@@ -26,7 +26,15 @@ export const YearShowsScreen: React.FC<PropsWithChildren<{} & NavigationProps>> 
     <View useSafeArea flex style={{ width: '100%' }}>
       <EnhancedShowsList
         shows={shows}
-        onItemPress={(show: Show) => console.log('Tapped', show.id)}
+        onItemPress={(show: Show) =>
+          navigation.navigate('AllArtistsTab', {
+            screen: 'ArtistShowSources',
+            params: {
+              artistId: artistId,
+              showId: show.id,
+            },
+          })
+        }
       />
     </View>
   );

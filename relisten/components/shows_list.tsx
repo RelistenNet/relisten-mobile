@@ -16,7 +16,7 @@ const ShowListItem: React.FC<{ show: Show; isFavorite: boolean; onPress?: (show:
   const styles = useShowListItemStyles();
 
   return (
-    <ListItem style={styles.listItem} onPress={onPress}>
+    <ListItem style={styles.listItem} onPress={() => onPress && onPress(show)}>
       <ListItem.Part middle>
         <View style={{ flexDirection: 'column' }}>
           <Text>{show.displayDate}</Text>
