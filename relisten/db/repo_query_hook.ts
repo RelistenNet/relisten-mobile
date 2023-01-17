@@ -39,7 +39,7 @@ export function upsertDbModelsFromNetwork<
       preparedOperations.push(dbResultsById[idToRemove].prepareDestroyPermanently());
     }
 
-    console.debug(newNetworkUuids.length, 'newNetworkUuids=', newNetworkUuids);
+    console.debug('newNetworkUuids=', newNetworkUuids.length);
 
     for (const newUuid of newNetworkUuids) {
       const apiModel = networkResultsByUuid[newUuid];
@@ -194,7 +194,15 @@ export const createRepoQueryHook = <
       });
     }, []);
 
-    return { isLoading, isNetworkLoading, data, error };
+    return {
+      isLoading,
+      isNetworkLoading,
+      showLoadingIndicator:
+        isLoading ||
+        (isNetworkLoading && (subject$.value === undefined || subject$.value.length === 0)),
+      data,
+      error,
+    };
   };
 };
 

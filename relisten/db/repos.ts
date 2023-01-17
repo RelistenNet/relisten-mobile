@@ -14,6 +14,12 @@ import * as R from 'remeda';
 import { FullArtist } from '../api/models/artist';
 import { Clause } from '@nozbe/watermelondb/QueryDescription';
 import dayjs from 'dayjs';
+import SetlistSong from './models/setlist_song';
+import { SetlistSongWithPlayCount } from '../api/models/setlist_song';
+import Venue from './models/venue';
+import { VenueWithShowCounts } from '../api/models/venue';
+import Tour from './models/tour';
+import { TourWithShowCount } from '../api/models/tour';
 
 const MIN_TIME_BETWEEN_FULL_ARTIST_API_CALLS_MS = 10 * 60 * 1000;
 
@@ -39,10 +45,12 @@ async function upsertFullArtistProp<
   networkResults: TApiModel[],
   ...query: Clause[]
 ): Promise<TModel[]> {
+  console.debug('called upsertFullArtistProp for', table);
   const dbResults = await database
     .get<TModel>(table)
     .query(...query)
     .fetch();
+  console.debug('got dbResults', dbResults.length, 'for', table);
 
   const dbResultsById = R.flatMapToObj(dbResults, (model) => [[model.id, model]]);
 
@@ -50,7 +58,7 @@ async function upsertFullArtistProp<
   return await defaultNetworkResultUpsertBehavior(database, table, networkResults, dbResultsById);
 }
 
-let lastFullArtistUpsertStartedAt: dayjs.Dayjs | undefined = undefined;
+const lastFullArtistUpsertStartedAt: { [artistId: string]: dayjs.Dayjs } = {};
 
 async function normalizedArtistNetworkResultUpsertBehavior<
   TModel extends Model & CopyableFromApi<TApiModel> & UpdatableFromApi,
@@ -64,39 +72,76 @@ async function normalizedArtistNetworkResultUpsertBehavior<
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   dbResultsById: Record<string, TModel>
 ): Promise<TModel[]> {
-  lastFullArtistUpsertStartedAt = dayjs();
-
   const artistId = networkResults.artist.uuid;
+
+  lastFullArtistUpsertStartedAt[artistId] = dayjs();
 
   const promises: { [table: string]: Promise<Array<Model & UpdatableFromApi>> } = {};
 
-  promises[Tables.years] = upsertFullArtistProp(
-    database,
-    Tables.years,
-    networkResults.years,
-    Q.where(Columns.years.artistId, artistId)
-  );
+  return await database.write(async (writer) => {
+    promises[Tables.years] = upsertFullArtistProp(
+      database,
+      Tables.years,
+      networkResults.years,
+      Q.where(Columns.years.artistId, artistId)
+    );
 
-  promises[Tables.shows] = upsertFullArtistProp(
-    database,
-    Tables.shows,
-    networkResults.shows,
-    Q.where(Columns.shows.artistId, artistId)
-  );
+    promises[Tables.shows] = upsertFullArtistProp(
+      database,
+      Tables.shows,
+      networkResults.shows,
+      Q.where(Columns.shows.artistId, artistId)
+    );
 
-  // TODO: venues, tours, songs
+    if (networkResults.artist.features.tours) {
+      promises[Tables.tours] = writer.callWriter(
+        upsertFullArtistProp<Tour, TourWithShowCount>(
+          database,
+          Tables.tours,
+          networkResults.tours,
+          Q.where(Columns.tours.artistId, artistId)
+        )
+      );
+    }
 
-  await Promise.all(Object.values(promises));
+    promises[Tables.venues] = writer.callWriter(
+      upsertFullArtistProp<Venue, VenueWithShowCounts>(
+        database,
+        Tables.venues,
+        networkResults.venues,
+        Q.where(Columns.venues.artistId, artistId)
+      )
+    );
 
-  return (await promises[table]) as unknown as TModel[];
+    if (networkResults.artist.features.songs) {
+      promises[Tables.setlistSongs] = writer.callWriter(
+        upsertFullArtistProp<SetlistSong, SetlistSongWithPlayCount>(
+          database,
+          Tables.setlistSongs,
+          networkResults.songs,
+          Q.where(Columns.setlistSongs.artistId, artistId)
+        )
+      );
+    }
+
+    console.debug(`Going to wait on ${Object.values(promises).length} promises`);
+    await Promise.all(Object.values(promises));
+    console.debug(`Finished waiting on ${Object.values(promises).length} promises`);
+
+    return (await promises[table]) as unknown as TModel[];
+  });
 }
 
-function shouldMakeFullArtistApiRequest(): boolean {
-  if (!lastFullArtistUpsertStartedAt) {
-    return true;
-  }
+function shouldMakeFullArtistApiRequest(artistId: string): () => boolean {
+  return () => {
+    const lastStartedAt = lastFullArtistUpsertStartedAt[artistId];
 
-  return dayjs().diff(lastFullArtistUpsertStartedAt) >= MIN_TIME_BETWEEN_FULL_ARTIST_API_CALLS_MS;
+    if (!lastStartedAt) {
+      return true;
+    }
+
+    return dayjs().diff(lastStartedAt) >= MIN_TIME_BETWEEN_FULL_ARTIST_API_CALLS_MS;
+  };
 }
 
 export const useArtistYearsQuery = (artistId: string) => {
@@ -104,7 +149,7 @@ export const useArtistYearsQuery = (artistId: string) => {
     Tables.years,
     (years) => years.query(Q.where(Columns.years.artistId, artistId)).observe(),
     (apiClient) => apiClient.fullNormalizedArtist(artistId),
-    shouldMakeFullArtistApiRequest,
+    shouldMakeFullArtistApiRequest(artistId),
     normalizedArtistNetworkResultUpsertBehavior,
     (years: Year[]) => {
       years.sort((a, b) => {
@@ -121,7 +166,7 @@ export const useArtistYearShowsQuery = (artistId: string, yearId: string) => {
     Tables.shows,
     (shows) => shows.query(Q.where(Columns.shows.yearId, yearId)).observe(),
     (apiClient) => apiClient.fullNormalizedArtist(artistId),
-    shouldMakeFullArtistApiRequest,
+    shouldMakeFullArtistApiRequest(artistId),
     normalizedArtistNetworkResultUpsertBehavior,
     (shows: Show[]) => {
       shows.sort((a, b) => {

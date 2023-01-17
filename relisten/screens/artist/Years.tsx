@@ -1,29 +1,29 @@
 import React, { PropsWithChildren, useMemo } from 'react';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../../App';
 import { ListItem, Text, TouchableOpacity, View } from 'react-native-ui-lib';
 import withObservables from '@nozbe/with-observables';
-import Year from '../db/models/year';
 import { LayoutAnimation, SectionList, StyleSheet } from 'react-native';
-import { DefaultLayoutAnimationConfig } from '../layout_animation_config';
-import { database, Favorited } from '../db/database';
+import { database, Favorited } from '../../db/database';
+import { DefaultLayoutAnimationConfig } from '../../layout_animation_config';
+import { asFavorited } from '../../db/models/favorites';
 import { Observable } from 'rxjs';
-import { asFavorited } from '../db/models/favorites';
-import { useArtistYearsQuery } from '../db/repos';
+import { useArtistYearsQuery } from '../../db/repos';
+import Year from '../../db/models/year';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { AllArtistsTabStackParams } from '../Artist';
+import { NavigationProp, useNavigation } from '@react-navigation/native';
+import { HomeTabsParamList } from '../Home';
 
-type NavigationProps = NativeStackScreenProps<RootStackParamList, 'Years'>;
+type NavigationProps = NativeStackScreenProps<AllArtistsTabStackParams, 'ArtistYears'>;
 
-export const YearsScreen: React.FC<PropsWithChildren<{} & NavigationProps>> = ({
-  route,
-  navigation,
-}) => {
+export const YearsScreen: React.FC<PropsWithChildren<NavigationProps>> = ({ route }) => {
+  const navigation = useNavigation<NavigationProp<HomeTabsParamList>>();
   const { artistId } = route.params;
 
   // TODO: load artist object to set title
 
-  const { isLoading, error, data: years } = useArtistYearsQuery(artistId)();
+  const { showLoadingIndicator, error, data: years } = useArtistYearsQuery(artistId)();
 
-  if (isLoading || !years) {
+  if (showLoadingIndicator || !years) {
     return <Text>Loading...</Text>;
   }
 
@@ -32,7 +32,13 @@ export const YearsScreen: React.FC<PropsWithChildren<{} & NavigationProps>> = ({
       <EnhancedYearsList
         years={years}
         onItemPress={(year: Year) =>
-          navigation.navigate('YearShows', { artistId: year.artist.id!, yearId: year.id })
+          navigation.navigate('AllArtistsTab', {
+            screen: 'ArtistYearShows',
+            params: {
+              artistId: year.artist.id!,
+              yearId: year.id,
+            },
+          })
         }
       />
     </View>

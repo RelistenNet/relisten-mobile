@@ -1,15 +1,13 @@
-import { Model, Q, Relation } from '@nozbe/watermelondb';
+import { Model, Relation } from '@nozbe/watermelondb';
 import { CopyableFromApi, Favoritable, UpdatableFromApi } from '../database';
 import { Show as ApiShow } from '../../api/models/show';
-import type { UserListEntry } from './user_list';
+import { onListsProperty } from './user_list';
 import { Columns, Tables } from '../schema';
-import { date, field, lazy, relation, writer } from '@nozbe/watermelondb/decorators';
+import { date, field, lazy, relation } from '@nozbe/watermelondb/decorators';
 import dayjs from 'dayjs';
 import type Year from './year';
 import type Artist from './artist';
-import { UserList, UserListSpecialType } from './user_list';
-import { distinctUntilChanged, map as map$ } from 'rxjs/operators';
-import { findOrCreateFavoritesList } from './favorites';
+import { defaultSetIsFavoriteBehavior, isFavoriteProperty } from './favorites';
 
 const Column = Columns.shows;
 
@@ -17,7 +15,7 @@ export default class Show
   extends Model
   implements CopyableFromApi<ApiShow>, UpdatableFromApi, Favoritable
 {
-  static table = 'shows';
+  static table = Tables.shows;
 
   @relation(Tables.years, Columns.shows.yearId) year!: Relation<Year>;
   @relation(Tables.artists, Columns.shows.artistId) artist!: Relation<Artist>;
@@ -35,53 +33,11 @@ export default class Show
   @field(Column.hasStreamableFlacSource) hasStreamableFlacSource!: boolean;
   @field(Column.sourceCount) sourceCount!: number;
 
-  @lazy onLists = this.collections
-    .get<UserList>(Tables.userLists)
-    .query(Q.on(Tables.userListEntries, Columns.userListEntries.showId, this.id));
-  favoriteIdColumn = Columns.userListEntries.showId;
+  favoriteIdProperty = 'showId' as const;
+  @lazy onLists = onListsProperty(this);
+  @lazy isFavorite = isFavoriteProperty(this);
 
-  matchesEntry(entry: UserListEntry) {
-    return entry.show.id === this.id;
-  }
-
-  @lazy isFavorite = this.onLists.observe().pipe(
-    map$((lists) => {
-      for (const list of lists) {
-        if (list.specialType == UserListSpecialType.Favorites) {
-          return true;
-        }
-      }
-
-      return false;
-    }),
-    distinctUntilChanged()
-  );
-
-  @writer async setIsFavorite(favorite: boolean): Promise<void> {
-    const userList = await findOrCreateFavoritesList(this.database);
-
-    const userListEntries = this.collections.get<UserListEntry>(Tables.userListEntries);
-
-    const entries = await userListEntries
-      .query(
-        Q.and(
-          Q.where(Columns.userListEntries.onUserListId, userList.id),
-          Q.where(Columns.userListEntries.showId, this.id)
-        )
-      )
-      .fetch();
-
-    const dbIsFavorited = entries.length > 0;
-
-    if (favorite && !dbIsFavorited) {
-      await userListEntries.create((entry) => {
-        entry.show.id = this.id;
-        entry.onUserList.id = userList.id;
-      });
-    } else if (!favorite && dbIsFavorited) {
-      await entries[0].destroyPermanently();
-    }
-  }
+  setIsFavorite = defaultSetIsFavoriteBehavior(this);
 
   copyFromApi(relistenObj: ApiShow): void {
     this.relistenCreatedAt = dayjs(relistenObj.created_at).toDate();

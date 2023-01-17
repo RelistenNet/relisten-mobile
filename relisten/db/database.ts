@@ -1,7 +1,7 @@
 import Artist from './models/artist';
-import { Database, Model } from '@nozbe/watermelondb';
+import { Database, Model, Query } from '@nozbe/watermelondb';
 import SQLiteAdapter from '@nozbe/watermelondb/adapters/sqlite';
-import { relistenDbSchema } from './schema';
+import { ColumnPropertyNames, relistenDbSchema } from './schema';
 import { RelistenObject } from '../api/models/relisten';
 import { UserList, UserListEntry } from './models/user_list';
 import { setGenerator } from '@nozbe/watermelondb/utils/common/randomId';
@@ -9,6 +9,13 @@ import { v4 as uuidV4 } from 'uuid';
 import logger from '@nozbe/watermelondb/utils/common/logger';
 import Show from './models/show';
 import Year from './models/year';
+import { Observable } from 'rxjs';
+import Source from './models/source';
+import SourceSet from './models/source_set';
+import SourceTrack from './models/source_track';
+import Tour from './models/tour';
+import Venue from './models/venue';
+import SetlistSong from './models/setlist_song';
 
 logger.log = (...messages) => console.info(...messages);
 logger.warn = (...messages) => console.warn(...messages);
@@ -22,13 +29,14 @@ export interface UpdatableFromApi {
   relistenUpdatedAt: Date;
 }
 
-export interface Favoritable {
-  favoriteIdColumn: string;
-  matchesEntry(entry: UserListEntry): boolean;
+export interface Favoritable extends Model {
+  favoriteIdProperty: ColumnPropertyNames<'userListEntries'>;
   setIsFavorite(favorite: boolean): Promise<void>;
+  onLists: Query<UserList>;
+  isFavorite: Observable<boolean>;
 }
 
-export interface Favorited<M extends Model & Favoritable> {
+export interface Favorited<M extends Favoritable> {
   model: M;
   isFavorite: boolean;
 }
@@ -58,5 +66,22 @@ const adapter = new SQLiteAdapter({
 
 export const database = new Database({
   adapter,
-  modelClasses: [Artist, UserList, UserListEntry, Year, Show],
+  modelClasses: [
+    Artist,
+    UserList,
+    UserListEntry,
+    Year,
+    Show,
+    Source,
+    SourceSet,
+    SourceTrack,
+    Tour,
+    Venue,
+    Year,
+    SetlistSong,
+  ],
 });
+
+// database.write(async () => {
+//   database.unsafeResetDatabase();
+// });

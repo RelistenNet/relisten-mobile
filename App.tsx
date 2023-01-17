@@ -3,43 +3,17 @@ import 'react-native-get-random-values';
 import 'uuid';
 
 import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet } from 'react-native';
 import { RelistenApiProvider } from './relisten/api/context';
 import { HomeScreen } from './relisten/screens/Home';
-import { YearsScreen } from './relisten/screens/Years';
-import { YearShowsScreen } from './relisten/screens/YearShows';
-
-export type RootStackParamList = {
-  Home: undefined;
-  Years: { artistId: string };
-  YearShows: { artistId: string; yearId: string };
-};
-
-const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
   return (
     <NavigationContainer>
       <RelistenApiProvider>
-        <Stack.Navigator>
-          <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'Relisten' }} />
-          <Stack.Screen name="Years" component={YearsScreen} />
-          <Stack.Screen name="YearShows" component={YearShowsScreen} />
-        </Stack.Navigator>
+        <HomeScreen />
         <StatusBar style="auto" />
       </RelistenApiProvider>
     </NavigationContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    width: '100%',
-    // backgroundColor: 'red',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});

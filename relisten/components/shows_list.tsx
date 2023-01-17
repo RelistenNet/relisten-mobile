@@ -61,7 +61,7 @@ const ShowList: React.FC<{ shows: Favorited<Show>[]; onItemPress?: (show: Show) 
   const sectionedShow = useMemo(() => {
     return [
       { title: 'Favorites', data: shows.filter((a) => a.isFavorite) },
-      { title: `${shows.length + 1} Show`, data: shows },
+      { title: `${shows.length + 1} Shows`, data: shows },
     ];
   }, [shows]);
 

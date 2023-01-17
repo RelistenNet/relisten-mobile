@@ -1,12 +1,12 @@
 import React, { PropsWithChildren } from 'react';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../../App';
 import { Text, View } from 'react-native-ui-lib';
-import { useArtistYearShowsQuery } from '../db/repos';
-import { EnhancedShowsList } from '../components/shows_list';
-import Show from '../db/models/show';
+import { useArtistYearShowsQuery } from '../../db/repos';
+import { EnhancedShowsList } from '../../components/shows_list';
+import Show from '../../db/models/show';
+import { AllArtistsTabStackParams } from '../Artist';
 
-type NavigationProps = NativeStackScreenProps<RootStackParamList, 'YearShows'>;
+type NavigationProps = NativeStackScreenProps<AllArtistsTabStackParams, 'ArtistYearShows'>;
 
 export const YearShowsScreen: React.FC<PropsWithChildren<{} & NavigationProps>> = ({
   route,
@@ -16,9 +16,9 @@ export const YearShowsScreen: React.FC<PropsWithChildren<{} & NavigationProps>> 
 
   // TODO: load artist object to set title
 
-  const { isLoading, error, data: shows } = useArtistYearShowsQuery(artistId, yearId)();
+  const { showLoadingIndicator, error, data: shows } = useArtistYearShowsQuery(artistId, yearId)();
 
-  if (isLoading || !shows) {
+  if (showLoadingIndicator || !shows) {
     return <Text>Loading...</Text>;
   }
 

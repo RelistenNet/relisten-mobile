@@ -1,12 +1,10 @@
-import Artist from '../../db/models/artist';
 import { VenueWithShowCounts } from './venue';
 import { SetlistSongWithPlayCount } from './setlist_song';
 import { TourWithShowCount } from './tour';
 import { Show } from './show';
 import { Year } from './year';
 
-export interface ArtistWithCounts {
-  /** Format: date-time */
+export interface SlimArtist {
   created_at: string;
   /** Format: date-time */
   updated_at: string;
@@ -18,8 +16,18 @@ export interface ArtistWithCounts {
   sort_name: string;
   /** Format: uuid */
   uuid: string;
+}
+
+export interface SlimArtistWithFeatures extends SlimArtist {
   features: Features;
+}
+
+export interface Artist extends SlimArtistWithFeatures {
+  /** Format: date-time */
   upstream_sources: ArtistUpstreamSource[];
+}
+
+export interface ArtistWithCounts extends Artist {
   /** Format: int32 */
   show_count: number;
   /** Format: int32 */
