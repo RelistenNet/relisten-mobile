@@ -4,6 +4,7 @@ import {
   createRepoQueryHook,
   createSimpleRepoQueryHook,
   defaultNetworkResultUpsertBehavior,
+  upsertNetworkResult,
 } from './repo_query_hook';
 import { Database, Model, Q } from '@nozbe/watermelondb';
 import Year from './models/year';
@@ -20,6 +21,7 @@ import Venue from './models/venue';
 import { VenueWithShowCounts } from '../api/models/venue';
 import Tour from './models/tour';
 import { TourWithShowCount } from '../api/models/tour';
+import { WriterInterface } from '@nozbe/watermelondb/Database';
 
 const MIN_TIME_BETWEEN_FULL_ARTIST_API_CALLS_MS = 10 * 60 * 1000;
 
@@ -43,6 +45,7 @@ async function upsertFullArtistProp<
   database: Database,
   table: string,
   networkResults: TApiModel[],
+  writer: WriterInterface,
   ...query: Clause[]
 ): Promise<TModel[]> {
   console.debug('called upsertFullArtistProp for', table);
@@ -55,7 +58,7 @@ async function upsertFullArtistProp<
   const dbResultsById = R.flatMapToObj(dbResults, (model) => [[model.id, model]]);
 
   console.debug('calling defaultNetworkResultUpsertBehavior for', table);
-  return await defaultNetworkResultUpsertBehavior(database, table, networkResults, dbResultsById);
+  return await upsertNetworkResult(database, table, networkResults, dbResultsById, writer);
 }
 
 const lastFullArtistUpsertStartedAt: { [artistId: string]: dayjs.Dayjs } = {};
@@ -83,6 +86,7 @@ async function normalizedArtistNetworkResultUpsertBehavior<
       database,
       Tables.years,
       networkResults.years,
+      writer,
       Q.where(Columns.years.artistId, artistId)
     );
 
@@ -90,37 +94,35 @@ async function normalizedArtistNetworkResultUpsertBehavior<
       database,
       Tables.shows,
       networkResults.shows,
+      writer,
       Q.where(Columns.shows.artistId, artistId)
     );
 
     if (networkResults.artist.features.tours) {
-      promises[Tables.tours] = writer.callWriter(
-        upsertFullArtistProp<Tour, TourWithShowCount>(
-          database,
-          Tables.tours,
-          networkResults.tours,
-          Q.where(Columns.tours.artistId, artistId)
-        )
+      promises[Tables.tours] = upsertFullArtistProp<Tour, TourWithShowCount>(
+        database,
+        Tables.tours,
+        networkResults.tours,
+        writer,
+        Q.where(Columns.tours.artistId, artistId)
       );
     }
 
-    promises[Tables.venues] = writer.callWriter(
-      upsertFullArtistProp<Venue, VenueWithShowCounts>(
-        database,
-        Tables.venues,
-        networkResults.venues,
-        Q.where(Columns.venues.artistId, artistId)
-      )
+    promises[Tables.venues] = upsertFullArtistProp<Venue, VenueWithShowCounts>(
+      database,
+      Tables.venues,
+      networkResults.venues,
+      writer,
+      Q.where(Columns.venues.artistId, artistId)
     );
 
     if (networkResults.artist.features.songs) {
-      promises[Tables.setlistSongs] = writer.callWriter(
-        upsertFullArtistProp<SetlistSong, SetlistSongWithPlayCount>(
-          database,
-          Tables.setlistSongs,
-          networkResults.songs,
-          Q.where(Columns.setlistSongs.artistId, artistId)
-        )
+      promises[Tables.setlistSongs] = upsertFullArtistProp<SetlistSong, SetlistSongWithPlayCount>(
+        database,
+        Tables.setlistSongs,
+        networkResults.songs,
+        writer,
+        Q.where(Columns.setlistSongs.artistId, artistId)
       );
     }
 

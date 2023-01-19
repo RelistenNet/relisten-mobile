@@ -7,13 +7,14 @@ import { useEffect, useState } from 'react';
 import { useRelistenApi } from '../api/context';
 import * as R from 'remeda';
 import dayjs from 'dayjs';
+import { WriterInterface } from '@nozbe/watermelondb/Database';
 
 export enum RepoQueryDataSource {
   Database = 1,
   Network,
 }
 
-export function upsertDbModelsFromNetwork<
+export async function upsertDbModelsFromNetwork<
   TModel extends Model & CopyableFromApi<TApiModel> & UpdatableFromApi,
   TApiModel extends RelistenObject & RelistenUpdatableObject
 >(
@@ -22,76 +23,76 @@ export function upsertDbModelsFromNetwork<
   dbIds: string[],
   networkUuids: string[],
   dbResultsById: Record<string, TModel>,
-  networkResultsByUuid: Record<string, TApiModel>
+  networkResultsByUuid: Record<string, TApiModel>,
+  writer: WriterInterface
 ): Promise<TModel[]> {
   const dbIdsToRemove = R.difference(dbIds, networkUuids);
   const newNetworkUuids = R.difference(networkUuids, dbIds);
   const idsToPossiblyUpdate = R.intersection(dbIds, networkUuids);
   const idsToUpdate: string[] = [];
 
-  return database.write(async (writer) => {
-    const preparedOperations: TModel[] = [];
-    const netResults: TModel[] = [];
+  const preparedOperations: TModel[] = [];
+  const netResults: TModel[] = [];
 
-    console.debug(dbIdsToRemove.length, 'dbIdsToRemove=', dbIdsToRemove);
+  console.debug(dbIdsToRemove.length, 'dbIdsToRemove=', dbIdsToRemove);
 
-    for (const idToRemove of dbIdsToRemove) {
-      preparedOperations.push(dbResultsById[idToRemove].prepareDestroyPermanently());
+  for (const idToRemove of dbIdsToRemove) {
+    preparedOperations.push(dbResultsById[idToRemove].prepareDestroyPermanently());
+  }
+
+  console.debug('newNetworkUuids=', newNetworkUuids.length);
+
+  for (const newUuid of newNetworkUuids) {
+    const apiModel = networkResultsByUuid[newUuid];
+
+    const newModel = database.get<TModel>(table).prepareCreate((model) => {
+      model._raw.id = apiModel.uuid;
+      model.copyFromApi(apiModel);
+    });
+
+    preparedOperations.push(newModel);
+    netResults.push(newModel);
+  }
+
+  for (const id of idsToPossiblyUpdate) {
+    const dbModel = dbResultsById[id];
+    const apiModel = networkResultsByUuid[id];
+
+    if (dayjs(apiModel.updated_at).toDate().getTime() > dbModel.relistenUpdatedAt.getTime()) {
+      idsToUpdate.push(id);
     }
+  }
 
-    console.debug('newNetworkUuids=', newNetworkUuids.length);
+  console.debug(idsToUpdate.length, 'idsToUpdate=', idsToUpdate);
 
-    for (const newUuid of newNetworkUuids) {
-      const apiModel = networkResultsByUuid[newUuid];
+  for (const id of idsToUpdate) {
+    const dbModel = dbResultsById[id];
+    const apiModel = networkResultsByUuid[id];
 
-      const newModel = database.get<TModel>(table).prepareCreate((model) => {
-        model._raw.id = apiModel.uuid;
-        model.copyFromApi(apiModel);
-      });
+    const updateModel = dbModel.prepareUpdate((model) => {
+      model.copyFromApi(apiModel);
+    });
 
-      preparedOperations.push(newModel);
-      netResults.push(newModel);
-    }
+    preparedOperations.push(updateModel);
+    netResults.push(updateModel);
+  }
 
-    for (const id of idsToPossiblyUpdate) {
-      const dbModel = dbResultsById[id];
-      const apiModel = networkResultsByUuid[id];
+  await writer.batch(...preparedOperations);
 
-      if (dayjs(apiModel.updated_at).toDate().getTime() > dbModel.relistenUpdatedAt.getTime()) {
-        idsToUpdate.push(id);
-      }
-    }
+  console.debug(table, 'netResults', netResults.length);
 
-    console.debug(idsToUpdate.length, 'idsToUpdate=', idsToUpdate);
-
-    for (const id of idsToUpdate) {
-      const dbModel = dbResultsById[id];
-      const apiModel = networkResultsByUuid[id];
-
-      const updateModel = dbModel.prepareUpdate((model) => {
-        model.copyFromApi(apiModel);
-      });
-
-      preparedOperations.push(updateModel);
-      netResults.push(updateModel);
-    }
-
-    await writer.batch(...preparedOperations);
-
-    console.debug(table, 'netResults', netResults.length);
-
-    return netResults;
-  });
+  return netResults;
 }
 
-export function defaultNetworkResultUpsertBehavior<
+export function upsertNetworkResult<
   TModel extends Model & CopyableFromApi<TApiModel> & UpdatableFromApi,
   TApiModel extends RelistenObject & RelistenUpdatableObject
 >(
   database: Database,
   table: string,
   networkResults: TApiModel[],
-  dbResultsById: Record<string, TModel>
+  dbResultsById: Record<string, TModel>,
+  writer: WriterInterface
 ): Promise<TModel[]> {
   const networkResultsByUuid = R.flatMapToObj(networkResults, (apiModel) => [
     [apiModel.uuid, apiModel],
@@ -108,7 +109,22 @@ export function defaultNetworkResultUpsertBehavior<
     dbIds,
     networkUuids,
     dbResultsById,
-    networkResultsByUuid
+    networkResultsByUuid,
+    writer
+  );
+}
+
+export function defaultNetworkResultUpsertBehavior<
+  TModel extends Model & CopyableFromApi<TApiModel> & UpdatableFromApi,
+  TApiModel extends RelistenObject & RelistenUpdatableObject
+>(
+  database: Database,
+  table: string,
+  networkResults: TApiModel[],
+  dbResultsById: Record<string, TModel>
+): Promise<TModel[]> {
+  return database.write((writer) =>
+    upsertNetworkResult(database, table, networkResults, dbResultsById, writer)
   );
 }
 

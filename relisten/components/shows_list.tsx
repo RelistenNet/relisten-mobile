@@ -49,7 +49,7 @@ const EnhancedShowListItem = enhanceShow(ShowListItem);
 const useShowListItemStyles = () =>
   StyleSheet.create({
     listItem: {
-      paddingHorizontal: 8,
+      padding: 8,
       width: '100%',
     },
   });
@@ -61,7 +61,7 @@ const ShowList: React.FC<{ shows: Favorited<Show>[]; onItemPress?: (show: Show) 
   const sectionedShow = useMemo(() => {
     return [
       { title: 'Favorites', data: shows.filter((a) => a.isFavorite) },
-      { title: `${shows.length + 1} Shows`, data: shows },
+      { title: `${shows.length} Shows`, data: shows },
     ];
   }, [shows]);
 

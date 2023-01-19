@@ -1,0 +1,17 @@
+diff --git a/node_modules/@nozbe/watermelondb/Database/index.d.ts b/node_modules/@nozbe/watermelondb/Database/index.d.ts
+index 607cdd3..7adfcb5 100644
+--- a/node_modules/@nozbe/watermelondb/Database/index.d.ts
++++ b/node_modules/@nozbe/watermelondb/Database/index.d.ts
+@@ -11,10 +11,10 @@ declare module '@nozbe/watermelondb/Database' {
+   import { Class } from '@nozbe/watermelondb/utils/common'
+   import { Observable } from 'rxjs'
+ 
+-  interface ReaderInterface {
++  export interface ReaderInterface {
+     callReader<T>(work: () => Promise<T>): Promise<T>
+   }
+-  interface WriterInterface extends ReaderInterface {
++  export interface WriterInterface extends ReaderInterface {
+     callWriter<T>(work: () => Promise<T>): Promise<T>
+     batch(...records: (Model | null | void | false | Promise<void>)[]): Promise<void>
+   }
