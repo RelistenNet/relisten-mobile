@@ -17,15 +17,22 @@
     "assetBundlePatterns": [
       "**/*"
     ],
+    "owner": "relisten",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.alecgorge.ios.Listen-to-the-Dead"
     },
     "android": {
+      "package": "net.relisten.android",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
-      }
+      },
+      "permissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.INTERNET"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -33,6 +40,11 @@
     "plugins": [
       "expo-file-system",
       "./watermelondb-config-plugin.js"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "3b18b7db-fdf8-4a2c-8c24-19e24a8fd3a8"
+      }
+    }
   }
 }
