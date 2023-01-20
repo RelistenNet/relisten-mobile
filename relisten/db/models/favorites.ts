@@ -14,6 +14,7 @@ export async function findOrCreateFavoritesList(database: Database): Promise<Use
   let userList: UserList;
 
   if (lists.length === 0) {
+    // TODO: make this a migration so this function doesn't need a write block
     userList = await database.write(async () => {
       return await userLists.create((userList) => {
         userList.specialType = UserListSpecialType.Favorites;
@@ -82,33 +83,34 @@ export function asFavorited<T extends Favoritable & Model>(
 export function defaultSetIsFavoriteBehavior(
   model: Favoritable
 ): (favorite: boolean) => Promise<void> {
-  const favoriteBehavior = async (favorite: boolean): Promise<void> => {
-    const userList = await findOrCreateFavoritesList(model.database);
+  return async (favorite: boolean) => {
+    await model.database.write(async (writer) => {
+      // const userList: UserList = await writer.callWriter(findOrCreateFavoritesList(model.database));
+      const userList: UserList = await findOrCreateFavoritesList(model.database);
 
-    const userListEntries = model.database.collections.get<UserListEntry>(Tables.userListEntries);
+      const userListEntries = model.database.collections.get<UserListEntry>(Tables.userListEntries);
 
-    const entries = await userListEntries
-      .query(
-        Q.and(
-          Q.where(Columns.userListEntries.onUserListId, userList.id),
-          Q.where(Columns.userListEntries[model.favoriteIdProperty], model.id)
+      const entries = await userListEntries
+        .query(
+          Q.and(
+            Q.where(Columns.userListEntries.onUserListId, userList.id),
+            Q.where(Columns.userListEntries[model.favoriteIdProperty], model.id)
+          )
         )
-      )
-      .fetch();
+        .fetch();
 
-    const dbIsFavorited = entries.length > 0;
+      const dbIsFavorited = entries.length > 0;
 
-    if (favorite && !dbIsFavorited) {
-      await userListEntries.create((entry) => {
-        entry.source.id = model.id;
-        entry.onUserList.id = userList.id;
-      });
-    } else if (!favorite && dbIsFavorited) {
-      await entries[0].destroyPermanently();
-    }
+      if (favorite && !dbIsFavorited) {
+        await userListEntries.create((entry) => {
+          entry[model.favoriteIdProperty] = model.id;
+          entry.onUserList.id = userList.id;
+        });
+      } else if (!favorite && dbIsFavorited) {
+        await entries[0].destroyPermanently();
+      }
+    });
   };
-
-  return (favorite: boolean) => model.database.write(() => favoriteBehavior(favorite));
 }
 
 export function isFavoriteProperty(model: Favoritable) {
