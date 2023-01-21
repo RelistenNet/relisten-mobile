@@ -14,7 +14,7 @@ export const YearShowsScreen: React.FC<PropsWithChildren<{} & NavigationProps>> 
   const { artistId, yearId } = route.params;
   const navigation = useNavigation<NavigationProp<HomeTabsParamList>>();
 
-  // TODO: load artist object to set title
+  // TODO: load artist and year object to set title
 
   const { showLoadingIndicator, error, data: shows } = useArtistYearShowsQuery(artistId, yearId)();
 

@@ -1,8 +1,11 @@
 import wretch, { ConfiguredMiddleware } from 'wretch';
+import { log } from '../util/logging';
 import { ArtistWithCounts, FullArtist } from './models/artist';
 
+const logger = log.extend('network');
+
 const loggingMiddleware: ConfiguredMiddleware = (next) => (url, opts) => {
-  console.debug(`[NETWORK] ${opts.method} ${url}`);
+  logger.info(`${opts.method} ${url}`);
 
   return next(url, opts);
 };

@@ -1,8 +1,8 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import Artist from '../../db/models/artist';
 import { LayoutAnimation, SectionList, StyleSheet } from 'react-native';
 import { DefaultLayoutAnimationConfig } from '../../layout_animation_config';
-import { ListItem, Text, TouchableOpacity, View } from 'react-native-ui-lib';
+import { ListItem, Text, View } from 'react-native-ui-lib';
 import withObservables from '@nozbe/with-observables';
 import { database, Favorited } from '../../db/database';
 import { Observable } from 'rxjs';
@@ -10,6 +10,11 @@ import { asFavorited } from '../../db/models/favorites';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
 import { useAllArtistsQuery } from '../../db/repos';
 import { HomeTabsParamList } from '../Home';
+import { FavoriteIconButton } from '../../components/favorite_icon_button';
+import { SectionHeader } from '../../components/section_header';
+import { SectionedListItem } from '../../components/sectioned_list_item';
+import { RelistenText } from '../../components/relisten_text';
+import { ItemSeparator } from '../../components/item_separator';
 
 const ArtistListItem: React.FC<{ artist: Artist; isFavorite: boolean }> = ({
   artist,
@@ -17,7 +22,6 @@ const ArtistListItem: React.FC<{ artist: Artist; isFavorite: boolean }> = ({
 }) => {
   const navigation = useNavigation<NavigationProp<HomeTabsParamList>>();
 
-  const styles = useArtistListItemStyles();
   const listItemOnPress = useCallback(() => {
     navigation.navigate('AllArtistsTab', {
       screen: 'ArtistYears',
@@ -32,16 +36,14 @@ const ArtistListItem: React.FC<{ artist: Artist; isFavorite: boolean }> = ({
   }, [artist, isFavorite]);
 
   return (
-    <ListItem style={styles.listItem} onPress={listItemOnPress}>
+    <SectionedListItem onPress={listItemOnPress}>
       <ListItem.Part middle>
-        <Text>{artist.name}</Text>
+        <RelistenText>{artist.name}</RelistenText>
       </ListItem.Part>
       <ListItem.Part right>
-        <TouchableOpacity onPress={favoriteOnPress}>
-          <Text>favorite: {isFavorite ? 'yes' : 'no'}</Text>
-        </TouchableOpacity>
+        <FavoriteIconButton isFavorited={isFavorite} onPress={favoriteOnPress} />
       </ListItem.Part>
-    </ListItem>
+    </SectionedListItem>
   );
 };
 
@@ -52,15 +54,13 @@ const enhanceArtist = withObservables(['artist'], ({ artist }) => ({
 
 export const EnhancedArtistListItem = enhanceArtist(ArtistListItem);
 
-const useArtistListItemStyles = () =>
-  StyleSheet.create({
-    listItem: {
-      paddingHorizontal: 8,
-      width: '100%',
-    },
-  });
-
 const ArtistsList: React.FC<{ artists: Favorited<Artist>[] }> = ({ artists }) => {
+  const navigation = useNavigation();
+
+  useEffect(() => {
+    navigation.setOptions({ title: `${artists.length} Artists` });
+  }, [artists.length]);
+
   const sectionedArtists = useMemo(() => {
     return [
       { title: 'Favorites', data: artists.filter((a) => a.isFavorite) },
@@ -74,8 +74,9 @@ const ArtistsList: React.FC<{ artists: Favorited<Artist>[] }> = ({ artists }) =>
       sections={sectionedArtists}
       keyExtractor={(artist) => artist.model.id}
       renderSectionHeader={({ section: { title } }) => {
-        return <Text>{title}</Text>;
+        return <SectionHeader title={title} />;
       }}
+      ItemSeparatorComponent={ItemSeparator}
       renderItem={({ item: artist }) => {
         return <EnhancedArtistListItem artist={artist.model} />;
       }}
@@ -94,6 +95,11 @@ export const EnhancedArtistsList = enhanceArtists(ArtistsList);
 
 export const AllArtistsScreen: React.FC = () => {
   const { showLoadingIndicator, error, data: artists } = useAllArtistsQuery();
+  const navigation = useNavigation();
+
+  useEffect(() => {
+    navigation.setOptions({ title: 'Artists' });
+  }, []);
 
   if (showLoadingIndicator || !artists) {
     return <Text>Loading...</Text>;

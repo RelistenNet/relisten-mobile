@@ -7,16 +7,17 @@ import { database, Favorited } from '../db/database';
 import withObservables from '@nozbe/with-observables';
 import { Observable } from 'rxjs';
 import { asFavorited } from '../db/models/favorites';
+import { SectionedListItem } from './sectioned_list_item';
+import { SectionHeader } from './section_header';
+import { FavoriteIconButton } from './favorite_icon_button';
 
 const ShowListItem: React.FC<{ show: Show; isFavorite: boolean; onPress?: (show: Show) => {} }> = ({
   show,
   isFavorite,
   onPress,
 }) => {
-  const styles = useShowListItemStyles();
-
   return (
-    <ListItem style={styles.listItem} onPress={() => onPress && onPress(show)}>
+    <SectionedListItem onPress={() => onPress && onPress(show)}>
       <ListItem.Part middle>
         <View style={{ flexDirection: 'column' }}>
           <Text>{show.displayDate}</Text>
@@ -26,16 +27,15 @@ const ShowListItem: React.FC<{ show: Show; isFavorite: boolean; onPress?: (show:
         </View>
       </ListItem.Part>
       <ListItem.Part right>
-        <TouchableOpacity
+        <FavoriteIconButton
+          isFavorited={isFavorite}
           onPress={() => {
             LayoutAnimation.configureNext(DefaultLayoutAnimationConfig);
             show.setIsFavorite(!isFavorite);
           }}
-        >
-          <Text>favorite: {isFavorite ? 'yes' : 'no'}</Text>
-        </TouchableOpacity>
+        ></FavoriteIconButton>
       </ListItem.Part>
-    </ListItem>
+    </SectionedListItem>
   );
 };
 
@@ -45,14 +45,6 @@ const enhanceShow = withObservables(['show'], ({ show }: { show: Show }) => ({
 }));
 
 const EnhancedShowListItem = enhanceShow(ShowListItem);
-
-const useShowListItemStyles = () =>
-  StyleSheet.create({
-    listItem: {
-      padding: 8,
-      width: '100%',
-    },
-  });
 
 const ShowList: React.FC<{ shows: Favorited<Show>[]; onItemPress?: (show: Show) => {} }> = ({
   shows,
@@ -70,7 +62,7 @@ const ShowList: React.FC<{ shows: Favorited<Show>[]; onItemPress?: (show: Show) 
       sections={sectionedShow}
       keyExtractor={(show) => show.model.id}
       renderSectionHeader={({ section: { title } }) => {
-        return <Text>{title}</Text>;
+        return <SectionHeader title={title} />;
       }}
       renderItem={({ item: show }) => {
         return <EnhancedShowListItem show={show.model} onPress={onItemPress} />;

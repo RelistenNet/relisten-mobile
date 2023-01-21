@@ -8,6 +8,11 @@ import { useRelistenApi } from '../api/context';
 import * as R from 'remeda';
 import dayjs from 'dayjs';
 import { WriterInterface } from '@nozbe/watermelondb/Database';
+import { log } from '../util/logging';
+
+const logger = log.extend('repo_query_hook_debug');
+const alwaysLogger = log.extend('repo_query_hook');
+log.disable('repo_query_hook_debug');
 
 export enum RepoQueryDataSource {
   Database = 1,
@@ -34,13 +39,13 @@ export async function upsertDbModelsFromNetwork<
   const preparedOperations: TModel[] = [];
   const netResults: TModel[] = [];
 
-  console.debug(dbIdsToRemove.length, 'dbIdsToRemove=', dbIdsToRemove);
+  logger.debug(`${dbIdsToRemove.length} dbIdsToRemove=${dbIdsToRemove}`);
 
   for (const idToRemove of dbIdsToRemove) {
     preparedOperations.push(dbResultsById[idToRemove].prepareDestroyPermanently());
   }
 
-  console.debug('newNetworkUuids=', newNetworkUuids.length);
+  logger.debug(`newNetworkUuids=${newNetworkUuids.length}`);
 
   for (const newUuid of newNetworkUuids) {
     const apiModel = networkResultsByUuid[newUuid];
@@ -63,7 +68,7 @@ export async function upsertDbModelsFromNetwork<
     }
   }
 
-  console.debug(idsToUpdate.length, 'idsToUpdate=', idsToUpdate);
+  logger.debug(`idsToUpdate.length idsToUpdate=${idsToUpdate}`);
 
   for (const id of idsToUpdate) {
     const dbModel = dbResultsById[id];
@@ -79,7 +84,10 @@ export async function upsertDbModelsFromNetwork<
 
   await writer.batch(...preparedOperations);
 
-  console.debug(table, 'netResults', netResults.length);
+  logger.debug(`${table} netResults=${netResults.length}`);
+  alwaysLogger.info(
+    `${table} new=${newNetworkUuids.length}, updated=${idsToUpdate.length}, deleted=${dbIdsToRemove.length}`
+  );
 
   return netResults;
 }
@@ -98,7 +106,7 @@ export function upsertNetworkResult<
     [apiModel.uuid, apiModel],
   ]);
 
-  console.debug(table, 'networkResults', networkResults.length);
+  logger.debug(`${table} networkResults=${networkResults.length}`);
 
   const dbIds = Object.keys(dbResultsById);
   const networkUuids = Object.keys(networkResultsByUuid);
@@ -143,39 +151,44 @@ export const createRepoQueryHook = <
     networkResults: TNetworkResponse,
     dbResultsById: Record<string, TModel>
   ) => Promise<TModel[]>,
-  postTreatment: (models: TModel[]) => TModel[]
+  postTreatment: (models: TModel[]) => TModel[],
+  logging = false
 ) => {
   const subject$ = new BehaviorSubject<TModel[] | undefined>(undefined);
   let lastNetworkRequestStartedAt: dayjs.Dayjs | undefined = undefined;
 
-  subject$.subscribe((value) => {
-    console.debug(table, 'got observable value', value?.length);
-  });
-
-  const logAndSendNext = (value: TModel[] | undefined) => {
-    console.log(table, 'logAndSendNext', !value ? value : value.length);
-    subject$.next(value);
-  };
+  if (logging) {
+    subject$.subscribe((value) => {
+      logger.debug(table, 'got observable value', value?.length);
+    });
+  }
 
   return () => {
     const [isLoading, setIsLoading] = useState(true);
     const [isNetworkLoading, setIsNetworkLoading] = useState(false);
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [data, setData] = useState<Observable<TModel[] | undefined>>(subject$);
+    // Because sometimes subject$.value hasn't updated by the same the return statement is executed
+    const [lastDataValue, setLastDataValue] = useState<TModel[] | undefined>(subject$.value);
     const [error, setError] = useState<any | undefined>(undefined);
 
     const { apiClient } = useRelistenApi();
 
     useEffect(() => {
+      const logAndSendNext = (value: TModel[] | undefined) => {
+        setLastDataValue(value);
+        subject$.next(value);
+      };
+
       const dbQuery = dbQueryFn(database.get<TModel>(table));
 
       let receivedFirstResult = false;
 
       dbQuery.subscribe(async (dbResults) => {
-        console.debug(table, 'dbResults', dbResults.length);
+        logger.debug(`${table} dbResults=${dbResults.length}`);
 
         if (!dbResults) {
-          console.error(`Unexpected dbResults: ${dbResults}`);
+          logger.error(`Unexpected dbResults: ${dbResults}`);
           return;
         }
 
@@ -215,7 +228,7 @@ export const createRepoQueryHook = <
       isNetworkLoading,
       showLoadingIndicator:
         isLoading ||
-        (isNetworkLoading && (subject$.value === undefined || subject$.value.length === 0)),
+        (isNetworkLoading && (lastDataValue === undefined || lastDataValue.length === 0)),
       data,
       error,
     };

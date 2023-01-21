@@ -3,7 +3,6 @@ import { Columns, Tables } from './schema';
 import {
   createRepoQueryHook,
   createSimpleRepoQueryHook,
-  defaultNetworkResultUpsertBehavior,
   upsertNetworkResult,
 } from './repo_query_hook';
 import { Database, Model, Q } from '@nozbe/watermelondb';
@@ -48,16 +47,14 @@ async function upsertFullArtistProp<
   writer: WriterInterface,
   ...query: Clause[]
 ): Promise<TModel[]> {
-  console.debug('called upsertFullArtistProp for', table);
   const dbResults = await database
     .get<TModel>(table)
     .query(...query)
     .fetch();
-  console.debug('got dbResults', dbResults.length, 'for', table);
 
   const dbResultsById = R.flatMapToObj(dbResults, (model) => [[model.id, model]]);
 
-  console.debug('calling defaultNetworkResultUpsertBehavior for', table);
+  return await upsertNetworkResult(database, table, networkResults, dbResultsById, writer);
   return await upsertNetworkResult(database, table, networkResults, dbResultsById, writer);
 }
 
@@ -126,9 +123,7 @@ async function normalizedArtistNetworkResultUpsertBehavior<
       );
     }
 
-    console.debug(`Going to wait on ${Object.values(promises).length} promises`);
     await Promise.all(Object.values(promises));
-    console.debug(`Finished waiting on ${Object.values(promises).length} promises`);
 
     return (await promises[table]) as unknown as TModel[];
   });
