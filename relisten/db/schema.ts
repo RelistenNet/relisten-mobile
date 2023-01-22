@@ -16,6 +16,7 @@ export const Tables = {
 
 export const Columns = {
   artists: {
+    id: 'id' as const,
     relistenCreatedAt: 'relisten_created_at' as const,
     relistenUpdatedAt: 'relisten_updated_at' as const,
     musicbrainzId: 'musicbrainz_id' as const,
@@ -29,6 +30,7 @@ export const Columns = {
     sourceCount: 'source_count' as const,
   },
   userLists: {
+    id: 'id' as const,
     specialType: 'special_type' as const,
     title: 'title' as const,
     description: 'description' as const,
@@ -37,6 +39,7 @@ export const Columns = {
     createdAt: 'created_at' as const,
   },
   userListEntries: {
+    id: 'id' as const,
     onUserListId: 'on_user_list_id' as const,
     artistId: 'artist_id' as const,
     yearId: 'year_id' as const,
@@ -50,6 +53,7 @@ export const Columns = {
     createdAt: 'created_at' as const,
   },
   shows: {
+    id: 'id' as const,
     relistenCreatedAt: 'relisten_created_at' as const,
     relistenUpdatedAt: 'relisten_updated_at' as const,
     artistId: 'artist_id' as const,
@@ -66,6 +70,7 @@ export const Columns = {
     sourceCount: 'source_count' as const,
   },
   sources: {
+    id: 'id' as const,
     relistenCreatedAt: 'relisten_created_at' as const,
     relistenUpdatedAt: 'relisten_updated_at' as const,
     artistId: 'artist_id' as const,
@@ -92,6 +97,7 @@ export const Columns = {
     links: 'links' as const,
   },
   sourceSets: {
+    id: 'id' as const,
     relistenCreatedAt: 'relisten_created_at' as const,
     relistenUpdatedAt: 'relisten_updated_at' as const,
     sourceId: 'source_id' as const,
@@ -101,6 +107,7 @@ export const Columns = {
     name: 'name' as const,
   },
   sourceTracks: {
+    id: 'id' as const,
     relistenCreatedAt: 'relisten_created_at' as const,
     relistenUpdatedAt: 'relisten_updated_at' as const,
     sourceId: 'source_id' as const,
@@ -116,6 +123,7 @@ export const Columns = {
     flacMd5: 'flac_md5' as const,
   },
   years: {
+    id: 'id' as const,
     relistenCreatedAt: 'relisten_created_at' as const,
     relistenUpdatedAt: 'relisten_updated_at' as const,
     showCount: 'show_count' as const,
@@ -127,6 +135,7 @@ export const Columns = {
     artistId: 'artist_id' as const,
   },
   venues: {
+    id: 'id' as const,
     relistenCreatedAt: 'relisten_created_at' as const,
     relistenUpdatedAt: 'relisten_updated_at' as const,
     artistId: 'artist_id' as const,
@@ -142,6 +151,7 @@ export const Columns = {
     showsAtVenue: 'shows_at_venue' as const,
   },
   tours: {
+    id: 'id' as const,
     relistenCreatedAt: 'relisten_created_at' as const,
     relistenUpdatedAt: 'relisten_updated_at' as const,
     artistId: 'artist_id' as const,
@@ -153,6 +163,7 @@ export const Columns = {
     showsOnTour: 'shows_on_tour' as const,
   },
   setlistSongs: {
+    id: 'id' as const,
     relistenCreatedAt: 'relisten_created_at' as const,
     relistenUpdatedAt: 'relisten_updated_at' as const,
     artistId: 'artist_id' as const,

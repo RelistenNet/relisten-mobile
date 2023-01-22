@@ -6,6 +6,7 @@ import { date, field, relation } from '@nozbe/watermelondb/decorators';
 import dayjs from 'dayjs';
 import Artist from './artist';
 import Source from './source';
+import SourceTrack from './source_track';
 
 const Column = Columns.sourceSets;
 
@@ -37,4 +38,9 @@ export default class SourceSet
     this.isEncore = relistenObj.is_encore;
     this.name = relistenObj.name;
   }
+}
+
+export interface SourceSetWithTracks {
+  sourceSet: SourceSet;
+  sourceTracks: SourceTrack[];
 }

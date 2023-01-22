@@ -46,10 +46,10 @@ const enhanceShow = withObservables(['show'], ({ show }: { show: Show }) => ({
 
 const EnhancedShowListItem = enhanceShow(ShowListItem);
 
-const ShowList: React.FC<{ shows: Favorited<Show>[]; onItemPress?: (show: Show) => {} }> = ({
-  shows,
-  onItemPress,
-}) => {
+export const ShowList: React.FC<{
+  shows: Favorited<Show>[];
+  onItemPress?: (show: Show) => void;
+}> = ({ shows, onItemPress }) => {
   const sectionedShow = useMemo(() => {
     return [
       { title: 'Favorites', data: shows.filter((a) => a.isFavorite) },

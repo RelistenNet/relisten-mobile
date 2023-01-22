@@ -20,10 +20,26 @@ const AllArtistsStack = createNativeStackNavigator<AllArtistsTabStackParams>();
 export const AllArtistTab: React.FC<{} & NavigationProps> = ({}) => {
   return (
     <AllArtistsStack.Navigator>
-      <AllArtistsStack.Screen name="AllArtists" component={AllArtistsScreen} />
-      <AllArtistsStack.Screen name="ArtistYears" component={YearsScreen} />
-      <AllArtistsStack.Screen name="ArtistYearShows" component={YearShowsScreen} />
-      <AllArtistsStack.Screen name="ArtistShowSources" component={ShowSourcesScreen} />
+      <AllArtistsStack.Screen
+        name="AllArtists"
+        component={AllArtistsScreen}
+        options={{ title: 'All Artists' }}
+      />
+      <AllArtistsStack.Screen
+        name="ArtistYears"
+        component={YearsScreen}
+        options={{ title: 'Year' }}
+      />
+      <AllArtistsStack.Screen
+        name="ArtistYearShows"
+        component={YearShowsScreen}
+        options={{ title: 'Shows' }}
+      />
+      <AllArtistsStack.Screen
+        name="ArtistShowSources"
+        component={ShowSourcesScreen}
+        options={{ title: 'Show' }}
+      />
     </AllArtistsStack.Navigator>
   );
 };

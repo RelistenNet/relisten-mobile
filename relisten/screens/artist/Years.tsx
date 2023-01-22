@@ -1,12 +1,12 @@
 import React, { PropsWithChildren, useEffect, useMemo } from 'react';
-import { ListItem, Text, TouchableOpacity, View } from 'react-native-ui-lib';
+import { ListItem, Text, View } from 'react-native-ui-lib';
 import withObservables from '@nozbe/with-observables';
-import { LayoutAnimation, SectionList, StyleSheet } from 'react-native';
+import { LayoutAnimation, SectionList } from 'react-native';
 import { database, Favorited } from '../../db/database';
 import { DefaultLayoutAnimationConfig } from '../../layout_animation_config';
 import { asFavorited } from '../../db/models/favorites';
 import { Observable } from 'rxjs';
-import { useArtistYearsQuery } from '../../db/repos';
+import { useArtistQuery, useArtistYearsQuery } from '../../db/repos';
 import Year from '../../db/models/year';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AllArtistsTabStackParams } from '../Artist';
@@ -15,6 +15,8 @@ import { HomeTabsParamList } from '../Home';
 import { SectionedListItem } from '../../components/sectioned_list_item';
 import { SectionHeader } from '../../components/section_header';
 import { FavoriteIconButton } from '../../components/favorite_icon_button';
+import { mergeRepoQueryResults } from '../../db/repo_query_hook';
+import Artist from '../../db/models/artist';
 
 type NavigationProps = NativeStackScreenProps<AllArtistsTabStackParams, 'ArtistYears'>;
 
@@ -26,9 +28,16 @@ export const YearsScreen: React.FC<PropsWithChildren<NavigationProps>> = ({ rout
     navigation.setOptions({ title: 'Years' });
   }, []);
 
-  const { showLoadingIndicator, error, data: years } = useArtistYearsQuery(artistId)();
+  const {
+    showLoadingIndicator,
+    error,
+    data: { years, artist },
+  } = mergeRepoQueryResults({
+    years: useArtistYearsQuery(artistId)(),
+    artist: useArtistQuery(artistId)(),
+  });
 
-  if (showLoadingIndicator || !years) {
+  if (showLoadingIndicator || !years || !artist) {
     return <Text>Loading...</Text>;
   }
 
@@ -36,6 +45,7 @@ export const YearsScreen: React.FC<PropsWithChildren<NavigationProps>> = ({ rout
     <View useSafeArea flex style={{ width: '100%' }}>
       <EnhancedYearsList
         years={years}
+        artist={artist}
         onItemPress={(year: Year) =>
           navigation.navigate('AllArtistsTab', {
             screen: 'ArtistYearShows',
@@ -86,19 +96,18 @@ const enhanceYear = withObservables(['year'], ({ year }: { year: Year }) => ({
 
 const EnhancedYearListItem = enhanceYear(YearListItem);
 
-const YearsList: React.FC<{ years: Favorited<Year>[]; onItemPress?: (year: Year) => void }> = ({
-  years,
-  onItemPress,
-}) => {
+const YearsList: React.FC<{
+  years: Favorited<Year>[];
+  artist: Artist | undefined;
+  onItemPress?: (year: Year) => void;
+}> = ({ years, artist, onItemPress }) => {
   const navigation = useNavigation();
-
-  // TODO: load artist to display name in title
 
   useEffect(() => {
     navigation.setOptions({
-      title: `${years[0].model.year}–${years[years.length - 1].model.year}`,
+      title: `${artist?.name}: ${years[0].model.year}–${years[years.length - 1].model.year}`,
     });
-  }, [years]);
+  }, [artist, years]);
 
   const sectionedYears = useMemo(() => {
     return [
@@ -122,9 +131,16 @@ const YearsList: React.FC<{ years: Favorited<Year>[]; onItemPress?: (year: Year)
 };
 
 const enhanceYears = withObservables(
-  ['years'],
-  ({ years }: { years: Observable<Year[] | undefined> }) => ({
+  ['years', 'artist'],
+  ({
+    years,
+    artist,
+  }: {
+    years: Observable<Year[] | undefined>;
+    artist: Observable<Artist | undefined>;
+  }) => ({
     years: asFavorited(database, years),
+    artist,
   })
 );
 

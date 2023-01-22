@@ -94,19 +94,27 @@ export async function upsertDbModelsFromNetwork<
 
 export function upsertNetworkResult<
   TModel extends Model & CopyableFromApi<TApiModel> & UpdatableFromApi,
-  TApiModel extends RelistenObject & RelistenUpdatableObject
+  TApiModel extends RelistenObject & RelistenUpdatableObject,
+  SingleOrArrayApiModel extends TApiModel | TApiModel[]
 >(
   database: Database,
   table: string,
-  networkResults: TApiModel[],
+  networkResults: SingleOrArrayApiModel,
   dbResultsById: Record<string, TModel>,
   writer: WriterInterface
 ): Promise<TModel[]> {
-  const networkResultsByUuid = R.flatMapToObj(networkResults, (apiModel) => [
-    [apiModel.uuid, apiModel],
-  ]);
+  let networkResultsByUuid: Record<string, TApiModel> = {};
 
-  logger.debug(`${table} networkResults=${networkResults.length}`);
+  if (R.isArray(networkResults)) {
+    networkResultsByUuid = R.flatMapToObj(networkResults, (apiModel) => [
+      [apiModel.uuid, apiModel],
+    ]);
+  } else {
+    const model = networkResults as TApiModel;
+    networkResultsByUuid = { [model.uuid]: model };
+  }
+
+  logger.debug(`${table} networkResults=${networkResults}`);
 
   const dbIds = Object.keys(dbResultsById);
   const networkUuids = Object.keys(networkResultsByUuid);
@@ -124,11 +132,12 @@ export function upsertNetworkResult<
 
 export function defaultNetworkResultUpsertBehavior<
   TModel extends Model & CopyableFromApi<TApiModel> & UpdatableFromApi,
-  TApiModel extends RelistenObject & RelistenUpdatableObject
+  TApiModel extends RelistenObject & RelistenUpdatableObject,
+  SingleOrArrayApiModel extends TApiModel | TApiModel[]
 >(
   database: Database,
   table: string,
-  networkResults: TApiModel[],
+  networkResults: SingleOrArrayApiModel,
   dbResultsById: Record<string, TModel>
 ): Promise<TModel[]> {
   return database.write((writer) =>
@@ -136,13 +145,49 @@ export function defaultNetworkResultUpsertBehavior<
   );
 }
 
+export interface RepoQueryHookResult<T> {
+  isLoading: boolean;
+  isNetworkLoading: boolean;
+  showLoadingIndicator: boolean;
+  error: any;
+  data: T;
+}
+
+type RepoQueryResultsMapper<T> = {
+  [K in keyof T]: RepoQueryHookResult<T[K]>;
+};
+
+export function mergeRepoQueryResults<T>(
+  results: RepoQueryResultsMapper<T>
+): RepoQueryHookResult<T> {
+  const r: RepoQueryHookResult<T> = {
+    isLoading: false,
+    isNetworkLoading: false,
+    showLoadingIndicator: false,
+    error: {},
+    data: {} as { [K in keyof T]: T[K] },
+  };
+
+  for (const key of Object.keys(results) as (keyof T)[]) {
+    const result = results[key];
+    r.isLoading ||= result.isLoading;
+    r.isNetworkLoading ||= result.isNetworkLoading;
+    r.showLoadingIndicator ||= result.showLoadingIndicator;
+    r.error[key] = result.error;
+    r.data[key] = result.data;
+  }
+
+  return r;
+}
+
 export const createRepoQueryHook = <
   TModel extends Model & CopyableFromApi<TApiModel> & UpdatableFromApi,
   TApiModel extends RelistenObject & RelistenUpdatableObject,
-  TNetworkResponse
+  TNetworkResponse,
+  SingleOrArray extends TModel | undefined | TModel[]
 >(
   table: TableName<TModel>,
-  dbQueryFn: (collection: Collection<TModel>) => Observable<TModel[]>,
+  dbQueryFn: (collection: Collection<TModel>) => Observable<SingleOrArray>,
   apiCallFn: ((apiClient: RelistenApiClient) => Promise<TNetworkResponse>) | undefined,
   doApiCall: (lastNetworkRequestStartedAt: dayjs.Dayjs | undefined) => boolean,
   networkResultUpsertBehavior: (
@@ -151,31 +196,40 @@ export const createRepoQueryHook = <
     networkResults: TNetworkResponse,
     dbResultsById: Record<string, TModel>
   ) => Promise<TModel[]>,
-  postTreatment: (models: TModel[]) => TModel[],
-  logging = false
-) => {
-  const subject$ = new BehaviorSubject<TModel[] | undefined>(undefined);
+  postTreatment?: (models: SingleOrArray) => SingleOrArray
+): (() => RepoQueryHookResult<Observable<SingleOrArray | undefined>>) => {
+  const subject$ = new BehaviorSubject<SingleOrArray | undefined>(undefined);
   let lastNetworkRequestStartedAt: dayjs.Dayjs | undefined = undefined;
 
-  if (logging) {
-    subject$.subscribe((value) => {
-      logger.debug(table, 'got observable value', value?.length);
-    });
+  function logObject(obj: SingleOrArray | undefined) {
+    if (obj === undefined) {
+      return obj;
+    }
+
+    if (R.isArray(obj)) {
+      return (obj as TModel[]).length;
+    }
+
+    return 'not undefined';
   }
+
+  subject$.subscribe((value) => {
+    logger.debug(table, 'got observable value', logObject(value));
+  });
 
   return () => {
     const [isLoading, setIsLoading] = useState(true);
     const [isNetworkLoading, setIsNetworkLoading] = useState(false);
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const [data, setData] = useState<Observable<TModel[] | undefined>>(subject$);
+    const [data, setData] = useState<Observable<SingleOrArray | undefined>>(subject$);
     // Because sometimes subject$.value hasn't updated by the same the return statement is executed
-    const [lastDataValue, setLastDataValue] = useState<TModel[] | undefined>(subject$.value);
+    const [lastDataValue, setLastDataValue] = useState<SingleOrArray | undefined>(subject$.value);
     const [error, setError] = useState<any | undefined>(undefined);
 
     const { apiClient } = useRelistenApi();
 
     useEffect(() => {
-      const logAndSendNext = (value: TModel[] | undefined) => {
+      const logAndSendNext = (value: SingleOrArray | undefined) => {
         setLastDataValue(value);
         subject$.next(value);
       };
@@ -185,70 +239,81 @@ export const createRepoQueryHook = <
       let receivedFirstResult = false;
 
       dbQuery.subscribe(async (dbResults) => {
-        logger.debug(`${table} dbResults=${dbResults.length}`);
-
-        if (!dbResults) {
-          logger.error(`Unexpected dbResults: ${dbResults}`);
-          return;
-        }
+        logger.debug(`${table} dbResults=${logObject(dbResults)}`);
 
         if (receivedFirstResult) {
-          logAndSendNext(postTreatment(dbResults));
+          logAndSendNext(postTreatment ? postTreatment(dbResults) : dbResults);
         } else {
           receivedFirstResult = true;
 
-          const dbResultsById = R.flatMapToObj(dbResults, (model) => [[model.id, model]]);
+          let dbResultsById: Record<string, TModel> = {};
 
-          logAndSendNext(postTreatment(dbResults));
+          if (R.isArray(dbResults)) {
+            const modelArr = dbResults as TModel[];
+            dbResultsById = R.flatMapToObj(modelArr, (model) => [[model.id, model]]);
+          } else if (dbResults !== undefined) {
+            const model = dbResults as TModel;
+            dbResultsById = { [model.id]: model };
+          }
+
+          logAndSendNext(postTreatment ? postTreatment(dbResults) : dbResults);
           setIsLoading(false);
 
-          // TODO: do not do this if there's no network connection or if the request was made < 10 mins ago
           const doNetwork = doApiCall(lastNetworkRequestStartedAt) && apiCallFn !== undefined;
 
           if (doNetwork) {
+            const requestStartedAt = dayjs();
             setIsNetworkLoading(true);
 
+            let networkResults: TNetworkResponse;
             try {
-              const requestStartedAt = dayjs();
-              const networkResults = await apiCallFn(apiClient);
-              await networkResultUpsertBehavior(database, table, networkResults, dbResultsById);
+              networkResults = await apiCallFn(apiClient);
               lastNetworkRequestStartedAt = requestStartedAt;
             } catch (e) {
               setError(e);
+              setIsNetworkLoading(false);
+              return;
             }
 
+            await networkResultUpsertBehavior(database, table, networkResults, dbResultsById);
             setIsNetworkLoading(false);
           }
         }
       });
     }, []);
 
+    const emptyArray = R.isArray(lastDataValue) ? lastDataValue.length === 0 : false;
+
     return {
       isLoading,
       isNetworkLoading,
       showLoadingIndicator:
-        isLoading ||
-        (isNetworkLoading && (lastDataValue === undefined || lastDataValue.length === 0)),
+        isLoading || (isNetworkLoading && (lastDataValue === undefined || emptyArray)),
       data,
       error,
     };
   };
 };
 
+const MIN_TIME_API_CALLS_MS = 10 * 60 * 1000;
+
 export const createSimpleRepoQueryHook = <
   TModel extends Model & CopyableFromApi<TApiModel> & UpdatableFromApi,
-  TApiModel extends RelistenObject & RelistenUpdatableObject
+  TApiModel extends RelistenObject & RelistenUpdatableObject,
+  SingleOrArrayApiModel extends TApiModel | TApiModel[],
+  SingleOrArray extends TModel | undefined | TModel[]
 >(
   table: TableName<TModel>,
-  dbQueryFn: (collection: Collection<TModel>) => Observable<TModel[]>,
-  apiCallFn: ((apiClient: RelistenApiClient) => Promise<TApiModel[]>) | undefined,
-  postTreatment: (models: TModel[]) => TModel[]
+  dbQueryFn: (collection: Collection<TModel>) => Observable<SingleOrArray>,
+  apiCallFn: ((apiClient: RelistenApiClient) => Promise<SingleOrArrayApiModel>) | undefined,
+  postTreatment?: (models: SingleOrArray) => SingleOrArray
 ) => {
   return createRepoQueryHook(
     table,
     dbQueryFn,
     apiCallFn,
-    () => true,
+    (lastRequestedAt: dayjs.Dayjs | undefined) =>
+      lastRequestedAt ? dayjs().diff(lastRequestedAt) >= MIN_TIME_API_CALLS_MS : false,
     defaultNetworkResultUpsertBehavior,
     postTreatment
   );

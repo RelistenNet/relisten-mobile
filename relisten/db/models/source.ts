@@ -9,6 +9,7 @@ import type Artist from './artist';
 import Show from './show';
 import Venue from './venue';
 import { defaultSetIsFavoriteBehavior, isFavoriteProperty } from './favorites';
+import { SourceSetWithTracks } from './source_set';
 
 const Column = Columns.sources;
 
@@ -80,4 +81,9 @@ export default class Source
     this.reviewCount = relistenObj.review_count;
     this.links = relistenObj.links;
   }
+}
+
+export interface SourceWithSets {
+  source: Source;
+  sourceSets: SourceSetWithTracks[];
 }

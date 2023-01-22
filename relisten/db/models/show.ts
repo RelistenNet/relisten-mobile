@@ -8,6 +8,7 @@ import dayjs from 'dayjs';
 import type Year from './year';
 import type Artist from './artist';
 import { defaultSetIsFavoriteBehavior, isFavoriteProperty } from './favorites';
+import { SourceWithSets } from './source';
 
 const Column = Columns.shows;
 
@@ -55,4 +56,9 @@ export default class Show
     this.hasStreamableFlacSource = relistenObj.has_streamable_flac_source;
     this.sourceCount = relistenObj.source_count;
   }
+}
+
+export interface ShowWithSources {
+  show: Show;
+  sources: SourceWithSets[];
 }
