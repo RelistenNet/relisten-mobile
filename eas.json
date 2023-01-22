@@ -3,6 +3,13 @@
     "version": ">= 3.3.2"
   },
   "build": {
+    "development-simulator": {
+      "developmentClient": true,
+      "releaseChannel": "development-simulator",
+      "ios": {
+        "simulator": true
+      }
+    },
     "development": {
       "developmentClient": true,
       "distribution": "internal"
