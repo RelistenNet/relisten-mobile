@@ -4,7 +4,6 @@ import { FlacType, Link, SourceFull as ApiSourceFull } from '../../api/models/so
 import { onListsProperty } from './user_list';
 import { Columns, IdentityJsonSanitizer, Tables } from '../schema';
 import { date, field, json, lazy, relation } from '@nozbe/watermelondb/decorators';
-import dayjs from 'dayjs';
 import type Artist from './artist';
 import Show from './show';
 import Venue from './venue';
@@ -23,8 +22,8 @@ export default class Source
   @relation(Tables.artists, Column.artistId) artist!: Relation<Artist>;
   @relation(Tables.venues, Column.venueId) venue!: Relation<Venue>;
 
-  @field(Column.relistenCreatedAt) relistenCreatedAt!: Date;
-  @field(Column.relistenUpdatedAt) relistenUpdatedAt!: Date;
+  @date(Column.relistenCreatedAt) relistenCreatedAt!: Date;
+  @date(Column.relistenUpdatedAt) relistenUpdatedAt!: Date;
   @field(Column.artistId) artistId!: string;
   @field(Column.venueId) venueId!: string;
   @date(Column.displayDate) displayDate!: string;
@@ -55,8 +54,6 @@ export default class Source
   setIsFavorite = defaultSetIsFavoriteBehavior(this);
 
   copyFromApi(relistenObj: ApiSourceFull): void {
-    this.relistenCreatedAt = dayjs(relistenObj.created_at).toDate();
-    this.relistenUpdatedAt = dayjs(relistenObj.updated_at).toDate();
     this.artistId = relistenObj.artist_uuid;
     this.venueId = relistenObj.venue_uuid;
     this.displayDate = relistenObj.display_date;

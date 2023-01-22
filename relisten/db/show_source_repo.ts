@@ -94,7 +94,7 @@ export function useFullShowQuery(
               return r;
             })
           );
-      });
+      }, 'useFullShowQuery');
 
       showWithSources$.subscribe(async (showWithSources) => {
         subject$.next(showWithSources);

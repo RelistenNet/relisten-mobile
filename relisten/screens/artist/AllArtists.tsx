@@ -65,7 +65,7 @@ const ArtistsList: React.FC<{ artists: Favorited<Artist>[] }> = ({ artists }) =>
     return [
       { title: 'Favorites', data: artists.filter((a) => a.isFavorite) },
       { title: 'Featured', data: artists.filter((a) => a.model.featured !== 0) },
-      { title: `${artists.length + 1} Artists`, data: artists },
+      { title: `${artists.length} Artists`, data: artists },
     ];
   }, [artists]);
 

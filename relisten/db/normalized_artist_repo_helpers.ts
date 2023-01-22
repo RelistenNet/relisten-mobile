@@ -105,7 +105,7 @@ export async function normalizedArtistNetworkResultUpsertBehavior<
     await Promise.all(Object.values(promises));
 
     return (await promises[table]) as unknown as TModel[];
-  });
+  }, 'normalizedArtistNetworkResultUpsertBehavior');
 }
 
 export function shouldMakeFullArtistApiRequest(artistId: string): () => boolean {

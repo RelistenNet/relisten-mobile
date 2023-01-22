@@ -39,13 +39,13 @@ export async function upsertDbModelsFromNetwork<
   const preparedOperations: TModel[] = [];
   const netResults: TModel[] = [];
 
-  logger.debug(`${dbIdsToRemove.length} dbIdsToRemove=${dbIdsToRemove}`);
+  logger.debug(`${table} ${dbIdsToRemove.length} dbIdsToRemove=${dbIdsToRemove}`);
 
   for (const idToRemove of dbIdsToRemove) {
     preparedOperations.push(dbResultsById[idToRemove].prepareDestroyPermanently());
   }
 
-  logger.debug(`newNetworkUuids=${newNetworkUuids.length}`);
+  logger.debug(`${table} newNetworkUuids=${newNetworkUuids.length}`);
 
   for (const newUuid of newNetworkUuids) {
     const apiModel = networkResultsByUuid[newUuid];
@@ -63,12 +63,22 @@ export async function upsertDbModelsFromNetwork<
     const dbModel = dbResultsById[id];
     const apiModel = networkResultsByUuid[id];
 
-    if (dayjs(apiModel.updated_at).toDate().getTime() > dbModel.relistenUpdatedAt.getTime()) {
+    if (!((dbModel.relistenUpdatedAt as unknown) instanceof Date)) {
+      alwaysLogger.error(
+        `${table} dbModel.relistenUpdatedAt=${dbModel.relistenUpdatedAt}, dbModel.id=${dbModel.id}`
+      );
+    }
+
+    if ((dbModel.relistenUpdatedAt as unknown) === 0) {
+      idsToUpdate.push(id);
+    } else if (
+      dayjs(apiModel.updated_at).toDate().getTime() > dbModel.relistenUpdatedAt.getTime()
+    ) {
       idsToUpdate.push(id);
     }
   }
 
-  logger.debug(`idsToUpdate.length idsToUpdate=${idsToUpdate}`);
+  logger.debug(`${table} idsToUpdate.length idsToUpdate=${idsToUpdate}`);
 
   for (const id of idsToUpdate) {
     const dbModel = dbResultsById[id];
@@ -90,6 +100,18 @@ export async function upsertDbModelsFromNetwork<
   );
 
   return netResults;
+}
+
+function logObject<T, SingleOrArray extends T | T[]>(obj: SingleOrArray | undefined) {
+  if (obj === undefined) {
+    return obj;
+  }
+
+  if (R.isArray(obj)) {
+    return (obj as T[]).length;
+  }
+
+  return 'not undefined';
 }
 
 export function upsertNetworkResult<
@@ -114,7 +136,7 @@ export function upsertNetworkResult<
     networkResultsByUuid = { [model.uuid]: model };
   }
 
-  logger.debug(`${table} networkResults=${networkResults}`);
+  logger.debug(`${table} networkResults=${logObject(networkResults)}`);
 
   const dbIds = Object.keys(dbResultsById);
   const networkUuids = Object.keys(networkResultsByUuid);
@@ -140,8 +162,9 @@ export function defaultNetworkResultUpsertBehavior<
   networkResults: SingleOrArrayApiModel,
   dbResultsById: Record<string, TModel>
 ): Promise<TModel[]> {
-  return database.write((writer) =>
-    upsertNetworkResult(database, table, networkResults, dbResultsById, writer)
+  return database.write(
+    (writer) => upsertNetworkResult(database, table, networkResults, dbResultsById, writer),
+    'defaultNetworkResultUpsertBehavior'
   );
 }
 
@@ -201,20 +224,8 @@ export const createRepoQueryHook = <
   const subject$ = new BehaviorSubject<SingleOrArray | undefined>(undefined);
   let lastNetworkRequestStartedAt: dayjs.Dayjs | undefined = undefined;
 
-  function logObject(obj: SingleOrArray | undefined) {
-    if (obj === undefined) {
-      return obj;
-    }
-
-    if (R.isArray(obj)) {
-      return (obj as TModel[]).length;
-    }
-
-    return 'not undefined';
-  }
-
   subject$.subscribe((value) => {
-    logger.debug(table, 'got observable value', logObject(value));
+    logger.debug(`${table} got observable value ${logObject(value)}`);
   });
 
   return () => {
@@ -313,7 +324,7 @@ export const createSimpleRepoQueryHook = <
     dbQueryFn,
     apiCallFn,
     (lastRequestedAt: dayjs.Dayjs | undefined) =>
-      lastRequestedAt ? dayjs().diff(lastRequestedAt) >= MIN_TIME_API_CALLS_MS : false,
+      lastRequestedAt ? dayjs().diff(lastRequestedAt) >= MIN_TIME_API_CALLS_MS : true,
     defaultNetworkResultUpsertBehavior,
     postTreatment
   );

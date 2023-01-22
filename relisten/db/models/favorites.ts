@@ -23,7 +23,7 @@ export async function findOrCreateFavoritesList(database: Database): Promise<Use
         userList.isPlaylist = false;
         userList.isPublic = true;
       });
-    });
+    }, 'findOrCreateFavoritesList');
   } else {
     userList = lists[0];
   }
@@ -109,7 +109,7 @@ export function defaultSetIsFavoriteBehavior(
       } else if (!favorite && dbIsFavorited) {
         await entries[0].destroyPermanently();
       }
-    });
+    }, 'defaultSetIsFavoriteBehavior');
   };
 }
 
