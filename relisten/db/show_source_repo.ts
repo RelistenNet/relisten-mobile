@@ -1,7 +1,7 @@
 import { RepoQueryHookResult, upsertNetworkResult } from './repo_query_hook';
 import { ShowWithSources } from './models/show';
 import { useEffect, useState } from 'react';
-import { BehaviorSubject, Observable, merge, zip, of } from 'rxjs';
+import { BehaviorSubject, Observable, merge, zip, of, combineLatest } from 'rxjs';
 import { useRelistenApi } from '../api/context';
 import { database, UpdatableFromApi } from './database';
 import { Columns, Tables } from './schema';
@@ -21,6 +21,7 @@ import { ShowWithSources as ApiShowWithSources } from '../api/models/source';
 
 const MIN_TIME_API_CALLS_MS = 10 * 60 * 1000;
 
+// TODO: DRY this out against repo_query_hook.ts to make it more generic
 export function useFullShowQuery(
   showUuid: string
 ): () => RepoQueryHookResult<Observable<ShowWithSources>> {
@@ -40,143 +41,145 @@ export function useFullShowQuery(
 
     const behavior = async () => {
       const showWithSources$ = await database.read(async () => {
-        const _show$ = database.get<Show>(Tables.shows).findAndObserve(showUuid);
-        const _sources$ = database
+        const show$ = database.get<Show>(Tables.shows).findAndObserve(showUuid);
+        const sources$ = database
           .get<Source>(Tables.sources)
           .query(Q.where(Columns.sources.showId, showUuid))
           .observe();
+        const sourceSets$ = database
+          .get<SourceSet>(Tables.sourceSets)
+          .query(Q.where(Columns.sourceSets.showId, showUuid))
+          .observe();
+        const sourceTracks$ = database
+          .get<SourceTrack>(Tables.sourceTracks)
+          .query(Q.where(Columns.sourceTracks.showId, showUuid))
+          .observe();
 
-        return zip(_show$, _sources$)
-          .pipe(
-            switchMap((values) => {
-              const [show, sources] = values;
-              const sourceIds = sources.map((s) => s.id);
+        return combineLatest([show$, sources$, sourceSets$, sourceTracks$]).pipe(
+          map((values) => {
+            const [show, sources, sourceSets, sourceTracks] = values;
+            const r: ShowWithSources = {
+              show,
+              sources: [],
+            };
 
-              const sourceSets$ = database
-                .get<SourceSet>(Tables.sourceSets)
-                .query(Q.where(Columns.sourceSets.sourceId, Q.oneOf(sourceIds)))
-                .observe();
-              const sourceTracks$ = database
-                .get<SourceTrack>(Tables.sourceTracks)
-                .query(Q.where(Columns.sourceTracks.sourceId, Q.oneOf(sourceIds)))
-                .observe();
+            const sourceTracksBySetId = R.groupBy(sourceTracks, (t) => t.sourceSetId);
+            const sourceSetsBySourceId = R.groupBy(sourceSets, (t) => t.sourceId);
 
-              return zip(of(show), of(sources), sourceSets$, sourceTracks$);
-            })
-          )
-          .pipe(
-            map((values) => {
-              const [show, sources, sourceSets, sourceTracks] = values;
-              const r: ShowWithSources = {
-                show,
-                sources: [],
-              };
+            for (const source of sources) {
+              const sourceSets: SourceSetWithTracks[] = [];
 
-              const sourceTracksBySetId = R.groupBy(sourceTracks, (t) => t.sourceSetId);
-              const sourceSetsBySourceId = R.groupBy(sourceSets, (t) => t.sourceId);
-
-              for (const source of sources) {
-                const sourceSets: SourceSetWithTracks[] = [];
-
-                for (const sourceSet of sourceSetsBySourceId[source.id]) {
-                  sourceSets.push({
-                    sourceSet,
-                    sourceTracks: sourceTracksBySetId[sourceSet.id],
-                  });
-                }
-
-                r.sources.push({
-                  source: source,
-                  sourceSets,
+              for (const sourceSet of sourceSetsBySourceId[source.id] || []) {
+                sourceSets.push({
+                  sourceSet,
+                  sourceTracks: sourceTracksBySetId[sourceSet.id] || [],
                 });
               }
 
-              return r;
-            })
-          );
-      }, 'useFullShowQuery');
+              r.sources.push({
+                source: source,
+                sourceSets,
+              });
+            }
+
+            return r;
+          })
+        );
+      }, 'useFullShowQuery - reader');
+
+      let receivedFirstResult = false;
 
       showWithSources$.subscribe(async (showWithSources) => {
         subject$.next(showWithSources);
         setLastDataValue(showWithSources);
-        setIsLoading(false);
 
-        const shouldMakeApiCall =
-          lastNetworkRequestStartedAt === undefined ||
-          dayjs().diff(lastNetworkRequestStartedAt) >= MIN_TIME_API_CALLS_MS;
+        if (!receivedFirstResult) {
+          receivedFirstResult = true;
+          setIsLoading(false);
 
-        if (shouldMakeApiCall) {
-          setIsNetworkLoading(true);
+          const shouldMakeApiCall =
+            lastNetworkRequestStartedAt === undefined ||
+            dayjs().diff(lastNetworkRequestStartedAt) >= MIN_TIME_API_CALLS_MS;
 
-          const requestStartedAt = dayjs();
-          let networkResponse: ApiShowWithSources;
+          if (shouldMakeApiCall) {
+            setIsNetworkLoading(true);
 
-          try {
-            networkResponse = await apiClient.showWithSources(showUuid);
-          } catch (e) {
-            setError(e);
-            setIsNetworkLoading(false);
-            return;
-          }
+            const requestStartedAt = dayjs();
+            let networkResponse: ApiShowWithSources;
 
-          const sourceTracks: ApiSourceTrack[] = [];
-          const sourceSets: ApiSourceSet[] = [];
-          const sources: ApiSource[] = networkResponse.sources;
-
-          const dbSourceSetsWithTracks = R.flatMap(showWithSources.sources, (s) => s.sourceSets);
-
-          const dbSourcesById = R.flatMapToObj(showWithSources.sources, (s) => [
-            [s.source.id, s.source],
-          ]);
-          const dbSourceSetsById = R.flatMapToObj(
-            dbSourceSetsWithTracks.map((set) => set.sourceSet),
-            (s) => [[s.id, s]]
-          );
-          const dbSourceTracksById = R.flatMapToObj(
-            R.flatMap(dbSourceSetsWithTracks, (set) => set.sourceTracks),
-            (s) => [[s.id, s]]
-          );
-
-          for (const source of networkResponse.sources) {
-            for (const sourceSet of source.sets) {
-              sourceTracks.push(...sourceSet.tracks);
+            try {
+              networkResponse = await apiClient.showWithSources(showUuid);
+            } catch (e) {
+              setError(e);
+              setIsNetworkLoading(false);
+              return;
             }
 
-            sourceSets.push(...source.sets);
+            const sourceTracks: ApiSourceTrack[] = [];
+            const sourceSets: ApiSourceSet[] = [];
+            const sources: ApiSource[] = networkResponse.sources;
+
+            const dbSourceSetsWithTracks = R.flatMap(showWithSources.sources, (s) => s.sourceSets);
+
+            const dbSourcesById = R.flatMapToObj(showWithSources.sources, (s) => [
+              [s.source.id, s.source],
+            ]);
+            const dbSourceSetsById = R.flatMapToObj(
+              dbSourceSetsWithTracks.map((set) => set.sourceSet),
+              (s) => [[s.id, s]]
+            );
+            const dbSourceTracksById = R.flatMapToObj(
+              R.flatMap(dbSourceSetsWithTracks, (set) => set.sourceTracks),
+              (s) => [[s.id, s]]
+            );
+
+            for (const source of networkResponse.sources) {
+              for (const sourceSet of source.sets) {
+                sourceSet.__injected_show_uuid = showUuid;
+
+                for (const sourceTrack of sourceSet.tracks) {
+                  sourceTrack.__injected_show_uuid = showUuid;
+
+                  sourceTracks.push(sourceTrack);
+                }
+              }
+
+              sourceSets.push(...source.sets);
+            }
+
+            const promises: { [table: string]: Promise<Array<Model & UpdatableFromApi>> } = {};
+
+            await database.write(async (writer) => {
+              promises[Tables.sources] = upsertNetworkResult(
+                database,
+                Tables.sources,
+                sources,
+                dbSourcesById,
+                writer
+              );
+
+              promises[Tables.sourceSets] = upsertNetworkResult(
+                database,
+                Tables.sourceSets,
+                sourceSets,
+                dbSourceSetsById,
+                writer
+              );
+
+              promises[Tables.sourceTracks] = upsertNetworkResult(
+                database,
+                Tables.sourceTracks,
+                sourceTracks,
+                dbSourceTracksById,
+                writer
+              );
+
+              await Promise.all(Object.values(promises));
+            }, 'useFullShowQuery - write');
+
+            setIsNetworkLoading(false);
+            lastNetworkRequestStartedAt = requestStartedAt;
           }
-
-          const promises: { [table: string]: Promise<Array<Model & UpdatableFromApi>> } = {};
-
-          await database.write(async (writer) => {
-            promises[Tables.sources] = upsertNetworkResult(
-              database,
-              Tables.sources,
-              sources,
-              dbSourcesById,
-              writer
-            );
-
-            promises[Tables.sourceSets] = upsertNetworkResult(
-              database,
-              Tables.sourceSets,
-              sourceSets,
-              dbSourceSetsById,
-              writer
-            );
-
-            promises[Tables.sourceTracks] = upsertNetworkResult(
-              database,
-              Tables.sourceTracks,
-              sourceTracks,
-              dbSourceTracksById,
-              writer
-            );
-
-            await Promise.all(Object.values(promises));
-          });
-
-          setIsNetworkLoading(false);
-          lastNetworkRequestStartedAt = requestStartedAt;
         }
       });
     };

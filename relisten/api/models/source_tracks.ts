@@ -13,4 +13,6 @@ export interface SourceTrack {
   flac_url?: string;
   flac_md5?: string;
   uuid: string;
+
+  __injected_show_uuid: string;
 }

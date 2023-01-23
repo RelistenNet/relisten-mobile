@@ -23,6 +23,7 @@ export default class SourceTrack
   @date(Column.relistenCreatedAt) relistenCreatedAt!: Date;
   @date(Column.relistenUpdatedAt) relistenUpdatedAt!: Date;
   @field(Column.sourceId) sourceId!: string;
+  @field(Column.showId) showId!: string;
   @field(Column.sourceSetId) sourceSetId!: string;
   @field(Column.artistId) artistId!: string;
   @field(Column.trackPosition) trackPosition!: number;
@@ -41,6 +42,7 @@ export default class SourceTrack
   setIsFavorite = defaultSetIsFavoriteBehavior(this);
 
   copyFromApi(relistenObj: ApiSourceTrack): void {
+    this.showId = relistenObj.__injected_show_uuid;
     this.relistenCreatedAt = dayjs(relistenObj.created_at).toDate();
     this.relistenUpdatedAt = dayjs(relistenObj.updated_at).toDate();
     this.sourceId = relistenObj.source_uuid;

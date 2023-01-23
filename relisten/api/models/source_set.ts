@@ -10,4 +10,6 @@ export interface SourceSet {
   is_encore: boolean;
   name: string;
   tracks: SourceTrack[];
+
+  __injected_show_uuid: string;
 }

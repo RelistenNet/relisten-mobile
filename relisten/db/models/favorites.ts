@@ -1,9 +1,10 @@
-import { Favoritable, Favorited } from '../database';
+import type { Favoritable, Favorited } from '../database';
 import { Columns, Tables } from '../schema';
 import { Database, Model, Q } from '@nozbe/watermelondb';
 import { combineLatest, Observable, of } from 'rxjs';
 import { distinctUntilChanged, map as map$, map, switchMap } from 'rxjs/operators';
 import { UserList, UserListEntry, UserListSpecialType } from './user_list';
+import { useMemo } from 'react';
 
 export async function findOrCreateFavoritesList(database: Database): Promise<UserList> {
   const userLists = database.get<UserList>(Tables.userLists);
@@ -78,6 +79,15 @@ export function asFavorited<T extends Favoritable & Model>(
       );
     })
   );
+}
+
+export function useFavoritedQuery<T extends Favoritable & Model>(
+  database: Database,
+  models: Observable<T[] | undefined>
+): Observable<Favorited<T>[]> {
+  return useMemo(() => {
+    return asFavorited(database, models);
+  }, [models]);
 }
 
 export function defaultSetIsFavoriteBehavior(

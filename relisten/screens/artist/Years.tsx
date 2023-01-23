@@ -1,11 +1,9 @@
 import React, { PropsWithChildren, useEffect, useMemo } from 'react';
 import { ListItem, Text, View } from 'react-native-ui-lib';
-import withObservables from '@nozbe/with-observables';
 import { LayoutAnimation, SectionList } from 'react-native';
 import { database, Favorited } from '../../db/database';
 import { DefaultLayoutAnimationConfig } from '../../layout_animation_config';
-import { asFavorited } from '../../db/models/favorites';
-import { Observable } from 'rxjs';
+import { useFavoritedQuery } from '../../db/models/favorites';
 import { useArtistQuery, useArtistYearsQuery } from '../../db/repos';
 import Year from '../../db/models/year';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -16,7 +14,7 @@ import { SectionedListItem } from '../../components/sectioned_list_item';
 import { SectionHeader } from '../../components/section_header';
 import { FavoriteIconButton } from '../../components/favorite_icon_button';
 import { mergeRepoQueryResults } from '../../db/repo_query_hook';
-import Artist from '../../db/models/artist';
+import { useObservableState } from 'observable-hooks';
 
 type NavigationProps = NativeStackScreenProps<AllArtistsTabStackParams, 'ArtistYears'>;
 
@@ -31,11 +29,26 @@ export const YearsScreen: React.FC<PropsWithChildren<NavigationProps>> = ({ rout
   const {
     showLoadingIndicator,
     error,
-    data: { years, artist },
+    data: { years: rawYears$, artist: artist$ },
   } = mergeRepoQueryResults({
     years: useArtistYearsQuery(artistId)(),
     artist: useArtistQuery(artistId)(),
   });
+
+  const years$ = useFavoritedQuery(database, rawYears$);
+  const years = useObservableState(years$);
+  const artist = useObservableState(artist$);
+
+  useEffect(() => {
+    const yearTitle = years
+      ? `${years[0].model.year}–${years[years.length - 1].model.year}`
+      : 'Years';
+    const artistTitle = artist ? `${artist.name}: ` : '';
+
+    navigation.setOptions({
+      title: artistTitle + yearTitle,
+    });
+  }, [artist, years]);
 
   if (showLoadingIndicator || !years || !artist) {
     return <Text>Loading...</Text>;
@@ -43,9 +56,8 @@ export const YearsScreen: React.FC<PropsWithChildren<NavigationProps>> = ({ rout
 
   return (
     <View useSafeArea flex style={{ width: '100%' }}>
-      <EnhancedYearsList
+      <YearsList
         years={years}
-        artist={artist}
         onItemPress={(year: Year) =>
           navigation.navigate('AllArtistsTab', {
             screen: 'ArtistYearShows',
@@ -62,9 +74,10 @@ export const YearsScreen: React.FC<PropsWithChildren<NavigationProps>> = ({ rout
 
 const YearListItem: React.FC<{
   year: Year;
-  isFavorite: boolean;
   onPress?: (year: Year) => void;
-}> = ({ year, isFavorite, onPress }) => {
+}> = ({ year, onPress }) => {
+  const isFavorite = useObservableState(year.isFavorite) || false;
+
   return (
     <SectionedListItem onPress={() => onPress && onPress(year)}>
       <ListItem.Part middle>
@@ -89,26 +102,10 @@ const YearListItem: React.FC<{
   );
 };
 
-const enhanceYear = withObservables(['year'], ({ year }: { year: Year }) => ({
-  year,
-  isFavorite: year.isFavorite,
-}));
-
-const EnhancedYearListItem = enhanceYear(YearListItem);
-
 const YearsList: React.FC<{
   years: Favorited<Year>[];
-  artist: Artist | undefined;
   onItemPress?: (year: Year) => void;
-}> = ({ years, artist, onItemPress }) => {
-  const navigation = useNavigation();
-
-  useEffect(() => {
-    navigation.setOptions({
-      title: `${artist?.name}: ${years[0].model.year}–${years[years.length - 1].model.year}`,
-    });
-  }, [artist, years]);
-
+}> = ({ years, onItemPress }) => {
   const sectionedYears = useMemo(() => {
     return [
       { title: 'Favorites', data: years.filter((a) => a.isFavorite) },
@@ -124,24 +121,8 @@ const YearsList: React.FC<{
         return <SectionHeader title={title} />;
       }}
       renderItem={({ item: year }) => {
-        return <EnhancedYearListItem year={year.model} onPress={onItemPress} />;
+        return <YearListItem year={year.model} onPress={onItemPress} />;
       }}
     />
   );
 };
-
-const enhanceYears = withObservables(
-  ['years', 'artist'],
-  ({
-    years,
-    artist,
-  }: {
-    years: Observable<Year[] | undefined>;
-    artist: Observable<Artist | undefined>;
-  }) => ({
-    years: asFavorited(database, years),
-    artist,
-  })
-);
-
-export const EnhancedYearsList = enhanceYears(YearsList);

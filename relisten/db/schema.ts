@@ -105,6 +105,7 @@ export const Columns = {
     index: 'index' as const,
     isEncore: 'is_encore' as const,
     name: 'name' as const,
+    showId: 'show_id' as const,
   },
   sourceTracks: {
     id: 'id' as const,
@@ -121,6 +122,7 @@ export const Columns = {
     mp3Md5: 'mp3_md5' as const,
     flacUrl: 'flac_url' as const,
     flacMd5: 'flac_md5' as const,
+    showId: 'show_id' as const,
   },
   years: {
     id: 'id' as const,
@@ -295,6 +297,7 @@ export const relistenDbSchema = appSchema({
       columns: [
         { name: Columns.sourceSets.relistenCreatedAt, type: 'number' },
         { name: Columns.sourceSets.relistenUpdatedAt, type: 'number' },
+        { name: Columns.sourceSets.showId, type: 'string', isIndexed: true },
         { name: Columns.sourceSets.sourceId, type: 'string', isIndexed: true },
         { name: Columns.sourceSets.artistId, type: 'string', isIndexed: true },
         { name: Columns.sourceSets.index, type: 'number' },
@@ -307,6 +310,7 @@ export const relistenDbSchema = appSchema({
       columns: [
         { name: Columns.sourceTracks.relistenCreatedAt, type: 'number' },
         { name: Columns.sourceTracks.relistenUpdatedAt, type: 'number' },
+        { name: Columns.sourceTracks.showId, type: 'string', isIndexed: true },
         { name: Columns.sourceTracks.sourceId, type: 'string', isIndexed: true },
         { name: Columns.sourceTracks.sourceSetId, type: 'string', isIndexed: true },
         { name: Columns.sourceTracks.artistId, type: 'string', isIndexed: true },
