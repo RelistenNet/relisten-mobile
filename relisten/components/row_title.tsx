@@ -15,7 +15,7 @@ const RowTitle = ({
 }: React.HTMLAttributes<HTMLDivElement> & NewProps) => {
   const Comp = as;
 
-  return <Comp {...props} className={clsx('font-semibold text-base', className)} />;
+  return <Comp {...props} className={clsx('font-semibold text-lg', className)} />;
 };
 
 export default RowTitle;

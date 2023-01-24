@@ -11,14 +11,7 @@ interface NewProps {
   children?: React.ReactNode;
 }
 
-const Flex = ({
-  className,
-  center,
-  column,
-  as = View,
-  full,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement> & NewProps) => {
+const Flex = ({ className, center, column, as = View, full, ...props }: NewProps) => {
   const Comp = as;
 
   return (
