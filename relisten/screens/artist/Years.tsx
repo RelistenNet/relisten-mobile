@@ -1,20 +1,23 @@
-import React, { PropsWithChildren, useEffect, useMemo } from 'react';
-import { ListItem, Text, View } from 'react-native-ui-lib';
-import { LayoutAnimation, SectionList } from 'react-native';
-import { database, Favorited } from '../../db/database';
-import { DefaultLayoutAnimationConfig } from '../../layout_animation_config';
-import { useFavoritedQuery } from '../../db/models/favorites';
-import { useArtistQuery, useArtistYearsQuery } from '../../db/repos';
-import Year from '../../db/models/year';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { AllArtistsTabStackParams } from '../Artist';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
-import { HomeTabsParamList } from '../Home';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useObservableState } from 'observable-hooks';
+import React, { PropsWithChildren, useEffect, useMemo } from 'react';
+import { LayoutAnimation, SectionList } from 'react-native';
+import { Text, View } from 'react-native-ui-lib';
+import { FavoriteIconButton } from '../../components/favorite_icon_button';
+import Flex from '../../components/flex';
+import RowSubtitle from '../../components/row_subtitle';
+import RowTitle from '../../components/row_title';
 import { SectionedListItem } from '../../components/sectioned_list_item';
 import { SectionHeader } from '../../components/section_header';
-import { FavoriteIconButton } from '../../components/favorite_icon_button';
+import { database, Favorited } from '../../db/database';
+import { useFavoritedQuery } from '../../db/models/favorites';
+import Year from '../../db/models/year';
+import { useArtistQuery, useArtistYearsQuery } from '../../db/repos';
 import { mergeRepoQueryResults } from '../../db/repo_query_hook';
-import { useObservableState } from 'observable-hooks';
+import { DefaultLayoutAnimationConfig } from '../../layout_animation_config';
+import { AllArtistsTabStackParams } from '../Artist';
+import { HomeTabsParamList } from '../Home';
 
 type NavigationProps = NativeStackScreenProps<AllArtistsTabStackParams, 'ArtistYears'>;
 
@@ -40,7 +43,7 @@ export const YearsScreen: React.FC<PropsWithChildren<NavigationProps>> = ({ rout
   const artist = useObservableState(artist$);
 
   useEffect(() => {
-    const yearTitle = years
+    const yearTitle = years?.length
       ? `${years[0].model.year}–${years[years.length - 1].model.year}`
       : 'Years';
     const artistTitle = artist ? `${artist.name}: ` : '';
@@ -80,16 +83,14 @@ const YearListItem: React.FC<{
 
   return (
     <SectionedListItem onPress={() => onPress && onPress(year)}>
-      <ListItem.Part middle>
-        <View style={{ flexDirection: 'column' }}>
-          <Text>{year.year}</Text>
-          <Text>
-            Shows {year.showCount} — Sources {year.sourceCount}
-          </Text>
-          <Text>Total Duration {Math.round(year.duration! / 60 / 60)} hours </Text>
-        </View>
-      </ListItem.Part>
-      <ListItem.Part right>
+      <Flex className="justify-between" full>
+        <Flex column className="flex-1">
+          <RowTitle>{year.year}</RowTitle>
+          <Flex className="justify-between flex-1">
+            <RowSubtitle>{year.showCount} shows</RowSubtitle>
+            <RowSubtitle>{year.sourceCount} sources</RowSubtitle>
+          </Flex>
+        </Flex>
         <FavoriteIconButton
           isFavorited={isFavorite}
           onPress={() => {
@@ -97,7 +98,7 @@ const YearListItem: React.FC<{
             year.setIsFavorite(!isFavorite);
           }}
         ></FavoriteIconButton>
-      </ListItem.Part>
+      </Flex>
     </SectionedListItem>
   );
 };

@@ -1,19 +1,21 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
-import Artist from '../../db/models/artist';
-import { LayoutAnimation, SectionList } from 'react-native';
-import { DefaultLayoutAnimationConfig } from '../../layout_animation_config';
-import { ListItem, Text, View } from 'react-native-ui-lib';
-import { database, Favorited } from '../../db/database';
-import { useFavoritedQuery } from '../../db/models/favorites';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
-import { useAllArtistsQuery } from '../../db/repos';
-import { HomeTabsParamList } from '../Home';
-import { FavoriteIconButton } from '../../components/favorite_icon_button';
-import { SectionHeader } from '../../components/section_header';
-import { SectionedListItem } from '../../components/sectioned_list_item';
-import { RelistenText } from '../../components/relisten_text';
-import { ItemSeparator } from '../../components/item_separator';
 import { useObservableState } from 'observable-hooks';
+import React, { useCallback, useEffect, useMemo } from 'react';
+import { LayoutAnimation, SectionList } from 'react-native';
+import { Text, View } from 'react-native-ui-lib';
+import { FavoriteIconButton } from '../../components/favorite_icon_button';
+import Flex from '../../components/flex';
+import { ItemSeparator } from '../../components/item_separator';
+import RowSubtitle from '../../components/row_subtitle';
+import RowTitle from '../../components/row_title';
+import { SectionedListItem } from '../../components/sectioned_list_item';
+import { SectionHeader } from '../../components/section_header';
+import { database, Favorited } from '../../db/database';
+import Artist from '../../db/models/artist';
+import { useFavoritedQuery } from '../../db/models/favorites';
+import { useAllArtistsQuery } from '../../db/repos';
+import { DefaultLayoutAnimationConfig } from '../../layout_animation_config';
+import { HomeTabsParamList } from '../Home';
 
 const ArtistListItem: React.FC<{ artist: Artist }> = ({ artist }) => {
   const isFavorite = useObservableState(artist.isFavorite) || false;
@@ -34,20 +36,25 @@ const ArtistListItem: React.FC<{ artist: Artist }> = ({ artist }) => {
 
   return (
     <SectionedListItem onPress={listItemOnPress}>
-      <ListItem.Part middle>
-        <RelistenText>{artist.name}</RelistenText>
-      </ListItem.Part>
-      <ListItem.Part right>
+      <Flex className="justify-between w-full">
+        <View className="flex flex-col flex-1">
+          <RowTitle>{artist.name}</RowTitle>
+          <Flex className="justify-between">
+            <RowSubtitle>{artist.showCount.toLocaleString()} shows</RowSubtitle>
+            <RowSubtitle>{artist.sourceCount.toLocaleString()} tapes</RowSubtitle>
+          </Flex>
+        </View>
         <FavoriteIconButton isFavorited={isFavorite} onPress={favoriteOnPress} />
-      </ListItem.Part>
+      </Flex>
     </SectionedListItem>
   );
 };
 
 const ArtistsList: React.FC<{ artists: Favorited<Artist>[] }> = ({ artists }) => {
   const sectionedArtists = useMemo(() => {
+    const favorites = artists.filter((a) => a.isFavorite && !a.model.featured);
     return [
-      { title: 'Favorites', data: artists.filter((a) => a.isFavorite) },
+      { title: 'Favorites', data: favorites },
       { title: 'Featured', data: artists.filter((a) => a.model.featured !== 0) },
       { title: `${artists.length} Artists`, data: artists },
     ];

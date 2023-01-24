@@ -1,5 +1,6 @@
 import { StyleSheet } from 'react-native';
 import React from 'react';
+import clsx from 'clsx';
 import { Text, TouchableOpacity } from 'react-native-ui-lib';
 
 const styles = StyleSheet.create({
@@ -21,7 +22,13 @@ export const FavoriteIconButton: React.FC<{ isFavorited: boolean; onPress: () =>
 }) => {
   return (
     <TouchableOpacity onPress={onPress} style={styles.container}>
-      <Text style={styles.text}>{isFavorited ? '♥' : '♡'}</Text>
+      <Text
+        className={clsx('font-bold text-2xl color-gray-400', {
+          ['color-red-600']: isFavorited,
+        })}
+      >
+        {isFavorited ? '♥' : '♡'}
+      </Text>
     </TouchableOpacity>
   );
 };
