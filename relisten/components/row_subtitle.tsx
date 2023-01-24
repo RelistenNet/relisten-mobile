@@ -15,7 +15,9 @@ const RowSubtitle = ({
 }: React.HTMLAttributes<HTMLDivElement> & NewProps) => {
   const Comp = as;
 
-  return <Comp {...props} className={clsx('text-xs text-slate-700', className)} />;
+  return (
+    <Comp {...props} className={clsx('text-xs text-slate-700 dark:text-slate-300', className)} />
+  );
 };
 
 export default RowSubtitle;
