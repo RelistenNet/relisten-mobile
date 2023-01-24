@@ -86,7 +86,7 @@ const YearListItem: React.FC<{
       <Flex className="justify-between" full>
         <Flex column className="flex-1">
           <RowTitle>{year.year}</RowTitle>
-          <Flex className="justify-between flex-1">
+          <Flex className="justify-between">
             <RowSubtitle>{year.showCount} shows</RowSubtitle>
             <RowSubtitle>{year.sourceCount} sources</RowSubtitle>
           </Flex>
