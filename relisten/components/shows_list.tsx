@@ -1,15 +1,17 @@
-import React, { useMemo } from 'react';
-import Show from '../db/models/show';
-import { ListItem, Text, TouchableOpacity, View } from 'react-native-ui-lib';
-import { LayoutAnimation, SectionList, StyleSheet } from 'react-native';
-import { DefaultLayoutAnimationConfig } from '../layout_animation_config';
-import { database, Favorited } from '../db/database';
 import withObservables from '@nozbe/with-observables';
+import React, { useMemo } from 'react';
+import { LayoutAnimation, SectionList } from 'react-native';
 import { Observable } from 'rxjs';
+import { database, Favorited } from '../db/database';
 import { asFavorited } from '../db/models/favorites';
+import Show from '../db/models/show';
+import { DefaultLayoutAnimationConfig } from '../layout_animation_config';
+import { FavoriteIconButton } from './favorite_icon_button';
+import Flex from './flex';
+import RowSubtitle from './row_subtitle';
+import RowTitle from './row_title';
 import { SectionedListItem } from './sectioned_list_item';
 import { SectionHeader } from './section_header';
-import { FavoriteIconButton } from './favorite_icon_button';
 
 const ShowListItem: React.FC<{ show: Show; isFavorite: boolean; onPress?: (show: Show) => {} }> = ({
   show,
@@ -18,23 +20,25 @@ const ShowListItem: React.FC<{ show: Show; isFavorite: boolean; onPress?: (show:
 }) => {
   return (
     <SectionedListItem onPress={() => onPress && onPress(show)}>
-      <ListItem.Part middle>
-        <View style={{ flexDirection: 'column' }}>
-          <Text>{show.displayDate}</Text>
-          <Text>Sources {show.sourceCount}</Text>
-          <Text>Rating {Math.round(show.avgRating)}</Text>
-          <Text>Duration {Math.round(show.avgDuration! / 60 / 60)} hours</Text>
-        </View>
-      </ListItem.Part>
-      <ListItem.Part right>
-        <FavoriteIconButton
-          isFavorited={isFavorite}
-          onPress={() => {
-            LayoutAnimation.configureNext(DefaultLayoutAnimationConfig);
-            show.setIsFavorite(!isFavorite);
-          }}
-        ></FavoriteIconButton>
-      </ListItem.Part>
+      <Flex className="justify-between flex-1">
+        <Flex className="flex-1" column>
+          <RowTitle>{show.displayDate}</RowTitle>
+          <RowSubtitle>Venue Goes Here</RowSubtitle>
+          <Flex className="justify-between flex-1">
+            <RowSubtitle>
+              {show.sourceCount} tape(s) &middot; {show.avgRating.toFixed(1)} ★ &middot;{' '}
+              {Number(show.avgDuration! / 60 / 60).toFixed(2)} hours
+            </RowSubtitle>
+          </Flex>
+        </Flex>
+      </Flex>
+      <FavoriteIconButton
+        isFavorited={isFavorite}
+        onPress={() => {
+          LayoutAnimation.configureNext(DefaultLayoutAnimationConfig);
+          show.setIsFavorite(!isFavorite);
+        }}
+      ></FavoriteIconButton>
     </SectionedListItem>
   );
 };

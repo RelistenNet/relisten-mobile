@@ -36,7 +36,7 @@ const ArtistListItem: React.FC<{ artist: Artist }> = ({ artist }) => {
 
   return (
     <SectionedListItem onPress={listItemOnPress}>
-      <Flex className="justify-between w-full">
+      <Flex className="justify-between" full>
         <View className="flex flex-col flex-1">
           <RowTitle>{artist.name}</RowTitle>
           <Flex className="justify-between">

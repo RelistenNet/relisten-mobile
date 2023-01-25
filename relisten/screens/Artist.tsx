@@ -9,7 +9,7 @@ import { ShowSourcesScreen } from './artist/ShowSources';
 type NavigationProps = NativeStackScreenProps<HomeTabsParamList, 'AllArtistsTab'>;
 
 export type AllArtistsTabStackParams = {
-  AllArtists: undefined;
+  Artists: undefined;
   ArtistYears: { artistId: string };
   ArtistYearShows: { artistId: string; yearId: string };
   ArtistShowSources: { artistId: string; showId: string };
@@ -17,11 +17,11 @@ export type AllArtistsTabStackParams = {
 
 const AllArtistsStack = createNativeStackNavigator<AllArtistsTabStackParams>();
 
-export const AllArtistTab: React.FC<{} & NavigationProps> = ({}) => {
+export const AllArtistTab: React.FC<NavigationProps> = () => {
   return (
     <AllArtistsStack.Navigator>
       <AllArtistsStack.Screen
-        name="AllArtists"
+        name="Artists"
         component={AllArtistsScreen}
         options={{ title: 'All Artists' }}
       />

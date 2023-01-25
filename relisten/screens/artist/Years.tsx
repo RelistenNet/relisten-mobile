@@ -87,8 +87,9 @@ const YearListItem: React.FC<{
         <Flex column className="flex-1">
           <RowTitle>{year.year}</RowTitle>
           <Flex className="justify-between">
-            <RowSubtitle>{year.showCount} shows</RowSubtitle>
-            <RowSubtitle>{year.sourceCount} sources</RowSubtitle>
+            <RowSubtitle>
+              {year.showCount} shows &middot; {year.sourceCount} tapes
+            </RowSubtitle>
           </Flex>
         </Flex>
         <FavoriteIconButton

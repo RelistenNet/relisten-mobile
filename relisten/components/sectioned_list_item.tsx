@@ -5,7 +5,7 @@ import { ListItem, ListItemProps } from 'react-native-ui-lib';
 const styles = StyleSheet.create({
   container: {
     backgroundColor: 'white',
-    width: '100%',
+    // width: '100%',
     paddingHorizontal: 8,
     paddingVertical: 4,
     height: 'auto',
