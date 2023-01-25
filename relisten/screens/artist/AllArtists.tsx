@@ -1,4 +1,5 @@
 import { NavigationProp, useNavigation } from '@react-navigation/native';
+import { useQuery } from '@tanstack/react-query';
 import { useObservableState } from 'observable-hooks';
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { LayoutAnimation, SectionList } from 'react-native';
@@ -17,15 +18,15 @@ import { useAllArtistsQuery } from '../../db/repos';
 import { DefaultLayoutAnimationConfig } from '../../layout_animation_config';
 import { HomeTabsParamList } from '../Home';
 
-const ArtistListItem: React.FC<{ artist: Artist }> = ({ artist }) => {
-  const isFavorite = useObservableState(artist.isFavorite) || false;
+const ArtistListItem: React.FC<{ artist: any }> = ({ artist }) => {
+  const isFavorite = (false && useObservableState(artist.isFavorite)) || false;
   const navigation = useNavigation<NavigationProp<HomeTabsParamList>>();
 
   const listItemOnPress = useCallback(() => {
     navigation.navigate('AllArtistsTab', {
       screen: 'ArtistYears',
       params: {
-        artistId: artist.id,
+        artistId: artist.uuid,
       },
     });
   }, [artist]);
@@ -37,11 +38,11 @@ const ArtistListItem: React.FC<{ artist: Artist }> = ({ artist }) => {
   return (
     <SectionedListItem onPress={listItemOnPress}>
       <Flex className="justify-between" full>
-        <View className="flex flex-col flex-1">
+        <View className="flex flex-1 flex-col">
           <RowTitle>{artist.name}</RowTitle>
           <Flex className="justify-between">
-            <RowSubtitle>{artist.showCount.toLocaleString()} shows</RowSubtitle>
-            <RowSubtitle>{artist.sourceCount.toLocaleString()} tapes</RowSubtitle>
+            <RowSubtitle>{artist.show_count.toLocaleString()} shows</RowSubtitle>
+            <RowSubtitle>{artist.source_count.toLocaleString()} tapes</RowSubtitle>
           </Flex>
         </View>
         <FavoriteIconButton isFavorited={isFavorite} onPress={favoriteOnPress} />
@@ -50,12 +51,12 @@ const ArtistListItem: React.FC<{ artist: Artist }> = ({ artist }) => {
   );
 };
 
-const ArtistsList: React.FC<{ artists: Favorited<Artist>[] }> = ({ artists }) => {
+const ArtistsList = ({ artists }: any) => {
   const sectionedArtists = useMemo(() => {
     const favorites = artists.filter((a) => a.isFavorite && !a.model.featured);
     return [
       { title: 'Favorites', data: favorites },
-      { title: 'Featured', data: artists.filter((a) => a.model.featured !== 0) },
+      { title: 'Featured', data: artists.filter((a) => a.featured !== 0) },
       { title: `${artists.length} Artists`, data: artists },
     ];
   }, [artists]);
@@ -63,39 +64,40 @@ const ArtistsList: React.FC<{ artists: Favorited<Artist>[] }> = ({ artists }) =>
   return (
     <SectionList
       sections={sectionedArtists}
-      keyExtractor={(artist) => artist.model.id}
+      keyExtractor={(artist) => artist.uuid}
       renderSectionHeader={({ section: { title } }) => {
         return <SectionHeader title={title} />;
       }}
       ItemSeparatorComponent={ItemSeparator}
       renderItem={({ item: artist }) => {
-        return <ArtistListItem artist={artist.model} />;
+        return <ArtistListItem artist={artist} />;
       }}
     />
   );
 };
 
 export const AllArtistsScreen: React.FC = () => {
-  const { showLoadingIndicator, error, data: rawArtists$ } = useAllArtistsQuery();
-  const artists$ = useFavoritedQuery(database, rawArtists$);
-  const artists = useObservableState(artists$);
+  const { isLoading, error, data, isFetching } = useQuery<any[]>(['/artists']);
+  // const { showLoadingIndicator, error, data: rawArtists$ } = useAllArtistsQuery();
+  // const artists$ = useFavoritedQuery(database, rawArtists$);
+  // const artists = useObservableState(artists$);
   const navigation = useNavigation();
 
   useEffect(() => {
-    if (!artists) {
+    if (!data) {
       navigation.setOptions({ title: 'Artists' });
     } else {
-      navigation.setOptions({ title: `${artists.length} Artists` });
+      navigation.setOptions({ title: `${data.length} Artists` });
     }
-  }, [artists]);
+  }, [data]);
 
-  if (showLoadingIndicator || !artists) {
+  if (isLoading || !data) {
     return <Text>Loading...</Text>;
   }
 
   return (
     <View useSafeArea flex style={{ width: '100%' }}>
-      <ArtistsList artists={artists} />
+      <ArtistsList artists={data} />
     </View>
   );
 };

@@ -1,4 +1,5 @@
 import { NavigationProp, useNavigation } from '@react-navigation/native';
+import { useQuery } from '@tanstack/react-query';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useObservableState } from 'observable-hooks';
 import React, { PropsWithChildren, useEffect, useMemo } from 'react';
@@ -24,28 +25,32 @@ type NavigationProps = NativeStackScreenProps<AllArtistsTabStackParams, 'ArtistY
 export const YearsScreen: React.FC<PropsWithChildren<NavigationProps>> = ({ route }) => {
   const navigation = useNavigation<NavigationProp<HomeTabsParamList>>();
   const { artistId } = route.params;
+  const yearsQuery = useQuery<any[]>(['/artists/' + artistId + '/years']);
 
+  const artistsQuery = useQuery<any[]>(['/artists']);
+  console.log(yearsQuery.isError, artistsQuery.isLoading);
+
+  const years = yearsQuery.data;
+  const artist = artistsQuery.data?.find((artist) => artist.uuid === artistId);
   useEffect(() => {
     navigation.setOptions({ title: 'Years' });
   }, []);
 
-  const {
-    showLoadingIndicator,
-    error,
-    data: { years: rawYears$, artist: artist$ },
-  } = mergeRepoQueryResults({
-    years: useArtistYearsQuery(artistId)(),
-    artist: useArtistQuery(artistId)(),
-  });
+  // const {
+  //   showLoadingIndicator,
+  //   error,
+  //   data: { years: rawYears$, artist: artist$ },
+  // } = mergeRepoQueryResults({
+  //   years: useArtistYearsQuery(artistId)(),
+  //   artist: useArtistQuery(artistId)(),
+  // });
 
-  const years$ = useFavoritedQuery(database, rawYears$);
-  const years = useObservableState(years$);
-  const artist = useObservableState(artist$);
+  // const years$ = useFavoritedQuery(database, rawYears$);
+  // const years = useObservableState(years$);
+  // const artist = useObservableState(artist$);
 
   useEffect(() => {
-    const yearTitle = years?.length
-      ? `${years[0].model.year}–${years[years.length - 1].model.year}`
-      : 'Years';
+    const yearTitle = years?.length ? `${years[0].year}–${years[years.length - 1].year}` : 'Years';
     const artistTitle = artist ? `${artist.name}: ` : '';
 
     navigation.setOptions({
@@ -53,7 +58,7 @@ export const YearsScreen: React.FC<PropsWithChildren<NavigationProps>> = ({ rout
     });
   }, [artist, years]);
 
-  if (showLoadingIndicator || !years || !artist) {
+  if (yearsQuery.isLoading || !years || !artist) {
     return <Text>Loading...</Text>;
   }
 
@@ -65,8 +70,8 @@ export const YearsScreen: React.FC<PropsWithChildren<NavigationProps>> = ({ rout
           navigation.navigate('AllArtistsTab', {
             screen: 'ArtistYearShows',
             params: {
-              artistId: year.artist.id!,
-              yearId: year.id,
+              artistId: artist.uuid!,
+              yearId: year.uuid,
             },
           })
         }
@@ -79,7 +84,8 @@ const YearListItem: React.FC<{
   year: Year;
   onPress?: (year: Year) => void;
 }> = ({ year, onPress }) => {
-  const isFavorite = useObservableState(year.isFavorite) || false;
+  // const isFavorite = useObservableState(year.isFavorite) || false;
+  const isFavorite = false;
 
   return (
     <SectionedListItem onPress={() => onPress && onPress(year)}>
@@ -88,7 +94,7 @@ const YearListItem: React.FC<{
           <RowTitle>{year.year}</RowTitle>
           <Flex className="justify-between">
             <RowSubtitle>
-              {year.showCount} shows &middot; {year.sourceCount} tapes
+              {year.show_count} shows &middot; {year.source_count} tapes
             </RowSubtitle>
           </Flex>
         </Flex>
@@ -118,12 +124,12 @@ const YearsList: React.FC<{
   return (
     <SectionList
       sections={sectionedYears}
-      keyExtractor={(year) => year.model.id}
+      keyExtractor={(year) => year.uuid}
       renderSectionHeader={({ section: { title } }) => {
         return <SectionHeader title={title} />;
       }}
       renderItem={({ item: year }) => {
-        return <YearListItem year={year.model} onPress={onItemPress} />;
+        return <YearListItem year={year} onPress={onItemPress} />;
       }}
     />
   );
