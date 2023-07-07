@@ -11,6 +11,8 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     display: 'flex',
     justifyContent: 'center',
+    padding: 4,
+    paddingRight: 0,
   },
   text: {
     fontWeight: 'bold',
