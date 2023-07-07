@@ -1,20 +1,32 @@
+// https://github.com/uuidjs/uuid#react-native--expo
+import 'react-native-get-random-values';
+import 'uuid';
+
+import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { RelistenApiProvider } from './relisten/api/context';
+import { HomeScreen } from './relisten/screens/Home';
+
+import dayjs from 'dayjs';
+import duration from 'dayjs/plugin/duration'; // import plugin
+import relativeTime from 'dayjs/plugin/relativeTime'; // import plugin
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { RealmProvider } from './relisten/realm/schema';
+
+dayjs.extend(duration);
+dayjs.extend(relativeTime);
 
 export default function App() {
   return (
-    <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <RealmProvider>
+      <SafeAreaProvider>
+        <NavigationContainer>
+          <RelistenApiProvider>
+            <HomeScreen />
+            <StatusBar style="auto" />
+          </RelistenApiProvider>
+        </NavigationContainer>
+      </SafeAreaProvider>
+    </RealmProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});

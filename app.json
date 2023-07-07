@@ -15,7 +15,8 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.alecgorge.ios.Listen-to-the-Dead"
     },
     "android": {
       "adaptiveIcon": {
