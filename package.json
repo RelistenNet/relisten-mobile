@@ -13,12 +13,13 @@
     "@react-navigation/native": "^6.1.7",
     "@react-navigation/native-stack": "^6.9.13",
     "@realm/react": "^0.5.1",
+    "@rntext/more-or-less": "^2.0.1",
     "clsx": "^1.2.1",
     "dayjs": "^1.11.9",
     "expo": "~48.0.9",
     "expo-asset": "~8.9.1",
     "expo-file-system": "~15.4.2",
-    "expo-splash-screen": "~0.20.4",
+    "expo-splash-screen": "~0.18.2",
     "expo-sqlite": "~11.3.1",
     "expo-status-bar": "~1.6.0",
     "nativewind": "^2.0.11",
@@ -31,7 +32,10 @@
     "realm": "^11.10.1",
     "reflect-metadata": "^0.1.13",
     "remeda": "^1.23.0",
-    "wretch": "^2.6.0"
+    "wretch": "^2.6.0",
+    "expo-system-ui": "~2.2.1",
+    "@expo/vector-icons": "^13.0.0",
+    "expo-web-browser": "~12.1.1"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",

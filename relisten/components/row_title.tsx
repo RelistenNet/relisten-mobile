@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import React from 'react';
-import { Text } from 'react-native';
+import { Text, TextProps } from 'react-native';
 
 interface NewProps {
   as?: React.ElementType;
@@ -8,14 +8,10 @@ interface NewProps {
   children?: React.ReactNode;
 }
 
-const RowTitle = ({
-  className,
-  as = Text,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement> & NewProps) => {
+const RowTitle = ({ className, as = Text, ...props }: TextProps & NewProps) => {
   const Comp = as;
 
-  return <Comp {...props} className={clsx('font-semibold text-lg', className)} />;
+  return <Comp {...props} className={clsx('text-lg font-semibold text-white', className)} />;
 };
 
 export default RowTitle;

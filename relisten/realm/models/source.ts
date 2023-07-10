@@ -24,12 +24,12 @@ export interface SourceRequiredProperties extends RelistenObjectRequiredProperti
   duration?: number;
   upstreamIdentifier: string;
   showUuid: string;
-  description: string;
-  taperNotes: string;
-  source: string;
-  taper: string;
-  transferrer: string;
-  lineage: string;
+  description?: string;
+  taperNotes?: string;
+  source?: string;
+  taper?: string;
+  transferrer?: string;
+  lineage?: string;
   flacType: FlacType;
   reviewCount: number;
   linksRaw: string;
@@ -60,12 +60,12 @@ export class Source
       avgRatingWeighted: 'float',
       duration: 'double?',
       upstreamIdentifier: 'string',
-      description: 'string',
-      taperNotes: 'string',
-      source: 'string',
-      taper: 'string',
-      transferrer: 'string',
-      lineage: 'string',
+      description: 'string?',
+      taperNotes: 'string?',
+      source: 'string?',
+      taper: 'string?',
+      transferrer: 'string?',
+      lineage: 'string?',
       flacType: 'string',
       reviewCount: 'int',
       linksRaw: 'string',
@@ -92,12 +92,12 @@ export class Source
   duration?: number;
   upstreamIdentifier!: string;
   showUuid!: string;
-  description!: string;
-  taperNotes!: string;
-  source!: string;
-  taper!: string;
-  transferrer!: string;
-  lineage!: string;
+  description?: string;
+  taperNotes?: string;
+  source?: string;
+  taper?: string;
+  transferrer?: string;
+  lineage?: string;
   flacType!: FlacType;
   reviewCount!: number;
   linksRaw!: string;
@@ -106,12 +106,25 @@ export class Source
 
   sourceSets!: Realm.List<SourceSet>;
 
-  private _links?: Link;
+  private _links?: Link[];
   links() {
     if (!this._links) {
       this._links = JSON.parse(this.linksRaw);
     }
-    return this._links;
+    return this._links!;
+  }
+
+  private _humanizedDuration?: string;
+  humanizedDuration() {
+    if (!this._humanizedDuration && this.duration) {
+      this._humanizedDuration = dayjs.duration(this.duration, 'seconds').format('HH:mm:ss');
+    }
+
+    return this._humanizedDuration;
+  }
+
+  humanizedAvgRating() {
+    return this.avgRating.toFixed(2);
   }
 
   static propertiesFromApi(relistenObj: SourceFull): SourceRequiredProperties {

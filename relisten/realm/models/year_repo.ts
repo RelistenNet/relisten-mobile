@@ -15,6 +15,9 @@ import { ThrottledNetworkBackedBehavior } from '../network_backed_behavior';
 import { YearWithShows } from '../../api/models/year';
 import { RelistenApiClient } from '../../api/client';
 import { showRepo } from './show_repo';
+import * as R from 'remeda';
+import { venueRepo } from './venue_repo';
+import { Venue } from './venue';
 
 export const yearRepo = new Repository(Year);
 
@@ -83,12 +86,49 @@ class YearShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
   }
 
   upsert(realm: Realm, localData: YearShows, apiData: YearWithShows): void {
-    if (!localData.shows) {
+    if (!localData.shows.isValid()) {
       return;
     }
 
-    // don't upsert the year
-    showRepo.upsertMultiple(realm, apiData.shows, localData.shows);
+    const apiVenuesByUuid = R.flatMapToObj(
+      apiData.shows.filter((s) => !!s.venue),
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      (s) => [[s.venue!.uuid, s.venue!]]
+    );
+
+    realm.write(() => {
+      const { createdModels: createdShows } = showRepo.upsertMultiple(
+        realm,
+        apiData.shows,
+        localData.shows
+      );
+
+      for (const show of createdShows.concat(localData.shows)) {
+        if (show.venueUuid) {
+          const apiVenue = apiVenuesByUuid[show.venueUuid];
+
+          if (!show.venue) {
+            const localVenue = realm.objectForPrimaryKey(Venue, show.venueUuid);
+
+            if (localVenue) {
+              show.venue = localVenue;
+            } else {
+              const { createdModels: createdVenues } = venueRepo.upsert(
+                realm,
+                apiVenue,
+                localVenue
+              );
+
+              if (createdVenues.length > 0) {
+                show.venue = createdVenues[0];
+              }
+            }
+          } else {
+            venueRepo.upsert(realm, apiVenue, show.venue);
+          }
+        }
+      }
+    });
   }
 }
 

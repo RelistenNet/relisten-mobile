@@ -1,21 +1,6 @@
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import React, { PropsWithChildren } from 'react';
 import { RelistenText } from './relisten_text';
-
-const styles = StyleSheet.create({
-  container: {
-    alignSelf: 'stretch',
-    display: 'flex',
-    justifyContent: 'center',
-    backgroundColor: '#eee',
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-  },
-  text: {
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-});
 
 export const SectionHeader: React.FC<PropsWithChildren<{ title?: string }>> = ({
   title,
@@ -24,8 +9,8 @@ export const SectionHeader: React.FC<PropsWithChildren<{ title?: string }>> = ({
   let inner = children;
 
   if (title) {
-    inner = <RelistenText style={styles.text}>{title}</RelistenText>;
+    inner = <RelistenText className="text-m font-bold">{title}</RelistenText>;
   }
 
-  return <View style={styles.container}>{inner}</View>;
+  return <View className="flex bg-relisten-blue-800 px-4 py-2">{inner}</View>;
 };

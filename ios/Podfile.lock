@@ -19,9 +19,12 @@ PODS:
     - ReactCommon/turbomodule/core
   - ExpoSQLite (11.3.1):
     - ExpoModulesCore
-  - EXSplashScreen (0.20.4):
+  - ExpoSystemUI (2.2.1):
     - ExpoModulesCore
-    - RCT-Folly (= 2021.07.22.00)
+  - ExpoWebBrowser (12.1.1):
+    - ExpoModulesCore
+  - EXSplashScreen (0.18.2):
+    - ExpoModulesCore
     - React-Core
   - FBLazyVector (0.71.4)
   - FBReactNativeSpec (0.71.4):
@@ -398,6 +401,8 @@ DEPENDENCIES:
   - ExpoKeepAwake (from `../node_modules/expo-keep-awake/ios`)
   - ExpoModulesCore (from `../node_modules/expo-modules-core`)
   - ExpoSQLite (from `../node_modules/expo-sqlite/ios`)
+  - ExpoSystemUI (from `../node_modules/expo-system-ui/ios`)
+  - ExpoWebBrowser (from `../node_modules/expo-web-browser/ios`)
   - EXSplashScreen (from `../node_modules/expo-splash-screen/ios`)
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
   - FBReactNativeSpec (from `../node_modules/react-native/React/FBReactNativeSpec`)
@@ -464,6 +469,10 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-modules-core"
   ExpoSQLite:
     :path: "../node_modules/expo-sqlite/ios"
+  ExpoSystemUI:
+    :path: "../node_modules/expo-system-ui/ios"
+  ExpoWebBrowser:
+    :path: "../node_modules/expo-web-browser/ios"
   EXSplashScreen:
     :path: "../node_modules/expo-splash-screen/ios"
   FBLazyVector:
@@ -550,7 +559,9 @@ SPEC CHECKSUMS:
   ExpoKeepAwake: 69f5f627670d62318410392d03e0b5db0f85759a
   ExpoModulesCore: 653958063a301098b541ae4dfed1ac0b98db607b
   ExpoSQLite: fdbc8d08a0efa64fd4ebbc5c261d55fc0ae3b21d
-  EXSplashScreen: 89586b0961acd173b04713b7457949b063a659da
+  ExpoSystemUI: 0be5173ee2a7c01e9abc44f56d879a1eaaa16527
+  ExpoWebBrowser: 033d34c478d9986da2f1679729041423837626e0
+  EXSplashScreen: 0e0a9ba0cf7553094e93213099bd7b42e6e237e9
   FBLazyVector: 446e84642979fff0ba57f3c804c2228a473aeac2
   FBReactNativeSpec: 241709e132e3bf1526c1c4f00bc5384dd39dfba9
   fmt: ff9d55029c625d3757ed641535fd4a75fedc7ce9

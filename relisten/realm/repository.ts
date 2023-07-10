@@ -92,9 +92,17 @@ export class Repository<
     model: TModel | undefined,
     queryForModel = false
   ): UpsertResults<TModel> {
-    const res = realm.write(() => {
-      return this.upsertWithinWrite(realm, api, model, queryForModel);
-    });
+    const writeHandler = () => this.upsertWithinWrite(realm, api, model, queryForModel);
+
+    let res: UpsertResults<TModel>;
+
+    if (realm.isInTransaction) {
+      res = writeHandler();
+    } else {
+      res = realm.write(() => {
+        return writeHandler();
+      });
+    }
 
     logger.info(
       'upsert for',

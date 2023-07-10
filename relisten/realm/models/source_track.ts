@@ -75,6 +75,15 @@ export class SourceTrack
 
   isFavorite!: boolean;
 
+  private _humanizedDuration?: string;
+  humanizedDuration() {
+    if (!this._humanizedDuration && this.duration) {
+      this._humanizedDuration = dayjs.duration(this.duration, 'seconds').format('mm:ss');
+    }
+
+    return this._humanizedDuration;
+  }
+
   static propertiesFromApi(relistenObj: ApiSourceTrack): SourceTrackRequiredProperties {
     return {
       uuid: relistenObj.uuid,

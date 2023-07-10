@@ -14,6 +14,7 @@ import { sourceSetRepo } from './source_set_repo';
 import { sourceRepo } from './source_repo';
 import { NetworkBackedResults } from '../network_backed_results';
 import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
+import { venueRepo } from './venue_repo';
 
 export const showRepo = new Repository(Show);
 
@@ -61,6 +62,19 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
     const apiSourceTracksBySet = R.groupBy(apiSourceTracks, (s) => s.source_set_uuid);
 
     realm.write(() => {
+      if (localData.show && apiData.venue) {
+        const { createdModels: createdVenues } = venueRepo.upsert(
+          realm,
+          apiData.venue,
+          localData.show.venue,
+          true
+        );
+
+        if (createdVenues.length > 0) {
+          localData.show.venue = createdVenues[0];
+        }
+      }
+
       sourceRepo.upsertMultiple(realm, apiData.sources, localData.sources);
 
       for (const source of localData.sources) {

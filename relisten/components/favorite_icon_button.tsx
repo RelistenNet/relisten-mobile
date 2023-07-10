@@ -1,10 +1,10 @@
-import { LayoutAnimation, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { LayoutAnimation, StyleSheet, TouchableOpacity, TouchableOpacityProps } from 'react-native';
 import React, { useCallback } from 'react';
-import clsx from 'clsx';
 import { FavoritableObject } from '../realm/favoritable_object';
 import { DefaultLayoutAnimationConfig } from '../layout_animation_config';
 import { useRealm } from '../realm/schema';
 import { useForceUpdate } from '../util/forced_update';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const styles = StyleSheet.create({
   container: {
@@ -21,24 +21,25 @@ const styles = StyleSheet.create({
   },
 });
 
-export const FavoriteIconButton: React.FC<{ isFavorited: boolean; onPress: () => void }> = ({
+export const FavoriteIconButton: React.FC<{ isFavorited: boolean } & TouchableOpacityProps> = ({
   isFavorited,
-  onPress,
+  ...props
 }) => {
   return (
-    <TouchableOpacity onPress={onPress} style={styles.container}>
-      <Text
-        className={clsx('color-gray-400 text-2xl font-bold', {
-          ['color-red-600']: isFavorited,
-        })}
-      >
-        {isFavorited ? '♥' : '♡'}
-      </Text>
+    <TouchableOpacity style={styles.container} {...props}>
+      <MaterialCommunityIcons
+        name={isFavorited ? 'cards-heart' : 'cards-heart-outline'}
+        size={18}
+        /* color-red/slate-600 */ color={isFavorited ? '#dc2625' : '#93a1b8'}
+      />
     </TouchableOpacity>
   );
 };
 
-export const FavoriteObjectButton = <T extends FavoritableObject>({ object }: { object: T }) => {
+export const FavoriteObjectButton = <T extends FavoritableObject>({
+  object,
+  ...props
+}: { object: T } & TouchableOpacityProps) => {
   const realm = useRealm();
   const forceUpdate = useForceUpdate();
 
@@ -50,5 +51,7 @@ export const FavoriteObjectButton = <T extends FavoritableObject>({ object }: { 
     });
   }, [object, forceUpdate]);
 
-  return <FavoriteIconButton isFavorited={object.isFavorite} onPress={favoriteOnPress} />;
+  return (
+    <FavoriteIconButton isFavorited={object.isFavorite} onPress={favoriteOnPress} {...props} />
+  );
 };

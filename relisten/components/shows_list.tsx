@@ -8,19 +8,31 @@ import { memo } from '../util/memo';
 import RowSubtitle from './row_subtitle';
 import Flex from './flex';
 import RowTitle from './row_title';
+import { RelistenText } from './relisten_text';
 
 const ShowListItem: React.FC<{ show: Show; onPress?: (show: Show) => void }> = memo(
   ({ show, onPress }) => {
     return (
       <SectionedListItem onPress={() => onPress && onPress(show)}>
-        <Flex className="flex-1 justify-between" full>
-          <Flex className="flex-1" column>
-            <RowTitle>{show.displayDate}</RowTitle>
-            <RowSubtitle>Venue Goes Here</RowSubtitle>
-            <Flex className="flex-1 justify-between">
+        <Flex className="flex justify-between" full>
+          <Flex className="flex-1 pr-2" column>
+            <Flex className="items-center" style={{ gap: 8 }}>
+              <RowTitle>{show.displayDate}</RowTitle>
+              {show.hasSoundboardSource && (
+                <RelistenText className="text-xs font-bold text-relisten-blue-600">
+                  SBD
+                </RelistenText>
+              )}
+            </Flex>
+            {show.venue && (
+              <RowSubtitle className="pt-1" numberOfLines={1}>
+                {show.venue.name}, {show.venue.location}
+              </RowSubtitle>
+            )}
+            <Flex className="flex-1 justify-between pt-1">
               <RowSubtitle>
-                {show.sourceCount} tape(s) &middot; {show.avgRating.toFixed(1)} ★ &middot;{' '}
-                {Number(show.avgDuration! / 60 / 60).toFixed(2)} hours
+                {show.sourceCount} tape(s) &middot; {show.humanizedAvgRating()} ★ &middot;{' '}
+                {show.humanizedAvgDuration()}
               </RowSubtitle>
             </Flex>
           </Flex>

@@ -29,9 +29,9 @@ const ArtistListItem = memo(({ artist }: { artist: Artist }) => {
   return (
     <SectionedListItem onPress={listItemOnPress}>
       <Flex className="justify-between" full>
-        <View className="flex flex-1 flex-col">
+        <View className="flex flex-1 flex-col pr-3">
           <RowTitle>{artist.name}</RowTitle>
-          <Flex className="justify-between">
+          <Flex className="justify-between pt-1">
             <RowSubtitle>{artist.showCount.toLocaleString()} shows</RowSubtitle>
             <RowSubtitle>{artist.sourceCount.toLocaleString()} tapes</RowSubtitle>
           </Flex>
@@ -46,10 +46,14 @@ const ArtistsList = ({ artists }: { artists: Realm.Results<Artist> }) => {
   const sectionedArtists = useMemo(() => {
     const all = [...artists];
     const r = [
-      { title: 'Favorites', data: all.filter((a) => a.isFavorite) },
       { title: 'Featured', data: all.filter((a) => a.featured !== 0) },
       { title: `${all.length} Artists`, data: all },
     ];
+
+    const favorites = all.filter((a) => a.isFavorite);
+    if (favorites.length > 0) {
+      r.unshift({ title: 'Favorites', data: favorites });
+    }
 
     return r;
   }, [artists]);

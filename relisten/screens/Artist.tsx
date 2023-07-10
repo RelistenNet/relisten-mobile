@@ -28,7 +28,7 @@ export const AllArtistTab: React.FC<{} & NavigationProps> = ({}) => {
       <AllArtistsStack.Screen
         name="ArtistYears"
         component={YearsScreen}
-        options={{ title: 'Year' }}
+        options={{ title: '', headerTransparent: true }}
       />
       <AllArtistsStack.Screen
         name="ArtistYearShows"
@@ -38,7 +38,7 @@ export const AllArtistTab: React.FC<{} & NavigationProps> = ({}) => {
       <AllArtistsStack.Screen
         name="ArtistShowSources"
         component={ShowSourcesScreen}
-        options={{ title: 'Show' }}
+        options={{ title: '', headerTransparent: true }}
       />
     </AllArtistsStack.Navigator>
   );

@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import React from 'react';
-import { View } from 'react-native';
+import { View, ViewProps } from 'react-native';
 
 interface NewProps {
   as?: React.ElementType;
@@ -11,7 +11,7 @@ interface NewProps {
   children?: React.ReactNode;
 }
 
-const Flex = ({ className, center, column, as = View, full, ...props }: NewProps) => {
+const Flex = ({ className, center, column, as = View, full, ...props }: ViewProps & NewProps) => {
   const Comp = as;
 
   return (

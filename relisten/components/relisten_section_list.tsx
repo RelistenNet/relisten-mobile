@@ -7,10 +7,12 @@ import { SectionListProps } from 'react-native/Libraries/Lists/SectionList';
 export const RelistenSectionList = <T extends { uuid: string }>({
   sections,
   renderItem,
+  pullToRefresh = false,
   ...props
 }: {
   sections: ReadonlyArray<SectionListData<T, { title: string; data: T[] }>>;
   renderItem: SectionListRenderItem<T, { title: string; data: T[] }>;
+  pullToRefresh?: boolean;
 } & SectionListProps<T, { title: string; data: T[] }>) => {
   const { onRefresh, refreshing } = useRefreshContext();
 
@@ -23,7 +25,9 @@ export const RelistenSectionList = <T extends { uuid: string }>({
       }}
       ItemSeparatorComponent={ItemSeparator}
       renderItem={renderItem}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      refreshControl={
+        pullToRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} /> : undefined
+      }
       {...props}
     ></SectionList>
   );

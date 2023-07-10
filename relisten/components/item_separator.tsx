@@ -1,14 +1,7 @@
-import { StyleSheet, View } from 'react-native';
+import { View, ViewProps } from 'react-native';
 import React from 'react';
+import clsx from 'clsx';
 
-const styles = StyleSheet.create({
-  container: {
-    height: 0.5,
-    width: '100%',
-    backgroundColor: '#d8d8d8',
-  },
-});
-
-export const ItemSeparator: React.FC = () => {
-  return <View style={styles.container} />;
+export const ItemSeparator: React.FC = ({ className, ...props }: ViewProps) => {
+  return <View className={clsx('h-[0.5] w-full bg-relisten-blue-800', className)} {...props} />;
 };

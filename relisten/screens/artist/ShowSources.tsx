@@ -1,16 +1,45 @@
-import React, { PropsWithChildren, useEffect, useMemo } from 'react';
-import { Text, View } from 'react-native';
+import React, { PropsWithChildren, useEffect, useMemo, useState } from 'react';
+import { Button, ScrollView, TouchableOpacity, TouchableOpacityProps, View } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AllArtistsTabStackParams } from '../Artist';
 import { useNavigation } from '@react-navigation/native';
-import dayjs from 'dayjs';
 import { useFullShow } from '../../realm/models/show_repo';
 import { RelistenFlatList } from '../../components/relisten_flat_list';
 import { memo } from '../../util/memo';
 import { RefreshContextProvider } from '../../components/refresh_context';
 import { Source } from '../../realm/models/source';
+import * as R from 'remeda';
+import { Show } from '../../realm/models/show';
+import { MoreOrLess } from '@rntext/more-or-less';
+import { RelistenButton } from '../../components/relisten_button';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { FavoriteObjectButton } from '../../components/favorite_icon_button';
+import { ItemSeparator } from '../../components/item_separator';
+import { RelistenText } from '../../components/relisten_text';
+import { SourceSet } from '../../realm/models/source_set';
+import { SourceTrack } from '../../realm/models/source_track';
+import { SectionHeader } from '../../components/section_header';
+import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { Link } from '../../api/models/source';
+import { openBrowserAsync } from 'expo-web-browser';
+import dayjs from 'dayjs';
+import { RelistenLink } from '../../components/relisten_link';
+import { useRealm } from '../../realm/schema';
+import { useForceUpdate } from '../../util/forced_update';
 
 type NavigationProps = NativeStackScreenProps<AllArtistsTabStackParams, 'ArtistShowSources'>;
+
+export const SourceList = ({ sources }: { sources: Source[] }) => {
+  return (
+    <RelistenFlatList
+      style={{ flex: 1, width: '100%' }}
+      data={sources}
+      renderItem={({ item: source, index }) => (
+        <SourceListItem source={source} index={index} key={index} />
+      )}
+    />
+  );
+};
 
 export const ShowSourcesScreen: React.FC<PropsWithChildren<{} & NavigationProps>> = ({ route }) => {
   const navigation = useNavigation();
@@ -20,12 +49,8 @@ export const ShowSourcesScreen: React.FC<PropsWithChildren<{} & NavigationProps>
   } = results;
 
   useEffect(() => {
-    if (show) {
-      navigation.setOptions({ title: show.displayDate });
-    } else {
-      navigation.setOptions({ title: 'Show' });
-    }
-  }, [show]);
+    navigation.setOptions({ title: '' });
+  }, []);
 
   const sortedSources = useMemo(() => {
     const all = [...sources];
@@ -33,16 +58,269 @@ export const ShowSourcesScreen: React.FC<PropsWithChildren<{} & NavigationProps>
     return all.sort((a, b) => b.avgRatingWeighted - a.avgRatingWeighted);
   }, [sources]);
 
+  const [selectedSourceIndex, setSelectedSourceIndex] = useState<number>(0);
+
+  const selectedSource = sortedSources[selectedSourceIndex];
+
   return (
-    <RefreshContextProvider networkBackedResults={results}>
-      <RelistenFlatList
-        style={{ flex: 1, width: '100%' }}
-        data={sortedSources}
-        renderItem={({ item: source, index }) => (
-          <SourceListItem source={source} index={index} key={index} />
+    <SafeAreaView edges={{ bottom: 'off', top: 'additive' }} className="flex-1">
+      <RefreshContextProvider networkBackedResults={results}>
+        <View className="flex-1">
+          {selectedSource && (
+            <ScrollView style={{ flex: 1 }}>
+              {/*<SelectedSource sources={sortedSources} sourceIndex={selectedSourceIndex} />*/}
+              <SourceHeader source={selectedSource} show={show!} />
+              <SourceSets source={selectedSource} />
+              <SourceFooter source={selectedSource} show={show!} />
+            </ScrollView>
+          )}
+        </View>
+      </RefreshContextProvider>
+    </SafeAreaView>
+  );
+};
+
+function sourceRatingText(source: Source) {
+  if (!source.avgRating) {
+    return null;
+  }
+
+  return `${source.humanizedAvgRating()}★ (${source.numRatings || source.numReviews} ratings)`;
+}
+
+export const SourceFooter: React.FC<{ source: Source; show: Show }> = memo(({ show, source }) => {
+  return (
+    <View className="px-4 py-4">
+      <RelistenText className="text-l py-1 text-slate-400">
+        Source last updated: {dayjs(source.updatedAt).format('YYYY-MM-DD')}
+      </RelistenText>
+      <RelistenText className="text-l py-1 text-slate-400">
+        Identifier: {source.upstreamIdentifier}
+      </RelistenText>
+      {source.links().map((l) => (
+        <SourceLink key={l.upstream_source_id} className="py-1" link={l} />
+      ))}
+    </View>
+  );
+});
+
+export const SourceLink: React.FC<{ link: Link } & TouchableOpacityProps> = memo(
+  ({ link, ...props }) => {
+    return (
+      <TouchableOpacity onPress={() => openBrowserAsync(link.url)} {...props}>
+        <RelistenLink className="text-l font-bold text-slate-400">{link.label}</RelistenLink>
+      </TouchableOpacity>
+    );
+  }
+);
+
+export const SourceHeader: React.FC<{ source: Source; show: Show }> = memo(({ show, source }) => {
+  const realm = useRealm();
+  const forceUpdate = useForceUpdate();
+
+  const secondLine = R.compact([
+    source.humanizedDuration(),
+    `${R.sumBy(
+      source.sourceSets.map((s) => s.sourceTracks.length),
+      (l) => l
+    )} tracks`,
+    sourceRatingText(source),
+  ]);
+
+  return (
+    <View className="flex w-full items-center px-4">
+      <View className="w-full">
+        <RelistenText
+          className="w-full py-2 pt-8 text-center text-4xl font-bold text-white"
+          selectable={false}
+        >
+          {show.displayDate}
+        </RelistenText>
+        {show.venue && (
+          <RelistenText className="w-full pb-2 text-center text-xl" selectable={false}>
+            {show.venue.name}, {show.venue.location}&nbsp;›
+          </RelistenText>
         )}
-      />
-    </RefreshContextProvider>
+        {secondLine.length > 0 && (
+          <RelistenText className="text-l w-full pb-2 text-center italic text-slate-400">
+            {secondLine.join(' • ')}
+          </RelistenText>
+        )}
+      </View>
+      <View className="w-full py-4">
+        {source.taper && (
+          <SourceProperty title="Taper">
+            <MoreOrLess numberOfLines={1} textComponent={RelistenText}>
+              {source.taper}
+            </MoreOrLess>
+          </SourceProperty>
+        )}
+        {source.transferrer && (
+          <SourceProperty title="Transferrer">
+            <MoreOrLess numberOfLines={1} textComponent={RelistenText}>
+              {source.transferrer}
+            </MoreOrLess>
+          </SourceProperty>
+        )}
+        {source.source && (
+          <SourceProperty title="Source">
+            <MoreOrLess numberOfLines={1} textComponent={RelistenText}>
+              {source.source}
+            </MoreOrLess>
+          </SourceProperty>
+        )}
+        {source.lineage && (
+          <SourceProperty title="Lineage">
+            <MoreOrLess numberOfLines={1} textComponent={RelistenText}>
+              {source.lineage}
+            </MoreOrLess>
+          </SourceProperty>
+        )}
+        {source.taperNotes && (
+          <SourceProperty title="Taper Notes">
+            <MoreOrLess numberOfLines={1} textComponent={RelistenText}>
+              {source.taperNotes}
+            </MoreOrLess>
+          </SourceProperty>
+        )}
+        {source.description && (
+          <SourceProperty title="Description">
+            <MoreOrLess numberOfLines={1} textComponent={RelistenText}>
+              {source.description}
+            </MoreOrLess>
+          </SourceProperty>
+        )}
+      </View>
+      {false && (
+        <View className="w-full flex-row pb-2" style={{ gap: 16 }}>
+          <RelistenButton className="shrink basis-1/2">Switch Source</RelistenButton>
+          <FavoriteObjectButton className="shrink basis-1/2" object={source} />
+        </View>
+      )}
+      <View className="w-full flex-row pb-4 " style={{ gap: 16 }}>
+        <RelistenButton
+          className="shrink basis-1/2"
+          textClassName="text-l"
+          icon={<MaterialIcons name="play-arrow" size={20} color="white" />}
+        >
+          Play
+        </RelistenButton>
+        <RelistenButton
+          className="shrink basis-1/2"
+          textClassName="text-l"
+          icon={
+            <MaterialIcons
+              name={source.isFavorite ? 'favorite' : 'favorite-outline'}
+              size={20}
+              color="white"
+            />
+          }
+          onPress={() => {
+            realm.write(() => {
+              source.isFavorite = !source.isFavorite;
+              forceUpdate();
+            });
+          }}
+        >
+          {source.isFavorite ? 'In Library' : 'Add to Library'}
+        </RelistenButton>
+      </View>
+      {source.sourceSets.length === 1 && <ItemSeparator />}
+    </View>
+  );
+});
+
+export const SourceSets: React.FC<{ source: Source }> = memo(({ source }) => {
+  return (
+    <View>
+      {source.sourceSets.map((s) => (
+        <SourceSetComponent key={s.uuid} sourceSet={s} source={source} />
+      ))}
+      <View className="px-4">
+        <ItemSeparator />
+      </View>
+    </View>
+  );
+});
+
+export const SourceSetComponent: React.FC<{ source: Source; sourceSet: SourceSet }> = memo(
+  ({ source, sourceSet }) => {
+    return (
+      <View>
+        {source.sourceSets.length > 1 && <SectionHeader title={sourceSet.name} />}
+        {sourceSet.sourceTracks.map((t, idx) => (
+          <SourceTrackComponent
+            key={t.uuid}
+            sourceTrack={t}
+            source={source}
+            isLastTrackInSet={idx == sourceSet.sourceTracks.length - 1}
+          />
+        ))}
+      </View>
+    );
+  }
+);
+
+export const SourceTrackComponent: React.FC<{
+  source: Source;
+  sourceTrack: SourceTrack;
+  isLastTrackInSet: boolean;
+}> = memo(({ source, sourceTrack, isLastTrackInSet }) => {
+  return (
+    <View className="flex flex-row items-start pl-6 pr-4">
+      <View className="basis-7 pt-3 ">
+        <RelistenText className="pt-[1] text-lg text-slate-500">
+          {sourceTrack.trackPosition}
+        </RelistenText>
+      </View>
+
+      <View className="shrink flex-col">
+        <View className="w-full grow flex-row items-center justify-between">
+          <RelistenText className="shrink py-3 pr-2 text-lg">{sourceTrack.title}</RelistenText>
+          <View className="grow"></View>
+          <RelistenText className="py-3 text-base text-slate-400">
+            {sourceTrack.humanizedDuration()}
+          </RelistenText>
+          <TouchableOpacity className="shrink-0 grow-0 py-3 pl-4">
+            <MaterialCommunityIcons name="dots-horizontal" size={16} color="white" />
+          </TouchableOpacity>
+        </View>
+        {!isLastTrackInSet && <ItemSeparator />}
+      </View>
+    </View>
+  );
+});
+
+const SelectedSource: React.FC<{ sources: Source[]; sourceIndex: number }> = ({
+  sources,
+  sourceIndex,
+}) => {
+  const source = sources[sourceIndex];
+
+  if (!source) {
+    return null;
+  }
+
+  return (
+    <View className="flex w-full flex-row items-center justify-between bg-slate-100 px-4 py-2">
+      <View className="flex shrink">
+        <RelistenText className="pb-1 text-sm font-bold">
+          Source {sourceIndex + 1}/{sources.length}
+          {source.duration && ' — ' + source.humanizedDuration()}
+        </RelistenText>
+        <RelistenText className="pb-1 text-sm tracking-tighter" numberOfLines={1}>
+          {R.compact([source.taper, source.transferrer]).join(', ')}
+        </RelistenText>
+        {source.source && (
+          <RelistenText className="pb-1 text-sm tracking-tighter" numberOfLines={1}>
+            {source.source}
+          </RelistenText>
+        )}
+      </View>
+      <View className="shrink-0">
+        <Button title="Change Source" />
+      </View>
+    </View>
   );
 };
 
@@ -52,14 +330,14 @@ const SourceProperty: React.FC<PropsWithChildren<{ title: string; value?: string
   children,
 }) => {
   return (
-    <View className="w-full flex-1 flex-row py-1">
-      <Text className="basis-1/4 pt-0.5 text-sm text-slate-800">{title}</Text>
+    <View className="w-full flex-1 flex-col py-1">
+      <RelistenText className="pb-1 text-sm font-bold text-slate-500">{title}</RelistenText>
       {value ? (
-        <Text className="bg w-0 grow text-base" selectable={true}>
+        <RelistenText className="bg w-full grow" selectable={true}>
           {value}
-        </Text>
+        </RelistenText>
       ) : (
-        children
+        <View className="bg w-full grow">{children}</View>
       )}
     </View>
   );
@@ -69,17 +347,10 @@ export const SourceListItem: React.FC<PropsWithChildren<{ source: Source; index:
   ({ source, index }) => {
     return (
       <View className="w-full flex-1 flex-col bg-white px-4 py-4">
-        <Text className="pb-1 text-sm font-bold">
-          Source {index + 1}{' '}
-          {source.duration && '— ' + dayjs.duration(source.duration, 'seconds').format('HH:mm:ss')}
-        </Text>
-        <SourceProperty
-          title="Rating"
-          // value={source.avgRating + ''}
-          value={`${Math.round((source.avgRating + Number.EPSILON) * 100) / 100} (${
-            source.numRatings
-          } ratings)`}
-        />
+        <RelistenText className="pb-1 text-sm font-bold">
+          Source {index + 1} {source.duration && '— ' + source.humanizedDuration()}
+        </RelistenText>
+        {source.avgRating && <SourceProperty title="Rating" value={sourceRatingText(source)!} />}
         {source.taper && <SourceProperty title="Taper" value={source.taper} />}
         {source.transferrer && <SourceProperty title="Transferrer" value={source.transferrer} />}
         {source.source && <SourceProperty title="Source" value={source.source} />}

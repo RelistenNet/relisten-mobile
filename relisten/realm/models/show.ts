@@ -3,6 +3,7 @@ import { Show as ApiShow } from '../../api/models/show';
 import Realm from 'realm';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import { FavoritableObject } from '../favoritable_object';
+import { Venue } from './venue';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface ShowRequiredRelationships {}
@@ -47,6 +48,7 @@ export class Show
       hasStreamableFlacSource: 'bool',
       sourceCount: 'int',
       isFavorite: { type: 'bool', default: false },
+      venue: 'Venue?',
     },
   };
 
@@ -66,7 +68,22 @@ export class Show
   hasStreamableFlacSource!: boolean;
   sourceCount!: number;
 
+  venue?: Venue;
+
   isFavorite!: boolean;
+
+  private _humanizedAvgDuration?: string;
+  humanizedAvgDuration() {
+    if (!this._humanizedAvgDuration && this.avgDuration) {
+      this._humanizedAvgDuration = dayjs.duration(this.avgDuration, 'seconds').format('HH:mm:ss');
+    }
+
+    return this._humanizedAvgDuration;
+  }
+
+  humanizedAvgRating() {
+    return this.avgRating.toFixed(2);
+  }
 
   static propertiesFromApi(relistenObj: ApiShow): ShowRequiredProperties {
     return {

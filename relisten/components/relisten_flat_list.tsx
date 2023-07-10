@@ -7,10 +7,12 @@ import { FlatListProps } from 'react-native/Libraries/Lists/FlatList';
 export const RelistenFlatList = <T extends { uuid: string }>({
   data,
   renderItem,
+  pullToRefresh = false,
   ...props
 }: {
   data: ReadonlyArray<T>;
   renderItem: ListRenderItem<T>;
+  pullToRefresh?: boolean;
 } & FlatListProps<T>) => {
   const { onRefresh, refreshing } = useRefreshContext();
 
@@ -20,7 +22,9 @@ export const RelistenFlatList = <T extends { uuid: string }>({
       keyExtractor={(item) => item.uuid}
       ItemSeparatorComponent={ItemSeparator}
       renderItem={renderItem}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      refreshControl={
+        pullToRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} /> : undefined
+      }
       {...props}
     ></FlatList>
   );
