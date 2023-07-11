@@ -1,4 +1,29 @@
+import { Link } from '@/relisten/api/models/source';
+import { FavoriteObjectButton } from '@/relisten/components/favorite_icon_button';
+import { ItemSeparator } from '@/relisten/components/item_separator';
+import { RefreshContextProvider, useRefreshContext } from '@/relisten/components/refresh_context';
+import { RelistenButton } from '@/relisten/components/relisten_button';
+import { RelistenFlatList } from '@/relisten/components/relisten_flat_list';
+import { RelistenLink } from '@/relisten/components/relisten_link';
+import { RelistenText } from '@/relisten/components/relisten_text';
+import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
+import { SectionHeader } from '@/relisten/components/section_header';
+import { Show } from '@/relisten/realm/models/show';
+import { useFullShow } from '@/relisten/realm/models/show_repo';
+import { Source } from '@/relisten/realm/models/source';
+import { SourceSet } from '@/relisten/realm/models/source_set';
+import { SourceTrack } from '@/relisten/realm/models/source_track';
+import { useRealm } from '@/relisten/realm/schema';
+import { RelistenBlue } from '@/relisten/relisten_blue';
+import { useForceUpdate } from '@/relisten/util/forced_update';
+import { memo } from '@/relisten/util/memo';
+import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { MoreOrLess } from '@rntext/more-or-less';
+import dayjs from 'dayjs';
+import { useGlobalSearchParams, useNavigation } from 'expo-router';
+import { openBrowserAsync } from 'expo-web-browser';
 import React, { PropsWithChildren, useEffect, useMemo, useState } from 'react';
+import { List as ListContentLoader } from 'react-content-loader/native';
 import {
   Animated,
   Button,
@@ -7,36 +32,7 @@ import {
   TouchableOpacityProps,
   View,
 } from 'react-native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { AllArtistsTabStackParams } from '../Artist';
-import { useNavigation } from '@react-navigation/native';
-import { useFullShow } from '../../realm/models/show_repo';
-import { RelistenFlatList } from '../../components/relisten_flat_list';
-import { memo } from '../../util/memo';
-import { RefreshContextProvider, useRefreshContext } from '../../components/refresh_context';
-import { Source } from '../../realm/models/source';
 import * as R from 'remeda';
-import { Show } from '../../realm/models/show';
-import { MoreOrLess } from '@rntext/more-or-less';
-import { RelistenButton } from '../../components/relisten_button';
-import { FavoriteObjectButton } from '../../components/favorite_icon_button';
-import { ItemSeparator } from '../../components/item_separator';
-import { RelistenText } from '../../components/relisten_text';
-import { SourceSet } from '../../realm/models/source_set';
-import { SourceTrack } from '../../realm/models/source_track';
-import { SectionHeader } from '../../components/section_header';
-import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
-import { Link } from '../../api/models/source';
-import { openBrowserAsync } from 'expo-web-browser';
-import dayjs from 'dayjs';
-import { RelistenLink } from '../../components/relisten_link';
-import { useRealm } from '../../realm/schema';
-import { useForceUpdate } from '../../util/forced_update';
-import { DisappearingHeaderScreen } from '../../components/screens/disappearing_title_screen';
-import { List as ListContentLoader } from 'react-content-loader/native';
-import { RelistenBlue } from '../../relisten_blue';
-
-type NavigationProps = NativeStackScreenProps<AllArtistsTabStackParams, 'ArtistShowSources'>;
 
 export const SourceList = ({ sources }: { sources: Source[] }) => {
   return (
@@ -50,9 +46,10 @@ export const SourceList = ({ sources }: { sources: Source[] }) => {
   );
 };
 
-export const ShowSourcesScreen: React.FC<PropsWithChildren<{} & NavigationProps>> = ({ route }) => {
+export default function Page() {
   const navigation = useNavigation();
-  const results = useFullShow(route.params.showUuid);
+  const { showUuid } = useGlobalSearchParams();
+  const results = useFullShow(String(showUuid));
   const {
     data: { show, sources },
   } = results;
@@ -86,7 +83,7 @@ export const ShowSourcesScreen: React.FC<PropsWithChildren<{} & NavigationProps>
       />
     </RefreshContextProvider>
   );
-};
+}
 
 const SourceComponent = ({
   show,

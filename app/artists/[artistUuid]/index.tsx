@@ -1,35 +1,33 @@
-import { NavigationProp, useNavigation } from '@react-navigation/native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import React, { PropsWithChildren, useEffect, useMemo } from 'react';
+import { FavoriteObjectButton } from '@/relisten/components/favorite_icon_button';
+import {
+  FilterableList,
+  FilterableListProps,
+} from '@/relisten/components/filtering/filterable_list';
+import { Filter, FilteringProvider, SortDirection } from '@/relisten/components/filtering/filters';
+import Flex from '@/relisten/components/flex';
+import Plur from '@/relisten/components/plur';
+import { RefreshContextProvider } from '@/relisten/components/refresh_context';
+import { RelistenButton } from '@/relisten/components/relisten_button';
+import { RelistenText } from '@/relisten/components/relisten_text';
+import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
+import RowTitle from '@/relisten/components/row_title';
+import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
+import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
+import { Artist } from '@/relisten/realm/models/artist';
+import { Year } from '@/relisten/realm/models/year';
+import { useArtistYears } from '@/relisten/realm/models/year_repo';
+import { memo } from '@/relisten/util/memo';
+import { Link, useGlobalSearchParams, useNavigation } from 'expo-router';
+import React, { useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import Realm from 'realm';
 import * as R from 'remeda';
-import { FavoriteObjectButton } from '../../components/favorite_icon_button';
-import { FilterableList, FilterableListProps } from '../../components/filtering/filterable_list';
-import { Filter, FilteringProvider, SortDirection } from '../../components/filtering/filters';
-import Flex from '../../components/flex';
-import Plur from '../../components/plur';
-import { RefreshContextProvider } from '../../components/refresh_context';
-import { RelistenButton } from '../../components/relisten_button';
-import { RelistenText } from '../../components/relisten_text';
-import { SubtitleRow, SubtitleText } from '../../components/row_subtitle';
-import RowTitle from '../../components/row_title';
-import { DisappearingHeaderScreen } from '../../components/screens/disappearing_title_screen';
-import { SectionedListItem } from '../../components/sectioned_list_item';
-import { Artist } from '../../realm/models/artist';
-import { Year } from '../../realm/models/year';
-import { useArtistYears } from '../../realm/models/year_repo';
-import { memo } from '../../util/memo';
-import { AllArtistsTabStackParams } from '../Artist';
-import { HomeTabsParamList } from '../Home';
 
-type NavigationProps = NativeStackScreenProps<AllArtistsTabStackParams, 'ArtistYears'>;
+export default function Page() {
+  const navigation = useNavigation();
+  const { artistUuid } = useGlobalSearchParams();
 
-export const YearsScreen: React.FC<PropsWithChildren<NavigationProps>> = ({ route }) => {
-  const navigation = useNavigation<NavigationProp<HomeTabsParamList>>();
-  const { artistUuid } = route.params;
-
-  const results = useArtistYears(artistUuid);
+  const results = useArtistYears(String(artistUuid));
   const {
     data: { years, artist },
   } = results;
@@ -42,29 +40,28 @@ export const YearsScreen: React.FC<PropsWithChildren<NavigationProps>> = ({ rout
 
   return (
     <RefreshContextProvider networkBackedResults={results}>
-      <DisappearingHeaderScreen
-        headerHeight={50}
-        ScrollableComponent={YearsList}
-        artist={artist}
-        years={years}
-        onItemPress={(year: Year) =>
-          navigation.navigate('AllArtistsTab', {
-            screen: 'ArtistYearShows',
-            params: {
-              artistUuid: artist!.uuid,
-              yearUuid: year.uuid,
-            },
-          })
-        }
-      />
+      <Link
+        href={{
+          pathname: '/artists/[artistUuid]',
+          params: {
+            artistUuid: artist?.uuid,
+          },
+        }}
+        asChild
+      >
+        <DisappearingHeaderScreen
+          headerHeight={50}
+          ScrollableComponent={YearsList}
+          artist={artist}
+          years={years}
+        />
+      </Link>
     </RefreshContextProvider>
   );
-};
+}
 
 const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> }> = memo(
   ({ artist, years }) => {
-    const navigation = useNavigation<NavigationProp<HomeTabsParamList>>();
-
     if (!artist || years.length === 0) {
       return null;
     }
@@ -89,20 +86,19 @@ const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> 
           </RelistenText>
         </View>
         <View className="w-full flex-row px-4 pb-4" style={{ gap: 16 }}>
-          <RelistenButton
-            className="shrink basis-1/3"
-            textClassName="text-l"
-            onPress={() =>
-              navigation.navigate('AllArtistsTab', {
-                screen: 'ArtistVenuesList',
-                params: {
-                  artistUuid: artist!.uuid,
-                },
-              })
-            }
+          <Link
+            href={{
+              pathname: '/artists/[artistUuid]/venues',
+              params: {
+                artistUuid: artist.uuid,
+              },
+            }}
+            asChild
           >
-            Venues
-          </RelistenButton>
+            <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+              Venues
+            </RelistenButton>
+          </Link>
           <RelistenButton className="shrink basis-1/3" textClassName="text-l">
             Tours
           </RelistenButton>
@@ -126,29 +122,37 @@ const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> 
   }
 );
 
-const YearListItem: React.FC<{
-  year: Year;
-  onPress?: (year: Year) => void;
-}> = memo(({ year, onPress }) => {
+const YearListItem = ({ year }: { year: Year }) => {
   return (
-    <SectionedListItem onPress={() => onPress && onPress(year)}>
-      <Flex cn="justify-between" full>
-        <Flex column cn="flex-1">
-          <RowTitle>{year.year}</RowTitle>
-          <SubtitleRow>
-            <SubtitleText>
-              <Plur word="show" count={year.showCount} />
-            </SubtitleText>
-            <SubtitleText>
-              <Plur word="tape" count={year.sourceCount} />
-            </SubtitleText>
-          </SubtitleRow>
+    <Link
+      href={{
+        pathname: 'artists/[artistUuid]/[yearUuid]',
+        params: {
+          artistUuid: year.artistUuid,
+          yearUuid: year.uuid,
+        },
+      }}
+      asChild
+    >
+      <SectionedListItem>
+        <Flex cn="justify-between" full>
+          <Flex column cn="flex-1">
+            <RowTitle>{year.year}</RowTitle>
+            <SubtitleRow>
+              <SubtitleText>
+                <Plur word="show" count={year.showCount} />
+              </SubtitleText>
+              <SubtitleText>
+                <Plur word="tape" count={year.sourceCount} />
+              </SubtitleText>
+            </SubtitleRow>
+          </Flex>
+          <FavoriteObjectButton object={year} />
         </Flex>
-        <FavoriteObjectButton object={year} />
-      </Flex>
-    </SectionedListItem>
+      </SectionedListItem>
+    </Link>
   );
-});
+};
 
 const YEAR_FILTERS: Filter<Year>[] = [
   { title: 'My Library', active: false, filter: (y) => y.isFavorite },

@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react';
 import Realm from 'realm';
 import { Show } from '../realm/models/show';
-import { memo } from '../util/memo';
 import { FavoriteObjectButton } from './favorite_icon_button';
 import { FilterableList, FilterableListProps } from './filtering/filterable_list';
 import { Filter, FilteringProvider, SortDirection } from './filtering/filters';
@@ -11,11 +10,22 @@ import { SubtitleRow, SubtitleText } from './row_subtitle';
 import RowTitle from './row_title';
 import { SectionedListItem } from './sectioned_list_item';
 import Plur from './plur';
+import { Link } from 'expo-router';
 
-const ShowListItem: React.FC<{ show: Show; onPress?: (show: Show) => void }> = memo(
-  ({ show, onPress }) => {
-    return (
-      <SectionedListItem onPress={() => onPress && onPress(show)}>
+const ShowListItem = ({ show }: { show: Show }) => {
+  return (
+    <Link
+      href={{
+        pathname: '/artists/[artistUuid]/[yearUuid]/[showUuid]',
+        params: {
+          artistUuid: show.artistUuid,
+          yearUuid: show.yearUuid,
+          showUuid: show.uuid,
+        },
+      }}
+      asChild
+    >
+      <SectionedListItem>
         <Flex cn="flex justify-between" full>
           <Flex cn="flex-1 pr-2" column>
             <Flex cn="items-center" style={{ gap: 8 }}>
@@ -35,9 +45,9 @@ const ShowListItem: React.FC<{ show: Show; onPress?: (show: Show) => void }> = m
           <FavoriteObjectButton object={show} />
         </Flex>
       </SectionedListItem>
-    );
-  }
-);
+    </Link>
+  );
+};
 
 const SHOW_FILTERS: Filter<Show>[] = [
   { title: 'My Library', active: false, filter: (y) => y.isFavorite },
@@ -74,9 +84,8 @@ const SHOW_FILTERS: Filter<Show>[] = [
 export const ShowList: React.FC<
   {
     shows: Realm.Results<Show>;
-    onItemPress?: (show: Show) => void;
   } & Omit<FilterableListProps<Show>, 'data' | 'renderItem'>
-> = ({ shows, onItemPress, ...props }) => {
+> = ({ shows, ...props }) => {
   const allShows = useMemo(() => {
     return [...shows];
   }, [shows]);
@@ -86,7 +95,7 @@ export const ShowList: React.FC<
       <FilterableList
         data={allShows}
         renderItem={({ item: show }) => {
-          return <ShowListItem show={show} onPress={onItemPress} />;
+          return <ShowListItem show={show} />;
         }}
         {...props}
       />
