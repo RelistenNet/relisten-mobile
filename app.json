@@ -29,9 +29,10 @@
       }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
     },
-    "platforms": ["ios", "android"],
+    "platforms": ["ios", "android", "web"],
     "plugins": [
       "expo-router"
     ]
