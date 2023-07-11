@@ -1,8 +1,8 @@
-import { MotiView } from 'moti';
 import { useSegments } from 'expo-router';
-import { Text, View } from 'react-native';
+import { MotiView } from 'moti';
+import { Text } from 'react-native';
 
-export default function PlayerBar() {
+export default function PlaybackBar() {
   const segments = useSegments();
 
   return (

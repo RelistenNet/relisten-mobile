@@ -39,6 +39,12 @@ export default function ArtistsLayout() {
           title: '',
         }}
       />
+      <Stack.Screen
+        name="[artistUuid]/[yearUuid]/[showUuid]/sources/index"
+        options={{
+          title: '',
+        }}
+      />
     </Stack>
   );
 }

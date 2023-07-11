@@ -1,4 +1,4 @@
-import { Link } from '@/relisten/api/models/source';
+import { Link as SLink } from '@/relisten/api/models/source';
 import { FavoriteObjectButton } from '@/relisten/components/favorite_icon_button';
 import { ItemSeparator } from '@/relisten/components/item_separator';
 import { RefreshContextProvider, useRefreshContext } from '@/relisten/components/refresh_context';
@@ -20,7 +20,7 @@ import { memo } from '@/relisten/util/memo';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { MoreOrLess } from '@rntext/more-or-less';
 import dayjs from 'dayjs';
-import { useGlobalSearchParams, useNavigation } from 'expo-router';
+import { Link, useGlobalSearchParams, useNavigation } from 'expo-router';
 import { openBrowserAsync } from 'expo-web-browser';
 import React, { PropsWithChildren, useEffect, useMemo, useState } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
@@ -137,15 +137,13 @@ export const SourceFooter: React.FC<{ source: Source; show: Show }> = memo(({ sh
   );
 });
 
-export const SourceLink: React.FC<{ link: Link } & TouchableOpacityProps> = memo(
-  ({ link, ...props }) => {
-    return (
-      <TouchableOpacity onPress={() => openBrowserAsync(link.url)} {...props}>
-        <RelistenLink className="text-l font-bold text-slate-400">{link.label}</RelistenLink>
-      </TouchableOpacity>
-    );
-  }
-);
+export const SourceLink = memo(({ link, ...props }: { link: SLink } & TouchableOpacityProps) => {
+  return (
+    <TouchableOpacity onPress={() => openBrowserAsync(link.url)} {...props}>
+      <RelistenLink className="text-l font-bold text-slate-400">{link.label}</RelistenLink>
+    </TouchableOpacity>
+  );
+});
 
 export const SourceHeader: React.FC<{ source: Source; show: Show }> = memo(({ show, source }) => {
   const realm = useRealm();
@@ -259,12 +257,24 @@ export const SourceHeader: React.FC<{ source: Source; show: Show }> = memo(({ sh
         </RelistenButton>
       </View>
       <View className="w-full pb-2">
-        <RelistenButton
-          textClassName="text-l"
-          icon={<MaterialIcons name="play-arrow" size={20} color="white" />}
+        <Link
+          href={{
+            pathname: '/artists/[artistUuid]/[yearUuid]/[showUuid]/sources/index',
+            params: {
+              artistUuid: show.artistUuid,
+              yearUuid: show.yearUuid,
+              showUuid: show.uuid,
+            },
+          }}
+          asChild
         >
-          Switch Source
-        </RelistenButton>
+          <RelistenButton
+            textClassName="text-l"
+            icon={<MaterialIcons name="play-arrow" size={20} color="white" />}
+          >
+            Switch Source
+          </RelistenButton>
+        </Link>
       </View>
       {source.sourceSets.length === 1 && <ItemSeparator />}
     </View>
