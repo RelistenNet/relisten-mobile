@@ -45,8 +45,6 @@ export const HomeScreen: React.FC = () => {
         tabBarInactiveTintColor: 'gray',
       })}
     >
-      {/* Might need to remove this tab for now. We don't have the APIs for "hot", "trending", etc shows */}
-      <Tab.Screen name="RelistenTab" component={RelistenScreen} options={{ title: 'Relisten' }} />
       <Tab.Screen
         name="AllArtistsTab"
         component={AllArtistTab}
@@ -57,6 +55,8 @@ export const HomeScreen: React.FC = () => {
         component={AllLibraryScreen}
         options={{ title: 'Library' }}
       />
+      {/* Might need to remove this tab for now. We don't have the APIs for "hot", "trending", etc shows */}
+      <Tab.Screen name="RelistenTab" component={RelistenScreen} options={{ title: 'Relisten' }} />
       {/* Future: Playlists tab */}
     </Tab.Navigator>
   );

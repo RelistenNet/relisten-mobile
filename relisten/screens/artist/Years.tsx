@@ -1,26 +1,27 @@
-import Realm from 'realm';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { PropsWithChildren, useEffect, useMemo } from 'react';
+import { View } from 'react-native';
+import Realm from 'realm';
+import * as R from 'remeda';
 import { FavoriteObjectButton } from '../../components/favorite_icon_button';
+import { FilterableList, FilterableListProps } from '../../components/filtering/filterable_list';
+import { Filter, FilteringProvider, SortDirection } from '../../components/filtering/filters';
 import Flex from '../../components/flex';
-import RowSubtitle from '../../components/row_subtitle';
+import Plur from '../../components/plur';
+import { RefreshContextProvider } from '../../components/refresh_context';
+import { RelistenButton } from '../../components/relisten_button';
+import { RelistenText } from '../../components/relisten_text';
+import { SubtitleRow, SubtitleText } from '../../components/row_subtitle';
 import RowTitle from '../../components/row_title';
+import { DisappearingHeaderScreen } from '../../components/screens/disappearing_title_screen';
 import { SectionedListItem } from '../../components/sectioned_list_item';
+import { Artist } from '../../realm/models/artist';
 import { Year } from '../../realm/models/year';
-import { AllArtistsTabStackParams } from '../Artist';
-import { HomeTabsParamList } from '../Home';
 import { useArtistYears } from '../../realm/models/year_repo';
 import { memo } from '../../util/memo';
-import { RefreshContextProvider } from '../../components/refresh_context';
-import { RelistenText } from '../../components/relisten_text';
-import { Artist } from '../../realm/models/artist';
-import { View } from 'react-native';
-import * as R from 'remeda';
-import { RelistenButton } from '../../components/relisten_button';
-import { Filter, FilteringProvider, SortDirection } from '../../components/filtering/filters';
-import { FilterableList, FilterableListProps } from '../../components/filtering/filterable_list';
-import { DisappearingHeaderScreen } from '../../components/screens/disappearing_title_screen';
+import { AllArtistsTabStackParams } from '../Artist';
+import { HomeTabsParamList } from '../Home';
 
 type NavigationProps = NativeStackScreenProps<AllArtistsTabStackParams, 'ArtistYears'>;
 
@@ -62,6 +63,8 @@ export const YearsScreen: React.FC<PropsWithChildren<NavigationProps>> = ({ rout
 
 const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> }> = memo(
   ({ artist, years }) => {
+    const navigation = useNavigation<NavigationProp<HomeTabsParamList>>();
+
     if (!artist || years.length === 0) {
       return null;
     }
@@ -86,7 +89,18 @@ const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> 
           </RelistenText>
         </View>
         <View className="w-full flex-row px-4 pb-4" style={{ gap: 16 }}>
-          <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+          <RelistenButton
+            className="shrink basis-1/3"
+            textClassName="text-l"
+            onPress={() =>
+              navigation.navigate('AllArtistsTab', {
+                screen: 'ArtistVenuesList',
+                params: {
+                  artistUuid: artist!.uuid,
+                },
+              })
+            }
+          >
             Venues
           </RelistenButton>
           <RelistenButton className="shrink basis-1/3" textClassName="text-l">
@@ -118,14 +132,17 @@ const YearListItem: React.FC<{
 }> = memo(({ year, onPress }) => {
   return (
     <SectionedListItem onPress={() => onPress && onPress(year)}>
-      <Flex className="justify-between" full>
-        <Flex column className="flex-1">
+      <Flex cn="justify-between" full>
+        <Flex column cn="flex-1">
           <RowTitle>{year.year}</RowTitle>
-          <Flex className="justify-between">
-            <RowSubtitle>
-              {year.showCount} shows &middot; {year.sourceCount} tapes
-            </RowSubtitle>
-          </Flex>
+          <SubtitleRow>
+            <SubtitleText>
+              <Plur word="show" count={year.showCount} />
+            </SubtitleText>
+            <SubtitleText>
+              <Plur word="tape" count={year.sourceCount} />
+            </SubtitleText>
+          </SubtitleRow>
         </Flex>
         <FavoriteObjectButton object={year} />
       </Flex>

@@ -5,7 +5,6 @@ import { ListRenderItem } from 'react-native/Libraries/Lists/VirtualizedList';
 import { FlatListProps } from 'react-native/Libraries/Lists/FlatList';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import { RelistenBlue } from '../relisten_blue';
-import React from 'react';
 
 export const RelistenFlatList = <T extends { uuid: string }>({
   data,

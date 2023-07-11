@@ -1,10 +1,11 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import driver from '@switz/driver';
+import clsx from 'clsx';
 import React, { PropsWithChildren } from 'react';
 import { TouchableOpacity, TouchableOpacityProps, View } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { RelistenText } from '../relisten_text';
-import clsx from 'clsx';
-import { Filter, SortDirection } from './filters';
 import { RelistenObject } from '../../api/models/relisten';
+import { RelistenText } from '../relisten_text';
+import { Filter, SortDirection } from './filters';
 
 export const FilterBarButton = <T extends RelistenObject>({
   filter,
@@ -20,25 +21,28 @@ export const FilterBarButton = <T extends RelistenObject>({
     color?: string;
   } & TouchableOpacityProps
 >) => {
-  let icon: keyof typeof MaterialCommunityIcons.glyphMap = 'sort-descending';
-
-  if (filter.sortDirection === undefined) {
-    icon = filter.active ? 'check-circle' : 'check-circle-outline';
-  } else {
-    if (filter.isNumeric) {
-      if (filter.sortDirection === SortDirection.Ascending) {
-        icon = 'sort-numeric-ascending';
-      } else {
-        icon = 'sort-numeric-descending';
-      }
-    } else {
-      if (filter.sortDirection === SortDirection.Ascending) {
-        icon = 'sort-alphabetical-ascending';
-      } else {
-        icon = 'sort-alphabetical-descending';
-      }
-    }
-  }
+  const filterIcon = driver({
+    states: {
+      isNumericAscending: filter.isNumeric && filter.sortDirection === SortDirection.Ascending,
+      isNumericDescending: filter.isNumeric && filter.sortDirection === SortDirection.Descending,
+      isAlphabeticalAscending: filter.sortDirection === SortDirection.Ascending,
+      isAlphabeticalDescending: filter.sortDirection === SortDirection.Descending,
+      isFilterActive: !filter.sortDirection && filter.active,
+      isFilterInactive: !filter.sortDirection && !filter.active,
+      fallback: true,
+    },
+    derived: {
+      icon: {
+        isNumericAscending: 'sort-numeric-ascending' as const,
+        isNumericDescending: 'sort-numeric-descending' as const,
+        isAlphabeticalAscending: 'sort-alphabetical-ascending' as const,
+        isAlphabeticalDescending: 'sort-alphabetical-descending' as const,
+        isFilterActive: 'check-circle' as const,
+        isFilterInactive: 'check-circle-outline' as const,
+        fallback: 'sort-descending' as const,
+      },
+    },
+  });
 
   return (
     <TouchableOpacity
@@ -49,8 +53,8 @@ export const FilterBarButton = <T extends RelistenObject>({
       )}
       {...props}
     >
-      <MaterialCommunityIcons name={icon} color={color || 'white'} size={size || 16} />
-      <View className="w-[4]" />
+      <MaterialCommunityIcons name={filterIcon.icon} color={color || 'white'} size={size || 16} />
+      <View className="w-4" />
       <RelistenText className="text-base font-bold">
         {filter.title ? filter.title : children}
       </RelistenText>

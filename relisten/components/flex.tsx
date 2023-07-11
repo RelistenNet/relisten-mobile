@@ -4,14 +4,14 @@ import { View, ViewProps } from 'react-native';
 
 interface NewProps {
   as?: React.ElementType;
-  className?: string;
+  cn?: string;
   center?: boolean;
   column?: boolean;
   full?: boolean;
   children?: React.ReactNode;
 }
 
-const Flex = ({ className, center, column, as = View, full, ...props }: ViewProps & NewProps) => {
+const Flex = ({ cn, center, column, as = View, full, ...props }: ViewProps & NewProps) => {
   const Comp = as;
 
   return (
@@ -26,7 +26,7 @@ const Flex = ({ className, center, column, as = View, full, ...props }: ViewProp
           'items-center': center,
           'w-full': full,
         },
-        className
+        cn
       )}
     />
   );

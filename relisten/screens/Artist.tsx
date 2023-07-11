@@ -5,6 +5,7 @@ import { AllArtistsScreen } from './artist/AllArtists';
 import { YearsScreen } from './artist/Years';
 import { YearShowsScreen } from './artist/YearShows';
 import { ShowSourcesScreen } from './artist/ShowSources';
+import { VenuesListScreen } from './venue/VenuesListScreen';
 
 type NavigationProps = NativeStackScreenProps<HomeTabsParamList, 'AllArtistsTab'>;
 
@@ -13,6 +14,7 @@ export type AllArtistsTabStackParams = {
   ArtistYears: { artistUuid: string };
   ArtistYearShows: { artistUuid: string; yearUuid: string };
   ArtistShowSources: { artistUuid: string; showUuid: string };
+  ArtistVenuesList: { artistUuid: string };
 };
 
 const AllArtistsStack = createNativeStackNavigator<AllArtistsTabStackParams>();
@@ -35,6 +37,11 @@ export const AllArtistTab: React.FC<{} & NavigationProps> = ({}) => {
         name="ArtistShowSources"
         component={ShowSourcesScreen}
         options={{ title: '' }}
+      />
+      <AllArtistsStack.Screen
+        name="ArtistVenuesList"
+        component={VenuesListScreen}
+        options={{ title: 'Venues' }}
       />
     </AllArtistsStack.Navigator>
   );

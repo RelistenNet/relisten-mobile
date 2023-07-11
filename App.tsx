@@ -20,6 +20,7 @@ import * as Font from 'expo-font';
 import { Icon } from '@expo/vector-icons/build/createIconSet';
 
 import { Image } from 'react-native';
+import { RelistenBlue } from './relisten/relisten_blue';
 
 dayjs.extend(duration);
 dayjs.extend(relativeTime);
@@ -30,7 +31,7 @@ const RelistenTheme = {
   colors: {
     ...DarkTheme.colors,
     primary: 'rgb(0,157,193)',
-    background: '#001d24',
+    background: RelistenBlue[900],
     card: '#001114',
   },
 };

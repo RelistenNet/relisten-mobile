@@ -1,18 +1,19 @@
-import Realm from 'realm';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { View } from 'react-native';
+import Realm from 'realm';
 import { FavoriteObjectButton } from '../../components/favorite_icon_button';
 import Flex from '../../components/flex';
-import RowSubtitle from '../../components/row_subtitle';
+import { RefreshContextProvider } from '../../components/refresh_context';
+import { RelistenSectionList } from '../../components/relisten_section_list';
+import { SubtitleRow, SubtitleText } from '../../components/row_subtitle';
 import RowTitle from '../../components/row_title';
 import { SectionedListItem } from '../../components/sectioned_list_item';
 import { Artist } from '../../realm/models/artist';
-import { HomeTabsParamList } from '../Home';
 import { useArtists } from '../../realm/models/artist_repo';
-import { RelistenSectionList } from '../../components/relisten_section_list';
 import { memo } from '../../util/memo';
-import { RefreshContextProvider } from '../../components/refresh_context';
+import { HomeTabsParamList } from '../Home';
+import Plur from '../../components/plur';
 
 const ArtistListItem = memo(({ artist }: { artist: Artist }) => {
   const navigation = useNavigation<NavigationProp<HomeTabsParamList>>();
@@ -28,14 +29,18 @@ const ArtistListItem = memo(({ artist }: { artist: Artist }) => {
 
   return (
     <SectionedListItem onPress={listItemOnPress}>
-      <Flex className="justify-between" full>
-        <View className="flex flex-1 flex-col pr-3">
+      <Flex cn="justify-between" full>
+        <Flex className="flex-1 flex-col pr-3">
           <RowTitle>{artist.name}</RowTitle>
-          <Flex className="justify-between pt-1">
-            <RowSubtitle>{artist.showCount.toLocaleString()} shows</RowSubtitle>
-            <RowSubtitle>{artist.sourceCount.toLocaleString()} tapes</RowSubtitle>
-          </Flex>
-        </View>
+          <SubtitleRow cn="flex flex-row justify-between">
+            <SubtitleText>
+              <Plur word="show" count={artist.showCount} />
+            </SubtitleText>
+            <SubtitleText>
+              <Plur word="tape" count={artist.sourceCount} />
+            </SubtitleText>
+          </SubtitleRow>
+        </Flex>
         <FavoriteObjectButton object={artist} />
       </Flex>
     </SectionedListItem>
