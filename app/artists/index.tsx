@@ -8,20 +8,19 @@ import RowTitle from '@/relisten/components/row_title';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useArtists } from '@/relisten/realm/models/artist_repo';
-import { memo } from '@/relisten/util/memo';
 import { Link } from 'expo-router';
 import { useMemo } from 'react';
 import { View } from 'react-native';
 import Realm from 'realm';
 
-const ArtistListItem = memo(({ artist }: { artist: Artist }) => {
+const ArtistListItem = ({ artist }: { artist: Artist }) => {
   return (
     <SectionedListItem>
       <Link
         href={{
-          pathname: '/artists/[uuid]',
+          pathname: '/artists/[artistUuid]',
           params: {
-            uuid: artist.uuid,
+            artistUuid: artist.uuid,
           },
         }}
       >
@@ -42,7 +41,7 @@ const ArtistListItem = memo(({ artist }: { artist: Artist }) => {
       </Link>
     </SectionedListItem>
   );
-});
+};
 
 const ArtistsList = ({ artists }: { artists: Realm.Results<Artist> }) => {
   const sectionedArtists = useMemo(() => {

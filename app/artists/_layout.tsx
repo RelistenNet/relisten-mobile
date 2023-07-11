@@ -4,8 +4,6 @@ export const unstable_settings = {
   initialRouteName: 'index',
 };
 export default function ArtistsLayout() {
-  console.log('STACK');
-
   return (
     <Stack>
       <Stack.Screen
@@ -18,13 +16,25 @@ export default function ArtistsLayout() {
         }}
       />
       <Stack.Screen
-        name="[uuid]/index"
+        name="[artistUuid]/index"
         options={{
           title: '',
         }}
       />
       <Stack.Screen
-        name="[uuid]/venues"
+        name="[artistUuid]/venues"
+        options={{
+          title: '',
+        }}
+      />
+      <Stack.Screen
+        name="[artistUuid]/[yearUuid]/index"
+        options={{
+          title: '',
+        }}
+      />
+      <Stack.Screen
+        name="[artistUuid]/[yearUuid]/[showUuid]/index"
         options={{
           title: '',
         }}

@@ -25,9 +25,9 @@ import * as R from 'remeda';
 
 export default function Page() {
   const navigation = useNavigation();
-  const { uuid } = useGlobalSearchParams();
+  const { artistUuid } = useGlobalSearchParams();
 
-  const results = useArtistYears(String(uuid));
+  const results = useArtistYears(String(artistUuid));
   const {
     data: { years, artist },
   } = results;
@@ -42,9 +42,9 @@ export default function Page() {
     <RefreshContextProvider networkBackedResults={results}>
       <Link
         href={{
-          pathname: '/artists/[uuid]',
+          pathname: '/artists/[artistUuid]',
           params: {
-            uuid: artist?.uuid,
+            artistUuid: artist?.uuid,
           },
         }}
         asChild
@@ -88,9 +88,9 @@ const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> 
         <View className="w-full flex-row px-4 pb-4" style={{ gap: 16 }}>
           <Link
             href={{
-              pathname: '/artists/[uuid]/venues',
+              pathname: '/artists/[artistUuid]/venues',
               params: {
-                uuid: artist.uuid,
+                artistUuid: artist.uuid,
               },
             }}
             asChild
@@ -122,29 +122,37 @@ const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> 
   }
 );
 
-const YearListItem: React.FC<{
-  year: Year;
-  onPress?: (year: Year) => void;
-}> = memo(({ year, onPress }) => {
+const YearListItem = ({ year }: { year: Year }) => {
   return (
-    <SectionedListItem onPress={() => onPress && onPress(year)}>
-      <Flex cn="justify-between" full>
-        <Flex column cn="flex-1">
-          <RowTitle>{year.year}</RowTitle>
-          <SubtitleRow>
-            <SubtitleText>
-              <Plur word="show" count={year.showCount} />
-            </SubtitleText>
-            <SubtitleText>
-              <Plur word="tape" count={year.sourceCount} />
-            </SubtitleText>
-          </SubtitleRow>
+    <Link
+      href={{
+        pathname: 'artists/[artistUuid]/[yearUuid]',
+        params: {
+          artistUuid: year.artistUuid,
+          yearUuid: year.uuid,
+        },
+      }}
+      asChild
+    >
+      <SectionedListItem>
+        <Flex cn="justify-between" full>
+          <Flex column cn="flex-1">
+            <RowTitle>{year.year}</RowTitle>
+            <SubtitleRow>
+              <SubtitleText>
+                <Plur word="show" count={year.showCount} />
+              </SubtitleText>
+              <SubtitleText>
+                <Plur word="tape" count={year.sourceCount} />
+              </SubtitleText>
+            </SubtitleRow>
+          </Flex>
+          <FavoriteObjectButton object={year} />
         </Flex>
-        <FavoriteObjectButton object={year} />
-      </Flex>
-    </SectionedListItem>
+      </SectionedListItem>
+    </Link>
   );
-});
+};
 
 const YEAR_FILTERS: Filter<Year>[] = [
   { title: 'My Library', active: false, filter: (y) => y.isFavorite },

@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function Page() {
   return (
     <SafeAreaView>
-      <Text className="text-white">library</Text>
+      <Text className="text-white">relisten</Text>
     </SafeAreaView>
   );
 }
