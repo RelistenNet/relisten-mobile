@@ -16,17 +16,15 @@ import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { Artist } from '@/relisten/realm/models/artist';
 import { Year } from '@/relisten/realm/models/year';
 import { useArtistYears } from '@/relisten/realm/models/year_repo';
-import { HomeTabsParamList } from '@/relisten/screens/Home';
 import { memo } from '@/relisten/util/memo';
-import { NavigationProp, useNavigation } from '@react-navigation/native';
-import { useGlobalSearchParams } from 'expo-router';
+import { Link, useGlobalSearchParams, useNavigation } from 'expo-router';
 import React, { useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import Realm from 'realm';
 import * as R from 'remeda';
 
 export default function Page() {
-  const navigation = useNavigation<NavigationProp<HomeTabsParamList>>();
+  const navigation = useNavigation();
   const { uuid } = useGlobalSearchParams();
 
   const results = useArtistYears(String(uuid));
@@ -42,29 +40,28 @@ export default function Page() {
 
   return (
     <RefreshContextProvider networkBackedResults={results}>
-      <DisappearingHeaderScreen
-        headerHeight={50}
-        ScrollableComponent={YearsList}
-        artist={artist}
-        years={years}
-        onItemPress={(year: Year) =>
-          navigation.navigate('AllArtistsTab', {
-            screen: 'ArtistYearShows',
-            params: {
-              artistUuid: artist!.uuid,
-              yearUuid: year.uuid,
-            },
-          })
-        }
-      />
+      <Link
+        href={{
+          pathname: '/artists/[uuid]',
+          params: {
+            uuid: artist?.uuid,
+          },
+        }}
+        asChild
+      >
+        <DisappearingHeaderScreen
+          headerHeight={50}
+          ScrollableComponent={YearsList}
+          artist={artist}
+          years={years}
+        />
+      </Link>
     </RefreshContextProvider>
   );
 }
 
 const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> }> = memo(
   ({ artist, years }) => {
-    const navigation = useNavigation<NavigationProp<HomeTabsParamList>>();
-
     if (!artist || years.length === 0) {
       return null;
     }
@@ -89,20 +86,19 @@ const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> 
           </RelistenText>
         </View>
         <View className="w-full flex-row px-4 pb-4" style={{ gap: 16 }}>
-          <RelistenButton
-            className="shrink basis-1/3"
-            textClassName="text-l"
-            onPress={() =>
-              navigation.navigate('AllArtistsTab', {
-                screen: 'ArtistVenuesList',
-                params: {
-                  artistUuid: artist!.uuid,
-                },
-              })
-            }
+          <Link
+            href={{
+              pathname: '/artists/[uuid]/venues',
+              params: {
+                uuid: artist.uuid,
+              },
+            }}
+            asChild
           >
-            Venues
-          </RelistenButton>
+            <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+              Venues
+            </RelistenButton>
+          </Link>
           <RelistenButton className="shrink basis-1/3" textClassName="text-l">
             Tours
           </RelistenButton>

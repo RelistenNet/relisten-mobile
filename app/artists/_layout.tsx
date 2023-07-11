@@ -7,9 +7,28 @@ export default function ArtistsLayout() {
   console.log('STACK');
 
   return (
-    <Stack screenOptions={{ headerShown: false, title: 'Artists' }}>
-      <Stack.Screen name="index" options={{ title: 'Artists' }} />
-      <Stack.Screen name="[uuid]" options={{ title: 'Years' }} />
+    <Stack>
+      <Stack.Screen
+        name="index"
+        options={{
+          title: 'Artists',
+          headerStyle: {
+            backgroundColor: 'green',
+          },
+        }}
+      />
+      <Stack.Screen
+        name="[uuid]/index"
+        options={{
+          title: '',
+        }}
+      />
+      <Stack.Screen
+        name="[uuid]/venues"
+        options={{
+          title: '',
+        }}
+      />
     </Stack>
   );
 }

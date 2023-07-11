@@ -10,7 +10,7 @@ export const RelistenButton = ({
   textClassName,
   ...props
 }: {
-  children: string;
+  children: React.ReactNode;
   icon?: React.ReactNode;
   textClassName?: string;
   className?: string;

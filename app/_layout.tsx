@@ -9,10 +9,6 @@ import { Text, View } from 'react-native';
 
 // import { AllArtistsScreen } from '@/relisten/screens/artist/AllArtists';
 
-export const unstable_settings = {
-  initialRouteName: 'artists',
-};
-
 export default function TabLayout() {
   return (
     <RealmProvider>
@@ -31,13 +27,16 @@ export default function TabLayout() {
           <SafeAreaProvider>
             <Tabs
               screenOptions={{
-                headerShown: true,
+                headerShown: false,
                 headerStyle: {
                   backgroundColor: 'green',
                 },
               }}
               // initialRouteName="artists"
-            />
+            >
+              <Tabs.Screen name="artists" options={{ title: 'Artists' }} />
+              <Tabs.Screen name="(myLibrary)/myLibrary" options={{ title: 'Tab Two' }} />
+            </Tabs>
             <View className="flex h-24 items-center justify-center">
               <Text>Look, this is always visible (if we want it to be)!</Text>
             </View>
