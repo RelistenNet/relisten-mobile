@@ -10,11 +10,17 @@ export const RefreshContext = React.createContext<RefreshContextProps | undefine
 export const RefreshContextProvider = <T extends object>({
   children,
   networkBackedResults,
+  extraRefreshingConsideration,
 }: PropsWithChildren<{
   networkBackedResults: NetworkBackedResults<T>;
+  extraRefreshingConsideration?: (networkBackedResults: NetworkBackedResults<T>) => boolean;
 }>) => {
-  const refreshing =
+  let refreshing =
     networkBackedResults.shouldShowLoadingIndicator || networkBackedResults.isNetworkLoading;
+
+  if (extraRefreshingConsideration) {
+    refreshing ||= extraRefreshingConsideration(networkBackedResults);
+  }
 
   return (
     <RefreshContext.Provider

@@ -1,18 +1,24 @@
 import React, { PropsWithChildren, useEffect, useMemo, useState } from 'react';
-import { Button, ScrollView, TouchableOpacity, TouchableOpacityProps, View } from 'react-native';
+import {
+  Animated,
+  Button,
+  ScrollViewProps,
+  TouchableOpacity,
+  TouchableOpacityProps,
+  View,
+} from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AllArtistsTabStackParams } from '../Artist';
 import { useNavigation } from '@react-navigation/native';
 import { useFullShow } from '../../realm/models/show_repo';
 import { RelistenFlatList } from '../../components/relisten_flat_list';
 import { memo } from '../../util/memo';
-import { RefreshContextProvider } from '../../components/refresh_context';
+import { RefreshContextProvider, useRefreshContext } from '../../components/refresh_context';
 import { Source } from '../../realm/models/source';
 import * as R from 'remeda';
 import { Show } from '../../realm/models/show';
 import { MoreOrLess } from '@rntext/more-or-less';
 import { RelistenButton } from '../../components/relisten_button';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { FavoriteObjectButton } from '../../components/favorite_icon_button';
 import { ItemSeparator } from '../../components/item_separator';
 import { RelistenText } from '../../components/relisten_text';
@@ -26,6 +32,9 @@ import dayjs from 'dayjs';
 import { RelistenLink } from '../../components/relisten_link';
 import { useRealm } from '../../realm/schema';
 import { useForceUpdate } from '../../util/forced_update';
+import { DisappearingHeaderScreen } from '../../components/screens/disappearing_title_screen';
+import { List as ListContentLoader } from 'react-content-loader/native';
+import { RelistenBlue } from '../../relisten_blue';
 
 type NavigationProps = NativeStackScreenProps<AllArtistsTabStackParams, 'ArtistShowSources'>;
 
@@ -49,8 +58,10 @@ export const ShowSourcesScreen: React.FC<PropsWithChildren<{} & NavigationProps>
   } = results;
 
   useEffect(() => {
-    navigation.setOptions({ title: '' });
-  }, []);
+    navigation.setOptions({
+      title: show?.displayDate,
+    });
+  }, [show]);
 
   const sortedSources = useMemo(() => {
     const all = [...sources];
@@ -63,20 +74,45 @@ export const ShowSourcesScreen: React.FC<PropsWithChildren<{} & NavigationProps>
   const selectedSource = sortedSources[selectedSourceIndex];
 
   return (
-    <SafeAreaView edges={{ bottom: 'off', top: 'additive' }} className="flex-1">
-      <RefreshContextProvider networkBackedResults={results}>
-        <View className="flex-1">
-          {selectedSource && (
-            <ScrollView style={{ flex: 1 }}>
-              {/*<SelectedSource sources={sortedSources} sourceIndex={selectedSourceIndex} />*/}
-              <SourceHeader source={selectedSource} show={show!} />
-              <SourceSets source={selectedSource} />
-              <SourceFooter source={selectedSource} show={show!} />
-            </ScrollView>
-          )}
-        </View>
-      </RefreshContextProvider>
-    </SafeAreaView>
+    <RefreshContextProvider
+      networkBackedResults={results}
+      extraRefreshingConsideration={() => !selectedSource}
+    >
+      <DisappearingHeaderScreen
+        headerHeight={50}
+        ScrollableComponent={SourceComponent}
+        show={show!}
+        selectedSource={selectedSource!}
+      />
+    </RefreshContextProvider>
+  );
+};
+
+const SourceComponent = ({
+  show,
+  selectedSource,
+  ...props
+}: { show: Show; selectedSource: Source } & ScrollViewProps) => {
+  const { refreshing } = useRefreshContext();
+
+  if (refreshing) {
+    return (
+      <View className="w-full p-4">
+        <ListContentLoader
+          backgroundColor={RelistenBlue[800]}
+          foregroundColor={RelistenBlue[700]}
+        />
+      </View>
+    );
+  }
+
+  return (
+    <Animated.ScrollView style={{ flex: 1 }} {...props}>
+      {/*<SelectedSource sources={sortedSources} sourceIndex={selectedSourceIndex} />*/}
+      <SourceHeader source={selectedSource} show={show} />
+      <SourceSets source={selectedSource} />
+      <SourceFooter source={selectedSource} show={show} />
+    </Animated.ScrollView>
   );
 };
 
@@ -131,7 +167,7 @@ export const SourceHeader: React.FC<{ source: Source; show: Show }> = memo(({ sh
     <View className="flex w-full items-center px-4">
       <View className="w-full">
         <RelistenText
-          className="w-full py-2 pt-8 text-center text-4xl font-bold text-white"
+          className="w-full py-2 text-center text-4xl font-bold text-white"
           selectable={false}
         >
           {show.displayDate}
@@ -223,6 +259,14 @@ export const SourceHeader: React.FC<{ source: Source; show: Show }> = memo(({ sh
           }}
         >
           {source.isFavorite ? 'In Library' : 'Add to Library'}
+        </RelistenButton>
+      </View>
+      <View className="w-full pb-2">
+        <RelistenButton
+          textClassName="text-l"
+          icon={<MaterialIcons name="play-arrow" size={20} color="white" />}
+        >
+          Switch Source
         </RelistenButton>
       </View>
       {source.sourceSets.length === 1 && <ItemSeparator />}

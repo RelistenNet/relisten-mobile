@@ -12,15 +12,15 @@ import { AllArtistsTabStackParams } from '../Artist';
 import { HomeTabsParamList } from '../Home';
 import { useArtistYears } from '../../realm/models/year_repo';
 import { memo } from '../../util/memo';
-import { RelistenSectionList } from '../../components/relisten_section_list';
 import { RefreshContextProvider } from '../../components/refresh_context';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { RelistenText } from '../../components/relisten_text';
 import { Artist } from '../../realm/models/artist';
-import { ScrollView, TouchableOpacity, View } from 'react-native';
+import { View } from 'react-native';
 import * as R from 'remeda';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { RelistenButton } from '../../components/relisten_button';
+import { Filter, FilteringProvider, SortDirection } from '../../components/filtering/filters';
+import { FilterableList, FilterableListProps } from '../../components/filtering/filterable_list';
+import { DisappearingHeaderScreen } from '../../components/screens/disappearing_title_screen';
 
 type NavigationProps = NativeStackScreenProps<AllArtistsTabStackParams, 'ArtistYears'>;
 
@@ -28,33 +28,35 @@ export const YearsScreen: React.FC<PropsWithChildren<NavigationProps>> = ({ rout
   const navigation = useNavigation<NavigationProp<HomeTabsParamList>>();
   const { artistUuid } = route.params;
 
-  useEffect(() => {
-    navigation.setOptions({ title: '' });
-  }, []);
-
   const results = useArtistYears(artistUuid);
   const {
     data: { years, artist },
   } = results;
 
+  useEffect(() => {
+    navigation.setOptions({
+      title: artist?.name,
+    });
+  }, [artist]);
+
   return (
-    <SafeAreaView edges={{ bottom: 'off', top: 'additive' }} className="flex-1">
-      <RefreshContextProvider networkBackedResults={results}>
-        <YearsList
-          artist={artist}
-          years={years}
-          onItemPress={(year: Year) =>
-            navigation.navigate('AllArtistsTab', {
-              screen: 'ArtistYearShows',
-              params: {
-                artistUuid: artist!.uuid,
-                yearUuid: year.uuid,
-              },
-            })
-          }
-        />
-      </RefreshContextProvider>
-    </SafeAreaView>
+    <RefreshContextProvider networkBackedResults={results}>
+      <DisappearingHeaderScreen
+        headerHeight={50}
+        ScrollableComponent={YearsList}
+        artist={artist}
+        years={years}
+        onItemPress={(year: Year) =>
+          navigation.navigate('AllArtistsTab', {
+            screen: 'ArtistYearShows',
+            params: {
+              artistUuid: artist!.uuid,
+              yearUuid: year.uuid,
+            },
+          })
+        }
+      />
+    </RefreshContextProvider>
   );
 };
 
@@ -71,7 +73,7 @@ const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> 
       <View className="flex w-full items-center pb-1">
         <View className="w-full px-4 pb-4">
           <RelistenText
-            className="w-full py-2 pt-8 text-center text-4xl font-bold text-white"
+            className="w-full py-2 text-center text-4xl font-bold text-white"
             selectable={false}
           >
             {artist.name}
@@ -94,30 +96,17 @@ const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> 
             Songs
           </RelistenButton>
         </View>
-        <ScrollView horizontal className="w-full pb-3">
-          <View className="flex w-full flex-row justify-start px-4" style={{ gap: 8 }}>
-            <TouchableOpacity className="flex flex-row items-center rounded-xl bg-relisten-blue-600 p-1 px-2">
-              <MaterialCommunityIcons name="sort-ascending" color="white" size={16} />
-              <View className="w-[4]" />
-              <RelistenText className="text-base font-bold">Year</RelistenText>
-            </TouchableOpacity>
-            <TouchableOpacity className="flex flex-row items-center rounded-xl bg-relisten-blue-800 p-1 px-2">
-              <MaterialCommunityIcons name="sort-ascending" color="white" size={16} />
-              <View className="w-[4]" />
-              <RelistenText className="text-base font-bold">Shows</RelistenText>
-            </TouchableOpacity>
-            <TouchableOpacity className="flex flex-row items-center rounded-xl bg-relisten-blue-800 p-1 px-2">
-              <MaterialCommunityIcons name="sort-ascending" color="white" size={16} />
-              <View className="w-[4]" />
-              <RelistenText className="text-base font-bold">Tapes</RelistenText>
-            </TouchableOpacity>
-            <TouchableOpacity className="flex flex-row items-center rounded-xl bg-relisten-blue-800 p-1 px-2">
-              <MaterialCommunityIcons name="check-circle-outline" color="white" size={16} />
-              <View className="w-[4]" />
-              <RelistenText className="text-base font-bold">My Library</RelistenText>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
+        <View className="w-full flex-row px-4 pb-4" style={{ gap: 16 }}>
+          <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+            Top Rated
+          </RelistenButton>
+          <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+            Popular
+          </RelistenButton>
+          <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+            Random
+          </RelistenButton>
+        </View>
       </View>
     );
   }
@@ -144,26 +133,52 @@ const YearListItem: React.FC<{
   );
 });
 
-const YearsList: React.FC<{
-  artist: Artist | null;
-  years: Realm.Results<Year>;
-  onItemPress?: (year: Year) => void;
-}> = ({ artist, years, onItemPress }) => {
-  const sectionedYears = useMemo(() => {
-    const allYears = [...years];
-    return [
-      { title: 'Favorites', data: allYears.filter((y) => y.isFavorite) },
-      { title: `${allYears.length + 1} Years`, data: allYears },
-    ];
+const YEAR_FILTERS: Filter<Year>[] = [
+  { title: 'My Library', active: false, filter: (y) => y.isFavorite },
+  {
+    title: 'Year',
+    sortDirection: SortDirection.Ascending,
+    active: true,
+    isNumeric: true,
+    sort: (years) => years.sort((a, b) => a.year.localeCompare(b.year)),
+  },
+  {
+    title: 'Shows',
+    sortDirection: SortDirection.Descending,
+    active: false,
+    isNumeric: true,
+    sort: (years) => years.sort((a, b) => a.showCount - b.showCount),
+  },
+  {
+    title: 'Tapes',
+    sortDirection: SortDirection.Descending,
+    active: false,
+    isNumeric: true,
+    sort: (years) => years.sort((a, b) => a.sourceCount - b.sourceCount),
+  },
+];
+
+const YearsList: React.FC<
+  {
+    artist: Artist | null;
+    years: Realm.Results<Year>;
+    onItemPress?: (year: Year) => void;
+  } & Omit<FilterableListProps<Year>, 'data' | 'renderItem'>
+> = ({ artist, years, onItemPress, ...props }) => {
+  const allYears = useMemo(() => {
+    return [...years];
   }, [years]);
 
   return (
-    <RelistenSectionList
-      ListHeaderComponent={<YearsHeader artist={artist} years={years} />}
-      sections={sectionedYears}
-      renderItem={({ item: year }) => {
-        return <YearListItem year={year} onPress={onItemPress} />;
-      }}
-    />
+    <FilteringProvider filters={YEAR_FILTERS}>
+      <FilterableList
+        ListHeaderComponent={<YearsHeader artist={artist} years={years} />}
+        data={allYears}
+        renderItem={({ item: year }) => {
+          return <YearListItem year={year} onPress={onItemPress} />;
+        }}
+        {...props}
+      />
+    </FilteringProvider>
   );
 };

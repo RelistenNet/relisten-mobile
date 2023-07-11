@@ -1,8 +1,11 @@
-import { FlatList, RefreshControl } from 'react-native';
+import { FlatList, RefreshControl, View } from 'react-native';
 import { useRefreshContext } from './refresh_context';
 import { ItemSeparator } from './item_separator';
 import { ListRenderItem } from 'react-native/Libraries/Lists/VirtualizedList';
 import { FlatListProps } from 'react-native/Libraries/Lists/FlatList';
+import { List as ListContentLoader } from 'react-content-loader/native';
+import { RelistenBlue } from '../relisten_blue';
+import React from 'react';
 
 export const RelistenFlatList = <T extends { uuid: string }>({
   data,
@@ -15,6 +18,17 @@ export const RelistenFlatList = <T extends { uuid: string }>({
   pullToRefresh?: boolean;
 } & FlatListProps<T>) => {
   const { onRefresh, refreshing } = useRefreshContext();
+
+  if (refreshing) {
+    return (
+      <View className="w-full p-4">
+        <ListContentLoader
+          backgroundColor={RelistenBlue[800]}
+          foregroundColor={RelistenBlue[700]}
+        />
+      </View>
+    );
+  }
 
   return (
     <FlatList

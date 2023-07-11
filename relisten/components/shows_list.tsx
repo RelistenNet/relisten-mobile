@@ -3,12 +3,13 @@ import React, { useMemo } from 'react';
 import { Show } from '../realm/models/show';
 import { SectionedListItem } from './sectioned_list_item';
 import { FavoriteObjectButton } from './favorite_icon_button';
-import { RelistenSectionList } from './relisten_section_list';
 import { memo } from '../util/memo';
 import RowSubtitle from './row_subtitle';
 import Flex from './flex';
 import RowTitle from './row_title';
 import { RelistenText } from './relisten_text';
+import { Filter, FilteringProvider, SortDirection } from './filtering/filters';
+import { FilterableList, FilterableListProps } from './filtering/filterable_list';
 
 const ShowListItem: React.FC<{ show: Show; onPress?: (show: Show) => void }> = memo(
   ({ show, onPress }) => {
@@ -29,7 +30,7 @@ const ShowListItem: React.FC<{ show: Show; onPress?: (show: Show) => void }> = m
                 {show.venue.name}, {show.venue.location}
               </RowSubtitle>
             )}
-            <Flex className="flex-1 justify-between pt-1">
+            <Flex className="w-full flex-1 justify-between pt-1">
               <RowSubtitle>
                 {show.sourceCount} tape(s) &middot; {show.humanizedAvgRating()} ★ &middot;{' '}
                 {show.humanizedAvgDuration()}
@@ -43,24 +44,57 @@ const ShowListItem: React.FC<{ show: Show; onPress?: (show: Show) => void }> = m
   }
 );
 
-export const ShowList: React.FC<{
-  shows: Realm.Results<Show>;
-  onItemPress?: (show: Show) => void;
-}> = ({ shows, onItemPress }) => {
-  const sectionedShow = useMemo(() => {
-    const all = [...shows];
-    return [
-      { title: 'Favorites', data: all.filter((a) => a.isFavorite) },
-      { title: `${shows.length} Shows`, data: all },
-    ];
+const SHOW_FILTERS: Filter<Show>[] = [
+  { title: 'My Library', active: false, filter: (y) => y.isFavorite },
+  {
+    title: 'Date',
+    sortDirection: SortDirection.Ascending,
+    active: true,
+    isNumeric: true,
+    sort: (years) => years.sort((a, b) => a.displayDate.localeCompare(b.displayDate)),
+  },
+  {
+    title: 'Rating',
+    sortDirection: SortDirection.Descending,
+    active: false,
+    isNumeric: true,
+    sort: (years) => years.sort((a, b) => a.avgRating - b.avgRating),
+  },
+  {
+    title: 'Tapes',
+    sortDirection: SortDirection.Descending,
+    active: false,
+    isNumeric: true,
+    sort: (years) => years.sort((a, b) => a.sourceCount - b.sourceCount),
+  },
+  {
+    title: 'Duration',
+    sortDirection: SortDirection.Descending,
+    active: false,
+    isNumeric: true,
+    sort: (years) => years.sort((a, b) => (a.avgDuration || 0) - (b.avgDuration || 0)),
+  },
+];
+
+export const ShowList: React.FC<
+  {
+    shows: Realm.Results<Show>;
+    onItemPress?: (show: Show) => void;
+  } & Omit<FilterableListProps<Show>, 'data' | 'renderItem'>
+> = ({ shows, onItemPress, ...props }) => {
+  const allShows = useMemo(() => {
+    return [...shows];
   }, [shows]);
 
   return (
-    <RelistenSectionList
-      sections={sectionedShow}
-      renderItem={({ item: show }) => {
-        return <ShowListItem show={show} onPress={onItemPress} />;
-      }}
-    />
+    <FilteringProvider filters={SHOW_FILTERS}>
+      <FilterableList
+        data={allShows}
+        renderItem={({ item: show }) => {
+          return <ShowListItem show={show} onPress={onItemPress} />;
+        }}
+        {...props}
+      />
+    </FilteringProvider>
   );
 };
