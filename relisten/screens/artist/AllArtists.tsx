@@ -76,15 +76,15 @@ const ArtistsList = ({ artists }: { artists: Realm.Results<Artist> }) => {
 export const AllArtistsScreen: React.FC = () => {
   const results = useArtists();
   const { data: artists } = results;
-  const navigation = useNavigation();
+  // const navigation = useNavigation();
 
-  useEffect(() => {
-    if (!artists) {
-      navigation.setOptions({ title: 'Artists' });
-    } else {
-      navigation.setOptions({ title: `${artists.length} Artists` });
-    }
-  }, [artists]);
+  // useEffect(() => {
+  //   if (!artists) {
+  //     navigation.setOptions({ title: 'Artists' });
+  //   } else {
+  //     navigation.setOptions({ title: `${artists.length} Artists` });
+  //   }
+  // }, [artists]);
 
   return (
     <View style={{ flex: 1, width: '100%' }}>

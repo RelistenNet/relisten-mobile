@@ -2,14 +2,16 @@
 // tailwind.config.js
 // const nativewind = require('nativewind/tailwind/native');
 
-const colors = require('tailwindcss/colors');
-const { lightBlue, warmGray, trueGray, coolGray, blueGray, ...colorsWithoutDeprecated } = colors;
 const { RelistenBlue } = require('./relisten/relisten_blue');
 
 const baseFontSize = 14;
 
 module.exports = {
-  content: ['./App.{js,jsx,ts,tsx}', './relisten/**/*.{js,jsx,ts,tsx}'],
+  content: [
+    './App.{js,jsx,ts,tsx}',
+    './relisten/**/*.{js,jsx,ts,tsx}',
+    './app/**/*.{js,jsx,ts,tsx}',
+  ],
   theme: {
     fontSize: {
       'xs': ['10px'],
@@ -24,9 +26,10 @@ module.exports = {
       '6xl': ['48px'], // h1
       '7xl': ['60px'],
     },
-    colors: {
-      ...colorsWithoutDeprecated,
-      'relisten-blue': RelistenBlue,
+    extend: {
+      colors: {
+        'relisten-blue': RelistenBlue,
+      },
     },
   },
   // plugins: [nativewind()],
