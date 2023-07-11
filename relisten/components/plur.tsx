@@ -1,7 +1,5 @@
 import plur from 'plur';
 
-import React from 'react';
-
 interface NewProps {
   as?: React.ElementType;
   cn?: string;

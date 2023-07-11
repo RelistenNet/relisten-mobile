@@ -78,11 +78,11 @@ const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> 
           >
             {artist.name}
           </RelistenText>
-          <RelistenText className="w-full pb-2 text-center text-xl" selectable={false}>
-            {years[0].year}&ndash;{years[years.length - 1].year}
-          </RelistenText>
+
           <RelistenText className="text-l w-full pb-2 text-center italic text-slate-400">
-            {[years.length + ' years', totalShows + ' shows', totalTapes + ' tapes'].join(' • ')}
+            <Plur word="year" count={years.length} /> &middot;&nbsp;
+            <Plur word="show" count={totalShows} /> &middot;&nbsp;
+            <Plur word="tape" count={totalTapes} />
           </RelistenText>
         </View>
         <View className="w-full flex-row px-4 pb-4" style={{ gap: 16 }}>
