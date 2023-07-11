@@ -6,6 +6,7 @@ import { RealmProvider } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { Text, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 
 // import { AllArtistsScreen } from '@/relisten/screens/artist/AllArtists';
 
@@ -25,6 +26,8 @@ export default function TabLayout() {
           }}
         >
           <SafeAreaProvider>
+            <StatusBar style="light" />
+
             <Tabs
               screenOptions={{
                 headerShown: false,
