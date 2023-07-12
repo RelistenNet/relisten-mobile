@@ -1,14 +1,14 @@
 import { useSegments } from 'expo-router';
 import { MotiView } from 'moti';
 import { useReducer } from 'react';
-import { Text, TouchableOpacity } from 'react-native';
+import { Text, TouchableWithoutFeedback } from 'react-native';
 
 export default function PlaybackBar() {
   const [isDetail, toggleDetail] = useReducer((state) => !state, false);
   const segments = useSegments();
 
   return (
-    <TouchableOpacity onPress={toggleDetail} activeOpacity={1}>
+    <TouchableWithoutFeedback onPress={toggleDetail}>
       <MotiView
         from={{ opacity: 0, height: 0 }}
         animate={{
@@ -23,6 +23,6 @@ export default function PlaybackBar() {
           active "URL": {segments.join('/')}; bar height: {segments.length * 32}px
         </Text>
       </MotiView>
-    </TouchableOpacity>
+    </TouchableWithoutFeedback>
   );
 }
