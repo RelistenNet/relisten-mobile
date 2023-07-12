@@ -88,7 +88,7 @@ const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> 
         <View className="w-full flex-row px-4 pb-4" style={{ gap: 16 }}>
           <Link
             href={{
-              pathname: '/artists/[artistUuid]/venues',
+              pathname: '/(tabs)/artists/[artistUuid]/venues' as const,
               params: {
                 artistUuid: artist.uuid,
               },

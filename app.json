@@ -1,7 +1,8 @@
 {
   "expo": {
     "experiments": {
-      "tsconfigPaths": true
+      "tsconfigPaths": true,
+      "typedRoutes": true
     },
     "name": "Relisten",
     "slug": "Relisten",

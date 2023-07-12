@@ -1,3 +1,6 @@
+import 'react-native-get-random-values';
+import 'uuid';
+
 import { Slot } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -12,11 +15,16 @@ import 'react-native-reanimated';
 import dayjs from 'dayjs';
 import duration from 'dayjs/plugin/duration';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import useCacheAssets from './useCacheAssets';
 
 dayjs.extend(duration);
 dayjs.extend(relativeTime);
 
 export default function TabLayout() {
+  const isAppReady = useCacheAssets();
+
+  if (!isAppReady) return null;
+
   return (
     <RealmProvider>
       <RelistenApiProvider>

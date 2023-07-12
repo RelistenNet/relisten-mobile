@@ -16,6 +16,8 @@
     "./relisten/**/*.ts",
     "./relisten/**/*.tsx",
     "./app/**/*.ts",
-    "./app/**/*.tsx"
+    "./app/**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
   ]
 }
