@@ -1,3 +1,4 @@
+import { RelistenBlue } from '@/relisten/relisten_blue';
 import { Stack } from 'expo-router/stack';
 
 export const unstable_settings = {
@@ -11,7 +12,7 @@ export default function ArtistsLayout() {
         options={{
           title: 'Artists',
           headerStyle: {
-            backgroundColor: 'green',
+            backgroundColor: RelistenBlue['950'],
           },
         }}
       />

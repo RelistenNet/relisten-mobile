@@ -42,9 +42,9 @@ export default function Page() {
     <RefreshContextProvider networkBackedResults={results}>
       <Link
         href={{
-          pathname: '/artists/[artistUuid]',
+          pathname: '/(tabs)/artists/[artistUuid]/' as const,
           params: {
-            artistUuid: artist?.uuid,
+            artistUuid: String(artist?.uuid),
           },
         }}
         asChild
@@ -126,7 +126,7 @@ const YearListItem = ({ year }: { year: Year }) => {
   return (
     <Link
       href={{
-        pathname: 'artists/[artistUuid]/[yearUuid]',
+        pathname: '/(tabs)/artists/[artistUuid]/[yearUuid]/' as const,
         params: {
           artistUuid: year.artistUuid,
           yearUuid: year.uuid,

@@ -9,6 +9,7 @@ import dayjs from 'dayjs';
 import duration from 'dayjs/plugin/duration';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import TabBar from '@/relisten/components/TabBar';
+import { RelistenBlue } from '@/relisten/relisten_blue';
 
 dayjs.extend(duration);
 dayjs.extend(relativeTime);
@@ -20,7 +21,7 @@ export default function TabLayout() {
       screenOptions={({ route }) => ({
         headerShown: false,
         headerStyle: {
-          backgroundColor: 'green',
+          backgroundColor: RelistenBlue['950'],
         },
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;

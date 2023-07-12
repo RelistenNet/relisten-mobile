@@ -18,7 +18,7 @@ const ArtistListItem = ({ artist }: { artist: Artist }) => {
     <SectionedListItem>
       <Link
         href={{
-          pathname: '/artists/[artistUuid]',
+          pathname: '/(tabs)/artists/[artistUuid]/' as const,
           params: {
             artistUuid: artist.uuid,
           },

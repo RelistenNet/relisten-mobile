@@ -259,7 +259,7 @@ export const SourceHeader: React.FC<{ source: Source; show: Show }> = memo(({ sh
       <View className="w-full pb-2">
         <Link
           href={{
-            pathname: '/artists/[artistUuid]/[yearUuid]/[showUuid]/sources/index',
+            pathname: '/(tabs)/artists/[artistUuid]/[yearUuid]/[showUuid]/sources/' as const,
             params: {
               artistUuid: show.artistUuid,
               yearUuid: show.yearUuid,
