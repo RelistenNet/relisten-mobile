@@ -464,6 +464,8 @@ PODS:
     - React-perflogger (= 0.72.1)
   - RealmJS (11.10.1):
     - React
+  - RelistenAudioPlayer (2.4.0):
+    - ExpoModulesCore
   - RNGestureHandler (2.12.0):
     - React-Core
   - RNReanimated (3.3.0):
@@ -559,6 +561,7 @@ DEPENDENCIES:
   - React-utils (from `../node_modules/react-native/ReactCommon/react/utils`)
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
   - RealmJS (from `../node_modules/realm`)
+  - RelistenAudioPlayer (from `../modules/relisten-audio-player/ios`)
   - RNGestureHandler (from `../node_modules/react-native-gesture-handler`)
   - RNReanimated (from `../node_modules/react-native-reanimated`)
   - RNScreens (from `../node_modules/react-native-screens`)
@@ -679,6 +682,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon"
   RealmJS:
     :path: "../node_modules/realm"
+  RelistenAudioPlayer:
+    :path: "../modules/relisten-audio-player/ios"
   RNGestureHandler:
     :path: "../node_modules/react-native-gesture-handler"
   RNReanimated:
@@ -700,11 +705,11 @@ SPEC CHECKSUMS:
   Expo: 5dfc753088c8787bfe4d8b18797c86c85a017dac
   ExpoHead: 8da645502363b53eeb99d99276a0adbe0ec8cff0
   ExpoKeepAwake: be4cbd52d9b177cde0fd66daa1913afa3161fc1d
-  ExpoModulesCore: 26b909d549da585166bcfb16738428e79bbfc093
+  ExpoModulesCore: 15c30ed6228d0205344977c00a8c456b35c12a8d
   ExpoSQLite: fdbc8d08a0efa64fd4ebbc5c261d55fc0ae3b21d
   ExpoSystemUI: fa4854e3226e87f86d3383570264c6e4e90bc782
   ExpoWebBrowser: 2c788f9c07718a780fe6d8bf2f6195c47609faaa
-  EXSplashScreen: 89586b0961acd173b04713b7457949b063a659da
+  EXSplashScreen: bd662b32b776e4f1c6770da79967b0a725fdeff7
   FBLazyVector: 55cd4593d570bd9e5e227488d637ce6a9581ce51
   FBReactNativeSpec: 799b0e1a1561699cd0e424e24fe5624da38402f0
   fmt: ff9d55029c625d3757ed641535fd4a75fedc7ce9
@@ -716,11 +721,11 @@ SPEC CHECKSUMS:
   RCTTypeSafety: 75fa444becadf0ebfa0a456b8c64560c7c89c7df
   React: 3e5b3962f27b7334eaf5517a35b3434503df35ad
   React-callinvoker: c3a225610efe0caadac78da53b6fe78e53eb2b03
-  React-Codegen: bba20685e5c1515f8ecb289bd9770835a1338125
-  React-Core: 6f6564ea4c5fc118757c945b6359a36aaea86216
-  React-CoreModules: ab635016811b610a93e873485f6f900ce0582192
+  React-Codegen: 319a74f758104130092a5984431045056c32fbab
+  React-Core: 40003a89fd94da98b03c3fad8834871299485cfa
+  React-CoreModules: 1304c0710deb87054623ccc9c552e23a1fcce219
   React-cxxreact: f82f0f1832606fabb9e8c9d61c4230704a3d2d2f
-  React-debug: 8aa2bd54b0f0011049300ce3339b0e51254ef3b5
+  React-debug: 3e34ac6fb438f0e8c05a1678eedd6ebd8928245c
   React-hermes: f076cb5f7351d6cc1600125bef3259ea880460fb
   React-jsi: 9f381c8594161b2328b93cd3ba5d0bcfcd1e093a
   React-jsiexecutor: 184eae1ecdedc7a083194bd9ff809c93f08fd34c
@@ -728,24 +733,25 @@ SPEC CHECKSUMS:
   React-logger: b8103c9b04e707b50cdd2b1aeb382483900cbb37
   react-native-get-random-values: a6ea6a8a65dc93e96e24a11105b1a9c8cfe1d72a
   react-native-safe-area-context: 36cc67648134e89465663b8172336a19eeda493d
-  React-NativeModulesApple: 4f31a812364443cee6ef768d256c594ad3b20f53
+  React-NativeModulesApple: bdfd86e972ea8103941faab9c7f64ea9be7e2be6
   React-perflogger: 3d501f34c8d4b10cb75f348e43591765788525ad
   React-RCTActionSheet: f5335572c979198c0c3daff67b07bd1ad8370c1d
-  React-RCTAnimation: 5d0d31a4f9c49a70f93f32e4da098fb49b5ae0b3
-  React-RCTAppDelegate: 01ddbdeb01b7cefa932cb66a17299d60620e820d
-  React-RCTBlob: 280d2605ba10b8f2282f1e8a849584368577251a
-  React-RCTImage: e15d22db53406401cdd1407ce51080a66a9c7ed4
-  React-RCTLinking: 39815800ec79d6fb15e6329244d195ebeabf7541
-  React-RCTNetwork: 2a6548e13d2577b112d4250ac5be74ae62e1e86b
-  React-RCTSettings: a76aee44d5398144646be146c334b15c90ad9582
+  React-RCTAnimation: 897b1170a1e934dee9b7eb7d5582920dea72c1c8
+  React-RCTAppDelegate: f8dc4f198bb7a7fdc9ccd5a6e246936bbdacbe42
+  React-RCTBlob: b69213136de8eed26fdf112602e8aaf91923093c
+  React-RCTImage: 9f2303a18cec1f715a447dca5b82021643661e6b
+  React-RCTLinking: f88453408f33a99f36bb4f6e11278ffbb81aa45f
+  React-RCTNetwork: 5ef8d399ad389442404683d2572007ace0e26076
+  React-RCTSettings: 516d917b059c94f33f85f601974429de7c3d34ca
   React-RCTText: afad390f3838f210c2bc9e1a19bb048003b2a771
-  React-RCTVibration: 29bbaa5c57c02dc036d7e557584b492000b1d3e7
+  React-RCTVibration: 28cc9ac2c062b515f207a1743f0f27083d62acc5
   React-rncore: 50966ce412d63bee9ffe5c98249857c23870a3c4
   React-runtimeexecutor: d129f2b53d61298093d7c7d8ebfafa664f911ce6
-  React-runtimescheduler: 67707a955b9ecc628cc38bdc721fbc498910f0fd
-  React-utils: 0a70ea97d4e2749f336b450c082905be1d389435
-  ReactCommon: e593d19c9e271a6da4d0bd7f13b28cfeae5d164b
+  React-runtimescheduler: 34e27d6db52587cf93e7d9d44d5ff2dc4948243a
+  React-utils: 4324c58d17bcbcb8c49fe7f8c14b4f61d5dd4a42
+  ReactCommon: e33f60179aae29423fcf4ea19fdedc038813ea3f
   RealmJS: 8deebf00c84f499c654bc585583c54f55b586751
+  RelistenAudioPlayer: 180c4135cfd2c86df85e8ea135175b6e05bf31bc
   RNGestureHandler: dec4645026e7401a0899f2846d864403478ff6a5
   RNReanimated: 9f7068e43b9358a46a688d94a5a3adb258139457
   RNScreens: 50ffe2fa2342eabb2d0afbe19f7c1af286bc7fb3
@@ -755,4 +761,4 @@ SPEC CHECKSUMS:
 
 PODFILE CHECKSUM: 447622968f537f7215420c01db1e6665fea724d4
 
-COCOAPODS: 1.11.3
+COCOAPODS: 1.12.1

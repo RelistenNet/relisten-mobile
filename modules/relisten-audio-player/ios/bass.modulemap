@@ -1,0 +1,17 @@
+framework module RelistenAudioPlayer {
+  umbrella header "RelistenAudioPlayer-umbrella.h"
+
+  export *
+  module * { export * }
+
+  explicit module bass {
+    header "bass.h"
+    link "bass"
+    export *
+  }
+}
+
+module RelistenAudioPlayer.Swift {
+  header "RelistenAudioPlayer-Swift.h"
+  requires objc
+}
