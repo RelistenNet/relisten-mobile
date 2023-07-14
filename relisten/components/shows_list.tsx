@@ -1,16 +1,16 @@
-import React, { useMemo } from 'react';
+import { Link } from 'expo-router';
+import { useMemo } from 'react';
 import Realm from 'realm';
 import { Show } from '../realm/models/show';
 import { FavoriteObjectButton } from './favorite_icon_button';
 import { FilterableList, FilterableListProps } from './filtering/filterable_list';
 import { Filter, FilteringProvider, SortDirection } from './filtering/filters';
 import Flex from './flex';
+import Plur from './plur';
 import { RelistenText } from './relisten_text';
 import { SubtitleRow, SubtitleText } from './row_subtitle';
 import RowTitle from './row_title';
 import { SectionedListItem } from './sectioned_list_item';
-import Plur from './plur';
-import { Link } from 'expo-router';
 
 const ShowListItem = ({ show }: { show: Show }) => {
   return (
@@ -81,11 +81,14 @@ const SHOW_FILTERS: Filter<Show>[] = [
   },
 ];
 
-export const ShowList: React.FC<
-  {
-    shows: Realm.Results<Show>;
-  } & Omit<FilterableListProps<Show>, 'data' | 'renderItem'>
-> = ({ shows, ...props }) => {
+interface Props {
+  shows: Realm.Results<Show>;
+}
+
+export const ShowList = ({
+  shows,
+  ...props
+}: Props & Omit<FilterableListProps<Show>, 'data' | 'renderItem'>) => {
   const allShows = useMemo(() => {
     return [...shows];
   }, [shows]);

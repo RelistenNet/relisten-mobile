@@ -13,15 +13,13 @@ export default function PlaybackBar() {
         from={{ opacity: 0, height: 0 }}
         animate={{
           opacity: 1,
-          height: isDetail ? 400 : segments.length * 32,
+          height: isDetail ? 400 : 42,
         }}
         transition={{ type: 'spring' }}
         className="flex items-center justify-center bg-green-300"
       >
         <Text>Look, this is always visible (if we want it to be)! It's dynamic!</Text>
-        <Text>
-          active "URL": {segments.join('/')}; bar height: {segments.length * 32}px
-        </Text>
+        <Text>active "URL": {segments.join('/')}</Text>
       </MotiView>
     </TouchableWithoutFeedback>
   );

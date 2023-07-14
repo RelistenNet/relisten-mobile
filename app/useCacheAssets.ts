@@ -15,7 +15,7 @@ function cacheImages(images: Array<string | number>) {
   });
 }
 
-function cacheFonts(fonts: Array<Icon<string, string>['font']>) {
+function cacheFonts(fonts: Array<Record<string, string>>) {
   return fonts.map((font) => Font.loadAsync(font));
 }
 

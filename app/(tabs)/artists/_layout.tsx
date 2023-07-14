@@ -23,12 +23,6 @@ export default function ArtistsLayout() {
         }}
       />
       <Stack.Screen
-        name="[artistUuid]/venues"
-        options={{
-          title: '',
-        }}
-      />
-      <Stack.Screen
         name="[artistUuid]/[yearUuid]/index"
         options={{
           title: '',

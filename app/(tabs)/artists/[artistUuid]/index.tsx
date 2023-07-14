@@ -88,7 +88,7 @@ const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> 
         <View className="w-full flex-row px-4 pb-4" style={{ gap: 16 }}>
           <Link
             href={{
-              pathname: '/(tabs)/artists/[artistUuid]/venues' as const,
+              pathname: '/(tabs)/artists/[artistUuid]/venues/' as const,
               params: {
                 artistUuid: artist.uuid,
               },
@@ -179,13 +179,12 @@ const YEAR_FILTERS: Filter<Year>[] = [
   },
 ];
 
-const YearsList: React.FC<
-  {
-    artist: Artist | null;
-    years: Realm.Results<Year>;
-    onItemPress?: (year: Year) => void;
-  } & Omit<FilterableListProps<Year>, 'data' | 'renderItem'>
-> = ({ artist, years, onItemPress, ...props }) => {
+interface Props extends Omit<FilterableListProps<Year>, 'data' | 'renderItem'> {
+  artist: Artist | null;
+  years: Realm.Results<Year>;
+}
+
+const YearsList = ({ artist, years, ...props }: Props) => {
   const allYears = useMemo(() => {
     return [...years];
   }, [years]);
@@ -196,7 +195,7 @@ const YearsList: React.FC<
         ListHeaderComponent={<YearsHeader artist={artist} years={years} />}
         data={allYears}
         renderItem={({ item: year }) => {
-          return <YearListItem year={year} onPress={onItemPress} />;
+          return <YearListItem year={year} />;
         }}
         {...props}
       />

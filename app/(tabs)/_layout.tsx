@@ -40,7 +40,7 @@ export default function TabLayout() {
             />
           );
         },
-        tabBarActiveTintColor: '#009DC1',
+        tabBarActiveTintColor: RelistenBlue['600'],
         tabBarInactiveTintColor: 'gray',
       })}
       tabBar={TabBar}
