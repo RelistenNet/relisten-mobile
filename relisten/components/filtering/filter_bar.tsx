@@ -1,4 +1,4 @@
-import React, { FunctionComponent, PropsWithChildren } from 'react';
+import { FunctionComponent, PropsWithChildren } from 'react';
 import { ScrollView, View } from 'react-native';
 
 export const FilterBar: FunctionComponent<PropsWithChildren> = ({ children }) => {
