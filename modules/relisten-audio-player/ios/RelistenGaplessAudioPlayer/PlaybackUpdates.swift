@@ -45,9 +45,7 @@ extension RelistenGaplessAudioPlayer {
                 sendDownloadChanged = true
             }
 
-            let currState = currentState
-
-            if prevState != currState {
+            if prevState != currentState {
                 sendStateChanged = true
             }
 
@@ -62,7 +60,7 @@ extension RelistenGaplessAudioPlayer {
                     }
 
                     if sendStateChanged {
-                        self.delegate?.playbackStateChanged(self, newPlaybackState: currState)
+                        self.delegate?.playbackStateChanged(self, newPlaybackState: currentState)
                     }
                 }
             }

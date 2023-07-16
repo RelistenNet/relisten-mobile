@@ -217,9 +217,9 @@ func PlaybackStateForBASSPlaybackState(_ state: DWORD) -> PlaybackState {
         return .Stopped
     } else if state == BASS_ACTIVE_PLAYING {
         return .Playing
-    } else if state == BASS_ACTIVE_PAUSED {
+    } else if state == BASS_ACTIVE_PAUSED || state == BASS_ACTIVE_PAUSED_DEVICE {
         return .Paused
-    } else if state == BASS_ACTIVE_STALLED {
+    } else if state == BASS_ACTIVE_STALLED || state == BASS_ACTIVE_WAITING || state == BASS_ACTIVE_QUEUED {
         return .Stalled
     }
 

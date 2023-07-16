@@ -5,7 +5,7 @@ import ExpoModulesCore
 struct RelistenStreamable: Record {
     @Field
     var url: URL? = nil
-    
+
     @Field
     var identifier: String? = nil
 }
@@ -26,33 +26,33 @@ public class RelistenAudioPlayerModule: Module {
             player = RelistenGaplessAudioPlayer()
             player?.delegate = self
         }
-        
+
         Events("onError")
         Events("onPlaybackStateChanged")
         Events("onPlaybackProgressChanged")
         Events("onDownloadProgressChanged")
         Events("onTrackChanged")
-        
+
         Function("currentDuration") {
             return player?.currentDuration
         }
-        
+
         Function("currentState") {
             return player?.currentState ?? .Stopped
         }
-        
+
         Function("elapsed") {
             return player?.elapsed
         }
-        
+
         Function("volume") {
             return player?.volume
         }
-        
+
         Function("setVolume") { (newVolume: Float) in
             return player?.volume = newVolume
         }
-        
+
         Function("prepareAudioSession") {
             player?.prepareAudioSession()
         }
@@ -61,34 +61,34 @@ public class RelistenAudioPlayerModule: Module {
             guard let url = streamable.url, let identifier = streamable.identifier else {
                 return
             }
-            
+
             player?.play(RelistenGaplessStreamable(url: url, identifier: identifier))
         }
-        
+
         Function("setNextStream"){ (streamable: RelistenStreamable) in
             guard let url = streamable.url, let identifier = streamable.identifier else {
                 return
             }
-            
+
             player?.setNextStream(RelistenGaplessStreamable(url: url, identifier: identifier))
         }
-        
+
         Function("resume") {
             player?.resume()
         }
-        
+
         Function("pause") {
             player?.pause()
         }
-        
+
         Function("stop") {
             player?.stop()
         }
-        
+
         Function("next") {
             player?.next()
         }
-        
+
         Function("seekTo") { (pct: Double) in
             player?.seekTo(percent: pct)
         }
@@ -103,20 +103,20 @@ extension RelistenAudioPlayerModule: RelistenGaplessAudioPlayerDelegate {
             "identifier": forStreamable.identifier,
         ])
     }
-    
+
     public func playbackStateChanged(_ player: RelistenGaplessAudioPlayer, newPlaybackState playbackState: PlaybackState) {
         self.sendEvent("onPlaybackStateChanged", [
-            "newPlaybackState": playbackState,
+            "newPlaybackState": String(describing: playbackState),
         ])
     }
-    
+
     public func playbackProgressChanged(_ player: RelistenGaplessAudioPlayer, elapsed: TimeInterval?, duration: TimeInterval?) {
         self.sendEvent("onPlaybackProgressChanged", [
             "elapsed": elapsed,
             "duration": duration,
         ])
     }
-    
+
     public func downloadProgressChanged(_ player: RelistenGaplessAudioPlayer, forActiveTrack: Bool, downloadedBytes: UInt64, totalBytes: UInt64) {
         self.sendEvent("onDownloadProgressChanged", [
             "forActiveTrack": forActiveTrack,
@@ -124,15 +124,15 @@ extension RelistenAudioPlayerModule: RelistenGaplessAudioPlayerDelegate {
             "totalBytes": totalBytes,
         ])
     }
-    
+
     public func trackChanged(_ player: RelistenGaplessAudioPlayer, previousStreamable: RelistenGaplessStreamable, currentStreamable: RelistenGaplessStreamable?) {
         self.sendEvent("onTrackChanged", [
             "previousIdentifier": previousStreamable.identifier,
             "currentIdentifier": currentStreamable?.identifier,
         ])
     }
-    
+
     public func audioSessionWasSetup(_ player: RelistenGaplessAudioPlayer) {
-        
+
     }
 }

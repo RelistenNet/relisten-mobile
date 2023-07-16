@@ -1,5 +1,7 @@
 import 'react-native-get-random-values';
 import 'uuid';
+import 'react-native-gesture-handler';
+import 'react-native-reanimated';
 
 import { Slot } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -9,8 +11,6 @@ import { RealmProvider } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import 'react-native-gesture-handler';
-import 'react-native-reanimated';
 
 import dayjs from 'dayjs';
 import duration from 'dayjs/plugin/duration';

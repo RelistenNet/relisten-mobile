@@ -142,7 +142,7 @@ public class RelistenGaplessAudioPlayer {
             }
 
             nextStream = buildStream(streamable)
-            
+
             if activeStream?.preloadFinished == true {
                 startPreloadingNextStream()
             }
