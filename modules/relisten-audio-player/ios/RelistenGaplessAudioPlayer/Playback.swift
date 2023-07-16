@@ -49,6 +49,8 @@ extension RelistenGaplessAudioPlayer {
         } else {
             assertionFailure("activeStream nil after buildingStream from \(streamable)")
         }
+        
+        startUpdates()
     }
 
     func seekToPercent(_ pct: Double) {

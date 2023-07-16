@@ -25,10 +25,6 @@ public struct RelistenGaplessStreamable {
     let identifier: String
 }
 
-public enum RelistenGaplessNextBehavior {
-    case Replace
-    case Ignore
-}
 
 public class RelistenGaplessAudioPlayer {
     // MARK: - Public API
@@ -146,6 +142,10 @@ public class RelistenGaplessAudioPlayer {
             }
 
             nextStream = buildStream(streamable)
+            
+            if activeStream?.preloadFinished == true {
+                startPreloadingNextStream()
+            }
         }
     }
 

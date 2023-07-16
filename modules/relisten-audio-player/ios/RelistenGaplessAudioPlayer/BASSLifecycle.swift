@@ -52,6 +52,7 @@ extension RelistenGaplessAudioPlayer {
     }
 
     func tearDownStream(_ stream: HSTREAM) {
+        print("[bass][stream] tearing down stream \(stream)")
         // stop channels to allow them to be freed
         BASS_ChannelStop(stream)
 
@@ -96,7 +97,7 @@ extension RelistenGaplessAudioPlayer {
                 currentState = .Stopped
 
                 if let activeStream {
-                    BASS_StreamFree(activeStream.stream)
+                    tearDownStream(activeStream.stream)
                     self.activeStream = nil
                 }
             }

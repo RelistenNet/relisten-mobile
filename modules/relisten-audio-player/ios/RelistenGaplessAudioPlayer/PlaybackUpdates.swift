@@ -54,15 +54,15 @@ extension RelistenGaplessAudioPlayer {
             if sendStateChanged || sendDownloadChanged || sendPlaybackChanged {
                 DispatchQueue.main.async {
                     if sendPlaybackChanged {
-                        delegate?.playbackProgressChanged(self, elapsed: thisElapsed, duration: thisDuration)
+                        self.delegate?.playbackProgressChanged(self, elapsed: thisElapsed, duration: thisDuration)
                     }
 
                     if sendDownloadChanged {
-                        delegate?.downloadProgressChanged(self, forActiveTrack: true, downloadedBytes: downloadedBytes, totalBytes: totalFileBytes)
+                        self.delegate?.downloadProgressChanged(self, forActiveTrack: true, downloadedBytes: downloadedBytes, totalBytes: totalFileBytes)
                     }
 
                     if sendStateChanged {
-                        delegate?.playbackStateChanged(self, newPlaybackState: currState)
+                        self.delegate?.playbackStateChanged(self, newPlaybackState: currState)
                     }
                 }
             }

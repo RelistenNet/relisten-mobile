@@ -6,15 +6,16 @@
 //
 
 import Foundation
+import ExpoModulesCore
 
-public enum PlaybackState {
+public enum PlaybackState: String, Enumerable {
     case Stopped
     case Playing
     case Paused
     case Stalled
 }
 
-public enum PlaybackStreamError {
+public enum PlaybackStreamError: String, Enumerable {
     case Init
     case NotAvail
     case NoInternet
