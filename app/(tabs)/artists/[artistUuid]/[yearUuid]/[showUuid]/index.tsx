@@ -34,6 +34,8 @@ import {
 } from 'react-native';
 import * as R from 'remeda';
 
+import { play } from '@/modules/relisten-audio-player';
+
 export const SourceList = ({ sources }: { sources: Source[] }) => {
   return (
     <RelistenFlatList
@@ -318,7 +320,7 @@ export const SourceTrackComponent: React.FC<{
   isLastTrackInSet: boolean;
 }> = memo(({ source, sourceTrack, isLastTrackInSet }) => {
   return (
-    <View className="flex flex-row items-start pl-6 pr-4">
+    <TouchableOpacity className="flex flex-row items-start pl-6 pr-4" onPress={play}>
       <View className="basis-7 pt-3 ">
         <RelistenText className="pt-[1] text-lg text-slate-500">
           {sourceTrack.trackPosition}
@@ -338,7 +340,7 @@ export const SourceTrackComponent: React.FC<{
         </View>
         {!isLastTrackInSet && <ItemSeparator />}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 });
 
