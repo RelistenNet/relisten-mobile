@@ -4,6 +4,6 @@
     "modules": ["RelistenAudioPlayerModule"]
   },
   "android": {
-    "modules": ["net.relisten.android.audio-player.RelistenAudioPlayerModule"]
+    "modules": ["net.relisten.android.audio_player.RelistenAudioPlayerModule"]
   }
 }

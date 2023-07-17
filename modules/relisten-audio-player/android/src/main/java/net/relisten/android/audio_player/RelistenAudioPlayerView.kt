@@ -1,4 +1,4 @@
-package net.relisten.android.audio-player
+package net.relisten.android.audio_player
 
 import android.content.Context
 import expo.modules.kotlin.AppContext
