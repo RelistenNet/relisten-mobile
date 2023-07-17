@@ -30,6 +30,19 @@ public class RelistenGaplessAudioPlayer {
     // MARK: - Public API
 
     public var delegate: RelistenGaplessAudioPlayerDelegate?
+    
+    // Values from https://github.com/einsteinx2/iSubMusicStreamer/blob/master/Classes/Audio%20Engine/Bass.swift
+    
+    // TODO: decide best value for this
+    // 250ms (also used for BASS_CONFIG_UPDATEPERIOD, so total latency is 500ms)
+    static let outputBufferSize: DWORD = 250
+    
+    // TODO: 48Khz is the default hardware sample rate of the iPhone,
+    //       but since most released music is 44.1KHz, need to confirm if it's better
+    //       to let BASS to the upsampling, or let the DAC do it...
+    static let outputSampleRate: DWORD = 44100
+    
+    private(set) static var bassOutputBufferLengthMillis: DWORD = 0
 
     public internal(set) var activeStream: RelistenGaplessAudioStream?
     public internal(set) var nextStream: RelistenGaplessAudioStream?
@@ -39,9 +52,9 @@ public class RelistenGaplessAudioPlayer {
             return nil
         }
 
-        let len = BASS_ChannelGetLength(activeStream.stream, UInt32(BASS_POS_BYTE))
+        let len = BASS_ChannelGetLength(activeStream.stream, DWORD(BASS_POS_BYTE))
 
-        if len == UInt32(bitPattern: -1) {
+        if len == DWORD(bitPattern: -1) {
             return nil
         }
 
@@ -53,9 +66,9 @@ public class RelistenGaplessAudioPlayer {
             return nil
         }
 
-        let elapsedBytes = BASS_ChannelGetPosition(activeStream.stream, UInt32(BASS_POS_BYTE))
+        let elapsedBytes = BASS_ChannelGetPosition(activeStream.stream, DWORD(BASS_POS_BYTE))
 
-        if elapsedBytes == UInt32(bitPattern: -1) {
+        if elapsedBytes == DWORD(bitPattern: -1) {
             return nil
         }
 

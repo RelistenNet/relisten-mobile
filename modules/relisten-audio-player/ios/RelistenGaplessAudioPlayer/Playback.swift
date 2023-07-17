@@ -30,7 +30,7 @@ extension RelistenGaplessAudioPlayer {
         if let activeStream {
             bass_assert(BASS_Mixer_StreamAddChannel(mixerMainStream,
                                                     activeStream.stream,
-                                                    UInt32(BASS_STREAM_AUTOFREE | BASS_MIXER_NORAMPIN)))
+                                                    DWORD(BASS_STREAM_AUTOFREE | BASS_MIXER_NORAMPIN)))
 
             // Make sure BASS is started, just in case we had paused it earlier
             BASS_Start()
@@ -67,15 +67,15 @@ extension RelistenGaplessAudioPlayer {
             return
         }
 
-        let len = BASS_ChannelGetLength(activeStream.stream, UInt32(BASS_POS_BYTE)) + activeStream.channelOffset
+        let len = BASS_ChannelGetLength(activeStream.stream, DWORD(BASS_POS_BYTE)) + activeStream.channelOffset
         let duration = BASS_ChannelBytes2Seconds(activeStream.stream, len)
         let seekTo = BASS_ChannelSeconds2Bytes(activeStream.stream, duration * Double(pct))
         let seekToDuration = BASS_ChannelBytes2Seconds(activeStream.stream, seekTo)
 
         NSLog("[bass][stream] Found length in bytes to be %llu bytes/%f. Seeking to: %llu bytes/%f", len, duration, seekTo, seekToDuration)
 
-        let downloadedBytes = BASS_StreamGetFilePosition(activeStream.stream, UInt32(BASS_FILEPOS_DOWNLOAD)) + UInt64(activeStream.fileOffset)
-        let totalFileBytes = BASS_StreamGetFilePosition(activeStream.stream, UInt32(BASS_FILEPOS_SIZE)) + UInt64(activeStream.fileOffset)
+        let downloadedBytes = BASS_StreamGetFilePosition(activeStream.stream, DWORD(BASS_FILEPOS_DOWNLOAD)) + UInt64(activeStream.fileOffset)
+        let totalFileBytes = BASS_StreamGetFilePosition(activeStream.stream, DWORD(BASS_FILEPOS_SIZE)) + UInt64(activeStream.fileOffset)
         let downloadedPct = 1.0 * Double(downloadedBytes) / Double(totalFileBytes)
 
         let seekingBeforeStartOfThisRequest = seekTo < activeStream.channelOffset
@@ -84,7 +84,7 @@ extension RelistenGaplessAudioPlayer {
         // seeking before the offset point --> we need to make a new request
         // seeking after the most recently downloaded data --> we need to make a new request
         if seekingBeforeStartOfThisRequest || seekingBeyondDownloaded {
-            let fileOffset = UInt32(floor(pct * Double(totalFileBytes)))
+            let fileOffset = DWORD(floor(pct * Double(totalFileBytes)))
 
             NSLog("[bass][stream] Seek %% (%f/%u) is greater than downloaded %% (%f/%llu) OR seek channel byte (%llu) < start channel offset (%llu). Opening new stream.", pct, fileOffset, downloadedPct, downloadedBytes, seekTo, activeStream.channelOffset)
 
@@ -94,7 +94,7 @@ extension RelistenGaplessAudioPlayer {
             self.activeStream = newActiveStream
 
             if let newActiveStream, let mixerMainStream {
-                bass_assert(BASS_Mixer_StreamAddChannel(mixerMainStream, newActiveStream.stream, UInt32(BASS_STREAM_AUTOFREE | BASS_MIXER_NORAMPIN)))
+                bass_assert(BASS_Mixer_StreamAddChannel(mixerMainStream, newActiveStream.stream, DWORD(BASS_STREAM_AUTOFREE | BASS_MIXER_NORAMPIN)))
 
                 BASS_Start()
                 // the TRUE for the second argument clears the buffer to prevent bits of the old playback
@@ -103,7 +103,7 @@ extension RelistenGaplessAudioPlayer {
                 tearDownStream(oldActiveStream.stream)
             }
         } else {
-            bass_assert(BASS_ChannelSetPosition(activeStream.stream, seekTo - activeStream.channelOffset, UInt32(BASS_POS_BYTE)))
+            bass_assert(BASS_ChannelSetPosition(activeStream.stream, seekTo - activeStream.channelOffset, DWORD(BASS_POS_BYTE)))
         }
     }
 }

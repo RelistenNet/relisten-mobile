@@ -20,11 +20,11 @@ extension RelistenGaplessAudioPlayer {
                                               streamable.url.path.cString(using: .utf8),
                                               UInt64(fileOffset),
                                               0,
-                                              UInt32(BASS_STREAM_DECODE | BASS_SAMPLE_FLOAT | BASS_ASYNCFILE | BASS_STREAM_PRESCAN))
+                                              DWORD(BASS_STREAM_DECODE | BASS_SAMPLE_FLOAT | BASS_ASYNCFILE | BASS_STREAM_PRESCAN))
         } else {
             newStream = BASS_StreamCreateURL(streamable.url.absoluteString.cString(using: .utf8),
                                              fileOffset,
-                                             UInt32(BASS_STREAM_DECODE | BASS_SAMPLE_FLOAT),
+                                             DWORD(BASS_STREAM_DECODE | BASS_SAMPLE_FLOAT),
                                              nil, // StreamDownloadProc,
                                              nil) // (__bridge void *)(self));
         }
@@ -43,13 +43,13 @@ extension RelistenGaplessAudioPlayer {
         }
 
         bass_assert(BASS_ChannelSetSync(newStream,
-                                        UInt32(BASS_SYNC_MIXTIME | BASS_SYNC_DOWNLOAD),
+                                        DWORD(BASS_SYNC_MIXTIME | BASS_SYNC_DOWNLOAD),
                                         0,
                                         streamDownloadCompleteSyncProc,
                                         Unmanaged.passUnretained(self).toOpaque()))
 
         bass_assert(BASS_ChannelSetSync(newStream,
-                                        UInt32(BASS_SYNC_MIXTIME | BASS_SYNC_STALL),
+                                        DWORD(BASS_SYNC_MIXTIME | BASS_SYNC_STALL),
                                         0,
                                         streamStallSyncProc,
                                         Unmanaged.passUnretained(self).toOpaque()))

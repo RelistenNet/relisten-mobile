@@ -20,15 +20,24 @@ extension RelistenGaplessAudioPlayer {
         isSetup = true
 
         // BASS_SetConfigPtr(BASS_CONFIG_NET_PROXY, "192.168.1.196:8888");
-        BASS_SetConfig(UInt32(BASS_CONFIG_NET_TIMEOUT), 15 * 1000)
+        BASS_SetConfig(DWORD(BASS_CONFIG_NET_TIMEOUT), 15 * 1000)
 
-        BASS_SetConfig(UInt32(BASS_CONFIG_IOS_MIXAUDIO), 0)
-
+        // Disable mixing. To be called before BASS_Init.
+        BASS_SetConfig(DWORD(BASS_CONFIG_IOS_MIXAUDIO), 0)
+        // Use 2 threads
+        BASS_SetConfig(DWORD(BASS_CONFIG_UPDATETHREADS), 2)
+        // Lower the update period to reduce latency
+        BASS_SetConfig(DWORD(BASS_CONFIG_UPDATEPERIOD), RelistenGaplessAudioPlayer.outputBufferSize)
+        // Set the buffer length to the minimum amount + outputBufferSize
+        BASS_SetConfig(DWORD(BASS_CONFIG_BUFFER), BASS_GetConfig(DWORD(BASS_CONFIG_UPDATEPERIOD)) + RelistenGaplessAudioPlayer.outputBufferSize)
+        // Set DSP effects to use floating point math to avoid clipping within the effects chain
+        BASS_SetConfig(DWORD(BASS_CONFIG_FLOATDSP), 1)
+        
         bass_assert(BASS_Init(-1, 44100, 0, nil, nil))
 
-        mixerMainStream = BASS_Mixer_StreamCreate(44100, 2, UInt32(BASS_MIXER_END))
+        mixerMainStream = BASS_Mixer_StreamCreate(44100, 2, DWORD(BASS_MIXER_END))
 
-        BASS_ChannelSetSync(mixerMainStream!, UInt32(BASS_SYNC_END | BASS_SYNC_MIXTIME), 0, mixerEndSyncProc, Unmanaged.passUnretained(self).toOpaque())
+        BASS_ChannelSetSync(mixerMainStream!, DWORD(BASS_SYNC_END | BASS_SYNC_MIXTIME), 0, mixerEndSyncProc, Unmanaged.passUnretained(self).toOpaque())
     }
 
     func maybeTearDownBASS() {
@@ -78,8 +87,8 @@ extension RelistenGaplessAudioPlayer {
             print("[bass][stream] mixing in next stream with norampin")
             bass_assert(BASS_Mixer_StreamAddChannel(mixerMainStream,
                                                     nextStream.stream,
-                                                    UInt32(BASS_STREAM_AUTOFREE | BASS_MIXER_NORAMPIN)))
-            bass_assert(BASS_ChannelSetPosition(mixerMainStream, 0, UInt32(BASS_POS_BYTE)))
+                                                    DWORD(BASS_STREAM_AUTOFREE | BASS_MIXER_NORAMPIN)))
+            bass_assert(BASS_ChannelSetPosition(mixerMainStream, 0, DWORD(BASS_POS_BYTE)))
 
             // We cannot tear down yet because at mix time we've reached the end, the audio is still being used.
             // BASS_STREAM_AUTOFREE will automatically free the stream once it finishes playing.

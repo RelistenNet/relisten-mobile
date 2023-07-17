@@ -17,8 +17,8 @@ extension RelistenGaplessAudioPlayer {
         let oldDuration = currentDuration ?? 0
         let prevState = _currentState
 
-        let oldDownloadedBytes = BASS_StreamGetFilePosition(activeStream.stream, UInt32(BASS_FILEPOS_DOWNLOAD))
-        let oldTotalFileBytes = BASS_StreamGetFilePosition(activeStream.stream, UInt32(BASS_FILEPOS_SIZE))
+        let oldDownloadedBytes = BASS_StreamGetFilePosition(activeStream.stream, DWORD(BASS_FILEPOS_DOWNLOAD))
+        let oldTotalFileBytes = BASS_StreamGetFilePosition(activeStream.stream, DWORD(BASS_FILEPOS_SIZE))
 
         bassQueue.asyncAfter(deadline: .now() + .milliseconds(100)) { [self] in
             guard let activeStream = self.activeStream else {
@@ -28,8 +28,8 @@ extension RelistenGaplessAudioPlayer {
             let thisElapsed = elapsed
             let thisDuration = currentDuration
 
-            let downloadedBytes = BASS_StreamGetFilePosition(activeStream.stream, UInt32(BASS_FILEPOS_DOWNLOAD))
-            let totalFileBytes = BASS_StreamGetFilePosition(activeStream.stream, UInt32(BASS_FILEPOS_SIZE))
+            let downloadedBytes = BASS_StreamGetFilePosition(activeStream.stream, DWORD(BASS_FILEPOS_DOWNLOAD))
+            let totalFileBytes = BASS_StreamGetFilePosition(activeStream.stream, DWORD(BASS_FILEPOS_SIZE))
 
             var sendPlaybackChanged = false
             var sendDownloadChanged = false
