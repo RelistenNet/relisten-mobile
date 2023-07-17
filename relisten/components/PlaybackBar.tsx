@@ -4,6 +4,9 @@ import { useEffect, useReducer, useState } from 'react';
 import { Text, TouchableOpacity, TouchableWithoutFeedback } from 'react-native';
 import Flex from './flex';
 import { player } from '@/modules/relisten-audio-player';
+import PlaybackMachine from '../machines/PlaybackMachine';
+import { useActor } from '@xstate/react';
+import { duration } from '../util/duration';
 
 export const usePlaybackState = () => {
   const [state, setState] = useState<any>({});
@@ -34,13 +37,23 @@ export const usePlaybackState = () => {
 };
 
 export default function PlaybackBar() {
+  const [machine] = useActor(PlaybackMachine);
   const playbackState = usePlaybackState();
   const [isDetail, toggleDetail] = useReducer((state) => !state, false);
 
   const playpause = () => {
-    if (playbackState.playback === 'Playing') return player.pause();
-    else player.resume();
+    if (playbackState.playback === 'Playing') {
+      PlaybackMachine.send('PAUSE');
+    } else {
+      PlaybackMachine.send('RESUME');
+    }
   };
+
+  useEffect(() => {
+    console.log(machine);
+  }, [machine]);
+
+  const activeTrack = machine.context.queue[machine.context.activeTrackIndex];
 
   return (
     <TouchableWithoutFeedback onPress={toggleDetail}>
@@ -58,7 +71,7 @@ export default function PlaybackBar() {
             // from={{ width: '100%' }}
             // animate={{ width: '25%' }}
             // from={{ width: 0, }}
-            animate={{ width: (playbackState.percent ?? 0.05) * 250 }}
+            animate={{ width: (playbackState.percent ?? 0) * 250 }}
             className="absolute bottom-0 left-0 top-0 h-full w-full bg-blue-600"
           ></MotiView>
         </View>
@@ -72,7 +85,12 @@ export default function PlaybackBar() {
             )}
           </TouchableOpacity>
           <Flex column>
-            <Text className="text-lg font-semibold">Tweezer</Text>
+            <Text className="text-lg font-semibold">
+              {activeTrack?.title}
+              <TouchableOpacity onPress={() => player.seekTo(0.95)} className="pl-10">
+                <Text>Seek To 95%!</Text>
+              </TouchableOpacity>
+            </Text>
             <MotiText
               numberOfLines={1}
               // animate={{
@@ -80,7 +98,8 @@ export default function PlaybackBar() {
               // }}
               className="text-sm"
             >
-              Phish &middot; 2023-07-16 &middot; Madison Square Garden, New York, NY
+              {duration(playbackState.progress?.elapsed, playbackState.progress?.duration)}/
+              {duration(playbackState.progress?.duration)}
             </MotiText>
           </Flex>
         </Flex>

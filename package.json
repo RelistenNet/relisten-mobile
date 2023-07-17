@@ -16,6 +16,7 @@
     "@realm/react": "^0.5.1",
     "@rntext/more-or-less": "^2.0.1",
     "@switz/driver": "^0.8.0",
+    "@xstate/react": "^3.2.2",
     "clsx": "^1.2.1",
     "dayjs": "^1.11.9",
     "expo": "^49.0.0",
@@ -46,7 +47,8 @@
     "realm": "^11.10.1",
     "reflect-metadata": "^0.1.13",
     "remeda": "^1.23.0",
-    "wretch": "^2.6.0"
+    "wretch": "^2.6.0",
+    "xstate": "^4.38.1"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",

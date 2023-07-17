@@ -8,6 +8,7 @@ import { RelistenLink } from '@/relisten/components/relisten_link';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { SectionHeader } from '@/relisten/components/section_header';
+import PlaybackMachine from '@/relisten/machines/PlaybackMachine';
 import { Show } from '@/relisten/realm/models/show';
 import { useFullShow } from '@/relisten/realm/models/show_repo';
 import { Source } from '@/relisten/realm/models/source';
@@ -158,6 +159,24 @@ export const SourceHeader: React.FC<{ source: Source; show: Show }> = memo(({ sh
     sourceRatingText(source),
   ]);
 
+  const showTracks = source.sourceSets
+    .map((set) =>
+      set.sourceTracks.map((track) => ({
+        identifier: track.uuid,
+        url: track.mp3Url,
+        title: track.title,
+      }))
+    )
+    .flat();
+
+  const playShow = () => {
+    PlaybackMachine.send('RESET_QUEUE', {
+      queue: showTracks,
+    });
+
+    PlaybackMachine.send('RESUME');
+  };
+
   return (
     <View className="flex w-full items-center px-4">
       <View className="w-full">
@@ -233,6 +252,7 @@ export const SourceHeader: React.FC<{ source: Source; show: Show }> = memo(({ sh
           className="shrink basis-1/2"
           textClassName="text-l"
           icon={<MaterialIcons name="play-arrow" size={20} color="white" />}
+          onPress={playShow}
         >
           Play
         </RelistenButton>
