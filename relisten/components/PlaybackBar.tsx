@@ -17,9 +17,7 @@ export const usePlaybackState = () => {
     const listener = player.addPlaybackProgressListener((progress) => {
       setState((obj) => ({ ...obj, progress }));
     });
-    const download = player.addDownloadProgressListener((...args) =>
-      console.log('download', ...args)
-    );
+
     const playback = player.addPlaybackStateListener((playbackState) => {
       if (playbackState?.newPlaybackState) {
         setState((obj) => ({ ...obj, playback: playbackState?.newPlaybackState }));
@@ -28,7 +26,6 @@ export const usePlaybackState = () => {
 
     return () => {
       listener.remove();
-      download.remove();
       playback.remove();
     };
   });
@@ -83,22 +80,22 @@ export default function PlaybackBar() {
             <MaterialIcons name="skip-next" size={32} color="black" />
           </TouchableOpacity>
           <Flex column>
-            <Text className="text-lg font-semibold">
-              {activeTrack?.title}
-              <TouchableOpacity onPress={() => player.seekTo(0.95)} className="pl-10">
-                <Text>Seek To 95%!</Text>
+            <Text className="text-lg font-semibold">{activeTrack?.title}</Text>
+            <Flex cn="flex-row">
+              <Text
+                numberOfLines={1}
+                // animate={{
+                //   translateX: -100,
+                // }}
+                className="text-sm"
+              >
+                {duration(playbackState.progress?.elapsed, playbackState.progress?.duration)}/
+                {duration(playbackState.progress?.duration)}
+              </Text>
+              <TouchableOpacity onPress={() => player.seekTo(0.98)} className="pl-12">
+                <Text className="text-sm">(Seek To 98%!)</Text>
               </TouchableOpacity>
-            </Text>
-            <MotiText
-              numberOfLines={1}
-              // animate={{
-              //   translateX: -100,
-              // }}
-              className="text-sm"
-            >
-              {duration(playbackState.progress?.elapsed, playbackState.progress?.duration)}/
-              {duration(playbackState.progress?.duration)}
-            </MotiText>
+            </Flex>
           </Flex>
         </Flex>
       </MotiView>
