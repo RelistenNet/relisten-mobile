@@ -95,20 +95,9 @@ const SourceComponent = ({
 }: { show: Show; selectedSource: Source } & ScrollViewProps) => {
   const { refreshing } = useRefreshContext();
 
-  if (refreshing) {
-    return (
-      <View className="w-full p-4">
-        <ListContentLoader
-          backgroundColor={RelistenBlue[800]}
-          foregroundColor={RelistenBlue[700]}
-        />
-      </View>
-    );
-  }
-
-  const showTracks = selectedSource.sourceSets
-    .map((set) =>
-      set.sourceTracks.map((track) => ({
+  const showTracks = selectedSource?.sourceSets
+    ?.map((set) =>
+      set?.sourceTracks?.map((track) => ({
         identifier: track.uuid,
         url: track.mp3Url,
         title: track.title,
@@ -129,6 +118,17 @@ const SourceComponent = ({
     },
     [showTracks]
   ) satisfies PlayShow;
+
+  if (refreshing) {
+    return (
+      <View className="w-full p-4">
+        <ListContentLoader
+          backgroundColor={RelistenBlue[800]}
+          foregroundColor={RelistenBlue[700]}
+        />
+      </View>
+    );
+  }
 
   return (
     <Animated.ScrollView style={{ flex: 1 }} {...props}>
