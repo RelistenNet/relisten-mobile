@@ -23,7 +23,7 @@ import { MoreOrLess } from '@rntext/more-or-less';
 import dayjs from 'dayjs';
 import { Link, useGlobalSearchParams, useNavigation } from 'expo-router';
 import { openBrowserAsync } from 'expo-web-browser';
-import React, { PropsWithChildren, useEffect, useMemo, useState } from 'react';
+import React, { PropsWithChildren, useCallback, useEffect, useMemo, useState } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import {
   Animated,
@@ -104,11 +104,35 @@ const SourceComponent = ({
     );
   }
 
+  const showTracks = selectedSource.sourceSets
+    .map((set) =>
+      set.sourceTracks.map((track) => ({
+        identifier: track.uuid,
+        url: track.mp3Url,
+        title: track.title,
+      }))
+    )
+    .flat();
+
+  const playShow = useCallback(
+    (sourceTrack?: SourceTrack) => {
+      const trackIndex = showTracks.findIndex((st) => st.identifier === sourceTrack?.uuid) ?? 0;
+
+      PlaybackMachine.send('UPDATE_QUEUE', {
+        queue: showTracks,
+        trackIndex,
+      });
+
+      // PlaybackMachine.send('RESUME');
+    },
+    [showTracks]
+  );
+
   return (
     <Animated.ScrollView style={{ flex: 1 }} {...props}>
       {/*<SelectedSource sources={sortedSources} sourceIndex={selectedSourceIndex} />*/}
-      <SourceHeader source={selectedSource} show={show} />
-      <SourceSets source={selectedSource} />
+      <SourceHeader source={selectedSource} show={show} playShow={playShow} />
+      <SourceSets source={selectedSource} playShow={playShow} />
       <SourceFooter source={selectedSource} show={show} />
     </Animated.ScrollView>
   );
@@ -146,176 +170,162 @@ export const SourceLink = memo(({ link, ...props }: { link: SLink } & TouchableO
   );
 });
 
-export const SourceHeader: React.FC<{ source: Source; show: Show }> = memo(({ show, source }) => {
-  const realm = useRealm();
-  const forceUpdate = useForceUpdate();
+export const SourceHeader: React.FC<{ source: Source; show: Show; playShow: any }> = memo(
+  ({ show, source, playShow }) => {
+    const realm = useRealm();
+    const forceUpdate = useForceUpdate();
 
-  const secondLine = R.compact([
-    source.humanizedDuration(),
-    `${R.sumBy(
-      source.sourceSets.map((s) => s.sourceTracks.length),
-      (l) => l
-    )} tracks`,
-    sourceRatingText(source),
-  ]);
+    const secondLine = R.compact([
+      source.humanizedDuration(),
+      `${R.sumBy(
+        source.sourceSets.map((s) => s.sourceTracks.length),
+        (l) => l
+      )} tracks`,
+      sourceRatingText(source),
+    ]);
 
-  const showTracks = source.sourceSets
-    .map((set) =>
-      set.sourceTracks.map((track) => ({
-        identifier: track.uuid,
-        url: track.mp3Url,
-        title: track.title,
-      }))
-    )
-    .flat();
-
-  const playShow = () => {
-    PlaybackMachine.send('RESET_QUEUE', {
-      queue: showTracks,
-    });
-
-    PlaybackMachine.send('RESUME');
-  };
-
-  return (
-    <View className="flex w-full items-center px-4">
-      <View className="w-full">
-        <RelistenText
-          className="w-full py-2 text-center text-4xl font-bold text-white"
-          selectable={false}
-        >
-          {show.displayDate}
-        </RelistenText>
-        {show.venue && (
-          <RelistenText className="w-full pb-2 text-center text-xl" selectable={false}>
-            {show.venue.name}, {show.venue.location}&nbsp;›
+    return (
+      <View className="flex w-full items-center px-4">
+        <View className="w-full">
+          <RelistenText
+            className="w-full py-2 text-center text-4xl font-bold text-white"
+            selectable={false}
+          >
+            {show.displayDate}
           </RelistenText>
-        )}
-        {secondLine.length > 0 && (
-          <RelistenText className="text-l w-full pb-2 text-center italic text-slate-400">
-            {secondLine.join(' • ')}
-          </RelistenText>
-        )}
-      </View>
-      <View className="w-full py-4">
-        {source.taper && (
-          <SourceProperty title="Taper">
-            <MoreOrLess numberOfLines={1} textComponent={RelistenText}>
-              {source.taper}
-            </MoreOrLess>
-          </SourceProperty>
-        )}
-        {source.transferrer && (
-          <SourceProperty title="Transferrer">
-            <MoreOrLess numberOfLines={1} textComponent={RelistenText}>
-              {source.transferrer}
-            </MoreOrLess>
-          </SourceProperty>
-        )}
-        {source.source && (
-          <SourceProperty title="Source">
-            <MoreOrLess numberOfLines={1} textComponent={RelistenText}>
-              {source.source}
-            </MoreOrLess>
-          </SourceProperty>
-        )}
-        {source.lineage && (
-          <SourceProperty title="Lineage">
-            <MoreOrLess numberOfLines={1} textComponent={RelistenText}>
-              {source.lineage}
-            </MoreOrLess>
-          </SourceProperty>
-        )}
-        {source.taperNotes && (
-          <SourceProperty title="Taper Notes">
-            <MoreOrLess numberOfLines={1} textComponent={RelistenText}>
-              {source.taperNotes}
-            </MoreOrLess>
-          </SourceProperty>
-        )}
-        {source.description && (
-          <SourceProperty title="Description">
-            <MoreOrLess numberOfLines={1} textComponent={RelistenText}>
-              {source.description}
-            </MoreOrLess>
-          </SourceProperty>
-        )}
-      </View>
-      {false && (
-        <View className="w-full flex-row pb-2" style={{ gap: 16 }}>
-          <RelistenButton className="shrink basis-1/2">Switch Source</RelistenButton>
-          <FavoriteObjectButton className="shrink basis-1/2" object={source} />
+          {show.venue && (
+            <RelistenText className="w-full pb-2 text-center text-xl" selectable={false}>
+              {show.venue.name}, {show.venue.location}&nbsp;›
+            </RelistenText>
+          )}
+          {secondLine.length > 0 && (
+            <RelistenText className="text-l w-full pb-2 text-center italic text-slate-400">
+              {secondLine.join(' • ')}
+            </RelistenText>
+          )}
         </View>
-      )}
-      <View className="w-full flex-row pb-4 " style={{ gap: 16 }}>
-        <RelistenButton
-          className="shrink basis-1/2"
-          textClassName="text-l"
-          icon={<MaterialIcons name="play-arrow" size={20} color="white" />}
-          onPress={playShow}
-        >
-          Play
-        </RelistenButton>
-        <RelistenButton
-          className="shrink basis-1/2"
-          textClassName="text-l"
-          icon={
-            <MaterialIcons
-              name={source.isFavorite ? 'favorite' : 'favorite-outline'}
-              size={20}
-              color="white"
-            />
-          }
-          onPress={() => {
-            realm.write(() => {
-              source.isFavorite = !source.isFavorite;
-              forceUpdate();
-            });
-          }}
-        >
-          {source.isFavorite ? 'In Library' : 'Add to Library'}
-        </RelistenButton>
-      </View>
-      <View className="w-full pb-2">
-        <Link
-          href={{
-            pathname: '/(tabs)/artists/[artistUuid]/[yearUuid]/[showUuid]/sources/' as const,
-            params: {
-              artistUuid: show.artistUuid,
-              yearUuid: show.yearUuid,
-              showUuid: show.uuid,
-            },
-          }}
-          asChild
-        >
+        <View className="w-full py-4">
+          {source.taper && (
+            <SourceProperty title="Taper">
+              <MoreOrLess numberOfLines={1} textComponent={RelistenText}>
+                {source.taper}
+              </MoreOrLess>
+            </SourceProperty>
+          )}
+          {source.transferrer && (
+            <SourceProperty title="Transferrer">
+              <MoreOrLess numberOfLines={1} textComponent={RelistenText}>
+                {source.transferrer}
+              </MoreOrLess>
+            </SourceProperty>
+          )}
+          {source.source && (
+            <SourceProperty title="Source">
+              <MoreOrLess numberOfLines={1} textComponent={RelistenText}>
+                {source.source}
+              </MoreOrLess>
+            </SourceProperty>
+          )}
+          {source.lineage && (
+            <SourceProperty title="Lineage">
+              <MoreOrLess numberOfLines={1} textComponent={RelistenText}>
+                {source.lineage}
+              </MoreOrLess>
+            </SourceProperty>
+          )}
+          {source.taperNotes && (
+            <SourceProperty title="Taper Notes">
+              <MoreOrLess numberOfLines={1} textComponent={RelistenText}>
+                {source.taperNotes}
+              </MoreOrLess>
+            </SourceProperty>
+          )}
+          {source.description && (
+            <SourceProperty title="Description">
+              <MoreOrLess numberOfLines={1} textComponent={RelistenText}>
+                {source.description}
+              </MoreOrLess>
+            </SourceProperty>
+          )}
+        </View>
+        {false && (
+          <View className="w-full flex-row pb-2" style={{ gap: 16 }}>
+            <RelistenButton className="shrink basis-1/2">Switch Source</RelistenButton>
+            <FavoriteObjectButton className="shrink basis-1/2" object={source} />
+          </View>
+        )}
+        <View className="w-full flex-row pb-4 " style={{ gap: 16 }}>
           <RelistenButton
+            className="shrink basis-1/2"
             textClassName="text-l"
             icon={<MaterialIcons name="play-arrow" size={20} color="white" />}
+            onPress={() => playShow(0)}
           >
-            Switch Source
+            Play
           </RelistenButton>
-        </Link>
+          <RelistenButton
+            className="shrink basis-1/2"
+            textClassName="text-l"
+            icon={
+              <MaterialIcons
+                name={source.isFavorite ? 'favorite' : 'favorite-outline'}
+                size={20}
+                color="white"
+              />
+            }
+            onPress={() => {
+              realm.write(() => {
+                source.isFavorite = !source.isFavorite;
+                forceUpdate();
+              });
+            }}
+          >
+            {source.isFavorite ? 'In Library' : 'Add to Library'}
+          </RelistenButton>
+        </View>
+        <View className="w-full pb-2">
+          <Link
+            href={{
+              pathname: '/(tabs)/artists/[artistUuid]/[yearUuid]/[showUuid]/sources/' as const,
+              params: {
+                artistUuid: show.artistUuid,
+                yearUuid: show.yearUuid,
+                showUuid: show.uuid,
+              },
+            }}
+            asChild
+          >
+            <RelistenButton
+              textClassName="text-l"
+              icon={<MaterialIcons name="play-arrow" size={20} color="white" />}
+            >
+              Switch Source
+            </RelistenButton>
+          </Link>
+        </View>
+        {source.sourceSets.length === 1 && <ItemSeparator />}
       </View>
-      {source.sourceSets.length === 1 && <ItemSeparator />}
-    </View>
-  );
-});
+    );
+  }
+);
 
-export const SourceSets: React.FC<{ source: Source }> = memo(({ source }) => {
-  return (
-    <View>
-      {source.sourceSets.map((s) => (
-        <SourceSetComponent key={s.uuid} sourceSet={s} source={source} />
-      ))}
-      <View className="px-4">
-        <ItemSeparator />
+export const SourceSets: React.FC<{ source: Source; playShow: any }> = memo(
+  ({ source, playShow }) => {
+    return (
+      <View>
+        {source.sourceSets.map((s) => (
+          <SourceSetComponent key={s.uuid} sourceSet={s} source={source} playShow={playShow} />
+        ))}
+        <View className="px-4">
+          <ItemSeparator />
+        </View>
       </View>
-    </View>
-  );
-});
+    );
+  }
+);
 
-export const SourceSetComponent: React.FC<{ source: Source; sourceSet: SourceSet }> = memo(
-  ({ source, sourceSet }) => {
+export const SourceSetComponent: React.FC<{ source: Source; sourceSet: SourceSet; playShow: any }> =
+  memo(({ source, sourceSet, playShow }) => {
     return (
       <View>
         {source.sourceSets.length > 1 && <SectionHeader title={sourceSet.name} />}
@@ -325,20 +335,24 @@ export const SourceSetComponent: React.FC<{ source: Source; sourceSet: SourceSet
             sourceTrack={t}
             source={source}
             isLastTrackInSet={idx == sourceSet.sourceTracks.length - 1}
+            playShow={playShow}
           />
         ))}
       </View>
     );
-  }
-);
+  });
 
 export const SourceTrackComponent: React.FC<{
   source: Source;
   sourceTrack: SourceTrack;
   isLastTrackInSet: boolean;
-}> = memo(({ source, sourceTrack, isLastTrackInSet }) => {
+  playShow: any;
+}> = memo(({ source, sourceTrack, isLastTrackInSet, playShow }) => {
   return (
-    <TouchableOpacity className="flex flex-row items-start pl-6 pr-4">
+    <TouchableOpacity
+      className="flex flex-row items-start pl-6 pr-4"
+      onPress={() => playShow(sourceTrack)}
+    >
       <View className="basis-7 pt-3 ">
         <RelistenText className="pt-[1] text-lg text-slate-500">
           {sourceTrack.trackPosition}

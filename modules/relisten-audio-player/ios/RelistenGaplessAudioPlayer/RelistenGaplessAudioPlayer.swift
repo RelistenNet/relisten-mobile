@@ -115,11 +115,12 @@ public class RelistenGaplessAudioPlayer {
             next()
 
             return
-        } else if let activeStream, activeStream.streamable.identifier == streamable.identifier {
-            seekToPercent(startingAt)
-
-            return
         }
+        // else if let activeStream, activeStream.streamable.identifier == streamable.identifier {
+        //     seekToPercent(startingAt)
+
+        //     return
+        // }
 
         bassQueue.async {
             self.playStreamableImmediately(streamable)

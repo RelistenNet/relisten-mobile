@@ -102,8 +102,8 @@ class RelistenGaplessPlayer {
     return emitter.addListener<RelistenTrackChangedEvent>('onTrackChanged', listener);
   }
 
-  get currentState(): RelistenPlaybackState {
-    return RelistenAudioPlayerModule.currentState();
+  get currentState(): `${RelistenPlaybackState}` {
+    return RelistenAudioPlayerModule.currentStateStr();
   }
 
   get currentDuration(): number {

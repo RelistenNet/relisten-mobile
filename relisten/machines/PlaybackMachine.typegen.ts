@@ -16,7 +16,18 @@
           services: never;
         };
         eventsCausingActions: {
-
+          "pausePlayer": "PAUSE";
+"playActiveTrack": "SKIP_BACK" | "SKIP_FORWARD" | "UPDATE_QUEUE";
+"playPause": "PLAYPAUSE";
+"playbackChanged": "PLAYBACK_CHANGED";
+"resumePlayer": "RESUME";
+"setActiveIndex": "SKIP_TO";
+"setActiveTrack": "UPDATE_QUEUE";
+"setInitialized": "UPDATE_QUEUE";
+"setNextStream": "SKIP_BACK" | "SKIP_FORWARD" | "UPDATE_QUEUE";
+"skipBack": "SKIP_BACK";
+"skipForward": "SKIP_FORWARD";
+"updateQueue": "UPDATE_QUEUE";
         };
         eventsCausingDelays: {
 
@@ -25,8 +36,9 @@
 
         };
         eventsCausingServices: {
-          "listenForTrack": "NEXT_TRACK" | "RESUME";
+          "initializeMachine": "xstate.init";
+"listenForTrack": "BYPASS" | "UPDATE_QUEUE";
         };
-        matchesStates: "idle" | "paused" | "playing";
+        matchesStates: "idle" | "initialized";
         tags: never;
       }

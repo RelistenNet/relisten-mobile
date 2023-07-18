@@ -41,6 +41,10 @@ public class RelistenAudioPlayerModule: Module {
             return player?.currentState ?? .Stopped
         }
 
+        Function("currentStateStr") {
+            return String(describing: player?.currentState ?? .Stopped)
+        }
+
         Function("elapsed") {
             return player?.elapsed
         }

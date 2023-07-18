@@ -42,16 +42,8 @@ export default function PlaybackBar() {
   const [isDetail, toggleDetail] = useReducer((state) => !state, false);
 
   const playpause = () => {
-    if (playbackState.playback === 'Playing') {
-      PlaybackMachine.send('PAUSE');
-    } else {
-      PlaybackMachine.send('RESUME');
-    }
+    PlaybackMachine.send('PLAYPAUSE');
   };
-
-  useEffect(() => {
-    console.log(machine);
-  }, [machine]);
 
   const activeTrack = machine.context.queue[machine.context.activeTrackIndex];
 
@@ -76,13 +68,19 @@ export default function PlaybackBar() {
           ></MotiView>
         </View>
 
-        <Flex cn="h-full items-center gap-2">
+        <Flex cn="h-full items-center gap-1">
+          <TouchableOpacity onPress={() => PlaybackMachine.send('SKIP_BACK')}>
+            <MaterialIcons name="skip-previous" size={32} color="black" />
+          </TouchableOpacity>
           <TouchableOpacity onPress={playpause}>
-            {playbackState.playback === 'Playing' ? (
+            {machine.context.playbackState === 'Playing' ? (
               <MaterialIcons name="pause" size={32} color="black" />
             ) : (
               <MaterialIcons name="play-arrow" size={32} color="black" />
             )}
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => PlaybackMachine.send('SKIP_FORWARD')}>
+            <MaterialIcons name="skip-next" size={32} color="black" />
           </TouchableOpacity>
           <Flex column>
             <Text className="text-lg font-semibold">

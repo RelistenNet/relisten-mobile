@@ -1,9 +1,9 @@
-import 'react-native-get-random-values';
-import 'uuid';
 import 'react-native-gesture-handler';
+import 'react-native-get-random-values';
 import 'react-native-reanimated';
+import 'uuid';
 
-import { Slot } from 'expo-router';
+import { Slot, router } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { RelistenApiProvider } from '@/relisten/api/context';
@@ -15,7 +15,9 @@ import { StatusBar } from 'expo-status-bar';
 import dayjs from 'dayjs';
 import duration from 'dayjs/plugin/duration';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import { useLayoutEffect } from 'react';
 import useCacheAssets from './useCacheAssets';
+import { Platform } from 'react-native';
 
 dayjs.extend(duration);
 dayjs.extend(relativeTime);
@@ -23,7 +25,23 @@ dayjs.extend(relativeTime);
 export default function TabLayout() {
   const isAppReady = useCacheAssets();
 
-  if (!isAppReady) return null;
+  useLayoutEffect(() => {
+    if (isAppReady) {
+      // https://github.com/expo/router/issues/740#issuecomment-1629471113
+      // TODO: they should fix this bug at some point
+      if (Platform.OS === 'ios') {
+        setTimeout(() => {
+          router.replace('/(tabs)/artists');
+        }, 1);
+      } else {
+        setImmediate(() => {
+          router.replace('/(tabs)/artists');
+        });
+      }
+    }
+  }, [isAppReady]);
+
+  if (!isAppReady) return <Slot />;
 
   return (
     <RealmProvider>
