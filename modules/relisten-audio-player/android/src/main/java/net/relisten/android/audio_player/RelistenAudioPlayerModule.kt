@@ -2,8 +2,23 @@ package net.relisten.android.audio_player
 
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import expo.modules.kotlin.records.Field
+import expo.modules.kotlin.records.Record
+import net.relisten.android.audio_player.gapless.RelistenGaplessAudioPlayer
+import net.relisten.android.audio_player.gapless.RelistenGaplessStreamable
+import java.net.URL
+
+class RelistenStreamable: Record {
+  @Field
+  var url: URL? = null
+
+  @Field
+  var identifier: String? = null
+}
 
 class RelistenAudioPlayerModule : Module() {
+  val player = RelistenGaplessAudioPlayer()
+
   // Each module class must implement the definition function. The definition consists of components
   // that describes the module's functionality and behavior.
   // See https://docs.expo.dev/modules/module-api for more details about available components.
@@ -22,8 +37,20 @@ class RelistenAudioPlayerModule : Module() {
     Events("onChange")
 
     // Defines a JavaScript synchronous function that runs the native code on the JavaScript thread.
-    Function("hello") {
-      "Hello world! 👋"
+    Function("play") { streamable: RelistenStreamable ->
+      if (streamable.url == null || streamable.identifier == null) {
+        return@Function
+      }
+
+      player.play(RelistenGaplessStreamable(streamable.url!!, streamable.identifier!!))
+    }
+
+    Function("setNextStream") { streamable: RelistenStreamable ->
+      if (streamable.url == null || streamable.identifier == null) {
+        return@Function
+      }
+
+//      player.play(RelistenGaplessStreamable(streamable.url!!, streamable.identifier!!))
     }
 
     // Defines a JavaScript function that always returns a Promise and whose native code
@@ -33,15 +60,6 @@ class RelistenAudioPlayerModule : Module() {
       sendEvent("onChange", mapOf(
         "value" to value
       ))
-    }
-
-    // Enables the module to be used as a native view. Definition components that are accepted as part of
-    // the view definition: Prop, Events.
-    View(RelistenAudioPlayerView::class) {
-      // Defines a setter for the `name` prop.
-      Prop("name") { view: RelistenAudioPlayerView, prop: String ->
-        println(prop)
-      }
     }
   }
 }
