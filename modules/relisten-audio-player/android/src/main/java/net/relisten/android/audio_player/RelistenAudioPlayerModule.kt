@@ -53,6 +53,11 @@ class RelistenAudioPlayerModule : Module() {
 //      player.play(RelistenGaplessStreamable(streamable.url!!, streamable.identifier!!))
     }
 
+    Function("currentStateStr") {
+      return@Function "Stopped"
+    }
+
+
     // Defines a JavaScript function that always returns a Promise and whose native code
     // is by default dispatched on the different thread than the JavaScript runtime runs on.
     AsyncFunction("setValueAsync") { value: String ->

@@ -17,7 +17,6 @@ import duration from 'dayjs/plugin/duration';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { useLayoutEffect } from 'react';
 import useCacheAssets from './useCacheAssets';
-import { Platform } from 'react-native';
 
 dayjs.extend(duration);
 dayjs.extend(relativeTime);
@@ -29,15 +28,9 @@ export default function TabLayout() {
     if (isAppReady) {
       // https://github.com/expo/router/issues/740#issuecomment-1629471113
       // TODO: they should fix this bug at some point
-      if (Platform.OS === 'ios') {
-        setTimeout(() => {
-          router.replace('/(tabs)/artists');
-        }, 1);
-      } else {
-        setImmediate(() => {
-          router.replace('/(tabs)/artists');
-        });
-      }
+      setTimeout(() => {
+        router.replace('/(tabs)/artists');
+      }, 1);
     }
   }, [isAppReady]);
 
