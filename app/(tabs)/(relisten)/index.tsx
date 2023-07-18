@@ -8,18 +8,18 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 export default function Page() {
   const playbackState = usePlaybackState();
 
-  const play = () => {
-    player.play({ url: 'https://phish.in/audio/000/012/258/12258.mp3', identifier: '1' });
-    player.setNextStream({ url: 'https://phish.in/audio/000/012/259/12259.mp3', identifier: '2' });
+  // const play = () => {
+  //   player.play({ url: 'https://phish.in/audio/000/012/258/12258.mp3', identifier: '1' });
+  //   player.setNextStream({ url: 'https://phish.in/audio/000/012/259/12259.mp3', identifier: '2' });
 
-    // setTimeout(() => {
-    //   player.pause();
-    // }, 20000);
-  };
+  //   // setTimeout(() => {
+  //   //   player.pause();
+  //   // }, 20000);
+  // };
 
   return (
     <SafeAreaView>
-      <TouchableOpacity onPress={play} disabled={playbackState.playback}>
+      {/* <TouchableOpacity onPress={play} disabled={playbackState.playback}>
         <Text className="rounded bg-red-500 p-12 text-white">play test</Text>
       </TouchableOpacity>
 
@@ -39,7 +39,7 @@ export default function Page() {
         disabled={playbackState.playback === 'Paused'}
       >
         <Text className="rounded bg-orange-500 p-12 text-white">pause</Text>
-      </TouchableOpacity>
+      </TouchableOpacity> */}
 
       <RelistenText>{JSON.stringify(playbackState, null, 2)}</RelistenText>
     </SafeAreaView>
