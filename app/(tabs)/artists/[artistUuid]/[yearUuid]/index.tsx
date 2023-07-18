@@ -18,7 +18,7 @@ export default function Page() {
 
   useEffect(() => {
     navigation.setOptions({
-      title: year,
+      title: year?.year,
     });
   }, [year]);
 
