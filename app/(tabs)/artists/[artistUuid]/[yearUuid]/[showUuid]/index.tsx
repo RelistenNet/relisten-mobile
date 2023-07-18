@@ -109,14 +109,11 @@ const SourceComponent = ({
     (sourceTrack?: SourceTrack) => {
       const trackIndex = showTracks.findIndex((st) => st.identifier === sourceTrack?.uuid) ?? 0;
 
-      PlaybackMachine.send('UPDATE_QUEUE', {
-        queue: showTracks,
-        trackIndex,
-      });
+      PlaybackMachine.send({ type: 'UPDATE_QUEUE', queue: showTracks, trackIndex });
 
       // PlaybackMachine.send('RESUME');
     },
-    [showTracks]
+    [PlaybackMachine, showTracks]
   ) satisfies PlayShow;
 
   if (refreshing) {

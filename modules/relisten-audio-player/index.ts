@@ -122,6 +122,14 @@ class RelistenGaplessPlayer {
     RelistenAudioPlayerModule.setVolume(newVolume);
   }
 
+  get DEBUG_STATE() {
+    return RelistenAudioPlayerModule.getDebugState();
+  }
+
+  set DEBUG_STATE(newState: string) {
+    RelistenAudioPlayerModule.setDebugState(newState);
+  }
+
   play(streamable: RelistenStreamable) {
     RelistenAudioPlayerModule.play(streamable);
   }

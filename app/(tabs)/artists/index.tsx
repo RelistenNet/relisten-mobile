@@ -9,21 +9,22 @@ import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useArtists } from '@/relisten/realm/models/artist_repo';
 import { Link } from 'expo-router';
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { View } from 'react-native';
 import Realm from 'realm';
 
-const ArtistListItem = ({ artist }: { artist: Artist }) => {
+const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) => {
   return (
-    <SectionedListItem>
-      <Link
-        href={{
-          pathname: '/(tabs)/artists/[artistUuid]/' as const,
-          params: {
-            artistUuid: artist.uuid,
-          },
-        }}
-      >
+    <Link
+      href={{
+        pathname: '/(tabs)/artists/[artistUuid]/' as const,
+        params: {
+          artistUuid: artist.uuid,
+        },
+      }}
+      asChild
+    >
+      <SectionedListItem ref={ref}>
         <Flex cn="justify-between" full>
           <Flex cn="flex-1 flex-col pr-3">
             <RowTitle>{artist.name}</RowTitle>
@@ -38,10 +39,10 @@ const ArtistListItem = ({ artist }: { artist: Artist }) => {
           </Flex>
           <FavoriteObjectButton object={artist} />
         </Flex>
-      </Link>
-    </SectionedListItem>
+      </SectionedListItem>
+    </Link>
   );
-};
+});
 
 const ArtistsList = ({ artists }: { artists: Realm.Results<Artist> }) => {
   const sectionedArtists = useMemo(() => {

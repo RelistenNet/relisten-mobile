@@ -15,7 +15,7 @@ import { StatusBar } from 'expo-status-bar';
 import dayjs from 'dayjs';
 import duration from 'dayjs/plugin/duration';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { useLayoutEffect } from 'react';
+import { useEffect } from 'react';
 import useCacheAssets from './useCacheAssets';
 
 dayjs.extend(duration);
@@ -24,7 +24,7 @@ dayjs.extend(relativeTime);
 export default function TabLayout() {
   const isAppReady = useCacheAssets();
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (isAppReady) {
       // https://github.com/expo/router/issues/740#issuecomment-1629471113
       // TODO: they should fix this bug at some point

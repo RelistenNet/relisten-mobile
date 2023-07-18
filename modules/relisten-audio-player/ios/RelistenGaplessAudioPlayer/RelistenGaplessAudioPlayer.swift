@@ -30,18 +30,18 @@ public class RelistenGaplessAudioPlayer {
     // MARK: - Public API
 
     public var delegate: RelistenGaplessAudioPlayerDelegate?
-    
+
     // Values from https://github.com/einsteinx2/iSubMusicStreamer/blob/master/Classes/Audio%20Engine/Bass.swift
-    
+
     // TODO: decide best value for this
     // 250ms (also used for BASS_CONFIG_UPDATEPERIOD, so total latency is 500ms)
     static let outputBufferSize: DWORD = 250
-    
+
     // TODO: 48Khz is the default hardware sample rate of the iPhone,
     //       but since most released music is 44.1KHz, need to confirm if it's better
     //       to let BASS to the upsampling, or let the DAC do it...
     static let outputSampleRate: DWORD = 44100
-    
+
     private(set) static var bassOutputBufferLengthMillis: DWORD = 0
 
     public internal(set) var activeStream: RelistenGaplessAudioStream?

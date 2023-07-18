@@ -7,7 +7,7 @@ export const RelistenButton = React.forwardRef(
   (
     {
       children,
-      className,
+      cn,
       icon,
       textClassName,
       ...props
@@ -15,7 +15,7 @@ export const RelistenButton = React.forwardRef(
       children: React.ReactNode;
       icon?: React.ReactNode;
       textClassName?: string;
-      className?: string;
+      cn?: string;
     } & TouchableOpacityProps,
     ref
   ) => {
@@ -24,7 +24,7 @@ export const RelistenButton = React.forwardRef(
         ref={ref as any}
         className={clsx(
           'flex-row items-center justify-center rounded bg-relisten-blue-800 p-4',
-          className
+          cn
         )}
         {...props}
       >
