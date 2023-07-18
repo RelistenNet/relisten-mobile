@@ -47,6 +47,8 @@ export const SourceList = ({ sources }: { sources: Source[] }) => {
   );
 };
 
+type PlayShow = (sourceTrack?: SourceTrack) => void;
+
 export default function Page() {
   const navigation = useNavigation();
   const { showUuid } = useGlobalSearchParams();
@@ -126,7 +128,7 @@ const SourceComponent = ({
       // PlaybackMachine.send('RESUME');
     },
     [showTracks]
-  );
+  ) satisfies PlayShow;
 
   return (
     <Animated.ScrollView style={{ flex: 1 }} {...props}>
@@ -170,7 +172,7 @@ export const SourceLink = memo(({ link, ...props }: { link: SLink } & TouchableO
   );
 });
 
-export const SourceHeader: React.FC<{ source: Source; show: Show; playShow: any }> = memo(
+export const SourceHeader: React.FC<{ source: Source; show: Show; playShow: PlayShow }> = memo(
   ({ show, source, playShow }) => {
     const realm = useRealm();
     const forceUpdate = useForceUpdate();
@@ -309,7 +311,7 @@ export const SourceHeader: React.FC<{ source: Source; show: Show; playShow: any 
   }
 );
 
-export const SourceSets: React.FC<{ source: Source; playShow: any }> = memo(
+export const SourceSets: React.FC<{ source: Source; playShow: PlayShow }> = memo(
   ({ source, playShow }) => {
     return (
       <View>
@@ -324,29 +326,32 @@ export const SourceSets: React.FC<{ source: Source; playShow: any }> = memo(
   }
 );
 
-export const SourceSetComponent: React.FC<{ source: Source; sourceSet: SourceSet; playShow: any }> =
-  memo(({ source, sourceSet, playShow }) => {
-    return (
-      <View>
-        {source.sourceSets.length > 1 && <SectionHeader title={sourceSet.name} />}
-        {sourceSet.sourceTracks.map((t, idx) => (
-          <SourceTrackComponent
-            key={t.uuid}
-            sourceTrack={t}
-            source={source}
-            isLastTrackInSet={idx == sourceSet.sourceTracks.length - 1}
-            playShow={playShow}
-          />
-        ))}
-      </View>
-    );
-  });
+export const SourceSetComponent: React.FC<{
+  source: Source;
+  sourceSet: SourceSet;
+  playShow: PlayShow;
+}> = memo(({ source, sourceSet, playShow }) => {
+  return (
+    <View>
+      {source.sourceSets.length > 1 && <SectionHeader title={sourceSet.name} />}
+      {sourceSet.sourceTracks.map((t, idx) => (
+        <SourceTrackComponent
+          key={t.uuid}
+          sourceTrack={t}
+          source={source}
+          isLastTrackInSet={idx == sourceSet.sourceTracks.length - 1}
+          playShow={playShow}
+        />
+      ))}
+    </View>
+  );
+});
 
 export const SourceTrackComponent: React.FC<{
   source: Source;
   sourceTrack: SourceTrack;
   isLastTrackInSet: boolean;
-  playShow: any;
+  playShow: PlayShow;
 }> = memo(({ source, sourceTrack, isLastTrackInSet, playShow }) => {
   return (
     <TouchableOpacity
