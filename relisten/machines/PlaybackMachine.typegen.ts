@@ -24,9 +24,9 @@
 "setActiveIndex": "SKIP_TO";
 "setActiveTrack": "UPDATE_QUEUE";
 "setInitialized": "UPDATE_QUEUE";
-"setNextStream": "SKIP_BACK" | "SKIP_FORWARD" | "UPDATE_QUEUE";
+"setNextStream": "NEXT_TRACK" | "SKIP_BACK" | "SKIP_FORWARD" | "UPDATE_QUEUE";
 "skipBack": "SKIP_BACK";
-"skipForward": "SKIP_FORWARD";
+"skipForward": "NEXT_TRACK" | "SKIP_FORWARD";
 "updateQueue": "UPDATE_QUEUE";
         };
         eventsCausingDelays: {

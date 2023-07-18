@@ -121,6 +121,10 @@ export const machine = createMachine(
             internal: true,
             actions: ['playbackChanged'],
           },
+          NEXT_TRACK: {
+            internal: true,
+            actions: ['skipForward', 'setNextStream'],
+          },
           SKIP_FORWARD: {
             internal: true,
             actions: [
