@@ -51,7 +51,12 @@ export const usePlaybackState = () => {
 //   }
 // );
 
-const DEFAULT_PLAYBACK_HEIGHT = 64;
+export const DEFAULT_PLAYBACK_HEIGHT = 64;
+
+// this hides the playback bar on screens that scroll
+export const PLAYBACK_SKELETON = () => (
+  <View style={{ height: DEFAULT_PLAYBACK_HEIGHT, width: '100%' }} />
+);
 
 export default function PlaybackBar() {
   const bottomSheetIndexRef = useRef<number>(1);

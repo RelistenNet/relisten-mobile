@@ -5,6 +5,7 @@ import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import { RelistenSectionList } from '@/relisten/components/relisten_section_list';
 import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
 import RowTitle from '@/relisten/components/row_title';
+import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useArtists } from '@/relisten/realm/models/artist_repo';
@@ -86,7 +87,9 @@ export default function Page() {
   return (
     <View style={{ flex: 1, width: '100%' }}>
       <RefreshContextProvider networkBackedResults={results}>
-        <ArtistsList artists={artists} />
+        <ScrollScreen>
+          <ArtistsList artists={artists} />
+        </ScrollScreen>
       </RefreshContextProvider>
     </View>
   );

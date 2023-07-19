@@ -40,22 +40,12 @@ export default function Page() {
 
   return (
     <RefreshContextProvider networkBackedResults={results}>
-      <Link
-        href={{
-          pathname: '/(tabs)/artists/[artistUuid]/' as const,
-          params: {
-            artistUuid: String(artist?.uuid),
-          },
-        }}
-        asChild
-      >
-        <DisappearingHeaderScreen
-          headerHeight={50}
-          ScrollableComponent={YearsList}
-          artist={artist}
-          years={years}
-        />
-      </Link>
+      <DisappearingHeaderScreen
+        headerHeight={50}
+        ScrollableComponent={YearsList}
+        artist={artist}
+        years={years}
+      />
     </RefreshContextProvider>
   );
 }
@@ -183,9 +173,8 @@ const YearsList: React.FC<
   {
     artist: Artist | null;
     years: Realm.Results<Year>;
-    onItemPress?: (year: Year) => void;
   } & Omit<FilterableListProps<Year>, 'data' | 'renderItem'>
-> = ({ artist, years, onItemPress, ...props }) => {
+> = ({ artist, years, ...props }) => {
   const allYears = useMemo(() => {
     return [...years];
   }, [years]);
@@ -196,7 +185,7 @@ const YearsList: React.FC<
         ListHeaderComponent={<YearsHeader artist={artist} years={years} />}
         data={allYears}
         renderItem={({ item: year }) => {
-          return <YearListItem year={year} onPress={onItemPress} />;
+          return <YearListItem year={year} />;
         }}
         {...props}
       />
