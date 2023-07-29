@@ -69,7 +69,7 @@ const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> 
             {artist.name}
           </RelistenText>
 
-          <RelistenText className="text-l w-full pb-2 text-center italic text-slate-400">
+          <RelistenText className="text-l w-full pb-2 text-center italic text-gray-400">
             <Plur word="year" count={years.length} /> &middot;&nbsp;
             <Plur word="show" count={totalShows} /> &middot;&nbsp;
             <Plur word="tape" count={totalTapes} />

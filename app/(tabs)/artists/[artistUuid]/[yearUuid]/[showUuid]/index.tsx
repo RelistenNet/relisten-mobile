@@ -148,10 +148,10 @@ function sourceRatingText(source: Source) {
 export const SourceFooter: React.FC<{ source: Source; show: Show }> = memo(({ show, source }) => {
   return (
     <View className="px-4 py-4">
-      <RelistenText className="text-l py-1 text-slate-400">
+      <RelistenText className="text-l py-1 text-gray-400">
         Source last updated: {dayjs(source.updatedAt).format('YYYY-MM-DD')}
       </RelistenText>
-      <RelistenText className="text-l py-1 text-slate-400">
+      <RelistenText className="text-l py-1 text-gray-400">
         Identifier: {source.upstreamIdentifier}
       </RelistenText>
       {source.links().map((l) => (
@@ -164,7 +164,7 @@ export const SourceFooter: React.FC<{ source: Source; show: Show }> = memo(({ sh
 export const SourceLink = memo(({ link, ...props }: { link: SLink } & TouchableOpacityProps) => {
   return (
     <TouchableOpacity onPress={() => openBrowserAsync(link.url)} {...props}>
-      <RelistenLink className="text-l font-bold text-slate-400">{link.label}</RelistenLink>
+      <RelistenLink className="text-l font-bold text-gray-400">{link.label}</RelistenLink>
     </TouchableOpacity>
   );
 });
@@ -198,7 +198,7 @@ export const SourceHeader: React.FC<{ source: Source; show: Show; playShow: Play
             </RelistenText>
           )}
           {secondLine.length > 0 && (
-            <RelistenText className="text-l w-full pb-2 text-center italic text-slate-400">
+            <RelistenText className="text-l w-full pb-2 text-center italic text-gray-400">
               {secondLine.join(' • ')}
             </RelistenText>
           )}
@@ -356,7 +356,7 @@ export const SourceTrackComponent: React.FC<{
       onPress={() => playShow(sourceTrack)}
     >
       <View className="basis-7 pt-3 ">
-        <RelistenText className="pt-[1] text-lg text-slate-500">
+        <RelistenText className="pt-[1] text-lg text-gray-400">
           {sourceTrack.trackPosition}
         </RelistenText>
       </View>
@@ -365,7 +365,7 @@ export const SourceTrackComponent: React.FC<{
         <View className="w-full grow flex-row items-center justify-between">
           <RelistenText className="shrink py-3 pr-2 text-lg">{sourceTrack.title}</RelistenText>
           <View className="grow"></View>
-          <RelistenText className="py-3 text-base text-slate-400">
+          <RelistenText className="py-3 text-base text-gray-400">
             {sourceTrack.humanizedDuration()}
           </RelistenText>
           <TouchableOpacity className="shrink-0 grow-0 py-3 pl-4">
@@ -389,7 +389,7 @@ const SelectedSource: React.FC<{ sources: Source[]; sourceIndex: number }> = ({
   }
 
   return (
-    <View className="flex w-full flex-row items-center justify-between bg-slate-100 px-4 py-2">
+    <View className="flex w-full flex-row items-center justify-between bg-gray-100 px-4 py-2">
       <View className="flex shrink">
         <RelistenText className="pb-1 text-sm font-bold">
           Source {sourceIndex + 1}/{sources.length}
@@ -418,7 +418,7 @@ const SourceProperty: React.FC<PropsWithChildren<{ title: string; value?: string
 }) => {
   return (
     <View className="w-full flex-1 flex-col py-1">
-      <RelistenText className="pb-1 text-sm font-bold text-slate-500">{title}</RelistenText>
+      <RelistenText className="pb-1 text-sm font-bold text-gray-400">{title}</RelistenText>
       {value ? (
         <RelistenText className="bg w-full grow" selectable={true}>
           {value}

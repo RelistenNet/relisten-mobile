@@ -11,7 +11,13 @@ interface NewProps {
 const RowTitle = ({ className, as = Text, ...props }: TextProps & NewProps) => {
   const Comp = as;
 
-  return <Comp {...props} className={clsx('text-lg font-semibold text-white', className)} />;
+  return (
+    <Comp
+      {...props}
+      className={clsx('numb text-lg font-semibold text-white', className)}
+      style={{ fontVariant: ['tabular-nums'] }}
+    />
+  );
 };
 
 export default RowTitle;

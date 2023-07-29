@@ -30,7 +30,7 @@ export const FavoriteIconButton: React.FC<{ isFavorited: boolean } & TouchableOp
       <MaterialCommunityIcons
         name={isFavorited ? 'cards-heart' : 'cards-heart-outline'}
         size={18}
-        /* color-red/slate-600 */ color={isFavorited ? '#dc2625' : '#93a1b8'}
+        color={isFavorited ? '#dc2625' : '#93a1b8'}
       />
     </TouchableOpacity>
   );
