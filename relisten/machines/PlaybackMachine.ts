@@ -1,7 +1,12 @@
 import { RelistenPlaybackState, RelistenStreamable, player } from '@/modules/relisten-audio-player';
 import { assign, createMachine, fromCallback, interpret } from 'xstate';
 
-type PlaybackTrack = RelistenStreamable & { title: string };
+type PlaybackTrack = RelistenStreamable & {
+  title: string;
+  showUuid: string;
+  artistUuid: string;
+  sourceUuid: string;
+};
 
 interface PlaybackContext {
   queue: PlaybackTrack[];

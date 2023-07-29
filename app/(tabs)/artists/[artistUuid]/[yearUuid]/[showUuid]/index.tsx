@@ -101,6 +101,9 @@ const SourceComponent = ({
         identifier: track.uuid,
         url: track.mp3Url,
         title: track.title,
+        showUuid: show.uuid,
+        sourceUuid: selectedSource.uuid,
+        artistUuid: show.artistUuid,
       }))
     )
     .flat();
@@ -111,7 +114,7 @@ const SourceComponent = ({
 
       PlaybackMachine.send({ type: 'UPDATE_QUEUE', queue: showTracks, trackIndex });
 
-      // PlaybackMachine.send('RESUME');
+      PlaybackMachine.send({ type: 'RESUME' });
     },
     [PlaybackMachine, showTracks]
   ) satisfies PlayShow;

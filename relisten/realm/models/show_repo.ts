@@ -27,11 +27,12 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
   ShowWithSources,
   ApiShowWithSources
 > {
-  constructor(public showUuid: string) {
+  constructor(public showUuid?: string) {
     super();
   }
 
   fetchFromApi(api: RelistenApiClient): Promise<ApiShowWithSources> {
+    if (!this.showUuid) throw new Error('Must have showUuid to fetch');
     return api.showWithSources(this.showUuid);
   }
 
@@ -100,10 +101,18 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
   }
 }
 
-export function useFullShow(showUuid: string): NetworkBackedResults<ShowWithSources> {
+export function useFullShow(showUuid: string): NetworkBackedResults<ShowWithSources> | undefined {
   const behavior = useMemo(() => {
     return new ShowWithFullSourcesNetworkBackedBehavior(showUuid);
   }, [showUuid]);
 
   return useNetworkBackedBehavior(behavior);
+}
+
+export function useShow(showUuid?: string): ShowWithSources | undefined {
+  const behavior = useMemo(() => {
+    return new ShowWithFullSourcesNetworkBackedBehavior(showUuid);
+  }, [showUuid]);
+
+  return behavior.fetchFromLocal();
 }

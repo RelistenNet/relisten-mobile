@@ -6,6 +6,8 @@ import { MotiView, View } from 'moti';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, TouchableOpacity } from 'react-native';
 import PlaybackMachine from '../machines/PlaybackMachine';
+import { useArtist } from '../realm/models/artist_repo';
+import { useShow } from '../realm/models/show_repo';
 import { duration } from '../util/duration';
 import Flex from './flex';
 import { RelistenButton } from './relisten_button';
@@ -68,10 +70,6 @@ export default function PlaybackBar() {
     PlaybackMachine.send({ type: 'PLAYPAUSE' });
   };
 
-  const activeTrack = context.queue[context.activeTrackIndex];
-
-  // console.log('hi', player.DEBUG_STATE);
-
   const toggleSheet = () => {
     if (bottomSheetIndexRef.current === 1) {
       bottomSheetRef.current?.collapse();
@@ -79,6 +77,18 @@ export default function PlaybackBar() {
       bottomSheetRef.current?.expand();
     }
   };
+
+  const activeTrack = context.queue[context.activeTrackIndex];
+
+  const artist = useArtist(activeTrack?.artistUuid, {
+    onlyFetchFromApiIfLocalIsNotShowable: true,
+  });
+
+  const showCache = useShow(activeTrack?.showUuid);
+
+  const subtitle = [artist?.data?.name, showCache?.show?.displayDate, showCache?.show?.venue?.name]
+    .filter((x) => x)
+    .join(' · ');
 
   return (
     <BottomSheet
@@ -93,7 +103,7 @@ export default function PlaybackBar() {
             // animate={{ width: '25%' }}
             // from={{ width: 0, }}
             animate={{ width: (playbackState.percent ?? 0) * 250 }}
-            className="absolute bottom-0 left-0 top-0 h-full w-full bg-relisten-blue-700"
+            className="absolute bottom-0 left-0 top-0 h-full w-full bg-relisten-blue-400"
           ></MotiView>
         </View>
       )}
@@ -122,6 +132,7 @@ export default function PlaybackBar() {
               <RelistenText className="text-lg font-semibold">
                 {activeTrack?.title ?? ''}
               </RelistenText>
+              <RelistenText>{subtitle ?? ''}</RelistenText>
               {playbackState.progress?.duration > 0 && (
                 <Flex cn="flex-row">
                   <RelistenText
