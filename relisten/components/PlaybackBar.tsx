@@ -102,36 +102,40 @@ export default function PlaybackBar() {
     >
       <View className="relative flex-1 bg-relisten-blue-700">
         <Pressable onPress={toggleSheet}>
-          <Flex cn="h-[64px] items-center gap-1">
-            <TouchableOpacity onPress={() => PlaybackMachine.send({ type: 'SKIP_BACK' })}>
-              <MaterialIcons name="skip-previous" size={32} color="white" />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={playpause}>
-              {context.playbackState === 'Playing' ? (
-                <MaterialIcons name="pause" size={32} color="white" />
-              ) : (
-                <MaterialIcons name="play-arrow" size={32} color="white" />
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => PlaybackMachine.send({ type: 'SKIP_FORWARD' })}>
-              <MaterialIcons name="skip-next" size={32} color="white" />
-            </TouchableOpacity>
-            <Flex column>
+          <Flex cn="h-[64px] items-center">
+            <Flex cn="ml-2 h-full items-center">
+              <TouchableOpacity onPress={() => PlaybackMachine.send({ type: 'SKIP_BACK' })}>
+                <MaterialIcons name="skip-previous" size={32} color="white" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={playpause}>
+                {context.playbackState === 'Playing' ? (
+                  <MaterialIcons name="pause" size={42} color="white" />
+                ) : (
+                  <MaterialIcons name="play-arrow" size={42} color="white" />
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => PlaybackMachine.send({ type: 'SKIP_FORWARD' })}>
+                <MaterialIcons name="skip-next" size={32} color="white" />
+              </TouchableOpacity>
+            </Flex>
+            <Flex column cn="ml-4">
               <RelistenText className="text-lg font-semibold">
-                {activeTrack?.title ?? 'No Active Track'}
+                {activeTrack?.title ?? ''}
               </RelistenText>
-              <Flex cn="flex-row">
-                <RelistenText
-                  numberOfLines={1}
-                  // animate={{
-                  //   translateX: -100,
-                  // }}
-                  className="text-sm"
-                >
-                  {duration(playbackState.progress?.elapsed, playbackState.progress?.duration)}/
-                  {duration(playbackState.progress?.duration)}
-                </RelistenText>
-              </Flex>
+              {playbackState.progress?.duration > 0 && (
+                <Flex cn="flex-row">
+                  <RelistenText
+                    numberOfLines={1}
+                    // animate={{
+                    //   translateX: -100,
+                    // }}
+                    className="text-sm"
+                  >
+                    {duration(playbackState.progress?.elapsed, playbackState.progress?.duration)}/
+                    {duration(playbackState.progress?.duration)}
+                  </RelistenText>
+                </Flex>
+              )}
             </Flex>
           </Flex>
         </Pressable>
