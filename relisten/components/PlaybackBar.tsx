@@ -1,7 +1,7 @@
 import { player } from '@/modules/relisten-audio-player';
 import { MaterialIcons } from '@expo/vector-icons';
 import BottomSheet from '@gorhom/bottom-sheet';
-import { useActor, useActorRef, useMachine, useSelector } from '@xstate/react';
+import { useSelector } from '@xstate/react';
 import { MotiView, View } from 'moti';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, TouchableOpacity } from 'react-native';

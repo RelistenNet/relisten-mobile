@@ -78,7 +78,7 @@ const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> 
         <View className="w-full flex-row px-4 pb-4" style={{ gap: 16 }}>
           <Link
             href={{
-              pathname: '/(tabs)/artists/[artistUuid]/venues' as const,
+              pathname: '/(tabs)/artists/[artistUuid]/venues',
               params: {
                 artistUuid: artist.uuid,
               },
@@ -89,21 +89,66 @@ const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> 
               Venues
             </RelistenButton>
           </Link>
-          <RelistenButton className="shrink basis-1/3" textClassName="text-l">
-            Tours
-          </RelistenButton>
-          <RelistenButton className="shrink basis-1/3" textClassName="text-l">
-            Songs
-          </RelistenButton>
+          <Link
+            href={{
+              pathname: '/(tabs)/artists/[artistUuid]/tours',
+              params: {
+                artistUuid: artist.uuid,
+              },
+            }}
+            asChild
+          >
+            <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+              Tours
+            </RelistenButton>
+          </Link>
+          <Link
+            href={{
+              pathname: '/(tabs)/artists/[artistUuid]/songs' as const,
+              params: {
+                artistUuid: artist.uuid,
+              },
+            }}
+            asChild
+          >
+            <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+              Songs
+            </RelistenButton>
+          </Link>
         </View>
         <View className="w-full flex-row px-4 pb-4" style={{ gap: 16 }}>
-          <RelistenButton className="shrink basis-1/3" textClassName="text-l">
-            Top Rated
-          </RelistenButton>
-          <RelistenButton className="shrink basis-1/3" textClassName="text-l">
-            Popular
-          </RelistenButton>
-          <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+          <Link
+            href={{
+              pathname: '/(tabs)/artists/[artistUuid]/rated' as const,
+              params: {
+                artistUuid: artist.uuid,
+              },
+            }}
+            asChild
+          >
+            <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+              Top Rated
+            </RelistenButton>
+          </Link>
+          <Link
+            href={{
+              pathname: '/(tabs)/artists/[artistUuid]/popular' as const,
+              params: {
+                artistUuid: artist.uuid,
+              },
+            }}
+            asChild
+          >
+            <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+              Popular
+            </RelistenButton>
+          </Link>
+          <RelistenButton
+            className="shrink basis-1/3"
+            textClassName="text-l"
+            disabled
+            intent="outline"
+          >
             Random
           </RelistenButton>
         </View>
