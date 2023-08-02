@@ -88,13 +88,6 @@ export const machine = createMachine(
                 (track) => track.identifier === trackChanged?.currentIdentifier
               );
 
-              console.log('next track', {
-                activeIndex,
-                queueTail,
-                index,
-                n: index + activeIndex,
-              });
-
               callback({ type: 'NEXT_TRACK', nextIndex: index + activeIndex + 1 });
             });
 

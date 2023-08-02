@@ -19,6 +19,13 @@ export const usePlaybackState = () => {
   const percent = state?.progress?.elapsed / state?.progress?.duration || undefined;
 
   useEffect(() => {
+    const download = player.addDownloadProgressListener((download) => {
+      setState((obj) => ({
+        ...obj,
+        downloadPercent: download.downloadedBytes / download.totalBytes,
+      }));
+    });
+
     const listener = player.addPlaybackProgressListener((progress) => {
       setState((obj) => ({ ...obj, progress }));
     });
@@ -30,6 +37,7 @@ export const usePlaybackState = () => {
     });
 
     return () => {
+      download.remove();
       listener.remove();
       playback.remove();
     };
@@ -102,14 +110,21 @@ export default function PlaybackBar() {
       index={0}
       onChange={(index) => (bottomSheetIndexRef.current = index)}
       handleComponent={() => (
-        <View className="relative h-1 w-full bg-relisten-blue-800">
+        <View className="relative h-2 w-full bg-relisten-blue-800">
           <MotiView
             // from={{ width: '100%' }}
             // animate={{ width: '25%' }}
             // from={{ width: 0, }}
-            animate={{ width: (playbackState.percent ?? 0) * 250 }}
+            animate={{ width: (playbackState.downloadPercent ?? 0) * 250 }}
+            className="absolute bottom-0 left-0 top-0 h-full w-full bg-relisten-blue-200"
+          />
+          <MotiView
+            // from={{ width: '100%' }}
+            // animate={{ width: '25%' }}
+            // from={{ width: 0, }}
+            animate={{ width: (playbackState.percent ?? 0.0) * 250 }}
             className="absolute bottom-0 left-0 top-0 h-full w-full bg-relisten-blue-400"
-          ></MotiView>
+          />
         </View>
       )}
       // snapPoints={snapPoints}
@@ -158,6 +173,7 @@ export default function PlaybackBar() {
         <Flex cn="flex-1 flex-col bg-relisten-blue-800" center>
           <RelistenText>{JSON.stringify(clean(context), null, 2)}</RelistenText>
           <RelistenText>{JSON.stringify(machineState, null, 2)}</RelistenText>
+          <RelistenText>{JSON.stringify(playbackState, null, 2)}</RelistenText>
           <RelistenButton textClassName="text-sm" onPress={() => player.seekTo(0.98)}>
             (Seek To 98%!)
           </RelistenButton>
