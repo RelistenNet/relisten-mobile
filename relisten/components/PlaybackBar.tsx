@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, TouchableOpacity } from 'react-native';
 import PlaybackMachine from '../machines/PlaybackMachine';
 import { useArtist } from '../realm/models/artist_repo';
-import { useFullShow, useShow } from '../realm/models/show_repo';
+import { useFullShow } from '../realm/models/show_repo';
 import { duration } from '../util/duration';
 import Flex from './flex';
 import { RelistenButton } from './relisten_button';
@@ -64,6 +64,7 @@ export default function PlaybackBar() {
   const bottomSheetIndexRef = useRef<number>(1);
   const bottomSheetRef = useRef<BottomSheet>(null);
   const context = useSelector(PlaybackMachine, ({ context }) => context);
+  const machineState = useSelector(PlaybackMachine, ({ value }) => value);
   const playbackState = usePlaybackState();
 
   const playpause = () => {
@@ -154,9 +155,9 @@ export default function PlaybackBar() {
             </Flex>
           </Flex>
         </Pressable>
-        <Flex cn="flex-1 bg-relisten-blue-800" center>
-          <RelistenText>{JSON.stringify(context.playbackState, null, 2)}</RelistenText>
-          <RelistenText>{JSON.stringify(context.activeTrackIndex, null, 2)}</RelistenText>
+        <Flex cn="flex-1 flex-col bg-relisten-blue-800" center>
+          <RelistenText>{JSON.stringify(clean(context), null, 2)}</RelistenText>
+          <RelistenText>{JSON.stringify(machineState, null, 2)}</RelistenText>
           <RelistenButton textClassName="text-sm" onPress={() => player.seekTo(0.98)}>
             (Seek To 98%!)
           </RelistenButton>
@@ -165,3 +166,9 @@ export default function PlaybackBar() {
     </BottomSheet>
   );
 }
+
+const clean = (obj: any) => {
+  const next = { ...obj };
+  delete next.queue;
+  return next;
+};

@@ -115,7 +115,13 @@ export const machine = createMachine(
         on: {
           UPDATE_QUEUE: {
             reenter: true,
-            actions: ['updateQueue'],
+            actions: [
+              'updateQueue',
+              'setActiveTrack',
+              'playActiveTrack',
+              'setInitialized',
+              'setNextStream',
+            ],
           },
           RESUME: {
             reenter: true,
@@ -238,8 +244,9 @@ const localMachine = interpret(machine, {
   state: state ? JSON.parse(state) : undefined,
 }).start();
 
-localMachine.subscribe(() => {
+localMachine.subscribe((state) => {
   const persistedState = localMachine.getPersistedState();
+  console.log(state);
 
   if (persistedState) {
     player.DEBUG_STATE = JSON.stringify(persistedState);

@@ -1,3 +1,4 @@
+import { player } from '@/modules/relisten-audio-player';
 import { Link as SLink } from '@/relisten/api/models/source';
 import { FavoriteObjectButton } from '@/relisten/components/favorite_icon_button';
 import { ItemSeparator } from '@/relisten/components/item_separator';
@@ -110,6 +111,7 @@ const SourceComponent = ({
 
   const playShow = useCallback(
     (sourceTrack?: SourceTrack) => {
+      console.log('play', sourceTrack, showTracks);
       const trackIndex = Math.max(
         showTracks.findIndex((st) => st.identifier === sourceTrack?.uuid),
         0
