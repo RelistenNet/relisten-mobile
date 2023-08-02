@@ -27,7 +27,7 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
   ShowWithSources,
   ApiShowWithSources
 > {
-  constructor(public showUuid?: string) {
+  constructor(public showUuid: string) {
     super();
   }
 
@@ -111,8 +111,11 @@ export function useFullShow(showUuid: string): NetworkBackedResults<ShowWithSour
 
 export function useShow(showUuid?: string): ShowWithSources | undefined {
   const behavior = useMemo(() => {
+    if (!showUuid) return undefined;
     return new ShowWithFullSourcesNetworkBackedBehavior(showUuid);
   }, [showUuid]);
+
+  if (!behavior) return undefined;
 
   return behavior.fetchFromLocal();
 }
