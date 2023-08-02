@@ -5,7 +5,7 @@
       "typedRoutes": true
     },
     "name": "Relisten",
-    "slug": "Relisten",
+    "slug": "relisten",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -45,8 +45,9 @@
         "origin": false
       },
       "eas": {
-        "projectId": "aa339624-5df9-4b3e-9c7b-767517a8d7b9"
+        "projectId": "3b18b7db-fdf8-4a2c-8c24-19e24a8fd3a8"
       }
-    }
+    },
+    "owner": "relisten"
   }
 }

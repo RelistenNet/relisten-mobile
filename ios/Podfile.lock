@@ -467,7 +467,7 @@ PODS:
     - React-Core
   - RNGestureHandler (2.12.0):
     - React-Core
-  - RNReanimated (3.4.1):
+  - RNReanimated (3.3.0):
     - DoubleConversion
     - FBLazyVector
     - glog
@@ -756,7 +756,7 @@ SPEC CHECKSUMS:
   RelistenAudioPlayer: 180c4135cfd2c86df85e8ea135175b6e05bf31bc
   RNCAsyncStorage: f47fe18526970a69c34b548883e1aeceb115e3e1
   RNGestureHandler: dec4645026e7401a0899f2846d864403478ff6a5
-  RNReanimated: 53ca20eee770c41173703f5948cd8898aa08262c
+  RNReanimated: 9f7068e43b9358a46a688d94a5a3adb258139457
   RNScreens: 6a8a3c6b808aa48dca1780df7b73ea524f602c63
   RNSVG: 80584470ff1ffc7994923ea135a3e5ad825546b9
   SocketRocket: f32cd54efbe0f095c4d7594881e52619cfe80b17
