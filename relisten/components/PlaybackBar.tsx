@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, TouchableOpacity } from 'react-native';
 import PlaybackMachine from '../machines/PlaybackMachine';
 import { useArtist } from '../realm/models/artist_repo';
-import { useShow } from '../realm/models/show_repo';
+import { useFullShow, useShow } from '../realm/models/show_repo';
 import { duration } from '../util/duration';
 import Flex from './flex';
 import { RelistenButton } from './relisten_button';
@@ -84,9 +84,13 @@ export default function PlaybackBar() {
     onlyFetchFromApiIfLocalIsNotShowable: true,
   });
 
-  const showCache = useShow(activeTrack?.showUuid);
+  const showCache = useFullShow(activeTrack?.showUuid ?? '');
 
-  const subtitle = [artist?.data?.name, showCache?.show?.displayDate, showCache?.show?.venue?.name]
+  const subtitle = [
+    artist?.data?.name,
+    showCache?.data?.show?.displayDate,
+    showCache?.data?.show?.venue?.name,
+  ]
     .filter((x) => x)
     .join(' · ');
 

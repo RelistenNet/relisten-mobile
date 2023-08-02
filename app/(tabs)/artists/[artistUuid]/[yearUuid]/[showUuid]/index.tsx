@@ -53,9 +53,8 @@ export default function Page() {
   const navigation = useNavigation();
   const { showUuid } = useGlobalSearchParams();
   const results = useFullShow(String(showUuid));
-  const {
-    data: { show, sources },
-  } = results;
+  const show = results?.data?.show;
+  const sources = results?.data?.sources;
 
   useEffect(() => {
     navigation.setOptions({
@@ -64,6 +63,7 @@ export default function Page() {
   }, [show]);
 
   const sortedSources = useMemo(() => {
+    if (!sources) return [];
     const all = [...sources];
 
     return all.sort((a, b) => b.avgRatingWeighted - a.avgRatingWeighted);
@@ -110,7 +110,10 @@ const SourceComponent = ({
 
   const playShow = useCallback(
     (sourceTrack?: SourceTrack) => {
-      const trackIndex = showTracks.findIndex((st) => st.identifier === sourceTrack?.uuid) ?? 0;
+      const trackIndex = Math.max(
+        showTracks.findIndex((st) => st.identifier === sourceTrack?.uuid),
+        0
+      );
 
       PlaybackMachine.send({ type: 'UPDATE_QUEUE', queue: showTracks, trackIndex });
 

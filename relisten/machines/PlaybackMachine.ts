@@ -173,7 +173,7 @@ export const machine = createMachine(
     actions: {
       updateQueue: assign({
         queue: ({ event }) => event.queue,
-        activeTrackIndex: ({ event }) => event.trackIndex ?? 0,
+        activeTrackIndex: ({ event }) => Math.max(event.trackIndex, 0),
       }),
 
       playActiveTrack: ({ context }) => {

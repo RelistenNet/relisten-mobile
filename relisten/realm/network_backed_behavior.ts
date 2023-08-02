@@ -7,7 +7,7 @@ import Realm from 'realm';
 export interface NetworkBackedBehavior<TLocalData, TApiData> {
   fetchFromLocal(): TLocalData;
 
-  fetchFromApi(api: RelistenApiClient): Promise<TApiData>;
+  fetchFromApi(api: RelistenApiClient): Promise<TApiData | undefined>;
 
   shouldPerformNetworkRequest(
     lastRequestAt: dayjs.Dayjs | undefined,
@@ -61,7 +61,7 @@ export abstract class ThrottledNetworkBackedBehavior<TLocalData, TApiData>
     return msSinceLastRequest >= this.minTimeBetweenRequestsSeconds * 1000;
   }
 
-  abstract fetchFromApi(api: RelistenApiClient): Promise<TApiData>;
+  abstract fetchFromApi(api: RelistenApiClient): Promise<TApiData | undefined>;
 
   abstract fetchFromLocal(): TLocalData;
 

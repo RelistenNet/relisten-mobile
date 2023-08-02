@@ -19,7 +19,7 @@ import { venueRepo } from './venue_repo';
 export const showRepo = new Repository(Show);
 
 export interface ShowWithSources {
-  show: Show | null;
+  show: Show | undefined;
   sources: Realm.Results<Source>;
 }
 
@@ -27,17 +27,17 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
   ShowWithSources,
   ApiShowWithSources
 > {
-  constructor(public showUuid: string) {
+  constructor(public showUuid?: string) {
     super();
   }
 
-  fetchFromApi(api: RelistenApiClient): Promise<ApiShowWithSources> {
-    if (!this.showUuid) throw new Error('Must have showUuid to fetch');
+  fetchFromApi(api: RelistenApiClient): Promise<ApiShowWithSources | undefined> {
+    if (!this.showUuid) return Promise.resolve(undefined);
     return api.showWithSources(this.showUuid);
   }
 
   fetchFromLocal(): ShowWithSources {
-    const show = useObject(Show, this.showUuid) || null;
+    const show = useObject(Show, this.showUuid) || undefined;
     const sources = useQuery(Source, (query) => query.filtered('showUuid == $0', this.showUuid), [
       this.showUuid,
     ]);
@@ -111,11 +111,8 @@ export function useFullShow(showUuid: string): NetworkBackedResults<ShowWithSour
 
 export function useShow(showUuid?: string): ShowWithSources | undefined {
   const behavior = useMemo(() => {
-    if (!showUuid) return undefined;
     return new ShowWithFullSourcesNetworkBackedBehavior(showUuid);
   }, [showUuid]);
-
-  if (!behavior) return undefined;
 
   return behavior.fetchFromLocal();
 }
