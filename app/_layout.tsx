@@ -34,8 +34,6 @@ export default function TabLayout() {
     }
   }, [isAppReady]);
 
-  if (!isAppReady) return <Slot />;
-
   return (
     <RealmProvider>
       <RelistenApiProvider>

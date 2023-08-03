@@ -46,6 +46,12 @@ export const usePlaybackState = () => {
   return { ...state, percent };
 };
 
+export const useIsBarVisible = () => {
+  const playback = usePlaybackState();
+
+  return playback && playback?.playback !== 'Stopped';
+};
+
 // type StyledBottomSheetProps = {
 //   handleStyle?: StyleProp<ViewStyle>;
 // } & BottomSheetProps;
@@ -64,9 +70,13 @@ export const usePlaybackState = () => {
 export const DEFAULT_PLAYBACK_HEIGHT = 64;
 
 // this hides the playback bar on screens that scroll
-export const PLAYBACK_SKELETON = () => (
-  <View style={{ height: DEFAULT_PLAYBACK_HEIGHT, width: '100%' }} />
-);
+export const PLAYBACK_SKELETON = () => {
+  const isPlaybackBarVisbile = useIsBarVisible();
+
+  return (
+    <View style={{ height: isPlaybackBarVisbile ? 0 : DEFAULT_PLAYBACK_HEIGHT, width: '100%' }} />
+  );
+};
 
 export default function PlaybackBar() {
   const bottomSheetIndexRef = useRef<number>(1);
@@ -107,7 +117,7 @@ export default function PlaybackBar() {
     <BottomSheet
       snapPoints={[DEFAULT_PLAYBACK_HEIGHT, '80%']}
       ref={bottomSheetRef}
-      index={0}
+      index={!playbackState?.playback ? -1 : 0}
       onChange={(index) => (bottomSheetIndexRef.current = index)}
       handleComponent={() => (
         <View className="relative h-2 w-full bg-relisten-blue-800">
@@ -122,8 +132,8 @@ export default function PlaybackBar() {
             // from={{ width: '100%' }}
             // animate={{ width: '25%' }}
             // from={{ width: 0, }}
-            animate={{ width: (playbackState.percent ?? 0.0) * 250 }}
-            className="absolute bottom-0 left-0 top-0 h-full w-full bg-relisten-blue-400"
+            animate={{ translateX: (playbackState.percent ?? 0.0) * 250 }}
+            className="absolute bottom-0 left-0 h-[150%] w-0.5 bg-relisten-blue-400"
           />
         </View>
       )}

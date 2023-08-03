@@ -63,6 +63,10 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
     const apiSourceTracksBySet = R.groupBy(apiSourceTracks, (s) => s.source_set_uuid);
 
     realm.write(() => {
+      // TODO: maybe should be inside if statement?
+      // it broke doing that, but worth reivisiting
+      showRepo.upsert(realm, apiData, localData.show);
+
       if (localData.show && apiData.venue) {
         const { createdModels: createdVenues } = venueRepo.upsert(
           realm,

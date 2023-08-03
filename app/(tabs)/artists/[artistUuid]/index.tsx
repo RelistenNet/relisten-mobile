@@ -1,3 +1,4 @@
+import { useRelistenApi } from '@/relisten/api/context';
 import { FavoriteObjectButton } from '@/relisten/components/favorite_icon_button';
 import {
   FilterableList,
@@ -17,7 +18,7 @@ import { Artist } from '@/relisten/realm/models/artist';
 import { Year } from '@/relisten/realm/models/year';
 import { useArtistYears } from '@/relisten/realm/models/year_repo';
 import { memo } from '@/relisten/util/memo';
-import { Link, useGlobalSearchParams, useNavigation } from 'expo-router';
+import { Link, useGlobalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import Realm from 'realm';
@@ -52,12 +53,29 @@ export default function Page() {
 
 const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> }> = memo(
   ({ artist, years }) => {
+    const { apiClient } = useRelistenApi();
+    const router = useRouter();
+
     if (!artist || years.length === 0) {
       return null;
     }
 
     const totalShows = R.sumBy(years, (y) => y.showCount);
     const totalTapes = R.sumBy(years, (y) => y.sourceCount);
+
+    const goToRandomShow = async () => {
+      const randomShow = await apiClient.randomShow(artist.uuid);
+
+      if (randomShow?.uuid) {
+        router.push({
+          pathname: '/(tabs)/artists/[artistUuid]/show/[showUuid]/',
+          params: {
+            artistUuid: artist.uuid,
+            showUuid: randomShow.uuid,
+          },
+        });
+      }
+    };
 
     return (
       <View className="flex w-full items-center pb-1">
@@ -146,8 +164,7 @@ const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> 
           <RelistenButton
             className="shrink basis-1/3"
             textClassName="text-l"
-            disabled
-            intent="outline"
+            onPress={goToRandomShow}
           >
             Random
           </RelistenButton>
@@ -161,7 +178,7 @@ const YearListItem = ({ year }: { year: Year }) => {
   return (
     <Link
       href={{
-        pathname: '/(tabs)/artists/[artistUuid]/[yearUuid]/' as const,
+        pathname: '/(tabs)/artists/[artistUuid]/year/[yearUuid]/' as const,
         params: {
           artistUuid: year.artistUuid,
           yearUuid: year.uuid,

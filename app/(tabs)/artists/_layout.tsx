@@ -31,19 +31,19 @@ export default function ArtistsLayout() {
           }}
         />
         <Stack.Screen
-          name="[artistUuid]/[yearUuid]/index"
+          name="[artistUuid]/year/[yearUuid]/index"
           options={{
             title: '',
           }}
         />
         <Stack.Screen
-          name="[artistUuid]/[yearUuid]/[showUuid]/index"
+          name="[artistUuid]/show/[showUuid]/index"
           options={{
             title: '',
           }}
         />
         <Stack.Screen
-          name="[artistUuid]/[yearUuid]/[showUuid]/sources/index"
+          name="[artistUuid]/show/[showUuid]/sources/index"
           options={{
             title: '',
           }}

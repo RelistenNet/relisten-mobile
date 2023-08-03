@@ -1,4 +1,3 @@
-import { player } from '@/modules/relisten-audio-player';
 import { Link as SLink } from '@/relisten/api/models/source';
 import { FavoriteObjectButton } from '@/relisten/components/favorite_icon_button';
 import { ItemSeparator } from '@/relisten/components/item_separator';
@@ -293,7 +292,7 @@ export const SourceHeader: React.FC<{ source: Source; show: Show; playShow: Play
         <View className="w-full pb-2">
           <Link
             href={{
-              pathname: '/(tabs)/artists/[artistUuid]/[yearUuid]/[showUuid]/sources/' as const,
+              pathname: '/(tabs)/artists/[artistUuid]/show/[showUuid]/sources/' as const,
               params: {
                 artistUuid: show.artistUuid,
                 yearUuid: show.yearUuid,
