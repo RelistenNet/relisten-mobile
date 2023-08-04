@@ -12,6 +12,7 @@ import { duration } from '../util/duration';
 import Flex from './flex';
 import { RelistenButton } from './relisten_button';
 import { RelistenText } from './relisten_text';
+import PlaybackQueue from './PlaybackQueue';
 
 export const usePlaybackState = () => {
   const [state, setState] = useState<any>({});
@@ -115,7 +116,7 @@ export default function PlaybackBar() {
 
   return (
     <BottomSheet
-      snapPoints={[DEFAULT_PLAYBACK_HEIGHT, '80%']}
+      snapPoints={[DEFAULT_PLAYBACK_HEIGHT, '90%']}
       ref={bottomSheetRef}
       index={!playbackState?.playback ? -1 : 0}
       onChange={(index) => (bottomSheetIndexRef.current = index)}
@@ -133,7 +134,7 @@ export default function PlaybackBar() {
             // animate={{ width: '25%' }}
             // from={{ width: 0, }}
             animate={{ translateX: (playbackState.percent ?? 0.0) * 250 }}
-            className="absolute bottom-0 left-0 h-[150%] w-0.5 bg-relisten-blue-400"
+            className="absolute -left-0.5 bottom-0 h-[150%] w-1 bg-relisten-blue-400"
           />
         </View>
       )}
@@ -142,11 +143,11 @@ export default function PlaybackBar() {
     >
       <View className="relative flex-1 bg-relisten-blue-700">
         <Pressable onPress={toggleSheet}>
-          <Flex cn="h-[64px] items-center">
+          <Flex cn="h-[57px] items-center">
             <Flex cn="ml-2 h-full items-center">
-              <TouchableOpacity onPress={() => PlaybackMachine.send({ type: 'SKIP_BACK' })}>
+              {/* <TouchableOpacity onPress={() => PlaybackMachine.send({ type: 'SKIP_BACK' })}>
                 <MaterialIcons name="skip-previous" size={32} color="white" />
-              </TouchableOpacity>
+              </TouchableOpacity> */}
               <TouchableOpacity onPress={playpause}>
                 {context.playbackState === 'Playing' ? (
                   <MaterialIcons name="pause" size={42} color="white" />
@@ -158,11 +159,13 @@ export default function PlaybackBar() {
                 <MaterialIcons name="skip-next" size={32} color="white" />
               </TouchableOpacity>
             </Flex>
-            <Flex column cn="ml-4">
+            <Flex column cn="ml-4 truncate flex-1">
               <RelistenText className="text-lg font-semibold">
                 {activeTrack?.title ?? ''}
               </RelistenText>
-              <RelistenText>{subtitle ?? ''}</RelistenText>
+              <RelistenText className="truncate" numberOfLines={1}>
+                {subtitle ?? ''}
+              </RelistenText>
               {playbackState.progress?.duration > 0 && (
                 <Flex cn="flex-row">
                   <RelistenText
@@ -178,9 +181,13 @@ export default function PlaybackBar() {
                 </Flex>
               )}
             </Flex>
+            <Flex>
+              <MaterialIcons name="drag-indicator" size={32} color="rgba(255,255,255,0.7)" />
+            </Flex>
           </Flex>
         </Pressable>
-        <Flex cn="flex-1 flex-col bg-relisten-blue-800" center>
+        <Flex cn="flex-1 flex-col bg-relisten-blue-800">
+          <PlaybackQueue />
           <RelistenText>{JSON.stringify(clean(context), null, 2)}</RelistenText>
           <RelistenText>{JSON.stringify(machineState, null, 2)}</RelistenText>
           <RelistenText>{JSON.stringify(playbackState, null, 2)}</RelistenText>

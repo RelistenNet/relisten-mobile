@@ -1,12 +1,11 @@
 import { RelistenPlaybackState, RelistenStreamable, player } from '@/modules/relisten-audio-player';
 import { assign, createMachine, fromCallback, interpret } from 'xstate';
+import { SourceTrack } from '../realm/models/source_track';
 
-type PlaybackTrack = RelistenStreamable & {
-  title: string;
-  showUuid: string;
-  artistUuid: string;
-  sourceUuid: string;
-};
+export type PlaybackTrack = RelistenStreamable &
+  SourceTrack & {
+    showUuid: string;
+  };
 
 interface PlaybackContext {
   queue: PlaybackTrack[];
@@ -18,7 +17,7 @@ interface PlaybackContext {
 type PlaybackEvents =
   | { type: 'BYPASS' }
   | { type: 'PAUSE' }
-  | { type: 'SKIP_TO'; nextIndex: number }
+  | { type: 'SKIP_TO'; trackIndex: number }
   | { type: 'RESUME' }
   | { type: 'SKIP_FORWARD' }
   | { type: 'SKIP_BACK' }
@@ -122,7 +121,7 @@ export const machine = createMachine(
           },
           SKIP_TO: {
             reenter: true,
-            actions: ['setActiveIndex'],
+            actions: ['setActiveTrack', 'playActiveTrack', 'setInitialized', 'setNextStream'],
           },
           PAUSE: {
             reenter: true,
@@ -210,7 +209,6 @@ export const machine = createMachine(
       setInitialized: assign({
         initializedPlayer: true,
       }),
-      setActiveIndex: assign(({ event }) => ({ activeTrackIndex: event.nextIndex })),
       setNextStream: ({ context }) => {
         const nextTrack = context.queue[context.activeTrackIndex + 1];
 
@@ -239,7 +237,7 @@ const localMachine = interpret(machine, {
 
 localMachine.subscribe((state) => {
   const persistedState = localMachine.getPersistedState();
-  console.log(state);
+  // console.log(state);
 
   if (persistedState) {
     player.DEBUG_STATE = JSON.stringify(persistedState);

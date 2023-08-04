@@ -8,7 +8,7 @@ import { RelistenLink } from '@/relisten/components/relisten_link';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { SectionHeader } from '@/relisten/components/section_header';
-import PlaybackMachine from '@/relisten/machines/PlaybackMachine';
+import PlaybackMachine, { PlaybackTrack } from '@/relisten/machines/PlaybackMachine';
 import { Show } from '@/relisten/realm/models/show';
 import { useFullShow } from '@/relisten/realm/models/show_repo';
 import { Source } from '@/relisten/realm/models/source';
@@ -95,16 +95,27 @@ const SourceComponent = ({
 }: { show: Show; selectedSource: Source } & ScrollViewProps) => {
   const { refreshing } = useRefreshContext();
 
+  let idx = 0;
   const showTracks = selectedSource?.sourceSets
-    ?.map((set) =>
-      set?.sourceTracks?.map((track) => ({
+    ?.map(
+      (set) =>
+        set?.sourceTracks.map((st) => ({
+          ...st.toJSON(),
+          url: st.mp3Url,
+          identifier: st.uuid,
+          humanizedDuration: st.humanizedDuration,
+          trackPosition: ++idx,
+          showUuid: show.uuid,
+        })) as PlaybackTrack[] // TODO: make sure these overlap
+
+      /*?.map((track) => ({
         identifier: track.uuid,
         url: track.mp3Url,
         title: track.title,
         showUuid: show.uuid,
         sourceUuid: selectedSource.uuid,
         artistUuid: show.artistUuid,
-      }))
+      }))*/
     )
     .flat();
 
@@ -342,7 +353,6 @@ export const SourceSetComponent: React.FC<{
         <SourceTrackComponent
           key={t.uuid}
           sourceTrack={t}
-          source={source}
           isLastTrackInSet={idx == sourceSet.sourceTracks.length - 1}
           playShow={playShow}
         />
@@ -352,11 +362,10 @@ export const SourceSetComponent: React.FC<{
 });
 
 export const SourceTrackComponent: React.FC<{
-  source: Source;
   sourceTrack: SourceTrack;
   isLastTrackInSet: boolean;
   playShow: PlayShow;
-}> = memo(({ source, sourceTrack, isLastTrackInSet, playShow }) => {
+}> = ({ sourceTrack, isLastTrackInSet, playShow }) => {
   return (
     <TouchableOpacity
       className="flex flex-row items-start pl-6 pr-4"
@@ -373,7 +382,7 @@ export const SourceTrackComponent: React.FC<{
           <RelistenText className="shrink py-3 pr-2 text-lg">{sourceTrack.title}</RelistenText>
           <View className="grow"></View>
           <RelistenText className="py-3 text-base text-gray-400">
-            {sourceTrack.humanizedDuration()}
+            {sourceTrack.humanizedDuration}
           </RelistenText>
           <TouchableOpacity className="shrink-0 grow-0 py-3 pl-4">
             <MaterialCommunityIcons name="dots-horizontal" size={16} color="white" />
@@ -383,7 +392,7 @@ export const SourceTrackComponent: React.FC<{
       </View>
     </TouchableOpacity>
   );
-});
+};
 
 const SelectedSource: React.FC<{ sources: Source[]; sourceIndex: number }> = ({
   sources,
