@@ -1,8 +1,9 @@
-import React, { PropsWithChildren, useEffect, useRef } from 'react';
 import { useNavigation } from '@react-navigation/native';
+import React, { PropsWithChildren, useEffect, useRef } from 'react';
 import { Animated, ScrollViewProps } from 'react-native';
 import { RelistenBlue } from '../../relisten_blue';
 import { RelistenText } from '../relisten_text';
+import { ScrollScreen } from './ScrollScreen';
 
 export const DisappearingHeaderScreen = <
   TProps extends Partial<Pick<ScrollViewProps, 'onScroll' | 'scrollEventThrottle'>>
@@ -44,12 +45,14 @@ export const DisappearingHeaderScreen = <
   const Component = ScrollableComponent as any;
 
   return (
-    <Component
-      onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrolling } } }], {
-        useNativeDriver: true,
-      })}
-      scrollEventThrottle={16}
-      {...props}
-    />
+    <ScrollScreen>
+      <Component
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrolling } } }], {
+          useNativeDriver: true,
+        })}
+        scrollEventThrottle={16}
+        {...props}
+      />
+    </ScrollScreen>
   );
 };

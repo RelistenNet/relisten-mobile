@@ -16,10 +16,9 @@ const ShowListItem = ({ show }: { show: Show }) => {
   return (
     <Link
       href={{
-        pathname: '/(tabs)/artists/[artistUuid]/[yearUuid]/[showUuid]/' as const,
+        pathname: '/(tabs)/artists/[artistUuid]/show/[showUuid]/' as const,
         params: {
           artistUuid: show.artistUuid,
-          yearUuid: show.yearUuid,
           showUuid: show.uuid,
         },
       }}

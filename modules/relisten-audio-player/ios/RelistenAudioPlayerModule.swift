@@ -10,6 +10,8 @@ struct RelistenStreamable: Record {
     var identifier: String? = nil
 }
 
+var DEBUG_state = ""
+
 public class RelistenAudioPlayerModule: Module {
     var player: RelistenGaplessAudioPlayer? = nil
 
@@ -55,6 +57,14 @@ public class RelistenAudioPlayerModule: Module {
 
         Function("setVolume") { (newVolume: Float) in
             return player?.volume = newVolume
+        }
+
+        Function("getDebugState") {
+            return DEBUG_state
+        }
+
+        Function("setDebugState") { (newState: String) in
+            return DEBUG_state = newState
         }
 
         Function("prepareAudioSession") {

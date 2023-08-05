@@ -12,9 +12,11 @@ export const RefreshContextProvider = <T extends object>({
   networkBackedResults,
   extraRefreshingConsideration,
 }: PropsWithChildren<{
-  networkBackedResults: NetworkBackedResults<T>;
+  networkBackedResults?: NetworkBackedResults<T>;
   extraRefreshingConsideration?: (networkBackedResults: NetworkBackedResults<T>) => boolean;
 }>) => {
+  if (!networkBackedResults) return children;
+
   let refreshing =
     networkBackedResults.shouldShowLoadingIndicator || networkBackedResults.isNetworkLoading;
 

@@ -1,7 +1,11 @@
 import { RelistenPlaybackState, RelistenStreamable, player } from '@/modules/relisten-audio-player';
-import { createMachine, assign, interpret } from 'xstate';
+import { assign, createMachine, fromCallback, interpret } from 'xstate';
+import { SourceTrack } from '../realm/models/source_track';
 
-type PlaybackTrack = RelistenStreamable & { title: string };
+export type PlaybackTrack = RelistenStreamable &
+  SourceTrack & {
+    showUuid: string;
+  };
 
 interface PlaybackContext {
   queue: PlaybackTrack[];
@@ -13,7 +17,7 @@ interface PlaybackContext {
 type PlaybackEvents =
   | { type: 'BYPASS' }
   | { type: 'PAUSE' }
-  | { type: 'SKIP_TO' }
+  | { type: 'SKIP_TO'; trackIndex: number }
   | { type: 'RESUME' }
   | { type: 'SKIP_FORWARD' }
   | { type: 'SKIP_BACK' }
@@ -31,10 +35,11 @@ export const machine = createMachine(
       initializedPlayer: false,
       playbackState: 'Stopped',
     },
-    schema: {
+    types: {
       context: {} as PlaybackContext,
       events: {} as PlaybackEvents,
       // actions: {} as PlaybackActions,
+      typegen: {} as import('./PlaybackMachine.typegen').Typegen0,
     },
     description: 'Relisten Playback',
     initial: 'idle',
@@ -42,12 +47,12 @@ export const machine = createMachine(
       idle: {
         invoke: {
           id: 'initializeMachine',
-          src: () => (callback) => {
+          src: fromCallback((callback) => {
             console.log('!!!!!!!!!!! initializeMachine', player.currentState, 1);
             if (player.currentState !== 'Stopped') {
-              callback('BYPASS');
+              callback({ type: 'BYPASS' });
             }
-          },
+          }),
         },
         on: {
           UPDATE_QUEUE: {
@@ -68,16 +73,19 @@ export const machine = createMachine(
       initialized: {
         invoke: {
           id: 'listenForTrack',
-          src: (context) => (callback) => {
+          input: ({ context }) => {
+            return {
+              activeTrackIndex: context.activeTrackIndex,
+              queue: context.queue,
+            }; // etc.
+          },
+          src: fromCallback((callback, recieve, { input }) => {
             const trackChangedListener = player.addTrackChangedListener((trackChanged) => {
-              console.log({ trackChanged });
-              const activeIndex = context.activeTrackIndex;
-              const queueTail = context.queue.slice(activeIndex + 1);
+              const activeIndex = input.activeTrackIndex;
+              const queueTail = input.queue.slice(activeIndex + 1);
               const index = queueTail.findIndex(
                 (track) => track.identifier === trackChanged?.currentIdentifier
               );
-
-              console.log('next track', { activeIndex, queueTail, index, n: index + activeIndex });
 
               callback({ type: 'NEXT_TRACK', nextIndex: index + activeIndex + 1 });
             });
@@ -94,39 +102,45 @@ export const machine = createMachine(
               trackChangedListener.remove();
               playbackListener.remove();
             };
-          },
+          }),
         },
         on: {
           UPDATE_QUEUE: {
-            internal: true,
-            actions: ['updateQueue'],
+            reenter: true,
+            actions: [
+              'updateQueue',
+              'setActiveTrack',
+              'playActiveTrack',
+              'setInitialized',
+              'setNextStream',
+            ],
           },
           RESUME: {
-            internal: true,
+            reenter: true,
             actions: ['resumePlayer'],
           },
           SKIP_TO: {
-            internal: true,
-            actions: ['setActiveIndex'],
+            reenter: true,
+            actions: ['setActiveTrack', 'playActiveTrack', 'setInitialized', 'setNextStream'],
           },
           PAUSE: {
-            internal: true,
+            reenter: true,
             actions: ['pausePlayer'],
           },
           PLAYPAUSE: {
-            internal: true,
+            reenter: true,
             actions: ['playPause'],
           },
           PLAYBACK_CHANGED: {
-            internal: true,
+            reenter: true,
             actions: ['playbackChanged'],
           },
           NEXT_TRACK: {
-            internal: true,
+            reenter: true,
             actions: ['skipForward', 'setNextStream'],
           },
           SKIP_FORWARD: {
-            internal: true,
+            reenter: true,
             actions: [
               // 'pausePlayer',
               // 'stop',
@@ -138,7 +152,7 @@ export const machine = createMachine(
             ],
           },
           SKIP_BACK: {
-            internal: true,
+            reenter: true,
             actions: [
               // 'pausePlayer',
               // 'stop',
@@ -152,27 +166,23 @@ export const machine = createMachine(
         },
       },
     },
-
-    predictableActionArguments: true,
-    preserveActionOrder: true,
-    tsTypes: {} as import('./PlaybackMachine.typegen').Typegen0,
   },
   {
     actions: {
       updateQueue: assign({
-        queue: (context, event) => event.queue,
-        activeTrackIndex: (context, event) => event.trackIndex ?? 0,
+        queue: ({ event }) => event.queue,
+        activeTrackIndex: ({ event }) => Math.max(event.trackIndex, 0),
       }),
 
-      playActiveTrack: (context) => {
+      playActiveTrack: ({ context }) => {
         const activeTrack = context.queue[context.activeTrackIndex];
 
         player.play(activeTrack);
       },
-      setActiveTrack: assign((context, event) => ({
+      setActiveTrack: assign(({ event }) => ({
         activeTrackIndex: event.trackIndex,
       })),
-      resumePlayer: (context) => {
+      resumePlayer: ({ context }) => {
         if (context.initializedPlayer) {
           player.resume();
         }
@@ -187,20 +197,19 @@ export const machine = createMachine(
         if (player.currentState === 'Playing') player.pause();
         if (player.currentState === 'Paused') player.resume();
       },
-      playbackChanged: assign((context, event) => ({
+      playbackChanged: assign(({ event }) => ({
         playbackState: event.playbackState,
       })),
-      skipBack: assign((context) => ({
+      skipBack: assign(({ context }) => ({
         activeTrackIndex: Math.max(context.activeTrackIndex - 1, 0),
       })),
-      skipForward: assign((context) => ({
+      skipForward: assign(({ context }) => ({
         activeTrackIndex: Math.min(context.activeTrackIndex + 1, context.queue.length - 1),
       })),
       setInitialized: assign({
         initializedPlayer: true,
       }),
-      setActiveIndex: assign((context, event: any) => ({ activeTrackIndex: event.nextIndex })),
-      setNextStream: (context) => {
+      setNextStream: ({ context }) => {
         const nextTrack = context.queue[context.activeTrackIndex + 1];
 
         if (nextTrack) {
@@ -209,7 +218,7 @@ export const machine = createMachine(
       },
     },
     guards: {
-      hasMoreTracks: (context) => {
+      hasMoreTracks: ({ context }) => {
         if (context.activeTrackIndex + 1 < context.queue.length) return true;
 
         return false;
@@ -218,10 +227,22 @@ export const machine = createMachine(
   }
 );
 
-const PlaybackMachine = interpret(machine, {
-  deferEvents: false,
-})
-  .onTransition((state, foo) => console.log(foo, state.value, state.context))
-  .start();
+const state = player.DEBUG_STATE;
+// console.log('INIT STATE', state);
 
-export default PlaybackMachine;
+const localMachine = interpret(machine, {
+  deferEvents: false,
+  state: state ? JSON.parse(state) : undefined,
+}).start();
+
+localMachine.subscribe((state) => {
+  const persistedState = localMachine.getPersistedState();
+  // console.log(state);
+
+  if (persistedState) {
+    player.DEBUG_STATE = JSON.stringify(persistedState);
+    // console.log('DEBUG', player.DEBUG_STATE);
+  }
+});
+
+export default localMachine;

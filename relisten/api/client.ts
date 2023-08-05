@@ -53,6 +53,10 @@ export class RelistenApiClient {
     return this.getJson(`/v3/shows/${showUuid}`);
   }
 
+  public randomShow(artistUuid: string): Promise<ShowWithSources> {
+    return this.getJson(`/v2/artists/${artistUuid}/shows/random`);
+  }
+
   public years(artistUuid: string): Promise<Year[]> {
     return this.getJson(`/v3/artists/${artistUuid}/years`);
   }

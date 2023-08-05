@@ -8,7 +8,7 @@ import { RelistenLink } from '@/relisten/components/relisten_link';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { SectionHeader } from '@/relisten/components/section_header';
-import PlaybackMachine from '@/relisten/machines/PlaybackMachine';
+import PlaybackMachine, { PlaybackTrack } from '@/relisten/machines/PlaybackMachine';
 import { Show } from '@/relisten/realm/models/show';
 import { useFullShow } from '@/relisten/realm/models/show_repo';
 import { Source } from '@/relisten/realm/models/source';
@@ -53,9 +53,8 @@ export default function Page() {
   const navigation = useNavigation();
   const { showUuid } = useGlobalSearchParams();
   const results = useFullShow(String(showUuid));
-  const {
-    data: { show, sources },
-  } = results;
+  const show = results?.data?.show;
+  const sources = results?.data?.sources;
 
   useEffect(() => {
     navigation.setOptions({
@@ -64,6 +63,7 @@ export default function Page() {
   }, [show]);
 
   const sortedSources = useMemo(() => {
+    if (!sources) return [];
     const all = [...sources];
 
     return all.sort((a, b) => b.avgRatingWeighted - a.avgRatingWeighted);
@@ -95,28 +95,43 @@ const SourceComponent = ({
 }: { show: Show; selectedSource: Source } & ScrollViewProps) => {
   const { refreshing } = useRefreshContext();
 
+  let idx = 0;
   const showTracks = selectedSource?.sourceSets
-    ?.map((set) =>
-      set?.sourceTracks?.map((track) => ({
+    ?.map(
+      (set) =>
+        set?.sourceTracks.map((st) => ({
+          ...st.toJSON(),
+          url: st.mp3Url,
+          identifier: st.uuid,
+          humanizedDuration: st.humanizedDuration,
+          trackPosition: ++idx,
+          showUuid: show.uuid,
+        })) as PlaybackTrack[] // TODO: make sure these overlap
+
+      /*?.map((track) => ({
         identifier: track.uuid,
         url: track.mp3Url,
         title: track.title,
-      }))
+        showUuid: show.uuid,
+        sourceUuid: selectedSource.uuid,
+        artistUuid: show.artistUuid,
+      }))*/
     )
     .flat();
 
   const playShow = useCallback(
     (sourceTrack?: SourceTrack) => {
-      const trackIndex = showTracks.findIndex((st) => st.identifier === sourceTrack?.uuid) ?? 0;
+      console.log('play', sourceTrack, showTracks);
+      const trackIndex = Math.max(
+        showTracks.findIndex((st) => st.identifier === sourceTrack?.uuid),
+        0
+      );
 
-      PlaybackMachine.send('UPDATE_QUEUE', {
-        queue: showTracks,
-        trackIndex,
-      });
+      PlaybackMachine.send({ type: 'UPDATE_QUEUE', queue: showTracks, trackIndex });
 
-      // PlaybackMachine.send('RESUME');
+      PlaybackMachine.send({ type: 'RESUME' });
     },
-    [showTracks]
+    [PlaybackMachine, showTracks]
   ) satisfies PlayShow;
 
   if (refreshing) {
@@ -151,10 +166,10 @@ function sourceRatingText(source: Source) {
 export const SourceFooter: React.FC<{ source: Source; show: Show }> = memo(({ show, source }) => {
   return (
     <View className="px-4 py-4">
-      <RelistenText className="text-l py-1 text-slate-400">
+      <RelistenText className="text-l py-1 text-gray-400">
         Source last updated: {dayjs(source.updatedAt).format('YYYY-MM-DD')}
       </RelistenText>
-      <RelistenText className="text-l py-1 text-slate-400">
+      <RelistenText className="text-l py-1 text-gray-400">
         Identifier: {source.upstreamIdentifier}
       </RelistenText>
       {source.links().map((l) => (
@@ -167,7 +182,7 @@ export const SourceFooter: React.FC<{ source: Source; show: Show }> = memo(({ sh
 export const SourceLink = memo(({ link, ...props }: { link: SLink } & TouchableOpacityProps) => {
   return (
     <TouchableOpacity onPress={() => openBrowserAsync(link.url)} {...props}>
-      <RelistenLink className="text-l font-bold text-slate-400">{link.label}</RelistenLink>
+      <RelistenLink className="text-l font-bold text-gray-400">{link.label}</RelistenLink>
     </TouchableOpacity>
   );
 });
@@ -201,7 +216,7 @@ export const SourceHeader: React.FC<{ source: Source; show: Show; playShow: Play
             </RelistenText>
           )}
           {secondLine.length > 0 && (
-            <RelistenText className="text-l w-full pb-2 text-center italic text-slate-400">
+            <RelistenText className="text-l w-full pb-2 text-center italic text-gray-400">
               {secondLine.join(' • ')}
             </RelistenText>
           )}
@@ -288,7 +303,7 @@ export const SourceHeader: React.FC<{ source: Source; show: Show; playShow: Play
         <View className="w-full pb-2">
           <Link
             href={{
-              pathname: '/(tabs)/artists/[artistUuid]/[yearUuid]/[showUuid]/sources/' as const,
+              pathname: '/(tabs)/artists/[artistUuid]/show/[showUuid]/sources/' as const,
               params: {
                 artistUuid: show.artistUuid,
                 yearUuid: show.yearUuid,
@@ -338,7 +353,6 @@ export const SourceSetComponent: React.FC<{
         <SourceTrackComponent
           key={t.uuid}
           sourceTrack={t}
-          source={source}
           isLastTrackInSet={idx == sourceSet.sourceTracks.length - 1}
           playShow={playShow}
         />
@@ -348,18 +362,17 @@ export const SourceSetComponent: React.FC<{
 });
 
 export const SourceTrackComponent: React.FC<{
-  source: Source;
   sourceTrack: SourceTrack;
   isLastTrackInSet: boolean;
   playShow: PlayShow;
-}> = memo(({ source, sourceTrack, isLastTrackInSet, playShow }) => {
+}> = ({ sourceTrack, isLastTrackInSet, playShow }) => {
   return (
     <TouchableOpacity
       className="flex flex-row items-start pl-6 pr-4"
       onPress={() => playShow(sourceTrack)}
     >
       <View className="basis-7 pt-3 ">
-        <RelistenText className="pt-[1] text-lg text-slate-500">
+        <RelistenText className="pt-[1] text-lg text-gray-400">
           {sourceTrack.trackPosition}
         </RelistenText>
       </View>
@@ -368,8 +381,8 @@ export const SourceTrackComponent: React.FC<{
         <View className="w-full grow flex-row items-center justify-between">
           <RelistenText className="shrink py-3 pr-2 text-lg">{sourceTrack.title}</RelistenText>
           <View className="grow"></View>
-          <RelistenText className="py-3 text-base text-slate-400">
-            {sourceTrack.humanizedDuration()}
+          <RelistenText className="py-3 text-base text-gray-400">
+            {sourceTrack.humanizedDuration}
           </RelistenText>
           <TouchableOpacity className="shrink-0 grow-0 py-3 pl-4">
             <MaterialCommunityIcons name="dots-horizontal" size={16} color="white" />
@@ -379,7 +392,7 @@ export const SourceTrackComponent: React.FC<{
       </View>
     </TouchableOpacity>
   );
-});
+};
 
 const SelectedSource: React.FC<{ sources: Source[]; sourceIndex: number }> = ({
   sources,
@@ -392,7 +405,7 @@ const SelectedSource: React.FC<{ sources: Source[]; sourceIndex: number }> = ({
   }
 
   return (
-    <View className="flex w-full flex-row items-center justify-between bg-slate-100 px-4 py-2">
+    <View className="flex w-full flex-row items-center justify-between bg-gray-100 px-4 py-2">
       <View className="flex shrink">
         <RelistenText className="pb-1 text-sm font-bold">
           Source {sourceIndex + 1}/{sources.length}
@@ -421,7 +434,7 @@ const SourceProperty: React.FC<PropsWithChildren<{ title: string; value?: string
 }) => {
   return (
     <View className="w-full flex-1 flex-col py-1">
-      <RelistenText className="pb-1 text-sm font-bold text-slate-500">{title}</RelistenText>
+      <RelistenText className="pb-1 text-sm font-bold text-gray-400">{title}</RelistenText>
       {value ? (
         <RelistenText className="bg w-full grow" selectable={true}>
           {value}

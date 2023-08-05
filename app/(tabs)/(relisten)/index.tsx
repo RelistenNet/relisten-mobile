@@ -1,7 +1,5 @@
-import { Text, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { player } from '@/modules/relisten-audio-player';
 import { usePlaybackState } from '@/relisten/components/PlaybackBar';
 import { RelistenText } from '@/relisten/components/relisten_text';
 

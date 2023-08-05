@@ -1,3 +1,4 @@
+import { useRelistenApi } from '@/relisten/api/context';
 import { FavoriteObjectButton } from '@/relisten/components/favorite_icon_button';
 import {
   FilterableList,
@@ -17,7 +18,7 @@ import { Artist } from '@/relisten/realm/models/artist';
 import { Year } from '@/relisten/realm/models/year';
 import { useArtistYears } from '@/relisten/realm/models/year_repo';
 import { memo } from '@/relisten/util/memo';
-import { Link, useGlobalSearchParams, useNavigation } from 'expo-router';
+import { Link, useGlobalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import Realm from 'realm';
@@ -40,34 +41,41 @@ export default function Page() {
 
   return (
     <RefreshContextProvider networkBackedResults={results}>
-      <Link
-        href={{
-          pathname: '/(tabs)/artists/[artistUuid]/' as const,
-          params: {
-            artistUuid: String(artist?.uuid),
-          },
-        }}
-        asChild
-      >
-        <DisappearingHeaderScreen
-          headerHeight={50}
-          ScrollableComponent={YearsList}
-          artist={artist}
-          years={years}
-        />
-      </Link>
+      <DisappearingHeaderScreen
+        headerHeight={50}
+        ScrollableComponent={YearsList}
+        artist={artist}
+        years={years}
+      />
     </RefreshContextProvider>
   );
 }
 
 const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> }> = memo(
   ({ artist, years }) => {
+    const { apiClient } = useRelistenApi();
+    const router = useRouter();
+
     if (!artist || years.length === 0) {
       return null;
     }
 
     const totalShows = R.sumBy(years, (y) => y.showCount);
     const totalTapes = R.sumBy(years, (y) => y.sourceCount);
+
+    const goToRandomShow = async () => {
+      const randomShow = await apiClient.randomShow(artist.uuid);
+
+      if (randomShow?.uuid) {
+        router.push({
+          pathname: '/(tabs)/artists/[artistUuid]/show/[showUuid]/',
+          params: {
+            artistUuid: artist.uuid,
+            showUuid: randomShow.uuid,
+          },
+        });
+      }
+    };
 
     return (
       <View className="flex w-full items-center pb-1">
@@ -79,7 +87,7 @@ const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> 
             {artist.name}
           </RelistenText>
 
-          <RelistenText className="text-l w-full pb-2 text-center italic text-slate-400">
+          <RelistenText className="text-l w-full pb-2 text-center italic text-gray-400">
             <Plur word="year" count={years.length} /> &middot;&nbsp;
             <Plur word="show" count={totalShows} /> &middot;&nbsp;
             <Plur word="tape" count={totalTapes} />
@@ -88,7 +96,7 @@ const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> 
         <View className="w-full flex-row px-4 pb-4" style={{ gap: 16 }}>
           <Link
             href={{
-              pathname: '/(tabs)/artists/[artistUuid]/venues' as const,
+              pathname: '/(tabs)/artists/[artistUuid]/venues',
               params: {
                 artistUuid: artist.uuid,
               },
@@ -99,21 +107,65 @@ const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> 
               Venues
             </RelistenButton>
           </Link>
-          <RelistenButton className="shrink basis-1/3" textClassName="text-l">
-            Tours
-          </RelistenButton>
-          <RelistenButton className="shrink basis-1/3" textClassName="text-l">
-            Songs
-          </RelistenButton>
+          <Link
+            href={{
+              pathname: '/(tabs)/artists/[artistUuid]/tours',
+              params: {
+                artistUuid: artist.uuid,
+              },
+            }}
+            asChild
+          >
+            <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+              Tours
+            </RelistenButton>
+          </Link>
+          <Link
+            href={{
+              pathname: '/(tabs)/artists/[artistUuid]/songs' as const,
+              params: {
+                artistUuid: artist.uuid,
+              },
+            }}
+            asChild
+          >
+            <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+              Songs
+            </RelistenButton>
+          </Link>
         </View>
         <View className="w-full flex-row px-4 pb-4" style={{ gap: 16 }}>
-          <RelistenButton className="shrink basis-1/3" textClassName="text-l">
-            Top Rated
-          </RelistenButton>
-          <RelistenButton className="shrink basis-1/3" textClassName="text-l">
-            Popular
-          </RelistenButton>
-          <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+          <Link
+            href={{
+              pathname: '/(tabs)/artists/[artistUuid]/rated' as const,
+              params: {
+                artistUuid: artist.uuid,
+              },
+            }}
+            asChild
+          >
+            <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+              Top Rated
+            </RelistenButton>
+          </Link>
+          <Link
+            href={{
+              pathname: '/(tabs)/artists/[artistUuid]/popular' as const,
+              params: {
+                artistUuid: artist.uuid,
+              },
+            }}
+            asChild
+          >
+            <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+              Popular
+            </RelistenButton>
+          </Link>
+          <RelistenButton
+            className="shrink basis-1/3"
+            textClassName="text-l"
+            onPress={goToRandomShow}
+          >
             Random
           </RelistenButton>
         </View>
@@ -126,7 +178,7 @@ const YearListItem = ({ year }: { year: Year }) => {
   return (
     <Link
       href={{
-        pathname: '/(tabs)/artists/[artistUuid]/[yearUuid]/' as const,
+        pathname: '/(tabs)/artists/[artistUuid]/year/[yearUuid]/' as const,
         params: {
           artistUuid: year.artistUuid,
           yearUuid: year.uuid,
@@ -183,9 +235,8 @@ const YearsList: React.FC<
   {
     artist: Artist | null;
     years: Realm.Results<Year>;
-    onItemPress?: (year: Year) => void;
   } & Omit<FilterableListProps<Year>, 'data' | 'renderItem'>
-> = ({ artist, years, onItemPress, ...props }) => {
+> = ({ artist, years, ...props }) => {
   const allYears = useMemo(() => {
     return [...years];
   }, [years]);
@@ -196,7 +247,7 @@ const YearsList: React.FC<
         ListHeaderComponent={<YearsHeader artist={artist} years={years} />}
         data={allYears}
         renderItem={({ item: year }) => {
-          return <YearListItem year={year} onPress={onItemPress} />;
+          return <YearListItem year={year} />;
         }}
         {...props}
       />

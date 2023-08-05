@@ -5,7 +5,7 @@
       "typedRoutes": true
     },
     "name": "Relisten",
-    "slug": "Relisten",
+    "slug": "relisten",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -39,6 +39,15 @@
     ],
     "plugins": [
       "expo-router"
-    ]
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "3b18b7db-fdf8-4a2c-8c24-19e24a8fd3a8"
+      }
+    },
+    "owner": "relisten"
   }
 }

@@ -16,7 +16,7 @@ export const useArtists = createNetworkBackedModelArrayHook(
 );
 
 export function useArtist(
-  artistUuid: string,
+  artistUuid?: string,
   options?: NetworkBackedHookOptions
 ): NetworkBackedResults<Artist | null> {
   const artists = useArtists(options);
