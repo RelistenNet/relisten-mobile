@@ -12,7 +12,7 @@ extension RelistenGaplessAudioPlayer {
         guard let activeStream else {
             return
         }
-
+        
         let oldElapsed = elapsed ?? 0
         let oldDuration = currentDuration ?? 0
         let prevState = _currentState
@@ -35,12 +35,13 @@ extension RelistenGaplessAudioPlayer {
             var sendDownloadChanged = false
             var sendStateChanged = false
 
-            if oldElapsed != thisElapsed || oldDuration != thisDuration {
+            if thisElapsed == nil || floor(oldElapsed) != floor(thisElapsed ?? 0) || oldDuration != thisDuration {
                 sendPlaybackChanged = true
             }
-
+            
+            // Only update once per 100 KiB
             if downloadedBytes != -1 || totalFileBytes != -1 || oldTotalFileBytes != -1 || oldTotalFileBytes != -1,
-               oldDownloadedBytes != downloadedBytes || oldTotalFileBytes != totalFileBytes
+               floor(Double(oldDownloadedBytes) / (100 * 1024)) != floor(Double(downloadedBytes) / (100 * 1024)) || oldTotalFileBytes != totalFileBytes
             {
                 sendDownloadChanged = true
             }
@@ -49,22 +50,21 @@ extension RelistenGaplessAudioPlayer {
                 sendStateChanged = true
             }
 
-            if sendStateChanged || sendDownloadChanged || sendPlaybackChanged {
-                DispatchQueue.main.async {
-                    if sendPlaybackChanged {
-                        self.delegate?.playbackProgressChanged(self, elapsed: thisElapsed, duration: thisDuration)
-                    }
-
-                    if sendDownloadChanged {
-                        self.delegate?.downloadProgressChanged(self, forActiveTrack: true, downloadedBytes: downloadedBytes, totalBytes: totalFileBytes)
-                    }
-
-                    if sendStateChanged {
-                        self.delegate?.playbackStateChanged(self, newPlaybackState: currentState)
-                    }
-                }
+            if sendPlaybackChanged {
+                NSLog("[playback updates] sendPlaybackChanged")
+                self.delegate?.playbackProgressChanged(self, elapsed: thisElapsed, duration: thisDuration)
             }
 
+            if sendDownloadChanged {
+                NSLog("[playback updates] sendDownloadChanged")
+                self.delegate?.downloadProgressChanged(self, forActiveTrack: true, downloadedBytes: downloadedBytes, totalBytes: totalFileBytes)
+            }
+
+            if sendStateChanged {
+                NSLog("[playback updates] sendStateChanged")
+                self.delegate?.playbackStateChanged(self, newPlaybackState: currentState)
+            }
+            
             startUpdates()
         }
     }

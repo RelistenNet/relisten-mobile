@@ -3,7 +3,7 @@ import 'react-native-get-random-values';
 import 'react-native-reanimated';
 import 'uuid';
 
-import { Slot, router } from 'expo-router';
+import { router, Slot } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { RelistenApiProvider } from '@/relisten/api/context';

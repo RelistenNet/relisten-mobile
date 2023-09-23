@@ -41,9 +41,9 @@ PODS:
     - ReactCommon/turbomodule/core (= 0.72.3)
   - fmt (6.2.1)
   - glog (0.3.5)
-  - hermes-engine (0.72.3):
-    - hermes-engine/Pre-built (= 0.72.3)
-  - hermes-engine/Pre-built (0.72.3)
+  - hermes-engine (0.72.1):
+    - hermes-engine/Pre-built (= 0.72.1)
+  - hermes-engine/Pre-built (0.72.1)
   - libevent (2.1.12)
   - RCT-Folly (2021.07.22.00):
     - boost
@@ -720,7 +720,7 @@ SPEC CHECKSUMS:
   FBReactNativeSpec: c6bd9e179757b3c0ecf815864fae8032377903ef
   fmt: ff9d55029c625d3757ed641535fd4a75fedc7ce9
   glog: 04b94705f318337d7ead9e6d17c019bd9b1f6b1b
-  hermes-engine: 10fbd3f62405c41ea07e71973ea61e1878d07322
+  hermes-engine: 9df83855a0fd15ef8eb61694652bae636b0c466e
   libevent: 4049cae6c81cdb3654a443be001fb9bdceff7913
   RCT-Folly: 424b8c9a7a0b9ab2886ffe9c3b041ef628fd4fb1
   RCTRequired: a2faf4bad4e438ca37b2040cb8f7799baa065c18
@@ -731,7 +731,7 @@ SPEC CHECKSUMS:
   React-Core: aaacca67f9ca54f142827e67f44bfbd815875eb6
   React-CoreModules: 32fab1d62416849a3b6dac6feff9d54e5ddc2d1e
   React-cxxreact: 37765b4975541105b2a3322a4b473417c158c869
-  React-debug: 306851ef8490d74a52f206f1b9835ef78e2e4711
+  React-debug: b954cfa3e96497d7dc9f9654f3088836963bfe40
   React-hermes: 935ae71fb3d7654e947beba8498835cd5e479707
   React-jsi: ec628dc7a15ffea969f237b0ea6d2fde212b19dd
   React-jsiexecutor: 59d1eb03af7d30b7d66589c410f13151271e8006
@@ -739,7 +739,7 @@ SPEC CHECKSUMS:
   React-logger: c5b527272d5f22eaa09bb3c3a690fee8f237ae95
   react-native-get-random-values: a6ea6a8a65dc93e96e24a11105b1a9c8cfe1d72a
   react-native-safe-area-context: 36cc67648134e89465663b8172336a19eeda493d
-  React-NativeModulesApple: 6c0cacb7d4c8dcad888de099077116cec7029bdb
+  React-NativeModulesApple: cf7c6131da67c9ce929a869c6d40c87d1d2eb7b8
   React-perflogger: 6bd153e776e6beed54c56b0847e1220a3ff92ba5
   React-RCTActionSheet: c0b62af44e610e69d9a2049a682f5dba4e9dff17
   React-RCTAnimation: fe7005136b58f58871cab2f70732343b6e330d30
@@ -753,9 +753,9 @@ SPEC CHECKSUMS:
   React-RCTVibration: ea3a68a49873a54ced927c90923fc6932baf344a
   React-rncore: 9672a017af4a7da7495d911f0b690cbcae9dd18d
   React-runtimeexecutor: 369ae9bb3f83b65201c0c8f7d50b72280b5a1dbc
-  React-runtimescheduler: 641dd3e3a88c0fc019744921480e0a284771fac8
-  React-utils: 0a77ca7f8386664fe8e903b70e3ef7bef303cb32
-  ReactCommon: 42855e3e3579915d8bd7d14bf578d47136701387
+  React-runtimescheduler: 122797343b63cdaccff9f2a8155ba9bc28525247
+  React-utils: de7833969d2cc2121b078264fca06ea6e03777f5
+  ReactCommon: 70684e9eb86e0e2dde95c788a72618254403028b
   RealmJS: 8deebf00c84f499c654bc585583c54f55b586751
   RelistenAudioPlayer: 180c4135cfd2c86df85e8ea135175b6e05bf31bc
   RNCAsyncStorage: ddc4ee162bfd41b0d2c68bf2d95acd81dd7f1f93

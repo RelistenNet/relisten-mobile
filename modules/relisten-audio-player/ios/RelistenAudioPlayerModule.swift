@@ -70,13 +70,38 @@ public class RelistenAudioPlayerModule: Module {
         Function("prepareAudioSession") {
             player?.prepareAudioSession()
         }
+        
+        AsyncFunction("playbackProgress") { (promise: Promise) in
+            player?.bassQueue.async {
+                guard let player = self.player else {
+                    promise.resolve(["playbackProgress": nil] as [String : Any?])
+                    return
+                }
+                
+                promise.resolve([
+                    "playbackProgress": [
+                        "elapsed": player.elapsed,
+                        "duration": player.currentDuration,
+                    ] as [String : TimeInterval?],
+                    "activeTrackDownloadProgress": [
+                        "forActiveTrack": true,
+                        "downloadedBytes": player.activeTrackDownloadedBytes as Any,
+                        "totalBytes": player.activeTrackTotalBytes as Any,
+                    ] as [String : Any]
+                ] as [String : Any])
+            }
+        }
 
-        Function("play") { (streamable: RelistenStreamable) in
+        AsyncFunction("play") { (streamable: RelistenStreamable, promise: Promise) in
             guard let url = streamable.url, let identifier = streamable.identifier else {
+                promise.resolve()
                 return
             }
 
-            player?.play(RelistenGaplessStreamable(url: url, identifier: identifier))
+            player?.bassQueue.async {
+                self.player?.play(RelistenGaplessStreamable(url: url, identifier: identifier))
+                promise.resolve()
+            }
         }
 
         Function("setNextStream"){ (streamable: RelistenStreamable) in
@@ -87,24 +112,39 @@ public class RelistenAudioPlayerModule: Module {
             player?.setNextStream(RelistenGaplessStreamable(url: url, identifier: identifier))
         }
 
-        Function("resume") {
-            player?.resume()
+        AsyncFunction("resume") { (promise: Promise) in
+            player?.bassQueue.async {
+                self.player?.resume()
+                promise.resolve()
+            }
         }
 
-        Function("pause") {
-            player?.pause()
+        AsyncFunction("pause") { (promise: Promise) in
+            player?.bassQueue.async {
+                self.player?.pause()
+                promise.resolve()
+            }
         }
 
-        Function("stop") {
-            player?.stop()
+        AsyncFunction("stop") { (promise: Promise) in
+            player?.bassQueue.async {
+                self.player?.stop()
+                promise.resolve()
+            }
         }
 
-        Function("next") {
-            player?.next()
+        AsyncFunction("next") { (promise: Promise) in
+            player?.bassQueue.async {
+                self.player?.next()
+                promise.resolve()
+            }
         }
 
-        Function("seekTo") { (pct: Double) in
-            player?.seekTo(percent: pct)
+        AsyncFunction("seekTo") { (pct: Double, promise: Promise) in
+            player?.bassQueue.async {
+                self.player?.seekTo(percent: pct)
+                promise.resolve()
+            }
         }
     }
 }
