@@ -18,7 +18,7 @@ import { useRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useForceUpdate } from '@/relisten/util/forced_update';
 import { memo } from '@/relisten/util/memo';
-import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
 import { MoreOrLess } from '@rntext/more-or-less';
 import dayjs from 'dayjs';
 import { Link, useGlobalSearchParams, useNavigation } from 'expo-router';
@@ -34,6 +34,7 @@ import {
   View,
 } from 'react-native';
 import * as R from 'remeda';
+import { PlayShow, SourceTrackComponent } from '@/relisten/components/SourceTrackComponent';
 
 export const SourceList = ({ sources }: { sources: Source[] }) => {
   return (
@@ -46,8 +47,6 @@ export const SourceList = ({ sources }: { sources: Source[] }) => {
     />
   );
 };
-
-type PlayShow = (sourceTrack?: SourceTrack) => void;
 
 export default function Page() {
   const navigation = useNavigation();
@@ -276,7 +275,7 @@ export const SourceHeader: React.FC<{ source: Source; show: Show; playShow: Play
             className="shrink basis-1/2"
             textClassName="text-l"
             icon={<MaterialIcons name="play-arrow" size={20} color="white" />}
-            onPress={() => playShow(0)}
+            onPress={() => playShow(source.sourceSets[0].sourceTracks[0])}
           >
             Play
           </RelistenButton>
@@ -360,39 +359,6 @@ export const SourceSetComponent: React.FC<{
     </View>
   );
 });
-
-export const SourceTrackComponent: React.FC<{
-  sourceTrack: SourceTrack;
-  isLastTrackInSet: boolean;
-  playShow: PlayShow;
-}> = ({ sourceTrack, isLastTrackInSet, playShow }) => {
-  return (
-    <TouchableOpacity
-      className="flex flex-row items-start pl-6 pr-4"
-      onPress={() => playShow(sourceTrack)}
-    >
-      <View className="basis-7 pt-3 ">
-        <RelistenText className="pt-[1] text-lg text-gray-400">
-          {sourceTrack.trackPosition}
-        </RelistenText>
-      </View>
-
-      <View className="shrink flex-col">
-        <View className="w-full grow flex-row items-center justify-between">
-          <RelistenText className="shrink py-3 pr-2 text-lg">{sourceTrack.title}</RelistenText>
-          <View className="grow"></View>
-          <RelistenText className="py-3 text-base text-gray-400">
-            {sourceTrack.humanizedDuration}
-          </RelistenText>
-          <TouchableOpacity className="shrink-0 grow-0 py-3 pl-4">
-            <MaterialCommunityIcons name="dots-horizontal" size={16} color="white" />
-          </TouchableOpacity>
-        </View>
-        {!isLastTrackInSet && <ItemSeparator />}
-      </View>
-    </TouchableOpacity>
-  );
-};
 
 const SelectedSource: React.FC<{ sources: Source[]; sourceIndex: number }> = ({
   sources,
