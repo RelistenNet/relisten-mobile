@@ -46,6 +46,7 @@ export default function Page() {
         ScrollableComponent={YearsList}
         artist={artist}
         years={years}
+        filterPersistenceKey={['artists', artistUuid, 'years'].join('/')}
       />
     </RefreshContextProvider>
   );
@@ -66,12 +67,12 @@ const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> 
     const goToRandomShow = async () => {
       const randomShow = await apiClient.randomShow(artist.uuid);
 
-      if (randomShow?.uuid) {
+      if (randomShow?.data?.uuid) {
         router.push({
           pathname: '/(tabs)/artists/[artistUuid]/show/[showUuid]/',
           params: {
             artistUuid: artist.uuid,
-            showUuid: randomShow.uuid,
+            showUuid: randomShow!.data!.uuid,
           },
         });
       }
@@ -207,8 +208,9 @@ const YearListItem = ({ year }: { year: Year }) => {
 };
 
 const YEAR_FILTERS: Filter<Year>[] = [
-  { title: 'My Library', active: false, filter: (y) => y.isFavorite },
+  { persistenceKey: 'library', title: 'My Library', active: false, filter: (y) => y.isFavorite },
   {
+    persistenceKey: 'year',
     title: 'Year',
     sortDirection: SortDirection.Ascending,
     active: true,
@@ -216,6 +218,7 @@ const YEAR_FILTERS: Filter<Year>[] = [
     sort: (years) => years.sort((a, b) => a.year.localeCompare(b.year)),
   },
   {
+    persistenceKey: 'shows',
     title: 'Shows',
     sortDirection: SortDirection.Descending,
     active: false,
@@ -223,6 +226,7 @@ const YEAR_FILTERS: Filter<Year>[] = [
     sort: (years) => years.sort((a, b) => a.showCount - b.showCount),
   },
   {
+    persistenceKey: 'tapes',
     title: 'Tapes',
     sortDirection: SortDirection.Descending,
     active: false,
@@ -235,14 +239,15 @@ const YearsList: React.FC<
   {
     artist: Artist | null;
     years: Realm.Results<Year>;
+    filterPersistenceKey: string;
   } & Omit<FilterableListProps<Year>, 'data' | 'renderItem'>
-> = ({ artist, years, ...props }) => {
+> = ({ artist, years, filterPersistenceKey, ...props }) => {
   const allYears = useMemo(() => {
     return [...years];
   }, [years]);
 
   return (
-    <FilteringProvider filters={YEAR_FILTERS}>
+    <FilteringProvider filters={YEAR_FILTERS} filterPersistenceKey={filterPersistenceKey}>
       <FilterableList
         ListHeaderComponent={<YearsHeader artist={artist} years={years} />}
         data={allYears}

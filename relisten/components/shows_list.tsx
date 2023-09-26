@@ -49,8 +49,9 @@ const ShowListItem = ({ show }: { show: Show }) => {
 };
 
 const SHOW_FILTERS: Filter<Show>[] = [
-  { title: 'My Library', active: false, filter: (y) => y.isFavorite },
+  { persistenceKey: 'library', title: 'My Library', active: false, filter: (y) => y.isFavorite },
   {
+    persistenceKey: 'date',
     title: 'Date',
     sortDirection: SortDirection.Ascending,
     active: true,
@@ -58,6 +59,7 @@ const SHOW_FILTERS: Filter<Show>[] = [
     sort: (years) => years.sort((a, b) => a.displayDate.localeCompare(b.displayDate)),
   },
   {
+    persistenceKey: 'rating',
     title: 'Rating',
     sortDirection: SortDirection.Descending,
     active: false,
@@ -65,6 +67,7 @@ const SHOW_FILTERS: Filter<Show>[] = [
     sort: (years) => years.sort((a, b) => a.avgRating - b.avgRating),
   },
   {
+    persistenceKey: 'tapes',
     title: 'Tapes',
     sortDirection: SortDirection.Descending,
     active: false,
@@ -72,6 +75,7 @@ const SHOW_FILTERS: Filter<Show>[] = [
     sort: (years) => years.sort((a, b) => a.sourceCount - b.sourceCount),
   },
   {
+    persistenceKey: 'duration',
     title: 'Duration',
     sortDirection: SortDirection.Descending,
     active: false,
@@ -83,14 +87,15 @@ const SHOW_FILTERS: Filter<Show>[] = [
 export const ShowList: React.FC<
   {
     shows: Realm.Results<Show>;
+    filterPersistenceKey: string;
   } & Omit<FilterableListProps<Show>, 'data' | 'renderItem'>
-> = ({ shows, ...props }) => {
+> = ({ shows, filterPersistenceKey, ...props }) => {
   const allShows = useMemo(() => {
     return [...shows];
   }, [shows]);
 
   return (
-    <FilteringProvider filters={SHOW_FILTERS}>
+    <FilteringProvider filters={SHOW_FILTERS} filterPersistenceKey={filterPersistenceKey}>
       <FilterableList
         data={allShows}
         renderItem={({ item: show }) => {

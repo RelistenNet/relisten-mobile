@@ -1,5 +1,7 @@
 import React, { PropsWithChildren, useCallback, useContext, useEffect, useState } from 'react';
 import { RelistenObject } from '../../api/models/relisten';
+import { useRealm } from '@/relisten/realm/schema';
+import { RouteFilterConfig, serializeFilters } from '@/relisten/realm/models/route_filter_config';
 
 export enum SortDirection {
   UNKNOWN = 0,
@@ -7,10 +9,14 @@ export enum SortDirection {
   Descending,
 }
 
-export interface Filter<T> {
-  sortDirection?: SortDirection;
-  isNumeric?: boolean;
+export interface PersistedFilter {
+  persistenceKey: string;
   active: boolean;
+  sortDirection?: SortDirection;
+}
+
+export interface Filter<T> extends PersistedFilter {
+  isNumeric?: boolean;
   title: string;
 
   // You must provide one of the two
@@ -34,9 +40,12 @@ export const FilteringContext = React.createContext<FilteringContextProps<any> |
 export const FilteringProvider = <T extends RelistenObject>({
   children,
   filters,
-}: PropsWithChildren<{ filters: ReadonlyArray<Filter<T>> }>) => {
+  filterPersistenceKey,
+}: PropsWithChildren<{ filters: ReadonlyArray<Filter<T>>; filterPersistenceKey: string }>) => {
   const [rawData, setRawData] = useState<T[] | undefined>(undefined);
   const [filteredData, setFilteredData] = useState<T[] | undefined>(undefined);
+
+  const realm = useRealm();
 
   const filter = useCallback(
     (allData: ReadonlyArray<T>) => {
@@ -74,11 +83,34 @@ export const FilteringProvider = <T extends RelistenObject>({
     [filters]
   );
 
-  useEffect(() => {
+  const refilter = useCallback(() => {
     if (rawData) {
       setFilteredData(filter(rawData));
     }
   }, [rawData, filter, setFilteredData]);
+
+  useEffect(() => {
+    refilter();
+  }, [refilter]);
+
+  useEffect(() => {
+    const routeFilterConfig = realm.objectForPrimaryKey(RouteFilterConfig, filterPersistenceKey);
+
+    if (routeFilterConfig) {
+      const persistedFilters = routeFilterConfig.filters();
+
+      for (const filter of filters) {
+        const persistedFilter = persistedFilters[filter.persistenceKey];
+
+        if (persistedFilter) {
+          filter.active = persistedFilter.active;
+          filter.sortDirection = persistedFilter.sortDirection;
+        }
+      }
+
+      refilter();
+    }
+  }, [realm, filterPersistenceKey, filters, refilter]);
 
   const onFilterButtonPress = useCallback(
     (thisFilter: Filter<T>) => {
@@ -111,11 +143,22 @@ export const FilteringProvider = <T extends RelistenObject>({
         thisFilter.active = !thisFilter.active;
       }
 
-      if (rawData) {
-        setFilteredData(filter(rawData));
-      }
+      realm.write(() => {
+        let routeFilterConfig = realm.objectForPrimaryKey(RouteFilterConfig, filterPersistenceKey);
+
+        if (routeFilterConfig) {
+          routeFilterConfig.setFilters(filters);
+        } else {
+          routeFilterConfig = realm.create(RouteFilterConfig, {
+            key: filterPersistenceKey,
+            rawFilters: serializeFilters(filters),
+          });
+        }
+      });
+
+      refilter();
     },
-    [filters, filter, setFilteredData, rawData]
+    [filters, refilter, realm, filterPersistenceKey]
   );
 
   return (
