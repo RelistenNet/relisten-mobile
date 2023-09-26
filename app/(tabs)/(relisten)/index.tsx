@@ -1,7 +1,7 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { usePlaybackState } from '@/relisten/components/PlaybackBar';
 import { RelistenText } from '@/relisten/components/relisten_text';
+import { usePlaybackState } from '@/relisten/components/playback_state';
 
 export default function Page() {
   const playbackState = usePlaybackState();

@@ -2,7 +2,7 @@ import { NetworkBackedResults, useNetworkBackedResults } from './network_backed_
 import { RelistenApiUpdatableObject, Repository } from './repository';
 import { RelistenObjectRequiredProperties } from './relisten_object';
 import Realm from 'realm';
-import { RelistenApiClient } from '../api/client';
+import { RelistenApiClient, RelistenApiResponse, RelistenApiResponseType } from '../api/client';
 import { useRealm } from './schema';
 import { useRelistenApi } from '../api/context';
 import { useEffect, useMemo, useState } from 'react';
@@ -52,7 +52,9 @@ export function useNetworkBackedBehavior<TLocalData, TApiData>(
         setPerformNetworkRequest(false);
         setHasDoneUpsert(false);
 
-        setApiData(apiData);
+        if (apiData?.type == RelistenApiResponseType.OnlineRequestCompleted) {
+          setApiData(apiData.data);
+        }
       })();
     }
   }, [shouldPerformNetworkRequest, forceNetworkRequest, api.apiClient, setApiData]);
@@ -89,7 +91,7 @@ export function createNetworkBackedModelArrayHook<
 >(
   repo: Repository<TModel, TApi, RequiredProperties, RequiredRelationships>,
   fetchFromRealm: () => Realm.Results<TModel>,
-  fetchFromApi: (api: RelistenApiClient) => Promise<TApi[]>
+  fetchFromApi: (api: RelistenApiClient) => Promise<RelistenApiResponse<TApi[]>>
 ): (options?: NetworkBackedHookOptions) => NetworkBackedResults<Realm.Results<TModel>> {
   return (options) => {
     const behavior = useMemo(() => {
@@ -114,7 +116,7 @@ export function createNetworkBackedModelHook<
 >(
   repo: Repository<TModel, TApi, RequiredProperties, RequiredRelationships>,
   fetchFromRealm: () => TModel | null,
-  fetchFromApi: (api: RelistenApiClient) => Promise<TApi>
+  fetchFromApi: (api: RelistenApiClient) => Promise<RelistenApiResponse<TApi>>
 ): (options?: NetworkBackedHookOptions) => NetworkBackedResults<TModel | null> {
   return (options) => {
     const behavior = useMemo(() => {

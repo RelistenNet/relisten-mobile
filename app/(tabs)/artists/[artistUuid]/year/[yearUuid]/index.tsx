@@ -26,7 +26,12 @@ export default function Page() {
   return (
     <View style={{ flex: 1, width: '100%' }}>
       <RefreshContextProvider networkBackedResults={results}>
-        <DisappearingHeaderScreen headerHeight={50} ScrollableComponent={ShowList} shows={shows!} />
+        <DisappearingHeaderScreen
+          headerHeight={50}
+          ScrollableComponent={ShowList}
+          shows={shows!}
+          filterPersistenceKey={['artists', artistUuid, 'years', yearUuid].join('/')}
+        />
       </RefreshContextProvider>
     </View>
   );

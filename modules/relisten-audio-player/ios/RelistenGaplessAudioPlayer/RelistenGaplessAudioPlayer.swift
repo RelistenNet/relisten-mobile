@@ -74,6 +74,26 @@ public class RelistenGaplessAudioPlayer {
 
         return BASS_ChannelBytes2Seconds(activeStream.stream, elapsedBytes + activeStream.channelOffset)
     }
+    
+    public var activeTrackDownloadedBytes: UInt64? {
+        guard isSetup, let activeStream = activeStream else {
+            return nil
+        }
+
+        let downloadedBytes = BASS_StreamGetFilePosition(activeStream.stream, DWORD(BASS_FILEPOS_DOWNLOAD))
+        
+        return downloadedBytes
+    }
+    
+    public var activeTrackTotalBytes: UInt64? {
+        guard isSetup, let activeStream = activeStream else {
+            return nil
+        }
+
+        let totalFileBytes = BASS_StreamGetFilePosition(activeStream.stream, DWORD(BASS_FILEPOS_SIZE))
+
+        return totalFileBytes
+    }
 
     public var volume: Float {
         get {
@@ -225,7 +245,7 @@ public class RelistenGaplessAudioPlayer {
 
     internal var _currentState: PlaybackState = .Stopped
     internal var wasPlayingWhenInterrupted: Bool = false
-
+    
     deinit {
         maybeTearDownBASS()
         tearDownAudioSession()

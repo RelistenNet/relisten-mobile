@@ -62,6 +62,11 @@ export interface RelistenTrackChangedEvent {
   currentIdentifier: string;
 }
 
+export interface PlaybackProgress {
+  playbackProgress: RelistenPlaybackProgressChangedEvent;
+  activeTrackDownloadProgress: RelistenDownloadProgressChangedEvent;
+}
+
 class RelistenGaplessPlayer {
   addErrorListener(listener: (event: RelistenErrorEvent) => void): Subscription {
     return emitter.addListener<RelistenErrorEvent>('onError', listener);
@@ -81,9 +86,9 @@ class RelistenGaplessPlayer {
   }
 
   addPlaybackProgressListener(
-    listener: (event: RelistenPlaybackStateChangedEvent) => void
+    listener: (event: RelistenPlaybackProgressChangedEvent) => void
   ): Subscription {
-    return emitter.addListener<RelistenPlaybackStateChangedEvent>(
+    return emitter.addListener<RelistenPlaybackProgressChangedEvent>(
       'onPlaybackProgressChanged',
       listener
     );
@@ -130,36 +135,40 @@ class RelistenGaplessPlayer {
     RelistenAudioPlayerModule.setDebugState(newState);
   }
 
-  play(streamable: RelistenStreamable) {
-    RelistenAudioPlayerModule.play(streamable);
+  playbackProgress(): Promise<PlaybackProgress> {
+    return RelistenAudioPlayerModule.playbackProgress();
+  }
+
+  play(streamable: RelistenStreamable): Promise<void> {
+    return RelistenAudioPlayerModule.play(streamable);
   }
 
   setNextStream(streamable: RelistenStreamable) {
     RelistenAudioPlayerModule.setNextStream(streamable);
   }
 
-  resume() {
-    RelistenAudioPlayerModule.resume();
+  resume(): Promise<void> {
+    return RelistenAudioPlayerModule.resume();
   }
 
-  pause() {
-    RelistenAudioPlayerModule.pause();
+  pause(): Promise<void> {
+    return RelistenAudioPlayerModule.pause();
   }
 
-  stop() {
-    RelistenAudioPlayerModule.stop();
+  stop(): Promise<void> {
+    return RelistenAudioPlayerModule.stop();
   }
 
-  next() {
-    RelistenAudioPlayerModule.next();
+  next(): Promise<void> {
+    return RelistenAudioPlayerModule.next();
   }
 
   prepareAudioSession() {
     RelistenAudioPlayerModule.next();
   }
 
-  seekTo(pct: number) {
-    RelistenAudioPlayerModule.seekTo(pct);
+  seekTo(pct: number): Promise<void> {
+    return RelistenAudioPlayerModule.seekTo(pct);
   }
 }
 

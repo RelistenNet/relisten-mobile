@@ -3,7 +3,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { useSelector } from '@xstate/react';
 import { MotiView, View } from 'moti';
-import { useEffect, useRef, useState } from 'react';
+import { useRef } from 'react';
 import { Pressable, TouchableOpacity } from 'react-native';
 import PlaybackMachine from '../machines/PlaybackMachine';
 import { useArtist } from '../realm/models/artist_repo';
@@ -13,50 +13,23 @@ import Flex from './flex';
 import { RelistenButton } from './relisten_button';
 import { RelistenText } from './relisten_text';
 import PlaybackQueue from './PlaybackQueue';
-
-export const usePlaybackState = () => {
-  const [state, setState] = useState<any>({});
-
-  const percent = state?.progress?.elapsed / state?.progress?.duration || undefined;
-
-  useEffect(() => {
-    const download = player.addDownloadProgressListener((download) => {
-      setState((obj) => ({
-        ...obj,
-        downloadPercent: download.downloadedBytes / download.totalBytes,
-      }));
-    });
-
-    const listener = player.addPlaybackProgressListener((progress) => {
-      setState((obj) => ({ ...obj, progress }));
-    });
-
-    const playback = player.addPlaybackStateListener((playbackState) => {
-      if (playbackState?.newPlaybackState) {
-        setState((obj) => ({ ...obj, playback: playbackState?.newPlaybackState }));
-      }
-    });
-
-    return () => {
-      download.remove();
-      listener.remove();
-      playback.remove();
-    };
-  });
-
-  return { ...state, percent };
-};
+import {
+  useActiveTrackDownloadProgress,
+  usePlaybackProgress,
+  usePlaybackState,
+} from '@/relisten/components/playback_state';
 
 export const useIsBarVisible = () => {
-  const playback = usePlaybackState();
+  const playbackState = usePlaybackState();
 
-  return playback && playback?.playback !== 'Stopped';
+  console.info('playbackState', playbackState);
+  return playbackState !== undefined && playbackState !== 'Stopped';
 };
 
 // type StyledBottomSheetProps = {
 //   handleStyle?: StyleProp<ViewStyle>;
 // } & BottomSheetProps;
-
+//
 // const StyledBottomSheet = styled(
 //   ({ handleStyle, ...props }: StyledBottomSheetProps) => (
 //     <BottomSheet {...props} handleStyle={handleStyle} />
@@ -74,10 +47,68 @@ export const DEFAULT_PLAYBACK_HEIGHT = 64;
 export const PLAYBACK_SKELETON = () => {
   const isPlaybackBarVisbile = useIsBarVisible();
 
+  console.info('isPlaybackBarVisbile', isPlaybackBarVisbile);
   return (
-    <View style={{ height: isPlaybackBarVisbile ? 0 : DEFAULT_PLAYBACK_HEIGHT, width: '100%' }} />
+    <View
+      style={{
+        height: isPlaybackBarVisbile ? DEFAULT_PLAYBACK_HEIGHT : 0,
+        backgroundColor: 'red',
+        width: '100%',
+      }}
+    />
   );
 };
+
+function ProgressText() {
+  const playbackProgress = usePlaybackProgress();
+
+  return (
+    <>
+      {(playbackProgress?.duration ?? 0) > 0 && (
+        <Flex cn="flex-row">
+          <RelistenText
+            numberOfLines={1}
+            // animate={{
+            //   translateX: -100,
+            // }}
+            className="text-sm"
+          >
+            {duration(playbackProgress?.elapsed ?? 0, playbackProgress?.duration ?? 0)}/
+            {duration(playbackProgress?.duration ?? 0)}
+          </RelistenText>
+        </Flex>
+      )}
+    </>
+  );
+}
+
+function DownloadProgressBar() {
+  const activeTrackDownloadProgress = useActiveTrackDownloadProgress();
+
+  return (
+    <MotiView
+      // from={{ width: '100%' }}
+      // animate={{ width: '25%' }}
+      // from={{ width: 0, }}
+      animate={{ width: (activeTrackDownloadProgress?.percent ?? 0) * 250 }}
+      className="absolute bottom-0 left-0 top-0 h-full w-full bg-relisten-blue-200"
+    />
+  );
+}
+
+function PlaybackProgressBar() {
+  const playbackProgress = usePlaybackProgress();
+
+  return (
+    <MotiView
+      // from={{ width: '100%' }}
+      // animate={{ width: '25%' }}
+      // from={{ width: 0, }}
+      animate={{ translateX: (playbackProgress?.percent ?? 0.0) * 250 }}
+      className="absolute -left-0.5 bottom-0 h-[150%] w-1 bg-relisten-blue-400"
+    />
+  );
+}
 
 export default function PlaybackBar() {
   const bottomSheetIndexRef = useRef<number>(1);
@@ -85,6 +116,8 @@ export default function PlaybackBar() {
   const context = useSelector(PlaybackMachine, ({ context }) => context);
   const machineState = useSelector(PlaybackMachine, ({ value }) => value);
   const playbackState = usePlaybackState();
+
+  // console.log('rendering playback bar', playbackState);
 
   const playpause = () => {
     PlaybackMachine.send({ type: 'PLAYPAUSE' });
@@ -118,24 +151,12 @@ export default function PlaybackBar() {
     <BottomSheet
       snapPoints={[DEFAULT_PLAYBACK_HEIGHT, '90%']}
       ref={bottomSheetRef}
-      index={!playbackState?.playback ? -1 : 0}
+      index={!playbackState ? -1 : 0}
       onChange={(index) => (bottomSheetIndexRef.current = index)}
       handleComponent={() => (
         <View className="relative h-2 w-full bg-relisten-blue-800">
-          <MotiView
-            // from={{ width: '100%' }}
-            // animate={{ width: '25%' }}
-            // from={{ width: 0, }}
-            animate={{ width: (playbackState.downloadPercent ?? 0) * 250 }}
-            className="absolute bottom-0 left-0 top-0 h-full w-full bg-relisten-blue-200"
-          />
-          <MotiView
-            // from={{ width: '100%' }}
-            // animate={{ width: '25%' }}
-            // from={{ width: 0, }}
-            animate={{ translateX: (playbackState.percent ?? 0.0) * 250 }}
-            className="absolute -left-0.5 bottom-0 h-[150%] w-1 bg-relisten-blue-400"
-          />
+          <DownloadProgressBar />
+          <PlaybackProgressBar />
         </View>
       )}
       // snapPoints={snapPoints}
@@ -166,20 +187,7 @@ export default function PlaybackBar() {
               <RelistenText className="truncate" numberOfLines={1}>
                 {subtitle ?? ''}
               </RelistenText>
-              {playbackState.progress?.duration > 0 && (
-                <Flex cn="flex-row">
-                  <RelistenText
-                    numberOfLines={1}
-                    // animate={{
-                    //   translateX: -100,
-                    // }}
-                    className="text-sm"
-                  >
-                    {duration(playbackState.progress?.elapsed, playbackState.progress?.duration)}/
-                    {duration(playbackState.progress?.duration)}
-                  </RelistenText>
-                </Flex>
-              )}
+              <ProgressText />
             </Flex>
             <Flex>
               <MaterialIcons name="drag-indicator" size={32} color="rgba(255,255,255,0.7)" />

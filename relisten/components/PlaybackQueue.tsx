@@ -1,8 +1,8 @@
 import { useSelector } from '@xstate/react';
 
-import { SourceTrackComponent } from '@/app/(tabs)/artists/[artistUuid]/show/[showUuid]';
 import { FlatList } from 'react-native';
 import PlaybackMachine from '../machines/PlaybackMachine';
+import { SourceTrackComponent } from '@/relisten/components/SourceTrackComponent';
 
 export default function PlaybackQueue() {
   const context = useSelector(PlaybackMachine, ({ context }) => context);

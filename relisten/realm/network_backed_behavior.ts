@@ -1,13 +1,13 @@
 import { RelistenApiUpdatableObject, Repository } from './repository';
 import { RelistenObjectRequiredProperties } from './relisten_object';
-import { RelistenApiClient } from '../api/client';
+import { RelistenApiClient, RelistenApiResponse } from '../api/client';
 import dayjs from 'dayjs';
 import Realm from 'realm';
 
 export interface NetworkBackedBehavior<TLocalData, TApiData> {
   fetchFromLocal(): TLocalData;
 
-  fetchFromApi(api: RelistenApiClient): Promise<TApiData | undefined>;
+  fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<TApiData | undefined>>;
 
   shouldPerformNetworkRequest(
     lastRequestAt: dayjs.Dayjs | undefined,
@@ -61,7 +61,7 @@ export abstract class ThrottledNetworkBackedBehavior<TLocalData, TApiData>
     return msSinceLastRequest >= this.minTimeBetweenRequestsSeconds * 1000;
   }
 
-  abstract fetchFromApi(api: RelistenApiClient): Promise<TApiData | undefined>;
+  abstract fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<TApiData | undefined>>;
 
   abstract fetchFromLocal(): TLocalData;
 
@@ -79,14 +79,14 @@ export class NetworkBackedModelArrayBehavior<
   constructor(
     public repository: Repository<TModel, TApi, RequiredProperties, RequiredRelationships>,
     public fetchFromRealm: () => Realm.Results<TModel>,
-    public apiCall: (api: RelistenApiClient) => Promise<TApi[]>,
+    public apiCall: (api: RelistenApiClient) => Promise<RelistenApiResponse<TApi[]>>,
     minTimeBetweenRequestsSeconds?: number,
     onlyFetchFromApiIfLocalIsNotShowable?: boolean
   ) {
     super(minTimeBetweenRequestsSeconds, onlyFetchFromApiIfLocalIsNotShowable);
   }
 
-  fetchFromApi(api: RelistenApiClient): Promise<TApi[]> {
+  fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<TApi[]>> {
     return this.apiCall(api);
   }
 
@@ -112,14 +112,14 @@ export class NetworkBackedModelBehavior<
   constructor(
     public repository: Repository<TModel, TApi, RequiredProperties, RequiredRelationships>,
     public fetchFromRealm: () => TModel | null,
-    public apiCall: (api: RelistenApiClient) => Promise<TApi>,
+    public apiCall: (api: RelistenApiClient) => Promise<RelistenApiResponse<TApi>>,
     minTimeBetweenRequestsSeconds?: number,
     onlyFetchFromApiIfLocalIsNotShowable?: boolean
   ) {
     super(minTimeBetweenRequestsSeconds, onlyFetchFromApiIfLocalIsNotShowable);
   }
 
-  fetchFromApi(api: RelistenApiClient): Promise<TApi> {
+  fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<TApi>> {
     return this.apiCall(api);
   }
 

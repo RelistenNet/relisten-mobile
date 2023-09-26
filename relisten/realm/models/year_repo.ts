@@ -13,7 +13,7 @@ import Realm from 'realm';
 import { Show } from './show';
 import { ThrottledNetworkBackedBehavior } from '../network_backed_behavior';
 import { YearWithShows } from '../../api/models/year';
-import { RelistenApiClient } from '../../api/client';
+import { RelistenApiClient, RelistenApiResponse } from '../../api/client';
 import { showRepo } from './show_repo';
 import * as R from 'remeda';
 import { venueRepo } from './venue_repo';
@@ -64,7 +64,7 @@ class YearShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
     super();
   }
 
-  fetchFromApi(api: RelistenApiClient): Promise<YearWithShows> {
+  fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<YearWithShows>> {
     return api.year(this.artistUuid, this.yearUuid);
   }
 

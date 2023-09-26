@@ -3,11 +3,12 @@ import 'react-native-get-random-values';
 import 'react-native-reanimated';
 import 'uuid';
 
-import { Slot, router } from 'expo-router';
+import { router, Slot } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Realm } from '@realm/react';
 
 import { RelistenApiProvider } from '@/relisten/api/context';
-import { RealmProvider } from '@/relisten/realm/schema';
+import { RealmProvider, setRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
@@ -15,13 +16,14 @@ import { StatusBar } from 'expo-status-bar';
 import dayjs from 'dayjs';
 import duration from 'dayjs/plugin/duration';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import useCacheAssets from './useCacheAssets';
 
 dayjs.extend(duration);
 dayjs.extend(relativeTime);
 
 export default function TabLayout() {
+  const realmRef = useRef<Realm | null>(null);
   const isAppReady = useCacheAssets();
 
   useEffect(() => {
@@ -34,8 +36,16 @@ export default function TabLayout() {
     }
   }, [isAppReady]);
 
+  useEffect(() => {
+    if (realmRef.current) {
+      setRealm(realmRef.current);
+    } else {
+      setRealm(undefined);
+    }
+  }, [realmRef.current]);
+
   return (
-    <RealmProvider>
+    <RealmProvider realmRef={realmRef}>
       <RelistenApiProvider>
         <ThemeProvider
           value={{
