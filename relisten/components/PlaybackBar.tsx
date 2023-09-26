@@ -22,7 +22,8 @@ import {
 export const useIsBarVisible = () => {
   const playbackState = usePlaybackState();
 
-  return playbackState && playbackState !== 'Stopped';
+  console.info('playbackState', playbackState);
+  return playbackState !== undefined && playbackState !== 'Stopped';
 };
 
 // type StyledBottomSheetProps = {
@@ -46,8 +47,15 @@ export const DEFAULT_PLAYBACK_HEIGHT = 64;
 export const PLAYBACK_SKELETON = () => {
   const isPlaybackBarVisbile = useIsBarVisible();
 
+  console.info('isPlaybackBarVisbile', isPlaybackBarVisbile);
   return (
-    <View style={{ height: isPlaybackBarVisbile ? 0 : DEFAULT_PLAYBACK_HEIGHT, width: '100%' }} />
+    <View
+      style={{
+        height: isPlaybackBarVisbile ? DEFAULT_PLAYBACK_HEIGHT : 0,
+        backgroundColor: 'red',
+        width: '100%',
+      }}
+    />
   );
 };
 

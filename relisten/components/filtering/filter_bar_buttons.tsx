@@ -54,7 +54,7 @@ export const FilterBarButton = <T extends RelistenObject>({
       {...props}
     >
       <MaterialCommunityIcons name={filterIcon.icon} color={color || 'white'} size={size || 16} />
-      <View className="w-4" />
+      <View className="w-1" />
       <RelistenText className="text-base font-bold">
         {filter.title ? filter.title : children}
       </RelistenText>
