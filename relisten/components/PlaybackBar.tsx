@@ -22,7 +22,6 @@ import {
 export const useIsBarVisible = () => {
   const playbackState = usePlaybackState();
 
-  console.info('playbackState', playbackState);
   return playbackState !== undefined && playbackState !== 'Stopped';
 };
 
@@ -47,7 +46,6 @@ export const DEFAULT_PLAYBACK_HEIGHT = 64;
 export const PLAYBACK_SKELETON = () => {
   const isPlaybackBarVisbile = useIsBarVisible();
 
-  console.info('isPlaybackBarVisbile', isPlaybackBarVisbile);
   return (
     <View
       style={{
