@@ -1,128 +1,256 @@
 package net.relisten.android.audio_player.gapless
 
 import com.un4seen.bass.BASS
-import com.un4seen.bass.BASSmix
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import net.relisten.android.audio_player.gapless.internal.BASSLifecycle
+import net.relisten.android.audio_player.gapless.internal.RelistenMediaSession
+import net.relisten.android.audio_player.gapless.internal.Playback
+import net.relisten.android.audio_player.gapless.internal.PlaybackUpdates
+import net.relisten.android.audio_player.gapless.internal.StreamManagement
 
 class RelistenGaplessAudioPlayer {
-    private var isSetup: Boolean = false
+    var delegate: RelistenGaplessAudioPlayerDelegate? = null
 
-    private var mixerMainStream: Int? = null
-    private var activeStream: RelistenGaplessAudioStream? = null
+    internal var isSetup: Boolean = false
 
-    private val scope = CoroutineScope(Dispatchers.IO)
+    internal var mixerMainStream: Int? = null
+    internal var activeStream: RelistenGaplessAudioStream? = null
+    internal var nextStream: RelistenGaplessAudioStream? = null
+
+    internal val scope = CoroutineScope(Dispatchers.IO)
+
+    internal val bassLifecycle = BASSLifecycle(this)
+    internal val streamManagement = StreamManagement(this)
+    internal val playbackUpdates = PlaybackUpdates(this)
+    internal val playback = Playback(this)
+    internal val mediaSession = RelistenMediaSession(this)
 
     companion object {
         // Values from https://github.com/einsteinx2/iSubMusicStreamer/blob/master/Classes/Audio%20Engine/Bass.swift
 
+        // TODO: decide best value for this
         // 250ms (also used for BASS_CONFIG_UPDATEPERIOD, so total latency is 500ms)
-        private var outputBufferSize: Int = 250
-        private var outputSampleRate: Int = 44100
+        internal var outputBufferSize: Int = 250
+
+        // TODO: 48Khz is the default hardware sample rate of the iPhone,
+        //       but since most released music is 44.1KHz, need to confirm if it's better
+        //       to let BASS to the upsampling, or let the DAC do it...
+        internal var outputSampleRate: Int = 44100
     }
 
-    private fun maybeSetupBASS() {
-        if (isSetup) {
-            return
+    val currentDuration: Double?
+        get() {
+            val activeStream = activeStream
+
+            if (!isSetup || activeStream == null) {
+                return null
+            }
+
+            val len = BASS.BASS_ChannelGetLength(activeStream.stream, BASS.BASS_POS_BYTE)
+
+            if (len == -1L) {
+                return null
+            }
+
+            return BASS.BASS_ChannelBytes2Seconds(
+                activeStream.stream,
+                len + activeStream.channelOffset
+            )
         }
 
-        BASS.BASS_SetConfig(BASS.BASS_CONFIG_NET_TIMEOUT, 15 * 1000)
+    val elapsed: Double?
+        get() {
+            val activeStream = activeStream
 
-        // Use 2 threads
-        BASS.BASS_SetConfig(BASS.BASS_CONFIG_UPDATETHREADS, 2)
-        // Lower the update period to reduce latency
-        BASS.BASS_SetConfig(BASS.BASS_CONFIG_UPDATEPERIOD, outputBufferSize)
-        // Set the buffer length to the minimum amount + outputBufferSize
-        BASS.BASS_SetConfig(BASS.BASS_CONFIG_BUFFER, BASS.BASS_GetConfig(BASS.BASS_CONFIG_UPDATEPERIOD) + outputBufferSize)
-        // Set DSP effects to use floating point math to avoid clipping within the effects chain
-        BASS.BASS_SetConfig(BASS.BASS_CONFIG_FLOATDSP, 1)
+            if (!isSetup || activeStream == null) {
+                return null
+            }
 
-        bass_assert(BASS.BASS_Init(-1, 44100, 0))
+            val elapsedBytes =
+                BASS.BASS_ChannelGetPosition(activeStream.stream, BASS.BASS_POS_BYTE)
 
-        mixerMainStream = BASSmix.BASS_Mixer_StreamCreate(44100, 2, BASSmix.BASS_MIXER_END)
-    }
+            if (elapsedBytes == -1L) {
+                return null
+            }
 
-    public fun play(streamable: RelistenGaplessStreamable) {
+            return BASS.BASS_ChannelBytes2Seconds(
+                activeStream.stream,
+                elapsedBytes + activeStream.channelOffset
+            )
+        }
+
+    val activeTrackDownloadedBytes: Long?
+        get() {
+            val activeStream = activeStream
+
+            if (!isSetup || activeStream == null) {
+                return null
+            }
+
+            val downloadedBytes =
+                BASS.BASS_StreamGetFilePosition(activeStream.stream, BASS.BASS_FILEPOS_DOWNLOAD)
+
+            return downloadedBytes
+        }
+
+    val activeTrackTotalBytes: Long?
+        get() {
+            val activeStream = activeStream
+
+            if (!isSetup || activeStream == null) {
+                return null
+            }
+
+            val totalFileBytes =
+                BASS.BASS_StreamGetFilePosition(activeStream.stream, BASS.BASS_FILEPOS_SIZE)
+
+            return totalFileBytes
+        }
+
+    var volume: Float
+        get() {
+            if (!isSetup) {
+                return 0.0f
+            }
+
+            return BASS.BASS_GetVolume()
+        }
+        set(newValue) {
+            if (!isSetup) {
+                return
+            }
+
+            BASS.BASS_SetVolume(newValue)
+        }
+
+    internal var _currentState: RelistenPlaybackState? = null
+    var currentState: RelistenPlaybackState
+        get() {
+            val mixerMainStream = mixerMainStream
+
+            if (mixerMainStream == null) {
+                return RelistenPlaybackState.Stopped
+            }
+
+
+            val newState =
+                RelistenPlaybackStateForBASSPlaybackState(BASS.BASS_ChannelIsActive(mixerMainStream))
+            _currentState = newState
+            return newState
+        }
+        set(newValue) {
+            _currentState = newValue
+
+            scope.launch {
+                delegate?.playbackStateChanged(this@RelistenGaplessAudioPlayer, newValue)
+            }
+        }
+
+    fun play(streamable: RelistenGaplessStreamable, startingAt: Double = 0.0) {
+        mediaSession.setupAudioSession(shouldActivate = true)
+
+        val activeStream = activeStream
+        val nextStream = nextStream
+
+        if (activeStream != null && nextStream != null && activeStream.streamable.identifier == nextStream.streamable.identifier) {
+            next()
+        }
+
         scope.launch {
-            playStreamableImmediately(streamable)
+            playback.playStreamableImmediately(streamable)
         }
     }
 
-    private fun playStreamableImmediately(streamable: RelistenGaplessStreamable) {
-        maybeSetupBASS()
+    fun setNextStream(streamable: RelistenGaplessStreamable) {
+        scope.launch {
+            bassLifecycle.maybeSetupBASS()
 
-        assert(mixerMainStream != null)
+            if (nextStream?.streamable?.identifier == streamable.identifier) {
+                return@launch
+            }
 
-        val mixerMainStream = mixerMainStream!!
+            if (nextStream != null) {
+                bassLifecycle.tearDownStream(nextStream!!.stream)
+                nextStream = null
+            }
 
-        // stop playback
-        bass_assert(BASS.BASS_ChannelStop(mixerMainStream))
+            nextStream = streamManagement.buildStream(streamable)
 
-        if (activeStream != null) {
-//            tearDownStream(activeStream!!.stream)
+            if (activeStream?.preloadFinished == true) {
+                streamManagement.startPreloadingNextStream()
+            }
         }
-
-        activeStream = buildStream(streamable)
-
-        if (activeStream != null) {
-            val activeStream = activeStream!!
-
-            bass_assert(BASSmix.BASS_Mixer_StreamAddChannel(mixerMainStream,
-                    activeStream.stream,
-                    BASS.BASS_STREAM_AUTOFREE or BASSmix.BASS_MIXER_NORAMPIN))
-
-            // Make sure BASS is started, just in case we had paused it earlier
-            BASS.BASS_Start()
-            print("[bass][stream] BASS.BASS_Start() called")
-
-            // the TRUE for the second argument clears the buffer so there isn't old sound playing
-            bass_assert(BASS.BASS_ChannelPlay(mixerMainStream, true))
-
-//            currentState = Playing
-
-            // this is needed because the stream download events don't fire for local music
-//                    if activeStream.streamable.url.isFileURL {
-//                        // this will call nextTrackChanged and setupInactiveStreamWithNext
-//                        streamDownloadComplete(activeStream.stream)
-//                    }
-        } else {
-            assert(false) { "activeStream nil after buildingStream from $streamable" }
-        }
-
-//        startUpdates()
     }
 
-    private fun buildStream(streamable: RelistenGaplessStreamable, fileOffset: Int = 0, channelOffset: Int = 0): RelistenGaplessAudioStream? {
-        maybeSetupBASS()
+    fun resume() {
+        scope.launch {
+            bassLifecycle.maybeSetupBASS()
 
-        val newStream = if (streamable.url.protocol == "file") {
-            BASS.BASS_StreamCreateFile(
-                    streamable.url.path,
-                    fileOffset.toLong(),
-                    0,
-                    BASS.BASS_STREAM_DECODE or BASS.BASS_SAMPLE_FLOAT or BASS.BASS_ASYNCFILE or BASS.BASS_STREAM_PRESCAN)
-        } else {
-            BASS.BASS_StreamCreateURL(streamable.url.toString(),
-                    fileOffset,
-                    BASS.BASS_STREAM_DECODE or BASS.BASS_SAMPLE_FLOAT,
-                    null, // StreamDownloadProc,
-                    null) // (__bridge void *)(self));
+            if (BASS.BASS_Start()) {
+                currentState = RelistenPlaybackState.Playing
+            }
         }
-
-        if (newStream == 0) {
-            val code = BASS.BASS_ErrorGetCode()
-            println("[bass][stream] error creating new stream: $code")
-
-            return null
-        }
-
-        println("[bass][stream] created new stream: $newStream. identifier=${streamable.identifier}")
-
-        return RelistenGaplessAudioStream(streamable, newStream)
     }
 
-    private fun bass_assert(x: Boolean) {
+    fun pause() {
+        scope.launch {
+            bassLifecycle.maybeSetupBASS()
+
+            if (BASS.BASS_Pause()) {
+                currentState = RelistenPlaybackState.Paused
+            }
+        }
+    }
+
+    fun stop() {
+        scope.launch {
+            bassLifecycle.maybeSetupBASS()
+
+            val mixerMainStream = mixerMainStream
+
+            if (mixerMainStream != null) {
+                BASS.BASS_ChannelStop(mixerMainStream)
+                currentState = RelistenPlaybackState.Stopped
+            }
+        }
+    }
+
+    fun next() {
+        scope.launch {
+            bassLifecycle.maybeSetupBASS()
+
+            val activeStream = activeStream
+
+            if (nextStream != null && activeStream != null) {
+                bassLifecycle.mixInNextStream(completedStream = activeStream.stream)
+            }
+        }
+    }
+
+    fun seekTo(percent: Double) {
+        if (percent >= 1.0) {
+            next()
+        }
+
+        scope.launch {
+            playback.seekToPercent(percent)
+        }
+    }
+
+    fun prepareAudioSession() {
+        // What does this mean on Android? MediaSession APIs?
+        mediaSession.setupAudioSession(shouldActivate = true)
+    }
+
+    fun play(streamable: RelistenGaplessStreamable) {
+        scope.launch {
+            playback.playStreamableImmediately(streamable)
+        }
+    }
+
+    internal fun bass_assert(x: Boolean) {
         if (!x) {
             println("[bass] assertion failed: ${x}")
         }

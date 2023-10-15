@@ -111,11 +111,11 @@ class RelistenGaplessPlayer {
     return RelistenAudioPlayerModule.currentStateStr();
   }
 
-  get currentDuration(): number {
+  get currentDuration(): number | undefined {
     return RelistenAudioPlayerModule.currentDuration();
   }
 
-  get elapsed(): number {
+  get elapsed(): number | undefined {
     return RelistenAudioPlayerModule.elapsed();
   }
 
@@ -125,14 +125,6 @@ class RelistenGaplessPlayer {
 
   set volume(newVolume: number) {
     RelistenAudioPlayerModule.setVolume(newVolume);
-  }
-
-  get DEBUG_STATE() {
-    return RelistenAudioPlayerModule.getDebugState();
-  }
-
-  set DEBUG_STATE(newState: string) {
-    RelistenAudioPlayerModule.setDebugState(newState);
   }
 
   playbackProgress(): Promise<PlaybackProgress> {

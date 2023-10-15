@@ -1,6 +1,6 @@
-import { RelistenPlaybackState, RelistenStreamable, player } from '@/modules/relisten-audio-player';
-import { assign, createMachine, fromCallback, interpret } from 'xstate';
-import { SourceTrack } from '../realm/models/source_track';
+import { player, RelistenPlaybackState, RelistenStreamable } from "@/modules/relisten-audio-player";
+import { assign, createMachine, fromCallback, interpret } from "xstate";
+import { SourceTrack } from "../realm/models/source_track";
 
 export type PlaybackTrack = RelistenStreamable &
   SourceTrack & {
@@ -227,20 +227,18 @@ export const machine = createMachine(
   }
 );
 
-const state = player.DEBUG_STATE;
-// console.log('INIT STATE', state);
 
 const localMachine = interpret(machine, {
   deferEvents: false,
-  state: state ? JSON.parse(state) : undefined,
+  state: undefined,
 }).start();
 
 localMachine.subscribe((state) => {
-  const persistedState = localMachine.getPersistedState();
+  // const persistedState = localMachine.getPersistedState();
   // console.log(state);
 
   if (persistedState) {
-    player.DEBUG_STATE = JSON.stringify(persistedState);
+    // player.DEBUG_STATE = JSON.stringify(persistedState);
     // console.log('DEBUG', player.DEBUG_STATE);
   }
 });

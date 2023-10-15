@@ -224,7 +224,7 @@ public class RelistenGaplessAudioPlayer {
     }
 
     public func seekTo(percent: Double) {
-        if percent == 1.0 {
+        if percent >= 1.0 {
             next()
             return
         }

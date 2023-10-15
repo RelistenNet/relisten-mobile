@@ -52,19 +52,11 @@ public class RelistenAudioPlayerModule: Module {
         }
 
         Function("volume") {
-            return player?.volume
+            return player?.volume ?? 0.0
         }
 
         Function("setVolume") { (newVolume: Float) in
             return player?.volume = newVolume
-        }
-
-        Function("getDebugState") {
-            return DEBUG_state
-        }
-
-        Function("setDebugState") { (newState: String) in
-            return DEBUG_state = newState
         }
 
         Function("prepareAudioSession") {
