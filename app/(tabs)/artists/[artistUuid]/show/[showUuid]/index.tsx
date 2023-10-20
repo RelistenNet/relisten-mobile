@@ -34,7 +34,8 @@ import {
 } from 'react-native';
 import * as R from 'remeda';
 import { PlayShow, SourceTrackComponent } from '@/relisten/components/SourceTrackComponent';
-import { useRelistenPlayer } from '@/relisten/player/relisten_player';
+
+import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
 
 export const SourceList = ({ sources }: { sources: Source[] }) => {
   return (
@@ -93,7 +94,7 @@ const SourceComponent = ({
   ...props
 }: { show: Show; selectedSource: Source } & ScrollViewProps) => {
   const { refreshing } = useRefreshContext();
-  const { player } = useRelistenPlayer();
+  const player = useRelistenPlayer();
 
   const playShow = useCallback(
     (sourceTrack?: SourceTrack) => {

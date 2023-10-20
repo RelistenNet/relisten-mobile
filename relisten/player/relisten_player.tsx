@@ -1,4 +1,3 @@
-import React, { PropsWithChildren, useContext } from 'react';
 import {
   nativePlayer,
   RelistenErrorEvent,
@@ -7,6 +6,7 @@ import {
 import { latestError, state } from '@/relisten/player/shared_state';
 import { addPlayerListeners } from '@/relisten/player/native_playback_state_hooks';
 import { RelistenPlayerQueue } from '@/relisten/player/relisten_player_queue';
+import { EventSource } from '@/relisten/util/event_source';
 
 export class RelistenPlayer {
   static DEFAULT_INSTANCE = new RelistenPlayer();
@@ -22,6 +22,8 @@ export class RelistenPlayer {
   private _state: RelistenPlaybackState = RelistenPlaybackState.Stopped;
 
   // region Public API
+  onStateChanged = new EventSource<RelistenPlaybackState>();
+
   get state() {
     this.addPlayerListeners();
 
@@ -125,6 +127,7 @@ export class RelistenPlayer {
   private onNativePlayerStateChanged = (newState: RelistenPlaybackState) => {
     if (this._state != newState) {
       this._state = newState;
+      this.onStateChanged.dispatch(newState);
     }
   };
 
@@ -134,28 +137,3 @@ export class RelistenPlayer {
   };
   // endregion
 }
-
-export interface RelistenPlayerProps {
-  player: RelistenPlayer;
-}
-
-export const RelistenPlayerContext = React.createContext<RelistenPlayerProps>({
-  player: RelistenPlayer.DEFAULT_INSTANCE,
-});
-export const RelistenPlayerProvider = ({ children }: PropsWithChildren<object>) => {
-  return (
-    <RelistenPlayerContext.Provider value={{ player: RelistenPlayer.DEFAULT_INSTANCE }}>
-      {children}
-    </RelistenPlayerContext.Provider>
-  );
-};
-
-export const useRelistenPlayer = () => {
-  const context = useContext(RelistenPlayerContext);
-
-  if (context === undefined) {
-    throw new Error('useRelistenPlayer must be used within a RelistenPlayerProvider');
-  }
-
-  return context;
-};

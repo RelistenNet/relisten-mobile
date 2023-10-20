@@ -18,7 +18,8 @@ import duration from 'dayjs/plugin/duration';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { useEffect, useRef } from 'react';
 import useCacheAssets from './useCacheAssets';
-import { RelistenPlayerProvider } from '@/relisten/player/relisten_player';
+
+import { RelistenPlayerProvider } from '@/relisten/player/relisten_player_hooks';
 
 dayjs.extend(duration);
 dayjs.extend(relativeTime);

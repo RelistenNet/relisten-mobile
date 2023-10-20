@@ -3,6 +3,7 @@ import { nativePlayer, RelistenStreamable } from '@/modules/relisten-audio-playe
 import { currentTrackIdentifier } from '@/relisten/player/shared_state';
 import { RelistenPlayer } from '@/relisten/player/relisten_player';
 import { addPlayerListeners } from '@/relisten/player/native_playback_state_hooks';
+import { EventSource } from '@/relisten/util/event_source';
 
 export enum PlayerShuffleState {
   SHUFFLE_OFF = 1,
@@ -73,6 +74,11 @@ export class RelistenPlayerQueue {
   // endregion
 
   // region Public API
+  onOrderedTracksChanged = new EventSource<PlayerQueueTrack[]>();
+  onCurrentTrackChanged = new EventSource<PlayerQueueTrack | undefined>();
+  onRepeatStateChanged = new EventSource<PlayerRepeatState>();
+  onShuffleStateChanged = new EventSource<PlayerShuffleState>();
+
   queueNextTrack(sourceTracks: SourceTrack[]) {
     const newQueueTracks = sourceTracks.map((t) => new PlayerQueueTrack(t));
 
@@ -89,6 +95,7 @@ export class RelistenPlayerQueue {
     this.shuffledTracks = insertNext(this.shuffledTracks, this.shuffledTracksCurrentIndex);
 
     this.recalculateNextTrack();
+    this.onOrderedTracksChanged.dispatch(this.orderedTracks);
   }
 
   addTrackToEndOfQueue(sourceTracks: SourceTrack[]) {
@@ -98,6 +105,7 @@ export class RelistenPlayerQueue {
     this.shuffledTracks = [...this.shuffledTracks, ...newQueueTracks];
 
     this.recalculateNextTrack();
+    this.onOrderedTracksChanged.dispatch(this.orderedTracks);
   }
 
   replaceQueue(newQueue: SourceTrack[], playingTrackAtIndex: number | undefined) {
@@ -115,6 +123,8 @@ export class RelistenPlayerQueue {
       this.onCurrentTrackIdentifierChanged(undefined);
       nativePlayer.stop().then(() => {});
     }
+
+    this.onOrderedTracksChanged.dispatch(this.orderedTracks);
   }
 
   playTrackAtIndex(index: number) {
@@ -172,14 +182,19 @@ export class RelistenPlayerQueue {
       // When disabling shuffle we don't need to do anything because the shuffled list won't be accessed.
 
       this._shuffleState = shuffleState;
+
       this.recalculateNextTrack();
+      this.onShuffleStateChanged.dispatch(shuffleState);
+      this.onOrderedTracksChanged.dispatch(this.orderedTracks);
     }
   }
 
   setRepeatState(repeatState: PlayerRepeatState) {
     if (this._repeatState != repeatState) {
       this._repeatState = repeatState;
+
       this.recalculateNextTrack();
+      this.onRepeatStateChanged.dispatch(repeatState);
     }
   }
   // endregion
@@ -300,6 +315,7 @@ export class RelistenPlayerQueue {
     }
 
     this.recalculateNextTrack();
+    this.onCurrentTrackChanged.dispatch(this.currentTrack);
   };
 
   // endregion

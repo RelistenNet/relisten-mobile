@@ -7,7 +7,8 @@ import {
   RelistenPlaybackStateChangedEvent,
   RelistenTrackChangedEvent,
 } from '@/modules/relisten-audio-player';
-import { SharedState, sharedStates } from '@/relisten/player/shared_state';
+import { sharedStates } from '@/relisten/player/shared_state';
+import { SharedState } from '@/relisten/util/shared_state';
 
 let listenersRegisters = false;
 
@@ -105,12 +106,7 @@ function createPlaybackHook<T>(sharedState: SharedState<T>) {
   };
 }
 
-export const useNativePlaybackState = createPlaybackHook(sharedStates.state);
 export const useNativePlaybackProgress = createPlaybackHook(sharedStates.progress);
-export const useNativePlaybackCurrentTrackIdentifier = createPlaybackHook(
-  sharedStates.currentTrackIdentifier
-);
 export const useNativeActiveTrackDownloadProgress = createPlaybackHook(
   sharedStates.activeTrackDownloadProgress
 );
-export const useNativePlaybackLatestError = createPlaybackHook(sharedStates.latestError);

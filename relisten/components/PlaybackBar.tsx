@@ -12,15 +12,17 @@ import { RelistenText } from './relisten_text';
 import PlaybackQueue from './PlaybackQueue';
 import {
   useNativeActiveTrackDownloadProgress,
-  useNativePlaybackCurrentTrackIdentifier,
   useNativePlaybackProgress,
-  useNativePlaybackState,
 } from '@/relisten/player/native_playback_state_hooks';
-import { useRelistenPlayer } from '@/relisten/player/relisten_player';
 import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
+import {
+  useRelistenPlayer,
+  useRelistenPlayerPlaybackState,
+} from '@/relisten/player/relisten_player_hooks';
+import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player_queue_hooks';
 
 export const useIsBarVisible = () => {
-  const playbackState = useNativePlaybackState();
+  const playbackState = useRelistenPlayerPlaybackState();
 
   return playbackState !== undefined && playbackState !== 'Stopped';
 };
@@ -111,11 +113,10 @@ function PlaybackProgressBar() {
 export default function PlaybackBar() {
   const bottomSheetIndexRef = useRef<number>(1);
   const bottomSheetRef = useRef<BottomSheet>(null);
-  const playbackState = useNativePlaybackState();
-  // used to control re-renders
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const currentTrackIdentifier = useNativePlaybackCurrentTrackIdentifier();
-  const { player } = useRelistenPlayer();
+  const player = useRelistenPlayer();
+  const currentPlayerTrack = useRelistenPlayerCurrentTrack();
+  const activeTrack = currentPlayerTrack?.sourceTrack;
+  const playbackState = useRelistenPlayerPlaybackState();
 
   const toggleSheet = () => {
     if (bottomSheetIndexRef.current === 1) {
@@ -124,8 +125,6 @@ export default function PlaybackBar() {
       bottomSheetRef.current?.expand();
     }
   };
-
-  const activeTrack = player.queue.currentTrack?.sourceTrack;
 
   const artist = useArtist(activeTrack?.artistUuid, {
     onlyFetchFromApiIfLocalIsNotShowable: true,
