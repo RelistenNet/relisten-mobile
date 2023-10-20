@@ -56,18 +56,21 @@ export class RelistenPlayer {
       return;
     }
 
+    state.setState(RelistenPlaybackState.Playing);
     nativePlayer.resume().then(() => {});
   }
 
   pause() {
     this.addPlayerListeners();
 
+    state.setState(RelistenPlaybackState.Paused);
     nativePlayer.pause().then(() => {});
   }
 
   stop() {
     this.addPlayerListeners();
 
+    state.setState(RelistenPlaybackState.Stopped);
     nativePlayer.stop().then(() => {});
   }
 

@@ -12,6 +12,7 @@ import { RelistenText } from './relisten_text';
 import PlaybackQueue from './PlaybackQueue';
 import {
   useNativeActiveTrackDownloadProgress,
+  useNativePlaybackCurrentTrackIdentifier,
   useNativePlaybackProgress,
   useNativePlaybackState,
 } from '@/relisten/player/native_playback_state_hooks';
@@ -111,6 +112,9 @@ export default function PlaybackBar() {
   const bottomSheetIndexRef = useRef<number>(1);
   const bottomSheetRef = useRef<BottomSheet>(null);
   const playbackState = useNativePlaybackState();
+  // used to control re-renders
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const currentTrackIdentifier = useNativePlaybackCurrentTrackIdentifier();
   const { player } = useRelistenPlayer();
 
   const toggleSheet = () => {
