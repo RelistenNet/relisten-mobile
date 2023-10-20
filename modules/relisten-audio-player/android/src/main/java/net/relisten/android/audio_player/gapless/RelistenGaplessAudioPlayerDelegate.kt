@@ -29,7 +29,7 @@ interface RelistenGaplessAudioPlayerDelegate {
 
     fun trackChanged(
         player: RelistenGaplessAudioPlayer,
-        previousStreamable: RelistenGaplessStreamable,
+        previousStreamable: RelistenGaplessStreamable?,
         currentStreamable: RelistenGaplessStreamable?
     )
 

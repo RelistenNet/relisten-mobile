@@ -4,6 +4,7 @@ import Realm from 'realm';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import { FavoritableObject } from '../favoritable_object';
 import type { SourceSet } from './source_set';
+import { SourceTrack } from '@/relisten/realm/models/source_track';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface SourceRequiredRelationships {
@@ -125,6 +126,21 @@ export class Source
 
   humanizedAvgRating() {
     return this.avgRating.toFixed(2);
+  }
+
+  private _allSourceTracks?: SourceTrack[];
+  allSourceTracks() {
+    if (this._allSourceTracks === undefined) {
+      this._allSourceTracks = [];
+
+      for (const set of this.sourceSets) {
+        for (const track of set.sourceTracks) {
+          this._allSourceTracks.push(track);
+        }
+      }
+    }
+
+    return this._allSourceTracks;
   }
 
   static propertiesFromApi(relistenObj: SourceFull): SourceRequiredProperties {

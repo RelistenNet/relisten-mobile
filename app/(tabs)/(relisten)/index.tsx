@@ -1,10 +1,10 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { usePlaybackState } from '@/relisten/components/playback_state';
+import { useNativePlaybackState } from '@/relisten/player/native_playback_state_hooks';
 
 export default function Page() {
-  const playbackState = usePlaybackState();
+  const playbackState = useNativePlaybackState();
 
   // const play = () => {
   //   player.play({ url: 'https://phish.in/audio/000/012/258/12258.mp3', identifier: '1' });

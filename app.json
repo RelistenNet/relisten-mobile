@@ -30,6 +30,7 @@
       },
       "package": "net.relisten.android"
     },
+    "jsEngine": "hermes",
     "web": {
       "favicon": "./assets/favicon.png"
     },

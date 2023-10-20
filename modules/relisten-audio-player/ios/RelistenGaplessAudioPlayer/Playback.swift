@@ -39,6 +39,10 @@ extension RelistenGaplessAudioPlayer {
             // the TRUE for the second argument clears the buffer so there isn't old sound playing
             bass_assert(BASS_ChannelPlay(mixerMainStream, 1))
 
+            DispatchQueue.main.async {
+                self.delegate?.trackChanged(self, previousStreamable: nil, currentStreamable: self.activeStream?.streamable)
+            }
+            
             currentState = .Playing
 
             // this is needed because the stream download events don't fire for local music

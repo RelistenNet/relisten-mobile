@@ -1,26 +1,25 @@
-import { player } from '@/modules/relisten-audio-player';
 import { MaterialIcons } from '@expo/vector-icons';
 import BottomSheet from '@gorhom/bottom-sheet';
-import { useSelector } from '@xstate/react';
 import { MotiView, View } from 'moti';
 import { useRef } from 'react';
 import { Pressable, TouchableOpacity } from 'react-native';
-import PlaybackMachine from '../machines/PlaybackMachine';
 import { useArtist } from '../realm/models/artist_repo';
-import { useFullShow } from '../realm/models/show_repo';
+import { useFullShowFromSource } from '../realm/models/show_repo';
 import { duration } from '../util/duration';
 import Flex from './flex';
 import { RelistenButton } from './relisten_button';
 import { RelistenText } from './relisten_text';
 import PlaybackQueue from './PlaybackQueue';
 import {
-  useActiveTrackDownloadProgress,
-  usePlaybackProgress,
-  usePlaybackState,
-} from '@/relisten/components/playback_state';
+  useNativeActiveTrackDownloadProgress,
+  useNativePlaybackProgress,
+  useNativePlaybackState,
+} from '@/relisten/player/native_playback_state_hooks';
+import { useRelistenPlayer } from '@/relisten/player/relisten_player';
+import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 
 export const useIsBarVisible = () => {
-  const playbackState = usePlaybackState();
+  const playbackState = useNativePlaybackState();
 
   return playbackState !== undefined && playbackState !== 'Stopped';
 };
@@ -58,7 +57,7 @@ export const PLAYBACK_SKELETON = () => {
 };
 
 function ProgressText() {
-  const playbackProgress = usePlaybackProgress();
+  const playbackProgress = useNativePlaybackProgress();
 
   return (
     <>
@@ -81,7 +80,7 @@ function ProgressText() {
 }
 
 function DownloadProgressBar() {
-  const activeTrackDownloadProgress = useActiveTrackDownloadProgress();
+  const activeTrackDownloadProgress = useNativeActiveTrackDownloadProgress();
 
   return (
     <MotiView
@@ -95,7 +94,7 @@ function DownloadProgressBar() {
 }
 
 function PlaybackProgressBar() {
-  const playbackProgress = usePlaybackProgress();
+  const playbackProgress = useNativePlaybackProgress();
 
   return (
     <MotiView
@@ -111,13 +110,8 @@ function PlaybackProgressBar() {
 export default function PlaybackBar() {
   const bottomSheetIndexRef = useRef<number>(1);
   const bottomSheetRef = useRef<BottomSheet>(null);
-  const context = useSelector(PlaybackMachine, ({ context }) => context);
-  const machineState = useSelector(PlaybackMachine, ({ value }) => value);
-  const playbackState = usePlaybackState();
-
-  const playpause = () => {
-    PlaybackMachine.send({ type: 'PLAYPAUSE' });
-  };
+  const playbackState = useNativePlaybackState();
+  const { player } = useRelistenPlayer();
 
   const toggleSheet = () => {
     if (bottomSheetIndexRef.current === 1) {
@@ -127,13 +121,13 @@ export default function PlaybackBar() {
     }
   };
 
-  const activeTrack = context.queue[context.activeTrackIndex];
+  const activeTrack = player.queue.currentTrack?.sourceTrack;
 
   const artist = useArtist(activeTrack?.artistUuid, {
     onlyFetchFromApiIfLocalIsNotShowable: true,
   });
 
-  const showCache = useFullShow(activeTrack?.showUuid ?? '');
+  const showCache = useFullShowFromSource(activeTrack?.sourceUuid);
 
   const subtitle = [
     artist?.data?.name,
@@ -165,14 +159,18 @@ export default function PlaybackBar() {
               {/* <TouchableOpacity onPress={() => PlaybackMachine.send({ type: 'SKIP_BACK' })}>
                 <MaterialIcons name="skip-previous" size={32} color="white" />
               </TouchableOpacity> */}
-              <TouchableOpacity onPress={playpause}>
-                {context.playbackState === 'Playing' ? (
+              <TouchableOpacity
+                onPress={() => {
+                  player.togglePauseResume();
+                }}
+              >
+                {playbackState === RelistenPlaybackState.Playing ? (
                   <MaterialIcons name="pause" size={42} color="white" />
                 ) : (
                   <MaterialIcons name="play-arrow" size={42} color="white" />
                 )}
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => PlaybackMachine.send({ type: 'SKIP_FORWARD' })}>
+              <TouchableOpacity onPress={() => player.next()}>
                 <MaterialIcons name="skip-next" size={32} color="white" />
               </TouchableOpacity>
             </Flex>
@@ -192,8 +190,6 @@ export default function PlaybackBar() {
         </Pressable>
         <Flex cn="flex-1 flex-col bg-relisten-blue-800">
           <PlaybackQueue />
-          <RelistenText>{JSON.stringify(clean(context), null, 2)}</RelistenText>
-          <RelistenText>{JSON.stringify(machineState, null, 2)}</RelistenText>
           <RelistenText>{JSON.stringify(playbackState, null, 2)}</RelistenText>
           <RelistenButton textClassName="text-sm" onPress={() => player.seekTo(0.98)}>
             (Seek To 98%!)
@@ -203,9 +199,3 @@ export default function PlaybackBar() {
     </BottomSheet>
   );
 }
-
-const clean = (obj: any) => {
-  const next = { ...obj };
-  delete next.queue;
-  return next;
-};

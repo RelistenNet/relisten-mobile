@@ -13,6 +13,7 @@ import { Link } from 'expo-router';
 import React, { useMemo } from 'react';
 import { View } from 'react-native';
 import Realm from 'realm';
+import { RelistenText } from '@/relisten/components/relisten_text';
 
 const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) => {
   return (
@@ -88,6 +89,18 @@ export default function Page() {
     <View style={{ flex: 1, width: '100%' }}>
       <RefreshContextProvider networkBackedResults={results}>
         <ScrollScreen>
+          <Link
+            href={{
+              pathname: '/(tabs)/artists/[artistUuid]/show/[showUuid]/',
+              params: {
+                artistUuid: '77a58ff9-2e01-c59c-b8eb-cff106049b72',
+                showUuid: '104c96e5-719f-366f-b72d-8d53709c80e0',
+              },
+            }}
+            style={{ padding: 10 }}
+          >
+            <RelistenText>Barton hall test show</RelistenText>
+          </Link>
           <ArtistsList artists={artists} />
         </ScrollScreen>
       </RefreshContextProvider>

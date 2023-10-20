@@ -1,5 +1,6 @@
 package net.relisten.android.audio_player
 
+import android.util.Log
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
@@ -29,7 +30,7 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
     // See https://docs.expo.dev/modules/module-api for more details about available components.
     override fun definition() = ModuleDefinition {
         // Sets the name of the module that JavaScript code will use to refer to the module. Takes a string as an argument.
-        // Can b ->ferred from module' class name, but it's recommended to set it explicitly for clarity.
+        // Can be inferred from module' class name, but it's recommended to set it explicitly for clarity.
         // The module will be accessible from requireNativeModule('RelistenAudioPlayer') -> JavaScript.
         Name("RelistenAudioPlayer")
 
@@ -39,19 +40,17 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
         }
 
         OnDestroy {
-            val player = player
+            val thisPlayer = player
 
-            if (player != null) {
-                player.stop()
-                player
+            if (thisPlayer != null) {
+                thisPlayer.stop()
+                thisPlayer.teardown()
             }
+
+            player = null
         }
 
-        Events("onError")
-        Events("onPlaybackStateChanged")
-        Events("onPlaybackProgressChanged")
-        Events("onDownloadProgressChanged")
-        Events("onTrackChanged")
+        Events("onError", "onPlaybackStateChanged", "onPlaybackProgressChanged", "onDownloadProgressChanged", "onTrackChanged")
 
         Function("currentDuration") {
             return@Function player?.currentDuration
@@ -107,17 +106,28 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
         }
 
         AsyncFunction("play") { streamable: RelistenStreamable, promise: Promise ->
-            val url = streamable.url
-            val identifier = streamable.identifier
+            player?.scope?.launch {
+                val url = streamable.url
+                val identifier = streamable.identifier
 
-            if (url != null && identifier != null) {
-                player?.play(RelistenGaplessStreamable(url, identifier))
+                if (url != null && identifier != null) {
+                    Log.e("relisten-audio", "player?.play")
+                    player?.play(RelistenGaplessStreamable(url, identifier))
+                    Log.e("relisten-audio", "after player?.play")
+                }
+
+                Log.e("relisten-audio", "promise.resolve")
+                promise.resolve(null)
+                Log.e("relisten-audio", "after promise.resolve")
             }
-
-            promise.resolve(null)
         }
 
-        Function("setNextStream") { streamable: RelistenStreamable ->
+        Function("setNextStream") { streamable: RelistenStreamable? ->
+            if (streamable == null) {
+                player?.setNextStream(null)
+                return@Function
+            }
+
             val url = streamable.url
             val identifier = streamable.identifier
 
@@ -169,6 +179,10 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
         error: BASSException,
         forStreamable: RelistenGaplessStreamable
     ) {
+        if (this.player == null) {
+            return
+        }
+
         sendEvent(
             "onError", hashMapOf(
                 "error" to error.code,
@@ -182,6 +196,10 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
         player: RelistenGaplessAudioPlayer,
         newPlaybackState: RelistenPlaybackState
     ) {
+        if (this.player == null) {
+            return
+        }
+
         sendEvent(
             "onPlaybackStateChanged", hashMapOf(
                 "newPlaybackState" to newPlaybackState.toString(),
@@ -194,6 +212,10 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
         elapsed: Double?,
         duration: Double?
     ) {
+        if (this.player == null) {
+            return
+        }
+
         sendEvent(
             "onPlaybackProgressChanged", hashMapOf(
                 "elapsed" to elapsed,
@@ -208,6 +230,10 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
         downloadedBytes: Long,
         totalBytes: Long
     ) {
+        if (this.player == null) {
+            return
+        }
+
         sendEvent(
             "onDownloadProgressChanged", hashMapOf(
                 "forActiveTrack" to forActiveTrack,
@@ -219,12 +245,16 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
 
     override fun trackChanged(
         player: RelistenGaplessAudioPlayer,
-        previousStreamable: RelistenGaplessStreamable,
+        previousStreamable: RelistenGaplessStreamable?,
         currentStreamable: RelistenGaplessStreamable?
     ) {
+        if (this.player == null) {
+            return
+        }
+
         sendEvent(
             "onTrackChanged", hashMapOf(
-                "previousIdentifier" to previousStreamable.identifier,
+                "previousIdentifier" to previousStreamable?.identifier,
                 "currentIdentifier" to currentStreamable?.identifier,
             )
         )

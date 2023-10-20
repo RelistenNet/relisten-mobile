@@ -18,6 +18,7 @@ import duration from 'dayjs/plugin/duration';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { useEffect, useRef } from 'react';
 import useCacheAssets from './useCacheAssets';
+import { RelistenPlayerProvider } from '@/relisten/player/relisten_player';
 
 dayjs.extend(duration);
 dayjs.extend(relativeTime);
@@ -47,22 +48,24 @@ export default function TabLayout() {
   return (
     <RealmProvider realmRef={realmRef}>
       <RelistenApiProvider>
-        <ThemeProvider
-          value={{
-            dark: true,
-            colors: {
-              ...DarkTheme.colors,
-              primary: 'rgb(0,157,193)',
-              background: RelistenBlue[900],
-              card: '#001114',
-            },
-          }}
-        >
-          <SafeAreaProvider>
-            <StatusBar style="light" />
-            <Slot />
-          </SafeAreaProvider>
-        </ThemeProvider>
+        <RelistenPlayerProvider>
+          <ThemeProvider
+            value={{
+              dark: true,
+              colors: {
+                ...DarkTheme.colors,
+                primary: 'rgb(0,157,193)',
+                background: RelistenBlue[900],
+                card: '#001114',
+              },
+            }}
+          >
+            <SafeAreaProvider>
+              <StatusBar style="light" />
+              <Slot />
+            </SafeAreaProvider>
+          </ThemeProvider>
+        </RelistenPlayerProvider>
       </RelistenApiProvider>
     </RealmProvider>
   );

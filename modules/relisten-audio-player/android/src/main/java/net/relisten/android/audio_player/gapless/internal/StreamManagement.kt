@@ -9,7 +9,7 @@ import net.relisten.android.audio_player.gapless.RelistenGaplessStreamable
 
 class StreamManagement internal constructor(private val player: RelistenGaplessAudioPlayer) {
     fun buildStream(
-        streamable: RelistenGaplessStreamable, fileOffset: Long = 0, channelOffset: Long = 0
+            streamable: RelistenGaplessStreamable, fileOffset: Long = 0, channelOffset: Long = 0
     ): RelistenGaplessAudioStream? {
         player.bassLifecycle.maybeSetupBASS()
 
@@ -17,18 +17,18 @@ class StreamManagement internal constructor(private val player: RelistenGaplessA
 
         if (streamable.isFileUrl()) {
             newStream = BASS.BASS_StreamCreateFile(
-                streamable.url.path,
-                fileOffset,
-                0L,
-                BASS.BASS_STREAM_DECODE or BASS.BASS_SAMPLE_FLOAT or BASS.BASS_ASYNCFILE or BASS.BASS_STREAM_PRESCAN
+                    streamable.url.path,
+                    fileOffset,
+                    0L,
+                    BASS.BASS_STREAM_DECODE or BASS.BASS_SAMPLE_FLOAT or BASS.BASS_ASYNCFILE or BASS.BASS_STREAM_PRESCAN
             )
         } else {
             newStream = BASS.BASS_StreamCreateURL(
-                streamable.url.toString(),
-                fileOffset.toInt(),
-                BASS.BASS_STREAM_DECODE or BASS.BASS_SAMPLE_FLOAT,
-                null, // StreamDownloadProc,
-                null
+                    streamable.url.toString(),
+                    fileOffset.toInt(),
+                    BASS.BASS_STREAM_DECODE or BASS.BASS_SAMPLE_FLOAT,
+                    null, // StreamDownloadProc,
+                    null
             );
         }
 
@@ -36,42 +36,42 @@ class StreamManagement internal constructor(private val player: RelistenGaplessA
         if (newStream == 0) {
             val err = ErrorForErrorCode(BASS.BASS_ErrorGetCode())
 
-            Log.i("relisten-audio-player", "[bass][stream] error creating new stream: ${err.code} ${err.message}")
+            Log.e("relisten-audio-player", "[bass][stream] error creating new stream: ${err.code} ${err.message}")
 
-            player.scope.launch {
-                player.delegate?.errorStartingStream(player, err, streamable)
-            }
+            player.delegate?.errorStartingStream(player, err, streamable)
 
             return null
         }
 
         player.bass_assert(
-            BASS.BASS_ChannelSetSync(
-                newStream,
-                BASS.BASS_SYNC_MIXTIME or BASS.BASS_SYNC_DOWNLOAD,
-                0,
-                player.bassLifecycle,
-                null
-            ) != 0
+                "BASS_ChannelSetSync",
+                BASS.BASS_ChannelSetSync(
+                        newStream,
+                        BASS.BASS_SYNC_MIXTIME or BASS.BASS_SYNC_DOWNLOAD,
+                        0,
+                        player.bassLifecycle,
+                        null
+                ) != 0
         )
 
         player.bass_assert(
-            BASS.BASS_ChannelSetSync(
-                newStream,
-                BASS.BASS_SYNC_MIXTIME or BASS.BASS_SYNC_STALL,
-                0,
-                player.bassLifecycle,
-                null
-            ) != 0
+                "BASS_ChannelSetSync",
+                BASS.BASS_ChannelSetSync(
+                        newStream,
+                        BASS.BASS_SYNC_MIXTIME or BASS.BASS_SYNC_STALL,
+                        0,
+                        player.bassLifecycle,
+                        null
+                ) != 0
         )
 
         Log.i("relisten-audio-player", "[bass][stream] created new stream: $newStream. identifier=${streamable.identifier}")
 
         return RelistenGaplessAudioStream(
-            streamable=streamable,
-            stream=newStream,
-            fileOffset=fileOffset,
-            channelOffset=channelOffset
+                streamable = streamable,
+                stream = newStream,
+                fileOffset = fileOffset,
+                channelOffset = channelOffset
         )
     }
 

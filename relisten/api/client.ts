@@ -132,6 +132,19 @@ export class RelistenApiClient {
 
     const etag = await calculateEtag(values);
 
+    realm?.write(() => {
+      if (urlMetadata) {
+        urlMetadata.etag = etag;
+        urlMetadata.lastRequestCompletedAt = completedAt;
+      } else {
+        realm?.create(UrlRequestMetadata, {
+          url,
+          etag,
+          lastRequestCompletedAt: completedAt,
+        });
+      }
+    });
+
     if (options?.bypassEtagCaching === true) {
       logger.info(
         `[etag] url=${url}, updating local database. bypassEtagCaching=${options?.bypassEtagCaching}`
@@ -144,19 +157,6 @@ export class RelistenApiClient {
         `[etag] url=${resp.url}, updating local database; request contents changed. stored_etag=${urlMetadata?.etag}, new_etag=${etag}`
       );
     }
-
-    realm?.write(() => {
-      if (urlMetadata) {
-        urlMetadata.etag = etag;
-        urlMetadata.lastRequestCompletedAt = completedAt;
-      } else {
-        realm?.create('UrlRequestMetadata', {
-          url,
-          etag,
-          lastRequestCompletedAt: completedAt,
-        });
-      }
-    });
 
     return { type: RelistenApiResponseType.OnlineRequestCompleted, data: j as T };
   }

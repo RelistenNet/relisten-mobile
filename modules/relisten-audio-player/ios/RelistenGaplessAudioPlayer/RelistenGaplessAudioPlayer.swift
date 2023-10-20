@@ -15,7 +15,7 @@ public protocol RelistenGaplessAudioPlayerDelegate {
     func playbackStateChanged(_ player: RelistenGaplessAudioPlayer, newPlaybackState playbackState: PlaybackState)
     func playbackProgressChanged(_ player: RelistenGaplessAudioPlayer, elapsed: TimeInterval?, duration: TimeInterval?)
     func downloadProgressChanged(_ player: RelistenGaplessAudioPlayer, forActiveTrack: Bool, downloadedBytes: UInt64, totalBytes: UInt64)
-    func trackChanged(_ player: RelistenGaplessAudioPlayer, previousStreamable: RelistenGaplessStreamable, currentStreamable: RelistenGaplessStreamable?)
+    func trackChanged(_ player: RelistenGaplessAudioPlayer, previousStreamable: RelistenGaplessStreamable?, currentStreamable: RelistenGaplessStreamable?)
 
     func audioSessionWasSetup(_ player: RelistenGaplessAudioPlayer)
 }
@@ -160,26 +160,44 @@ public class RelistenGaplessAudioPlayer {
         }
     }
 
-    public func setNextStream(_ streamable: RelistenGaplessStreamable) {
+    public func setNextStream(_ streamable: RelistenGaplessStreamable?) {
         bassQueue.async { [self] in
             maybeSetupBASS()
+            
+            guard let streamable = streamable else {
+                maybeTearDownNextStream()
+                
+                return
+            }
 
             if nextStream?.streamable.identifier == streamable.identifier {
                 return
             }
 
-            if let nextStream {
-                // do the same thing for inactive--but only if the next track is actually different
-                // and if something is currently playing
-                tearDownStream(nextStream.stream)
-                self.nextStream = nil
-            }
-
+            // do the same thing for inactive--but only if the next track is actually different
+            // and if something is currently playing
+            maybeTearDownNextStream()
+            
             nextStream = buildStream(streamable)
 
             if activeStream?.preloadFinished == true {
                 startPreloadingNextStream()
             }
+        }
+    }
+    
+    
+    func maybeTearDownActiveStream() {
+        if let activeStream {
+            tearDownStream(activeStream.stream)
+            self.activeStream = nil
+        }
+    }
+    
+    func maybeTearDownNextStream() {
+        if let nextStream {
+            tearDownStream(nextStream.stream)
+            self.nextStream = nil
         }
     }
 
@@ -208,7 +226,11 @@ public class RelistenGaplessAudioPlayer {
             self.maybeSetupBASS()
 
             if let mixerMainStream = self.mixerMainStream, BASS_ChannelStop(mixerMainStream) != 0 {
+                self.delegate?.trackChanged(self, previousStreamable: self.activeStream?.streamable, currentStreamable: nil)
                 self.currentState = .Stopped
+                
+                self.maybeTearDownActiveStream()
+                self.maybeTearDownNextStream()
             }
         }
     }

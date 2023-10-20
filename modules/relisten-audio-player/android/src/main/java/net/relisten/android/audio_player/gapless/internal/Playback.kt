@@ -20,7 +20,7 @@ class Playback internal constructor(private val player: RelistenGaplessAudioPlay
         }
 
         // stop playback
-        player.bass_assert(BASS.BASS_ChannelStop(mixerMainStream))
+        player.bass_assert("BASS_ChannelStop", BASS.BASS_ChannelStop(mixerMainStream))
 
         var activeStream = player.activeStream
 
@@ -31,13 +31,16 @@ class Playback internal constructor(private val player: RelistenGaplessAudioPlay
         player.activeStream = player.streamManagement.buildStream(streamable)
         activeStream = player.activeStream
 
+        player.bass_assert("activeStream", activeStream != null);
+
         if (activeStream != null) {
             player.bass_assert(
-                BASSmix.BASS_Mixer_StreamAddChannel(
-                    mixerMainStream,
-                    activeStream.stream,
-                    BASS.BASS_STREAM_AUTOFREE or BASSmix.BASS_MIXER_NORAMPIN
-                )
+                    "BASS_Mixer_StreamAddChannel",
+                    BASSmix.BASS_Mixer_StreamAddChannel(
+                            mixerMainStream,
+                            activeStream.stream,
+                            BASS.BASS_STREAM_AUTOFREE or BASSmix.BASS_MIXER_NORAMPIN
+                    )
             )
 
             // Make sure BASS is started, just in case we had paused it earlier
@@ -45,7 +48,13 @@ class Playback internal constructor(private val player: RelistenGaplessAudioPlay
             Log.i("relisten-audio-player", "[bass][stream] BASS.BASS_Start() called")
 
             // the TRUE for the second argument clears the buffer so there isn't old sound playing
-            player.bass_assert(BASS.BASS_ChannelPlay(mixerMainStream, true))
+            player.bass_assert("BASS_ChannelPlay", BASS.BASS_ChannelPlay(mixerMainStream, true))
+
+            player.delegate?.trackChanged(
+                    player,
+                    previousStreamable = null,
+                    currentStreamable = player.activeStream?.streamable
+            )
 
             player.currentState = RelistenPlaybackState.Playing
 
@@ -54,8 +63,6 @@ class Playback internal constructor(private val player: RelistenGaplessAudioPlay
                 // this will call nextTrackChanged and setupInactiveStreamWithNext
                 player.bassLifecycle.streamDownloadComplete(activeStream.stream)
             }
-        } else {
-            assert(false) { "activeStream nil after buildingStream from $streamable" }
         }
 
         player.playbackUpdates.startUpdates()
@@ -76,8 +83,8 @@ class Playback internal constructor(private val player: RelistenGaplessAudioPlay
         }
 
         val len = BASS.BASS_ChannelGetLength(
-            activeStream.stream,
-            BASS.BASS_POS_BYTE
+                activeStream.stream,
+                BASS.BASS_POS_BYTE
         ) + activeStream.channelOffset
         val duration = BASS.BASS_ChannelBytes2Seconds(activeStream.stream, len)
         val seekTo = BASS.BASS_ChannelSeconds2Bytes(activeStream.stream, duration * pct)
@@ -86,12 +93,12 @@ class Playback internal constructor(private val player: RelistenGaplessAudioPlay
         Log.i("relisten-audio-player", "[bass][stream] Found length in bytes to be $len bytes/$duration. Seeking to: $seekTo bytes/$seekToDuration")
 
         val downloadedBytes = BASS.BASS_StreamGetFilePosition(
-            activeStream.stream,
-            BASS.BASS_FILEPOS_DOWNLOAD
+                activeStream.stream,
+                BASS.BASS_FILEPOS_DOWNLOAD
         ) + activeStream.fileOffset
         val totalFileBytes = BASS.BASS_StreamGetFilePosition(
-            activeStream.stream,
-            BASS.BASS_FILEPOS_SIZE
+                activeStream.stream,
+                BASS.BASS_FILEPOS_SIZE
         ) + activeStream.fileOffset
         val downloadedPct = 1.0 * downloadedBytes.toDouble() / totalFileBytes.toDouble()
 
@@ -108,9 +115,9 @@ class Playback internal constructor(private val player: RelistenGaplessAudioPlay
             val oldActiveStream = activeStream
 
             val newActiveStream = player.streamManagement.buildStream(
-                activeStream.streamable,
-                fileOffset = fileOffset,
-                channelOffset = seekTo
+                    activeStream.streamable,
+                    fileOffset = fileOffset,
+                    channelOffset = seekTo
             )
             player.activeStream = newActiveStream
 
@@ -118,26 +125,28 @@ class Playback internal constructor(private val player: RelistenGaplessAudioPlay
 
             if (newActiveStream != null && mixerMainStream != null) {
                 player.bass_assert(
-                    BASSmix.BASS_Mixer_StreamAddChannel(
-                        mixerMainStream,
-                        newActiveStream.stream,
-                        BASS.BASS_STREAM_AUTOFREE or BASSmix.BASS_MIXER_NORAMPIN
-                    )
+                        "BASS_Mixer_StreamAddChannel",
+                        BASSmix.BASS_Mixer_StreamAddChannel(
+                                mixerMainStream,
+                                newActiveStream.stream,
+                                BASS.BASS_STREAM_AUTOFREE or BASSmix.BASS_MIXER_NORAMPIN
+                        )
                 )
 
                 BASS.BASS_Start()
                 // the TRUE for the second argument clears the buffer to prevent bits of the old playback
-                player.bass_assert(BASS.BASS_ChannelPlay(mixerMainStream, true))
+                player.bass_assert("BASS_ChannelPlay", BASS.BASS_ChannelPlay(mixerMainStream, true))
 
                 player.bassLifecycle.tearDownStream(oldActiveStream.stream)
             }
         } else {
             player.bass_assert(
-                BASS.BASS_ChannelSetPosition(
-                    activeStream.stream,
-                    seekTo - activeStream.channelOffset,
-                    BASS.BASS_POS_BYTE
-                )
+                    "BASS_ChannelSetPosition",
+                    BASS.BASS_ChannelSetPosition(
+                            activeStream.stream,
+                            seekTo - activeStream.channelOffset,
+                            BASS.BASS_POS_BYTE
+                    )
             )
         }
     }

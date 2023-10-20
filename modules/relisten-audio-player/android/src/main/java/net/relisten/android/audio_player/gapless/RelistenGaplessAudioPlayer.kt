@@ -1,5 +1,6 @@
 package net.relisten.android.audio_player.gapless
 
+import android.util.Log
 import com.un4seen.bass.BASS
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -55,8 +56,8 @@ class RelistenGaplessAudioPlayer {
             }
 
             return BASS.BASS_ChannelBytes2Seconds(
-                activeStream.stream,
-                len + activeStream.channelOffset
+                    activeStream.stream,
+                    len + activeStream.channelOffset
             )
         }
 
@@ -69,15 +70,15 @@ class RelistenGaplessAudioPlayer {
             }
 
             val elapsedBytes =
-                BASS.BASS_ChannelGetPosition(activeStream.stream, BASS.BASS_POS_BYTE)
+                    BASS.BASS_ChannelGetPosition(activeStream.stream, BASS.BASS_POS_BYTE)
 
             if (elapsedBytes == -1L) {
                 return null
             }
 
             return BASS.BASS_ChannelBytes2Seconds(
-                activeStream.stream,
-                elapsedBytes + activeStream.channelOffset
+                    activeStream.stream,
+                    elapsedBytes + activeStream.channelOffset
             )
         }
 
@@ -90,7 +91,7 @@ class RelistenGaplessAudioPlayer {
             }
 
             val downloadedBytes =
-                BASS.BASS_StreamGetFilePosition(activeStream.stream, BASS.BASS_FILEPOS_DOWNLOAD)
+                    BASS.BASS_StreamGetFilePosition(activeStream.stream, BASS.BASS_FILEPOS_DOWNLOAD)
 
             return downloadedBytes
         }
@@ -104,7 +105,7 @@ class RelistenGaplessAudioPlayer {
             }
 
             val totalFileBytes =
-                BASS.BASS_StreamGetFilePosition(activeStream.stream, BASS.BASS_FILEPOS_SIZE)
+                    BASS.BASS_StreamGetFilePosition(activeStream.stream, BASS.BASS_FILEPOS_SIZE)
 
             return totalFileBytes
         }
@@ -136,16 +137,14 @@ class RelistenGaplessAudioPlayer {
 
 
             val newState =
-                RelistenPlaybackStateForBASSPlaybackState(BASS.BASS_ChannelIsActive(mixerMainStream))
+                    RelistenPlaybackStateForBASSPlaybackState(BASS.BASS_ChannelIsActive(mixerMainStream))
             _currentState = newState
             return newState
         }
         set(newValue) {
             _currentState = newValue
 
-            scope.launch {
-                delegate?.playbackStateChanged(this@RelistenGaplessAudioPlayer, newValue)
-            }
+            delegate?.playbackStateChanged(this@RelistenGaplessAudioPlayer, newValue)
         }
 
     fun play(streamable: RelistenGaplessStreamable, startingAt: Double = 0.0) {
@@ -158,74 +157,88 @@ class RelistenGaplessAudioPlayer {
             next()
         }
 
-        scope.launch {
-            playback.playStreamableImmediately(streamable)
+        playback.playStreamableImmediately(streamable)
+    }
+
+    private fun maybeTearDownNextStream() {
+        if (nextStream != null) {
+            bassLifecycle.tearDownStream(nextStream!!.stream)
+            nextStream = null
         }
     }
 
-    fun setNextStream(streamable: RelistenGaplessStreamable) {
-        scope.launch {
-            bassLifecycle.maybeSetupBASS()
+    private fun maybeTearDownActiveStream() {
+        if (activeStream != null) {
+            bassLifecycle.tearDownStream(activeStream!!.stream)
+            activeStream = null
+        }
+    }
 
-            if (nextStream?.streamable?.identifier == streamable.identifier) {
-                return@launch
-            }
+    fun setNextStream(streamable: RelistenGaplessStreamable?) {
+        bassLifecycle.maybeSetupBASS()
 
-            if (nextStream != null) {
-                bassLifecycle.tearDownStream(nextStream!!.stream)
-                nextStream = null
-            }
+        if (streamable == null) {
+            maybeTearDownNextStream()
 
-            nextStream = streamManagement.buildStream(streamable)
+            return
+        }
 
-            if (activeStream?.preloadFinished == true) {
-                streamManagement.startPreloadingNextStream()
-            }
+        if (nextStream?.streamable?.identifier == streamable.identifier) {
+            return
+        }
+
+        maybeTearDownNextStream()
+
+        nextStream = streamManagement.buildStream(streamable)
+
+        if (activeStream?.preloadFinished == true) {
+            streamManagement.startPreloadingNextStream()
         }
     }
 
     fun resume() {
-        scope.launch {
-            bassLifecycle.maybeSetupBASS()
+        bassLifecycle.maybeSetupBASS()
 
-            if (BASS.BASS_Start()) {
-                currentState = RelistenPlaybackState.Playing
-            }
+        if (BASS.BASS_Start()) {
+            currentState = RelistenPlaybackState.Playing
         }
     }
 
     fun pause() {
-        scope.launch {
-            bassLifecycle.maybeSetupBASS()
+        bassLifecycle.maybeSetupBASS()
 
-            if (BASS.BASS_Pause()) {
-                currentState = RelistenPlaybackState.Paused
-            }
+        if (BASS.BASS_Pause()) {
+            currentState = RelistenPlaybackState.Paused
         }
     }
 
     fun stop() {
-        scope.launch {
-            bassLifecycle.maybeSetupBASS()
+        bassLifecycle.maybeSetupBASS()
 
-            val mixerMainStream = mixerMainStream
+        val mixerMainStream = mixerMainStream
 
-            if (mixerMainStream != null) {
-                BASS.BASS_ChannelStop(mixerMainStream)
-                currentState = RelistenPlaybackState.Stopped
-            }
+        if (mixerMainStream != null) {
+            BASS.BASS_ChannelStop(mixerMainStream)
+
+            delegate?.trackChanged(this, activeStream?.streamable, null)
+            currentState = RelistenPlaybackState.Stopped
+
+            maybeTearDownActiveStream()
+            maybeTearDownNextStream()
         }
     }
 
+    fun teardown() {
+        bassLifecycle.maybeTearDownBASS()
+    }
+
     fun next() {
-        scope.launch {
-            bassLifecycle.maybeSetupBASS()
+        bassLifecycle.maybeSetupBASS()
 
-            val activeStream = activeStream
+        val activeStream = activeStream
 
-            if (nextStream != null && activeStream != null) {
-                bassLifecycle.mixInNextStream(completedStream = activeStream.stream)
-            }
+        if (nextStream != null && activeStream != null) {
+            bassLifecycle.mixInNextStream(completedStream = activeStream.stream)
         }
     }
 
@@ -234,9 +247,7 @@ class RelistenGaplessAudioPlayer {
             next()
         }
 
-        scope.launch {
-            playback.seekToPercent(percent)
-        }
+        playback.seekToPercent(percent)
     }
 
     fun prepareAudioSession() {
@@ -245,14 +256,12 @@ class RelistenGaplessAudioPlayer {
     }
 
     fun play(streamable: RelistenGaplessStreamable) {
-        scope.launch {
-            playback.playStreamableImmediately(streamable)
-        }
+        playback.playStreamableImmediately(streamable)
     }
 
-    internal fun bass_assert(x: Boolean) {
+    internal fun bass_assert(tag: String, x: Boolean) {
         if (!x) {
-            println("[bass] assertion failed: ${x}")
+            Log.e("relisten-audio-player", "[bass] assertion failed: ${tag}. BASS.BASS_ErrorGetCode()=${BASS.BASS_ErrorGetCode()}")
         }
     }
 }

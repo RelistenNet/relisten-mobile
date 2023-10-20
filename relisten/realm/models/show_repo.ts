@@ -3,8 +3,8 @@ import { Repository } from '../repository';
 import { Show } from './show';
 import Realm from 'realm';
 import { useMemo } from 'react';
-import { RelistenApiClient } from '../../api/client';
-import { useObject, useQuery } from '../schema';
+import { RelistenApiClient, RelistenApiResponse, RelistenApiResponseType } from '../../api/client';
+import { useObject, useQuery, useRealm } from '../schema';
 import { ThrottledNetworkBackedBehavior } from '../network_backed_behavior';
 import { ShowWithSources as ApiShowWithSources } from '../../api/models/source';
 import { Source } from './source';
@@ -27,19 +27,36 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
   ShowWithSources,
   ApiShowWithSources
 > {
-  constructor(public showUuid?: string) {
+  constructor(public showUuid?: string, public sourceUuid?: string) {
     super();
   }
 
-  fetchFromApi(api: RelistenApiClient): Promise<ApiShowWithSources | undefined> {
-    if (!this.showUuid) return Promise.resolve(undefined);
+  fetchFromApi(
+    api: RelistenApiClient
+  ): Promise<RelistenApiResponse<ApiShowWithSources | undefined>> {
+    if (!this.showUuid) {
+      return Promise.resolve({ type: RelistenApiResponseType.Offline, data: undefined });
+    }
+
     return api.showWithSources(this.showUuid);
   }
 
   fetchFromLocal(): ShowWithSources {
-    const show = useObject(Show, this.showUuid) || undefined;
-    const sources = useQuery(Source, (query) => query.filtered('showUuid == $0', this.showUuid), [
-      this.showUuid,
+    const realm = useRealm();
+
+    if (this.sourceUuid !== undefined && this.showUuid === undefined) {
+      const source = realm.objectForPrimaryKey(Source, this.sourceUuid);
+
+      if (source) {
+        this.showUuid = source.showUuid;
+      }
+    }
+
+    const showUuid = this.showUuid || '__no_show_sentintel__';
+
+    const show = useObject(Show, showUuid) || undefined;
+    const sources = useQuery(Source, (query) => query.filtered('showUuid == $0', showUuid), [
+      showUuid,
     ]);
 
     const obj = useMemo(() => {
@@ -105,10 +122,22 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
   }
 }
 
-export function useFullShow(showUuid: string): NetworkBackedResults<ShowWithSources> | undefined {
+export function useFullShow(
+  showUuid: string | undefined
+): NetworkBackedResults<ShowWithSources> | undefined {
   const behavior = useMemo(() => {
     return new ShowWithFullSourcesNetworkBackedBehavior(showUuid);
   }, [showUuid]);
+
+  return useNetworkBackedBehavior(behavior);
+}
+
+export function useFullShowFromSource(
+  sourceUuid: string | undefined
+): NetworkBackedResults<ShowWithSources> | undefined {
+  const behavior = useMemo(() => {
+    return new ShowWithFullSourcesNetworkBackedBehavior(undefined, sourceUuid);
+  }, [sourceUuid]);
 
   return useNetworkBackedBehavior(behavior);
 }

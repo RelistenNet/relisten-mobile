@@ -58,8 +58,8 @@ export interface RelistenDownloadProgressChangedEvent {
 }
 
 export interface RelistenTrackChangedEvent {
-  previousIdentifier: string;
-  currentIdentifier: string;
+  previousIdentifier?: string;
+  currentIdentifier?: string;
 }
 
 export interface PlaybackProgress {
@@ -135,7 +135,7 @@ class RelistenGaplessPlayer {
     return RelistenAudioPlayerModule.play(streamable);
   }
 
-  setNextStream(streamable: RelistenStreamable) {
+  setNextStream(streamable?: RelistenStreamable) {
     RelistenAudioPlayerModule.setNextStream(streamable);
   }
 
@@ -156,7 +156,7 @@ class RelistenGaplessPlayer {
   }
 
   prepareAudioSession() {
-    RelistenAudioPlayerModule.next();
+    RelistenAudioPlayerModule.prepareAudioSession();
   }
 
   seekTo(pct: number): Promise<void> {
@@ -164,4 +164,4 @@ class RelistenGaplessPlayer {
   }
 }
 
-export const player = new RelistenGaplessPlayer();
+export const nativePlayer = new RelistenGaplessPlayer();

@@ -8,7 +8,6 @@ import { RelistenLink } from '@/relisten/components/relisten_link';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { SectionHeader } from '@/relisten/components/section_header';
-import PlaybackMachine, { PlaybackTrack } from '@/relisten/machines/PlaybackMachine';
 import { Show } from '@/relisten/realm/models/show';
 import { useFullShow } from '@/relisten/realm/models/show_repo';
 import { Source } from '@/relisten/realm/models/source';
@@ -35,6 +34,7 @@ import {
 } from 'react-native';
 import * as R from 'remeda';
 import { PlayShow, SourceTrackComponent } from '@/relisten/components/SourceTrackComponent';
+import { useRelistenPlayer } from '@/relisten/player/relisten_player';
 
 export const SourceList = ({ sources }: { sources: Source[] }) => {
   return (
@@ -93,44 +93,30 @@ const SourceComponent = ({
   ...props
 }: { show: Show; selectedSource: Source } & ScrollViewProps) => {
   const { refreshing } = useRefreshContext();
-
-  let idx = 0;
-  const showTracks = selectedSource?.sourceSets
-    ?.map(
-      (set) =>
-        set?.sourceTracks.map((st) => ({
-          ...st.toJSON(),
-          url: st.mp3Url,
-          identifier: st.uuid,
-          humanizedDuration: st.humanizedDuration,
-          trackPosition: ++idx,
-          showUuid: show.uuid,
-        })) as PlaybackTrack[] // TODO: make sure these overlap
-
-      /*?.map((track) => ({
-        identifier: track.uuid,
-        url: track.mp3Url,
-        title: track.title,
-        showUuid: show.uuid,
-        sourceUuid: selectedSource.uuid,
-        artistUuid: show.artistUuid,
-      }))*/
-    )
-    .flat();
+  const { player } = useRelistenPlayer();
 
   const playShow = useCallback(
     (sourceTrack?: SourceTrack) => {
-      console.log('play', sourceTrack, showTracks);
+      if (!sourceTrack || !sourceTrack.mp3Url || !sourceTrack.uuid) {
+        return;
+      }
+
+      const showTracks = selectedSource.allSourceTracks();
+
       const trackIndex = Math.max(
-        showTracks.findIndex((st) => st.identifier === sourceTrack?.uuid),
+        showTracks.findIndex((st) => st.uuid === sourceTrack?.uuid),
         0
       );
 
-      PlaybackMachine.send({ type: 'UPDATE_QUEUE', queue: showTracks, trackIndex });
+      console.log(player);
+      console.log(player.queue);
 
-      PlaybackMachine.send({ type: 'RESUME' });
+      player.queue.replaceQueue(showTracks, trackIndex);
+      // PlaybackMachine.send({ type: 'UPDATE_QUEUE', queue: showTracks, trackIndex });
+
+      // PlaybackMachine.send({ type: 'RESUME' });
     },
-    [PlaybackMachine, showTracks]
+    [selectedSource]
   ) satisfies PlayShow;
 
   if (refreshing) {

@@ -29,11 +29,7 @@ public class RelistenAudioPlayerModule: Module {
             player?.delegate = self
         }
 
-        Events("onError")
-        Events("onPlaybackStateChanged")
-        Events("onPlaybackProgressChanged")
-        Events("onDownloadProgressChanged")
-        Events("onTrackChanged")
+        Events("onError", "onPlaybackStateChanged", "onPlaybackProgressChanged", "onDownloadProgressChanged", "onTrackChanged")
 
         Function("currentDuration") {
             return player?.currentDuration
@@ -62,14 +58,14 @@ public class RelistenAudioPlayerModule: Module {
         Function("prepareAudioSession") {
             player?.prepareAudioSession()
         }
-        
+
         AsyncFunction("playbackProgress") { (promise: Promise) in
             player?.bassQueue.async {
                 guard let player = self.player else {
                     promise.resolve(["playbackProgress": nil] as [String : Any?])
                     return
                 }
-                
+
                 promise.resolve([
                     "playbackProgress": [
                         "elapsed": player.elapsed,
@@ -96,8 +92,12 @@ public class RelistenAudioPlayerModule: Module {
             }
         }
 
-        Function("setNextStream"){ (streamable: RelistenStreamable) in
-            guard let url = streamable.url, let identifier = streamable.identifier else {
+        Function("setNextStream"){ (streamable: RelistenStreamable?) in
+            if (streamable == nil) {
+                player?.setNextStream(nil)
+            }
+            
+            guard let streamable = streamable, let url = streamable.url, let identifier = streamable.identifier else {
                 return
             }
 
@@ -171,9 +171,9 @@ extension RelistenAudioPlayerModule: RelistenGaplessAudioPlayerDelegate {
         ])
     }
 
-    public func trackChanged(_ player: RelistenGaplessAudioPlayer, previousStreamable: RelistenGaplessStreamable, currentStreamable: RelistenGaplessStreamable?) {
+    public func trackChanged(_ player: RelistenGaplessAudioPlayer, previousStreamable: RelistenGaplessStreamable?, currentStreamable: RelistenGaplessStreamable?) {
         self.sendEvent("onTrackChanged", [
-            "previousIdentifier": previousStreamable.identifier,
+            "previousIdentifier": previousStreamable?.identifier,
             "currentIdentifier": currentStreamable?.identifier,
         ])
     }
