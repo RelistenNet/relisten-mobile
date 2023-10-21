@@ -108,6 +108,18 @@ export class RelistenPlayerQueue {
     this.onOrderedTracksChanged.dispatch(this.orderedTracks);
   }
 
+  reorderQueue(newQueue: SourceTrack[]) {
+    this.originalTracks = [...newQueue.map((t) => new PlayerQueueTrack(t))];
+    this.reshuffleTracks();
+
+    if (this.currentTrack !== undefined) {
+      this.recalculateTrackIndexes(this.currentTrack.identifier);
+    }
+
+    this.recalculateNextTrack();
+    this.onOrderedTracksChanged.dispatch(this.orderedTracks);
+  }
+
   replaceQueue(newQueue: SourceTrack[], playingTrackAtIndex: number | undefined) {
     this.originalTracks = [...newQueue.map((t) => new PlayerQueueTrack(t))];
     this.originalTracksCurrentIndex = undefined;
@@ -293,30 +305,34 @@ export class RelistenPlayerQueue {
     this.clearCurrentTrack();
 
     if (newIdentifier !== undefined) {
-      for (let i = 0; i < this.originalTracks.length; i++) {
-        const originalTrack = this.originalTracks[i];
-        const shuffledTrack = this.shuffledTracks[i];
-
-        if (originalTrack.identifier == newIdentifier) {
-          this.originalTracksCurrentIndex = i;
-        }
-
-        if (shuffledTrack.identifier == newIdentifier) {
-          this.shuffledTracksCurrentIndex = i;
-        }
-
-        if (
-          this.originalTracksCurrentIndex !== undefined &&
-          this.shuffledTracksCurrentIndex !== undefined
-        ) {
-          break;
-        }
-      }
+      this.recalculateTrackIndexes(newIdentifier);
     }
 
     this.recalculateNextTrack();
     this.onCurrentTrackChanged.dispatch(this.currentTrack);
   };
+
+  private recalculateTrackIndexes(newIdentifier: string) {
+    for (let i = 0; i < this.originalTracks.length; i++) {
+      const originalTrack = this.originalTracks[i];
+      const shuffledTrack = this.shuffledTracks[i];
+
+      if (originalTrack.identifier == newIdentifier) {
+        this.originalTracksCurrentIndex = i;
+      }
+
+      if (shuffledTrack.identifier == newIdentifier) {
+        this.shuffledTracksCurrentIndex = i;
+      }
+
+      if (
+        this.originalTracksCurrentIndex !== undefined &&
+        this.shuffledTracksCurrentIndex !== undefined
+      ) {
+        break;
+      }
+    }
+  }
 
   // endregion
 }

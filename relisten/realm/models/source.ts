@@ -49,7 +49,7 @@ export class Source
       updatedAt: 'date',
       artistUuid: { type: 'string', indexed: true },
       showUuid: { type: 'string', indexed: true },
-      venueUuid: { type: 'string?', indexed: true },
+      venueUuid: { type: 'string', optional: true, indexed: true },
 
       displayDate: 'date',
       isSoundboard: { type: 'bool', indexed: true },

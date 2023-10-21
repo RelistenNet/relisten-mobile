@@ -69,7 +69,7 @@ const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> 
 
       if (randomShow?.data?.uuid) {
         router.push({
-          pathname: '/(tabs)/artists/[artistUuid]/show/[showUuid]/',
+          pathname: '/relisten/(tabs)/artists/[artistUuid]/show/[showUuid]/',
           params: {
             artistUuid: artist.uuid,
             showUuid: randomShow!.data!.uuid,
@@ -97,7 +97,7 @@ const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> 
         <View className="w-full flex-row px-4 pb-4" style={{ gap: 16 }}>
           <Link
             href={{
-              pathname: '/(tabs)/artists/[artistUuid]/venues',
+              pathname: '/relisten/(tabs)/artists/[artistUuid]/venues',
               params: {
                 artistUuid: artist.uuid,
               },
@@ -110,7 +110,7 @@ const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> 
           </Link>
           <Link
             href={{
-              pathname: '/(tabs)/artists/[artistUuid]/tours',
+              pathname: '/relisten/(tabs)/artists/[artistUuid]/tours',
               params: {
                 artistUuid: artist.uuid,
               },
@@ -123,7 +123,7 @@ const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> 
           </Link>
           <Link
             href={{
-              pathname: '/(tabs)/artists/[artistUuid]/songs' as const,
+              pathname: '/relisten/(tabs)/artists/[artistUuid]/songs' as const,
               params: {
                 artistUuid: artist.uuid,
               },
@@ -138,7 +138,7 @@ const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> 
         <View className="w-full flex-row px-4 pb-4" style={{ gap: 16 }}>
           <Link
             href={{
-              pathname: '/(tabs)/artists/[artistUuid]/rated' as const,
+              pathname: '/relisten/(tabs)/artists/[artistUuid]/rated' as const,
               params: {
                 artistUuid: artist.uuid,
               },
@@ -151,7 +151,7 @@ const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> 
           </Link>
           <Link
             href={{
-              pathname: '/(tabs)/artists/[artistUuid]/popular' as const,
+              pathname: '/relisten/(tabs)/artists/[artistUuid]/popular' as const,
               params: {
                 artistUuid: artist.uuid,
               },
@@ -179,7 +179,7 @@ const YearListItem = ({ year }: { year: Year }) => {
   return (
     <Link
       href={{
-        pathname: '/(tabs)/artists/[artistUuid]/year/[yearUuid]/' as const,
+        pathname: '/relisten/(tabs)/artists/[artistUuid]/year/[yearUuid]/' as const,
         params: {
           artistUuid: year.artistUuid,
           yearUuid: year.uuid,

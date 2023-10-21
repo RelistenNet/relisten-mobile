@@ -12,8 +12,10 @@ export const RefreshContextProvider = <T extends object>({
   networkBackedResults,
   extraRefreshingConsideration,
 }: PropsWithChildren<{
-  networkBackedResults?: NetworkBackedResults<T>;
-  extraRefreshingConsideration?: (networkBackedResults: NetworkBackedResults<T>) => boolean;
+  networkBackedResults?: NetworkBackedResults<T | undefined>;
+  extraRefreshingConsideration?: (
+    networkBackedResults: NetworkBackedResults<T | undefined>
+  ) => boolean;
 }>) => {
   if (!networkBackedResults) return children;
 
@@ -23,6 +25,8 @@ export const RefreshContextProvider = <T extends object>({
   if (extraRefreshingConsideration) {
     refreshing ||= extraRefreshingConsideration(networkBackedResults);
   }
+
+  refreshing ||= networkBackedResults.data === undefined;
 
   return (
     <RefreshContext.Provider

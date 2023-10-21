@@ -42,7 +42,7 @@ export const SourceList = ({ sources }: { sources: Source[] }) => {
     <RelistenFlatList
       style={{ flex: 1, width: '100%' }}
       data={sources}
-      renderItem={({ item: source, index }) => (
+      renderItem={({ item: source, index }: { item: Source; index: number }) => (
         <SourceListItem source={source} index={index} key={index} />
       )}
     />
@@ -81,7 +81,7 @@ export default function Page() {
       <DisappearingHeaderScreen
         headerHeight={50}
         ScrollableComponent={SourceComponent}
-        show={show!}
+        show={show}
         selectedSource={selectedSource!}
       />
     </RefreshContextProvider>
@@ -92,7 +92,7 @@ const SourceComponent = ({
   show,
   selectedSource,
   ...props
-}: { show: Show; selectedSource: Source } & ScrollViewProps) => {
+}: { show: Show | undefined; selectedSource: Source } & ScrollViewProps) => {
   const { refreshing } = useRefreshContext();
   const player = useRelistenPlayer();
 
@@ -109,18 +109,12 @@ const SourceComponent = ({
         0
       );
 
-      console.log(player);
-      console.log(player.queue);
-
       player.queue.replaceQueue(showTracks, trackIndex);
-      // PlaybackMachine.send({ type: 'UPDATE_QUEUE', queue: showTracks, trackIndex });
-
-      // PlaybackMachine.send({ type: 'RESUME' });
     },
     [selectedSource]
   ) satisfies PlayShow;
 
-  if (refreshing) {
+  if (refreshing || !show) {
     return (
       <View className="w-full p-4">
         <ListContentLoader
@@ -289,7 +283,7 @@ export const SourceHeader: React.FC<{ source: Source; show: Show; playShow: Play
         <View className="w-full pb-2">
           <Link
             href={{
-              pathname: '/(tabs)/artists/[artistUuid]/show/[showUuid]/sources/' as const,
+              pathname: '/relisten/(tabs)/artists/[artistUuid]/show/[showUuid]/sources/' as const,
               params: {
                 artistUuid: show.artistUuid,
                 yearUuid: show.yearUuid,

@@ -36,7 +36,7 @@ function combinedUpsertResults<T>(acc: UpsertResults<T>, b: UpsertResults<T>): U
   return acc;
 }
 
-function humanizeUpsertResults(a: UpsertResults<any>) {
+function humanizeUpsertResults(a: UpsertResults<unknown>) {
   return `created=${a.created}, updated=${a.updated}, deleted=${a.deleted}`;
 }
 
@@ -120,7 +120,7 @@ export class Repository<
     queryForModel = false
   ): UpsertResults<TModel> {
     if (queryForModel && !model) {
-      model = realm.objectForPrimaryKey(this.klass, api.uuid);
+      model = realm.objectForPrimaryKey(this.klass, api.uuid) || undefined;
     }
 
     if (model) {
@@ -141,7 +141,7 @@ export class Repository<
   public upsertMultiple(
     realm: Realm,
     api: ReadonlyArray<TApi>,
-    models: ReadonlyArray<TModel>
+    models: ReadonlyArray<TModel> | Realm.List<TModel> | Realm.Results<TModel>
   ): UpsertResults<TModel> {
     const dbIds = models.map((m) => m.uuid);
     const networkUuids = api.map((a) => a.uuid);
@@ -151,7 +151,7 @@ export class Repository<
       R.intersection(dbIds, networkUuids)
     );
 
-    const modelsById = R.flatMapToObj(models, (m) => [[m.uuid, m]]);
+    const modelsById = R.flatMapToObj(models as ReadonlyArray<TModel>, (m) => [[m.uuid, m]]);
     const networkApisByUuid = R.flatMapToObj(api, (m) => [[m.uuid, m]]);
 
     const acc = { created: 0, updated: 0, deleted: 0, updatedModels: [], createdModels: [] };

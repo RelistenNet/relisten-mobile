@@ -10,16 +10,18 @@ import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useArtists } from '@/relisten/realm/models/artist_repo';
 import { Link } from 'expo-router';
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import Realm from 'realm';
 import { RelistenText } from '@/relisten/components/relisten_text';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+import { useRelistenPlayerBottomBarContext } from '@/relisten/player/ui/player_bottom_bar';
 
 const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) => {
   return (
     <Link
       href={{
-        pathname: '/(tabs)/artists/[artistUuid]/' as const,
+        pathname: '/relisten/(tabs)/artists/[artistUuid]/' as const,
         params: {
           artistUuid: artist.uuid,
         },
@@ -75,6 +77,14 @@ const ArtistsList = ({ artists }: { artists: Realm.Results<Artist> }) => {
 export default function Page() {
   const results = useArtists();
   const { data: artists } = results;
+
+  const bottomTabBarHeight = useBottomTabBarHeight();
+  const { setTabBarHeight } = useRelistenPlayerBottomBarContext();
+
+  useEffect(() => {
+    setTabBarHeight(bottomTabBarHeight);
+  }, [bottomTabBarHeight, setTabBarHeight]);
+
   // const navigation = useNavigation();
 
   // useEffect(() => {
@@ -91,7 +101,7 @@ export default function Page() {
         <ScrollScreen>
           <Link
             href={{
-              pathname: '/(tabs)/artists/[artistUuid]/show/[showUuid]/',
+              pathname: '/relisten/(tabs)/artists/[artistUuid]/show/[showUuid]/',
               params: {
                 artistUuid: '77a58ff9-2e01-c59c-b8eb-cff106049b72',
                 showUuid: '104c96e5-719f-366f-b72d-8d53709c80e0',

@@ -1,10 +1,10 @@
-import { FlatList, RefreshControl, View } from 'react-native';
+import { FlatList, ListRenderItem, RefreshControl, View } from 'react-native';
 import { useRefreshContext } from './refresh_context';
 import { ItemSeparator } from './item_separator';
-import { ListRenderItem } from 'react-native/Libraries/Lists/VirtualizedList';
 import { FlatListProps } from 'react-native/Libraries/Lists/FlatList';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import { RelistenBlue } from '../relisten_blue';
+import { useRelistenPlayerBottomBarContext } from '@/relisten/player/ui/player_bottom_bar';
 
 export const RelistenFlatList = <T extends { uuid: string }>({
   data,
@@ -17,6 +17,7 @@ export const RelistenFlatList = <T extends { uuid: string }>({
   pullToRefresh?: boolean;
 } & FlatListProps<T>) => {
   const { onRefresh, refreshing } = useRefreshContext();
+  const { playerBottomBarHeight } = useRelistenPlayerBottomBarContext();
 
   if (refreshing) {
     return (
@@ -38,6 +39,7 @@ export const RelistenFlatList = <T extends { uuid: string }>({
       refreshControl={
         pullToRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} /> : undefined
       }
+      contentContainerStyle={{ marginBottom: playerBottomBarHeight }}
       {...props}
     ></FlatList>
   );

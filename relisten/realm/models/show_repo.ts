@@ -82,10 +82,17 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
     realm.write(() => {
       // TODO: maybe should be inside if statement?
       // it broke doing that, but worth reivisiting
-      showRepo.upsert(realm, apiData, localData.show);
+      const {
+        createdModels: [createdShow],
+        updatedModels: [updatedShow],
+      } = showRepo.upsert(realm, apiData, localData.show);
+
+      if (!localData.show) {
+        localData.show = updatedShow || createdShow;
+      }
 
       if (localData.show && apiData.venue) {
-        const { createdModels: createdVenues } = venueRepo.upsert(
+        const { createdModels: createdVenues, updatedModels: updatedVenues } = venueRepo.upsert(
           realm,
           apiData.venue,
           localData.show.venue,
@@ -94,6 +101,10 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
 
         if (createdVenues.length > 0) {
           localData.show.venue = createdVenues[0];
+        }
+
+        if (updatedVenues.length > 0) {
+          localData.show.venue = updatedVenues[0];
         }
       }
 
@@ -124,7 +135,7 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
 
 export function useFullShow(
   showUuid: string | undefined
-): NetworkBackedResults<ShowWithSources> | undefined {
+): NetworkBackedResults<ShowWithSources | undefined> {
   const behavior = useMemo(() => {
     return new ShowWithFullSourcesNetworkBackedBehavior(showUuid);
   }, [showUuid]);
@@ -134,7 +145,7 @@ export function useFullShow(
 
 export function useFullShowFromSource(
   sourceUuid: string | undefined
-): NetworkBackedResults<ShowWithSources> | undefined {
+): NetworkBackedResults<ShowWithSources | undefined> {
   const behavior = useMemo(() => {
     return new ShowWithFullSourcesNetworkBackedBehavior(undefined, sourceUuid);
   }, [sourceUuid]);

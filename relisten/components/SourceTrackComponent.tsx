@@ -11,17 +11,21 @@ export const SourceTrackComponent: React.FC<{
   sourceTrack: SourceTrack;
   isLastTrackInSet: boolean;
   playShow: PlayShow;
-}> = ({ sourceTrack, isLastTrackInSet, playShow }) => {
+  showTrackNumber?: boolean;
+}> = ({ sourceTrack, isLastTrackInSet, playShow, showTrackNumber }) => {
+  showTrackNumber = showTrackNumber !== undefined ? showTrackNumber : true;
   return (
     <TouchableOpacity
       className="flex flex-row items-start pl-6 pr-4"
       onPress={() => playShow(sourceTrack)}
     >
-      <View className="basis-7 pt-3 ">
-        <RelistenText className="pt-[1] text-lg text-gray-400">
-          {sourceTrack.trackPosition}
-        </RelistenText>
-      </View>
+      {showTrackNumber && (
+        <View className="basis-7 pt-3">
+          <RelistenText className="pt-[1] text-lg text-gray-400">
+            {sourceTrack.trackPosition}
+          </RelistenText>
+        </View>
+      )}
 
       <View className="shrink flex-col">
         <View className="w-full grow flex-row items-center justify-between">

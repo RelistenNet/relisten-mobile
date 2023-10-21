@@ -20,6 +20,7 @@ import { useEffect, useRef } from 'react';
 import useCacheAssets from './useCacheAssets';
 
 import { RelistenPlayerProvider } from '@/relisten/player/relisten_player_hooks';
+import { RelistenPlayerBottomBarProvider } from '@/relisten/player/ui/player_bottom_bar';
 
 dayjs.extend(duration);
 dayjs.extend(relativeTime);
@@ -33,7 +34,7 @@ export default function TabLayout() {
       // https://github.com/expo/router/issues/740#issuecomment-1629471113
       // TODO: they should fix this bug at some point
       setTimeout(() => {
-        router.replace('/(tabs)/artists/');
+        router.replace('/relisten/(tabs)/artists/');
       }, 1);
     }
   }, [isAppReady]);
@@ -47,7 +48,7 @@ export default function TabLayout() {
   }, [realmRef.current]);
 
   return (
-    <RealmProvider realmRef={realmRef}>
+    <RealmProvider realmRef={realmRef} closeOnUnmount={false}>
       <RelistenApiProvider>
         <RelistenPlayerProvider>
           <ThemeProvider
@@ -61,10 +62,12 @@ export default function TabLayout() {
               },
             }}
           >
-            <SafeAreaProvider>
-              <StatusBar style="light" />
-              <Slot />
-            </SafeAreaProvider>
+            <RelistenPlayerBottomBarProvider>
+              <SafeAreaProvider>
+                <StatusBar style="light" />
+                <Slot />
+              </SafeAreaProvider>
+            </RelistenPlayerBottomBarProvider>
           </ThemeProvider>
         </RelistenPlayerProvider>
       </RelistenApiProvider>

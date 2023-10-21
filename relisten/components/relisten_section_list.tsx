@@ -12,7 +12,7 @@ import { SectionListProps } from 'react-native/Libraries/Lists/SectionList';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import { RelistenObject } from '../api/models/relisten';
 import { RelistenBlue } from '../relisten_blue';
-import React from 'react';
+import { useRelistenPlayerBottomBarContext } from '@/relisten/player/ui/player_bottom_bar';
 
 export type RelistenSectionListData<T extends RelistenObject> = SectionListData<
   T,
@@ -32,6 +32,7 @@ export const RelistenSectionList = <T extends RelistenObject>({
   ...props
 }: RelistenSectionListProps<T>) => {
   const { onRefresh, refreshing } = useRefreshContext();
+  const { playerBottomBarHeight } = useRelistenPlayerBottomBarContext();
 
   if (refreshing) {
     return (
@@ -56,6 +57,7 @@ export const RelistenSectionList = <T extends RelistenObject>({
       refreshControl={
         pullToRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} /> : undefined
       }
+      contentContainerStyle={{ marginBottom: playerBottomBarHeight }}
       {...props}
     ></Animated.SectionList>
   );

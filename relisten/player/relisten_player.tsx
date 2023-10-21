@@ -82,6 +82,18 @@ export class RelistenPlayer {
     nativePlayer.next().then(() => {});
   }
 
+  previous() {
+    this.addPlayerListeners();
+
+    const currentIdx = this.queue.currentIndex;
+
+    if (!currentIdx) {
+      return;
+    }
+
+    this.queue.playTrackAtIndex(currentIdx - 1);
+  }
+
   prepareAudioSession() {
     this.addPlayerListeners();
 
