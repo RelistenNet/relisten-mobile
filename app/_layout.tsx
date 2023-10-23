@@ -21,6 +21,7 @@ import useCacheAssets from './useCacheAssets';
 
 import { RelistenPlayerProvider } from '@/relisten/player/relisten_player_hooks';
 import { RelistenPlayerBottomBarProvider } from '@/relisten/player/ui/player_bottom_bar';
+import { ActionSheetProvider } from '@expo/react-native-action-sheet';
 
 dayjs.extend(duration);
 dayjs.extend(relativeTime);
@@ -63,10 +64,12 @@ export default function TabLayout() {
             }}
           >
             <RelistenPlayerBottomBarProvider>
-              <SafeAreaProvider>
-                <StatusBar style="light" />
-                <Slot />
-              </SafeAreaProvider>
+              <ActionSheetProvider>
+                <SafeAreaProvider>
+                  <StatusBar style="light" />
+                  <Slot />
+                </SafeAreaProvider>
+              </ActionSheetProvider>
             </RelistenPlayerBottomBarProvider>
           </ThemeProvider>
         </RelistenPlayerProvider>

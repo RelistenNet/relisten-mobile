@@ -10,10 +10,11 @@ import Flex from '@/relisten/components/flex';
 import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useArtist } from '@/relisten/realm/models/artist_repo';
-import { useFullShowFromSource } from '@/relisten/realm/models/show_repo';
 import { useRouter } from 'expo-router';
 import { useNativePlaybackProgress } from '@/relisten/player/native_playback_state_hooks';
 import { ProgressView } from '@react-native-community/progress-view';
+import { useObject } from '@/relisten/realm/schema';
+import { Show } from '@/relisten/realm/models/show';
 
 function PlayerBottomBarContents() {
   const currentTrack = useRelistenPlayerCurrentTrack();
@@ -24,13 +25,13 @@ function PlayerBottomBarContents() {
   const artist = useArtist(currentTrack?.sourceTrack?.artistUuid, {
     onlyFetchFromApiIfLocalIsNotShowable: true,
   });
-  const showCache = useFullShowFromSource(currentTrack?.sourceTrack?.sourceUuid);
+  const showCache = useObject(Show, currentTrack?.sourceTrack?.showUuid || '');
 
   const subtitle = [
     artist?.data?.name,
-    showCache?.data?.show?.displayDate,
-    showCache?.data?.show?.venue?.name,
-    showCache?.data?.show?.venue?.location,
+    showCache?.displayDate,
+    showCache?.venue?.name,
+    showCache?.venue?.location,
   ]
     .filter((x) => !!x && x.length > 0)
     .join(' · ');

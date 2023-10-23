@@ -334,7 +334,7 @@ export const SourceSetComponent: React.FC<{
           key={t.uuid}
           sourceTrack={t}
           isLastTrackInSet={idx == sourceSet.sourceTracks.length - 1}
-          playShow={playShow}
+          onPress={playShow}
         />
       ))}
     </View>

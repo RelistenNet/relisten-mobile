@@ -147,6 +147,27 @@ export class RelistenPlayerQueue {
     this.recalculateNextTrack();
   }
 
+  removeTrackAtIndex(index: number) {
+    const originalCopy = [...this.originalTracks];
+    const [removed] = originalCopy.splice(index, 1);
+
+    this.originalTracks = originalCopy;
+
+    const shuffledCopy = [...this.shuffledTracks];
+
+    for (let i = 0; i < this.shuffledTracks.length; i++) {
+      if (this.shuffledTracks[i].identifier === removed.identifier) {
+        shuffledCopy.splice(i, 1);
+        break;
+      }
+    }
+
+    this.shuffledTracks = shuffledCopy;
+
+    this.recalculateNextTrack();
+    this.onOrderedTracksChanged.dispatch(this.orderedTracks);
+  }
+
   get shuffleState() {
     return this._shuffleState;
   }

@@ -4,6 +4,7 @@ export interface SourceTrack {
   source_uuid: string;
   source_set_uuid: string;
   artist_uuid: string;
+  show_uuid: string;
   track_position: number;
   duration?: number;
   title: string;

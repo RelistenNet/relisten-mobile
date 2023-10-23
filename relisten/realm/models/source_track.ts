@@ -15,6 +15,7 @@ export interface SourceTrackRequiredProperties extends RelistenObjectRequiredPro
   sourceUuid: string;
   sourceSetUuid: string;
   artistUuid: string;
+  showUuid: string;
 
   trackPosition: number;
   duration?: number;
@@ -43,6 +44,7 @@ export class SourceTrack
       artistUuid: { type: 'string', indexed: true },
       sourceUuid: { type: 'string', indexed: true },
       sourceSetUuid: { type: 'string', indexed: true },
+      showUuid: { type: 'string', indexed: true },
 
       trackPosition: 'int',
       duration: 'double?',
@@ -64,6 +66,7 @@ export class SourceTrack
   sourceUuid!: string;
   sourceSetUuid!: string;
   artistUuid!: string;
+  showUuid!: string;
   trackPosition!: number;
   duration?: number;
   title!: string;
@@ -93,6 +96,7 @@ export class SourceTrack
       sourceUuid: relistenObj.source_uuid,
       sourceSetUuid: relistenObj.source_set_uuid,
       artistUuid: relistenObj.artist_uuid,
+      showUuid: relistenObj.show_uuid,
       trackPosition: relistenObj.track_position,
       duration: relistenObj.duration,
       title: relistenObj.title,
