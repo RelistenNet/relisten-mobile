@@ -1,33 +1,34 @@
+import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
+import Flex from '@/relisten/components/flex';
+import { ItemSeparator } from '@/relisten/components/item_separator';
+import { RelistenText, UnselectableText } from '@/relisten/components/relisten_text';
+import { useNativePlaybackProgress } from '@/relisten/player/native_playback_state_hooks';
 import {
   useRelistenPlayer,
   useRelistenPlayerPlaybackState,
 } from '@/relisten/player/relisten_player_hooks';
-import { FlatList, Platform, TouchableOpacity, View } from 'react-native';
-import Flex from '@/relisten/components/flex';
-import Scrubber from 'react-native-scrubber';
-import { useNativePlaybackProgress } from '@/relisten/player/native_playback_state_hooks';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
 import {
   useRelistenPlayerCurrentTrack,
   useRelistenPlayerQueueOrderedTracks,
 } from '@/relisten/player/relisten_player_queue_hooks';
-import { RelistenText } from '@/relisten/components/relisten_text';
-import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useArtist } from '@/relisten/realm/models/artist_repo';
-import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
+import { Show } from '@/relisten/realm/models/show';
+import { useObject } from '@/relisten/realm/schema';
+import { RelistenBlue } from '@/relisten/relisten_blue';
+import { useActionSheet } from '@expo/react-native-action-sheet';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
-import { VolumeManager } from 'react-native-volume-manager';
-import AirPlayButton from 'react-native-airplay-button';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
-import { useActionSheet } from '@expo/react-native-action-sheet';
-import { ItemSeparator } from '@/relisten/components/item_separator';
-import { router, useFocusEffect, useRouter } from 'expo-router';
-import { useObject } from '@/relisten/realm/schema';
-import { Show } from '@/relisten/realm/models/show';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
+import { FlatList, Platform, TouchableOpacity, View } from 'react-native';
+import AirPlayButton from 'react-native-airplay-button';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Scrubber from 'react-native-scrubber';
+import { VolumeManager } from 'react-native-volume-manager';
 
 function ScrubberRow() {
   const progress = useNativePlaybackProgress();
@@ -220,7 +221,7 @@ function PlayerVolumeControls() {
   );
 }
 
-function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; index: number }) {
+function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; index?: number }) {
   const { showActionSheetWithOptions } = useActionSheet();
   const player = useRelistenPlayer();
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
@@ -229,6 +230,8 @@ function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; 
 
   const artist = useArtist(sourceTrack.artistUuid);
   const show = useObject(Show, sourceTrack.showUuid || '');
+
+  if (typeof index === 'undefined') return null;
 
   const onDotsPress = () => {
     const options = ['Play now', 'Play next', 'Add to end of queue', 'Remove from queue', 'Cancel'];
@@ -267,44 +270,40 @@ function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; 
     );
   };
 
-  const onPress = () => {
-    player.queue.playTrackAtIndex(index);
-  };
-
   const subtitle = [artist?.data?.name, show?.displayDate, show?.venue?.name, show?.venue?.location]
     .filter((x) => !!x && x.length > 0)
     .join(' · ');
 
   return (
-    <TouchableOpacity className="flex flex-row items-start px-4" onPress={onPress}>
-      <View className="shrink flex-col">
-        <View className="w-full grow flex-row items-center justify-between">
-          <Flex column className="shrink py-3 pr-2">
-            <Flex className="items-center">
-              {isPlayingThisTrack && (
-                <View className="pr-1">
-                  <MaterialIcons name="bar-chart" size={18} color="white" />
-                </View>
-              )}
-              <RelistenText className="text-lg">{sourceTrack.title}</RelistenText>
-            </Flex>
-            {subtitle.length > 0 && (
-              <RelistenText className="pt-1 text-sm text-gray-400" numberOfLines={1}>
-                {subtitle}
-              </RelistenText>
+    // <TouchableOpacity className="flex h-full w-full flex-row items-start px-4" onPress={onPress}>
+    <View className="shrink flex-col px-4">
+      <View className="w-full grow flex-row items-center justify-between">
+        <Flex column className="shrink py-3 pr-2">
+          <Flex className="items-center">
+            {isPlayingThisTrack && (
+              <View className="pr-1">
+                <MaterialIcons name="bar-chart" size={18} color="white" />
+              </View>
             )}
+            <UnselectableText className="text-lg">{sourceTrack.title}</UnselectableText>
           </Flex>
-          <View className="grow"></View>
-          <RelistenText className="py-3 text-base text-gray-400">
-            {sourceTrack.humanizedDuration}
-          </RelistenText>
-          <TouchableOpacity className="shrink-0 grow-0 py-3 pl-4" onPress={onDotsPress}>
-            <MaterialCommunityIcons name="dots-horizontal" size={16} color="white" />
-          </TouchableOpacity>
-        </View>
-        <ItemSeparator />
+          {subtitle.length > 0 && (
+            <UnselectableText className="pt-1 text-sm text-gray-400" numberOfLines={1}>
+              {subtitle}
+            </UnselectableText>
+          )}
+        </Flex>
+        <View className="grow"></View>
+        <UnselectableText className="py-3 text-base text-gray-400">
+          {sourceTrack.humanizedDuration}
+        </UnselectableText>
+        <TouchableOpacity className="shrink-0 grow-0 py-3 pl-4" onPress={onDotsPress}>
+          <MaterialCommunityIcons name="dots-horizontal" size={16} color="white" />
+        </TouchableOpacity>
       </View>
-    </TouchableOpacity>
+      <ItemSeparator />
+    </View>
+    // </TouchableOpacity>
   );
 }
 
@@ -325,27 +324,36 @@ function PlayerQueue() {
     }
   });
 
+  const onPress = (index?: number) => {
+    if (!index) return;
+    player.queue.playTrackAtIndex(index);
+  };
   return (
     <View className="flex-1">
-      <FlatList
+      <DraggableFlatList
         ref={flatlistRef as any}
-        className="w-full flex-1"
         data={orderedQueueTracks}
-        // onDragEnd={({ data }) => player.queue.reorderQueue(data.map((q) => q.sourceTrack))}
+        onDragEnd={({ data }) => player.queue.reorderQueue(data.map((q) => q.sourceTrack))}
         keyExtractor={(item) => item.identifier}
-        renderItem={({ item, index }) => (
-          // <ScaleDecorator>
-          //   <TouchableOpacity onLongPress={drag} disabled={isActive} className="flex-1">
-          <PlayerQueueItem key={item.identifier} queueTrack={item} index={index} />
-          // </TouchableOpacity>
-          // </ScaleDecorator>
+        renderItem={({ item, drag, isActive, getIndex }) => (
+          <ScaleDecorator key={item.identifier}>
+            <TouchableOpacity
+              onPress={() => onPress(getIndex())}
+              onLongPress={drag}
+              disabled={isActive}
+              className="w-full flex-1"
+            >
+              <PlayerQueueItem queueTrack={item} index={getIndex()} />
+              {/* <RelistenText>hi</RelistenText> */}
+            </TouchableOpacity>
+          </ScaleDecorator>
         )}
         onScrollToIndexFailed={(info) => {
           setTimeout(() => {
             flatlistRef.current?.scrollToIndex({ index: info.index, animated: true });
           }, 100);
         }}
-      ></FlatList>
+      ></DraggableFlatList>
     </View>
   );
 }
