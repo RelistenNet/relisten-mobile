@@ -42,7 +42,7 @@
     "plur": "^5.1.0",
     "react": "18.2.0",
     "react-content-loader": "^6.2.1",
-    "react-native": "0.72.5",
+    "react-native": "0.72.6",
     "react-native-airplay-button": "^1.1.0",
     "react-native-draggable-flatlist": "^4.0.1",
     "react-native-gesture-handler": "~2.12.0",
