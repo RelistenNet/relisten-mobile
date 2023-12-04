@@ -1,4 +1,3 @@
-import PlaybackBar from '@/relisten/components/PlaybackBar';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { Stack } from 'expo-router/stack';
 
@@ -36,7 +35,7 @@ export default function ArtistsLayout() {
         }}
       />
       <Stack.Screen
-        name="[artistUuid]/show/[showUuid]/index"
+        name="[artistUuid]/show/[showUuid]/source/[sourceUuid]/index"
         options={{
           title: '',
         }}
