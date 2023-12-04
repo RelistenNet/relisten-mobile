@@ -1,6 +1,5 @@
 import { Link as SLink } from '@/relisten/api/models/source';
 import { PlayShow, SourceTrackComponent } from '@/relisten/components/SourceTrackComponent';
-import { FavoriteObjectButton } from '@/relisten/components/favorite_icon_button';
 import { ItemSeparator } from '@/relisten/components/item_separator';
 import { RefreshContextProvider, useRefreshContext } from '@/relisten/components/refresh_context';
 import { RelistenButton } from '@/relisten/components/relisten_button';
@@ -26,13 +25,11 @@ import React, { PropsWithChildren, useEffect, useMemo } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import {
   Animated,
-  Button,
   ScrollViewProps,
   TouchableOpacity,
   TouchableOpacityProps,
   View,
 } from 'react-native';
-import * as R from 'remeda';
 
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
 
@@ -213,41 +210,7 @@ export const SourceDetail: React.FC<{ source: Source; show: Show }> = memo(({ sh
           </SourceProperty>
         )}
       </View>
-      {false && (
-        <View className="w-full flex-row pb-2" style={{ gap: 16 }}>
-          <RelistenButton className="shrink basis-1/2">Switch Source</RelistenButton>
-          <FavoriteObjectButton className="shrink basis-1/2" object={source} />
-        </View>
-      )}
-      <View className="w-full flex-row pb-4 " style={{ gap: 16 }}>
-        <RelistenButton
-          className="shrink basis-1/2"
-          textClassName="text-l"
-          icon={<MaterialIcons name="play-arrow" size={20} color="white" />}
-          onPress={() => playShow(source.sourceSets[0].sourceTracks[0])}
-        >
-          Play
-        </RelistenButton>
-        <RelistenButton
-          className="shrink basis-1/2"
-          textClassName="text-l"
-          icon={
-            <MaterialIcons
-              name={source.isFavorite ? 'favorite' : 'favorite-outline'}
-              size={20}
-              color="white"
-            />
-          }
-          onPress={() => {
-            realm.write(() => {
-              source.isFavorite = !source.isFavorite;
-              forceUpdate();
-            });
-          }}
-        >
-          {source.isFavorite ? 'In Library' : 'Add to Library'}
-        </RelistenButton>
-      </View>
+
       <View className="w-full pb-2">
         <Link
           href={{
