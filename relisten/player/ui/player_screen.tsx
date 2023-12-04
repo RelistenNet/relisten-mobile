@@ -88,10 +88,12 @@ function CurrentTrackInfo() {
             break;
           case 1:
             router.push({
-              pathname: '/relisten/(tabs)/artists/[artistUuid]/show/[showUuid]/' as const,
+              pathname:
+                '/relisten/(tabs)/artists/[artistUuid]/show/[showUuid]/source/[sourceUuid]/' as const,
               params: {
                 artistUuid: artist.uuid,
                 showUuid: show.uuid,
+                sourceUuid: 'initial',
               },
             });
             break;

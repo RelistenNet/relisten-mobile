@@ -16,10 +16,12 @@ const ShowListItem = ({ show }: { show: Show }) => {
   return (
     <Link
       href={{
-        pathname: '/relisten/(tabs)/artists/[artistUuid]/show/[showUuid]/' as const,
+        pathname:
+          '/relisten/(tabs)/artists/[artistUuid]/show/[showUuid]/source/[sourceUuid]/' as const,
         params: {
           artistUuid: show.artistUuid,
           showUuid: show.uuid,
+          sourceUuid: 'initial',
         },
       }}
       asChild

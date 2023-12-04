@@ -69,10 +69,11 @@ const YearsHeader: React.FC<{ artist: Artist | null; years: ReadonlyArray<Year> 
 
       if (randomShow?.data?.uuid) {
         router.push({
-          pathname: '/relisten/(tabs)/artists/[artistUuid]/show/[showUuid]/',
+          pathname: '/relisten/(tabs)/artists/[artistUuid]/show/[showUuid]/source/[sourceUuid]/',
           params: {
             artistUuid: artist.uuid,
             showUuid: randomShow!.data!.uuid,
+            sourceUuid: 'initial',
           },
         });
       }
