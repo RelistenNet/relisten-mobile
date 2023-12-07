@@ -9,7 +9,11 @@ import { CryptoDigestAlgorithm, digestStringAsync } from 'expo-crypto';
 import { realm } from '@/relisten/realm/schema';
 import { UrlRequestMetadata } from '@/relisten/realm/models/url_request_metadata';
 import { VenueShows } from '../realm/models/venue_repo';
+<<<<<<< HEAD
 import { Venue, VenueWithShowCounts, VenueWithShows } from './models/venue';
+=======
+import { Venue, VenueWithShowCounts } from './models/venue';
+>>>>>>> b5f0047 (create boilerplate venue repo)
 
 const logger = log.extend('network');
 
@@ -208,15 +212,25 @@ export class RelistenApiClient {
   public venues(
     artistUuid: string,
     options?: RelistenApiRequestOptions
+<<<<<<< HEAD
   ): Promise<RelistenApiResponse<VenueWithShowCounts[]>> {
     return this.getJson(`/v2/artists/${artistUuid}/venues`, options);
+=======
+  ): Promise<RelistenApiResponse<Venue[]>> {
+    return this.getJson(`/v3/artists/${artistUuid}/venues`, options);
+>>>>>>> b5f0047 (create boilerplate venue repo)
   }
 
   public venue(
     artistUuid: string,
     venueUuid: string,
     options?: RelistenApiRequestOptions
+<<<<<<< HEAD
   ): Promise<RelistenApiResponse<VenueWithShows>> {
     return this.getJson(`/v2/artists/${artistUuid}/venue/${venueUuid}`, options);
+=======
+  ): Promise<RelistenApiResponse<VenueWithShowCounts>> {
+    return this.getJson(`/v3/artists/${artistUuid}/venue/${venueUuid}`, options);
+>>>>>>> b5f0047 (create boilerplate venue repo)
   }
 }

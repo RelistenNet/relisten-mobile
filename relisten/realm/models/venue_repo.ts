@@ -12,6 +12,10 @@ import { Show } from './show';
 import { ThrottledNetworkBackedBehavior } from '../network_backed_behavior';
 import { RelistenApiClient, RelistenApiResponse } from '../../api/client';
 import * as R from 'remeda';
+<<<<<<< HEAD
+=======
+// import { venueRepo } from './venue_repo';
+>>>>>>> b5f0047 (create boilerplate venue repo)
 import { Venue } from './venue';
 import { VenueWithShowCounts } from '@/relisten/api/models/venue';
 
@@ -87,11 +91,19 @@ class VenueShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
     }
 
     // TODO: Convert this code from year to venue
+<<<<<<< HEAD
     const apiVenuesByUuid = R.flatMapToObj(
       apiData.shows.filter((s) => !!s.venue),
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       (s) => [[s.venue!.uuid, s.venue!]]
     );
+=======
+    // const apiVenuesByUuid = R.flatMapToObj(
+    //   apiData.shows.filter((s) => !!s.venue),
+    //   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    //   (s) => [[s.venue!.uuid, s.venue!]]
+    // );
+>>>>>>> b5f0047 (create boilerplate venue repo)
 
     // realm.write(() => {
     //   const { createdModels: createdShows } = showRepo.upsertMultiple(
@@ -140,7 +152,11 @@ export function useVenueShows(
   return useNetworkBackedBehavior(behavior);
 }
 
+<<<<<<< HEAD
 export const useArtistVenueShows = (artistUuid: string, venueUuid: string) => {
+=======
+export const useArtistYearShows = (artistUuid: string, venueUuid: string) => {
+>>>>>>> b5f0047 (create boilerplate venue repo)
   const artistResults = useArtist(artistUuid, { onlyFetchFromApiIfLocalIsNotShowable: true });
   const venueShowsResults = useVenueShows(artistUuid, venueUuid);
 
