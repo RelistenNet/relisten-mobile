@@ -10,10 +10,14 @@ import { realm } from '@/relisten/realm/schema';
 import { UrlRequestMetadata } from '@/relisten/realm/models/url_request_metadata';
 import { VenueShows } from '../realm/models/venue_repo';
 <<<<<<< HEAD
+<<<<<<< HEAD
 import { Venue, VenueWithShowCounts, VenueWithShows } from './models/venue';
 =======
 import { Venue, VenueWithShowCounts } from './models/venue';
 >>>>>>> b5f0047 (create boilerplate venue repo)
+=======
+import { Venue, VenueWithShowCounts, VenueWithShows } from './models/venue';
+>>>>>>> 529e5f9 (wip - data not quite correct)
 
 const logger = log.extend('network');
 
@@ -213,10 +217,14 @@ export class RelistenApiClient {
     artistUuid: string,
     options?: RelistenApiRequestOptions
 <<<<<<< HEAD
+<<<<<<< HEAD
   ): Promise<RelistenApiResponse<VenueWithShowCounts[]>> {
     return this.getJson(`/v2/artists/${artistUuid}/venues`, options);
 =======
   ): Promise<RelistenApiResponse<Venue[]>> {
+=======
+  ): Promise<RelistenApiResponse<VenueWithShowCounts>> {
+>>>>>>> 529e5f9 (wip - data not quite correct)
     return this.getJson(`/v3/artists/${artistUuid}/venues`, options);
 >>>>>>> b5f0047 (create boilerplate venue repo)
   }
@@ -226,10 +234,14 @@ export class RelistenApiClient {
     venueUuid: string,
     options?: RelistenApiRequestOptions
 <<<<<<< HEAD
+<<<<<<< HEAD
   ): Promise<RelistenApiResponse<VenueWithShows>> {
     return this.getJson(`/v2/artists/${artistUuid}/venue/${venueUuid}`, options);
 =======
   ): Promise<RelistenApiResponse<VenueWithShowCounts>> {
+=======
+  ): Promise<RelistenApiResponse<VenueWithShows>> {
+>>>>>>> 529e5f9 (wip - data not quite correct)
     return this.getJson(`/v3/artists/${artistUuid}/venue/${venueUuid}`, options);
 >>>>>>> b5f0047 (create boilerplate venue repo)
   }
