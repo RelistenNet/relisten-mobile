@@ -70,7 +70,7 @@ export const FilteringProvider = <T extends RelistenObject>({
         if (filter.active && filter.sort) {
           filter.sort(filteredData);
 
-          if (filter.sortDirection === SortDirection.Descending) {
+          if (filter.sortDirection === SortDirection.Ascending) {
             filteredData.reverse();
           }
 
