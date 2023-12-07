@@ -88,11 +88,11 @@ class VenueShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
     }
 
     // TODO: Convert this code from year to venue
-    // const apiVenuesByUuid = R.flatMapToObj(
-    //   apiData.shows.filter((s) => !!s.venue),
-    //   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    //   (s) => [[s.venue!.uuid, s.venue!]]
-    // );
+    const apiVenuesByUuid = R.flatMapToObj(
+      apiData.shows.filter((s) => !!s.venue),
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      (s) => [[s.venue!.uuid, s.venue!]]
+    );
 
     // realm.write(() => {
     //   const { createdModels: createdShows } = showRepo.upsertMultiple(
@@ -141,7 +141,7 @@ export function useVenueShows(
   return useNetworkBackedBehavior(behavior);
 }
 
-export const useArtistYearShows = (artistUuid: string, venueUuid: string) => {
+export const useArtistVenueShows = (artistUuid: string, venueUuid: string) => {
   const artistResults = useArtist(artistUuid, { onlyFetchFromApiIfLocalIsNotShowable: true });
   const venueShowsResults = useVenueShows(artistUuid, venueUuid);
 
