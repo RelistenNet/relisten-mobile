@@ -12,7 +12,6 @@ import { Show } from './show';
 import { ThrottledNetworkBackedBehavior } from '../network_backed_behavior';
 import { RelistenApiClient, RelistenApiResponse } from '../../api/client';
 import * as R from 'remeda';
-// import { venueRepo } from './venue_repo';
 import { Venue } from './venue';
 import { VenueWithShowCounts } from '@/relisten/api/models/venue';
 
