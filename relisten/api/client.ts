@@ -208,8 +208,8 @@ export class RelistenApiClient {
   public venues(
     artistUuid: string,
     options?: RelistenApiRequestOptions
-  ): Promise<RelistenApiResponse<VenueWithShowCounts>> {
-    return this.getJson(`/v3/artists/${artistUuid}/venues`, options);
+  ): Promise<RelistenApiResponse<VenueWithShowCounts[]>> {
+    return this.getJson(`/v2/artists/${artistUuid}/venues`, options);
   }
 
   public venue(
@@ -217,6 +217,6 @@ export class RelistenApiClient {
     venueUuid: string,
     options?: RelistenApiRequestOptions
   ): Promise<RelistenApiResponse<VenueWithShows>> {
-    return this.getJson(`/v3/artists/${artistUuid}/venue/${venueUuid}`, options);
+    return this.getJson(`/v2/artists/${artistUuid}/venue/${venueUuid}`, options);
   }
 }
