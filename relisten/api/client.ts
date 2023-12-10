@@ -218,6 +218,7 @@ export class RelistenApiClient {
     options?: RelistenApiRequestOptions
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
   ): Promise<RelistenApiResponse<VenueWithShowCounts[]>> {
     return this.getJson(`/v2/artists/${artistUuid}/venues`, options);
 =======
@@ -227,6 +228,10 @@ export class RelistenApiClient {
 >>>>>>> 529e5f9 (wip - data not quite correct)
     return this.getJson(`/v3/artists/${artistUuid}/venues`, options);
 >>>>>>> b5f0047 (create boilerplate venue repo)
+=======
+  ): Promise<RelistenApiResponse<VenueWithShowCounts[]>> {
+    return this.getJson(`/v2/artists/${artistUuid}/venues`, options);
+>>>>>>> 57f496a (improving UI)
   }
 
   public venue(
@@ -237,6 +242,7 @@ export class RelistenApiClient {
 <<<<<<< HEAD
   ): Promise<RelistenApiResponse<VenueWithShows>> {
     return this.getJson(`/v2/artists/${artistUuid}/venue/${venueUuid}`, options);
+<<<<<<< HEAD
 =======
   ): Promise<RelistenApiResponse<VenueWithShowCounts>> {
 =======
@@ -244,5 +250,7 @@ export class RelistenApiClient {
 >>>>>>> 529e5f9 (wip - data not quite correct)
     return this.getJson(`/v3/artists/${artistUuid}/venue/${venueUuid}`, options);
 >>>>>>> b5f0047 (create boilerplate venue repo)
+=======
+>>>>>>> 57f496a (improving UI)
   }
 }

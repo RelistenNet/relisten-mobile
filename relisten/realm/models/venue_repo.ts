@@ -13,9 +13,12 @@ import { ThrottledNetworkBackedBehavior } from '../network_backed_behavior';
 import { RelistenApiClient, RelistenApiResponse } from '../../api/client';
 import * as R from 'remeda';
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 // import { venueRepo } from './venue_repo';
 >>>>>>> b5f0047 (create boilerplate venue repo)
+=======
+>>>>>>> 57f496a (improving UI)
 import { Venue } from './venue';
 import { VenueWithShowCounts } from '@/relisten/api/models/venue';
 
