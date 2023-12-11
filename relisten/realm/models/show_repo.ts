@@ -27,8 +27,12 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
   ShowWithSources,
   ApiShowWithSources
 > {
-  constructor(public showUuid?: string, public sourceUuid?: string) {
+  constructor(
+    public showUuid?: string,
+    public sourceUuid?: string
+  ) {
     super();
+    this.cacheKey = ['ShowWithFullSources', showUuid, sourceUuid];
   }
 
   fetchFromApi(

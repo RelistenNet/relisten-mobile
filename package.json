@@ -54,6 +54,7 @@
     "realm": "^12.2.1",
     "reflect-metadata": "^0.1.13",
     "remeda": "^1.24.0",
+    "swr": "^2.2.4",
     "tailwind-merge": "^1.14.0",
     "wretch": "^2.6.0",
     "xstate": "^5.0.0-beta.18"

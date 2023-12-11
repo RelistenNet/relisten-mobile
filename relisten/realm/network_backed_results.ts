@@ -1,11 +1,8 @@
 import React, { useMemo, useState } from 'react';
 
 export interface NetworkBackedResults<T> {
-  shouldShowLoadingIndicator: boolean;
   isNetworkLoading: boolean;
-
   data: T;
-
   refresh: () => void;
 }
 
@@ -14,33 +11,6 @@ export interface NetworkBackedResultsHook<T> {
   setShouldShowLoadingIndicator: React.Dispatch<React.SetStateAction<boolean>>;
   setIsNetworkLoading: React.Dispatch<React.SetStateAction<boolean>>;
   refresh: () => Promise<void>;
-}
-
-export function useNetworkBackedResults<T>(
-  initialData: T,
-  shouldShowLoadingIndicatorDefault = false,
-  refresh: () => Promise<void>
-): NetworkBackedResultsHook<T> {
-  const [shouldShowLoadingIndicator, setShouldShowLoadingIndicator] = useState<boolean>(
-    shouldShowLoadingIndicatorDefault
-  );
-  const [isNetworkLoading, setIsNetworkLoading] = useState(false);
-
-  const results = useMemo<NetworkBackedResults<T>>(() => {
-    return {
-      shouldShowLoadingIndicator,
-      isNetworkLoading,
-      data: initialData,
-      refresh,
-    };
-  }, [shouldShowLoadingIndicator, isNetworkLoading, initialData]);
-
-  return {
-    results,
-    setShouldShowLoadingIndicator,
-    setIsNetworkLoading,
-    refresh,
-  };
 }
 
 export type ExtractDataType<T> = T extends NetworkBackedResults<infer Return> ? Return : T;
@@ -65,15 +35,8 @@ export function mergeNetworkBackedResults<
   }
 
   return {
-    shouldShowLoadingIndicator: all.reduce((acc, n) => acc || n.shouldShowLoadingIndicator, false),
+    // shouldShowLoadingIndicator: all.reduce((acc, n) => acc || n.shouldShowLoadingIndicator, false),
     isNetworkLoading: all.reduce((acc, n) => acc || n.isNetworkLoading, false),
-    isStale: all.reduce<boolean | null>((acc, n) => {
-      if (n.isNetworkLoading !== null) {
-        return acc || n.isNetworkLoading;
-      }
-
-      return null;
-    }, null),
     data: r as {
       [Property in keyof TResults]: ExtractDataType<TResults[Property]>;
     },
