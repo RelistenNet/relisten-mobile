@@ -1,9 +1,8 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 
 export interface NetworkBackedResults<T> {
   shouldShowLoadingIndicator: boolean;
   isNetworkLoading: boolean;
-  isStale: boolean | null;
 
   data: T;
 
@@ -14,51 +13,33 @@ export interface NetworkBackedResultsHook<T> {
   results: NetworkBackedResults<T>;
   setShouldShowLoadingIndicator: React.Dispatch<React.SetStateAction<boolean>>;
   setIsNetworkLoading: React.Dispatch<React.SetStateAction<boolean>>;
-  setIsStale: React.Dispatch<React.SetStateAction<boolean | null>>;
-  setData: React.Dispatch<React.SetStateAction<T>>;
-
-  performNetworkRequest: boolean;
-  setPerformNetworkRequest: React.Dispatch<React.SetStateAction<boolean>>;
+  refresh: () => Promise<void>;
 }
 
 export function useNetworkBackedResults<T>(
   initialData: T,
   shouldShowLoadingIndicatorDefault = false,
-  isStaleDefault: boolean | null = null,
-  performNetworkRequestDefault = true
+  refresh: () => Promise<void>
 ): NetworkBackedResultsHook<T> {
   const [shouldShowLoadingIndicator, setShouldShowLoadingIndicator] = useState<boolean>(
     shouldShowLoadingIndicatorDefault
   );
   const [isNetworkLoading, setIsNetworkLoading] = useState(false);
-  const [performNetworkRequest, setPerformNetworkRequest] = useState(performNetworkRequestDefault);
-  const [isStale, setIsStale] = useState<boolean | null>(isStaleDefault);
-  const [data, setData] = useState<T>(initialData);
-
-  const refresh = useCallback(() => {
-    if (!performNetworkRequest) {
-      setPerformNetworkRequest(true);
-    }
-  }, [setPerformNetworkRequest]);
 
   const results = useMemo<NetworkBackedResults<T>>(() => {
     return {
       shouldShowLoadingIndicator,
       isNetworkLoading,
-      isStale,
-      data,
+      data: initialData,
       refresh,
     };
-  }, [shouldShowLoadingIndicator, isNetworkLoading, isStale, data]);
+  }, [shouldShowLoadingIndicator, isNetworkLoading, initialData]);
 
   return {
     results,
-    performNetworkRequest,
     setShouldShowLoadingIndicator,
     setIsNetworkLoading,
-    setIsStale,
-    setData,
-    setPerformNetworkRequest,
+    refresh,
   };
 }
 
@@ -68,7 +49,7 @@ export type ExtractHookDataType<T> = T extends NetworkBackedResultsHook<infer Re
 export function mergeNetworkBackedResults<
   TResults extends {
     [Property in keyof TResults]: NetworkBackedResults<ExtractDataType<TResults[Property]>>;
-  }
+  },
 >(
   results: TResults
 ): NetworkBackedResults<{
@@ -107,7 +88,7 @@ export function mergeNetworkBackedResults<
 export function useMergedNetworkBackedResults<
   TResults extends {
     [Property in keyof TResults]: NetworkBackedResultsHook<ExtractHookDataType<TResults[Property]>>;
-  }
+  },
 >(
   results: TResults
 ): NetworkBackedResults<{
