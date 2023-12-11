@@ -12,6 +12,7 @@ import {
   NetworkBackedModelArrayBehavior,
   NetworkBackedModelBehavior,
 } from './network_backed_behavior';
+import { log } from '../util/logging';
 
 export function useNetworkBackedBehavior<TLocalData, TApiData>(
   behavior: NetworkBackedBehavior<TLocalData, TApiData>
@@ -19,62 +20,40 @@ export function useNetworkBackedBehavior<TLocalData, TApiData>(
   const realm = useRealm();
   const localData = behavior.fetchFromLocal();
   const api = useRelistenApi();
-  const {
-    results,
-    setIsStale,
-    setIsNetworkLoading,
-    setShouldShowLoadingIndicator,
-    performNetworkRequest: forceNetworkRequest,
-    setPerformNetworkRequest,
-    setData,
-  } = useNetworkBackedResults<TLocalData>(
-    localData,
-    !behavior.isLocalDataShowable(localData),
-    true,
-    false
-  );
-  const [apiData, setApiData] = useState<TApiData | undefined>(undefined);
-  const [hasDoneUpsert, setHasDoneUpsert] = useState<boolean>(false);
-  const [lastRequestAt, setLastRequestAt] = useState<dayjs.Dayjs | undefined>(undefined);
+  const dataExists = behavior.isLocalDataShowable(localData);
 
-  const shouldPerformNetworkRequest = behavior.shouldPerformNetworkRequest(
-    lastRequestAt,
-    localData
-  );
+  // if data doesnt exist, initialize the loading state
+  const [isNetworkLoading, setIsNetworkLoading] = useState(!dataExists);
 
-  useEffect(() => {
-    if (shouldPerformNetworkRequest || forceNetworkRequest) {
-      (async () => {
-        setIsNetworkLoading(true);
-        const apiData = await behavior.fetchFromApi(api.apiClient);
-        setLastRequestAt(dayjs());
-        setIsNetworkLoading(false);
-        setPerformNetworkRequest(false);
-        setHasDoneUpsert(false);
-
-        if (apiData?.type == RelistenApiResponseType.OnlineRequestCompleted) {
-          setApiData(apiData.data);
-        }
-      })();
+  const refresh = async (shouldForceLoadingSpinner: boolean) => {
+    if (shouldForceLoadingSpinner) {
+      setIsNetworkLoading(true);
     }
-  }, [shouldPerformNetworkRequest, forceNetworkRequest, api.apiClient, setApiData]);
+    const apiData = await behavior.fetchFromApi(api.apiClient);
 
-  useEffect(() => {
-    const localDataShowable = behavior.isLocalDataShowable(localData);
-
-    setShouldShowLoadingIndicator(!localDataShowable);
-
-    if (apiData && !hasDoneUpsert) {
-      behavior.upsert(realm, localData, apiData);
-      setHasDoneUpsert(true);
-      setIsStale(false);
-      setShouldShowLoadingIndicator(false);
+    if (apiData?.type == RelistenApiResponseType.OnlineRequestCompleted) {
+      if (apiData?.data) {
+        behavior.upsert(realm, localData, apiData.data);
+      }
     }
-  }, [realm, apiData, localData, hasDoneUpsert, setHasDoneUpsert]);
+
+    setIsNetworkLoading(false);
+  };
+
+  const results = useMemo<NetworkBackedResults<TLocalData>>(() => {
+    return {
+      isNetworkLoading,
+      data: localData,
+      // if were pull-to-refreshing, always show the spinner
+      refresh: () => refresh(true),
+    };
+  }, [isNetworkLoading, localData]);
 
   useEffect(() => {
-    setData(localData);
-  }, [localData]);
+    log.info('Trying to perform network request on mount');
+    // if data doesnt exist, show the loading spinner
+    refresh(false);
+  }, []);
 
   return results;
 }
@@ -87,7 +66,7 @@ export function createNetworkBackedModelArrayHook<
   TModel extends RequiredProperties & RequiredRelationships,
   TApi extends RelistenApiUpdatableObject,
   RequiredProperties extends RelistenObjectRequiredProperties,
-  RequiredRelationships extends object
+  RequiredRelationships extends object,
 >(
   repo: Repository<TModel, TApi, RequiredProperties, RequiredRelationships>,
   fetchFromRealm: () => Realm.Results<TModel>,
@@ -112,7 +91,7 @@ export function createNetworkBackedModelHook<
   TModel extends RequiredProperties & RequiredRelationships,
   TApi extends RelistenApiUpdatableObject,
   RequiredProperties extends RelistenObjectRequiredProperties,
-  RequiredRelationships extends object
+  RequiredRelationships extends object,
 >(
   repo: Repository<TModel, TApi, RequiredProperties, RequiredRelationships>,
   fetchFromRealm: () => TModel | null,
