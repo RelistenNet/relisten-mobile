@@ -50,7 +50,10 @@ const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) =>
 
 const ArtistsList = ({ artists }: { artists: Realm.Results<Artist> }) => {
   const sectionedArtists = useMemo(() => {
-    const all = [...artists];
+    const all = [...artists].sort((a, b) => {
+      return a.sortName.localeCompare(b.sortName);
+    });
+
     const r = [
       { title: 'Featured', data: all.filter((a) => a.featured !== 0) },
       { title: `${all.length} Artists`, data: all },
