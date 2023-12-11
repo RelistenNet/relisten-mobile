@@ -43,16 +43,19 @@ export const FilteringProvider = <T extends RelistenObject>({
 
   const routeFilterConfig = useObject(RouteFilterConfig, filterPersistenceKey);
 
-  const persistedFilters = routeFilterConfig ? routeFilterConfig.filters() : [];
+  const persistedFilters = routeFilterConfig ? routeFilterConfig.filters() : undefined;
 
   const filter = useCallback(
     (allData: ReadonlyArray<T>) => {
       const filteredData: T[] = [];
 
       const mergedFilters = filters.reduce((memo, next) => {
-        const persistedFilter = persistedFilters.find(
-          (pf) => pf.persistenceKey === next.persistenceKey
-        );
+        let persistedFilter: PersistedFilter | undefined;
+
+        if (persistedFilters) {
+          persistedFilter = persistedFilters[next.persistenceKey];
+        }
+
         if (persistedFilter) {
           memo.push({
             ...next,
