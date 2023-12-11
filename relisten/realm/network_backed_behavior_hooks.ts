@@ -1,18 +1,17 @@
-import { NetworkBackedResults, useNetworkBackedResults } from './network_backed_results';
-import { RelistenApiUpdatableObject, Repository } from './repository';
-import { RelistenObjectRequiredProperties } from './relisten_object';
+import { useEffect, useMemo, useState } from 'react';
 import Realm from 'realm';
 import { RelistenApiClient, RelistenApiResponse, RelistenApiResponseType } from '../api/client';
-import { useRealm } from './schema';
 import { useRelistenApi } from '../api/context';
-import { useEffect, useMemo, useState } from 'react';
-import dayjs from 'dayjs';
+import { log } from '../util/logging';
 import {
   NetworkBackedBehavior,
   NetworkBackedModelArrayBehavior,
   NetworkBackedModelBehavior,
 } from './network_backed_behavior';
-import { log } from '../util/logging';
+import { NetworkBackedResults } from './network_backed_results';
+import { RelistenObjectRequiredProperties } from './relisten_object';
+import { RelistenApiUpdatableObject, Repository } from './repository';
+import { useRealm } from './schema';
 
 export function useNetworkBackedBehavior<TLocalData, TApiData>(
   behavior: NetworkBackedBehavior<TLocalData, TApiData>

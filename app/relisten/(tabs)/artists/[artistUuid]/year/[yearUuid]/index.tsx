@@ -14,6 +14,7 @@ export default function Page() {
   const {
     data: {
       yearShows: { year, shows },
+      artist,
     },
   } = results;
 
@@ -30,6 +31,8 @@ export default function Page() {
           headerHeight={50}
           ScrollableComponent={ShowList}
           shows={shows!}
+          artist={artist}
+          year={year}
           filterPersistenceKey={['artists', artistUuid, 'years', yearUuid].join('/')}
         />
       </RefreshContextProvider>
