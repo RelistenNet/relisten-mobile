@@ -1,46 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
 export interface NetworkBackedResults<T> {
-  shouldShowLoadingIndicator: boolean;
   isNetworkLoading: boolean;
-
   data: T;
 
   refresh: () => void;
-}
-
-export interface NetworkBackedResultsHook<T> {
-  results: NetworkBackedResults<T>;
-  setShouldShowLoadingIndicator: React.Dispatch<React.SetStateAction<boolean>>;
-  setIsNetworkLoading: React.Dispatch<React.SetStateAction<boolean>>;
-  refresh: () => Promise<void>;
-}
-
-export function useNetworkBackedResults<T>(
-  initialData: T,
-  shouldShowLoadingIndicatorDefault = false,
-  refresh: () => Promise<void>
-): NetworkBackedResultsHook<T> {
-  const [shouldShowLoadingIndicator, setShouldShowLoadingIndicator] = useState<boolean>(
-    shouldShowLoadingIndicatorDefault
-  );
-  const [isNetworkLoading, setIsNetworkLoading] = useState(false);
-
-  const results = useMemo<NetworkBackedResults<T>>(() => {
-    return {
-      shouldShowLoadingIndicator,
-      isNetworkLoading,
-      data: initialData,
-      refresh,
-    };
-  }, [shouldShowLoadingIndicator, isNetworkLoading, initialData]);
-
-  return {
-    results,
-    setShouldShowLoadingIndicator,
-    setIsNetworkLoading,
-    refresh,
-  };
 }
 
 export type ExtractDataType<T> = T extends NetworkBackedResults<infer Return> ? Return : T;
