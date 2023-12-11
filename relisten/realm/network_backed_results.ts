@@ -29,15 +29,7 @@ export function mergeNetworkBackedResults<
   }
 
   return {
-    shouldShowLoadingIndicator: all.reduce((acc, n) => acc || n.shouldShowLoadingIndicator, false),
     isNetworkLoading: all.reduce((acc, n) => acc || n.isNetworkLoading, false),
-    isStale: all.reduce<boolean | null>((acc, n) => {
-      if (n.isNetworkLoading !== null) {
-        return acc || n.isNetworkLoading;
-      }
-
-      return null;
-    }, null),
     data: r as {
       [Property in keyof TResults]: ExtractDataType<TResults[Property]>;
     },

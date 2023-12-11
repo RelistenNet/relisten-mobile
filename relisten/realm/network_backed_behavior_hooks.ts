@@ -20,15 +20,15 @@ export function useNetworkBackedBehavior<TLocalData, TApiData>(
   const realm = useRealm();
   const localData = behavior.fetchFromLocal();
   const api = useRelistenApi();
-  const shouldPerformNetworkRequest = !behavior.isLocalDataShowable(localData);
+  const dataExists = behavior.isLocalDataShowable(localData);
 
-  const [isNetworkLoading, setIsNetworkLoading] = useState(shouldPerformNetworkRequest);
+  // if data doesnt exist, initialize the loading state
+  const [isNetworkLoading, setIsNetworkLoading] = useState(!dataExists);
 
-  const refresh = async () => {
-    const localDataShowable = behavior.isLocalDataShowable(localData);
-    const shouldShowLoading = !localDataShowable;
-
-    setIsNetworkLoading(shouldShowLoading);
+  const refresh = async (shouldForceLoadingSpinner: boolean) => {
+    if (shouldForceLoadingSpinner) {
+      setIsNetworkLoading(true);
+    }
     const apiData = await behavior.fetchFromApi(api.apiClient);
 
     if (apiData?.type == RelistenApiResponseType.OnlineRequestCompleted) {
@@ -44,16 +44,16 @@ export function useNetworkBackedBehavior<TLocalData, TApiData>(
     return {
       isNetworkLoading,
       data: localData,
-      refresh,
+      // if were pull-to-refreshing, always show the spinner
+      refresh: () => refresh(true),
     };
   }, [isNetworkLoading, localData]);
 
   useEffect(() => {
-    if (shouldPerformNetworkRequest) {
-      log.info('Trying to perform network request on mount');
-      refresh();
-    }
-  }, [shouldPerformNetworkRequest]);
+    log.info('Trying to perform network request on mount');
+    // if data doesnt exist, show the loading spinner
+    refresh(false);
+  }, []);
 
   return results;
 }

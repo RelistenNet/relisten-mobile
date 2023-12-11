@@ -2,8 +2,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { useRelistenPlayerPlaybackState } from '@/relisten/player/relisten_player_hooks';
+import { RelistenButton } from '@/relisten/components/relisten_button';
+import { useRealm } from '@/relisten/realm/schema';
+import { DevSettings } from 'react-native';
 
 export default function Page() {
+  const realm = useRealm();
   const playbackState = useRelistenPlayerPlaybackState();
 
   // const play = () => {
@@ -17,6 +21,16 @@ export default function Page() {
 
   return (
     <SafeAreaView>
+      <RelistenButton
+        onPress={() => {
+          realm.beginTransaction();
+          realm.deleteAll();
+          realm.commitTransaction();
+          DevSettings.reload();
+        }}
+      >
+        Reset Cache
+      </RelistenButton>
       {/* <TouchableOpacity onPress={play} disabled={playbackState.playback}>
         <Text className="rounded bg-red-500 p-12 text-white">play test</Text>
       </TouchableOpacity>
