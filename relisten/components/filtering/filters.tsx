@@ -58,6 +58,8 @@ export const FilteringProvider = <T extends RelistenObject>({
             ...next,
             ...persistedFilter,
           });
+        } else {
+          memo.push(next);
         }
         return memo;
       }, [] as Filter<T>[]);
@@ -66,8 +68,7 @@ export const FilteringProvider = <T extends RelistenObject>({
         let allowed = true;
 
         for (const filter of mergedFilters) {
-          const rawFilter = filters.find((f) => f.persistenceKey === filter.persistenceKey);
-          if (filter.active && rawFilter?.filter && !rawFilter.filter(row)) {
+          if (filter.active && filter?.filter && !filter.filter(row)) {
             allowed = false;
             break;
           }
