@@ -247,7 +247,6 @@ const YearsList: React.FC<
     return [...years];
   }, [years]);
 
-  console.log(artist?.uuid);
   return (
     <FilteringProvider filters={YEAR_FILTERS} filterPersistenceKey={filterPersistenceKey}>
       <FilterableList
