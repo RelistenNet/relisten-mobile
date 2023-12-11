@@ -20,7 +20,7 @@ import { useForceUpdate } from '@/relisten/util/forced_update';
 import { MaterialIcons } from '@expo/vector-icons';
 import { MoreOrLess } from '@rntext/more-or-less';
 import dayjs from 'dayjs';
-import { Link, useGlobalSearchParams, useLocalSearchParams, useNavigation } from 'expo-router';
+import { Link, useLocalSearchParams, useNavigation } from 'expo-router';
 import { openBrowserAsync } from 'expo-web-browser';
 import React, { PropsWithChildren, useCallback, useEffect, useMemo } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
@@ -50,7 +50,7 @@ export const SourceList = ({ sources }: { sources: Source[] }) => {
 
 export default function Page() {
   const navigation = useNavigation();
-  const { showUuid } = useGlobalSearchParams();
+  const { showUuid } = useLocalSearchParams();
   const { sourceUuid } = useLocalSearchParams();
 
   const results = useFullShow(String(showUuid));

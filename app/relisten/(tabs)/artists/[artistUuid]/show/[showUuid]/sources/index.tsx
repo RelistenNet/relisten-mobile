@@ -19,7 +19,7 @@ import { memo } from '@/relisten/util/memo';
 import { MaterialIcons } from '@expo/vector-icons';
 import { MoreOrLess } from '@rntext/more-or-less';
 import dayjs from 'dayjs';
-import { Link, useGlobalSearchParams, useLocalSearchParams, useNavigation } from 'expo-router';
+import { Link, useLocalSearchParams, useNavigation } from 'expo-router';
 import { openBrowserAsync } from 'expo-web-browser';
 import React, { PropsWithChildren, useEffect, useMemo } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
@@ -35,7 +35,7 @@ import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
 
 export default function Page() {
   const navigation = useNavigation();
-  const { showUuid } = useGlobalSearchParams();
+  const { showUuid } = useLocalSearchParams();
   const { sourceUuid } = useLocalSearchParams();
   const results = useFullShow(String(showUuid));
   const show = results?.data?.show;
