@@ -52,32 +52,18 @@ export class RelistenApiClient {
   private api = wretch(RelistenApiClient.API_BASE).middlewares([loggingMiddleware]);
   // TODO: wretch error handling
 
-  private inflightRequests: Map<string, Promise<RelistenApiResponse<unknown>>> = new Map();
   private getJson<
     T extends
       | (RelistenObject & RelistenUpdatableObject)
-      | Array<RelistenObject & RelistenUpdatableObject>
+      | Array<RelistenObject & RelistenUpdatableObject>,
   >(url: string, options?: RelistenApiRequestOptions): Promise<RelistenApiResponse<T>> {
     // we only do GET requests for now
     const key = 'GET@' + url;
-    const hasInFlightRequest = this.inflightRequests.has(key);
+    console.log(key);
 
     let req: Promise<RelistenApiResponse<T>> | undefined = undefined;
 
-    if (options?.bypassRequestDeduplication === true || !hasInFlightRequest) {
-      req = this.makeJsonGetRequest(url, options);
-
-      if (!options?.bypassRequestDeduplication) {
-        req.then(() => {
-          this.inflightRequests.delete(key);
-        });
-
-        this.inflightRequests.set(key, req);
-      }
-    } else if (hasInFlightRequest) {
-      logger.info(`[dedupe] url=${url}, duplicate request found.`);
-      req = this.inflightRequests.get(key) as Promise<RelistenApiResponse<T>>;
-    }
+    req = this.makeJsonGetRequest(url, options);
 
     return req!;
   }
@@ -87,9 +73,9 @@ export class RelistenApiClient {
   private async makeJsonGetRequest<
     T extends
       | (RelistenObject & RelistenUpdatableObject)
-      | Array<RelistenObject & RelistenUpdatableObject>
+      | Array<RelistenObject & RelistenUpdatableObject>,
   >(url: string, options?: RelistenApiRequestOptions): Promise<RelistenApiResponse<T>> {
-    let urlMetadata: UrlRequestMetadata | undefined = undefined;
+    let urlMetadata: UrlRequestMetadata | undefined | null = undefined;
     if (realm) {
       urlMetadata = realm.objectForPrimaryKey<UrlRequestMetadata>(UrlRequestMetadata, url);
 
@@ -98,7 +84,7 @@ export class RelistenApiClient {
         : undefined;
 
       // don't make a request more than once per hour
-      if (options?.bypassRateLimit === true) {
+      /*if (options?.bypassRateLimit === true) {
         logger.info(
           `[rate limiting] url=${url}, making request. bypassRateLimit=${options?.bypassRateLimit}`
         );
@@ -112,11 +98,11 @@ export class RelistenApiClient {
           ).toFixed(2)}s ago. (limit: ${RelistenApiClient.MIN_REQUEST_COOLDOWN_SECONDS.toFixed(2)})`
         );
         return { type: RelistenApiResponseType.LastRequestTooRecent };
-      } else {
-        logger.info(
-          `[rate limiting] url=${url}, making request. secondsSinceLastRequest=${msSinceLastRequest}`
-        );
-      }
+      } else {*/
+      logger.info(
+        `[rate limiting] url=${url}, making request. secondsSinceLastRequest=${msSinceLastRequest}`
+      );
+      // }
     }
 
     const startedAt = dayjs();

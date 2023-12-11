@@ -23,6 +23,7 @@ export const yearRepo = new Repository(Year);
 
 export const useYears = (artistUuid: string) => {
   return createNetworkBackedModelArrayHook(
+    ['ArtistYears', artistUuid],
     yearRepo,
     () => {
       const artistQuery = useQuery(
@@ -60,8 +61,12 @@ class YearShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
   YearShows,
   YearWithShows
 > {
-  constructor(public artistUuid: string, public yearUuid: string) {
+  constructor(
+    public artistUuid: string,
+    public yearUuid: string
+  ) {
     super();
+    this.cacheKey = ['YearShows', artistUuid, yearUuid];
   }
 
   fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<YearWithShows>> {

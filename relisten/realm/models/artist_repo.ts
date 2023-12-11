@@ -10,6 +10,7 @@ import {
 
 export const artistRepo = new Repository(Artist);
 export const useArtists = createNetworkBackedModelArrayHook(
+  ['Artists'],
   artistRepo,
   () => useQuery(Artist),
   (api) => api.artists()

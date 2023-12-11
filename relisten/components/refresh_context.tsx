@@ -19,8 +19,7 @@ export const RefreshContextProvider = <T extends object>({
 }>) => {
   if (!networkBackedResults) return children;
 
-  let refreshing =
-    networkBackedResults.shouldShowLoadingIndicator || networkBackedResults.isNetworkLoading;
+  let refreshing = networkBackedResults.isNetworkLoading;
 
   if (extraRefreshingConsideration) {
     refreshing ||= extraRefreshingConsideration(networkBackedResults);

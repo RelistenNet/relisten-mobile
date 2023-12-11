@@ -1,80 +1,54 @@
-import { NetworkBackedResults, useNetworkBackedResults } from './network_backed_results';
-import { RelistenApiUpdatableObject, Repository } from './repository';
-import { RelistenObjectRequiredProperties } from './relisten_object';
+import { useMemo } from 'react';
 import Realm from 'realm';
+import useSWR from 'swr';
 import { RelistenApiClient, RelistenApiResponse, RelistenApiResponseType } from '../api/client';
-import { useRealm } from './schema';
 import { useRelistenApi } from '../api/context';
-import { useEffect, useMemo, useState } from 'react';
-import dayjs from 'dayjs';
 import {
   NetworkBackedBehavior,
   NetworkBackedModelArrayBehavior,
   NetworkBackedModelBehavior,
 } from './network_backed_behavior';
+import { NetworkBackedResults } from './network_backed_results';
+import { RelistenObjectRequiredProperties } from './relisten_object';
+import { RelistenApiUpdatableObject, Repository } from './repository';
+import { useRealm } from './schema';
 
 export function useNetworkBackedBehavior<TLocalData, TApiData>(
   behavior: NetworkBackedBehavior<TLocalData, TApiData>
 ): NetworkBackedResults<TLocalData> {
-  const realm = useRealm();
   const localData = behavior.fetchFromLocal();
+  const shouldFetch = behavior.shouldPerformNetworkRequest(localData);
   const api = useRelistenApi();
-  const {
-    results,
-    setIsStale,
-    setIsNetworkLoading,
-    setShouldShowLoadingIndicator,
-    performNetworkRequest: forceNetworkRequest,
-    setPerformNetworkRequest,
-    setData,
-  } = useNetworkBackedResults<TLocalData>(
-    localData,
-    !behavior.isLocalDataShowable(localData),
-    true,
-    false
-  );
-  const [apiData, setApiData] = useState<TApiData | undefined>(undefined);
-  const [hasDoneUpsert, setHasDoneUpsert] = useState<boolean>(false);
-  const [lastRequestAt, setLastRequestAt] = useState<dayjs.Dayjs | undefined>(undefined);
+  console.log(shouldFetch, behavior.cacheKey);
+  const { data, isLoading, mutate, isValidating } = useSWR(
+    shouldFetch ? behavior.cacheKey : undefined,
+    () => {
+      console.log('hi');
+      return behavior.fetchFromApi(api.apiClient);
+    },
 
-  const shouldPerformNetworkRequest = behavior.shouldPerformNetworkRequest(
-    lastRequestAt,
-    localData
-  );
-
-  useEffect(() => {
-    if (shouldPerformNetworkRequest || forceNetworkRequest) {
-      (async () => {
-        setIsNetworkLoading(true);
-        const apiData = await behavior.fetchFromApi(api.apiClient);
-        setLastRequestAt(dayjs());
-        setIsNetworkLoading(false);
-        setPerformNetworkRequest(false);
-        setHasDoneUpsert(false);
-
+    {
+      onSuccess: (apiData) => {
+        console.log('onSuccess', apiData);
         if (apiData?.type == RelistenApiResponseType.OnlineRequestCompleted) {
-          setApiData(apiData.data);
+          if (apiData?.data) {
+            behavior.upsert(realm, localData, apiData.data);
+          }
         }
-      })();
+      },
     }
-  }, [shouldPerformNetworkRequest, forceNetworkRequest, api.apiClient, setApiData]);
+  );
+  const realm = useRealm();
 
-  useEffect(() => {
-    const localDataShowable = behavior.isLocalDataShowable(localData);
+  const results = useMemo(() => {
+    return {
+      data: localData satisfies TLocalData,
+      isNetworkLoading: isLoading || isValidating,
+      refresh: mutate,
+    };
+  }, [data, localData, mutate]);
 
-    setShouldShowLoadingIndicator(!localDataShowable);
-
-    if (apiData && !hasDoneUpsert) {
-      behavior.upsert(realm, localData, apiData);
-      setHasDoneUpsert(true);
-      setIsStale(false);
-      setShouldShowLoadingIndicator(false);
-    }
-  }, [realm, apiData, localData, hasDoneUpsert, setHasDoneUpsert]);
-
-  useEffect(() => {
-    setData(localData);
-  }, [localData]);
+  console.log('dataaaaaa', behavior.cacheKey, isLoading, isValidating, !!data, !!localData);
 
   return results;
 }
@@ -87,8 +61,9 @@ export function createNetworkBackedModelArrayHook<
   TModel extends RequiredProperties & RequiredRelationships,
   TApi extends RelistenApiUpdatableObject,
   RequiredProperties extends RelistenObjectRequiredProperties,
-  RequiredRelationships extends object
+  RequiredRelationships extends object,
 >(
+  cacheKey: string | Array<string | number | undefined>,
   repo: Repository<TModel, TApi, RequiredProperties, RequiredRelationships>,
   fetchFromRealm: () => Realm.Results<TModel>,
   fetchFromApi: (api: RelistenApiClient) => Promise<RelistenApiResponse<TApi[]>>
@@ -96,6 +71,7 @@ export function createNetworkBackedModelArrayHook<
   return (options) => {
     const behavior = useMemo(() => {
       return new NetworkBackedModelArrayBehavior(
+        cacheKey,
         repo,
         fetchFromRealm,
         fetchFromApi,
@@ -112,8 +88,9 @@ export function createNetworkBackedModelHook<
   TModel extends RequiredProperties & RequiredRelationships,
   TApi extends RelistenApiUpdatableObject,
   RequiredProperties extends RelistenObjectRequiredProperties,
-  RequiredRelationships extends object
+  RequiredRelationships extends object,
 >(
+  cacheKey: string | Array<string | number | undefined>,
   repo: Repository<TModel, TApi, RequiredProperties, RequiredRelationships>,
   fetchFromRealm: () => TModel | null,
   fetchFromApi: (api: RelistenApiClient) => Promise<RelistenApiResponse<TApi>>
@@ -121,6 +98,7 @@ export function createNetworkBackedModelHook<
   return (options) => {
     const behavior = useMemo(() => {
       return new NetworkBackedModelBehavior(
+        cacheKey,
         repo,
         fetchFromRealm,
         fetchFromApi,
