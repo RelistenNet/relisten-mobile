@@ -12,6 +12,7 @@ import {
   NetworkBackedModelArrayBehavior,
   NetworkBackedModelBehavior,
 } from './network_backed_behavior';
+import { log } from '../util/logging';
 
 export function useNetworkBackedBehavior<TLocalData, TApiData>(
   behavior: NetworkBackedBehavior<TLocalData, TApiData>
@@ -19,40 +20,37 @@ export function useNetworkBackedBehavior<TLocalData, TApiData>(
   const realm = useRealm();
   const localData = behavior.fetchFromLocal();
   const api = useRelistenApi();
-  const [lastRequestAt, setLastRequestAt] = useState<dayjs.Dayjs | undefined>(undefined);
+  const shouldPerformNetworkRequest = !behavior.isLocalDataShowable(localData);
+
+  const [isNetworkLoading, setIsNetworkLoading] = useState(shouldPerformNetworkRequest);
 
   const refresh = async () => {
-    setIsNetworkLoading(true);
-    const apiData = await behavior.fetchFromApi(api.apiClient);
-    setLastRequestAt(dayjs());
-    setIsNetworkLoading(false);
-
     const localDataShowable = behavior.isLocalDataShowable(localData);
+    const shouldShowLoading = !localDataShowable;
 
-    setShouldShowLoadingIndicator(!localDataShowable);
+    setIsNetworkLoading(shouldShowLoading);
+    const apiData = await behavior.fetchFromApi(api.apiClient);
 
     if (apiData?.type == RelistenApiResponseType.OnlineRequestCompleted) {
       if (apiData?.data) {
         behavior.upsert(realm, localData, apiData.data);
-        setShouldShowLoadingIndicator(false);
       }
     }
+
+    setIsNetworkLoading(false);
   };
 
-  const { results, setIsNetworkLoading, setShouldShowLoadingIndicator } =
-    useNetworkBackedResults<TLocalData>(
-      localData,
-      !behavior.isLocalDataShowable(localData),
-      refresh
-    );
-
-  const shouldPerformNetworkRequest = behavior.shouldPerformNetworkRequest(
-    lastRequestAt,
-    localData
-  );
+  const results = useMemo<NetworkBackedResults<TLocalData>>(() => {
+    return {
+      isNetworkLoading,
+      data: localData,
+      refresh,
+    };
+  }, [isNetworkLoading, localData]);
 
   useEffect(() => {
     if (shouldPerformNetworkRequest) {
+      log.info('Trying to perform network request on mount');
       refresh();
     }
   }, [shouldPerformNetworkRequest]);
