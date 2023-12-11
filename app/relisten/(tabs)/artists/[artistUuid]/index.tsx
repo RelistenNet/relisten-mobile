@@ -18,7 +18,7 @@ import { Artist } from '@/relisten/realm/models/artist';
 import { Year } from '@/relisten/realm/models/year';
 import { useArtistYears } from '@/relisten/realm/models/year_repo';
 import { memo } from '@/relisten/util/memo';
-import { Link, useGlobalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { Link, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import Realm from 'realm';
@@ -26,7 +26,7 @@ import * as R from 'remeda';
 
 export default function Page() {
   const navigation = useNavigation();
-  const { artistUuid } = useGlobalSearchParams();
+  const { artistUuid } = useLocalSearchParams();
 
   const results = useArtistYears(String(artistUuid));
   const {

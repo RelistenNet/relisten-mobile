@@ -1,9 +1,9 @@
 import { useArtistVenues } from '@/relisten/realm/models/venue_repo';
-import { useGlobalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { Text, View } from 'react-native';
 
 export default function Page() {
-  const { uuid } = useGlobalSearchParams();
+  const { uuid } = useLocalSearchParams();
 
   const results = useArtistVenues(String(uuid));
   const { data } = results;
