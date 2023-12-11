@@ -26,7 +26,6 @@ import React, { PropsWithChildren, useCallback, useEffect, useMemo } from 'react
 import { List as ListContentLoader } from 'react-content-loader/native';
 import {
   Animated,
-  Button,
   ScrollViewProps,
   TouchableOpacity,
   TouchableOpacityProps,
@@ -341,39 +340,6 @@ export const SourceSetComponent: React.FC<{
           onPress={playShow}
         />
       ))}
-    </View>
-  );
-};
-
-const SelectedSource: React.FC<{ sources: Source[]; sourceIndex: number }> = ({
-  sources,
-  sourceIndex,
-}) => {
-  const source = sources[sourceIndex];
-
-  if (!source) {
-    return null;
-  }
-
-  return (
-    <View className="flex w-full flex-row items-center justify-between bg-gray-100 px-4 py-2">
-      <View className="flex shrink">
-        <RelistenText className="pb-1 text-sm font-bold">
-          Source {sourceIndex + 1}/{sources.length}
-          {source.duration && ' — ' + source.humanizedDuration()}
-        </RelistenText>
-        <RelistenText className="pb-1 text-sm tracking-tighter" numberOfLines={1}>
-          {R.compact([source.taper, source.transferrer]).join(', ')}
-        </RelistenText>
-        {source.source && (
-          <RelistenText className="pb-1 text-sm tracking-tighter" numberOfLines={1}>
-            {source.source}
-          </RelistenText>
-        )}
-      </View>
-      <View className="shrink-0">
-        <Button title="Change Source" />
-      </View>
     </View>
   );
 };

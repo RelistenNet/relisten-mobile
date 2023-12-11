@@ -30,8 +30,8 @@ export class RouteFilterConfig extends Realm.Object<RouteFilterConfig> {
   key!: string;
   rawFilters!: string;
 
-  filters(): PersistedFilters {
-    return JSON.parse(this.rawFilters) as PersistedFilters;
+  filters(): PersistedFilter[] {
+    return Object.values(JSON.parse(this.rawFilters) as PersistedFilters);
   }
 
   setFilters(filters: ReadonlyArray<PersistedFilter>) {

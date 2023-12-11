@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import driver from '@switz/driver';
 import clsx from 'clsx';
-import React, { PropsWithChildren } from 'react';
+import { PropsWithChildren } from 'react';
 import { TouchableOpacity, TouchableOpacityProps, View } from 'react-native';
 import { RelistenObject } from '../../api/models/relisten';
 import { RelistenText } from '../relisten_text';
@@ -50,7 +50,9 @@ export const FilterBarButton = <T extends RelistenObject>({
     <TouchableOpacity
       className={clsx(
         'flex flex-row items-center rounded-lg p-1 px-2',
-        filter.active ? 'bg-relisten-blue-600' : 'border border-relisten-blue-600/30',
+        filter.active
+          ? 'border border-transparent bg-relisten-blue-600'
+          : 'border border-relisten-blue-600/30',
         className
       )}
       {...props}
