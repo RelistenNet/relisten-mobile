@@ -107,7 +107,7 @@ const VenueList = ({
     <FilteringProvider filters={VENUE_FILTERS} filterPersistenceKey={filterPersistenceKey}>
       <FilterableList
         ListHeaderComponent={<VenueHeader venues={venues} />}
-        style={{ flex: 1, width: '100%' }}
+        className="w-full flex-1"
         data={venues}
         renderItem={({ item }: { item: Venue; index: number }) => <VenueListItem venue={item} />}
       />
