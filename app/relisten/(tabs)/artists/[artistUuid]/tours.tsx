@@ -4,7 +4,6 @@ import { Text, View } from 'react-native';
 
 export default function Page() {
   const { artistUuid } = useLocalSearchParams();
-
   const results = useArtistTours(String(artistUuid));
   const { data } = results;
   console.log(JSON.stringify(data));
