@@ -224,7 +224,7 @@ public class RelistenGaplessAudioPlayer {
             if BASS_Start() != 0 {
                 self.currentState = .Playing
             }
-        }        
+        }
     }
 
     public func pause() {

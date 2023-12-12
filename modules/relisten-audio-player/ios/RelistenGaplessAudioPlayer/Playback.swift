@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import MediaPlayer
 
 extension RelistenGaplessAudioPlayer {
     func playStreamableImmediately(_ streamable: RelistenGaplessStreamable) {
@@ -43,9 +42,9 @@ extension RelistenGaplessAudioPlayer {
             DispatchQueue.main.async {
                 self.delegate?.trackChanged(self, previousStreamable: nil, currentStreamable: self.activeStream?.streamable)
             }
-            
+
             currentState = .Playing
-            
+
             updateControlCenter();
 
             // this is needed because the stream download events don't fire for local music
@@ -56,7 +55,7 @@ extension RelistenGaplessAudioPlayer {
         } else {
             assertionFailure("activeStream nil after buildingStream from \(streamable)")
         }
-        
+
         startUpdates()
     }
 

@@ -66,8 +66,6 @@ extension RelistenGaplessAudioPlayer {
             let oldKilobytes = floor(Double(oldDownloadedBytes) / (100 * 1024))
             let newKilobytes = floor(Double(downloadedBytes) / (100 * 1024))
             
-            updateControlCenter();
-            
             // Only update once per 100 KiB
             if downloadedBytes != -1 && totalFileBytes != -1 && oldTotalFileBytes != -1 && oldDownloadedBytes != -1,
                oldKilobytes != newKilobytes || oldTotalFileBytes != totalFileBytes
@@ -81,6 +79,10 @@ extension RelistenGaplessAudioPlayer {
                 sendStateChanged = true
             }
 
+            if sendPlaybackChanged || sendStateChanged {
+                updateControlCenter();
+            }
+            
             if sendPlaybackChanged {
                 NSLog("[playback updates] sendPlaybackChanged")
                 self.delegate?.playbackProgressChanged(self, elapsed: thisElapsed, duration: thisDuration)

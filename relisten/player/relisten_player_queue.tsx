@@ -55,7 +55,7 @@ export class PlayerQueueTrack {
     this.title = sourceTrack.title;
     this.artist = sourceTrack.artist?.name ?? '';
     this.albumTitle =
-      [sourceTrack.source?.displayDate, 'venue name'].filter((x) => x).join(' ') || '';
+      [sourceTrack.source?.displayDate, 'venue name'].filter((x) => x).join(' - ') || '';
   }
 
   toStreamable(): RelistenStreamable {
