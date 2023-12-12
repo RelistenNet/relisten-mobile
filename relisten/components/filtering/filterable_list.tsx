@@ -1,14 +1,14 @@
+import { useMemo } from 'react';
 import { RelistenObject } from '../../api/models/relisten';
-import { useEffect, useMemo } from 'react';
 import {
   RelistenSectionList,
   RelistenSectionListData,
   RelistenSectionListProps,
 } from '../relisten_section_list';
 import { SectionHeader } from '../section_header';
-import { useFilters } from './filters';
-import { FilterBarButton } from './filter_bar_buttons';
 import { FilterBar } from './filter_bar';
+import { FilterBarButton } from './filter_bar_buttons';
+import { useFilters } from './filters';
 
 export type FilterableListProps<T extends RelistenObject> = {
   data: ReadonlyArray<T>;
@@ -24,9 +24,10 @@ export const FilterableList = <T extends RelistenObject>({
   customSectionTitles,
   ...props
 }: FilterableListProps<T>) => {
-  const { filters, onFilterButtonPress, filter, setRawData, filteredData } = useFilters<T>();
+  const { filters, onFilterButtonPress, filter } = useFilters<T>();
 
   const sectionedData: ReadonlyArray<RelistenSectionListData<T>> = useMemo(() => {
+    const filteredData = filter(data);
     if (!customSectionTitle || !customSectionTitles) {
       return [{ title: ALL_SECTION_SENTINEL, data: filteredData || [] }];
     }
@@ -60,11 +61,7 @@ export const FilterableList = <T extends RelistenObject>({
     });
 
     return r;
-  }, [data, customSectionTitle, customSectionTitles, filter, filteredData]);
-
-  useEffect(() => {
-    setRawData(data);
-  }, [data]);
+  }, [data, customSectionTitle, customSectionTitles, filter, filters]);
 
   return (
     <RelistenSectionList

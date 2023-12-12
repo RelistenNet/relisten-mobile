@@ -1,7 +1,7 @@
-import React, { PropsWithChildren, useCallback, useContext, useEffect, useState } from 'react';
-import { RelistenObject } from '../../api/models/relisten';
-import { useRealm } from '@/relisten/realm/schema';
 import { RouteFilterConfig, serializeFilters } from '@/relisten/realm/models/route_filter_config';
+import { useObject, useRealm } from '@/relisten/realm/schema';
+import React, { PropsWithChildren, useCallback, useContext } from 'react';
+import { RelistenObject } from '../../api/models/relisten';
 
 export enum SortDirection {
   UNKNOWN = 0,
@@ -28,9 +28,6 @@ export interface FilteringContextProps<T extends RelistenObject> {
   filters: ReadonlyArray<Filter<T>>;
   onFilterButtonPress: (filter: Filter<T>) => void;
   filter: (allData: ReadonlyArray<T>) => ReadonlyArray<T>;
-
-  filteredData: T[] | undefined;
-  setRawData: React.Dispatch<React.SetStateAction<T[] | undefined>>;
 }
 
 export const FilteringContext = React.createContext<FilteringContextProps<any> | undefined>(
@@ -42,20 +39,35 @@ export const FilteringProvider = <T extends RelistenObject>({
   filters,
   filterPersistenceKey,
 }: PropsWithChildren<{ filters: ReadonlyArray<Filter<T>>; filterPersistenceKey: string }>) => {
-  const [rawData, setRawData] = useState<T[] | undefined>(undefined);
-  const [filteredData, setFilteredData] = useState<T[] | undefined>(undefined);
-
   const realm = useRealm();
+
+  const routeFilterConfig = useObject(RouteFilterConfig, filterPersistenceKey);
+
+  const persistedFilters = routeFilterConfig ? routeFilterConfig.filters() : undefined;
 
   const filter = useCallback(
     (allData: ReadonlyArray<T>) => {
       const filteredData: T[] = [];
 
+      // merge pre-defined filters with persisted/user filters
+      const mergedFilters = filters.map((filter) => {
+        const persistedFilter = persistedFilters?.[filter.persistenceKey];
+
+        if (persistedFilter) {
+          return {
+            ...filter,
+            ...persistedFilter,
+          };
+        } else {
+          return filter;
+        }
+      });
+
       for (const row of allData) {
         let allowed = true;
 
-        for (const filter of filters) {
-          if (filter.active && filter.filter && !filter.filter(row)) {
+        for (const filter of mergedFilters) {
+          if (filter.active && filter?.filter && !filter.filter(row)) {
             allowed = false;
             break;
           }
@@ -66,7 +78,7 @@ export const FilteringProvider = <T extends RelistenObject>({
         }
       }
 
-      for (const filter of filters) {
+      for (const filter of mergedFilters) {
         if (filter.active && filter.sort) {
           filter.sort(filteredData);
 
@@ -80,37 +92,8 @@ export const FilteringProvider = <T extends RelistenObject>({
 
       return filteredData;
     },
-    [filters]
+    [filters, persistedFilters]
   );
-
-  const refilter = useCallback(() => {
-    if (rawData) {
-      setFilteredData(filter(rawData));
-    }
-  }, [rawData, filter, setFilteredData]);
-
-  useEffect(() => {
-    refilter();
-  }, [refilter]);
-
-  useEffect(() => {
-    const routeFilterConfig = realm.objectForPrimaryKey(RouteFilterConfig, filterPersistenceKey);
-
-    if (routeFilterConfig) {
-      const persistedFilters = routeFilterConfig.filters();
-
-      for (const filter of filters) {
-        const persistedFilter = persistedFilters[filter.persistenceKey];
-
-        if (persistedFilter) {
-          filter.active = persistedFilter.active;
-          filter.sortDirection = persistedFilter.sortDirection;
-        }
-      }
-
-      refilter();
-    }
-  }, [realm, filterPersistenceKey, filters, refilter]);
 
   const onFilterButtonPress = useCallback(
     (thisFilter: Filter<T>) => {
@@ -155,16 +138,12 @@ export const FilteringProvider = <T extends RelistenObject>({
           });
         }
       });
-
-      refilter();
     },
-    [filters, refilter, realm, filterPersistenceKey]
+    [filters, realm, filterPersistenceKey]
   );
 
   return (
-    <FilteringContext.Provider
-      value={{ filters, onFilterButtonPress, filter, setRawData, filteredData }}
-    >
+    <FilteringContext.Provider value={{ filters, onFilterButtonPress, filter }}>
       {children}
     </FilteringContext.Provider>
   );
