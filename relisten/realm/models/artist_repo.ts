@@ -33,6 +33,5 @@ export function useArtist(
     return null;
   }, [artistQuery]);
 
-  // console.log('artist_repo.ts', JSON.stringify(artists), artist);
   return { ...artists, data: artist };
 }

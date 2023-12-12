@@ -17,8 +17,8 @@ import Plur from '@/relisten/components/plur';
 import { FilteringProvider, Filter, SortDirection } from '@/relisten/components/filtering/filters';
 
 export default function Page() {
-  const { uuid } = useLocalSearchParams();
-  const results = useArtistVenues(String(uuid));
+  const { artistUuid } = useLocalSearchParams();
+  const results = useArtistVenues(String(artistUuid));
   const { data } = results;
 
   return (
@@ -27,7 +27,7 @@ export default function Page() {
         headerHeight={50}
         ScrollableComponent={VenueList}
         venues={Array.from(data.venues)}
-        filterPersistenceKey={['artists', uuid, 'venues'].join('/')}
+        filterPersistenceKey={['artists', artistUuid, 'venues'].join('/')}
       />
     </RefreshContextProvider>
   );
