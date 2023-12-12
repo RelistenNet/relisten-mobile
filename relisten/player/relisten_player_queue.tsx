@@ -1,11 +1,9 @@
-import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { nativePlayer, RelistenStreamable } from '@/modules/relisten-audio-player';
-import { currentTrackIdentifier } from '@/relisten/player/shared_state';
-import { RelistenPlayer } from '@/relisten/player/relisten_player';
 import { addPlayerListeners } from '@/relisten/player/native_playback_state_hooks';
+import { RelistenPlayer } from '@/relisten/player/relisten_player';
+import { currentTrackIdentifier } from '@/relisten/player/shared_state';
+import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { EventSource } from '@/relisten/util/event_source';
-import { realm } from '../realm/schema';
-import { Artist } from '../realm/models/artist';
 
 export enum PlayerShuffleState {
   SHUFFLE_OFF = 1,
