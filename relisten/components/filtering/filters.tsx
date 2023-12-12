@@ -49,23 +49,19 @@ export const FilteringProvider = <T extends RelistenObject>({
     (allData: ReadonlyArray<T>) => {
       const filteredData: T[] = [];
 
-      const mergedFilters = filters.reduce((memo, next) => {
-        let persistedFilter: PersistedFilter | undefined;
-
-        if (persistedFilters) {
-          persistedFilter = persistedFilters[next.persistenceKey];
-        }
+      // merge pre-defined filters with persisted/user filters
+      const mergedFilters = filters.map((filter) => {
+        const persistedFilter = persistedFilters?.[filter.persistenceKey];
 
         if (persistedFilter) {
-          memo.push({
-            ...next,
+          return {
+            ...filter,
             ...persistedFilter,
-          });
+          };
         } else {
-          memo.push(next);
+          return filter;
         }
-        return memo;
-      }, [] as Filter<T>[]);
+      });
 
       for (const row of allData) {
         let allowed = true;
