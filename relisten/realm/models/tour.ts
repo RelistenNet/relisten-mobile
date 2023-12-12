@@ -1,7 +1,5 @@
 import Realm from 'realm';
 import { TourWithShowCount } from '../../api/models/tour';
-import { FavoritableObject } from '../favoritable_object';
-
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import dayjs from 'dayjs';
 
@@ -18,29 +16,26 @@ export interface TourRequiredProperties extends RelistenObjectRequiredProperties
   name: string;
   slug: string;
   upstreamIdentifier: string;
-  showsOnTour: number;
+  showsOnTour?: number;
 }
 
 export class Tour
   extends Realm.Object<Tour, keyof TourRequiredProperties & keyof TourRequiredRelationships>
-  implements TourRequiredRelationships, TourRequiredProperties, FavoritableObject
+  implements TourRequiredRelationships, TourRequiredProperties
 {
   static schema: Realm.ObjectSchema = {
     name: 'Tour',
     primaryKey: 'uuid',
     properties: {
-      created_at: 'date',
-      updated_at: 'date',
-      artist_id: 'number',
-      artist_uuid: 'string',
-      start_date: 'date',
-      end_date: 'date',
+      createdAt: 'date',
+      updatedAt: 'date',
+      artistUuid: 'string',
+      startDate: 'date',
+      endDate: 'date',
       name: 'string',
       slug: 'string',
-      upstream_identifier: 'string',
+      upstreamIdentifier: 'string',
       uuid: 'string',
-      shows_on_tour: 'number',
-      isFavorite: { type: 'bool', default: false },
     },
   };
 
@@ -53,7 +48,7 @@ export class Tour
   name!: string;
   slug!: string;
   upstreamIdentifier!: string;
-  showsOnTour!: number;
+  showsOnTour?: number;
 
   isFavorite!: boolean;
 
