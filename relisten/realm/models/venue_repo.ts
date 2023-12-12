@@ -4,8 +4,6 @@ import { createNetworkBackedModelArrayHook } from '../network_backed_behavior_ho
 import { useArtist } from './artist_repo';
 import { mergeNetworkBackedResults } from '../network_backed_results';
 import { useMemo } from 'react';
-import Realm from 'realm';
-import { Show } from './show';
 import { Venue } from './venue';
 
 export const venueRepo = new Repository(Venue);
@@ -39,8 +37,3 @@ export const useArtistVenues = (artistUuid: string) => {
 
   return results;
 };
-
-export interface VenueShows {
-  venue: Venue | null;
-  shows: Realm.Results<Show>;
-}

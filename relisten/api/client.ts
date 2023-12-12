@@ -8,8 +8,7 @@ import { RelistenObject, RelistenUpdatableObject } from '@/relisten/api/models/r
 import { CryptoDigestAlgorithm, digestStringAsync } from 'expo-crypto';
 import { realm } from '@/relisten/realm/schema';
 import { UrlRequestMetadata } from '@/relisten/realm/models/url_request_metadata';
-import { VenueShows } from '../realm/models/venue_repo';
-import { Venue, VenueWithShowCounts, VenueWithShows } from './models/venue';
+import { VenueWithShowCounts, VenueWithShows } from './models/venue';
 
 const logger = log.extend('network');
 

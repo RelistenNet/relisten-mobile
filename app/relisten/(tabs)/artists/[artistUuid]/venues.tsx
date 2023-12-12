@@ -1,4 +1,3 @@
-import React from 'react';
 import Flex from '@/relisten/components/flex';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
@@ -15,16 +14,18 @@ import {
 import { RelistenText } from '@/relisten/components/relisten_text';
 import Plur from '@/relisten/components/plur';
 import { FilteringProvider, Filter, SortDirection } from '@/relisten/components/filtering/filters';
+import { useHeaderHeight } from '@react-navigation/elements';
 
 export default function Page() {
   const { artistUuid } = useLocalSearchParams();
   const results = useArtistVenues(String(artistUuid));
   const { data } = results;
+  const headerHeight = useHeaderHeight();
 
   return (
     <RefreshContextProvider networkBackedResults={results}>
       <DisappearingHeaderScreen
-        headerHeight={50}
+        headerHeight={headerHeight}
         ScrollableComponent={VenueList}
         venues={Array.from(data.venues)}
         filterPersistenceKey={['artists', artistUuid, 'venues'].join('/')}
@@ -33,7 +34,11 @@ export default function Page() {
   );
 }
 
-const VenueListItem: React.FC<{ venue: Venue }> = ({ venue }) => {
+interface VenueListItemProps {
+  venue: Venue;
+}
+
+const VenueListItem = ({ venue }: VenueListItemProps) => {
   return (
     <SectionedListItem>
       <Flex column>
@@ -49,7 +54,11 @@ const VenueListItem: React.FC<{ venue: Venue }> = ({ venue }) => {
   );
 };
 
-const VenueHeader: React.FC<{ venues: Venue[] }> = ({ venues }) => {
+interface VenueHeaderProps {
+  venues: Venue[];
+}
+
+const VenueHeader = ({ venues }: VenueHeaderProps) => {
   return (
     <>
       <RelistenText
@@ -70,9 +79,9 @@ const VENUE_FILTERS: Filter<Venue>[] = [
   {
     persistenceKey: 'name',
     title: 'Name',
-    sortDirection: SortDirection.Ascending,
+    sortDirection: SortDirection.Descending,
     active: true,
-    isNumeric: true,
+    isNumeric: false,
     sort: (venues) => venues.sort((a, b) => a.name.localeCompare(b.name)),
   },
   {
@@ -85,12 +94,15 @@ const VENUE_FILTERS: Filter<Venue>[] = [
   },
 ];
 
-const VenueList: React.FC<
-  { venues: Venue[]; filterPersistenceKey: string } & Omit<
-    FilterableListProps<Venue>,
-    'data' | 'renderItem'
-  >
-> = ({ venues, filterPersistenceKey }) => {
+interface VenueListProps {
+  venues: Venue[];
+  filterPersistenceKey: string;
+}
+
+const VenueList = ({
+  venues,
+  filterPersistenceKey,
+}: VenueListProps & Omit<FilterableListProps<Venue>, 'data' | 'renderItem'>) => {
   return (
     <FilteringProvider filters={VENUE_FILTERS} filterPersistenceKey={filterPersistenceKey}>
       <FilterableList
