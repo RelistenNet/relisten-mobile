@@ -54,6 +54,7 @@ export class PlayerQueueTrack {
     this.identifier = nextQueueTrackId();
     this.title = sourceTrack.title;
     this.artist = sourceTrack.artist?.name ?? '';
+    // TODO: fill in venue name
     this.albumTitle =
       [sourceTrack.source?.displayDate, 'venue name'].filter((x) => x).join(' - ') || '';
   }
