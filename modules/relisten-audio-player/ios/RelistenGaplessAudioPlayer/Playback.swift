@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import MediaPlayer
 
 extension RelistenGaplessAudioPlayer {
     func playStreamableImmediately(_ streamable: RelistenGaplessStreamable) {
@@ -44,6 +45,8 @@ extension RelistenGaplessAudioPlayer {
             }
             
             currentState = .Playing
+            
+            updateControlCenter();
 
             // this is needed because the stream download events don't fire for local music
             if activeStream.streamable.url.isFileURL {

@@ -8,6 +8,7 @@
 import Foundation
 
 import AVFAudio
+import MediaPlayer
 
 public protocol RelistenGaplessAudioPlayerDelegate {
     func errorStartingStream(_ player: RelistenGaplessAudioPlayer, error: NSError, forStreamable: RelistenGaplessStreamable)
@@ -23,6 +24,9 @@ public protocol RelistenGaplessAudioPlayerDelegate {
 public struct RelistenGaplessStreamable {
     let url: URL
     let identifier: String
+    let title: String;
+    let artist: String;
+    let albumTitle: String;
 }
 
 
@@ -46,7 +50,9 @@ public class RelistenGaplessAudioPlayer {
 
     public internal(set) var activeStream: RelistenGaplessAudioStream?
     public internal(set) var nextStream: RelistenGaplessAudioStream?
-
+    
+    public let commandCenter = MPRemoteCommandCenter.shared();
+    
     public var currentDuration: TimeInterval? {
         guard isSetup, let activeStream else {
             return nil
@@ -124,7 +130,17 @@ public class RelistenGaplessAudioPlayer {
 
         set {
             _currentState = newValue
-
+            
+            if (newValue == .Playing) {
+                MPNowPlayingInfoCenter.default().playbackState = .playing;
+            } else if (newValue == .Paused) {
+                MPNowPlayingInfoCenter.default().playbackState = .paused;
+            } else if (newValue == .Stalled) {
+                MPNowPlayingInfoCenter.default().playbackState = .interrupted;
+            } else {
+                MPNowPlayingInfoCenter.default().playbackState = .stopped;
+            }
+            
             DispatchQueue.main.async { [self] in
                 delegate?.playbackStateChanged(self, newPlaybackState: _currentState)
             }
@@ -208,7 +224,7 @@ public class RelistenGaplessAudioPlayer {
             if BASS_Start() != 0 {
                 self.currentState = .Playing
             }
-        }
+        }        
     }
 
     public func pause() {
@@ -254,6 +270,49 @@ public class RelistenGaplessAudioPlayer {
         bassQueue.async {
             self.seekToPercent(percent)
         }
+    }
+    
+    
+    public func _resume(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
+        self.resume();
+        
+        return MPRemoteCommandHandlerStatus.success;
+    }
+
+    public func _pause(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
+        self.pause();
+        
+        return MPRemoteCommandHandlerStatus.success;
+    }
+    
+    public func _nextTrack(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
+        //        self.next();
+        // TODO: implement
+        
+        return MPRemoteCommandHandlerStatus.success;
+    }
+    
+    public func _prevTrack(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
+        //        self.pause();
+        // TODO: implement
+        
+        return MPRemoteCommandHandlerStatus.success;
+    }
+
+    public func _seekTo(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
+        guard let duration = self.currentDuration else {
+            return .commandFailed;
+        }
+        guard let event = event as? MPChangePlaybackPositionCommandEvent else {
+          return .commandFailed
+        }
+        
+        if (event.positionTime >= 0 && duration > 0) {
+            seekTo(percent: event.positionTime / duration);
+            return .success;
+        }
+        
+        return .commandFailed;
     }
 
     // MARK: - Private properties

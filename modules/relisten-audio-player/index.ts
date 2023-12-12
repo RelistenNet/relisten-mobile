@@ -11,6 +11,9 @@ const emitter = new EventEmitter(
 export interface RelistenStreamable {
   url: string;
   identifier: string;
+  title: string;
+  artist: string;
+  albumTitle: string;
 }
 
 export enum RelistenPlaybackState {

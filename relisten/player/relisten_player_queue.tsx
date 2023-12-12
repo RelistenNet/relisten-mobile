@@ -4,6 +4,8 @@ import { currentTrackIdentifier } from '@/relisten/player/shared_state';
 import { RelistenPlayer } from '@/relisten/player/relisten_player';
 import { addPlayerListeners } from '@/relisten/player/native_playback_state_hooks';
 import { EventSource } from '@/relisten/util/event_source';
+import { realm } from '../realm/schema';
+import { Artist } from '../realm/models/artist';
 
 export enum PlayerShuffleState {
   SHUFFLE_OFF = 1,
@@ -44,15 +46,25 @@ function nextQueueTrackId() {
 
 export class PlayerQueueTrack {
   public readonly identifier: string;
+  public readonly title: string;
+  public readonly artist: string;
+  public readonly albumTitle: string;
 
   constructor(public readonly sourceTrack: SourceTrack) {
     this.identifier = nextQueueTrackId();
+    this.title = sourceTrack.title;
+    this.artist = sourceTrack.artist?.name ?? '';
+    this.albumTitle =
+      [sourceTrack.source?.displayDate, 'venue name'].filter((x) => x).join(' ') || '';
   }
 
   toStreamable(): RelistenStreamable {
     return {
       identifier: this.identifier,
       url: this.sourceTrack.mp3Url,
+      title: this.title,
+      artist: this.artist,
+      albumTitle: this.albumTitle,
     };
   }
 }

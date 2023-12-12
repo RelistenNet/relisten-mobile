@@ -23,6 +23,21 @@ extension RelistenGaplessAudioPlayer {
             NotificationCenter.default.addObserver(self, selector: #selector(handleMediaServicesWereReset), name: AVAudioSession.mediaServicesWereResetNotification, object: session)
             NotificationCenter.default.addObserver(self, selector: #selector(handleMediaServicesWereLost), name: AVAudioSession.mediaServicesWereLostNotification, object: session)
 
+            commandCenter.playCommand.isEnabled = true
+            commandCenter.playCommand.addTarget(handler: _resume);
+            commandCenter.pauseCommand.isEnabled = true
+            commandCenter.pauseCommand.addTarget(handler: _pause);
+            commandCenter.changePlaybackPositionCommand.isEnabled = true;
+            commandCenter.changePlaybackPositionCommand.addTarget(handler: _seekTo);
+            commandCenter.nextTrackCommand.isEnabled = false;
+            commandCenter.nextTrackCommand.addTarget(handler: _nextTrack);
+            commandCenter.previousTrackCommand.isEnabled = false;
+            commandCenter.previousTrackCommand.addTarget(handler: _prevTrack);
+
+            DispatchQueue.main.async {
+                UIApplication.shared.beginReceivingRemoteControlEvents()
+            }
+            
             audioSessionObserversSetUp = true
         }
 
@@ -38,6 +53,21 @@ extension RelistenGaplessAudioPlayer {
             NotificationCenter.default.removeObserver(self, name: AVAudioSession.interruptionNotification, object: nil)
             NotificationCenter.default.removeObserver(self, name: AVAudioSession.mediaServicesWereResetNotification, object: nil)
             NotificationCenter.default.removeObserver(self, name: AVAudioSession.mediaServicesWereLostNotification, object: nil)
+            
+            commandCenter.playCommand.isEnabled = false;
+            commandCenter.playCommand.removeTarget(_resume);
+            commandCenter.pauseCommand.isEnabled = false;
+            commandCenter.pauseCommand.removeTarget(_pause);
+            commandCenter.changePlaybackPositionCommand.isEnabled = false;
+            commandCenter.changePlaybackPositionCommand.removeTarget(_seekTo);
+            commandCenter.nextTrackCommand.isEnabled = false;
+            commandCenter.nextTrackCommand.removeTarget(_nextTrack);
+            commandCenter.previousTrackCommand.isEnabled = false;
+            commandCenter.previousTrackCommand.removeTarget(_prevTrack);
+            
+            DispatchQueue.main.async {
+                UIApplication.shared.endReceivingRemoteControlEvents();
+            }
         }
     }
 

@@ -8,6 +8,15 @@ struct RelistenStreamable: Record {
 
     @Field
     var identifier: String? = nil
+    
+    @Field
+    var title: String? = nil
+    
+    @Field
+    var albumTitle: String? = nil
+    
+    @Field
+    var artist: String? = nil
 }
 
 var DEBUG_state = ""
@@ -81,13 +90,13 @@ public class RelistenAudioPlayerModule: Module {
         }
 
         AsyncFunction("play") { (streamable: RelistenStreamable, promise: Promise) in
-            guard let url = streamable.url, let identifier = streamable.identifier else {
+            guard let url = streamable.url, let identifier = streamable.identifier, let title = streamable.title, let albumTitle = streamable.albumTitle, let artist = streamable.artist else {
                 promise.resolve()
                 return
             }
 
             player?.bassQueue.async {
-                self.player?.play(RelistenGaplessStreamable(url: url, identifier: identifier))
+                self.player?.play(RelistenGaplessStreamable(url: url, identifier: identifier, title: title, artist: artist, albumTitle: albumTitle))
                 promise.resolve()
             }
         }
@@ -97,11 +106,10 @@ public class RelistenAudioPlayerModule: Module {
                 player?.setNextStream(nil)
             }
             
-            guard let streamable = streamable, let url = streamable.url, let identifier = streamable.identifier else {
+            guard let streamable = streamable,   let url = streamable.url, let identifier = streamable.identifier, let title = streamable.title, let albumTitle = streamable.albumTitle, let artist = streamable.artist else {
                 return
             }
-
-            player?.setNextStream(RelistenGaplessStreamable(url: url, identifier: identifier))
+            player?.setNextStream(RelistenGaplessStreamable(url: url, identifier: identifier, title: title, artist: artist, albumTitle: albumTitle))
         }
 
         AsyncFunction("resume") { (promise: Promise) in
