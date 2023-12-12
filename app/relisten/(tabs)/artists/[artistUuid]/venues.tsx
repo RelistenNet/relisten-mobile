@@ -7,7 +7,7 @@ import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappea
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { Venue } from '@/relisten/realm/models/venue';
 import { useArtistVenues } from '@/relisten/realm/models/venue_repo';
-import { useGlobalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import {
   FilterableList,
   FilterableListProps,
@@ -17,10 +17,9 @@ import Plur from '@/relisten/components/plur';
 import { FilteringProvider, Filter, SortDirection } from '@/relisten/components/filtering/filters';
 
 export default function Page() {
-  const { artistUuid } = useGlobalSearchParams();
-  const results = useArtistVenues(String(artistUuid));
+  const { uuid } = useLocalSearchParams();
+  const results = useArtistVenues(String(uuid));
   const { data } = results;
-  // console.log('venues.tsx', JSON.stringify(data.venues));
 
   return (
     <RefreshContextProvider networkBackedResults={results}>
@@ -28,7 +27,7 @@ export default function Page() {
         headerHeight={50}
         ScrollableComponent={VenueList}
         venues={Array.from(data.venues)}
-        filterPersistenceKey={['artists', artistUuid, 'venues'].join('/')}
+        filterPersistenceKey={['artists', uuid, 'venues'].join('/')}
       />
     </RefreshContextProvider>
   );
