@@ -77,7 +77,7 @@ const VENUE_FILTERS: Filter<Venue>[] = [
   },
   {
     persistenceKey: 'shows',
-    title: 'Shows',
+    title: '# of Shows',
     sortDirection: SortDirection.Descending,
     active: false,
     isNumeric: true,
