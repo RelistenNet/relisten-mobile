@@ -1,12 +1,13 @@
-import { useArtistVenues } from '@/relisten/realm/models/venue_repo';
+import { useArtistTours } from '@/relisten/realm/models/tour_repo';
 import { useLocalSearchParams } from 'expo-router';
 import { Text, View } from 'react-native';
 
 export default function Page() {
-  const { uuid } = useLocalSearchParams();
+  const { artistUuid } = useLocalSearchParams();
 
-  const results = useArtistVenues(String(uuid));
+  const results = useArtistTours(String(artistUuid));
   const { data } = results;
+  console.log(JSON.stringify(data));
 
   return (
     <View style={{ flex: 1, width: '100%' }}>
