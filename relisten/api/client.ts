@@ -9,6 +9,7 @@ import { CryptoDigestAlgorithm, digestStringAsync } from 'expo-crypto';
 import { realm } from '@/relisten/realm/schema';
 import { UrlRequestMetadata } from '@/relisten/realm/models/url_request_metadata';
 import { VenueWithShowCounts, VenueWithShows } from './models/venue';
+import { TourWithShowCount, TourWithShows } from './models/tour';
 
 const logger = log.extend('network');
 
@@ -217,5 +218,20 @@ export class RelistenApiClient {
     options?: RelistenApiRequestOptions
   ): Promise<RelistenApiResponse<VenueWithShows>> {
     return this.getJson(`/v2/artists/${artistUuid}/venue/${venueUuid}`, options);
+  }
+
+  public tours(
+    artistUuid: string,
+    options?: RelistenApiRequestOptions
+  ): Promise<RelistenApiResponse<TourWithShowCount[]>> {
+    return this.getJson(`/v2/artists/${artistUuid}/tours`, options);
+  }
+
+  public tour(
+    artistUuid: string,
+    tourUuid: string,
+    options?: RelistenApiRequestOptions
+  ): Promise<RelistenApiResponse<TourWithShows>> {
+    return this.getJson(`/v2/artists/${artistUuid}/tour/${tourUuid}`, options);
   }
 }
