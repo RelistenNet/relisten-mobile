@@ -40,8 +40,8 @@ interface TourListItemProps {
 }
 
 const TourListItem = ({ tour }: TourListItemProps) => {
-  const startDate = dayjs(tour.startDate).format('MM/DD/YYYY');
-  const endDate = dayjs(tour.endDate).format('MM/DD/YYYY');
+  const startDate = dayjs(tour.startDate).format('YYYY-MM-DD');
+  const endDate = dayjs(tour.endDate).format('YYYY-MM-DD');
 
   return (
     <SectionedListItem>
@@ -77,7 +77,7 @@ const TourHeader = ({ tours }: TourHeaderProps) => {
   );
 };
 
-const VENUE_FILTERS: Filter<Tour>[] = [
+const TOUR_FILTERS: Filter<Tour>[] = [
   { persistenceKey: 'library', title: 'My Library', active: false, filter: (y) => y.isFavorite },
   {
     persistenceKey: 'name',
@@ -99,7 +99,7 @@ const TourList = ({
   filterPersistenceKey,
 }: TourListProps & Omit<FilterableListProps<Tour>, 'data' | 'renderItem'>) => {
   return (
-    <FilteringProvider filters={VENUE_FILTERS} filterPersistenceKey={filterPersistenceKey}>
+    <FilteringProvider filters={TOUR_FILTERS} filterPersistenceKey={filterPersistenceKey}>
       <FilterableList
         ListHeaderComponent={<TourHeader tours={tours} />}
         className="w-full flex-1"
