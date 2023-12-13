@@ -251,11 +251,11 @@ function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; 
             break;
           case 1:
             // Play next
-            player.queue.queueNextTrack([queueTrack.sourceTrack]);
+            player.queue.queueNextTrack([queueTrack]);
             break;
           case 2:
             // Add to end of queue
-            player.queue.addTrackToEndOfQueue([queueTrack.sourceTrack]);
+            player.queue.addTrackToEndOfQueue([queueTrack]);
             break;
           case destructiveButtonIndex:
             // Remove from queue

@@ -3,9 +3,6 @@ import Realm from 'realm';
 import { SourceTrack as ApiSourceTrack } from '../../api/models/source_tracks';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import dayjs from 'dayjs';
-import { realm } from '../schema';
-import { Artist } from './artist';
-import { Source } from './source';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface SourceTrackRequiredRelationships {}
@@ -88,22 +85,6 @@ export class SourceTrack
     }
 
     return this._humanizedDuration;
-  }
-
-  // eslint-disable-next-line getter-return
-  get artist(): Artist | null | undefined {
-    if (realm) {
-      const artist = realm.objectForPrimaryKey(Artist, this.artistUuid);
-      return artist;
-    }
-  }
-
-  // eslint-disable-next-line getter-return
-  get source(): Source | null | undefined {
-    if (realm) {
-      const source = realm.objectForPrimaryKey(Source, this.sourceUuid);
-      return source;
-    }
   }
 
   static propertiesFromApi(relistenObj: ApiSourceTrack): SourceTrackRequiredProperties {
