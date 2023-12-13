@@ -78,6 +78,7 @@ const TourHeader = ({ tours }: TourHeaderProps) => {
 };
 
 const VENUE_FILTERS: Filter<Tour>[] = [
+  { persistenceKey: 'library', title: 'My Library', active: false, filter: (y) => y.isFavorite },
   {
     persistenceKey: 'name',
     title: 'Name',

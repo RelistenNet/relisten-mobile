@@ -2,6 +2,7 @@ import Realm from 'realm';
 import { TourWithShowCount } from '../../api/models/tour';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import dayjs from 'dayjs';
+import { FavoritableObject } from '../favoritable_object';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface TourRequiredRelationships {}
@@ -21,7 +22,7 @@ export interface TourRequiredProperties extends RelistenObjectRequiredProperties
 
 export class Tour
   extends Realm.Object<Tour, keyof TourRequiredProperties & keyof TourRequiredRelationships>
-  implements TourRequiredRelationships, TourRequiredProperties
+  implements TourRequiredRelationships, TourRequiredProperties, FavoritableObject
 {
   static schema: Realm.ObjectSchema = {
     name: 'Tour',
@@ -36,6 +37,7 @@ export class Tour
       slug: 'string',
       upstreamIdentifier: 'string',
       uuid: 'string',
+      isFavorite: { type: 'bool', default: false },
     },
   };
 
