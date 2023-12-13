@@ -1,9 +1,12 @@
-import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { nativePlayer, RelistenStreamable } from '@/modules/relisten-audio-player';
-import { currentTrackIdentifier } from '@/relisten/player/shared_state';
-import { RelistenPlayer } from '@/relisten/player/relisten_player';
 import { addPlayerListeners } from '@/relisten/player/native_playback_state_hooks';
+import { RelistenPlayer } from '@/relisten/player/relisten_player';
+import { currentTrackIdentifier } from '@/relisten/player/shared_state';
+import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { EventSource } from '@/relisten/util/event_source';
+import { Source } from '@/relisten/realm/models/source';
+import { Artist } from '@/relisten/realm/models/artist';
+import { Venue } from '@/relisten/realm/models/venue';
 
 export enum PlayerShuffleState {
   SHUFFLE_OFF = 1,
@@ -45,14 +48,36 @@ function nextQueueTrackId() {
 export class PlayerQueueTrack {
   public readonly identifier: string;
 
-  constructor(public readonly sourceTrack: SourceTrack) {
+  constructor(
+    public readonly sourceTrack: SourceTrack,
+    public readonly title: string,
+    public readonly artist: string,
+    public readonly albumTitle: string
+  ) {
     this.identifier = nextQueueTrackId();
+  }
+
+  static fromSourceTrack(
+    sourceTrack: SourceTrack,
+    source: Source,
+    artist?: Artist | null,
+    venue?: Venue | null
+  ) {
+    return new PlayerQueueTrack(
+      sourceTrack,
+      sourceTrack.title,
+      [artist?.name, source.displayDate, venue?.name].filter((part) => !!part).join(' • ') || '',
+      [source.displayDate, venue?.name].filter((part) => !!part).join(' • ') || ''
+    );
   }
 
   toStreamable(): RelistenStreamable {
     return {
       identifier: this.identifier,
       url: this.sourceTrack.mp3Url,
+      title: this.title,
+      artist: this.artist,
+      albumTitle: this.albumTitle,
     };
   }
 }
@@ -79,14 +104,12 @@ export class RelistenPlayerQueue {
   onRepeatStateChanged = new EventSource<PlayerRepeatState>();
   onShuffleStateChanged = new EventSource<PlayerShuffleState>();
 
-  queueNextTrack(sourceTracks: SourceTrack[]) {
-    const newQueueTracks = sourceTracks.map((t) => new PlayerQueueTrack(t));
-
+  queueNextTrack(queueTracks: PlayerQueueTrack[]) {
     function insertNext(arr: PlayerQueueTrack[], currentIndex: number | undefined) {
       const targetIndex = currentIndex !== undefined ? currentIndex + 1 : 0;
       const arrCopy = [...arr];
 
-      arrCopy.splice(targetIndex, 0, ...newQueueTracks);
+      arrCopy.splice(targetIndex, 0, ...queueTracks);
 
       return arrCopy;
     }
@@ -98,18 +121,16 @@ export class RelistenPlayerQueue {
     this.onOrderedTracksChanged.dispatch(this.orderedTracks);
   }
 
-  addTrackToEndOfQueue(sourceTracks: SourceTrack[]) {
-    const newQueueTracks = sourceTracks.map((t) => new PlayerQueueTrack(t));
-
-    this.originalTracks = [...this.originalTracks, ...newQueueTracks];
-    this.shuffledTracks = [...this.shuffledTracks, ...newQueueTracks];
+  addTrackToEndOfQueue(queueTracks: PlayerQueueTrack[]) {
+    this.originalTracks = [...this.originalTracks, ...queueTracks];
+    this.shuffledTracks = [...this.shuffledTracks, ...queueTracks];
 
     this.recalculateNextTrack();
     this.onOrderedTracksChanged.dispatch(this.orderedTracks);
   }
 
-  reorderQueue(newQueue: SourceTrack[]) {
-    this.originalTracks = [...newQueue.map((t) => new PlayerQueueTrack(t))];
+  reorderQueue(newQueue: PlayerQueueTrack[]) {
+    this.originalTracks = [...newQueue];
     this.reshuffleTracks();
 
     if (this.currentTrack !== undefined) {
@@ -120,8 +141,8 @@ export class RelistenPlayerQueue {
     this.onOrderedTracksChanged.dispatch(this.orderedTracks);
   }
 
-  replaceQueue(newQueue: SourceTrack[], playingTrackAtIndex: number | undefined) {
-    this.originalTracks = [...newQueue.map((t) => new PlayerQueueTrack(t))];
+  replaceQueue(newQueue: PlayerQueueTrack[], playingTrackAtIndex: number | undefined) {
+    this.originalTracks = [...newQueue];
     this.originalTracksCurrentIndex = undefined;
 
     this.shuffledTracksCurrentIndex = undefined;
@@ -230,6 +251,7 @@ export class RelistenPlayerQueue {
       this.onRepeatStateChanged.dispatch(repeatState);
     }
   }
+
   // endregion
 
   // region Shuffling
@@ -244,6 +266,7 @@ export class RelistenPlayerQueue {
       this.shuffledTracks = shuffleArray([...this.originalTracks]);
     }
   }
+
   // endregion
 
   // region Next track management
@@ -285,6 +308,7 @@ export class RelistenPlayerQueue {
 
     return undefined;
   }
+
   // endregion
 
   // region Cleanup
@@ -296,6 +320,7 @@ export class RelistenPlayerQueue {
   private clearNextTrack() {
     this._nextTrack = undefined;
   }
+
   // endregion
 
   // region Native player listeners

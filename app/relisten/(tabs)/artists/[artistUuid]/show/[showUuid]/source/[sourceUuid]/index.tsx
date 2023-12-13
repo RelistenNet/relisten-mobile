@@ -34,6 +34,8 @@ import {
 import * as R from 'remeda';
 
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
+import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
+import { useArtist } from '@/relisten/realm/models/artist_repo';
 
 export const SourceList = ({ sources }: { sources: Source[] }) => {
   return (
@@ -94,10 +96,11 @@ const SourceComponent = ({
 }: { show: Show | undefined; selectedSource: Source } & ScrollViewProps) => {
   const { refreshing } = useRefreshContext();
   const player = useRelistenPlayer();
+  const artist = useArtist(show?.artistUuid);
 
   const playShow = useCallback(
     (sourceTrack?: SourceTrack) => {
-      if (!sourceTrack || !sourceTrack.mp3Url || !sourceTrack.uuid) {
+      if (!sourceTrack || !sourceTrack.mp3Url || !sourceTrack.uuid || !artist.data || !show) {
         return;
       }
 
@@ -108,9 +111,14 @@ const SourceComponent = ({
         0
       );
 
-      player.queue.replaceQueue(showTracks, trackIndex);
+      player.queue.replaceQueue(
+        showTracks.map((t) =>
+          PlayerQueueTrack.fromSourceTrack(t, selectedSource, artist.data, show.venue)
+        ),
+        trackIndex
+      );
     },
-    [selectedSource]
+    [selectedSource, artist.data, show]
   ) satisfies PlayShow;
 
   if (refreshing || !show) {

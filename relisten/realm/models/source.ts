@@ -14,7 +14,7 @@ export interface SourceRequiredRelationships {
 export interface SourceRequiredProperties extends RelistenObjectRequiredProperties {
   artistUuid: string;
   venueUuid?: string;
-  displayDate: Date;
+  displayDate: string;
   isSoundboard: boolean;
   isRemaster: boolean;
   hasJamcharts: boolean;
@@ -51,7 +51,7 @@ export class Source
       showUuid: { type: 'string', indexed: true },
       venueUuid: { type: 'string', optional: true, indexed: true },
 
-      displayDate: 'date',
+      displayDate: 'string',
       isSoundboard: { type: 'bool', indexed: true },
       isRemaster: { type: 'bool', indexed: true },
       hasJamcharts: 'bool',
@@ -82,7 +82,7 @@ export class Source
   updatedAt!: Date;
   artistUuid!: string;
   venueUuid?: string;
-  displayDate!: Date;
+  displayDate!: string;
   isSoundboard!: boolean;
   isRemaster!: boolean;
   hasJamcharts!: boolean;
@@ -152,7 +152,7 @@ export class Source
       venueUuid: relistenObj.venue_uuid || undefined,
       showUuid: relistenObj.show_uuid,
 
-      displayDate: dayjs(relistenObj.display_date).toDate(),
+      displayDate: relistenObj.display_date,
       isSoundboard: relistenObj.is_soundboard,
       isRemaster: relistenObj.is_remaster,
       hasJamcharts: relistenObj.has_jamcharts,

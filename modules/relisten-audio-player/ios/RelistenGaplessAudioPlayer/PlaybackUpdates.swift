@@ -6,8 +6,32 @@
 //
 
 import Foundation
+import MediaPlayer
 
 extension RelistenGaplessAudioPlayer {
+    func updateControlCenter() {
+        guard let activeStream else {
+            return
+        }
+        
+        var nowPlayingInfo = [String: Any]()
+
+        // Set metadata for your media
+        nowPlayingInfo[MPMediaItemPropertyTitle] = activeStream.streamable.title
+        nowPlayingInfo[MPMediaItemPropertyArtist] = activeStream.streamable.artist
+        nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = activeStream.streamable.albumTitle
+
+        // Set the playback duration and current playback time
+        nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = self.currentDuration // in seconds
+        nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = self.elapsed // in seconds
+
+        // Set the playback rate (0.0 for paused, 1.0 for playing)
+        nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = 1.0
+
+        // Set the nowPlayingInfo
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+    }
+    
     func startUpdates() {
         guard let activeStream else {
             return
@@ -55,6 +79,10 @@ extension RelistenGaplessAudioPlayer {
                 sendStateChanged = true
             }
 
+            if sendPlaybackChanged || sendStateChanged {
+                updateControlCenter();
+            }
+            
             if sendPlaybackChanged {
                 NSLog("[playback updates] sendPlaybackChanged")
                 self.delegate?.playbackProgressChanged(self, elapsed: thisElapsed, duration: thisDuration)
