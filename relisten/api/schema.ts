@@ -1242,6 +1242,20 @@ export interface components {
       show_id: unknown;
       venue_id: unknown;
     };
+    Song: {
+      created_at: string;
+      updated_at: string;
+      artist_uuid: string;
+      name: string;
+      slug: string;
+      upstream_identifier: string;
+      sortName: string;
+      uuid: string;
+      shows_played_at?: number;
+    } & {
+      id: unknown;
+      artist_id: unknown;
+    };
     SourceFull: {
       /** Format: date-time */
       created_at: string;
