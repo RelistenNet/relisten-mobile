@@ -66,7 +66,7 @@ export class PlayerQueueTrack {
     return new PlayerQueueTrack(
       sourceTrack,
       sourceTrack.title,
-      artist?.name || '',
+      [artist?.name, source.displayDate, venue?.name].filter((part) => !!part).join(' • ') || '',
       [source.displayDate, venue?.name].filter((part) => !!part).join(' • ') || ''
     );
   }
