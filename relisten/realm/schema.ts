@@ -9,6 +9,7 @@ import { SourceSet } from './models/source_set';
 import { SourceTrack } from './models/source_track';
 import { UrlRequestMetadata } from '@/relisten/realm/models/url_request_metadata';
 import { RouteFilterConfig } from '@/relisten/realm/models/route_filter_config';
+import { Tour } from './models/tour';
 
 const realmConfig: Realm.Configuration = {
   schema: [
@@ -16,6 +17,7 @@ const realmConfig: Realm.Configuration = {
     Year,
     Show,
     Venue,
+    Tour,
     Source,
     SourceSet,
     SourceTrack,
