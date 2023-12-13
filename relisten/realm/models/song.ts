@@ -16,7 +16,7 @@ export interface SongRequiredProperties extends RelistenObjectRequiredProperties
   slug: string;
   upstreamIdentifier: string;
   sortName: string;
-  showsPlayedAt?: number;
+  showsPlayedAt: number;
 }
 
 export class Song
@@ -35,6 +35,7 @@ export class Song
       upstreamIdentifier: 'string',
       sortName: 'string',
       uuid: 'string',
+      showsPlayedAt: 'int',
       isFavorite: { type: 'bool', default: false },
     },
   };
@@ -47,7 +48,7 @@ export class Song
   slug!: string;
   upstreamIdentifier!: string;
   sortName!: string;
-  showPlayedAt?: number;
+  showsPlayedAt!: number;
 
   isFavorite!: boolean;
 
