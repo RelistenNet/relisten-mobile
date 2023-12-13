@@ -10,7 +10,7 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { SectionHeader } from '@/relisten/components/section_header';
 import { Show } from '@/relisten/realm/models/show';
-import { useFullShow } from '@/relisten/realm/models/show_repo';
+import { sortSources, useFullShow } from '@/relisten/realm/models/show_repo';
 import { Source } from '@/relisten/realm/models/source';
 import { SourceSet } from '@/relisten/realm/models/source_set';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
@@ -66,14 +66,14 @@ export default function Page() {
 
   const sortedSources = useMemo(() => {
     if (!sources) return [];
-    const all = [...sources];
 
-    return all.sort((a, b) => b.avgRatingWeighted - a.avgRatingWeighted);
+    return sortSources(sources);
   }, [sources]);
 
   // default sourceUuid is initial which will just fallback to sortedSources[0]
   const selectedSource =
     sortedSources.find((source) => source.uuid === sourceUuid) ?? sortedSources[0];
+
   return (
     <RefreshContextProvider
       networkBackedResults={results}
@@ -93,14 +93,21 @@ const SourceComponent = ({
   show,
   selectedSource,
   ...props
-}: { show: Show | undefined; selectedSource: Source } & ScrollViewProps) => {
+}: { show: Show | undefined; selectedSource?: Source } & ScrollViewProps) => {
   const { refreshing } = useRefreshContext();
   const player = useRelistenPlayer();
   const artist = useArtist(show?.artistUuid);
 
   const playShow = useCallback(
     (sourceTrack?: SourceTrack) => {
-      if (!sourceTrack || !sourceTrack.mp3Url || !sourceTrack.uuid || !artist.data || !show) {
+      if (
+        !sourceTrack ||
+        !sourceTrack.mp3Url ||
+        !sourceTrack.uuid ||
+        !artist.data ||
+        !show ||
+        !selectedSource
+      ) {
         return;
       }
 
@@ -128,6 +135,14 @@ const SourceComponent = ({
           backgroundColor={RelistenBlue[800]}
           foregroundColor={RelistenBlue[700]}
         />
+      </View>
+    );
+  }
+
+  if (!selectedSource) {
+    return (
+      <View className="w-full p-4">
+        <RelistenText>There was an error...</RelistenText>
       </View>
     );
   }
@@ -174,10 +189,14 @@ export const SourceLink = ({ link, ...props }: { link: SLink } & TouchableOpacit
   );
 };
 
-export const SourceHeader: React.FC<{ source: Source; show: Show; playShow: PlayShow }> = ({
+export const SourceHeader = ({
   show,
   source,
   playShow,
+}: {
+  source: Source;
+  show: Show;
+  playShow: PlayShow;
 }) => {
   const realm = useRealm();
   const forceUpdate = useForceUpdate();
@@ -316,10 +335,12 @@ export const SourceHeader: React.FC<{ source: Source; show: Show; playShow: Play
   );
 };
 
-export const SourceSets: React.FC<{ source: Source; playShow: PlayShow }> = ({
-  source,
-  playShow,
-}) => {
+interface SourceSetsProps {
+  source: Source;
+  playShow: PlayShow;
+}
+
+export const SourceSets = ({ source, playShow }: SourceSetsProps) => {
   return (
     <View>
       {source.sourceSets.map((s) => (

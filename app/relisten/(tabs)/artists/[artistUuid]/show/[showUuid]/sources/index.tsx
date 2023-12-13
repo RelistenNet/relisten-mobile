@@ -9,7 +9,7 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { SectionHeader } from '@/relisten/components/section_header';
 import { Show } from '@/relisten/realm/models/show';
-import { useFullShow } from '@/relisten/realm/models/show_repo';
+import { sortSources, useFullShow } from '@/relisten/realm/models/show_repo';
 import { Source } from '@/relisten/realm/models/source';
 import { SourceSet } from '@/relisten/realm/models/source_set';
 import { useRealm } from '@/relisten/realm/schema';
@@ -49,11 +49,11 @@ export default function Page() {
 
   const sortedSources = useMemo(() => {
     if (!sources) return [];
-    const all = [...sources];
 
-    return all.sort((a, b) => b.avgRatingWeighted - a.avgRatingWeighted);
+    return sortSources(sources);
   }, [sources]);
 
+  // default sourceUuid is initial which will just fallback to sortedSources[0]
   const selectedSource =
     sortedSources.find((source) => source.uuid === sourceUuid) ?? sortedSources[0];
 

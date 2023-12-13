@@ -212,7 +212,7 @@ const YEAR_FILTERS: Filter<Year>[] = [
   { persistenceKey: 'library', title: 'My Library', active: false, filter: (y) => y.isFavorite },
   {
     persistenceKey: 'year',
-    title: 'Year',
+    title: 'Date',
     sortDirection: SortDirection.Ascending,
     active: true,
     isNumeric: true,

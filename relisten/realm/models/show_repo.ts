@@ -1,5 +1,6 @@
 import { Repository } from '../repository';
 
+import { firstBy } from 'thenby';
 import { Show } from './show';
 import Realm from 'realm';
 import { useMemo } from 'react';
@@ -23,11 +24,49 @@ export interface ShowWithSources {
   sources: Realm.Results<Source>;
 }
 
+const getEtreeId = (s = '') =>
+  Number(
+    s
+      .split('.')
+      .reverse()
+      .find((x) => /^[0-9]+$/.test(x))
+  );
+
+// our magic live music sort, taken from relisten-web
+// gives precedence to soundboards -> charlie miller/peter costello -> etree ids -> avg weighted rating
+// https://github.com/RelistenNet/relisten-web/blob/69e05607c0a0699b5ccb0b3711a3ec17faf3a855/src/redux/modules/tapes.js#L63
+export const sortSources = (sources: Realm.Results<Source>) => {
+  const sortedSources = sources
+    ? Array.from(sources).sort(
+        firstBy((t: Source) => t.isSoundboard, 'desc')
+          // Charlie for GD, Pete for JRAD
+          .thenBy(
+            (t: Source) =>
+              /(charlie miller)|(peter costello)/i.test(
+                [t.taper, t.transferrer, t.source].join('')
+              ),
+            'desc'
+          )
+          .thenBy(
+            (t1: Source, t2: Source) =>
+              getEtreeId(t1.upstreamIdentifier) - getEtreeId(t2.upstreamIdentifier),
+            'desc'
+          )
+          .thenBy((t) => t.avgRatingWeighted, 'desc')
+      )
+    : [];
+
+  return sortedSources;
+};
+
 class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
   ShowWithSources,
   ApiShowWithSources
 > {
-  constructor(public showUuid?: string, public sourceUuid?: string) {
+  constructor(
+    public showUuid?: string,
+    public sourceUuid?: string
+  ) {
     super();
   }
 
