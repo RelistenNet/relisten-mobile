@@ -110,8 +110,6 @@ const VenueList = ({
         className="w-full flex-1"
         data={venues}
         renderItem={({ item }) => {
-          if ('sectionTitle' in item) return null;
-
           return <VenueListItem venue={item} />;
         }}
       />

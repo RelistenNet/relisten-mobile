@@ -3,13 +3,12 @@ import { RelistenObject } from '../../api/models/relisten';
 import {
   RelistenSectionHeader,
   RelistenSectionList,
-  RelistenSectionListData,
   RelistenSectionListProps,
 } from '../relisten_section_list';
-import { useFilters } from './filters';
 import { SectionHeader } from '../section_header';
 import { FilterBar } from './filter_bar';
 import { FilterBarButton } from './filter_bar_buttons';
+import { useFilters } from './filters';
 
 export type FilterableListProps<T extends RelistenObject> = {
   data: ReadonlyArray<T>;

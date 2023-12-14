@@ -2,7 +2,10 @@ import { FavoriteObjectButton } from '@/relisten/components/favorite_icon_button
 import Flex from '@/relisten/components/flex';
 import Plur from '@/relisten/components/plur';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
-import { RelistenSectionList } from '@/relisten/components/relisten_section_list';
+import {
+  RelistenSectionHeader,
+  RelistenSectionList,
+} from '@/relisten/components/relisten_section_list';
 import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
 import RowTitle from '@/relisten/components/row_title';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
@@ -50,7 +53,7 @@ const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) =>
 });
 
 const ArtistsList = ({ artists }: { artists: Realm.Results<Artist> }) => {
-  const sectionedArtists = useMemo(() => {
+  const sectionedArtists: ReadonlyArray<Artist | RelistenSectionHeader> = useMemo(() => {
     const all = [...artists].sort((a, b) => {
       return a.sortName.localeCompare(b.sortName);
     });
@@ -76,9 +79,6 @@ const ArtistsList = ({ artists }: { artists: Realm.Results<Artist> }) => {
     <RelistenSectionList
       data={sectionedArtists}
       renderItem={({ item }) => {
-        if ('sectionTitle' in item) {
-          return <SectionHeader title={item.sectionTitle} />;
-        }
         return <ArtistListItem artist={item} />;
       }}
     />

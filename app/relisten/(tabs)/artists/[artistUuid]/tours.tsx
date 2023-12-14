@@ -105,8 +105,6 @@ const TourList = ({
         className="w-full flex-1"
         data={tours}
         renderItem={({ item }) => {
-          if ('sectionTitle' in item) return null;
-
           return <TourListItem tour={item} />;
         }}
       />

@@ -148,9 +148,6 @@ export const ShowList = ({
         ListHeaderComponent={<YearHeader artist={artist} shows={allShows} year={year} />}
         data={allShows}
         renderItem={({ item: show }) => {
-          if ('sectionTitle' in show) {
-            return null;
-          }
           return <ShowListItem show={show} />;
         }}
         {...props}

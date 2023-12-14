@@ -14,7 +14,7 @@ export type RelistenSectionListData<T extends RelistenObject> = T;
 
 export type RelistenSectionListProps<T extends RelistenObject> = {
   data: ReadonlyArray<T | RelistenSectionHeader>;
-  renderItem: ListRenderItem<T | RelistenSectionHeader>;
+  renderItem: ListRenderItem<T>;
   renderSectionHeader?: (item: RelistenSectionHeader) => JSX.Element;
   pullToRefresh?: boolean;
 } & FlashListProps<T>;
