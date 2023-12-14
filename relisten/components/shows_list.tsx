@@ -124,14 +124,20 @@ const YearHeader = ({
     </View>
   );
 };
-export const ShowList: React.FC<
-  {
-    shows: Realm.Results<Show>;
-    artist: Artist | null;
-    year: Year | null;
-    filterPersistenceKey: string;
-  } & Omit<FilterableListProps<Show>, 'data' | 'renderItem'>
-> = ({ shows, artist, year, filterPersistenceKey, ...props }) => {
+interface ShowListProps {
+  shows: Realm.Results<Show>;
+  artist: Artist | null;
+  year: Year | null;
+  filterPersistenceKey: string;
+}
+
+export const ShowList = ({
+  shows,
+  artist,
+  year,
+  filterPersistenceKey,
+  ...props
+}: ShowListProps) => {
   const allShows = useMemo(() => {
     return [...shows];
   }, [shows]);
@@ -142,6 +148,9 @@ export const ShowList: React.FC<
         ListHeaderComponent={<YearHeader artist={artist} shows={allShows} year={year} />}
         data={allShows}
         renderItem={({ item: show }) => {
+          if ('sectionTitle' in show) {
+            return null;
+          }
           return <ShowListItem show={show} />;
         }}
         {...props}

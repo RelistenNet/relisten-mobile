@@ -253,6 +253,8 @@ const YearsList: React.FC<
         ListHeaderComponent={<YearsHeader artist={artist} years={allYears} />}
         data={allYears}
         renderItem={({ item: year }) => {
+          if ('sectionTitle' in year) return null;
+
           return <YearListItem year={year} />;
         }}
         {...props}

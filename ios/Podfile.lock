@@ -481,6 +481,8 @@ PODS:
     - ExpoModulesCore
   - RNCAsyncStorage (1.18.2):
     - React-Core
+  - RNFlashList (1.4.3):
+    - React-Core
   - RNGestureHandler (2.12.1):
     - React-Core
   - RNReanimated (3.3.0):
@@ -583,6 +585,7 @@ DEPENDENCIES:
   - RealmJS (from `../node_modules/realm`)
   - RelistenAudioPlayer (from `../modules/relisten-audio-player/ios`)
   - "RNCAsyncStorage (from `../node_modules/@react-native-async-storage/async-storage`)"
+  - "RNFlashList (from `../node_modules/@shopify/flash-list`)"
   - RNGestureHandler (from `../node_modules/react-native-gesture-handler`)
   - RNReanimated (from `../node_modules/react-native-reanimated`)
   - RNScreens (from `../node_modules/react-native-screens`)
@@ -718,6 +721,8 @@ EXTERNAL SOURCES:
     :path: "../modules/relisten-audio-player/ios"
   RNCAsyncStorage:
     :path: "../node_modules/@react-native-async-storage/async-storage"
+  RNFlashList:
+    :path: "../node_modules/@shopify/flash-list"
   RNGestureHandler:
     :path: "../node_modules/react-native-gesture-handler"
   RNReanimated:
@@ -793,6 +798,7 @@ SPEC CHECKSUMS:
   RealmJS: b36dae5c0def204602827884512252a320332c69
   RelistenAudioPlayer: 180c4135cfd2c86df85e8ea135175b6e05bf31bc
   RNCAsyncStorage: ddc4ee162bfd41b0d2c68bf2d95acd81dd7f1f93
+  RNFlashList: ade81b4e928ebd585dd492014d40fb8d0e848aab
   RNGestureHandler: c0d04458598fcb26052494ae23dda8f8f5162b13
   RNReanimated: 9f7068e43b9358a46a688d94a5a3adb258139457
   RNScreens: 50ffe2fa2342eabb2d0afbe19f7c1af286bc7fb3

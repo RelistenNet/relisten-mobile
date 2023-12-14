@@ -16,6 +16,7 @@ import Realm from 'realm';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useRelistenPlayerBottomBarContext } from '@/relisten/player/ui/player_bottom_bar';
+import { SectionHeader } from '@/relisten/components/section_header';
 
 const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) => {
   return (
@@ -55,13 +56,17 @@ const ArtistsList = ({ artists }: { artists: Realm.Results<Artist> }) => {
     });
 
     const r = [
-      { title: 'Featured', data: all.filter((a) => a.featured !== 0) },
-      { title: `${all.length} Artists`, data: all },
+      { sectionTitle: 'Featured' },
+      ...all.filter((a) => a.featured !== 0),
+      { sectionTitle: `${all.length} Artists` },
+      ...all,
     ];
 
     const favorites = all.filter((a) => a.isFavorite);
+
     if (favorites.length > 0) {
-      r.unshift({ title: 'Favorites', data: favorites });
+      r.unshift(...favorites);
+      r.unshift({ sectionTitle: 'Favorites' });
     }
 
     return r;
@@ -69,11 +74,14 @@ const ArtistsList = ({ artists }: { artists: Realm.Results<Artist> }) => {
 
   return (
     <RelistenSectionList
-      sections={sectionedArtists}
-      renderItem={({ item: artist }) => {
-        return <ArtistListItem artist={artist} />;
+      data={sectionedArtists}
+      renderItem={({ item }) => {
+        if ('sectionTitle' in item) {
+          return <SectionHeader title={item.sectionTitle} />;
+        }
+        return <ArtistListItem artist={item} />;
       }}
-    ></RelistenSectionList>
+    />
   );
 };
 

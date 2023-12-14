@@ -104,7 +104,11 @@ const TourList = ({
         ListHeaderComponent={<TourHeader tours={tours} />}
         className="w-full flex-1"
         data={tours}
-        renderItem={({ item }: { item: Tour; index: number }) => <TourListItem tour={item} />}
+        renderItem={({ item }) => {
+          if ('sectionTitle' in item) return null;
+
+          return <TourListItem tour={item} />;
+        }}
       />
     </FilteringProvider>
   );
