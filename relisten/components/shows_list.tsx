@@ -57,6 +57,12 @@ const ShowListItem = ({ show }: { show: Show }) => {
 const SHOW_FILTERS: Filter<Show>[] = [
   { persistenceKey: 'library', title: 'My Library', active: false, filter: (y) => y.isFavorite },
   {
+    persistenceKey: 'soundboard',
+    title: 'SBD',
+    active: false,
+    filter: (y) => y.hasSoundboardSource,
+  },
+  {
     persistenceKey: 'date',
     title: 'Date',
     sortDirection: SortDirection.Ascending,
