@@ -8,7 +8,7 @@ import { ScrollScreen } from './ScrollScreen';
 export const DisappearingHeaderScreen = <
   TProps extends Partial<
     Pick<ScrollViewProps, 'onScroll' | 'scrollEventThrottle' | 'contentContainerStyle'>
-  >
+  >,
 >({
   headerHeight,
   ScrollableComponent,
@@ -46,13 +46,15 @@ export const DisappearingHeaderScreen = <
 
   const Component = ScrollableComponent as any;
 
+  const onScroll = (e: any) => {
+    scrolling.setValue(e.nativeEvent.contentOffset.y);
+  };
+
   return (
     <ScrollScreen>
       <Component
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrolling } } }], {
-          useNativeDriver: true,
-        })}
-        scrollEventThrottle={16}
+        onScroll={onScroll}
+        // scrollEventThrottle={16}
         {...props}
       />
     </ScrollScreen>

@@ -6,20 +6,19 @@ import {
   RelistenSectionHeader,
   RelistenSectionList,
 } from '@/relisten/components/relisten_section_list';
+import { RelistenText } from '@/relisten/components/relisten_text';
 import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
 import RowTitle from '@/relisten/components/row_title';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
+import { useRelistenPlayerBottomBarContext } from '@/relisten/player/ui/player_bottom_bar';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useArtists } from '@/relisten/realm/models/artist_repo';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Link } from 'expo-router';
 import React, { useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import Realm from 'realm';
-import { RelistenText } from '@/relisten/components/relisten_text';
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
-import { useRelistenPlayerBottomBarContext } from '@/relisten/player/ui/player_bottom_bar';
-import { SectionHeader } from '@/relisten/components/section_header';
 
 const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) => {
   return (

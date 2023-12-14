@@ -1,20 +1,20 @@
-import React, { useMemo } from 'react';
+import { Link } from 'expo-router';
+import { useMemo } from 'react';
+import { View } from 'react-native';
 import Realm from 'realm';
+import * as R from 'remeda';
+import { Artist } from '../realm/models/artist';
 import { Show } from '../realm/models/show';
+import { Year } from '../realm/models/year';
 import { FavoriteObjectButton } from './favorite_icon_button';
-import { FilterableList, FilterableListProps } from './filtering/filterable_list';
+import { FilterableList } from './filtering/filterable_list';
 import { Filter, FilteringProvider, SortDirection } from './filtering/filters';
 import Flex from './flex';
+import Plur from './plur';
 import { RelistenText } from './relisten_text';
 import { SubtitleRow, SubtitleText } from './row_subtitle';
 import RowTitle from './row_title';
 import { SectionedListItem } from './sectioned_list_item';
-import Plur from './plur';
-import { Link } from 'expo-router';
-import { View } from 'react-native';
-import { Artist } from '../realm/models/artist';
-import * as R from 'remeda';
-import { Year } from '../realm/models/year';
 
 const ShowListItem = ({ show }: { show: Show }) => {
   return (

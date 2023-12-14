@@ -2,7 +2,7 @@ import { Tabs } from 'expo-router';
 
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'react-native';
-import 'react-native-gesture-handler';
+// import 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import TabBar from '@/relisten/components/TabBar';
 import { RelistenBlue } from '@/relisten/relisten_blue';
