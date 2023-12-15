@@ -57,7 +57,7 @@ export class Repository<
   TModel extends RequiredProperties & RequiredRelationships,
   TApi extends RelistenApiUpdatableObject,
   RequiredProperties extends RelistenObjectRequiredProperties,
-  RequiredRelationships extends object
+  RequiredRelationships extends object,
 > {
   constructor(private klass: ModelClass<TModel, TApi, RequiredProperties, RequiredRelationships>) {}
 
@@ -69,7 +69,7 @@ export class Repository<
 
     for (const [prop, value] of Object.entries(p) as [
       keyof RequiredProperties,
-      RequiredProperties[keyof RequiredProperties]
+      RequiredProperties[keyof RequiredProperties],
     ][]) {
       (model as any)[prop] = value;
     }
@@ -77,7 +77,7 @@ export class Repository<
     if (r) {
       for (const [prop, value] of Object.entries(r) as [
         keyof RequiredRelationships,
-        RequiredRelationships[keyof RequiredRelationships]
+        RequiredRelationships[keyof RequiredRelationships],
       ][]) {
         (model as any)[prop] = value;
       }

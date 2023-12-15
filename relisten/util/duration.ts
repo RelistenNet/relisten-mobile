@@ -1,6 +1,6 @@
 import dayjs from 'dayjs';
 
-export const duration = (time: number, max?: number) => {
+export const duration = (time: number, max: number) => {
   const maxInternal = dayjs.duration(max, 'seconds');
   const internal = dayjs.duration(time, 'seconds');
 

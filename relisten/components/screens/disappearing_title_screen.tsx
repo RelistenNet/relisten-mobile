@@ -6,9 +6,7 @@ import { RelistenText } from '../relisten_text';
 import { ScrollScreen } from './ScrollScreen';
 
 export const DisappearingHeaderScreen = <
-  TProps extends Partial<
-    Pick<ScrollViewProps, 'onScroll' | 'scrollEventThrottle' | 'contentContainerStyle'>
-  >,
+  TProps extends Partial<Pick<ScrollViewProps, 'onScroll' | 'scrollEventThrottle'>>,
 >({
   headerHeight,
   ScrollableComponent,
@@ -52,11 +50,7 @@ export const DisappearingHeaderScreen = <
 
   return (
     <ScrollScreen>
-      <Component
-        onScroll={onScroll}
-        // scrollEventThrottle={16}
-        {...props}
-      />
+      <Component onScroll={onScroll} scrollEventThrottle={16} {...props} />
     </ScrollScreen>
   );
 };

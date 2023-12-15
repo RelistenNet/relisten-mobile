@@ -7,6 +7,10 @@ export interface NetworkBackedResults<T> {
   refresh: () => void;
 }
 
+interface NetworkBackedResultsHook<T> {
+  results: NetworkBackedResults<T>;
+}
+
 export type ExtractDataType<T> = T extends NetworkBackedResults<infer Return> ? Return : T;
 export type ExtractHookDataType<T> = T extends NetworkBackedResultsHook<infer Return> ? Return : T;
 

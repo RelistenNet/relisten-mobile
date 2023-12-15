@@ -58,7 +58,7 @@ export class RelistenApiClient {
   private getJson<
     T extends
       | (RelistenObject & RelistenUpdatableObject)
-      | Array<RelistenObject & RelistenUpdatableObject>
+      | Array<RelistenObject & RelistenUpdatableObject>,
   >(url: string, options?: RelistenApiRequestOptions): Promise<RelistenApiResponse<T>> {
     // we only do GET requests for now
     const key = 'GET@' + url;
@@ -89,9 +89,9 @@ export class RelistenApiClient {
   private async makeJsonGetRequest<
     T extends
       | (RelistenObject & RelistenUpdatableObject)
-      | Array<RelistenObject & RelistenUpdatableObject>
+      | Array<RelistenObject & RelistenUpdatableObject>,
   >(url: string, options?: RelistenApiRequestOptions): Promise<RelistenApiResponse<T>> {
-    let urlMetadata: UrlRequestMetadata | undefined = undefined;
+    let urlMetadata: UrlRequestMetadata | null = null;
     if (realm) {
       urlMetadata = realm.objectForPrimaryKey<UrlRequestMetadata>(UrlRequestMetadata, url);
 

@@ -1,6 +1,7 @@
 /* eslint-disable react/prop-types */
 import { useRelistenPlayerBottomBarContext } from '@/relisten/player/ui/player_bottom_bar';
 import { FlashList, FlashListProps, ListRenderItem, ListRenderItemInfo } from '@shopify/flash-list';
+import { useMemo } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import { RefreshControl, View } from 'react-native';
 import { RelistenObject } from '../api/models/relisten';
@@ -8,7 +9,6 @@ import { RelistenBlue } from '../relisten_blue';
 import { ItemSeparator } from './item_separator';
 import { useRefreshContext } from './refresh_context';
 import { SectionHeader } from './section_header';
-import { useMemo } from 'react';
 
 export type RelistenSectionHeader = { sectionTitle: string };
 export type RelistenSectionListData<T extends RelistenObject> = T | RelistenSectionHeader;

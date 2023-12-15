@@ -50,7 +50,9 @@ const buttonVariants = cva('flex-row items-center justify-center border border-t
   },
 });
 
-export interface ButtonProps extends TouchableOpacityProps, VariantProps<typeof buttonVariants> {
+export interface ButtonProps
+  extends TouchableOpacityProps,
+    Omit<VariantProps<typeof buttonVariants>, 'disabled'> {
   textClassName?: string;
   cn?: string;
   icon?: React.ReactNode;
@@ -62,8 +64,8 @@ export const RelistenButton = React.forwardRef<any, ButtonProps>(
       <TouchableOpacity
         ref={ref as any}
         className={tw(buttonVariants({ disabled, intent, rounded }), cn)}
-        disabled={disabled}
         {...props}
+        disabled={disabled}
       >
         {icon && <View className="pr-1">{icon}</View>}
         <RelistenText className={clsx('text-center font-bold', textClassName)}>

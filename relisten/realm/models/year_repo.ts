@@ -60,7 +60,10 @@ class YearShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
   YearShows,
   YearWithShows
 > {
-  constructor(public artistUuid: string, public yearUuid: string) {
+  constructor(
+    public artistUuid: string,
+    public yearUuid: string
+  ) {
     super();
   }
 
@@ -113,11 +116,7 @@ class YearShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
             if (localVenue) {
               show.venue = localVenue;
             } else {
-              const { createdModels: createdVenues } = venueRepo.upsert(
-                realm,
-                apiVenue,
-                localVenue
-              );
+              const { createdModels: createdVenues } = venueRepo.upsert(realm, apiVenue, undefined);
 
               if (createdVenues.length > 0) {
                 show.venue = createdVenues[0];
