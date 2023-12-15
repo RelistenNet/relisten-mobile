@@ -85,7 +85,7 @@ const TOUR_FILTERS: Filter<Tour>[] = [
     sortDirection: SortDirection.Descending,
     active: true,
     isNumeric: false,
-    sort: (venues) => venues.sort((a, b) => a.name.localeCompare(b.name)),
+    sort: (tours) => tours.sort((a, b) => a.name.localeCompare(b.name)),
   },
 ];
 

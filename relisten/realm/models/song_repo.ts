@@ -4,36 +4,36 @@ import { createNetworkBackedModelArrayHook } from '../network_backed_behavior_ho
 import { useArtist } from './artist_repo';
 import { mergeNetworkBackedResults } from '../network_backed_results';
 import { useMemo } from 'react';
-import { Tour } from './tour';
+import { Song } from './song';
 
-export const tourRepo = new Repository(Tour);
+export const songRepo = new Repository(Song);
 
-export const useTours = (artistUuid: string) => {
+export const useSongs = (artistUuid: string) => {
   return createNetworkBackedModelArrayHook(
-    tourRepo,
+    songRepo,
     () => {
       const artistQuery = useQuery(
-        Tour,
+        Song,
         (query) => query.filtered('artistUuid == $0', artistUuid),
         [artistUuid]
       );
 
       return artistQuery;
     },
-    (api) => api.tours(artistUuid)
+    (api) => api.songs(artistUuid)
   )();
 };
 
-export const useArtistTours = (artistUuid: string) => {
+export const useArtistSongs = (artistUuid: string) => {
   const artistResults = useArtist(artistUuid, { onlyFetchFromApiIfLocalIsNotShowable: true });
-  const toursResults = useTours(artistUuid);
+  const songsResults = useSongs(artistUuid);
 
   const results = useMemo(() => {
     return mergeNetworkBackedResults({
-      tours: toursResults,
+      songs: songsResults,
       artist: artistResults,
     });
-  }, [toursResults, artistResults]);
+  }, [songsResults, artistResults]);
 
   return results;
 };
