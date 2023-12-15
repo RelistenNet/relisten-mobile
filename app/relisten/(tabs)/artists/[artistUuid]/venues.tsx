@@ -106,7 +106,7 @@ const VenueList = ({
   return (
     <FilteringProvider filters={VENUE_FILTERS} filterPersistenceKey={filterPersistenceKey}>
       <FilterableList
-        ListHeaderComponent={<VenueHeader venues={venues} />}
+        ListHeaderComponent={ <VenueHeader venues={venues} />}
         className="w-full flex-1"
         data={venues}
         renderItem={({ item }) => {

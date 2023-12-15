@@ -250,7 +250,7 @@ const YearsList: React.FC<
   return (
     <FilteringProvider filters={YEAR_FILTERS} filterPersistenceKey={filterPersistenceKey}>
       <FilterableList
-        ListHeaderComponent={<YearsHeader artist={artist} years={allYears} />}
+        ListHeaderComponent={ <YearsHeader artist={artist} years={allYears} />}
         data={allYears}
         renderItem={({ item: year }) => {
           return <YearListItem year={year} />;

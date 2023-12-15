@@ -145,7 +145,7 @@ export const ShowList = ({
   return (
     <FilteringProvider filters={SHOW_FILTERS} filterPersistenceKey={filterPersistenceKey}>
       <FilterableList
-        ListHeaderComponent={<YearHeader artist={artist} shows={allShows} year={year} />}
+        ListHeaderComponent={ <YearHeader artist={artist} shows={allShows} year={year} />}
         data={allShows}
         renderItem={({ item: show }) => {
           return <ShowListItem show={show} />;

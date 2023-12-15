@@ -1,5 +1,4 @@
 /* eslint-disable react/prop-types */
-import { useRelistenPlayerBottomBarContext } from '@/relisten/player/ui/player_bottom_bar';
 import { FlashList, FlashListProps, ListRenderItem, ListRenderItemInfo } from '@shopify/flash-list';
 import { useMemo } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
@@ -28,10 +27,33 @@ export const RelistenSectionList = <T extends RelistenObject>({
   renderItem,
   pullToRefresh = false,
   renderSectionHeader,
+  ListHeaderComponent,
   ...props
 }: RelistenSectionListProps<T>) => {
   const { onRefresh, refreshing } = useRefreshContext();
-  const { playerBottomBarHeight } = useRelistenPlayerBottomBarContext();
+  // const { playerBottomBarHeight } = useRelistenPlayerBottomBarContext();
+
+  // you might ask why
+  // and you'd be correct
+  // ..
+  // it's to fix a flashlist bug: https://github.com/Shopify/flash-list/issues/727
+  const internalData = useMemo(() => {
+    if (ListHeaderComponent) {
+      return [{ sectionTitle: 'ListHeaderComponent' }, ...data];
+    } else {
+      return data;
+    }
+  }, [data]);
+
+  const stickyHeaderIndices = useMemo(
+    () =>
+      internalData
+        .map((item, index) => {
+          if ('sectionTitle' in item) return index;
+        })
+        .filter((x) => typeof x !== 'undefined') as number[],
+    [internalData]
+  );
 
   if (refreshing) {
     return (
@@ -43,20 +65,11 @@ export const RelistenSectionList = <T extends RelistenObject>({
       </View>
     );
   }
-  const stickyHeaderIndices = useMemo(
-    () =>
-      data
-        .map((item, index) => {
-          if ('sectionTitle' in item) return index;
-        })
-        .filter((x) => typeof x !== 'undefined') as number[],
-    [data]
-  );
 
   return (
     <FlashList
-      data={data}
-      estimatedItemSize={56} // TODO: is this correct?
+      data={internalData}
+      estimatedItemSize={56}
       ItemSeparatorComponent={ItemSeparator}
       getItemType={(item) => {
         // To achieve better performance, specify the type based on the item
@@ -67,6 +80,10 @@ export const RelistenSectionList = <T extends RelistenObject>({
         if (!props?.item) return null;
 
         if ('sectionTitle' in props.item) {
+          // see comment above
+          if (props.item.sectionTitle === 'ListHeaderComponent') {
+            return ListHeaderComponent as JSX.Element;
+          }
           if (renderSectionHeader) {
             return renderSectionHeader(props.item);
           }
