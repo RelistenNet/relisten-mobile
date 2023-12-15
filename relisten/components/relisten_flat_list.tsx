@@ -19,16 +19,16 @@ export const RelistenFlatList = <T extends { uuid: string }>({
   const { onRefresh, refreshing } = useRefreshContext();
   const { playerBottomBarHeight } = useRelistenPlayerBottomBarContext();
 
-  if (refreshing) {
-    return (
-      <View className="w-full p-4">
-        <ListContentLoader
-          backgroundColor={RelistenBlue[800]}
-          foregroundColor={RelistenBlue[700]}
-        />
-      </View>
-    );
-  }
+  // if (refreshing) {
+  //   return (
+  //     <View className="w-full p-4">
+  //       <ListContentLoader
+  //         backgroundColor={RelistenBlue[800]}
+  //         foregroundColor={RelistenBlue[700]}
+  //       />
+  //     </View>
+  //   );
+  // }
 
   return (
     <FlatList

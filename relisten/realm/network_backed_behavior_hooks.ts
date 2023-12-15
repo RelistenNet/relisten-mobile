@@ -44,7 +44,7 @@ export function useNetworkBackedBehavior<TLocalData, TApiData>(
       isNetworkLoading,
       data: localData,
       // if were pull-to-refreshing, always show the spinner
-      refresh: () => refresh(true),
+      refresh: (force = true) => refresh(force),
     };
   }, [isNetworkLoading, localData]);
 

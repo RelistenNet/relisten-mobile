@@ -69,6 +69,7 @@ export const FilterableList = <T extends RelistenObject>({
     <RelistenSectionList
       // sections={sectionedData}
       data={sectionedData}
+      pullToRefresh
       {...props}
       renderSectionHeader={({ sectionTitle }) => {
         if (sectionTitle === ALL_SECTION_SENTINEL) {

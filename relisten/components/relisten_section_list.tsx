@@ -8,6 +8,8 @@ import { RelistenBlue } from '../relisten_blue';
 import { ItemSeparator } from './item_separator';
 import { useRefreshContext } from './refresh_context';
 import { SectionHeader } from './section_header';
+import { useRelistenPlayerBottomBarContext } from '../player/ui/player_bottom_bar';
+import { RelistenText } from './relisten_text';
 
 export type RelistenSectionHeader = { sectionTitle: string };
 export type RelistenSectionListData<T extends RelistenObject> = T | RelistenSectionHeader;
@@ -31,19 +33,24 @@ export const RelistenSectionList = <T extends RelistenObject>({
   ...props
 }: RelistenSectionListProps<T>) => {
   const { onRefresh, refreshing } = useRefreshContext();
-  // const { playerBottomBarHeight } = useRelistenPlayerBottomBarContext();
+  const { playerBottomBarHeight } = useRelistenPlayerBottomBarContext();
 
-  // you might ask why
+  // you might ask why we need this
   // and you'd be correct
   // ..
   // it's to fix a flashlist bug: https://github.com/Shopify/flash-list/issues/727
   const internalData = useMemo(() => {
+    let internalData: (T | RelistenSectionHeader)[] = [];
     if (ListHeaderComponent) {
-      return [{ sectionTitle: 'ListHeaderComponent' }, ...data];
+      internalData = [{ sectionTitle: 'ListHeaderComponent' }, ...data];
     } else {
-      return data;
+      internalData = [...data];
     }
-  }, [data]);
+    if (refreshing) {
+      internalData.push({ sectionTitle: 'LOADING' });
+    }
+    return internalData;
+  }, [data, refreshing]);
 
   const stickyHeaderIndices = useMemo(
     () =>
@@ -54,17 +61,6 @@ export const RelistenSectionList = <T extends RelistenObject>({
         .filter((x) => typeof x !== 'undefined') as number[],
     [internalData]
   );
-
-  if (refreshing) {
-    return (
-      <View className="w-full p-4">
-        <ListContentLoader
-          backgroundColor={RelistenBlue[800]}
-          foregroundColor={RelistenBlue[700]}
-        />
-      </View>
-    );
-  }
 
   return (
     <FlashList
@@ -84,6 +80,16 @@ export const RelistenSectionList = <T extends RelistenObject>({
           if (props.item.sectionTitle === 'ListHeaderComponent') {
             return ListHeaderComponent as JSX.Element;
           }
+          if (props.item.sectionTitle === 'LOADING') {
+            return (
+              <View className="w-full p-4">
+                <ListContentLoader
+                  backgroundColor={RelistenBlue[800]}
+                  foregroundColor={RelistenBlue[700]}
+                />
+              </View>
+            );
+          }
           if (renderSectionHeader) {
             return renderSectionHeader(props.item);
           }
@@ -95,10 +101,11 @@ export const RelistenSectionList = <T extends RelistenObject>({
 
         return null;
       }}
+      refreshing={refreshing}
       refreshControl={
         pullToRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} /> : undefined
       }
-      // contentContainerStyle={{ paddingBottom: playerBottomBarHeight }}
+      contentContainerStyle={{ paddingBottom: playerBottomBarHeight }}
       {...props}
     />
   );

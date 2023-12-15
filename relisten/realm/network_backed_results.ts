@@ -4,7 +4,7 @@ export interface NetworkBackedResults<T> {
   isNetworkLoading: boolean;
   data: T;
 
-  refresh: () => void;
+  refresh: (force?: boolean) => void;
 }
 
 interface NetworkBackedResultsHook<T> {
@@ -39,7 +39,7 @@ export function mergeNetworkBackedResults<
     },
     refresh() {
       for (const a of all) {
-        a.refresh();
+        a.refresh(true);
       }
     },
   };

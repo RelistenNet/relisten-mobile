@@ -96,20 +96,9 @@ const SHOW_FILTERS: Filter<Show>[] = [
   },
 ];
 
-const YearHeader = ({
-  shows,
-  year,
-}: {
-  artist: Artist | null;
-  shows: ReadonlyArray<Show>;
-  year: Year | null;
-}) => {
-  if (shows.length === 0) {
-    return null;
-  }
-
-  const totalShows = shows?.length;
-  const totalTapes = R.sumBy(shows, (y) => y.sourceCount);
+const YearHeader = ({ year }: { artist: Artist | null; year: Year | null }) => {
+  const totalShows = year?.showCount;
+  const totalTapes = year?.sourceCount;
 
   return (
     <View className="flex w-full flex-col items-center gap-1 py-2">
@@ -145,7 +134,7 @@ export const ShowList = ({
   return (
     <FilteringProvider filters={SHOW_FILTERS} filterPersistenceKey={filterPersistenceKey}>
       <FilterableList
-        ListHeaderComponent={<YearHeader artist={artist} shows={allShows} year={year} />}
+        ListHeaderComponent={<YearHeader artist={artist} year={year} />}
         data={allShows}
         renderItem={({ item: show }) => {
           return <ShowListItem show={show} />;
