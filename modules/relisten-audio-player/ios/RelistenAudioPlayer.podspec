@@ -5,7 +5,7 @@ Pod::Spec.new do |s|
   s.description    = 'An Expo module wrapping un4seen''s BASS audio player.'
   s.author         = 'Alec Gorge <alecgorge@gmail.com>'
   s.homepage       = 'https://github.com/relistennet/relisten-mobile'
-  s.platform       = :ios, '13.0'
+  s.platform       = :ios, '13.4'
   s.source         = { git: '' }
   s.static_framework = true
 
