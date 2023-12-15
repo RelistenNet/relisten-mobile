@@ -101,7 +101,7 @@ const TourList = ({
   return (
     <FilteringProvider filters={TOUR_FILTERS} filterPersistenceKey={filterPersistenceKey}>
       <FilterableList
-        ListHeaderComponent={ <TourHeader tours={tours} />}
+        ListHeaderComponent={<TourHeader tours={tours} />}
         className="w-full flex-1"
         data={tours}
         renderItem={({ item }) => {
