@@ -7,7 +7,7 @@ import { Artist } from '../realm/models/artist';
 import { Show } from '../realm/models/show';
 import { Year } from '../realm/models/year';
 import { FavoriteObjectButton } from './favorite_icon_button';
-import { FilterableList } from './filtering/filterable_list';
+import { FilterableList, FilterableListProps } from './filtering/filterable_list';
 import { Filter, FilteringProvider, SortDirection } from './filtering/filters';
 import Flex from './flex';
 import Plur from './plur';
@@ -137,7 +137,7 @@ export const ShowList = ({
   year,
   filterPersistenceKey,
   ...props
-}: ShowListProps) => {
+}: ShowListProps & Omit<FilterableListProps<Show>, 'data' | 'renderItem'>) => {
   const allShows = useMemo(() => {
     return [...shows];
   }, [shows]);
