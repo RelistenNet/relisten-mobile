@@ -7,7 +7,7 @@ podfile_properties = JSON.parse(File.read(File.join(__dir__, 'Podfile.properties
 
 ENV['RCT_NEW_ARCH_ENABLED'] = podfile_properties['newArchEnabled'] == 'true' ? '1' : '0'
 
-platform :ios, podfile_properties['ios.deploymentTarget'] || '13.0'
+platform :ios, podfile_properties['ios.deploymentTarget'] || '13.4'
 install! 'cocoapods',
   :deterministic_uuids => false
 
@@ -65,7 +65,7 @@ target 'Relisten' do
       # necessary for Mac Catalyst builds
       :mac_catalyst_enabled => false
     )
-    __apply_Xcode_12_5_M1_post_install_workaround(installer)
+    # __apply_Xcode_12_5_M1_post_install_workaround(installer)
 
     # This is necessary for Xcode 14, because it signs resource bundles by default
     # when building for devices.
