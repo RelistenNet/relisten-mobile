@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { RelistenObject } from '../../api/models/relisten';
 import {
+  RelistenSectionHeader,
   RelistenSectionList,
-  RelistenSectionListData,
   RelistenSectionListProps,
 } from '../relisten_section_list';
 import { SectionHeader } from '../section_header';
@@ -14,7 +14,7 @@ export type FilterableListProps<T extends RelistenObject> = {
   data: ReadonlyArray<T>;
   customSectionTitle?: (row: T) => string | undefined;
   customSectionTitles?: string[];
-} & Omit<RelistenSectionListProps<T>, 'sections'>;
+} & RelistenSectionListProps<T>;
 
 const ALL_SECTION_SENTINEL = '__ALL__';
 
@@ -26,10 +26,10 @@ export const FilterableList = <T extends RelistenObject>({
 }: FilterableListProps<T>) => {
   const { filters, onFilterButtonPress, filter } = useFilters<T>();
 
-  const sectionedData: ReadonlyArray<RelistenSectionListData<T>> = useMemo(() => {
+  const sectionedData: ReadonlyArray<T | RelistenSectionHeader> = useMemo(() => {
     const filteredData = filter(data);
     if (!customSectionTitle || !customSectionTitles) {
-      return [{ title: ALL_SECTION_SENTINEL, data: filteredData || [] }];
+      return [{ sectionTitle: ALL_SECTION_SENTINEL }, ...(filteredData || [])];
     }
 
     const obj: { [key: string]: T[] } = {};
@@ -46,29 +46,33 @@ export const FilterableList = <T extends RelistenObject>({
       }
     }
 
-    const r: Array<RelistenSectionListData<T>> = [];
+    const r: Array<T | RelistenSectionHeader> = [];
 
-    for (const title of customSectionTitles) {
+    for (const sectionTitle of customSectionTitles) {
       r.push({
-        title,
-        data: obj[title] || [],
+        sectionTitle,
       });
+      if (obj[sectionTitle]?.length) {
+        r.push(...obj[sectionTitle]);
+      }
     }
 
     r.push({
-      title: ALL_SECTION_SENTINEL,
-      data: filteredData || [],
+      sectionTitle: ALL_SECTION_SENTINEL,
     });
+    r.push(...(filteredData || []));
 
     return r;
   }, [data, customSectionTitle, customSectionTitles, filter, filters]);
 
   return (
     <RelistenSectionList
-      sections={sectionedData}
+      // sections={sectionedData}
+      data={sectionedData}
+      pullToRefresh
       {...props}
-      renderSectionHeader={({ section: { title } }) => {
-        if (title === ALL_SECTION_SENTINEL) {
+      renderSectionHeader={({ sectionTitle }) => {
+        if (sectionTitle === ALL_SECTION_SENTINEL) {
           return (
             <SectionHeader className="p-0 pt-3">
               <FilterBar>
@@ -86,7 +90,7 @@ export const FilterableList = <T extends RelistenObject>({
           );
         }
 
-        return <SectionHeader title={title} />;
+        return <SectionHeader title={sectionTitle} />;
       }}
     />
   );

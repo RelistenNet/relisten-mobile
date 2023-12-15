@@ -30,7 +30,7 @@ export default function Page() {
         <DisappearingHeaderScreen
           headerHeight={50}
           ScrollableComponent={ShowList}
-          shows={shows!}
+          shows={shows}
           artist={artist}
           year={year}
           filterPersistenceKey={['artists', artistUuid, 'years', yearUuid].join('/')}

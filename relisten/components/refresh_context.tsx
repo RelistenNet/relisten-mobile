@@ -3,7 +3,7 @@ import { NetworkBackedResults } from '../realm/network_backed_results';
 
 export interface RefreshContextProps {
   refreshing: boolean;
-  onRefresh: () => void;
+  onRefresh: (force?: boolean) => void;
 }
 
 export const RefreshContext = React.createContext<RefreshContextProps | undefined>(undefined);

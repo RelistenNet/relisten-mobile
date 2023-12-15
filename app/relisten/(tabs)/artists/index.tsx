@@ -2,20 +2,23 @@ import { FavoriteObjectButton } from '@/relisten/components/favorite_icon_button
 import Flex from '@/relisten/components/flex';
 import Plur from '@/relisten/components/plur';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
-import { RelistenSectionList } from '@/relisten/components/relisten_section_list';
+import {
+  RelistenSectionHeader,
+  RelistenSectionList,
+} from '@/relisten/components/relisten_section_list';
+import { RelistenText } from '@/relisten/components/relisten_text';
 import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
 import RowTitle from '@/relisten/components/row_title';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
+import { useRelistenPlayerBottomBarContext } from '@/relisten/player/ui/player_bottom_bar';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useArtists } from '@/relisten/realm/models/artist_repo';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Link } from 'expo-router';
 import React, { useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import Realm from 'realm';
-import { RelistenText } from '@/relisten/components/relisten_text';
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
-import { useRelistenPlayerBottomBarContext } from '@/relisten/player/ui/player_bottom_bar';
 
 const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) => {
   return (
@@ -49,19 +52,23 @@ const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) =>
 });
 
 const ArtistsList = ({ artists }: { artists: Realm.Results<Artist> }) => {
-  const sectionedArtists = useMemo(() => {
+  const sectionedArtists: ReadonlyArray<Artist | RelistenSectionHeader> = useMemo(() => {
     const all = [...artists].sort((a, b) => {
       return a.sortName.localeCompare(b.sortName);
     });
 
     const r = [
-      { title: 'Featured', data: all.filter((a) => a.featured !== 0) },
-      { title: `${all.length} Artists`, data: all },
+      { sectionTitle: 'Featured' },
+      ...all.filter((a) => a.featured !== 0),
+      { sectionTitle: `${all.length} Artists` },
+      ...all,
     ];
 
     const favorites = all.filter((a) => a.isFavorite);
+
     if (favorites.length > 0) {
-      r.unshift({ title: 'Favorites', data: favorites });
+      r.unshift(...favorites);
+      r.unshift({ sectionTitle: 'Favorites' });
     }
 
     return r;
@@ -69,11 +76,11 @@ const ArtistsList = ({ artists }: { artists: Realm.Results<Artist> }) => {
 
   return (
     <RelistenSectionList
-      sections={sectionedArtists}
-      renderItem={({ item: artist }) => {
-        return <ArtistListItem artist={artist} />;
+      data={sectionedArtists}
+      renderItem={({ item }) => {
+        return <ArtistListItem artist={item} />;
       }}
-    ></RelistenSectionList>
+    />
   );
 };
 

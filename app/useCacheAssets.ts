@@ -4,6 +4,7 @@ import { SplashScreen } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Image } from 'react-native';
 import * as Font from 'expo-font';
+import { Icon } from '@expo/vector-icons/build/createIconSet';
 
 function cacheImages(images: Array<string | number>) {
   return images.map((image) => {

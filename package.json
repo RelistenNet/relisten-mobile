@@ -5,7 +5,8 @@
     "start": "expo start --dev-client",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "ts:check": "tsc"
   },
   "dependencies": {
     "@expo/react-native-action-sheet": "^4.0.1",
@@ -16,6 +17,7 @@
     "@react-native-community/slider": "4.4.2",
     "@realm/react": "^0.6.1",
     "@rntext/more-or-less": "^2.0.1",
+    "@shopify/flash-list": "1.4.3",
     "@switz/driver": "^0.8.0",
     "@xstate/react": "^4.0.0-beta.8",
     "class-variance-authority": "^0.7.0",

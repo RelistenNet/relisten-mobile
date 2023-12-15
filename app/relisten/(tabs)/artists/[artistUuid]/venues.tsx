@@ -109,7 +109,9 @@ const VenueList = ({
         ListHeaderComponent={<VenueHeader venues={venues} />}
         className="w-full flex-1"
         data={venues}
-        renderItem={({ item }: { item: Venue; index: number }) => <VenueListItem venue={item} />}
+        renderItem={({ item }) => {
+          return <VenueListItem venue={item} />;
+        }}
       />
     </FilteringProvider>
   );

@@ -1,20 +1,20 @@
-import React, { useMemo } from 'react';
+import { Link } from 'expo-router';
+import { useMemo } from 'react';
+import { View } from 'react-native';
 import Realm from 'realm';
+import * as R from 'remeda';
+import { Artist } from '../realm/models/artist';
 import { Show } from '../realm/models/show';
+import { Year } from '../realm/models/year';
 import { FavoriteObjectButton } from './favorite_icon_button';
 import { FilterableList, FilterableListProps } from './filtering/filterable_list';
 import { Filter, FilteringProvider, SortDirection } from './filtering/filters';
 import Flex from './flex';
+import Plur from './plur';
 import { RelistenText } from './relisten_text';
 import { SubtitleRow, SubtitleText } from './row_subtitle';
 import RowTitle from './row_title';
 import { SectionedListItem } from './sectioned_list_item';
-import Plur from './plur';
-import { Link } from 'expo-router';
-import { View } from 'react-native';
-import { Artist } from '../realm/models/artist';
-import * as R from 'remeda';
-import { Year } from '../realm/models/year';
 
 const ShowListItem = ({ show }: { show: Show }) => {
   return (
@@ -96,20 +96,9 @@ const SHOW_FILTERS: Filter<Show>[] = [
   },
 ];
 
-const YearHeader = ({
-  shows,
-  year,
-}: {
-  artist: Artist | null;
-  shows: ReadonlyArray<Show>;
-  year: Year | null;
-}) => {
-  if (shows.length === 0) {
-    return null;
-  }
-
-  const totalShows = shows?.length;
-  const totalTapes = R.sumBy(shows, (y) => y.sourceCount);
+const YearHeader = ({ year }: { artist: Artist | null; year: Year | null }) => {
+  const totalShows = year?.showCount;
+  const totalTapes = year?.sourceCount;
 
   return (
     <View className="flex w-full flex-col items-center gap-1 py-2">
@@ -124,14 +113,20 @@ const YearHeader = ({
     </View>
   );
 };
-export const ShowList: React.FC<
-  {
-    shows: Realm.Results<Show>;
-    artist: Artist | null;
-    year: Year | null;
-    filterPersistenceKey: string;
-  } & Omit<FilterableListProps<Show>, 'data' | 'renderItem'>
-> = ({ shows, artist, year, filterPersistenceKey, ...props }) => {
+interface ShowListProps {
+  shows: Realm.Results<Show>;
+  artist: Artist | null;
+  year: Year | null;
+  filterPersistenceKey: string;
+}
+
+export const ShowList = ({
+  shows,
+  artist,
+  year,
+  filterPersistenceKey,
+  ...props
+}: ShowListProps & Omit<FilterableListProps<Show>, 'data' | 'renderItem'>) => {
   const allShows = useMemo(() => {
     return [...shows];
   }, [shows]);
@@ -139,7 +134,7 @@ export const ShowList: React.FC<
   return (
     <FilteringProvider filters={SHOW_FILTERS} filterPersistenceKey={filterPersistenceKey}>
       <FilterableList
-        ListHeaderComponent={<YearHeader artist={artist} shows={allShows} year={year} />}
+        ListHeaderComponent={<YearHeader artist={artist} year={year} />}
         data={allShows}
         renderItem={({ item: show }) => {
           return <ShowListItem show={show} />;
