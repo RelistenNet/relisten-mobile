@@ -11,6 +11,7 @@ import { UrlRequestMetadata } from '@/relisten/realm/models/url_request_metadata
 import { VenueWithShowCounts, VenueWithShows } from './models/venue';
 import { TourWithShowCount, TourWithShows } from './models/tour';
 import { SongWithPlayCount, SongWithShows } from './models/song';
+import { Show } from './models/show';
 
 const logger = log.extend('network');
 
@@ -189,6 +190,13 @@ export class RelistenApiClient {
     options?: RelistenApiRequestOptions
   ): Promise<RelistenApiResponse<ShowWithSources>> {
     return this.getJson(`/v2/artists/${artistUuid}/shows/random`, options);
+  }
+
+  public topShow(
+    artistUuid: string,
+    options?: RelistenApiRequestOptions
+  ): Promise<RelistenApiResponse<Show[]>> {
+    return this.getJson(`/v2/artists/${artistUuid}/shows/top`, options);
   }
 
   public years(

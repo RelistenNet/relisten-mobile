@@ -13,9 +13,10 @@ import * as R from 'remeda';
 import { sourceTrackRepo } from './source_track_repo';
 import { sourceSetRepo } from './source_set_repo';
 import { sourceRepo } from './source_repo';
-import { NetworkBackedResults } from '../network_backed_results';
-import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
+import { NetworkBackedResults, mergeNetworkBackedResults } from '../network_backed_results';
+import { createNetworkBackedModelArrayHook, useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
 import { venueRepo } from './venue_repo';
+import { useArtist } from './artist_repo';
 
 export const showRepo = new Repository(Show);
 
@@ -198,4 +199,34 @@ export function useShow(showUuid?: string): ShowWithSources | undefined {
   }, [showUuid]);
 
   return behavior.fetchFromLocal();
+}
+
+export const useTopShows = (artistUuid: string) => {
+  return createNetworkBackedModelArrayHook(
+    showRepo,
+    () => {
+      const artistQuery = useQuery(
+        Show,
+        (query) => query.filtered('artistUuid == $0', artistUuid),
+        [artistUuid]
+      );
+
+      return artistQuery;
+    },
+    (api) => api.topShow(artistUuid)
+  )();
+};
+
+export function useArtistTopShows(artistUuid: string) {
+  const artistResults = useArtist(artistUuid, { onlyFetchFromApiIfLocalIsNotShowable: true });
+  const showResults = useTopShows(artistUuid);
+
+  const results = useMemo(() => {
+    return mergeNetworkBackedResults({
+      shows: showResults,
+      artist: artistResults,
+    });
+  }, [showResults, artistResults]);
+
+  return results;
 }
