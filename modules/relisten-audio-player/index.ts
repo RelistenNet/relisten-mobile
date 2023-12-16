@@ -14,6 +14,7 @@ export interface RelistenStreamable {
   title: string;
   artist: string;
   albumTitle: string;
+  albumArt: string;
 }
 
 export enum RelistenPlaybackState {
@@ -65,6 +66,10 @@ export interface RelistenTrackChangedEvent {
   currentIdentifier?: string;
 }
 
+export interface RelistenRemoteControlEvent {
+  method?: string;
+}
+
 export interface PlaybackProgress {
   playbackProgress: RelistenPlaybackProgressChangedEvent;
   activeTrackDownloadProgress: RelistenDownloadProgressChangedEvent;
@@ -108,6 +113,10 @@ class RelistenGaplessPlayer {
 
   addTrackChangedListener(listener: (event: RelistenTrackChangedEvent) => void): Subscription {
     return emitter.addListener<RelistenTrackChangedEvent>('onTrackChanged', listener);
+  }
+
+  addRemoteControlListener(listener: (event: RelistenRemoteControlEvent) => void): Subscription {
+    return emitter.addListener<RelistenRemoteControlEvent>('onRemoteControl', listener);
   }
 
   get currentState(): `${RelistenPlaybackState}` {

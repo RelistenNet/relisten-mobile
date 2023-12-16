@@ -52,7 +52,8 @@ export class PlayerQueueTrack {
     public readonly sourceTrack: SourceTrack,
     public readonly title: string,
     public readonly artist: string,
-    public readonly albumTitle: string
+    public readonly albumTitle: string,
+    public readonly albumArt: string
   ) {
     this.identifier = nextQueueTrackId();
   }
@@ -67,7 +68,9 @@ export class PlayerQueueTrack {
       sourceTrack,
       sourceTrack.title,
       [artist?.name, source.displayDate, venue?.name].filter((part) => !!part).join(' • ') || '',
-      [source.displayDate, venue?.name].filter((part) => !!part).join(' • ') || ''
+      [source.displayDate, venue?.name].filter((part) => !!part).join(' • ') || '',
+      'https://fastly.picsum.photos/id/311/550/550.jpg?hmac=HTOiKPHI1RJtHRyl2E88Qi1UeX_gIMSfKxwJzd9mWFg'
+      // `https://sonos.relisten.net/album-art/${artist?.slug}/years/${year}/${year}-${month}-${day}/${source.id}/550.png`
     );
   }
 
@@ -78,6 +81,7 @@ export class PlayerQueueTrack {
       title: this.title,
       artist: this.artist,
       albumTitle: this.albumTitle,
+      albumArt: this.albumArt,
     };
   }
 }

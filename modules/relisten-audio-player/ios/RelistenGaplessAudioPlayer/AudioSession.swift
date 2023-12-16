@@ -29,9 +29,9 @@ extension RelistenGaplessAudioPlayer {
             commandCenter.pauseCommand.addTarget(handler: _pause);
             commandCenter.changePlaybackPositionCommand.isEnabled = true;
             commandCenter.changePlaybackPositionCommand.addTarget(handler: _seekTo);
-            commandCenter.nextTrackCommand.isEnabled = false;
+            commandCenter.nextTrackCommand.isEnabled = true;
             commandCenter.nextTrackCommand.addTarget(handler: _nextTrack);
-            commandCenter.previousTrackCommand.isEnabled = false;
+            commandCenter.previousTrackCommand.isEnabled = true;
             commandCenter.previousTrackCommand.addTarget(handler: _prevTrack);
 
             DispatchQueue.main.async {
