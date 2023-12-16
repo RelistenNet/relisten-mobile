@@ -1,17 +1,112 @@
+import { RefreshContextProvider } from '@/relisten/components/refresh_context';
+import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
+import { Show } from '@/relisten/realm/models/show';
 import { useArtistTopShows } from '@/relisten/realm/models/show_repo';
 import { useLocalSearchParams } from 'expo-router';
-import { Text, View } from 'react-native';
+import { useHeaderHeight } from '@react-navigation/elements';
+import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
+import Flex from '@/relisten/components/flex';
+import RowTitle from '@/relisten/components/row_title';
+import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
+import Plur from '@/relisten/components/plur';
+import { RelistenText } from '@/relisten/components/relisten_text';
+import { Filter, FilteringProvider, SortDirection } from '@/relisten/components/filtering/filters';
+import {
+  FilterableList,
+  FilterableListProps,
+} from '@/relisten/components/filtering/filterable_list';
 
 export default function Page() {
   const { artistUuid } = useLocalSearchParams();
   const results = useArtistTopShows(String(artistUuid));
   const { data } = results;
-
-  console.log(data);
+  const headerHeight = useHeaderHeight();
 
   return (
-    <View style={{ flex: 1, width: '100%' }}>
-      <Text className="text-white">Rated</Text>
-    </View>
+    <RefreshContextProvider networkBackedResults={results}>
+      <DisappearingHeaderScreen
+        headerHeight={headerHeight}
+        ScrollableComponent={ShowList}
+        shows={Array.from(data.shows)}
+        filterPersistenceKey={['artists', artistUuid, 'shows'].join('/')}
+      />
+    </RefreshContextProvider>
   );
 }
+
+interface ShowListItemProps {
+  show: Show;
+}
+
+const ShowListItem = ({ show }: ShowListItemProps) => {
+  return (
+    <SectionedListItem>
+      <Flex column>
+        <RowTitle>{show.displayDate}</RowTitle>
+        <SubtitleRow>
+          <SubtitleText>{show.venue?.name}</SubtitleText>
+        </SubtitleRow>
+      </Flex>
+    </SectionedListItem>
+  );
+};
+
+interface ShowHeaderProps {
+  shows: Show[];
+}
+
+const ShowHeader = ({ shows }: ShowHeaderProps) => {
+  return (
+    <>
+      <RelistenText
+        className="w-full py-2 text-center text-4xl font-bold text-white"
+        selectable={false}
+      >
+        Top Shows
+      </RelistenText>
+      <RelistenText className="text-l w-full pb-2 text-center italic text-gray-400">
+        <Plur word="Show" count={shows.length} />
+      </RelistenText>
+    </>
+  );
+};
+
+const SONG_FILTERS: Filter<Show>[] = [
+  { persistenceKey: 'library', title: 'My Library', active: false, filter: (y) => y.isFavorite },
+  {
+    persistenceKey: 'date',
+    title: 'Date',
+    sortDirection: SortDirection.Descending,
+    active: true,
+    isNumeric: true,
+    sort: (shows) => shows.sort((a, b) => a.date.valueOf() - b.date.valueOf()),
+  },
+  {
+    persistenceKey: 'rating',
+    title: 'Avg. Rating',
+    sortDirection: SortDirection.Descending,
+    active: false,
+    isNumeric: true,
+    sort: (shows) => shows.sort((a, b) => a.avgRating - b.avgRating),
+  },
+];
+
+interface ShowListProps {
+  shows: Show[];
+  filterPersistenceKey: string;
+}
+
+const ShowList = ({
+  shows,
+  filterPersistenceKey,
+}: ShowListProps & Omit<FilterableListProps<Show>, 'data' | 'renderItem'>) => {
+  return (
+    <FilteringProvider filters={SONG_FILTERS} filterPersistenceKey={filterPersistenceKey}>
+      <FilterableList
+        ListHeaderComponent={<ShowHeader shows={shows} />}
+        data={shows}
+        renderItem={({ item }: { item: Show; index: number }) => <ShowListItem show={item} />}
+      />
+    </FilteringProvider>
+  );
+};
