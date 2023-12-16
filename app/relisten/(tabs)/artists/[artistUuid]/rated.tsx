@@ -99,6 +99,7 @@ interface ShowListProps {
 const ShowList = ({
   shows,
   filterPersistenceKey,
+  ...props
 }: ShowListProps & Omit<FilterableListProps<Show>, 'data' | 'renderItem'>) => {
   return (
     <FilteringProvider filters={SONG_FILTERS} filterPersistenceKey={filterPersistenceKey}>
@@ -106,6 +107,7 @@ const ShowList = ({
         ListHeaderComponent={<ShowHeader />}
         data={shows}
         renderItem={({ item }: { item: Show; index: number }) => <ShowListItem show={item} />}
+        {...props}
       />
     </FilteringProvider>
   );
