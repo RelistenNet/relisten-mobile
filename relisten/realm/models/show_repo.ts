@@ -1,22 +1,27 @@
 import { Repository } from '../repository';
 
-import { firstBy } from 'thenby';
-import { Show } from './show';
-import Realm from 'realm';
+import { Shows } from '@/relisten/api/models/show';
 import { useMemo } from 'react';
-import { RelistenApiClient, RelistenApiResponse, RelistenApiResponseType } from '../../api/client';
-import { useObject, useQuery, useRealm } from '../schema';
-import { ThrottledNetworkBackedBehavior } from '../network_backed_behavior';
-import { ShowWithSources as ApiShowWithSources } from '../../api/models/source';
-import { Source } from './source';
+import Realm from 'realm';
 import * as R from 'remeda';
-import { sourceTrackRepo } from './source_track_repo';
-import { sourceSetRepo } from './source_set_repo';
-import { sourceRepo } from './source_repo';
+import { firstBy } from 'thenby';
+import { RelistenApiClient, RelistenApiResponse, RelistenApiResponseType } from '../../api/client';
+import { ShowWithSources as ApiShowWithSources } from '../../api/models/source';
+import { ThrottledNetworkBackedBehavior } from '../network_backed_behavior';
+import {
+  createNetworkBackedModelArrayHook,
+  useNetworkBackedBehavior,
+} from '../network_backed_behavior_hooks';
 import { NetworkBackedResults, mergeNetworkBackedResults } from '../network_backed_results';
-import { createNetworkBackedModelArrayHook, useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
-import { venueRepo } from './venue_repo';
+import { useObject, useQuery, useRealm } from '../schema';
 import { useArtist } from './artist_repo';
+import { Show } from './show';
+import { Source } from './source';
+import { sourceRepo } from './source_repo';
+import { sourceSetRepo } from './source_set_repo';
+import { sourceTrackRepo } from './source_track_repo';
+import { venueRepo } from './venue_repo';
+import { Venue } from './venue';
 
 export const showRepo = new Repository(Show);
 
@@ -173,6 +178,75 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
   }
 }
 
+class TopShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
+  Realm.Results<Show>,
+  Shows
+> {
+  constructor(public artistUuid?: string) {
+    super();
+  }
+
+  fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<Shows | undefined>> {
+    if (!this.artistUuid) {
+      return Promise.resolve({ type: RelistenApiResponseType.Offline, data: undefined });
+    }
+
+    return api.topShow(this.artistUuid);
+  }
+
+  fetchFromLocal(): Realm.Results<Show> {
+    const topShows = useQuery(
+      Show,
+      (query) => query.filtered('artistUuid == $0', this.artistUuid),
+      [this.artistUuid]
+    );
+
+    return topShows;
+  }
+
+  isLocalDataShowable(localData: Realm.Results<Show>): boolean {
+    return localData.length > 0;
+  }
+
+  upsert(realm: Realm, localData: Realm.Results<Show>, apiData: Shows): void {
+    if (!localData.isValid()) {
+      return;
+    }
+
+    const apiVenuesByUuid = R.flatMapToObj(
+      apiData.filter((s) => !!s.venue),
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      (s) => [[s.venue!.uuid, s.venue!]]
+    );
+
+    realm.write(() => {
+      const { createdModels: createdShows } = showRepo.upsertMultiple(realm, apiData, localData);
+
+      for (const show of createdShows.concat(localData)) {
+        if (show.venueUuid) {
+          const apiVenue = apiVenuesByUuid[show.venueUuid];
+
+          if (!show.venue) {
+            const localVenue = realm.objectForPrimaryKey(Venue, show.venueUuid);
+
+            if (localVenue) {
+              show.venue = localVenue;
+            } else {
+              const { createdModels: createdVenues } = venueRepo.upsert(realm, apiVenue, undefined);
+
+              if (createdVenues.length > 0) {
+                show.venue = createdVenues[0];
+              }
+            }
+          } else {
+            venueRepo.upsert(realm, apiVenue, show.venue);
+          }
+        }
+      }
+    });
+  }
+}
+
 export function useFullShow(
   showUuid: string | undefined
 ): NetworkBackedResults<ShowWithSources | undefined> {
@@ -202,19 +276,11 @@ export function useShow(showUuid?: string): ShowWithSources | undefined {
 }
 
 export const useTopShows = (artistUuid: string) => {
-  return createNetworkBackedModelArrayHook(
-    showRepo,
-    () => {
-      const artistQuery = useQuery(
-        Show,
-        (query) => query.filtered('artistUuid == $0', artistUuid),
-        [artistUuid]
-      );
+  const behavior = useMemo(() => {
+    return new TopShowsNetworkBackedBehavior(artistUuid);
+  }, [artistUuid]);
 
-      return artistQuery;
-    },
-    (api) => api.topShow(artistUuid)
-  )();
+  return useNetworkBackedBehavior(behavior);
 };
 
 export function useArtistTopShows(artistUuid: string) {

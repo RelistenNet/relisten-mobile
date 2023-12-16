@@ -1,26 +1,33 @@
-import { RefreshContextProvider } from '@/relisten/components/refresh_context';
-import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
-import { Show } from '@/relisten/realm/models/show';
-import { useArtistTopShows } from '@/relisten/realm/models/show_repo';
-import { useLocalSearchParams } from 'expo-router';
-import { useHeaderHeight } from '@react-navigation/elements';
-import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
-import Flex from '@/relisten/components/flex';
-import RowTitle from '@/relisten/components/row_title';
-import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
-import Plur from '@/relisten/components/plur';
-import { RelistenText } from '@/relisten/components/relisten_text';
-import { Filter, FilteringProvider, SortDirection } from '@/relisten/components/filtering/filters';
 import {
   FilterableList,
   FilterableListProps,
 } from '@/relisten/components/filtering/filterable_list';
+import { Filter, FilteringProvider, SortDirection } from '@/relisten/components/filtering/filters';
+import Flex from '@/relisten/components/flex';
+import { RefreshContextProvider } from '@/relisten/components/refresh_context';
+import { RelistenText } from '@/relisten/components/relisten_text';
+import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
+import RowTitle from '@/relisten/components/row_title';
+import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
+import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
+import { Show } from '@/relisten/realm/models/show';
+import { useArtistTopShows } from '@/relisten/realm/models/show_repo';
+import { useHeaderHeight } from '@react-navigation/elements';
+import { useLocalSearchParams, useNavigation } from 'expo-router';
+import { useEffect } from 'react';
 
 export default function Page() {
+  const navigation = useNavigation();
   const { artistUuid } = useLocalSearchParams();
   const results = useArtistTopShows(String(artistUuid));
   const { data } = results;
   const headerHeight = useHeaderHeight();
+
+  useEffect(() => {
+    navigation.setOptions({
+      title: 'Top Shows',
+    });
+  }, []);
 
   return (
     <RefreshContextProvider networkBackedResults={results}>
@@ -51,11 +58,7 @@ const ShowListItem = ({ show }: ShowListItemProps) => {
   );
 };
 
-interface ShowHeaderProps {
-  shows: Show[];
-}
-
-const ShowHeader = ({ shows }: ShowHeaderProps) => {
+const ShowHeader = () => {
   return (
     <>
       <RelistenText
@@ -63,9 +66,6 @@ const ShowHeader = ({ shows }: ShowHeaderProps) => {
         selectable={false}
       >
         Top Shows
-      </RelistenText>
-      <RelistenText className="text-l w-full pb-2 text-center italic text-gray-400">
-        <Plur word="Show" count={shows.length} />
       </RelistenText>
     </>
   );
@@ -103,7 +103,7 @@ const ShowList = ({
   return (
     <FilteringProvider filters={SONG_FILTERS} filterPersistenceKey={filterPersistenceKey}>
       <FilterableList
-        ListHeaderComponent={<ShowHeader shows={shows} />}
+        ListHeaderComponent={<ShowHeader />}
         data={shows}
         renderItem={({ item }: { item: Show; index: number }) => <ShowListItem show={item} />}
       />
