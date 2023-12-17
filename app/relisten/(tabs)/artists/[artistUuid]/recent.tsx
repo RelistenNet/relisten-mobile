@@ -1,8 +1,3 @@
-import {
-  FilterableListProps,
-  FilterableList,
-} from '@/relisten/components/filtering/filterable_list';
-import { SortDirection, FilteringProvider, Filter } from '@/relisten/components/filtering/filters';
 import Flex from '@/relisten/components/flex';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
@@ -15,6 +10,9 @@ import { useEffect } from 'react';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
+import { RelistenButton } from '@/relisten/components/relisten_button';
+import { RelistenFlatList } from '@/relisten/components/relisten_flat_list';
+import { ScrollViewProps } from 'react-native';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -22,7 +20,6 @@ export default function Page() {
   const results = useArtistRecentShows(String(artistUuid));
   const { data } = results;
   const headerHeight = useHeaderHeight();
-  // console.log(JSON.stringify(shows));
 
   useEffect(() => {
     navigation.setOptions({
@@ -36,7 +33,6 @@ export default function Page() {
         headerHeight={headerHeight}
         ScrollableComponent={RecentList}
         shows={Array.from(data.shows)}
-        filterPersistenceKey={['artists', artistUuid, 'shows'].join('/')}
       />
     </RefreshContextProvider>
   );
@@ -68,48 +64,26 @@ const RecentHeader = () => {
       >
         Recent Shows
       </RelistenText>
+      <Flex full>
+        <RelistenButton cn="flex-1 rounded-none border-white">Played</RelistenButton>
+        <RelistenButton cn="flex-1 rounded-none border-white">Updated</RelistenButton>
+      </Flex>
     </>
   );
 };
 
-const SONG_FILTERS: Filter<Show>[] = [
-  { persistenceKey: 'library', title: 'My Library', active: false, filter: (y) => y.isFavorite },
-  {
-    persistenceKey: 'date',
-    title: 'Date',
-    sortDirection: SortDirection.Ascending,
-    active: true,
-    isNumeric: true,
-    sort: (recents) => recents.sort((a, b) => a.date.valueOf() - b.date.valueOf()),
-  },
-  {
-    persistenceKey: 'rating',
-    title: 'Avg. Rating',
-    sortDirection: SortDirection.Descending,
-    active: false,
-    isNumeric: true,
-    sort: (recents) => recents.sort((a, b) => a.avgRating - b.avgRating),
-  },
-];
-
-interface RecentListProps {
+interface RecentListProps
+  extends Partial<Pick<ScrollViewProps, 'onScroll' | 'scrollEventThrottle'>> {
   shows: Show[];
-  filterPersistenceKey: string;
 }
 
-const RecentList = ({
-  shows,
-  filterPersistenceKey,
-  ...props
-}: RecentListProps & Omit<FilterableListProps<Show>, 'data' | 'renderItem'>) => {
+const RecentList = ({ shows, ...props }: RecentListProps) => {
   return (
-    <FilteringProvider filters={SONG_FILTERS} filterPersistenceKey={filterPersistenceKey}>
-      <FilterableList
-        ListHeaderComponent={<RecentHeader />}
-        data={shows}
-        renderItem={({ item }: { item: Show; index: number }) => <RecentListItem recent={item} />}
-        {...props}
-      />
-    </FilteringProvider>
+    <RelistenFlatList
+      ListHeaderComponent={<RecentHeader />}
+      data={shows}
+      renderItem={({ item }: { item: Show; index: number }) => <RecentListItem recent={item} />}
+      {...props}
+    />
   );
 };
