@@ -148,7 +148,7 @@ const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => {
         </Link>
         <Link
           href={{
-            pathname: '/relisten/(tabs)/artists/[artistUuid]/popular' as const,
+            pathname: '/relisten/(tabs)/artists/[artistUuid]/recent' as const,
             params: {
               artistUuid: artist.uuid,
             },
@@ -156,7 +156,7 @@ const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => {
           asChild
         >
           <RelistenButton className="shrink basis-1/3" textClassName="text-l">
-            Popular
+            Recent
           </RelistenButton>
         </Link>
         <RelistenButton
