@@ -175,7 +175,7 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
   }
 }
 
-class RecentShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
+class RecentPerformedShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
   Realm.Results<Show>,
   Shows
 > {
@@ -192,13 +192,82 @@ class RecentShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
   }
 
   fetchFromLocal(): Realm.Results<Show> {
-    const topShows = useQuery(
+    const recentShows = useQuery(
       Show,
       (query) => query.filtered('artistUuid == $0', this.artistUuid),
       [this.artistUuid]
     );
 
-    return topShows;
+    return recentShows;
+  }
+
+  isLocalDataShowable(localData: Realm.Results<Show>): boolean {
+    return localData.length > 0;
+  }
+
+  upsert(realm: Realm, localData: Realm.Results<Show>, apiData: Shows): void {
+    if (!localData.isValid()) {
+      return;
+    }
+
+    const apiVenuesByUuid = R.flatMapToObj(
+      apiData.filter((s) => !!s.venue),
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      (s) => [[s.venue!.uuid, s.venue!]]
+    );
+
+    realm.write(() => {
+      const { createdModels: createdShows } = showRepo.upsertMultiple(realm, apiData, localData);
+
+      for (const show of createdShows.concat(localData)) {
+        if (show.venueUuid) {
+          const apiVenue = apiVenuesByUuid[show.venueUuid];
+
+          if (!show.venue) {
+            const localVenue = realm.objectForPrimaryKey(Venue, show.venueUuid);
+
+            if (localVenue) {
+              show.venue = localVenue;
+            } else {
+              const { createdModels: createdVenues } = venueRepo.upsert(realm, apiVenue, undefined);
+
+              if (createdVenues.length > 0) {
+                show.venue = createdVenues[0];
+              }
+            }
+          } else {
+            venueRepo.upsert(realm, apiVenue, show.venue);
+          }
+        }
+      }
+    });
+  }
+}
+
+class RecentUpdatedShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
+  Realm.Results<Show>,
+  Shows
+> {
+  constructor(public artistUuid?: string) {
+    super();
+  }
+
+  fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<Shows | undefined>> {
+    if (!this.artistUuid) {
+      return Promise.resolve({ type: RelistenApiResponseType.Offline, data: undefined });
+    }
+
+    return api.recentUpdatedShows(this.artistUuid);
+  }
+
+  fetchFromLocal(): Realm.Results<Show> {
+    const recentShows = useQuery(
+      Show,
+      (query) => query.filtered('artistUuid == $0', this.artistUuid),
+      [this.artistUuid]
+    );
+
+    return recentShows;
   }
 
   isLocalDataShowable(localData: Realm.Results<Show>): boolean {
@@ -272,17 +341,39 @@ export function useShow(showUuid?: string): ShowWithSources | undefined {
   return behavior.fetchFromLocal();
 }
 
-export const useRecentShows = (artistUuid: string) => {
+export const useRecentPerformedShows = (artistUuid: string) => {
   const behavior = useMemo(() => {
-    return new RecentShowsNetworkBackedBehavior(artistUuid);
+    return new RecentPerformedShowsNetworkBackedBehavior(artistUuid);
   }, [artistUuid]);
 
   return useNetworkBackedBehavior(behavior);
 };
 
-export function useArtistRecentShows(artistUuid: string) {
+export const useRecentUpdatedShows = (artistUuid: string) => {
+  const behavior = useMemo(() => {
+    return new RecentUpdatedShowsNetworkBackedBehavior(artistUuid);
+  }, [artistUuid]);
+
+  return useNetworkBackedBehavior(behavior);
+};
+
+export function useArtistRecentPerformedShows(artistUuid: string) {
   const artistResults = useArtist(artistUuid, { onlyFetchFromApiIfLocalIsNotShowable: true });
-  const showResults = useRecentShows(artistUuid);
+  const showResults = useRecentPerformedShows(artistUuid);
+
+  const results = useMemo(() => {
+    return mergeNetworkBackedResults({
+      shows: showResults,
+      artist: artistResults,
+    });
+  }, [showResults, artistResults]);
+
+  return results;
+}
+
+export function useArtistRecentUpdatedShows(artistUuid: string) {
+  const artistResults = useArtist(artistUuid, { onlyFetchFromApiIfLocalIsNotShowable: true });
+  const showResults = useRecentUpdatedShows(artistUuid);
 
   const results = useMemo(() => {
     return mergeNetworkBackedResults({

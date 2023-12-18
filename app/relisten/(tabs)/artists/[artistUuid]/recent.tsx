@@ -4,9 +4,12 @@ import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
 import RowTitle from '@/relisten/components/row_title';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { Show } from '@/relisten/realm/models/show';
-import { useArtistRecentShows } from '@/relisten/realm/models/show_repo';
+import {
+  useArtistRecentPerformedShows,
+  useArtistRecentUpdatedShows,
+} from '@/relisten/realm/models/show_repo';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
-import { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
@@ -14,12 +17,18 @@ import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RelistenFlatList } from '@/relisten/components/relisten_flat_list';
 import { ScrollViewProps } from 'react-native';
 
+enum Tabs {
+  PERFORMED = 'performed',
+  UPDATED = 'updated',
+}
+
 export default function Page() {
   const navigation = useNavigation();
   const { artistUuid } = useLocalSearchParams();
-  const results = useArtistRecentShows(String(artistUuid));
-  const { data } = results;
   const headerHeight = useHeaderHeight();
+  const [activeTab, setActiveTab] = useState(Tabs.PERFORMED);
+  const performedResults = useArtistRecentPerformedShows(String(artistUuid));
+  const updatedResults = useArtistRecentUpdatedShows(String(artistUuid));
 
   useEffect(() => {
     navigation.setOptions({
@@ -27,12 +36,24 @@ export default function Page() {
     });
   }, []);
 
-  return (
-    <RefreshContextProvider networkBackedResults={results}>
+  return activeTab === Tabs.PERFORMED ? (
+    <RefreshContextProvider networkBackedResults={performedResults}>
       <DisappearingHeaderScreen
         headerHeight={headerHeight}
         ScrollableComponent={RecentList}
-        shows={Array.from(data.shows)}
+        shows={Array.from(performedResults.data.shows)}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+      />
+    </RefreshContextProvider>
+  ) : (
+    <RefreshContextProvider networkBackedResults={updatedResults}>
+      <DisappearingHeaderScreen
+        headerHeight={headerHeight}
+        ScrollableComponent={RecentList}
+        shows={Array.from(updatedResults.data.shows)}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
       />
     </RefreshContextProvider>
   );
@@ -55,7 +76,12 @@ const RecentListItem = ({ recent }: RecentListItemProps) => {
   );
 };
 
-const RecentHeader = () => {
+interface RecentHeaderProps {
+  activeTab: Tabs;
+  setActiveTab: React.Dispatch<React.SetStateAction<Tabs>>;
+}
+
+const RecentHeader = ({ activeTab, setActiveTab }: RecentHeaderProps) => {
   return (
     <>
       <RelistenText
@@ -65,8 +91,20 @@ const RecentHeader = () => {
         Recent Shows
       </RelistenText>
       <Flex full>
-        <RelistenButton cn="flex-1 rounded-none border-white">Played</RelistenButton>
-        <RelistenButton cn="flex-1 rounded-none border-white">Updated</RelistenButton>
+        <RelistenButton
+          disabled={activeTab === Tabs.PERFORMED}
+          cn="flex-1 rounded-none border-white"
+          onPress={() => setActiveTab(Tabs.PERFORMED)}
+        >
+          Played
+        </RelistenButton>
+        <RelistenButton
+          disabled={activeTab === Tabs.UPDATED}
+          cn="flex-1 rounded-none border-white"
+          onPress={() => setActiveTab(Tabs.UPDATED)}
+        >
+          Updated
+        </RelistenButton>
       </Flex>
     </>
   );
@@ -75,12 +113,14 @@ const RecentHeader = () => {
 interface RecentListProps
   extends Partial<Pick<ScrollViewProps, 'onScroll' | 'scrollEventThrottle'>> {
   shows: Show[];
+  activeTab: Tabs;
+  setActiveTab: React.Dispatch<React.SetStateAction<Tabs>>;
 }
 
-const RecentList = ({ shows, ...props }: RecentListProps) => {
+const RecentList = ({ shows, activeTab, setActiveTab, ...props }: RecentListProps) => {
   return (
     <RelistenFlatList
-      ListHeaderComponent={<RecentHeader />}
+      ListHeaderComponent={<RecentHeader activeTab={activeTab} setActiveTab={setActiveTab} />}
       data={shows}
       renderItem={({ item }: { item: Show; index: number }) => <RecentListItem recent={item} />}
       {...props}
