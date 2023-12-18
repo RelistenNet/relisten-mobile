@@ -9,7 +9,6 @@ import { ItemSeparator } from './item_separator';
 import { useRefreshContext } from './refresh_context';
 import { SectionHeader } from './section_header';
 import { useRelistenPlayerBottomBarContext } from '../player/ui/player_bottom_bar';
-import { RelistenText } from './relisten_text';
 
 export type RelistenSectionHeader = { sectionTitle: string };
 export type RelistenSectionListData<T extends RelistenObject> = T | RelistenSectionHeader;

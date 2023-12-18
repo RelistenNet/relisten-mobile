@@ -12,8 +12,7 @@ import {
 } from '@/relisten/components/filtering/filterable_list';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import Plur from '@/relisten/components/plur';
-import { FilteringProvider, Filter, SortDirection } from '@/relisten/components/filtering/filters';
-import { useHeaderHeight } from '@react-navigation/elements';
+import { Filter, FilteringProvider, SortDirection } from '@/relisten/components/filtering/filters';
 import { Tour } from '@/relisten/realm/models/tour';
 import dayjs from 'dayjs';
 
@@ -21,12 +20,10 @@ export default function Page() {
   const { artistUuid } = useLocalSearchParams();
   const results = useArtistTours(String(artistUuid));
   const { data } = results;
-  const headerHeight = useHeaderHeight();
 
   return (
     <RefreshContextProvider networkBackedResults={results}>
       <DisappearingHeaderScreen
-        headerHeight={headerHeight}
         ScrollableComponent={TourList}
         tours={Array.from(data.tours)}
         filterPersistenceKey={['artists', artistUuid, 'tours'].join('/')}

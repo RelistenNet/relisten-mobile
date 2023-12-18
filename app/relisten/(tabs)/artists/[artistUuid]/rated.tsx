@@ -11,17 +11,15 @@ import RowTitle from '@/relisten/components/row_title';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { Show } from '@/relisten/realm/models/show';
-import { useHeaderHeight } from '@react-navigation/elements';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useArtistTopShows } from '@/relisten/realm/models/shows/top_shows_repo';
+import { ShowList } from '@/relisten/components/shows_list';
 
 export default function Page() {
   const navigation = useNavigation();
   const { artistUuid } = useLocalSearchParams();
   const results = useArtistTopShows(artistUuid as string);
-  const { data } = results;
-  const headerHeight = useHeaderHeight();
 
   useEffect(() => {
     navigation.setOptions({
@@ -32,31 +30,17 @@ export default function Page() {
   return (
     <RefreshContextProvider networkBackedResults={results}>
       <DisappearingHeaderScreen
-        headerHeight={headerHeight}
         ScrollableComponent={ShowList}
-        shows={Array.from(data.shows)}
-        filterPersistenceKey={['artists', artistUuid, 'shows'].join('/')}
-      />
+        shows={results.data.shows}
+        artist={results.data.artist}
+        filterPersistenceKey={['artists', results.data.artist?.uuid, 'top-shows'].join('/')}
+        hideFilterBar={false}
+      >
+        <ShowHeader />
+      </DisappearingHeaderScreen>
     </RefreshContextProvider>
   );
 }
-
-interface ShowListItemProps {
-  show: Show;
-}
-
-const ShowListItem = ({ show }: ShowListItemProps) => {
-  return (
-    <SectionedListItem>
-      <Flex column>
-        <RowTitle>{show.displayDate}</RowTitle>
-        <SubtitleRow>
-          <SubtitleText>{show.venue?.name}</SubtitleText>
-        </SubtitleRow>
-      </Flex>
-    </SectionedListItem>
-  );
-};
 
 const ShowHeader = () => {
   return (
@@ -68,47 +52,5 @@ const ShowHeader = () => {
         Top Shows
       </RelistenText>
     </>
-  );
-};
-
-const SONG_FILTERS: Filter<Show>[] = [
-  { persistenceKey: 'library', title: 'My Library', active: false, filter: (y) => y.isFavorite },
-  {
-    persistenceKey: 'date',
-    title: 'Date',
-    sortDirection: SortDirection.Descending,
-    active: true,
-    isNumeric: true,
-    sort: (shows) => shows.sort((a, b) => a.date.valueOf() - b.date.valueOf()),
-  },
-  {
-    persistenceKey: 'rating',
-    title: 'Avg. Rating',
-    sortDirection: SortDirection.Descending,
-    active: false,
-    isNumeric: true,
-    sort: (shows) => shows.sort((a, b) => a.avgRating - b.avgRating),
-  },
-];
-
-interface ShowListProps {
-  shows: Show[];
-  filterPersistenceKey: string;
-}
-
-const ShowList = ({
-  shows,
-  filterPersistenceKey,
-  ...props
-}: ShowListProps & Omit<FilterableListProps<Show>, 'data' | 'renderItem'>) => {
-  return (
-    <FilteringProvider filters={SONG_FILTERS} filterPersistenceKey={filterPersistenceKey}>
-      <FilterableList
-        ListHeaderComponent={<ShowHeader />}
-        data={shows}
-        renderItem={({ item }: { item: Show; index: number }) => <ShowListItem show={item} />}
-        {...props}
-      />
-    </FilteringProvider>
   );
 };

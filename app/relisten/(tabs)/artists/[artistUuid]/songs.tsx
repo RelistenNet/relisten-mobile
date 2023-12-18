@@ -12,20 +12,17 @@ import {
 } from '@/relisten/components/filtering/filterable_list';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import Plur from '@/relisten/components/plur';
-import { FilteringProvider, Filter, SortDirection } from '@/relisten/components/filtering/filters';
-import { useHeaderHeight } from '@react-navigation/elements';
+import { Filter, FilteringProvider, SortDirection } from '@/relisten/components/filtering/filters';
 import { Song } from '@/relisten/realm/models/song';
 
 export default function Page() {
   const { artistUuid } = useLocalSearchParams();
   const results = useArtistSongs(String(artistUuid));
   const { data } = results;
-  const headerHeight = useHeaderHeight();
 
   return (
     <RefreshContextProvider networkBackedResults={results}>
       <DisappearingHeaderScreen
-        headerHeight={headerHeight}
         ScrollableComponent={SongList}
         songs={Array.from(data.songs)}
         filterPersistenceKey={['artists', artistUuid, 'songs'].join('/')}

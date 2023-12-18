@@ -40,7 +40,6 @@ export default function Page() {
   return (
     <RefreshContextProvider networkBackedResults={results}>
       <DisappearingHeaderScreen
-        headerHeight={50}
         ScrollableComponent={YearsList}
         artist={artist}
         years={years}

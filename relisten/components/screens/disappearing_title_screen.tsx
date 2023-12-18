@@ -4,25 +4,27 @@ import { Animated, ScrollViewProps } from 'react-native';
 import { RelistenBlue } from '../../relisten_blue';
 import { RelistenText } from '../relisten_text';
 import { ScrollScreen } from './ScrollScreen';
+import { useHeaderHeight } from '@react-navigation/elements';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export const DisappearingHeaderScreen = <
   TProps extends Partial<Pick<ScrollViewProps, 'onScroll' | 'scrollEventThrottle'>>,
 >({
-  headerHeight,
   ScrollableComponent,
   ...props
 }: PropsWithChildren<
   {
-    headerHeight: number;
     ScrollableComponent: React.ComponentType<TProps>;
   } & TProps
 >) => {
   const navigation = useNavigation();
+  const headerHeight = useHeaderHeight();
+  const safeAreaInsets = useSafeAreaInsets();
 
   const scrolling = useRef(new Animated.Value(0)).current;
 
   const headerOpacity = scrolling.interpolate({
-    inputRange: [0, 75],
+    inputRange: [0, headerHeight - safeAreaInsets.top],
     outputRange: [0, 1],
     extrapolate: 'clamp',
   });

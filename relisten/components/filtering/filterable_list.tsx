@@ -14,6 +14,7 @@ export type FilterableListProps<T extends RelistenObject> = {
   data: ReadonlyArray<T>;
   customSectionTitle?: (row: T) => string | undefined;
   customSectionTitles?: string[];
+  hideFilterBar?: boolean;
 } & RelistenSectionListProps<T>;
 
 const ALL_SECTION_SENTINEL = '__ALL__';
@@ -22,6 +23,7 @@ export const FilterableList = <T extends RelistenObject>({
   data,
   customSectionTitle,
   customSectionTitles,
+  hideFilterBar,
   ...props
 }: FilterableListProps<T>) => {
   const { filters, onFilterButtonPress, filter } = useFilters<T>();
@@ -73,6 +75,10 @@ export const FilterableList = <T extends RelistenObject>({
       {...props}
       renderSectionHeader={({ sectionTitle }) => {
         if (sectionTitle === ALL_SECTION_SENTINEL) {
+          if (hideFilterBar) {
+            return <></>;
+          }
+
           return (
             <SectionHeader className="p-0 pt-3">
               <FilterBar>

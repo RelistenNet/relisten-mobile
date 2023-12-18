@@ -63,7 +63,6 @@ export default function Page() {
       extraRefreshingConsideration={() => !selectedSource}
     >
       <DisappearingHeaderScreen
-        headerHeight={50}
         ScrollableComponent={SourcesList}
         show={show}
         sources={sortedSources}

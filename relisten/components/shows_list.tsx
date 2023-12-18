@@ -1,8 +1,6 @@
 import { Link } from 'expo-router';
-import { useMemo } from 'react';
-import { View } from 'react-native';
+import React, { useMemo } from 'react';
 import Realm from 'realm';
-import * as R from 'remeda';
 import { Artist } from '../realm/models/artist';
 import { Show } from '../realm/models/show';
 import { Year } from '../realm/models/year';
@@ -15,6 +13,7 @@ import { RelistenText } from './relisten_text';
 import { SubtitleRow, SubtitleText } from './row_subtitle';
 import RowTitle from './row_title';
 import { SectionedListItem } from './sectioned_list_item';
+import { ListRenderItem } from '@shopify/flash-list';
 
 const ShowListItem = ({ show }: { show: Show }) => {
   return (
@@ -96,35 +95,24 @@ const SHOW_FILTERS: Filter<Show>[] = [
   },
 ];
 
-const YearHeader = ({ year }: { artist: Artist | null; year: Year | null }) => {
-  const totalShows = year?.showCount;
-  const totalTapes = year?.sourceCount;
-
-  return (
-    <View className="flex w-full flex-col items-center gap-1 py-2">
-      <RelistenText className="w-full text-center text-4xl font-bold text-white" selectable={false}>
-        {year?.year}
-      </RelistenText>
-
-      <RelistenText className="text-l w-full text-center italic text-gray-400">
-        <Plur word="show" count={totalShows} /> &middot;&nbsp;
-        <Plur word="tape" count={totalTapes} />
-      </RelistenText>
-    </View>
-  );
-};
 interface ShowListProps {
   shows: Realm.Results<Show>;
   artist: Artist | null;
-  year: Year | null;
-  filterPersistenceKey: string;
+  filterPersistenceKey?: string;
+  children: React.ComponentType<unknown> | React.ReactElement | null | undefined;
+  renderItem?: ListRenderItem<Show>;
 }
+
+const defaultRenderItem: ListRenderItem<Show> = ({ item: show }) => {
+  return <ShowListItem show={show} />;
+};
 
 export const ShowList = ({
   shows,
   artist,
-  year,
+  children,
   filterPersistenceKey,
+  renderItem,
   ...props
 }: ShowListProps & Omit<FilterableListProps<Show>, 'data' | 'renderItem'>) => {
   const allShows = useMemo(() => {
@@ -134,11 +122,9 @@ export const ShowList = ({
   return (
     <FilteringProvider filters={SHOW_FILTERS} filterPersistenceKey={filterPersistenceKey}>
       <FilterableList
-        ListHeaderComponent={<YearHeader artist={artist} year={year} />}
+        ListHeaderComponent={children}
         data={allShows}
-        renderItem={({ item: show }) => {
-          return <ShowListItem show={show} />;
-        }}
+        renderItem={renderItem || defaultRenderItem}
         {...props}
       />
     </FilteringProvider>
