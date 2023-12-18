@@ -11,10 +11,10 @@ import RowTitle from '@/relisten/components/row_title';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { Show } from '@/relisten/realm/models/show';
-import { useArtistTopShows } from '@/relisten/realm/models/show_repo';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { useEffect } from 'react';
+import { useArtistTopShows } from '@/relisten/realm/models/shows/top_shows_repo';
 
 export default function Page() {
   const navigation = useNavigation();

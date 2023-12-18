@@ -4,7 +4,6 @@ import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
 import RowTitle from '@/relisten/components/row_title';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { Show } from '@/relisten/realm/models/show';
-import { useArtistRecentShows } from '@/relisten/realm/models/show_repo';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { useHeaderHeight } from '@react-navigation/elements';
@@ -14,6 +13,7 @@ import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RelistenFlatList } from '@/relisten/components/relisten_flat_list';
 import { ScrollViewProps } from 'react-native';
 import { RelistenBlue } from '@/relisten/relisten_blue';
+import { useArtistRecentShows } from '@/relisten/realm/models/shows/recent_shows_repo';
 
 enum Tabs {
   PERFORMED = 'performed',
