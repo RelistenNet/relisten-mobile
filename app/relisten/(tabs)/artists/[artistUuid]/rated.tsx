@@ -19,7 +19,7 @@ import { useEffect } from 'react';
 export default function Page() {
   const navigation = useNavigation();
   const { artistUuid } = useLocalSearchParams();
-  const results = useArtistTopShows(String(artistUuid));
+  const results = useArtistTopShows(artistUuid as string);
   const { data } = results;
   const headerHeight = useHeaderHeight();
 

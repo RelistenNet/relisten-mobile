@@ -1,6 +1,6 @@
 import { Repository } from '../repository';
 
-import { Shows } from '@/relisten/api/models/show';
+import { Show as ApiShow } from '@/relisten/api/models/show';
 import { useMemo } from 'react';
 import Realm from 'realm';
 import * as R from 'remeda';
@@ -8,11 +8,8 @@ import { firstBy } from 'thenby';
 import { RelistenApiClient, RelistenApiResponse, RelistenApiResponseType } from '../../api/client';
 import { ShowWithSources as ApiShowWithSources } from '../../api/models/source';
 import { ThrottledNetworkBackedBehavior } from '../network_backed_behavior';
-import {
-  createNetworkBackedModelArrayHook,
-  useNetworkBackedBehavior,
-} from '../network_backed_behavior_hooks';
-import { NetworkBackedResults, mergeNetworkBackedResults } from '../network_backed_results';
+import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
+import { mergeNetworkBackedResults, NetworkBackedResults } from '../network_backed_results';
 import { useObject, useQuery, useRealm } from '../schema';
 import { useArtist } from './artist_repo';
 import { Show } from './show';
@@ -180,13 +177,13 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
 
 class TopShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
   Realm.Results<Show>,
-  Shows
+  ApiShow[]
 > {
   constructor(public artistUuid?: string) {
     super();
   }
 
-  fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<Shows | undefined>> {
+  fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<ApiShow[] | undefined>> {
     if (!this.artistUuid) {
       return Promise.resolve({ type: RelistenApiResponseType.Offline, data: undefined });
     }
@@ -208,7 +205,7 @@ class TopShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
     return localData.length > 0;
   }
 
-  upsert(realm: Realm, localData: Realm.Results<Show>, apiData: Shows): void {
+  upsert(realm: Realm, localData: Realm.Results<Show>, apiData: ApiShow[]): void {
     if (!localData.isValid()) {
       return;
     }
