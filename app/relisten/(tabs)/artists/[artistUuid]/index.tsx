@@ -4,7 +4,12 @@ import {
   FilterableList,
   FilterableListProps,
 } from '@/relisten/components/filtering/filterable_list';
-import { Filter, FilteringProvider, SortDirection } from '@/relisten/components/filtering/filters';
+import {
+  Filter,
+  FilteringOptions,
+  FilteringProvider,
+  SortDirection,
+} from '@/relisten/components/filtering/filters';
 import Flex from '@/relisten/components/flex';
 import Plur from '@/relisten/components/plur';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
@@ -43,7 +48,7 @@ export default function Page() {
         ScrollableComponent={YearsList}
         artist={artist}
         years={years}
-        filterPersistenceKey={['artists', artistUuid, 'years'].join('/')}
+        filterOptions={{ persistence: { key: ['artists', artistUuid, 'years'].join('/') } }}
       />
     </RefreshContextProvider>
   );
@@ -202,10 +207,22 @@ const YearListItem = ({ year }: { year: Year }) => {
   );
 };
 
-const YEAR_FILTERS: Filter<Year>[] = [
-  { persistenceKey: 'library', title: 'My Library', active: false, filter: (y) => y.isFavorite },
+export enum YearFilterKey {
+  Library = 'library',
+  Year = 'year',
+  Shows = 'shows',
+  Tapes = 'tapes',
+}
+
+const YEAR_FILTERS: Filter<YearFilterKey, Year>[] = [
   {
-    persistenceKey: 'year',
+    persistenceKey: YearFilterKey.Library,
+    title: 'My Library',
+    active: false,
+    filter: (y) => y.isFavorite,
+  },
+  {
+    persistenceKey: YearFilterKey.Year,
     title: 'Date',
     sortDirection: SortDirection.Ascending,
     active: true,
@@ -213,7 +230,7 @@ const YEAR_FILTERS: Filter<Year>[] = [
     sort: (years) => years.sort((a, b) => a.year.localeCompare(b.year)),
   },
   {
-    persistenceKey: 'shows',
+    persistenceKey: YearFilterKey.Shows,
     title: 'Shows',
     sortDirection: SortDirection.Descending,
     active: false,
@@ -221,7 +238,7 @@ const YEAR_FILTERS: Filter<Year>[] = [
     sort: (years) => years.sort((a, b) => a.showCount - b.showCount),
   },
   {
-    persistenceKey: 'tapes',
+    persistenceKey: YearFilterKey.Tapes,
     title: 'Tapes',
     sortDirection: SortDirection.Descending,
     active: false,
@@ -234,15 +251,15 @@ const YearsList: React.FC<
   {
     artist: Artist | null;
     years: Realm.Results<Year>;
-    filterPersistenceKey: string;
+    filterOptions: FilteringOptions<YearFilterKey>;
   } & Omit<FilterableListProps<Year>, 'data' | 'renderItem'>
-> = ({ artist, years, filterPersistenceKey, ...props }) => {
+> = ({ artist, years, filterOptions, ...props }) => {
   const allYears = useMemo(() => {
     return [...years];
   }, [years]);
 
   return (
-    <FilteringProvider filters={YEAR_FILTERS} filterPersistenceKey={filterPersistenceKey}>
+    <FilteringProvider filters={YEAR_FILTERS} options={filterOptions}>
       <FilterableList
         ListHeaderComponent={<YearsHeader artist={artist} />}
         data={allYears}

@@ -75,7 +75,7 @@ export class Show
   private _humanizedAvgDuration?: string;
   humanizedAvgDuration() {
     if (!this._humanizedAvgDuration && this.avgDuration) {
-      this._humanizedAvgDuration = dayjs.duration(this.avgDuration, 'seconds').format('HH:mm:ss');
+      this._humanizedAvgDuration = dayjs.duration(this.avgDuration, 'seconds').format('HH:mm');
     }
 
     return this._humanizedAvgDuration;

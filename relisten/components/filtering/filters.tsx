@@ -1,6 +1,6 @@
 import { RouteFilterConfig, serializeFilters } from '@/relisten/realm/models/route_filter_config';
 import { useObject, useRealm } from '@/relisten/realm/schema';
-import React, { PropsWithChildren, useCallback, useContext } from 'react';
+import React, { PropsWithChildren, useCallback, useContext, useEffect, useState } from 'react';
 import { RelistenObject } from '../../api/models/relisten';
 
 export enum SortDirection {
@@ -9,13 +9,13 @@ export enum SortDirection {
   Descending,
 }
 
-export interface PersistedFilter {
-  persistenceKey: string;
+export interface PersistedFilter<K extends string> {
+  persistenceKey: K;
   active: boolean;
   sortDirection?: SortDirection;
 }
 
-export interface Filter<T> extends PersistedFilter {
+export interface Filter<K extends string, T> extends PersistedFilter<K> {
   isNumeric?: boolean;
   title: string;
 
@@ -24,33 +24,54 @@ export interface Filter<T> extends PersistedFilter {
   filter?: (data: T) => boolean;
 }
 
-export interface FilteringContextProps<T extends RelistenObject> {
-  filters: ReadonlyArray<Filter<T>>;
-  onFilterButtonPress: (filter: Filter<T>) => void;
+export interface FilteringOptions<K extends string> {
+  persistence?: { key: string };
+  default?: { persistenceKey: K; active: boolean; sortDirection?: SortDirection };
+}
+
+export interface FilteringContextProps<K extends string, T extends RelistenObject> {
+  filters: ReadonlyArray<Filter<K, T>>;
+  onFilterButtonPress: (filter: Filter<K, T>) => void;
   filter: (allData: ReadonlyArray<T>) => ReadonlyArray<T>;
 }
 
-export const FilteringContext = React.createContext<FilteringContextProps<any> | undefined>(
+export const FilteringContext = React.createContext<FilteringContextProps<any, any> | undefined>(
   undefined
 );
 
-export const FilteringProvider = <T extends RelistenObject>({
+export const FilteringProvider = <K extends string, T extends RelistenObject>({
   children,
   filters,
-  filterPersistenceKey,
-}: PropsWithChildren<{ filters: ReadonlyArray<Filter<T>>; filterPersistenceKey: string }>) => {
+  options,
+}: PropsWithChildren<{ filters: ReadonlyArray<Filter<K, T>>; options?: FilteringOptions<K> }>) => {
   const realm = useRealm();
+  const [preparedFilters, setPreparedFilters] = useState(filters);
 
-  const routeFilterConfig = useObject(RouteFilterConfig, filterPersistenceKey);
+  const filterPersistenceKey = options?.persistence?.key;
 
+  const routeFilterConfig = useObject(RouteFilterConfig, filterPersistenceKey || '__no_object__');
   const persistedFilters = routeFilterConfig ? routeFilterConfig.filters() : undefined;
+
+  // useEffect with setState to apply the default sort only 1 time.
+  useEffect(() => {
+    for (const filter of filters) {
+      if (options?.default && options.default.persistenceKey === filter.persistenceKey) {
+        filter.active = options.default.active;
+        filter.sortDirection = options.default.sortDirection;
+      } else {
+        filter.active = false;
+      }
+    }
+
+    setPreparedFilters([...filters]);
+  }, [filters, options?.default, setPreparedFilters]);
 
   const filter = useCallback(
     (allData: ReadonlyArray<T>) => {
       const filteredData: T[] = [];
 
       // merge pre-defined filters with persisted/user filters
-      const mergedFilters = filters.map((filter) => {
+      const mergedFilters = preparedFilters.map((filter) => {
         const persistedFilter = persistedFilters?.[filter.persistenceKey];
 
         if (persistedFilter) {
@@ -58,9 +79,9 @@ export const FilteringProvider = <T extends RelistenObject>({
             ...filter,
             ...persistedFilter,
           };
-        } else {
-          return filter;
         }
+
+        return filter;
       });
 
       for (const row of allData) {
@@ -82,7 +103,7 @@ export const FilteringProvider = <T extends RelistenObject>({
         if (filter.active && filter.sort) {
           filter.sort(filteredData);
 
-          if (filter.sortDirection === SortDirection.Ascending) {
+          if (filter.sortDirection === SortDirection.Descending) {
             filteredData.reverse();
           }
 
@@ -92,11 +113,11 @@ export const FilteringProvider = <T extends RelistenObject>({
 
       return filteredData;
     },
-    [filters, persistedFilters]
+    [preparedFilters, persistedFilters]
   );
 
   const onFilterButtonPress = useCallback(
-    (thisFilter: Filter<T>) => {
+    (thisFilter: Filter<K, T>) => {
       /*
     - multiple thisFilters can be active at the same time
     - thisFilters can be active at the same time as sorting
@@ -105,7 +126,7 @@ export const FilteringProvider = <T extends RelistenObject>({
      */
       if (thisFilter.sortDirection !== undefined) {
         // disable other sorts
-        for (const f of filters) {
+        for (const f of preparedFilters) {
           if (f !== thisFilter && f.sortDirection !== undefined) {
             f.active = false;
           }
@@ -126,35 +147,42 @@ export const FilteringProvider = <T extends RelistenObject>({
         thisFilter.active = !thisFilter.active;
       }
 
-      realm.write(() => {
-        let routeFilterConfig = realm.objectForPrimaryKey(RouteFilterConfig, filterPersistenceKey);
+      if (filterPersistenceKey) {
+        realm.write(() => {
+          let routeFilterConfig = realm.objectForPrimaryKey(
+            RouteFilterConfig,
+            filterPersistenceKey
+          );
 
-        if (routeFilterConfig) {
-          routeFilterConfig.setFilters(filters);
-        } else {
-          routeFilterConfig = realm.create(RouteFilterConfig, {
-            key: filterPersistenceKey,
-            rawFilters: serializeFilters(filters),
-          });
-        }
-      });
+          if (routeFilterConfig) {
+            routeFilterConfig.setFilters(preparedFilters);
+          } else {
+            routeFilterConfig = realm.create(RouteFilterConfig, {
+              key: filterPersistenceKey,
+              rawFilters: serializeFilters(preparedFilters),
+            });
+          }
+        });
+      }
+
+      setPreparedFilters([...preparedFilters]);
     },
-    [filters, realm, filterPersistenceKey]
+    [preparedFilters, realm, filterPersistenceKey, options, setPreparedFilters]
   );
 
   return (
-    <FilteringContext.Provider value={{ filters, onFilterButtonPress, filter }}>
+    <FilteringContext.Provider value={{ filters: preparedFilters, onFilterButtonPress, filter }}>
       {children}
     </FilteringContext.Provider>
   );
 };
 
-export const useFilters = <T extends RelistenObject>() => {
+export const useFilters = <K extends string, T extends RelistenObject>() => {
   const context = useContext(FilteringContext);
 
   if (context === undefined) {
     throw new Error('useFilters must be used within a FilteringProvider');
   }
 
-  return context as FilteringContextProps<T>;
+  return context as FilteringContextProps<K, T>;
 };

@@ -120,7 +120,8 @@ export class Repository<
     queryForModel = false
   ): UpsertResults<TModel> {
     if (queryForModel && !model) {
-      model = realm.objectForPrimaryKey(this.klass, api.uuid) || undefined;
+      model =
+        realm.objectForPrimaryKey<TModel>(this.klass.name, api.uuid as unknown as any) || undefined;
     }
 
     if (model) {

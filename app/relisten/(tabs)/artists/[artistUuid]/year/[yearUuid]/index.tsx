@@ -35,7 +35,9 @@ export default function Page() {
           ScrollableComponent={ShowList}
           shows={shows}
           artist={artist}
-          filterPersistenceKey={['artists', artistUuid, 'years', yearUuid].join('/')}
+          filterOptions={{
+            persistence: { key: ['artists', artistUuid, 'years', yearUuid].join('/') },
+          }}
         >
           <YearHeader artist={artist} year={year} />
         </DisappearingHeaderScreen>

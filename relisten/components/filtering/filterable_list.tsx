@@ -19,14 +19,14 @@ export type FilterableListProps<T extends RelistenObject> = {
 
 const ALL_SECTION_SENTINEL = '__ALL__';
 
-export const FilterableList = <T extends RelistenObject>({
+export const FilterableList = <K extends string, T extends RelistenObject>({
   data,
   customSectionTitle,
   customSectionTitles,
   hideFilterBar,
   ...props
 }: FilterableListProps<T>) => {
-  const { filters, onFilterButtonPress, filter } = useFilters<T>();
+  const { filters, onFilterButtonPress, filter } = useFilters<K, T>();
 
   const sectionedData: ReadonlyArray<T | RelistenSectionHeader> = useMemo(() => {
     const filteredData = filter(data);
@@ -85,7 +85,7 @@ export const FilterableList = <T extends RelistenObject>({
                 {filters.map((f) => {
                   return (
                     <FilterBarButton
-                      key={f.title}
+                      key={f.persistenceKey}
                       filter={f}
                       onPress={() => onFilterButtonPress(f)}
                     />

@@ -1,20 +1,19 @@
-import {
-  FilterableList,
-  FilterableListProps,
-} from '@/relisten/components/filtering/filterable_list';
-import { Filter, FilteringProvider, SortDirection } from '@/relisten/components/filtering/filters';
-import Flex from '@/relisten/components/flex';
+import { SortDirection } from '@/relisten/components/filtering/filters';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
-import RowTitle from '@/relisten/components/row_title';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
-import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
-import { Show } from '@/relisten/realm/models/show';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import React, { useEffect } from 'react';
 import { useArtistTopShows } from '@/relisten/realm/models/shows/top_shows_repo';
-import { ShowList } from '@/relisten/components/shows_list';
+import { ShowFilterKey, ShowList } from '@/relisten/components/shows_list';
+
+const topRatedFilterOptions = {
+  default: {
+    persistenceKey: ShowFilterKey.Rating,
+    active: true,
+    sortDirection: SortDirection.Descending,
+  },
+};
 
 export default function Page() {
   const navigation = useNavigation();
@@ -33,7 +32,7 @@ export default function Page() {
         ScrollableComponent={ShowList}
         shows={results.data.shows}
         artist={results.data.artist}
-        filterPersistenceKey={['artists', results.data.artist?.uuid, 'top-shows'].join('/')}
+        filterOptions={topRatedFilterOptions}
         hideFilterBar={false}
       >
         <ShowHeader />

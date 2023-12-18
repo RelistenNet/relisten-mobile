@@ -1,26 +1,29 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import driver from '@switz/driver';
 import clsx from 'clsx';
-import { PropsWithChildren } from 'react';
+import { PropsWithChildren, useReducer } from 'react';
 import { TouchableOpacity, TouchableOpacityProps, View } from 'react-native';
 import { RelistenObject } from '../../api/models/relisten';
 import { RelistenText } from '../relisten_text';
 import { Filter, SortDirection } from './filters';
 
-export const FilterBarButton = <T extends RelistenObject>({
+export const FilterBarButton = <K extends string, T extends RelistenObject>({
   filter,
   className,
   color,
   size,
   children,
+  onPress,
   ...props
 }: PropsWithChildren<
   {
-    filter: Filter<T>;
+    filter: Filter<K, T>;
     size?: number;
     color?: string;
   } & TouchableOpacityProps
 >) => {
+  const [_, forceUpdate] = useReducer((x) => x + 1, 0);
+
   const filterIcon = driver({
     states: {
       isFilterActive: !filter.sortDirection && filter.active,
@@ -55,6 +58,15 @@ export const FilterBarButton = <T extends RelistenObject>({
           : 'border border-relisten-blue-600/30',
         className
       )}
+      onPress={(e) => {
+        if (onPress) {
+          onPress(e);
+        }
+
+        // rerender the UI after re-filtering. this seems wierd but tracking the whole filter in useState seems heavy-
+        // handed.
+        forceUpdate();
+      }}
       {...props}
     >
       {filterIcon.icon && (

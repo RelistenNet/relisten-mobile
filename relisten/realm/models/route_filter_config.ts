@@ -1,10 +1,10 @@
 import Realm from 'realm';
 import { PersistedFilter } from '@/relisten/components/filtering/filters';
 
-export type PersistedFilters = { [persistenceKey: string]: PersistedFilter };
+export type PersistedFilters<K extends string> = { [persistenceKey in K]?: PersistedFilter<K> };
 
-export function serializeFilters(filters: ReadonlyArray<PersistedFilter>) {
-  const p: PersistedFilters = {};
+export function serializeFilters<K extends string>(filters: ReadonlyArray<PersistedFilter<K>>) {
+  const p: PersistedFilters<K> = {};
 
   for (const filter of filters) {
     p[filter.persistenceKey] = {
@@ -30,11 +30,11 @@ export class RouteFilterConfig extends Realm.Object<RouteFilterConfig> {
   key!: string;
   rawFilters!: string;
 
-  filters(): PersistedFilters {
-    return JSON.parse(this.rawFilters) as PersistedFilters;
+  filters<K extends string>(): PersistedFilters<K> {
+    return JSON.parse(this.rawFilters) as PersistedFilters<K>;
   }
 
-  setFilters(filters: ReadonlyArray<PersistedFilter>) {
+  setFilters<K extends string>(filters: ReadonlyArray<PersistedFilter<K>>) {
     this.rawFilters = serializeFilters(filters);
   }
 }
