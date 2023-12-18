@@ -258,4 +258,18 @@ export class RelistenApiClient {
   ): Promise<RelistenApiResponse<SongWithShows>> {
     return this.getJson(`/v2/artists/${artistUuid}/songs/${songUuid}`, options);
   }
+
+  public recentPerformedShows(
+    artistUuid: string,
+    options?: RelistenApiRequestOptions
+  ): Promise<RelistenApiResponse<Show[]>> {
+    return this.getJson(`/v2/artists/${artistUuid}/shows/recently-performed`, options);
+  }
+
+  public recentUpdatedShows(
+    artistUuid: string,
+    options?: RelistenApiRequestOptions
+  ): Promise<RelistenApiResponse<Show[]>> {
+    return this.getJson(`/v2/artists/${artistUuid}/shows/recently-updated`, options);
+  }
 }
