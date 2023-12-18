@@ -99,7 +99,7 @@ export function PlayerBottomBar() {
     <View onLayout={onLayout} style={{ bottom: tabBarHeight, position: 'absolute', width: '100%' }}>
       <View className={'w-full flex-1 p-0'}>
         <Pressable onPress={() => router.push('/relisten/player')}>
-          <View className="w-full rounded-t-sm bg-relisten-blue-800 pt-2">
+          <View className="h-full w-full rounded-t-sm bg-relisten-blue-800 pt-2">
             <PlayerBottomBarContents />
           </View>
         </Pressable>
