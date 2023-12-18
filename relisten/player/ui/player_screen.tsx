@@ -30,8 +30,8 @@ import { useObject } from '@/relisten/realm/schema';
 import { Show } from '@/relisten/realm/models/show';
 
 function ScrubberRow() {
-  const progress = useNativePlaybackProgress();
   const player = useRelistenPlayer();
+  const progress = useNativePlaybackProgress(player);
 
   const doSeek = useCallback(
     (value: number) => {
@@ -134,7 +134,7 @@ function CurrentTrackInfo() {
 function PlayerControls() {
   const player = useRelistenPlayer();
   const playbackState = useRelistenPlayerPlaybackState();
-  const progress = useNativePlaybackProgress();
+  const progress = useNativePlaybackProgress(player);
 
   return (
     <Flex className="w-full items-center justify-center py-4">

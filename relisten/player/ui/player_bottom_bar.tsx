@@ -20,7 +20,7 @@ function PlayerBottomBarContents() {
   const currentTrack = useRelistenPlayerCurrentTrack();
   const playbackState = useRelistenPlayerPlaybackState();
   const player = useRelistenPlayer();
-  const progress = useNativePlaybackProgress();
+  const progress = useNativePlaybackProgress(player);
 
   const artist = useArtist(currentTrack?.sourceTrack?.artistUuid, {
     onlyFetchFromApiIfLocalIsNotShowable: true,
@@ -69,6 +69,11 @@ function PlayerBottomBarContents() {
         progress={progress?.percent ?? 0}
         progressTintColor="white"
         style={{ width: '100%', height: 4, marginTop: 8 }}
+      />
+      <ProgressView
+        progress={track?.downloadProgress ?? 0}
+        progressTintColor="red"
+        style={{ width: '100%', height: 4 }}
       />
     </Flex>
   );

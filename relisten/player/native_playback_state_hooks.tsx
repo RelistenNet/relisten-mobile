@@ -14,7 +14,7 @@ import { RelistenPlayer } from './relisten_player';
 
 let listenersRegisters = false;
 
-export function addPlayerListeners() {
+export function addPlayerListeners(player: RelistenPlayer) {
   if (listenersRegisters) {
     return;
   }
@@ -76,7 +76,7 @@ export function addPlayerListeners() {
       console.info('got remoteControl', event.method);
 
       if (event.method === 'prevTrack') {
-        RelistenPlayer.DEFAULT_INSTANCE.previous();
+        player.previous();
       }
 
       // sharedStates.currentTrackIdentifier.setState(trackChanged.currentIdentifier);
@@ -100,8 +100,8 @@ export function addPlayerListeners() {
 }
 
 function createPlaybackHook<T>(sharedState: SharedState<T>) {
-  return () => {
-    addPlayerListeners();
+  return (player: RelistenPlayer) => {
+    addPlayerListeners(player);
 
     const [state, setState] = useState<T | undefined>(sharedState.lastState());
 

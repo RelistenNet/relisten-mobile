@@ -120,7 +120,7 @@ export class RelistenPlayer {
       return;
     }
 
-    addPlayerListeners();
+    addPlayerListeners(this);
     state.addListener(this.onNativePlayerStateChanged);
     latestError.addListener(this.onNativePlayerError);
     this._queue.addPlayerListeners();

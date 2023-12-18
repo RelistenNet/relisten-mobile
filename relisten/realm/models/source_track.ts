@@ -101,7 +101,16 @@ export class SourceTrack
 
   get downloadProgress() {
     if (!this.totalBytesExpectedToWrite || !this.totalBytesWritten) return 0;
-    return Number((this.totalBytesWritten / this.totalBytesExpectedToWrite) * 100).toFixed(2);
+    return this.totalBytesWritten / this.totalBytesExpectedToWrite;
+  }
+
+  get humanizedDownloadProgress() {
+    return (this.downloadProgress * 100).toFixed(1);
+  }
+
+  get isDownloaded() {
+    if (!this.totalBytesWritten) return false;
+    return this.totalBytesWritten === this.totalBytesExpectedToWrite;
   }
 
   get filePath() {

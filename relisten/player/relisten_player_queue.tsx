@@ -1,19 +1,13 @@
-import {
-  createDownloadResumable,
-  documentDirectory,
-  getInfoAsync,
-  makeDirectoryAsync,
-} from 'expo-file-system';
-import { nativePlayer, RelistenStreamable } from '@/modules/relisten-audio-player';
+import { RelistenStreamable, nativePlayer } from '@/modules/relisten-audio-player';
 import { addPlayerListeners } from '@/relisten/player/native_playback_state_hooks';
 import { RelistenPlayer } from '@/relisten/player/relisten_player';
 import { currentTrackIdentifier } from '@/relisten/player/shared_state';
-import { SourceTrack } from '@/relisten/realm/models/source_track';
-import { EventSource } from '@/relisten/util/event_source';
-import { Source } from '@/relisten/realm/models/source';
 import { Artist } from '@/relisten/realm/models/artist';
+import { Source } from '@/relisten/realm/models/source';
+import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { Venue } from '@/relisten/realm/models/venue';
-import { realm } from '../realm/schema';
+import { EventSource } from '@/relisten/util/event_source';
+import { RelistenDownloadManager } from './relisten_download_manager';
 
 export enum PlayerShuffleState {
   SHUFFLE_OFF = 1,
@@ -177,60 +171,14 @@ export class RelistenPlayerQueue {
 
     const track = this.orderedTracks[newIndex];
     if (track) {
-      this.downloadSourceTrack(track.sourceTrack).then(() => {
+      RelistenDownloadManager.DEFAULT_INSTANCE.downloadImmediately(track.sourceTrack, () => {
+        console.log('Start native player...');
         nativePlayer.play(track.toStreamable()).then(() => {});
 
         this.recalculateNextTrack();
       });
     }
   }
-
-  async downloadSourceTrack(sourceTrack?: SourceTrack) {
-    if (!sourceTrack) return;
-    await this.ensureDirExists();
-
-    console.log('Initiate Download for track', sourceTrack.uuid);
-
-    await new Promise<void>((resolve) => {
-      const downloadResumable = createDownloadResumable(
-        sourceTrack.mp3Url,
-        sourceTrack.filePath,
-        {},
-        (progress) => {
-          console.log(progress);
-          realm?.write(() => {
-            sourceTrack.totalBytesExpectedToWrite = progress.totalBytesExpectedToWrite;
-            sourceTrack.totalBytesWritten = progress.totalBytesWritten;
-          });
-          resolve();
-        }
-      );
-
-      const savable = downloadResumable.savable();
-
-      if (savable) {
-        console.log(savable, typeof savable.url);
-        // realm?.write(() => {
-        //   sourceTrack.downloadPauseState = {
-        //     url: String(savable.url),
-        //     resumeData: savable.resumeData,
-        //     fileUri: savable.fileUri,
-        //   };
-        // });
-
-        downloadResumable.downloadAsync();
-      }
-    });
-  }
-
-  ensureDirExists = async () => {
-    const dir = documentDirectory + '/audio';
-    const dirInfo = await getInfoAsync(dir);
-    if (!dirInfo.exists) {
-      console.log("Gif directory doesn't exist, creating…");
-      await makeDirectoryAsync(dir, { intermediates: true });
-    }
-  };
 
   removeTrackAtIndex(index: number) {
     const originalCopy = [...this.originalTracks];
@@ -342,7 +290,7 @@ export class RelistenPlayerQueue {
 
     if (newNextTrack?.identifier !== prevNextTrack?.identifier) {
       if (newNextTrack) {
-        this.downloadSourceTrack(newNextTrack.sourceTrack);
+        RelistenDownloadManager.DEFAULT_INSTANCE.addToQueue(newNextTrack.sourceTrack);
         nativePlayer.setNextStream(newNextTrack.toStreamable());
       } else {
         nativePlayer.setNextStream(undefined);
@@ -396,7 +344,7 @@ export class RelistenPlayerQueue {
       return;
     }
 
-    addPlayerListeners();
+    addPlayerListeners(this.player);
     currentTrackIdentifier.addListener(this.onCurrentTrackIdentifierChanged);
 
     this.addedPlayerListeners = true;
