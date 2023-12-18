@@ -9,7 +9,7 @@ import Foundation
 import MediaPlayer
 
 extension RelistenGaplessAudioPlayer {
-    func updateControlCenter() {
+    func updateControlCenter(artwork: MPMediaItemArtwork?) {
         guard let activeStream else {
             return
         }
@@ -21,6 +21,10 @@ extension RelistenGaplessAudioPlayer {
         nowPlayingInfo[MPMediaItemPropertyArtist] = activeStream.streamable.artist
         nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = activeStream.streamable.albumTitle
 
+        if (artwork != nil) {
+            nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork;
+        }
+
         // Set the playback duration and current playback time
         nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = self.currentDuration // in seconds
         nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = self.elapsed // in seconds
@@ -30,6 +34,29 @@ extension RelistenGaplessAudioPlayer {
 
         // Set the nowPlayingInfo
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+    }
+    
+    func getData(from url: URL, completion: @escaping (UIImage?) -> Void) {
+         URLSession.shared.dataTask(with: url, completionHandler: {(data, response, error) in
+             if let data = data {
+                 completion(UIImage(data:data))
+             }
+         })
+             .resume()
+     }
+
+    func fetchAlbumArt(href: String) {
+        guard let url = URL(string: href) else { return }
+        getData(from: url) { [weak self] image in
+            guard let self = self,
+                  let downloadedImage = image else {
+                return
+            }
+            let artwork = MPMediaItemArtwork.init(boundsSize: downloadedImage.size, requestHandler: { _ -> UIImage in
+                return downloadedImage
+            })
+            self.updateControlCenter(artwork: artwork)
+        }
     }
     
     func startUpdates() {
@@ -80,7 +107,7 @@ extension RelistenGaplessAudioPlayer {
             }
 
             if sendPlaybackChanged || sendStateChanged {
-                updateControlCenter();
+                updateControlCenter(artwork: nil);
             }
             
             if sendPlaybackChanged {
