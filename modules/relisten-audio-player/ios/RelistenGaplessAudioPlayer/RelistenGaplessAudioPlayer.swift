@@ -18,7 +18,7 @@ public protocol RelistenGaplessAudioPlayerDelegate {
     func downloadProgressChanged(_ player: RelistenGaplessAudioPlayer, forActiveTrack: Bool, downloadedBytes: UInt64, totalBytes: UInt64)
     func trackChanged(_ player: RelistenGaplessAudioPlayer, previousStreamable: RelistenGaplessStreamable?, currentStreamable: RelistenGaplessStreamable?)
     func remoteControl(method: String)
-    
+
     func audioSessionWasSetup(_ player: RelistenGaplessAudioPlayer)
 }
 
@@ -52,9 +52,9 @@ public class RelistenGaplessAudioPlayer {
 
     public internal(set) var activeStream: RelistenGaplessAudioStream?
     public internal(set) var nextStream: RelistenGaplessAudioStream?
-    
+
     public let commandCenter = MPRemoteCommandCenter.shared();
-    
+
     public var currentDuration: TimeInterval? {
         guard isSetup, let activeStream else {
             return nil
@@ -82,17 +82,17 @@ public class RelistenGaplessAudioPlayer {
 
         return BASS_ChannelBytes2Seconds(activeStream.stream, elapsedBytes + activeStream.channelOffset)
     }
-    
+
     public var activeTrackDownloadedBytes: UInt64? {
         guard isSetup, let activeStream = activeStream else {
             return nil
         }
 
         let downloadedBytes = BASS_StreamGetFilePosition(activeStream.stream, DWORD(BASS_FILEPOS_DOWNLOAD))
-        
+
         return downloadedBytes
     }
-    
+
     public var activeTrackTotalBytes: UInt64? {
         guard isSetup, let activeStream = activeStream else {
             return nil
@@ -132,7 +132,7 @@ public class RelistenGaplessAudioPlayer {
 
         set {
             _currentState = newValue
-            
+
             if (newValue == .Playing) {
                 MPNowPlayingInfoCenter.default().playbackState = .playing;
             } else if (newValue == .Paused) {
@@ -142,7 +142,7 @@ public class RelistenGaplessAudioPlayer {
             } else {
                 MPNowPlayingInfoCenter.default().playbackState = .stopped;
             }
-            
+
             DispatchQueue.main.async { [self] in
                 delegate?.playbackStateChanged(self, newPlaybackState: _currentState)
             }
@@ -181,10 +181,10 @@ public class RelistenGaplessAudioPlayer {
     public func setNextStream(_ streamable: RelistenGaplessStreamable?) {
         bassQueue.async { [self] in
             maybeSetupBASS()
-            
+
             guard let streamable = streamable else {
                 maybeTearDownNextStream()
-                
+
                 return
             }
 
@@ -195,7 +195,7 @@ public class RelistenGaplessAudioPlayer {
             // do the same thing for inactive--but only if the next track is actually different
             // and if something is currently playing
             maybeTearDownNextStream()
-            
+
             nextStream = buildStream(streamable)
 
             if activeStream?.preloadFinished == true {
@@ -203,15 +203,15 @@ public class RelistenGaplessAudioPlayer {
             }
         }
     }
-    
-    
+
+
     func maybeTearDownActiveStream() {
         if let activeStream {
             tearDownStream(activeStream.stream)
             self.activeStream = nil
         }
     }
-    
+
     func maybeTearDownNextStream() {
         if let nextStream {
             tearDownStream(nextStream.stream)
@@ -246,7 +246,7 @@ public class RelistenGaplessAudioPlayer {
             if let mixerMainStream = self.mixerMainStream, BASS_ChannelStop(mixerMainStream) != 0 {
                 self.delegate?.trackChanged(self, previousStreamable: self.activeStream?.streamable, currentStreamable: nil)
                 self.currentState = .Stopped
-                
+
                 self.maybeTearDownActiveStream()
                 self.maybeTearDownNextStream()
             }
@@ -274,33 +274,33 @@ public class RelistenGaplessAudioPlayer {
             self.seekToPercent(percent)
         }
     }
-    
-    
+
+
     public func _resume(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
         self.delegate?.remoteControl(method: "resume");
         self.resume();
-        
+
         return MPRemoteCommandHandlerStatus.success;
     }
 
     public func _pause(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
         self.delegate?.remoteControl(method: "pause");
         self.pause();
-        
+
         return MPRemoteCommandHandlerStatus.success;
     }
-    
+
     public func _nextTrack(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
         self.delegate?.remoteControl(method: "nextTrack");
         self.next();
-        
+
         return MPRemoteCommandHandlerStatus.success;
     }
-    
+
     public func _prevTrack(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
         self.delegate?.remoteControl(method: "prevTrack");
         // handled on the JS thread
-        
+
         return MPRemoteCommandHandlerStatus.success;
     }
 
@@ -311,12 +311,12 @@ public class RelistenGaplessAudioPlayer {
         guard let event = event as? MPChangePlaybackPositionCommandEvent else {
           return .commandFailed
         }
-        
+
         if (event.positionTime >= 0 && duration > 0) {
             seekTo(percent: event.positionTime / duration);
             return .success;
         }
-        
+
         return .commandFailed;
     }
 
@@ -331,7 +331,7 @@ public class RelistenGaplessAudioPlayer {
 
     internal var _currentState: PlaybackState = .Stopped
     internal var wasPlayingWhenInterrupted: Bool = false
-    
+
     deinit {
         maybeTearDownBASS()
         tearDownAudioSession()

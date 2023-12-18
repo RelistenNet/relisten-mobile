@@ -1,16 +1,16 @@
 // Create a configuration object
+import { RouteFilterConfig } from '@/relisten/realm/models/route_filter_config';
+import { UrlRequestMetadata } from '@/relisten/realm/models/url_request_metadata';
 import { createRealmContext, Realm } from '@realm/react';
 import { Artist } from './models/artist';
-import { Year } from './models/year';
 import { Show } from './models/show';
-import { Venue } from './models/venue';
+import { Song } from './models/song';
 import { Source } from './models/source';
 import { SourceSet } from './models/source_set';
 import { SourceTrack } from './models/source_track';
-import { UrlRequestMetadata } from '@/relisten/realm/models/url_request_metadata';
-import { RouteFilterConfig } from '@/relisten/realm/models/route_filter_config';
 import { Tour } from './models/tour';
-import { Song } from './models/song';
+import { Venue } from './models/venue';
+import { Year } from './models/year';
 
 const realmConfig: Realm.Configuration = {
   schema: [
@@ -22,6 +22,7 @@ const realmConfig: Realm.Configuration = {
     Song,
     Source,
     SourceSet,
+    SourceTrack.SourceTrackDownloadPauseState,
     SourceTrack,
     UrlRequestMetadata,
     RouteFilterConfig,

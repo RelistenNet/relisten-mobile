@@ -15,6 +15,7 @@ export interface RelistenStreamable {
   artist: string;
   albumTitle: string;
   albumArt: string;
+  // filePath: string;
 }
 
 export enum RelistenPlaybackState {

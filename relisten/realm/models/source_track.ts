@@ -1,5 +1,7 @@
 import Realm from 'realm';
 
+import { DownloadPauseState, DownloadProgressData, documentDirectory } from 'expo-file-system';
+
 import { SourceTrack as ApiSourceTrack } from '../../api/models/source_tracks';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import dayjs from 'dayjs';
@@ -56,6 +58,13 @@ export class SourceTrack
       flacMd5: 'string?',
 
       isFavorite: { type: 'bool', default: false },
+      downloadPauseState: {
+        type: 'dictionary',
+        objectType: 'SourceTrackDownloadPauseState',
+        optional: true,
+      },
+      totalBytesExpectedToWrite: { type: 'int', optional: true },
+      totalBytesWritten: { type: 'int', optional: true },
     },
   };
 
@@ -77,6 +86,9 @@ export class SourceTrack
   flacMd5?: string;
 
   isFavorite!: boolean;
+  downloadPauseState?: Omit<DownloadPauseState, 'options'>;
+  totalBytesWritten?: DownloadProgressData['totalBytesWritten'];
+  totalBytesExpectedToWrite?: DownloadProgressData['totalBytesExpectedToWrite'];
 
   private _humanizedDuration?: string;
   get humanizedDuration() {
@@ -86,6 +98,24 @@ export class SourceTrack
 
     return this._humanizedDuration;
   }
+
+  get downloadProgress() {
+    if (!this.totalBytesExpectedToWrite || !this.totalBytesWritten) return 0;
+    return Number((this.totalBytesWritten / this.totalBytesExpectedToWrite) * 100).toFixed(2);
+  }
+
+  get filePath() {
+    return `${documentDirectory}/audio/${this.uuid}.mp3`;
+  }
+
+  static SourceTrackDownloadPauseState: Realm.ObjectSchema = {
+    name: 'SourceTrackDownloadPauseState',
+    properties: {
+      url: { type: 'string' },
+      fileUri: { type: 'string' },
+      resumeData: { type: 'string', optional: true },
+    },
+  };
 
   static propertiesFromApi(relistenObj: ApiSourceTrack): SourceTrackRequiredProperties {
     return {

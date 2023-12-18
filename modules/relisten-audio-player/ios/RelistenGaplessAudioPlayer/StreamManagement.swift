@@ -16,6 +16,7 @@ extension RelistenGaplessAudioPlayer {
         var newStream: HSTREAM = 0
 
         if streamable.url.isFileURL {
+            NSLog("Is FILE URL");
             newStream = BASS_StreamCreateFile(0,
                                               streamable.url.path.cString(using: .utf8),
                                               UInt64(fileOffset),

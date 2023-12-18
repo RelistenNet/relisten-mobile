@@ -18,6 +18,7 @@ export const SourceTrackComponent: React.FC<{
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
 
   const isPlayingThisTrack = currentPlayerTrack?.sourceTrack.uuid === sourceTrack.uuid;
+  const { downloadProgress } = sourceTrack;
 
   showTrackNumber = showTrackNumber !== undefined ? showTrackNumber : true;
   return (
@@ -44,7 +45,7 @@ export const SourceTrackComponent: React.FC<{
           <RelistenText className="shrink py-3 pr-2 text-lg">{sourceTrack.title}</RelistenText>
           <View className="grow"></View>
           <RelistenText className="py-3 text-base text-gray-400">
-            {sourceTrack.humanizedDuration}
+            {sourceTrack.humanizedDuration} {downloadProgress ? `(${downloadProgress}%)` : null}
           </RelistenText>
           <TouchableOpacity
             className="shrink-0 grow-0 py-3 pl-4"
