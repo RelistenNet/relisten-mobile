@@ -13,6 +13,7 @@ import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappea
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RelistenFlatList } from '@/relisten/components/relisten_flat_list';
 import { ScrollViewProps } from 'react-native';
+import { RelistenBlue } from '@/relisten/relisten_blue';
 
 enum Tabs {
   PERFORMED = 'performed',
@@ -76,17 +77,25 @@ const RecentHeader = ({ activeTab, setActiveTab }: RecentHeaderProps) => {
       >
         Recent Shows
       </RelistenText>
-      <Flex full>
+      <Flex cn="m-2 rounded-sm">
         <RelistenButton
-          disabled={activeTab === Tabs.PERFORMED}
-          cn="flex-1 rounded-none border-white"
+          cn="flex-1 rounded-none rounded-l-md"
+          style={{
+            backgroundColor: `${
+              activeTab === Tabs.UPDATED ? RelistenBlue[800] : RelistenBlue[600]
+            }`,
+          }}
           onPress={() => setActiveTab(Tabs.PERFORMED)}
         >
-          Played
+          Performed
         </RelistenButton>
         <RelistenButton
-          disabled={activeTab === Tabs.UPDATED}
-          cn="flex-1 rounded-none border-white"
+          style={{
+            backgroundColor: `${
+              activeTab === Tabs.PERFORMED ? RelistenBlue[800] : RelistenBlue[600]
+            }`,
+          }}
+          cn="flex-1 rounded-none rounded-r-md"
           onPress={() => setActiveTab(Tabs.UPDATED)}
         >
           Updated

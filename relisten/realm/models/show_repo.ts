@@ -21,7 +21,6 @@ import { Venue } from './venue';
 import { useArtist } from './artist_repo';
 
 export const showRepo = new Repository(Show);
-export const show2Repo = new Repository(Show);
 
 export interface ShowWithSources {
   show: Show | undefined;
@@ -200,19 +199,12 @@ class RecentShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
   }
 
   fetchFromLocal(): Realm.Results<Show> {
-    if (this.activeTab === 'performed') {
-      return useQuery(
-        Show,
-        (query) => query.filtered('artistUuid == $0', this.artistUuid).sorted('displayDate', true),
-        [this.artistUuid, this.activeTab]
-      );
-    } else {
-      return useQuery(
-        Show,
-        (query) => query.filtered('artistUuid == $0', this.artistUuid).sorted('updatedAt', true),
-        [this.artistUuid, this.activeTab]
-      );
-    }
+    const sortKey = this.activeTab === 'performed' ? 'date' : 'updatedAt';
+    return useQuery(
+      Show,
+      (query) => query.filtered('artistUuid == $0', this.artistUuid).sorted(sortKey, true),
+      [this.artistUuid, sortKey]
+    );
   }
 
   isLocalDataShowable(localData: Realm.Results<Show>): boolean {
@@ -231,7 +223,7 @@ class RecentShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
     );
 
     realm.write(() => {
-      const { createdModels: createdShows } = show2Repo.upsertMultiple(realm, apiData, localData);
+      const { createdModels: createdShows } = showRepo.upsertMultiple(realm, apiData, localData);
 
       for (const show of createdShows.concat(localData)) {
         if (show.venueUuid) {
