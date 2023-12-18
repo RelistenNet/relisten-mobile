@@ -21,6 +21,7 @@ import { Venue } from './venue';
 import { useArtist } from './artist_repo';
 
 export const showRepo = new Repository(Show);
+export const show2Repo = new Repository(Show);
 
 export interface ShowWithSources {
   show: Show | undefined;
@@ -175,30 +176,43 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
   }
 }
 
-class RecentPerformedShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
+class RecentShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
   Realm.Results<Show>,
   Shows
 > {
-  constructor(public artistUuid?: string) {
+  constructor(
+    public artistUuid?: string,
+    public activeTab?: 'performed' | 'updated'
+  ) {
     super();
   }
 
   fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<Shows | undefined>> {
-    if (!this.artistUuid) {
+    if (!this.artistUuid || !this.activeTab) {
       return Promise.resolve({ type: RelistenApiResponseType.Offline, data: undefined });
     }
 
-    return api.recentPerformedShows(this.artistUuid);
+    if (this.activeTab === 'performed') {
+      return api.recentPerformedShows(this.artistUuid);
+    } else {
+      return api.recentUpdatedShows(this.artistUuid);
+    }
   }
 
   fetchFromLocal(): Realm.Results<Show> {
-    const recentShows = useQuery(
-      Show,
-      (query) => query.filtered('artistUuid == $0', this.artistUuid),
-      [this.artistUuid]
-    );
-
-    return recentShows;
+    if (this.activeTab === 'performed') {
+      return useQuery(
+        Show,
+        (query) => query.filtered('artistUuid == $0', this.artistUuid).sorted('displayDate', true),
+        [this.artistUuid, this.activeTab]
+      );
+    } else {
+      return useQuery(
+        Show,
+        (query) => query.filtered('artistUuid == $0', this.artistUuid).sorted('updatedAt', true),
+        [this.artistUuid, this.activeTab]
+      );
+    }
   }
 
   isLocalDataShowable(localData: Realm.Results<Show>): boolean {
@@ -217,76 +231,7 @@ class RecentPerformedShowsNetworkBackedBehavior extends ThrottledNetworkBackedBe
     );
 
     realm.write(() => {
-      const { createdModels: createdShows } = showRepo.upsertMultiple(realm, apiData, localData);
-
-      for (const show of createdShows.concat(localData)) {
-        if (show.venueUuid) {
-          const apiVenue = apiVenuesByUuid[show.venueUuid];
-
-          if (!show.venue) {
-            const localVenue = realm.objectForPrimaryKey(Venue, show.venueUuid);
-
-            if (localVenue) {
-              show.venue = localVenue;
-            } else {
-              const { createdModels: createdVenues } = venueRepo.upsert(realm, apiVenue, undefined);
-
-              if (createdVenues.length > 0) {
-                show.venue = createdVenues[0];
-              }
-            }
-          } else {
-            venueRepo.upsert(realm, apiVenue, show.venue);
-          }
-        }
-      }
-    });
-  }
-}
-
-class RecentUpdatedShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
-  Realm.Results<Show>,
-  Shows
-> {
-  constructor(public artistUuid?: string) {
-    super();
-  }
-
-  fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<Shows | undefined>> {
-    if (!this.artistUuid) {
-      return Promise.resolve({ type: RelistenApiResponseType.Offline, data: undefined });
-    }
-
-    return api.recentUpdatedShows(this.artistUuid);
-  }
-
-  fetchFromLocal(): Realm.Results<Show> {
-    const recentShows = useQuery(
-      Show,
-      (query) => query.filtered('artistUuid == $0', this.artistUuid),
-      [this.artistUuid]
-    );
-
-    return recentShows;
-  }
-
-  isLocalDataShowable(localData: Realm.Results<Show>): boolean {
-    return localData.length > 0;
-  }
-
-  upsert(realm: Realm, localData: Realm.Results<Show>, apiData: Shows): void {
-    if (!localData.isValid()) {
-      return;
-    }
-
-    const apiVenuesByUuid = R.flatMapToObj(
-      apiData.filter((s) => !!s.venue),
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      (s) => [[s.venue!.uuid, s.venue!]]
-    );
-
-    realm.write(() => {
-      const { createdModels: createdShows } = showRepo.upsertMultiple(realm, apiData, localData);
+      const { createdModels: createdShows } = show2Repo.upsertMultiple(realm, apiData, localData);
 
       for (const show of createdShows.concat(localData)) {
         if (show.venueUuid) {
@@ -341,46 +286,24 @@ export function useShow(showUuid?: string): ShowWithSources | undefined {
   return behavior.fetchFromLocal();
 }
 
-export const useRecentPerformedShows = (artistUuid: string) => {
+export const useRecentShows = (artistUuid: string, activeTab: 'performed' | 'updated') => {
   const behavior = useMemo(() => {
-    return new RecentPerformedShowsNetworkBackedBehavior(artistUuid);
-  }, [artistUuid]);
+    return new RecentShowsNetworkBackedBehavior(artistUuid, activeTab);
+  }, [artistUuid, activeTab]);
 
   return useNetworkBackedBehavior(behavior);
 };
 
-export const useRecentUpdatedShows = (artistUuid: string) => {
-  const behavior = useMemo(() => {
-    return new RecentUpdatedShowsNetworkBackedBehavior(artistUuid);
-  }, [artistUuid]);
-
-  return useNetworkBackedBehavior(behavior);
-};
-
-export function useArtistRecentPerformedShows(artistUuid: string) {
+export function useArtistRecentShows(artistUuid: string, activeTab: 'performed' | 'updated') {
   const artistResults = useArtist(artistUuid, { onlyFetchFromApiIfLocalIsNotShowable: true });
-  const showResults = useRecentPerformedShows(artistUuid);
+  const showResults = useRecentShows(artistUuid, activeTab);
 
   const results = useMemo(() => {
     return mergeNetworkBackedResults({
       shows: showResults,
       artist: artistResults,
     });
-  }, [showResults, artistResults]);
-
-  return results;
-}
-
-export function useArtistRecentUpdatedShows(artistUuid: string) {
-  const artistResults = useArtist(artistUuid, { onlyFetchFromApiIfLocalIsNotShowable: true });
-  const showResults = useRecentUpdatedShows(artistUuid);
-
-  const results = useMemo(() => {
-    return mergeNetworkBackedResults({
-      shows: showResults,
-      artist: artistResults,
-    });
-  }, [showResults, artistResults]);
+  }, [showResults, artistResults, activeTab]);
 
   return results;
 }

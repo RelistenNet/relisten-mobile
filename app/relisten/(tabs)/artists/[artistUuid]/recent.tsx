@@ -4,10 +4,7 @@ import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
 import RowTitle from '@/relisten/components/row_title';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { Show } from '@/relisten/realm/models/show';
-import {
-  useArtistRecentPerformedShows,
-  useArtistRecentUpdatedShows,
-} from '@/relisten/realm/models/show_repo';
+import { useArtistRecentShows } from '@/relisten/realm/models/show_repo';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { useHeaderHeight } from '@react-navigation/elements';
@@ -27,8 +24,7 @@ export default function Page() {
   const { artistUuid } = useLocalSearchParams();
   const headerHeight = useHeaderHeight();
   const [activeTab, setActiveTab] = useState(Tabs.PERFORMED);
-  const performedResults = useArtistRecentPerformedShows(String(artistUuid));
-  const updatedResults = useArtistRecentUpdatedShows(String(artistUuid));
+  const results = useArtistRecentShows(String(artistUuid), activeTab);
 
   useEffect(() => {
     navigation.setOptions({
@@ -36,22 +32,12 @@ export default function Page() {
     });
   }, []);
 
-  return activeTab === Tabs.PERFORMED ? (
-    <RefreshContextProvider networkBackedResults={performedResults}>
+  return (
+    <RefreshContextProvider networkBackedResults={results}>
       <DisappearingHeaderScreen
         headerHeight={headerHeight}
         ScrollableComponent={RecentList}
-        shows={Array.from(performedResults.data.shows)}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-      />
-    </RefreshContextProvider>
-  ) : (
-    <RefreshContextProvider networkBackedResults={updatedResults}>
-      <DisappearingHeaderScreen
-        headerHeight={headerHeight}
-        ScrollableComponent={RecentList}
-        shows={Array.from(updatedResults.data.shows)}
+        shows={Array.from(results.data.shows)}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
       />
