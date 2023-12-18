@@ -14,6 +14,9 @@ struct RelistenStreamable: Record {
     
     @Field
     var albumTitle: String? = nil
+
+    @Field
+    var albumArt: String? = nil
     
     @Field
     var artist: String? = nil
@@ -38,7 +41,7 @@ public class RelistenAudioPlayerModule: Module {
             player?.delegate = self
         }
 
-        Events("onError", "onPlaybackStateChanged", "onPlaybackProgressChanged", "onDownloadProgressChanged", "onTrackChanged")
+        Events("onError", "onPlaybackStateChanged", "onPlaybackProgressChanged", "onDownloadProgressChanged", "onTrackChanged", "onRemoteControl")
 
         Function("currentDuration") {
             return player?.currentDuration
@@ -90,13 +93,13 @@ public class RelistenAudioPlayerModule: Module {
         }
 
         AsyncFunction("play") { (streamable: RelistenStreamable, promise: Promise) in
-            guard let url = streamable.url, let identifier = streamable.identifier, let title = streamable.title, let albumTitle = streamable.albumTitle, let artist = streamable.artist else {
+            guard let url = streamable.url, let identifier = streamable.identifier, let title = streamable.title, let albumArt = streamable.albumArt, let albumTitle = streamable.albumTitle, let artist = streamable.artist else {
                 promise.resolve()
                 return
             }
 
             player?.bassQueue.async {
-                self.player?.play(RelistenGaplessStreamable(url: url, identifier: identifier, title: title, artist: artist, albumTitle: albumTitle))
+                self.player?.play(RelistenGaplessStreamable(url: url, identifier: identifier, title: title, artist: artist, albumTitle: albumTitle, albumArt: albumArt))
                 promise.resolve()
             }
         }
@@ -106,10 +109,10 @@ public class RelistenAudioPlayerModule: Module {
                 player?.setNextStream(nil)
             }
             
-            guard let streamable = streamable,   let url = streamable.url, let identifier = streamable.identifier, let title = streamable.title, let albumTitle = streamable.albumTitle, let artist = streamable.artist else {
+            guard let streamable = streamable,   let url = streamable.url, let identifier = streamable.identifier, let title = streamable.title, let albumTitle = streamable.albumTitle, let albumArt = streamable.albumArt, let artist = streamable.artist else {
                 return
             }
-            player?.setNextStream(RelistenGaplessStreamable(url: url, identifier: identifier, title: title, artist: artist, albumTitle: albumTitle))
+            player?.setNextStream(RelistenGaplessStreamable(url: url, identifier: identifier, title: title, artist: artist, albumTitle: albumTitle, albumArt: albumArt))
         }
 
         AsyncFunction("resume") { (promise: Promise) in
@@ -183,6 +186,12 @@ extension RelistenAudioPlayerModule: RelistenGaplessAudioPlayerDelegate {
         self.sendEvent("onTrackChanged", [
             "previousIdentifier": previousStreamable?.identifier,
             "currentIdentifier": currentStreamable?.identifier,
+        ])
+    }
+    
+    public func remoteControl(method: String) {
+        self.sendEvent("onRemoteControl", [
+            "method": method,
         ])
     }
 

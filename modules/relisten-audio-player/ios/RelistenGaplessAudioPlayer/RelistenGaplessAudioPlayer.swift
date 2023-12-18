@@ -17,7 +17,8 @@ public protocol RelistenGaplessAudioPlayerDelegate {
     func playbackProgressChanged(_ player: RelistenGaplessAudioPlayer, elapsed: TimeInterval?, duration: TimeInterval?)
     func downloadProgressChanged(_ player: RelistenGaplessAudioPlayer, forActiveTrack: Bool, downloadedBytes: UInt64, totalBytes: UInt64)
     func trackChanged(_ player: RelistenGaplessAudioPlayer, previousStreamable: RelistenGaplessStreamable?, currentStreamable: RelistenGaplessStreamable?)
-
+    func remoteControl(method: String)
+    
     func audioSessionWasSetup(_ player: RelistenGaplessAudioPlayer)
 }
 
@@ -27,6 +28,7 @@ public struct RelistenGaplessStreamable {
     let title: String;
     let artist: String;
     let albumTitle: String;
+    let albumArt: String;
 }
 
 
@@ -256,6 +258,7 @@ public class RelistenGaplessAudioPlayer {
             self.maybeSetupBASS()
 
             if self.nextStream != nil, let activeStream = self.activeStream {
+                self.tearDownStream(activeStream.stream);
                 self.mixInNextStream(completedStream: activeStream.stream)
             }
         }
@@ -274,27 +277,29 @@ public class RelistenGaplessAudioPlayer {
     
     
     public func _resume(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
+        self.delegate?.remoteControl(method: "resume");
         self.resume();
         
         return MPRemoteCommandHandlerStatus.success;
     }
 
     public func _pause(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
+        self.delegate?.remoteControl(method: "pause");
         self.pause();
         
         return MPRemoteCommandHandlerStatus.success;
     }
     
     public func _nextTrack(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
-        //        self.next();
-        // TODO: implement
+        self.delegate?.remoteControl(method: "nextTrack");
+        self.next();
         
         return MPRemoteCommandHandlerStatus.success;
     }
     
     public func _prevTrack(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
-        //        self.pause();
-        // TODO: implement
+        self.delegate?.remoteControl(method: "prevTrack");
+        // handled on the JS thread
         
         return MPRemoteCommandHandlerStatus.success;
     }

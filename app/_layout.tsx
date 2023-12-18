@@ -1,4 +1,4 @@
-import 'react-native-gesture-handler';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-get-random-values';
 import 'react-native-reanimated';
 import 'uuid';
@@ -65,10 +65,12 @@ export default function TabLayout() {
           >
             <RelistenPlayerBottomBarProvider>
               <ActionSheetProvider>
-                <SafeAreaProvider>
-                  <StatusBar style="light" />
-                  <Slot />
-                </SafeAreaProvider>
+                <GestureHandlerRootView style={{ flex: 1 }}>
+                  <SafeAreaProvider>
+                    <StatusBar style="light" />
+                    <Slot />
+                  </SafeAreaProvider>
+                </GestureHandlerRootView>
               </ActionSheetProvider>
             </RelistenPlayerBottomBarProvider>
           </ThemeProvider>

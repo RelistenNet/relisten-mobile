@@ -192,6 +192,13 @@ export class RelistenApiClient {
     return this.getJson(`/v2/artists/${artistUuid}/shows/random`, options);
   }
 
+  public topShow(
+    artistUuid: string,
+    options?: RelistenApiRequestOptions
+  ): Promise<RelistenApiResponse<Show[]>> {
+    return this.getJson(`/v2/artists/${artistUuid}/shows/top`, options);
+  }
+
   public years(
     artistUuid: string,
     options?: RelistenApiRequestOptions

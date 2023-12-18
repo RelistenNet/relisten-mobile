@@ -91,6 +91,10 @@ export class RelistenPlayer {
       return;
     }
 
+    // TODO: if track.elapsed > 10 then instead of
+    // switching to prior track, just restart the current one
+    // if elapsed < 10, then go to prior track.
+
     this.queue.playTrackAtIndex(currentIdx - 1);
   }
 

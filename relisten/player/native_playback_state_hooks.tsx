@@ -1,14 +1,16 @@
-import { useEffect, useState } from 'react';
 import {
-  nativePlayer,
   RelistenDownloadProgressChangedEvent,
   RelistenErrorEvent,
   RelistenPlaybackProgressChangedEvent,
   RelistenPlaybackStateChangedEvent,
+  RelistenRemoteControlEvent,
   RelistenTrackChangedEvent,
+  nativePlayer,
 } from '@/modules/relisten-audio-player';
 import { sharedStates } from '@/relisten/player/shared_state';
 import { SharedState } from '@/relisten/util/shared_state';
+import { useEffect, useState } from 'react';
+import { RelistenPlayer } from './relisten_player';
 
 let listenersRegisters = false;
 
@@ -69,6 +71,18 @@ export function addPlayerListeners() {
     }
   );
 
+  const remoteControlListener = nativePlayer.addRemoteControlListener(
+    (event: RelistenRemoteControlEvent) => {
+      console.info('got remoteControl', event.method);
+
+      if (event.method === 'prevTrack') {
+        RelistenPlayer.DEFAULT_INSTANCE.previous();
+      }
+
+      // sharedStates.currentTrackIdentifier.setState(trackChanged.currentIdentifier);
+    }
+  );
+
   const latestErrorListener = nativePlayer.addErrorListener((latestError: RelistenErrorEvent) => {
     console.info('got latestError', latestError);
 
@@ -81,6 +95,7 @@ export function addPlayerListeners() {
     playback.remove();
     trackChangedListener.remove();
     latestErrorListener.remove();
+    return remoteControlListener.remove();
   };
 }
 
