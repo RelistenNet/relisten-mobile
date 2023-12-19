@@ -38,13 +38,13 @@ class RecentShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavi
 
     if (this.activeTab === RecentShowTabs.Performed) {
       return api.recentPerformedShows(this.artistUuid, {
-        bypassRateLimit: true,
-        bypassEtagCaching: true,
+        bypassRateLimit: false,
+        bypassEtagCaching: false,
       });
     } else {
       return api.recentUpdatedShows(this.artistUuid, {
-        bypassRateLimit: true,
-        bypassEtagCaching: true,
+        bypassRateLimit: false,
+        bypassEtagCaching: false,
       });
     }
   }

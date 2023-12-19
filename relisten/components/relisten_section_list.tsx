@@ -4,11 +4,11 @@ import { ReactElement, useMemo } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import { RefreshControl, View } from 'react-native';
 import { RelistenObject } from '../api/models/relisten';
+import { useRelistenPlayerBottomBarContext } from '../player/ui/player_bottom_bar';
 import { RelistenBlue } from '../relisten_blue';
 import { ItemSeparator } from './item_separator';
 import { useRefreshContext } from './refresh_context';
 import { SectionHeader } from './section_header';
-import { useRelistenPlayerBottomBarContext } from '../player/ui/player_bottom_bar';
 
 export type RelistenSectionHeader = { sectionTitle: string };
 export type RelistenSectionListData<T extends RelistenObject> = T | RelistenSectionHeader;
@@ -44,6 +44,7 @@ export const RelistenSectionList = <T extends RelistenObject>({
       internalData.push({ sectionTitle: 'ListHeaderComponent' });
     }
     if (refreshing) {
+      internalData.push({ sectionTitle: 'fake' });
       internalData.push({ sectionTitle: 'LOADING' });
     } else {
       internalData.push(...data);
@@ -51,15 +52,17 @@ export const RelistenSectionList = <T extends RelistenObject>({
     return internalData;
   }, [data, refreshing]);
 
-  const stickyHeaderIndices = useMemo(
-    () =>
-      internalData
-        .map((item, index) => {
-          if ('sectionTitle' in item) return index;
-        })
-        .filter((x) => typeof x !== 'undefined') as number[],
-    [internalData]
-  );
+  // TODO: fix in core - or migrate back to SectionList
+  // reference: https://discord.com/channels/395033814008594436/466023446590259220/1186791164423176275
+  // const stickyHeaderIndices = useMemo(
+  //   () =>
+  //     internalData
+  //       .map((item, index) => {
+  //         if ('sectionTitle' in item) return index;
+  //       })
+  //       .filter((x) => typeof x !== 'undefined') as number[],
+  //   [internalData]
+  // );
 
   return (
     <FlashList
@@ -70,7 +73,7 @@ export const RelistenSectionList = <T extends RelistenObject>({
         // To achieve better performance, specify the type based on the item
         return 'uuid' in item ? 'row' : 'sectionHeader';
       }}
-      stickyHeaderIndices={stickyHeaderIndices}
+      // stickyHeaderIndices={stickyHeaderIndices}
       renderItem={(props) => {
         if (!props?.item) return null;
 
