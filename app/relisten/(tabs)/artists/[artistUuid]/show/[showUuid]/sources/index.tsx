@@ -160,9 +160,6 @@ export const SourceLink = memo(({ link, ...props }: { link: SLink } & TouchableO
 });
 
 export const SourceDetail: React.FC<{ source: Source; show: Show }> = memo(({ show, source }) => {
-  const realm = useRealm();
-  const forceUpdate = useForceUpdate();
-
   return (
     <View className="flex w-full items-center px-4">
       <View className="w-full py-4">
