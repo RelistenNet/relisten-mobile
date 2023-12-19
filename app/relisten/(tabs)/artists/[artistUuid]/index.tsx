@@ -27,6 +27,13 @@ import React, { useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import Realm from 'realm';
 
+export enum YearFilterKey {
+  Library = 'library',
+  Year = 'year',
+  Shows = 'shows',
+  Tapes = 'tapes',
+}
+
 export default function Page() {
   const navigation = useNavigation();
   const { artistUuid } = useLocalSearchParams();
@@ -48,7 +55,14 @@ export default function Page() {
         ScrollableComponent={YearsList}
         artist={artist}
         years={years}
-        filterOptions={{ persistence: { key: ['artists', artistUuid, 'years'].join('/') } }}
+        filterOptions={{
+          persistence: { key: ['artists', artistUuid, 'years'].join('/') },
+          default: {
+            persistenceKey: YearFilterKey.Year,
+            sortDirection: SortDirection.Ascending,
+            active: true,
+          },
+        }}
       />
     </RefreshContextProvider>
   );
@@ -206,13 +220,6 @@ const YearListItem = ({ year }: { year: Year }) => {
     </Link>
   );
 };
-
-export enum YearFilterKey {
-  Library = 'library',
-  Year = 'year',
-  Shows = 'shows',
-  Tapes = 'tapes',
-}
 
 const YEAR_FILTERS: Filter<YearFilterKey, Year>[] = [
   {

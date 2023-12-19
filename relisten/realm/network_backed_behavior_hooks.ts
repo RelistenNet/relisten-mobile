@@ -60,7 +60,6 @@ export function useNetworkBackedBehavior<TLocalData, TApiData>(
   }, [isNetworkLoading, localData]);
 
   useEffect(() => {
-    log.info('Trying to perform network request on mount');
     // if data doesnt exist, show the loading spinner. purposely not putting dataExists in the deps chart.
     refresh(defaultNetworkLoadingValue(behavior.fetchStrategy, dataExists));
   }, [behavior]);

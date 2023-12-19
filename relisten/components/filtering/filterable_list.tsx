@@ -8,7 +8,10 @@ import {
 import { SectionHeader } from '../section_header';
 import { FilterBar } from './filter_bar';
 import { FilterBarButton } from './filter_bar_buttons';
-import { useFilters } from './filters';
+import { Filter, SortDirection, useFilters } from './filters';
+import { log } from '@/relisten/util/logging';
+
+const logger = log.extend('filter');
 
 export type FilterableListProps<T extends RelistenObject> = {
   data: ReadonlyArray<T>;
@@ -74,6 +77,18 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
 
     return r;
   }, [data, customSectionTitle, customSectionTitles, filter, filters, filteringEnabled]);
+
+  function filterToString<K extends string, T>(f: Filter<K, T>) {
+    return `${f.title}${f.active ? '*' : ''}${
+      f.sortDirection !== undefined
+        ? f.sortDirection === SortDirection.Descending
+          ? ' desc'
+          : ' asc'
+        : ''
+    }`;
+  }
+
+  logger.debug(filters.map(filterToString).join('; '));
 
   return (
     <RelistenSectionList

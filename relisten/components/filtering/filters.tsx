@@ -63,31 +63,30 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
       }
     }
 
+    if (persistedFilters) {
+      for (const filter of filters) {
+        const persistedFilter = persistedFilters[filter.persistenceKey];
+
+        if (persistedFilter && persistedFilter.persistenceKey === filter.persistenceKey) {
+          filter.active = persistedFilter.active;
+          filter.sortDirection = persistedFilter.sortDirection;
+        } else {
+          filter.active = false;
+        }
+      }
+    }
+
     setPreparedFilters([...filters]);
-  }, [filters, options?.default, setPreparedFilters]);
+  }, [filters, options?.default, persistedFilters, setPreparedFilters]);
 
   const filter = useCallback(
     (allData: ReadonlyArray<T>) => {
       const filteredData: T[] = [];
 
-      // merge pre-defined filters with persisted/user filters
-      const mergedFilters = preparedFilters.map((filter) => {
-        const persistedFilter = persistedFilters?.[filter.persistenceKey];
-
-        if (persistedFilter) {
-          return {
-            ...filter,
-            ...persistedFilter,
-          };
-        }
-
-        return filter;
-      });
-
       for (const row of allData) {
         let allowed = true;
 
-        for (const filter of mergedFilters) {
+        for (const filter of preparedFilters) {
           if (filter.active && filter?.filter && !filter.filter(row)) {
             allowed = false;
             break;
@@ -99,7 +98,7 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
         }
       }
 
-      for (const filter of mergedFilters) {
+      for (const filter of preparedFilters) {
         if (filter.active && filter.sort) {
           filter.sort(filteredData);
 
@@ -113,7 +112,7 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
 
       return filteredData;
     },
-    [preparedFilters, persistedFilters]
+    [preparedFilters]
   );
 
   const onFilterButtonPress = useCallback(
