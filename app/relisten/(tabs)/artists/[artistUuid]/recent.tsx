@@ -46,8 +46,6 @@ export default function Page() {
     return results.data.shows.slice(0, 25);
   }, [results.data.shows]);
 
-  console.log('RecentPage', 'activeTab', activeTab, 'setActiveTab', setActiveTab);
-
   return (
     <RefreshContextProvider networkBackedResults={results}>
       <DisappearingHeaderScreen
@@ -58,6 +56,7 @@ export default function Page() {
         renderItem={showListRenderItem}
         // filtering is provided by realm/the API response
         filtering={false}
+        extraData={{ activeTab }}
       />
     </RefreshContextProvider>
   );
@@ -69,14 +68,6 @@ interface RecentHeaderProps {
 }
 
 const RecentHeader = ({ activeTab, setActiveTab }: RecentHeaderProps) => {
-  console.log('RecentHeader', 'activeTab', activeTab, 'setActiveTab', setActiveTab);
-  console.log(
-    'RecentHeader',
-    'Performed',
-    clsx('flex-1 rounded-none rounded-l-md', {
-      'bg-relisten-blue-600': activeTab === RecentShowTabs.Performed,
-    })
-  );
   return (
     <>
       <RelistenText

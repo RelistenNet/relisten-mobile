@@ -15,6 +15,13 @@ import { RelistenObjectRequiredProperties } from './relisten_object';
 import { RelistenApiUpdatableObject, Repository } from './repository';
 import { useRealm } from './schema';
 
+const defaultNetworkLoadingValue = (
+  fetchStrategy: NetworkBackedBehaviorFetchStrategy,
+  dataExists: boolean
+) => {
+  return fetchStrategy === NetworkBackedBehaviorFetchStrategy.NetworkAlwaysFirst || !dataExists;
+};
+
 export function useNetworkBackedBehavior<TLocalData, TApiData>(
   behavior: NetworkBackedBehavior<TLocalData, TApiData>
 ): NetworkBackedResults<TLocalData> {
@@ -25,7 +32,7 @@ export function useNetworkBackedBehavior<TLocalData, TApiData>(
 
   // if data doesn't exist, initialize the loading state
   const [isNetworkLoading, setIsNetworkLoading] = useState(
-    behavior.fetchStrategy === NetworkBackedBehaviorFetchStrategy.NetworkAlwaysFirst || !dataExists
+    defaultNetworkLoadingValue(behavior.fetchStrategy, dataExists)
   );
 
   const refresh = async (shouldForceLoadingSpinner: boolean) => {
@@ -54,8 +61,8 @@ export function useNetworkBackedBehavior<TLocalData, TApiData>(
 
   useEffect(() => {
     log.info('Trying to perform network request on mount');
-    // if data doesnt exist, show the loading spinner
-    refresh(false);
+    // if data doesnt exist, show the loading spinner. purposely not putting dataExists in the deps chart.
+    refresh(defaultNetworkLoadingValue(behavior.fetchStrategy, dataExists));
   }, [behavior]);
 
   return results;

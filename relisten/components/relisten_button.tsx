@@ -62,10 +62,6 @@ export const RelistenButton = React.forwardRef<any, ButtonProps>(
   ({ children, cn, icon, intent, rounded, textClassName, disabled, ...props }, ref) => {
     const cls = tw(buttonVariants({ disabled, intent, rounded }), cn);
 
-    console.log('Button', children, buttonVariants({ disabled, intent, rounded }));
-    console.log('Button', children, cn);
-    console.log('Button', children, cls);
-
     return (
       <TouchableOpacity ref={ref as any} className={cls} {...props} disabled={disabled}>
         {icon && <View className="pr-1">{icon}</View>}

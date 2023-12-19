@@ -39,14 +39,14 @@ export const RelistenSectionList = <T extends RelistenObject>({
   // ..
   // it's to fix a flashlist bug: https://github.com/Shopify/flash-list/issues/727
   const internalData = useMemo(() => {
-    let internalData: (T | RelistenSectionHeader)[] = [];
+    const internalData: (T | RelistenSectionHeader)[] = [];
     if (ListHeaderComponent) {
-      internalData = [{ sectionTitle: 'ListHeaderComponent' }, ...data];
-    } else {
-      internalData = [...data];
+      internalData.push({ sectionTitle: 'ListHeaderComponent' });
     }
     if (refreshing) {
       internalData.push({ sectionTitle: 'LOADING' });
+    } else {
+      internalData.push(...data);
     }
     return internalData;
   }, [data, refreshing]);
