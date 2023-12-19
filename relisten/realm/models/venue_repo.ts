@@ -5,6 +5,7 @@ import { useArtist } from './artist_repo';
 import { mergeNetworkBackedResults } from '../network_backed_results';
 import { useMemo } from 'react';
 import { Venue } from './venue';
+import { NetworkBackedBehaviorFetchStrategy } from '@/relisten/realm/network_backed_behavior';
 
 export const venueRepo = new Repository(Venue);
 
@@ -25,7 +26,7 @@ export const useVenues = (artistUuid: string) => {
 };
 
 export const useArtistVenues = (artistUuid: string) => {
-  const artistResults = useArtist(artistUuid, { onlyFetchFromApiIfLocalIsNotShowable: true });
+  const artistResults = useArtist(artistUuid);
   const venuesResults = useVenues(artistUuid);
 
   const results = useMemo(() => {

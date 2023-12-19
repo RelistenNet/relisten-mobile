@@ -16,15 +16,15 @@ import { ProgressView } from '@react-native-community/progress-view';
 import { useObject } from '@/relisten/realm/schema';
 import { Show } from '@/relisten/realm/models/show';
 
+import { NetworkBackedBehaviorFetchStrategy } from '@/relisten/realm/network_backed_behavior';
+
 function PlayerBottomBarContents() {
   const currentTrack = useRelistenPlayerCurrentTrack();
   const playbackState = useRelistenPlayerPlaybackState();
   const player = useRelistenPlayer();
   const progress = useNativePlaybackProgress();
 
-  const artist = useArtist(currentTrack?.sourceTrack?.artistUuid, {
-    onlyFetchFromApiIfLocalIsNotShowable: true,
-  });
+  const artist = useArtist(currentTrack?.sourceTrack?.artistUuid);
   const showCache = useObject(Show, currentTrack?.sourceTrack?.showUuid || '');
 
   const subtitle = [

@@ -3,10 +3,11 @@ import { useQuery } from '../schema';
 import { useMemo } from 'react';
 import { Artist } from './artist';
 import { NetworkBackedResults } from '../network_backed_results';
+import { createNetworkBackedModelArrayHook } from '../network_backed_behavior_hooks';
 import {
-  createNetworkBackedModelArrayHook,
-  NetworkBackedHookOptions,
-} from '../network_backed_behavior_hooks';
+  NetworkBackedBehaviorFetchStrategy,
+  NetworkBackedBehaviorOptions,
+} from '@/relisten/realm/network_backed_behavior';
 
 export const artistRepo = new Repository(Artist);
 export const useArtists = createNetworkBackedModelArrayHook(
@@ -17,9 +18,12 @@ export const useArtists = createNetworkBackedModelArrayHook(
 
 export function useArtist(
   artistUuid?: string,
-  options?: NetworkBackedHookOptions
+  options?: NetworkBackedBehaviorOptions
 ): NetworkBackedResults<Artist | null> {
-  const artists = useArtists(options);
+  const artists = useArtists({
+    fetchStrategy: NetworkBackedBehaviorFetchStrategy.NetworkOnlyIfLocalIsNotShowable,
+    ...options,
+  });
 
   const artistQuery = useMemo(() => {
     return artists.data.filtered('uuid == $0', artistUuid);

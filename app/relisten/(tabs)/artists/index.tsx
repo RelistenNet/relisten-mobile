@@ -95,15 +95,6 @@ export default function Page() {
     setTabBarHeight(bottomTabBarHeight);
   }, [bottomTabBarHeight, setTabBarHeight]);
 
-  // const navigation = useNavigation();
-
-  // useEffect(() => {
-  //   if (!artists) {
-  //     navigation.setOptions({ title: 'Artists' });
-  //   } else {
-  //     navigation.setOptions({ title: `${artists.length} Artists` });
-  //   }
-  // }, [artists]);
 
   return (
     <View style={{ flex: 1, width: '100%' }}>

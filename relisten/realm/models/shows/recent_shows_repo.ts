@@ -12,13 +12,23 @@ import { useMemo } from 'react';
 import { mergeNetworkBackedResults } from '@/relisten/realm/network_backed_results';
 import { useNetworkBackedBehavior } from '@/relisten/realm/network_backed_behavior_hooks';
 import { ShowsWithVenueNetworkBackedBehavior } from '@/relisten/realm/models/shows/show_with_venues_behavior';
+import {
+  NetworkBackedBehaviorFetchStrategy,
+  NetworkBackedBehaviorOptions,
+} from '@/relisten/realm/network_backed_behavior';
+
+export enum RecentShowTabs {
+  Performed = 'performed',
+  Updated = 'updated',
+}
 
 class RecentShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavior {
   constructor(
     public artistUuid?: string,
-    public activeTab?: 'performed' | 'updated'
+    public activeTab?: RecentShowTabs,
+    options?: NetworkBackedBehaviorOptions
   ) {
-    super();
+    super(artistUuid, options);
   }
 
   fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<ApiShow[] | undefined>> {
@@ -26,15 +36,21 @@ class RecentShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavi
       return Promise.resolve({ type: RelistenApiResponseType.Offline, data: undefined });
     }
 
-    if (this.activeTab === 'performed') {
-      return api.recentPerformedShows(this.artistUuid);
+    if (this.activeTab === RecentShowTabs.Performed) {
+      return api.recentPerformedShows(this.artistUuid, {
+        bypassRateLimit: true,
+        bypassEtagCaching: true,
+      });
     } else {
-      return api.recentUpdatedShows(this.artistUuid);
+      return api.recentUpdatedShows(this.artistUuid, {
+        bypassRateLimit: true,
+        bypassEtagCaching: true,
+      });
     }
   }
 
   fetchFromLocal(): Realm.Results<Show> {
-    const sortKey = this.activeTab === 'performed' ? 'date' : 'updatedAt';
+    const sortKey = this.activeTab === RecentShowTabs.Performed ? 'date' : 'updatedAt';
     return useQuery(
       Show,
       (query) => query.filtered('artistUuid == $0', this.artistUuid).sorted(sortKey, true),
@@ -43,16 +59,18 @@ class RecentShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavi
   }
 }
 
-export const useRecentShows = (artistUuid: string, activeTab: 'performed' | 'updated') => {
+export const useRecentShows = (artistUuid: string, activeTab: RecentShowTabs) => {
   const behavior = useMemo(() => {
-    return new RecentShowsNetworkBackedBehavior(artistUuid, activeTab);
+    return new RecentShowsNetworkBackedBehavior(artistUuid, activeTab, {
+      fetchStrategy: NetworkBackedBehaviorFetchStrategy.NetworkAlwaysFirst,
+    });
   }, [artistUuid, activeTab]);
 
   return useNetworkBackedBehavior(behavior);
 };
 
-export function useArtistRecentShows(artistUuid: string, activeTab: 'performed' | 'updated') {
-  const artistResults = useArtist(artistUuid, { onlyFetchFromApiIfLocalIsNotShowable: true });
+export function useArtistRecentShows(artistUuid: string, activeTab: RecentShowTabs) {
+  const artistResults = useArtist(artistUuid);
   const showResults = useRecentShows(artistUuid, activeTab);
 
   const results = useMemo(() => {

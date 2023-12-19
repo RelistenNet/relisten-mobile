@@ -15,6 +15,7 @@ export type FilterableListProps<T extends RelistenObject> = {
   customSectionTitle?: (row: T) => string | undefined;
   customSectionTitles?: string[];
   hideFilterBar?: boolean;
+  filtering?: boolean;
 } & RelistenSectionListProps<T>;
 
 const ALL_SECTION_SENTINEL = '__ALL__';
@@ -24,12 +25,19 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
   customSectionTitle,
   customSectionTitles,
   hideFilterBar,
+  filtering,
   ...props
 }: FilterableListProps<T>) => {
   const { filters, onFilterButtonPress, filter } = useFilters<K, T>();
 
+  const filteringEnabled = filtering !== undefined ? filtering : true;
+
+  if (!filteringEnabled) {
+    hideFilterBar = true;
+  }
+
   const sectionedData: ReadonlyArray<T | RelistenSectionHeader> = useMemo(() => {
-    const filteredData = filter(data);
+    const filteredData = filteringEnabled ? filter(data) : data;
     if (!customSectionTitle || !customSectionTitles) {
       return [{ sectionTitle: ALL_SECTION_SENTINEL }, ...(filteredData || [])];
     }
@@ -65,11 +73,10 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
     r.push(...(filteredData || []));
 
     return r;
-  }, [data, customSectionTitle, customSectionTitles, filter, filters]);
+  }, [data, customSectionTitle, customSectionTitles, filter, filters, filteringEnabled]);
 
   return (
     <RelistenSectionList
-      // sections={sectionedData}
       data={sectionedData}
       pullToRefresh
       {...props}

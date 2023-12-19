@@ -9,7 +9,10 @@ import { NetworkBackedResults } from '../network_backed_results';
 import { firstBy } from 'thenby';
 import { RelistenApiClient, RelistenApiResponse, RelistenApiResponseType } from '../../api/client';
 import { ShowWithSources as ApiShowWithSources } from '../../api/models/source';
-import { ThrottledNetworkBackedBehavior } from '../network_backed_behavior';
+import {
+  NetworkBackedBehaviorOptions,
+  ThrottledNetworkBackedBehavior,
+} from '../network_backed_behavior';
 import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
 import { useObject, useQuery, useRealm } from '../schema';
 import { Show } from './show';
@@ -64,9 +67,10 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
 > {
   constructor(
     public showUuid?: string,
-    public sourceUuid?: string
+    public sourceUuid?: string,
+    options?: NetworkBackedBehaviorOptions
   ) {
-    super();
+    super(options);
   }
 
   fetchFromApi(

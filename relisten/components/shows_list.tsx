@@ -1,5 +1,5 @@
 import { Link } from 'expo-router';
-import React, { useMemo } from 'react';
+import React, { ReactNode, useMemo } from 'react';
 import Realm from 'realm';
 import { Artist } from '../realm/models/artist';
 import { Show } from '../realm/models/show';
@@ -15,7 +15,13 @@ import { SectionedListItem } from './sectioned_list_item';
 import { ListRenderItem } from '@shopify/flash-list';
 import { View } from 'react-native';
 
-const ShowListItem = ({ show }: { show: Show }) => {
+interface ShowListItemProps {
+  show: Show;
+  favoriteButton?: boolean;
+  children?: ReactNode;
+}
+
+export const ShowListItem = ({ show, favoriteButton, children }: ShowListItemProps) => {
   return (
     <Link
       href={{
@@ -49,8 +55,9 @@ const ShowListItem = ({ show }: { show: Show }) => {
                 {show.venue && `${show.venue.name}, ${show.venue.location}`}
               </SubtitleText>
             </SubtitleRow>
+            {children}
           </Flex>
-          <FavoriteObjectButton object={show} />
+          {favoriteButton && <FavoriteObjectButton object={show} />}
         </Flex>
       </SectionedListItem>
     </Link>
@@ -120,14 +127,14 @@ const DEFAULT_SHOW_FILTER = {
 };
 
 interface ShowListProps {
-  shows: Realm.Results<Show>;
+  shows: Realm.Results<Show> | ReadonlyArray<Show>;
   artist: Artist | null;
-  filterOptions: FilteringOptions<ShowFilterKey>;
-  children: React.ComponentType<unknown> | React.ReactElement | null | undefined;
+  filterOptions?: FilteringOptions<ShowFilterKey>;
+  ListHeaderComponent?: React.ReactElement;
   renderItem?: ListRenderItem<Show>;
 }
 
-const defaultRenderItem: ListRenderItem<Show> = ({ item: show }) => {
+const showListRenderItemDefault: ListRenderItem<Show> = ({ item: show }) => {
   return <ShowListItem show={show} />;
 };
 
@@ -146,12 +153,11 @@ export const ShowList = ({
   return (
     <FilteringProvider
       filters={SHOW_FILTERS}
-      options={{ default: DEFAULT_SHOW_FILTER, ...filterOptions }}
+      options={{ default: DEFAULT_SHOW_FILTER, ...(filterOptions || {}) }}
     >
       <FilterableList
-        ListHeaderComponent={children}
         data={allShows}
-        renderItem={renderItem || defaultRenderItem}
+        renderItem={renderItem || showListRenderItemDefault}
         {...props}
       />
     </FilteringProvider>
