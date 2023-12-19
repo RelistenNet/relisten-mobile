@@ -7,12 +7,21 @@ import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappea
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useArtistRecentShows } from '@/relisten/realm/models/shows/recent_shows_repo';
-import { ShowList } from '@/relisten/components/shows_list';
+import { ShowFilterKey, ShowList } from '@/relisten/components/shows_list';
+import { SortDirection } from '@/relisten/components/filtering/filters';
 
 enum Tabs {
   PERFORMED = 'performed',
   UPDATED = 'updated',
 }
+
+const recentFilterOptions = {
+  default: {
+    persistenceKey: ShowFilterKey.Date,
+    active: true,
+    sortDirection: SortDirection.Descending,
+  },
+};
 
 export default function Page() {
   const navigation = useNavigation();
@@ -32,8 +41,8 @@ export default function Page() {
         ScrollableComponent={ShowList}
         shows={results.data.shows}
         artist={results.data.artist}
-        filterPersistenceKey={['artists', artistUuid, 'recent'].join('/')}
-        hideFilterBar={true}
+        filterOptions={recentFilterOptions}
+        hideFilterBar={false}
       >
         <RecentHeader activeTab={activeTab} setActiveTab={setActiveTab} />
       </DisappearingHeaderScreen>

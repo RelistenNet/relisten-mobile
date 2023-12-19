@@ -12,7 +12,12 @@ import {
 } from '@/relisten/components/filtering/filterable_list';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import Plur from '@/relisten/components/plur';
-import { Filter, FilteringProvider, SortDirection } from '@/relisten/components/filtering/filters';
+import {
+  Filter,
+  FilteringOptions,
+  FilteringProvider,
+  SortDirection,
+} from '@/relisten/components/filtering/filters';
 import { Tour } from '@/relisten/realm/models/tour';
 import dayjs from 'dayjs';
 
@@ -26,7 +31,7 @@ export default function Page() {
       <DisappearingHeaderScreen
         ScrollableComponent={TourList}
         tours={Array.from(data.tours)}
-        filterPersistenceKey={['artists', artistUuid, 'tours'].join('/')}
+        filterOptions={{ persistence: { key: ['artists', artistUuid, 'tours'].join('/') } }}
       />
     </RefreshContextProvider>
   );
@@ -74,10 +79,20 @@ const TourHeader = ({ tours }: TourHeaderProps) => {
   );
 };
 
-const TOUR_FILTERS: Filter<Tour>[] = [
-  { persistenceKey: 'library', title: 'My Library', active: false, filter: (y) => y.isFavorite },
+export enum TourFilterKey {
+  Library = 'library',
+  Name = 'name',
+}
+
+const TOUR_FILTERS: Filter<TourFilterKey, Tour>[] = [
   {
-    persistenceKey: 'name',
+    persistenceKey: TourFilterKey.Library,
+    title: 'My Library',
+    active: false,
+    filter: (y) => y.isFavorite,
+  },
+  {
+    persistenceKey: TourFilterKey.Name,
     title: 'Name',
     sortDirection: SortDirection.Descending,
     active: true,
@@ -88,15 +103,15 @@ const TOUR_FILTERS: Filter<Tour>[] = [
 
 interface TourListProps {
   tours: Tour[];
-  filterPersistenceKey: string;
+  filterOptions: FilteringOptions<TourFilterKey>;
 }
 
 const TourList = ({
   tours,
-  filterPersistenceKey,
+  filterOptions,
 }: TourListProps & Omit<FilterableListProps<Tour>, 'data' | 'renderItem'>) => {
   return (
-    <FilteringProvider filters={TOUR_FILTERS} filterPersistenceKey={filterPersistenceKey}>
+    <FilteringProvider filters={TOUR_FILTERS} options={filterOptions}>
       <FilterableList
         ListHeaderComponent={<TourHeader tours={tours} />}
         className="w-full flex-1"

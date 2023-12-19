@@ -12,7 +12,12 @@ import {
 } from '@/relisten/components/filtering/filterable_list';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import Plur from '@/relisten/components/plur';
-import { Filter, FilteringProvider, SortDirection } from '@/relisten/components/filtering/filters';
+import {
+  Filter,
+  FilteringOptions,
+  FilteringProvider,
+  SortDirection,
+} from '@/relisten/components/filtering/filters';
 import { Song } from '@/relisten/realm/models/song';
 
 export default function Page() {
@@ -25,7 +30,7 @@ export default function Page() {
       <DisappearingHeaderScreen
         ScrollableComponent={SongList}
         songs={Array.from(data.songs)}
-        filterPersistenceKey={['artists', artistUuid, 'songs'].join('/')}
+        filterOptions={{ persistence: { key: ['artists', artistUuid, 'songs'].join('/') } }}
       />
     </RefreshContextProvider>
   );
@@ -71,10 +76,21 @@ const SongHeader = ({ songs }: SongHeaderProps) => {
   );
 };
 
-const SONG_FILTERS: Filter<Song>[] = [
-  { persistenceKey: 'library', title: 'My Library', active: false, filter: (y) => y.isFavorite },
+export enum SongFilterPersistenceKey {
+  Library = 'library',
+  Name = 'name',
+  Plays = 'plays',
+}
+
+const SONG_FILTERS: Filter<SongFilterPersistenceKey, Song>[] = [
   {
-    persistenceKey: 'name',
+    persistenceKey: SongFilterPersistenceKey.Library,
+    title: 'My Library',
+    active: false,
+    filter: (y) => y.isFavorite,
+  },
+  {
+    persistenceKey: SongFilterPersistenceKey.Name,
     title: 'Name',
     sortDirection: SortDirection.Descending,
     active: true,
@@ -82,7 +98,7 @@ const SONG_FILTERS: Filter<Song>[] = [
     sort: (songs) => songs.sort((a, b) => a.name.localeCompare(b.name)),
   },
   {
-    persistenceKey: 'plays',
+    persistenceKey: SongFilterPersistenceKey.Plays,
     title: '# of Plays',
     sortDirection: SortDirection.Descending,
     active: false,
@@ -93,15 +109,15 @@ const SONG_FILTERS: Filter<Song>[] = [
 
 interface SongListProps {
   songs: Song[];
-  filterPersistenceKey: string;
+  filterOptions: FilteringOptions<SongFilterPersistenceKey>;
 }
 
 const SongList = ({
   songs,
-  filterPersistenceKey,
+  filterOptions,
 }: SongListProps & Omit<FilterableListProps<Song>, 'data' | 'renderItem'>) => {
   return (
-    <FilteringProvider filters={SONG_FILTERS} filterPersistenceKey={filterPersistenceKey}>
+    <FilteringProvider filters={SONG_FILTERS} options={filterOptions}>
       <FilterableList
         ListHeaderComponent={<SongHeader songs={songs} />}
         className="w-full flex-1"

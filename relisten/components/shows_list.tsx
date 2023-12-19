@@ -3,10 +3,9 @@ import React, { useMemo } from 'react';
 import Realm from 'realm';
 import { Artist } from '../realm/models/artist';
 import { Show } from '../realm/models/show';
-import { Year } from '../realm/models/year';
 import { FavoriteObjectButton } from './favorite_icon_button';
 import { FilterableList, FilterableListProps } from './filtering/filterable_list';
-import { Filter, FilteringProvider, SortDirection } from './filtering/filters';
+import { Filter, FilteringOptions, FilteringProvider, SortDirection } from './filtering/filters';
 import Flex from './flex';
 import Plur from './plur';
 import { RelistenText } from './relisten_text';
@@ -14,6 +13,7 @@ import { SubtitleRow, SubtitleText } from './row_subtitle';
 import RowTitle from './row_title';
 import { SectionedListItem } from './sectioned_list_item';
 import { ListRenderItem } from '@shopify/flash-list';
+import { View } from 'react-native';
 
 const ShowListItem = ({ show }: { show: Show }) => {
   return (
@@ -37,12 +37,16 @@ const ShowListItem = ({ show }: { show: Show }) => {
               {show.hasSoundboardSource && (
                 <RelistenText cn="text-xs font-bold text-relisten-blue-600">SBD</RelistenText>
               )}
+              <View className="grow" />
+              <SubtitleText>
+                {show.humanizedAvgRating()} ★ &middot; {show.humanizedAvgDuration()}
+              </SubtitleText>
             </Flex>
             <SubtitleRow>
               <SubtitleText>
-                {show.venue && `${show.venue.name}, ${show.venue.location} · `}
-                <Plur word="tape" count={show.sourceCount} /> &middot; {show.humanizedAvgRating()} ★
-                &middot; {show.humanizedAvgDuration()}
+                <Plur word="tape" count={show.sourceCount} />
+                &nbsp;&middot;&nbsp;
+                {show.venue && `${show.venue.name}, ${show.venue.location}`}
               </SubtitleText>
             </SubtitleRow>
           </Flex>
@@ -53,52 +57,72 @@ const ShowListItem = ({ show }: { show: Show }) => {
   );
 };
 
-const SHOW_FILTERS: Filter<Show>[] = [
-  { persistenceKey: 'library', title: 'My Library', active: false, filter: (y) => y.isFavorite },
+export enum ShowFilterKey {
+  Library = 'library',
+  Soundboard = 'soundboard',
+  Date = 'date',
+  Rating = 'rating',
+  Tapes = 'tapes',
+  Duration = 'duration',
+}
+
+const SHOW_FILTERS: Filter<ShowFilterKey, Show>[] = [
   {
-    persistenceKey: 'soundboard',
+    persistenceKey: ShowFilterKey.Library,
+    title: 'My Library',
+    active: false,
+    filter: (show) => show.isFavorite,
+  },
+  {
+    persistenceKey: ShowFilterKey.Soundboard,
     title: 'SBD',
     active: false,
-    filter: (y) => y.hasSoundboardSource,
+    filter: (show) => show.hasSoundboardSource,
   },
   {
-    persistenceKey: 'date',
+    persistenceKey: ShowFilterKey.Date,
     title: 'Date',
     sortDirection: SortDirection.Ascending,
-    active: true,
+    active: false,
     isNumeric: true,
-    sort: (years) => years.sort((a, b) => a.displayDate.localeCompare(b.displayDate)),
+    sort: (shows) => shows.sort((a, b) => a.displayDate.localeCompare(b.displayDate)),
   },
   {
-    persistenceKey: 'rating',
+    persistenceKey: ShowFilterKey.Rating,
     title: 'Rating',
     sortDirection: SortDirection.Descending,
     active: false,
     isNumeric: true,
-    sort: (years) => years.sort((a, b) => a.avgRating - b.avgRating),
+    sort: (shows) => shows.sort((a, b) => a.avgRating - b.avgRating),
   },
   {
-    persistenceKey: 'tapes',
+    persistenceKey: ShowFilterKey.Tapes,
     title: 'Tapes',
     sortDirection: SortDirection.Descending,
     active: false,
     isNumeric: true,
-    sort: (years) => years.sort((a, b) => a.sourceCount - b.sourceCount),
+    sort: (shows) => shows.sort((a, b) => a.sourceCount - b.sourceCount),
   },
   {
-    persistenceKey: 'duration',
+    persistenceKey: ShowFilterKey.Duration,
     title: 'Duration',
     sortDirection: SortDirection.Descending,
     active: false,
     isNumeric: true,
-    sort: (years) => years.sort((a, b) => (a.avgDuration || 0) - (b.avgDuration || 0)),
+    sort: (shows) => shows.sort((a, b) => (a.avgDuration || 0) - (b.avgDuration || 0)),
   },
 ];
+
+const DEFAULT_SHOW_FILTER = {
+  persistenceKey: ShowFilterKey.Date,
+  sortDirection: SortDirection.Ascending,
+  active: true,
+};
 
 interface ShowListProps {
   shows: Realm.Results<Show>;
   artist: Artist | null;
-  filterPersistenceKey?: string;
+  filterOptions: FilteringOptions<ShowFilterKey>;
   children: React.ComponentType<unknown> | React.ReactElement | null | undefined;
   renderItem?: ListRenderItem<Show>;
 }
@@ -111,8 +135,8 @@ export const ShowList = ({
   shows,
   artist,
   children,
-  filterPersistenceKey,
   renderItem,
+  filterOptions,
   ...props
 }: ShowListProps & Omit<FilterableListProps<Show>, 'data' | 'renderItem'>) => {
   const allShows = useMemo(() => {
@@ -120,7 +144,10 @@ export const ShowList = ({
   }, [shows]);
 
   return (
-    <FilteringProvider filters={SHOW_FILTERS} filterPersistenceKey={filterPersistenceKey}>
+    <FilteringProvider
+      filters={SHOW_FILTERS}
+      options={{ default: DEFAULT_SHOW_FILTER, ...filterOptions }}
+    >
       <FilterableList
         ListHeaderComponent={children}
         data={allShows}

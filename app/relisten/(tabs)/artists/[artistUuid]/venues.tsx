@@ -13,7 +13,12 @@ import {
 } from '@/relisten/components/filtering/filterable_list';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import Plur from '@/relisten/components/plur';
-import { Filter, FilteringProvider, SortDirection } from '@/relisten/components/filtering/filters';
+import {
+  Filter,
+  FilteringOptions,
+  FilteringProvider,
+  SortDirection,
+} from '@/relisten/components/filtering/filters';
 
 export default function Page() {
   const { artistUuid } = useLocalSearchParams();
@@ -25,7 +30,7 @@ export default function Page() {
       <DisappearingHeaderScreen
         ScrollableComponent={VenueList}
         venues={Array.from(data.venues)}
-        filterPersistenceKey={['artists', artistUuid, 'venues'].join('/')}
+        filterOptions={{ persistence: { key: ['artists', artistUuid, 'venues'].join('/') } }}
       />
     </RefreshContextProvider>
   );
@@ -71,10 +76,21 @@ const VenueHeader = ({ venues }: VenueHeaderProps) => {
   );
 };
 
-const VENUE_FILTERS: Filter<Venue>[] = [
-  { persistenceKey: 'library', title: 'My Library', active: false, filter: (y) => y.isFavorite },
+export enum VenueFilterKey {
+  Library = 'library',
+  Name = 'name',
+  Shows = 'shows',
+}
+
+const VENUE_FILTERS: Filter<VenueFilterKey, Venue>[] = [
   {
-    persistenceKey: 'name',
+    persistenceKey: VenueFilterKey.Library,
+    title: 'My Library',
+    active: false,
+    filter: (y) => y.isFavorite,
+  },
+  {
+    persistenceKey: VenueFilterKey.Name,
     title: 'Name',
     sortDirection: SortDirection.Descending,
     active: true,
@@ -82,7 +98,7 @@ const VENUE_FILTERS: Filter<Venue>[] = [
     sort: (venues) => venues.sort((a, b) => a.name.localeCompare(b.name)),
   },
   {
-    persistenceKey: 'shows',
+    persistenceKey: VenueFilterKey.Shows,
     title: '# of Shows',
     sortDirection: SortDirection.Descending,
     active: false,
@@ -93,15 +109,15 @@ const VENUE_FILTERS: Filter<Venue>[] = [
 
 interface VenueListProps {
   venues: Venue[];
-  filterPersistenceKey: string;
+  filterOptions: FilteringOptions<VenueFilterKey>;
 }
 
 const VenueList = ({
   venues,
-  filterPersistenceKey,
+  filterOptions,
 }: VenueListProps & Omit<FilterableListProps<Venue>, 'data' | 'renderItem'>) => {
   return (
-    <FilteringProvider filters={VENUE_FILTERS} filterPersistenceKey={filterPersistenceKey}>
+    <FilteringProvider filters={VENUE_FILTERS} options={filterOptions}>
       <FilterableList
         ListHeaderComponent={<VenueHeader venues={venues} />}
         className="w-full flex-1"
