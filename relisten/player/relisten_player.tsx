@@ -2,8 +2,9 @@ import {
   nativePlayer,
   RelistenErrorEvent,
   RelistenPlaybackState,
+  RelistenRemoteControlEvent,
 } from '@/modules/relisten-audio-player';
-import { latestError, state } from '@/relisten/player/shared_state';
+import { latestError, remoteControlEvent, state } from '@/relisten/player/shared_state';
 import { addPlayerListeners } from '@/relisten/player/native_playback_state_hooks';
 import { RelistenPlayerQueue } from '@/relisten/player/relisten_player_queue';
 import { EventSource } from '@/relisten/util/event_source';
@@ -123,6 +124,7 @@ export class RelistenPlayer {
     addPlayerListeners();
     state.addListener(this.onNativePlayerStateChanged);
     latestError.addListener(this.onNativePlayerError);
+    remoteControlEvent.addListener(this.onRemoteControlEvent);
     this._queue.addPlayerListeners();
 
     this.addedPlayerListeners = true;
@@ -135,6 +137,7 @@ export class RelistenPlayer {
 
     state.removeListener(this.onNativePlayerStateChanged);
     latestError.removeListener(this.onNativePlayerError);
+    remoteControlEvent.removeListener(this.onRemoteControlEvent);
     this._queue.removePlayerListeners();
 
     this.addedPlayerListeners = false;
@@ -144,6 +147,12 @@ export class RelistenPlayer {
     if (this._state != newState) {
       this._state = newState;
       this.onStateChanged.dispatch(newState);
+    }
+  };
+
+  private onRemoteControlEvent = (event: RelistenRemoteControlEvent) => {
+    if (event.method === 'prevTrack') {
+      this.previous();
     }
   };
 

@@ -11,7 +11,11 @@ import { mergeNetworkBackedResults, NetworkBackedResults } from '../network_back
 import { useMemo } from 'react';
 import Realm from 'realm';
 import { Show } from './show';
-import { ThrottledNetworkBackedBehavior } from '../network_backed_behavior';
+import {
+  NetworkBackedBehaviorFetchStrategy,
+  NetworkBackedBehaviorOptions,
+  ThrottledNetworkBackedBehavior,
+} from '../network_backed_behavior';
 import { YearWithShows } from '../../api/models/year';
 import { RelistenApiClient, RelistenApiResponse } from '../../api/client';
 import { showRepo } from './show_repo';
@@ -38,7 +42,7 @@ export const useYears = (artistUuid: string) => {
 };
 
 export const useArtistYears = (artistUuid: string) => {
-  const artistResults = useArtist(artistUuid, { onlyFetchFromApiIfLocalIsNotShowable: true });
+  const artistResults = useArtist(artistUuid);
   const yearsResults = useYears(artistUuid);
 
   const results = useMemo(() => {
@@ -62,9 +66,10 @@ class YearShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
 > {
   constructor(
     public artistUuid: string,
-    public yearUuid: string
+    public yearUuid: string,
+    options?: NetworkBackedBehaviorOptions
   ) {
-    super();
+    super(options);
   }
 
   fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<YearWithShows>> {
@@ -143,7 +148,7 @@ export function useYearShows(
 }
 
 export const useArtistYearShows = (artistUuid: string, yearUuid: string) => {
-  const artistResults = useArtist(artistUuid, { onlyFetchFromApiIfLocalIsNotShowable: true });
+  const artistResults = useArtist(artistUuid);
   const yearShowsResults = useYearShows(artistUuid, yearUuid);
 
   const results = useMemo(() => {

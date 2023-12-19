@@ -1,4 +1,7 @@
-import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/network_backed_behavior';
+import {
+  NetworkBackedBehaviorOptions,
+  ThrottledNetworkBackedBehavior,
+} from '@/relisten/realm/network_backed_behavior';
 import Realm from 'realm';
 import { Show } from '@/relisten/realm/models/show';
 import { Show as ApiShow } from '@/relisten/api/models/show';
@@ -14,9 +17,9 @@ export abstract class ShowsWithVenueNetworkBackedBehavior extends ThrottledNetwo
 > {
   constructor(
     public artistUuid?: string,
-    public activeTab?: 'performed' | 'updated'
+    options?: NetworkBackedBehaviorOptions
   ) {
-    super();
+    super(options);
   }
 
   abstract fetchFromApi(
@@ -30,10 +33,6 @@ export abstract class ShowsWithVenueNetworkBackedBehavior extends ThrottledNetwo
   }
 
   upsert(realm: Realm, localData: Realm.Results<Show>, apiData: ApiShow[]): void {
-    if (!localData.isValid()) {
-      return;
-    }
-
     const apiVenuesByUuid = R.flatMapToObj(
       apiData.filter((s) => !!s.venue),
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -41,7 +40,12 @@ export abstract class ShowsWithVenueNetworkBackedBehavior extends ThrottledNetwo
     );
 
     realm.write(() => {
-      const { createdModels: createdShows } = showRepo.upsertMultiple(realm, apiData, localData);
+      const { createdModels: createdShows } = showRepo.upsertMultiple(
+        realm,
+        apiData,
+        localData,
+        false
+      );
 
       for (const show of createdShows.concat(localData)) {
         if (show.venueUuid) {
@@ -59,7 +63,7 @@ export abstract class ShowsWithVenueNetworkBackedBehavior extends ThrottledNetwo
                 show.venue = createdVenues[0];
               }
             }
-          } else {
+          } else if (apiVenue) {
             venueRepo.upsert(realm, apiVenue, show.venue);
           }
         }

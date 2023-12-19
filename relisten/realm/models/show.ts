@@ -39,7 +39,7 @@ export class Show
       tourUuid: { type: 'string', optional: true, indexed: true },
       createdAt: 'date',
       updatedAt: 'date',
-      date: 'date',
+      date: { type: 'date', indexed: true },
       avgRating: 'float',
       avgDuration: 'float?',
       displayDate: 'string',

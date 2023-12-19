@@ -5,6 +5,8 @@ import { useRelistenApi } from '../api/context';
 import { log } from '../util/logging';
 import {
   NetworkBackedBehavior,
+  NetworkBackedBehaviorFetchStrategy,
+  NetworkBackedBehaviorOptions,
   NetworkBackedModelArrayBehavior,
   NetworkBackedModelBehavior,
 } from './network_backed_behavior';
@@ -12,6 +14,13 @@ import { NetworkBackedResults } from './network_backed_results';
 import { RelistenObjectRequiredProperties } from './relisten_object';
 import { RelistenApiUpdatableObject, Repository } from './repository';
 import { useRealm } from './schema';
+
+const defaultNetworkLoadingValue = (
+  fetchStrategy: NetworkBackedBehaviorFetchStrategy,
+  dataExists: boolean
+) => {
+  return fetchStrategy === NetworkBackedBehaviorFetchStrategy.NetworkAlwaysFirst || !dataExists;
+};
 
 export function useNetworkBackedBehavior<TLocalData, TApiData>(
   behavior: NetworkBackedBehavior<TLocalData, TApiData>
@@ -21,8 +30,10 @@ export function useNetworkBackedBehavior<TLocalData, TApiData>(
   const api = useRelistenApi();
   const dataExists = behavior.isLocalDataShowable(localData);
 
-  // if data doesnt exist, initialize the loading state
-  const [isNetworkLoading, setIsNetworkLoading] = useState(!dataExists);
+  // if data doesn't exist, initialize the loading state
+  const [isNetworkLoading, setIsNetworkLoading] = useState(
+    defaultNetworkLoadingValue(behavior.fetchStrategy, dataExists)
+  );
 
   const refresh = async (shouldForceLoadingSpinner: boolean) => {
     if (shouldForceLoadingSpinner) {
@@ -49,16 +60,11 @@ export function useNetworkBackedBehavior<TLocalData, TApiData>(
   }, [isNetworkLoading, localData]);
 
   useEffect(() => {
-    log.info('Trying to perform network request on mount');
-    // if data doesnt exist, show the loading spinner
-    refresh(false);
-  }, []);
+    // if data doesnt exist, show the loading spinner. purposely not putting dataExists in the deps chart.
+    refresh(defaultNetworkLoadingValue(behavior.fetchStrategy, dataExists));
+  }, [behavior]);
 
   return results;
-}
-
-export interface NetworkBackedHookOptions {
-  onlyFetchFromApiIfLocalIsNotShowable?: boolean;
 }
 
 export function createNetworkBackedModelArrayHook<
@@ -70,17 +76,11 @@ export function createNetworkBackedModelArrayHook<
   repo: Repository<TModel, TApi, RequiredProperties, RequiredRelationships>,
   fetchFromRealm: () => Realm.Results<TModel>,
   fetchFromApi: (api: RelistenApiClient) => Promise<RelistenApiResponse<TApi[]>>
-): (options?: NetworkBackedHookOptions) => NetworkBackedResults<Realm.Results<TModel>> {
+): (options?: NetworkBackedBehaviorOptions) => NetworkBackedResults<Realm.Results<TModel>> {
   return (options) => {
     const behavior = useMemo(() => {
-      return new NetworkBackedModelArrayBehavior(
-        repo,
-        fetchFromRealm,
-        fetchFromApi,
-        undefined,
-        options?.onlyFetchFromApiIfLocalIsNotShowable
-      );
-    }, [options?.onlyFetchFromApiIfLocalIsNotShowable]);
+      return new NetworkBackedModelArrayBehavior(repo, fetchFromRealm, fetchFromApi, options);
+    }, [options]);
 
     return useNetworkBackedBehavior(behavior);
   };
@@ -95,17 +95,11 @@ export function createNetworkBackedModelHook<
   repo: Repository<TModel, TApi, RequiredProperties, RequiredRelationships>,
   fetchFromRealm: () => TModel | null,
   fetchFromApi: (api: RelistenApiClient) => Promise<RelistenApiResponse<TApi>>
-): (options?: NetworkBackedHookOptions) => NetworkBackedResults<TModel | null> {
+): (options?: NetworkBackedBehaviorOptions) => NetworkBackedResults<TModel | null> {
   return (options) => {
     const behavior = useMemo(() => {
-      return new NetworkBackedModelBehavior(
-        repo,
-        fetchFromRealm,
-        fetchFromApi,
-        undefined,
-        options?.onlyFetchFromApiIfLocalIsNotShowable
-      );
-    }, [options?.onlyFetchFromApiIfLocalIsNotShowable]);
+      return new NetworkBackedModelBehavior(repo, fetchFromRealm, fetchFromApi, options);
+    }, [options]);
 
     return useNetworkBackedBehavior(behavior);
   };

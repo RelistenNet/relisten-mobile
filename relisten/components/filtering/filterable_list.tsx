@@ -8,13 +8,17 @@ import {
 import { SectionHeader } from '../section_header';
 import { FilterBar } from './filter_bar';
 import { FilterBarButton } from './filter_bar_buttons';
-import { useFilters } from './filters';
+import { Filter, SortDirection, useFilters } from './filters';
+import { log } from '@/relisten/util/logging';
+
+const logger = log.extend('filter');
 
 export type FilterableListProps<T extends RelistenObject> = {
   data: ReadonlyArray<T>;
   customSectionTitle?: (row: T) => string | undefined;
   customSectionTitles?: string[];
   hideFilterBar?: boolean;
+  filtering?: boolean;
 } & RelistenSectionListProps<T>;
 
 const ALL_SECTION_SENTINEL = '__ALL__';
@@ -24,12 +28,19 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
   customSectionTitle,
   customSectionTitles,
   hideFilterBar,
+  filtering,
   ...props
 }: FilterableListProps<T>) => {
   const { filters, onFilterButtonPress, filter } = useFilters<K, T>();
 
+  const filteringEnabled = filtering !== undefined ? filtering : true;
+
+  if (!filteringEnabled) {
+    hideFilterBar = true;
+  }
+
   const sectionedData: ReadonlyArray<T | RelistenSectionHeader> = useMemo(() => {
-    const filteredData = filter(data);
+    const filteredData = filteringEnabled ? filter(data) : data;
     if (!customSectionTitle || !customSectionTitles) {
       return [{ sectionTitle: ALL_SECTION_SENTINEL }, ...(filteredData || [])];
     }
@@ -65,11 +76,22 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
     r.push(...(filteredData || []));
 
     return r;
-  }, [data, customSectionTitle, customSectionTitles, filter, filters]);
+  }, [data, customSectionTitle, customSectionTitles, filter, filters, filteringEnabled]);
+
+  function filterToString<K extends string, T>(f: Filter<K, T>) {
+    return `${f.title}${f.active ? '*' : ''}${
+      f.sortDirection !== undefined
+        ? f.sortDirection === SortDirection.Descending
+          ? ' desc'
+          : ' asc'
+        : ''
+    }`;
+  }
+
+  logger.debug(filters.map(filterToString).join('; '));
 
   return (
     <RelistenSectionList
-      // sections={sectionedData}
       data={sectionedData}
       pullToRefresh
       {...props}

@@ -1,6 +1,6 @@
 /* eslint-disable react/prop-types */
 import { FlashList, FlashListProps, ListRenderItem, ListRenderItemInfo } from '@shopify/flash-list';
-import { useMemo } from 'react';
+import { ReactElement, useMemo } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import { RefreshControl, View } from 'react-native';
 import { RelistenObject } from '../api/models/relisten';
@@ -19,7 +19,7 @@ export type RelistenSectionListProps<T extends RelistenObject> = Omit<
 > & {
   data: ReadonlyArray<T | RelistenSectionHeader>;
   renderItem: ListRenderItem<T>;
-  renderSectionHeader?: (item: RelistenSectionHeader) => JSX.Element;
+  renderSectionHeader?: (item: RelistenSectionHeader) => ReactElement;
   pullToRefresh?: boolean;
 };
 
@@ -39,14 +39,14 @@ export const RelistenSectionList = <T extends RelistenObject>({
   // ..
   // it's to fix a flashlist bug: https://github.com/Shopify/flash-list/issues/727
   const internalData = useMemo(() => {
-    let internalData: (T | RelistenSectionHeader)[] = [];
+    const internalData: (T | RelistenSectionHeader)[] = [];
     if (ListHeaderComponent) {
-      internalData = [{ sectionTitle: 'ListHeaderComponent' }, ...data];
-    } else {
-      internalData = [...data];
+      internalData.push({ sectionTitle: 'ListHeaderComponent' });
     }
     if (refreshing) {
       internalData.push({ sectionTitle: 'LOADING' });
+    } else {
+      internalData.push(...data);
     }
     return internalData;
   }, [data, refreshing]);
@@ -77,7 +77,7 @@ export const RelistenSectionList = <T extends RelistenObject>({
         if ('sectionTitle' in props.item) {
           // see comment above
           if (props.item.sectionTitle === 'ListHeaderComponent') {
-            return ListHeaderComponent as JSX.Element;
+            return ListHeaderComponent as ReactElement;
           }
           if (props.item.sectionTitle === 'LOADING') {
             return (

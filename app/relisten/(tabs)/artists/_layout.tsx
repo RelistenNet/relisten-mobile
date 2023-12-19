@@ -6,7 +6,7 @@ export const unstable_settings = {
 };
 export default function ArtistsLayout() {
   return (
-    <Stack>
+    <Stack screenOptions={{ headerShadowVisible: false }}>
       <Stack.Screen
         name="index"
         options={{

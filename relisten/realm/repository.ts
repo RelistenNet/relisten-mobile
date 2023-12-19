@@ -142,7 +142,8 @@ export class Repository<
   public upsertMultiple(
     realm: Realm,
     api: ReadonlyArray<TApi>,
-    models: ReadonlyArray<TModel> | Realm.List<TModel> | Realm.Results<TModel>
+    models: ReadonlyArray<TModel> | Realm.List<TModel> | Realm.Results<TModel>,
+    performDeletes: boolean = true
   ): UpsertResults<TModel> {
     const dbIds = models.map((m) => m.uuid);
     const networkUuids = api.map((a) => a.uuid);
@@ -158,9 +159,11 @@ export class Repository<
     const acc = { created: 0, updated: 0, deleted: 0, updatedModels: [], createdModels: [] };
 
     const writeHandler = () => {
-      for (const uuid of dbIdsToRemove) {
-        realm.delete(modelsById[uuid]);
-        acc.deleted += 1;
+      if (performDeletes) {
+        for (const uuid of dbIdsToRemove) {
+          realm.delete(modelsById[uuid]);
+          acc.deleted += 1;
+        }
       }
 
       for (const uuid of networkUuidsToUpsert) {

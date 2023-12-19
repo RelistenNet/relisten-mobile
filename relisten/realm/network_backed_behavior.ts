@@ -4,7 +4,17 @@ import { RelistenApiClient, RelistenApiResponse } from '../api/client';
 import dayjs from 'dayjs';
 import Realm from 'realm';
 
+export enum NetworkBackedBehaviorFetchStrategy {
+  UNKNOWN,
+  NetworkAlwaysFirst,
+  StaleWhileRevalidate,
+  LocalOnly,
+  NetworkOnlyIfLocalIsNotShowable,
+}
+
 export interface NetworkBackedBehavior<TLocalData, TApiData> {
+  fetchStrategy: NetworkBackedBehaviorFetchStrategy;
+
   fetchFromLocal(): TLocalData;
 
   fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<TApiData | undefined>>;
@@ -16,7 +26,12 @@ export interface NetworkBackedBehavior<TLocalData, TApiData> {
 
   isLocalDataShowable(localData: TLocalData): boolean;
 
-  upsert(realm: Realm, localData: TLocalData, apiData: TApiData): void;
+  upsert(realm: Realm, localData: TLocalData | null, apiData: TApiData): void;
+}
+
+export interface NetworkBackedBehaviorOptions {
+  minTimeBetweenRequestsSeconds?: number;
+  fetchStrategy?: NetworkBackedBehaviorFetchStrategy;
 }
 
 export abstract class ThrottledNetworkBackedBehavior<TLocalData, TApiData>
@@ -24,21 +39,15 @@ export abstract class ThrottledNetworkBackedBehavior<TLocalData, TApiData>
 {
   protected lastRequestAt: dayjs.Dayjs | undefined;
   protected minTimeBetweenRequestsSeconds: number;
-  protected onlyFetchFromApiIfLocalIsNotShowable: boolean;
+  public readonly fetchStrategy: NetworkBackedBehaviorFetchStrategy;
 
-  protected constructor(
-    minTimeBetweenRequestsSeconds?: number,
-    onlyFetchFromApiIfLocalIsNotShowable?: boolean
-  ) {
+  protected constructor(options?: NetworkBackedBehaviorOptions) {
     this.minTimeBetweenRequestsSeconds = 60 * 15;
-    this.onlyFetchFromApiIfLocalIsNotShowable = false;
+    this.fetchStrategy =
+      options?.fetchStrategy || NetworkBackedBehaviorFetchStrategy.StaleWhileRevalidate;
 
-    if (minTimeBetweenRequestsSeconds !== undefined) {
-      this.minTimeBetweenRequestsSeconds = minTimeBetweenRequestsSeconds;
-    }
-
-    if (onlyFetchFromApiIfLocalIsNotShowable !== undefined) {
-      this.onlyFetchFromApiIfLocalIsNotShowable = onlyFetchFromApiIfLocalIsNotShowable;
+    if (options?.minTimeBetweenRequestsSeconds !== undefined) {
+      this.minTimeBetweenRequestsSeconds = options.minTimeBetweenRequestsSeconds;
     }
   }
 
@@ -46,12 +55,16 @@ export abstract class ThrottledNetworkBackedBehavior<TLocalData, TApiData>
     lastRequestAt: dayjs.Dayjs | undefined,
     localData: TLocalData
   ): boolean {
-    if (!lastRequestAt) {
-      return true;
+    if (
+      this.fetchStrategy === NetworkBackedBehaviorFetchStrategy.LocalOnly ||
+      (this.fetchStrategy === NetworkBackedBehaviorFetchStrategy.NetworkOnlyIfLocalIsNotShowable &&
+        this.isLocalDataShowable(localData))
+    ) {
+      return false;
     }
 
-    if (this.onlyFetchFromApiIfLocalIsNotShowable && this.isLocalDataShowable(localData)) {
-      return false;
+    if (!lastRequestAt) {
+      return true;
     }
 
     this.lastRequestAt = lastRequestAt;
@@ -74,16 +87,15 @@ export class NetworkBackedModelArrayBehavior<
   TModel extends RequiredProperties & RequiredRelationships,
   TApi extends RelistenApiUpdatableObject,
   RequiredProperties extends RelistenObjectRequiredProperties,
-  RequiredRelationships extends object
+  RequiredRelationships extends object,
 > extends ThrottledNetworkBackedBehavior<Realm.Results<TModel>, TApi[]> {
   constructor(
     public repository: Repository<TModel, TApi, RequiredProperties, RequiredRelationships>,
     public fetchFromRealm: () => Realm.Results<TModel>,
     public apiCall: (api: RelistenApiClient) => Promise<RelistenApiResponse<TApi[]>>,
-    minTimeBetweenRequestsSeconds?: number,
-    onlyFetchFromApiIfLocalIsNotShowable?: boolean
+    options?: NetworkBackedBehaviorOptions
   ) {
-    super(minTimeBetweenRequestsSeconds, onlyFetchFromApiIfLocalIsNotShowable);
+    super(options);
   }
 
   fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<TApi[]>> {
@@ -107,16 +119,15 @@ export class NetworkBackedModelBehavior<
   TModel extends RequiredProperties & RequiredRelationships,
   TApi extends RelistenApiUpdatableObject,
   RequiredProperties extends RelistenObjectRequiredProperties,
-  RequiredRelationships extends object
+  RequiredRelationships extends object,
 > extends ThrottledNetworkBackedBehavior<TModel | null, TApi> {
   constructor(
     public repository: Repository<TModel, TApi, RequiredProperties, RequiredRelationships>,
     public fetchFromRealm: () => TModel | null,
     public apiCall: (api: RelistenApiClient) => Promise<RelistenApiResponse<TApi>>,
-    minTimeBetweenRequestsSeconds?: number,
-    onlyFetchFromApiIfLocalIsNotShowable?: boolean
+    options?: NetworkBackedBehaviorOptions
   ) {
-    super(minTimeBetweenRequestsSeconds, onlyFetchFromApiIfLocalIsNotShowable);
+    super(options);
   }
 
   fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<TApi>> {

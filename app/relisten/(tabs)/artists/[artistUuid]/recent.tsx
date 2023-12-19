@@ -1,33 +1,26 @@
 import Flex from '@/relisten/components/flex';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { RelistenButton } from '@/relisten/components/relisten_button';
-import { RelistenBlue } from '@/relisten/relisten_blue';
-import { useArtistRecentShows } from '@/relisten/realm/models/shows/recent_shows_repo';
-import { ShowFilterKey, ShowList } from '@/relisten/components/shows_list';
-import { SortDirection } from '@/relisten/components/filtering/filters';
-
-enum Tabs {
-  PERFORMED = 'performed',
-  UPDATED = 'updated',
-}
-
-const recentFilterOptions = {
-  default: {
-    persistenceKey: ShowFilterKey.Date,
-    active: true,
-    sortDirection: SortDirection.Descending,
-  },
-};
+import {
+  RecentShowTabs,
+  useArtistRecentShows,
+} from '@/relisten/realm/models/shows/recent_shows_repo';
+import { ShowList, ShowListItem } from '@/relisten/components/shows_list';
+import { clsx } from 'clsx';
+import { ListRenderItem } from '@shopify/flash-list';
+import { Show } from '@/relisten/realm/models/show';
+import dayjs from 'dayjs';
+import { SubtitleText } from '@/relisten/components/row_subtitle';
 
 export default function Page() {
   const navigation = useNavigation();
-  const { artistUuid } = useLocalSearchParams();
-  const [activeTab, setActiveTab] = useState(Tabs.PERFORMED);
-  const results = useArtistRecentShows(String(artistUuid), activeTab);
+  const { artistUuid } = useLocalSearchParams<{ artistUuid: string }>();
+  const [activeTab, setActiveTab] = useState(RecentShowTabs.Performed);
+  const results = useArtistRecentShows(artistUuid, activeTab);
 
   useEffect(() => {
     navigation.setOptions({
@@ -35,24 +28,43 @@ export default function Page() {
     });
   }, []);
 
+  const showListRenderItem: ListRenderItem<Show> = ({ item: show }) => {
+    return (
+      <ShowListItem show={show}>
+        {activeTab === RecentShowTabs.Updated && (
+          <>
+            <SubtitleText>Updated {dayjs(show.updatedAt).format('LLL')}</SubtitleText>
+          </>
+        )}
+      </ShowListItem>
+    );
+  };
+
+  // The API will only return the 25 latest shows so stop it here otherwise it'll just show the 26th latest show of
+  // whatever is cached
+  const shows = useMemo(() => {
+    return results.data.shows.slice(0, 25);
+  }, [results.data.shows]);
+
   return (
     <RefreshContextProvider networkBackedResults={results}>
       <DisappearingHeaderScreen
         ScrollableComponent={ShowList}
-        shows={results.data.shows}
+        ListHeaderComponent={<RecentHeader activeTab={activeTab} setActiveTab={setActiveTab} />}
+        shows={shows}
         artist={results.data.artist}
-        filterOptions={recentFilterOptions}
-        hideFilterBar={false}
-      >
-        <RecentHeader activeTab={activeTab} setActiveTab={setActiveTab} />
-      </DisappearingHeaderScreen>
+        renderItem={showListRenderItem}
+        // filtering is provided by realm/the API response
+        filtering={false}
+        extraData={{ activeTab }}
+      />
     </RefreshContextProvider>
   );
 }
 
 interface RecentHeaderProps {
-  activeTab: Tabs;
-  setActiveTab: React.Dispatch<React.SetStateAction<Tabs>>;
+  activeTab: RecentShowTabs;
+  setActiveTab: React.Dispatch<React.SetStateAction<RecentShowTabs>>;
 }
 
 const RecentHeader = ({ activeTab, setActiveTab }: RecentHeaderProps) => {
@@ -66,24 +78,18 @@ const RecentHeader = ({ activeTab, setActiveTab }: RecentHeaderProps) => {
       </RelistenText>
       <Flex cn="m-2 rounded-sm">
         <RelistenButton
-          cn="flex-1 rounded-none rounded-l-md"
-          style={{
-            backgroundColor: `${
-              activeTab === Tabs.UPDATED ? RelistenBlue[800] : RelistenBlue[600]
-            }`,
-          }}
-          onPress={() => setActiveTab(Tabs.PERFORMED)}
+          cn={clsx('flex-1 rounded-none rounded-l-md', {
+            'bg-relisten-blue-600': activeTab === RecentShowTabs.Performed,
+          })}
+          onPress={() => setActiveTab(RecentShowTabs.Performed)}
         >
           Performed
         </RelistenButton>
         <RelistenButton
-          style={{
-            backgroundColor: `${
-              activeTab === Tabs.PERFORMED ? RelistenBlue[800] : RelistenBlue[600]
-            }`,
-          }}
-          cn="flex-1 rounded-none rounded-r-md"
-          onPress={() => setActiveTab(Tabs.UPDATED)}
+          cn={clsx('flex-1 rounded-none rounded-r-md', {
+            'bg-relisten-blue-600': activeTab === RecentShowTabs.Updated,
+          })}
+          onPress={() => setActiveTab(RecentShowTabs.Updated)}
         >
           Updated
         </RelistenButton>

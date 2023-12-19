@@ -33,14 +33,13 @@ export default function Page() {
       <RefreshContextProvider networkBackedResults={results}>
         <DisappearingHeaderScreen
           ScrollableComponent={ShowList}
+          ListHeaderComponent={<YearHeader artist={artist} year={year} />}
           shows={shows}
           artist={artist}
           filterOptions={{
             persistence: { key: ['artists', artistUuid, 'years', yearUuid].join('/') },
           }}
-        >
-          <YearHeader artist={artist} year={year} />
-        </DisappearingHeaderScreen>
+        />
       </RefreshContextProvider>
     </View>
   );

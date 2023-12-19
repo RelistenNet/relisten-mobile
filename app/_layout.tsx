@@ -16,6 +16,7 @@ import { StatusBar } from 'expo-status-bar';
 import dayjs from 'dayjs';
 import duration from 'dayjs/plugin/duration';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import localizedFormat from 'dayjs/plugin/localizedFormat';
 import { useEffect, useRef } from 'react';
 import useCacheAssets from './useCacheAssets';
 
@@ -25,6 +26,7 @@ import { ActionSheetProvider } from '@expo/react-native-action-sheet';
 
 dayjs.extend(duration);
 dayjs.extend(relativeTime);
+dayjs.extend(localizedFormat);
 
 export default function TabLayout() {
   const realmRef = useRef<Realm | null>(null);
