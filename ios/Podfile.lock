@@ -48,6 +48,10 @@ PODS:
     - hermes-engine/Pre-built (= 0.73.0)
   - hermes-engine/Pre-built (0.73.0)
   - libevent (2.1.12)
+  - lottie-ios (4.3.4)
+  - lottie-react-native (6.4.1):
+    - lottie-ios (~> 4.3.3)
+    - React-Core
   - Mute (0.6.1)
   - RCT-Folly (2022.05.16.00):
     - boost
@@ -922,6 +926,8 @@ PODS:
     - React-debug
   - react-native-airplay-button (1.1.0):
     - React-Core
+  - react-native-background-downloader (2.10.0):
+    - React-Core
   - react-native-get-random-values (1.8.0):
     - React-Core
   - react-native-progress-view (1.4.2):
@@ -1149,6 +1155,7 @@ DEPENDENCIES:
   - glog (from `../node_modules/react-native/third-party-podspecs/glog.podspec`)
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
   - libevent (~> 2.1.12)
+  - lottie-react-native (from `../node_modules/lottie-react-native`)
   - RCT-Folly (from `../node_modules/react-native/third-party-podspecs/RCT-Folly.podspec`)
   - RCT-Folly/Fabric (from `../node_modules/react-native/third-party-podspecs/RCT-Folly.podspec`)
   - RCTRequired (from `../node_modules/react-native/Libraries/RCTRequired`)
@@ -1173,6 +1180,7 @@ DEPENDENCIES:
   - React-logger (from `../node_modules/react-native/ReactCommon/logger`)
   - React-Mapbuffer (from `../node_modules/react-native/ReactCommon`)
   - react-native-airplay-button (from `../node_modules/react-native-airplay-button`)
+  - "react-native-background-downloader (from `../node_modules/@kesha-antonov/react-native-background-downloader`)"
   - react-native-get-random-values (from `../node_modules/react-native-get-random-values`)
   - "react-native-progress-view (from `../node_modules/@react-native-community/progress-view`)"
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
@@ -1212,6 +1220,7 @@ SPEC REPOS:
   trunk:
     - fmt
     - libevent
+    - lottie-ios
     - Mute
     - SocketRocket
     - sqlite3
@@ -1254,6 +1263,8 @@ EXTERNAL SOURCES:
   hermes-engine:
     :podspec: "../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec"
     :tag: hermes-2023-11-17-RNv0.73.0-21043a3fc062be445e56a2c10ecd8be028dd9cc5
+  lottie-react-native:
+    :path: "../node_modules/lottie-react-native"
   RCT-Folly:
     :podspec: "../node_modules/react-native/third-party-podspecs/RCT-Folly.podspec"
   RCTRequired:
@@ -1298,6 +1309,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon"
   react-native-airplay-button:
     :path: "../node_modules/react-native-airplay-button"
+  react-native-background-downloader:
+    :path: "../node_modules/@kesha-antonov/react-native-background-downloader"
   react-native-get-random-values:
     :path: "../node_modules/react-native-get-random-values"
   react-native-progress-view:
@@ -1388,6 +1401,8 @@ SPEC CHECKSUMS:
   glog: 04b94705f318337d7ead9e6d17c019bd9b1f6b1b
   hermes-engine: 34304f8c6e8fa68f63a5fe29af82f227d817d7a7
   libevent: 4049cae6c81cdb3654a443be001fb9bdceff7913
+  lottie-ios: 3d98679b41fa6fd6aff2352b3953dbd3df8a397e
+  lottie-react-native: a2ae9c27c273b060b2affff2957bc0ff7fdca353
   Mute: 20135a96076f140cc82bfc8b810e2d6150d8ec7e
   RCT-Folly: 7169b2b1c44399c76a47b5deaaba715eeeb476c0
   RCTRequired: 5e3631b27c08716986980ef23eed8abdee1cdcaf
@@ -1411,6 +1426,7 @@ SPEC CHECKSUMS:
   React-logger: 008caec0d6a587abc1e71be21bfac5ba1662fe6a
   React-Mapbuffer: 61ea9cee50694d54fe13ce17af91216828d68a62
   react-native-airplay-button: 90c7ba52402c8e92342003b8a1ff78dfb4357a9e
+  react-native-background-downloader: 4e401126505a6a72025bbbfbaed0413ab92cc6dd
   react-native-get-random-values: a6ea6a8a65dc93e96e24a11105b1a9c8cfe1d72a
   react-native-progress-view: fda23a769e325dd94f08439f6cfca5867fca32c0
   react-native-safe-area-context: 2cd91d532de12acdb0a9cbc8d43ac72a8e4c897c
@@ -1448,6 +1464,6 @@ SPEC CHECKSUMS:
   sqlite3: f163dbbb7aa3339ad8fc622782c2d9d7b72f7e9c
   Yoga: 44003f970aa541b79dfdd59cf236fda41bd5890f
 
-PODFILE CHECKSUM: 86ff7db3b7c3d32629a73adde86939018b81fe8e
+PODFILE CHECKSUM: f1be661f5c291f7c3c6e094f180a0347779c9e7f
 
 COCOAPODS: 1.14.3

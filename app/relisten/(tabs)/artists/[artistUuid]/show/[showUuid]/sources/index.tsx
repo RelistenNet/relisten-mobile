@@ -1,5 +1,8 @@
 import { Link as SLink } from '@/relisten/api/models/source';
-import { PlayShow, SourceTrackComponent } from '@/relisten/components/SourceTrackComponent';
+import {
+  PlayShow,
+  SourceTrackComponent,
+} from '@/relisten/components/source/source_track_component';
 import { ItemSeparator } from '@/relisten/components/item_separator';
 import { RefreshContextProvider, useRefreshContext } from '@/relisten/components/refresh_context';
 import { RelistenButton } from '@/relisten/components/relisten_button';

@@ -3,6 +3,7 @@ import Realm from 'realm';
 import { SourceTrack as ApiSourceTrack } from '../../api/models/source_tracks';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import dayjs from 'dayjs';
+import { SourceTrackOfflineInfo } from '@/relisten/realm/models/source_track_offline_info';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface SourceTrackRequiredRelationships {}
@@ -56,6 +57,8 @@ export class SourceTrack
       flacMd5: 'string?',
 
       isFavorite: { type: 'bool', default: false },
+
+      offlineInfo: 'SourceTrackOfflineInfo',
     },
   };
 
@@ -77,6 +80,8 @@ export class SourceTrack
   flacMd5?: string;
 
   isFavorite!: boolean;
+
+  offlineInfo?: SourceTrackOfflineInfo;
 
   private _humanizedDuration?: string;
   get humanizedDuration() {

@@ -23,6 +23,7 @@ import useCacheAssets from './useCacheAssets';
 import { RelistenPlayerProvider } from '@/relisten/player/relisten_player_hooks';
 import { RelistenPlayerBottomBarProvider } from '@/relisten/player/ui/player_bottom_bar';
 import { ActionSheetProvider } from '@expo/react-native-action-sheet';
+import { DownloadManager } from '@/relisten/offline/download_manager';
 
 dayjs.extend(duration);
 dayjs.extend(relativeTime);
@@ -49,6 +50,14 @@ export default function TabLayout() {
       setRealm(undefined);
     }
   }, [realmRef.current]);
+
+  useEffect(() => {
+    setTimeout(() => {
+      // wait a few seconds before resume downloads to prevent doing too much right at app launch
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const _ = DownloadManager.SHARED_INSTANCE.resumeExistingDownloads();
+    }, 5000);
+  }, []);
 
   return (
     <RealmProvider realmRef={realmRef} closeOnUnmount={false}>

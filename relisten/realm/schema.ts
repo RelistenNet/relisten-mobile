@@ -11,6 +11,7 @@ import { UrlRequestMetadata } from '@/relisten/realm/models/url_request_metadata
 import { RouteFilterConfig } from '@/relisten/realm/models/route_filter_config';
 import { Tour } from './models/tour';
 import { Song } from './models/song';
+import { SourceTrackOfflineInfo } from '@/relisten/realm/models/source_track_offline_info';
 
 const realmConfig: Realm.Configuration = {
   schema: [
@@ -25,6 +26,7 @@ const realmConfig: Realm.Configuration = {
     SourceTrack,
     UrlRequestMetadata,
     RouteFilterConfig,
+    SourceTrackOfflineInfo,
   ],
   deleteRealmIfMigrationNeeded: true,
 };
