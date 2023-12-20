@@ -20,10 +20,15 @@ export function useArtist(
   artistUuid?: string,
   options?: NetworkBackedBehaviorOptions
 ): NetworkBackedResults<Artist | null> {
-  const artists = useArtists({
-    fetchStrategy: NetworkBackedBehaviorFetchStrategy.NetworkOnlyIfLocalIsNotShowable,
-    ...options,
-  });
+  // memoize to prevent trying a new request each time the options "change"
+  const memoOptions = useMemo(() => {
+    return {
+      fetchStrategy: NetworkBackedBehaviorFetchStrategy.NetworkOnlyIfLocalIsNotShowable,
+      ...options,
+    };
+  }, [options]);
+
+  const artists = useArtists(memoOptions);
 
   const artistQuery = useMemo(() => {
     return artists.data.filtered('uuid == $0', artistUuid);

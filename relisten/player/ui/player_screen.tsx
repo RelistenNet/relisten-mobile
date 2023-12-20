@@ -28,6 +28,7 @@ import { ItemSeparator } from '@/relisten/components/item_separator';
 import { router, useFocusEffect, useRouter } from 'expo-router';
 import { useObject } from '@/relisten/realm/schema';
 import { Show } from '@/relisten/realm/models/show';
+import { SoundIndicator } from '@/relisten/components/sound_indicator';
 
 function ScrubberRow() {
   const progress = useNativePlaybackProgress();
@@ -227,6 +228,7 @@ function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; 
   const player = useRelistenPlayer();
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
   const isPlayingThisTrack = currentPlayerTrack?.identifier == queueTrack.identifier;
+  const playbackState = useRelistenPlayerPlaybackState();
   const sourceTrack = queueTrack.sourceTrack;
 
   const artist = useArtist(sourceTrack.artistUuid);
@@ -285,7 +287,10 @@ function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; 
             <Flex className="items-center">
               {isPlayingThisTrack && (
                 <View className="pr-1">
-                  <MaterialIcons name="bar-chart" size={18} color="white" />
+                  <SoundIndicator
+                    size={18}
+                    playing={playbackState === RelistenPlaybackState.Playing}
+                  />
                 </View>
               )}
               <RelistenText className="text-lg">{sourceTrack.title}</RelistenText>

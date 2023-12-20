@@ -7,6 +7,7 @@ import { EventSource } from '@/relisten/util/event_source';
 import { Source } from '@/relisten/realm/models/source';
 import { Artist } from '@/relisten/realm/models/artist';
 import { Venue } from '@/relisten/realm/models/venue';
+import { SourceTrackOfflineInfoStatus } from '@/relisten/realm/models/source_track_offline_info';
 
 export enum PlayerShuffleState {
   SHUFFLE_OFF = 1,
@@ -75,9 +76,15 @@ export class PlayerQueueTrack {
   }
 
   toStreamable(): RelistenStreamable {
+    let url = this.sourceTrack.mp3Url;
+
+    if (this.sourceTrack.offlineInfo?.status === SourceTrackOfflineInfoStatus.Succeeded) {
+      url = 'file://' + this.sourceTrack.downloadedFileLocation();
+    }
+
     return {
       identifier: this.identifier,
-      url: this.sourceTrack.mp3Url,
+      url,
       title: this.title,
       artist: this.artist,
       albumTitle: this.albumTitle,

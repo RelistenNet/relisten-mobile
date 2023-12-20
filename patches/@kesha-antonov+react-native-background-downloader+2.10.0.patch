@@ -1,0 +1,75 @@
+diff --git a/node_modules/@kesha-antonov/react-native-background-downloader/ios/RNBackgroundDownloader.m b/node_modules/@kesha-antonov/react-native-background-downloader/ios/RNBackgroundDownloader.m
+index d413a10..e8d0445 100644
+--- a/node_modules/@kesha-antonov/react-native-background-downloader/ios/RNBackgroundDownloader.m
++++ b/node_modules/@kesha-antonov/react-native-background-downloader/ios/RNBackgroundDownloader.m
+@@ -172,7 +172,7 @@ RCT_EXPORT_MODULE();
+   NSLog(@"[RNBackgroundDownloader] - [getServerError]");
+   NSError *serverError;
+   NSInteger httpStatusCode = [((NSHTTPURLResponse *)downloadTask.response) statusCode];
+-  if(httpStatusCode != 200) {
++  if(httpStatusCode != 200 && httpStatusCode != 206) {
+       serverError = [NSError errorWithDomain:NSURLErrorDomain
+                                         code:httpStatusCode
+                                     userInfo:@{NSLocalizedDescriptionKey: [NSHTTPURLResponse localizedStringForStatusCode: httpStatusCode]}];
+@@ -267,16 +267,19 @@ RCT_EXPORT_METHOD(checkForExistingDownloads: (RCTPromiseResolveBlock)resolve rej
+     [self lazyInitSession];
+     [urlSession getTasksWithCompletionHandler:^(NSArray<NSURLSessionDataTask *> * _Nonnull dataTasks, NSArray<NSURLSessionUploadTask *> * _Nonnull uploadTasks, NSArray<NSURLSessionDownloadTask *> * _Nonnull downloadTasks) {
+         NSMutableArray *idsFound = [[NSMutableArray alloc] init];
+-        @synchronized (sharedLock) {
++        @synchronized (self->sharedLock) {
++            [NSThread sleepForTimeInterval:0.1f];
+             for (NSURLSessionDownloadTask *foundTask in downloadTasks) {
+                 NSURLSessionDownloadTask __strong *task = foundTask;
+-                RNBGDTaskConfig *taskConfig = taskToConfigMap[@(task.taskIdentifier)];
++                RNBGDTaskConfig *taskConfig = self->taskToConfigMap[@(task.taskIdentifier)];
+                 if (taskConfig) {
+-                    if ((task.state == NSURLSessionTaskStateCompleted || task.state == NSURLSessionTaskStateSuspended) && task.countOfBytesReceived < task.countOfBytesExpectedToReceive) {
+-                        if (task.error && task.error.userInfo[NSURLSessionDownloadTaskResumeData] != nil) {
+-                            task = [urlSession downloadTaskWithResumeData:task.error.userInfo[NSURLSessionDownloadTaskResumeData]];
++                    if (task.state == NSURLSessionTaskStateCompleted && task.countOfBytesReceived < task.countOfBytesExpectedToReceive) {
++                        NSData *taskResumeData = task.error.userInfo[NSURLSessionDownloadTaskResumeData];
++
++                        if (task.error && task.error.code == -999 && taskResumeData != nil) {
++                            task = [self->urlSession downloadTaskWithResumeData:taskResumeData];
+                         } else {
+-                            task = [urlSession downloadTaskWithURL:task.currentRequest.URL];
++                            task = [self->urlSession downloadTaskWithURL:task.currentRequest.URL];
+                         }
+                         [task resume];
+                     }
+@@ -291,9 +294,9 @@ RCT_EXPORT_METHOD(checkForExistingDownloads: (RCTPromiseResolveBlock)resolve rej
+                         @"percent": percent
+                     }];
+                     taskConfig.reportedBegin = YES;
+-                    taskToConfigMap[@(task.taskIdentifier)] = taskConfig;
+-                    idToTaskMap[taskConfig.id] = task;
+-                    idToPercentMap[taskConfig.id] = percent;
++                    self->taskToConfigMap[@(task.taskIdentifier)] = taskConfig;
++                    self->idToTaskMap[taskConfig.id] = task;
++                    self->idToPercentMap[taskConfig.id] = percent;
+                 } else {
+                     [task cancel];
+                 }
+@@ -385,18 +388,12 @@ RCT_EXPORT_METHOD(completeHandler:(nonnull NSString *)jobId
+ - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
+     NSLog(@"[RNBackgroundDownloader] - [didCompleteWithError]");
+     @synchronized (sharedLock) {
+-        if (error == nil)
+-            return;
+-
+         RNBGDTaskConfig *taskCofig = taskToConfigMap[@(task.taskIdentifier)];
+-        if (taskCofig == nil)
+-            return;
+ 
+-        if (self.bridge) {
+-            [self sendEventWithName:@"downloadFailed" body:@{@"id": taskCofig.id, @"error": [error localizedDescription]}];
+-        }
+-        // IF WE CAN'T RESUME TO DOWNLOAD LATER
+-        if (error.userInfo[NSURLSessionDownloadTaskResumeData] == nil) {
++        if (error != nil && error.code != -999 && taskCofig != nil) {
++            if (self.bridge) {
++                [self sendEventWithName:@"downloadFailed" body:@{@"id": taskCofig.id, @"error": [error localizedDescription]}];
++            }
+             [self removeTaskFromMap:task];
+         }
+     }

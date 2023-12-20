@@ -3,6 +3,8 @@ import Realm from 'realm';
 import { SourceTrack as ApiSourceTrack } from '../../api/models/source_tracks';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import dayjs from 'dayjs';
+import { SourceTrackOfflineInfo } from '@/relisten/realm/models/source_track_offline_info';
+import RNBackgroundDownloader from '@kesha-antonov/react-native-background-downloader';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface SourceTrackRequiredRelationships {}
@@ -56,6 +58,8 @@ export class SourceTrack
       flacMd5: 'string?',
 
       isFavorite: { type: 'bool', default: false },
+
+      offlineInfo: 'SourceTrackOfflineInfo',
     },
   };
 
@@ -78,6 +82,8 @@ export class SourceTrack
 
   isFavorite!: boolean;
 
+  offlineInfo?: SourceTrackOfflineInfo;
+
   private _humanizedDuration?: string;
   get humanizedDuration() {
     if (!this._humanizedDuration && this.duration) {
@@ -85,6 +91,10 @@ export class SourceTrack
     }
 
     return this._humanizedDuration;
+  }
+
+  downloadedFileLocation() {
+    return RNBackgroundDownloader.directories.documents + `/offline/${this.uuid}.mp3`;
   }
 
   static propertiesFromApi(relistenObj: ApiSourceTrack): SourceTrackRequiredProperties {

@@ -1,5 +1,4 @@
 import { Link as SLink } from '@/relisten/api/models/source';
-import { PlayShow, SourceTrackComponent } from '@/relisten/components/SourceTrackComponent';
 import { FavoriteObjectButton } from '@/relisten/components/favorite_icon_button';
 import { ItemSeparator } from '@/relisten/components/item_separator';
 import { RefreshContextProvider, useRefreshContext } from '@/relisten/components/refresh_context';
@@ -8,16 +7,14 @@ import { RelistenFlatList } from '@/relisten/components/relisten_flat_list';
 import { RelistenLink } from '@/relisten/components/relisten_link';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
-import { SectionHeader } from '@/relisten/components/section_header';
 import { Show } from '@/relisten/realm/models/show';
 import { sortSources, useFullShow } from '@/relisten/realm/models/show_repo';
 import { Source } from '@/relisten/realm/models/source';
-import { SourceSet } from '@/relisten/realm/models/source_set';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { useRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useForceUpdate } from '@/relisten/util/forced_update';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { MoreOrLess } from '@rntext/more-or-less';
 import dayjs from 'dayjs';
 import { Link, useLocalSearchParams, useNavigation } from 'expo-router';
@@ -36,6 +33,8 @@ import * as R from 'remeda';
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
 import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
 import { useArtist } from '@/relisten/realm/models/artist_repo';
+import { PlayShow, useSourceTrackContextMenu } from '@/relisten/player/ui/track_context_menu';
+import { SourceSets } from '@/relisten/components/source/source_sets_component';
 
 export const SourceList = ({ sources }: { sources: Source[] }) => {
   return (
@@ -96,6 +95,7 @@ const SourceComponent = ({
   const { refreshing } = useRefreshContext();
   const player = useRelistenPlayer();
   const artist = useArtist(show?.artistUuid);
+  const { showContextMenu } = useSourceTrackContextMenu();
 
   const playShow = useCallback(
     (sourceTrack?: SourceTrack) => {
@@ -127,6 +127,24 @@ const SourceComponent = ({
     [selectedSource, artist.data, show]
   ) satisfies PlayShow;
 
+  const onDotsPress = useCallback(
+    (sourceTrack: SourceTrack) => {
+      if (!artist.data || !show || !selectedSource) {
+        return;
+      }
+
+      const queueTrack = PlayerQueueTrack.fromSourceTrack(
+        sourceTrack,
+        selectedSource,
+        artist.data,
+        show.venue
+      );
+
+      showContextMenu(queueTrack, playShow);
+    },
+    [selectedSource, artist.data, show, playShow]
+  );
+
   if (refreshing || !show) {
     return (
       <View className="w-full p-4">
@@ -150,7 +168,7 @@ const SourceComponent = ({
     <Animated.ScrollView style={{ flex: 1 }} {...props}>
       {/*<SelectedSource sources={sortedSources} sourceIndex={selectedSourceIndex} />*/}
       <SourceHeader source={selectedSource} show={show} playShow={playShow} />
-      <SourceSets source={selectedSource} playShow={playShow} />
+      <SourceSets source={selectedSource} playShow={playShow} onDotsPress={onDotsPress} />
       <SourceFooter source={selectedSource} show={show} />
     </Animated.ScrollView>
   );
@@ -164,6 +182,7 @@ function sourceRatingText(source: Source) {
   return `${source.humanizedAvgRating()}★ (${source.numRatings || source.numReviews} ratings)`;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const SourceFooter: React.FC<{ source: Source; show: Show }> = ({ show, source }) => {
   return (
     <View className="px-4 py-4">
@@ -281,7 +300,7 @@ export const SourceHeader = ({
       )}
       <View className="w-full flex-row pb-4 " style={{ gap: 16 }}>
         <RelistenButton
-          className="shrink basis-1/2"
+          className="shrink basis-1/3"
           textClassName="text-l"
           icon={<MaterialIcons name="play-arrow" size={20} color="white" />}
           onPress={() => playShow(source.sourceSets[0].sourceTracks[0])}
@@ -289,15 +308,15 @@ export const SourceHeader = ({
           Play
         </RelistenButton>
         <RelistenButton
-          className="shrink basis-1/2"
+          className="shrink basis-1/3"
           textClassName="text-l"
-          icon={
-            <MaterialIcons
-              name={source.isFavorite ? 'favorite' : 'favorite-outline'}
-              size={20}
-              color="white"
-            />
-          }
+          onPress={() => playShow(source.sourceSets[0].sourceTracks[0])}
+        >
+          <MaterialCommunityIcons name="cloud-outline" size={20} color="white" />
+        </RelistenButton>
+        <RelistenButton
+          className="shrink basis-1/3"
+          textClassName="text-l"
           onPress={() => {
             realm.write(() => {
               source.isFavorite = !source.isFavorite;
@@ -305,7 +324,11 @@ export const SourceHeader = ({
             });
           }}
         >
-          {source.isFavorite ? 'In Library' : 'Add to Library'}
+          <MaterialIcons
+            name={source.isFavorite ? 'favorite' : 'favorite-outline'}
+            size={20}
+            color="white"
+          />
         </RelistenButton>
       </View>
       <View className="w-full pb-2">
@@ -330,44 +353,6 @@ export const SourceHeader = ({
         </Link>
       </View>
       {source.sourceSets.length === 1 && <ItemSeparator />}
-    </View>
-  );
-};
-
-interface SourceSetsProps {
-  source: Source;
-  playShow: PlayShow;
-}
-
-export const SourceSets = ({ source, playShow }: SourceSetsProps) => {
-  return (
-    <View>
-      {source.sourceSets.map((s) => (
-        <SourceSetComponent key={s.uuid} sourceSet={s} source={source} playShow={playShow} />
-      ))}
-      <View className="px-4">
-        <ItemSeparator />
-      </View>
-    </View>
-  );
-};
-
-export const SourceSetComponent: React.FC<{
-  source: Source;
-  sourceSet: SourceSet;
-  playShow: PlayShow;
-}> = ({ source, sourceSet, playShow }) => {
-  return (
-    <View>
-      {source.sourceSets.length > 1 && <SectionHeader title={sourceSet.name} />}
-      {sourceSet.sourceTracks.map((t, idx) => (
-        <SourceTrackComponent
-          key={t.uuid}
-          sourceTrack={t}
-          isLastTrackInSet={idx == sourceSet.sourceTracks.length - 1}
-          onPress={playShow}
-        />
-      ))}
     </View>
   );
 };
