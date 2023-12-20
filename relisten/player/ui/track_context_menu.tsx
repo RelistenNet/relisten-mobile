@@ -42,7 +42,7 @@ export function useSourceTrackContextMenu() {
           cancelButtonIndex,
           destructiveButtonIndex: sourceTrack.offlineInfo ? 3 : undefined,
         },
-        (selectedIndex?: number) => {
+        async (selectedIndex?: number) => {
           switch (selectedIndex) {
             case 0:
               // Play now
@@ -58,11 +58,13 @@ export function useSourceTrackContextMenu() {
               break;
             case 3:
               // Download/cancel download
-              if (sourceTrack.offlineInfo) {
-                // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                const _ = DownloadManager.SHARED_INSTANCE.removeDownload(sourceTrack);
-              } else {
+              if (
+                !sourceTrack.offlineInfo ||
+                sourceTrack.offlineInfo.status === SourceTrackOfflineInfoStatus.Failed
+              ) {
                 DownloadManager.SHARED_INSTANCE.downloadTrack(sourceTrack);
+              } else {
+                await DownloadManager.SHARED_INSTANCE.removeDownload(sourceTrack);
               }
               break;
             case cancelButtonIndex:
