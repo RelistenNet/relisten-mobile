@@ -14,7 +14,7 @@ import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { useRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useForceUpdate } from '@/relisten/util/forced_update';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { MoreOrLess } from '@rntext/more-or-less';
 import dayjs from 'dayjs';
 import { Link, useLocalSearchParams, useNavigation } from 'expo-router';
@@ -300,7 +300,7 @@ export const SourceHeader = ({
       )}
       <View className="w-full flex-row pb-4 " style={{ gap: 16 }}>
         <RelistenButton
-          className="shrink basis-1/2"
+          className="shrink basis-1/3"
           textClassName="text-l"
           icon={<MaterialIcons name="play-arrow" size={20} color="white" />}
           onPress={() => playShow(source.sourceSets[0].sourceTracks[0])}
@@ -308,15 +308,15 @@ export const SourceHeader = ({
           Play
         </RelistenButton>
         <RelistenButton
-          className="shrink basis-1/2"
+          className="shrink basis-1/3"
           textClassName="text-l"
-          icon={
-            <MaterialIcons
-              name={source.isFavorite ? 'favorite' : 'favorite-outline'}
-              size={20}
-              color="white"
-            />
-          }
+          onPress={() => playShow(source.sourceSets[0].sourceTracks[0])}
+        >
+          <MaterialCommunityIcons name="cloud-outline" size={20} color="white" />
+        </RelistenButton>
+        <RelistenButton
+          className="shrink basis-1/3"
+          textClassName="text-l"
           onPress={() => {
             realm.write(() => {
               source.isFavorite = !source.isFavorite;
@@ -324,7 +324,11 @@ export const SourceHeader = ({
             });
           }}
         >
-          {source.isFavorite ? 'In Library' : 'Add to Library'}
+          <MaterialIcons
+            name={source.isFavorite ? 'favorite' : 'favorite-outline'}
+            size={20}
+            color="white"
+          />
         </RelistenButton>
       </View>
       <View className="w-full pb-2">
