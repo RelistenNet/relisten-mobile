@@ -10,6 +10,8 @@ import { useRelistenPlayerPlaybackState } from '@/relisten/player/relisten_playe
 import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import { SourceTrackOfflineIndicator } from '@/relisten/components/source/source_track_offline_indicator';
 import Flex from '../flex';
+import { SourceTrackOfflineInfoStatus } from '@/relisten/realm/models/source_track_offline_info';
+import { tw } from '@/relisten/util/tw';
 
 interface SourceTrackProps {
   sourceTrack: SourceTrack;
@@ -38,22 +40,24 @@ export const SourceTrackComponent = ({
       onPress={() => onPress(sourceTrack)}
     >
       {showTrackNumber && !isPlayingThisTrack && (
-        <View className="basis-7 pt-3">
-          <RelistenText className="pt-[1] text-lg text-gray-400">
+        <View className="basis-7 self-center">
+          <RelistenText className="text-lg leading-[1] text-gray-400">
             {sourceTrack.trackPosition}
           </RelistenText>
         </View>
       )}
 
       {isPlayingThisTrack && (
-        <View className="basis-7 pt-3.5">
+        <View className="basis-7 pt-2">
           <SoundIndicator size={18} playing={playbackState === RelistenPlaybackState.Playing} />
         </View>
       )}
 
       <View className="shrink flex-col">
         <View className="w-full grow flex-row items-center justify-between">
-          <RelistenText className="shrink py-3 pr-2 text-lg">{sourceTrack.title}</RelistenText>
+          <RelistenText className="shrink pr-2 text-lg leading-[1]">
+            {sourceTrack.title}
+          </RelistenText>
           <View className="grow"></View>
           <SourceTrackOfflineIndicator sourceTrack={sourceTrack} />
 
