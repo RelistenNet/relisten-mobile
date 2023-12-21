@@ -74,6 +74,15 @@ export const RelistenSectionList = <T extends RelistenObject>({
         return 'uuid' in item ? 'row' : 'sectionHeader';
       }}
       // stickyHeaderIndices={stickyHeaderIndices}
+      keyExtractor={(item) => {
+        if ('sectionTitle' in item) {
+          return item.sectionTitle;
+        } else if ('uuid' in item) {
+          return item.uuid;
+        }
+
+        return 'missing_key';
+      }}
       renderItem={(props) => {
         if (!props?.item) return null;
 
