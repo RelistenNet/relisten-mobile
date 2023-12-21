@@ -77,9 +77,12 @@ export class PlayerQueueTrack {
 
   toStreamable(): RelistenStreamable {
     let url = this.sourceTrack.mp3Url;
+    let downloadDestination: string | undefined = undefined;
 
     if (this.sourceTrack.offlineInfo?.status === SourceTrackOfflineInfoStatus.Succeeded) {
       url = 'file://' + this.sourceTrack.downloadedFileLocation();
+    } else {
+      downloadDestination = 'file://' + this.sourceTrack.downloadedFileLocation();
     }
 
     return {
@@ -89,6 +92,7 @@ export class PlayerQueueTrack {
       artist: this.artist,
       albumTitle: this.albumTitle,
       albumArt: this.albumArt,
+      downloadDestination,
     };
   }
 }

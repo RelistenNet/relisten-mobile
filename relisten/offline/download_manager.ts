@@ -2,6 +2,7 @@ import { SourceTrack } from '@/relisten/realm/models/source_track';
 import {
   SourceTrackOfflineInfo,
   SourceTrackOfflineInfoStatus,
+  SourceTrackOfflineInfoType,
 } from '@/relisten/realm/models/source_track_offline_info';
 import type { DownloadTask } from '@kesha-antonov/react-native-background-downloader';
 import RNBackgroundDownloader from '@kesha-antonov/react-native-background-downloader';
@@ -17,17 +18,23 @@ export class DownloadManager {
 
   private runningDownloadTasks: DownloadTask[] = [];
 
-  downloadTrack(sourceTrack: SourceTrack) {
-    if (
-      sourceTrack.offlineInfo &&
-      sourceTrack.offlineInfo.status !== SourceTrackOfflineInfoStatus.Failed
-    ) {
-      throw new Error('Source track already has offline info');
-    }
-
+  async downloadTrack(sourceTrack: SourceTrack) {
     if (!realm) {
       logger.error('downloadTrack: No global Realm instance available.');
       return;
+    }
+
+    if (sourceTrack.offlineInfo) {
+      if (sourceTrack.offlineInfo.type === SourceTrackOfflineInfoType.StreamingCache) {
+        // Upgrade streaming cache to user download
+        realm.write(() => {
+          sourceTrack.offlineInfo!.type = SourceTrackOfflineInfoType.UserInitiated;
+        });
+
+        return;
+      } else if (sourceTrack.offlineInfo.status !== SourceTrackOfflineInfoStatus.Failed) {
+        throw new Error('Source track already has offline info');
+      }
     }
 
     let offlineInfo: SourceTrackOfflineInfo | undefined = sourceTrack.offlineInfo;
@@ -38,22 +45,53 @@ export class DownloadManager {
           sourceTrackUuid: sourceTrack.uuid,
           queuedAt: new Date(),
           status: SourceTrackOfflineInfoStatus.Queued,
+          type: SourceTrackOfflineInfoType.UserInitiated,
         });
 
         sourceTrack.offlineInfo = offlineInfo;
       });
     }
 
-    this.createDownloadTask(sourceTrack, offlineInfo!);
+    await this.createDownloadTask(sourceTrack, offlineInfo!);
   }
 
-  private createDownloadTask(sourceTrack: SourceTrack, offlineInfo: SourceTrackOfflineInfo) {
+  markCachedFileAsAvailableOffline(sourceTrack: SourceTrack, totalBytes: number) {
+    if (!realm) {
+      logger.error('markCachedFileAsOffline: No global Realm instance available.');
+      return;
+    }
+
+    realm.write(() => {
+      const d = new Date();
+
+      const offlineInfo = new SourceTrackOfflineInfo(realm!, {
+        sourceTrackUuid: sourceTrack.uuid,
+        type: SourceTrackOfflineInfoType.StreamingCache,
+        queuedAt: d,
+        status: SourceTrackOfflineInfoStatus.Succeeded,
+        totalBytes,
+        downloadedBytes: totalBytes,
+        percent: 1,
+        completedAt: d,
+      });
+
+      sourceTrack.offlineInfo = offlineInfo;
+    });
+  }
+
+  private async createDownloadTask(sourceTrack: SourceTrack, offlineInfo: SourceTrackOfflineInfo) {
     logger.debug(`${sourceTrack.uuid}: ${sourceTrack.mp3Url}`);
+
+    const destination = sourceTrack.downloadedFileLocation();
+
+    // make sure the file doesn't already exist. the native code will error out. this should only be needed to recover
+    // from strange error states/interactions with the streaming cache
+    await fs.deleteAsync(destination, { idempotent: true });
 
     const task = RNBackgroundDownloader.download({
       id: sourceTrack.uuid,
       url: sourceTrack.mp3Url,
-      destination: sourceTrack.downloadedFileLocation(),
+      destination,
     });
 
     this.runningDownloadTasks.push(task);
@@ -130,7 +168,7 @@ export class DownloadManager {
 
     for (const offlineInfo of queuedDownloads) {
       if (!resumedTaskIds.has(offlineInfo.sourceTrackUuid)) {
-        const task = this.createDownloadTask(offlineInfo.sourceTrack, offlineInfo);
+        const task = await this.createDownloadTask(offlineInfo.sourceTrack, offlineInfo);
 
         restartedTaskIds.add(task.id);
       }

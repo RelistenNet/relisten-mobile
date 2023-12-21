@@ -2,6 +2,7 @@ import {
   RelistenErrorEvent,
   RelistenPlaybackState,
   RelistenRemoteControlEvent,
+  RelistenTrackStreamingCacheCompleteEvent,
 } from '@/modules/relisten-audio-player';
 import { SharedState } from '@/relisten/util/shared_state';
 
@@ -23,6 +24,8 @@ export const currentTrackIdentifier = new SharedState<string | undefined>();
 export const progress = new SharedState<PlaybackContextProgress>();
 export const activeTrackDownloadProgress = new SharedState<PlaybackContextDownloadProgress>();
 export const remoteControlEvent = new SharedState<RelistenRemoteControlEvent>();
+export const trackStreamingCacheComplete =
+  new SharedState<RelistenTrackStreamingCacheCompleteEvent>();
 
 export const sharedStates = {
   latestError,
@@ -31,4 +34,5 @@ export const sharedStates = {
   progress,
   activeTrackDownloadProgress,
   remoteControlEvent,
+  trackStreamingCacheComplete,
 };

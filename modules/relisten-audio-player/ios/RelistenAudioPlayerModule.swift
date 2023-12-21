@@ -4,28 +4,31 @@ import ExpoModulesCore
 
 struct RelistenStreamable: Record {
     @Field
-    var url: URL? = nil
+    var url: URL?
 
     @Field
-    var identifier: String? = nil
-    
-    @Field
-    var title: String? = nil
-    
-    @Field
-    var albumTitle: String? = nil
+    var identifier: String?
 
     @Field
-    var albumArt: String? = nil
-    
+    var title: String?
+
     @Field
-    var artist: String? = nil
+    var albumTitle: String?
+
+    @Field
+    var albumArt: String?
+
+    @Field
+    var artist: String?
+
+    @Field
+    var downloadDestination: URL?
 }
 
 var DEBUG_state = ""
 
 public class RelistenAudioPlayerModule: Module {
-    var player: RelistenGaplessAudioPlayer? = nil
+    var player: RelistenGaplessAudioPlayer?
 
     // Each module class must implement the definition function. The definition consists of components
     // that describes the module's functionality and behavior.
@@ -41,7 +44,15 @@ public class RelistenAudioPlayerModule: Module {
             player?.delegate = self
         }
 
-        Events("onError", "onPlaybackStateChanged", "onPlaybackProgressChanged", "onDownloadProgressChanged", "onTrackChanged", "onRemoteControl")
+        Events(
+            "onError",
+            "onPlaybackStateChanged",
+            "onPlaybackProgressChanged",
+            "onDownloadProgressChanged",
+            "onTrackChanged",
+            "onRemoteControl",
+            "onTrackStreamingCacheComplete"
+        )
 
         Function("currentDuration") {
             return player?.currentDuration
@@ -74,21 +85,21 @@ public class RelistenAudioPlayerModule: Module {
         AsyncFunction("playbackProgress") { (promise: Promise) in
             player?.bassQueue.async {
                 guard let player = self.player else {
-                    promise.resolve(["playbackProgress": nil] as [String : Any?])
+                    promise.resolve(["playbackProgress": nil] as [String: Any?])
                     return
                 }
 
                 promise.resolve([
                     "playbackProgress": [
                         "elapsed": player.elapsed,
-                        "duration": player.currentDuration,
-                    ] as [String : TimeInterval?],
+                        "duration": player.currentDuration
+                    ] as [String: TimeInterval?],
                     "activeTrackDownloadProgress": [
                         "forActiveTrack": true,
                         "downloadedBytes": player.activeTrackDownloadedBytes as Any,
-                        "totalBytes": player.activeTrackTotalBytes as Any,
-                    ] as [String : Any]
-                ] as [String : Any])
+                        "totalBytes": player.activeTrackTotalBytes as Any
+                    ] as [String: Any]
+                ] as [String: Any])
             }
         }
 
@@ -99,20 +110,40 @@ public class RelistenAudioPlayerModule: Module {
             }
 
             player?.bassQueue.async {
-                self.player?.play(RelistenGaplessStreamable(url: url, identifier: identifier, title: title, artist: artist, albumTitle: albumTitle, albumArt: albumArt))
+                self.player?.play(
+                    RelistenGaplessStreamable(
+                        url: url,
+                        identifier: identifier,
+                        title: title,
+                        artist: artist,
+                        albumTitle: albumTitle,
+                        albumArt: albumArt,
+                        downloadDestination: streamable.downloadDestination
+                    )
+                )
                 promise.resolve()
             }
         }
 
-        Function("setNextStream"){ (streamable: RelistenStreamable?) in
-            if (streamable == nil) {
+        Function("setNextStream") { (streamable: RelistenStreamable?) in
+            if streamable == nil {
                 player?.setNextStream(nil)
             }
-            
-            guard let streamable = streamable,   let url = streamable.url, let identifier = streamable.identifier, let title = streamable.title, let albumTitle = streamable.albumTitle, let albumArt = streamable.albumArt, let artist = streamable.artist else {
+
+            guard let streamable = streamable, let url = streamable.url, let identifier = streamable.identifier, let title = streamable.title, let albumTitle = streamable.albumTitle, let albumArt = streamable.albumArt, let artist = streamable.artist else {
                 return
             }
-            player?.setNextStream(RelistenGaplessStreamable(url: url, identifier: identifier, title: title, artist: artist, albumTitle: albumTitle, albumArt: albumArt))
+            player?.setNextStream(
+                RelistenGaplessStreamable(
+                    url: url,
+                    identifier: identifier,
+                    title: title,
+                    artist: artist,
+                    albumTitle: albumTitle,
+                    albumArt: albumArt,
+                    downloadDestination: streamable.downloadDestination
+                )
+            )
         }
 
         AsyncFunction("resume") { (promise: Promise) in
@@ -153,24 +184,31 @@ public class RelistenAudioPlayerModule: Module {
 }
 
 extension RelistenAudioPlayerModule: RelistenGaplessAudioPlayerDelegate {
+    public func streamingCacheCompleted(forStreamable streamable: RelistenGaplessStreamable, bytesWritten: Int) {
+        self.sendEvent("onTrackStreamingCacheComplete", [
+            "identifier": streamable.identifier,
+            "totalBytes": bytesWritten
+        ])
+    }
+    
     public func errorStartingStream(_ player: RelistenGaplessAudioPlayer, error: NSError, forStreamable: RelistenGaplessStreamable) {
         self.sendEvent("onError", [
             "error": error.code,
             "errorDescription": error.localizedDescription,
-            "identifier": forStreamable.identifier,
+            "identifier": forStreamable.identifier
         ])
     }
 
     public func playbackStateChanged(_ player: RelistenGaplessAudioPlayer, newPlaybackState playbackState: PlaybackState) {
         self.sendEvent("onPlaybackStateChanged", [
-            "newPlaybackState": String(describing: playbackState),
+            "newPlaybackState": String(describing: playbackState)
         ])
     }
 
     public func playbackProgressChanged(_ player: RelistenGaplessAudioPlayer, elapsed: TimeInterval?, duration: TimeInterval?) {
         self.sendEvent("onPlaybackProgressChanged", [
             "elapsed": elapsed,
-            "duration": duration,
+            "duration": duration
         ])
     }
 
@@ -178,20 +216,20 @@ extension RelistenAudioPlayerModule: RelistenGaplessAudioPlayerDelegate {
         self.sendEvent("onDownloadProgressChanged", [
             "forActiveTrack": forActiveTrack,
             "downloadedBytes": downloadedBytes,
-            "totalBytes": totalBytes,
+            "totalBytes": totalBytes
         ])
     }
 
     public func trackChanged(_ player: RelistenGaplessAudioPlayer, previousStreamable: RelistenGaplessStreamable?, currentStreamable: RelistenGaplessStreamable?) {
         self.sendEvent("onTrackChanged", [
             "previousIdentifier": previousStreamable?.identifier,
-            "currentIdentifier": currentStreamable?.identifier,
+            "currentIdentifier": currentStreamable?.identifier
         ])
     }
-    
+
     public func remoteControl(method: String) {
         self.sendEvent("onRemoteControl", [
-            "method": method,
+            "method": method
         ])
     }
 

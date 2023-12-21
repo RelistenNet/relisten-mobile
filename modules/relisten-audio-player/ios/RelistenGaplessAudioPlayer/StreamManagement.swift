@@ -14,6 +14,7 @@ extension RelistenGaplessAudioPlayer {
         maybeSetupBASS()
 
         var newStream: HSTREAM = 0
+        var streamCacher: RelistenStreamCacher?
 
         if streamable.url.isFileURL {
             newStream = BASS_StreamCreateFile(0,
@@ -22,11 +23,22 @@ extension RelistenGaplessAudioPlayer {
                                               0,
                                               DWORD(BASS_STREAM_DECODE | BASS_SAMPLE_FLOAT | BASS_ASYNCFILE | BASS_STREAM_PRESCAN))
         } else {
-            newStream = BASS_StreamCreateURL(streamable.url.absoluteString.cString(using: .utf8),
-                                             fileOffset,
-                                             DWORD(BASS_STREAM_DECODE | BASS_SAMPLE_FLOAT),
-                                             nil, // StreamDownloadProc,
-                                             nil) // (__bridge void *)(self));
+            streamCacher = RelistenStreamCacher(self, streamable: streamable)
+
+            if fileOffset == 0 {
+                newStream = BASS_StreamCreateURL(streamable.url.absoluteString.cString(using: .utf8),
+                                                 fileOffset,
+                                                 DWORD(BASS_STREAM_DECODE | BASS_SAMPLE_FLOAT),
+                                                 streamDownloadProc,
+                                                 Unmanaged.passUnretained(streamCacher!).toOpaque())
+            } else {
+                newStream = BASS_StreamCreateURL(streamable.url.absoluteString.cString(using: .utf8),
+                                                 fileOffset,
+                                                 DWORD(BASS_STREAM_DECODE | BASS_SAMPLE_FLOAT),
+                                                 nil,
+                                                 nil)
+
+            }
         }
 
         // oops
@@ -56,7 +68,13 @@ extension RelistenGaplessAudioPlayer {
 
         NSLog("[bass][stream] created new stream: %u. identifier=%@", newStream, streamable.identifier)
 
-        return RelistenGaplessAudioStream(streamable: streamable, stream: newStream, fileOffset: fileOffset, channelOffset: channelOffset)
+        return RelistenGaplessAudioStream(
+            streamable: streamable,
+            streamCacher: streamCacher,
+            stream: newStream,
+            fileOffset: fileOffset,
+            channelOffset: channelOffset
+        )
     }
 
     func startPreloadingNextStream() {
@@ -71,3 +89,19 @@ extension RelistenGaplessAudioPlayer {
         nextStream.preloadStarted = true
     }
 }
+
+internal var streamDownloadProc: @convention(c) (_ buffer: UnsafeRawPointer?,
+                                                 _ length: DWORD,
+                                                 _ user: UnsafeMutableRawPointer?) -> Void = {
+                                                    buffer, length, user in
+                                                    if let streamCacherPtr = user {
+                                                        let streamCacher: RelistenStreamCacher = Unmanaged.fromOpaque(streamCacherPtr).takeUnretainedValue()
+
+                                                        if let safeBuffer = buffer, length > 0 {
+                                                            let data = Data(bytes: safeBuffer, count: Int(length))
+                                                            streamCacher.writeData(data)
+                                                        } else {
+                                                            streamCacher.finishWritingData()
+                                                        }
+                                                    }
+                                                 }

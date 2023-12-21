@@ -9,6 +9,12 @@ export enum SourceTrackOfflineInfoStatus {
   Succeeded,
 }
 
+export enum SourceTrackOfflineInfoType {
+  UNKNOWN,
+  UserInitiated,
+  StreamingCache,
+}
+
 export class SourceTrackOfflineInfo extends Realm.Object<SourceTrackOfflineInfo> {
   static schema: Realm.ObjectSchema = {
     name: 'SourceTrackOfflineInfo',
@@ -16,6 +22,7 @@ export class SourceTrackOfflineInfo extends Realm.Object<SourceTrackOfflineInfo>
     properties: {
       sourceTrackUuid: 'string',
       status: 'int',
+      type: 'int',
 
       queuedAt: 'date',
       startedAt: 'date?',
@@ -42,6 +49,7 @@ export class SourceTrackOfflineInfo extends Realm.Object<SourceTrackOfflineInfo>
 
   sourceTrackUuid!: string;
   status!: SourceTrackOfflineInfoStatus;
+  type!: SourceTrackOfflineInfoType;
 
   queuedAt!: Date;
   startedAt!: Date;

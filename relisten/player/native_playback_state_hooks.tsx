@@ -6,6 +6,7 @@ import {
   RelistenPlaybackStateChangedEvent,
   RelistenRemoteControlEvent,
   RelistenTrackChangedEvent,
+  RelistenTrackStreamingCacheCompleteEvent,
 } from '@/modules/relisten-audio-player';
 import { sharedStates } from '@/relisten/player/shared_state';
 import { SharedState } from '@/relisten/util/shared_state';
@@ -19,11 +20,11 @@ export function addPlayerListeners() {
   }
   listenersRegisters = true;
 
-  console.log('[playback state] adding playback event listeners');
+  // console.log('[playback state] adding playback event listeners');
 
   const download = nativePlayer.addDownloadProgressListener(
     (download: RelistenDownloadProgressChangedEvent) => {
-      console.info('got download progress', download);
+      // console.info('got download progress', download);
 
       sharedStates.activeTrackDownloadProgress.setState({
         downloadedBytes: download.downloadedBytes,
@@ -35,7 +36,7 @@ export function addPlayerListeners() {
 
   const listener = nativePlayer.addPlaybackProgressListener(
     (progress: RelistenPlaybackProgressChangedEvent) => {
-      console.info('got playback progress', progress);
+      // console.info('got playback progress', progress);
 
       const newProgress = {
         elapsed: progress.elapsed ?? 0,
@@ -56,7 +57,7 @@ export function addPlayerListeners() {
 
   const playback = nativePlayer.addPlaybackStateListener(
     (playbackState: RelistenPlaybackStateChangedEvent) => {
-      console.info('got playbackState', playbackState);
+      // console.info('got playbackState', playbackState);
 
       sharedStates.state.setState(playbackState.newPlaybackState);
     }
@@ -64,7 +65,7 @@ export function addPlayerListeners() {
 
   const trackChangedListener = nativePlayer.addTrackChangedListener(
     (trackChanged: RelistenTrackChangedEvent) => {
-      console.info('got trackChanged', trackChanged);
+      // console.info('got trackChanged', trackChanged);
 
       sharedStates.currentTrackIdentifier.setState(trackChanged.currentIdentifier);
     }
@@ -72,17 +73,25 @@ export function addPlayerListeners() {
 
   const remoteControlListener = nativePlayer.addRemoteControlListener(
     (event: RelistenRemoteControlEvent) => {
-      console.info('got remoteControl', event.method);
+      // console.info('got remoteControl', event.method);
 
       sharedStates.remoteControlEvent.setState(event);
     }
   );
 
   const latestErrorListener = nativePlayer.addErrorListener((latestError: RelistenErrorEvent) => {
-    console.info('got latestError', latestError);
+    // console.info('got latestError', latestError);
 
     sharedStates.latestError.setState(latestError);
   });
+
+  const trackStreamingCacheCompleteListener = nativePlayer.addTrackStreamingCacheCompleteListener(
+    (event: RelistenTrackStreamingCacheCompleteEvent) => {
+      // console.info('got trackStreamingCacheComplete', event);
+
+      sharedStates.trackStreamingCacheComplete.setState(event);
+    }
+  );
 
   return () => {
     download.remove();
@@ -90,7 +99,8 @@ export function addPlayerListeners() {
     playback.remove();
     trackChangedListener.remove();
     latestErrorListener.remove();
-    return remoteControlListener.remove();
+    remoteControlListener.remove();
+    trackStreamingCacheCompleteListener.remove();
   };
 }
 

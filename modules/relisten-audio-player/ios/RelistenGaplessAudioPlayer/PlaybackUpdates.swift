@@ -13,7 +13,7 @@ extension RelistenGaplessAudioPlayer {
         guard let activeStream else {
             return
         }
-        
+
         var nowPlayingInfo = [String: Any]()
 
         // Set metadata for your media
@@ -21,8 +21,8 @@ extension RelistenGaplessAudioPlayer {
         nowPlayingInfo[MPMediaItemPropertyArtist] = activeStream.streamable.artist
         nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = activeStream.streamable.albumTitle
 
-        if (artwork != nil) {
-            nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork;
+        if artwork != nil {
+            nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
         }
 
         // Set the playback duration and current playback time
@@ -35,15 +35,15 @@ extension RelistenGaplessAudioPlayer {
         // Set the nowPlayingInfo
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
     }
-    
+
     func getData(from url: URL, completion: @escaping (UIImage?) -> Void) {
-         URLSession.shared.dataTask(with: url, completionHandler: {(data, response, error) in
-             if let data = data {
-                 completion(UIImage(data:data))
-             }
-         })
-             .resume()
-     }
+        URLSession.shared.dataTask(with: url, completionHandler: {(data, _, _) in
+            if let data = data {
+                completion(UIImage(data: data))
+            }
+        })
+        .resume()
+    }
 
     func fetchAlbumArt(href: String) {
         guard let url = URL(string: href) else { return }
@@ -58,12 +58,12 @@ extension RelistenGaplessAudioPlayer {
             self.updateControlCenter(artwork: artwork)
         }
     }
-    
+
     func startUpdates() {
         guard let activeStream else {
             return
         }
-        
+
         let oldElapsed = elapsed ?? 0
         let oldDuration = currentDuration ?? 0
         let prevState = _currentState
@@ -89,17 +89,16 @@ extension RelistenGaplessAudioPlayer {
             if thisElapsed == nil || floor(oldElapsed) != floor(thisElapsed ?? 0) || oldDuration != thisDuration {
                 sendPlaybackChanged = true
             }
-            
+
             let oldKilobytes = floor(Double(oldDownloadedBytes) / (100 * 1024))
             let newKilobytes = floor(Double(downloadedBytes) / (100 * 1024))
-            
+
             // Only update once per 100 KiB
             if downloadedBytes != -1 && totalFileBytes != -1 && oldTotalFileBytes != -1 && oldDownloadedBytes != -1,
-               oldKilobytes != newKilobytes || oldTotalFileBytes != totalFileBytes
-            {
+               oldKilobytes != newKilobytes || oldTotalFileBytes != totalFileBytes {
                 sendDownloadChanged = true
             }
-            
+
             let thisState = currentState
 
             if prevState != thisState {
@@ -107,9 +106,9 @@ extension RelistenGaplessAudioPlayer {
             }
 
             if sendPlaybackChanged || sendStateChanged {
-                updateControlCenter(artwork: nil);
+                updateControlCenter(artwork: nil)
             }
-            
+
             if sendPlaybackChanged {
                 NSLog("[playback updates] sendPlaybackChanged")
                 self.delegate?.playbackProgressChanged(self, elapsed: thisElapsed, duration: thisDuration)
@@ -124,7 +123,7 @@ extension RelistenGaplessAudioPlayer {
                 NSLog("[playback updates] sendStateChanged")
                 self.delegate?.playbackStateChanged(self, newPlaybackState: thisState)
             }
-            
+
             startUpdates()
         }
     }

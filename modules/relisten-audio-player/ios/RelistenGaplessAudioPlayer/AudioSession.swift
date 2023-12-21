@@ -12,7 +12,7 @@ import AVFAudio
 extension RelistenGaplessAudioPlayer {
     internal func setupAudioSession(shouldActivate: Bool) {
         let session = AVAudioSession.sharedInstance()
-        
+
         try? session.setCategory(.playback)
         try? session.setActive(shouldActivate)
 
@@ -24,20 +24,20 @@ extension RelistenGaplessAudioPlayer {
             NotificationCenter.default.addObserver(self, selector: #selector(handleMediaServicesWereLost), name: AVAudioSession.mediaServicesWereLostNotification, object: session)
 
             commandCenter.playCommand.isEnabled = true
-            commandCenter.playCommand.addTarget(handler: _resume);
+            commandCenter.playCommand.addTarget(handler: _resume)
             commandCenter.pauseCommand.isEnabled = true
-            commandCenter.pauseCommand.addTarget(handler: _pause);
-            commandCenter.changePlaybackPositionCommand.isEnabled = true;
-            commandCenter.changePlaybackPositionCommand.addTarget(handler: _seekTo);
-            commandCenter.nextTrackCommand.isEnabled = true;
-            commandCenter.nextTrackCommand.addTarget(handler: _nextTrack);
-            commandCenter.previousTrackCommand.isEnabled = true;
-            commandCenter.previousTrackCommand.addTarget(handler: _prevTrack);
+            commandCenter.pauseCommand.addTarget(handler: _pause)
+            commandCenter.changePlaybackPositionCommand.isEnabled = true
+            commandCenter.changePlaybackPositionCommand.addTarget(handler: _seekTo)
+            commandCenter.nextTrackCommand.isEnabled = true
+            commandCenter.nextTrackCommand.addTarget(handler: _nextTrack)
+            commandCenter.previousTrackCommand.isEnabled = true
+            commandCenter.previousTrackCommand.addTarget(handler: _prevTrack)
 
             DispatchQueue.main.async {
                 UIApplication.shared.beginReceivingRemoteControlEvents()
             }
-            
+
             audioSessionObserversSetUp = true
         }
 
@@ -46,27 +46,27 @@ extension RelistenGaplessAudioPlayer {
             audioSessionAlreadySetUp = true
         }
     }
-    
+
     internal func tearDownAudioSession() {
         if audioSessionObserversSetUp {
             NotificationCenter.default.removeObserver(self, name: AVAudioSession.routeChangeNotification, object: nil)
             NotificationCenter.default.removeObserver(self, name: AVAudioSession.interruptionNotification, object: nil)
             NotificationCenter.default.removeObserver(self, name: AVAudioSession.mediaServicesWereResetNotification, object: nil)
             NotificationCenter.default.removeObserver(self, name: AVAudioSession.mediaServicesWereLostNotification, object: nil)
-            
-            commandCenter.playCommand.isEnabled = false;
-            commandCenter.playCommand.removeTarget(_resume);
-            commandCenter.pauseCommand.isEnabled = false;
-            commandCenter.pauseCommand.removeTarget(_pause);
-            commandCenter.changePlaybackPositionCommand.isEnabled = false;
-            commandCenter.changePlaybackPositionCommand.removeTarget(_seekTo);
-            commandCenter.nextTrackCommand.isEnabled = false;
-            commandCenter.nextTrackCommand.removeTarget(_nextTrack);
-            commandCenter.previousTrackCommand.isEnabled = false;
-            commandCenter.previousTrackCommand.removeTarget(_prevTrack);
-            
+
+            commandCenter.playCommand.isEnabled = false
+            commandCenter.playCommand.removeTarget(_resume)
+            commandCenter.pauseCommand.isEnabled = false
+            commandCenter.pauseCommand.removeTarget(_pause)
+            commandCenter.changePlaybackPositionCommand.isEnabled = false
+            commandCenter.changePlaybackPositionCommand.removeTarget(_seekTo)
+            commandCenter.nextTrackCommand.isEnabled = false
+            commandCenter.nextTrackCommand.removeTarget(_nextTrack)
+            commandCenter.previousTrackCommand.isEnabled = false
+            commandCenter.previousTrackCommand.removeTarget(_prevTrack)
+
             DispatchQueue.main.async {
-                UIApplication.shared.endReceivingRemoteControlEvents();
+                UIApplication.shared.endReceivingRemoteControlEvents()
             }
         }
     }
@@ -120,7 +120,7 @@ extension RelistenGaplessAudioPlayer {
             // Audio has stopped, already inactive
             // Change state of UI, etc., to reflect non-playing state
             let state = currentState
-            
+
             wasPlayingWhenInterrupted = state == .Playing || state == .Stalled
 
             pause()
@@ -149,11 +149,11 @@ extension RelistenGaplessAudioPlayer {
     @objc func handleMediaServicesWereReset(_: Notification) {
         restartPlayback()
     }
-    
+
     @objc func handleMediaServicesWereLost(_: Notification) {
         restartPlayback()
     }
-    
+
     internal func restartPlayback() {
         tearDownAudioSession()
         setupAudioSession(shouldActivate: true)
@@ -161,15 +161,15 @@ extension RelistenGaplessAudioPlayer {
         bassQueue.async {[self] in
             let savedActiveStreamable = activeStream?.streamable
             let nextStreamable = nextStream?.streamable
-            
+
             maybeTearDownBASS()
 
             currentState = .Stopped
-            
+
             if let savedActiveStreamable {
                 playStreamableImmediately(savedActiveStreamable)
             }
-            
+
             if let nextStreamable {
                 self.nextStream = buildStream(nextStreamable)
             }

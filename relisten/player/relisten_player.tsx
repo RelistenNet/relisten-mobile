@@ -3,11 +3,18 @@ import {
   RelistenErrorEvent,
   RelistenPlaybackState,
   RelistenRemoteControlEvent,
+  RelistenTrackStreamingCacheCompleteEvent,
 } from '@/modules/relisten-audio-player';
-import { latestError, remoteControlEvent, state } from '@/relisten/player/shared_state';
+import {
+  latestError,
+  remoteControlEvent,
+  state,
+  trackStreamingCacheComplete,
+} from '@/relisten/player/shared_state';
 import { addPlayerListeners } from '@/relisten/player/native_playback_state_hooks';
 import { RelistenPlayerQueue } from '@/relisten/player/relisten_player_queue';
 import { EventSource } from '@/relisten/util/event_source';
+import { DownloadManager } from '@/relisten/offline/download_manager';
 
 export class RelistenPlayer {
   static DEFAULT_INSTANCE = new RelistenPlayer();
@@ -125,6 +132,7 @@ export class RelistenPlayer {
     state.addListener(this.onNativePlayerStateChanged);
     latestError.addListener(this.onNativePlayerError);
     remoteControlEvent.addListener(this.onRemoteControlEvent);
+    trackStreamingCacheComplete.addListener(this.onTrackStreamingCacheComplete);
     this._queue.addPlayerListeners();
 
     this.addedPlayerListeners = true;
@@ -138,6 +146,7 @@ export class RelistenPlayer {
     state.removeListener(this.onNativePlayerStateChanged);
     latestError.removeListener(this.onNativePlayerError);
     remoteControlEvent.removeListener(this.onRemoteControlEvent);
+    trackStreamingCacheComplete.removeListener(this.onTrackStreamingCacheComplete);
     this._queue.removePlayerListeners();
 
     this.addedPlayerListeners = false;
@@ -153,6 +162,19 @@ export class RelistenPlayer {
   private onRemoteControlEvent = (event: RelistenRemoteControlEvent) => {
     if (event.method === 'prevTrack') {
       this.previous();
+    }
+  };
+
+  private onTrackStreamingCacheComplete = (event: RelistenTrackStreamingCacheCompleteEvent) => {
+    for (const track of this.queue.orderedTracks) {
+      if (track.identifier === event.identifier) {
+        DownloadManager.SHARED_INSTANCE.markCachedFileAsAvailableOffline(
+          track.sourceTrack,
+          event.totalBytes
+        );
+
+        // no need to refresh the next track to make it play from disk--it is already pre-buffered.
+      }
     }
   };
 

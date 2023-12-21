@@ -3,7 +3,10 @@ import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
 import { DownloadManager } from '@/relisten/offline/download_manager';
-import { SourceTrackOfflineInfoStatus } from '@/relisten/realm/models/source_track_offline_info';
+import {
+  SourceTrackOfflineInfoStatus,
+  SourceTrackOfflineInfoType,
+} from '@/relisten/realm/models/source_track_offline_info';
 import { useCallback } from 'react';
 
 export type PlayShow = (sourceTrack?: SourceTrack) => void;
@@ -28,7 +31,8 @@ export function useSourceTrackContextMenu() {
         'Play now',
         'Play Next',
         'Add to end of queue',
-        sourceTrack.offlineInfo
+        sourceTrack.offlineInfo &&
+        sourceTrack.offlineInfo.type != SourceTrackOfflineInfoType.StreamingCache
           ? offlineStatusToAction[sourceTrack.offlineInfo.status]
           : 'Download',
         'Cancel',
@@ -60,9 +64,10 @@ export function useSourceTrackContextMenu() {
               // Download/cancel download
               if (
                 !sourceTrack.offlineInfo ||
-                sourceTrack.offlineInfo.status === SourceTrackOfflineInfoStatus.Failed
+                sourceTrack.offlineInfo.status === SourceTrackOfflineInfoStatus.Failed ||
+                sourceTrack.offlineInfo.type === SourceTrackOfflineInfoType.StreamingCache
               ) {
-                DownloadManager.SHARED_INSTANCE.downloadTrack(sourceTrack);
+                await DownloadManager.SHARED_INSTANCE.downloadTrack(sourceTrack);
               } else {
                 await DownloadManager.SHARED_INSTANCE.removeDownload(sourceTrack);
               }

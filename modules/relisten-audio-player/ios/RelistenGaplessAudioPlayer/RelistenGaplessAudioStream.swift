@@ -18,12 +18,15 @@ public class RelistenGaplessAudioStream {
 
     let streamable: RelistenGaplessStreamable
 
-    public init(streamable: RelistenGaplessStreamable, stream: HSTREAM, preloadStarted: Bool = false, preloadFinished: Bool = false, fileOffset: DWORD = 0, channelOffset: QWORD = 0) {
+    let streamCacher: RelistenStreamCacher?
+
+    public init(streamable: RelistenGaplessStreamable, streamCacher: RelistenStreamCacher?, stream: HSTREAM, preloadStarted: Bool = false, preloadFinished: Bool = false, fileOffset: DWORD = 0, channelOffset: QWORD = 0) {
         self.preloadStarted = preloadStarted
         self.preloadFinished = preloadFinished
         self.stream = stream
         self.fileOffset = fileOffset
         self.channelOffset = channelOffset
         self.streamable = streamable
+        self.streamCacher = streamCacher
     }
 }

@@ -22,7 +22,7 @@ extension RelistenGaplessAudioPlayer {
         bass_assert(BASS_ChannelStop(mixerMainStream))
 
         if let activeStream {
-            tearDownStream(activeStream.stream)
+            tearDownStream(activeStream)
         }
 
         activeStream = buildStream(streamable)
@@ -45,9 +45,9 @@ extension RelistenGaplessAudioPlayer {
 
             currentState = .Playing
 
-            updateControlCenter(artwork: nil);
-            fetchAlbumArt(href: activeStream.streamable.albumArt);
-            
+            updateControlCenter(artwork: nil)
+            fetchAlbumArt(href: activeStream.streamable.albumArt)
+
             // this is needed because the stream download events don't fire for local music
             if activeStream.streamable.url.isFileURL {
                 // this will call nextTrackChanged and setupInactiveStreamWithNext
@@ -97,6 +97,9 @@ extension RelistenGaplessAudioPlayer {
 
             let oldActiveStream = activeStream
 
+            //  tear down the stream cacher before building the new stream so there's no possible write lock conflict on the file
+            oldActiveStream.streamCacher?.teardown()
+
             let newActiveStream = buildStream(activeStream.streamable, fileOffset: fileOffset, channelOffset: seekTo)
             self.activeStream = newActiveStream
 
@@ -107,7 +110,7 @@ extension RelistenGaplessAudioPlayer {
                 // the TRUE for the second argument clears the buffer to prevent bits of the old playback
                 bass_assert(BASS_ChannelPlay(mixerMainStream, 1))
 
-                tearDownStream(oldActiveStream.stream)
+                tearDownStream(oldActiveStream)
             }
         } else {
             bass_assert(BASS_ChannelSetPosition(activeStream.stream, seekTo - activeStream.channelOffset, DWORD(BASS_POS_BYTE)))

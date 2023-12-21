@@ -32,7 +32,7 @@ extension RelistenGaplessAudioPlayer {
         BASS_SetConfig(DWORD(BASS_CONFIG_BUFFER), BASS_GetConfig(DWORD(BASS_CONFIG_UPDATEPERIOD)) + RelistenGaplessAudioPlayer.outputBufferSize)
         // Set DSP effects to use floating point math to avoid clipping within the effects chain
         BASS_SetConfig(DWORD(BASS_CONFIG_FLOATDSP), 1)
-        
+
         bass_assert(BASS_Init(-1, 44100, 0, nil, nil))
 
         mixerMainStream = BASS_Mixer_StreamCreate(44100, 2, DWORD(BASS_MIXER_END))
@@ -48,20 +48,23 @@ extension RelistenGaplessAudioPlayer {
         isSetup = false
 
         if let activeStream {
-            tearDownStream(activeStream.stream)
+            tearDownStream(activeStream)
             self.activeStream = nil
         }
 
         if let nextStream {
-            tearDownStream(nextStream.stream)
+            tearDownStream(nextStream)
             self.nextStream = nil
         }
 
         BASS_Free()
     }
 
-    func tearDownStream(_ stream: HSTREAM) {
-        print("[bass][stream] tearing down stream \(stream)")
+    func tearDownStream(_ relistenStream: RelistenGaplessAudioStream) {
+        let stream = relistenStream.stream
+
+        print("[bass][stream] tearing down stream \(relistenStream)")
+
         // stop channels to allow them to be freed
         BASS_ChannelStop(stream)
 
@@ -70,6 +73,8 @@ extension RelistenGaplessAudioPlayer {
         BASS_Mixer_ChannelRemove(stream)
 
         BASS_StreamFree(stream)
+
+        relistenStream.streamCacher?.teardown()
     }
 
     // MARK: - BASS Event Listeners
@@ -106,7 +111,7 @@ extension RelistenGaplessAudioPlayer {
                 currentState = .Stopped
 
                 if let activeStream {
-                    tearDownStream(activeStream.stream)
+                    tearDownStream(activeStream)
                     self.activeStream = nil
                 }
             }
@@ -167,59 +172,59 @@ internal var mixerEndSyncProc: @convention(c) (_ handle: HSYNC,
                                                _ channel: DWORD,
                                                _ data: DWORD,
                                                _ user: UnsafeMutableRawPointer?) -> Void = {
-    handle, channel, _, user in
-    if let selfPtr = user {
-        let player: RelistenGaplessAudioPlayer = Unmanaged.fromOpaque(selfPtr).takeUnretainedValue()
+                                                handle, channel, _, user in
+                                                if let selfPtr = user {
+                                                    let player: RelistenGaplessAudioPlayer = Unmanaged.fromOpaque(selfPtr).takeUnretainedValue()
 
-        puts("[base][stream] mixer end sync \(player) \(handle)")
+                                                    puts("[base][stream] mixer end sync \(player) \(handle)")
 
-        player.bassQueue.async {
-            player.mixInNextStream(completedStream: channel)
-        }
-    }
-}
+                                                    player.bassQueue.async {
+                                                        player.mixInNextStream(completedStream: channel)
+                                                    }
+                                                }
+                                               }
 
 internal var streamDownloadCompleteSyncProc: @convention(c) (_ handle: HSYNC,
                                                              _ channel: DWORD,
                                                              _ data: DWORD,
                                                              _ user: UnsafeMutableRawPointer?) -> Void = {
-    handle, channel, _, user in
-    if let selfPtr = user {
-        let player: RelistenGaplessAudioPlayer = Unmanaged.fromOpaque(selfPtr).takeUnretainedValue()
+                                                                handle, channel, _, user in
+                                                                if let selfPtr = user {
+                                                                    let player: RelistenGaplessAudioPlayer = Unmanaged.fromOpaque(selfPtr).takeUnretainedValue()
 
-        NSLog("[bass][stream] stream download completed: handle: %u. channel: %u", handle, channel)
+                                                                    NSLog("[bass][stream] stream download completed: handle: %u. channel: %u", handle, channel)
 
-        puts("\(player) \(handle)")
+                                                                    puts("\(player) \(handle)")
 
-        player.bassQueue.async {
-            // channel is the HSTREAM we created before
-            player.streamDownloadComplete(channel)
-        }
-    }
-}
+                                                                    player.bassQueue.async {
+                                                                        // channel is the HSTREAM we created before
+                                                                        player.streamDownloadComplete(channel)
+                                                                    }
+                                                                }
+                                                             }
 
 internal var streamStallSyncProc: @convention(c) (_ handle: HSYNC,
                                                   _ channel: DWORD,
                                                   _ data: DWORD,
                                                   _ user: UnsafeMutableRawPointer?) -> Void = {
-    handle, channel, data, user in
-    if let selfPtr = user {
-        let player: RelistenGaplessAudioPlayer = Unmanaged.fromOpaque(selfPtr).takeUnretainedValue()
+                                                    handle, channel, data, user in
+                                                    if let selfPtr = user {
+                                                        let player: RelistenGaplessAudioPlayer = Unmanaged.fromOpaque(selfPtr).takeUnretainedValue()
 
-        NSLog("[bass][stream] stream stall: handle: %u. channel: %u", handle, channel)
+                                                        NSLog("[bass][stream] stream stall: handle: %u. channel: %u", handle, channel)
 
-        puts("\(player) \(handle)")
+                                                        puts("\(player) \(handle)")
 
-        player.bassQueue.async {
-            // channel is the HSTREAM we created before
-            if data == 0 /* stalled */ {
-                player.streamStalled(channel)
-            } else if data == 1 /* resumed */ {
-                player.streamResumedAfterStall(channel)
-            }
-        }
-    }
-}
+                                                        player.bassQueue.async {
+                                                            // channel is the HSTREAM we created before
+                                                            if data == 0 /* stalled */ {
+                                                                player.streamStalled(channel)
+                                                            } else if data == 1 /* resumed */ {
+                                                                player.streamResumedAfterStall(channel)
+                                                            }
+                                                        }
+                                                    }
+                                                  }
 
 func PlaybackStateForBASSPlaybackState(_ state: DWORD) -> PlaybackState {
     if state == BASS_ACTIVE_STOPPED {
