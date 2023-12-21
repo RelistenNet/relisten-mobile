@@ -87,7 +87,7 @@ export class SourceTrack
   private _humanizedDuration?: string;
   get humanizedDuration() {
     if (!this._humanizedDuration && this.duration) {
-      this._humanizedDuration = dayjs.duration(this.duration, 'seconds').format('mm:ss');
+      this._humanizedDuration = dayjs.duration(this.duration, 'seconds').format('m:ss');
     }
 
     return this._humanizedDuration;

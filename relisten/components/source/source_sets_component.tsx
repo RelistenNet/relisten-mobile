@@ -1,6 +1,5 @@
 import { View } from 'react-native';
 import { ItemSeparator } from '@/relisten/components/item_separator';
-import React from 'react';
 import { Source } from '@/relisten/realm/models/source';
 import { PlayShow } from '@/relisten/player/ui/track_context_menu';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
@@ -33,12 +32,19 @@ export const SourceSets = ({ source, playShow, onDotsPress }: SourceSetsProps) =
   );
 };
 
-export const SourceSetComponent: React.FC<{
+interface SourceSetProps {
   source: Source;
   sourceSet: SourceSet;
   playShow: PlayShow;
   onDotsPress: (sourceTrack: SourceTrack) => void;
-}> = ({ source, sourceSet, playShow, onDotsPress }) => {
+}
+
+export const SourceSetComponent = ({
+  source,
+  sourceSet,
+  playShow,
+  onDotsPress,
+}: SourceSetProps) => {
   return (
     <View>
       {source.sourceSets.length > 1 && <SectionHeader title={sourceSet.name} />}
