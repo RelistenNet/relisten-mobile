@@ -118,7 +118,7 @@ export class Source
   private _humanizedDuration?: string;
   humanizedDuration() {
     if (!this._humanizedDuration && this.duration) {
-      this._humanizedDuration = dayjs.duration(this.duration, 'seconds').format('HH:mm:ss');
+      this._humanizedDuration = dayjs.duration(this.duration, 'seconds').format('H:mm:ss');
     }
 
     return this._humanizedDuration;
