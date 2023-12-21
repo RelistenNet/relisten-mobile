@@ -226,7 +226,7 @@ export class RelistenApiClient {
     venueUuid: string,
     options?: RelistenApiRequestOptions
   ): Promise<RelistenApiResponse<VenueWithShows>> {
-    return this.getJson(`/v2/artists/${artistUuid}/venue/${venueUuid}`, options);
+    return this.getJson(`/v2/artists/${artistUuid}/venues/${venueUuid}`, options);
   }
 
   public tours(
