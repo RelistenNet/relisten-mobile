@@ -6,7 +6,7 @@ import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappea
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { Venue } from '@/relisten/realm/models/venue';
 import { useArtistVenues } from '@/relisten/realm/models/venue_repo';
-import { useLocalSearchParams } from 'expo-router';
+import { Link, useLocalSearchParams } from 'expo-router';
 import {
   FilterableList,
   FilterableListProps,
@@ -42,17 +42,28 @@ interface VenueListItemProps {
 
 const VenueListItem = ({ venue }: VenueListItemProps) => {
   return (
-    <SectionedListItem>
-      <Flex column>
-        <RowTitle>{venue.name}</RowTitle>
-        <SubtitleRow>
-          <SubtitleText>{venue.location}</SubtitleText>
-          <SubtitleText>
-            <Plur word="show" count={venue.showsAtVenue} />
-          </SubtitleText>
-        </SubtitleRow>
-      </Flex>
-    </SectionedListItem>
+    <Link
+      href={{
+        pathname: '/relisten/(tabs)/artists/[artistUuid]/venue/[venueUuid]/' as const,
+        params: {
+          artistUuid: venue.artistUuid,
+          venueUuid: venue.uuid,
+        },
+      }}
+      asChild
+    >
+      <SectionedListItem>
+        <Flex column>
+          <RowTitle>{venue.name}</RowTitle>
+          <SubtitleRow>
+            <SubtitleText>{venue.location}</SubtitleText>
+            <SubtitleText>
+              <Plur word="show" count={venue.showsAtVenue} />
+            </SubtitleText>
+          </SubtitleRow>
+        </Flex>
+      </SectionedListItem>
+    </Link>
   );
 };
 
@@ -120,7 +131,6 @@ const VenueList = ({
     <FilteringProvider filters={VENUE_FILTERS} options={filterOptions}>
       <FilterableList
         ListHeaderComponent={<VenueHeader venues={venues} />}
-        className="w-full flex-1"
         data={[{ data: venues }]}
         renderItem={({ item }) => {
           return <VenueListItem venue={item} />;
