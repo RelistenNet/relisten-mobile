@@ -1385,23 +1385,23 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   boost: 26fad476bfa736552bbfa698a06cc530475c1505
   DoubleConversion: 5189b271737e1565bdce30deb4a08d647e3f5f54
-  EXConstants: 988aa430ca0f76b43cd46b66e7fae3287f9cc2fc
-  EXFont: f20669cb266ef48b004f1eb1f2b20db96cd1df9f
-  Expo: a7c9bd836cb7c86e699c2539a906c9ff873f19f8
-  ExpoCrypto: b6428f48599c007676dc81a9b5f72c07e62fdccc
-  ExpoFileSystem: eecaf6796aed0f4dd20042dc2ca2cac6c4bc1185
-  ExpoHead: 8224345e80abcf4c97b31c99805dd5a3c8d3404d
-  ExpoKeepAwake: 0f5cad99603a3268e50af9a6eb8b76d0d9ac956c
-  ExpoModulesCore: 9e2287ef69fb71b578d4b1e4e8e7a3c8abb04fe4
-  ExpoSQLite: 53c9b105e0311ba775e5f2c0b700a1a83666d606
-  ExpoSystemUI: 40e222dd9d52222fe1bce389724ac52e662158dc
-  ExpoWebBrowser: e31c97230ea93b51a2a74c6c2381b0d4fca5698c
-  EXSplashScreen: 6bd596128cd52fac91997ebc64f3d394c843a8f9
-  FBLazyVector: 56e0e498dbb513b96c40bac6284729ba4e62672d
-  FBReactNativeSpec: 146c741a3f40361f6bc13a4ba284678cbedb5881
+  EXConstants: 86bbc9fedbb67770c0c6bb37f22f81970ef45dc8
+  EXFont: 9ae7e8e2e4825cef04a45dca74512a3f711e2fe9
+  Expo: cd2dc043dd1cc3d9e8e4e035fb9a41b421e8f13f
+  ExpoCrypto: e2ca148f5c93a0514959df86b34256bb3c50d358
+  ExpoFileSystem: ebbbe77366bff2e66876e3b3bf09e61d3bb72c70
+  ExpoHead: 563d40dcf49c38bb8d98ccc041e89ea9054112fd
+  ExpoKeepAwake: ed71bfe0e6ecd38e337586ba6e1ba27a56eb373b
+  ExpoModulesCore: b89a9b5ff1eba79702c202eaf55eec470b8f238f
+  ExpoSQLite: d94fa32e0c3c0038f6bd345530f4816abb0b89fb
+  ExpoSystemUI: 7bf1f529a4c3d2dfc6b681d770a7babf68c11a7e
+  ExpoWebBrowser: 2b660d423b818c4c45b6b3d22a3c0652153fb176
+  EXSplashScreen: dc749aa1bda692bcabe9956c7a695c529d2228e5
+  FBLazyVector: 39ba45baf4e398618f8b3a4bb6ba8fcdb7fc2133
+  FBReactNativeSpec: 20cfca68498e27879514790359289d1df2b52c56
   fmt: ff9d55029c625d3757ed641535fd4a75fedc7ce9
   glog: 04b94705f318337d7ead9e6d17c019bd9b1f6b1b
-  hermes-engine: 1d1835b2cc54c381909d94d1b3c8e0a2f1a94a0e
+  hermes-engine: 34304f8c6e8fa68f63a5fe29af82f227d817d7a7
   libevent: 4049cae6c81cdb3654a443be001fb9bdceff7913
   lottie-ios: 3d98679b41fa6fd6aff2352b3953dbd3df8a397e
   lottie-react-native: 8b5721400977e2dde148ca23efcf48e668940dbc
@@ -1468,4 +1468,4 @@ SPEC CHECKSUMS:
 
 PODFILE CHECKSUM: f1be661f5c291f7c3c6e094f180a0347779c9e7f
 
-COCOAPODS: 1.14.3
+COCOAPODS: 1.12.0

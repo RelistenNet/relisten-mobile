@@ -5,7 +5,7 @@ import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
 import RowTitle from '@/relisten/components/row_title';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
-import { useLocalSearchParams } from 'expo-router';
+import { Link, useLocalSearchParams } from 'expo-router';
 import {
   FilterableList,
   FilterableListProps,
@@ -46,16 +46,27 @@ const TourListItem = ({ tour }: TourListItemProps) => {
   const endDate = dayjs(tour.endDate).format('YYYY-MM-DD');
 
   return (
-    <SectionedListItem>
-      <Flex column>
-        <RowTitle>{tour.name}</RowTitle>
-        <SubtitleRow>
-          <SubtitleText>
-            {startDate} - {endDate}
-          </SubtitleText>
-        </SubtitleRow>
-      </Flex>
-    </SectionedListItem>
+    <Link
+      href={{
+        pathname: '/relisten/(tabs)/artists/[artistUuid]/tour/[tourUuid]/' as const,
+        params: {
+          artistUuid: tour.artistUuid,
+          tourUuid: tour.uuid,
+        },
+      }}
+      asChild
+    >
+      <SectionedListItem>
+        <Flex column>
+          <RowTitle>{tour.name}</RowTitle>
+          <SubtitleRow>
+            <SubtitleText>
+              {startDate} - {endDate}
+            </SubtitleText>
+          </SubtitleRow>
+        </Flex>
+      </SectionedListItem>
+    </Link>
   );
 };
 
