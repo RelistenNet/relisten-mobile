@@ -50,9 +50,9 @@ export const ShowListItem = ({ show, favoriteButton, children }: ShowListItemPro
             </Flex>
             <SubtitleRow>
               <SubtitleText>
-                <Plur word="tape" count={show.sourceCount} />
-                &nbsp;&middot;&nbsp;
                 {show.venue && `${show.venue.name}, ${show.venue.location}`}
+                &nbsp;&middot;&nbsp;
+                <Plur word="tape" count={show.sourceCount} />
               </SubtitleText>
             </SubtitleRow>
             {children}

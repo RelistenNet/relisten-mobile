@@ -1,22 +1,20 @@
-import { LayoutChangeEvent, Pressable, TouchableOpacity, View } from 'react-native';
+import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
+import Flex from '@/relisten/components/flex';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import React, { PropsWithChildren, useCallback, useContext, useState } from 'react';
+import { useNativePlaybackProgress } from '@/relisten/player/native_playback_state_hooks';
 import {
   useRelistenPlayer,
   useRelistenPlayerPlaybackState,
 } from '@/relisten/player/relisten_player_hooks';
 import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player_queue_hooks';
-import Flex from '@/relisten/components/flex';
-import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
-import { MaterialIcons } from '@expo/vector-icons';
 import { useArtist } from '@/relisten/realm/models/artist_repo';
-import { useRouter } from 'expo-router';
-import { useNativePlaybackProgress } from '@/relisten/player/native_playback_state_hooks';
-import { ProgressView } from '@react-native-community/progress-view';
-import { useObject } from '@/relisten/realm/schema';
 import { Show } from '@/relisten/realm/models/show';
-
-import { NetworkBackedBehaviorFetchStrategy } from '@/relisten/realm/network_backed_behavior';
+import { useObject } from '@/relisten/realm/schema';
+import { MaterialIcons } from '@expo/vector-icons';
+import { ProgressView } from '@react-native-community/progress-view';
+import { useRouter } from 'expo-router';
+import React, { PropsWithChildren, useCallback, useContext, useState } from 'react';
+import { LayoutChangeEvent, Pressable, TouchableOpacity, View } from 'react-native';
 
 function PlayerBottomBarContents() {
   const currentTrack = useRelistenPlayerCurrentTrack();

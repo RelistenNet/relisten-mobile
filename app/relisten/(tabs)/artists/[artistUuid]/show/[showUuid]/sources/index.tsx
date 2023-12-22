@@ -1,8 +1,4 @@
 import { Link as SLink } from '@/relisten/api/models/source';
-import {
-  PlayShow,
-  SourceTrackComponent,
-} from '@/relisten/components/source/source_track_component';
 import { ItemSeparator } from '@/relisten/components/item_separator';
 import { RefreshContextProvider, useRefreshContext } from '@/relisten/components/refresh_context';
 import { RelistenButton } from '@/relisten/components/relisten_button';
@@ -11,13 +7,12 @@ import { RelistenLink } from '@/relisten/components/relisten_link';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { SectionHeader } from '@/relisten/components/section_header';
+import { SourceTrackComponent } from '@/relisten/components/source/source_track_component';
 import { Show } from '@/relisten/realm/models/show';
 import { sortSources, useFullShow } from '@/relisten/realm/models/show_repo';
 import { Source } from '@/relisten/realm/models/source';
 import { SourceSet } from '@/relisten/realm/models/source_set';
-import { useRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
-import { useForceUpdate } from '@/relisten/util/forced_update';
 import { memo } from '@/relisten/util/memo';
 import { MaterialIcons } from '@expo/vector-icons';
 import { MoreOrLess } from '@rntext/more-or-less';
@@ -35,6 +30,7 @@ import {
 } from 'react-native';
 
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
+import { PlayShow } from '@/relisten/player/ui/track_context_menu';
 
 export default function Page() {
   const navigation = useNavigation();
