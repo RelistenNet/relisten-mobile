@@ -4,6 +4,7 @@ import Realm from 'realm';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import { FavoritableObject } from '../favoritable_object';
 import { Venue } from './venue';
+import { SourceTrack } from './source_track';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface ShowRequiredRelationships {}
@@ -49,6 +50,11 @@ export class Show
       sourceCount: 'int',
       isFavorite: { type: 'bool', default: false },
       venue: 'Venue?',
+      sourceTracks: {
+        type: 'linkingObjects',
+        objectType: 'SourceTrack',
+        property: 'show',
+      },
     },
   };
 
@@ -69,6 +75,7 @@ export class Show
   sourceCount!: number;
 
   venue?: Venue;
+  sourceTracks!: Realm.List<SourceTrack>;
 
   isFavorite!: boolean;
 

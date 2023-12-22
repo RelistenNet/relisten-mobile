@@ -5,7 +5,13 @@ import { Artist } from '../realm/models/artist';
 import { Show } from '../realm/models/show';
 import { FavoriteObjectButton } from './favorite_icon_button';
 import { FilterableList, FilterableListProps } from './filtering/filterable_list';
-import { Filter, FilteringOptions, FilteringProvider, SortDirection } from './filtering/filters';
+import {
+  Filter,
+  FilteringOptions,
+  FilteringProvider,
+  SortDirection,
+  useFilters,
+} from './filtering/filters';
 import Flex from './flex';
 import Plur from './plur';
 import { RelistenText } from './relisten_text';
@@ -14,6 +20,7 @@ import RowTitle from './row_title';
 import { SectionedListItem } from './sectioned_list_item';
 import { ListRenderItem } from '@shopify/flash-list';
 import { View } from 'react-native';
+import { SourceTrackOfflineInfoStatus } from '../realm/models/source_track_offline_info';
 
 interface ShowListItemProps {
   show: Show;
@@ -66,6 +73,7 @@ export const ShowListItem = ({ show, favoriteButton, children }: ShowListItemPro
 
 export enum ShowFilterKey {
   Library = 'library',
+  Downloads = 'downloads',
   Soundboard = 'soundboard',
   Date = 'date',
   Rating = 'rating',
@@ -79,6 +87,18 @@ const SHOW_FILTERS: Filter<ShowFilterKey, Show>[] = [
     title: 'My Library',
     active: false,
     filter: (show) => show.isFavorite,
+  },
+  {
+    persistenceKey: ShowFilterKey.Downloads,
+    title: 'My Downloads',
+    active: false,
+    filter: () => true,
+    realmFilter: (items) =>
+      items.filtered(
+        'SUBQUERY(sourceTracks, $item, $item.offlineInfo.status == $0).@count > 0',
+        SourceTrackOfflineInfoStatus.Succeeded
+      ),
+    isGlobal: true,
   },
   {
     persistenceKey: ShowFilterKey.Soundboard,
@@ -127,7 +147,7 @@ const DEFAULT_SHOW_FILTER = {
 };
 
 interface ShowListProps {
-  shows: Realm.Results<Show> | ReadonlyArray<Show>;
+  shows: Realm.Results<Show>;
   artist: Artist | null;
   filterOptions?: FilteringOptions<ShowFilterKey>;
   ListHeaderComponent?: React.ReactElement;
@@ -138,6 +158,19 @@ const showListRenderItemDefault: ListRenderItem<Show> = ({ item: show }) => {
   return <ShowListItem show={show} />;
 };
 
+export const ShowListContainer = (
+  props: ShowListProps & Omit<FilterableListProps<Show>, 'data' | 'renderItem'>
+) => {
+  return (
+    <FilteringProvider
+      filters={SHOW_FILTERS}
+      options={{ default: DEFAULT_SHOW_FILTER, ...(props.filterOptions || {}) }}
+    >
+      <ShowList {...props} />
+    </FilteringProvider>
+  );
+};
+
 export const ShowList = ({
   shows,
   artist,
@@ -146,20 +179,10 @@ export const ShowList = ({
   filterOptions,
   ...props
 }: ShowListProps & Omit<FilterableListProps<Show>, 'data' | 'renderItem'>) => {
-  const allShows = useMemo(() => {
-    return [...shows];
-  }, [shows]);
+  const { globalFilter } = useFilters();
+  const data = useMemo(() => [...globalFilter(shows)], [shows, globalFilter]);
 
   return (
-    <FilteringProvider
-      filters={SHOW_FILTERS}
-      options={{ default: DEFAULT_SHOW_FILTER, ...(filterOptions || {}) }}
-    >
-      <FilterableList
-        data={allShows}
-        renderItem={renderItem || showListRenderItemDefault}
-        {...props}
-      />
-    </FilteringProvider>
+    <FilterableList data={data} renderItem={renderItem || showListRenderItemDefault} {...props} />
   );
 };

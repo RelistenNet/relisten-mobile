@@ -18,6 +18,8 @@ import { useObject, useQuery, useRealm } from '../schema';
 import { Show } from './show';
 import { Source } from './source';
 import { venueRepo } from './venue_repo';
+import { Artist } from './artist';
+import { Year } from './year';
 
 export const showRepo = new Repository(Show);
 
@@ -116,6 +118,8 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
   }
 
   upsert(realm: Realm, localData: ShowWithSources, apiData: ApiShowWithSources): void {
+    const artist = realm.objectForPrimaryKey(Artist, apiData.artist_uuid);
+    const year = realm.objectForPrimaryKey(Year, apiData.year_uuid);
     const apiSourceSets = R.flatMap(apiData.sources, (s) => s.sets);
     const apiSourceTracks = R.flatMap(apiSourceSets, (s) => s.tracks);
     const apiSourceSetsBySource = R.groupBy(apiSourceSets, (s) => s.source_uuid);
@@ -169,6 +173,13 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
           );
 
           sourceSet.sourceTracks.push(...createdSourceTracks);
+
+          createdSourceTracks.forEach((st) => {
+            st.artist = artist || undefined;
+            st.year = year || undefined;
+            st.show = localData.show;
+            st.source = source;
+          });
         }
       }
     });

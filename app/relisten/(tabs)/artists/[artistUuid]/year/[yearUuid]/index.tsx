@@ -1,9 +1,9 @@
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
-import { ShowList } from '@/relisten/components/shows_list';
+import { ShowListContainer } from '@/relisten/components/shows_list';
 import { useArtistYearShows } from '@/relisten/realm/models/year_repo';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { View } from 'react-native';
 import { Artist } from '@/relisten/realm/models/artist';
 import { Year } from '@/relisten/realm/models/year';
@@ -32,7 +32,7 @@ export default function Page() {
     <View style={{ flex: 1, width: '100%' }}>
       <RefreshContextProvider networkBackedResults={results}>
         <DisappearingHeaderScreen
-          ScrollableComponent={ShowList}
+          ScrollableComponent={ShowListContainer}
           ListHeaderComponent={<YearHeader artist={artist} year={year} />}
           shows={shows}
           artist={artist}

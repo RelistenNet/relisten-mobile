@@ -9,6 +9,7 @@ import {
   FilteringOptions,
   FilteringProvider,
   SortDirection,
+  useFilters,
 } from '@/relisten/components/filtering/filters';
 import Flex from '@/relisten/components/flex';
 import Plur from '@/relisten/components/plur';
@@ -20,6 +21,7 @@ import RowTitle from '@/relisten/components/row_title';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { Artist } from '@/relisten/realm/models/artist';
+import { SourceTrackOfflineInfoStatus } from '@/relisten/realm/models/source_track_offline_info';
 import { Year } from '@/relisten/realm/models/year';
 import { useArtistYears } from '@/relisten/realm/models/year_repo';
 import { Link, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
@@ -29,6 +31,7 @@ import Realm from 'realm';
 
 export enum YearFilterKey {
   Library = 'library',
+  Downloads = 'downloads',
   Year = 'year',
   Shows = 'shows',
   Tapes = 'tapes',
@@ -52,7 +55,7 @@ export default function Page() {
   return (
     <RefreshContextProvider networkBackedResults={results}>
       <DisappearingHeaderScreen
-        ScrollableComponent={YearsList}
+        ScrollableComponent={YearsListContainer}
         artist={artist}
         years={years}
         filterOptions={{
@@ -229,6 +232,18 @@ const YEAR_FILTERS: Filter<YearFilterKey, Year>[] = [
     filter: (y) => y.isFavorite,
   },
   {
+    persistenceKey: YearFilterKey.Downloads,
+    title: 'My Downloads',
+    active: false,
+    // filter: () => true,
+    realmFilter: (items) =>
+      items.filtered(
+        'SUBQUERY(sourceTracks, $item, $item.offlineInfo.status == $0).@count > 0',
+        SourceTrackOfflineInfoStatus.Succeeded
+      ),
+    isGlobal: true,
+  },
+  {
     persistenceKey: YearFilterKey.Year,
     title: 'Date',
     sortDirection: SortDirection.Ascending,
@@ -254,27 +269,32 @@ const YEAR_FILTERS: Filter<YearFilterKey, Year>[] = [
   },
 ];
 
-const YearsList: React.FC<
-  {
-    artist: Artist | null;
-    years: Realm.Results<Year>;
-    filterOptions: FilteringOptions<YearFilterKey>;
-  } & Omit<FilterableListProps<Year>, 'data' | 'renderItem'>
-> = ({ artist, years, filterOptions, ...props }) => {
-  const allYears = useMemo(() => {
-    return [...years];
-  }, [years]);
+type YearsListProps = {
+  artist: Artist | null;
+  years: Realm.Results<Year>;
+  filterOptions: FilteringOptions<YearFilterKey>;
+} & Omit<FilterableListProps<Year>, 'data' | 'renderItem'>;
+
+const YearsListContainer = (props: YearsListProps) => {
+  return (
+    <FilteringProvider filters={YEAR_FILTERS} options={props.filterOptions}>
+      <YearsList {...props} />
+    </FilteringProvider>
+  );
+};
+
+const YearsList = ({ artist, years, filterOptions, ...props }: YearsListProps) => {
+  const { globalFilter } = useFilters();
+  const data = useMemo(() => [...globalFilter(years)], [years, globalFilter]);
 
   return (
-    <FilteringProvider filters={YEAR_FILTERS} options={filterOptions}>
-      <FilterableList
-        ListHeaderComponent={<YearsHeader artist={artist} />}
-        data={allYears}
-        renderItem={({ item: year }) => {
-          return <YearListItem year={year} />;
-        }}
-        {...props}
-      />
-    </FilteringProvider>
+    <FilterableList
+      ListHeaderComponent={<YearsHeader artist={artist} />}
+      data={data}
+      renderItem={({ item: year }) => {
+        return <YearListItem year={year} />;
+      }}
+      {...props}
+    />
   );
 };

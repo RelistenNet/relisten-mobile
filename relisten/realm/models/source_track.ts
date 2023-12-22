@@ -5,6 +5,10 @@ import { RelistenObjectRequiredProperties } from '../relisten_object';
 import dayjs from 'dayjs';
 import { SourceTrackOfflineInfo } from '@/relisten/realm/models/source_track_offline_info';
 import RNBackgroundDownloader from '@kesha-antonov/react-native-background-downloader';
+import { Artist } from './artist';
+import { Show } from './show';
+import { Source } from './source';
+import { Year } from './year';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface SourceTrackRequiredRelationships {}
@@ -60,6 +64,11 @@ export class SourceTrack
       isFavorite: { type: 'bool', default: false },
 
       offlineInfo: 'SourceTrackOfflineInfo',
+
+      artist: 'Artist?',
+      year: 'Year?',
+      show: 'Show?',
+      source: 'Source?',
     },
   };
 
@@ -83,6 +92,10 @@ export class SourceTrack
   isFavorite!: boolean;
 
   offlineInfo?: SourceTrackOfflineInfo;
+  artist?: Artist;
+  year?: Year;
+  show?: Show;
+  source?: Source;
 
   private _humanizedDuration?: string;
   get humanizedDuration() {

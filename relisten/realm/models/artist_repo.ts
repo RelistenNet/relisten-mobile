@@ -1,13 +1,13 @@
-import { Repository } from '../repository';
-import { useQuery } from '../schema';
-import { useMemo } from 'react';
-import { Artist } from './artist';
-import { NetworkBackedResults } from '../network_backed_results';
-import { createNetworkBackedModelArrayHook } from '../network_backed_behavior_hooks';
 import {
   NetworkBackedBehaviorFetchStrategy,
   NetworkBackedBehaviorOptions,
 } from '@/relisten/realm/network_backed_behavior';
+import { useMemo } from 'react';
+import { createNetworkBackedModelArrayHook } from '../network_backed_behavior_hooks';
+import { NetworkBackedResults } from '../network_backed_results';
+import { Repository } from '../repository';
+import { useQuery } from '../schema';
+import { Artist } from './artist';
 
 export const artistRepo = new Repository(Artist);
 export const useArtists = createNetworkBackedModelArrayHook(

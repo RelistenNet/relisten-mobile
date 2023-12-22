@@ -1,20 +1,20 @@
 import Flex from '@/relisten/components/flex';
-import { RelistenText } from '@/relisten/components/relisten_text';
-import { useLocalSearchParams, useNavigation } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
-import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { RelistenButton } from '@/relisten/components/relisten_button';
+import { RelistenText } from '@/relisten/components/relisten_text';
+import { SubtitleText } from '@/relisten/components/row_subtitle';
+import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
+import { ShowListContainer, ShowListItem } from '@/relisten/components/shows_list';
+import { Show } from '@/relisten/realm/models/show';
 import {
   RecentShowTabs,
   useArtistRecentShows,
 } from '@/relisten/realm/models/shows/recent_shows_repo';
-import { ShowList, ShowListItem } from '@/relisten/components/shows_list';
-import { clsx } from 'clsx';
 import { ListRenderItem } from '@shopify/flash-list';
-import { Show } from '@/relisten/realm/models/show';
+import { clsx } from 'clsx';
 import dayjs from 'dayjs';
-import { SubtitleText } from '@/relisten/components/row_subtitle';
+import { useLocalSearchParams, useNavigation } from 'expo-router';
+import React, { useEffect, useMemo, useState } from 'react';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -49,7 +49,7 @@ export default function Page() {
   return (
     <RefreshContextProvider networkBackedResults={results}>
       <DisappearingHeaderScreen
-        ScrollableComponent={ShowList}
+        ScrollableComponent={ShowListContainer}
         ListHeaderComponent={<RecentHeader activeTab={activeTab} setActiveTab={setActiveTab} />}
         shows={shows}
         artist={results.data.artist}

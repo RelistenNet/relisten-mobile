@@ -36,6 +36,11 @@ export class Year
       avgRating: 'double?',
       year: 'string',
       isFavorite: { type: 'bool', default: false },
+      sourceTracks: {
+        type: 'linkingObjects',
+        objectType: 'SourceTrack',
+        property: 'year',
+      },
     },
   };
 

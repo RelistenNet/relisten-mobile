@@ -72,6 +72,11 @@ export class Source
       linksRaw: 'string',
 
       sourceSets: 'SourceSet[]',
+      sourceTracks: {
+        type: 'linkingObjects',
+        objectType: 'SourceTrack',
+        property: 'source',
+      },
 
       isFavorite: { type: 'bool', default: false },
     },
@@ -106,6 +111,7 @@ export class Source
   isFavorite!: boolean;
 
   sourceSets!: Realm.List<SourceSet>;
+  sourceTracks!: Realm.List<SourceTrack>;
 
   private _links?: Link[];
   links() {
