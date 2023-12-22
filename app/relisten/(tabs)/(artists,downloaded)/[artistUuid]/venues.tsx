@@ -6,7 +6,7 @@ import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappea
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { Venue } from '@/relisten/realm/models/venue';
 import { useArtistVenues } from '@/relisten/realm/models/venue_repo';
-import { Link, useLocalSearchParams } from 'expo-router';
+import { Link, useLocalSearchParams, useNavigation } from 'expo-router';
 import {
   FilterableList,
   FilterableListProps,
@@ -19,11 +19,19 @@ import {
   FilteringProvider,
   SortDirection,
 } from '@/relisten/components/filtering/filters';
+import { useEffect } from 'react';
 
 export default function Page() {
+  const navigation = useNavigation();
   const { artistUuid } = useLocalSearchParams();
   const results = useArtistVenues(String(artistUuid));
   const { data } = results;
+
+  useEffect(() => {
+    navigation.setOptions({
+      title: 'Venues',
+    });
+  }, []);
 
   return (
     <RefreshContextProvider networkBackedResults={results}>
