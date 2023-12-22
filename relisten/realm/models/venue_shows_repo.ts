@@ -114,7 +114,7 @@ export const useArtistVenueShows = (artistUuid: string, venueUuid: string) => {
 
   const results = useMemo(() => {
     return mergeNetworkBackedResults({
-      venues: venueResults,
+      venue: venueResults,
       artist: artistResults,
     });
   }, [venueResults, artistResults]);
