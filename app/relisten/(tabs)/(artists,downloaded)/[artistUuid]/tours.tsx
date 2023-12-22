@@ -5,7 +5,7 @@ import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
 import RowTitle from '@/relisten/components/row_title';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
-import { Link, useLocalSearchParams } from 'expo-router';
+import { Link, useLocalSearchParams, useNavigation } from 'expo-router';
 import {
   FilterableList,
   FilterableListProps,
@@ -20,11 +20,19 @@ import {
 } from '@/relisten/components/filtering/filters';
 import { Tour } from '@/relisten/realm/models/tour';
 import dayjs from 'dayjs';
+import { useEffect } from 'react';
 
 export default function Page() {
+  const navigation = useNavigation();
   const { artistUuid } = useLocalSearchParams();
   const results = useArtistTours(String(artistUuid));
   const { data } = results;
+
+  useEffect(() => {
+    navigation.setOptions({
+      title: 'Tours',
+    });
+  }, []);
 
   return (
     <RefreshContextProvider networkBackedResults={results}>

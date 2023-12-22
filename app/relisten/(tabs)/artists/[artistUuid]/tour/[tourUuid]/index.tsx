@@ -13,9 +13,11 @@ export default function Page() {
   const { artistUuid, tourUuid } = useLocalSearchParams();
   const results = useArtistTourShows(String(artistUuid), String(tourUuid));
 
+  console.log('Thenlie', results.data.tour.shows);
+
   useEffect(() => {
     navigation.setOptions({
-      title: results.data.tours.tour?.name,
+      title: results.data.tour.tour?.name,
     });
   }, []);
 
