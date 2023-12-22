@@ -2,9 +2,9 @@ import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { ShowList } from '@/relisten/components/shows_list';
-import { Artist } from '@/relisten/realm/models/artist';
-import { useArtistTourShows } from '@/relisten/realm/models/tour_shows_repo';
+import { TourShows, useArtistTourShows } from '@/relisten/realm/models/tour_shows_repo';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
+import Plur from '@/relisten/components/plur';
 import { useEffect } from 'react';
 import { View } from 'react-native';
 
@@ -12,8 +12,8 @@ export default function Page() {
   const navigation = useNavigation();
   const { artistUuid, tourUuid } = useLocalSearchParams();
   const results = useArtistTourShows(String(artistUuid), String(tourUuid));
-
-  console.log('Thenlie', results.data.tour.shows);
+  const { artist, tour } = results.data;
+  const { shows } = tour;
 
   useEffect(() => {
     navigation.setOptions({
@@ -23,19 +23,32 @@ export default function Page() {
 
   return (
     <View style={{ flex: 1, width: '100%' }}>
-      <RelistenText>Artist uuid: {artistUuid}</RelistenText>
-      <RelistenText>Tour uuid: {tourUuid}</RelistenText>
       <RefreshContextProvider networkBackedResults={results}>
-        {/* <DisappearingHeaderScreen
+        <DisappearingHeaderScreen
           ScrollableComponent={ShowList}
-          ListHeaderComponent={<VenueHeader artist={artist} year={year} />}
+          ListHeaderComponent={<TourHeader tour={tour} />}
           shows={shows}
           artist={artist}
           filterOptions={{
-            persistence: { key: ['artists', artistUuid, 'years', yearUuid].join('/') },
+            persistence: { key: ['artists', artistUuid, 'years', tourUuid].join('/') },
           }}
-        /> */}
+        />
       </RefreshContextProvider>
     </View>
   );
 }
+
+const TourHeader = ({ tour }: { tour: TourShows | null }) => {
+  const totalShows = tour?.shows.length;
+  return (
+    <View className="flex w-full flex-col items-center gap-1 py-2">
+      <RelistenText className="w-full text-center text-4xl font-bold text-white" selectable={false}>
+        {tour?.tour?.name}
+      </RelistenText>
+
+      <RelistenText className="text-l w-full text-center italic text-gray-400">
+        <Plur word="show" count={totalShows} />
+      </RelistenText>
+    </View>
+  );
+};

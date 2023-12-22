@@ -248,7 +248,7 @@ export class RelistenApiClient {
     tourUuid: string,
     options?: RelistenApiRequestOptions
   ): Promise<RelistenApiResponse<TourWithShows>> {
-    return this.getJson(`/v3/artists/${artistUuid}/tour/${tourUuid}`, options);
+    return this.getJson(`/v3/artists/${artistUuid}/tours/${tourUuid}`, options);
   }
 
   public songs(
