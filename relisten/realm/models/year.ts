@@ -3,6 +3,8 @@ import Realm from 'realm';
 import { Year as ApiYear } from '../../api/models/year';
 import { FavoritableObject } from '../favoritable_object';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
+import { checkIfOfflineSourceTrackExists } from '../realm_filters';
+import { SourceTrack } from './source_track';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface YearRequiredRelationships {}
@@ -55,6 +57,12 @@ export class Year
   avgRating?: Realm.Types.Float;
   year!: string;
   isFavorite!: boolean;
+
+  sourceTracks!: Realm.List<SourceTrack>;
+
+  get _hasOfflineTracks() {
+    return checkIfOfflineSourceTrackExists(this.sourceTracks);
+  }
 
   static propertiesFromApi(relistenObj: ApiYear): YearRequiredProperties {
     return {

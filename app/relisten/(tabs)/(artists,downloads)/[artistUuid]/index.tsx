@@ -23,11 +23,14 @@ import { Artist } from '@/relisten/realm/models/artist';
 import { useArtistMetadata } from '@/relisten/realm/models/artist_repo';
 import { Year } from '@/relisten/realm/models/year';
 import { useArtistYears, useYearMetadata } from '@/relisten/realm/models/year_repo';
+import { prepareRealmItem } from '@/relisten/realm/realm_filters';
 import { useIsDownloadsTab, useRoute } from '@/relisten/util/routes';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Link, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import Realm from 'realm';
+import colors from 'tailwindcss/colors';
 
 export enum YearFilterKey {
   Library = 'library',
@@ -99,7 +102,7 @@ const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => {
 
   return (
     <View className="flex w-full items-center pb-1">
-      <View className="w-full px-4 pb-4">
+      <View className="w-full px-4 pb-2">
         <RelistenText
           className="w-full py-2 text-center text-4xl font-bold text-white"
           selectable={false}
@@ -200,6 +203,7 @@ const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => {
 const YearListItem = ({ year }: { year: Year }) => {
   const nextRoute = useRoute('year/[yearUuid]');
   const metadata = useYearMetadata(year);
+  const hasOfflineTracks = (year as any)?.hasOfflineTracks;
 
   return (
     <Link
@@ -219,6 +223,12 @@ const YearListItem = ({ year }: { year: Year }) => {
             <SubtitleRow>
               <SubtitleText>
                 <Plur word="show" count={metadata.shows} />
+                {hasOfflineTracks && (
+                  <>
+                    &nbsp;
+                    <MaterialCommunityIcons name="cloud-check" color={colors.gray['400']} />
+                  </>
+                )}
               </SubtitleText>
               <SubtitleText>
                 <Plur word="tape" count={metadata.sources} />
@@ -275,7 +285,7 @@ const YearsListContainer = (props: YearsListProps) => {
 
 const YearsList = ({ artist, years, filterOptions, ...props }: YearsListProps) => {
   const data = useMemo(() => {
-    return [...years];
+    return [...years.map((y) => prepareRealmItem(y))];
   }, [years]);
 
   return (

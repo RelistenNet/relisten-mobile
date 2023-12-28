@@ -19,7 +19,7 @@ function sourceTrackOfflineIndicator({ sourceTrack }: { sourceTrack: SourceTrack
   let contents = <></>;
 
   const size = 18;
-  const color = colors.gray['400'];
+  const color = colors.gray['400'] as string;
 
   switch (offlineInfo.status) {
     case SourceTrackOfflineInfoStatus.UNKNOWN:

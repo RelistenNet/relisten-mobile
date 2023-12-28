@@ -12,16 +12,20 @@ import RowTitle from '@/relisten/components/row_title';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useArtistMetadata, useArtists } from '@/relisten/realm/models/artist_repo';
+import { prepareRealmItem } from '@/relisten/realm/realm_filters';
 import { useIsDownloadsTab, useRoute } from '@/relisten/util/routes';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Link } from 'expo-router';
 import plur from 'plur';
 import React, { useMemo } from 'react';
 import { View } from 'react-native';
 import Realm from 'realm';
+import colors from 'tailwindcss/colors';
 
 const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) => {
   const nextRoute = useRoute('[artistUuid]');
   const metadata = useArtistMetadata(artist);
+  const hasOfflineTracks = (artist as any).hasOfflineTracks;
 
   return (
     <Link
@@ -40,6 +44,12 @@ const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) =>
             <SubtitleRow cn="flex flex-row justify-between">
               <SubtitleText>
                 <Plur word="show" count={metadata.shows} />
+                {hasOfflineTracks && (
+                  <>
+                    &nbsp;
+                    <MaterialCommunityIcons name="cloud-check" color={colors.gray['400']} />
+                  </>
+                )}
               </SubtitleText>
               <SubtitleText>
                 <Plur word="tape" count={metadata.sources} />
@@ -66,21 +76,27 @@ const ArtistsList = ({ artists, ...props }: ArtistsListProps) => {
     });
 
     const r = [];
-    if (!isDownloadsTab) {
-      r.push(
-        { sectionTitle: 'Featured' },
-        ...all.filter((a) => a.featured !== 0).map((item) => ({ ...item, keyPrefix: 'featured' }))
-      );
-    }
-
-    r.push({ sectionTitle: `${all.length} ${plur('artist', all.length)}` }, ...all);
 
     const favorites = all.filter((a) => a.isFavorite);
 
-    if (favorites.length > 0) {
-      r.unshift(...favorites.map((item) => ({ ...item, keyPrefix: 'favorites' })));
-      r.unshift({ sectionTitle: 'Favorites' });
+    if (!isDownloadsTab) {
+      if (favorites.length > 0) {
+        r.push({ sectionTitle: 'Favorites' });
+        r.push(...favorites.map((item) => prepareRealmItem(item, 'favorites')));
+      }
+
+      const featured = all.filter((a) => a.featured !== 0);
+
+      r.push(
+        { sectionTitle: 'Featured' },
+        ...featured.map((item) => prepareRealmItem(item, 'featured'))
+      );
     }
+
+    r.push(
+      { sectionTitle: `${all.length} ${plur('artist', all.length)}` },
+      ...all.map((item) => prepareRealmItem(item))
+    );
 
     return r as ReadonlyArray<Artist> & ReadonlyArray<Artist | RelistenSectionHeader>;
   }, [artists]);

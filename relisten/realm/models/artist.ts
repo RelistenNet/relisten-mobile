@@ -2,6 +2,7 @@ import dayjs from 'dayjs';
 import Realm from 'realm';
 import { ArtistUpstreamSource, ArtistWithCounts, Features } from '../../api/models/artist';
 import { FavoritableObject } from '../favoritable_object';
+import { checkIfOfflineSourceTrackExists } from '../realm_filters';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import { SourceTrack } from './source_track';
 
@@ -78,6 +79,10 @@ export class Artist
       this._upstreamSources = JSON.parse(this.upstreamSourcesRaw);
     }
     return this._upstreamSources;
+  }
+
+  get _hasOfflineTracks() {
+    return checkIfOfflineSourceTrackExists(this.sourceTracks);
   }
 
   static propertiesFromApi(relistenObj: ArtistWithCounts): ArtistRequiredProperties {

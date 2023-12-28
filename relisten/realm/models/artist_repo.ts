@@ -23,8 +23,12 @@ export const useArtists = createNetworkBackedModelArrayHook(
 
 export function useArtistMetadata(artist?: Artist | null) {
   const isDownloadsTab = useIsDownloadsTab();
-  const sh = useRealmTabsFilter(useQuery(Show).filtered('artistUuid = $0', artist?.uuid));
-  const src = useRealmTabsFilter(useQuery(Source).filtered('artistUuid = $0', artist?.uuid));
+  const sh = useRealmTabsFilter(
+    useQuery(Show, (query) => query.filtered('artistUuid = $0', artist?.uuid), [artist?.uuid])
+  );
+  const src = useRealmTabsFilter(
+    useQuery(Source, (query) => query.filtered('artistUuid = $0', artist?.uuid), [artist?.uuid])
+  );
 
   if (!artist) {
     return { shows: undefined, sources: undefined };
