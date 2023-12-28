@@ -49,7 +49,7 @@ class RecentShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavi
     }
   }
 
-  fetchFromLocal(): Realm.Results<Show> {
+  useFetchFromLocal(): Realm.Results<Show> {
     const sortKey = this.activeTab === RecentShowTabs.Performed ? 'date' : 'updatedAt';
     return useQuery(
       Show,

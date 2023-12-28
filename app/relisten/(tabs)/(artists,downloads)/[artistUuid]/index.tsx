@@ -9,7 +9,6 @@ import {
   FilteringOptions,
   FilteringProvider,
   SortDirection,
-  useFilters,
 } from '@/relisten/components/filtering/filters';
 import Flex from '@/relisten/components/flex';
 import Plur from '@/relisten/components/plur';
@@ -21,9 +20,10 @@ import RowTitle from '@/relisten/components/row_title';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { Artist } from '@/relisten/realm/models/artist';
-import { SourceTrackOfflineInfoStatus } from '@/relisten/realm/models/source_track_offline_info';
+import { useArtistMetadata } from '@/relisten/realm/models/artist_repo';
 import { Year } from '@/relisten/realm/models/year';
-import { useArtistYears } from '@/relisten/realm/models/year_repo';
+import { useArtistYears, useYearMetadata } from '@/relisten/realm/models/year_repo';
+import { useIsDownloadsTab, useRoute } from '@/relisten/util/routes';
 import { Link, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { useEffect, useMemo } from 'react';
 import { View } from 'react-native';
@@ -73,20 +73,21 @@ export default function Page() {
 
 const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => {
   const { apiClient } = useRelistenApi();
+  const currentRoute = useRoute();
   const router = useRouter();
+  const isDownloadsTab = useIsDownloadsTab();
+  const metadata = useArtistMetadata(artist);
+
   if (!artist) {
     return null;
   }
-
-  const totalShows = artist.showCount;
-  const totalSources = artist.sourceCount;
 
   const goToRandomShow = async () => {
     const randomShow = await apiClient.randomShow(artist.uuid);
 
     if (randomShow?.data?.uuid) {
       router.push({
-        pathname: '/relisten/(tabs)/artists/[artistUuid]/show/[showUuid]/source/[sourceUuid]/',
+        pathname: './[artistUuid]/show/[showUuid]/source/[sourceUuid]/',
         params: {
           artistUuid: artist.uuid,
           showUuid: randomShow!.data!.uuid,
@@ -108,95 +109,102 @@ const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => {
 
         <RelistenText className="text-l w-full pb-2 text-center italic text-gray-400">
           {/* <Plur word="year" count={years.length} /> &middot;&nbsp; */}
-          <Plur word="show" count={totalShows} /> &middot;&nbsp;
-          <Plur word="tape" count={totalSources} />
+          <Plur word="show" count={metadata.shows} /> &middot;&nbsp;
+          <Plur word="tape" count={metadata.sources} />
         </RelistenText>
       </View>
-      <View className="w-full flex-row px-4 pb-4" style={{ gap: 16 }}>
-        <Link
-          href={{
-            pathname: '/relisten/(tabs)/artists/[artistUuid]/venues',
-            params: {
-              artistUuid: artist.uuid,
-            },
-          }}
-          asChild
-        >
-          <RelistenButton className="shrink basis-1/3" textClassName="text-l">
-            Venues
-          </RelistenButton>
-        </Link>
-        <Link
-          href={{
-            pathname: '/relisten/(tabs)/artists/[artistUuid]/tours',
-            params: {
-              artistUuid: artist.uuid,
-            },
-          }}
-          asChild
-        >
-          <RelistenButton className="shrink basis-1/3" textClassName="text-l">
-            Tours
-          </RelistenButton>
-        </Link>
-        <Link
-          href={{
-            pathname: '/relisten/(tabs)/artists/[artistUuid]/songs' as const,
-            params: {
-              artistUuid: artist.uuid,
-            },
-          }}
-          asChild
-        >
-          <RelistenButton className="shrink basis-1/3" textClassName="text-l">
-            Songs
-          </RelistenButton>
-        </Link>
-      </View>
-      <View className="w-full flex-row px-4 pb-4" style={{ gap: 16 }}>
-        <Link
-          href={{
-            pathname: '/relisten/(tabs)/artists/[artistUuid]/rated' as const,
-            params: {
-              artistUuid: artist.uuid,
-            },
-          }}
-          asChild
-        >
-          <RelistenButton className="shrink basis-1/3" textClassName="text-l">
-            Top Rated
-          </RelistenButton>
-        </Link>
-        <Link
-          href={{
-            pathname: '/relisten/(tabs)/artists/[artistUuid]/recent' as const,
-            params: {
-              artistUuid: artist.uuid,
-            },
-          }}
-          asChild
-        >
-          <RelistenButton className="shrink basis-1/3" textClassName="text-l">
-            Recent
-          </RelistenButton>
-        </Link>
-        <RelistenButton
-          className="shrink basis-1/3"
-          textClassName="text-l"
-          onPress={goToRandomShow}
-        >
-          Random
-        </RelistenButton>
-      </View>
+      {!isDownloadsTab && (
+        <>
+          <View className="w-full flex-row px-4 pb-4" style={{ gap: 16 }}>
+            <Link
+              href={{
+                pathname: currentRoute + '/venues',
+                params: {
+                  artistUuid: artist.uuid,
+                },
+              }}
+              asChild
+            >
+              <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+                Venues
+              </RelistenButton>
+            </Link>
+            <Link
+              href={{
+                pathname: currentRoute + '/tours',
+                params: {
+                  artistUuid: artist.uuid,
+                },
+              }}
+              asChild
+            >
+              <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+                Tours
+              </RelistenButton>
+            </Link>
+            <Link
+              href={{
+                pathname: currentRoute + '/songs',
+                params: {
+                  artistUuid: artist.uuid,
+                },
+              }}
+              asChild
+            >
+              <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+                Songs
+              </RelistenButton>
+            </Link>
+          </View>
+          <View className="w-full flex-row px-4 pb-4" style={{ gap: 16 }}>
+            <Link
+              href={{
+                pathname: currentRoute + '/rated',
+                params: {
+                  artistUuid: artist.uuid,
+                },
+              }}
+              asChild
+            >
+              <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+                Top Rated
+              </RelistenButton>
+            </Link>
+            <Link
+              href={{
+                pathname: currentRoute + '/recent',
+                params: {
+                  artistUuid: artist.uuid,
+                },
+              }}
+              asChild
+            >
+              <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+                Recent
+              </RelistenButton>
+            </Link>
+            <RelistenButton
+              className="shrink basis-1/3"
+              textClassName="text-l"
+              onPress={goToRandomShow}
+            >
+              Random
+            </RelistenButton>
+          </View>
+        </>
+      )}
     </View>
   );
 };
 
 const YearListItem = ({ year }: { year: Year }) => {
+  const nextRoute = useRoute('year/[yearUuid]');
+  const metadata = useYearMetadata(year);
+
   return (
     <Link
       href={{
-        pathname: '/relisten/(tabs)/artists/[artistUuid]/year/[yearUuid]/' as const,
+        pathname: nextRoute,
         params: {
           artistUuid: year.artistUuid,
           yearUuid: year.uuid,
@@ -210,10 +218,10 @@ const YearListItem = ({ year }: { year: Year }) => {
             <RowTitle>{year.year}</RowTitle>
             <SubtitleRow>
               <SubtitleText>
-                <Plur word="show" count={year.showCount} />
+                <Plur word="show" count={metadata.shows} />
               </SubtitleText>
               <SubtitleText>
-                <Plur word="tape" count={year.sourceCount} />
+                <Plur word="tape" count={metadata.sources} />
               </SubtitleText>
             </SubtitleRow>
           </Flex>
@@ -225,24 +233,6 @@ const YearListItem = ({ year }: { year: Year }) => {
 };
 
 const YEAR_FILTERS: Filter<YearFilterKey, Year>[] = [
-  {
-    persistenceKey: YearFilterKey.Library,
-    title: 'My Library',
-    active: false,
-    filter: (y) => y.isFavorite,
-  },
-  {
-    persistenceKey: YearFilterKey.Downloads,
-    title: 'My Downloads',
-    active: false,
-    // filter: () => true,
-    realmFilter: (items) =>
-      items.filtered(
-        'SUBQUERY(sourceTracks, $item, $item.offlineInfo.status == $0).@count > 0',
-        SourceTrackOfflineInfoStatus.Succeeded
-      ),
-    isGlobal: true,
-  },
   {
     persistenceKey: YearFilterKey.Year,
     title: 'Date',
@@ -284,8 +274,10 @@ const YearsListContainer = (props: YearsListProps) => {
 };
 
 const YearsList = ({ artist, years, filterOptions, ...props }: YearsListProps) => {
-  const { globalFilter } = useFilters();
-  const data = useMemo(() => [...globalFilter(years)], [years, globalFilter]);
+  const isDownloadsTab = useIsDownloadsTab();
+  const data = useMemo(() => {
+    return [...years];
+  }, [years, isDownloadsTab]);
 
   return (
     <FilterableList

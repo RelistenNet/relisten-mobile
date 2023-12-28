@@ -334,7 +334,7 @@ export const SourceHeader = ({
       <View className="w-full pb-2">
         <Link
           href={{
-            pathname: '/relisten/(tabs)/artists/[artistUuid]/show/[showUuid]/sources/' as const,
+            pathname: './[artistUuid]/show/[showUuid]/sources/' as const,
             params: {
               artistUuid: show.artistUuid,
               yearUuid: show.yearUuid,

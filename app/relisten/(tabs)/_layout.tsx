@@ -12,7 +12,7 @@ export default function TabLayout() {
   return (
     <>
       <Tabs
-        initialRouteName="artists"
+        initialRouteName="index"
         screenOptions={({ route }) => ({
           headerShown: false,
           headerStyle: {
@@ -21,8 +21,11 @@ export default function TabLayout() {
           tabBarIcon: ({ focused, color, size }) => {
             let iconName;
 
-            if (route.name === 'artists') {
+            if (route.name === '(artists)') {
               iconName = focused ? 'account-music' : 'account-music-outline';
+              return <MaterialCommunityIcons name={iconName as any} size={size} color={color} />;
+            } else if (route.name === '(downloads)') {
+              iconName = focused ? 'download' : 'download-outline';
               return <MaterialCommunityIcons name={iconName as any} size={size} color={color} />;
             } else if (route.name === '(myLibrary)/myLibrary') {
               return <MaterialIcons name="library-music" size={size} color={color} />;
@@ -41,7 +44,9 @@ export default function TabLayout() {
         tabBar={TabBar}
         // initialRouteName="artists"
       >
-        <Tabs.Screen name="artists" options={{ title: 'Artists' }} />
+        <Tabs.Screen name="(artists)" options={{ title: 'Artists' }} />
+        <Tabs.Screen name="(downloads)" options={{ title: 'Downloads' }} />
+
         <Tabs.Screen name="(myLibrary)/myLibrary" options={{ title: 'My Library' }} />
         <Tabs.Screen name="(relisten)/index" options={{ title: 'Relisten' }} />
       </Tabs>

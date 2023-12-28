@@ -23,7 +23,7 @@ class TopShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavior 
     return api.topShow(this.artistUuid, { bypassEtagCaching: true, bypassRateLimit: true });
   }
 
-  fetchFromLocal(): Realm.Results<Show> {
+  useFetchFromLocal(): Realm.Results<Show> {
     const topShows = useQuery(
       Show,
       (query) => query.filtered('artistUuid == $0', this.artistUuid).sorted('avgRating', true),

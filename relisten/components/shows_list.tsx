@@ -1,26 +1,20 @@
+import { ListRenderItem } from '@shopify/flash-list';
 import { Link } from 'expo-router';
 import React, { ReactNode, useMemo } from 'react';
+import { View } from 'react-native';
 import Realm from 'realm';
 import { Artist } from '../realm/models/artist';
 import { Show } from '../realm/models/show';
 import { FavoriteObjectButton } from './favorite_icon_button';
 import { FilterableList, FilterableListProps } from './filtering/filterable_list';
-import {
-  Filter,
-  FilteringOptions,
-  FilteringProvider,
-  SortDirection,
-  useFilters,
-} from './filtering/filters';
+import { Filter, FilteringOptions, FilteringProvider, SortDirection } from './filtering/filters';
 import Flex from './flex';
 import Plur from './plur';
 import { RelistenText } from './relisten_text';
 import { SubtitleRow, SubtitleText } from './row_subtitle';
 import RowTitle from './row_title';
 import { SectionedListItem } from './sectioned_list_item';
-import { ListRenderItem } from '@shopify/flash-list';
-import { View } from 'react-native';
-import { SourceTrackOfflineInfoStatus } from '../realm/models/source_track_offline_info';
+import { useGroupSegment } from '../util/routes';
 
 interface ShowListItemProps {
   show: Show;
@@ -29,11 +23,11 @@ interface ShowListItemProps {
 }
 
 export const ShowListItem = ({ show, favoriteButton, children }: ShowListItemProps) => {
+  const groupSegment = useGroupSegment();
   return (
     <Link
       href={{
-        pathname:
-          '/relisten/(tabs)/artists/[artistUuid]/show/[showUuid]/source/[sourceUuid]/' as const,
+        pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
         params: {
           artistUuid: show.artistUuid,
           showUuid: show.uuid,
@@ -82,24 +76,6 @@ export enum ShowFilterKey {
 }
 
 const SHOW_FILTERS: Filter<ShowFilterKey, Show>[] = [
-  {
-    persistenceKey: ShowFilterKey.Library,
-    title: 'My Library',
-    active: false,
-    filter: (show) => show.isFavorite,
-  },
-  {
-    persistenceKey: ShowFilterKey.Downloads,
-    title: 'My Downloads',
-    active: false,
-    filter: () => true,
-    realmFilter: (items) =>
-      items.filtered(
-        'SUBQUERY(sourceTracks, $item, $item.offlineInfo.status == $0).@count > 0',
-        SourceTrackOfflineInfoStatus.Succeeded
-      ),
-    isGlobal: true,
-  },
   {
     persistenceKey: ShowFilterKey.Soundboard,
     title: 'SBD',
@@ -179,8 +155,7 @@ export const ShowList = ({
   filterOptions,
   ...props
 }: ShowListProps & Omit<FilterableListProps<Show>, 'data' | 'renderItem'>) => {
-  const { globalFilter } = useFilters();
-  const data = useMemo(() => [...globalFilter(shows)], [shows, globalFilter]);
+  const data = useMemo(() => [...shows], [shows]);
 
   return (
     <FilterableList data={data} renderItem={renderItem || showListRenderItemDefault} {...props} />

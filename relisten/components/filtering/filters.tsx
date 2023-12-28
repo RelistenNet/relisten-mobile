@@ -1,16 +1,9 @@
 import { RouteFilterConfig, serializeFilters } from '@/relisten/realm/models/route_filter_config';
 import { useObject, useRealm } from '@/relisten/realm/schema';
-import React, {
-  PropsWithChildren,
-  useCallback,
-  useContext,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { PropsWithChildren, useCallback, useContext, useMemo, useRef } from 'react';
 import Realm from 'realm';
-import { RelistenObject } from '../../api/models/relisten';
 import { clone } from 'remeda';
+import { RelistenObject } from '../../api/models/relisten';
 
 export enum SortDirection {
   UNKNOWN = 0,
@@ -22,7 +15,6 @@ export interface PersistedFilter<K extends string> {
   persistenceKey: K;
   active: boolean;
   sortDirection?: SortDirection;
-  isGlobal?: boolean; // for global filters (e.g. downloaded)
 }
 
 export interface Filter<K extends string, T> extends PersistedFilter<K> {
@@ -44,13 +36,11 @@ export interface FilteringContextProps<K extends string, T extends RelistenObjec
   filters: ReadonlyArray<Filter<K, T>>;
   onFilterButtonPress: (filter: Filter<K, T>) => void;
   filter: (allData: ReadonlyArray<T>) => ReadonlyArray<T>;
-  globalFilter: <T>(allData: Realm.Results<T>) => Realm.Results<T>;
 }
 
 export const FilteringContext = React.createContext<FilteringContextProps<any, any> | undefined>(
   undefined
 );
-export const GLOBAL_FILTER_KEY = '__GLOBAL__';
 
 export const FilteringProvider = <K extends string, T extends RelistenObject>({
   children,
@@ -63,10 +53,8 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
   const filterPersistenceKey = options?.persistence?.key;
 
   let routeFilterConfig = useObject(RouteFilterConfig, filterPersistenceKey || '__no_object__');
-  let globalFilterConfig = useObject(RouteFilterConfig, GLOBAL_FILTER_KEY);
 
   const persistedFilters = routeFilterConfig ? routeFilterConfig.filters() : undefined;
-  const globalFilters = globalFilterConfig ? globalFilterConfig.filters() : undefined;
 
   // useState to apply the default sort only 1 time.
   const preparedFilters = useMemo(() => {
@@ -101,22 +89,12 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
           } else {
             internalFilter.active = false;
           }
-
-          if (globalFilters) {
-            const globalFilter = globalFilters[internalFilter.persistenceKey];
-            if (globalFilter) {
-              if (persistedFilter) {
-                internalFilter.active = globalFilter.active;
-                internalFilter.sortDirection = globalFilter.sortDirection;
-              }
-            }
-          }
         }
       }
     }
 
     return [...internalFilters];
-  }, [persistedFilters, globalFilters]);
+  }, [persistedFilters]);
 
   const filter = useCallback(
     (allData: ReadonlyArray<T>) => {
@@ -146,20 +124,6 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
           }
 
           break;
-        }
-      }
-
-      return filteredData;
-    },
-    [preparedFilters]
-  );
-
-  const globalFilter = useCallback(
-    (allData: Realm.Results<T>) => {
-      let filteredData = allData;
-      for (const filter of preparedFilters) {
-        if (filter.isGlobal && filter.active && filter.realmFilter) {
-          filteredData = filter.realmFilter(filteredData);
         }
       }
 
@@ -207,18 +171,6 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
       }
 
       realm.write(() => {
-        if (thisFilter.isGlobal) {
-          const globalFilters = intermediateFilters.filter((f) => f.isGlobal);
-          if (globalFilterConfig) {
-            globalFilterConfig.setFilters(globalFilters);
-          } else {
-            globalFilterConfig = realm.create(RouteFilterConfig, {
-              key: GLOBAL_FILTER_KEY,
-              rawFilters: serializeFilters(globalFilters),
-            });
-          }
-        }
-
         if (filterPersistenceKey) {
           if (routeFilterConfig) {
             routeFilterConfig.setFilters(intermediateFilters);
@@ -235,9 +187,7 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
   );
 
   return (
-    <FilteringContext.Provider
-      value={{ filters: preparedFilters, onFilterButtonPress, filter, globalFilter }}
-    >
+    <FilteringContext.Provider value={{ filters: preparedFilters, onFilterButtonPress, filter }}>
       {children}
     </FilteringContext.Provider>
   );

@@ -1,7 +1,7 @@
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { ShowListContainer } from '@/relisten/components/shows_list';
-import { useArtistYearShows } from '@/relisten/realm/models/year_repo';
+import { useArtistYearShows, useYearMetadata } from '@/relisten/realm/models/year_repo';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { useEffect } from 'react';
 import { View } from 'react-native';
@@ -46,9 +46,7 @@ export default function Page() {
 }
 
 const YearHeader = ({ year }: { artist: Artist | null; year: Year | null }) => {
-  const totalShows = year?.showCount;
-  const totalTapes = year?.sourceCount;
-
+  const metadata = useYearMetadata(year);
   return (
     <View className="flex w-full flex-col items-center gap-1 py-2">
       <RelistenText className="w-full text-center text-4xl font-bold text-white" selectable={false}>
@@ -56,8 +54,8 @@ const YearHeader = ({ year }: { artist: Artist | null; year: Year | null }) => {
       </RelistenText>
 
       <RelistenText className="text-l w-full text-center italic text-gray-400">
-        <Plur word="show" count={totalShows} /> &middot;&nbsp;
-        <Plur word="tape" count={totalTapes} />
+        <Plur word="show" count={metadata.shows} /> &middot;&nbsp;
+        <Plur word="tape" count={metadata.sources} />
       </RelistenText>
     </View>
   );

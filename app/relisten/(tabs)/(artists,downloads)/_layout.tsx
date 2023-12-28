@@ -4,7 +4,12 @@ import { Stack } from 'expo-router/stack';
 export const unstable_settings = {
   initialRouteName: 'index',
 };
-export default function ArtistsLayout() {
+interface ArtistsLayoutProps {
+  segment: '(artists)' | '(downloads)';
+}
+export default function ArtistsLayout({ segment }: ArtistsLayoutProps) {
+  console.log(segment);
+
   return (
     <Stack screenOptions={{ headerShadowVisible: false }}>
       <Stack.Screen
@@ -16,6 +21,7 @@ export default function ArtistsLayout() {
           },
         }}
       />
+
       <Stack.Screen
         name="[artistUuid]/index"
         options={{

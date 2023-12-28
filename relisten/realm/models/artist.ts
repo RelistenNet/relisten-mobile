@@ -1,8 +1,8 @@
-import Realm from 'realm';
 import dayjs from 'dayjs';
+import Realm from 'realm';
 import { ArtistUpstreamSource, ArtistWithCounts, Features } from '../../api/models/artist';
-import { RelistenObjectRequiredProperties } from '../relisten_object';
 import { FavoritableObject } from '../favoritable_object';
+import { RelistenObjectRequiredProperties } from '../relisten_object';
 import { SourceTrack } from './source_track';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface

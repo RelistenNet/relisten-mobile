@@ -85,7 +85,7 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
     return api.showWithSources(this.showUuid);
   }
 
-  fetchFromLocal(): ShowWithSources {
+  useFetchFromLocal(): ShowWithSources {
     const realm = useRealm();
 
     if (this.sourceUuid !== undefined && this.showUuid === undefined) {
@@ -211,5 +211,5 @@ export function useShow(showUuid?: string): ShowWithSources | undefined {
     return new ShowWithFullSourcesNetworkBackedBehavior(showUuid);
   }, [showUuid]);
 
-  return behavior.fetchFromLocal();
+  return behavior.useFetchFromLocal();
 }

@@ -1,8 +1,8 @@
-import Realm from 'realm';
 import dayjs from 'dayjs';
+import Realm from 'realm';
 import { Year as ApiYear } from '../../api/models/year';
-import { RelistenObjectRequiredProperties } from '../relisten_object';
 import { FavoritableObject } from '../favoritable_object';
+import { RelistenObjectRequiredProperties } from '../relisten_object';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface YearRequiredRelationships {}
