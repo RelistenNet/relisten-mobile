@@ -274,10 +274,9 @@ const YearsListContainer = (props: YearsListProps) => {
 };
 
 const YearsList = ({ artist, years, filterOptions, ...props }: YearsListProps) => {
-  const isDownloadsTab = useIsDownloadsTab();
   const data = useMemo(() => {
     return [...years];
-  }, [years, isDownloadsTab]);
+  }, [years]);
 
   return (
     <FilterableList
