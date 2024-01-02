@@ -25,7 +25,7 @@ const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) =>
   const nextRoute = useRoute('[artistUuid]');
   const isDownloadsTab = useIsDownloadsTab();
   const metadata = useArtistMetadata(artist);
-  const hasOfflineTracks = (artist as any).hasOfflineTracks;
+  const hasOfflineTracks = artist.hasOfflineTracks;
 
   return (
     <Link

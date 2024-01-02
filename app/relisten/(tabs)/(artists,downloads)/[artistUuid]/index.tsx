@@ -202,7 +202,7 @@ const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => {
 const YearListItem = ({ year }: { year: Year }) => {
   const nextRoute = useRoute('year/[yearUuid]');
   const metadata = useYearMetadata(year);
-  const hasOfflineTracks = (year as any)?.hasOfflineTracks;
+  const hasOfflineTracks = year.hasOfflineTracks;
   const isDownloadsTab = useIsDownloadsTab();
 
   return (
