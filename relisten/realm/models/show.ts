@@ -5,6 +5,7 @@ import { RelistenObjectRequiredProperties } from '../relisten_object';
 import { FavoritableObject } from '../favoritable_object';
 import { Venue } from './venue';
 import { SourceTrack } from './source_track';
+import { checkIfOfflineSourceTrackExists } from '../realm_filters';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface ShowRequiredRelationships {}
@@ -90,6 +91,10 @@ export class Show
 
   humanizedAvgRating() {
     return this.avgRating.toFixed(2);
+  }
+
+  get hasOfflineTracks() {
+    return checkIfOfflineSourceTrackExists(this.sourceTracks);
   }
 
   static propertiesFromApi(relistenObj: ApiShow): ShowRequiredProperties {

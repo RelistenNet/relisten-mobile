@@ -115,7 +115,7 @@ const TourList = ({
       <FilterableList
         ListHeaderComponent={<TourHeader tours={tours} />}
         className="w-full flex-1"
-        data={tours}
+        data={[{ data: tours }]}
         renderItem={({ item }) => {
           return <TourListItem tour={item} />;
         }}

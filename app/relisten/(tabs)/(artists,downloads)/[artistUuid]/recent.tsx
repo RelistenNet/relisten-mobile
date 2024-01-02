@@ -43,7 +43,7 @@ export default function Page() {
   // The API will only return the 25 latest shows so stop it here otherwise it'll just show the 26th latest show of
   // whatever is cached
   const shows = useMemo(() => {
-    return results.data.shows.slice(0, 25);
+    return [{ data: results.data.shows.slice(0, 25) }];
   }, [results.data.shows]);
 
   return (
@@ -51,7 +51,7 @@ export default function Page() {
       <DisappearingHeaderScreen
         ScrollableComponent={ShowListContainer}
         ListHeaderComponent={<RecentHeader activeTab={activeTab} setActiveTab={setActiveTab} />}
-        shows={shows}
+        data={shows}
         artist={results.data.artist}
         renderItem={showListRenderItem}
         // filtering is provided by realm/the API response

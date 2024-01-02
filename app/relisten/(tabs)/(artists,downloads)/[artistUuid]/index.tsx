@@ -23,7 +23,6 @@ import { Artist } from '@/relisten/realm/models/artist';
 import { useArtistMetadata } from '@/relisten/realm/models/artist_repo';
 import { Year } from '@/relisten/realm/models/year';
 import { useArtistYears, useYearMetadata } from '@/relisten/realm/models/year_repo';
-import { prepareRealmItem } from '@/relisten/realm/realm_filters';
 import { useIsDownloadsTab, useRoute } from '@/relisten/util/routes';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Link, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
@@ -285,7 +284,7 @@ const YearsListContainer = (props: YearsListProps) => {
 
 const YearsList = ({ artist, years, filterOptions, ...props }: YearsListProps) => {
   const data = useMemo(() => {
-    return [...years.map((y) => prepareRealmItem(y))];
+    return [{ data: [...years] }];
   }, [years]);
 
   return (

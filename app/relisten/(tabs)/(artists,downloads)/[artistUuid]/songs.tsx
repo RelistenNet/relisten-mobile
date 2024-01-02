@@ -121,7 +121,7 @@ const SongList = ({
       <FilterableList
         ListHeaderComponent={<SongHeader songs={songs} />}
         className="w-full flex-1"
-        data={songs}
+        data={[{ data: songs }]}
         renderItem={({ item }: { item: Song; index: number }) => <SongListItem song={item} />}
       />
     </FilteringProvider>

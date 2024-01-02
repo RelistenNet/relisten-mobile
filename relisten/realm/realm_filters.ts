@@ -2,6 +2,7 @@ import type Realm from 'realm';
 import { useIsDownloadsTab } from '../util/routes';
 import { SourceTrackOfflineInfoStatus } from './models/source_track_offline_info';
 import { SourceTrack } from './models/source_track';
+import { RelistenObject } from '../api/models/relisten';
 
 export const checkIfOfflineSourceTrackExists = (items: Realm.List<SourceTrack>) => {
   return (
@@ -10,7 +11,7 @@ export const checkIfOfflineSourceTrackExists = (items: Realm.List<SourceTrack>) 
   );
 };
 
-export const useRealmTabsFilter = (items: Realm.Results<T>) => {
+export const useRealmTabsFilter = <T extends RelistenObject>(items: Realm.Results<T>) => {
   const isDownloadsTab = useIsDownloadsTab();
 
   if (isDownloadsTab) {
@@ -22,12 +23,3 @@ export const useRealmTabsFilter = (items: Realm.Results<T>) => {
 
   return items;
 };
-
-// TODO: type
-export function prepareRealmItem(item: any, keyPrefix?: string) {
-  return {
-    ...item,
-    hasOfflineTracks: item._hasOfflineTracks,
-    keyPrefix,
-  };
-}

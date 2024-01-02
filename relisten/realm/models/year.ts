@@ -60,7 +60,7 @@ export class Year
 
   sourceTracks!: Realm.List<SourceTrack>;
 
-  get _hasOfflineTracks() {
+  get hasOfflineTracks() {
     return checkIfOfflineSourceTrackExists(this.sourceTracks);
   }
 

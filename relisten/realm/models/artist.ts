@@ -81,7 +81,7 @@ export class Artist
     return this._upstreamSources;
   }
 
-  get _hasOfflineTracks() {
+  get hasOfflineTracks() {
     return checkIfOfflineSourceTrackExists(this.sourceTracks);
   }
 

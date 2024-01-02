@@ -1,7 +1,8 @@
+import { log } from '@/relisten/util/logging';
 import { useMemo } from 'react';
 import { RelistenObject } from '../../api/models/relisten';
 import {
-  RelistenSectionHeader,
+  RelistenSectionData,
   RelistenSectionList,
   RelistenSectionListProps,
 } from '../relisten_section_list';
@@ -9,14 +10,11 @@ import { SectionHeader } from '../section_header';
 import { FilterBar } from './filter_bar';
 import { FilterBarButton } from './filter_bar_buttons';
 import { Filter, SortDirection, useFilters } from './filters';
-import { log } from '@/relisten/util/logging';
 
 const logger = log.extend('filter');
 
 export type FilterableListProps<T extends RelistenObject> = {
-  data: ReadonlyArray<T>;
-  customSectionTitle?: (row: T) => string | undefined;
-  customSectionTitles?: string[];
+  data: RelistenSectionData<T>;
   hideFilterBar?: boolean;
   filtering?: boolean;
 } & RelistenSectionListProps<T>;
@@ -25,8 +23,6 @@ const ALL_SECTION_SENTINEL = '__ALL__';
 
 export const FilterableList = <K extends string, T extends RelistenObject>({
   data,
-  customSectionTitle,
-  customSectionTitles,
   hideFilterBar,
   filtering,
   ...props
@@ -39,44 +35,16 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
     hideFilterBar = true;
   }
 
-  const sectionedData: ReadonlyArray<T | RelistenSectionHeader> = useMemo(() => {
-    const filteredData = filteringEnabled ? filter(data) : data;
-    if (!customSectionTitle || !customSectionTitles) {
-      return [{ sectionTitle: ALL_SECTION_SENTINEL }, ...(filteredData || [])];
-    }
+  const sectionedData = useMemo(() => {
+    return [
+      { sectionTitle: ALL_SECTION_SENTINEL, data: [] },
+      ...data.map((section) => {
+        const filteredData = filteringEnabled ? filter(section.data) : section.data;
 
-    const obj: { [key: string]: T[] } = {};
-
-    for (const r of data) {
-      const title = customSectionTitle(r);
-
-      if (title) {
-        if (!obj[title]) {
-          obj[title] = [];
-        }
-
-        obj[title].push(r);
-      }
-    }
-
-    const r: Array<T | RelistenSectionHeader> = [];
-
-    for (const sectionTitle of customSectionTitles) {
-      r.push({
-        sectionTitle,
-      });
-      if (obj[sectionTitle]?.length) {
-        r.push(...obj[sectionTitle]);
-      }
-    }
-
-    r.push({
-      sectionTitle: ALL_SECTION_SENTINEL,
-    });
-    r.push(...(filteredData || []));
-
-    return r;
-  }, [data, customSectionTitle, customSectionTitles, filter, filters, filteringEnabled]);
+        return { ...section, data: filteredData };
+      }),
+    ];
+  }, [data, filter, filters, filteringEnabled]);
 
   function filterToString<K extends string, T>(f: Filter<K, T>) {
     return `${f.title}${f.active ? '*' : ''}${

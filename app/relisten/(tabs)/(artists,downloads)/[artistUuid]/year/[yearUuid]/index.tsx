@@ -1,14 +1,14 @@
+import Plur from '@/relisten/components/plur';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
+import { RelistenText } from '@/relisten/components/relisten_text';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { ShowListContainer } from '@/relisten/components/shows_list';
-import { useArtistYearShows, useYearMetadata } from '@/relisten/realm/models/year_repo';
-import { useLocalSearchParams, useNavigation } from 'expo-router';
-import { useEffect } from 'react';
-import { View } from 'react-native';
 import { Artist } from '@/relisten/realm/models/artist';
 import { Year } from '@/relisten/realm/models/year';
-import { RelistenText } from '@/relisten/components/relisten_text';
-import Plur from '@/relisten/components/plur';
+import { useArtistYearShows, useYearMetadata } from '@/relisten/realm/models/year_repo';
+import { useLocalSearchParams, useNavigation } from 'expo-router';
+import { useEffect, useMemo } from 'react';
+import { View } from 'react-native';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -28,13 +28,17 @@ export default function Page() {
     });
   }, [year]);
 
+  const data = useMemo(() => {
+    return [{ data: [...shows] }];
+  }, [shows]);
+
   return (
     <View style={{ flex: 1, width: '100%' }}>
       <RefreshContextProvider networkBackedResults={results}>
         <DisappearingHeaderScreen
           ScrollableComponent={ShowListContainer}
           ListHeaderComponent={<YearHeader artist={artist} year={year} />}
-          shows={shows}
+          data={data}
           artist={artist}
           filterOptions={{
             persistence: { key: ['artists', artistUuid, 'years', yearUuid].join('/') },

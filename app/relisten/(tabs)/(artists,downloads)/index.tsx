@@ -3,7 +3,7 @@ import Flex from '@/relisten/components/flex';
 import Plur from '@/relisten/components/plur';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import {
-  RelistenSectionHeader,
+  RelistenSectionData,
   RelistenSectionList,
 } from '@/relisten/components/relisten_section_list';
 import { RelistenText } from '@/relisten/components/relisten_text';
@@ -12,7 +12,6 @@ import RowTitle from '@/relisten/components/row_title';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useArtistMetadata, useArtists } from '@/relisten/realm/models/artist_repo';
-import { prepareRealmItem } from '@/relisten/realm/realm_filters';
 import { useIsDownloadsTab, useRoute } from '@/relisten/util/routes';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Link } from 'expo-router';
@@ -70,35 +69,31 @@ type ArtistsListProps = {
 const ArtistsList = ({ artists, ...props }: ArtistsListProps) => {
   const isDownloadsTab = useIsDownloadsTab();
 
-  const sectionedArtists = useMemo(() => {
+  const sectionedArtists = useMemo<RelistenSectionData<Artist>>(() => {
+    const r = [];
+
     const all = [...artists].sort((a, b) => {
       return a.sortName.localeCompare(b.sortName);
     });
-
-    const r = [];
 
     const favorites = all.filter((a) => a.isFavorite);
 
     if (!isDownloadsTab) {
       if (favorites.length > 0) {
-        r.push({ sectionTitle: 'Favorites' });
-        r.push(...favorites.map((item) => prepareRealmItem(item, 'favorites')));
+        r.push({
+          sectionTitle: 'Favorites',
+          data: favorites,
+        });
       }
 
       const featured = all.filter((a) => a.featured !== 0);
 
-      r.push(
-        { sectionTitle: 'Featured' },
-        ...featured.map((item) => prepareRealmItem(item, 'featured'))
-      );
+      r.push({ sectionTitle: 'Featured', data: featured });
     }
 
-    r.push(
-      { sectionTitle: `${all.length} ${plur('artist', all.length)}` },
-      ...all.map((item) => prepareRealmItem(item))
-    );
+    r.push({ sectionTitle: `${all.length} ${plur('artist', all.length)}`, data: all });
 
-    return r as ReadonlyArray<Artist> & ReadonlyArray<Artist | RelistenSectionHeader>;
+    return r;
   }, [artists]);
 
   return (
