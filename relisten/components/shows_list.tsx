@@ -4,7 +4,7 @@ import React, { ReactNode } from 'react';
 import { View } from 'react-native';
 import { Artist } from '../realm/models/artist';
 import { Show } from '../realm/models/show';
-import { useGroupSegment } from '../util/routes';
+import { useGroupSegment, useIsDownloadsTab } from '../util/routes';
 import { FavoriteObjectButton } from './favorite_icon_button';
 import { FilterableList, FilterableListProps } from './filtering/filterable_list';
 import { Filter, FilteringOptions, FilteringProvider, SortDirection } from './filtering/filters';
@@ -19,12 +19,13 @@ import colors from 'tailwindcss/colors';
 
 interface ShowListItemProps {
   show: Show;
-  favoriteButton?: boolean;
   children?: ReactNode;
 }
 
-export const ShowListItem = ({ show, favoriteButton, children }: ShowListItemProps) => {
+export const ShowListItem = ({ show, children }: ShowListItemProps) => {
   const groupSegment = useGroupSegment();
+  const isDownloadsTab = useIsDownloadsTab();
+
   return (
     <Link
       href={{
@@ -62,7 +63,7 @@ export const ShowListItem = ({ show, favoriteButton, children }: ShowListItemPro
             </SubtitleRow>
             {children}
           </Flex>
-          {favoriteButton && <FavoriteObjectButton object={show} />}
+          {!isDownloadsTab && <FavoriteObjectButton object={show} />}
         </Flex>
       </SectionedListItem>
     </Link>

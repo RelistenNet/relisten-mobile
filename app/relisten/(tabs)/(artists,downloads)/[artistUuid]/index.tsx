@@ -203,6 +203,7 @@ const YearListItem = ({ year }: { year: Year }) => {
   const nextRoute = useRoute('year/[yearUuid]');
   const metadata = useYearMetadata(year);
   const hasOfflineTracks = (year as any)?.hasOfflineTracks;
+  const isDownloadsTab = useIsDownloadsTab();
 
   return (
     <Link
@@ -234,7 +235,7 @@ const YearListItem = ({ year }: { year: Year }) => {
               </SubtitleText>
             </SubtitleRow>
           </Flex>
-          <FavoriteObjectButton object={year} />
+          {!isDownloadsTab && <FavoriteObjectButton object={year} />}
         </Flex>
       </SectionedListItem>
     </Link>

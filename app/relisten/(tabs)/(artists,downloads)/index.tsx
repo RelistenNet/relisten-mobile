@@ -23,6 +23,7 @@ import colors from 'tailwindcss/colors';
 
 const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) => {
   const nextRoute = useRoute('[artistUuid]');
+  const isDownloadsTab = useIsDownloadsTab();
   const metadata = useArtistMetadata(artist);
   const hasOfflineTracks = (artist as any).hasOfflineTracks;
 
@@ -55,7 +56,7 @@ const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) =>
               </SubtitleText>
             </SubtitleRow>
           </Flex>
-          <FavoriteObjectButton object={artist} />
+          {!isDownloadsTab && <FavoriteObjectButton object={artist} />}
         </Flex>
       </SectionedListItem>
     </Link>
