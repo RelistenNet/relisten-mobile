@@ -1,10 +1,8 @@
-import { FlatList, ListRenderItem, RefreshControl, View } from 'react-native';
-import { useRefreshContext } from './refresh_context';
-import { ItemSeparator } from './item_separator';
-import { FlatListProps } from 'react-native/Libraries/Lists/FlatList';
-import { List as ListContentLoader } from 'react-content-loader/native';
-import { RelistenBlue } from '../relisten_blue';
 import { useRelistenPlayerBottomBarContext } from '@/relisten/player/ui/player_bottom_bar';
+import { FlatList, ListRenderItem, RefreshControl } from 'react-native';
+import { FlatListProps } from 'react-native/Libraries/Lists/FlatList';
+import { ItemSeparator } from './item_separator';
+import { useRefreshContext } from './refresh_context';
 
 export const RelistenFlatList = <T extends { uuid: string }>({
   data,

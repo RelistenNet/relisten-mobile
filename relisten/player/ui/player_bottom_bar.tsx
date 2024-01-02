@@ -1,6 +1,7 @@
 import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import Flex from '@/relisten/components/flex';
 import { RelistenText } from '@/relisten/components/relisten_text';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useNativePlaybackProgress } from '@/relisten/player/native_playback_state_hooks';
 import {
   useRelistenPlayer,
@@ -13,7 +14,7 @@ import { useObject } from '@/relisten/realm/schema';
 import { MaterialIcons } from '@expo/vector-icons';
 import { ProgressView } from '@react-native-community/progress-view';
 import { useRouter } from 'expo-router';
-import React, { PropsWithChildren, useCallback, useContext, useState } from 'react';
+import React, { PropsWithChildren, useCallback, useContext, useEffect, useState } from 'react';
 import { LayoutChangeEvent, Pressable, TouchableOpacity, View } from 'react-native';
 
 function PlayerBottomBarContents() {

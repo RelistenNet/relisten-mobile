@@ -1,12 +1,12 @@
 import { Tabs } from 'expo-router';
 
+import TabBar from '@/relisten/components/TabBar';
+import { PlayerBottomBar } from '@/relisten/player/ui/player_bottom_bar';
+import { RelistenBlue } from '@/relisten/relisten_blue';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'react-native';
 import 'react-native-gesture-handler';
 import 'react-native-reanimated';
-import TabBar from '@/relisten/components/TabBar';
-import { RelistenBlue } from '@/relisten/relisten_blue';
-import { PlayerBottomBar } from '@/relisten/player/ui/player_bottom_bar';
 
 export default function TabLayout() {
   return (

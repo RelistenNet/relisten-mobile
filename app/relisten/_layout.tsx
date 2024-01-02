@@ -1,8 +1,8 @@
 import 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
-import { Stack } from 'expo-router/stack';
 import { RelistenBlue } from '@/relisten/relisten_blue';
+import { Stack } from 'expo-router/stack';
 
 export default function TabLayout() {
   return (

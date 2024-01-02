@@ -34,6 +34,9 @@ export type RelistenSectionListProps<T> = Omit<
   pullToRefresh?: boolean;
 };
 
+export const FAKE_SENTINAL = '__FAKE__';
+export const LOADING_SENTINAL = '__LOADING__';
+
 export const RelistenSectionList = <T extends RelistenObject>({
   data,
   renderItem,
@@ -56,8 +59,8 @@ export const RelistenSectionList = <T extends RelistenObject>({
       internalData.push({ sectionTitle: 'ListHeaderComponent' });
     }
     if (refreshing) {
-      internalData.push({ sectionTitle: 'fake' });
-      internalData.push({ sectionTitle: 'LOADING' });
+      internalData.push({ sectionTitle: FAKE_SENTINAL });
+      internalData.push({ sectionTitle: LOADING_SENTINAL });
     } else {
       internalData.push(
         ...data.flatMap((section) => {
@@ -121,7 +124,10 @@ export const RelistenSectionList = <T extends RelistenObject>({
           if (props.item.sectionTitle === 'ListHeaderComponent') {
             return ListHeaderComponent as ReactElement;
           }
-          if (props.item.sectionTitle === 'LOADING') {
+          if (props.item.sectionTitle === FAKE_SENTINAL) {
+            return null;
+          }
+          if (props.item.sectionTitle === LOADING_SENTINAL) {
             return (
               <View className="w-full p-4">
                 <ListContentLoader

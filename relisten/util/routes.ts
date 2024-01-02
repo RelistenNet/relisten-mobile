@@ -1,6 +1,6 @@
 import { useSegments } from 'expo-router';
 
-export type RelistenTabGroupSegment = '(downloads)' | '(artists)';
+export type RelistenTabGroupSegment = '(downloads)' | '(artists)' | undefined;
 
 export const useRoute = (nextRoute?: string) => {
   const segments = useSegments();
@@ -17,7 +17,7 @@ export const useGroupSegment = (): RelistenTabGroupSegment => {
 
   const group = segments.at(2);
 
-  if (!group) throw new Error('Missing group!');
+  if (!group) return undefined;
 
   return group as RelistenTabGroupSegment;
 };
