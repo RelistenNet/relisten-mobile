@@ -23,7 +23,7 @@ import { Artist } from '@/relisten/realm/models/artist';
 import { useArtistMetadata } from '@/relisten/realm/models/artist_repo';
 import { Year } from '@/relisten/realm/models/year';
 import { useArtistYears, useYearMetadata } from '@/relisten/realm/models/year_repo';
-import { useGroupSegment, useIsDownloadsTab, useRoute } from '@/relisten/util/routes';
+import { useGroupSegment, useIsDownloadedTab, useRoute } from '@/relisten/util/routes';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Link, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { useEffect, useMemo } from 'react';
@@ -77,7 +77,7 @@ const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => {
   const { apiClient } = useRelistenApi();
   const currentRoute = useRoute();
   const router = useRouter();
-  const isDownloadsTab = useIsDownloadsTab();
+  const isDownloadedTab = useIsDownloadedTab();
   const groupSegment = useGroupSegment(true);
   const metadata = useArtistMetadata(artist);
 
@@ -116,7 +116,7 @@ const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => {
           <Plur word="tape" count={metadata.sources} />
         </RelistenText>
       </View>
-      {!isDownloadsTab && (
+      {!isDownloadedTab && (
         <>
           <View className="w-full flex-row px-4 pb-4" style={{ gap: 16 }}>
             <Link
@@ -204,7 +204,7 @@ const YearListItem = ({ year }: { year: Year }) => {
   const nextRoute = useRoute('year/[yearUuid]');
   const metadata = useYearMetadata(year);
   const hasOfflineTracks = year.hasOfflineTracks;
-  const isDownloadsTab = useIsDownloadsTab();
+  const isDownloadedTab = useIsDownloadedTab();
 
   return (
     <Link
@@ -236,7 +236,7 @@ const YearListItem = ({ year }: { year: Year }) => {
               </SubtitleText>
             </SubtitleRow>
           </Flex>
-          {!isDownloadsTab && <FavoriteObjectButton object={year} />}
+          {!isDownloadedTab && <FavoriteObjectButton object={year} />}
         </Flex>
       </SectionedListItem>
     </Link>

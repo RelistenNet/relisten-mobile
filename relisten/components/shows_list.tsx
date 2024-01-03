@@ -4,7 +4,7 @@ import React, { ReactNode } from 'react';
 import { View } from 'react-native';
 import { Artist } from '../realm/models/artist';
 import { Show } from '../realm/models/show';
-import { useGroupSegment, useIsDownloadsTab } from '../util/routes';
+import { useGroupSegment, useIsDownloadedTab } from '../util/routes';
 import { FavoriteObjectButton } from './favorite_icon_button';
 import { FilterableList, FilterableListProps } from './filtering/filterable_list';
 import { Filter, FilteringOptions, FilteringProvider, SortDirection } from './filtering/filters';
@@ -24,7 +24,7 @@ interface ShowListItemProps {
 
 export const ShowListItem = ({ show, children }: ShowListItemProps) => {
   const groupSegment = useGroupSegment();
-  const isDownloadsTab = useIsDownloadsTab();
+  const isDownloadedTab = useIsDownloadedTab();
 
   return (
     <Link
@@ -63,7 +63,7 @@ export const ShowListItem = ({ show, children }: ShowListItemProps) => {
             </SubtitleRow>
             {children}
           </Flex>
-          {!isDownloadsTab && <FavoriteObjectButton object={show} />}
+          {!isDownloadedTab && <FavoriteObjectButton object={show} />}
         </Flex>
       </SectionedListItem>
     </Link>

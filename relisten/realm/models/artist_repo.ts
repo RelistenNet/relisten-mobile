@@ -9,7 +9,7 @@ import { Repository } from '../repository';
 import { useQuery } from '../schema';
 import { Artist } from './artist';
 
-import { useIsDownloadsTab } from '@/relisten/util/routes';
+import { useIsDownloadedTab } from '@/relisten/util/routes';
 import { useRealmTabsFilter } from '../realm_filters';
 import { Show } from './show';
 import { Source } from './source';
@@ -22,7 +22,7 @@ export const useArtists = createNetworkBackedModelArrayHook(
 );
 
 export function useArtistMetadata(artist?: Artist | null) {
-  const isDownloadsTab = useIsDownloadsTab();
+  const isDownloadedTab = useIsDownloadedTab();
   const sh = useRealmTabsFilter(
     useQuery(Show, (query) => query.filtered('artistUuid = $0', artist?.uuid), [artist?.uuid])
   );
@@ -34,7 +34,7 @@ export function useArtistMetadata(artist?: Artist | null) {
     return { shows: undefined, sources: undefined };
   }
 
-  if (isDownloadsTab) {
+  if (isDownloadedTab) {
     return { shows: sh.length, sources: src.length };
   }
 

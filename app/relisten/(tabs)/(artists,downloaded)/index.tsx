@@ -12,7 +12,7 @@ import RowTitle from '@/relisten/components/row_title';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useArtistMetadata, useArtists } from '@/relisten/realm/models/artist_repo';
-import { useIsDownloadsTab, useRoute } from '@/relisten/util/routes';
+import { useIsDownloadedTab, useRoute } from '@/relisten/util/routes';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Link } from 'expo-router';
 import plur from 'plur';
@@ -23,7 +23,7 @@ import colors from 'tailwindcss/colors';
 
 const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) => {
   const nextRoute = useRoute('[artistUuid]');
-  const isDownloadsTab = useIsDownloadsTab();
+  const isDownloadedTab = useIsDownloadedTab();
   const metadata = useArtistMetadata(artist);
   const hasOfflineTracks = artist.hasOfflineTracks;
 
@@ -56,7 +56,7 @@ const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) =>
               </SubtitleText>
             </SubtitleRow>
           </Flex>
-          {!isDownloadsTab && <FavoriteObjectButton object={artist} />}
+          {!isDownloadedTab && <FavoriteObjectButton object={artist} />}
         </Flex>
       </SectionedListItem>
     </Link>
@@ -68,7 +68,7 @@ type ArtistsListProps = {
 };
 
 const ArtistsList = ({ artists, ...props }: ArtistsListProps) => {
-  const isDownloadsTab = useIsDownloadsTab();
+  const isDownloadedTab = useIsDownloadedTab();
 
   const sectionedArtists = useMemo<RelistenSectionData<Artist>>(() => {
     const r = [];
@@ -79,7 +79,7 @@ const ArtistsList = ({ artists, ...props }: ArtistsListProps) => {
 
     const favorites = all.filter((a) => a.isFavorite);
 
-    if (!isDownloadsTab) {
+    if (!isDownloadedTab) {
       if (favorites.length > 0) {
         r.push({
           sectionTitle: 'Favorites',
@@ -110,13 +110,13 @@ const ArtistsList = ({ artists, ...props }: ArtistsListProps) => {
 
 export default function Page() {
   const results = useArtists();
-  const isDownloadsTab = useIsDownloadsTab();
+  const isDownloadedTab = useIsDownloadedTab();
   const { data: artists } = results;
 
   return (
     <View style={{ flex: 1, width: '100%' }}>
       <RefreshContextProvider networkBackedResults={results}>
-        {!isDownloadsTab && (
+        {!isDownloadedTab && (
           <Link
             href={{
               pathname:

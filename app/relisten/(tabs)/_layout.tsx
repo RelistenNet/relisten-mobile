@@ -24,7 +24,7 @@ export default function TabLayout() {
             if (route.name === '(artists)') {
               iconName = focused ? 'account-music' : 'account-music-outline';
               return <MaterialCommunityIcons name={iconName as any} size={size} color={color} />;
-            } else if (route.name === '(downloads)') {
+            } else if (route.name === '(downloaded)') {
               iconName = focused ? 'download' : 'download-outline';
               return <MaterialCommunityIcons name={iconName as any} size={size} color={color} />;
             } else if (route.name === '(myLibrary)/myLibrary') {
@@ -45,7 +45,7 @@ export default function TabLayout() {
         // initialRouteName="artists"
       >
         <Tabs.Screen name="(artists)" options={{ title: 'Artists' }} />
-        <Tabs.Screen name="(downloads)" options={{ title: 'Downloads' }} />
+        <Tabs.Screen name="(downloaded)" options={{ title: 'Downloaded' }} />
 
         <Tabs.Screen name="(myLibrary)/myLibrary" options={{ title: 'My Library' }} />
         <Tabs.Screen name="(relisten)/index" options={{ title: 'Relisten' }} />
