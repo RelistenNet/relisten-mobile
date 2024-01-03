@@ -29,6 +29,7 @@ import { router, useFocusEffect, useRouter } from 'expo-router';
 import { useObject } from '@/relisten/realm/schema';
 import { Show } from '@/relisten/realm/models/show';
 import { SoundIndicator } from '@/relisten/components/sound_indicator';
+import { useGroupSegment } from '@/relisten/util/routes';
 
 function ScrubberRow() {
   const progress = useNativePlaybackProgress();
@@ -59,7 +60,9 @@ function ScrubberRow() {
 
 function CurrentTrackInfo() {
   const { showActionSheetWithOptions } = useActionSheet();
+  const navigation = useNavigation();
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
+  const groupSegment = useGroupSegment(true);
 
   const { data: artist } = useArtist(currentPlayerTrack?.sourceTrack.artistUuid);
   const show = useObject(Show, currentPlayerTrack?.sourceTrack?.showUuid || '');
@@ -80,16 +83,19 @@ function CurrentTrackInfo() {
       (selectedIndex?: number) => {
         switch (selectedIndex) {
           case 0:
+            navigation.goBack();
             router.push({
-              pathname: './[artistUuid]/' as const,
+              pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/`,
               params: {
                 artistUuid: artist.uuid,
               },
             });
             break;
           case 1:
+            navigation.goBack();
             router.push({
-              pathname: './[artistUuid]/show/[showUuid]/source/[sourceUuid]/' as const,
+              pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
+
               params: {
                 artistUuid: artist.uuid,
                 showUuid: show.uuid,
@@ -358,6 +364,7 @@ function PlayerQueue() {
 
 export function PlayerScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
+  const currentPlayerTrack = useRelistenPlayerCurrentTrack();
 
   useEffect(() => {
     navigation.setOptions({
@@ -373,6 +380,27 @@ export function PlayerScreen() {
           </TouchableOpacity>
         );
       },
+      headerRight: () => {
+        return (
+          <TouchableOpacity
+            onPress={() => {
+              navigation.goBack();
+
+              router.push({
+                pathname: `/relisten/(tabs)/(artists)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
+                params: {
+                  artistUuid: currentPlayerTrack?.sourceTrack.artistUuid,
+                  showUuid: currentPlayerTrack?.sourceTrack.showUuid,
+                  sourceUuid: currentPlayerTrack?.sourceTrack.sourceUuid,
+                },
+              });
+            }}
+            className="py-2 pr-2"
+          >
+            <MaterialIcons name="library-music" size={22} color="white" />
+          </TouchableOpacity>
+        );
+      }
     });
   }, [navigation]);
 

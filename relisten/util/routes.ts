@@ -12,12 +12,15 @@ export const useRoute = (nextRoute?: string) => {
   return segments.join('/');
 };
 
-export const useGroupSegment = (): RelistenTabGroupSegment => {
+export const useGroupSegment = (fallback?: boolean): RelistenTabGroupSegment => {
   const segments = useSegments();
 
   const group = segments.at(2);
 
-  if (!group) return undefined;
+  if (!group) {
+    if (fallback) return '(artists)';
+    return undefined;
+  }
 
   return group as RelistenTabGroupSegment;
 };

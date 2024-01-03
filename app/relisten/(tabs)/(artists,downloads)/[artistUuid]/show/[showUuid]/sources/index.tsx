@@ -31,6 +31,7 @@ import {
 
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
 import { PlayShow } from '@/relisten/player/ui/track_context_menu';
+import { useGroupSegment } from '@/relisten/util/routes';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -159,6 +160,8 @@ export const SourceLink = memo(({ link, ...props }: { link: SLink } & TouchableO
 });
 
 export const SourceDetail: React.FC<{ source: Source; show: Show }> = memo(({ show, source }) => {
+  const groupSegment = useGroupSegment(true);
+
   return (
     <View className="flex w-full items-center px-4">
       <View className="w-full py-4">
@@ -209,7 +212,7 @@ export const SourceDetail: React.FC<{ source: Source; show: Show }> = memo(({ sh
       <View className="w-full pb-2">
         <Link
           href={{
-            pathname: './[artistUuid]/show/[showUuid]/source/[sourceUuid]/' as const,
+            pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
             params: {
               artistUuid: show.artistUuid,
               yearUuid: show.yearUuid,

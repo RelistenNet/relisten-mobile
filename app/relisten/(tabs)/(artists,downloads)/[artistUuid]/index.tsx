@@ -23,7 +23,7 @@ import { Artist } from '@/relisten/realm/models/artist';
 import { useArtistMetadata } from '@/relisten/realm/models/artist_repo';
 import { Year } from '@/relisten/realm/models/year';
 import { useArtistYears, useYearMetadata } from '@/relisten/realm/models/year_repo';
-import { useIsDownloadsTab, useRoute } from '@/relisten/util/routes';
+import { useGroupSegment, useIsDownloadsTab, useRoute } from '@/relisten/util/routes';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Link, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { useEffect, useMemo } from 'react';
@@ -78,6 +78,7 @@ const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => {
   const currentRoute = useRoute();
   const router = useRouter();
   const isDownloadsTab = useIsDownloadsTab();
+  const groupSegment = useGroupSegment(true);
   const metadata = useArtistMetadata(artist);
 
   if (!artist) {
@@ -89,7 +90,7 @@ const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => {
 
     if (randomShow?.data?.uuid) {
       router.push({
-        pathname: './[artistUuid]/show/[showUuid]/source/[sourceUuid]/',
+        pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
         params: {
           artistUuid: artist.uuid,
           showUuid: randomShow!.data!.uuid,

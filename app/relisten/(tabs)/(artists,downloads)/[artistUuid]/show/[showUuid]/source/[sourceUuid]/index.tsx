@@ -35,6 +35,7 @@ import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
 import { useArtist } from '@/relisten/realm/models/artist_repo';
 import { PlayShow, useSourceTrackContextMenu } from '@/relisten/player/ui/track_context_menu';
 import { SourceSets } from '@/relisten/components/source/source_sets_component';
+import { useGroupSegment } from '@/relisten/util/routes';
 
 export const SourceList = ({ sources }: { sources: Source[] }) => {
   return (
@@ -218,6 +219,7 @@ export const SourceHeader = ({
 }) => {
   const realm = useRealm();
   const forceUpdate = useForceUpdate();
+  const groupSegment = useGroupSegment(true);
 
   const secondLine = R.compact([
     source.humanizedDuration(),
@@ -277,20 +279,6 @@ export const SourceHeader = ({
             </MoreOrLess>
           </SourceProperty>
         )}
-        {source.taperNotes && (
-          <SourceProperty title="Taper Notes">
-            <MoreOrLess numberOfLines={1} textComponent={RelistenText}>
-              {source.taperNotes}
-            </MoreOrLess>
-          </SourceProperty>
-        )}
-        {source.description && (
-          <SourceProperty title="Description">
-            <MoreOrLess numberOfLines={1} textComponent={RelistenText}>
-              {source.description}
-            </MoreOrLess>
-          </SourceProperty>
-        )}
       </View>
       {false && (
         <View className="w-full flex-row pb-2" style={{ gap: 16 }}>
@@ -334,7 +322,7 @@ export const SourceHeader = ({
       <View className="w-full pb-2">
         <Link
           href={{
-            pathname: './[artistUuid]/show/[showUuid]/sources/' as const,
+            pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/show/[showUuid]/sources/`,
             params: {
               artistUuid: show.artistUuid,
               yearUuid: show.yearUuid,
