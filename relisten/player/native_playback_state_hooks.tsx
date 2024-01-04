@@ -26,11 +26,15 @@ export function addPlayerListeners() {
     (download: RelistenDownloadProgressChangedEvent) => {
       // console.info('got download progress', download);
 
-      sharedStates.activeTrackDownloadProgress.setState({
-        downloadedBytes: download.downloadedBytes,
-        totalBytes: download.totalBytes,
-        percent: download.downloadedBytes / download.totalBytes,
-      });
+      // only update download progress for active track for now
+      // later we may want to have data for the next track
+      if (download.forActiveTrack) {
+        sharedStates.activeTrackDownloadProgress.setState({
+          downloadedBytes: download.downloadedBytes,
+          totalBytes: download.totalBytes,
+          percent: download.downloadedBytes / download.totalBytes,
+        });
+      }
     }
   );
 
