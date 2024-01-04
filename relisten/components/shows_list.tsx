@@ -16,6 +16,7 @@ import RowTitle from './row_title';
 import { SectionedListItem } from './sectioned_list_item';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import colors from 'tailwindcss/colors';
+import { SourceTrackSucceededIndicator } from './source/source_track_offline_indicator';
 
 interface ShowListItemProps {
   show: Show;
@@ -46,9 +47,7 @@ export const ShowListItem = ({ show, children }: ShowListItemProps) => {
               {show.hasSoundboardSource && (
                 <RelistenText cn="text-xs font-bold text-relisten-blue-600">SBD</RelistenText>
               )}
-              {show?.hasOfflineTracks && (
-                <MaterialCommunityIcons name="cloud-check" color={colors.gray['400']} />
-              )}
+              {show?.hasOfflineTracks && <SourceTrackSucceededIndicator />}
               <View className="grow" />
               <SubtitleText>
                 {show.humanizedAvgRating()} ★ &middot; {show.humanizedAvgDuration()}

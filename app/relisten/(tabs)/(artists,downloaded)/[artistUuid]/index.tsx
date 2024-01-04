@@ -19,6 +19,7 @@ import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
 import RowTitle from '@/relisten/components/row_title';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
+import { SourceTrackSucceededIndicator } from '@/relisten/components/source/source_track_offline_indicator';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useArtistMetadata } from '@/relisten/realm/models/artist_repo';
 import { Year } from '@/relisten/realm/models/year';
@@ -227,7 +228,7 @@ const YearListItem = ({ year }: { year: Year }) => {
                 {hasOfflineTracks && (
                   <>
                     &nbsp;
-                    <MaterialCommunityIcons name="cloud-check" color={colors.gray['400']} />
+                    <SourceTrackSucceededIndicator />
                   </>
                 )}
               </SubtitleText>

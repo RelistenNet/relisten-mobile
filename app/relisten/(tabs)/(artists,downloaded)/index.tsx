@@ -10,6 +10,7 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
 import RowTitle from '@/relisten/components/row_title';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
+import { SourceTrackSucceededIndicator } from '@/relisten/components/source/source_track_offline_indicator';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useArtistMetadata, useArtists } from '@/relisten/realm/models/artist_repo';
 import { useIsDownloadedTab, useRoute } from '@/relisten/util/routes';
@@ -47,7 +48,7 @@ const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) =>
                 {hasOfflineTracks && (
                   <>
                     &nbsp;
-                    <MaterialCommunityIcons name="cloud-check" color={colors.gray['400']} />
+                    <SourceTrackSucceededIndicator />
                   </>
                 )}
               </SubtitleText>
