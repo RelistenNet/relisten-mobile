@@ -1,14 +1,57 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import * as fs from 'expo-file-system';
+
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { useRelistenPlayerPlaybackState } from '@/relisten/player/relisten_player_hooks';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import { useRealm } from '@/relisten/realm/schema';
 import { DevSettings } from 'react-native';
+import { useEffect, useReducer, useState } from 'react';
+import Flex from '@/relisten/components/flex';
+import { OFFLINE_DIRECTORY } from '@/relisten/realm/models/source_track';
+
+const sizeFormatter = new Intl.NumberFormat([], {
+  style: 'unit',
+  unit: 'gigabyte',
+  notation: 'compact',
+  unitDisplay: 'narrow',
+});
+
+const BYTE_TO_GB = 1024 * 1024 * 1024;
+const formatBytes = (bytes: number) => sizeFormatter.format(bytes / BYTE_TO_GB);
+
+const useFileSystemInfo = () => {
+  const [, refresh] = useReducer((state) => state + 1, 0);
+  const [state, setState] = useState({
+    totalDiskSpace: '',
+    totalFreeDiskSpace: '',
+    totalSizeOfRelistenDirectory: '',
+  });
+
+  useEffect(() => {
+    (async () => {
+      const [totalDiskSpace, totalFreeDiskSpace, dirInfo] = await Promise.all([
+        fs.getTotalDiskCapacityAsync(),
+        fs.getFreeDiskStorageAsync(),
+        fs.getInfoAsync(OFFLINE_DIRECTORY),
+      ]);
+
+      setState({
+        totalDiskSpace: formatBytes(totalDiskSpace),
+        totalFreeDiskSpace: formatBytes(totalFreeDiskSpace),
+        totalSizeOfRelistenDirectory: formatBytes(dirInfo.exists ? dirInfo.size : 0),
+      });
+    })();
+  }, [state]);
+
+  return [state, refresh] as const;
+};
 
 export default function Page() {
   const realm = useRealm();
   const playbackState = useRelistenPlayerPlaybackState();
+  const [fileSystemInfo, refresh] = useFileSystemInfo();
 
   // const play = () => {
   //   player.play({ url: 'https://phish.in/audio/000/012/258/12258.mp3', identifier: '1' });
@@ -21,16 +64,24 @@ export default function Page() {
 
   return (
     <SafeAreaView>
-      <RelistenButton
-        onPress={() => {
-          realm.beginTransaction();
-          realm.deleteAll();
-          realm.commitTransaction();
-          DevSettings.reload();
-        }}
-      >
-        Reset Cache
-      </RelistenButton>
+      <Flex column cn="gap-2 mt-8">
+        <RelistenButton
+          onPress={async () => {
+            if ((await fs.getInfoAsync(OFFLINE_DIRECTORY)).exists) {
+              await fs.deleteAsync(OFFLINE_DIRECTORY);
+              refresh();
+            }
+            realm.beginTransaction();
+            realm.deleteAll();
+            realm.commitTransaction();
+            DevSettings.reload();
+          }}
+        >
+          Reset Realm Cache & Delete Local Files
+        </RelistenButton>
+
+        <RelistenText>{JSON.stringify(fileSystemInfo, null, 2)}</RelistenText>
+      </Flex>
       {/* <TouchableOpacity onPress={play} disabled={playbackState.playback}>
         <Text className="rounded bg-red-500 p-12 text-white">play test</Text>
       </TouchableOpacity>
