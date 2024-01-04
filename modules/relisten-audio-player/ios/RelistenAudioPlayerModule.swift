@@ -213,6 +213,7 @@ extension RelistenAudioPlayerModule: RelistenGaplessAudioPlayerDelegate {
     }
 
     public func downloadProgressChanged(_ player: RelistenGaplessAudioPlayer, forActiveTrack: Bool, downloadedBytes: UInt64, totalBytes: UInt64) {
+        NSLog("[downloadProgressChanged] %d / %d", downloadedBytes, totalBytes)
         self.sendEvent("onDownloadProgressChanged", [
             "forActiveTrack": forActiveTrack,
             "downloadedBytes": downloadedBytes,

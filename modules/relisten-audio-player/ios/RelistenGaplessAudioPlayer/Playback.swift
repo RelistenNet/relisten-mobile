@@ -7,6 +7,23 @@
 
 import Foundation
 
+// https://stackoverflow.com/a/48566887/240569
+extension URL {
+    var attributes: [FileAttributeKey : Any]? {
+        do {
+            return try FileManager.default.attributesOfItem(atPath: path)
+        } catch let error as NSError {
+            print("FileAttribute error: \(error)")
+        }
+        return nil
+    }
+
+    var fileSize: UInt64 {
+        return attributes?[.size] as? UInt64 ?? UInt64(0)
+    }
+
+}
+
 extension RelistenGaplessAudioPlayer {
     func playStreamableImmediately(_ streamable: RelistenGaplessStreamable) {
         dispatchPrecondition(condition: .onQueue(bassQueue))
@@ -52,6 +69,8 @@ extension RelistenGaplessAudioPlayer {
             if activeStream.streamable.url.isFileURL {
                 // this will call nextTrackChanged and setupInactiveStreamWithNext
                 streamDownloadComplete(activeStream.stream)
+                // also trigger downloadProgress update since it won't be triggered or accurate for a local file
+                self.delegate?.downloadProgressChanged(self, forActiveTrack: true, downloadedBytes: activeStream.streamable.url.fileSize, totalBytes: activeStream.streamable.url.fileSize);
             }
         } else {
             assertionFailure("activeStream nil after buildingStream from \(streamable)")
