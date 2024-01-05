@@ -38,7 +38,7 @@ export default function TabLayout() {
       // https://github.com/expo/router/issues/740#issuecomment-1629471113
       // TODO: they should fix this bug at some point
       setTimeout(() => {
-        router.replace('/relisten/(tabs)/artists/');
+        router.replace('/relisten/(tabs)');
       }, 1);
     }
   }, [isAppReady]);

@@ -1,7 +1,10 @@
 import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import Flex from '@/relisten/components/flex';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { useNativePlaybackProgress } from '@/relisten/player/native_playback_state_hooks';
+import {
+  useNativeActiveTrackDownloadProgress,
+  useNativePlaybackProgress,
+} from '@/relisten/player/native_playback_state_hooks';
 import {
   useRelistenPlayer,
   useRelistenPlayerPlaybackState,
@@ -10,6 +13,7 @@ import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player
 import { useArtist } from '@/relisten/realm/models/artist_repo';
 import { Show } from '@/relisten/realm/models/show';
 import { useObject } from '@/relisten/realm/schema';
+import { RelistenBlue } from '@/relisten/relisten_blue';
 import { MaterialIcons } from '@expo/vector-icons';
 import { ProgressView } from '@react-native-community/progress-view';
 import { useRouter } from 'expo-router';
@@ -21,6 +25,7 @@ function PlayerBottomBarContents() {
   const playbackState = useRelistenPlayerPlaybackState();
   const player = useRelistenPlayer();
   const progress = useNativePlaybackProgress();
+  const downloadProgress = useNativeActiveTrackDownloadProgress();
 
   const artist = useArtist(currentTrack?.sourceTrack?.artistUuid);
   const showCache = useObject(Show, currentTrack?.sourceTrack?.showUuid || '');
@@ -41,7 +46,7 @@ function PlayerBottomBarContents() {
   const track = currentTrack.sourceTrack;
 
   return (
-    <Flex column cn="flex-1">
+    <Flex column cn="flex-1 gap-3">
       <Flex cn="items-center">
         <Flex cn="ml-2 h-full items-center">
           <TouchableOpacity
@@ -63,11 +68,20 @@ function PlayerBottomBarContents() {
           </RelistenText>
         </Flex>
       </Flex>
-      <ProgressView
-        progress={progress?.percent ?? 0}
-        progressTintColor="white"
-        style={{ width: '100%', height: 4, marginTop: 8 }}
-      />
+      <View className="relative bg-relisten-blue-700">
+        <ProgressView
+          progress={downloadProgress?.percent ?? 0}
+          progressTintColor={RelistenBlue['400']}
+          // progressViewStyle="bar"
+          style={{ width: '100%', height: 6, position: 'absolute', bottom: 0 }}
+        />
+        <ProgressView
+          progress={progress?.percent ?? 0}
+          progressTintColor="white"
+          // progressViewStyle="bar"
+          style={{ width: '100%', height: 6, position: 'absolute', bottom: 0 }}
+        />
+      </View>
     </Flex>
   );
 }

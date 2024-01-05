@@ -1,8 +1,10 @@
+import { ListRenderItem } from '@shopify/flash-list';
 import { Link } from 'expo-router';
-import React, { ReactNode, useMemo } from 'react';
-import Realm from 'realm';
+import React, { ReactNode } from 'react';
+import { View } from 'react-native';
 import { Artist } from '../realm/models/artist';
 import { Show } from '../realm/models/show';
+import { useGroupSegment, useIsDownloadedTab } from '../util/routes';
 import { FavoriteObjectButton } from './favorite_icon_button';
 import { FilterableList, FilterableListProps } from './filtering/filterable_list';
 import { Filter, FilteringOptions, FilteringProvider, SortDirection } from './filtering/filters';
@@ -12,21 +14,23 @@ import { RelistenText } from './relisten_text';
 import { SubtitleRow, SubtitleText } from './row_subtitle';
 import RowTitle from './row_title';
 import { SectionedListItem } from './sectioned_list_item';
-import { ListRenderItem } from '@shopify/flash-list';
-import { View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import colors from 'tailwindcss/colors';
+import { SourceTrackSucceededIndicator } from './source/source_track_offline_indicator';
 
 interface ShowListItemProps {
   show: Show;
-  favoriteButton?: boolean;
   children?: ReactNode;
 }
 
-export const ShowListItem = ({ show, favoriteButton, children }: ShowListItemProps) => {
+export const ShowListItem = ({ show, children }: ShowListItemProps) => {
+  const groupSegment = useGroupSegment();
+  const isDownloadedTab = useIsDownloadedTab();
+
   return (
     <Link
       href={{
-        pathname:
-          '/relisten/(tabs)/artists/[artistUuid]/show/[showUuid]/source/[sourceUuid]/' as const,
+        pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
         params: {
           artistUuid: show.artistUuid,
           showUuid: show.uuid,
@@ -43,6 +47,7 @@ export const ShowListItem = ({ show, favoriteButton, children }: ShowListItemPro
               {show.hasSoundboardSource && (
                 <RelistenText cn="text-xs font-bold text-relisten-blue-600">SBD</RelistenText>
               )}
+              {show?.hasOfflineTracks && <SourceTrackSucceededIndicator />}
               <View className="grow" />
               <SubtitleText>
                 {show.humanizedAvgRating()} ★ &middot; {show.humanizedAvgDuration()}
@@ -57,7 +62,7 @@ export const ShowListItem = ({ show, favoriteButton, children }: ShowListItemPro
             </SubtitleRow>
             {children}
           </Flex>
-          {favoriteButton && <FavoriteObjectButton object={show} />}
+          {!isDownloadedTab && <FavoriteObjectButton object={show} />}
         </Flex>
       </SectionedListItem>
     </Link>
@@ -66,6 +71,7 @@ export const ShowListItem = ({ show, favoriteButton, children }: ShowListItemPro
 
 export enum ShowFilterKey {
   Library = 'library',
+  Downloads = 'downloads',
   Soundboard = 'soundboard',
   Date = 'date',
   Rating = 'rating',
@@ -74,12 +80,6 @@ export enum ShowFilterKey {
 }
 
 const SHOW_FILTERS: Filter<ShowFilterKey, Show>[] = [
-  {
-    persistenceKey: ShowFilterKey.Library,
-    title: 'My Library',
-    active: false,
-    filter: (show) => show.isFavorite,
-  },
   {
     persistenceKey: ShowFilterKey.Soundboard,
     title: 'SBD',
@@ -127,7 +127,6 @@ const DEFAULT_SHOW_FILTER = {
 };
 
 interface ShowListProps {
-  shows: Realm.Results<Show> | ReadonlyArray<Show>;
   artist: Artist | null;
   filterOptions?: FilteringOptions<ShowFilterKey>;
   ListHeaderComponent?: React.ReactElement;
@@ -138,28 +137,28 @@ const showListRenderItemDefault: ListRenderItem<Show> = ({ item: show }) => {
   return <ShowListItem show={show} />;
 };
 
+export const ShowListContainer = (
+  props: ShowListProps & Omit<FilterableListProps<Show>, 'renderItem'>
+) => {
+  return (
+    <FilteringProvider
+      filters={SHOW_FILTERS}
+      options={{ default: DEFAULT_SHOW_FILTER, ...(props.filterOptions || {}) }}
+    >
+      <ShowList {...props} />
+    </FilteringProvider>
+  );
+};
+
 export const ShowList = ({
-  shows,
+  data,
   artist,
   children,
   renderItem,
   filterOptions,
   ...props
-}: ShowListProps & Omit<FilterableListProps<Show>, 'data' | 'renderItem'>) => {
-  const allShows = useMemo(() => {
-    return [...shows];
-  }, [shows]);
-
+}: ShowListProps & Omit<FilterableListProps<Show>, 'renderItem'>) => {
   return (
-    <FilteringProvider
-      filters={SHOW_FILTERS}
-      options={{ default: DEFAULT_SHOW_FILTER, ...(filterOptions || {}) }}
-    >
-      <FilterableList
-        data={allShows}
-        renderItem={renderItem || showListRenderItemDefault}
-        {...props}
-      />
-    </FilteringProvider>
+    <FilterableList data={data} renderItem={renderItem || showListRenderItemDefault} {...props} />
   );
 };

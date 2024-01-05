@@ -1,17 +1,16 @@
-import { FlatList, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useQuery } from '@/relisten/realm/schema';
+import Plur from '@/relisten/components/plur';
+import { RelistenText } from '@/relisten/components/relisten_text';
+import { SubtitleText } from '@/relisten/components/row_subtitle';
+import RowTitle from '@/relisten/components/row_title';
 import {
   SourceTrackOfflineInfo,
   SourceTrackOfflineInfoStatus,
 } from '@/relisten/realm/models/source_track_offline_info';
-import React from 'react';
-import { RelistenText } from '@/relisten/components/relisten_text';
-import RowTitle from '@/relisten/components/row_title';
-import { SubtitleText } from '@/relisten/components/row_subtitle';
-import Plur from '@/relisten/components/plur';
+import { useQuery } from '@/relisten/realm/schema';
 import { Realm } from '@realm/react';
+import { FlatList, View } from 'react-native';
 import * as Progress from 'react-native-progress';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 function DownloadListItem({ item }: { item: SourceTrackOfflineInfo }) {
   const sourceTrack = item.sourceTrack;

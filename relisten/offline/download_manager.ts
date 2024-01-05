@@ -4,11 +4,11 @@ import {
   SourceTrackOfflineInfoStatus,
   SourceTrackOfflineInfoType,
 } from '@/relisten/realm/models/source_track_offline_info';
+import { realm } from '@/relisten/realm/schema';
+import { log } from '@/relisten/util/logging';
 import type { DownloadTask } from '@kesha-antonov/react-native-background-downloader';
 import RNBackgroundDownloader from '@kesha-antonov/react-native-background-downloader';
-import { realm } from '@/relisten/realm/schema';
 import { Realm } from '@realm/react';
-import { log } from '@/relisten/util/logging';
 import * as fs from 'expo-file-system';
 
 const logger = log.extend('offline');

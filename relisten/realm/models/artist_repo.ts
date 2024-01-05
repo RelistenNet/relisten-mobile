@@ -1,20 +1,45 @@
-import { Repository } from '../repository';
-import { useQuery } from '../schema';
-import { useMemo } from 'react';
-import { Artist } from './artist';
-import { NetworkBackedResults } from '../network_backed_results';
-import { createNetworkBackedModelArrayHook } from '../network_backed_behavior_hooks';
 import {
   NetworkBackedBehaviorFetchStrategy,
   NetworkBackedBehaviorOptions,
 } from '@/relisten/realm/network_backed_behavior';
+import { useMemo } from 'react';
+import { createNetworkBackedModelArrayHook } from '../network_backed_behavior_hooks';
+import { NetworkBackedResults } from '../network_backed_results';
+import { Repository } from '../repository';
+import { useQuery } from '../schema';
+import { Artist } from './artist';
+
+import { useIsDownloadedTab } from '@/relisten/util/routes';
+import { useRealmTabsFilter } from '../realm_filters';
+import { Show } from './show';
+import { Source } from './source';
 
 export const artistRepo = new Repository(Artist);
 export const useArtists = createNetworkBackedModelArrayHook(
   artistRepo,
-  () => useQuery(Artist),
+  () => useRealmTabsFilter(useQuery(Artist)),
   (api) => api.artists()
 );
+
+export function useArtistMetadata(artist?: Artist | null) {
+  const isDownloadedTab = useIsDownloadedTab();
+  const sh = useRealmTabsFilter(
+    useQuery(Show, (query) => query.filtered('artistUuid = $0', artist?.uuid), [artist?.uuid])
+  );
+  const src = useRealmTabsFilter(
+    useQuery(Source, (query) => query.filtered('artistUuid = $0', artist?.uuid), [artist?.uuid])
+  );
+
+  if (!artist) {
+    return { shows: undefined, sources: undefined };
+  }
+
+  if (isDownloadedTab) {
+    return { shows: sh.length, sources: src.length };
+  }
+
+  return { shows: artist.showCount, sources: artist.sourceCount };
+}
 
 export function useArtist(
   artistUuid?: string,

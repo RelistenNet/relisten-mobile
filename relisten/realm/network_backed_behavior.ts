@@ -15,7 +15,7 @@ export enum NetworkBackedBehaviorFetchStrategy {
 export interface NetworkBackedBehavior<TLocalData, TApiData> {
   fetchStrategy: NetworkBackedBehaviorFetchStrategy;
 
-  fetchFromLocal(): TLocalData;
+  useFetchFromLocal(): TLocalData;
 
   fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<TApiData | undefined>>;
 
@@ -76,7 +76,7 @@ export abstract class ThrottledNetworkBackedBehavior<TLocalData, TApiData>
 
   abstract fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<TApiData | undefined>>;
 
-  abstract fetchFromLocal(): TLocalData;
+  abstract useFetchFromLocal(): TLocalData;
 
   abstract isLocalDataShowable(localData: TLocalData): boolean;
 
@@ -102,7 +102,7 @@ export class NetworkBackedModelArrayBehavior<
     return this.apiCall(api);
   }
 
-  fetchFromLocal(): Realm.Results<TModel> {
+  useFetchFromLocal(): Realm.Results<TModel> {
     return this.fetchFromRealm();
   }
 
@@ -134,7 +134,7 @@ export class NetworkBackedModelBehavior<
     return this.apiCall(api);
   }
 
-  fetchFromLocal(): TModel | null {
+  useFetchFromLocal(): TModel | null {
     return this.fetchFromRealm();
   }
 

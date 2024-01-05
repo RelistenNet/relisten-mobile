@@ -4,6 +4,8 @@ import Realm from 'realm';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import { FavoritableObject } from '../favoritable_object';
 import { Venue } from './venue';
+import { SourceTrack } from './source_track';
+import { checkIfOfflineSourceTrackExists } from '../realm_filters';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface ShowRequiredRelationships {}
@@ -49,6 +51,11 @@ export class Show
       sourceCount: 'int',
       isFavorite: { type: 'bool', default: false },
       venue: 'Venue?',
+      sourceTracks: {
+        type: 'linkingObjects',
+        objectType: 'SourceTrack',
+        property: 'show',
+      },
     },
   };
 
@@ -69,6 +76,7 @@ export class Show
   sourceCount!: number;
 
   venue?: Venue;
+  sourceTracks!: Realm.List<SourceTrack>;
 
   isFavorite!: boolean;
 
@@ -83,6 +91,10 @@ export class Show
 
   humanizedAvgRating() {
     return this.avgRating.toFixed(2);
+  }
+
+  get hasOfflineTracks() {
+    return checkIfOfflineSourceTrackExists(this.sourceTracks);
   }
 
   static propertiesFromApi(relistenObj: ApiShow): ShowRequiredProperties {

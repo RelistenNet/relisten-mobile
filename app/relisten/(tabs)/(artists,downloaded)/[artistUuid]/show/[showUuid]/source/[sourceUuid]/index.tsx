@@ -14,7 +14,7 @@ import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { useRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useForceUpdate } from '@/relisten/util/forced_update';
-import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
 import { MoreOrLess } from '@rntext/more-or-less';
 import dayjs from 'dayjs';
 import { Link, useLocalSearchParams, useNavigation } from 'expo-router';
@@ -30,11 +30,14 @@ import {
 } from 'react-native';
 import * as R from 'remeda';
 
+import { SourceSets } from '@/relisten/components/source/source_sets_component';
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
 import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
-import { useArtist } from '@/relisten/realm/models/artist_repo';
 import { PlayShow, useSourceTrackContextMenu } from '@/relisten/player/ui/track_context_menu';
-import { SourceSets } from '@/relisten/components/source/source_sets_component';
+import { useArtist } from '@/relisten/realm/models/artist_repo';
+import { useGroupSegment } from '@/relisten/util/routes';
+import { useActionSheet } from '@expo/react-native-action-sheet';
+import { DownloadManager } from '@/relisten/offline/download_manager';
 
 export const SourceList = ({ sources }: { sources: Source[] }) => {
   return (
@@ -49,19 +52,18 @@ export const SourceList = ({ sources }: { sources: Source[] }) => {
 };
 
 export default function Page() {
+  const { showActionSheetWithOptions } = useActionSheet();
+
+  const realm = useRealm();
   const navigation = useNavigation();
   const { showUuid } = useLocalSearchParams();
   const { sourceUuid } = useLocalSearchParams();
+  const player = useRelistenPlayer();
 
   const results = useFullShow(String(showUuid));
   const show = results?.data?.show;
   const sources = results?.data?.sources;
-
-  useEffect(() => {
-    navigation.setOptions({
-      title: show?.displayDate,
-    });
-  }, [show]);
+  const artist = useArtist(show?.artistUuid);
 
   const sortedSources = useMemo(() => {
     if (!sources) return [];
@@ -72,30 +74,6 @@ export default function Page() {
   // default sourceUuid is initial which will just fallback to sortedSources[0]
   const selectedSource =
     sortedSources.find((source) => source.uuid === sourceUuid) ?? sortedSources[0];
-
-  return (
-    <RefreshContextProvider
-      networkBackedResults={results}
-      extraRefreshingConsideration={() => !selectedSource}
-    >
-      <DisappearingHeaderScreen
-        ScrollableComponent={SourceComponent}
-        show={show}
-        selectedSource={selectedSource!}
-      />
-    </RefreshContextProvider>
-  );
-}
-
-const SourceComponent = ({
-  show,
-  selectedSource,
-  ...props
-}: { show: Show | undefined; selectedSource?: Source } & ScrollViewProps) => {
-  const { refreshing } = useRefreshContext();
-  const player = useRelistenPlayer();
-  const artist = useArtist(show?.artistUuid);
-  const { showContextMenu } = useSourceTrackContextMenu();
 
   const playShow = useCallback(
     (sourceTrack?: SourceTrack) => {
@@ -126,6 +104,99 @@ const SourceComponent = ({
     },
     [selectedSource, artist.data, show]
   ) satisfies PlayShow;
+
+  const downloadShow = () => {
+    const showTracks = selectedSource.allSourceTracks();
+
+    showTracks.forEach((track) => {
+      DownloadManager.SHARED_INSTANCE.downloadTrack(track);
+    });
+  };
+
+  const onDotsPress = useCallback(() => {
+    if (!show) {
+      return;
+    }
+
+    const options = [
+      'Play Show',
+      'Download Entire Show',
+      'View Sources',
+      'Toggle Favorite',
+      'Cancel',
+    ];
+    const cancelButtonIndex = options.length - 1;
+
+    showActionSheetWithOptions(
+      {
+        options,
+        cancelButtonIndex,
+      },
+      (selectedIndex?: number) => {
+        switch (selectedIndex) {
+          case 0:
+            playShow(selectedSource?.sourceSets[0].sourceTracks[0]);
+
+            break;
+          case 1:
+            downloadShow();
+            break;
+
+          case 2:
+            break;
+          case 3:
+            realm.write(() => {
+              selectedSource.isFavorite = !selectedSource.isFavorite;
+            });
+            break;
+          case cancelButtonIndex:
+            break;
+          // Canceled
+        }
+      }
+    );
+  }, [show]);
+
+  useEffect(() => {
+    navigation.setOptions({
+      title: show?.displayDate,
+      headerRight: () => (
+        <MaterialIcons name="more-horiz" color="white" size={22} onPress={onDotsPress} />
+      ),
+    });
+  }, [show]);
+
+  return (
+    <RefreshContextProvider
+      networkBackedResults={results}
+      extraRefreshingConsideration={() => !selectedSource}
+    >
+      <DisappearingHeaderScreen
+        ScrollableComponent={SourceComponent}
+        show={show}
+        selectedSource={selectedSource!}
+        playShow={playShow}
+        downloadShow={downloadShow}
+      />
+    </RefreshContextProvider>
+  );
+}
+
+const SourceComponent = ({
+  show,
+  selectedSource,
+  playShow,
+  downloadShow,
+  ...props
+}: {
+  show: Show | undefined;
+  selectedSource?: Source;
+  playShow: PlayShow;
+  downloadShow: () => void;
+} & ScrollViewProps) => {
+  const { refreshing } = useRefreshContext();
+  const artist = useArtist(show?.artistUuid);
+  const { showContextMenu } = useSourceTrackContextMenu();
 
   const onDotsPress = useCallback(
     (sourceTrack: SourceTrack) => {
@@ -167,7 +238,12 @@ const SourceComponent = ({
   return (
     <Animated.ScrollView style={{ flex: 1 }} {...props}>
       {/*<SelectedSource sources={sortedSources} sourceIndex={selectedSourceIndex} />*/}
-      <SourceHeader source={selectedSource} show={show} playShow={playShow} />
+      <SourceHeader
+        source={selectedSource}
+        show={show}
+        downloadShow={downloadShow}
+        playShow={playShow}
+      />
       <SourceSets source={selectedSource} playShow={playShow} onDotsPress={onDotsPress} />
       <SourceFooter source={selectedSource} show={show} />
     </Animated.ScrollView>
@@ -211,13 +287,16 @@ export const SourceHeader = ({
   show,
   source,
   playShow,
+  downloadShow,
 }: {
   source: Source;
   show: Show;
   playShow: PlayShow;
+  downloadShow: () => void;
 }) => {
   const realm = useRealm();
   const forceUpdate = useForceUpdate();
+  const groupSegment = useGroupSegment(true);
 
   const secondLine = R.compact([
     source.humanizedDuration(),
@@ -277,20 +356,6 @@ export const SourceHeader = ({
             </MoreOrLess>
           </SourceProperty>
         )}
-        {source.taperNotes && (
-          <SourceProperty title="Taper Notes">
-            <MoreOrLess numberOfLines={1} textComponent={RelistenText}>
-              {source.taperNotes}
-            </MoreOrLess>
-          </SourceProperty>
-        )}
-        {source.description && (
-          <SourceProperty title="Description">
-            <MoreOrLess numberOfLines={1} textComponent={RelistenText}>
-              {source.description}
-            </MoreOrLess>
-          </SourceProperty>
-        )}
       </View>
       {false && (
         <View className="w-full flex-row pb-2" style={{ gap: 16 }}>
@@ -310,9 +375,9 @@ export const SourceHeader = ({
         <RelistenButton
           className="shrink basis-1/3"
           textClassName="text-l"
-          onPress={() => playShow(source.sourceSets[0].sourceTracks[0])}
+          onPress={() => downloadShow()}
         >
-          <MaterialCommunityIcons name="cloud-outline" size={20} color="white" />
+          <MaterialIcons name="file-download" size={20} color="white" />
         </RelistenButton>
         <RelistenButton
           className="shrink basis-1/3"
@@ -334,7 +399,7 @@ export const SourceHeader = ({
       <View className="w-full pb-2">
         <Link
           href={{
-            pathname: '/relisten/(tabs)/artists/[artistUuid]/show/[showUuid]/sources/' as const,
+            pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/show/[showUuid]/sources/`,
             params: {
               artistUuid: show.artistUuid,
               yearUuid: show.yearUuid,

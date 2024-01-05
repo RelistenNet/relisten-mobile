@@ -95,8 +95,12 @@ extension RelistenGaplessAudioPlayer {
 
             // Only update once per 100 KiB
             if downloadedBytes != -1 && totalFileBytes != -1 && oldTotalFileBytes != -1 && oldDownloadedBytes != -1,
-               oldKilobytes != newKilobytes || oldTotalFileBytes != totalFileBytes {
-                sendDownloadChanged = true
+               (oldKilobytes != newKilobytes || oldTotalFileBytes != totalFileBytes) {
+                // don't send download progress for a file url
+                // as BASS_FILEPOS_DOWNLOAD or BASS_FILEPOS_BUFFER return -1 here (because we are not streaming the http file)
+                if (!activeStream.streamable.url.isFileURL) {
+                    sendDownloadChanged = true
+                }
             }
 
             let thisState = currentState

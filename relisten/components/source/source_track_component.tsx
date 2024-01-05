@@ -1,17 +1,15 @@
-import { SourceTrack } from '@/relisten/realm/models/source_track';
-import { TouchableOpacity, View } from 'react-native';
-import { RelistenText } from '@/relisten/components/relisten_text';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import { ItemSeparator } from '@/relisten/components/item_separator';
+import { RelistenText } from '@/relisten/components/relisten_text';
+import { SoundIndicator } from '@/relisten/components/sound_indicator';
+import { SourceTrackOfflineIndicator } from '@/relisten/components/source/source_track_offline_indicator';
+import { useRelistenPlayerPlaybackState } from '@/relisten/player/relisten_player_hooks';
 import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player_queue_hooks';
 import { PlayShow } from '@/relisten/player/ui/track_context_menu';
-import { SoundIndicator } from '@/relisten/components/sound_indicator';
-import { useRelistenPlayerPlaybackState } from '@/relisten/player/relisten_player_hooks';
-import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
-import { SourceTrackOfflineIndicator } from '@/relisten/components/source/source_track_offline_indicator';
+import { SourceTrack } from '@/relisten/realm/models/source_track';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { TouchableOpacity, View } from 'react-native';
 import Flex from '../flex';
-import { SourceTrackOfflineInfoStatus } from '@/relisten/realm/models/source_track_offline_info';
-import { tw } from '@/relisten/util/tw';
 
 interface SourceTrackProps {
   sourceTrack: SourceTrack;

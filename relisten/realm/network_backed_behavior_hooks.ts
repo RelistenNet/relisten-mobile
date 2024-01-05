@@ -26,7 +26,7 @@ export function useNetworkBackedBehavior<TLocalData, TApiData>(
   behavior: NetworkBackedBehavior<TLocalData, TApiData>
 ): NetworkBackedResults<TLocalData> {
   const realm = useRealm();
-  const localData = behavior.fetchFromLocal();
+  const localData = behavior.useFetchFromLocal();
   const api = useRelistenApi();
   const dataExists = behavior.isLocalDataShowable(localData);
 

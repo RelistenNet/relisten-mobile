@@ -1,6 +1,8 @@
 import { RouteFilterConfig, serializeFilters } from '@/relisten/realm/models/route_filter_config';
 import { useObject, useRealm } from '@/relisten/realm/schema';
-import React, { PropsWithChildren, useCallback, useContext, useEffect, useState } from 'react';
+import React, { PropsWithChildren, useCallback, useContext, useMemo, useRef } from 'react';
+import Realm from 'realm';
+import { clone } from 'remeda';
 import { RelistenObject } from '../../api/models/relisten';
 
 export enum SortDirection {
@@ -22,6 +24,7 @@ export interface Filter<K extends string, T> extends PersistedFilter<K> {
   // You must provide one of the two
   sort?: (data: T[]) => void;
   filter?: (data: T) => boolean;
+  realmFilter?: (data: Realm.Results<T>) => Realm.Results<T>;
 }
 
 export interface FilteringOptions<K extends string> {
@@ -44,40 +47,54 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
   filters,
   options,
 }: PropsWithChildren<{ filters: ReadonlyArray<Filter<K, T>>; options?: FilteringOptions<K> }>) => {
+  const isInitialRender = useRef(true);
   const realm = useRealm();
-  const [preparedFilters, setPreparedFilters] = useState(filters);
 
   const filterPersistenceKey = options?.persistence?.key;
 
-  const routeFilterConfig = useObject(RouteFilterConfig, filterPersistenceKey || '__no_object__');
+  let routeFilterConfig = useObject(RouteFilterConfig, filterPersistenceKey || '__no_object__');
+
   const persistedFilters = routeFilterConfig ? routeFilterConfig.filters() : undefined;
 
-  // useEffect with setState to apply the default sort only 1 time.
-  useEffect(() => {
-    for (const filter of filters) {
-      if (options?.default && options.default.persistenceKey === filter.persistenceKey) {
-        filter.active = options.default.active;
-        filter.sortDirection = options.default.sortDirection;
-      } else {
-        filter.active = false;
+  // useState to apply the default sort only 1 time.
+  const preparedFilters = useMemo(() => {
+    if (!persistedFilters) return [...filters];
+
+    const internalFilters = clone(filters);
+
+    // this only runs on the initial render pass
+    if (isInitialRender.current) {
+      for (const filter of internalFilters) {
+        if (filter) {
+          if (options?.default && options.default.persistenceKey === filter.persistenceKey) {
+            filter.active = options.default.active;
+            filter.sortDirection = options.default.sortDirection;
+          } else {
+            filter.active = false;
+          }
+        }
       }
+
+      isInitialRender.current = false;
     }
 
+    // this runs on ever render pass (assuming filters/data changes)
     if (persistedFilters) {
-      for (const filter of filters) {
-        const persistedFilter = persistedFilters[filter.persistenceKey];
-
-        if (persistedFilter && persistedFilter.persistenceKey === filter.persistenceKey) {
-          filter.active = persistedFilter.active;
-          filter.sortDirection = persistedFilter.sortDirection;
-        } else {
-          filter.active = false;
+      for (const internalFilter of internalFilters) {
+        if (internalFilter) {
+          const persistedFilter = persistedFilters[internalFilter.persistenceKey];
+          if (persistedFilter) {
+            internalFilter.active = persistedFilter.active;
+            internalFilter.sortDirection = persistedFilter.sortDirection;
+          } else {
+            internalFilter.active = false;
+          }
         }
       }
     }
 
-    setPreparedFilters([...filters]);
-  }, [filters, options?.default, persistedFilters, setPreparedFilters]);
+    return [...internalFilters];
+  }, [persistedFilters]);
 
   const filter = useCallback(
     (allData: ReadonlyArray<T>) => {
@@ -123,50 +140,50 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
     - only 1 thing can sort at a time
     - there's always 1 sort active at any time
      */
-      if (thisFilter.sortDirection !== undefined) {
-        // disable other sorts
-        for (const f of preparedFilters) {
-          if (f !== thisFilter && f.sortDirection !== undefined) {
-            f.active = false;
-          }
-        }
+      const intermediateFilters = clone(preparedFilters);
+      const changingFilter = intermediateFilters.find(
+        (f) => f.persistenceKey === thisFilter.persistenceKey
+      );
 
-        if (thisFilter.active) {
-          // if already active, flip the direction
-          if (thisFilter.sortDirection === SortDirection.Ascending) {
-            thisFilter.sortDirection = SortDirection.Descending;
-          } else if (thisFilter.sortDirection === SortDirection.Descending) {
-            thisFilter.sortDirection = SortDirection.Ascending;
+      if (changingFilter) {
+        if (changingFilter.sortDirection !== undefined) {
+          // disable other sorts
+          for (const f of intermediateFilters) {
+            if (f !== changingFilter && f.sortDirection !== undefined) {
+              f.active = false;
+            }
+          }
+
+          if (changingFilter.active) {
+            // if already active, flip the direction
+            if (changingFilter.sortDirection === SortDirection.Ascending) {
+              changingFilter.sortDirection = SortDirection.Descending;
+            } else if (changingFilter.sortDirection === SortDirection.Descending) {
+              changingFilter.sortDirection = SortDirection.Ascending;
+            }
+          } else {
+            // otherwise, just activate the changingFilter
+            changingFilter.active = true;
           }
         } else {
-          // otherwise, just activate the thisFilter
-          thisFilter.active = true;
+          changingFilter.active = !changingFilter.active;
         }
-      } else {
-        thisFilter.active = !thisFilter.active;
       }
 
-      if (filterPersistenceKey) {
-        realm.write(() => {
-          let routeFilterConfig = realm.objectForPrimaryKey(
-            RouteFilterConfig,
-            filterPersistenceKey
-          );
-
+      realm.write(() => {
+        if (filterPersistenceKey) {
           if (routeFilterConfig) {
-            routeFilterConfig.setFilters(preparedFilters);
+            routeFilterConfig.setFilters(intermediateFilters);
           } else {
             routeFilterConfig = realm.create(RouteFilterConfig, {
               key: filterPersistenceKey,
-              rawFilters: serializeFilters(preparedFilters),
+              rawFilters: serializeFilters(intermediateFilters),
             });
           }
-        });
-      }
-
-      setPreparedFilters([...preparedFilters]);
+        }
+      });
     },
-    [preparedFilters, realm, filterPersistenceKey, options, setPreparedFilters]
+    [preparedFilters, realm, filterPersistenceKey, options]
   );
 
   return (

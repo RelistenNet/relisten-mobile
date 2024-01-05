@@ -1,8 +1,10 @@
-import Realm from 'realm';
 import dayjs from 'dayjs';
+import Realm from 'realm';
 import { ArtistUpstreamSource, ArtistWithCounts, Features } from '../../api/models/artist';
-import { RelistenObjectRequiredProperties } from '../relisten_object';
 import { FavoritableObject } from '../favoritable_object';
+import { checkIfOfflineSourceTrackExists } from '../realm_filters';
+import { RelistenObjectRequiredProperties } from '../relisten_object';
+import { SourceTrack } from './source_track';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface ArtistRequiredRelationships {}
@@ -40,6 +42,11 @@ export class Artist
       showCount: 'int',
       sourceCount: 'int',
       isFavorite: { default: false, type: 'bool' },
+      sourceTracks: {
+        type: 'linkingObjects',
+        objectType: 'SourceTrack',
+        property: 'artist',
+      },
     },
   };
 
@@ -56,6 +63,7 @@ export class Artist
   showCount!: number;
   sourceCount!: number;
   isFavorite!: boolean;
+  sourceTracks!: Realm.List<SourceTrack>;
 
   private _features?: Features;
   features() {
@@ -71,6 +79,10 @@ export class Artist
       this._upstreamSources = JSON.parse(this.upstreamSourcesRaw);
     }
     return this._upstreamSources;
+  }
+
+  get hasOfflineTracks() {
+    return checkIfOfflineSourceTrackExists(this.sourceTracks);
   }
 
   static propertiesFromApi(relistenObj: ArtistWithCounts): ArtistRequiredProperties {

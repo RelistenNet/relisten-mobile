@@ -121,7 +121,7 @@ const VenueList = ({
       <FilterableList
         ListHeaderComponent={<VenueHeader venues={venues} />}
         className="w-full flex-1"
-        data={venues}
+        data={[{ data: venues }]}
         renderItem={({ item }) => {
           return <VenueListItem venue={item} />;
         }}

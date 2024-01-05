@@ -49,7 +49,7 @@ class RecentShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavi
     }
   }
 
-  fetchFromLocal(): Realm.Results<Show> {
+  useFetchFromLocal(): Realm.Results<Show> {
     const sortKey = this.activeTab === RecentShowTabs.Performed ? 'date' : 'updatedAt';
     return useQuery(
       Show,
@@ -59,7 +59,7 @@ class RecentShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavi
   }
 }
 
-export const useRecentShows = (artistUuid: string, activeTab: RecentShowTabs) => {
+export const useRecentShows = (artistUuid?: string, activeTab?: RecentShowTabs) => {
   const behavior = useMemo(() => {
     return new RecentShowsNetworkBackedBehavior(artistUuid, activeTab, {
       fetchStrategy: NetworkBackedBehaviorFetchStrategy.NetworkAlwaysFirst,
@@ -69,7 +69,7 @@ export const useRecentShows = (artistUuid: string, activeTab: RecentShowTabs) =>
   return useNetworkBackedBehavior(behavior);
 };
 
-export function useArtistRecentShows(artistUuid: string, activeTab: RecentShowTabs) {
+export function useArtistRecentShows(artistUuid?: string, activeTab?: RecentShowTabs) {
   const artistResults = useArtist(artistUuid);
   const showResults = useRecentShows(artistUuid, activeTab);
 

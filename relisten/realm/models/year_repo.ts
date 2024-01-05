@@ -2,26 +2,27 @@ import { Repository } from '../repository';
 import { useObject, useQuery } from '../schema';
 import { Year } from './year';
 
+import { useIsDownloadedTab } from '@/relisten/util/routes';
+import { useMemo } from 'react';
+import Realm from 'realm';
+import * as R from 'remeda';
+import { RelistenApiClient, RelistenApiResponse } from '../../api/client';
+import { YearWithShows } from '../../api/models/year';
+import {
+  NetworkBackedBehaviorOptions,
+  ThrottledNetworkBackedBehavior,
+} from '../network_backed_behavior';
 import {
   createNetworkBackedModelArrayHook,
   useNetworkBackedBehavior,
 } from '../network_backed_behavior_hooks';
+import { NetworkBackedResults, mergeNetworkBackedResults } from '../network_backed_results';
+import { useRealmTabsFilter } from '../realm_filters';
 import { useArtist } from './artist_repo';
-import { mergeNetworkBackedResults, NetworkBackedResults } from '../network_backed_results';
-import { useMemo } from 'react';
-import Realm from 'realm';
 import { Show } from './show';
-import {
-  NetworkBackedBehaviorFetchStrategy,
-  NetworkBackedBehaviorOptions,
-  ThrottledNetworkBackedBehavior,
-} from '../network_backed_behavior';
-import { YearWithShows } from '../../api/models/year';
-import { RelistenApiClient, RelistenApiResponse } from '../../api/client';
 import { showRepo } from './show_repo';
-import * as R from 'remeda';
-import { venueRepo } from './venue_repo';
 import { Venue } from './venue';
+import { venueRepo } from './venue_repo';
 
 export const yearRepo = new Repository(Year);
 
@@ -29,10 +30,8 @@ export const useYears = (artistUuid: string) => {
   return createNetworkBackedModelArrayHook(
     yearRepo,
     () => {
-      const artistQuery = useQuery(
-        Year,
-        (query) => query.filtered('artistUuid == $0', artistUuid),
-        [artistUuid]
+      const artistQuery = useRealmTabsFilter(
+        useQuery(Year, (query) => query.filtered('artistUuid == $0', artistUuid), [artistUuid])
       );
 
       return artistQuery;
@@ -76,11 +75,11 @@ class YearShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
     return api.year(this.artistUuid, this.yearUuid);
   }
 
-  fetchFromLocal(): YearShows {
+  useFetchFromLocal(): YearShows {
     const year = useObject(Year, this.yearUuid) || null;
-    const shows = useQuery(Show, (query) => query.filtered('yearUuid == $0', this.yearUuid), [
-      this.yearUuid,
-    ]);
+    const shows = useRealmTabsFilter(
+      useQuery(Show, (query) => query.filtered('yearUuid == $0', this.yearUuid), [this.yearUuid])
+    );
 
     const obj = useMemo(() => {
       return { year, shows };
@@ -159,4 +158,21 @@ export const useArtistYearShows = (artistUuid: string, yearUuid: string) => {
   }, [yearShowsResults, artistResults]);
 
   return results;
+};
+
+export const useYearMetadata = (year?: Year | null) => {
+  const isDownloadedTab = useIsDownloadedTab();
+  const shows = useRealmTabsFilter(useQuery(Show).filtered('yearUuid = $0', year?.uuid));
+
+  if (!year) {
+    return { shows: undefined, sources: undefined };
+  }
+
+  if (isDownloadedTab) {
+    const sources = shows.reduce((memo, next) => next.sourceCount + memo, 0);
+
+    return { shows: shows.length, sources };
+  }
+
+  return { shows: year.showCount, sources: year.sourceCount };
 };

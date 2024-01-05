@@ -3,28 +3,35 @@ import Flex from '@/relisten/components/flex';
 import Plur from '@/relisten/components/plur';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import {
-  RelistenSectionHeader,
+  RelistenSectionData,
   RelistenSectionList,
 } from '@/relisten/components/relisten_section_list';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
 import RowTitle from '@/relisten/components/row_title';
-import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
-import { useRelistenPlayerBottomBarContext } from '@/relisten/player/ui/player_bottom_bar';
+import { SourceTrackSucceededIndicator } from '@/relisten/components/source/source_track_offline_indicator';
 import { Artist } from '@/relisten/realm/models/artist';
-import { useArtists } from '@/relisten/realm/models/artist_repo';
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+import { useArtistMetadata, useArtists } from '@/relisten/realm/models/artist_repo';
+import { useIsDownloadedTab, useRoute } from '@/relisten/util/routes';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Link } from 'expo-router';
-import React, { useEffect, useMemo } from 'react';
+import plur from 'plur';
+import React, { useMemo } from 'react';
 import { View } from 'react-native';
 import Realm from 'realm';
+import colors from 'tailwindcss/colors';
 
 const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) => {
+  const nextRoute = useRoute('[artistUuid]');
+  const isDownloadedTab = useIsDownloadedTab();
+  const metadata = useArtistMetadata(artist);
+  const hasOfflineTracks = artist.hasOfflineTracks;
+
   return (
     <Link
       href={{
-        pathname: '/relisten/(tabs)/artists/[artistUuid]/' as const,
+        pathname: nextRoute,
         params: {
           artistUuid: artist.uuid,
         },
@@ -37,39 +44,56 @@ const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) =>
             <RowTitle>{artist.name}</RowTitle>
             <SubtitleRow cn="flex flex-row justify-between">
               <SubtitleText>
-                <Plur word="show" count={artist.showCount} />
+                <Plur word="show" count={metadata.shows} />
+                {hasOfflineTracks && (
+                  <>
+                    &nbsp;
+                    <SourceTrackSucceededIndicator />
+                  </>
+                )}
               </SubtitleText>
               <SubtitleText>
-                <Plur word="tape" count={artist.sourceCount} />
+                <Plur word="tape" count={metadata.sources} />
               </SubtitleText>
             </SubtitleRow>
           </Flex>
-          <FavoriteObjectButton object={artist} />
+          {!isDownloadedTab && <FavoriteObjectButton object={artist} />}
         </Flex>
       </SectionedListItem>
     </Link>
   );
 });
 
-const ArtistsList = ({ artists }: { artists: Realm.Results<Artist> }) => {
-  const sectionedArtists: ReadonlyArray<Artist | RelistenSectionHeader> = useMemo(() => {
+type ArtistsListProps = {
+  artists: Realm.Results<Artist>;
+};
+
+const ArtistsList = ({ artists, ...props }: ArtistsListProps) => {
+  const isDownloadedTab = useIsDownloadedTab();
+
+  const sectionedArtists = useMemo<RelistenSectionData<Artist>>(() => {
+    const r = [];
+
     const all = [...artists].sort((a, b) => {
       return a.sortName.localeCompare(b.sortName);
     });
 
-    const r = [
-      { sectionTitle: 'Featured' },
-      ...all.filter((a) => a.featured !== 0),
-      { sectionTitle: `${all.length} Artists` },
-      ...all,
-    ];
-
     const favorites = all.filter((a) => a.isFavorite);
 
-    if (favorites.length > 0) {
-      r.unshift(...favorites);
-      r.unshift({ sectionTitle: 'Favorites' });
+    if (!isDownloadedTab) {
+      if (favorites.length > 0) {
+        r.push({
+          sectionTitle: 'Favorites',
+          data: favorites,
+        });
+      }
+
+      const featured = all.filter((a) => a.featured !== 0);
+
+      r.push({ sectionTitle: 'Featured', data: featured });
     }
+
+    r.push({ sectionTitle: `${all.length} ${plur('artist', all.length)}`, data: all });
 
     return r;
   }, [artists]);
@@ -80,30 +104,24 @@ const ArtistsList = ({ artists }: { artists: Realm.Results<Artist> }) => {
       renderItem={({ item }) => {
         return <ArtistListItem artist={item} />;
       }}
+      {...props}
     />
   );
 };
 
 export default function Page() {
   const results = useArtists();
+  const isDownloadedTab = useIsDownloadedTab();
   const { data: artists } = results;
-
-  const bottomTabBarHeight = useBottomTabBarHeight();
-  const { setTabBarHeight } = useRelistenPlayerBottomBarContext();
-
-  useEffect(() => {
-    setTabBarHeight(bottomTabBarHeight);
-  }, [bottomTabBarHeight, setTabBarHeight]);
-
 
   return (
     <View style={{ flex: 1, width: '100%' }}>
       <RefreshContextProvider networkBackedResults={results}>
-        <ScrollScreen>
+        {!isDownloadedTab && (
           <Link
             href={{
               pathname:
-                '/relisten/(tabs)/artists/[artistUuid]/show/[showUuid]/source/[sourceUuid]/',
+                '/relisten/(tabs)/(artists)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/',
               params: {
                 artistUuid: '77a58ff9-2e01-c59c-b8eb-cff106049b72',
                 showUuid: '104c96e5-719f-366f-b72d-8d53709c80e0',
@@ -114,8 +132,8 @@ export default function Page() {
           >
             <RelistenText>Barton hall test show</RelistenText>
           </Link>
-          <ArtistsList artists={artists} />
-        </ScrollScreen>
+        )}
+        <ArtistsList artists={artists} />
       </RefreshContextProvider>
     </View>
   );

@@ -44,21 +44,21 @@ public class RelistenStreamCacher {
         guard let downloadDestination = streamable.downloadDestination else {
             return
         }
-        
+
         if failedToCreateFile {
             return
         }
-        
+
         if file == nil {
             do {
                 if !FileManager.default.fileExists(atPath: downloadDestination.absoluteString) {
                     // you must create the file before opening a file handle
                     try FileManager.default.createDirectory(at: downloadDestination.deletingLastPathComponent(), withIntermediateDirectories: true)
-                    
+
                     // write initial data
                     try data.write(to: downloadDestination)
                     bytesWritten += data.count
-                    
+
                     file = try FileHandle(forWritingTo: downloadDestination)
                 } else {
                     NSLog("[bass][stream caching] File already exists for streamable=\(streamable.identifier)")
@@ -73,10 +73,22 @@ public class RelistenStreamCacher {
             file.write(data)
             bytesWritten += data.count
         }
-        
+
         if (bytesWritten - lastBytesLogged) >= 1_000_000 {
             NSLog("[bass][stream caching] Written \(bytesWritten) bytes for streamable=\(streamable.identifier).")
             lastBytesLogged = bytesWritten
+
+            // send download progress updates for streaming cache
+            if (player != nil) {
+                if let activeStream = player?.activeStream {
+                    let isActiveTrack = activeStream.streamable.identifier == streamable.identifier;
+
+                    let totalFileBytes = BASS_StreamGetFilePosition(activeStream.stream, DWORD(BASS_FILEPOS_SIZE))
+
+                    player?.delegate?.downloadProgressChanged(player!, forActiveTrack: isActiveTrack, downloadedBytes: UInt64(bytesWritten), totalBytes: totalFileBytes)
+
+                }
+            }
         }
     }
 

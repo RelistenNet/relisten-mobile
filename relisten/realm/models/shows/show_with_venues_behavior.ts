@@ -26,7 +26,7 @@ export abstract class ShowsWithVenueNetworkBackedBehavior extends ThrottledNetwo
     api: RelistenApiClient
   ): Promise<RelistenApiResponse<ApiShow[] | undefined>>;
 
-  abstract fetchFromLocal(): Realm.Results<Show>;
+  abstract useFetchFromLocal(): Realm.Results<Show>;
 
   isLocalDataShowable(localData: Realm.Results<Show>): boolean {
     return localData.length > 0;

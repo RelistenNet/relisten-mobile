@@ -13,6 +13,9 @@ import { Tour } from './models/tour';
 import { Song } from './models/song';
 import { SourceTrackOfflineInfo } from '@/relisten/realm/models/source_track_offline_info';
 
+// uncomment to show realm queries (measured in microseconds):
+// Realm.setLogLevel('debug');
+
 const realmConfig: Realm.Configuration = {
   schema: [
     Artist,

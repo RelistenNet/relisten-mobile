@@ -1,5 +1,5 @@
 /* eslint-disable react/prop-types */
-import { FlashList, FlashListProps, ListRenderItem, ListRenderItemInfo } from '@shopify/flash-list';
+import { FlashList, FlashListProps, ListRenderItem } from '@shopify/flash-list';
 import { ReactElement, useMemo } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import { RefreshControl, View } from 'react-native';
@@ -10,18 +10,32 @@ import { ItemSeparator } from './item_separator';
 import { useRefreshContext } from './refresh_context';
 import { SectionHeader } from './section_header';
 
-export type RelistenSectionHeader = { sectionTitle: string };
-export type RelistenSectionListData<T extends RelistenObject> = T | RelistenSectionHeader;
+export interface RelistenSection<T> {
+  sectionTitle?: string;
+  data: ReadonlyArray<T>;
+}
 
-export type RelistenSectionListProps<T extends RelistenObject> = Omit<
-  FlashListProps<T | RelistenSectionHeader>,
+export type RelistenSectionHeader = { sectionTitle: string };
+
+export type RelistenSectionData<T> = RelistenSection<T>[];
+
+export type FlashListRelistenRawItem<T> = { rawItem: T; keyPrefix?: string };
+export type FlashListRelistenData<T> = ReadonlyArray<
+  FlashListRelistenRawItem<T> | RelistenSectionHeader
+>;
+
+export type RelistenSectionListProps<T> = Omit<
+  FlashListProps<FlashListRelistenRawItem<T> | RelistenSectionHeader>,
   'data' | 'renderItem'
 > & {
-  data: ReadonlyArray<T | RelistenSectionHeader>;
+  data: RelistenSectionData<T>;
   renderItem: ListRenderItem<T>;
   renderSectionHeader?: (item: RelistenSectionHeader) => ReactElement;
   pullToRefresh?: boolean;
 };
+
+export const FAKE_SENTINAL = '__FAKE__';
+export const LOADING_SENTINAL = '__LOADING__';
 
 export const RelistenSectionList = <T extends RelistenObject>({
   data,
@@ -38,16 +52,28 @@ export const RelistenSectionList = <T extends RelistenObject>({
   // and you'd be correct
   // ..
   // it's to fix a flashlist bug: https://github.com/Shopify/flash-list/issues/727
-  const internalData = useMemo(() => {
-    const internalData: (T | RelistenSectionHeader)[] = [];
+  const internalData = useMemo<FlashListRelistenData<T>>(() => {
+    const internalData = [];
+
     if (ListHeaderComponent) {
       internalData.push({ sectionTitle: 'ListHeaderComponent' });
     }
     if (refreshing) {
-      internalData.push({ sectionTitle: 'fake' });
-      internalData.push({ sectionTitle: 'LOADING' });
+      internalData.push({ sectionTitle: FAKE_SENTINAL });
+      internalData.push({ sectionTitle: LOADING_SENTINAL });
     } else {
-      internalData.push(...data);
+      internalData.push(
+        ...data.flatMap((section) => {
+          if (section.sectionTitle) {
+            return [
+              { sectionTitle: section.sectionTitle },
+              ...section.data.map((rawItem) => ({ rawItem, keyPrefix: section.sectionTitle })),
+            ];
+          } else {
+            return [...section.data.map((rawItem) => ({ rawItem, keyPrefix: undefined }))];
+          }
+        })
+      );
     }
     return internalData;
   }, [data, refreshing]);
@@ -71,17 +97,24 @@ export const RelistenSectionList = <T extends RelistenObject>({
       ItemSeparatorComponent={ItemSeparator}
       getItemType={(item) => {
         // To achieve better performance, specify the type based on the item
-        return 'uuid' in item ? 'row' : 'sectionHeader';
+        return 'rawItem' in item ? 'row' : 'sectionHeader';
       }}
       // stickyHeaderIndices={stickyHeaderIndices}
       keyExtractor={(item) => {
         if ('sectionTitle' in item) {
           return item.sectionTitle;
-        } else if ('uuid' in item) {
-          return item.uuid;
+        } else if ('uuid' in item.rawItem) {
+          if ('keyPrefix' in item) {
+            // keyPrefix is for situations where we have 2 rows in the same list
+            // that all share the same `uuid`
+            // a good example is on the Artists list, where Grateful Dead may show up under
+            // 'featured' and 'default' (and even 'favorites' too!)
+            // so we need to ensure each row has its own unique key despite all being "Grateful Dead"
+            return [item.keyPrefix, item.rawItem.uuid].join(':');
+          }
         }
 
-        return 'missing_key';
+        throw new Error('missing key');
       }}
       renderItem={(props) => {
         if (!props?.item) return null;
@@ -91,7 +124,10 @@ export const RelistenSectionList = <T extends RelistenObject>({
           if (props.item.sectionTitle === 'ListHeaderComponent') {
             return ListHeaderComponent as ReactElement;
           }
-          if (props.item.sectionTitle === 'LOADING') {
+          if (props.item.sectionTitle === FAKE_SENTINAL) {
+            return null;
+          }
+          if (props.item.sectionTitle === LOADING_SENTINAL) {
             return (
               <View className="w-full p-4">
                 <ListContentLoader
@@ -106,8 +142,11 @@ export const RelistenSectionList = <T extends RelistenObject>({
           }
 
           return <SectionHeader title={props.item.sectionTitle} />;
-        } else if (renderItem && 'uuid' in props.item) {
-          return renderItem(props as ListRenderItemInfo<T>);
+        } else if (renderItem && 'rawItem' in props.item && 'uuid' in props.item.rawItem) {
+          return renderItem({
+            ...props,
+            item: props.item.rawItem,
+          });
         }
 
         return null;

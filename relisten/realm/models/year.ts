@@ -1,8 +1,10 @@
-import Realm from 'realm';
 import dayjs from 'dayjs';
+import Realm from 'realm';
 import { Year as ApiYear } from '../../api/models/year';
-import { RelistenObjectRequiredProperties } from '../relisten_object';
 import { FavoritableObject } from '../favoritable_object';
+import { RelistenObjectRequiredProperties } from '../relisten_object';
+import { checkIfOfflineSourceTrackExists } from '../realm_filters';
+import { SourceTrack } from './source_track';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface YearRequiredRelationships {}
@@ -36,6 +38,11 @@ export class Year
       avgRating: 'double?',
       year: 'string',
       isFavorite: { type: 'bool', default: false },
+      sourceTracks: {
+        type: 'linkingObjects',
+        objectType: 'SourceTrack',
+        property: 'year',
+      },
     },
   };
 
@@ -50,6 +57,12 @@ export class Year
   avgRating?: Realm.Types.Float;
   year!: string;
   isFavorite!: boolean;
+
+  sourceTracks!: Realm.List<SourceTrack>;
+
+  get hasOfflineTracks() {
+    return checkIfOfflineSourceTrackExists(this.sourceTracks);
+  }
 
   static propertiesFromApi(relistenObj: ApiYear): YearRequiredProperties {
     return {

@@ -1,14 +1,14 @@
+import Plur from '@/relisten/components/plur';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
+import { RelistenText } from '@/relisten/components/relisten_text';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
-import { ShowList } from '@/relisten/components/shows_list';
-import { useArtistYearShows } from '@/relisten/realm/models/year_repo';
-import { useLocalSearchParams, useNavigation } from 'expo-router';
-import React, { useEffect } from 'react';
-import { View } from 'react-native';
+import { ShowListContainer } from '@/relisten/components/shows_list';
 import { Artist } from '@/relisten/realm/models/artist';
 import { Year } from '@/relisten/realm/models/year';
-import { RelistenText } from '@/relisten/components/relisten_text';
-import Plur from '@/relisten/components/plur';
+import { useArtistYearShows, useYearMetadata } from '@/relisten/realm/models/year_repo';
+import { useLocalSearchParams, useNavigation } from 'expo-router';
+import { useEffect, useMemo } from 'react';
+import { View } from 'react-native';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -28,13 +28,17 @@ export default function Page() {
     });
   }, [year]);
 
+  const data = useMemo(() => {
+    return [{ data: [...shows] }];
+  }, [shows]);
+
   return (
     <View style={{ flex: 1, width: '100%' }}>
       <RefreshContextProvider networkBackedResults={results}>
         <DisappearingHeaderScreen
-          ScrollableComponent={ShowList}
+          ScrollableComponent={ShowListContainer}
           ListHeaderComponent={<YearHeader artist={artist} year={year} />}
-          shows={shows}
+          data={data}
           artist={artist}
           filterOptions={{
             persistence: { key: ['artists', artistUuid, 'years', yearUuid].join('/') },
@@ -46,9 +50,7 @@ export default function Page() {
 }
 
 const YearHeader = ({ year }: { artist: Artist | null; year: Year | null }) => {
-  const totalShows = year?.showCount;
-  const totalTapes = year?.sourceCount;
-
+  const metadata = useYearMetadata(year);
   return (
     <View className="flex w-full flex-col items-center gap-1 py-2">
       <RelistenText className="w-full text-center text-4xl font-bold text-white" selectable={false}>
@@ -56,8 +58,8 @@ const YearHeader = ({ year }: { artist: Artist | null; year: Year | null }) => {
       </RelistenText>
 
       <RelistenText className="text-l w-full text-center italic text-gray-400">
-        <Plur word="show" count={totalShows} /> &middot;&nbsp;
-        <Plur word="tape" count={totalTapes} />
+        <Plur word="show" count={metadata.shows} /> &middot;&nbsp;
+        <Plur word="tape" count={metadata.sources} />
       </RelistenText>
     </View>
   );

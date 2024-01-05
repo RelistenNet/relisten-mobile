@@ -1,4 +1,4 @@
-import { useArtistTours } from '@/relisten/realm/models/tour_repo';
+import { useArtistSongs } from '@/relisten/realm/models/song_repo';
 import Flex from '@/relisten/components/flex';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
@@ -18,40 +18,37 @@ import {
   FilteringProvider,
   SortDirection,
 } from '@/relisten/components/filtering/filters';
-import { Tour } from '@/relisten/realm/models/tour';
-import dayjs from 'dayjs';
+import { Song } from '@/relisten/realm/models/song';
 
 export default function Page() {
   const { artistUuid } = useLocalSearchParams();
-  const results = useArtistTours(String(artistUuid));
+  const results = useArtistSongs(String(artistUuid));
   const { data } = results;
 
   return (
     <RefreshContextProvider networkBackedResults={results}>
       <DisappearingHeaderScreen
-        ScrollableComponent={TourList}
-        tours={Array.from(data.tours)}
-        filterOptions={{ persistence: { key: ['artists', artistUuid, 'tours'].join('/') } }}
+        ScrollableComponent={SongList}
+        songs={Array.from(data.songs)}
+        filterOptions={{ persistence: { key: ['artists', artistUuid, 'songs'].join('/') } }}
       />
     </RefreshContextProvider>
   );
 }
 
-interface TourListItemProps {
-  tour: Tour;
+interface SongListItemProps {
+  song: Song;
 }
 
-const TourListItem = ({ tour }: TourListItemProps) => {
-  const startDate = dayjs(tour.startDate).format('YYYY-MM-DD');
-  const endDate = dayjs(tour.endDate).format('YYYY-MM-DD');
-
+const SongListItem = ({ song }: SongListItemProps) => {
   return (
     <SectionedListItem>
       <Flex column>
-        <RowTitle>{tour.name}</RowTitle>
+        <RowTitle>{song.name}</RowTitle>
         <SubtitleRow>
           <SubtitleText>
-            {startDate} - {endDate}
+            {'Played at '}
+            <Plur word="show" count={song.showsPlayedAt} />
           </SubtitleText>
         </SubtitleRow>
       </Flex>
@@ -59,66 +56,73 @@ const TourListItem = ({ tour }: TourListItemProps) => {
   );
 };
 
-interface TourHeaderProps {
-  tours: Tour[];
+interface SongHeaderProps {
+  songs: Song[];
 }
 
-const TourHeader = ({ tours }: TourHeaderProps) => {
+const SongHeader = ({ songs }: SongHeaderProps) => {
   return (
     <>
       <RelistenText
         className="w-full py-2 text-center text-4xl font-bold text-white"
         selectable={false}
       >
-        Tours
+        Songs
       </RelistenText>
       <RelistenText className="text-l w-full pb-2 text-center italic text-gray-400">
-        <Plur word="Tour" count={tours.length} />
+        <Plur word="Song" count={songs.length} />
       </RelistenText>
     </>
   );
 };
 
-export enum TourFilterKey {
+export enum SongFilterPersistenceKey {
   Library = 'library',
   Name = 'name',
+  Plays = 'plays',
 }
 
-const TOUR_FILTERS: Filter<TourFilterKey, Tour>[] = [
+const SONG_FILTERS: Filter<SongFilterPersistenceKey, Song>[] = [
   {
-    persistenceKey: TourFilterKey.Library,
+    persistenceKey: SongFilterPersistenceKey.Library,
     title: 'My Library',
     active: false,
     filter: (y) => y.isFavorite,
   },
   {
-    persistenceKey: TourFilterKey.Name,
+    persistenceKey: SongFilterPersistenceKey.Name,
     title: 'Name',
     sortDirection: SortDirection.Descending,
     active: true,
     isNumeric: false,
-    sort: (tours) => tours.sort((a, b) => a.name.localeCompare(b.name)),
+    sort: (songs) => songs.sort((a, b) => a.name.localeCompare(b.name)),
+  },
+  {
+    persistenceKey: SongFilterPersistenceKey.Plays,
+    title: '# of Plays',
+    sortDirection: SortDirection.Descending,
+    active: false,
+    isNumeric: true,
+    sort: (songs) => songs.sort((a, b) => a.showsPlayedAt - b.showsPlayedAt),
   },
 ];
 
-interface TourListProps {
-  tours: Tour[];
-  filterOptions: FilteringOptions<TourFilterKey>;
+interface SongListProps {
+  songs: Song[];
+  filterOptions: FilteringOptions<SongFilterPersistenceKey>;
 }
 
-const TourList = ({
-  tours,
+const SongList = ({
+  songs,
   filterOptions,
-}: TourListProps & Omit<FilterableListProps<Tour>, 'data' | 'renderItem'>) => {
+}: SongListProps & Omit<FilterableListProps<Song>, 'data' | 'renderItem'>) => {
   return (
-    <FilteringProvider filters={TOUR_FILTERS} options={filterOptions}>
+    <FilteringProvider filters={SONG_FILTERS} options={filterOptions}>
       <FilterableList
-        ListHeaderComponent={<TourHeader tours={tours} />}
+        ListHeaderComponent={<SongHeader songs={songs} />}
         className="w-full flex-1"
-        data={tours}
-        renderItem={({ item }) => {
-          return <TourListItem tour={item} />;
-        }}
+        data={[{ data: songs }]}
+        renderItem={({ item }: { item: Song; index: number }) => <SongListItem song={item} />}
       />
     </FilteringProvider>
   );

@@ -1,37 +1,43 @@
+import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
+import Flex from '@/relisten/components/flex';
+import { ItemSeparator } from '@/relisten/components/item_separator';
+import { RelistenText } from '@/relisten/components/relisten_text';
+import { SoundIndicator } from '@/relisten/components/sound_indicator';
+import { SourceTrackOfflineIndicator } from '@/relisten/components/source/source_track_offline_indicator';
+import {
+  useNativeActiveTrackDownloadProgress,
+  useNativePlaybackProgress,
+} from '@/relisten/player/native_playback_state_hooks';
 import {
   useRelistenPlayer,
   useRelistenPlayerPlaybackState,
 } from '@/relisten/player/relisten_player_hooks';
-import { FlatList, Platform, TouchableOpacity, View } from 'react-native';
-import Flex from '@/relisten/components/flex';
-import Scrubber from 'react-native-scrubber';
-import { useNativePlaybackProgress } from '@/relisten/player/native_playback_state_hooks';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
 import {
   useRelistenPlayerCurrentTrack,
   useRelistenPlayerQueueOrderedTracks,
 } from '@/relisten/player/relisten_player_queue_hooks';
-import { RelistenText } from '@/relisten/components/relisten_text';
-import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useArtist } from '@/relisten/realm/models/artist_repo';
-import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
+import { Show } from '@/relisten/realm/models/show';
+import { useObject } from '@/relisten/realm/schema';
+import { RelistenBlue } from '@/relisten/relisten_blue';
+import { useGroupSegment } from '@/relisten/util/routes';
+import { useActionSheet } from '@expo/react-native-action-sheet';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
-import { VolumeManager } from 'react-native-volume-manager';
-import AirPlayButton from 'react-native-airplay-button';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
-import { useActionSheet } from '@expo/react-native-action-sheet';
-import { ItemSeparator } from '@/relisten/components/item_separator';
-import { router, useFocusEffect, useRouter } from 'expo-router';
-import { useObject } from '@/relisten/realm/schema';
-import { Show } from '@/relisten/realm/models/show';
-import { SoundIndicator } from '@/relisten/components/sound_indicator';
+import { router, useFocusEffect } from 'expo-router';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { FlatList, Platform, TouchableOpacity, View } from 'react-native';
+import AirPlayButton from 'react-native-airplay-button';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Scrubber from 'react-native-scrubber';
+import { VolumeManager } from 'react-native-volume-manager';
 
-function ScrubberRow() {
+function ScrubberRow({ displayValues = true }: { displayValues?: boolean }) {
   const progress = useNativePlaybackProgress();
+  const downloadProgress = useNativeActiveTrackDownloadProgress();
   const player = useRelistenPlayer();
 
   const doSeek = useCallback(
@@ -52,14 +58,21 @@ function ScrubberRow() {
       onSlidingComplete={doSeek}
       scrubbedColor={RelistenBlue['100']}
       trackColor="white"
-      trackBackgroundColor={RelistenBlue['600']}
+      trackBackgroundColor={RelistenBlue['700']}
+      bufferedTrackColor={RelistenBlue['400']}
+      bufferedValue={
+        downloadProgress && progress ? downloadProgress?.percent * progress?.duration : 0
+      }
+      displayValues={displayValues}
     />
   );
 }
 
 function CurrentTrackInfo() {
   const { showActionSheetWithOptions } = useActionSheet();
+  const navigation = useNavigation();
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
+  const groupSegment = useGroupSegment(true);
 
   const { data: artist } = useArtist(currentPlayerTrack?.sourceTrack.artistUuid);
   const show = useObject(Show, currentPlayerTrack?.sourceTrack?.showUuid || '');
@@ -80,17 +93,19 @@ function CurrentTrackInfo() {
       (selectedIndex?: number) => {
         switch (selectedIndex) {
           case 0:
+            navigation.goBack();
             router.push({
-              pathname: '/relisten/(tabs)/artists/[artistUuid]/' as const,
+              pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/`,
               params: {
                 artistUuid: artist.uuid,
               },
             });
             break;
           case 1:
+            navigation.goBack();
             router.push({
-              pathname:
-                '/relisten/(tabs)/artists/[artistUuid]/show/[showUuid]/source/[sourceUuid]/' as const,
+              pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
+
               params: {
                 artistUuid: artist.uuid,
                 showUuid: show.uuid,
@@ -294,6 +309,7 @@ function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; 
                 </View>
               )}
               <RelistenText className="text-lg">{sourceTrack.title}</RelistenText>
+              <SourceTrackOfflineIndicator sourceTrack={sourceTrack} />
             </Flex>
             {subtitle.length > 0 && (
               <RelistenText className="pt-1 text-sm text-gray-400" numberOfLines={1}>
@@ -359,6 +375,7 @@ function PlayerQueue() {
 
 export function PlayerScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
+  const currentPlayerTrack = useRelistenPlayerCurrentTrack();
 
   useEffect(() => {
     navigation.setOptions({
@@ -371,6 +388,28 @@ export function PlayerScreen() {
             className="py-2 pr-2"
           >
             <MaterialCommunityIcons name="close" size={22} color="white" />
+          </TouchableOpacity>
+        );
+      },
+      headerRight: () => {
+        return (
+          <TouchableOpacity
+            onPress={() => {
+              navigation.goBack();
+
+              router.push({
+                pathname:
+                  '/relisten/(tabs)/(artists)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/',
+                params: {
+                  artistUuid: currentPlayerTrack?.sourceTrack.artistUuid,
+                  showUuid: currentPlayerTrack?.sourceTrack.showUuid,
+                  sourceUuid: currentPlayerTrack?.sourceTrack.sourceUuid,
+                },
+              });
+            }}
+            className="py-2 pr-2"
+          >
+            <MaterialIcons name="library-music" size={22} color="white" />
           </TouchableOpacity>
         );
       },

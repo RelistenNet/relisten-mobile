@@ -32,9 +32,9 @@ export class RouteFilterConfig extends Realm.Object<RouteFilterConfig> {
 
   private _filters: PersistedFilters<any> | undefined;
   filters<K extends string>(): PersistedFilters<K> {
-    if (!this._filters) {
-      this._filters = JSON.parse(this.rawFilters) as PersistedFilters<K>;
-    }
+    // if (!this._filters) {
+    this._filters = JSON.parse(this.rawFilters) as PersistedFilters<K>;
+    // }
 
     return this._filters;
   }

@@ -1,10 +1,16 @@
 import Realm from 'realm';
 
+import { SourceTrackOfflineInfo } from '@/relisten/realm/models/source_track_offline_info';
+import dayjs from 'dayjs';
 import { SourceTrack as ApiSourceTrack } from '../../api/models/source_tracks';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
-import dayjs from 'dayjs';
-import { SourceTrackOfflineInfo } from '@/relisten/realm/models/source_track_offline_info';
+import { Artist } from './artist';
+import { Show } from './show';
+import { Source } from './source';
+import { Year } from './year';
 import RNBackgroundDownloader from '@kesha-antonov/react-native-background-downloader';
+
+export const OFFLINE_DIRECTORY = `${RNBackgroundDownloader.directories.documents}/offline`;
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface SourceTrackRequiredRelationships {}
@@ -60,6 +66,11 @@ export class SourceTrack
       isFavorite: { type: 'bool', default: false },
 
       offlineInfo: 'SourceTrackOfflineInfo',
+
+      artist: 'Artist?',
+      year: 'Year?',
+      show: 'Show?',
+      source: 'Source?',
     },
   };
 
@@ -83,6 +94,10 @@ export class SourceTrack
   isFavorite!: boolean;
 
   offlineInfo?: SourceTrackOfflineInfo;
+  artist?: Artist;
+  year?: Year;
+  show?: Show;
+  source?: Source;
 
   private _humanizedDuration?: string;
   get humanizedDuration() {
@@ -94,7 +109,7 @@ export class SourceTrack
   }
 
   downloadedFileLocation() {
-    return RNBackgroundDownloader.directories.documents + `/offline/${this.uuid}.mp3`;
+    return `${OFFLINE_DIRECTORY}/${this.uuid}.mp3`;
   }
 
   static propertiesFromApi(relistenObj: ApiSourceTrack): SourceTrackRequiredProperties {

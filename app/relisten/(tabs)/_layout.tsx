@@ -1,18 +1,18 @@
 import { Tabs } from 'expo-router';
 
+import TabBar from '@/relisten/components/TabBar';
+import { PlayerBottomBar } from '@/relisten/player/ui/player_bottom_bar';
+import { RelistenBlue } from '@/relisten/relisten_blue';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'react-native';
 import 'react-native-gesture-handler';
 import 'react-native-reanimated';
-import TabBar from '@/relisten/components/TabBar';
-import { RelistenBlue } from '@/relisten/relisten_blue';
-import { PlayerBottomBar } from '@/relisten/player/ui/player_bottom_bar';
 
 export default function TabLayout() {
   return (
     <>
       <Tabs
-        initialRouteName="artists"
+        initialRouteName="index"
         screenOptions={({ route }) => ({
           headerShown: false,
           headerStyle: {
@@ -21,8 +21,11 @@ export default function TabLayout() {
           tabBarIcon: ({ focused, color, size }) => {
             let iconName;
 
-            if (route.name === 'artists') {
+            if (route.name === '(artists)') {
               iconName = focused ? 'account-music' : 'account-music-outline';
+              return <MaterialCommunityIcons name={iconName as any} size={size} color={color} />;
+            } else if (route.name === '(downloaded)') {
+              iconName = focused ? 'download' : 'download-outline';
               return <MaterialCommunityIcons name={iconName as any} size={size} color={color} />;
             } else if (route.name === '(myLibrary)/myLibrary') {
               return <MaterialIcons name="library-music" size={size} color={color} />;
@@ -41,7 +44,9 @@ export default function TabLayout() {
         tabBar={TabBar}
         // initialRouteName="artists"
       >
-        <Tabs.Screen name="artists" options={{ title: 'Artists' }} />
+        <Tabs.Screen name="(artists)" options={{ title: 'Artists' }} />
+        <Tabs.Screen name="(downloaded)" options={{ title: 'Downloaded' }} />
+
         <Tabs.Screen name="(myLibrary)/myLibrary" options={{ title: 'My Library' }} />
         <Tabs.Screen name="(relisten)/index" options={{ title: 'Relisten' }} />
       </Tabs>
