@@ -5,7 +5,7 @@ import { ShowList } from '@/relisten/components/shows_list';
 import { TourShows, useArtistTourShows } from '@/relisten/realm/models/tour_shows_repo';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import Plur from '@/relisten/components/plur';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 
 export default function Page() {
@@ -21,13 +21,17 @@ export default function Page() {
     });
   }, []);
 
+  const data = useMemo(() => {
+    return [{ data: [...shows] }];
+  }, [shows]);
+
   return (
     <View style={{ flex: 1, width: '100%' }}>
       <RefreshContextProvider networkBackedResults={results}>
         <DisappearingHeaderScreen
           ScrollableComponent={ShowList}
           ListHeaderComponent={<TourHeader tour={tour} />}
-          shows={shows}
+          data={data}
           artist={artist}
           filterOptions={{
             persistence: { key: ['artists', artistUuid, 'years', tourUuid].join('/') },
