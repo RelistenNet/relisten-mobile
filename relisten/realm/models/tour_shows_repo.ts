@@ -37,7 +37,7 @@ class TourShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
     return api.tour(this.artistUuid, this.tourUuid);
   }
 
-  fetchFromLocal(): TourShows {
+  useFetchFromLocal(): TourShows {
     const tour = useObject(Tour, this.tourUuid) || null;
     const shows = useQuery(Show, (query) => query.filtered('tourUuid == $0', this.tourUuid), [
       this.tourUuid,

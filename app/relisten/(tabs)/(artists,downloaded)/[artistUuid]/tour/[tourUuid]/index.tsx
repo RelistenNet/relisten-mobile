@@ -1,12 +1,13 @@
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
-import { ShowList } from '@/relisten/components/shows_list';
+import { ShowFilterKey, ShowList, ShowListContainer } from '@/relisten/components/shows_list';
 import { TourShows, useArtistTourShows } from '@/relisten/realm/models/tour_shows_repo';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import Plur from '@/relisten/components/plur';
 import { useEffect, useMemo } from 'react';
 import { View } from 'react-native';
+import { SortDirection } from '@/relisten/components/filtering/filters';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -29,12 +30,17 @@ export default function Page() {
     <View style={{ flex: 1, width: '100%' }}>
       <RefreshContextProvider networkBackedResults={results}>
         <DisappearingHeaderScreen
-          ScrollableComponent={ShowList}
+          ScrollableComponent={ShowListContainer}
           ListHeaderComponent={<TourHeader tour={tour} />}
           data={data}
           artist={artist}
           filterOptions={{
-            persistence: { key: ['artists', artistUuid, 'years', tourUuid].join('/') },
+            persistence: { key: ['artists', artistUuid, 'tour', tourUuid].join('/') },
+            default: {
+              persistenceKey: ShowFilterKey.Date,
+              sortDirection: SortDirection.Ascending,
+              active: true,
+            },
           }}
         />
       </RefreshContextProvider>

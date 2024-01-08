@@ -21,6 +21,7 @@ import {
 import { Tour } from '@/relisten/realm/models/tour';
 import dayjs from 'dayjs';
 import { useEffect } from 'react';
+import { useGroupSegment } from '@/relisten/util/routes';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -50,13 +51,14 @@ interface TourListItemProps {
 }
 
 const TourListItem = ({ tour }: TourListItemProps) => {
+  const groupSegment = useGroupSegment(true);
   const startDate = dayjs(tour.startDate).format('YYYY-MM-DD');
   const endDate = dayjs(tour.endDate).format('YYYY-MM-DD');
 
   return (
     <Link
       href={{
-        pathname: '/relisten/(tabs)/artists/[artistUuid]/tour/[tourUuid]/' as const,
+        pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/tour/[tourUuid]/` as const,
         params: {
           artistUuid: tour.artistUuid,
           tourUuid: tour.uuid,
