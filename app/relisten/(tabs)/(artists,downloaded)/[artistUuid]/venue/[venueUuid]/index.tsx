@@ -2,10 +2,10 @@ import Plur from '@/relisten/components/plur';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
-import { ShowList } from '@/relisten/components/shows_list';
+import { ShowListContainer } from '@/relisten/components/shows_list';
 import { VenueShows, useArtistVenueShows } from '@/relisten/realm/models/venue_shows_repo';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 
 export default function Page() {
@@ -22,13 +22,17 @@ export default function Page() {
     });
   }, []);
 
+  const data = useMemo(() => {
+    return [{ data: [...venue.shows] }];
+  }, [venue]);
+
   return (
     <View style={{ flex: 1, width: '100%' }}>
       <RefreshContextProvider networkBackedResults={results}>
         <DisappearingHeaderScreen
-          ScrollableComponent={ShowList}
+          ScrollableComponent={ShowListContainer}
           ListHeaderComponent={<VenueHeader venue={venue} />}
-          shows={venue.shows}
+          data={data}
           artist={artist}
           filterOptions={{
             persistence: { key: ['artists', artistUuid, 'venue', venueUuid].join('/') },

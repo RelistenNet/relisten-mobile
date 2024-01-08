@@ -37,7 +37,7 @@ class VenueShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
     return api.venue(this.artistUuid, this.venueUuid);
   }
 
-  fetchFromLocal(): VenueShows {
+  useFetchFromLocal(): VenueShows {
     const venue = useObject(Venue, this.venueUuid) || null;
     const shows = useQuery(Show, (query) => query.filtered('venueUuid == $0', this.venueUuid), [
       this.venueUuid,
