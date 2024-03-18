@@ -11,7 +11,7 @@ import net.relisten.android.audio_player.gapless.RelistenGaplessAudioPlayer
 import net.relisten.android.audio_player.gapless.RelistenGaplessAudioPlayerDelegate
 import net.relisten.android.audio_player.gapless.RelistenGaplessStreamable
 import net.relisten.android.audio_player.gapless.RelistenPlaybackState
-import net.relisten.android.audio_player.gapless.internal.BASSException
+import net.relisten.android.audio_player.gapless.internal.RelistenPlaybackException
 import java.net.URL
 
 class RelistenStreamable : Record {
@@ -20,6 +20,29 @@ class RelistenStreamable : Record {
 
     @Field
     var identifier: String? = null
+
+    @Field
+    var title: String? = null
+
+    @Field
+    var albumTitle: String? = null
+
+    @Field
+    var albumArt: String? = null
+
+    @Field
+    var artist: String? = null
+
+    @Field
+    var downloadDestination: URL? = null
+
+    fun toGaplessStreamable(): RelistenGaplessStreamable? {
+        if (url != null && identifier != null && title != null && albumTitle != null && albumArt != null && artist != null) {
+            return RelistenGaplessStreamable(url!!, identifier!!, title!!, artist!!, albumTitle!!, albumArt!!, downloadDestination)
+        }
+
+        return null
+    }
 }
 
 class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
@@ -35,7 +58,7 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
         Name("RelistenAudioPlayer")
 
         OnCreate {
-            player = RelistenGaplessAudioPlayer()
+            player = RelistenGaplessAudioPlayer(appContext)
             player?.delegate = this@RelistenAudioPlayerModule
         }
 
@@ -107,12 +130,11 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
 
         AsyncFunction("play") { streamable: RelistenStreamable, promise: Promise ->
             player?.scope?.launch {
-                val url = streamable.url
-                val identifier = streamable.identifier
+                val gaplessStreamable = streamable.toGaplessStreamable()
 
-                if (url != null && identifier != null) {
+                if (gaplessStreamable != null) {
                     Log.e("relisten-audio", "player?.play")
-                    player?.play(RelistenGaplessStreamable(url, identifier))
+                    player?.play(gaplessStreamable)
                     Log.e("relisten-audio", "after player?.play")
                 }
 
@@ -128,14 +150,13 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
                 return@Function
             }
 
-            val url = streamable.url
-            val identifier = streamable.identifier
+            val gaplessStreamable = streamable.toGaplessStreamable()
 
-            if (url == null || identifier == null) {
-                return@Function
+            if (gaplessStreamable != null) {
+                player?.setNextStream(gaplessStreamable)
             }
 
-            player?.setNextStream(RelistenGaplessStreamable(url, identifier))
+            return@Function
         }
 
         AsyncFunction("resume") { promise: Promise ->
@@ -175,9 +196,9 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
     }
 
     override fun errorStartingStream(
-        player: RelistenGaplessAudioPlayer,
-        error: BASSException,
-        forStreamable: RelistenGaplessStreamable
+            player: RelistenGaplessAudioPlayer,
+            error: RelistenPlaybackException,
+            forStreamable: RelistenGaplessStreamable
     ) {
         if (this.player == null) {
             return

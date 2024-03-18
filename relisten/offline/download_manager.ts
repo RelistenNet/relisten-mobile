@@ -86,7 +86,11 @@ export class DownloadManager {
 
     // make sure the file doesn't already exist. the native code will error out. this should only be needed to recover
     // from strange error states/interactions with the streaming cache
-    await fs.deleteAsync(destination, { idempotent: true });
+    try {
+      await fs.deleteAsync(destination, { idempotent: true });
+    } catch {
+      /* empty */
+    }
 
     const task = RNBackgroundDownloader.download({
       id: sourceTrack.uuid,
@@ -121,7 +125,11 @@ export class DownloadManager {
     }
 
     // delete file, if it exists
-    await fs.deleteAsync(sourceTrack.downloadedFileLocation(), { idempotent: true });
+    try {
+      await fs.deleteAsync(sourceTrack.downloadedFileLocation(), { idempotent: true });
+    } catch {
+      /* empty */
+    }
 
     // remove SourceTrackOfflineInfo
     if (realm) {
