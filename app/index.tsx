@@ -1,5 +1,5 @@
-import { View } from 'react-native';
+import { Redirect } from 'expo-router';
 
 export default function Page() {
-  return <View style={{ flex: 1, width: '100%', backgroundColor: 'red' }}></View>;
+  return <Redirect href="/relisten/(tabs)" />;
 }

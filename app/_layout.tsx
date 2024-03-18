@@ -3,7 +3,7 @@ import 'react-native-get-random-values';
 import 'react-native-reanimated';
 import 'uuid';
 
-import { router, Slot } from 'expo-router';
+import { router, Slot, SplashScreen, useNavigationContainerRef } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Realm } from '@realm/react';
 
@@ -17,7 +17,7 @@ import dayjs from 'dayjs';
 import duration from 'dayjs/plugin/duration';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import localizedFormat from 'dayjs/plugin/localizedFormat';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import useCacheAssets from './useCacheAssets';
 
 import { RelistenPlayerProvider } from '@/relisten/player/relisten_player_hooks';
@@ -29,19 +29,16 @@ dayjs.extend(duration);
 dayjs.extend(relativeTime);
 dayjs.extend(localizedFormat);
 
+SplashScreen.preventAutoHideAsync();
+
 export default function TabLayout() {
   const realmRef = useRef<Realm | null>(null);
-  const isAppReady = useCacheAssets();
 
-  useEffect(() => {
-    if (isAppReady) {
-      // https://github.com/expo/router/issues/740#issuecomment-1629471113
-      // TODO: they should fix this bug at some point
-      setTimeout(() => {
-        router.replace('/relisten/(tabs)');
-      }, 1);
-    }
-  }, [isAppReady]);
+  const navigation = useNavigationContainerRef();
+  const [isNavigationReady, setIsNavigationReady] = useState(false);
+  const [hasRootViewLayoutFinished, setHasRootViewLayoutFinished] = useState(false);
+
+  const isAppReady = useCacheAssets();
 
   useEffect(() => {
     if (realmRef.current) {
@@ -58,6 +55,25 @@ export default function TabLayout() {
       const _ = DownloadManager.SHARED_INSTANCE.resumeExistingDownloads();
     }, 5000);
   }, []);
+
+  useEffect(() => {
+    if (!navigation?.isReady()) return;
+
+    setIsNavigationReady(true);
+  }, [navigation?.isReady(), setIsNavigationReady]);
+
+  // https://docs.expo.dev/versions/latest/sdk/splash-screen/#usage
+  const onLayoutRootView = useCallback(async () => {
+    if (hasRootViewLayoutFinished) return;
+
+    setHasRootViewLayoutFinished(true);
+  }, [hasRootViewLayoutFinished, setHasRootViewLayoutFinished]);
+
+  useEffect(() => {
+    if (isAppReady && isNavigationReady && hasRootViewLayoutFinished) {
+      SplashScreen.hideAsync();
+    }
+  }, [isAppReady, isNavigationReady, hasRootViewLayoutFinished]);
 
   return (
     <RealmProvider realmRef={realmRef} closeOnUnmount={false}>
@@ -76,7 +92,7 @@ export default function TabLayout() {
           >
             <RelistenPlayerBottomBarProvider>
               <ActionSheetProvider>
-                <GestureHandlerRootView style={{ flex: 1 }}>
+                <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
                   <SafeAreaProvider>
                     <StatusBar style="light" />
                     <Slot />

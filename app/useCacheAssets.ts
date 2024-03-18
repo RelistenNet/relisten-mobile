@@ -1,6 +1,5 @@
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { Asset } from 'expo-asset';
-import { SplashScreen } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Image } from 'react-native';
 import * as Font from 'expo-font';
@@ -27,8 +26,6 @@ export default function useCacheAssets() {
   useEffect(() => {
     async function loadResourcesAndDataAsync() {
       try {
-        SplashScreen.preventAutoHideAsync();
-
         const imageAssets = cacheImages([require('../assets/toolbar_relisten.png')]);
 
         const fontAssets = cacheFonts([MaterialIcons.font, MaterialCommunityIcons.font]);
@@ -39,7 +36,6 @@ export default function useCacheAssets() {
         console.warn(e);
       } finally {
         setIsAppReady(true);
-        SplashScreen.hideAsync();
       }
     }
 
