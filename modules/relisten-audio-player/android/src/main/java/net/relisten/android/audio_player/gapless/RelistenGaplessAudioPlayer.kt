@@ -1,155 +1,94 @@
 package net.relisten.android.audio_player.gapless
 
-import android.util.Log
-import com.un4seen.bass.BASS
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import android.content.Context
+import androidx.media3.common.Player
+import expo.modules.kotlin.AppContext
+import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
-import net.relisten.android.audio_player.gapless.internal.BASSLifecycle
-import net.relisten.android.audio_player.gapless.internal.RelistenMediaSession
-import net.relisten.android.audio_player.gapless.internal.Playback
+import net.relisten.android.audio_player.gapless.internal.ExoPlayerLifecycle
 import net.relisten.android.audio_player.gapless.internal.PlaybackUpdates
 import net.relisten.android.audio_player.gapless.internal.StreamManagement
+import java.util.concurrent.CompletableFuture
 
-class RelistenGaplessAudioPlayer {
+class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
     var delegate: RelistenGaplessAudioPlayerDelegate? = null
+    internal val reactContext: Context
 
-    internal var isSetup: Boolean = false
+    internal var exoPlayer: Player? = null
+    internal var exoPlayerFuture: CompletableFuture<Player> = CompletableFuture()
 
-    internal var mixerMainStream: Int? = null
     internal var activeStream: RelistenGaplessAudioStream? = null
     internal var nextStream: RelistenGaplessAudioStream? = null
 
-    internal val scope = CoroutineScope(Dispatchers.IO)
+    internal val scope = MainScope()
 
-    internal val bassLifecycle = BASSLifecycle(this)
+    internal val exoplayerLifecycle = ExoPlayerLifecycle(this)
     internal val streamManagement = StreamManagement(this)
     internal val playbackUpdates = PlaybackUpdates(this)
-    internal val playback = Playback(this)
-    internal val mediaSession = RelistenMediaSession(this)
 
-    companion object {
-        // Values from https://github.com/einsteinx2/iSubMusicStreamer/blob/master/Classes/Audio%20Engine/Bass.swift
+    init {
+        if (appContext.reactContext == null) {
+            throw Exception("appContext.reactContext is null! (this shouldn't happen?)")
+        }
 
-        // TODO: decide best value for this
-        // 250ms (also used for BASS_CONFIG_UPDATEPERIOD, so total latency is 500ms)
-        internal var outputBufferSize: Int = 250
-
-        // TODO: 48Khz is the default hardware sample rate of the iPhone,
-        //       but since most released music is 44.1KHz, need to confirm if it's better
-        //       to let BASS to the upsampling, or let the DAC do it...
-        internal var outputSampleRate: Int = 44100
+        reactContext = appContext.reactContext!!
+        exoplayerLifecycle.setupExoPlayer()
     }
 
     val currentDuration: Double?
         get() {
-            val activeStream = activeStream
-
-            if (!isSetup || activeStream == null) {
-                return null
+            return exoPlayer?.let {
+                it.duration / 1000.0
             }
-
-            val len = BASS.BASS_ChannelGetLength(activeStream.stream, BASS.BASS_POS_BYTE)
-
-            if (len == -1L) {
-                return null
-            }
-
-            return BASS.BASS_ChannelBytes2Seconds(
-                    activeStream.stream,
-                    len + activeStream.channelOffset
-            )
         }
 
     val elapsed: Double?
         get() {
-            val activeStream = activeStream
-
-            if (!isSetup || activeStream == null) {
-                return null
+            return exoPlayer?.let {
+                it.currentPosition / 1000.0
             }
-
-            val elapsedBytes =
-                    BASS.BASS_ChannelGetPosition(activeStream.stream, BASS.BASS_POS_BYTE)
-
-            if (elapsedBytes == -1L) {
-                return null
-            }
-
-            return BASS.BASS_ChannelBytes2Seconds(
-                    activeStream.stream,
-                    elapsedBytes + activeStream.channelOffset
-            )
         }
 
     val activeTrackDownloadedBytes: Long?
         get() {
-            val activeStream = activeStream
-
-            if (!isSetup || activeStream == null) {
-                return null
-            }
-
-            val downloadedBytes =
-                    BASS.BASS_StreamGetFilePosition(activeStream.stream, BASS.BASS_FILEPOS_DOWNLOAD)
-
-            return downloadedBytes
+            return exoPlayer?.bufferedPercentage?.toLong()
         }
 
     val activeTrackTotalBytes: Long?
         get() {
-            val activeStream = activeStream
-
-            if (!isSetup || activeStream == null) {
-                return null
+            return exoPlayer?.let {
+                100L
             }
-
-            val totalFileBytes =
-                    BASS.BASS_StreamGetFilePosition(activeStream.stream, BASS.BASS_FILEPOS_SIZE)
-
-            return totalFileBytes
         }
 
     var volume: Float
         get() {
-            if (!isSetup) {
-                return 0.0f
-            }
+            val mediaController = exoPlayer ?: return 0.0f
 
-            return BASS.BASS_GetVolume()
+            return mediaController.deviceVolume / 100.0f
         }
         set(newValue) {
-            if (!isSetup) {
-                return
-            }
+            val mediaController = exoPlayer ?: return
 
-            BASS.BASS_SetVolume(newValue)
+            return mediaController.setDeviceVolume((newValue * 100).toInt(), 0)
         }
 
     internal var _currentState: RelistenPlaybackState? = null
     var currentState: RelistenPlaybackState
         get() {
-            val mixerMainStream = mixerMainStream
-
-            if (mixerMainStream == null) {
-                return RelistenPlaybackState.Stopped
-            }
-
-
-            val newState =
-                    RelistenPlaybackStateForBASSPlaybackState(BASS.BASS_ChannelIsActive(mixerMainStream))
-            _currentState = newState
-            return newState
+            return _currentState ?: RelistenPlaybackState.Stopped
         }
         set(newValue) {
+            val dispatchUpdate = _currentState != newValue
+
             _currentState = newValue
 
-            delegate?.playbackStateChanged(this@RelistenGaplessAudioPlayer, newValue)
+            if (dispatchUpdate) {
+                delegate?.playbackStateChanged(this@RelistenGaplessAudioPlayer, newValue)
+            }
         }
 
     fun play(streamable: RelistenGaplessStreamable, startingAt: Double = 0.0) {
-        mediaSession.setupAudioSession(shouldActivate = true)
-
         val activeStream = activeStream
         val nextStream = nextStream
 
@@ -157,88 +96,84 @@ class RelistenGaplessAudioPlayer {
             next()
         }
 
-        playback.playStreamableImmediately(streamable)
+        playStreamableImmediately(streamable)
     }
 
     private fun maybeTearDownNextStream() {
         if (nextStream != null) {
-            bassLifecycle.tearDownStream(nextStream!!.stream)
+            exoPlayer?.removeMediaItem(1)
             nextStream = null
         }
     }
 
     private fun maybeTearDownActiveStream() {
         if (activeStream != null) {
-            bassLifecycle.tearDownStream(activeStream!!.stream)
+            exoPlayer?.removeMediaItem(0)
             activeStream = null
         }
     }
 
     fun setNextStream(streamable: RelistenGaplessStreamable?) {
-        bassLifecycle.maybeSetupBASS()
+        scope.launch {
+            val exoplayer = exoplayerLifecycle.maybeSetupExoPlayer()
 
-        if (streamable == null) {
-            maybeTearDownNextStream()
+            if (streamable == null) {
+                maybeTearDownNextStream()
 
-            return
-        }
+                return@launch
+            }
 
-        if (nextStream?.streamable?.identifier == streamable.identifier) {
-            return
-        }
+            if (nextStream?.streamable?.identifier == streamable.identifier) {
+                return@launch
+            }
 
-        maybeTearDownNextStream()
+            val newNextStream = streamManagement.buildStream(streamable)
+            nextStream = newNextStream
 
-        nextStream = streamManagement.buildStream(streamable)
+            exoplayer.addMediaItem(exoplayer.currentMediaItemIndex + 1, newNextStream.mediaItem)
 
-        if (activeStream?.preloadFinished == true) {
-            streamManagement.startPreloadingNextStream()
+            exoplayer.removeMediaItems(exoplayer.currentMediaItemIndex + 2, exoplayer.mediaItemCount)
         }
     }
 
     fun resume() {
-        bassLifecycle.maybeSetupBASS()
-
-        if (BASS.BASS_Start()) {
-            currentState = RelistenPlaybackState.Playing
+        if (exoPlayer != null) {
+            scope.launch {
+                exoPlayer?.play()
+            }
         }
     }
 
     fun pause() {
-        bassLifecycle.maybeSetupBASS()
-
-        if (BASS.BASS_Pause()) {
-            currentState = RelistenPlaybackState.Paused
+        if (exoPlayer != null) {
+            scope.launch {
+                exoPlayer?.pause()
+            }
         }
     }
 
     fun stop() {
-        bassLifecycle.maybeSetupBASS()
-
-        val mixerMainStream = mixerMainStream
-
-        if (mixerMainStream != null) {
-            BASS.BASS_ChannelStop(mixerMainStream)
-
-            delegate?.trackChanged(this, activeStream?.streamable, null)
-            currentState = RelistenPlaybackState.Stopped
-
-            maybeTearDownActiveStream()
-            maybeTearDownNextStream()
+        if (exoPlayer != null) {
+            scope.launch {
+                exoPlayer?.stop()
+                // Next stream must always be called first
+                maybeTearDownNextStream()
+                maybeTearDownActiveStream()
+            }
         }
     }
 
     fun teardown() {
-        bassLifecycle.maybeTearDownBASS()
+        scope.launch {
+            exoplayerLifecycle.maybeTearDownExoPlayer()
+        }
     }
 
     fun next() {
-        bassLifecycle.maybeSetupBASS()
-
-        val activeStream = activeStream
-
         if (nextStream != null && activeStream != null) {
-            bassLifecycle.mixInNextStream(completedStream = activeStream.stream)
+            scope.launch {
+                exoPlayer?.seekToNextMediaItem()
+            }
         }
     }
 
@@ -247,21 +182,40 @@ class RelistenGaplessAudioPlayer {
             next()
         }
 
-        playback.seekToPercent(percent)
+        val activeStream = activeStream
+        val duration = currentDuration
+        if (activeStream != null && exoPlayer != null && duration != null) {
+            scope.launch {
+                exoPlayer?.let {
+                    it.seekTo((percent * duration * 1000L).toLong())
+                    it.play()
+                }
+            }
+        }
     }
 
     fun prepareAudioSession() {
         // What does this mean on Android? MediaSession APIs?
-        mediaSession.setupAudioSession(shouldActivate = true)
     }
 
     fun play(streamable: RelistenGaplessStreamable) {
-        playback.playStreamableImmediately(streamable)
+        play(streamable, startingAt = 0.0)
     }
 
-    internal fun bass_assert(tag: String, x: Boolean) {
-        if (!x) {
-            Log.e("relisten-audio-player", "[bass] assertion failed: ${tag}. BASS.BASS_ErrorGetCode()=${BASS.BASS_ErrorGetCode()}")
+    internal fun playStreamableImmediately(streamable: RelistenGaplessStreamable) {
+
+        val activeStream = streamManagement.buildStream(streamable)
+        this.activeStream = activeStream
+        nextStream = null
+
+        scope.launch {
+            val exoplayer = exoplayerLifecycle.maybeSetupExoPlayer()
+
+            exoplayer.setMediaItem(activeStream.mediaItem)
+            exoplayer.prepare()
+            exoplayer.play()
+
+            playbackUpdates.startUpdates()
         }
     }
 }

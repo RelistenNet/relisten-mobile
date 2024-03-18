@@ -21,7 +21,12 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.alecgorge.ios.Listen-to-the-Dead"
+      "bundleIdentifier": "com.alecgorge.ios.Listen-to-the-Dead",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "audio"
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -39,7 +44,16 @@
       "android"
     ],
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 34,
+            "minSdkVersion": 30
+          }
+        }
+      ]
     ],
     "extra": {
       "router": {

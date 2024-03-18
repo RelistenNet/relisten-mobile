@@ -51,7 +51,7 @@ afterEvaluate {
 }
 
 android {
-  compileSdkVersion safeExtGet("compileSdkVersion", 33)
+  compileSdkVersion safeExtGet("compileSdkVersion", 34)
 
   compileOptions {
     sourceCompatibility JavaVersion.VERSION_17
@@ -64,7 +64,7 @@ android {
 
   namespace "net.relisten.android.audio_player"
   defaultConfig {
-    minSdkVersion safeExtGet("minSdkVersion", 21)
+    minSdkVersion 30
     targetSdkVersion safeExtGet("targetSdkVersion", 33)
     versionCode 1
     versionName "0.2.0"
@@ -77,6 +77,13 @@ android {
       withSourcesJar()
     }
   }
+  dependencies {
+    def media3_version = "1.3.0"
+
+    implementation("androidx.media3:media3-common:${media3_version}")
+    implementation("androidx.media3:media3-exoplayer:${media3_version}")
+    implementation("androidx.media3:media3-session:${media3_version}")
+  }
 }
 
 repositories {
@@ -85,5 +92,9 @@ repositories {
 
 dependencies {
   implementation project(':expo-modules-core')
+
+  //noinspection GradleDynamicVersion
+  //implementation "com.facebook.react:react-native:+"
+
   implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:${getKotlinVersion()}"
 }

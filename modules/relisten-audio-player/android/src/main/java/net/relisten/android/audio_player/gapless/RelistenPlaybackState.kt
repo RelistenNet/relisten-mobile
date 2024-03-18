@@ -1,23 +1,17 @@
 package net.relisten.android.audio_player.gapless
 
-import com.un4seen.bass.BASS
-import com.un4seen.bass.BASSmix
+import androidx.media3.common.Player
 
 enum class RelistenPlaybackState {
     Stopped, Playing, Paused, Stalled,
 }
 
-fun RelistenPlaybackStateForBASSPlaybackState(state: Int): RelistenPlaybackState {
-    if (state == BASS.BASS_ACTIVE_STOPPED) {
-        return RelistenPlaybackState.Stopped
-    } else if (state == BASS.BASS_ACTIVE_PLAYING) {
-        return RelistenPlaybackState.Playing
-    } else if (state == BASS.BASS_ACTIVE_PAUSED || state == BASS.BASS_ACTIVE_PAUSED_DEVICE) {
-        return RelistenPlaybackState.Paused
-    } else if (state == BASS.BASS_ACTIVE_STALLED || state == BASSmix.BASS_ACTIVE_WAITING || state == BASSmix.BASS_ACTIVE_QUEUED) {
-        return RelistenPlaybackState.Stalled
+internal fun relistenPlaybackStateFromPlaybackState(playbackState: @Player.State Int) = when (playbackState) {
+    Player.STATE_IDLE -> RelistenPlaybackState.Paused
+    Player.STATE_ENDED -> RelistenPlaybackState.Stopped
+    Player.STATE_READY -> RelistenPlaybackState.Playing
+    Player.STATE_BUFFERING -> RelistenPlaybackState.Stalled
+    else -> {
+        RelistenPlaybackState.Stopped
     }
-
-    assert(false) { "Unknown BASS playback state $state" }
-    return RelistenPlaybackState.Stopped
 }
