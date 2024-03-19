@@ -14,7 +14,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#001D24"
+      "backgroundColor": "#004251"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -30,9 +30,11 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/ic_foreground.png",
+        "backgroundImage": "./assets/ic_background.png",
         "backgroundColor": "#ffffff"
       },
+      "icon": "./assets/ic_playstore.png",
       "package": "net.relisten.android"
     },
     "jsEngine": "hermes",
