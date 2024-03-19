@@ -2,7 +2,7 @@ import { SortDirection } from '@/relisten/components/filtering/filters';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
-import { ShowFilterKey, ShowList } from '@/relisten/components/shows_list';
+import { ShowFilterKey, ShowListContainer } from '@/relisten/components/shows_list';
 import { useArtistTopShows } from '@/relisten/realm/models/shows/top_shows_repo';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { useEffect, useMemo } from 'react';
@@ -35,7 +35,7 @@ export default function Page() {
   return (
     <RefreshContextProvider networkBackedResults={results}>
       <DisappearingHeaderScreen
-        ScrollableComponent={ShowList}
+        ScrollableComponent={ShowListContainer}
         ListHeaderComponent={<ShowHeader />}
         data={shows}
         artist={results.data.artist}

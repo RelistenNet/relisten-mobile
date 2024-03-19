@@ -71,7 +71,7 @@ export default function Page() {
     return sortSources(sources);
   }, [sources]);
 
-  // default sourceUuid is initial which will just fallback to sortedSources[0]
+  // default sourceUuid is initial which will just fall back to sortedSources[0]
   const selectedSource =
     sortedSources.find((source) => source.uuid === sourceUuid) ?? sortedSources[0];
 
