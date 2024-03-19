@@ -38,11 +38,15 @@ export const RefreshContextProvider = <T extends object>({
     </RefreshContext.Provider>
   );
 };
-export const useRefreshContext = () => {
+export const useRefreshContext = (refreshRequired = true) => {
   const context = useContext(RefreshContext);
 
   if (context === undefined) {
-    throw new Error('useRefreshContext must be used within a RefreshContextProvider');
+    if (refreshRequired) {
+      throw new Error('useRefreshContext must be used within a RefreshContextProvider');
+    }
+
+    return { refreshing: false, onRefresh: () => {} };
   }
 
   return context;

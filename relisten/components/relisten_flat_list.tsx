@@ -14,7 +14,7 @@ export const RelistenFlatList = <T extends { uuid: string }>({
   renderItem: ListRenderItem<T>;
   pullToRefresh?: boolean;
 } & FlatListProps<T>) => {
-  const { onRefresh, refreshing } = useRefreshContext();
+  const { onRefresh, refreshing } = useRefreshContext(pullToRefresh || false);
   const { playerBottomBarHeight } = useRelistenPlayerBottomBarContext();
 
   // if (refreshing) {

@@ -2,6 +2,9 @@ import { SourceSet } from './source_set';
 import { VenueWithShowCounts } from './venue';
 import { Show } from './show';
 import { SlimArtistWithFeatures } from './artist';
+import { components } from '@/relisten/api/schema';
+
+export type SourceReview = components['schemas']['SourceReview'];
 
 export interface Link {
   created_at: string;

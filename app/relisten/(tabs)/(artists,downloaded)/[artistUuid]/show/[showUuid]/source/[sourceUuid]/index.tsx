@@ -38,6 +38,8 @@ import { useArtist } from '@/relisten/realm/models/artist_repo';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { useActionSheet } from '@expo/react-native-action-sheet';
 import { DownloadManager } from '@/relisten/offline/download_manager';
+import Flex from '@/relisten/components/flex';
+import Plur from '@/relisten/components/plur';
 
 export const SourceList = ({ sources }: { sources: Source[] }) => {
   return (
@@ -371,12 +373,6 @@ export const SourceHeader = ({
           </SourceProperty>
         )}
       </View>
-      {false && (
-        <View className="w-full flex-row pb-2" style={{ gap: 16 }}>
-          <RelistenButton className="shrink basis-1/2">Switch Source</RelistenButton>
-          <FavoriteObjectButton className="shrink basis-1/2" object={source} />
-        </View>
-      )}
       <View className="w-full flex-row pb-4 " style={{ gap: 16 }}>
         <RelistenButton
           className="shrink basis-1/3"
@@ -410,28 +406,49 @@ export const SourceHeader = ({
           />
         </RelistenButton>
       </View>
-      {show.sourceCount > 1 && (
-        <View className="w-full pb-2">
-          <Link
-            href={{
-              pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/show/[showUuid]/sources/`,
-              params: {
-                artistUuid: show.artistUuid,
-                yearUuid: show.yearUuid,
-                showUuid: show.uuid,
-              },
-            }}
-            asChild
-          >
-            <RelistenButton
-              textClassName="text-l"
-              icon={<MaterialIcons name="source" size={20} color="white" />}
-              disabled={show.sourceCount <= 1}
+      {(show.sourceCount > 1 || source.reviewCount > 0) && (
+        <Flex className="w-full flex-row pb-4" style={{ gap: 16 }}>
+          {show.sourceCount > 1 && (
+            <Link
+              href={{
+                pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/show/[showUuid]/sources/`,
+                params: {
+                  artistUuid: show.artistUuid,
+                  showUuid: show.uuid,
+                },
+              }}
+              asChild
+              className="flex-1"
             >
-              Switch Source
-            </RelistenButton>
-          </Link>
-        </View>
+              <RelistenButton
+                textClassName="text-l"
+                icon={<MaterialIcons name="source" size={20} color="white" />}
+                disabled={show.sourceCount <= 1}
+              >
+                Switch Source
+              </RelistenButton>
+            </Link>
+          )}
+          {source.reviewCount > 0 && (
+            <Link
+              href={{
+                pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/reviews`,
+                params: {
+                  artistUuid: show.artistUuid,
+                  showUuid: show.uuid,
+                  sourceUuid: source.uuid,
+                },
+              }}
+              asChild
+              className="flex-1"
+            >
+              <RelistenButton textClassName="text-l" icon={null} disabled={show.sourceCount <= 1}>
+                <Plur word={'Review'} count={source.reviewCount} />
+                {source.avgRating ? ` • ${source.avgRating.toFixed(1)}★` : ''}
+              </RelistenButton>
+            </Link>
+          )}
+        </Flex>
       )}
       {source.sourceSets.length === 1 && <ItemSeparator />}
     </View>

@@ -32,6 +32,9 @@ import {
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
 import { PlayShow } from '@/relisten/player/ui/track_context_menu';
 import { useGroupSegment } from '@/relisten/util/routes';
+import Flex from '@/relisten/components/flex';
+import { clsx } from 'clsx';
+import Plur from '@/relisten/components/plur';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -209,27 +212,49 @@ export const SourceDetail: React.FC<{ source: Source; show: Show }> = memo(({ sh
         )}
       </View>
 
-      <View className="w-full pb-2">
-        <Link
-          href={{
-            pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
-            params: {
-              artistUuid: show.artistUuid,
-              yearUuid: show.yearUuid,
-              showUuid: show.uuid,
-              sourceUuid: source.uuid,
-            },
-          }}
-          asChild
-        >
-          <RelistenButton
-            textClassName="text-l"
-            icon={<MaterialIcons name="source" size={20} color="white" />}
-            disabled={show.sourceCount <= 1}
+      <View className="w-full pb-6">
+        <Flex className="w-full flex-row" style={{ gap: 16 }}>
+          <Link
+            href={{
+              pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
+              params: {
+                artistUuid: show.artistUuid,
+                yearUuid: show.yearUuid,
+                showUuid: show.uuid,
+                sourceUuid: source.uuid,
+              },
+            }}
+            asChild
+            className="flex-1"
           >
-            Select Source
-          </RelistenButton>
-        </Link>
+            <RelistenButton
+              textClassName="text-l"
+              icon={<MaterialIcons name="source" size={20} color="white" />}
+              disabled={show.sourceCount <= 1}
+            >
+              Select Source
+            </RelistenButton>
+          </Link>
+          {source.reviewCount > 0 && (
+            <Link
+              href={{
+                pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/reviews`,
+                params: {
+                  artistUuid: show.artistUuid,
+                  showUuid: show.uuid,
+                  sourceUuid: source.uuid,
+                },
+              }}
+              asChild
+              className="flex-1"
+            >
+              <RelistenButton textClassName="text-l" icon={null} disabled={show.sourceCount <= 1}>
+                <Plur word={'Review'} count={source.reviewCount} />
+                {source.avgRating ? ` • ${source.avgRating.toFixed(1)}★` : ''}
+              </RelistenButton>
+            </Link>
+          )}
+        </Flex>
       </View>
       {source.sourceSets.length === 1 && <ItemSeparator />}
     </View>

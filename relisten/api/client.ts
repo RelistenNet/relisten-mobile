@@ -2,7 +2,7 @@ import wretch, { ConfiguredMiddleware } from 'wretch';
 import { log } from '../util/logging';
 import { ArtistWithCounts } from './models/artist';
 import { Year, YearWithShows } from './models/year';
-import { ShowWithSources } from './models/source';
+import { ShowWithSources, SourceReview } from './models/source';
 import dayjs from 'dayjs';
 import { RelistenObject, RelistenUpdatableObject } from '@/relisten/api/models/relisten';
 import { CryptoDigestAlgorithm, digestStringAsync } from 'expo-crypto';
@@ -183,6 +183,13 @@ export class RelistenApiClient {
     options?: RelistenApiRequestOptions
   ): Promise<RelistenApiResponse<ShowWithSources>> {
     return this.getJson(`/v3/shows/${showUuid}`, options);
+  }
+
+  public sourceReviews(
+    sourceUuid: string,
+    options?: RelistenApiRequestOptions
+  ): Promise<RelistenApiResponse<SourceReview[]>> {
+    return this.getJson(`/v3/sources/${sourceUuid}/reviews`, options);
   }
 
   public randomShow(

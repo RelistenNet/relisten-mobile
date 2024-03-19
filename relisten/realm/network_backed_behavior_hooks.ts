@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Realm from 'realm';
 import { RelistenApiClient, RelistenApiResponse, RelistenApiResponseType } from '../api/client';
 import { useRelistenApi } from '../api/context';
@@ -22,6 +22,47 @@ const defaultNetworkLoadingValue = (
   return fetchStrategy === NetworkBackedBehaviorFetchStrategy.NetworkAlwaysFirst || !dataExists;
 };
 
+export function useNetworkOnlyResults<TApiData>(
+  fetchFromNetwork: () => Promise<RelistenApiResponse<TApiData | undefined>>
+): NetworkBackedResults<TApiData | undefined> {
+  // if data doesn't exist, initialize the loading state
+  const [isNetworkLoading, setIsNetworkLoading] = useState(true);
+  const [data, setData] = useState<TApiData | undefined>(undefined);
+
+  const refresh = useCallback(
+    async (shouldForceLoadingSpinner: boolean) => {
+      if (shouldForceLoadingSpinner) {
+        setIsNetworkLoading(true);
+      }
+      const apiData = await fetchFromNetwork();
+
+      if (apiData?.type == RelistenApiResponseType.OnlineRequestCompleted) {
+        if (apiData?.data) {
+          setData(apiData?.data);
+        }
+      }
+
+      setIsNetworkLoading(false);
+    },
+    [setIsNetworkLoading, setData, fetchFromNetwork]
+  );
+
+  const results = useMemo<NetworkBackedResults<TApiData | undefined>>(() => {
+    return {
+      isNetworkLoading,
+      data: data,
+      // if were pull-to-refreshing, always show the spinner
+      refresh: (force = true) => refresh(force),
+    };
+  }, [isNetworkLoading, data, refresh]);
+
+  useEffect(() => {
+    refresh(true);
+  }, [fetchFromNetwork, refresh]);
+
+  return results;
+}
+
 export function useNetworkBackedBehavior<TLocalData, TApiData>(
   behavior: NetworkBackedBehavior<TLocalData, TApiData>
 ): NetworkBackedResults<TLocalData> {
@@ -35,20 +76,23 @@ export function useNetworkBackedBehavior<TLocalData, TApiData>(
     defaultNetworkLoadingValue(behavior.fetchStrategy, dataExists)
   );
 
-  const refresh = async (shouldForceLoadingSpinner: boolean) => {
-    if (shouldForceLoadingSpinner) {
-      setIsNetworkLoading(true);
-    }
-    const apiData = await behavior.fetchFromApi(api.apiClient);
-
-    if (apiData?.type == RelistenApiResponseType.OnlineRequestCompleted) {
-      if (apiData?.data) {
-        behavior.upsert(realm, localData, apiData.data);
+  const refresh = useCallback(
+    async (shouldForceLoadingSpinner: boolean) => {
+      if (shouldForceLoadingSpinner) {
+        setIsNetworkLoading(true);
       }
-    }
+      const apiData = await behavior.fetchFromApi(api.apiClient);
 
-    setIsNetworkLoading(false);
-  };
+      if (apiData?.type == RelistenApiResponseType.OnlineRequestCompleted) {
+        if (apiData?.data) {
+          behavior.upsert(realm, localData, apiData.data);
+        }
+      }
+
+      setIsNetworkLoading(false);
+    },
+    [setIsNetworkLoading, localData, behavior]
+  );
 
   const results = useMemo<NetworkBackedResults<TLocalData>>(() => {
     return {
@@ -57,7 +101,7 @@ export function useNetworkBackedBehavior<TLocalData, TApiData>(
       // if were pull-to-refreshing, always show the spinner
       refresh: (force = true) => refresh(force),
     };
-  }, [isNetworkLoading, localData]);
+  }, [isNetworkLoading, localData, refresh]);
 
   useEffect(() => {
     // if data doesnt exist, show the loading spinner. purposely not putting dataExists in the deps chart.

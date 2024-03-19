@@ -6,7 +6,6 @@ import {
 import { FlatList, View } from 'react-native';
 import { Realm } from '@realm/react';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import Plur from '@/relisten/components/plur';
 import RowTitle from '@/relisten/components/row_title';
 import { SubtitleText } from '@/relisten/components/row_subtitle';
 import { useNavigation } from 'expo-router';
@@ -28,7 +27,7 @@ export default function Page() {
 
   return (
     <DisappearingHeaderScreen
-      ScrollableComponent={FlatList}
+      ScrollableComponent={FlatList as typeof FlatList<SourceTrackOfflineInfo>}
       ListHeaderComponent={<OfflineHeader downloads={downloads} />}
       className="w-full flex-1"
       data={downloads}
