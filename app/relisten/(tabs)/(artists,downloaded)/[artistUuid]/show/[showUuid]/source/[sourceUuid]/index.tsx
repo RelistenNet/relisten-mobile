@@ -356,6 +356,20 @@ export const SourceHeader = ({
             </MoreOrLess>
           </SourceProperty>
         )}
+        {source.taperNotes && (
+          <SourceProperty title="Taper Notes">
+            <MoreOrLess numberOfLines={1} textComponent={RelistenText}>
+              {source.taperNotes}
+            </MoreOrLess>
+          </SourceProperty>
+        )}
+        {source.description && (
+          <SourceProperty title="Description">
+            <MoreOrLess numberOfLines={1} textComponent={RelistenText}>
+              {source.description}
+            </MoreOrLess>
+          </SourceProperty>
+        )}
       </View>
       {false && (
         <View className="w-full flex-row pb-2" style={{ gap: 16 }}>
