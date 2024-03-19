@@ -396,27 +396,29 @@ export const SourceHeader = ({
           />
         </RelistenButton>
       </View>
-      <View className="w-full pb-2">
-        <Link
-          href={{
-            pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/show/[showUuid]/sources/`,
-            params: {
-              artistUuid: show.artistUuid,
-              yearUuid: show.yearUuid,
-              showUuid: show.uuid,
-            },
-          }}
-          asChild
-        >
-          <RelistenButton
-            textClassName="text-l"
-            icon={<MaterialIcons name="source" size={20} color="white" />}
-            disabled={show.sourceCount <= 1}
+      {show.sourceCount > 1 && (
+        <View className="w-full pb-2">
+          <Link
+            href={{
+              pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/show/[showUuid]/sources/`,
+              params: {
+                artistUuid: show.artistUuid,
+                yearUuid: show.yearUuid,
+                showUuid: show.uuid,
+              },
+            }}
+            asChild
           >
-            Switch Source
-          </RelistenButton>
-        </Link>
-      </View>
+            <RelistenButton
+              textClassName="text-l"
+              icon={<MaterialIcons name="source" size={20} color="white" />}
+              disabled={show.sourceCount <= 1}
+            >
+              Switch Source
+            </RelistenButton>
+          </Link>
+        </View>
+      )}
       {source.sourceSets.length === 1 && <ItemSeparator />}
     </View>
   );
