@@ -1,5 +1,8 @@
 import { SourceTrack } from '@/relisten/realm/models/source_track';
-import { SourceTrackOfflineInfoStatus } from '@/relisten/realm/models/source_track_offline_info';
+import {
+  SourceTrackOfflineInfo,
+  SourceTrackOfflineInfoStatus,
+} from '@/relisten/realm/models/source_track_offline_info';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { View } from 'react-native';
 import * as Progress from 'react-native-progress';
@@ -11,9 +14,11 @@ export function SourceTrackSucceededIndicator({ size = 12 }: { size?: number }) 
   return <MaterialCommunityIcons name="cloud-check" size={size} color={colors.blue['200']} />;
 }
 
-export function SourceTrackOfflineIndicator({ sourceTrack }: { sourceTrack: SourceTrack }) {
-  const offlineInfo = sourceTrack.offlineInfo;
-
+export function SourceTrackOfflineIndicator({
+  offlineInfo,
+}: {
+  offlineInfo: SourceTrackOfflineInfo | undefined;
+}) {
   if (!offlineInfo) {
     return <></>;
   }

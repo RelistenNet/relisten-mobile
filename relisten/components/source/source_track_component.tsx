@@ -57,7 +57,7 @@ export const SourceTrackComponent = ({
             {sourceTrack.title}
           </RelistenText>
           <View className="grow"></View>
-          <SourceTrackOfflineIndicator sourceTrack={sourceTrack} />
+          <SourceTrackOfflineIndicator offlineInfo={sourceTrack.offlineInfo} />
 
           <TouchableOpacity
             className="shrink-0 grow-0 px-2 py-3"

@@ -310,7 +310,7 @@ function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; 
                 </View>
               )}
               <RelistenText className="text-lg">{sourceTrack.title}</RelistenText>
-              <SourceTrackOfflineIndicator sourceTrack={sourceTrack} />
+              <SourceTrackOfflineIndicator offlineInfo={sourceTrack.offlineInfo} />
             </Flex>
             {subtitle.length > 0 && (
               <RelistenText className="pt-1 text-sm text-gray-400" numberOfLines={1}>

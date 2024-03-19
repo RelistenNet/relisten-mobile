@@ -13,14 +13,17 @@ import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { SourceTrackSucceededIndicator } from '@/relisten/components/source/source_track_offline_indicator';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useArtistMetadata, useArtists } from '@/relisten/realm/models/artist_repo';
-import { useIsDownloadedTab, useRoute } from '@/relisten/util/routes';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useGroupSegment, useIsDownloadedTab, useRoute } from '@/relisten/util/routes';
 import { Link } from 'expo-router';
 import plur from 'plur';
 import React, { useMemo } from 'react';
-import { View } from 'react-native';
+import { TouchableOpacity, View } from 'react-native';
 import Realm from 'realm';
-import colors from 'tailwindcss/colors';
+import { useQuery } from '@/relisten/realm/schema';
+import {
+  SourceTrackOfflineInfo,
+  SourceTrackOfflineInfoStatus,
+} from '@/relisten/realm/models/source_track_offline_info';
 
 const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) => {
   const nextRoute = useRoute('[artistUuid]');
@@ -111,12 +114,30 @@ const ArtistsList = ({ artists, ...props }: ArtistsListProps) => {
 
 export default function Page() {
   const results = useArtists();
+  const groupSegment = useGroupSegment();
   const isDownloadedTab = useIsDownloadedTab();
   const { data: artists } = results;
+
+  const downloads = useQuery(SourceTrackOfflineInfo, (query) =>
+    query.filtered('status != $0', SourceTrackOfflineInfoStatus.Succeeded).sorted('queuedAt')
+  );
 
   return (
     <View style={{ flex: 1, width: '100%' }}>
       <RefreshContextProvider networkBackedResults={results}>
+        {downloads.length > 0 && (
+          <TouchableOpacity>
+            <Link
+              href={{
+                pathname: `/relisten/(tabs)/${groupSegment}/downloading`,
+              }}
+              className="bg-relisten-blue-700 px-4 py-4 text-center"
+            >
+              <RelistenText>{downloads.length} tracks downloading&nbsp;›</RelistenText>
+            </Link>
+          </TouchableOpacity>
+        )}
+
         {!isDownloadedTab && (
           <Link
             href={{
@@ -133,6 +154,7 @@ export default function Page() {
             <RelistenText>Barton hall test show</RelistenText>
           </Link>
         )}
+
         <ArtistsList artists={artists} />
       </RefreshContextProvider>
     </View>
