@@ -153,7 +153,7 @@ function PlayerControls() {
   const progress = useNativePlaybackProgress();
 
   return (
-    <Flex className="w-full items-center justify-center py-4">
+    <Flex className="w-full items-center justify-center pt-4">
       <TouchableOpacity
         onPress={() => {
           if (progress && progress.elapsed < 5) {
@@ -208,12 +208,13 @@ function PlayerVolumeControls() {
   }, [setReportedSystemVolume]);
 
   return (
-    <Flex className="w-full items-center">
+    <Flex className="w-full items-center py-8">
       <View className="flex-grow">
         <Slider
           className="w-40 flex-1 flex-grow"
           minimumValue={0}
           maximumValue={1}
+          thumbTintColor="white"
           minimumTrackTintColor="white"
           maximumTrackTintColor={RelistenBlue['600']}
           onValueChange={(value) => {
