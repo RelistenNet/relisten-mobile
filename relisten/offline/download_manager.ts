@@ -96,6 +96,7 @@ export class DownloadManager {
       id: sourceTrack.uuid,
       url: sourceTrack.mp3Url,
       destination,
+      isNotificationVisible: true,
     });
 
     this.runningDownloadTasks.push(task);
@@ -199,11 +200,14 @@ export class DownloadManager {
     downloadTask: DownloadTask
   ) {
     downloadTask
-      .progress((percent) => {
+      .progress(({ bytesDownloaded, bytesTotal }) => {
+        const percent = bytesDownloaded / bytesTotal;
+
         realm.write(() => {
           logger.debug(`${downloadTask.id}: progress; ${percent}`);
 
-          offlineInfo.downloadedBytes = percent * offlineInfo.totalBytes;
+          offlineInfo.downloadedBytes = bytesDownloaded;
+          offlineInfo.totalBytes = bytesTotal;
           offlineInfo.percent = percent;
         });
       })
