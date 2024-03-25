@@ -5,7 +5,7 @@ import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
 import RowTitle from '@/relisten/components/row_title';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
-import { useLocalSearchParams } from 'expo-router';
+import { Link, useLocalSearchParams, useNavigation } from 'expo-router';
 import {
   FilterableList,
   FilterableListProps,
@@ -20,11 +20,20 @@ import {
 } from '@/relisten/components/filtering/filters';
 import { Tour } from '@/relisten/realm/models/tour';
 import dayjs from 'dayjs';
+import { useEffect } from 'react';
+import { useGroupSegment } from '@/relisten/util/routes';
 
 export default function Page() {
+  const navigation = useNavigation();
   const { artistUuid } = useLocalSearchParams();
   const results = useArtistTours(String(artistUuid));
   const { data } = results;
+
+  useEffect(() => {
+    navigation.setOptions({
+      title: 'Tours',
+    });
+  }, []);
 
   return (
     <RefreshContextProvider networkBackedResults={results}>
@@ -42,20 +51,32 @@ interface TourListItemProps {
 }
 
 const TourListItem = ({ tour }: TourListItemProps) => {
+  const groupSegment = useGroupSegment(true);
   const startDate = dayjs(tour.startDate).format('YYYY-MM-DD');
   const endDate = dayjs(tour.endDate).format('YYYY-MM-DD');
 
   return (
-    <SectionedListItem>
-      <Flex column>
-        <RowTitle>{tour.name}</RowTitle>
-        <SubtitleRow>
-          <SubtitleText>
-            {startDate} - {endDate}
-          </SubtitleText>
-        </SubtitleRow>
-      </Flex>
-    </SectionedListItem>
+    <Link
+      href={{
+        pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/tour/[tourUuid]/` as const,
+        params: {
+          artistUuid: tour.artistUuid,
+          tourUuid: tour.uuid,
+        },
+      }}
+      asChild
+    >
+      <SectionedListItem>
+        <Flex column>
+          <RowTitle>{tour.name}</RowTitle>
+          <SubtitleRow>
+            <SubtitleText>
+              {startDate} - {endDate}
+            </SubtitleText>
+          </SubtitleRow>
+        </Flex>
+      </SectionedListItem>
+    </Link>
   );
 };
 
@@ -114,7 +135,6 @@ const TourList = ({
     <FilteringProvider filters={TOUR_FILTERS} options={filterOptions}>
       <FilterableList
         ListHeaderComponent={<TourHeader tours={tours} />}
-        className="w-full flex-1"
         data={[{ data: tours }]}
         renderItem={({ item }) => {
           return <TourListItem tour={item} />;

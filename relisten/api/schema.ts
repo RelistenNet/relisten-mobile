@@ -1474,7 +1474,7 @@ export interface components {
       /** Format: uuid */
       uuid: string;
       /** Format: int32 */
-      shows_on_tour: number;
+      shows_on_tour?: number;
     } & {
       artist_id: unknown;
       id: unknown;

@@ -74,6 +74,12 @@ export default function ArtistsLayout() {
           title: '',
         }}
       />
+      <Stack.Screen
+        name="[artistUuid]/tour/[tourUuid]/index"
+        options={{
+          title: '',
+        }}
+      />
     </Stack>
   );
 }

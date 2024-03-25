@@ -6,6 +6,7 @@ import { FavoritableObject } from '../favoritable_object';
 import { Venue } from './venue';
 import { SourceTrack } from './source_track';
 import { checkIfOfflineSourceTrackExists } from '../realm_filters';
+import { Tour } from './tour';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface ShowRequiredRelationships {}
@@ -56,6 +57,7 @@ export class Show
         objectType: 'SourceTrack',
         property: 'show',
       },
+      tour: 'Tour?',
     },
   };
 
@@ -77,6 +79,7 @@ export class Show
 
   venue?: Venue;
   sourceTracks!: Realm.List<SourceTrack>;
+  tour?: Tour;
 
   isFavorite!: boolean;
 
