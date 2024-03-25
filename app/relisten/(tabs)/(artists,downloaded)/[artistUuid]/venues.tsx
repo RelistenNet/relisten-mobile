@@ -6,7 +6,7 @@ import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappea
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { Venue } from '@/relisten/realm/models/venue';
 import { useArtistVenues } from '@/relisten/realm/models/venue_repo';
-import { useLocalSearchParams } from 'expo-router';
+import { Link, useLocalSearchParams, useNavigation } from 'expo-router';
 import {
   FilterableList,
   FilterableListProps,
@@ -19,11 +19,20 @@ import {
   FilteringProvider,
   SortDirection,
 } from '@/relisten/components/filtering/filters';
+import { useEffect } from 'react';
+import { useGroupSegment } from '@/relisten/util/routes';
 
 export default function Page() {
+  const navigation = useNavigation();
   const { artistUuid } = useLocalSearchParams();
   const results = useArtistVenues(String(artistUuid));
   const { data } = results;
+
+  useEffect(() => {
+    navigation.setOptions({
+      title: 'Venues',
+    });
+  }, []);
 
   return (
     <RefreshContextProvider networkBackedResults={results}>
@@ -41,18 +50,31 @@ interface VenueListItemProps {
 }
 
 const VenueListItem = ({ venue }: VenueListItemProps) => {
+  const groupSegment = useGroupSegment(true);
+
   return (
-    <SectionedListItem>
-      <Flex column>
-        <RowTitle>{venue.name}</RowTitle>
-        <SubtitleRow>
-          <SubtitleText>{venue.location}</SubtitleText>
-          <SubtitleText>
-            <Plur word="show" count={venue.showsAtVenue} />
-          </SubtitleText>
-        </SubtitleRow>
-      </Flex>
-    </SectionedListItem>
+    <Link
+      href={{
+        pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/venue/[venueUuid]/` as const,
+        params: {
+          artistUuid: venue.artistUuid,
+          venueUuid: venue.uuid,
+        },
+      }}
+      asChild
+    >
+      <SectionedListItem>
+        <Flex column>
+          <RowTitle>{venue.name}</RowTitle>
+          <SubtitleRow>
+            <SubtitleText>{venue.location}</SubtitleText>
+            <SubtitleText>
+              <Plur word="show" count={venue.showsAtVenue} />
+            </SubtitleText>
+          </SubtitleRow>
+        </Flex>
+      </SectionedListItem>
+    </Link>
   );
 };
 
@@ -120,7 +142,6 @@ const VenueList = ({
     <FilteringProvider filters={VENUE_FILTERS} options={filterOptions}>
       <FilterableList
         ListHeaderComponent={<VenueHeader venues={venues} />}
-        className="w-full flex-1"
         data={[{ data: venues }]}
         renderItem={({ item }) => {
           return <VenueListItem venue={item} />;
