@@ -92,7 +92,7 @@ const SONG_FILTERS: Filter<SongFilterPersistenceKey, Song>[] = [
   {
     persistenceKey: SongFilterPersistenceKey.Name,
     title: 'Name',
-    sortDirection: SortDirection.Descending,
+    sortDirection: SortDirection.Ascending,
     active: true,
     isNumeric: false,
     sort: (songs) => songs.sort((a, b) => a.name.localeCompare(b.name)),

@@ -115,7 +115,7 @@ const TOUR_FILTERS: Filter<TourFilterKey, Tour>[] = [
   {
     persistenceKey: TourFilterKey.Name,
     title: 'Name',
-    sortDirection: SortDirection.Descending,
+    sortDirection: SortDirection.Ascending,
     active: true,
     isNumeric: false,
     sort: (tours) => tours.sort((a, b) => a.name.localeCompare(b.name)),
