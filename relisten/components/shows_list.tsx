@@ -90,7 +90,7 @@ const SHOW_FILTERS: Filter<ShowFilterKey, Show>[] = [
     persistenceKey: ShowFilterKey.Date,
     title: 'Date',
     sortDirection: SortDirection.Ascending,
-    active: false,
+    active: true,
     isNumeric: true,
     sort: (shows) => shows.sort((a, b) => a.displayDate.localeCompare(b.displayDate)),
   },
