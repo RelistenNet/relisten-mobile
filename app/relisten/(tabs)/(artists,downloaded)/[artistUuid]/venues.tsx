@@ -114,7 +114,7 @@ const VENUE_FILTERS: Filter<VenueFilterKey, Venue>[] = [
   {
     persistenceKey: VenueFilterKey.Name,
     title: 'Name',
-    sortDirection: SortDirection.Descending,
+    sortDirection: SortDirection.Ascending,
     active: true,
     isNumeric: false,
     sort: (venues) => venues.sort((a, b) => a.name.localeCompare(b.name)),
