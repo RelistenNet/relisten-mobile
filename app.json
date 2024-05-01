@@ -6,7 +6,7 @@
     },
     "name": "Relisten",
     "slug": "relisten",
-    "version": "1.0.0",
+    "version": "6.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -26,7 +26,8 @@
         "UIBackgroundModes": [
           "audio"
         ]
-      }
+      },
+      "buildNumber": "6000",
     },
     "android": {
       "adaptiveIcon": {
@@ -35,7 +36,8 @@
         "backgroundColor": "#ffffff"
       },
       "icon": "./assets/ic_playstore.png",
-      "package": "net.relisten.android"
+      "package": "net.relisten.android",
+      "versionCode": 6000,
     },
     "jsEngine": "hermes",
     "web": {
