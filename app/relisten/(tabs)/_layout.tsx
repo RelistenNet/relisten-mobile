@@ -1,5 +1,9 @@
 import { Tabs } from 'expo-router';
-
+import { useQuery } from '@/relisten/realm/schema';
+import {
+  SourceTrackOfflineInfo,
+  SourceTrackOfflineInfoStatus,
+} from '@/relisten/realm/models/source_track_offline_info';
 import TabBar from '@/relisten/components/TabBar';
 import { PlayerBottomBar } from '@/relisten/player/ui/player_bottom_bar';
 import { RelistenBlue } from '@/relisten/relisten_blue';
@@ -9,6 +13,10 @@ import 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 export default function TabLayout() {
+  const downloads = useQuery(SourceTrackOfflineInfo, (query) =>
+    query.filtered('status != $0', SourceTrackOfflineInfoStatus.Succeeded)
+  );
+
   return (
     <>
       <Tabs
@@ -45,7 +53,7 @@ export default function TabLayout() {
         // initialRouteName="artists"
       >
         <Tabs.Screen name="(artists)" options={{ title: 'Artists' }} />
-        <Tabs.Screen name="(downloaded)" options={{ title: 'Downloaded' }} />
+        <Tabs.Screen name="(downloaded)" options={{ title: 'Downloads', tabBarBadge: downloads.length === 0 ? undefined : downloads.length }} />
 
         <Tabs.Screen name="(myLibrary)/myLibrary" options={{ title: 'My Library' }} />
         <Tabs.Screen name="(relisten)/index" options={{ title: 'Relisten' }} />
