@@ -27,7 +27,7 @@
           "audio"
         ]
       },
-      "buildNumber": "6000",
+      "buildNumber": "6000"
     },
     "android": {
       "adaptiveIcon": {
@@ -37,7 +37,7 @@
       },
       "icon": "./assets/ic_playstore.png",
       "package": "net.relisten.android",
-      "versionCode": 6000,
+      "versionCode": 6000
     },
     "jsEngine": "hermes",
     "web": {
@@ -54,10 +54,15 @@
         {
           "android": {
             "compileSdkVersion": 34,
-            "minSdkVersion": 30
+            "minSdkVersion": 30,
+            "newArchEnabled": true
+          },
+          "ios": {
+            "newArchEnabled": true
           }
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "extra": {
       "router": {
