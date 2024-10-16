@@ -56,7 +56,7 @@
     "react-native-svg": "15.7.1",
     "react-native-volume-manager": "^1.10.0",
     "react-native-web": "~0.19.10",
-    "realm": "^12.5.0",
+    "realm": "^12.13.1",
     "reflect-metadata": "^0.2.2",
     "remeda": "^2.15.0",
     "tailwind-merge": "^2.5.4",
