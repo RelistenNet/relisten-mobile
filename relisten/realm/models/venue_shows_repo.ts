@@ -59,11 +59,11 @@ class VenueShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
       return;
     }
 
-    const apiVenuesByUuid = R.flatMapToObj(
+    const apiVenuesByUuid = R.fromEntries(R.flatMap(
       apiData.shows.filter((s) => !!s.venue),
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       (s) => [[s.venue!.uuid, s.venue!]]
-    );
+    ));
 
     realm.write(() => {
       const { createdModels: createdShows } = showRepo.upsertMultiple(

@@ -153,8 +153,8 @@ export class Repository<
       R.intersection(dbIds, networkUuids)
     );
 
-    const modelsById = R.flatMapToObj(models as ReadonlyArray<TModel>, (m) => [[m.uuid, m]]);
-    const networkApisByUuid = R.flatMapToObj(api, (m) => [[m.uuid, m]]);
+    const modelsById = R.fromEntries(R.flatMap(models as ReadonlyArray<TModel>, (m) => [[m.uuid, m]]));
+    const networkApisByUuid = R.fromEntries(R.flatMap(api, (m) => [[m.uuid, m]]));
 
     const acc = { created: 0, updated: 0, deleted: 0, updatedModels: [], createdModels: [] };
 

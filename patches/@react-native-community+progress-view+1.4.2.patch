@@ -1,5 +1,5 @@
 diff --git a/node_modules/@react-native-community/progress-view/common/cpp/react/renderer/components/progressview/RNCProgressViewComponentDescriptors.h b/node_modules/@react-native-community/progress-view/common/cpp/react/renderer/components/progressview/RNCProgressViewComponentDescriptors.h
-index 0aeef83..681ec40 100644
+index 0aeef83..cfd4250 100644
 --- a/node_modules/@react-native-community/progress-view/common/cpp/react/renderer/components/progressview/RNCProgressViewComponentDescriptors.h
 +++ b/node_modules/@react-native-community/progress-view/common/cpp/react/renderer/components/progressview/RNCProgressViewComponentDescriptors.h
 @@ -18,15 +18,15 @@ class RNCProgressViewComponentDescriptor final

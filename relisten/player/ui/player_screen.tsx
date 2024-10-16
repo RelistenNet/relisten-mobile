@@ -33,7 +33,7 @@ import { FlatList, Platform, TouchableOpacity, View } from 'react-native';
 import AirPlayButton from 'react-native-airplay-button';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Scrubber from 'react-native-scrubber';
-import { VolumeManager } from 'react-native-volume-manager';
+// import { VolumeManager } from 'react-native-volume-manager';
 
 function ScrubberRow({ displayValues = true }: { displayValues?: boolean }) {
   const progress = useNativePlaybackProgress();
@@ -193,19 +193,19 @@ function PlayerControls() {
 function PlayerVolumeControls() {
   const [currentSystemVolume, setReportedSystemVolume] = useState<number>(0);
 
-  useEffect(() => {
-    VolumeManager.getVolume().then((result) => {
-      setReportedSystemVolume(result.volume);
-    });
-
-    const volumeListener = VolumeManager.addVolumeListener((result) => {
-      setReportedSystemVolume(result.volume);
-    });
-
-    return () => {
-      volumeListener.remove();
-    };
-  }, [setReportedSystemVolume]);
+  // useEffect(() => {
+  //   VolumeManager.getVolume().then((result) => {
+  //     setReportedSystemVolume(result.volume);
+  //   });
+  //
+  //   const volumeListener = VolumeManager.addVolumeListener((result) => {
+  //     setReportedSystemVolume(result.volume);
+  //   });
+  //
+  //   return () => {
+  //     volumeListener.remove();
+  //   };
+  // }, [setReportedSystemVolume]);
 
   return (
     <Flex className="w-full items-center py-8">
@@ -218,7 +218,7 @@ function PlayerVolumeControls() {
           minimumTrackTintColor="white"
           maximumTrackTintColor={RelistenBlue['600']}
           onValueChange={(value) => {
-            VolumeManager.setVolume(value, { showUI: false });
+            // VolumeManager.setVolume(value, { showUI: false });
           }}
           onSlidingComplete={async (value) => {
             setReportedSystemVolume(value);

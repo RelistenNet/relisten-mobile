@@ -15,7 +15,7 @@ import { useRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useForceUpdate } from '@/relisten/util/forced_update';
 import { MaterialIcons } from '@expo/vector-icons';
-import { MoreOrLess } from '@rntext/more-or-less';
+import { MoreOrLess } from 'react-native-more-or-less-text';
 import dayjs from 'dayjs';
 import { Link, useLocalSearchParams, useNavigation } from 'expo-router';
 import { openBrowserAsync } from 'expo-web-browser';
@@ -300,14 +300,14 @@ export const SourceHeader = ({
   const forceUpdate = useForceUpdate();
   const groupSegment = useGroupSegment(true);
 
-  const secondLine = R.compact([
+  const secondLine = R.filter([
     source.humanizedDuration(),
     `${R.sumBy(
       source.sourceSets.map((s) => s.sourceTracks.length),
       (l) => l
     )} tracks`,
     sourceRatingText(source),
-  ]);
+  ], R.isTruthy);
 
   return (
     <View className="flex w-full items-center px-4">

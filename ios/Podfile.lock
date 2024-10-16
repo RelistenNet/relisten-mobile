@@ -78,12 +78,12 @@ PODS:
   - hermes-engine (0.75.4):
     - hermes-engine/Pre-built (= 0.75.4)
   - hermes-engine/Pre-built (0.75.4)
-  - lottie-ios (4.4.3)
-  - lottie-react-native (6.7.0):
+  - lottie-ios (4.5.0)
+  - lottie-react-native (7.0.0):
     - DoubleConversion
     - glog
     - hermes-engine
-    - lottie-ios (~> 4.4.1)
+    - lottie-ios (= 4.5.0)
     - RCT-Folly (= 2024.01.01.00)
     - RCTRequired
     - RCTTypeSafety
@@ -1342,7 +1342,7 @@ PODS:
     - React-Core
   - react-native-get-random-values (1.11.0):
     - React-Core
-  - react-native-progress-view (1.4.2):
+  - react-native-safe-area-context (4.11.0):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -1355,8 +1355,8 @@ PODS:
     - React-featureflags
     - React-graphics
     - React-ImageManager
-    - react-native-progress-view/common (= 1.4.2)
-    - react-native-progress-view/fabric (= 1.4.2)
+    - react-native-safe-area-context/common (= 4.11.0)
+    - react-native-safe-area-context/fabric (= 4.11.0)
     - React-NativeModulesApple
     - React-RCTFabric
     - React-rendererdebug
@@ -1365,73 +1365,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - react-native-progress-view/common (1.4.2):
-    - DoubleConversion
-    - glog
-    - hermes-engine
-    - RCT-Folly (= 2024.01.01.00)
-    - RCTRequired
-    - RCTTypeSafety
-    - React-Core
-    - React-debug
-    - React-Fabric
-    - React-featureflags
-    - React-graphics
-    - React-ImageManager
-    - React-NativeModulesApple
-    - React-RCTFabric
-    - React-rendererdebug
-    - React-utils
-    - ReactCodegen
-    - ReactCommon/turbomodule/bridging
-    - ReactCommon/turbomodule/core
-    - Yoga
-  - react-native-progress-view/fabric (1.4.2):
-    - DoubleConversion
-    - glog
-    - hermes-engine
-    - RCT-Folly (= 2024.01.01.00)
-    - RCTRequired
-    - RCTTypeSafety
-    - React-Core
-    - React-debug
-    - React-Fabric
-    - React-featureflags
-    - React-graphics
-    - React-ImageManager
-    - react-native-progress-view/common
-    - React-NativeModulesApple
-    - React-RCTFabric
-    - React-rendererdebug
-    - React-utils
-    - ReactCodegen
-    - ReactCommon/turbomodule/bridging
-    - ReactCommon/turbomodule/core
-    - Yoga
-  - react-native-safe-area-context (4.10.5):
-    - DoubleConversion
-    - glog
-    - hermes-engine
-    - RCT-Folly (= 2024.01.01.00)
-    - RCTRequired
-    - RCTTypeSafety
-    - React-Core
-    - React-debug
-    - React-Fabric
-    - React-featureflags
-    - React-graphics
-    - React-ImageManager
-    - react-native-safe-area-context/common (= 4.10.5)
-    - react-native-safe-area-context/fabric (= 4.10.5)
-    - React-NativeModulesApple
-    - React-RCTFabric
-    - React-rendererdebug
-    - React-utils
-    - ReactCodegen
-    - ReactCommon/turbomodule/bridging
-    - ReactCommon/turbomodule/core
-    - Yoga
-  - react-native-safe-area-context/common (4.10.5):
+  - react-native-safe-area-context/common (4.11.0):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -1452,7 +1386,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - react-native-safe-area-context/fabric (4.10.5):
+  - react-native-safe-area-context/fabric (4.11.0):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -1474,7 +1408,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - react-native-slider (4.5.2):
+  - react-native-slider (4.5.4):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -1487,7 +1421,7 @@ PODS:
     - React-featureflags
     - React-graphics
     - React-ImageManager
-    - react-native-slider/common (= 4.5.2)
+    - react-native-slider/common (= 4.5.4)
     - React-NativeModulesApple
     - React-RCTFabric
     - React-rendererdebug
@@ -1496,7 +1430,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - react-native-slider/common (4.5.2):
+  - react-native-slider/common (4.5.4):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -1784,7 +1718,7 @@ PODS:
     - React
   - RelistenAudioPlayer (2.4.0):
     - ExpoModulesCore
-  - RNCAsyncStorage (1.23.1):
+  - RNCAsyncStorage (2.0.0):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -1805,9 +1739,28 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - RNFlashList (1.6.4):
+  - RNFlashList (1.7.1):
+    - DoubleConversion
+    - glog
+    - hermes-engine
+    - RCT-Folly (= 2024.01.01.00)
+    - RCTRequired
+    - RCTTypeSafety
     - React-Core
-  - RNGestureHandler (2.18.1):
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - Yoga
+  - RNGestureHandler (2.20.0):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -1938,7 +1891,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - RNSVG (15.2.0):
+  - RNSVG (15.7.1):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -1958,9 +1911,9 @@ PODS:
     - ReactCodegen
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
-    - RNSVG/common (= 15.2.0)
+    - RNSVG/common (= 15.7.1)
     - Yoga
-  - RNSVG/common (15.2.0):
+  - RNSVG/common (15.7.1):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -2048,7 +2001,6 @@ DEPENDENCIES:
   - react-native-airplay-button (from `../node_modules/react-native-airplay-button`)
   - "react-native-background-downloader (from `../node_modules/@kesha-antonov/react-native-background-downloader`)"
   - react-native-get-random-values (from `../node_modules/react-native-get-random-values`)
-  - "react-native-progress-view (from `../node_modules/@react-native-community/progress-view`)"
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
   - "react-native-slider (from `../node_modules/@react-native-community/slider`)"
   - react-native-volume-manager (from `../node_modules/react-native-volume-manager`)
@@ -2203,8 +2155,6 @@ EXTERNAL SOURCES:
     :path: "../node_modules/@kesha-antonov/react-native-background-downloader"
   react-native-get-random-values:
     :path: "../node_modules/react-native-get-random-values"
-  react-native-progress-view:
-    :path: "../node_modules/@react-native-community/progress-view"
   react-native-safe-area-context:
     :path: "../node_modules/react-native-safe-area-context"
   react-native-slider:
@@ -2302,8 +2252,8 @@ SPEC CHECKSUMS:
   fmt: 4c2741a687cc09f0634a2e2c72a838b99f1ff120
   glog: fdfdfe5479092de0c4bdbebedd9056951f092c4f
   hermes-engine: ea92f60f37dba025e293cbe4b4a548fd26b610a0
-  lottie-ios: fcb5e73e17ba4c983140b7d21095c834b3087418
-  lottie-react-native: 81fc4aa5ac5f47ad84ae601226cdcb4d7c581429
+  lottie-ios: a881093fab623c467d3bce374367755c272bdd59
+  lottie-react-native: 1fdff72253c5699ea2fe3b998999285daff77500
   MMKV: ed58ad794b3f88c24d604a5b74f3fba17fcbaf74
   MMKVCore: af055b00e27d88cd92fad301c5fecd1ff9b26dd9
   Mute: 20135a96076f140cc82bfc8b810e2d6150d8ec7e
@@ -2339,9 +2289,8 @@ SPEC CHECKSUMS:
   react-native-airplay-button: 90c7ba52402c8e92342003b8a1ff78dfb4357a9e
   react-native-background-downloader: 9ce5d5ffa5216771b1a4b641b499ca5c0de9f025
   react-native-get-random-values: 21325b2244dfa6b58878f51f9aa42821e7ba3d06
-  react-native-progress-view: 26fe9e9477c17839f492b2307a92a195b5ce4851
-  react-native-safe-area-context: 86e77f7c51f80b6bc0afe78c4fba30d0c3736c21
-  react-native-slider: e1f4b4538f7de7417b626174874f4f58d4cf6c28
+  react-native-safe-area-context: f1fda705dfe14355f41933debb5932887e234cc5
+  react-native-slider: a57ccfa24df244b0134b52f977972aab6307beb7
   react-native-volume-manager: 3c7d8047841b6831730dea7bf25250522388b4f4
   React-nativeconfig: 8c83d992b9cc7d75b5abe262069eaeea4349f794
   React-NativeModulesApple: 9f7920224a3b0c7d04d77990067ded14cee3c614
@@ -2371,12 +2320,12 @@ SPEC CHECKSUMS:
   ReactCommon: 6a952e50c2a4b694731d7682aaa6c79bc156e4ad
   RealmJS: 325a7b621587dd9945306d4cbfd6b641bc20e2dd
   RelistenAudioPlayer: 3b619e18f8ce7e05eca19ea1b96aa7d0b0b79015
-  RNCAsyncStorage: a927b768986f83467b635cf6d7559e6edb46db7a
-  RNFlashList: b521ebdd7f9352673817f1d98e8bdc0c8cf8545b
-  RNGestureHandler: f769e1b9057085db07546aa3e259daa85c898dc7
+  RNCAsyncStorage: 597673c6086d359029afefef8fd5859f1f35ab87
+  RNFlashList: 6f169ad83e52579b7754cbbcec1b004c27d82c93
+  RNGestureHandler: c374c750a0a9bacd95f5c740d146ab9428549d6b
   RNReanimated: 879fb9842e45340799f45f5c6d9f483f45e76bc2
   RNScreens: de6e57426ba0e6cbc3fb5b4f496e7f08cb2773c2
-  RNSVG: f57ef92b778b88c6481ce0856be993036f4b9279
+  RNSVG: 515aaaaef804aade0f285d7fc9514da8f7f0e11f
   SocketRocket: abac6f5de4d4d62d24e11868d7a2f427e0ef940d
   sqlite3: 02d1f07eaaa01f80a1c16b4b31dfcbb3345ee01a
   Yoga: 055f92ad73f8c8600a93f0e25ac0b2344c3b07e6

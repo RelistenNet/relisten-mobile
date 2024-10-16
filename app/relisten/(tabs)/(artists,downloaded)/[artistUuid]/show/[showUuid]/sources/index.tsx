@@ -15,7 +15,7 @@ import { SourceSet } from '@/relisten/realm/models/source_set';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { memo } from '@/relisten/util/memo';
 import { MaterialIcons } from '@expo/vector-icons';
-import { MoreOrLess } from '@rntext/more-or-less';
+import { MoreOrLess } from 'react-native-more-or-less-text';
 import dayjs from 'dayjs';
 import { Link, useLocalSearchParams, useNavigation } from 'expo-router';
 import { openBrowserAsync } from 'expo-web-browser';
