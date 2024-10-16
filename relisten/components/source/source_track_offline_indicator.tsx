@@ -1,12 +1,11 @@
-import { SourceTrack } from '@/relisten/realm/models/source_track';
 import {
   SourceTrackOfflineInfo,
   SourceTrackOfflineInfoStatus,
 } from '@/relisten/realm/models/source_track_offline_info';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { View } from 'react-native';
-import * as Progress from 'react-native-progress';
 import colors from 'tailwindcss/colors';
+import AnimatedProgressWheel from 'react-native-progress-wheel';
 
 const SIZE = 18;
 
@@ -32,10 +31,29 @@ export function SourceTrackOfflineIndicator({
       contents = <MaterialCommunityIcons name="cloud-alert" size={SIZE} color={color} />;
       break;
     case SourceTrackOfflineInfoStatus.Queued:
-      contents = <Progress.Circle size={SIZE - 2} indeterminate={true} color={color} />;
+      // TODO: make indeterminate
+      contents = (
+        <AnimatedProgressWheel
+          progress={0}
+          rotation={'-90deg'}
+          size={SIZE - 2}
+          backgroundColor={'transparent'}
+          color={color}
+          width={SIZE / 3}
+        />
+      );
       break;
     case SourceTrackOfflineInfoStatus.Downloading:
-      contents = <Progress.Circle size={SIZE - 2} progress={offlineInfo.percent} color={color} />;
+      contents = (
+        <AnimatedProgressWheel
+          progress={offlineInfo.percent}
+          rotation={'-90deg'}
+          size={SIZE - 2}
+          backgroundColor={'transparent'}
+          color={color}
+          width={SIZE / 3}
+        />
+      );
       break;
     case SourceTrackOfflineInfoStatus.Failed:
       contents = <MaterialCommunityIcons name="cloud-alert" size={SIZE} color={color} />;

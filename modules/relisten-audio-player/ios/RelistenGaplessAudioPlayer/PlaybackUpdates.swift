@@ -94,7 +94,7 @@ extension RelistenGaplessAudioPlayer {
             let newKilobytes = floor(Double(downloadedBytes) / (100 * 1024))
 
             // Only update once per 100 KiB
-            if downloadedBytes != -1 && totalFileBytes != -1 && oldTotalFileBytes != -1 && oldDownloadedBytes != -1,
+            if downloadedBytes != UInt64.max && totalFileBytes != UInt64.max && oldTotalFileBytes != UInt64.max && oldDownloadedBytes != UInt64.max,
                (oldKilobytes != newKilobytes || oldTotalFileBytes != totalFileBytes) {
                 // don't send download progress for a file url
                 // as BASS_FILEPOS_DOWNLOAD or BASS_FILEPOS_BUFFER return -1 here (because we are not streaming the http file)

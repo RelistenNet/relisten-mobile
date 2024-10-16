@@ -9,7 +9,6 @@ import {
 import { useQuery } from '@/relisten/realm/schema';
 import { Realm } from '@realm/react';
 import { FlatList, View } from 'react-native';
-import * as Progress from 'react-native-progress';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 function DownloadListItem({ item }: { item: SourceTrackOfflineInfo }) {
@@ -21,7 +20,7 @@ function DownloadListItem({ item }: { item: SourceTrackOfflineInfo }) {
       <SubtitleText>
         {item.status} {item.queuedAt.toString()}
       </SubtitleText>
-      <Progress.Bar progress={item.percent} className="w-100 flex-1" />
+      <RelistenText>{item.percent}</RelistenText>
     </View>
   );
 }
