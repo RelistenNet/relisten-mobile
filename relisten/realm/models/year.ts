@@ -6,7 +6,6 @@ import { RelistenObjectRequiredProperties } from '../relisten_object';
 import { checkIfOfflineSourceTrackExists } from '../realm_filters';
 import { SourceTrack } from './source_track';
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface YearRequiredRelationships {}
 
 export interface YearRequiredProperties extends RelistenObjectRequiredProperties {

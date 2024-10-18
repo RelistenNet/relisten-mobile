@@ -12,7 +12,6 @@ import RNBackgroundDownloader from '@kesha-antonov/react-native-background-downl
 
 export const OFFLINE_DIRECTORY = `${RNBackgroundDownloader.directories.documents}/offline`;
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface SourceTrackRequiredRelationships {}
 
 export interface SourceTrackRequiredProperties extends RelistenObjectRequiredProperties {

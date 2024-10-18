@@ -8,7 +8,6 @@ import { SourceTrack } from './source_track';
 import { checkIfOfflineSourceTrackExists } from '../realm_filters';
 import { Tour } from './tour';
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface ShowRequiredRelationships {}
 
 export interface ShowRequiredProperties extends RelistenObjectRequiredProperties {

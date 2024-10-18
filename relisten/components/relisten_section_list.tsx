@@ -1,4 +1,3 @@
-/* eslint-disable react/prop-types */
 import { FlashList, FlashListProps, ListRenderItem } from '@shopify/flash-list';
 import { ReactElement, useMemo } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';

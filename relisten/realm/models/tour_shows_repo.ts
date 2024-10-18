@@ -59,11 +59,13 @@ class TourShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
       return;
     }
 
-    const apiToursByUuid = R.fromEntries(R.flatMap(
-      apiData.shows.filter((s) => !!s.tour),
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      (s) => [[s.tour!.uuid, s.tour!]]
-    ));
+    const apiToursByUuid = R.fromEntries(
+      R.flatMap(
+        apiData.shows.filter((s) => !!s.tour),
+
+        (s) => [[s.tour!.uuid, s.tour!]]
+      )
+    );
 
     realm.write(() => {
       const { createdModels: createdShows } = showRepo.upsertMultiple(

@@ -300,14 +300,17 @@ export const SourceHeader = ({
   const forceUpdate = useForceUpdate();
   const groupSegment = useGroupSegment(true);
 
-  const secondLine = R.filter([
-    source.humanizedDuration(),
-    `${R.sumBy(
-      source.sourceSets.map((s) => s.sourceTracks.length),
-      (l) => l
-    )} tracks`,
-    sourceRatingText(source),
-  ], R.isTruthy);
+  const secondLine = R.filter(
+    [
+      source.humanizedDuration(),
+      `${R.sumBy(
+        source.sourceSets.map((s) => s.sourceTracks.length),
+        (l) => l
+      )} tracks`,
+      sourceRatingText(source),
+    ],
+    R.isTruthy
+  );
 
   return (
     <View className="flex w-full items-center px-4">
@@ -373,7 +376,7 @@ export const SourceHeader = ({
           </SourceProperty>
         )}
       </View>
-      <View className="w-full flex-row pb-4 " style={{ gap: 16 }}>
+      <View className="w-full flex-row pb-4" style={{ gap: 16 }}>
         <RelistenButton
           className="shrink basis-1/3"
           textClassName="text-l"

@@ -1,8 +1,0 @@
-{
-  "extends": [
-    "@switz/eslint-config/react.cjs",
-    "@switz/eslint-config/typescript.cjs"
-  ],
- "parser": "@typescript-eslint/parser",
- "plugins": ["@typescript-eslint"]
-}

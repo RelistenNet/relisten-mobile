@@ -6,7 +6,6 @@ import { checkIfOfflineSourceTrackExists } from '../realm_filters';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import { SourceTrack } from './source_track';
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface ArtistRequiredRelationships {}
 
 export interface ArtistRequiredProperties extends RelistenObjectRequiredProperties {

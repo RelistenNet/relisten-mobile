@@ -6,7 +6,6 @@ import { FavoritableObject } from '../favoritable_object';
 import type { SourceSet } from './source_set';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface SourceRequiredRelationships {
   // sourceSets: Realm.List<SourceSet>;
 }

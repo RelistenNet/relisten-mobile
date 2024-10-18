@@ -32,7 +32,7 @@ export function useRelistenPlayerQueueOrderedTracks() {
 
 export function useRelistenPlayerShuffleState(): [
   PlayerShuffleState,
-  React.Dispatch<React.SetStateAction<PlayerShuffleState>>
+  React.Dispatch<React.SetStateAction<PlayerShuffleState>>,
 ] {
   const queue = useRelistenPlayerQueue();
 
@@ -53,7 +53,7 @@ export function useRelistenPlayerShuffleState(): [
 
 export function useRelistenPlayerRepeatState(): [
   PlayerRepeatState,
-  React.Dispatch<React.SetStateAction<PlayerRepeatState>>
+  React.Dispatch<React.SetStateAction<PlayerRepeatState>>,
 ] {
   const queue = useRelistenPlayerQueue();
 

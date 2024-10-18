@@ -5,7 +5,6 @@ import { RelistenObjectRequiredProperties } from '../relisten_object';
 import dayjs from 'dayjs';
 import type { SourceTrack } from './source_track';
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface SourceSetRequiredRelationships {}
 
 export interface SourceSetRequiredProperties extends RelistenObjectRequiredProperties {

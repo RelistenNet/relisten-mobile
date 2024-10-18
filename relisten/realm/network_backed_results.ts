@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 export interface NetworkBackedResults<T> {
   isNetworkLoading: boolean;
   data: T;
+  error?: Error;
 
   refresh: (force?: boolean) => void;
 }
@@ -24,7 +25,9 @@ export function mergeNetworkBackedResults<
   [Property in keyof TResults]: ExtractDataType<TResults[Property]>;
 }> {
   const all: Array<NetworkBackedResults<unknown>> = [];
-  const r: { [Property in keyof TResults]?: ExtractDataType<TResults[Property]> } = {};
+  const r: {
+    [Property in keyof TResults]?: ExtractDataType<TResults[Property]>;
+  } = {};
 
   for (const key of Object.keys(results) as Array<keyof TResults>) {
     all.push(results[key]);
