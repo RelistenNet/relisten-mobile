@@ -72,11 +72,11 @@ extension RelistenGaplessAudioPlayer {
                 // also trigger downloadProgress update since it won't be triggered or accurate for a local file
                 self.delegate?.downloadProgressChanged(self, forActiveTrack: true, downloadedBytes: activeStream.streamable.url.fileSize, totalBytes: activeStream.streamable.url.fileSize);
             }
+            
+            startUpdates()
         } else {
-            assertionFailure("activeStream nil after buildingStream from \(streamable)")
+            NSLog("[bass][stream] activeStream nil after buildingStream from \(streamable)")
         }
-
-        startUpdates()
     }
 
     func seekToPercent(_ pct: Double) {

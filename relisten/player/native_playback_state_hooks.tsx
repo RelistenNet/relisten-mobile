@@ -84,7 +84,7 @@ export function addPlayerListeners() {
   );
 
   const latestErrorListener = nativePlayer.addErrorListener((latestError: RelistenErrorEvent) => {
-    // console.info('got latestError', latestError);
+    // logger.error('ERROR!', latestError);
 
     sharedStates.latestError.setState(latestError);
   });

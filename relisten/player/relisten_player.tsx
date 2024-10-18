@@ -1,6 +1,7 @@
 import {
   nativePlayer,
   RelistenErrorEvent,
+  RelistenPlaybackErrorToName,
   RelistenPlaybackState,
   RelistenRemoteControlEvent,
   RelistenTrackStreamingCacheCompleteEvent,
@@ -15,6 +16,10 @@ import { addPlayerListeners } from '@/relisten/player/native_playback_state_hook
 import { RelistenPlayerQueue } from '@/relisten/player/relisten_player_queue';
 import { EventSource } from '@/relisten/util/event_source';
 import { DownloadManager } from '@/relisten/offline/download_manager';
+import { showMessage } from 'react-native-flash-message';
+import { log } from '@/relisten/util/logging';
+
+const logger = log.extend('player');
 
 export class RelistenPlayer {
   static DEFAULT_INSTANCE = new RelistenPlayer();
@@ -178,9 +183,15 @@ export class RelistenPlayer {
     }
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private onNativePlayerError = (error: RelistenErrorEvent) => {
-    // TODO: show a pop up when there's a playback error? retry the request?
+    logger.error('Native playback error', error);
+
+    showMessage({
+      message: 'Error: ' + RelistenPlaybackErrorToName[error.error],
+      description: error.errorDescription,
+      type: 'danger',
+      duration: 10_000,
+    });
   };
   // endregion
 }

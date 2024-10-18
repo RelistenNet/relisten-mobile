@@ -1,8 +1,10 @@
 import React, { PropsWithChildren, useContext } from 'react';
 import { NetworkBackedResults } from '../realm/network_backed_results';
+import { RelistenApiClientError } from '@/relisten/api/client';
 
 export interface RefreshContextProps {
   refreshing: boolean;
+  errors?: RelistenApiClientError[] | undefined;
   onRefresh: (force?: boolean) => void;
 }
 
@@ -25,12 +27,15 @@ export const RefreshContextProvider = <T extends object>({
     refreshing ||= extraRefreshingConsideration(networkBackedResults);
   }
 
-  refreshing ||= networkBackedResults.data === undefined;
+  refreshing ||=
+    networkBackedResults.data === undefined &&
+    !(networkBackedResults.errors && networkBackedResults.errors.length > 0);
 
   return (
     <RefreshContext.Provider
       value={{
         refreshing,
+        errors: networkBackedResults.errors,
         onRefresh: networkBackedResults.refresh,
       }}
     >

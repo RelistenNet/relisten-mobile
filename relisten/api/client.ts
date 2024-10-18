@@ -1,4 +1,4 @@
-import wretch, { ConfiguredMiddleware } from 'wretch';
+import wretch, { ConfiguredMiddleware, WretchError } from 'wretch';
 import { log } from '../util/logging';
 import { ArtistWithCounts } from './models/artist';
 import { Year, YearWithShows } from './models/year';
@@ -42,12 +42,35 @@ export enum RelistenApiResponseType {
 export interface RelistenApiResponse<T> {
   type: RelistenApiResponseType;
   data?: T;
+  error?: RelistenApiClientError;
 }
 
 export interface RelistenApiRequestOptions {
   bypassEtagCaching?: boolean;
   bypassRateLimit?: boolean;
   bypassRequestDeduplication?: boolean;
+}
+
+export interface RelistenApiClientError {
+  error?: Error;
+  httpError?: WretchError;
+  message?: string;
+}
+
+export function errorDisplayString(err?: RelistenApiClientError): string {
+  if (!err) {
+    return 'Unknown (missing) error';
+  }
+
+  if (err.message) {
+    return err.message;
+  }
+
+  if (err.httpError) {
+    return `${err.httpError.status} ${err.httpError.url}`;
+  }
+
+  return 'Unknown error';
 }
 
 export class RelistenApiClient {
@@ -124,45 +147,73 @@ export class RelistenApiClient {
     }
 
     const startedAt = dayjs();
-    const resp = await this.api.get(url).res();
-    const j = await resp.json();
 
-    const completedAt = new Date();
-    const duration = dayjs(completedAt).diff(startedAt, 'milliseconds');
+    try {
+      const resp = await this.api.get(url).res();
+      const j = await resp.json();
 
-    logger.info(`[api] ${resp.status} ${duration}ms ${resp.url}`);
+      const completedAt = new Date();
+      const duration = dayjs(completedAt).diff(startedAt, 'milliseconds');
 
-    const values = (Array.isArray(j) ? j : [j]) as Array<RelistenObject & RelistenUpdatableObject>;
+      logger.info(`[api] ${resp.status} ${duration}ms ${resp.url}`);
 
-    const etag = await calculateEtag(values);
+      const values = (Array.isArray(j) ? j : [j]) as Array<
+        RelistenObject & RelistenUpdatableObject
+      >;
 
-    realm?.write(() => {
-      if (urlMetadata) {
-        urlMetadata.etag = etag;
-        urlMetadata.lastRequestCompletedAt = completedAt;
+      const etag = await calculateEtag(values);
+
+      realm?.write(() => {
+        if (urlMetadata) {
+          urlMetadata.etag = etag;
+          urlMetadata.lastRequestCompletedAt = completedAt;
+        } else {
+          realm?.create(UrlRequestMetadata, {
+            url,
+            etag,
+            lastRequestCompletedAt: completedAt,
+          });
+        }
+      });
+
+      if (options?.bypassEtagCaching === true) {
+        logger.info(
+          `[etag] url=${url}, updating local database. bypassEtagCaching=${options?.bypassEtagCaching}`
+        );
+      } else if (etag === urlMetadata?.etag) {
+        logger.info(
+          `[etag] url=${resp.url}, request contents unchanged. etag=${urlMetadata?.etag}`
+        );
+        return { type: RelistenApiResponseType.RequestContentsUnchanged };
       } else {
-        realm?.create(UrlRequestMetadata, {
-          url,
-          etag,
-          lastRequestCompletedAt: completedAt,
-        });
+        logger.info(
+          `[etag] url=${resp.url}, updating local database; request contents changed. stored_etag=${urlMetadata?.etag}, new_etag=${etag}`
+        );
       }
-    });
 
-    if (options?.bypassEtagCaching === true) {
-      logger.info(
-        `[etag] url=${url}, updating local database. bypassEtagCaching=${options?.bypassEtagCaching}`
-      );
-    } else if (etag === urlMetadata?.etag) {
-      logger.info(`[etag] url=${resp.url}, request contents unchanged. etag=${urlMetadata?.etag}`);
-      return { type: RelistenApiResponseType.RequestContentsUnchanged };
-    } else {
-      logger.info(
-        `[etag] url=${resp.url}, updating local database; request contents changed. stored_etag=${urlMetadata?.etag}, new_etag=${etag}`
-      );
+      return {
+        type: RelistenApiResponseType.OnlineRequestCompleted,
+        data: j as T,
+      };
+    } catch (e: any) {
+      const err: RelistenApiClientError = {};
+
+      if (e.response && e.response instanceof Response) {
+        const wretchError = e as WretchError;
+        err.httpError = wretchError;
+        logger.error(`${wretchError.status} url=${url} text=${wretchError.text}`);
+      } else {
+        err.error = e;
+        err.message = `Error loading ${url}`;
+        logger.error(`url=${url} ${e}`);
+      }
+
+      return {
+        type: RelistenApiResponseType.OnlineRequestCompleted,
+        data: undefined,
+        error: err,
+      };
     }
-
-    return { type: RelistenApiResponseType.OnlineRequestCompleted, data: j as T };
   }
 
   public artists(

@@ -24,6 +24,7 @@ import { RelistenPlayerProvider } from '@/relisten/player/relisten_player_hooks'
 import { RelistenPlayerBottomBarProvider } from '@/relisten/player/ui/player_bottom_bar';
 import { ActionSheetProvider } from '@expo/react-native-action-sheet';
 import { DownloadManager } from '@/relisten/offline/download_manager';
+import FlashMessage from 'react-native-flash-message';
 
 dayjs.extend(duration);
 dayjs.extend(relativeTime);
@@ -96,6 +97,7 @@ export default function TabLayout() {
                   <SafeAreaProvider>
                     <StatusBar style="light" />
                     <Slot />
+                    <FlashMessage position="top" />
                   </SafeAreaProvider>
                 </GestureHandlerRootView>
               </ActionSheetProvider>

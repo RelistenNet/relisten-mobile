@@ -26,20 +26,36 @@ export enum RelistenPlaybackState {
 }
 
 export enum RelistenPlaybackError {
-  Init = 'Init',
-  NotAvail = 'NotAvail',
-  NoInternet = 'NoInternet',
-  InvalidUrl = 'InvalidUrl',
-  SslUnsupported = 'SslUnsupported',
-  ServerTimeout = 'ServerTimeout',
-  CouldNotOpenFile = 'CouldNotOpenFile',
-  FileInvalidFormat = 'FileInvalidFormat',
-  SupportedCodec = 'SupportedCodec',
-  UnsupportedSampleFormat = 'UnsupportedSampleFormat',
-  InsufficientMemory = 'InsufficientMemory',
-  No3D = 'No3D',
-  Unknown = 'Unknown',
+  Init,
+  NotAvail,
+  NoInternet,
+  InvalidUrl,
+  SslUnsupported,
+  ServerTimeout,
+  CouldNotOpenFile,
+  FileInvalidFormat,
+  SupportedCodec,
+  UnsupportedSampleFormat,
+  InsufficientMemory,
+  No3D,
+  Unknown,
 }
+
+export const RelistenPlaybackErrorToName = {
+  [RelistenPlaybackError.Init]: 'Init',
+  [RelistenPlaybackError.NotAvail]: 'NotAvail',
+  [RelistenPlaybackError.NoInternet]: 'NoInternet',
+  [RelistenPlaybackError.InvalidUrl]: 'InvalidUrl',
+  [RelistenPlaybackError.SslUnsupported]: 'SslUnsupported',
+  [RelistenPlaybackError.ServerTimeout]: 'ServerTimeout',
+  [RelistenPlaybackError.CouldNotOpenFile]: 'CouldNotOpenFile',
+  [RelistenPlaybackError.FileInvalidFormat]: 'FileInvalidFormat',
+  [RelistenPlaybackError.SupportedCodec]: 'SupportedCodec',
+  [RelistenPlaybackError.UnsupportedSampleFormat]: 'UnsupportedSampleFormat',
+  [RelistenPlaybackError.InsufficientMemory]: 'InsufficientMemory',
+  [RelistenPlaybackError.No3D]: 'No3D',
+  [RelistenPlaybackError.Unknown]: 'Unknown',
+};
 
 export interface RelistenErrorEvent {
   error: RelistenPlaybackError;

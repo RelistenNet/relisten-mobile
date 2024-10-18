@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
+import { RelistenApiClientError } from '@/relisten/api/client';
 
 export interface NetworkBackedResults<T> {
   isNetworkLoading: boolean;
   data: T;
-  error?: Error;
+  errors?: RelistenApiClientError[];
 
   refresh: (force?: boolean) => void;
 }
@@ -28,11 +29,17 @@ export function mergeNetworkBackedResults<
   const r: {
     [Property in keyof TResults]?: ExtractDataType<TResults[Property]>;
   } = {};
+  const errors: RelistenApiClientError[] = [];
 
   for (const key of Object.keys(results) as Array<keyof TResults>) {
     all.push(results[key]);
 
     r[key] = results[key].data as ExtractDataType<TResults[typeof key]>;
+
+    const theseErrors = results[key].errors;
+    if (theseErrors) {
+      errors.push(...theseErrors);
+    }
   }
 
   return {
@@ -40,6 +47,7 @@ export function mergeNetworkBackedResults<
     data: r as {
       [Property in keyof TResults]: ExtractDataType<TResults[Property]>;
     },
+    errors: errors.length > 0 ? errors : undefined,
     refresh() {
       for (const a of all) {
         a.refresh(true);

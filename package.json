@@ -44,6 +44,7 @@
     "react-native": "~0.75.0",
     "react-native-airplay-button": "^1.1.0",
     "react-native-draggable-flatlist": "^4.0.1",
+    "react-native-flash-message": "^0.4.2",
     "react-native-gesture-handler": "~2.20.0",
     "react-native-get-random-values": "~1.11.0",
     "react-native-logs": "^5.0.1",

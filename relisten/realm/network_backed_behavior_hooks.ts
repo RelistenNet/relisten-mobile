@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Realm from 'realm';
-import { RelistenApiClient, RelistenApiResponse, RelistenApiResponseType } from '../api/client';
+import {
+  RelistenApiClient,
+  RelistenApiClientError,
+  RelistenApiResponse,
+  RelistenApiResponseType,
+} from '../api/client';
 import { useRelistenApi } from '../api/context';
 import { log } from '../util/logging';
 import {
@@ -28,6 +33,7 @@ export function useNetworkOnlyResults<TApiData>(
   // if data doesn't exist, initialize the loading state
   const [isNetworkLoading, setIsNetworkLoading] = useState(true);
   const [data, setData] = useState<TApiData | undefined>(undefined);
+  const [error, setError] = useState<RelistenApiClientError | undefined>();
 
   const refresh = useCallback(
     async (shouldForceLoadingSpinner: boolean) => {
@@ -40,11 +46,15 @@ export function useNetworkOnlyResults<TApiData>(
         if (apiData?.data) {
           setData(apiData?.data);
         }
+
+        if (apiData?.error) {
+          setError(apiData?.error);
+        }
       }
 
       setIsNetworkLoading(false);
     },
-    [setIsNetworkLoading, setData, fetchFromNetwork]
+    [setIsNetworkLoading, setData, fetchFromNetwork, setError]
   );
 
   const results = useMemo<NetworkBackedResults<TApiData | undefined>>(() => {
@@ -53,8 +63,9 @@ export function useNetworkOnlyResults<TApiData>(
       data: data,
       // if were pull-to-refreshing, always show the spinner
       refresh: (force = true) => refresh(force),
+      errors: error ? [error] : undefined,
     };
-  }, [isNetworkLoading, data, refresh]);
+  }, [isNetworkLoading, data, refresh, error]);
 
   useEffect(() => {
     refresh(true);
@@ -70,6 +81,7 @@ export function useNetworkBackedBehavior<TLocalData, TApiData>(
   const localData = behavior.useFetchFromLocal();
   const api = useRelistenApi();
   const dataExists = behavior.isLocalDataShowable(localData);
+  const [error, setError] = useState<RelistenApiClientError | undefined>();
 
   // if data doesn't exist, initialize the loading state
   const [isNetworkLoading, setIsNetworkLoading] = useState(
@@ -87,11 +99,15 @@ export function useNetworkBackedBehavior<TLocalData, TApiData>(
         if (apiData?.data) {
           behavior.upsert(realm, localData, apiData.data);
         }
+
+        if (apiData?.error) {
+          setError(apiData?.error);
+        }
       }
 
       setIsNetworkLoading(false);
     },
-    [setIsNetworkLoading, localData, behavior]
+    [setIsNetworkLoading, localData, behavior, setError]
   );
 
   const results = useMemo<NetworkBackedResults<TLocalData>>(() => {
@@ -100,11 +116,12 @@ export function useNetworkBackedBehavior<TLocalData, TApiData>(
       data: localData,
       // if were pull-to-refreshing, always show the spinner
       refresh: (force = true) => refresh(force),
+      errors: error ? [error] : undefined,
     };
-  }, [isNetworkLoading, localData, refresh]);
+  }, [isNetworkLoading, localData, refresh, error]);
 
   useEffect(() => {
-    // if data doesnt exist, show the loading spinner. purposely not putting dataExists in the deps chart.
+    // if data doesn't exist, show the loading spinner. purposely not putting dataExists in the deps chart.
     refresh(defaultNetworkLoadingValue(behavior.fetchStrategy, dataExists));
   }, [behavior]);
 

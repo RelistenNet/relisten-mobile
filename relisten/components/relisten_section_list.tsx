@@ -8,6 +8,9 @@ import { RelistenBlue } from '../relisten_blue';
 import { ItemSeparator } from './item_separator';
 import { useRefreshContext } from './refresh_context';
 import { SectionHeader } from './section_header';
+import { RelistenText } from '@/relisten/components/relisten_text';
+import { errorDisplayString } from '@/relisten/api/client';
+import { RelistenErrors } from '@/relisten/components/relisten_errors';
 
 export interface RelistenSection<T> {
   sectionTitle?: string;
@@ -35,6 +38,7 @@ export type RelistenSectionListProps<T> = Omit<
 
 export const FAKE_SENTINAL = '__FAKE__';
 export const LOADING_SENTINAL = '__LOADING__';
+export const ERROR_SENTINAL = '__ERROR__';
 
 export const RelistenSectionList = <T extends RelistenObject>({
   data,
@@ -44,7 +48,7 @@ export const RelistenSectionList = <T extends RelistenObject>({
   ListHeaderComponent,
   ...props
 }: RelistenSectionListProps<T>) => {
-  const { onRefresh, refreshing } = useRefreshContext();
+  const { onRefresh, refreshing, errors } = useRefreshContext();
   const { playerBottomBarHeight } = useRelistenPlayerBottomBarContext();
 
   // you might ask why we need this
@@ -57,9 +61,13 @@ export const RelistenSectionList = <T extends RelistenObject>({
     if (ListHeaderComponent) {
       internalData.push({ sectionTitle: 'ListHeaderComponent' });
     }
+
     if (refreshing) {
       internalData.push({ sectionTitle: FAKE_SENTINAL });
       internalData.push({ sectionTitle: LOADING_SENTINAL });
+    } else if (errors && errors.length && !(data && data.length > 1 && data[1].data.length > 0)) {
+      internalData.push({ sectionTitle: FAKE_SENTINAL });
+      internalData.push({ sectionTitle: ERROR_SENTINAL });
     } else {
       internalData.push(
         ...data.flatMap((section) => {
@@ -75,7 +83,7 @@ export const RelistenSectionList = <T extends RelistenObject>({
       );
     }
     return internalData;
-  }, [data, refreshing]);
+  }, [data, refreshing, errors]);
 
   // TODO: fix in core - or migrate back to SectionList
   // reference: https://discord.com/channels/395033814008594436/466023446590259220/1186791164423176275
@@ -133,6 +141,13 @@ export const RelistenSectionList = <T extends RelistenObject>({
                   backgroundColor={RelistenBlue[800]}
                   foregroundColor={RelistenBlue[700]}
                 />
+              </View>
+            );
+          }
+          if (props.item.sectionTitle === ERROR_SENTINAL) {
+            return (
+              <View className="w-full p-4">
+                <RelistenErrors errors={errors} />
               </View>
             );
           }
