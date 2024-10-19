@@ -216,7 +216,7 @@ export const SourceDetail: React.FC<{ source: Source; show: Show }> = memo(({ sh
         <Flex className="w-full flex-row" style={{ gap: 16 }}>
           <Link
             href={{
-              pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
+              pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
               params: {
                 artistUuid: show.artistUuid,
                 yearUuid: show.yearUuid,
@@ -238,7 +238,7 @@ export const SourceDetail: React.FC<{ source: Source; show: Show }> = memo(({ sh
           {source.reviewCount > 0 && (
             <Link
               href={{
-                pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/reviews`,
+                pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/reviews`,
                 params: {
                   artistUuid: show.artistUuid,
                   showUuid: show.uuid,

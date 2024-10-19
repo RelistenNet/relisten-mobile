@@ -129,7 +129,7 @@ export default function Page() {
           <TouchableOpacity>
             <Link
               href={{
-                pathname: `/relisten/(tabs)/${groupSegment}/downloading`,
+                pathname: `/relisten/tabs/${groupSegment}/downloading`,
               }}
               className="bg-relisten-blue-700 px-4 py-4 text-center"
             >
@@ -139,20 +139,22 @@ export default function Page() {
         )}
 
         {!isDownloadedTab && (
-          <Link
-            href={{
-              pathname:
-                '/relisten/(tabs)/(artists)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/',
-              params: {
-                artistUuid: '77a58ff9-2e01-c59c-b8eb-cff106049b72',
-                showUuid: '104c96e5-719f-366f-b72d-8d53709c80e0',
-                sourceUuid: 'initial',
-              },
-            }}
-            style={{ padding: 10 }}
-          >
-            <RelistenText>Barton hall test show</RelistenText>
-          </Link>
+          <View>
+            <Link
+              href={{
+                pathname:
+                  '/relisten/tabs/(artists)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/',
+                params: {
+                  artistUuid: '77a58ff9-2e01-c59c-b8eb-cff106049b72',
+                  showUuid: '104c96e5-719f-366f-b72d-8d53709c80e0',
+                  sourceUuid: 'initial',
+                },
+              }}
+              style={{ padding: 10 }}
+            >
+              <RelistenText>Barton hall test show</RelistenText>
+            </Link>
+          </View>
         )}
 
         <ArtistsList artists={artists} />

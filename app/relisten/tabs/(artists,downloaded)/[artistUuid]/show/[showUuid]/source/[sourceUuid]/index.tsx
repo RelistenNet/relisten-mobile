@@ -40,6 +40,9 @@ import { useActionSheet } from '@expo/react-native-action-sheet';
 import { DownloadManager } from '@/relisten/offline/download_manager';
 import Flex from '@/relisten/components/flex';
 import Plur from '@/relisten/components/plur';
+import { log } from '@/relisten/util/logging';
+
+const logger = log.extend('source screen');
 
 export const SourceList = ({ sources }: { sources: Source[] }) => {
   return (
@@ -87,6 +90,9 @@ export default function Page() {
         !show ||
         !selectedSource
       ) {
+        logger.warn(
+          `Missing value when trying to play source track: sourceTrack=${sourceTrack} mp3Url=${sourceTrack?.mp3Url} uuid=${sourceTrack?.uuid} artist=${artist.data} show=${show} selectedSource=${selectedSource}`
+        );
         return;
       }
 
@@ -414,7 +420,7 @@ export const SourceHeader = ({
           {show.sourceCount > 1 && (
             <Link
               href={{
-                pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/show/[showUuid]/sources/`,
+                pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/sources/`,
                 params: {
                   artistUuid: show.artistUuid,
                   showUuid: show.uuid,
@@ -435,7 +441,7 @@ export const SourceHeader = ({
           {source.reviewCount > 0 && (
             <Link
               href={{
-                pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/reviews`,
+                pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/reviews`,
                 params: {
                   artistUuid: show.artistUuid,
                   showUuid: show.uuid,

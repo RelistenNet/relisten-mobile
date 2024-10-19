@@ -7,7 +7,6 @@ import { Stack } from 'expo-router/stack';
 export default function TabLayout() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(tabs)" />
       <Stack.Screen
         name="player"
         options={{
@@ -17,6 +16,7 @@ export default function TabLayout() {
           headerStyle: { backgroundColor: RelistenBlue['900'] },
         }}
       />
+      <Stack.Screen name="tabs" />
     </Stack>
   );
 }

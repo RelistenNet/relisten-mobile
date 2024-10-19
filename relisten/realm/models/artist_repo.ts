@@ -57,7 +57,7 @@ export function useArtist(
 
   const artistQuery = useMemo(() => {
     return artists.data.filtered('uuid == $0', artistUuid);
-  }, [artists.data]);
+  }, [artists.data, artistUuid]);
 
   const artist = useMemo(() => {
     if (artistQuery.length > 0) {

@@ -42,6 +42,7 @@ export enum RelistenPlaybackError {
 }
 
 export const RelistenPlaybackErrorToName = {
+  // These are iOS specific right now
   [RelistenPlaybackError.Init]: 'Init',
   [RelistenPlaybackError.NotAvail]: 'NotAvail',
   [RelistenPlaybackError.NoInternet]: 'NoInternet',
@@ -59,6 +60,7 @@ export const RelistenPlaybackErrorToName = {
 
 export interface RelistenErrorEvent {
   error: RelistenPlaybackError;
+  errorMessage: string;
   errorDescription: string;
   identifier: string | undefined;
 }

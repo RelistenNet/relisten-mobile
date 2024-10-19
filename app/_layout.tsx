@@ -95,7 +95,7 @@ export default function TabLayout() {
               <ActionSheetProvider>
                 <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
                   <SafeAreaProvider>
-                    <StatusBar style="light" />
+                    <StatusBar style="light" translucent={true} />
                     <Slot />
                     <FlashMessage position="top" />
                   </SafeAreaProvider>

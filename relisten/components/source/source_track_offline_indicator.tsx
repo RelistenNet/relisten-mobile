@@ -46,7 +46,7 @@ export function SourceTrackOfflineIndicator({
     case SourceTrackOfflineInfoStatus.Downloading:
       contents = (
         <AnimatedProgressWheel
-          progress={offlineInfo.percent}
+          progress={offlineInfo.percent * 100}
           rotation={'-90deg'}
           size={SIZE - 2}
           backgroundColor={'transparent'}

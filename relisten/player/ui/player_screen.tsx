@@ -24,16 +24,14 @@ import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { useActionSheet } from '@expo/react-native-action-sheet';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
-import Slider from '@react-native-community/slider';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { router, useFocusEffect } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { FlatList, Platform, TouchableOpacity, View } from 'react-native';
 import AirPlayButton from 'react-native-airplay-button';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Scrubber from 'react-native-scrubber';
-// import { VolumeManager } from 'react-native-volume-manager';
 
 function ScrubberRow({ displayValues = true }: { displayValues?: boolean }) {
   const progress = useNativePlaybackProgress();
@@ -95,7 +93,7 @@ function CurrentTrackInfo() {
           case 0:
             navigation.goBack();
             router.push({
-              pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/`,
+              pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/`,
               params: {
                 artistUuid: artist.uuid,
               },
@@ -104,7 +102,7 @@ function CurrentTrackInfo() {
           case 1:
             navigation.goBack();
             router.push({
-              pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
+              pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
 
               params: {
                 artistUuid: artist.uuid,
@@ -191,42 +189,8 @@ function PlayerControls() {
 }
 
 function PlayerVolumeControls() {
-  const [currentSystemVolume, setReportedSystemVolume] = useState<number>(0);
-
-  // useEffect(() => {
-  //   VolumeManager.getVolume().then((result) => {
-  //     setReportedSystemVolume(result.volume);
-  //   });
-  //
-  //   const volumeListener = VolumeManager.addVolumeListener((result) => {
-  //     setReportedSystemVolume(result.volume);
-  //   });
-  //
-  //   return () => {
-  //     volumeListener.remove();
-  //   };
-  // }, [setReportedSystemVolume]);
-
   return (
-    <Flex className="w-full items-center py-8">
-      <View className="flex-grow">
-        <Slider
-          className="w-40 flex-1 flex-grow"
-          minimumValue={0}
-          maximumValue={1}
-          thumbTintColor="white"
-          minimumTrackTintColor="white"
-          maximumTrackTintColor={RelistenBlue['600']}
-          onValueChange={(value) => {
-            // VolumeManager.setVolume(value, { showUI: false });
-          }}
-          onSlidingComplete={async (value) => {
-            setReportedSystemVolume(value);
-          }}
-          value={currentSystemVolume}
-          step={0.001}
-        />
-      </View>
+    <Flex className="w-full items-center pb-8">
       {Platform.OS == 'ios' && (
         <AirPlayButton
           activeTintColor="blue"
@@ -400,7 +364,7 @@ export function PlayerScreen() {
 
               router.push({
                 pathname:
-                  '/relisten/(tabs)/(artists)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/',
+                  '/relisten/tabs/(artists)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/',
                 params: {
                   artistUuid: currentPlayerTrack?.sourceTrack.artistUuid,
                   showUuid: currentPlayerTrack?.sourceTrack.showUuid,

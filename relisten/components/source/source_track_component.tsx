@@ -39,7 +39,7 @@ export const SourceTrackComponent = ({
     >
       {showTrackNumber && !isPlayingThisTrack && (
         <View className="basis-7 self-center">
-          <RelistenText className="text-lg leading-[1] text-gray-400">
+          <RelistenText className="text-lg leading-[1] text-gray-400" selectable={false}>
             {sourceTrack.trackPosition}
           </RelistenText>
         </View>
@@ -53,7 +53,7 @@ export const SourceTrackComponent = ({
 
       <View className="shrink flex-col">
         <View className="w-full grow flex-row items-center justify-between">
-          <RelistenText className="shrink pr-2 text-lg leading-[1]">
+          <RelistenText className="shrink pr-2 text-lg leading-[1]" selectable={false}>
             {sourceTrack.title}
           </RelistenText>
           <View className="grow"></View>
@@ -68,7 +68,10 @@ export const SourceTrackComponent = ({
             }}
           >
             <Flex cn="items-center gap-2">
-              <RelistenText className="basis-12 text-right text-base text-gray-400">
+              <RelistenText
+                className="basis-12 text-right text-base text-gray-400"
+                selectable={false}
+              >
                 {sourceTrack.humanizedDuration}
               </RelistenText>
               <MaterialCommunityIcons name="dots-horizontal" size={16} color="rgb(156, 163, 175)" />

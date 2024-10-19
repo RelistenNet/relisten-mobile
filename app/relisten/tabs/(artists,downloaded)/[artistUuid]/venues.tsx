@@ -55,7 +55,7 @@ const VenueListItem = ({ venue }: VenueListItemProps) => {
   return (
     <Link
       href={{
-        pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/venue/[venueUuid]/` as const,
+        pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/venue/[venueUuid]/` as const,
         params: {
           artistUuid: venue.artistUuid,
           venueUuid: venue.uuid,

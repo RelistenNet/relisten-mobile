@@ -44,6 +44,8 @@ export default function Page() {
   const navigation = useNavigation();
   const { artistUuid } = useLocalSearchParams();
 
+  console.log(`artistUuid: ${artistUuid}`);
+
   const results = useArtistYears(String(artistUuid));
   const {
     data: { years, artist },
@@ -91,7 +93,7 @@ const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => {
 
     if (randomShow?.data?.uuid) {
       router.push({
-        pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
+        pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
         params: {
           artistUuid: artist.uuid,
           showUuid: randomShow!.data!.uuid,

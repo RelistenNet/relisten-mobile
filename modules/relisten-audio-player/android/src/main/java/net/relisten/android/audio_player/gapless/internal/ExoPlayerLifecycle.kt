@@ -15,7 +15,8 @@ import net.relisten.android.audio_player.gapless.RelistenGaplessAudioPlayer
 import net.relisten.android.audio_player.gapless.relistenPlaybackStateFromPlaybackState
 
 
-class ExoPlayerLifecycle internal constructor(private val player: RelistenGaplessAudioPlayer) : Player.Listener {
+class ExoPlayerLifecycle internal constructor(private val player: RelistenGaplessAudioPlayer) :
+    Player.Listener {
     internal fun maybeSetupExoPlayer(): Player {
         val exoPlayer = player.exoPlayer
         if (exoPlayer != null) {
@@ -29,17 +30,19 @@ class ExoPlayerLifecycle internal constructor(private val player: RelistenGaples
 
     internal fun setupExoPlayer() {
         val appContext = player.reactContext.applicationContext
-        val sessionToken = SessionToken(appContext, ComponentName(appContext, RelistenPlaybackService::class.java))
-        val controllerFuture = MediaController.Builder(appContext, sessionToken).setApplicationLooper(appContext.mainLooper).buildAsync()
+        val sessionToken =
+            SessionToken(appContext, ComponentName(appContext, RelistenPlaybackService::class.java))
+        val controllerFuture = MediaController.Builder(appContext, sessionToken)
+            .setApplicationLooper(appContext.mainLooper).buildAsync()
         controllerFuture.addListener(
-                {
-                    val mediaController = controllerFuture.get()
-                    mediaController.addListener(this@ExoPlayerLifecycle)
+            {
+                val mediaController = controllerFuture.get()
+                mediaController.addListener(this@ExoPlayerLifecycle)
 
-                    player.exoPlayer = mediaController
-                    player.exoPlayerFuture.complete(mediaController)
-                },
-                MoreExecutors.directExecutor()
+                player.exoPlayer = mediaController
+                player.exoPlayerFuture.complete(mediaController)
+            },
+            MoreExecutors.directExecutor()
         )
 
         this.controllerFuture = controllerFuture
@@ -64,16 +67,25 @@ class ExoPlayerLifecycle internal constructor(private val player: RelistenGaples
     }
 
     override fun onPlayerError(error: PlaybackException) {
-        Log.i("relisten-audio-player", "exoplayer.onPlayerError: $error")
+        Log.e("relisten-audio-player", "exoplayer.onPlayerError: $error")
+
+        val message = arrayOf(
+            error.message ?: "No error message",
+            error.cause?.message,
+            error.cause?.cause?.message
+        ).filterNotNull().joinToString(": ")
 
         player.delegate?.errorStartingStream(
-                player,
-                RelistenPlaybackException(error.errorCode, error.message ?: "No error message"),
-                forStreamable = player.activeStream!!.streamable
+            player,
+            RelistenPlaybackException(error.errorCode, error.errorCodeName, message),
+            forStreamable = player.activeStream!!.streamable
         )
     }
 
-    override fun onMediaItemTransition(mediaItem: MediaItem?, reason: @Player.MediaItemTransitionReason Int) {
+    override fun onMediaItemTransition(
+        mediaItem: MediaItem?,
+        reason: @Player.MediaItemTransitionReason Int
+    ) {
         Log.i("relisten-audio-player", "exoplayer.onMediaItemTransition: $mediaItem $reason")
 
         val previousStream = player.activeStream
@@ -81,15 +93,15 @@ class ExoPlayerLifecycle internal constructor(private val player: RelistenGaples
 
         if (mediaItem == null) {
             player.delegate?.trackChanged(
-                    player,
-                    previousStreamable = null,
-                    currentStreamable = null
+                player,
+                previousStreamable = null,
+                currentStreamable = null
             )
         } else if (previousStream?.mediaItem == mediaItem) {
             player.delegate?.trackChanged(
-                    player,
-                    previousStreamable = null,
-                    currentStreamable = previousStream.streamable
+                player,
+                previousStreamable = null,
+                currentStreamable = previousStream.streamable
             )
         } else if (nextStream?.mediaItem == mediaItem) {
             player.activeStream = nextStream
@@ -100,14 +112,18 @@ class ExoPlayerLifecycle internal constructor(private val player: RelistenGaples
             }
 
             player.delegate?.trackChanged(
-                    player,
-                    previousStreamable = previousStream?.streamable,
-                    currentStreamable = nextStream.streamable
+                player,
+                previousStreamable = previousStream?.streamable,
+                currentStreamable = nextStream.streamable
             )
         } else {
-            Log.e("relisten-audio-player", "nextStream.mediaItem ${nextStream?.mediaItem} and previousStream.mediaItem ${previousStream?.mediaItem} doesn't match onMediaItemTransition mediaItem ${mediaItem}")
+            Log.e(
+                "relisten-audio-player",
+                "nextStream.mediaItem ${nextStream?.mediaItem} and previousStream.mediaItem ${previousStream?.mediaItem} doesn't match onMediaItemTransition mediaItem ${mediaItem}"
+            )
         }
     }
 }
 
-class RelistenPlaybackException(val code: Int, message: String) : Exception(message)
+class RelistenPlaybackException(val code: Int, message: String, val description: String) :
+    Exception(message)

@@ -30,7 +30,7 @@ export const ShowListItem = ({ show, children }: ShowListItemProps) => {
   return (
     <Link
       href={{
-        pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
+        pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
         params: {
           artistUuid: show.artistUuid,
           showUuid: show.uuid,

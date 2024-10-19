@@ -19,6 +19,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { PropsWithChildren, useCallback, useContext, useState } from 'react';
 import { LayoutChangeEvent, Pressable, TouchableOpacity, View } from 'react-native';
+import { ProgressView } from '@react-native-community/progress-view';
 
 function PlayerBottomBarContents() {
   const currentTrack = useRelistenPlayerCurrentTrack();
@@ -69,21 +70,18 @@ function PlayerBottomBarContents() {
         </Flex>
       </Flex>
       <View className="relative bg-relisten-blue-700">
-        <RelistenText>
-          DL: {downloadProgress?.percent ?? 0} Playback: {progress?.percent ?? 0}
-        </RelistenText>
-        {/*<ProgressView*/}
-        {/*  progress={downloadProgress?.percent ?? 0}*/}
-        {/*  progressTintColor={RelistenBlue['400']}*/}
-        {/*  // progressViewStyle="bar"*/}
-        {/*  style={{ width: '100%', height: 6, position: 'absolute', bottom: 0 }}*/}
-        {/*/>*/}
-        {/*<ProgressView*/}
-        {/*  progress={progress?.percent ?? 0}*/}
-        {/*  progressTintColor="white"*/}
-        {/*  // progressViewStyle="bar"*/}
-        {/*  style={{ width: '100%', height: 6, position: 'absolute', bottom: 0 }}*/}
-        {/*/>*/}
+        <ProgressView
+          progress={downloadProgress?.percent ?? 0}
+          progressTintColor={RelistenBlue['400']}
+          // progressViewStyle="bar"
+          style={{ width: '100%', height: 6, position: 'absolute', bottom: 0 }}
+        />
+        <ProgressView
+          progress={progress?.percent ?? 0}
+          progressTintColor="white"
+          // progressViewStyle="bar"
+          style={{ width: '100%', height: 6, position: 'absolute', bottom: 0 }}
+        />
       </View>
     </Flex>
   );
@@ -113,7 +111,7 @@ export function PlayerBottomBar() {
   return (
     <View onLayout={onLayout} style={{ bottom: tabBarHeight, position: 'absolute', width: '100%' }}>
       <View className={'w-full flex-1 p-0'}>
-        <Pressable onPress={() => router.push('/relisten/player')}>
+        <Pressable onPress={() => router.push({ pathname: '/relisten/player' })}>
           <View className="w-full rounded-t-sm bg-relisten-blue-800 pt-2">
             <PlayerBottomBarContents />
           </View>

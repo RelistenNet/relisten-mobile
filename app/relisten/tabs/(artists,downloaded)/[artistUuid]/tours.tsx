@@ -58,7 +58,7 @@ const TourListItem = ({ tour }: TourListItemProps) => {
   return (
     <Link
       href={{
-        pathname: `/relisten/(tabs)/${groupSegment}/[artistUuid]/tour/[tourUuid]/` as const,
+        pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/tour/[tourUuid]/` as const,
         params: {
           artistUuid: tour.artistUuid,
           tourUuid: tour.uuid,

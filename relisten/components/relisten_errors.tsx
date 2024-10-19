@@ -1,8 +1,7 @@
-import React, { PropsWithChildren } from 'react';
-import { TextProps, View } from 'react-native';
+import React from 'react';
+import { View } from 'react-native';
 import { RelistenApiClientError } from '@/relisten/api/client';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { WretchError } from 'wretch';
 
 export const RelistenErrorBox: React.FC<{
   heading?: string;

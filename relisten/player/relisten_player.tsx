@@ -187,7 +187,7 @@ export class RelistenPlayer {
     logger.error('Native playback error', error);
 
     showMessage({
-      message: 'Error: ' + RelistenPlaybackErrorToName[error.error],
+      message: 'Error: ' + (error.errorMessage ?? RelistenPlaybackErrorToName[error.error]),
       description: error.errorDescription,
       type: 'danger',
       duration: 10_000,

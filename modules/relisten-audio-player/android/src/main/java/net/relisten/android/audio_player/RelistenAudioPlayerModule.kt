@@ -207,7 +207,8 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
         sendEvent(
             "onError", hashMapOf(
                 "error" to error.code,
-                "errorDescription" to error.message,
+                "errorMessage" to error.message,
+                "errorDescription" to error.description,
                 "identifier" to forStreamable.identifier,
             )
         )

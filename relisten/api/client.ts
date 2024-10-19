@@ -80,6 +80,7 @@ export class RelistenApiClient {
   // TODO: wretch error handling
 
   private inflightRequests: Map<string, Promise<RelistenApiResponse<unknown>>> = new Map();
+
   private getJson<
     T extends
       | (RelistenObject & RelistenUpdatableObject)
@@ -247,7 +248,11 @@ export class RelistenApiClient {
     artistUuid: string,
     options?: RelistenApiRequestOptions
   ): Promise<RelistenApiResponse<ShowWithSources>> {
-    return this.getJson(`/v2/artists/${artistUuid}/shows/random`, options);
+    return this.getJson(`/v2/artists/${artistUuid}/shows/random`, {
+      bypassRateLimit: true,
+      bypassEtagCaching: true,
+      ...(options || {}),
+    });
   }
 
   public topShow(
