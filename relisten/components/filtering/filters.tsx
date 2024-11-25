@@ -2,7 +2,6 @@ import { RouteFilterConfig, serializeFilters } from '@/relisten/realm/models/rou
 import { useObject, useRealm } from '@/relisten/realm/schema';
 import React, { PropsWithChildren, useCallback, useContext, useMemo, useRef } from 'react';
 import Realm from 'realm';
-import { clone } from 'remeda';
 import { RelistenObject } from '../../api/models/relisten';
 
 export enum SortDirection {
@@ -60,7 +59,9 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
   const preparedFilters = useMemo(() => {
     if (!persistedFilters) return [...filters];
 
-    const internalFilters = clone(filters);
+    const internalFilters = filters.map((f) => {
+      return { ...f };
+    });
 
     // this only runs on the initial render pass
     if (isInitialRender.current) {
@@ -140,7 +141,9 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
     - only 1 thing can sort at a time
     - there's always 1 sort active at any time
      */
-      const intermediateFilters = clone(preparedFilters);
+      const intermediateFilters = preparedFilters.map((f) => {
+        return { ...f };
+      });
       const changingFilter = intermediateFilters.find(
         (f) => f.persistenceKey === thisFilter.persistenceKey
       );

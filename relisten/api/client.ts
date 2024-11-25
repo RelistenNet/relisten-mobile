@@ -74,7 +74,8 @@ export function errorDisplayString(err?: RelistenApiClientError): string {
 }
 
 export class RelistenApiClient {
-  static API_BASE = 'https://api.relisten.net/api';
+  // static API_BASE = 'https://api.relisten.net/api';
+  static API_BASE = 'http://192.168.88.14:3823/api';
 
   private api = wretch(RelistenApiClient.API_BASE).middlewares([loggingMiddleware]);
   // TODO: wretch error handling
@@ -126,7 +127,7 @@ export class RelistenApiClient {
         : undefined;
 
       // don't make a request more than once per hour
-      if (options?.bypassRateLimit === true) {
+      if (true || options?.bypassRateLimit === true) {
         logger.info(
           `[rate limiting] url=${url}, making request. bypassRateLimit=${options?.bypassRateLimit}`
         );
@@ -162,6 +163,8 @@ export class RelistenApiClient {
         RelistenObject & RelistenUpdatableObject
       >;
 
+      // TODO(alecgorge): This doesn't account for situations like VenuesWithShows
+      //  where the Venue hasn't changed but the list of Shows has changed
       const etag = await calculateEtag(values);
 
       realm?.write(() => {
@@ -177,7 +180,7 @@ export class RelistenApiClient {
         }
       });
 
-      if (options?.bypassEtagCaching === true) {
+      if (true || options?.bypassEtagCaching === true) {
         logger.info(
           `[etag] url=${url}, updating local database. bypassEtagCaching=${options?.bypassEtagCaching}`
         );
@@ -319,7 +322,7 @@ export class RelistenApiClient {
     songUuid: string,
     options?: RelistenApiRequestOptions
   ): Promise<RelistenApiResponse<SongWithShows>> {
-    return this.getJson(`/v2/artists/${artistUuid}/songs/${songUuid}`, options);
+    return this.getJson(`/v3/artists/${artistUuid}/songs/${songUuid}`, options);
   }
 
   public recentPerformedShows(

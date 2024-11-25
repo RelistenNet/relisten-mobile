@@ -5,7 +5,7 @@ import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
 import RowTitle from '@/relisten/components/row_title';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
-import { useLocalSearchParams } from 'expo-router';
+import { Link, useLocalSearchParams } from 'expo-router';
 import {
   FilterableList,
   FilterableListProps,
@@ -19,6 +19,7 @@ import {
   SortDirection,
 } from '@/relisten/components/filtering/filters';
 import { Song } from '@/relisten/realm/models/song';
+import { useGroupSegment } from '@/relisten/util/routes';
 
 export default function Page() {
   const { artistUuid } = useLocalSearchParams();
@@ -41,18 +42,31 @@ interface SongListItemProps {
 }
 
 const SongListItem = ({ song }: SongListItemProps) => {
+  const groupSegment = useGroupSegment(true);
+
   return (
-    <SectionedListItem>
-      <Flex column>
-        <RowTitle>{song.name}</RowTitle>
-        <SubtitleRow>
-          <SubtitleText>
-            {'Played at '}
-            <Plur word="show" count={song.showsPlayedAt} />
-          </SubtitleText>
-        </SubtitleRow>
-      </Flex>
-    </SectionedListItem>
+    <Link
+      href={{
+        pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/song/[songUuid]/` as const,
+        params: {
+          artistUuid: song.artistUuid,
+          songUuid: song.uuid,
+        },
+      }}
+      asChild
+    >
+      <SectionedListItem>
+        <Flex column>
+          <RowTitle>{song.name}</RowTitle>
+          <SubtitleRow>
+            <SubtitleText>
+              {'Played at '}
+              <Plur word="show" count={song.showsPlayedAt} />
+            </SubtitleText>
+          </SubtitleRow>
+        </Flex>
+      </SectionedListItem>
+    </Link>
   );
 };
 

@@ -143,7 +143,8 @@ export class Repository<
     realm: Realm,
     api: ReadonlyArray<TApi>,
     models: ReadonlyArray<TModel> | Realm.List<TModel> | Realm.Results<TModel>,
-    performDeletes: boolean = true
+    performDeletes: boolean = true,
+    queryForModel = false
   ): UpsertResults<TModel> {
     const dbIds = models.map((m) => m.uuid);
     const networkUuids = api.map((a) => a.uuid);
@@ -171,7 +172,7 @@ export class Repository<
       for (const uuid of networkUuidsToUpsert) {
         combinedUpsertResults(
           acc,
-          this.upsertWithinWrite(realm, networkApisByUuid[uuid], modelsById[uuid])
+          this.upsertWithinWrite(realm, networkApisByUuid[uuid], modelsById[uuid], queryForModel)
         );
       }
     };
@@ -198,6 +199,8 @@ export class Repository<
       : undefined;
     const combined = R.merge(p, r);
 
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
     return new this.klass(realm, combined);
   }
 }

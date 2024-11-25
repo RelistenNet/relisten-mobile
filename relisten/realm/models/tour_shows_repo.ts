@@ -71,7 +71,8 @@ class TourShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
       const { createdModels: createdShows } = showRepo.upsertMultiple(
         realm,
         apiData.shows,
-        localData.shows
+        localData.shows,
+        /* performDeletes= */ false,
       );
 
       for (const show of createdShows.concat(localData.shows)) {

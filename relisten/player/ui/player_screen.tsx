@@ -277,7 +277,7 @@ function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; 
               <SourceTrackOfflineIndicator offlineInfo={sourceTrack.offlineInfo} />
             </Flex>
             {subtitle.length > 0 && (
-              <RelistenText className="pt-1 text-sm text-gray-400" numberOfLines={1}>
+              <RelistenText className="pt-1 text-sm text-gray-400" numberOfLines={2}>
                 {subtitle}
               </RelistenText>
             )}

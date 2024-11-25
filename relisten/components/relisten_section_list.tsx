@@ -68,6 +68,9 @@ export const RelistenSectionList = <T extends RelistenObject>({
     } else if (errors && errors.length && !(data && data.length > 1 && data[1].data.length > 0)) {
       internalData.push({ sectionTitle: FAKE_SENTINAL });
       internalData.push({ sectionTitle: ERROR_SENTINAL });
+
+      // always allow pull to refresh if we got an error. refreshing might fix it.
+      pullToRefresh = true;
     } else {
       internalData.push(
         ...data.flatMap((section) => {

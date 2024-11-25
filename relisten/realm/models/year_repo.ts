@@ -8,6 +8,7 @@ import Realm from 'realm';
 import * as R from 'remeda';
 import { RelistenApiClient, RelistenApiResponse } from '../../api/client';
 import { YearWithShows } from '../../api/models/year';
+import { Show as ApiShow } from '../../api/models/show';
 import {
   NetworkBackedBehaviorOptions,
   ThrottledNetworkBackedBehavior,
@@ -23,6 +24,7 @@ import { Show } from './show';
 import { showRepo } from './show_repo';
 import { Venue } from './venue';
 import { venueRepo } from './venue_repo';
+import { upsertShowList } from '@/relisten/realm/models/repo_utils';
 
 export const yearRepo = new Repository(Year);
 
@@ -97,42 +99,14 @@ class YearShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
       return;
     }
 
-    const apiVenuesByUuid = R.fromEntries(
-      R.flatMap(
-        apiData.shows.filter((s) => !!s.venue),
-
-        (s) => [[s.venue!.uuid, s.venue!]]
-      )
-    );
-
     realm.write(() => {
-      const { createdModels: createdShows } = showRepo.upsertMultiple(
+      upsertShowList(
         realm,
+        localData.shows,
         apiData.shows,
-        localData.shows
+        /* performDeletes= */ true,
+        /* queryForModel= */ false // we know this list of shows is authoritative
       );
-
-      for (const show of createdShows.concat(localData.shows)) {
-        if (show.venueUuid) {
-          const apiVenue = apiVenuesByUuid[show.venueUuid];
-
-          if (!show.venue) {
-            const localVenue = realm.objectForPrimaryKey(Venue, show.venueUuid);
-
-            if (localVenue) {
-              show.venue = localVenue;
-            } else {
-              const { createdModels: createdVenues } = venueRepo.upsert(realm, apiVenue, undefined);
-
-              if (createdVenues.length > 0) {
-                show.venue = createdVenues[0];
-              }
-            }
-          } else {
-            venueRepo.upsert(realm, apiVenue, show.venue);
-          }
-        }
-      }
     });
   }
 }

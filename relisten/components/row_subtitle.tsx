@@ -19,5 +19,5 @@ export const SubtitleRow = ({ cn, style, as = Flex, ...props }: TextProps & NewP
 export const SubtitleText = ({ cn, style, as = RelistenText, ...props }: TextProps & NewProps) => {
   const Comp = as;
 
-  return <Comp {...props} cn={tw('text-s text-gray-400', cn)} numberOfLines={1} />;
+  return <Comp {...props} cn={tw('text-s text-gray-400', cn)} numberOfLines={2} />;
 };

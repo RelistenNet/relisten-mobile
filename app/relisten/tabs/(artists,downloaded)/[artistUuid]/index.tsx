@@ -44,8 +44,6 @@ export default function Page() {
   const navigation = useNavigation();
   const { artistUuid } = useLocalSearchParams();
 
-  console.log(`artistUuid: ${artistUuid}`);
-
   const results = useArtistYears(String(artistUuid));
   const {
     data: { years, artist },
@@ -221,7 +219,7 @@ const YearListItem = ({ year }: { year: Year }) => {
       asChild
     >
       <SectionedListItem>
-        <Flex cn="justify-between" full>
+        <Flex cn="justify-between items-center" full>
           <Flex column cn="flex-1">
             <RowTitle>{year.year}</RowTitle>
             <SubtitleRow>
@@ -239,7 +237,11 @@ const YearListItem = ({ year }: { year: Year }) => {
               </SubtitleText>
             </SubtitleRow>
           </Flex>
-          {!isDownloadedTab && <FavoriteObjectButton object={year} />}
+          {!isDownloadedTab && (
+            <View className="ml-2">
+              <FavoriteObjectButton object={year} />
+            </View>
+          )}
         </Flex>
       </SectionedListItem>
     </Link>
