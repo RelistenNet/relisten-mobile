@@ -127,7 +127,7 @@ export class RelistenApiClient {
         : undefined;
 
       // don't make a request more than once per hour
-      if (true || options?.bypassRateLimit === true) {
+      if (options?.bypassRateLimit === true) {
         logger.info(
           `[rate limiting] url=${url}, making request. bypassRateLimit=${options?.bypassRateLimit}`
         );
@@ -180,7 +180,7 @@ export class RelistenApiClient {
         }
       });
 
-      if (true || options?.bypassEtagCaching === true) {
+      if (options?.bypassEtagCaching === true) {
         logger.info(
           `[etag] url=${url}, updating local database. bypassEtagCaching=${options?.bypassEtagCaching}`
         );

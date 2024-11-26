@@ -51,6 +51,7 @@
     "react-native-more-or-less-text": "^3.0.1",
     "react-native-progress-wheel": "^2.1.0",
     "react-native-reanimated": "~3.15.0",
+    "react-native-render-html": "^6.3.4",
     "react-native-safe-area-context": "4.11.0",
     "react-native-screens": "4.0.0-beta.12",
     "react-native-scrubber": "^1.1.5",

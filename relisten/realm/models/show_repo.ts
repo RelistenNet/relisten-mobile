@@ -20,6 +20,7 @@ import { Source } from './source';
 import { venueRepo } from './venue_repo';
 import { Artist } from './artist';
 import { Year } from './year';
+import { useArtist } from '@/relisten/realm/models/artist_repo';
 
 export const showRepo = new Repository(Show);
 
@@ -194,6 +195,31 @@ export function useFullShow(
   }, [showUuid]);
 
   return useNetworkBackedBehavior(behavior);
+}
+
+export function useFullShowWithSelectedSource(showUuid: string, selectedSourceUuid: string) {
+  const results = useFullShow(String(showUuid));
+  const show = results?.data?.show;
+  const sources = results?.data?.sources;
+  const artist = useArtist(show?.artistUuid);
+
+  const sortedSources = useMemo(() => {
+    if (!sources) return [];
+
+    return sortSources(sources);
+  }, [sources]);
+
+  // default sourceUuid is initial which will just fall back to sortedSources[0]
+  const selectedSource =
+    sortedSources.find((source) => source.uuid === selectedSourceUuid) ?? sortedSources[0];
+
+  return {
+    results,
+    show: show!,
+    sources,
+    artist,
+    selectedSource,
+  };
 }
 
 export function useFullShowFromSource(
