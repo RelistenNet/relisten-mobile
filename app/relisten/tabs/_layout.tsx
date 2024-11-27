@@ -29,8 +29,6 @@ export default function TabLayout() {
           tabBarIcon: ({ focused, color, size }) => {
             let iconName;
 
-            console.log(route.name, route);
-
             if (route.name === '(artists)') {
               iconName = focused ? 'account-music' : 'account-music-outline';
               return <MaterialCommunityIcons name={iconName as any} size={size} color={color} />;
