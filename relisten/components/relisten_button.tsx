@@ -65,7 +65,7 @@ export const RelistenButton = React.forwardRef<any, ButtonProps>(
     return (
       <TouchableOpacity ref={ref as any} className={cls} {...props} disabled={disabled}>
         {icon && <View className="pr-1">{icon}</View>}
-        <RelistenText className={clsx('text-center font-bold', textClassName)}>
+        <RelistenText className={tw('text-center font-bold', textClassName)}>
           {children}
         </RelistenText>
       </TouchableOpacity>

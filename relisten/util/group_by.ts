@@ -13,6 +13,24 @@ export function groupBy<T>(
   return r;
 }
 
+export function aggregateBy<T>(
+  list: ReadonlyArray<T>,
+  keySelector: (obj: T) => string
+): Record<string, ReadonlyArray<T>> {
+  const r: { [key: string]: T[] } = {};
+
+  for (const obj of list) {
+    if (obj) {
+      if (!r[keySelector(obj)]) {
+        r[keySelector(obj)] = [];
+      }
+      r[keySelector(obj)].push(obj);
+    }
+  }
+
+  return r;
+}
+
 export function groupByUuid<T extends { uuid: string }>(
   list: ReadonlyArray<T | undefined | null>
 ): Record<string, T> {

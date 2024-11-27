@@ -1,58 +1,45 @@
 import { useQuery } from '@/relisten/realm/schema';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import React, { useMemo } from 'react';
-import { Results } from 'realm';
-import { ScrollView, TouchableOpacity, View } from 'react-native';
+import { ScrollView, TouchableOpacity, View, ViewProps } from 'react-native';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
-import { clsx } from 'clsx';
 import { Link } from 'expo-router';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
-import { ShowListContainer, ShowListItem } from '@/relisten/components/shows_list';
+import { ShowListContainer } from '@/relisten/components/shows_list';
 import { Show } from '@/relisten/realm/models/show';
-import { ListRenderItem } from '@shopify/flash-list';
-import { RecentShowTabs } from '@/relisten/realm/models/shows/recent_shows_repo';
-import { SubtitleText } from '@/relisten/components/row_subtitle';
-import dayjs from 'dayjs';
-import { useArtists } from '@/relisten/realm/models/artist_repo';
-import { Artist } from '@/relisten/realm/models/artist';
-import * as R from 'remeda';
+import { tw } from '@/relisten/util/tw';
+import { aggregateBy } from '@/relisten/util/group_by';
+import { RelistenSectionData } from '@/relisten/components/relisten_section_list';
+import { useHistoryRecentlyPlayedShows } from '@/relisten/realm/models/history/playback_history_entry_repo';
 
-function MyLibrarySectionHeader({ children }: { children: string | string[] }) {
+function MyLibrarySectionHeader({
+  children,
+  className,
+  ...props
+}: { children: string | string[] } & ViewProps) {
   return (
-    <View className="flex px-4 py-2">
-      <RelistenText className="text-m font-bold">{children}</RelistenText>
-    </View>
+    <Link
+      href={{
+        pathname: '/relisten/tabs/(myLibrary)/history/tracks',
+      }}
+      asChild
+    >
+      <TouchableOpacity>
+        <View className={tw('flex px-4 py-2', className)} {...props}>
+          <RelistenText className="text-m font-bold">{children}</RelistenText>
+        </View>
+      </TouchableOpacity>
+    </Link>
   );
 }
 
 function RecentlyPlayedShows() {
-  const recentlyPlayed = useQuery(
-    {
-      type: PlaybackHistoryEntry,
-      query: (query) => query.sorted('playbackStartedAt', /* reverse= */ true),
-    },
-    []
-  );
+  const recentlyPlayedShows = useHistoryRecentlyPlayedShows();
 
-  const recentlyPlayedShows = useMemo(() => {
-    const recentlyPlayedShowUuids: string[] = [];
-    const entryByShowUuid: { [uuid: string]: PlaybackHistoryEntry } = {};
-
-    for (const entry of recentlyPlayed) {
-      if (recentlyPlayedShowUuids.indexOf(entry.show.uuid) === -1) {
-        recentlyPlayedShowUuids.push(entry.show.uuid);
-        entryByShowUuid[entry.show.uuid] = entry;
-      }
-
-      if (recentlyPlayedShowUuids.length >= 6) {
-        break;
-      }
-    }
-
-    return recentlyPlayedShowUuids.map((uuid) => entryByShowUuid[uuid]);
-  }, [recentlyPlayed]);
+  if (recentlyPlayedShows.length === 0) {
+    return <></>;
+  }
 
   return (
     <View>
@@ -60,7 +47,7 @@ function RecentlyPlayedShows() {
       <View className="w-full flex-row flex-wrap gap-y-2 px-2">
         {recentlyPlayedShows.map((show, idx) => (
           <View
-            className={clsx('shrink basis-1/2', {
+            className={tw('shrink basis-1/2', {
               'pr-1': idx % 2 == 0,
               'pl-1': idx % 2 != 0,
             })}
@@ -69,7 +56,7 @@ function RecentlyPlayedShows() {
             <Link
               href={{
                 pathname:
-                  '/relisten/tabs/(artists)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/',
+                  '/relisten/tabs/(myLibrary)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/',
                 params: {
                   artistUuid: show.show.artistUuid,
                   showUuid: show.show.uuid,
@@ -127,13 +114,24 @@ function FavoriteShows() {
     return [...favoriteShowsQuery];
   }, [favoriteShowsQuery]);
 
-  const showListRenderItem: ListRenderItem<Show> = ({ item: show }) => {
-    return (
-      <ShowListItem show={show}>
-        <SubtitleText>{show.artist.name}</SubtitleText>
-      </ShowListItem>
-    );
-  };
+  const favoriteShowsByArtist: RelistenSectionData<Show> = useMemo(() => {
+    const showsByArtistUuid = aggregateBy(favoriteShows, (s) => s.artistUuid);
+
+    return Object.keys(showsByArtistUuid)
+      .sort((a, b) => {
+        const artistA = showsByArtistUuid[a][0].artist;
+        const artistB = showsByArtistUuid[b][0].artist;
+
+        return artistA.name.localeCompare(artistB.name);
+      })
+      .map((artistUuid) => {
+        const shows = showsByArtistUuid[artistUuid];
+        return {
+          sectionTitle: shows[0].artist.name,
+          data: shows,
+        };
+      });
+  }, [favoriteShows]);
 
   // TODO(alecgorge): if the user has a favorited source within that show, take them directly there
 
@@ -144,8 +142,7 @@ function FavoriteShows() {
           {`${favoriteShows.length} Shows in My Library`}&nbsp;›
         </MyLibrarySectionHeader>
         <ShowListContainer
-          data={[{ data: favoriteShows }]}
-          renderItem={showListRenderItem}
+          data={favoriteShowsByArtist}
           filterOptions={{ persistence: { key: ['myLibrary', 'shows'].join('/') } }}
         />
       </RefreshContextProvider>
@@ -153,9 +150,8 @@ function FavoriteShows() {
   );
 }
 
-export default function Page() {
+export default function MyLibraryPage() {
   // TODO: listening history that shows all tracks
-
   return (
     <SafeAreaView className="w-full flex-1 flex-col">
       <ScrollScreen>

@@ -10,14 +10,28 @@ interface NewProps {
   children?: React.ReactNode;
 }
 
-export const SubtitleRow = ({ cn, style, as = Flex, ...props }: TextProps & NewProps) => {
+export const SubtitleRow = ({
+  cn,
+  className,
+  style,
+  as = Flex,
+  ...props
+}: TextProps & NewProps) => {
   const Comp = as;
 
-  return <Comp {...props} cn={tw('pt-1 justify-between', cn)} numberOfLines={1} />;
+  return <Comp {...props} cn={tw('pt-1 justify-between', className, cn)} numberOfLines={1} />;
 };
 
-export const SubtitleText = ({ cn, style, as = RelistenText, ...props }: TextProps & NewProps) => {
+export const SubtitleText = ({
+  cn,
+  className,
+  style,
+  as = RelistenText,
+  ...props
+}: TextProps & NewProps) => {
   const Comp = as;
 
-  return <Comp {...props} cn={tw('text-s text-gray-400', cn)} numberOfLines={2} />;
+  return (
+    <Comp className={tw('text-s text-gray-400', className, cn)} numberOfLines={2} {...props} />
+  );
 };

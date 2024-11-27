@@ -29,13 +29,15 @@ export default function TabLayout() {
           tabBarIcon: ({ focused, color, size }) => {
             let iconName;
 
+            console.log(route.name, route);
+
             if (route.name === '(artists)') {
               iconName = focused ? 'account-music' : 'account-music-outline';
               return <MaterialCommunityIcons name={iconName as any} size={size} color={color} />;
             } else if (route.name === '(downloaded)') {
               iconName = focused ? 'download' : 'download-outline';
               return <MaterialCommunityIcons name={iconName as any} size={size} color={color} />;
-            } else if (route.name === '(myLibrary)/myLibrary') {
+            } else if (route.name === '(myLibrary)') {
               return <MaterialIcons name="library-music" size={size} color={color} />;
             }
 
@@ -61,7 +63,7 @@ export default function TabLayout() {
           }}
         />
 
-        <Tabs.Screen name="(myLibrary)/myLibrary" options={{ title: 'My Library' }} />
+        <Tabs.Screen name="(myLibrary)" options={{ title: 'My Library', headerShown: false }} />
         <Tabs.Screen name="(relisten)/index" options={{ title: 'Relisten' }} />
       </Tabs>
       <PlayerBottomBar />

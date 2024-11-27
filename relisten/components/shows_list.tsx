@@ -21,13 +21,8 @@ interface ShowListItemProps {
 }
 
 export const ShowListItem = ({ show, children }: ShowListItemProps) => {
-  let groupSegment = useGroupSegment();
+  const groupSegment = useGroupSegment();
   const isDownloadedTab = useIsDownloadedTab();
-
-  // If we are on (myLibrary) go back to (artists)
-  if (groupSegment !== '(artists)' && groupSegment !== '(downloaded)') {
-    groupSegment = '(artists)';
-  }
 
   return (
     <Link

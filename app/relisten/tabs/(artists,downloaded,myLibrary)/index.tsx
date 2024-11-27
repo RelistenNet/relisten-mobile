@@ -14,9 +14,9 @@ import { SourceTrackSucceededIndicator } from '@/relisten/components/source/sour
 import { Artist } from '@/relisten/realm/models/artist';
 import { useArtistMetadata, useArtists } from '@/relisten/realm/models/artist_repo';
 import { useGroupSegment, useIsDownloadedTab, useRoute } from '@/relisten/util/routes';
-import { Link } from 'expo-router';
+import { Link, useNavigation } from 'expo-router';
 import plur from 'plur';
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import Realm from 'realm';
 import { useQuery } from '@/relisten/realm/schema';
@@ -24,6 +24,7 @@ import {
   SourceTrackOfflineInfo,
   SourceTrackOfflineInfoStatus,
 } from '@/relisten/realm/models/source_track_offline_info';
+import MyLibraryPage from '@/app/relisten/tabs/(artists,downloaded,myLibrary)/myLibrary';
 
 const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) => {
   const nextRoute = useRoute('[artistUuid]');
@@ -116,11 +117,22 @@ export default function Page() {
   const results = useArtists();
   const groupSegment = useGroupSegment();
   const isDownloadedTab = useIsDownloadedTab();
+  const navigation = useNavigation();
   const { data: artists } = results;
 
   const downloads = useQuery(SourceTrackOfflineInfo, (query) =>
     query.filtered('status != $0', SourceTrackOfflineInfoStatus.Succeeded).sorted('queuedAt')
   );
+
+  useEffect(() => {
+    navigation.setOptions({
+      headerShown: groupSegment !== '(myLibrary)',
+    });
+  }, [groupSegment]);
+
+  if (groupSegment === '(myLibrary)') {
+    return <MyLibraryPage />;
+  }
 
   return (
     <View style={{ flex: 1, width: '100%' }}>
@@ -143,8 +155,7 @@ export default function Page() {
           <View>
             <Link
               href={{
-                pathname:
-                  '/relisten/tabs/(artists)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/',
+                pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
                 params: {
                   artistUuid: '77a58ff9-2e01-c59c-b8eb-cff106049b72',
                   showUuid: '104c96e5-719f-366f-b72d-8d53709c80e0',

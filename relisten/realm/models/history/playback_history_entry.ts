@@ -3,6 +3,7 @@ import type { SourceTrack } from '@/relisten/realm/models/source_track';
 import { Artist } from '@/relisten/realm/models/artist';
 import { Show } from '@/relisten/realm/models/show';
 import { Source } from '@/relisten/realm/models/source';
+import dayjs from 'dayjs';
 
 export enum PlaybackFlags {
   None = 0,
@@ -38,6 +39,15 @@ export class PlaybackHistoryEntry extends Realm.Object<PlaybackHistoryEntry> {
 
   createdAt!: Date;
   playbackStartedAt!: Date;
+
+  private _humanizedPlaybackStartedAt?: string;
+  humanizedPlaybackStartedAt() {
+    if (!this._humanizedPlaybackStartedAt) {
+      this._humanizedPlaybackStartedAt = dayjs(this.playbackStartedAt).format('LT');
+    }
+
+    return this._humanizedPlaybackStartedAt;
+  }
 
   sourceTrack!: SourceTrack;
   artist!: Artist;

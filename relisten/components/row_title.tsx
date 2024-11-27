@@ -1,6 +1,6 @@
-import clsx from 'clsx';
 import React from 'react';
 import { Text, TextProps } from 'react-native';
+import { tw } from '@/relisten/util/tw';
 
 interface NewProps {
   as?: React.ElementType;
@@ -14,7 +14,7 @@ const RowTitle = ({ className, as = Text, ...props }: TextProps & NewProps) => {
   return (
     <Comp
       {...props}
-      className={clsx('numb text-lg font-semibold text-white', className)}
+      className={tw('numb text-lg font-semibold text-white', className)}
       style={{ fontVariant: ['tabular-nums'] }}
     />
   );

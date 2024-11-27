@@ -6,6 +6,7 @@ import { TouchableOpacity, TouchableOpacityProps, View } from 'react-native';
 import { RelistenObject } from '../../api/models/relisten';
 import { RelistenText } from '../relisten_text';
 import { Filter, SortDirection } from './filters';
+import { tw } from "@/relisten/util/tw";
 
 export const FilterBarButton = <K extends string, T extends RelistenObject>({
   filter,
@@ -51,7 +52,7 @@ export const FilterBarButton = <K extends string, T extends RelistenObject>({
 
   return (
     <TouchableOpacity
-      className={clsx(
+      className={tw(
         'flex flex-row items-center rounded-lg p-1 px-2',
         filter.active
           ? 'border border-transparent bg-relisten-blue-600'

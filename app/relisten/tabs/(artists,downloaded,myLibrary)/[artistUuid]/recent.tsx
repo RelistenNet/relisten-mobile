@@ -15,6 +15,7 @@ import { clsx } from 'clsx';
 import dayjs from 'dayjs';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
+import { tw } from "@/relisten/util/tw";
 
 export default function Page() {
   const navigation = useNavigation();
@@ -77,7 +78,7 @@ const RecentHeader = ({ activeTab, setActiveTab }: RecentHeaderProps) => {
       </RelistenText>
       <Flex cn="m-2 rounded-sm">
         <RelistenButton
-          cn={clsx('flex-1 rounded-none rounded-l-md', {
+          cn={tw('flex-1 rounded-none rounded-l-md', {
             'bg-relisten-blue-600': activeTab === RecentShowTabs.Performed,
           })}
           onPress={() => setActiveTab(RecentShowTabs.Performed)}
@@ -85,7 +86,7 @@ const RecentHeader = ({ activeTab, setActiveTab }: RecentHeaderProps) => {
           Performed
         </RelistenButton>
         <RelistenButton
-          cn={clsx('flex-1 rounded-none rounded-r-md', {
+          cn={tw('flex-1 rounded-none rounded-r-md', {
             'bg-relisten-blue-600': activeTab === RecentShowTabs.Updated,
           })}
           onPress={() => setActiveTab(RecentShowTabs.Updated)}

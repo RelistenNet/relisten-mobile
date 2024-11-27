@@ -2,6 +2,7 @@ import { View, ViewProps } from 'react-native';
 import React, { PropsWithChildren } from 'react';
 import { RelistenText } from './relisten_text';
 import clsx from 'clsx';
+import { tw } from "@/relisten/util/tw";
 
 export const SectionHeader: React.FC<PropsWithChildren<{ title?: string } & ViewProps>> = ({
   title,
@@ -16,7 +17,7 @@ export const SectionHeader: React.FC<PropsWithChildren<{ title?: string } & View
   }
 
   return (
-    <View className={clsx('flex bg-relisten-blue-800 px-4 py-2', className)} {...props}>
+    <View className={tw('flex bg-relisten-blue-800 px-4 py-2', className)} {...props}>
       {inner}
     </View>
   );

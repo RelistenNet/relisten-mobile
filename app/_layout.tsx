@@ -31,7 +31,7 @@ import { PlaybackHistoryReporterComponent } from '@/relisten/components/playback
 import { LogBox } from 'react-native';
 
 // c.f. https://github.com/meliorence/react-native-render-html/issues/661#issuecomment-2453476566
-LogBox.ignoreLogs([/Warning: TNodeChildrenRenderer: Support for defaultProps will be removed/]);
+LogBox.ignoreLogs([/Support for defaultProps will be removed/]);
 
 dayjs.extend(duration);
 dayjs.extend(relativeTime);

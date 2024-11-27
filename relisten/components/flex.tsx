@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import React from 'react';
 import { View, ViewProps } from 'react-native';
+import { tw } from "@/relisten/util/tw";
 
 interface NewProps {
   as?: React.ElementType;
@@ -17,7 +18,7 @@ const Flex = ({ cn, center, column, as = View, full, ...props }: ViewProps & New
   return (
     <Comp
       {...props}
-      className={clsx(
+      className={tw(
         'flex',
         {
           'flex-row': !column,

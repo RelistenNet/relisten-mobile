@@ -17,7 +17,7 @@ export interface RelistenSection<T> {
 
 export type RelistenSectionHeader = { sectionTitle: string };
 
-export type RelistenSectionData<T> = RelistenSection<T>[];
+export type RelistenSectionData<T> = ReadonlyArray<RelistenSection<T>>;
 
 export type FlashListRelistenRawItem<T> = { rawItem: T; keyPrefix?: string };
 export type FlashListRelistenData<T> = ReadonlyArray<

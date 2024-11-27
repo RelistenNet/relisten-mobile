@@ -5,13 +5,10 @@ import { List as ListContentLoader } from 'react-content-loader/native';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useFullShowWithSelectedSource } from '@/relisten/realm/models/show_repo';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import {
-  SourceFooter,
-  SourceProperty,
-} from '@/app/relisten/tabs/(artists,downloaded)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/index';
 import RenderHtml from 'react-native-render-html';
 import { Source } from '@/relisten/realm/models/source';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
+import { SourceFooter, SourceProperty } from '@/relisten/components/source/source_components';
 
 function SourceDetails({ source, ...props }: { source: Source } & ScrollViewProps) {
   const { width } = useWindowDimensions();

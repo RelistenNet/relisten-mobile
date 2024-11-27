@@ -1,9 +1,7 @@
-import { Link as SLink } from '@/relisten/api/models/source';
 import { ItemSeparator } from '@/relisten/components/item_separator';
 import { RefreshContextProvider, useRefreshContext } from '@/relisten/components/refresh_context';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RelistenFlatList } from '@/relisten/components/relisten_flat_list';
-import { RelistenLink } from '@/relisten/components/relisten_link';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { Show } from '@/relisten/realm/models/show';
@@ -14,18 +12,10 @@ import { useRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useForceUpdate } from '@/relisten/util/forced_update';
 import { MaterialIcons } from '@expo/vector-icons';
-import dayjs from 'dayjs';
 import { Link, useLocalSearchParams, useNavigation } from 'expo-router';
-import { openBrowserAsync } from 'expo-web-browser';
 import React, { PropsWithChildren, useCallback, useEffect } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
-import {
-  Animated,
-  ScrollViewProps,
-  TouchableOpacity,
-  TouchableOpacityProps,
-  View,
-} from 'react-native';
+import { Animated, ScrollViewProps, View } from 'react-native';
 import * as R from 'remeda';
 
 import { SourceSets } from '@/relisten/components/source/source_sets_component';
@@ -40,6 +30,11 @@ import Flex from '@/relisten/components/flex';
 import Plur from '@/relisten/components/plur';
 import { log } from '@/relisten/util/logging';
 import { RelistenErrors } from '@/relisten/components/relisten_errors';
+import {
+  SourceFooter,
+  SourceProperty,
+  SourceSummary,
+} from '@/relisten/components/source/source_components';
 
 const logger = log.extend('source screen');
 
@@ -263,30 +258,6 @@ function sourceRatingText(source: Source) {
   return `${source.humanizedAvgRating()}★ (${source.numRatings || source.numReviews} ratings)`;
 }
 
-export const SourceFooter: React.FC<{ source: Source }> = ({ source }) => {
-  return (
-    <View className="px-4 py-4">
-      <RelistenText className="text-l py-1 text-gray-400">
-        Source last updated: {dayjs(source.updatedAt).format('YYYY-MM-DD')}
-      </RelistenText>
-      <RelistenText className="text-l py-1 text-gray-400">
-        Identifier: {source.upstreamIdentifier}
-      </RelistenText>
-      {source.links().map((l) => (
-        <SourceLink key={l.upstream_source_id} className="py-1" link={l} />
-      ))}
-    </View>
-  );
-};
-
-export const SourceLink = ({ link, ...props }: { link: SLink } & TouchableOpacityProps) => {
-  return (
-    <TouchableOpacity onPress={() => openBrowserAsync(link.url)} {...props}>
-      <RelistenLink className="text-l font-bold text-gray-400">{link.label}</RelistenLink>
-    </TouchableOpacity>
-  );
-};
-
 export const SourceHeader = ({
   show,
   source,
@@ -334,62 +305,7 @@ export const SourceHeader = ({
           </RelistenText>
         )}
       </View>
-      <Link
-        href={{
-          pathname:
-            `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/source_details` as const,
-          params: {
-            artistUuid: show.artistUuid,
-            showUuid: show.uuid,
-            sourceUuid: source.uuid,
-          },
-        }}
-      >
-        <View className="w-full py-4">
-          {source.taper && (
-            <SourceProperty title="Taper">
-              <RelistenText numberOfLines={2} selectable={false}>
-                {source.taper}
-              </RelistenText>
-            </SourceProperty>
-          )}
-          {source.transferrer && (
-            <SourceProperty title="Transferrer">
-              <RelistenText numberOfLines={2} selectable={false}>
-                {source.transferrer}
-              </RelistenText>
-            </SourceProperty>
-          )}
-          {source.source && (
-            <SourceProperty title="Source">
-              <RelistenText numberOfLines={2} selectable={false}>
-                {source.source}
-              </RelistenText>
-            </SourceProperty>
-          )}
-          {source.lineage && (
-            <SourceProperty title="Lineage">
-              <RelistenText numberOfLines={2} selectable={false}>
-                {source.lineage}
-              </RelistenText>
-            </SourceProperty>
-          )}
-          {source.taperNotes && (
-            <SourceProperty title="Taper Notes">
-              <RelistenText numberOfLines={2} selectable={false}>
-                {source.taperNotes}
-              </RelistenText>
-            </SourceProperty>
-          )}
-          {source.description && (
-            <SourceProperty title="Description">
-              <RelistenText numberOfLines={2} selectable={false}>
-                {source.description}
-              </RelistenText>
-            </SourceProperty>
-          )}
-        </View>
-      </Link>
+      <SourceSummary source={source} />
       <View className="w-full flex-row pb-4" style={{ gap: 16 }}>
         <RelistenButton
           className="shrink basis-1/3"
@@ -469,25 +385,6 @@ export const SourceHeader = ({
         </Flex>
       )}
       {source.sourceSets.length === 1 && <ItemSeparator />}
-    </View>
-  );
-};
-
-export const SourceProperty: React.FC<PropsWithChildren<{ title: string; value?: string }>> = ({
-  title,
-  value,
-  children,
-}) => {
-  return (
-    <View className="w-full flex-1 flex-col py-1">
-      <RelistenText className="pb-1 text-sm font-bold text-gray-400">{title}</RelistenText>
-      {value ? (
-        <RelistenText className="bg w-full grow" selectable={true}>
-          {value}
-        </RelistenText>
-      ) : (
-        <View className="bg w-full grow">{children}</View>
-      )}
     </View>
   );
 };
