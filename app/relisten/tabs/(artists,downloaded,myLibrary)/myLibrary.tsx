@@ -1,6 +1,6 @@
 import { useQuery } from '@/relisten/realm/schema';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import React, { useMemo } from 'react';
+import React, { PropsWithChildren, useMemo } from 'react';
 import { ScrollView, TouchableOpacity, View, ViewProps } from 'react-native';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
@@ -12,12 +12,9 @@ import { tw } from '@/relisten/util/tw';
 import { aggregateBy } from '@/relisten/util/group_by';
 import { RelistenSectionData } from '@/relisten/components/relisten_section_list';
 import { useHistoryRecentlyPlayedShows } from '@/relisten/realm/models/history/playback_history_entry_repo';
+import Plur from '@/relisten/components/plur';
 
-function MyLibrarySectionHeader({
-  children,
-  className,
-  ...props
-}: { children: string | string[] } & ViewProps) {
+function MyLibrarySectionHeader({ children, className, ...props }: PropsWithChildren<ViewProps>) {
   return (
     <Link
       href={{
@@ -139,7 +136,7 @@ function FavoriteShows() {
     <View className="pt-4">
       <RefreshContextProvider>
         <MyLibrarySectionHeader>
-          {`${favoriteShows.length} Shows in My Library`}&nbsp;›
+          <Plur word="Show" count={favoriteShows.length} /> in My Library&nbsp;›
         </MyLibrarySectionHeader>
         <ShowListContainer
           data={favoriteShowsByArtist}
