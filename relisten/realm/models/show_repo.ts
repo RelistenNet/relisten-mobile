@@ -134,6 +134,10 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
         updatedModels: [updatedShow],
       } = showRepo.upsert(realm, apiData, localData.show);
 
+      if (createdShow) {
+        createdShow.artist = artist!;
+      }
+
       if (!localData.show) {
         localData.show = updatedShow || createdShow;
       }
@@ -155,7 +159,15 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
         }
       }
 
-      sourceRepo.upsertMultiple(realm, apiData.sources, localData.sources);
+      const { createdModels: createdSources } = sourceRepo.upsertMultiple(
+        realm,
+        apiData.sources,
+        localData.sources
+      );
+
+      for (const source of createdSources) {
+        source.artist = artist!;
+      }
 
       for (const source of localData.sources) {
         const { createdModels: createdSourceSets } = sourceSetRepo.upsertMultiple(
@@ -176,8 +188,8 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
           sourceSet.sourceTracks.push(...createdSourceTracks);
 
           createdSourceTracks.forEach((st) => {
-            st.artist = artist || undefined;
-            st.year = year || undefined;
+            st.artist = artist!;
+            st.year = year!;
             st.show = localData.show;
             st.source = source;
           });

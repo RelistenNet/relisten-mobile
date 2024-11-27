@@ -122,13 +122,6 @@ function FavoriteShows() {
     },
     []
   );
-  const artists = useArtists();
-
-  const artistsByUuid = useMemo(() => {
-    return R.fromEntries(
-      R.flatMap(artists.data as unknown as ReadonlyArray<Artist>, (a) => [[a.uuid, a]])
-    );
-  }, [artists]);
 
   const favoriteShows = useMemo(() => {
     return [...favoriteShowsQuery];
@@ -137,7 +130,7 @@ function FavoriteShows() {
   const showListRenderItem: ListRenderItem<Show> = ({ item: show }) => {
     return (
       <ShowListItem show={show}>
-        <SubtitleText>{artistsByUuid[show.artistUuid].name}</SubtitleText>
+        <SubtitleText>{show.artist.name}</SubtitleText>
       </ShowListItem>
     );
   };

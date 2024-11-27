@@ -100,13 +100,11 @@ class YearShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
     }
 
     realm.write(() => {
-      upsertShowList(
-        realm,
-        localData.shows,
-        apiData.shows,
-        /* performDeletes= */ true,
-        /* queryForModel= */ false // we know this list of shows is authoritative
-      );
+      upsertShowList(realm, apiData.shows, localData.shows, {
+        // we may not have all the shows here on initial load
+        performDeletes: false,
+        queryForModel: false, // we know this list of shows is authoritative
+      });
     });
   }
 }

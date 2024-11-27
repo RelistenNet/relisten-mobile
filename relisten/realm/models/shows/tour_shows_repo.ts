@@ -1,20 +1,19 @@
 import { useObject, useQuery } from '../../schema';
 import { useNetworkBackedBehavior } from '../../network_backed_behavior_hooks';
 import { useArtist } from '../artist_repo';
-import { NetworkBackedResults, mergeNetworkBackedResults } from '../../network_backed_results';
+import { mergeNetworkBackedResults, NetworkBackedResults } from '../../network_backed_results';
 import { useMemo } from 'react';
 import { Tour } from '../tour';
 import { TourWithShows } from '@/relisten/api/models/tour';
 import { RelistenApiClient, RelistenApiResponse } from '@/relisten/api/client';
 import {
-  ThrottledNetworkBackedBehavior,
   NetworkBackedBehaviorOptions,
+  ThrottledNetworkBackedBehavior,
 } from '../../network_backed_behavior';
 import { Show } from '../show';
-import { showRepo } from '../show_repo';
 import { tourRepo } from '../tour_repo';
 import Realm from 'realm';
-import * as R from 'remeda';
+import { upsertShowList } from '@/relisten/realm/models/repo_utils';
 
 export interface TourShows {
   tour: Tour | null;
@@ -59,43 +58,18 @@ class TourShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
       return;
     }
 
-    const apiToursByUuid = R.fromEntries(
-      R.flatMap(
-        apiData.shows.filter((s) => !!s.tour),
-
-        (s) => [[s.tour!.uuid, s.tour!]]
-      )
-    );
-
     realm.write(() => {
-      const { createdModels: createdShows } = showRepo.upsertMultiple(
-        realm,
-        apiData.shows,
-        localData.shows,
-        /* performDeletes= */ false
-      );
+      upsertShowList(realm, apiData.shows, localData.shows, {
+        // we may not have all the shows here on initial load
+        performDeletes: false,
+        queryForModel: true,
+        upsertModels: {
+          // every tour is the same, so just do it once here
+          tours: false,
+        },
+      });
 
-      for (const show of createdShows.concat(localData.shows)) {
-        if (show.tourUuid) {
-          const apiTour = apiToursByUuid[show.tourUuid];
-
-          if (!show.tour) {
-            const localTour = realm.objectForPrimaryKey(Tour, show.tourUuid);
-
-            if (localTour) {
-              show.tour = localTour;
-            } else {
-              const { createdModels: createdTours } = tourRepo.upsert(realm, apiTour, undefined);
-
-              if (createdTours.length > 0) {
-                show.tour = createdTours[0];
-              }
-            }
-          } else {
-            tourRepo.upsert(realm, apiTour, show.tour);
-          }
-        }
-      }
+      tourRepo.upsert(realm, apiData, localData.tour || undefined);
     });
   }
 }

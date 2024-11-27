@@ -5,6 +5,7 @@ import { RelistenObjectRequiredProperties } from '../relisten_object';
 import { FavoritableObject } from '../favoritable_object';
 import type { SourceSet } from './source_set';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
+import { Artist } from '@/relisten/realm/models/artist';
 
 export interface SourceRequiredRelationships {
   // sourceSets: Realm.List<SourceSet>;
@@ -76,6 +77,7 @@ export class Source
         objectType: 'SourceTrack',
         property: 'source',
       },
+      artist: 'Artist?',
 
       isFavorite: { type: 'bool', default: false },
     },
@@ -111,6 +113,7 @@ export class Source
 
   sourceSets!: Realm.List<SourceSet>;
   sourceTracks!: Realm.List<SourceTrack>;
+  artist!: Artist;
 
   private _links?: Link[];
   links() {

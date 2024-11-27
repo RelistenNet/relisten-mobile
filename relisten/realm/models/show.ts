@@ -7,6 +7,7 @@ import { Venue } from './venue';
 import { SourceTrack } from './source_track';
 import { checkIfOfflineSourceTrackExists } from '../realm_filters';
 import { Tour } from './tour';
+import { Artist } from '@/relisten/realm/models/artist';
 
 export interface ShowRequiredRelationships {}
 
@@ -57,6 +58,7 @@ export class Show
         property: 'show',
       },
       tour: 'Tour?',
+      artist: 'Artist?',
     },
   };
 
@@ -79,6 +81,7 @@ export class Show
   venue?: Venue;
   sourceTracks!: Realm.List<SourceTrack>;
   tour?: Tour;
+  artist!: Artist;
 
   isFavorite!: boolean;
 

@@ -1,20 +1,19 @@
 import { useObject, useQuery } from '../../schema';
 import { useNetworkBackedBehavior } from '../../network_backed_behavior_hooks';
 import { useArtist } from '../artist_repo';
-import { NetworkBackedResults, mergeNetworkBackedResults } from '../../network_backed_results';
+import { mergeNetworkBackedResults, NetworkBackedResults } from '../../network_backed_results';
 import { useMemo } from 'react';
 import { Venue } from '../venue';
 import { VenueWithShows } from '@/relisten/api/models/venue';
 import { RelistenApiClient, RelistenApiResponse } from '@/relisten/api/client';
 import {
-  ThrottledNetworkBackedBehavior,
   NetworkBackedBehaviorOptions,
+  ThrottledNetworkBackedBehavior,
 } from '../../network_backed_behavior';
 import { Show } from '../show';
-import { showRepo } from '../show_repo';
 import { venueRepo } from '../venue_repo';
 import Realm from 'realm';
-import * as R from 'remeda';
+import { upsertShowList } from '@/relisten/realm/models/repo_utils';
 
 export interface VenueShows {
   venue: Venue | null;
@@ -59,44 +58,18 @@ class VenueShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
       return;
     }
 
-    const apiVenuesByUuid = R.fromEntries(
-      R.flatMap(
-        apiData.shows.filter((s) => !!s.venue),
-
-        (s) => [[s.venue!.uuid, s.venue!]]
-      )
-    );
-
     realm.write(() => {
-      const { createdModels: createdShows } = showRepo.upsertMultiple(
-        realm,
-        apiData.shows,
-        localData.shows,
-        /* performDeletes= */ false,
-        /* queryForModel= */ true
-      );
+      upsertShowList(realm, apiData.shows, localData.shows, {
+        // we may not have all the shows here on initial load
+        performDeletes: false,
+        queryForModel: true,
+        upsertModels: {
+          // every venue is the same here, so just do it once here
+          venues: false,
+        },
+      });
 
-      for (const show of createdShows.concat(localData.shows)) {
-        if (show.venueUuid) {
-          const apiVenue = apiVenuesByUuid[show.venueUuid];
-
-          if (!show.venue) {
-            const localVenue = realm.objectForPrimaryKey(Venue, show.venueUuid);
-
-            if (localVenue) {
-              show.venue = localVenue;
-            } else {
-              const { createdModels: createdVenues } = venueRepo.upsert(realm, apiVenue, undefined);
-
-              if (createdVenues.length > 0) {
-                show.venue = createdVenues[0];
-              }
-            }
-          } else {
-            venueRepo.upsert(realm, apiVenue, show.venue);
-          }
-        }
-      }
+      venueRepo.upsert(realm, apiData, localData.venue || undefined);
     });
   }
 }

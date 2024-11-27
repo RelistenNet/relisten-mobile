@@ -60,13 +60,11 @@ class SongShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
     }
 
     realm.write(() => {
-      upsertShowList(
-        realm,
-        localData.shows,
-        apiData.shows,
-        /* performDeletes= */ false,
-        /* queryForModel= */ true // we may not have all the shows here on initial load
-      );
+      upsertShowList(realm, apiData.shows, localData.shows, {
+        // we may not have all the shows here on initial load
+        performDeletes: false,
+        queryForModel: true,
+      });
 
       songRepo.upsert(
         realm,

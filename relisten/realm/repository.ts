@@ -3,6 +3,8 @@ import { RelistenObjectRequiredProperties } from './relisten_object';
 import dayjs from 'dayjs';
 import * as R from 'remeda';
 import { log } from '../util/logging';
+import { groupByUuid } from '@/relisten/util/group_by';
+import { RealmObject } from 'realm/dist/public-types/Object';
 
 const logger = log.extend('repo');
 
@@ -60,6 +62,19 @@ export class Repository<
   RequiredRelationships extends object,
 > {
   constructor(private klass: ModelClass<TModel, TApi, RequiredProperties, RequiredRelationships>) {}
+
+  public forUuids(
+    realm: Realm,
+    uuids?: ReadonlyArray<string>
+  ): Realm.Results<RealmObject<TModel, never> & TModel> {
+    let query = realm.objects<TModel>(this.klass.name);
+
+    if (uuids) {
+      query = query.filtered('uuid in $0', uuids);
+    }
+
+    return query;
+  }
 
   public updateObjectFromApi(realm: Realm, model: TModel, relistenObj: TApi): TModel {
     const p = this.klass.propertiesFromApi(relistenObj);
@@ -146,18 +161,16 @@ export class Repository<
     performDeletes: boolean = true,
     queryForModel = false
   ): UpsertResults<TModel> {
-    const dbIds = models.map((m) => m.uuid);
-    const networkUuids = api.map((a) => a.uuid);
+    const dbIds = [...new Set(models.map((m) => m.uuid))];
+    const networkUuids = [...new Set(api.map((a) => a.uuid))];
 
     const dbIdsToRemove = R.difference(dbIds, networkUuids);
     const networkUuidsToUpsert = R.difference(networkUuids, dbIds).concat(
       R.intersection(dbIds, networkUuids)
     );
 
-    const modelsById = R.fromEntries(
-      R.flatMap(models as ReadonlyArray<TModel>, (m) => [[m.uuid, m]])
-    );
-    const networkApisByUuid = R.fromEntries(R.flatMap(api, (m) => [[m.uuid, m]]));
+    const modelsById = groupByUuid(models as ReadonlyArray<TModel>);
+    const networkApisByUuid = groupByUuid(api);
 
     const acc = { created: 0, updated: 0, deleted: 0, updatedModels: [], createdModels: [] };
 
@@ -186,7 +199,7 @@ export class Repository<
     logger.info(
       'upsertMultiple for',
       this.klass.schema.name,
-      `api length=${api.length}, ${humanizeUpsertResults(acc)}`
+      `api length=${networkUuids.length}, ${humanizeUpsertResults(acc)}`
     );
 
     return acc;
