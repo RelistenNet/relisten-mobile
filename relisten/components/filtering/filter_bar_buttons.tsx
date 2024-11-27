@@ -1,12 +1,11 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import driver from '@switz/driver';
-import clsx from 'clsx';
 import { PropsWithChildren, useReducer } from 'react';
 import { TouchableOpacity, TouchableOpacityProps, View } from 'react-native';
 import { RelistenObject } from '../../api/models/relisten';
 import { RelistenText } from '../relisten_text';
 import { Filter, SortDirection } from './filters';
-import { tw } from "@/relisten/util/tw";
+import { tw } from '@/relisten/util/tw';
 
 export const FilterBarButton = <K extends string, T extends RelistenObject>({
   filter,

@@ -31,6 +31,7 @@ import React, { useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import Realm from 'realm';
 import colors from 'tailwindcss/colors';
+import { ShowFilterKey } from '@/relisten/components/shows_list';
 
 export enum YearFilterKey {
   Library = 'library',
@@ -38,6 +39,7 @@ export enum YearFilterKey {
   Year = 'year',
   Shows = 'shows',
   Tapes = 'tapes',
+  PlayableOffline = 'playableOffline',
 }
 
 export default function Page() {
@@ -249,6 +251,12 @@ const YearListItem = ({ year }: { year: Year }) => {
 };
 
 const YEAR_FILTERS: Filter<YearFilterKey, Year>[] = [
+  {
+    persistenceKey: YearFilterKey.PlayableOffline,
+    title: 'Offline',
+    active: false,
+    filter: (year) => year.hasOfflineTracks,
+  },
   {
     persistenceKey: YearFilterKey.Year,
     title: 'Date',

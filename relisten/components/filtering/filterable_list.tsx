@@ -38,11 +38,13 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
   const sectionedData = useMemo(() => {
     return [
       { sectionTitle: ALL_SECTION_SENTINEL, data: [] },
-      ...data.map((section) => {
-        const filteredData = filteringEnabled ? filter(section.data) : section.data;
+      ...data
+        .map((section) => {
+          const filteredData = filteringEnabled ? filter(section.data) : section.data;
 
-        return { ...section, data: filteredData };
-      }),
+          return { ...section, data: filteredData };
+        })
+        .filter((section) => section.data.length > 0),
     ];
   }, [data, filter, filters, filteringEnabled]);
 

@@ -70,6 +70,7 @@ export enum ShowFilterKey {
   Library = 'library',
   Downloads = 'downloads',
   Soundboard = 'soundboard',
+  PlayableOffline = 'playableOffline',
   Date = 'date',
   Rating = 'rating',
   Tapes = 'tapes',
@@ -82,6 +83,12 @@ const SHOW_FILTERS: Filter<ShowFilterKey, Show>[] = [
     title: 'SBD',
     active: false,
     filter: (show) => show.hasSoundboardSource,
+  },
+  {
+    persistenceKey: ShowFilterKey.PlayableOffline,
+    title: 'Offline',
+    active: false,
+    filter: (show) => show.hasOfflineTracks,
   },
   {
     persistenceKey: ShowFilterKey.Date,
