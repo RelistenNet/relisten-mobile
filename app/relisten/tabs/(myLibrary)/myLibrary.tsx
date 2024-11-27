@@ -132,7 +132,7 @@ function FavoriteShows() {
 
   const favoriteShows = useMemo(() => {
     return [...favoriteShowsQuery];
-  }, [artists, favoriteShowsQuery]);
+  }, [favoriteShowsQuery]);
 
   const showListRenderItem: ListRenderItem<Show> = ({ item: show }) => {
     return (
@@ -141,6 +141,8 @@ function FavoriteShows() {
       </ShowListItem>
     );
   };
+
+  // TODO(alecgorge): if the user has a favorited source within that show, take them directly there
 
   return (
     <View className="pt-4">
