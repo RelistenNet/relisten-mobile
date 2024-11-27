@@ -8,8 +8,6 @@ import { RelistenBlue } from '../relisten_blue';
 import { ItemSeparator } from './item_separator';
 import { useRefreshContext } from './refresh_context';
 import { SectionHeader } from './section_header';
-import { RelistenText } from '@/relisten/components/relisten_text';
-import { errorDisplayString } from '@/relisten/api/client';
 import { RelistenErrors } from '@/relisten/components/relisten_errors';
 
 export interface RelistenSection<T> {
@@ -48,7 +46,7 @@ export const RelistenSectionList = <T extends RelistenObject>({
   ListHeaderComponent,
   ...props
 }: RelistenSectionListProps<T>) => {
-  const { onRefresh, refreshing, errors } = useRefreshContext();
+  const { onRefresh, refreshing, errors } = useRefreshContext(/* refreshRequired= */ false);
   const { playerBottomBarHeight } = useRelistenPlayerBottomBarContext();
 
   // you might ask why we need this

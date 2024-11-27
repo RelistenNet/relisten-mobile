@@ -1,18 +1,18 @@
-import { useObject, useQuery } from '../schema';
-import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
-import { useArtist } from './artist_repo';
-import { NetworkBackedResults, mergeNetworkBackedResults } from '../network_backed_results';
+import { useObject, useQuery } from '../../schema';
+import { useNetworkBackedBehavior } from '../../network_backed_behavior_hooks';
+import { useArtist } from '../artist_repo';
+import { NetworkBackedResults, mergeNetworkBackedResults } from '../../network_backed_results';
 import { useMemo } from 'react';
-import { Venue } from './venue';
+import { Venue } from '../venue';
 import { VenueWithShows } from '@/relisten/api/models/venue';
 import { RelistenApiClient, RelistenApiResponse } from '@/relisten/api/client';
 import {
   ThrottledNetworkBackedBehavior,
   NetworkBackedBehaviorOptions,
-} from '../network_backed_behavior';
-import { Show } from './show';
-import { showRepo } from './show_repo';
-import { venueRepo } from './venue_repo';
+} from '../../network_backed_behavior';
+import { Show } from '../show';
+import { showRepo } from '../show_repo';
+import { venueRepo } from '../venue_repo';
 import Realm from 'realm';
 import * as R from 'remeda';
 

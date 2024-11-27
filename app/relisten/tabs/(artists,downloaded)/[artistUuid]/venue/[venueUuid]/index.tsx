@@ -3,7 +3,7 @@ import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { ShowListContainer } from '@/relisten/components/shows_list';
-import { VenueShows, useArtistVenueShows } from '@/relisten/realm/models/venue_shows_repo';
+import { useArtistVenueShows, VenueShows } from '@/relisten/realm/models/shows/venue_shows_repo';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { useEffect, useMemo } from 'react';
 import { View } from 'react-native';
@@ -13,7 +13,7 @@ export default function Page() {
   const { artistUuid, venueUuid } = useLocalSearchParams();
   const results = useArtistVenueShows(String(artistUuid), String(venueUuid));
   const {
-    data: { venue, artist },
+    data: { venue },
   } = results;
 
   useEffect(() => {
@@ -33,7 +33,6 @@ export default function Page() {
           ScrollableComponent={ShowListContainer}
           ListHeaderComponent={<VenueHeader venue={venue} />}
           data={data}
-          artist={artist}
           filterOptions={{
             persistence: { key: ['artists', artistUuid, 'venue', venueUuid].join('/') },
           }}

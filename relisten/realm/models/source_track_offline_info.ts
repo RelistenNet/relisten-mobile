@@ -66,4 +66,8 @@ export class SourceTrackOfflineInfo extends Realm.Object<SourceTrackOfflineInfo>
   get sourceTrack() {
     return this.sourceTracks[0];
   }
+
+  isPlayableOffline() {
+    return this.status == SourceTrackOfflineInfoStatus.Succeeded;
+  }
 }

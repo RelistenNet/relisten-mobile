@@ -79,7 +79,7 @@ export class PlayerQueueTrack {
     let url = this.sourceTrack.mp3Url;
     let downloadDestination: string | undefined = undefined;
 
-    if (this.sourceTrack.offlineInfo?.status === SourceTrackOfflineInfoStatus.Succeeded) {
+    if (this.sourceTrack.offlineInfo?.isPlayableOffline()) {
       url = 'file://' + this.sourceTrack.downloadedFileLocation();
     } else {
       downloadDestination = 'file://' + this.sourceTrack.downloadedFileLocation();
@@ -118,6 +118,8 @@ export class RelistenPlayerQueue {
   onCurrentTrackChanged = new EventSource<PlayerQueueTrack | undefined>();
   onRepeatStateChanged = new EventSource<PlayerRepeatState>();
   onShuffleStateChanged = new EventSource<PlayerShuffleState>();
+
+  public currentTrackPlaybackStartedAt: Date | undefined = undefined;
 
   queueNextTrack(queueTracks: PlayerQueueTrack[]) {
     function insertNext(arr: PlayerQueueTrack[], currentIndex: number | undefined) {
@@ -367,6 +369,9 @@ export class RelistenPlayerQueue {
 
     if (newIdentifier !== undefined) {
       this.recalculateTrackIndexes(newIdentifier);
+      this.currentTrackPlaybackStartedAt = new Date();
+    } else {
+      this.currentTrackPlaybackStartedAt = undefined;
     }
 
     this.recalculateNextTrack();

@@ -12,6 +12,7 @@ import { VenueWithShowCounts, VenueWithShows } from './models/venue';
 import { TourWithShowCount, TourWithShows } from './models/tour';
 import { SongWithPlayCount, SongWithShows } from './models/song';
 import { Show } from './models/show';
+import { Platform } from 'react-native';
 
 const logger = log.extend('network');
 
@@ -57,6 +58,11 @@ export interface RelistenApiClientError {
   message?: string;
 }
 
+enum RelistenApiRequestMethod {
+  GET = 'GET',
+  POST = 'POST',
+}
+
 export function errorDisplayString(err?: RelistenApiClientError): string {
   if (!err) {
     return 'Unknown (missing) error';
@@ -82,6 +88,10 @@ export class RelistenApiClient {
 
   private inflightRequests: Map<string, Promise<RelistenApiResponse<unknown>>> = new Map();
 
+  private postJson<T>(url: string, body: object): Promise<RelistenApiResponse<T>> {
+    return this.makeJsonRequest<T>(RelistenApiRequestMethod.POST, url, body);
+  }
+
   private getJson<
     T extends
       | (RelistenObject & RelistenUpdatableObject)
@@ -94,7 +104,12 @@ export class RelistenApiClient {
     let req: Promise<RelistenApiResponse<T>> | undefined = undefined;
 
     if (options?.bypassRequestDeduplication === true || !hasInFlightRequest) {
-      req = this.makeJsonGetRequest(url, options);
+      req = this.makeJsonRequest<T>(
+        RelistenApiRequestMethod.GET,
+        url,
+        /* body= */ undefined,
+        options
+      );
 
       if (!options?.bypassRequestDeduplication) {
         req.then(() => {
@@ -113,13 +128,16 @@ export class RelistenApiClient {
 
   static MIN_REQUEST_COOLDOWN_SECONDS = 1 * 60 * 60;
 
-  private async makeJsonGetRequest<
-    T extends
-      | (RelistenObject & RelistenUpdatableObject)
-      | Array<RelistenObject & RelistenUpdatableObject>,
-  >(url: string, options?: RelistenApiRequestOptions): Promise<RelistenApiResponse<T>> {
+  private async makeJsonRequest<T>(
+    method: RelistenApiRequestMethod,
+    url: string,
+    body?: object,
+    options?: RelistenApiRequestOptions
+  ): Promise<RelistenApiResponse<T>> {
     let urlMetadata: UrlRequestMetadata | null = null;
-    if (realm) {
+    if (method == RelistenApiRequestMethod.POST) {
+      logger.info('[rate limiting] Bypassing rate-limiting for POST request');
+    } else if (realm) {
       urlMetadata = realm.objectForPrimaryKey<UrlRequestMetadata>(UrlRequestMetadata, url);
 
       const msSinceLastRequest = urlMetadata
@@ -151,48 +169,50 @@ export class RelistenApiClient {
     const startedAt = dayjs();
 
     try {
-      const resp = await this.api.get(url).res();
+      const resp = await this.api.fetch(method, url, body).res();
       const j = await resp.json();
 
       const completedAt = new Date();
       const duration = dayjs(completedAt).diff(startedAt, 'milliseconds');
 
-      logger.info(`[api] ${resp.status} ${duration}ms ${resp.url}`);
+      logger.info(`[api] ${resp.status} ${duration}ms ${method} ${resp.url}`);
 
-      const values = (Array.isArray(j) ? j : [j]) as Array<
-        RelistenObject & RelistenUpdatableObject
-      >;
+      if (method === RelistenApiRequestMethod.GET) {
+        const values = (Array.isArray(j) ? j : [j]) as Array<
+          RelistenObject & RelistenUpdatableObject
+        >;
 
-      // TODO(alecgorge): This doesn't account for situations like VenuesWithShows
-      //  where the Venue hasn't changed but the list of Shows has changed
-      const etag = await calculateEtag(values);
+        // TODO(alecgorge): This doesn't account for situations like VenuesWithShows
+        //  where the Venue hasn't changed but the list of Shows has changed
+        const etag = await calculateEtag(values);
 
-      realm?.write(() => {
-        if (urlMetadata) {
-          urlMetadata.etag = etag;
-          urlMetadata.lastRequestCompletedAt = completedAt;
+        realm?.write(() => {
+          if (urlMetadata) {
+            urlMetadata.etag = etag;
+            urlMetadata.lastRequestCompletedAt = completedAt;
+          } else {
+            realm?.create(UrlRequestMetadata, {
+              url,
+              etag,
+              lastRequestCompletedAt: completedAt,
+            });
+          }
+        });
+
+        if (options?.bypassEtagCaching === true) {
+          logger.info(
+            `[etag] url=${url}, updating local database. bypassEtagCaching=${options?.bypassEtagCaching}`
+          );
+        } else if (etag === urlMetadata?.etag) {
+          logger.info(
+            `[etag] url=${resp.url}, request contents unchanged. etag=${urlMetadata?.etag}`
+          );
+          return { type: RelistenApiResponseType.RequestContentsUnchanged };
         } else {
-          realm?.create(UrlRequestMetadata, {
-            url,
-            etag,
-            lastRequestCompletedAt: completedAt,
-          });
+          logger.info(
+            `[etag] url=${resp.url}, updating local database; request contents changed. stored_etag=${urlMetadata?.etag}, new_etag=${etag}`
+          );
         }
-      });
-
-      if (options?.bypassEtagCaching === true) {
-        logger.info(
-          `[etag] url=${url}, updating local database. bypassEtagCaching=${options?.bypassEtagCaching}`
-        );
-      } else if (etag === urlMetadata?.etag) {
-        logger.info(
-          `[etag] url=${resp.url}, request contents unchanged. etag=${urlMetadata?.etag}`
-        );
-        return { type: RelistenApiResponseType.RequestContentsUnchanged };
-      } else {
-        logger.info(
-          `[etag] url=${resp.url}, updating local database; request contents changed. stored_etag=${urlMetadata?.etag}, new_etag=${etag}`
-        );
       }
 
       return {
@@ -205,11 +225,11 @@ export class RelistenApiClient {
       if (e.response && e.response instanceof Response) {
         const wretchError = e as WretchError;
         err.httpError = wretchError;
-        logger.error(`${wretchError.status} url=${url} text=${wretchError.text}`);
+        logger.error(`${wretchError.status} method=${method} url=${url} text=${wretchError.text}`);
       } else {
         err.error = e;
         err.message = `Error loading ${url}`;
-        logger.error(`url=${url} ${e}`);
+        logger.error(`method=${method} url=${url} ${e}`);
       }
 
       return {
@@ -337,5 +357,15 @@ export class RelistenApiClient {
     options?: RelistenApiRequestOptions
   ): Promise<RelistenApiResponse<Show[]>> {
     return this.getJson(`/v2/artists/${artistUuid}/shows/recently-updated`, options);
+  }
+
+  public async recordPlayback(sourceTrackUuid: string): Promise<RelistenApiResponse<unknown>> {
+    // TODO(alecgorge): Android isn't support on the server yet
+    // const app_type = Platform.OS;
+    const app_type = 'ios';
+    return await this.postJson<unknown>(
+      `/v2/live/play?app_type=${app_type}&track_uuid=${sourceTrackUuid}`,
+      {}
+    );
   }
 }

@@ -52,7 +52,6 @@ export default function Page() {
         ScrollableComponent={ShowListContainer}
         ListHeaderComponent={<RecentHeader activeTab={activeTab} setActiveTab={setActiveTab} />}
         data={shows}
-        artist={results.data.artist}
         renderItem={showListRenderItem}
         // filtering is provided by realm/the API response
         filtering={false}

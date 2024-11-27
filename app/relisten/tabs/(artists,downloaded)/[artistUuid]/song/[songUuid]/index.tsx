@@ -7,13 +7,13 @@ import Plur from '@/relisten/components/plur';
 import { useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import { SortDirection } from '@/relisten/components/filtering/filters';
-import { SongShows, useArtistSongShows } from '@/relisten/realm/models/song_shows_repo';
+import { SongShows, useArtistSongShows } from '@/relisten/realm/models/shows/song_shows_repo';
 
 export default function Page() {
   const navigation = useNavigation();
   const { artistUuid, songUuid } = useLocalSearchParams();
   const results = useArtistSongShows(String(artistUuid), String(songUuid));
-  const { artist, song } = results.data;
+  const { song } = results.data;
   const { shows } = song || { shows: [] };
 
   useEffect(() => {
@@ -33,7 +33,6 @@ export default function Page() {
           ScrollableComponent={ShowListContainer}
           ListHeaderComponent={<SongHeader song={song} />}
           data={data}
-          artist={artist}
           filterOptions={{
             persistence: { key: ['artists', artistUuid, 'song', songUuid].join('/') },
             default: {

@@ -8,18 +8,25 @@ import {
 } from '@/modules/relisten-audio-player';
 import {
   latestError,
+  PlaybackContextProgress,
+  progress,
   remoteControlEvent,
   state,
   trackStreamingCacheComplete,
 } from '@/relisten/player/shared_state';
 import { addPlayerListeners } from '@/relisten/player/native_playback_state_hooks';
-import { RelistenPlayerQueue } from '@/relisten/player/relisten_player_queue';
+import { PlayerQueueTrack, RelistenPlayerQueue } from '@/relisten/player/relisten_player_queue';
 import { EventSource } from '@/relisten/util/event_source';
 import { DownloadManager } from '@/relisten/offline/download_manager';
 import { showMessage } from 'react-native-flash-message';
 import { log } from '@/relisten/util/logging';
 
 const logger = log.extend('player');
+
+export interface RelistenPlayerReportTrackEvent {
+  playbackStartedAt: Date;
+  playerQueueTrack: PlayerQueueTrack;
+}
 
 export class RelistenPlayer {
   static DEFAULT_INSTANCE = new RelistenPlayer();
@@ -33,9 +40,11 @@ export class RelistenPlayer {
   private _queue: RelistenPlayerQueue = new RelistenPlayerQueue(this);
 
   private _state: RelistenPlaybackState = RelistenPlaybackState.Stopped;
+  private _progress: PlaybackContextProgress | undefined = undefined;
 
   // region Public API
   onStateChanged = new EventSource<RelistenPlaybackState>();
+  onShouldReportTrack = new EventSource<RelistenPlayerReportTrackEvent>();
 
   get state() {
     this.addPlayerListeners();
@@ -138,6 +147,7 @@ export class RelistenPlayer {
     latestError.addListener(this.onNativePlayerError);
     remoteControlEvent.addListener(this.onRemoteControlEvent);
     trackStreamingCacheComplete.addListener(this.onTrackStreamingCacheComplete);
+    progress.addListener(this.onProgress);
     this._queue.addPlayerListeners();
 
     this.addedPlayerListeners = true;
@@ -152,10 +162,29 @@ export class RelistenPlayer {
     latestError.removeListener(this.onNativePlayerError);
     remoteControlEvent.removeListener(this.onRemoteControlEvent);
     trackStreamingCacheComplete.removeListener(this.onTrackStreamingCacheComplete);
+    progress.removeListener(this.onProgress);
     this._queue.removePlayerListeners();
 
     this.addedPlayerListeners = false;
   }
+
+  private onProgress = (progress: PlaybackContextProgress) => {
+    if (
+      this._progress &&
+      this._progress.percent <= 0.5 &&
+      progress.percent > 0.5 &&
+      this.queue.currentTrack
+    ) {
+      const currentTrack = this.queue.currentTrack;
+
+      this.onShouldReportTrack.dispatch({
+        playerQueueTrack: currentTrack,
+        playbackStartedAt: this.queue.currentTrackPlaybackStartedAt || new Date(),
+      });
+    }
+
+    this._progress = progress;
+  };
 
   private onNativePlayerStateChanged = (newState: RelistenPlaybackState) => {
     if (this._state != newState) {

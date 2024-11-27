@@ -38,7 +38,6 @@ export default function Page() {
         ScrollableComponent={ShowListContainer}
         ListHeaderComponent={<ShowHeader />}
         data={shows}
-        artist={results.data.artist}
         filterOptions={topRatedFilterOptions}
         hideFilterBar={false}
       />

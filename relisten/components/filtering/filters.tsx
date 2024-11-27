@@ -141,12 +141,15 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
     - only 1 thing can sort at a time
     - there's always 1 sort active at any time
      */
+
       const intermediateFilters = preparedFilters.map((f) => {
         return { ...f };
       });
       const changingFilter = intermediateFilters.find(
         (f) => f.persistenceKey === thisFilter.persistenceKey
       );
+
+      console.log(`changingFilter=${changingFilter}`);
 
       if (changingFilter) {
         if (changingFilter.sortDirection !== undefined) {

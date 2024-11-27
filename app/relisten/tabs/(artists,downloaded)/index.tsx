@@ -138,7 +138,8 @@ export default function Page() {
           </TouchableOpacity>
         )}
 
-        {!isDownloadedTab && (
+        {/* eslint-disable-next-line no-undef */}
+        {!isDownloadedTab && __DEV__ && (
           <View>
             <Link
               href={{

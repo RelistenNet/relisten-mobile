@@ -2,7 +2,7 @@ import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { ShowFilterKey, ShowList, ShowListContainer } from '@/relisten/components/shows_list';
-import { TourShows, useArtistTourShows } from '@/relisten/realm/models/tour_shows_repo';
+import { TourShows, useArtistTourShows } from '@/relisten/realm/models/shows/tour_shows_repo';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import Plur from '@/relisten/components/plur';
 import { useEffect, useMemo } from 'react';
@@ -33,7 +33,6 @@ export default function Page() {
           ScrollableComponent={ShowListContainer}
           ListHeaderComponent={<TourHeader tour={tour} />}
           data={data}
-          artist={artist}
           filterOptions={{
             persistence: { key: ['artists', artistUuid, 'tour', tourUuid].join('/') },
             default: {

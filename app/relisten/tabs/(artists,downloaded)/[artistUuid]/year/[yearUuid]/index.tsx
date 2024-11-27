@@ -39,7 +39,6 @@ export default function Page() {
           ScrollableComponent={ShowListContainer}
           ListHeaderComponent={<YearHeader artist={artist} year={year} />}
           data={data}
-          artist={artist}
           filterOptions={{
             persistence: { key: ['artists', artistUuid, 'years', yearUuid].join('/') },
           }}

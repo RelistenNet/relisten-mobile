@@ -14,6 +14,7 @@
     "@gorhom/bottom-sheet": "^5.0.2",
     "@kesha-antonov/react-native-background-downloader": "^3.2.1",
     "@react-native-async-storage/async-storage": "2.0.0",
+    "@react-native-community/netinfo": "11.3.1",
     "@react-native-community/progress-view": "^1.4.2",
     "@react-native-community/slider": "4.5.4",
     "@realm/react": "^0.11.0",

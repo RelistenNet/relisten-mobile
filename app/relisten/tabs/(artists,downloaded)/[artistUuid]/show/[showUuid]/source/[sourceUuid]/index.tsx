@@ -39,6 +39,7 @@ import { DownloadManager } from '@/relisten/offline/download_manager';
 import Flex from '@/relisten/components/flex';
 import Plur from '@/relisten/components/plur';
 import { log } from '@/relisten/util/logging';
+import { RelistenErrors } from '@/relisten/components/relisten_errors';
 
 const logger = log.extend('source screen');
 
@@ -190,7 +191,7 @@ const SourceComponent = ({
   playShow: PlayShow;
   downloadShow: () => void;
 } & ScrollViewProps) => {
-  const { refreshing } = useRefreshContext();
+  const { refreshing, errors } = useRefreshContext();
   const artist = useArtist(show?.artistUuid);
   const { showContextMenu } = useSourceTrackContextMenu();
 
@@ -211,6 +212,14 @@ const SourceComponent = ({
     },
     [selectedSource, artist.data, show, playShow]
   );
+
+  if (errors) {
+    return (
+      <View className="w-full p-4">
+        <RelistenErrors errors={errors} />
+      </View>
+    );
+  }
 
   if (refreshing || !show) {
     return (
@@ -402,13 +411,14 @@ export const SourceHeader = ({
           textClassName="text-l"
           onPress={() => {
             realm.write(() => {
-              source.isFavorite = !source.isFavorite;
+              source.isFavorite = !(source.isFavorite || show.isFavorite);
+              show.isFavorite = source.isFavorite;
               forceUpdate();
             });
           }}
         >
           <MaterialIcons
-            name={source.isFavorite ? 'favorite' : 'favorite-outline'}
+            name={source.isFavorite || show.isFavorite ? 'favorite' : 'favorite-outline'}
             size={20}
             color="white"
           />

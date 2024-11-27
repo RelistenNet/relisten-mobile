@@ -1,18 +1,18 @@
-import { useObject, useQuery } from '../schema';
-import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
-import { useArtist } from './artist_repo';
-import { NetworkBackedResults, mergeNetworkBackedResults } from '../network_backed_results';
+import { useObject, useQuery } from '../../schema';
+import { useNetworkBackedBehavior } from '../../network_backed_behavior_hooks';
+import { useArtist } from '../artist_repo';
+import { NetworkBackedResults, mergeNetworkBackedResults } from '../../network_backed_results';
 import { useMemo } from 'react';
-import { Tour } from './tour';
+import { Tour } from '../tour';
 import { TourWithShows } from '@/relisten/api/models/tour';
 import { RelistenApiClient, RelistenApiResponse } from '@/relisten/api/client';
 import {
   ThrottledNetworkBackedBehavior,
   NetworkBackedBehaviorOptions,
-} from '../network_backed_behavior';
-import { Show } from './show';
-import { showRepo } from './show_repo';
-import { tourRepo } from './tour_repo';
+} from '../../network_backed_behavior';
+import { Show } from '../show';
+import { showRepo } from '../show_repo';
+import { tourRepo } from '../tour_repo';
 import Realm from 'realm';
 import * as R from 'remeda';
 
@@ -72,7 +72,7 @@ class TourShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
         realm,
         apiData.shows,
         localData.shows,
-        /* performDeletes= */ false,
+        /* performDeletes= */ false
       );
 
       for (const show of createdShows.concat(localData.shows)) {

@@ -12,6 +12,7 @@ import { RouteFilterConfig } from '@/relisten/realm/models/route_filter_config';
 import { Tour } from './models/tour';
 import { Song } from './models/song';
 import { SourceTrackOfflineInfo } from '@/relisten/realm/models/source_track_offline_info';
+import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 
 // uncomment to show realm queries (measured in microseconds):
 // Realm.setLogLevel('debug');
@@ -30,6 +31,7 @@ const realmConfig: Realm.Configuration = {
     UrlRequestMetadata,
     RouteFilterConfig,
     SourceTrackOfflineInfo,
+    PlaybackHistoryEntry,
   ],
   deleteRealmIfMigrationNeeded: true,
 };

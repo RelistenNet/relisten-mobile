@@ -3,7 +3,7 @@ import 'react-native-get-random-values';
 import 'react-native-reanimated';
 import 'uuid';
 
-import { router, Slot, SplashScreen, useNavigationContainerRef } from 'expo-router';
+import { Slot, SplashScreen, useNavigationContainerRef } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Realm } from '@realm/react';
 
@@ -25,6 +25,13 @@ import { RelistenPlayerBottomBarProvider } from '@/relisten/player/ui/player_bot
 import { ActionSheetProvider } from '@expo/react-native-action-sheet';
 import { DownloadManager } from '@/relisten/offline/download_manager';
 import FlashMessage from 'react-native-flash-message';
+import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
+import { PlaybackHistoryReporterComponent } from '@/relisten/components/playback_history_reporter';
+
+import { LogBox } from 'react-native';
+
+// c.f. https://github.com/meliorence/react-native-render-html/issues/661#issuecomment-2453476566
+LogBox.ignoreLogs([/Warning: TNodeChildrenRenderer: Support for defaultProps will be removed/]);
 
 dayjs.extend(duration);
 dayjs.extend(relativeTime);
@@ -41,6 +48,8 @@ export default function TabLayout() {
 
   const isAppReady = useCacheAssets();
 
+  const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
+
   useEffect(() => {
     if (realmRef.current) {
       setRealm(realmRef.current);
@@ -50,12 +59,15 @@ export default function TabLayout() {
   }, [realmRef.current]);
 
   useEffect(() => {
-    setTimeout(() => {
-      // wait a few seconds before resume downloads to prevent doing too much right at app launch
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const _ = DownloadManager.SHARED_INSTANCE.resumeExistingDownloads();
-    }, 5000);
-  }, []);
+    if (shouldMakeNetworkRequests) {
+      setTimeout(() => {
+        // wait a few seconds before resume downloads to prevent doing too much right at app launch
+        DownloadManager.SHARED_INSTANCE.resumeExistingDownloads().then(() => {});
+      }, 5000);
+    }
+  }, [shouldMakeNetworkRequests]);
+
+  useEffect(() => {}, []);
 
   useEffect(() => {
     if (!navigation?.isReady()) return;
@@ -80,6 +92,7 @@ export default function TabLayout() {
     <RealmProvider realmRef={realmRef} closeOnUnmount={false}>
       <RelistenApiProvider>
         <RelistenPlayerProvider>
+          <PlaybackHistoryReporterComponent />
           <ThemeProvider
             value={{
               dark: true,
@@ -95,6 +108,7 @@ export default function TabLayout() {
               <ActionSheetProvider>
                 <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
                   <SafeAreaProvider>
+                    {/* */}
                     <StatusBar style="light" translucent={true} />
                     <Slot />
                     <FlashMessage position="top" />

@@ -1,5 +1,5 @@
 import React, { PropsWithChildren, useContext, useEffect, useState } from 'react';
-import { RelistenPlayer } from '@/relisten/player/relisten_player';
+import { RelistenPlayer, RelistenPlayerReportTrackEvent } from '@/relisten/player/relisten_player';
 
 export interface RelistenPlayerProps {
   player: RelistenPlayer;
@@ -41,4 +41,24 @@ export function useRelistenPlayerPlaybackState() {
   }, [player, setPlaybackState]);
 
   return playbackState;
+}
+
+export function useRelistenReportTrackEvent() {
+  const player = useRelistenPlayer();
+
+  const [reportTrackEvent, setReportTrackEvent] = useState<
+    RelistenPlayerReportTrackEvent | undefined
+  >(undefined);
+
+  useEffect(() => {
+    const teardown = player.onShouldReportTrack.addListener((newReportTrackEvent) => {
+      setReportTrackEvent(newReportTrackEvent);
+    });
+
+    return () => {
+      teardown();
+    };
+  }, [player, setReportTrackEvent]);
+
+  return reportTrackEvent;
 }

@@ -2,7 +2,6 @@ import { ListRenderItem } from '@shopify/flash-list';
 import { Link } from 'expo-router';
 import React, { ReactNode } from 'react';
 import { View } from 'react-native';
-import { Artist } from '../realm/models/artist';
 import { Show } from '../realm/models/show';
 import { useGroupSegment, useIsDownloadedTab } from '../util/routes';
 import { FavoriteObjectButton } from './favorite_icon_button';
@@ -14,8 +13,6 @@ import { RelistenText } from './relisten_text';
 import { SubtitleRow, SubtitleText } from './row_subtitle';
 import RowTitle from './row_title';
 import { SectionedListItem } from './sectioned_list_item';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import colors from 'tailwindcss/colors';
 import { SourceTrackSucceededIndicator } from './source/source_track_offline_indicator';
 
 interface ShowListItemProps {
@@ -24,8 +21,13 @@ interface ShowListItemProps {
 }
 
 export const ShowListItem = ({ show, children }: ShowListItemProps) => {
-  const groupSegment = useGroupSegment();
+  let groupSegment = useGroupSegment();
   const isDownloadedTab = useIsDownloadedTab();
+
+  // If we are on (myLibrary) go back to (artists)
+  if (groupSegment !== '(artists)' && groupSegment !== '(downloaded)') {
+    groupSegment = '(artists)';
+  }
 
   return (
     <Link
@@ -127,7 +129,6 @@ const DEFAULT_SHOW_FILTER = {
 };
 
 interface ShowListProps {
-  artist: Artist | null;
   filterOptions?: FilteringOptions<ShowFilterKey>;
   ListHeaderComponent?: React.ReactElement;
   renderItem?: ListRenderItem<Show>;
@@ -152,7 +153,6 @@ export const ShowListContainer = (
 
 export const ShowList = ({
   data,
-  artist,
   children,
   renderItem,
   filterOptions,
