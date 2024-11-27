@@ -40,7 +40,7 @@ export default function Page() {
           ListHeaderComponent={<YearHeader artist={artist} year={year} />}
           data={data}
           filterOptions={{
-            persistence: { key: ['artists', artistUuid, 'years', yearUuid].join('/') },
+            persistence: { key: ['artists', artistUuid, 'years', 'shows'].join('/') },
           }}
         />
       </RefreshContextProvider>
