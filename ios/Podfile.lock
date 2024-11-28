@@ -134,7 +134,6 @@ PODS:
     - React-RCTText (= 0.75.4)
     - React-RCTVibration (= 0.75.4)
   - React-callinvoker (0.75.4)
-  - React-Codegen (0.1.0)
   - React-Core (0.75.4):
     - glog
     - hermes-engine
@@ -1338,26 +1337,6 @@ PODS:
     - React-Core
   - react-native-netinfo (11.3.1):
     - React-Core
-  - react-native-progress-view (1.5.0):
-    - RCT-Folly
-    - RCTRequired
-    - RCTTypeSafety
-    - react-native-progress-view/common (= 1.5.0)
-    - react-native-progress-view/fabric (= 1.5.0)
-    - ReactCommon/turbomodule/core
-  - react-native-progress-view/common (1.5.0):
-    - RCT-Folly
-    - RCTRequired
-    - RCTTypeSafety
-    - ReactCommon/turbomodule/core
-  - react-native-progress-view/fabric (1.5.0):
-    - RCT-Folly
-    - RCTRequired
-    - RCTTypeSafety
-    - React-Codegen
-    - react-native-progress-view/common
-    - React-RCTFabric
-    - ReactCommon/turbomodule/core
   - react-native-render-html (6.3.4):
     - React-Core
   - react-native-safe-area-context (4.11.0):
@@ -2007,7 +1986,6 @@ DEPENDENCIES:
   - "react-native-background-downloader (from `../node_modules/@kesha-antonov/react-native-background-downloader`)"
   - react-native-get-random-values (from `../node_modules/react-native-get-random-values`)
   - "react-native-netinfo (from `../node_modules/@react-native-community/netinfo`)"
-  - "react-native-progress-view (from `../node_modules/@react-native-community/progress-view`)"
   - react-native-render-html (from `../node_modules/react-native-render-html`)
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
   - "react-native-slider (from `../node_modules/@react-native-community/slider`)"
@@ -2052,7 +2030,6 @@ SPEC REPOS:
     - lottie-ios
     - MMKV
     - MMKVCore
-    - React-Codegen
     - SocketRocket
 
 EXTERNAL SOURCES:
@@ -2161,8 +2138,6 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-get-random-values"
   react-native-netinfo:
     :path: "../node_modules/@react-native-community/netinfo"
-  react-native-progress-view:
-    :path: "../node_modules/@react-native-community/progress-view"
   react-native-render-html:
     :path: "../node_modules/react-native-render-html"
   react-native-safe-area-context:
@@ -2269,7 +2244,6 @@ SPEC CHECKSUMS:
   RCTTypeSafety: 28e24a6e44f5cbf912c66dde6ab7e07d1059a205
   React: c2830fa483b0334bda284e46a8579ebbe0c5447e
   React-callinvoker: 4aecde929540c26b841a4493f70ebf6016691eb8
-  React-Codegen: 4b8b4817cea7a54b83851d4c1f91f79aa73de30a
   React-Core: 9c059899f00d46b5cec3ed79251f77d9c469553d
   React-CoreModules: 9fac2d31803c0ed03e4ddaa17f1481714f8633a5
   React-cxxreact: a979810a3ca4045ceb09407a17563046a7f71494
@@ -2297,7 +2271,6 @@ SPEC CHECKSUMS:
   react-native-background-downloader: 9ce5d5ffa5216771b1a4b641b499ca5c0de9f025
   react-native-get-random-values: 21325b2244dfa6b58878f51f9aa42821e7ba3d06
   react-native-netinfo: bdb108d340cdb41875c9ced535977cac6d2ff321
-  react-native-progress-view: 5e7fdbbf80febb3ff9aff1677c0732d7d08a47fa
   react-native-render-html: 984dfe2294163d04bf5fe25d7c9f122e60e05ebe
   react-native-safe-area-context: f1fda705dfe14355f41933debb5932887e234cc5
   react-native-slider: a57ccfa24df244b0134b52f977972aab6307beb7

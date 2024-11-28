@@ -2352,11 +2352,6 @@
   resolved "https://registry.yarnpkg.com/@react-native-community/netinfo/-/netinfo-11.3.1.tgz#4539371a2f4bd402d932031be82c2449ed63a1a5"
   integrity sha512-UBnJxyV0b7i9Moa97Av+HKho1ByzX0DtbJXzUQS5E3xhQs6P2D/Os0iw3ouy7joY1TVd6uIhplPbr7l1SJNaNQ==
 
-"@react-native-community/progress-view@^1.4.2":
-  version "1.5.0"
-  resolved "https://registry.yarnpkg.com/@react-native-community/progress-view/-/progress-view-1.5.0.tgz#45b84d7dd6094cdf4b5143ee1b02aa612575ba12"
-  integrity sha512-ZUvByohzwJ45+ROzVwWx39OZC+2V1Fo+gX06NfmmKD1Ha2Fu320pIjXhG1/9amcW00ZDeY36wvSBpZKkobmeCg==
-
 "@react-native-community/slider@4.5.4":
   version "4.5.4"
   resolved "https://registry.yarnpkg.com/@react-native-community/slider/-/slider-4.5.4.tgz#bcc3d4e52848eeb5d97915050d8aff6f97e79f0f"
@@ -9217,6 +9212,13 @@ react-native-progress-wheel@^2.1.0:
   version "2.1.0"
   resolved "https://registry.yarnpkg.com/react-native-progress-wheel/-/react-native-progress-wheel-2.1.0.tgz#387d67da5071cabd790dc65fd27d6d68397454fc"
   integrity sha512-HXuPKwRNszvFMFlpoVWbn5tdxwkEowJGBNfydU8GGIEJcaZCT4Znraho+cfXbbW/fp9crVXoB8oV+zJr8sTAQQ==
+
+react-native-progress@^5.0.1:
+  version "5.0.1"
+  resolved "https://registry.yarnpkg.com/react-native-progress/-/react-native-progress-5.0.1.tgz#4e15258b5661c49bad74554352326ca540bb7c58"
+  integrity sha512-TYfJ4auAe5vubDma2yfFvt7ktSI+UCfysqJnkdHEcLXqAitRFOozgF/cLgN5VNi/iLdaf3ga1ETi2RF4jVZ/+g==
+  dependencies:
+    prop-types "^15.7.2"
 
 react-native-reanimated@~3.15.0:
   version "3.15.5"

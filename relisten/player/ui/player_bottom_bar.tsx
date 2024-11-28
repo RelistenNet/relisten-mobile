@@ -15,11 +15,10 @@ import { Show } from '@/relisten/realm/models/show';
 import { useObject } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { MaterialIcons } from '@expo/vector-icons';
-// import { ProgressView } from '@react-native-community/progress-view';
 import { useRouter } from 'expo-router';
 import React, { PropsWithChildren, useCallback, useContext, useState } from 'react';
 import { LayoutChangeEvent, Pressable, TouchableOpacity, View } from 'react-native';
-import { ProgressView } from '@react-native-community/progress-view';
+import * as Progress from 'react-native-progress';
 
 function PlayerBottomBarContents() {
   const currentTrack = useRelistenPlayerCurrentTrack();
@@ -70,17 +69,24 @@ function PlayerBottomBarContents() {
         </Flex>
       </Flex>
       <View className="relative bg-relisten-blue-700">
-        <ProgressView
+        <Progress.Bar
           progress={downloadProgress?.percent ?? 0}
-          progressTintColor={RelistenBlue['400']}
-          // progressViewStyle="bar"
-          style={{ width: '100%', height: 6, position: 'absolute', bottom: 0 }}
+          color={RelistenBlue['400']}
+          width={null}
+          borderWidth={0}
+          borderRadius={0}
+          // progress.BarStyle="bar"
+          style={{ width: '100%', height: 6, position: 'absolute', bottom: 0, left: 0 }}
         />
-        <ProgressView
+        <Progress.Bar
           progress={progress?.percent ?? 0}
-          progressTintColor="white"
+          color="white"
+          width={null}
+          borderWidth={0}
+          borderRadius={0}
+          // animated={false}
           // progressViewStyle="bar"
-          style={{ width: '100%', height: 6, position: 'absolute', bottom: 0 }}
+          style={{ width: '100%', height: 6, position: 'absolute', bottom: 0, left: 0 }}
         />
       </View>
     </Flex>
