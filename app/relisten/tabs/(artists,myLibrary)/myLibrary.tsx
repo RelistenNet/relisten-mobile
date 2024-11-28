@@ -1,20 +1,21 @@
-import { useQuery } from '@/relisten/realm/schema';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import React, { PropsWithChildren, useMemo } from 'react';
-import { ScrollView, TouchableOpacity, View, ViewProps } from 'react-native';
+import Plur from '@/relisten/components/plur';
+import { RefreshContextProvider } from '@/relisten/components/refresh_context';
+import { RelistenSectionData } from '@/relisten/components/relisten_section_list';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
-import { Link } from 'expo-router';
-import { RefreshContextProvider } from '@/relisten/components/refresh_context';
+import { ShowCard } from '@/relisten/components/show_card';
 import { ShowListContainer } from '@/relisten/components/shows_list';
-import { Show } from '@/relisten/realm/models/show';
-import { tw } from '@/relisten/util/tw';
-import { aggregateBy } from '@/relisten/util/group_by';
-import { RelistenSectionData } from '@/relisten/components/relisten_section_list';
 import { useHistoryRecentlyPlayedShows } from '@/relisten/realm/models/history/playback_history_entry_repo';
-import Plur from '@/relisten/components/plur';
 import { useRemainingDownloads } from '@/relisten/realm/models/offline_repo';
+import { Show } from '@/relisten/realm/models/show';
+import { useQuery } from '@/relisten/realm/schema';
+import { aggregateBy } from '@/relisten/util/group_by';
 import { useGroupSegment } from '@/relisten/util/routes';
+import { tw } from '@/relisten/util/tw';
+import { Link } from 'expo-router';
+import { PropsWithChildren, default as React, useMemo } from 'react';
+import { ScrollView, TouchableOpacity, View, ViewProps } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 function MyLibrarySectionHeader({ children, className, ...props }: PropsWithChildren<ViewProps>) {
   return (
@@ -43,44 +44,15 @@ function RecentlyPlayedShows() {
           <MyLibrarySectionHeader>Recently Played Shows&nbsp;›</MyLibrarySectionHeader>
         </TouchableOpacity>
       </Link>
-      <View className="w-full flex-row flex-wrap gap-y-2 px-2">
-        {recentlyPlayedShows.map((show, idx) => (
-          <View
-            className={tw('shrink basis-1/2', {
-              'pr-1': idx % 2 == 0,
-              'pl-1': idx % 2 != 0,
-            })}
+
+      <View className="w-full flex-row flex-wrap px-2">
+        {recentlyPlayedShows.map((show) => (
+          <ShowCard
+            show={show.show}
             key={show.show.uuid}
-          >
-            <Link
-              href={{
-                pathname:
-                  '/relisten/tabs/(myLibrary)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/',
-                params: {
-                  artistUuid: show.show.artistUuid,
-                  showUuid: show.show.uuid,
-                  sourceUuid: show.source.uuid,
-                },
-              }}
-              asChild
-            >
-              <TouchableOpacity>
-                <View className="rounded-lg bg-gray-600 p-2">
-                  <RelistenText selectable={false} className="text-md font-bold">
-                    {show.show.displayDate}
-                  </RelistenText>
-                  <RelistenText selectable={false} className="pt-1">
-                    {show.artist.name}
-                  </RelistenText>
-                  {show.show.venue && (
-                    <RelistenText numberOfLines={1} selectable={false} className="pt-1 text-xs">
-                      {show.show.venue?.name?.trim()}, {show.show.venue?.location?.trim()}
-                    </RelistenText>
-                  )}
-                </View>
-              </TouchableOpacity>
-            </Link>
-          </View>
+            sourceUuid={show.source.uuid}
+            cn="shrink basis-1/2 my-1"
+          />
         ))}
       </View>
     </View>

@@ -1,19 +1,19 @@
-import { useObject, useQuery } from '../../schema';
-import { useNetworkBackedBehavior } from '../../network_backed_behavior_hooks';
-import { useArtist } from '../artist_repo';
-import { mergeNetworkBackedResults, NetworkBackedResults } from '../../network_backed_results';
-import { useMemo } from 'react';
-import { Song } from '../song';
-import { SongWithShows } from '@/relisten/api/models/song';
 import { RelistenApiClient, RelistenApiResponse } from '@/relisten/api/client';
+import { SongWithShows } from '@/relisten/api/models/song';
+import { upsertShowList } from '@/relisten/realm/models/repo_utils';
+import { useMemo } from 'react';
+import Realm from 'realm';
 import {
   NetworkBackedBehaviorOptions,
   ThrottledNetworkBackedBehavior,
 } from '../../network_backed_behavior';
+import { useNetworkBackedBehavior } from '../../network_backed_behavior_hooks';
+import { mergeNetworkBackedResults, NetworkBackedResults } from '../../network_backed_results';
+import { useObject, useQuery } from '../../schema';
+import { useArtist } from '../artist_repo';
 import { Show } from '../show';
+import { Song } from '../song';
 import { songRepo } from '../song_repo';
-import Realm from 'realm';
-import { upsertShowList } from '@/relisten/realm/models/repo_utils';
 
 export interface SongShows {
   song: Song | null;

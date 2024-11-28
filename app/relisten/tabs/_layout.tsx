@@ -52,6 +52,8 @@ export default function TabLayout() {
             tabBarBadge: downloads.length === 0 ? undefined : downloads.length,
           }}
         />
+
+        <Tabs.Screen name="(myLibrary)" options={{ title: 'My Library', headerShown: false }} />
         <Tabs.Screen name="(relisten)/index" options={{ title: 'Relisten' }} />
       </Tabs>
       <PlayerBottomBar />
