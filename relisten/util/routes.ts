@@ -1,6 +1,6 @@
 import { useSegments } from 'expo-router';
 
-export type RelistenTabGroupSegment = '(downloaded)' | '(artists)' | '(myLibrary)' | undefined;
+export type RelistenTabGroupSegment = '(artists)' | '(myLibrary)' | undefined;
 
 export const useRoute = (nextRoute?: string) => {
   const segments = useSegments();
@@ -26,7 +26,5 @@ export const useGroupSegment = (fallback?: boolean): RelistenTabGroupSegment => 
 };
 
 export const useIsDownloadedTab = () => {
-  const groupSegment = useGroupSegment();
-
-  return groupSegment === '(downloaded)';
+  return false;
 };
