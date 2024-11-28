@@ -53,8 +53,7 @@ export default function TabLayout() {
           }}
         />
 
-        <Tabs.Screen name="(myLibrary)" options={{ title: 'My Library', headerShown: false }} />
-        <Tabs.Screen name="(relisten)/index" options={{ title: 'Relisten' }} />
+        <Tabs.Screen name="(relisten)" options={{ title: 'Relisten' }} />
       </Tabs>
       <PlayerBottomBar />
     </>
