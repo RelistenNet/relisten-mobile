@@ -13,6 +13,8 @@ import { aggregateBy } from '@/relisten/util/group_by';
 import { RelistenSectionData } from '@/relisten/components/relisten_section_list';
 import { useHistoryRecentlyPlayedShows } from '@/relisten/realm/models/history/playback_history_entry_repo';
 import Plur from '@/relisten/components/plur';
+import { useRemainingDownloads } from '@/relisten/realm/models/offline_repo';
+import { useGroupSegment } from '@/relisten/util/routes';
 
 function MyLibrarySectionHeader({ children, className, ...props }: PropsWithChildren<ViewProps>) {
   return (
@@ -89,7 +91,7 @@ function MyLibraryHeader() {
   return (
     <>
       <RelistenText
-        className="w-full py-2 text-center text-4xl font-bold text-white"
+        className="w-full py-4 pt-8 text-center text-4xl font-bold text-white"
         selectable={false}
       >
         My Library
@@ -147,6 +149,26 @@ function FavoriteShows() {
   );
 }
 
+function ActiveDownloads() {
+  const groupSegment = useGroupSegment();
+  const downloads = useRemainingDownloads();
+
+  return (
+    downloads.length > 0 && (
+      <TouchableOpacity>
+        <Link
+          href={{
+            pathname: `/relisten/tabs/${groupSegment}/downloading`,
+          }}
+          className="bg-relisten-blue-700 px-4 py-4 text-center"
+        >
+          <RelistenText>{downloads.length} tracks downloading&nbsp;›</RelistenText>
+        </Link>
+      </TouchableOpacity>
+    )
+  );
+}
+
 export default function MyLibraryPage() {
   // TODO: listening history that shows all tracks
   return (
@@ -154,6 +176,7 @@ export default function MyLibraryPage() {
       <ScrollScreen>
         <ScrollView className="flex-1">
           <MyLibraryHeader />
+          <ActiveDownloads />
           <RecentlyPlayedShows />
           <FavoriteShows />
         </ScrollView>

@@ -1,9 +1,4 @@
 import { Tabs } from 'expo-router';
-import { useQuery } from '@/relisten/realm/schema';
-import {
-  SourceTrackOfflineInfo,
-  SourceTrackOfflineInfoStatus,
-} from '@/relisten/realm/models/source_track_offline_info';
 import TabBar from '@/relisten/components/TabBar';
 import { PlayerBottomBar } from '@/relisten/player/ui/player_bottom_bar';
 import { RelistenBlue } from '@/relisten/relisten_blue';
@@ -11,11 +6,10 @@ import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'react-native';
 import 'react-native-gesture-handler';
 import 'react-native-reanimated';
+import { useRemainingDownloads } from '@/relisten/realm/models/offline_repo';
 
 export default function TabLayout() {
-  const downloads = useQuery(SourceTrackOfflineInfo, (query) =>
-    query.filtered('status != $0', SourceTrackOfflineInfoStatus.Succeeded)
-  );
+  const downloads = useRemainingDownloads();
 
   return (
     <>
@@ -31,9 +25,6 @@ export default function TabLayout() {
 
             if (route.name === '(artists)') {
               iconName = focused ? 'account-music' : 'account-music-outline';
-              return <MaterialCommunityIcons name={iconName as any} size={size} color={color} />;
-            } else if (route.name === '(downloaded)') {
-              iconName = focused ? 'download' : 'download-outline';
               return <MaterialCommunityIcons name={iconName as any} size={size} color={color} />;
             } else if (route.name === '(myLibrary)') {
               return <MaterialIcons name="library-music" size={size} color={color} />;
@@ -53,15 +44,14 @@ export default function TabLayout() {
         // initialRouteName="artists"
       >
         <Tabs.Screen name="(artists)" options={{ title: 'Artists' }} />
+
         <Tabs.Screen
-          name="(downloaded)"
+          name="(myLibrary)"
           options={{
-            title: 'Downloads',
+            title: 'My Library',
             tabBarBadge: downloads.length === 0 ? undefined : downloads.length,
           }}
         />
-
-        <Tabs.Screen name="(myLibrary)" options={{ title: 'My Library', headerShown: false }} />
         <Tabs.Screen name="(relisten)/index" options={{ title: 'Relisten' }} />
       </Tabs>
       <PlayerBottomBar />

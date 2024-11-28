@@ -19,12 +19,8 @@ import plur from 'plur';
 import React, { useEffect, useMemo } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import Realm from 'realm';
-import { useQuery } from '@/relisten/realm/schema';
-import {
-  SourceTrackOfflineInfo,
-  SourceTrackOfflineInfoStatus,
-} from '@/relisten/realm/models/source_track_offline_info';
-import MyLibraryPage from '@/app/relisten/tabs/(artists,downloaded,myLibrary)/myLibrary';
+import MyLibraryPage from '@/app/relisten/tabs/(artists,myLibrary)/myLibrary';
+import { useRemainingDownloads } from '@/relisten/realm/models/offline_repo';
 
 const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) => {
   const nextRoute = useRoute('[artistUuid]');
@@ -120,9 +116,7 @@ export default function Page() {
   const navigation = useNavigation();
   const { data: artists } = results;
 
-  const downloads = useQuery(SourceTrackOfflineInfo, (query) =>
-    query.filtered('status != $0', SourceTrackOfflineInfoStatus.Succeeded).sorted('queuedAt')
-  );
+  const downloads = useRemainingDownloads();
 
   useEffect(() => {
     navigation.setOptions({
