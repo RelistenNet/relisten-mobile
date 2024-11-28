@@ -3,10 +3,8 @@ import {
   SourceTrackOfflineInfo,
   SourceTrackOfflineInfoStatus,
 } from '@/relisten/realm/models/source_track_offline_info';
-import { FlatList, View } from 'react-native';
 import { Realm } from '@realm/react';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import RowTitle from '@/relisten/components/row_title';
 import { SubtitleText } from '@/relisten/components/row_subtitle';
 import { useNavigation } from 'expo-router';
 import React, { useEffect } from 'react';
@@ -14,7 +12,6 @@ import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappea
 import dayjs from 'dayjs';
 import { SourceTrackOfflineIndicator } from '@/relisten/components/source/source_track_offline_indicator';
 import { TrackWithArtist } from '@/relisten/components/source/source_track_with_artist';
-import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { RelistenSectionList } from '@/relisten/components/relisten_section_list';
 
 export default function Page() {
