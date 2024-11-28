@@ -368,4 +368,11 @@ export class RelistenApiClient {
       {}
     );
   }
+
+  public todayShows(
+    artistUuid?: string,
+    options?: RelistenApiRequestOptions
+  ): Promise<RelistenApiResponse<Show[]>> {
+    return this.getJson('/v2/shows/today', options);
+  }
 }

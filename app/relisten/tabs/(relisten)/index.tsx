@@ -10,6 +10,7 @@ import { DevSettings } from 'react-native';
 import { useEffect, useReducer, useState } from 'react';
 import Flex from '@/relisten/components/flex';
 import { OFFLINE_DIRECTORY } from '@/relisten/realm/models/source_track';
+import { Link } from 'expo-router';
 
 const sizeFormatter = new Intl.NumberFormat([], {
   style: 'unit',
@@ -65,6 +66,14 @@ export default function Page() {
   return (
     <SafeAreaView>
       <Flex column cn="gap-2 mt-8">
+        <Link
+          href={{
+            pathname: '/relisten/tabs/(relisten)/today' as const,
+          }}
+          asChild
+        >
+          <RelistenButton>Today in History</RelistenButton>
+        </Link>
         <RelistenButton
           onPress={async () => {
             if ((await fs.getInfoAsync(OFFLINE_DIRECTORY)).exists) {
