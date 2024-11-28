@@ -93,10 +93,10 @@ export class SourceTrack
   isFavorite!: boolean;
 
   offlineInfo?: SourceTrackOfflineInfo;
-  artist?: Artist;
-  year?: Year;
-  show?: Show;
-  source?: Source;
+  artist!: Artist;
+  year!: Year;
+  show!: Show;
+  source!: Source;
 
   private _humanizedDuration?: string;
   get humanizedDuration() {

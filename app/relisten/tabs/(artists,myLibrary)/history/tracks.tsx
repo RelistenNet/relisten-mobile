@@ -20,6 +20,7 @@ import { SourceTrackSucceededIndicator } from '@/relisten/components/source/sour
 import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { ListRenderItem } from '@shopify/flash-list';
+import { TrackWithArtist } from '@/relisten/components/source/source_track_with_artist';
 
 function HistoryHeader({ totalPlayed }: { totalPlayed: number }) {
   return (
@@ -65,47 +66,10 @@ export default function Page() {
   }, [recentlyPlayed]);
 
   const renderItem: ListRenderItem<PlaybackHistoryEntry> = ({ item: entry }) => {
-    const show = entry.show;
-    const artist = entry.artist;
-    const track = entry.sourceTrack;
-    const source = entry.source;
-
     return (
-      <Link
-        href={{
-          pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
-          params: {
-            artistUuid: entry.artist.uuid,
-            showUuid: entry.show.uuid,
-            sourceUuid: entry.source.uuid,
-          },
-        }}
-        asChild
-      >
-        <SectionedListItem>
-          <Flex cn="flex justify-between" full>
-            <Flex cn="flex-1 pr-2" column>
-              <Flex cn="items-center" style={{ gap: 8 }}>
-                <RowTitle>{track.title}</RowTitle>
-                {source.isSoundboard && (
-                  <RelistenText cn="text-xs font-bold text-relisten-blue-600">SBD</RelistenText>
-                )}
-                {track.offlineInfo?.isPlayableOffline() && <SourceTrackSucceededIndicator />}
-                <View className="grow" />
-                <SubtitleText>{track.humanizedDuration}</SubtitleText>
-              </Flex>
-              <SubtitleRow>
-                <SubtitleText>
-                  {artist.name}
-                  &nbsp;&middot;&nbsp;
-                  {show.displayDate}
-                </SubtitleText>
-                <SubtitleText>{entry.humanizedPlaybackStartedAt()}</SubtitleText>
-              </SubtitleRow>
-            </Flex>
-          </Flex>
-        </SectionedListItem>
-      </Link>
+      <TrackWithArtist sourceTrack={entry.sourceTrack}>
+        <SubtitleText>{entry.humanizedPlaybackStartedAt()}</SubtitleText>
+      </TrackWithArtist>
     );
   };
 

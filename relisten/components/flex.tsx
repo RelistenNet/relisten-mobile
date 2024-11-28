@@ -1,9 +1,8 @@
-import clsx from 'clsx';
 import React from 'react';
 import { View, ViewProps } from 'react-native';
-import { tw } from "@/relisten/util/tw";
+import { tw } from '@/relisten/util/tw';
 
-interface NewProps {
+export interface FlexProps {
   as?: React.ElementType;
   cn?: string;
   center?: boolean;
@@ -12,7 +11,7 @@ interface NewProps {
   children?: React.ReactNode;
 }
 
-const Flex = ({ cn, center, column, as = View, full, ...props }: ViewProps & NewProps) => {
+const Flex = ({ cn, center, column, as = View, full, ...props }: ViewProps & FlexProps) => {
   const Comp = as;
 
   return (

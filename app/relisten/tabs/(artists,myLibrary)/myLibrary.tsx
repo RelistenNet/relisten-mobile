@@ -18,18 +18,9 @@ import { useGroupSegment } from '@/relisten/util/routes';
 
 function MyLibrarySectionHeader({ children, className, ...props }: PropsWithChildren<ViewProps>) {
   return (
-    <Link
-      href={{
-        pathname: '/relisten/tabs/(myLibrary)/history/tracks',
-      }}
-      asChild
-    >
-      <TouchableOpacity>
-        <View className={tw('flex px-4 py-2', className)} {...props}>
-          <RelistenText className="text-m font-bold">{children}</RelistenText>
-        </View>
-      </TouchableOpacity>
-    </Link>
+    <View className={tw('flex px-4 py-2', className)} {...props}>
+      <RelistenText className="text-m font-bold">{children}</RelistenText>
+    </View>
   );
 }
 
@@ -42,7 +33,16 @@ function RecentlyPlayedShows() {
 
   return (
     <View>
-      <MyLibrarySectionHeader>Recently Played Shows&nbsp;›</MyLibrarySectionHeader>
+      <Link
+        href={{
+          pathname: '/relisten/tabs/(myLibrary)/history/tracks',
+        }}
+        asChild
+      >
+        <TouchableOpacity>
+          <MyLibrarySectionHeader>Recently Played Shows&nbsp;›</MyLibrarySectionHeader>
+        </TouchableOpacity>
+      </Link>
       <View className="w-full flex-row flex-wrap gap-y-2 px-2">
         {recentlyPlayedShows.map((show, idx) => (
           <View
@@ -138,7 +138,7 @@ function FavoriteShows() {
     <View className="pt-4">
       <RefreshContextProvider>
         <MyLibrarySectionHeader>
-          <Plur word="Show" count={favoriteShows.length} /> in My Library&nbsp;›
+          <Plur word="Show" count={favoriteShows.length} /> in My Library
         </MyLibrarySectionHeader>
         <ShowListContainer
           data={favoriteShowsByArtist}
@@ -155,16 +155,18 @@ function ActiveDownloads() {
 
   return (
     downloads.length > 0 && (
-      <TouchableOpacity>
-        <Link
-          href={{
-            pathname: `/relisten/tabs/${groupSegment}/downloading`,
-          }}
-          className="bg-relisten-blue-700 px-4 py-4 text-center"
-        >
-          <RelistenText>{downloads.length} tracks downloading&nbsp;›</RelistenText>
-        </Link>
-      </TouchableOpacity>
+      <Link
+        href={{
+          pathname: `/relisten/tabs/${groupSegment}/downloading`,
+        }}
+        asChild
+      >
+        <TouchableOpacity className="mb-4 bg-relisten-blue-700 px-4 py-4">
+          <RelistenText className="text-center font-bold">
+            {downloads.length} tracks downloading&nbsp;›
+          </RelistenText>
+        </TouchableOpacity>
+      </Link>
     )
   );
 }

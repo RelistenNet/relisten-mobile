@@ -1,7 +1,7 @@
 import React from 'react';
 import { TextProps } from 'react-native';
 import { tw } from '../util/tw';
-import Flex from './flex';
+import Flex, { FlexProps } from './flex';
 import { RelistenText } from './relisten_text';
 
 interface NewProps {
@@ -16,7 +16,7 @@ export const SubtitleRow = ({
   style,
   as = Flex,
   ...props
-}: TextProps & NewProps) => {
+}: TextProps & NewProps & FlexProps) => {
   const Comp = as;
 
   return <Comp {...props} cn={tw('pt-1 justify-between', className, cn)} numberOfLines={1} />;

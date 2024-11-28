@@ -9,10 +9,13 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import RowTitle from '@/relisten/components/row_title';
 import { SubtitleText } from '@/relisten/components/row_subtitle';
 import { useNavigation } from 'expo-router';
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import dayjs from 'dayjs';
 import { SourceTrackOfflineIndicator } from '@/relisten/components/source/source_track_offline_indicator';
+import { TrackWithArtist } from '@/relisten/components/source/source_track_with_artist';
+import { SourceTrack } from '@/relisten/realm/models/source_track';
+import { RelistenSectionList } from '@/relisten/components/relisten_section_list';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -27,10 +30,11 @@ export default function Page() {
 
   return (
     <DisappearingHeaderScreen
-      ScrollableComponent={FlatList as typeof FlatList<SourceTrackOfflineInfo>}
+      ScrollableComponent={
+        RelistenSectionList as typeof RelistenSectionList<SourceTrackOfflineInfo>
+      }
       ListHeaderComponent={<OfflineHeader downloads={downloads} />}
-      className="w-full flex-1"
-      data={downloads}
+      data={[{ data: downloads as unknown as ReadonlyArray<SourceTrackOfflineInfo> }]}
       renderItem={({ item }) => {
         return <DownloadListItem item={item} />;
       }}
@@ -42,22 +46,24 @@ const DownloadListItem = ({ item }: { item: SourceTrackOfflineInfo }) => {
   const sourceTrack = item.sourceTrack;
 
   return (
-    <View className="w-full flex-1 flex-row items-center px-4 py-2">
-      <View className="flex-1 flex-col">
-        <RowTitle>{sourceTrack.title}</RowTitle>
-        <SubtitleText>
-          {sourceTrack.artist?.name} &bull; {sourceTrack.source?.displayDate}
-        </SubtitleText>
-        <DownloadStatusTime item={item} />
-      </View>
-      <SourceTrackOfflineIndicator offlineInfo={item} />
-    </View>
+    <TrackWithArtist
+      sourceTrack={sourceTrack}
+      offlineIndicator={false}
+      subtitleColumn={true}
+      indicatorComponent={<SourceTrackOfflineIndicator offlineInfo={item} />}
+    >
+      <DownloadStatusTime item={item} />
+    </TrackWithArtist>
   );
 };
 
 const DownloadStatusTime = ({ item }: { item: SourceTrackOfflineInfo }) => {
   if (item.status === SourceTrackOfflineInfoStatus.Succeeded) {
-    return <SubtitleText>Downloaded {dayjs(item.completedAt).fromNow()}</SubtitleText>;
+    return (
+      <SubtitleText cn="italic text-xs">
+        Downloaded {dayjs(item.completedAt).fromNow()}
+      </SubtitleText>
+    );
   }
 
   return <SubtitleText>Queued at {dayjs(item.queuedAt).fromNow()}</SubtitleText>;
@@ -67,12 +73,12 @@ const OfflineHeader = ({ downloads }: { downloads: Realm.Results<SourceTrackOffl
   return (
     <>
       <RelistenText
-        className="w-full py-2 text-center text-4xl font-bold text-white"
+        className="w-full pb-2 text-center text-4xl font-bold text-white"
         selectable={false}
       >
         Downloading
       </RelistenText>
-      <RelistenText className="text-l w-full pb-2 text-center italic text-gray-400">
+      <RelistenText className="text-l w-full pb-4 text-center italic text-gray-400">
         {downloads.length} downloading
       </RelistenText>
     </>
