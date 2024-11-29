@@ -8,7 +8,6 @@ import { SourceTrack } from './source_track';
 import { checkIfOfflineSourceTrackExists } from '../realm_filters';
 import { Tour } from './tour';
 import { Artist } from './artist';
-import { SourceTrackOfflineInfoStatus } from './source_track_offline_info';
 
 export interface ShowRequiredRelationships {}
 
@@ -52,7 +51,6 @@ export class Show
       hasStreamableFlacSource: 'bool',
       sourceCount: 'int',
       isFavorite: { type: 'bool', default: false },
-      hasOfflineTracks: { type: 'bool', default: false },
       venue: 'Venue?',
       sourceTracks: {
         type: 'linkingObjects',
@@ -79,7 +77,6 @@ export class Show
   hasSoundboardSource!: boolean;
   hasStreamableFlacSource!: boolean;
   sourceCount!: number;
-  hasOfflineTracks!: boolean;
 
   venue?: Venue;
   sourceTracks!: Realm.List<SourceTrack>;
@@ -102,14 +99,8 @@ export class Show
     return this.avgRating.toFixed(2);
   }
 
-  // just a getter to calculate show._hasOfflineTracks (see download_manager)
-  // use the raw db value when rendering
-  get _hasOfflineTracks() {
-    const activeDownloadCounts = this.sourceTracks.filter(
-      (track) => track.offlineInfo?.status === SourceTrackOfflineInfoStatus.Succeeded
-    ).length;
-
-    return activeDownloadCounts > 0;
+  get hasOfflineTracks() {
+    return checkIfOfflineSourceTrackExists(this.sourceTracks);
   }
 
   static propertiesFromApi(relistenObj: ApiShow): ShowRequiredProperties {

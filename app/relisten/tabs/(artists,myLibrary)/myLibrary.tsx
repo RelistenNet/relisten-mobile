@@ -16,6 +16,7 @@ import { Link } from 'expo-router';
 import { PropsWithChildren, default as React, useMemo } from 'react';
 import { ScrollView, TouchableOpacity, View, ViewProps } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { filterForUser } from '@/relisten/realm/realm_filters';
 
 function MyLibrarySectionHeader({ children, className, ...props }: PropsWithChildren<ViewProps>) {
   return (
@@ -76,7 +77,8 @@ function FavoriteShows() {
   const favoriteShowsQuery = useQuery(
     {
       type: Show,
-      query: (query) => query.filtered('isFavorite == true || hasOfflineTracks == true'),
+      query: (query) =>
+        filterForUser(query, { isFavorite: true, isPlayableOffline: true, operator: 'OR' }),
     },
     []
   );
