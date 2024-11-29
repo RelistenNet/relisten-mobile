@@ -76,6 +76,7 @@ export class DownloadManager {
       });
 
       sourceTrack.offlineInfo = offlineInfo;
+      sourceTrack.show.hasOfflineTracks = true;
     });
   }
 
@@ -139,6 +140,10 @@ export class DownloadManager {
 
         sourceTrack.offlineInfo = undefined;
         realm!.delete(offlineInfo);
+
+        if (!sourceTrack.show._hasOfflineTracks) {
+          sourceTrack.show.hasOfflineTracks = false;
+        }
       });
     }
   }
@@ -218,6 +223,8 @@ export class DownloadManager {
           offlineInfo.status = SourceTrackOfflineInfoStatus.Succeeded;
           offlineInfo.completedAt = new Date();
           offlineInfo.errorInfo = undefined;
+
+          offlineInfo.sourceTrack.show.hasOfflineTracks = true;
         });
 
         this.runningDownloadTasks.splice(this.runningDownloadTasks.indexOf(downloadTask), 1);
