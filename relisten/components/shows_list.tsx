@@ -89,6 +89,7 @@ const SHOW_FILTERS: Filter<ShowFilterKey, Show>[] = [
     title: 'Offline',
     active: false,
     filter: (show) => show.hasOfflineTracks,
+    isGlobal: true,
   },
   {
     persistenceKey: ShowFilterKey.Date,

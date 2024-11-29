@@ -4,6 +4,8 @@ import React, { PropsWithChildren, useCallback, useContext, useMemo, useRef } fr
 import Realm from 'realm';
 import { RelistenObject } from '../../api/models/relisten';
 
+const GLOBAL_FILTER_KEY = '__global__';
+
 export enum SortDirection {
   UNKNOWN = 0,
   Ascending,
@@ -14,6 +16,7 @@ export interface PersistedFilter<K extends string> {
   persistenceKey: K;
   active: boolean;
   sortDirection?: SortDirection;
+  isGlobal?: boolean;
 }
 
 export interface Filter<K extends string, T> extends PersistedFilter<K> {
@@ -52,12 +55,14 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
   const filterPersistenceKey = options?.persistence?.key;
 
   let routeFilterConfig = useObject(RouteFilterConfig, filterPersistenceKey || '__no_object__');
+  let globalFilterConfig = useObject(RouteFilterConfig, GLOBAL_FILTER_KEY);
 
-  const persistedFilters = routeFilterConfig ? routeFilterConfig.filters() : undefined;
+  const routePersistedFilters = routeFilterConfig ? routeFilterConfig.filters() : undefined;
+  const globalPersistedFilters = globalFilterConfig ? globalFilterConfig.filters() : undefined;
 
   // useState to apply the default sort only 1 time.
   const preparedFilters = useMemo(() => {
-    if (!persistedFilters) return [...filters];
+    if (!routePersistedFilters) return [...filters];
 
     const internalFilters = filters.map((f) => {
       return { ...f };
@@ -80,22 +85,26 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
     }
 
     // this runs on ever render pass (assuming filters/data changes)
-    if (persistedFilters) {
-      for (const internalFilter of internalFilters) {
-        if (internalFilter) {
-          const persistedFilter = persistedFilters[internalFilter.persistenceKey];
-          if (persistedFilter) {
-            internalFilter.active = persistedFilter.active;
-            internalFilter.sortDirection = persistedFilter.sortDirection;
-          } else {
-            internalFilter.active = false;
+    [routePersistedFilters, globalPersistedFilters].forEach((persistedFilters) => {
+      if (persistedFilters) {
+        for (const internalFilter of internalFilters) {
+          if (internalFilter) {
+            const persistedFilter = persistedFilters[internalFilter.persistenceKey];
+            if (persistedFilter) {
+              internalFilter.active = persistedFilter.active;
+              internalFilter.sortDirection = persistedFilter.sortDirection;
+            } else {
+              internalFilter.active = false;
+            }
           }
         }
       }
-    }
+    });
 
     return [...internalFilters];
-  }, [persistedFilters]);
+  }, [routePersistedFilters, globalPersistedFilters]);
+
+  console.log(preparedFilters);
 
   const filter = useCallback(
     (allData: ReadonlyArray<T>) => {
@@ -149,7 +158,7 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
         (f) => f.persistenceKey === thisFilter.persistenceKey
       );
 
-      console.log(`changingFilter=${changingFilter}`);
+      console.log(`(before) changingFilter=${JSON.stringify(changingFilter)}`);
 
       if (changingFilter) {
         if (changingFilter.sortDirection !== undefined) {
@@ -178,12 +187,22 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
 
       realm.write(() => {
         if (filterPersistenceKey) {
+          const globalFilters = intermediateFilters.filter((f) => f.isGlobal);
+          const localFilters = intermediateFilters.filter((f) => !f.isGlobal);
           if (routeFilterConfig) {
-            routeFilterConfig.setFilters(intermediateFilters);
+            routeFilterConfig.setFilters(localFilters);
           } else {
             routeFilterConfig = realm.create(RouteFilterConfig, {
               key: filterPersistenceKey,
-              rawFilters: serializeFilters(intermediateFilters),
+              rawFilters: serializeFilters(localFilters),
+            });
+          }
+          if (globalFilterConfig) {
+            globalFilterConfig.setFilters(globalFilters);
+          } else {
+            globalFilterConfig = realm.create(RouteFilterConfig, {
+              key: GLOBAL_FILTER_KEY,
+              rawFilters: serializeFilters(globalFilters),
             });
           }
         }

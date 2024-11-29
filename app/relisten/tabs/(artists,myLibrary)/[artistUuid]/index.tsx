@@ -254,6 +254,7 @@ const YEAR_FILTERS: Filter<YearFilterKey, Year>[] = [
     title: 'Offline',
     active: false,
     filter: (year) => year.hasOfflineTracks,
+    isGlobal: true,
   },
   {
     persistenceKey: YearFilterKey.Year,
