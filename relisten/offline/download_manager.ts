@@ -170,6 +170,41 @@ export class DownloadManager {
     return task;
   }
 
+  async removeAllPendingDownloads() {
+    // stop all active downloads
+    for (const downloadTask of this.runningDownloadTasks) {
+      downloadTask.stop();
+      this.runningDownloadTasks.splice(this.runningDownloadTasks.indexOf(downloadTask), 1);
+    }
+
+    if (realm) {
+      const offlineInfos = realm
+        .objects(SourceTrackOfflineInfo)
+        .filtered('status != $0', SourceTrackOfflineInfoStatus.Succeeded);
+
+      for (const offlineInfo of offlineInfos) {
+        await this.removeDownload(offlineInfo.sourceTrack);
+      }
+    }
+  }
+
+  async retryFailedDownloads() {
+    if (realm) {
+      const offlineInfos = realm
+        .objects(SourceTrackOfflineInfo)
+        .filtered('status == $0', SourceTrackOfflineInfoStatus.Failed);
+
+      realm.write(() => {
+        for (const offlineInfo of offlineInfos) {
+          offlineInfo.status = SourceTrackOfflineInfoStatus.Queued;
+          offlineInfo.completedAt = undefined;
+        }
+      });
+
+      await this.maybeStartQueuedDownloads();
+    }
+  }
+
   async removeDownload(sourceTrack: SourceTrack) {
     // remove task, if it exists
     const task = this.downloadTaskById(sourceTrack.uuid);

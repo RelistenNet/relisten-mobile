@@ -52,8 +52,8 @@ export class SourceTrackOfflineInfo extends Realm.Object<SourceTrackOfflineInfo>
   type!: SourceTrackOfflineInfoType;
 
   queuedAt!: Date;
-  startedAt!: Date;
-  completedAt!: Date;
+  startedAt?: Date;
+  completedAt?: Date;
 
   downloadedBytes!: number;
   totalBytes!: number;

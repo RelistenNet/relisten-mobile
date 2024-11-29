@@ -13,6 +13,9 @@ import dayjs from 'dayjs';
 import { SourceTrackOfflineIndicator } from '@/relisten/components/source/source_track_offline_indicator';
 import { TrackWithArtist } from '@/relisten/components/source/source_track_with_artist';
 import { RelistenSectionList } from '@/relisten/components/relisten_section_list';
+import { RelistenButton } from '@/relisten/components/relisten_button';
+import { View } from 'react-native';
+import { DownloadManager } from '@/relisten/offline/download_manager';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -67,6 +70,14 @@ const DownloadStatusTime = ({ item }: { item: SourceTrackOfflineInfo }) => {
 };
 
 const OfflineHeader = ({ downloads }: { downloads: Realm.Results<SourceTrackOfflineInfo> }) => {
+  const cancelDownloads = async () => {
+    await DownloadManager.SHARED_INSTANCE.removeAllPendingDownloads();
+  };
+
+  const retryDownloads = async () => {
+    await DownloadManager.SHARED_INSTANCE.retryFailedDownloads();
+  };
+
   return (
     <>
       <RelistenText
@@ -78,6 +89,22 @@ const OfflineHeader = ({ downloads }: { downloads: Realm.Results<SourceTrackOffl
       <RelistenText className="text-l w-full pb-4 text-center italic text-gray-400">
         {downloads.length} downloading
       </RelistenText>
+      <View className="w-full flex-row justify-center px-4 pb-4" style={{ gap: 16 }}>
+        <RelistenButton
+          className="shrink basis-1/2"
+          textClassName="text-l"
+          onPress={cancelDownloads}
+        >
+          Cancel Downloads
+        </RelistenButton>
+        <RelistenButton
+          className="shrink basis-1/2"
+          textClassName="text-l"
+          onPress={retryDownloads}
+        >
+          Retry Failed
+        </RelistenButton>
+      </View>
     </>
   );
 };

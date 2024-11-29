@@ -1330,7 +1330,7 @@ PODS:
     - Yoga
   - react-native-airplay-button (1.1.0):
     - React-Core
-  - react-native-background-downloader (3.2.1):
+  - react-native-background-downloader (3.2.2):
     - MMKV (= 1.3.4)
     - React-Core
   - react-native-get-random-values (1.11.0):
@@ -2232,13 +2232,13 @@ SPEC CHECKSUMS:
   EXSplashScreen: a4941ba8f00e9a8c0dc9988e40f78d283450e507
   FBLazyVector: 430e10366de01d1e3d57374500b1b150fe482e6d
   fmt: 4c2741a687cc09f0634a2e2c72a838b99f1ff120
-  glog: 69ef571f3de08433d766d614c73a9838a06bf7eb
+  glog: fdfdfe5479092de0c4bdbebedd9056951f092c4f
   hermes-engine: ea92f60f37dba025e293cbe4b4a548fd26b610a0
   lottie-ios: a881093fab623c467d3bce374367755c272bdd59
   lottie-react-native: 1fdff72253c5699ea2fe3b998999285daff77500
   MMKV: ed58ad794b3f88c24d604a5b74f3fba17fcbaf74
   MMKVCore: af055b00e27d88cd92fad301c5fecd1ff9b26dd9
-  RCT-Folly: 4464f4d875961fce86008d45f4ecf6cef6de0740
+  RCT-Folly: 02617c592a293bd6d418e0a88ff4ee1f88329b47
   RCTDeprecation: 726d24248aeab6d7180dac71a936bbca6a994ed1
   RCTRequired: a94e7febda6db0345d207e854323c37e3a31d93b
   RCTTypeSafety: 28e24a6e44f5cbf912c66dde6ab7e07d1059a205
@@ -2268,7 +2268,7 @@ SPEC CHECKSUMS:
   React-Mapbuffer: b982d5bba94a8bc073bda48f0d27c9b28417fae3
   React-microtasksnativemodule: 2cec1d6e126598df0f165268afa231174dd1a611
   react-native-airplay-button: 90c7ba52402c8e92342003b8a1ff78dfb4357a9e
-  react-native-background-downloader: 9ce5d5ffa5216771b1a4b641b499ca5c0de9f025
+  react-native-background-downloader: 25279c55074ae4a86f7838ee60b37702487cbdaf
   react-native-get-random-values: 21325b2244dfa6b58878f51f9aa42821e7ba3d06
   react-native-netinfo: bdb108d340cdb41875c9ced535977cac6d2ff321
   react-native-render-html: 984dfe2294163d04bf5fe25d7c9f122e60e05ebe
@@ -2313,4 +2313,4 @@ SPEC CHECKSUMS:
 
 PODFILE CHECKSUM: 2ed05aa28dfecdd4036015fb8a5dccb2021a9d86
 
-COCOAPODS: 1.14.3
+COCOAPODS: 1.16.2

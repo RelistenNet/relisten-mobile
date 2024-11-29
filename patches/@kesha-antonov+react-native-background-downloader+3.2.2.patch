@@ -1,0 +1,13 @@
+diff --git a/node_modules/@kesha-antonov/react-native-background-downloader/ios/RNBackgroundDownloader.m b/node_modules/@kesha-antonov/react-native-background-downloader/ios/RNBackgroundDownloader.m
+index fb90c07..a96954a 100644
+--- a/node_modules/@kesha-antonov/react-native-background-downloader/ios/RNBackgroundDownloader.m
++++ b/node_modules/@kesha-antonov/react-native-background-downloader/ios/RNBackgroundDownloader.m
+@@ -152,6 +152,8 @@ RCT_EXPORT_MODULE();
+                                                   selector:@selector(handleBridgeJavascriptLoad:)
+                                                   name:RCTJavaScriptDidLoadNotification
+                                                   object:nil];
++            
++            isJavascriptLoaded = YES;
+         }
+     }
+ }
