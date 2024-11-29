@@ -3,21 +3,24 @@ import { Show } from '@/relisten/realm/models/show';
 import { tw } from '@/relisten/util/tw';
 import { Link } from 'expo-router';
 import React from 'react';
-import { TouchableOpacity, View } from 'react-native';
+import { TouchableOpacity, View, ViewProps } from 'react-native';
 
 export function ShowCard({
   show,
   sourceUuid,
   root,
   cn,
+  className,
+  ...props
 }: {
   show: Show;
   sourceUuid?: string;
   root?: 'artists' | 'myLibrary';
   cn?: string;
-}) {
+  className?: string;
+} & ViewProps) {
   return (
-    <View className={tw('shrink pl-1 pr-1 first:pr-0 last:pr-0', cn)}>
+    <View className={tw('shrink pl-1 pr-1 first:pr-0 last:pr-0', cn, className)} {...props}>
       <Link
         href={{
           pathname:
@@ -43,9 +46,18 @@ export function ShowCard({
               </RelistenText>
             )}
             {show.venue ? (
-              <RelistenText numberOfLines={1} selectable={false} className="pt-1 text-xs">
-                {show.venue?.name?.trim()}, {show.venue?.location?.trim()}
-              </RelistenText>
+              <>
+                {show.venue?.name && (
+                  <RelistenText numberOfLines={1} selectable={false} className="pt-1 text-xs">
+                    {show.venue?.name?.trim()}
+                  </RelistenText>
+                )}
+                {show.venue?.location && (
+                  <RelistenText numberOfLines={1} selectable={false} className="pt-1 text-xs">
+                    {show.venue?.location?.trim()}
+                  </RelistenText>
+                )}
+              </>
             ) : (
               <RelistenText numberOfLines={1} selectable={false} className="pt-1 text-xs">
                 Venue Unknown

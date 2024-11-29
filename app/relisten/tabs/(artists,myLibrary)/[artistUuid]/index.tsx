@@ -27,8 +27,14 @@ import { useArtistYears, useYearMetadata } from '@/relisten/realm/models/year_re
 import { useGroupSegment, useIsDownloadedTab, useRoute } from '@/relisten/util/routes';
 import { Link, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { useEffect, useMemo } from 'react';
-import { View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import Realm from 'realm';
+import { useTodayShows } from '@/relisten/realm/models/shows/today_shows_repo';
+import { tw } from '@/relisten/util/tw';
+import { ShowCard } from '@/relisten/components/show_card';
+import { List as ListContentLoader } from 'react-content-loader/native';
+import { RelistenBlue } from '@/relisten/relisten_blue';
+import ContentLoader from 'react-content-loader';
 
 export enum YearFilterKey {
   Library = 'library',
@@ -81,6 +87,7 @@ const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => {
   const isDownloadedTab = useIsDownloadedTab();
   const groupSegment = useGroupSegment(true);
   const metadata = useArtistMetadata(artist);
+  const todayShows = useTodayShows(artist?.uuid);
 
   if (!artist) {
     return null;
@@ -102,102 +109,126 @@ const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => {
   };
 
   return (
-    <View className="flex w-full items-center pb-1">
-      <View className="w-full px-4 pb-2">
-        <RelistenText
-          className="w-full py-2 text-center text-4xl font-bold text-white"
-          selectable={false}
-        >
-          {artist.name}
-        </RelistenText>
+    <>
+      <View className="flex w-full items-center pb-1">
+        <View className="w-full px-4 pb-2">
+          <RelistenText
+            className="w-full py-2 text-center text-4xl font-bold text-white"
+            selectable={false}
+          >
+            {artist.name}
+          </RelistenText>
 
-        <RelistenText className="text-l w-full pb-2 text-center italic text-gray-400">
-          {/* <Plur word="year" count={years.length} /> &middot;&nbsp; */}
-          <Plur word="show" count={metadata.shows} /> &middot;&nbsp;
-          <Plur word="tape" count={metadata.sources} />
-        </RelistenText>
+          <RelistenText className="text-l w-full pb-2 text-center italic text-gray-400">
+            {/* <Plur word="year" count={years.length} /> &middot;&nbsp; */}
+            <Plur word="show" count={metadata.shows} /> &middot;&nbsp;
+            <Plur word="tape" count={metadata.sources} />
+          </RelistenText>
+        </View>
+        {!isDownloadedTab && (
+          <>
+            <View className="w-full flex-row px-4 pb-4" style={{ gap: 16 }}>
+              <Link
+                href={{
+                  pathname: currentRoute + '/venues',
+                  params: {
+                    artistUuid: artist.uuid,
+                  },
+                }}
+                asChild
+              >
+                <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+                  Venues
+                </RelistenButton>
+              </Link>
+              <Link
+                href={{
+                  pathname: currentRoute + '/tours',
+                  params: {
+                    artistUuid: artist.uuid,
+                  },
+                }}
+                asChild
+              >
+                <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+                  Tours
+                </RelistenButton>
+              </Link>
+              <Link
+                href={{
+                  pathname: currentRoute + '/songs',
+                  params: {
+                    artistUuid: artist.uuid,
+                  },
+                }}
+                asChild
+              >
+                <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+                  Songs
+                </RelistenButton>
+              </Link>
+            </View>
+            <View className="w-full flex-row px-4 pb-4" style={{ gap: 16 }}>
+              <Link
+                href={{
+                  pathname: currentRoute + '/rated',
+                  params: {
+                    artistUuid: artist.uuid,
+                  },
+                }}
+                asChild
+              >
+                <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+                  Top Rated
+                </RelistenButton>
+              </Link>
+              <Link
+                href={{
+                  pathname: currentRoute + '/recent',
+                  params: {
+                    artistUuid: artist.uuid,
+                  },
+                }}
+                asChild
+              >
+                <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+                  Recent
+                </RelistenButton>
+              </Link>
+              <RelistenButton
+                className="shrink basis-1/3"
+                textClassName="text-l"
+                onPress={goToRandomShow}
+              >
+                Random
+              </RelistenButton>
+            </View>
+          </>
+        )}
       </View>
-      {!isDownloadedTab && (
-        <>
-          <View className="w-full flex-row px-4 pb-4" style={{ gap: 16 }}>
-            <Link
-              href={{
-                pathname: currentRoute + '/venues',
-                params: {
-                  artistUuid: artist.uuid,
-                },
-              }}
-              asChild
-            >
-              <RelistenButton className="shrink basis-1/3" textClassName="text-l">
-                Venues
-              </RelistenButton>
-            </Link>
-            <Link
-              href={{
-                pathname: currentRoute + '/tours',
-                params: {
-                  artistUuid: artist.uuid,
-                },
-              }}
-              asChild
-            >
-              <RelistenButton className="shrink basis-1/3" textClassName="text-l">
-                Tours
-              </RelistenButton>
-            </Link>
-            <Link
-              href={{
-                pathname: currentRoute + '/songs',
-                params: {
-                  artistUuid: artist.uuid,
-                },
-              }}
-              asChild
-            >
-              <RelistenButton className="shrink basis-1/3" textClassName="text-l">
-                Songs
-              </RelistenButton>
-            </Link>
-          </View>
-          <View className="w-full flex-row px-4 pb-4" style={{ gap: 16 }}>
-            <Link
-              href={{
-                pathname: currentRoute + '/rated',
-                params: {
-                  artistUuid: artist.uuid,
-                },
-              }}
-              asChild
-            >
-              <RelistenButton className="shrink basis-1/3" textClassName="text-l">
-                Top Rated
-              </RelistenButton>
-            </Link>
-            <Link
-              href={{
-                pathname: currentRoute + '/recent',
-                params: {
-                  artistUuid: artist.uuid,
-                },
-              }}
-              asChild
-            >
-              <RelistenButton className="shrink basis-1/3" textClassName="text-l">
-                Recent
-              </RelistenButton>
-            </Link>
-            <RelistenButton
-              className="shrink basis-1/3"
-              textClassName="text-l"
-              onPress={goToRandomShow}
-            >
-              Random
-            </RelistenButton>
-          </View>
-        </>
-      )}
-    </View>
+      <RefreshContextProvider networkBackedResults={todayShows}>
+        <View className="flex px-4 pb-2">
+          <RelistenText className="text-m font-bold">
+            {todayShows.isNetworkLoading && todayShows.data.length == 0 ? (
+              <></>
+            ) : (
+              <>
+                <Plur word="show" count={todayShows.data.length} /> on this day
+              </>
+            )}
+          </RelistenText>
+        </View>
+        {todayShows.isNetworkLoading && todayShows.data.length == 0 ? (
+          <View className="mb-1 h-[78px] w-full flex-1 items-start pb-3 pl-3"></View>
+        ) : (
+          <ScrollView horizontal className="mb-1 pb-3 pl-3">
+            {todayShows.data.map((show) => (
+              <ShowCard show={show} key={show.uuid} root="artists" cn="h-full w-[168px]" />
+            ))}
+          </ScrollView>
+        )}
+      </RefreshContextProvider>
+    </>
   );
 };
 
