@@ -38,14 +38,7 @@ export function SourceTrackOfflineIndicator({
       );
       break;
     case SourceTrackOfflineInfoStatus.Downloading:
-      contents = (
-        <Progress.CircleSnail
-          size={SIZE}
-          indeterminate={true}
-          color={color}
-          progress={offlineInfo.percent}
-        />
-      );
+      contents = <Progress.Pie size={SIZE} color={color} progress={offlineInfo.percent} />;
       break;
     case SourceTrackOfflineInfoStatus.Failed:
       contents = <MaterialCommunityIcons name="cloud-alert" size={SIZE} color={color} />;

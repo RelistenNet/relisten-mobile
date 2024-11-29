@@ -1843,10 +1843,10 @@
   resolved "https://registry.yarnpkg.com/@jsamr/react-native-li/-/react-native-li-2.3.1.tgz#12a5b5f6e3971cec77b96bee58104eed0ae9314a"
   integrity sha512-Qbo4NEj48SQ4k8FZJHFE2fgZDKTWaUGmVxcIQh3msg5JezLdTMMHuRRDYctfdHI6L0FZGObmEv3haWbIvmol8w==
 
-"@kesha-antonov/react-native-background-downloader@^3.2.1":
-  version "3.2.1"
-  resolved "https://registry.yarnpkg.com/@kesha-antonov/react-native-background-downloader/-/react-native-background-downloader-3.2.1.tgz#b13538c0a99ebe0b596430b4ba9932f811ae5ecd"
-  integrity sha512-R0HKNSXAbs4yr8dXZBqd5zS4JIvlvsltQh+1YpxqWTaAFKYcw3hF4FazlE5PVjCRNDz74nO58GVdfQWUHoaxBw==
+"@kesha-antonov/react-native-background-downloader@^3.2.2":
+  version "3.2.2"
+  resolved "https://registry.yarnpkg.com/@kesha-antonov/react-native-background-downloader/-/react-native-background-downloader-3.2.2.tgz#51e832c94b74749666c5abde5782f94f475a3e0d"
+  integrity sha512-4wdm3rVoPAOGt+PRAgQTnsAdM0qJ+FxI6MSZFskNd2i5It6u2D7sRecoQx9bmTnBUwA8ZO1Yw1qmb8UkgeKG7Q==
 
 "@motionone/animation@^10.12.0":
   version "10.17.0"

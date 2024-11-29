@@ -15,8 +15,10 @@ const logger = log.extend('offline');
 
 export class DownloadManager {
   static SHARED_INSTANCE = new DownloadManager();
+  static MAX_CONCURRENT_DOWNLOADS = 3;
 
   private runningDownloadTasks: DownloadTask[] = [];
+  private pendingDownloadTasks: number = 0;
 
   async downloadTrack(sourceTrack: SourceTrack) {
     if (!realm) {
@@ -52,7 +54,7 @@ export class DownloadManager {
       });
     }
 
-    await this.createDownloadTask(sourceTrack, offlineInfo!);
+    await this.maybeCreateDownloadTask(sourceTrack, offlineInfo!);
   }
 
   markCachedFileAsAvailableOffline(sourceTrack: SourceTrack, totalBytes: number) {
@@ -79,9 +81,60 @@ export class DownloadManager {
     });
   }
 
-  private async createDownloadTask(sourceTrack: SourceTrack, offlineInfo: SourceTrackOfflineInfo) {
-    logger.debug(`${sourceTrack.uuid}: ${sourceTrack.mp3Url}`);
+  private maybeCreateDownloadTask(sourceTrack: SourceTrack, offlineInfo: SourceTrackOfflineInfo) {
+    const slotsRemaining = this.availableDownloadSlots();
 
+    if (slotsRemaining <= 0) {
+      logger.debug(`No available download slot; slotsRemaining=${slotsRemaining}`);
+      return null;
+    }
+
+    return this.createDownloadTask(sourceTrack, offlineInfo);
+  }
+
+  private availableDownloadSlots() {
+    return (
+      DownloadManager.MAX_CONCURRENT_DOWNLOADS -
+      this.runningDownloadTasks.length -
+      this.pendingDownloadTasks
+    );
+  }
+
+  private async maybeStartQueuedDownloads() {
+    const createdTasks = new Set<string>();
+
+    if (!realm) {
+      logger.error('maybeStartNextDownloadTasks: No global Realm instance available.');
+      return createdTasks;
+    }
+
+    if (this.availableDownloadSlots() <= 0) {
+      return createdTasks;
+    }
+
+    const queuedDownloads = realm
+      .objects(SourceTrackOfflineInfo)
+      .filtered('status == $0', SourceTrackOfflineInfoStatus.Queued)
+      .sorted('queuedAt')
+      .slice(0, this.availableDownloadSlots());
+
+    for (const queuedDownload of queuedDownloads) {
+      const task = await this.createDownloadTask(queuedDownload.sourceTrack, queuedDownload);
+
+      createdTasks.add(task.id);
+    }
+
+    logger.debug(`Started createdTasks=${createdTasks.size} new download tasks`);
+
+    return createdTasks;
+  }
+
+  private async createDownloadTask(sourceTrack: SourceTrack, offlineInfo: SourceTrackOfflineInfo) {
+    logger.debug(
+      `creating DownloadTask; sourceTrack.uuid=${sourceTrack.uuid}: mp3Url=${sourceTrack.mp3Url}`
+    );
+
+    this.pendingDownloadTasks++;
     const destination = sourceTrack.downloadedFileLocation();
 
     // make sure the file doesn't already exist. the native code will error out. this should only be needed to recover
@@ -99,6 +152,7 @@ export class DownloadManager {
       isNotificationVisible: true,
     });
 
+    this.pendingDownloadTasks--;
     this.runningDownloadTasks.push(task);
 
     task.begin(({ expectedBytes }) => {
@@ -149,6 +203,12 @@ export class DownloadManager {
       return;
     }
 
+    RNBackgroundDownloader.setConfig({
+      progressInterval: 500 /* ms */,
+      // These are really noisy. If enabled, make sure it is only __DEV__
+      isLogsEnabled: false,
+    });
+
     const lostTasks = await RNBackgroundDownloader.checkForExistingDownloads();
 
     const resumedTaskIds = new Set<string>();
@@ -169,19 +229,7 @@ export class DownloadManager {
 
     logger.info(`Resumed ${resumedTaskIds.size} background downloads from tasks.`);
 
-    const queuedDownloads = realm
-      .objects(SourceTrackOfflineInfo)
-      .filtered('status == $0', SourceTrackOfflineInfoStatus.Queued);
-
-    const restartedTaskIds = new Set<string>();
-
-    for (const offlineInfo of queuedDownloads) {
-      if (!resumedTaskIds.has(offlineInfo.sourceTrackUuid)) {
-        const task = await this.createDownloadTask(offlineInfo.sourceTrack, offlineInfo);
-
-        restartedTaskIds.add(task.id);
-      }
-    }
+    const restartedTaskIds = await this.maybeStartQueuedDownloads();
 
     logger.info(`Restarted ${restartedTaskIds.size} downloads from orphaned offline info.`);
   }
@@ -204,7 +252,7 @@ export class DownloadManager {
         const percent = bytesDownloaded / bytesTotal;
 
         realm.write(() => {
-          logger.debug(`${downloadTask.id}: progress; ${percent}`);
+          logger.debug(`${downloadTask.id}: progress; ${Math.floor(percent * 100)}`);
 
           offlineInfo.downloadedBytes = bytesDownloaded;
           offlineInfo.totalBytes = bytesTotal;
@@ -221,6 +269,7 @@ export class DownloadManager {
         });
 
         this.runningDownloadTasks.splice(this.runningDownloadTasks.indexOf(downloadTask), 1);
+        this.maybeStartQueuedDownloads().then(() => {});
       })
       .error((error) => {
         realm.write(() => {
@@ -232,6 +281,7 @@ export class DownloadManager {
         });
 
         this.runningDownloadTasks.splice(this.runningDownloadTasks.indexOf(downloadTask), 1);
+        this.maybeStartQueuedDownloads().then(() => {});
       });
   }
 }

@@ -14,7 +14,7 @@ const RowTitle = ({ className, as = Text, ...props }: TextProps & NewProps) => {
   return (
     <Comp
       {...props}
-      className={tw('numb text-lg font-semibold text-white', className)}
+      className={tw('numb shrink text-lg font-semibold text-white', className)}
       style={{ fontVariant: ['tabular-nums'] }}
     />
   );
