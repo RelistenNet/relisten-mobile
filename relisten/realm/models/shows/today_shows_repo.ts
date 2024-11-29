@@ -15,10 +15,10 @@ import Realm from 'realm';
 import { showRepo } from '../show_repo';
 import { venueRepo } from '../venue_repo';
 import { Venue } from '../venue';
-import { EventEmitter } from 'expo-modules-core';
+import EventEmitter from 'react-native/Libraries/vendor/emitter/EventEmitter';
 
 class TodayShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavior {
-  private emitter = new EventEmitter({} as any);
+  private emitter = new EventEmitter();
 
   constructor(
     public artistUuid?: string,
@@ -40,7 +40,7 @@ class TodayShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavio
     useEffect(() => {
       const onChange = (data: string[]) => setState(data);
       const sub = this.emitter.addListener('onChange', onChange);
-      return () => this.emitter.removeSubscription(sub);
+      return () => sub.remove();
     }, []);
 
     return useQuery(

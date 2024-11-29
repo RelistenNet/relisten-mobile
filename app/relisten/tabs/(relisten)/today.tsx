@@ -34,11 +34,11 @@ export default function Page() {
   return (
     <SafeAreaView>
       <ScrollView>
-        <View className="space-y-4">
+        <View className="space-y-2">
           {groupedShows.map(({ artist, shows }) => (
             <View key={artist?.uuid} className="space-y-2">
               <RelistenText cn="ml-2 text-xl font-bold">{artist?.name}</RelistenText>
-              <ScrollView horizontal>
+              <ScrollView horizontal className="pb-2 pl-2">
                 {shows.map((show) => (
                   <ShowCard show={show} key={show.uuid} root="artists" cn="w-[144px] h-full" />
                 ))}

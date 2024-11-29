@@ -5,7 +5,8 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { View } from 'react-native';
 import colors from 'tailwindcss/colors';
-import AnimatedProgressWheel from 'react-native-progress-wheel';
+
+import * as Progress from 'react-native-progress';
 
 const SIZE = 18;
 
@@ -33,25 +34,16 @@ export function SourceTrackOfflineIndicator({
     case SourceTrackOfflineInfoStatus.Queued:
       // TODO: make indeterminate
       contents = (
-        <AnimatedProgressWheel
-          progress={0}
-          rotation={'-90deg'}
-          size={SIZE - 2}
-          backgroundColor={'transparent'}
-          color={color}
-          width={SIZE / 3}
-        />
+        <Progress.CircleSnail size={SIZE} indeterminate={true} color={color} thickness={2} />
       );
       break;
     case SourceTrackOfflineInfoStatus.Downloading:
       contents = (
-        <AnimatedProgressWheel
-          progress={offlineInfo.percent * 100}
-          rotation={'-90deg'}
-          size={SIZE - 2}
-          backgroundColor={'transparent'}
+        <Progress.CircleSnail
+          size={SIZE}
+          indeterminate={true}
           color={color}
-          width={SIZE / 3}
+          progress={offlineInfo.percent}
         />
       );
       break;
