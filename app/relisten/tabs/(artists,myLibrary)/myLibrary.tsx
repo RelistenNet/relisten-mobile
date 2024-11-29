@@ -16,6 +16,7 @@ import { Link } from 'expo-router';
 import { PropsWithChildren, default as React, useMemo } from 'react';
 import { ScrollView, TouchableOpacity, View, ViewProps } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { filterForUser } from '@/relisten/realm/realm_filters';
 
 function MyLibrarySectionHeader({ children, className, ...props }: PropsWithChildren<ViewProps>) {
   return (
@@ -76,17 +77,14 @@ function FavoriteShows() {
   const favoriteShowsQuery = useQuery(
     {
       type: Show,
-      query: (query) => query.filtered('isFavorite == true'),
+      query: (query) =>
+        filterForUser(query, { isFavorite: true, isPlayableOffline: true, operator: 'OR' }),
     },
     []
   );
 
-  const favoriteShows = useMemo(() => {
-    return [...favoriteShowsQuery];
-  }, [favoriteShowsQuery]);
-
   const favoriteShowsByArtist: RelistenSectionData<Show> = useMemo(() => {
-    const showsByArtistUuid = aggregateBy(favoriteShows, (s) => s.artistUuid);
+    const showsByArtistUuid = aggregateBy([...favoriteShowsQuery], (s) => s.artistUuid);
 
     return Object.keys(showsByArtistUuid)
       .sort((a, b) => {
@@ -102,7 +100,7 @@ function FavoriteShows() {
           data: shows,
         };
       });
-  }, [favoriteShows]);
+  }, [favoriteShowsQuery]);
 
   // TODO(alecgorge): if the user has a favorited source within that show, take them directly there
 
@@ -110,7 +108,7 @@ function FavoriteShows() {
     <View className="pt-4">
       <RefreshContextProvider>
         <MyLibrarySectionHeader>
-          <Plur word="Show" count={favoriteShows.length} /> in My Library
+          <Plur word="Show" count={favoriteShowsQuery.length} /> in My Library
         </MyLibrarySectionHeader>
         <ShowListContainer
           data={favoriteShowsByArtist}
