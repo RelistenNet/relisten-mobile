@@ -10,7 +10,7 @@ export function ShowCard({
   sourceUuid,
   root,
   cn,
-  showArtist,
+  showArtist = true,
   className,
   ...props
 }: {
@@ -21,10 +21,6 @@ export function ShowCard({
   className?: string;
   showArtist?: boolean;
 } & ViewProps) {
-  if (showArtist === undefined) {
-    showArtist = true;
-  }
-
   return (
     <View className={tw('shrink pl-1 pr-1 first:pr-0 last:pr-0', cn, className)} {...props}>
       <Link
