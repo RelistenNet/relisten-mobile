@@ -52,11 +52,11 @@ export const sortSources = (sources: Realm.Results<Source>) => {
               ),
             'desc'
           )
-          .thenBy(
-            (t1: Source, t2: Source) =>
-              getEtreeId(t1.upstreamIdentifier) - getEtreeId(t2.upstreamIdentifier),
-            'desc'
-          )
+          // .thenBy(
+          //   (t1: Source, t2: Source) =>
+          //     getEtreeId(t1.upstreamIdentifier) - getEtreeId(t2.upstreamIdentifier),
+          //   'desc'
+          // )
           .thenBy((t) => t.avgRatingWeighted, 'desc')
       )
     : [];
