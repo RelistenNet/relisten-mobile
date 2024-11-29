@@ -10,6 +10,7 @@ export function ShowCard({
   sourceUuid,
   root,
   cn,
+  showArtist,
   className,
   ...props
 }: {
@@ -18,7 +19,12 @@ export function ShowCard({
   root?: 'artists' | 'myLibrary';
   cn?: string;
   className?: string;
+  showArtist?: boolean;
 } & ViewProps) {
+  if (showArtist === undefined) {
+    showArtist = true;
+  }
+
   return (
     <View className={tw('shrink pl-1 pr-1 first:pr-0 last:pr-0', cn, className)} {...props}>
       <Link
@@ -40,7 +46,7 @@ export function ShowCard({
             <RelistenText selectable={false} className="text-md font-bold">
               {show.displayDate}
             </RelistenText>
-            {show.artist?.name && (
+            {showArtist && show.artist?.name && (
               <RelistenText selectable={false} className="pt-1">
                 {show.artist?.name}
               </RelistenText>

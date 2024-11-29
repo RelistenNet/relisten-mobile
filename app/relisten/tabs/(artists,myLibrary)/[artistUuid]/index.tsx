@@ -223,7 +223,13 @@ const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => {
         ) : (
           <ScrollView horizontal className="mb-1 pb-3 pl-3">
             {todayShows.data.map((show) => (
-              <ShowCard show={show} key={show.uuid} root="artists" cn="h-full w-[168px]" />
+              <ShowCard
+                show={show}
+                key={show.uuid}
+                root="artists"
+                showArtist={false}
+                cn="h-full w-[168px]"
+              />
             ))}
           </ScrollView>
         )}
