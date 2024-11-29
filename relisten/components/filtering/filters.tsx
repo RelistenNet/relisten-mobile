@@ -104,8 +104,6 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
     return [...internalFilters];
   }, [routePersistedFilters, globalPersistedFilters]);
 
-  console.log(preparedFilters);
-
   const filter = useCallback(
     (allData: ReadonlyArray<T>) => {
       const filteredData: T[] = [];
