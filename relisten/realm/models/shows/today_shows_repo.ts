@@ -16,6 +16,7 @@ import { showRepo } from '../show_repo';
 import { venueRepo } from '../venue_repo';
 import { Venue } from '../venue';
 import EventEmitter from 'react-native/Libraries/vendor/emitter/EventEmitter';
+import { upsertShowList } from '@/relisten/realm/models/repo_utils';
 
 class TodayShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavior {
   private emitter = new EventEmitter();
@@ -54,49 +55,13 @@ class TodayShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavio
   }
 
   override upsert(realm: Realm, localData: Realm.Results<Show>, apiData: ApiShow[]): void {
-    const apiVenuesByUuid = R.fromEntries(
-      R.flatMap(
-        apiData.filter((s) => !!s.venue),
-
-        (s) => [[s.venue!.uuid, s.venue!]]
-      )
-    );
-
-    // this.showUuids = apiData.map((x) => x.uuid);
     this.emitter.emit(
       'onChange',
       apiData.map((x) => x.uuid)
     );
 
     realm.write(() => {
-      const { createdModels: createdShows } = showRepo.upsertMultiple(
-        realm,
-        apiData,
-        localData,
-        false
-      );
-
-      for (const show of createdShows.concat(localData)) {
-        if (show.venueUuid) {
-          const apiVenue = apiVenuesByUuid[show.venueUuid];
-
-          if (!show.venue) {
-            const localVenue = realm.objectForPrimaryKey(Venue, show.venueUuid);
-
-            if (localVenue) {
-              show.venue = localVenue;
-            } else {
-              const { createdModels: createdVenues } = venueRepo.upsert(realm, apiVenue, undefined);
-
-              if (createdVenues.length > 0) {
-                show.venue = createdVenues[0];
-              }
-            }
-          } else if (apiVenue) {
-            venueRepo.upsert(realm, apiVenue, show.venue);
-          }
-        }
-      }
+      upsertShowList(realm, apiData, localData, { performDeletes: false, queryForModel: true });
     });
   }
 }

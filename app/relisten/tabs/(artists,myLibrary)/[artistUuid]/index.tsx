@@ -25,13 +25,10 @@ import { useArtistMetadata } from '@/relisten/realm/models/artist_repo';
 import { Year } from '@/relisten/realm/models/year';
 import { useArtistYears, useYearMetadata } from '@/relisten/realm/models/year_repo';
 import { useGroupSegment, useIsDownloadedTab, useRoute } from '@/relisten/util/routes';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Link, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import Realm from 'realm';
-import colors from 'tailwindcss/colors';
-import { ShowFilterKey } from '@/relisten/components/shows_list';
 
 export enum YearFilterKey {
   Library = 'library',
@@ -54,6 +51,7 @@ export default function Page() {
   useEffect(() => {
     navigation.setOptions({
       title: artist?.name,
+      headerRight: () => artist && <FavoriteObjectButton object={artist} />,
     });
   }, [artist]);
 
