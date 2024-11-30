@@ -60,6 +60,18 @@ export function SourceSummary({
     });
   };
 
+  const values = [
+    source.taper,
+    source.transferrer,
+    source.source,
+    !hideExtraDetails && source.lineage,
+    !hideExtraDetails && source.taperNotes,
+    !hideExtraDetails && source.description,
+    !hideExtraDetails && source.duration,
+  ].filter((x) => x);
+
+  if (values.length === 0) return null;
+
   return (
     <View className="w-full py-4">
       {source.taper && (
