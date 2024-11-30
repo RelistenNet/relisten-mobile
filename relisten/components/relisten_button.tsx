@@ -10,6 +10,7 @@ const buttonVariants = cva('flex-row items-center justify-center border border-t
   variants: {
     intent: {
       none: 'bg-relisten-blue-800',
+      primary: 'bg-relisten-blue-500',
       outline: 'border-white/20',
     },
     disabled: {

@@ -1,7 +1,8 @@
+import { MaterialIcons } from '@expo/vector-icons';
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Text, View } from 'react-native';
 import colors from 'tailwindcss/colors';
+import { RelistenButton } from './relisten_button';
 import { RelistenText } from './relisten_text';
 
 type NonIdealStateProps = {
@@ -13,23 +14,21 @@ type NonIdealStateProps = {
 };
 
 export const NonIdealState = ({
-  icon = 'alert-circle-outline', // Default icon
+  icon = 'warning', // Default icon
   title,
   description,
   actionText,
   onAction,
 }: NonIdealStateProps) => {
   return (
-    <View className="flex-1 items-center justify-center pt-6">
-      <MaterialCommunityIcons name={icon as any} size={48} color={colors.gray['300']} />
-      <RelistenText className="my-2 text-2xl font-bold text-gray-300">{title}</RelistenText>
-      <RelistenText className="mb-6 w-1/2 text-center text-base text-gray-300">
-        {description}
-      </RelistenText>
+    <View className="flex-1 items-center justify-center pb-2 pt-6">
+      <MaterialIcons name={icon as any} size={32} color={colors.gray['200']} />
+      <RelistenText className="my-1 text-3xl font-bold text-gray-200">{title}</RelistenText>
+      <RelistenText className="w-1/2 text-center text-gray-400">{description}</RelistenText>
       {actionText && onAction && (
-        <TouchableOpacity onPress={onAction} className="rounded-md bg-blue-500 px-4 py-2">
+        <RelistenButton onPress={onAction} intent="primary" cn="mt-4">
           <Text className="font-semibold text-white">{actionText}</Text>
-        </TouchableOpacity>
+        </RelistenButton>
       )}
     </View>
   );

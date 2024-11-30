@@ -38,6 +38,7 @@ export interface FilteringContextProps<K extends string, T extends RelistenObjec
   filters: ReadonlyArray<Filter<K, T>>;
   onFilterButtonPress: (filter: Filter<K, T>) => void;
   filter: (allData: ReadonlyArray<T>) => ReadonlyArray<T>;
+  clearFilters: () => void;
 }
 
 export const FilteringContext = React.createContext<FilteringContextProps<any, any> | undefined>(
@@ -209,8 +210,40 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
     [preparedFilters, realm, filterPersistenceKey, options]
   );
 
+  const clearFilters = () => {
+    realm.write(() => {
+      if (filterPersistenceKey) {
+        const globalFilters = preparedFilters.filter((f) => f.isGlobal);
+        const localFilters = preparedFilters.filter((f) => !f.isGlobal);
+
+        // clear filters that are not "sorts"
+        globalFilters.forEach((f) => f.sortDirection === undefined && (f.active = false));
+        localFilters.forEach((f) => f.sortDirection === undefined && (f.active = false));
+
+        if (routeFilterConfig) {
+          routeFilterConfig.setFilters(localFilters);
+        } else {
+          routeFilterConfig = realm.create(RouteFilterConfig, {
+            key: filterPersistenceKey,
+            rawFilters: serializeFilters(localFilters),
+          });
+        }
+        if (globalFilterConfig) {
+          globalFilterConfig.setFilters(globalFilters);
+        } else {
+          globalFilterConfig = realm.create(RouteFilterConfig, {
+            key: GLOBAL_FILTER_KEY,
+            rawFilters: serializeFilters(globalFilters),
+          });
+        }
+      }
+    });
+  };
+
   return (
-    <FilteringContext.Provider value={{ filters: preparedFilters, onFilterButtonPress, filter }}>
+    <FilteringContext.Provider
+      value={{ filters: preparedFilters, onFilterButtonPress, filter, clearFilters }}
+    >
       {children}
     </FilteringContext.Provider>
   );

@@ -35,7 +35,7 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
   ...props
 }: FilterableListProps<T>) => {
   const { refreshing } = useRefreshContext();
-  const { filters, onFilterButtonPress, filter } = useFilters<K, T>();
+  const { filters, onFilterButtonPress, filter, clearFilters } = useFilters<K, T>();
   const filteringEnabled = filtering !== undefined ? filtering : true;
 
   if (!filteringEnabled) {
@@ -43,14 +43,12 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
   }
 
   const sectionedData = useMemo(() => {
-    const filteredData = data
-      .map((section) => {
-        const filteredData = filteringEnabled ? filter(section.data) : section.data;
-        const itemsHidden = section.data.length - filteredData.length;
+    const filteredData = data.map((section) => {
+      const filteredData = filteringEnabled ? filter(section.data) : section.data;
+      const itemsHidden = section.data.length - filteredData.length;
 
-        return { ...section, data: filteredData, itemsHidden };
-      })
-      .filter((section) => section.data.length > 0);
+      return { ...section, data: filteredData, itemsHidden };
+    });
     const noDataIsVisible = filteredData.filter((x) => x.data.length > 0).length === 0;
     const itemsHidden = filteredData.reduce((memo, next) => memo + next.itemsHidden, 0);
 
@@ -58,7 +56,7 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
       { sectionTitle: ALL_SECTION_SENTINEL, data: [] },
       ...filteredData,
       noDataIsVisible && !refreshing
-        ? { sectionTitle: EMPTY_SECTION_SENTINEL, data: [] }
+        ? { sectionTitle: EMPTY_SECTION_SENTINEL, data: [], metadata: itemsHidden }
         : { sectionTitle: HIDDEN_SECTION_SENTINEL, data: [] },
       !noDataIsVisible && itemsHidden > 0
         ? { sectionTitle: FILTER_WARNING_SECTION_SENTINEL, data: [], metadata: itemsHidden }
@@ -107,12 +105,23 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
         }
 
         if (sectionTitle === EMPTY_SECTION_SENTINEL) {
-          return (
-            <NonIdealState
-              title="No Results"
-              description="No data loaded, please refresh or adjust your filters."
-            />
-          );
+          if (props.metadata && props.metadata > 0) {
+            return (
+              <NonIdealState
+                title="No Results"
+                description={`Your filters are hiding ${props.metadata} rows, tap below to see them`}
+                actionText="Remove Filters"
+                onAction={clearFilters}
+              />
+            );
+          } else {
+            return (
+              <NonIdealState
+                title="No Results"
+                description="No data loaded, please refresh or adjust your filters."
+              />
+            );
+          }
         }
 
         if (sectionTitle === FILTER_WARNING_SECTION_SENTINEL) {
