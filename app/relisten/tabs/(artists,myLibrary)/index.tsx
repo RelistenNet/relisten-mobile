@@ -24,7 +24,6 @@ import { useRemainingDownloads } from '@/relisten/realm/models/offline_repo';
 
 const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) => {
   const nextRoute = useRoute('[artistUuid]');
-  const isDownloadedTab = useIsDownloadedTab();
   const metadata = useArtistMetadata(artist);
   const hasOfflineTracks = artist.hasOfflineTracks;
 
@@ -57,7 +56,6 @@ const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) =>
               </SubtitleText>
             </SubtitleRow>
           </Flex>
-          {!isDownloadedTab && <FavoriteObjectButton object={artist} />}
         </Flex>
       </SectionedListItem>
     </Link>

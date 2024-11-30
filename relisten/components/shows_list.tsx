@@ -3,8 +3,7 @@ import { Link } from 'expo-router';
 import React, { ReactNode } from 'react';
 import { View } from 'react-native';
 import { Show } from '../realm/models/show';
-import { useGroupSegment, useIsDownloadedTab } from '../util/routes';
-import { FavoriteObjectButton } from './favorite_icon_button';
+import { useGroupSegment } from '../util/routes';
 import { FilterableList, FilterableListProps } from './filtering/filterable_list';
 import { Filter, FilteringOptions, FilteringProvider, SortDirection } from './filtering/filters';
 import Flex from './flex';
@@ -22,7 +21,6 @@ interface ShowListItemProps {
 
 export const ShowListItem = ({ show, children }: ShowListItemProps) => {
   const groupSegment = useGroupSegment();
-  const isDownloadedTab = useIsDownloadedTab();
 
   return (
     <Link
@@ -59,7 +57,6 @@ export const ShowListItem = ({ show, children }: ShowListItemProps) => {
             </SubtitleRow>
             {children}
           </Flex>
-          {!isDownloadedTab && <FavoriteObjectButton object={show} />}
         </Flex>
       </SectionedListItem>
     </Link>

@@ -19,9 +19,11 @@ import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
 import RowTitle from '@/relisten/components/row_title';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
+import { ShowCard } from '@/relisten/components/show_card';
 import { SourceTrackSucceededIndicator } from '@/relisten/components/source/source_track_offline_indicator';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useArtistMetadata } from '@/relisten/realm/models/artist_repo';
+import { useTodayShows } from '@/relisten/realm/models/shows/today_shows_repo';
 import { Year } from '@/relisten/realm/models/year';
 import { useArtistYears, useYearMetadata } from '@/relisten/realm/models/year_repo';
 import { useGroupSegment, useIsDownloadedTab, useRoute } from '@/relisten/util/routes';
@@ -29,12 +31,6 @@ import { Link, useLocalSearchParams, useNavigation, useRouter } from 'expo-route
 import React, { useEffect, useMemo } from 'react';
 import { ScrollView, View } from 'react-native';
 import Realm from 'realm';
-import { useTodayShows } from '@/relisten/realm/models/shows/today_shows_repo';
-import { tw } from '@/relisten/util/tw';
-import { ShowCard } from '@/relisten/components/show_card';
-import { List as ListContentLoader } from 'react-content-loader/native';
-import { RelistenBlue } from '@/relisten/relisten_blue';
-import ContentLoader from 'react-content-loader';
 
 export enum YearFilterKey {
   Library = 'library',
@@ -274,11 +270,6 @@ const YearListItem = ({ year }: { year: Year }) => {
               </SubtitleText>
             </SubtitleRow>
           </Flex>
-          {!isDownloadedTab && (
-            <View className="ml-2">
-              <FavoriteObjectButton object={year} />
-            </View>
-          )}
         </Flex>
       </SectionedListItem>
     </Link>
