@@ -202,7 +202,7 @@ function PlayerControls() {
     <Flex className="w-full items-center justify-center pb-2 pt-4">
       <TouchableOpacity
         onPress={() => {
-          if (progress && progress.elapsed < 5) {
+          if (progress && progress.elapsed > 5) {
             player.seekTo(0);
           } else {
             player.previous();
