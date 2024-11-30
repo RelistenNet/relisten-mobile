@@ -5,6 +5,7 @@ import { RelistenApiClientError } from '@/relisten/api/client';
 export interface RefreshContextProps {
   refreshing: boolean;
   errors?: RelistenApiClientError[] | undefined;
+  hasData?: boolean;
   onRefresh: (force?: boolean) => void;
 }
 
@@ -37,6 +38,7 @@ export const RefreshContextProvider = <T extends object>({
         refreshing,
         errors: networkBackedResults.errors,
         onRefresh: networkBackedResults.refresh,
+        hasData: !!networkBackedResults.data,
       }}
     >
       {children}

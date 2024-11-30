@@ -186,7 +186,7 @@ const SourceComponent = ({
   playShow: PlayShow;
   downloadShow: () => void;
 } & ScrollViewProps) => {
-  const { refreshing, errors } = useRefreshContext();
+  const { refreshing, errors, hasData } = useRefreshContext();
   const artist = useArtist(show?.artistUuid);
   const { showContextMenu } = useSourceTrackContextMenu();
 
@@ -208,7 +208,7 @@ const SourceComponent = ({
     [selectedSource, artist.data, show, playShow]
   );
 
-  if (errors) {
+  if (errors && !hasData) {
     return (
       <View className="w-full p-4">
         <RelistenErrors errors={errors} />
