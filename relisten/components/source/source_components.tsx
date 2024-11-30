@@ -77,7 +77,7 @@ export function SourceSummary({ source }: { source: Source }) {
           </RelistenText>
         </SourceProperty>
       )}
-      {source.lineage && (
+      {/* {source.lineage && (
         <SourceProperty title="Lineage" onTitlePress={navigate}>
           <RelistenText numberOfLines={2} selectable={false}>
             {source.lineage}
@@ -97,7 +97,7 @@ export function SourceSummary({ source }: { source: Source }) {
             {source.description}
           </RelistenText>
         </SourceProperty>
-      )}
+      )} */}
     </View>
   );
 }
