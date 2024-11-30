@@ -7,9 +7,9 @@ import { RelistenText } from './relisten_text';
 
 type NonIdealStateProps = {
   icon?: string; // Make icon optional
-  title: string;
-  description: string;
-  actionText?: string;
+  title: React.ReactNode;
+  description: React.ReactNode;
+  actionText?: React.ReactNode;
   onAction?: () => void;
 };
 

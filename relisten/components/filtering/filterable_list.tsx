@@ -54,7 +54,7 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
 
     return [
       { sectionTitle: ALL_SECTION_SENTINEL, data: [] },
-      ...filteredData,
+      ...filteredData.filter((f) => f.data.length > 0),
       noDataIsVisible && !refreshing
         ? { sectionTitle: EMPTY_SECTION_SENTINEL, data: [], metadata: itemsHidden }
         : { sectionTitle: HIDDEN_SECTION_SENTINEL, data: [] },
@@ -109,7 +109,12 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
             return (
               <NonIdealState
                 title="No Results"
-                description={`Your filters are hiding ${props.metadata} rows, tap below to see them`}
+                description={
+                  <RelistenText>
+                    Your filters are hiding <Plur count={props.metadata} word="item" />, tap below
+                    to see them
+                  </RelistenText>
+                }
                 actionText="Remove Filters"
                 onAction={clearFilters}
               />
