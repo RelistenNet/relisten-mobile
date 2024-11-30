@@ -50,7 +50,6 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
         return { ...section, data: filteredData, itemsHidden };
       })
       .filter((section) => section.data.length > 0);
-    const isFilterActive = filteringEnabled && filters.filter((f) => f.active).length > 0;
     const noDataIsVisible = filteredData.filter((x) => x.data.length > 0).length === 0;
     const itemsHidden = filteredData.reduce((memo, next) => memo + next.itemsHidden, 0);
 
@@ -60,7 +59,7 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
       noDataIsVisible
         ? { sectionTitle: EMPTY_SECTION_SENTINEL, data: [] }
         : { sectionTitle: HIDDEN_SECTION_SENTINEL, data: [] },
-      !noDataIsVisible && isFilterActive
+      !noDataIsVisible && itemsHidden > 0
         ? { sectionTitle: FILTER_WARNING_SECTION_SENTINEL, data: [], metadata: itemsHidden }
         : { sectionTitle: HIDDEN_SECTION_SENTINEL, data: [] },
     ].filter((x) => x);
