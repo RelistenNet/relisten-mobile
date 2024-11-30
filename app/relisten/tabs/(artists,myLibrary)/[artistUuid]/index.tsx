@@ -26,6 +26,7 @@ import { useArtistMetadata } from '@/relisten/realm/models/artist_repo';
 import { useTodayShows } from '@/relisten/realm/models/shows/today_shows_repo';
 import { Year } from '@/relisten/realm/models/year';
 import { useArtistYears, useYearMetadata } from '@/relisten/realm/models/year_repo';
+import { filterForUser } from '@/relisten/realm/realm_filters';
 import { useGroupSegment, useIsDownloadedTab, useRoute } from '@/relisten/util/routes';
 import { Link, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { useEffect, useMemo } from 'react';
@@ -279,7 +280,8 @@ const YEAR_FILTERS: Filter<YearFilterKey, Year>[] = [
     persistenceKey: YearFilterKey.Library,
     title: 'My Library',
     active: false,
-    filter: (year) => year.hasOfflineTracks,
+    filter: (year) =>
+      year.hasOfflineTracks || year.sourceTracks.filtered('show.isFavorite == true').length > 0,
     isGlobal: true,
   },
   {

@@ -16,7 +16,6 @@ import { RelistenSectionData } from '@/relisten/components/relisten_section_list
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
 import RowTitle from '@/relisten/components/row_title';
-import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { SourceTrackSucceededIndicator } from '@/relisten/components/source/source_track_offline_indicator';
 import { Artist } from '@/relisten/realm/models/artist';
@@ -79,7 +78,10 @@ const ARTIST_FILTERS: Filter<ArtistFilterKey, Artist>[] = [
     persistenceKey: ArtistFilterKey.Library,
     title: 'My Library',
     active: false,
-    filter: (artist) => artist.isFavorite || artist.hasOfflineTracks,
+    filter: (artist) =>
+      artist.isFavorite ||
+      artist.hasOfflineTracks ||
+      artist.sourceTracks.filtered('show.isFavorite == true').length > 0,
     isGlobal: true,
   },
 ];
@@ -186,8 +188,7 @@ export default function Page() {
           </View>
         )}
 
-        <DisappearingHeaderScreen
-          ScrollableComponent={ArtistsList}
+        <ArtistsList
           artists={artists}
           filterOptions={{
             persistence: { key: 'artists' },

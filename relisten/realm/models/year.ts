@@ -36,7 +36,7 @@ export class Year
       avgDuration: 'double?',
       avgRating: 'double?',
       year: 'string',
-      isFavorite: { type: 'bool', default: false },
+      // isFavorite: { type: 'bool', default: false },
       sourceTracks: {
         type: 'linkingObjects',
         objectType: 'SourceTrack',
@@ -55,7 +55,7 @@ export class Year
   avgDuration?: Realm.Types.Float;
   avgRating?: Realm.Types.Float;
   year!: string;
-  isFavorite!: boolean;
+  // isFavorite!: boolean;
 
   sourceTracks!: Realm.List<SourceTrack>;
 

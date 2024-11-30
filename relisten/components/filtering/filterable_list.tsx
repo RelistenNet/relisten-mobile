@@ -10,6 +10,8 @@ import { SectionHeader } from '../section_header';
 import { FilterBar } from './filter_bar';
 import { FilterBarButton } from './filter_bar_buttons';
 import { Filter, SortDirection, useFilters } from './filters';
+import { NonIdealState } from '../non_ideal_state';
+import { RelistenText } from '../relisten_text';
 
 const logger = log.extend('filter');
 
@@ -20,6 +22,9 @@ export type FilterableListProps<T extends RelistenObject> = {
 } & RelistenSectionListProps<T>;
 
 const ALL_SECTION_SENTINEL = '__ALL__';
+const EMPTY_SECTION_SENTINEL = '__EMPTY__';
+const FILTER_WARNING_SECTION_SENTINEL = '__FILTER_WARNING__';
+const HIDDEN_SECTION_SENTINEL = '__HIDDEN__';
 
 export const FilterableList = <K extends string, T extends RelistenObject>({
   data,
@@ -36,16 +41,26 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
   }
 
   const sectionedData = useMemo(() => {
+    const filteredData = data
+      .map((section) => {
+        const filteredData = filteringEnabled ? filter(section.data) : section.data;
+
+        return { ...section, data: filteredData };
+      })
+      .filter((section) => section.data.length > 0);
+    const isFilterActive = filteringEnabled && filters.filter((f) => f.active).length > 0;
+    const noDataIsVisible = filteredData.filter((x) => x.data.length > 0).length === 0;
+
     return [
       { sectionTitle: ALL_SECTION_SENTINEL, data: [] },
-      ...data
-        .map((section) => {
-          const filteredData = filteringEnabled ? filter(section.data) : section.data;
-
-          return { ...section, data: filteredData };
-        })
-        .filter((section) => section.data.length > 0),
-    ];
+      ...filteredData,
+      noDataIsVisible
+        ? { sectionTitle: EMPTY_SECTION_SENTINEL, data: [] }
+        : { sectionTitle: HIDDEN_SECTION_SENTINEL, data: [] },
+      !noDataIsVisible && isFilterActive
+        ? { sectionTitle: FILTER_WARNING_SECTION_SENTINEL, data: [] }
+        : { sectionTitle: HIDDEN_SECTION_SENTINEL, data: [] },
+    ].filter((x) => x);
   }, [data, filter, filters, filteringEnabled]);
 
   function filterToString<K extends string, T>(f: Filter<K, T>) {
@@ -86,6 +101,27 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
               </FilterBar>
             </SectionHeader>
           );
+        }
+
+        if (sectionTitle === EMPTY_SECTION_SENTINEL) {
+          return (
+            <NonIdealState
+              title="No Results"
+              description="No data loaded, please refresh or adjust your filters."
+            />
+          );
+        }
+
+        if (sectionTitle === FILTER_WARNING_SECTION_SENTINEL) {
+          return (
+            <RelistenText cn="py-2 italic text-sm px-4 text-gray-400 text-center">
+              (There is an active filter on this list)
+            </RelistenText>
+          );
+        }
+
+        if (sectionTitle === HIDDEN_SECTION_SENTINEL) {
+          return <></>;
         }
 
         return <SectionHeader title={sectionTitle} />;

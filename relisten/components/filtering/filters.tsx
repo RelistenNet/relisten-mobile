@@ -84,7 +84,7 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
       isInitialRender.current = false;
     }
 
-    // this runs on ever render pass (assuming filters/data changes)
+    // this runs on every render pass (assuming filters/data changes)
     [routePersistedFilters, globalPersistedFilters].forEach((persistedFilters) => {
       if (persistedFilters) {
         for (const internalFilter of internalFilters) {
@@ -187,6 +187,8 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
         if (filterPersistenceKey) {
           const globalFilters = intermediateFilters.filter((f) => f.isGlobal);
           const localFilters = intermediateFilters.filter((f) => !f.isGlobal);
+
+          console.log(localFilters);
           if (routeFilterConfig) {
             routeFilterConfig.setFilters(localFilters);
           } else {
