@@ -7,14 +7,6 @@ import { useArtistTopShows } from '@/relisten/realm/models/shows/top_shows_repo'
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { useEffect, useMemo } from 'react';
 
-const topRatedFilterOptions = {
-  default: {
-    persistenceKey: ShowFilterKey.Rating,
-    active: true,
-    sortDirection: SortDirection.Descending,
-  },
-};
-
 export default function Page() {
   const navigation = useNavigation();
   const { artistUuid } = useLocalSearchParams();
@@ -38,7 +30,14 @@ export default function Page() {
         ScrollableComponent={ShowListContainer}
         ListHeaderComponent={<ShowHeader />}
         data={shows}
-        filterOptions={topRatedFilterOptions}
+        filterOptions={{
+          default: {
+            persistenceKey: ShowFilterKey.Rating,
+            active: true,
+            sortDirection: SortDirection.Descending,
+          },
+          persistence: { key: ['artists', artistUuid, 'rated'].join('/') },
+        }}
         hideFilterBar={false}
       />
     </RefreshContextProvider>
