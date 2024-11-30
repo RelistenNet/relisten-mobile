@@ -336,7 +336,7 @@ export const SourceHeader = ({
           <MaterialIcons
             name={source.isFavorite || show.isFavorite ? 'favorite' : 'favorite-outline'}
             size={20}
-            color="white"
+            color={source.isFavorite || show.isFavorite ? 'red' : 'white'}
           />
         </RelistenButton>
       </View>
