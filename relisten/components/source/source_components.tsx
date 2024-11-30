@@ -39,7 +39,13 @@ export const SourceProperty: React.FC<
   );
 };
 
-export function SourceSummary({ source }: { source: Source }) {
+export function SourceSummary({
+  source,
+  hideExtraDetails,
+}: {
+  source: Source;
+  hideExtraDetails?: boolean;
+}) {
   const groupSegment = useGroupSegment();
 
   const navigate = () => {
@@ -77,27 +83,34 @@ export function SourceSummary({ source }: { source: Source }) {
           </RelistenText>
         </SourceProperty>
       )}
-      {/* {source.lineage && (
+      {!hideExtraDetails && source.lineage && (
         <SourceProperty title="Lineage" onTitlePress={navigate}>
           <RelistenText numberOfLines={2} selectable={false}>
             {source.lineage}
           </RelistenText>
         </SourceProperty>
       )}
-      {source.taperNotes && (
+      {!hideExtraDetails && source.taperNotes && (
         <SourceProperty title="Taper Notes" onTitlePress={navigate}>
           <RelistenText numberOfLines={2} selectable={false}>
             {source.taperNotes}
           </RelistenText>
         </SourceProperty>
       )}
-      {source.description && (
+      {!hideExtraDetails && source.description && (
         <SourceProperty title="Description" onTitlePress={navigate}>
           <RelistenText numberOfLines={2} selectable={false}>
             {source.description}
           </RelistenText>
         </SourceProperty>
-      )} */}
+      )}
+      {!hideExtraDetails && source.duration && (
+        <SourceProperty title="Duration" onTitlePress={navigate}>
+          <RelistenText numberOfLines={2} selectable={false}>
+            {source.humanizedDuration()}
+          </RelistenText>
+        </SourceProperty>
+      )}
     </View>
   );
 }

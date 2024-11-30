@@ -305,7 +305,7 @@ export const SourceHeader = ({
           </RelistenText>
         )}
       </View>
-      <SourceSummary source={source} />
+      <SourceSummary source={source} hideExtraDetails />
       <View className="w-full flex-row pb-4" style={{ gap: 16 }}>
         <RelistenButton
           className="shrink basis-1/3"

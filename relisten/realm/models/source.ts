@@ -6,6 +6,7 @@ import { FavoritableObject } from '../favoritable_object';
 import type { SourceSet } from './source_set';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { Artist } from '@/relisten/realm/models/artist';
+import { duration } from '@/relisten/util/duration';
 
 export interface SourceRequiredRelationships {
   // sourceSets: Realm.List<SourceSet>;
@@ -126,7 +127,7 @@ export class Source
   private _humanizedDuration?: string;
   humanizedDuration() {
     if (!this._humanizedDuration && this.duration) {
-      this._humanizedDuration = dayjs.duration(this.duration, 'seconds').format('H:mm:ss');
+      this._humanizedDuration = duration(this.duration);
     }
 
     return this._humanizedDuration;

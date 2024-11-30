@@ -9,6 +9,7 @@ import { Show } from './show';
 import { Source } from './source';
 import { Year } from './year';
 import RNBackgroundDownloader from '@kesha-antonov/react-native-background-downloader';
+import { duration, trackDuration } from '@/relisten/util/duration';
 
 export const OFFLINE_DIRECTORY = `${RNBackgroundDownloader.directories.documents}/offline`;
 
@@ -101,7 +102,7 @@ export class SourceTrack
   private _humanizedDuration?: string;
   get humanizedDuration() {
     if (!this._humanizedDuration && this.duration) {
-      this._humanizedDuration = dayjs.duration(this.duration, 'seconds').format('m:ss');
+      this._humanizedDuration = trackDuration(this.duration);
     }
 
     return this._humanizedDuration;

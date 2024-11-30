@@ -8,6 +8,7 @@ import { SourceTrack } from './source_track';
 import { checkIfOfflineSourceTrackExists } from '../realm_filters';
 import { Tour } from './tour';
 import { Artist } from './artist';
+import { duration } from '@/relisten/util/duration';
 
 export interface ShowRequiredRelationships {}
 
@@ -89,7 +90,7 @@ export class Show
   private _humanizedAvgDuration?: string;
   humanizedAvgDuration() {
     if (!this._humanizedAvgDuration && this.avgDuration) {
-      this._humanizedAvgDuration = dayjs.duration(this.avgDuration, 'seconds').format('H:mm');
+      this._humanizedAvgDuration = duration(this.avgDuration);
     }
 
     return this._humanizedAvgDuration;
