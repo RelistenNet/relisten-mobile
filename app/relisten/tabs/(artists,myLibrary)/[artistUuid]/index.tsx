@@ -38,7 +38,6 @@ export enum YearFilterKey {
   Year = 'year',
   Shows = 'shows',
   Tapes = 'tapes',
-  PlayableOffline = 'playableOffline',
 }
 
 export default function Page() {
@@ -238,7 +237,6 @@ const YearListItem = ({ year }: { year: Year }) => {
   const nextRoute = useRoute('year/[yearUuid]');
   const metadata = useYearMetadata(year);
   const hasOfflineTracks = year.hasOfflineTracks;
-  const isDownloadedTab = useIsDownloadedTab();
 
   return (
     <Link
@@ -278,8 +276,8 @@ const YearListItem = ({ year }: { year: Year }) => {
 
 const YEAR_FILTERS: Filter<YearFilterKey, Year>[] = [
   {
-    persistenceKey: YearFilterKey.PlayableOffline,
-    title: 'Offline',
+    persistenceKey: YearFilterKey.Library,
+    title: 'My Library',
     active: false,
     filter: (year) => year.hasOfflineTracks,
     isGlobal: true,
