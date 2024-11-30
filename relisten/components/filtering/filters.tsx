@@ -1,5 +1,5 @@
 import { RouteFilterConfig, serializeFilters } from '@/relisten/realm/models/route_filter_config';
-import { useObject, useRealm } from '@/relisten/realm/schema';
+import { useObject, useQuery, useRealm } from '@/relisten/realm/schema';
 import React, { PropsWithChildren, useCallback, useContext, useMemo, useRef } from 'react';
 import Realm from 'realm';
 import { RelistenObject } from '../../api/models/relisten';
@@ -60,7 +60,6 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
   const routePersistedFilters = routeFilterConfig ? routeFilterConfig.filters() : undefined;
   const globalPersistedFilters = globalFilterConfig ? globalFilterConfig.filters() : undefined;
 
-  // useState to apply the default sort only 1 time.
   const preparedFilters = useMemo(() => {
     if (!routePersistedFilters) return [...filters];
 
@@ -85,21 +84,21 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
     }
 
     // this runs on every render pass (assuming filters/data changes)
-    [routePersistedFilters, globalPersistedFilters].forEach((persistedFilters) => {
-      if (persistedFilters) {
-        for (const internalFilter of internalFilters) {
-          if (internalFilter) {
-            const persistedFilter = persistedFilters[internalFilter.persistenceKey];
-            if (persistedFilter) {
-              internalFilter.active = persistedFilter.active;
-              internalFilter.sortDirection = persistedFilter.sortDirection;
-            } else {
-              internalFilter.active = false;
-            }
-          }
+    for (const internalFilter of internalFilters) {
+      if (internalFilter) {
+        const key = internalFilter.persistenceKey;
+        const persistedFilter =
+          internalFilter.isGlobal && globalPersistedFilters
+            ? globalPersistedFilters[key]
+            : routePersistedFilters[key];
+        if (persistedFilter) {
+          internalFilter.active = persistedFilter.active;
+          internalFilter.sortDirection = persistedFilter.sortDirection;
+        } else {
+          internalFilter.active = false;
         }
       }
-    });
+    }
 
     return [...internalFilters];
   }, [routePersistedFilters, globalPersistedFilters]);
@@ -188,7 +187,6 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
           const globalFilters = intermediateFilters.filter((f) => f.isGlobal);
           const localFilters = intermediateFilters.filter((f) => !f.isGlobal);
 
-          console.log(localFilters);
           if (routeFilterConfig) {
             routeFilterConfig.setFilters(localFilters);
           } else {
