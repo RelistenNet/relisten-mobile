@@ -58,10 +58,13 @@ function ScrubberRow() {
   const min = useSharedValue(0);
   const max = useSharedValue(progressObj?.duration ?? 0);
   const cache = useSharedValue(cacheValue);
+  const isScrubbing = useSharedValue(false);
 
   useEffect(() => {
-    progress.value = progressObj?.elapsed ?? 0;
-  }, [progressObj?.elapsed]);
+    if (!isScrubbing.value) {
+      progress.value = progressObj?.elapsed ?? 0;
+    }
+  }, [progressObj?.elapsed, isScrubbing.value]);
   useEffect(() => {
     max.value = progressObj?.duration ?? 0;
   }, [progressObj?.duration]);
@@ -75,6 +78,7 @@ function ScrubberRow() {
       minimumValue={min}
       maximumValue={max}
       cache={cache}
+      isScrubbing={isScrubbing}
       hapticMode={HapticModeEnum.BOTH}
       onHapticFeedback={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
