@@ -240,6 +240,26 @@ export class RelistenPlayerQueue {
       : this.originalTracksCurrentIndex;
   }
 
+  get isCurrentTrackFirst() {
+    const idx = this.currentIndex;
+
+    if (idx === undefined) {
+      return true;
+    }
+
+    return idx === 0;
+  }
+
+  get isCurrentTrackLast() {
+    const idx = this.currentIndex;
+
+    if (idx === undefined) {
+      return true;
+    }
+
+    return idx + 1 === this.orderedTracks.length;
+  }
+
   setShuffleState(shuffleState: PlayerShuffleState) {
     if (this._shuffleState != shuffleState) {
       if (

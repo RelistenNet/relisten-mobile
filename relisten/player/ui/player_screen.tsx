@@ -23,6 +23,7 @@ import { useObject } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { trackDuration } from '@/relisten/util/duration';
 import { useGroupSegment } from '@/relisten/util/routes';
+import { tw } from '@/relisten/util/tw';
 import { useActionSheet } from '@expo/react-native-action-sheet';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -202,7 +203,7 @@ function PlayerControls() {
     <Flex className="w-full items-center justify-center pb-2 pt-4">
       <TouchableOpacity
         onPress={() => {
-          if (progress && progress.elapsed > 5) {
+          if (player.queue.isCurrentTrackFirst || (progress && progress.elapsed > 5)) {
             player.seekTo(0);
           } else {
             player.previous();
@@ -225,10 +226,13 @@ function PlayerControls() {
         )}
       </TouchableOpacity>
       <TouchableOpacity
+        disabled={player.queue.isCurrentTrackLast}
         onPress={() => {
           player.next();
         }}
-        className="p-2"
+        className={tw('p-2', {
+          'opacity-40': player.queue.isCurrentTrackLast,
+        })}
       >
         <MaterialCommunityIcons name="skip-forward" size={42} color="white" />
       </TouchableOpacity>
