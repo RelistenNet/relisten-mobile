@@ -109,10 +109,10 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
               <NonIdealState
                 title="No Results"
                 description={
-                  <RelistenText>
+                  <>
                     Your filters are hiding <Plur count={props.metadata} word="item" />, tap below
                     to see them
-                  </RelistenText>
+                  </>
                 }
                 actionText="Remove Filters"
                 onAction={clearFilters}
