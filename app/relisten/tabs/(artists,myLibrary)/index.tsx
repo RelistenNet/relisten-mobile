@@ -1,11 +1,18 @@
-import { FavoriteObjectButton } from '@/relisten/components/favorite_icon_button';
+import MyLibraryPage from '@/app/relisten/tabs/(artists,myLibrary)/myLibrary';
+import {
+  FilterableList,
+  FilterableListProps,
+} from '@/relisten/components/filtering/filterable_list';
+import {
+  Filter,
+  FilteringOptions,
+  FilteringProvider,
+  SortDirection,
+} from '@/relisten/components/filtering/filters';
 import Flex from '@/relisten/components/flex';
 import Plur from '@/relisten/components/plur';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
-import {
-  RelistenSectionData,
-  RelistenSectionList,
-} from '@/relisten/components/relisten_section_list';
+import { RelistenSectionData } from '@/relisten/components/relisten_section_list';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
 import RowTitle from '@/relisten/components/row_title';
@@ -13,14 +20,13 @@ import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { SourceTrackSucceededIndicator } from '@/relisten/components/source/source_track_offline_indicator';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useArtistMetadata, useArtists } from '@/relisten/realm/models/artist_repo';
+import { useRemainingDownloads } from '@/relisten/realm/models/offline_repo';
 import { useGroupSegment, useIsDownloadedTab, useRoute } from '@/relisten/util/routes';
 import { Link, useNavigation } from 'expo-router';
 import plur from 'plur';
 import React, { useEffect, useMemo } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import Realm from 'realm';
-import MyLibraryPage from '@/app/relisten/tabs/(artists,myLibrary)/myLibrary';
-import { useRemainingDownloads } from '@/relisten/realm/models/offline_repo';
 
 const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) => {
   const nextRoute = useRoute('[artistUuid]');
@@ -62,9 +68,28 @@ const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) =>
   );
 });
 
+export enum ArtistFilterKey {
+  Library = 'library',
+  Artists = 'artists',
+}
+
+const ARTIST_FILTERS: Filter<ArtistFilterKey, Artist>[] = [
+  {
+    persistenceKey: ArtistFilterKey.Library,
+    title: 'My Library',
+    active: false,
+    filter: (artist) =>
+      artist.isFavorite ||
+      artist.hasOfflineTracks ||
+      artist.sourceTracks.filtered('show.isFavorite == true').length > 0,
+    isGlobal: true,
+  },
+];
+
 type ArtistsListProps = {
   artists: Realm.Results<Artist>;
-};
+  filterOptions: FilteringOptions<YearFilterKey>;
+} & Omit<FilterableListProps<Artist>, 'data' | 'renderItem'>;
 
 const ArtistsList = ({ artists, ...props }: ArtistsListProps) => {
   const isDownloadedTab = useIsDownloadedTab();
@@ -97,13 +122,15 @@ const ArtistsList = ({ artists, ...props }: ArtistsListProps) => {
   }, [artists]);
 
   return (
-    <RelistenSectionList
-      data={sectionedArtists}
-      renderItem={({ item }) => {
-        return <ArtistListItem artist={item} />;
-      }}
-      {...props}
-    />
+    <FilteringProvider filters={ARTIST_FILTERS} options={props.filterOptions}>
+      <FilterableList
+        data={sectionedArtists}
+        renderItem={({ item }) => {
+          return <ArtistListItem artist={item} />;
+        }}
+        {...props}
+      />
+    </FilteringProvider>
   );
 };
 
@@ -161,7 +188,17 @@ export default function Page() {
           </View>
         )}
 
-        <ArtistsList artists={artists} />
+        <ArtistsList
+          artists={artists}
+          filterOptions={{
+            persistence: { key: 'artists' },
+            default: {
+              persistenceKey: ArtistFilterKey.Artists,
+              sortDirection: SortDirection.Descending,
+              active: true,
+            },
+          }}
+        />
       </RefreshContextProvider>
     </View>
   );

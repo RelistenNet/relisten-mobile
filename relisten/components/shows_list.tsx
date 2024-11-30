@@ -13,6 +13,8 @@ import { SubtitleRow, SubtitleText } from './row_subtitle';
 import RowTitle from './row_title';
 import { SectionedListItem } from './sectioned_list_item';
 import { SourceTrackSucceededIndicator } from './source/source_track_offline_indicator';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import colors from 'tailwindcss/colors';
 
 interface ShowListItemProps {
   show: Show;
@@ -41,6 +43,9 @@ export const ShowListItem = ({ show, children }: ShowListItemProps) => {
               <RowTitle>{show.displayDate}</RowTitle>
               {show.hasSoundboardSource && (
                 <RelistenText cn="text-xs font-bold text-relisten-blue-600">SBD</RelistenText>
+              )}
+              {show?.isFavorite && (
+                <MaterialCommunityIcons name="cards-heart" color={colors.blue['200']} />
               )}
               {show?.hasOfflineTracks && <SourceTrackSucceededIndicator />}
               <View className="grow" />
@@ -82,10 +87,10 @@ const SHOW_FILTERS: Filter<ShowFilterKey, Show>[] = [
     filter: (show) => show.hasSoundboardSource,
   },
   {
-    persistenceKey: ShowFilterKey.PlayableOffline,
-    title: 'Offline',
+    persistenceKey: ShowFilterKey.Library,
+    title: 'My Library',
     active: false,
-    filter: (show) => show.hasOfflineTracks,
+    filter: (show) => show.hasOfflineTracks || show.isFavorite,
     isGlobal: true,
   },
   {

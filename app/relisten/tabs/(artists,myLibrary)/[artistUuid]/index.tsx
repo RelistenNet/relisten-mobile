@@ -26,6 +26,7 @@ import { useArtistMetadata } from '@/relisten/realm/models/artist_repo';
 import { useTodayShows } from '@/relisten/realm/models/shows/today_shows_repo';
 import { Year } from '@/relisten/realm/models/year';
 import { useArtistYears, useYearMetadata } from '@/relisten/realm/models/year_repo';
+import { filterForUser } from '@/relisten/realm/realm_filters';
 import { useGroupSegment, useIsDownloadedTab, useRoute } from '@/relisten/util/routes';
 import { Link, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { useEffect, useMemo } from 'react';
@@ -38,7 +39,6 @@ export enum YearFilterKey {
   Year = 'year',
   Shows = 'shows',
   Tapes = 'tapes',
-  PlayableOffline = 'playableOffline',
 }
 
 export default function Page() {
@@ -238,7 +238,6 @@ const YearListItem = ({ year }: { year: Year }) => {
   const nextRoute = useRoute('year/[yearUuid]');
   const metadata = useYearMetadata(year);
   const hasOfflineTracks = year.hasOfflineTracks;
-  const isDownloadedTab = useIsDownloadedTab();
 
   return (
     <Link
@@ -278,10 +277,11 @@ const YearListItem = ({ year }: { year: Year }) => {
 
 const YEAR_FILTERS: Filter<YearFilterKey, Year>[] = [
   {
-    persistenceKey: YearFilterKey.PlayableOffline,
-    title: 'Offline',
+    persistenceKey: YearFilterKey.Library,
+    title: 'My Library',
     active: false,
-    filter: (year) => year.hasOfflineTracks,
+    filter: (year) =>
+      year.hasOfflineTracks || year.sourceTracks.filtered('show.isFavorite == true').length > 0,
     isGlobal: true,
   },
   {
