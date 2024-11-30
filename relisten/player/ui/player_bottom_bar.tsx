@@ -2,10 +2,6 @@ import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import Flex from '@/relisten/components/flex';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import {
-  useNativeActiveTrackDownloadProgress,
-  useNativePlaybackProgress,
-} from '@/relisten/player/native_playback_state_hooks';
-import {
   useRelistenPlayer,
   useRelistenPlayerPlaybackState,
 } from '@/relisten/player/relisten_player_hooks';
@@ -13,19 +9,17 @@ import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player
 import { useArtist } from '@/relisten/realm/models/artist_repo';
 import { Show } from '@/relisten/realm/models/show';
 import { useObject } from '@/relisten/realm/schema';
-import { RelistenBlue } from '@/relisten/relisten_blue';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { PropsWithChildren, useCallback, useContext, useState } from 'react';
 import { LayoutChangeEvent, Pressable, TouchableOpacity, View } from 'react-native';
-import * as Progress from 'react-native-progress';
+import { ScrubberRow } from './player_screen';
 
 function PlayerBottomBarContents() {
   const currentTrack = useRelistenPlayerCurrentTrack();
   const playbackState = useRelistenPlayerPlaybackState();
   const player = useRelistenPlayer();
-  const progress = useNativePlaybackProgress();
-  const downloadProgress = useNativeActiveTrackDownloadProgress();
+  const router = useRouter();
 
   const artist = useArtist(currentTrack?.sourceTrack?.artistUuid);
   const showCache = useObject(Show, currentTrack?.sourceTrack?.showUuid || '');
@@ -47,47 +41,31 @@ function PlayerBottomBarContents() {
 
   return (
     <Flex column cn="flex-1 gap-3">
-      <Flex cn="items-center">
-        <Flex cn="ml-2 h-full items-center">
-          <TouchableOpacity
-            onPress={() => {
-              player.togglePauseResume();
-            }}
-          >
-            {playbackState === RelistenPlaybackState.Playing ? (
-              <MaterialIcons name="pause" size={42} color="white" />
-            ) : (
-              <MaterialIcons name="play-arrow" size={42} color="white" />
-            )}
-          </TouchableOpacity>
+      <Pressable onPress={() => router.push({ pathname: '/relisten/player' })}>
+        <Flex cn="items-center">
+          <Flex cn="ml-2 h-full items-center">
+            <TouchableOpacity
+              onPress={() => {
+                player.togglePauseResume();
+              }}
+            >
+              {playbackState === RelistenPlaybackState.Playing ? (
+                <MaterialIcons name="pause" size={42} color="white" />
+              ) : (
+                <MaterialIcons name="play-arrow" size={42} color="white" />
+              )}
+            </TouchableOpacity>
+          </Flex>
+          <Flex column cn="ml-4 truncate flex-1">
+            <RelistenText className="text-lg font-semibold">{track?.title ?? ''}</RelistenText>
+            <RelistenText className="truncate" numberOfLines={1}>
+              {subtitle ?? ''}
+            </RelistenText>
+          </Flex>
         </Flex>
-        <Flex column cn="ml-4 truncate flex-1">
-          <RelistenText className="text-lg font-semibold">{track?.title ?? ''}</RelistenText>
-          <RelistenText className="truncate" numberOfLines={1}>
-            {subtitle ?? ''}
-          </RelistenText>
-        </Flex>
-      </Flex>
+      </Pressable>
       <View className="relative bg-relisten-blue-700">
-        <Progress.Bar
-          progress={downloadProgress?.percent ?? 0}
-          color={RelistenBlue['400']}
-          width={null}
-          borderWidth={0}
-          borderRadius={0}
-          // progress.BarStyle="bar"
-          style={{ width: '100%', height: 6, position: 'absolute', bottom: 0, left: 0 }}
-        />
-        <Progress.Bar
-          progress={progress?.percent ?? 0}
-          color="white"
-          width={null}
-          borderWidth={0}
-          borderRadius={0}
-          // animated={false}
-          // progressViewStyle="bar"
-          style={{ width: '100%', height: 6, position: 'absolute', bottom: 0, left: 0 }}
-        />
+        <ScrubberRow />
       </View>
     </Flex>
   );
@@ -96,7 +74,6 @@ function PlayerBottomBarContents() {
 export function PlayerBottomBar() {
   const { tabBarHeight, playerBottomBarHeight, setPlayerBottomBarHeight } =
     useRelistenPlayerBottomBarContext();
-  const router = useRouter();
 
   const onLayout = useCallback(
     (e: LayoutChangeEvent) => {
@@ -117,11 +94,9 @@ export function PlayerBottomBar() {
   return (
     <View onLayout={onLayout} style={{ bottom: tabBarHeight, position: 'absolute', width: '100%' }}>
       <View className={'w-full flex-1 p-0'}>
-        <Pressable onPress={() => router.push({ pathname: '/relisten/player' })}>
-          <View className="w-full rounded-t-sm bg-relisten-blue-800 pt-2">
-            <PlayerBottomBarContents />
-          </View>
-        </Pressable>
+        <View className="w-full rounded-t-sm bg-relisten-blue-800 pt-2">
+          <PlayerBottomBarContents />
+        </View>
       </View>
     </View>
   );

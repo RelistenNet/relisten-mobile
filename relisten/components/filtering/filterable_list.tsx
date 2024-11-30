@@ -111,7 +111,7 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
                 description={
                   <>
                     Your filters are hiding <Plur count={props.metadata} word="item" />, tap below
-                    to see them
+                    to clear them
                   </>
                 }
                 actionText="Remove Filters"

@@ -36,7 +36,7 @@ import { HapticModeEnum, Slider } from 'react-native-awesome-slider';
 import { useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-function ScrubberRow() {
+export function ScrubberRow() {
   const progressObj = useNativePlaybackProgress();
   const downloadProgress = useNativeActiveTrackDownloadProgress();
   const player = useRelistenPlayer();
