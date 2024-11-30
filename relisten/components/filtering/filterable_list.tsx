@@ -12,6 +12,7 @@ import { FilterBarButton } from './filter_bar_buttons';
 import { Filter, SortDirection, useFilters } from './filters';
 import { NonIdealState } from '../non_ideal_state';
 import { RelistenText } from '../relisten_text';
+import Plur from '../plur';
 
 const logger = log.extend('filter');
 
@@ -44,12 +45,14 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
     const filteredData = data
       .map((section) => {
         const filteredData = filteringEnabled ? filter(section.data) : section.data;
+        const itemsHidden = section.data.length - filteredData.length;
 
-        return { ...section, data: filteredData };
+        return { ...section, data: filteredData, itemsHidden };
       })
       .filter((section) => section.data.length > 0);
     const isFilterActive = filteringEnabled && filters.filter((f) => f.active).length > 0;
     const noDataIsVisible = filteredData.filter((x) => x.data.length > 0).length === 0;
+    const itemsHidden = filteredData.reduce((memo, next) => memo + next.itemsHidden, 0);
 
     return [
       { sectionTitle: ALL_SECTION_SENTINEL, data: [] },
@@ -58,7 +61,7 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
         ? { sectionTitle: EMPTY_SECTION_SENTINEL, data: [] }
         : { sectionTitle: HIDDEN_SECTION_SENTINEL, data: [] },
       !noDataIsVisible && isFilterActive
-        ? { sectionTitle: FILTER_WARNING_SECTION_SENTINEL, data: [] }
+        ? { sectionTitle: FILTER_WARNING_SECTION_SENTINEL, data: [], metadata: itemsHidden }
         : { sectionTitle: HIDDEN_SECTION_SENTINEL, data: [] },
     ].filter((x) => x);
   }, [data, filter, filters, filteringEnabled]);
@@ -80,7 +83,7 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
       data={sectionedData}
       pullToRefresh
       {...props}
-      renderSectionHeader={({ sectionTitle }) => {
+      renderSectionHeader={({ sectionTitle, ...props }) => {
         if (sectionTitle === ALL_SECTION_SENTINEL) {
           if (hideFilterBar) {
             return <></>;
@@ -115,7 +118,7 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
         if (sectionTitle === FILTER_WARNING_SECTION_SENTINEL) {
           return (
             <RelistenText cn="py-2 italic text-sm px-4 text-gray-400 text-center">
-              (There is an active filter on this list)
+              (<Plur count={props.metadata} word="item" /> hidden due to filters)
             </RelistenText>
           );
         }

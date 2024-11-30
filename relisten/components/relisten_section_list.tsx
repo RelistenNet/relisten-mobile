@@ -15,7 +15,7 @@ export interface RelistenSection<T> {
   data: ReadonlyArray<T>;
 }
 
-export type RelistenSectionHeader = { sectionTitle: string };
+export type RelistenSectionHeader = { sectionTitle: string; metadata?: number };
 
 export type RelistenSectionData<T> = ReadonlyArray<RelistenSection<T>>;
 
@@ -74,7 +74,7 @@ export const RelistenSectionList = <T extends RelistenObject>({
         ...data.flatMap((section) => {
           if (section.sectionTitle) {
             return [
-              { sectionTitle: section.sectionTitle },
+              { sectionTitle: section.sectionTitle, ...section },
               ...section.data.map((rawItem) => ({ rawItem, keyPrefix: section.sectionTitle })),
             ];
           } else {
