@@ -277,32 +277,33 @@ export class DownloadManager {
     }
   }
 
+  private writeProgress(
+    realm: Realm,
+    offlineInfo: SourceTrackOfflineInfo,
+    downloadTask: DownloadTask,
+    { bytesDownloaded, bytesTotal }: { bytesDownloaded: number; bytesTotal: number }
+  ) {
+    const percent = bytesDownloaded / bytesTotal;
+
+    realm.write(() => {
+      logger.debug(`${downloadTask.id}: progress; ${Math.floor(percent * 100)}`);
+
+      offlineInfo.downloadedBytes = bytesDownloaded;
+      offlineInfo.totalBytes = bytesTotal;
+      offlineInfo.percent = percent;
+    });
+  }
+
   private attachDownloadHandlers(
     realm: Realm,
     offlineInfo: SourceTrackOfflineInfo,
     downloadTask: DownloadTask
   ) {
     downloadTask
-      .progress(({ bytesDownloaded, bytesTotal }) => {
-        const percent = bytesDownloaded / bytesTotal;
-
-        realm.write(() => {
-          logger.debug(`${downloadTask.id}: progress; ${Math.floor(percent * 100)}`);
-
-          offlineInfo.downloadedBytes = bytesDownloaded;
-          offlineInfo.totalBytes = bytesTotal;
-          offlineInfo.percent = percent;
-        });
+      .progress((props) => {
+        this.writeProgress(realm, offlineInfo, downloadTask, props);
       })
       .done(() => {
-        realm.write(() => {
-          logger.debug(`${downloadTask.id}: done`);
-
-          offlineInfo.status = SourceTrackOfflineInfoStatus.Succeeded;
-          offlineInfo.completedAt = new Date();
-          offlineInfo.errorInfo = undefined;
-        });
-
         this.runningDownloadTasks.splice(this.runningDownloadTasks.indexOf(downloadTask), 1);
         this.maybeStartQueuedDownloads().then(() => {});
       })

@@ -21,47 +21,86 @@ import { useArtist } from '@/relisten/realm/models/artist_repo';
 import { Show } from '@/relisten/realm/models/show';
 import { useObject } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
+import { trackDuration } from '@/relisten/util/duration';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { useActionSheet } from '@expo/react-native-action-sheet';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import * as Haptics from 'expo-haptics';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef } from 'react';
 import { FlatList, Platform, TouchableOpacity, View } from 'react-native';
 import AirPlayButton from 'react-native-airplay-button';
+import { HapticModeEnum, Slider } from 'react-native-awesome-slider';
+import { useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Scrubber from 'react-native-scrubber';
 
-function ScrubberRow({ displayValues = true }: { displayValues?: boolean }) {
-  const progress = useNativePlaybackProgress();
+function ScrubberRow() {
+  const progressObj = useNativePlaybackProgress();
   const downloadProgress = useNativeActiveTrackDownloadProgress();
   const player = useRelistenPlayer();
 
   const doSeek = useCallback(
     (value: number) => {
-      if (progress?.duration === undefined) {
+      if (progressObj?.duration === undefined) {
         return;
       }
 
-      player.seekTo(value / progress.duration).then(() => {});
+      player.seekTo(value / progressObj.duration).then(() => {});
     },
-    [player, progress?.duration]
+    [player, progressObj?.duration]
   );
 
+  const cacheValue = (downloadProgress?.percent ?? 0) * (progressObj?.duration ?? 0);
+
+  const progress = useSharedValue(progressObj?.elapsed ?? 0);
+  const min = useSharedValue(0);
+  const max = useSharedValue(progressObj?.duration ?? 0);
+  const cache = useSharedValue(cacheValue);
+
+  useEffect(() => {
+    progress.value = progressObj?.elapsed ?? 0;
+  }, [progressObj?.elapsed]);
+  useEffect(() => {
+    max.value = progressObj?.duration ?? 0;
+  }, [progressObj?.duration]);
+  useEffect(() => {
+    cache.value = cacheValue;
+  }, [cacheValue]);
+
   return (
-    <Scrubber
-      value={progress?.elapsed ?? 0}
-      totalDuration={progress?.duration ?? 100}
+    <Slider
+      progress={progress}
+      minimumValue={min}
+      maximumValue={max}
+      cache={cache}
+      hapticMode={HapticModeEnum.BOTH}
+      onHapticFeedback={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }}
       onSlidingComplete={doSeek}
-      scrubbedColor={RelistenBlue['100']}
-      trackColor="white"
-      trackBackgroundColor={RelistenBlue['700']}
-      bufferedTrackColor={RelistenBlue['400']}
-      bufferedValue={
-        downloadProgress && progress ? downloadProgress?.percent * progress?.duration : 0
-      }
-      displayValues={displayValues}
+      theme={{
+        minimumTrackTintColor: RelistenBlue['400'],
+        // maximumTrackTintColor?: string;
+        cacheTrackTintColor: RelistenBlue['600'],
+        bubbleBackgroundColor: RelistenBlue['900'],
+        // bubbleTextColor: 'black',
+        // disableMinTrackTintColor?: string;
+        // heartbeatColor?: string;
+      }}
+      bubble={(value) => {
+        return trackDuration(value);
+      }}
+
+      // scrubbedColor={RelistenBlue['100']}
+      // trackColor="white"
+      // trackBackgroundColor={RelistenBlue['700']}
+      // bufferedTrackColor={RelistenBlue['400']}
+      // bufferedValue={
+      //   downloadProgress && progress ? downloadProgress?.percent * progress?.duration : 0
+      // }
+      // displayValues={displayValues}
     />
   );
 }
@@ -71,6 +110,7 @@ function CurrentTrackInfo() {
   const navigation = useNavigation();
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
   const groupSegment = useGroupSegment(true);
+  const progressObj = useNativePlaybackProgress();
 
   const { data: artist } = useArtist(currentPlayerTrack?.sourceTrack.artistUuid);
   const show = useObject(Show, currentPlayerTrack?.sourceTrack?.showUuid || '');
@@ -141,6 +181,10 @@ function CurrentTrackInfo() {
           {show.venue.name}, {show.venue.location}
         </RelistenText>
       )}
+      <Flex cn="justify-between mt-2">
+        <RelistenText cn="font-semibold">{trackDuration(progressObj?.elapsed ?? 0)}</RelistenText>
+        <RelistenText cn="font-semibold">{trackDuration(progressObj?.duration ?? 0)}</RelistenText>
+      </Flex>
     </Flex>
   );
 }
@@ -151,7 +195,7 @@ function PlayerControls() {
   const progress = useNativePlaybackProgress();
 
   return (
-    <Flex className="w-full items-center justify-center pt-4">
+    <Flex className="w-full items-center justify-center pb-2 pt-4">
       <TouchableOpacity
         onPress={() => {
           if (progress && progress.elapsed < 5) {
@@ -190,7 +234,7 @@ function PlayerControls() {
 
 function PlayerVolumeControls() {
   return (
-    <Flex className="w-full items-center pb-8">
+    <Flex className="absolute bottom-6 right-4 w-full items-center justify-end">
       {Platform.OS == 'ios' && (
         <AirPlayButton
           activeTintColor="blue"

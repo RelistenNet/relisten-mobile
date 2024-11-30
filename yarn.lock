@@ -5465,6 +5465,11 @@ expo-font@~12.0.10:
   dependencies:
     fontfaceobserver "^2.1.0"
 
+expo-haptics@^14.0.0:
+  version "14.0.0"
+  resolved "https://registry.yarnpkg.com/expo-haptics/-/expo-haptics-14.0.0.tgz#b3ccea2ed5c7f4c2505e2e8cbfa799091b185303"
+  integrity sha512-5tYJN+2axYF22BtG1elBQAV1aZPUOCtr9sItClfm4jDoekGiPCxZG/nylcA3DVh2bUHMSll4Y98qjFFFhwZ1Cw==
+
 expo-keep-awake@~13.0.2:
   version "13.0.2"
   resolved "https://registry.npmjs.org/expo-keep-awake/-/expo-keep-awake-13.0.2.tgz"
@@ -9151,6 +9156,11 @@ react-native-airplay-button@^1.1.0:
   version "1.1.0"
   resolved "https://registry.npmjs.org/react-native-airplay-button/-/react-native-airplay-button-1.1.0.tgz"
   integrity sha512-UifB3XLh7AS9jWSz4Rn5kzFqmuXNa9NiZqn7BUNGjyie/4AO2omyXfeE3RVjO3rEZz7zBcP3/Wgd0QDBcaSt2Q==
+
+react-native-awesome-slider@^2.5.6:
+  version "2.5.6"
+  resolved "https://registry.yarnpkg.com/react-native-awesome-slider/-/react-native-awesome-slider-2.5.6.tgz#29bb6f65f9262777797a70ef0c8ccde409ff8d1e"
+  integrity sha512-kPxxKBEi8B0DfZhDo9X9ZO5uo6DtyGRisPHCeO3juox4ptvKBvcUurb0SYSG6akSuMb95Ijv/LXGKSfIofAd1Q==
 
 react-native-draggable-flatlist@^4.0.1:
   version "4.0.1"
