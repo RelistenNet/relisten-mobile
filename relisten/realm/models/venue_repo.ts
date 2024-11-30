@@ -14,7 +14,7 @@ export const useVenues = (artistUuid: string) => {
     () => {
       const artistQuery = useQuery(
         Venue,
-        (query) => query.filtered('artistUuid == $0', artistUuid),
+        (query) => query.filtered('artistUuid == $0 && showsAtVenue > 0', artistUuid),
         [artistUuid]
       );
 
