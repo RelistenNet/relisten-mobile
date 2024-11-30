@@ -4,7 +4,7 @@ import { RelistenSectionData } from '@/relisten/components/relisten_section_list
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
 import { ShowCard } from '@/relisten/components/show_card';
-import { ShowListContainer } from '@/relisten/components/shows_list';
+import { SHOW_FILTERS, ShowFilterKey, ShowListContainer } from '@/relisten/components/shows_list';
 import { useHistoryRecentlyPlayedShows } from '@/relisten/realm/models/history/playback_history_entry_repo';
 import { useRemainingDownloads } from '@/relisten/realm/models/offline_repo';
 import { Show } from '@/relisten/realm/models/show';
@@ -113,6 +113,8 @@ function FavoriteShows() {
         <ShowListContainer
           data={favoriteShowsByArtist}
           filterOptions={{ persistence: { key: ['myLibrary', 'shows'].join('/') } }}
+          // hide "My Library" filter since it's enabled by default here
+          filters={SHOW_FILTERS.filter((sf) => sf.persistenceKey !== ShowFilterKey.Library)}
         />
       </RefreshContextProvider>
     </View>
@@ -133,7 +135,7 @@ function ActiveDownloads() {
       >
         <TouchableOpacity className="mb-4 bg-relisten-blue-700 px-4 py-4">
           <RelistenText className="text-center font-bold">
-            {downloads.length} tracks downloading&nbsp;›
+            <Plur count={downloads.length} word="track" /> downloading&nbsp;›
           </RelistenText>
         </TouchableOpacity>
       </Link>

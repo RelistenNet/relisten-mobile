@@ -11,7 +11,7 @@ import * as Progress from 'react-native-progress';
 const SIZE = 18;
 
 export function SourceTrackSucceededIndicator({ size = 12 }: { size?: number }) {
-  return <MaterialCommunityIcons name="cloud-check" size={size} color={colors.blue['200']} />;
+  return <MaterialCommunityIcons name="download" size={size} color={colors.blue['200']} />;
 }
 
 export function SourceTrackOfflineIndicator({
@@ -29,19 +29,16 @@ export function SourceTrackOfflineIndicator({
 
   switch (offlineInfo.status) {
     case SourceTrackOfflineInfoStatus.UNKNOWN:
-      contents = <MaterialCommunityIcons name="cloud-alert" size={SIZE} color={color} />;
+      contents = <MaterialCommunityIcons name="download-off" size={SIZE} color={color} />;
       break;
     case SourceTrackOfflineInfoStatus.Queued:
-      // TODO: make indeterminate
-      contents = (
-        <Progress.CircleSnail size={SIZE} indeterminate={true} color={color} thickness={2} />
-      );
+      contents = <MaterialCommunityIcons name="progress-download" size={SIZE} color={color} />;
       break;
     case SourceTrackOfflineInfoStatus.Downloading:
       contents = <Progress.Pie size={SIZE} color={color} progress={offlineInfo.percent} />;
       break;
     case SourceTrackOfflineInfoStatus.Failed:
-      contents = <MaterialCommunityIcons name="cloud-alert" size={SIZE} color={color} />;
+      contents = <MaterialCommunityIcons name="download-off" size={SIZE} color={color} />;
       break;
     case SourceTrackOfflineInfoStatus.Succeeded:
       contents = <SourceTrackSucceededIndicator size={SIZE} />;

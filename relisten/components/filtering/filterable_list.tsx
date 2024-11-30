@@ -34,7 +34,6 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
   filtering,
   ...props
 }: FilterableListProps<T>) => {
-  const { refreshing } = useRefreshContext();
   const { filters, onFilterButtonPress, filter, clearFilters } = useFilters<K, T>();
   const filteringEnabled = filtering !== undefined ? filtering : true;
 
@@ -55,14 +54,14 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
     return [
       { sectionTitle: ALL_SECTION_SENTINEL, data: [] },
       ...filteredData.filter((f) => f.data.length > 0),
-      noDataIsVisible && !refreshing
+      noDataIsVisible
         ? { sectionTitle: EMPTY_SECTION_SENTINEL, data: [], metadata: itemsHidden }
         : { sectionTitle: HIDDEN_SECTION_SENTINEL, data: [] },
       !noDataIsVisible && itemsHidden > 0
         ? { sectionTitle: FILTER_WARNING_SECTION_SENTINEL, data: [], metadata: itemsHidden }
         : { sectionTitle: HIDDEN_SECTION_SENTINEL, data: [] },
     ].filter((x) => x);
-  }, [data, filter, filters, filteringEnabled, refreshing]);
+  }, [data, filter, filters, filteringEnabled]);
 
   function filterToString<K extends string, T>(f: Filter<K, T>) {
     return `${f.title}${f.active ? '*' : ''}${

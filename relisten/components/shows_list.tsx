@@ -79,7 +79,7 @@ export enum ShowFilterKey {
   Duration = 'duration',
 }
 
-const SHOW_FILTERS: Filter<ShowFilterKey, Show>[] = [
+export const SHOW_FILTERS: Filter<ShowFilterKey, Show>[] = [
   {
     persistenceKey: ShowFilterKey.Soundboard,
     title: 'SBD',
@@ -137,6 +137,7 @@ interface ShowListProps {
   filterOptions?: FilteringOptions<ShowFilterKey>;
   ListHeaderComponent?: React.ReactElement;
   renderItem?: ListRenderItem<Show>;
+  filters?: Filter<ShowFilterKey, Show>[];
 }
 
 const showListRenderItemDefault: ListRenderItem<Show> = ({ item: show }) => {
@@ -148,7 +149,7 @@ export const ShowListContainer = (
 ) => {
   return (
     <FilteringProvider
-      filters={SHOW_FILTERS}
+      filters={props.filters ?? SHOW_FILTERS}
       options={{ default: DEFAULT_SHOW_FILTER, ...(props.filterOptions || {}) }}
     >
       <ShowList {...props} />
