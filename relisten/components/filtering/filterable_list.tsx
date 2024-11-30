@@ -13,6 +13,7 @@ import { Filter, SortDirection, useFilters } from './filters';
 import { NonIdealState } from '../non_ideal_state';
 import { RelistenText } from '../relisten_text';
 import Plur from '../plur';
+import { useRefreshContext } from '../refresh_context';
 
 const logger = log.extend('filter');
 
@@ -33,8 +34,8 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
   filtering,
   ...props
 }: FilterableListProps<T>) => {
+  const { refreshing } = useRefreshContext();
   const { filters, onFilterButtonPress, filter } = useFilters<K, T>();
-
   const filteringEnabled = filtering !== undefined ? filtering : true;
 
   if (!filteringEnabled) {
@@ -56,14 +57,14 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
     return [
       { sectionTitle: ALL_SECTION_SENTINEL, data: [] },
       ...filteredData,
-      noDataIsVisible
+      noDataIsVisible && !refreshing
         ? { sectionTitle: EMPTY_SECTION_SENTINEL, data: [] }
         : { sectionTitle: HIDDEN_SECTION_SENTINEL, data: [] },
       !noDataIsVisible && itemsHidden > 0
         ? { sectionTitle: FILTER_WARNING_SECTION_SENTINEL, data: [], metadata: itemsHidden }
         : { sectionTitle: HIDDEN_SECTION_SENTINEL, data: [] },
     ].filter((x) => x);
-  }, [data, filter, filters, filteringEnabled]);
+  }, [data, filter, filters, filteringEnabled, refreshing]);
 
   function filterToString<K extends string, T>(f: Filter<K, T>) {
     return `${f.title}${f.active ? '*' : ''}${
