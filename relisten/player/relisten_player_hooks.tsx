@@ -1,5 +1,6 @@
 import React, { PropsWithChildren, useContext, useEffect, useState } from 'react';
 import { RelistenPlayer, RelistenPlayerReportTrackEvent } from '@/relisten/player/relisten_player';
+import { useRealm } from '@/relisten/realm/schema';
 
 export interface RelistenPlayerProps {
   player: RelistenPlayer;
@@ -9,10 +10,17 @@ export const RelistenPlayerContext = React.createContext<RelistenPlayerProps>({
   player: RelistenPlayer.DEFAULT_INSTANCE,
 });
 export const RelistenPlayerProvider = ({ children }: PropsWithChildren<object>) => {
+  const player = RelistenPlayer.DEFAULT_INSTANCE;
+  const realm = useRealm();
+
+  useEffect(() => {
+    if (realm) {
+      RelistenPlayer.DEFAULT_INSTANCE.queue.restorePlayerState(realm);
+    }
+  }, [player, realm]);
+
   return (
-    <RelistenPlayerContext.Provider value={{ player: RelistenPlayer.DEFAULT_INSTANCE }}>
-      {children}
-    </RelistenPlayerContext.Provider>
+    <RelistenPlayerContext.Provider value={{ player }}>{children}</RelistenPlayerContext.Provider>
   );
 };
 export const useRelistenPlayer = () => {

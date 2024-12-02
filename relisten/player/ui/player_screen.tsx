@@ -17,25 +17,23 @@ import {
   useRelistenPlayerCurrentTrack,
   useRelistenPlayerQueueOrderedTracks,
 } from '@/relisten/player/relisten_player_queue_hooks';
-import { useArtist } from '@/relisten/realm/models/artist_repo';
-import { Show } from '@/relisten/realm/models/show';
-import { useObject } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { trackDuration } from '@/relisten/util/duration';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { tw } from '@/relisten/util/tw';
 import { useActionSheet } from '@expo/react-native-action-sheet';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { type ParamListBase, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useRef } from 'react';
+import { LegacyRef, useCallback, useEffect, useRef } from 'react';
 import { FlatList, Platform, TouchableOpacity, View } from 'react-native';
 import AirPlayButton from 'react-native-airplay-button';
 import { HapticModeEnum, Slider } from 'react-native-awesome-slider';
 import { useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { DisclosureIndicator } from '@/relisten/components/disclosure_indicator';
 
 export function ScrubberRow() {
   const progressObj = useNativePlaybackProgress();
@@ -117,8 +115,8 @@ function CurrentTrackInfo() {
   const groupSegment = useGroupSegment(true);
   const progressObj = useNativePlaybackProgress();
 
-  const { data: artist } = useArtist(currentPlayerTrack?.sourceTrack.artistUuid);
-  const show = useObject(Show, currentPlayerTrack?.sourceTrack?.showUuid || '');
+  const artist = currentPlayerTrack?.sourceTrack?.artist;
+  const show = currentPlayerTrack?.sourceTrack?.show;
 
   const onDotsPress = useCallback(() => {
     if (!artist || !show) {
@@ -164,7 +162,7 @@ function CurrentTrackInfo() {
     );
   }, [artist, router, show]);
 
-  if (currentPlayerTrack === undefined || artist === null || show === null) {
+  if (currentPlayerTrack === undefined || artist === undefined || show === undefined) {
     return <></>;
   }
 
@@ -173,9 +171,11 @@ function CurrentTrackInfo() {
   return (
     <Flex column className="mb-4">
       <Flex className="items-center justify-between pb-1 pt-3">
-        <RelistenText className="text-3xl font-bold">{currentTrack.title}</RelistenText>
-        <TouchableOpacity onPress={onDotsPress} className="p-2 pr-0">
-          <MaterialCommunityIcons name="dots-horizontal" size={22} color="white" />
+        <TouchableOpacity onPress={onDotsPress}>
+          <RelistenText className="text-3xl font-bold">
+            {currentTrack.title}
+            <DisclosureIndicator />
+          </RelistenText>
         </TouchableOpacity>
       </Flex>
       <RelistenText className="pb-0.5 text-lg">
@@ -200,11 +200,12 @@ function PlayerControls() {
   const progress = useNativePlaybackProgress();
 
   return (
-    <Flex className="w-full items-center justify-center pb-2 pt-4">
+    <Flex className="w-full items-center justify-center pt-0">
+      {Platform.OS === 'ios' && <View className="w-[44px]" />}
       <TouchableOpacity
         onPress={() => {
-          if (player.queue.isCurrentTrackFirst || (progress && progress.elapsed > 5)) {
-            player.seekTo(0);
+          if (progress && progress.elapsed < 5) {
+            player.seekTo(0).then(() => {});
           } else {
             player.previous();
           }
@@ -236,14 +237,7 @@ function PlayerControls() {
       >
         <MaterialCommunityIcons name="skip-forward" size={42} color="white" />
       </TouchableOpacity>
-    </Flex>
-  );
-}
-
-function PlayerVolumeControls() {
-  return (
-    <Flex className="absolute bottom-6 right-4 w-full items-center justify-end">
-      {Platform.OS == 'ios' && (
+      {Platform.OS === 'ios' && (
         <AirPlayButton
           activeTintColor="blue"
           tintColor="white"
@@ -263,8 +257,8 @@ function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; 
   const playbackState = useRelistenPlayerPlaybackState();
   const sourceTrack = queueTrack.sourceTrack;
 
-  const artist = useArtist(sourceTrack.artistUuid);
-  const show = useObject(Show, sourceTrack.showUuid || '');
+  const artist = sourceTrack.artist;
+  const show = sourceTrack.show;
 
   const onDotsPress = () => {
     const options = ['Play now', 'Play next', 'Add to end of queue', 'Remove from queue', 'Cancel'];
@@ -307,7 +301,7 @@ function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; 
     player.queue.playTrackAtIndex(index);
   };
 
-  const subtitle = [artist?.data?.name, show?.displayDate, show?.venue?.name, show?.venue?.location]
+  const subtitle = [artist?.name, show?.displayDate, show?.venue?.name, show?.venue?.location]
     .filter((x) => !!x && x.length > 0)
     .join(' · ');
 
@@ -325,7 +319,7 @@ function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; 
                   />
                 </View>
               )}
-              <RelistenText className="text-lg">{sourceTrack.title}</RelistenText>
+              <RelistenText className="shrink text-lg">{sourceTrack.title}</RelistenText>
               <SourceTrackOfflineIndicator offlineInfo={sourceTrack.offlineInfo} />
             </Flex>
             {subtitle.length > 0 && (
@@ -351,7 +345,7 @@ function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; 
 function PlayerQueue() {
   const player = useRelistenPlayer();
   const orderedQueueTracks = useRelistenPlayerQueueOrderedTracks();
-  const navigation = useNavigation<NativeStackNavigationProp<any>>();
+  const navigation = useNavigation<NativeStackNavigationProp<ParamListBase>>();
   const flatlistRef = useRef<FlatList<PlayerQueueTrack>>();
 
   useEffect(() => {
@@ -368,7 +362,7 @@ function PlayerQueue() {
   return (
     <View className="flex-1">
       <FlatList
-        ref={flatlistRef as any}
+        ref={flatlistRef as unknown as LegacyRef<FlatList<PlayerQueueTrack>>}
         className="w-full flex-1"
         data={orderedQueueTracks}
         // onDragEnd={({ data }) => player.queue.reorderQueue(data.map((q) => q.sourceTrack))}
@@ -391,7 +385,7 @@ function PlayerQueue() {
 }
 
 export function PlayerScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<any>>();
+  const navigation = useNavigation<NativeStackNavigationProp<ParamListBase>>();
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
 
   useEffect(() => {
@@ -439,11 +433,10 @@ export function PlayerScreen() {
         <View className="flex-1 flex-grow bg-relisten-blue-900">
           <PlayerQueue />
         </View>
-        <Flex column className="flex-shrink border-t border-relisten-blue-700 px-4">
+        <Flex column className="flex-shrink border-t border-relisten-blue-700 px-8 pt-4">
           <CurrentTrackInfo />
           <ScrubberRow />
           <PlayerControls />
-          <PlayerVolumeControls />
         </Flex>
       </Flex>
     </SafeAreaView>

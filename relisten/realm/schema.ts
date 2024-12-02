@@ -13,6 +13,7 @@ import { Tour } from './models/tour';
 import { Song } from './models/song';
 import { SourceTrackOfflineInfo } from '@/relisten/realm/models/source_track_offline_info';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
+import { PlayerState } from '@/relisten/realm/models/player_state';
 
 // uncomment to show realm queries (measured in microseconds):
 // Realm.setLogLevel('debug');
@@ -32,6 +33,7 @@ const realmConfig: Realm.Configuration = {
     RouteFilterConfig,
     SourceTrackOfflineInfo,
     PlaybackHistoryEntry,
+    PlayerState,
   ],
   deleteRealmIfMigrationNeeded: true,
 };

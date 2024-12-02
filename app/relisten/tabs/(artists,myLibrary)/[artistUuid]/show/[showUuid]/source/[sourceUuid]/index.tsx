@@ -22,7 +22,6 @@ import { SourceSets } from '@/relisten/components/source/source_sets_component';
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
 import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
 import { PlayShow, useSourceTrackContextMenu } from '@/relisten/player/ui/track_context_menu';
-import { useArtist } from '@/relisten/realm/models/artist_repo';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { useActionSheet } from '@expo/react-native-action-sheet';
 import { DownloadManager } from '@/relisten/offline/download_manager';
@@ -65,14 +64,7 @@ export default function Page() {
 
   const playShow = useCallback(
     (sourceTrack?: SourceTrack) => {
-      if (
-        !sourceTrack ||
-        !sourceTrack.mp3Url ||
-        !sourceTrack.uuid ||
-        !artist.data ||
-        !show ||
-        !selectedSource
-      ) {
+      if (!sourceTrack || !sourceTrack.mp3Url || !sourceTrack.uuid) {
         logger.warn(
           `Missing value when trying to play source track: sourceTrack=${sourceTrack} mp3Url=${sourceTrack?.mp3Url} uuid=${sourceTrack?.uuid} artist=${artist.data} show=${show} selectedSource=${selectedSource}`
         );
@@ -87,13 +79,11 @@ export default function Page() {
       );
 
       player.queue.replaceQueue(
-        showTracks.map((t) =>
-          PlayerQueueTrack.fromSourceTrack(t, selectedSource, artist.data, show.venue)
-        ),
+        showTracks.map((t) => PlayerQueueTrack.fromSourceTrack(t)),
         trackIndex
       );
     },
-    [selectedSource, artist.data, show]
+    [selectedSource]
   ) satisfies PlayShow;
 
   const downloadShow = () => {
@@ -187,26 +177,13 @@ const SourceComponent = ({
   downloadShow: () => void;
 } & ScrollViewProps) => {
   const { refreshing, errors, hasData } = useRefreshContext();
-  const artist = useArtist(show?.artistUuid);
   const { showContextMenu } = useSourceTrackContextMenu();
 
-  const onDotsPress = useCallback(
-    (sourceTrack: SourceTrack) => {
-      if (!artist.data || !show || !selectedSource) {
-        return;
-      }
+  const onDotsPress = useCallback((sourceTrack: SourceTrack) => {
+    const queueTrack = PlayerQueueTrack.fromSourceTrack(sourceTrack);
 
-      const queueTrack = PlayerQueueTrack.fromSourceTrack(
-        sourceTrack,
-        selectedSource,
-        artist.data,
-        show.venue
-      );
-
-      showContextMenu(queueTrack, playShow);
-    },
-    [selectedSource, artist.data, show, playShow]
-  );
+    showContextMenu(queueTrack, playShow);
+  }, []);
 
   if (errors && !hasData) {
     return (

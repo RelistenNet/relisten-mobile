@@ -28,9 +28,9 @@ export const useRealmTabsFilter = <T extends RelistenObject>(items: Realm.Result
 export function filterForUser<T extends RelistenObject & FavoritableObject>(
   query: Realm.Results<T>,
   {
-    isFavorite,
-    isPlayableOffline,
-    operator,
+    isFavorite = true,
+    isPlayableOffline = true,
+    operator = 'OR',
   }: { isFavorite?: boolean; isPlayableOffline?: boolean; operator?: 'AND' | 'OR' }
 ): Realm.Results<T> {
   const filters: string[] = [];
@@ -47,7 +47,7 @@ export function filterForUser<T extends RelistenObject & FavoritableObject>(
   }
 
   if (filters.length > 0) {
-    const filter = '(' + filters.join(`) ${operator || 'OR'} (`) + ')';
+    const filter = '(' + filters.join(`) ${operator} (`) + ')';
     return query.filtered(filter, args);
   }
 

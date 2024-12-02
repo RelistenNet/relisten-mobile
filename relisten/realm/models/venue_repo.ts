@@ -12,13 +12,13 @@ export const useVenues = (artistUuid: string) => {
   return createNetworkBackedModelArrayHook(
     venueRepo,
     () => {
-      const artistQuery = useQuery(
+      const venueQuery = useQuery(
         Venue,
         (query) => query.filtered('artistUuid == $0 && showsAtVenue > 0', artistUuid),
         [artistUuid]
       );
 
-      return artistQuery;
+      return venueQuery;
     },
     (api) => api.venues(artistUuid)
   )();

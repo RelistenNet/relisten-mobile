@@ -83,7 +83,6 @@ export class Show
   sourceTracks!: Realm.List<SourceTrack>;
   artist!: Artist;
   tour?: Tour;
-  artist!: Artist;
 
   isFavorite!: boolean;
 

@@ -1,13 +1,20 @@
-import { nativePlayer, RelistenStreamable } from '@/modules/relisten-audio-player';
+import {
+  nativePlayer,
+  RelistenPlaybackState,
+  RelistenStreamable,
+} from '@/modules/relisten-audio-player';
 import { addPlayerListeners } from '@/relisten/player/native_playback_state_hooks';
 import { RelistenPlayer } from '@/relisten/player/relisten_player';
-import { currentTrackIdentifier } from '@/relisten/player/shared_state';
+import { currentTrackIdentifier, state } from '@/relisten/player/shared_state';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { EventSource } from '@/relisten/util/event_source';
-import { Source } from '@/relisten/realm/models/source';
-import { Artist } from '@/relisten/realm/models/artist';
-import { Venue } from '@/relisten/realm/models/venue';
-import { SourceTrackOfflineInfoStatus } from '@/relisten/realm/models/source_track_offline_info';
+import { realm } from '@/relisten/realm/schema';
+import { PlayerState } from '@/relisten/realm/models/player_state';
+import { log } from '@/relisten/util/logging';
+import { groupByUuid } from '@/relisten/util/group_by';
+import { Realm } from '@realm/react';
+
+const logger = log.extend('player-queue');
 
 export enum PlayerShuffleState {
   SHUFFLE_OFF = 1,
@@ -59,16 +66,15 @@ export class PlayerQueueTrack {
     this.identifier = nextQueueTrackId();
   }
 
-  static fromSourceTrack(
-    sourceTrack: SourceTrack,
-    source: Source,
-    artist?: Artist | null,
-    venue?: Venue | null
-  ) {
+  static fromSourceTrack(sourceTrack: SourceTrack) {
+    const artist = sourceTrack.artist;
+    const source = sourceTrack.source;
+    const venue = sourceTrack.show.venue;
+
     return new PlayerQueueTrack(
       sourceTrack,
       sourceTrack.title,
-      [artist?.name, source.displayDate, venue?.name].filter((part) => !!part).join(' • ') || '',
+      [artist.name, source.displayDate, venue?.name].filter((part) => !!part).join(' • ') || '',
       [source.displayDate, venue?.name].filter((part) => !!part).join(' • ') || '',
       'https://fastly.picsum.photos/id/311/550/550.jpg?hmac=HTOiKPHI1RJtHRyl2E88Qi1UeX_gIMSfKxwJzd9mWFg'
       // `https://sonos.relisten.net/album-art/${artist?.slug}/years/${year}/${year}-${month}-${day}/${source.id}/550.png`
@@ -136,6 +142,7 @@ export class RelistenPlayerQueue {
 
     this.recalculateNextTrack();
     this.onOrderedTracksChanged.dispatch(this.orderedTracks);
+    this.savePlayerState();
   }
 
   addTrackToEndOfQueue(queueTracks: PlayerQueueTrack[]) {
@@ -144,6 +151,7 @@ export class RelistenPlayerQueue {
 
     this.recalculateNextTrack();
     this.onOrderedTracksChanged.dispatch(this.orderedTracks);
+    this.savePlayerState();
   }
 
   reorderQueue(newQueue: PlayerQueueTrack[]) {
@@ -156,6 +164,7 @@ export class RelistenPlayerQueue {
 
     this.recalculateNextTrack();
     this.onOrderedTracksChanged.dispatch(this.orderedTracks);
+    this.savePlayerState();
   }
 
   replaceQueue(newQueue: PlayerQueueTrack[], playingTrackAtIndex: number | undefined) {
@@ -175,6 +184,7 @@ export class RelistenPlayerQueue {
     }
 
     this.onOrderedTracksChanged.dispatch(this.orderedTracks);
+    this.savePlayerState();
   }
 
   playTrackAtIndex(index: number) {
@@ -204,6 +214,7 @@ export class RelistenPlayerQueue {
 
     this.recalculateNextTrack();
     this.onOrderedTracksChanged.dispatch(this.orderedTracks);
+    this.savePlayerState();
   }
 
   get shuffleState() {
@@ -277,6 +288,7 @@ export class RelistenPlayerQueue {
       this.recalculateNextTrack();
       this.onShuffleStateChanged.dispatch(shuffleState);
       this.onOrderedTracksChanged.dispatch(this.orderedTracks);
+      this.savePlayerState();
     }
   }
 
@@ -286,6 +298,7 @@ export class RelistenPlayerQueue {
 
       this.recalculateNextTrack();
       this.onRepeatStateChanged.dispatch(repeatState);
+      this.savePlayerState();
     }
   }
 
@@ -396,6 +409,7 @@ export class RelistenPlayerQueue {
 
     this.recalculateNextTrack();
     this.onCurrentTrackChanged.dispatch(this.currentTrack);
+    this.savePlayerState();
   };
 
   private recalculateTrackIndexes(newIdentifier: string) {
@@ -419,6 +433,101 @@ export class RelistenPlayerQueue {
       }
     }
   }
+  // endregion
 
+  // region Player state serialization
+  private playerStateDebounce: number | undefined = undefined;
+
+  private savePlayerState() {
+    if (this.playerStateDebounce) {
+      clearTimeout(this.playerStateDebounce);
+    }
+
+    this.playerStateDebounce = setTimeout(() => {
+      if (realm) {
+        PlayerState.upsert(realm, {
+          queueShuffleState: this.shuffleState,
+          queueRepeatState: this.repeatState,
+          queueSourceTrackUuids: this.originalTracks.map((t) => t.sourceTrack.uuid),
+          queueSourceTrackShuffledUuids: this.shuffledTracks.map((t) => t.sourceTrack.uuid),
+          activeSourceTrackIndex: this.originalTracksCurrentIndex,
+          activeSourceTrackShuffledIndex: this.shuffledTracksCurrentIndex,
+          lastUpdatedAt: new Date(),
+        });
+      } else {
+        logger.warn('Not writing player state -- realm is not available.');
+      }
+    }, 1000) as unknown as number;
+  }
+
+  public restorePlayerState(realm: Realm) {
+    const playerState = PlayerState.defaultObject(realm);
+
+    if (!playerState) {
+      logger.debug('No player state found to restore');
+      return;
+    }
+
+    console.log('found player state', playerState);
+
+    const sourceTracksByUuid = groupByUuid([
+      ...realm.objects(SourceTrack).filtered('uuid in $0', [...playerState.queueSourceTrackUuids]),
+    ]);
+
+    const makeQueue = (uuids: string[]) => {
+      return uuids
+        .map((u) => {
+          const sourceTrack = sourceTracksByUuid[u];
+
+          if (!sourceTrack) {
+            return;
+          }
+
+          return PlayerQueueTrack.fromSourceTrack(sourceTrack);
+        })
+        .filter((t) => !!t) as PlayerQueueTrack[];
+    };
+
+    const unshuffledQueue = makeQueue(playerState.queueSourceTrackUuids);
+    const shuffledQueue = makeQueue(playerState.queueSourceTrackShuffledUuids);
+
+    // Only move from stopped to paused state if there's something to show in the bar
+    if (this.currentTrack) {
+      state.setState(RelistenPlaybackState.Paused);
+    }
+
+    console.log(
+      'restorePlayerState',
+      this.currentIndex,
+      this.currentTrack,
+      this.originalTracksCurrentIndex
+    );
+
+    this.setShuffleState(playerState.queueShuffleState);
+    this.setRepeatState(playerState.queueRepeatState);
+
+    this.replaceQueue(unshuffledQueue, undefined);
+    this.shuffledTracks = shuffledQueue;
+
+    console.log(
+      'restorePlayerState',
+      this.currentIndex,
+      this.currentTrack,
+      this.originalTracksCurrentIndex
+    );
+
+    this.originalTracksCurrentIndex = playerState.activeSourceTrackIndex;
+    this.shuffledTracksCurrentIndex = playerState.activeSourceTrackShuffledIndex;
+
+    console.log(
+      'restorePlayerState',
+      this.currentIndex,
+      this.currentTrack,
+      this.originalTracksCurrentIndex
+    );
+
+    this.onOrderedTracksChanged.dispatch(this.orderedTracks);
+    this.onCurrentTrackChanged.dispatch(this.currentTrack);
+  }
   // endregion
 }
