@@ -27,17 +27,19 @@ function PlayerBottomBarContents() {
   const progress = useNativePlaybackProgress();
   const downloadProgress = useNativeActiveTrackDownloadProgress();
 
-  const artist = useArtist(currentTrack?.sourceTrack?.artistUuid);
-  const showCache = useObject(Show, currentTrack?.sourceTrack?.showUuid || '');
+  const artist = currentTrack?.sourceTrack?.artist;
+  const showCache = currentTrack?.sourceTrack?.show;
 
   const subtitle = [
-    artist?.data?.name,
+    artist?.name,
     showCache?.displayDate,
     showCache?.venue?.name,
     showCache?.venue?.location,
   ]
     .filter((x) => !!x && x.length > 0)
     .join(' · ');
+
+  console.log('PlayerBottomBarContents', currentTrack);
 
   if (!currentTrack) {
     return <></>;
@@ -109,6 +111,8 @@ export function PlayerBottomBar() {
   );
 
   const isVisible = useIsPlayerBottomBarVisible();
+
+  console.log(tabBarHeight, playerBottomBarHeight, isVisible);
 
   if (!isVisible) {
     return <></>;
