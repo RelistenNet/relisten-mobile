@@ -37,7 +37,7 @@
       },
       "icon": "./assets/ic_playstore.png",
       "package": "net.relisten.android",
-      "versionCode": 6000
+      "versionCode": 6001
     },
     "jsEngine": "hermes",
     "web": {
