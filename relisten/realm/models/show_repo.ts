@@ -190,7 +190,7 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
           createdSourceTracks.forEach((st) => {
             st.artist = artist!;
             st.year = year!;
-            st.show = localData.show;
+            st.show = localData.show!;
             st.source = source;
           });
         }

@@ -27,7 +27,7 @@
           "audio"
         ]
       },
-      "buildNumber": "6001"
+      "buildNumber": "6002"
     },
     "android": {
       "adaptiveIcon": {
@@ -37,7 +37,7 @@
       },
       "icon": "./assets/ic_playstore.png",
       "package": "net.relisten.android",
-      "versionCode": 6001
+      "versionCode": 6002
     },
     "jsEngine": "hermes",
     "web": {
