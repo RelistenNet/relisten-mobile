@@ -304,6 +304,15 @@ export class DownloadManager {
         this.writeProgress(realm, offlineInfo, downloadTask, props);
       })
       .done(() => {
+        realm.write(() => {
+          logger.debug(`${downloadTask.id}: done`);
+          offlineInfo.status = SourceTrackOfflineInfoStatus.Succeeded;
+          offlineInfo.completedAt = new Date();
+          offlineInfo.downloadedBytes = offlineInfo.totalBytes;
+          offlineInfo.percent = 1.0;
+          offlineInfo.errorInfo = undefined;
+        });
+
         this.runningDownloadTasks.splice(this.runningDownloadTasks.indexOf(downloadTask), 1);
         this.maybeStartQueuedDownloads().then(() => {});
       })
