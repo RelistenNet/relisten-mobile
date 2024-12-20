@@ -31,9 +31,15 @@
           <string>com.alecgorge.ios.Listen-to-the-Dead</string>
         </array>
       </dict>
+      <dict>
+        <key>CFBundleURLSchemes</key>
+        <array>
+          <string>com.googleusercontent.apps.403146132454-4k333945sq4pu0c7li54apv171js0see</string>
+        </array>
+      </dict>
     </array>
     <key>CFBundleVersion</key>
-    <string>6002</string>
+    <string>6003</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
     <key>NSAppTransportSecurity</key>
@@ -45,7 +51,6 @@
     </dict>
     <key>NSUserActivityTypes</key>
     <array>
-      <string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>
       <string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>
     </array>
     <key>UIBackgroundModes</key>

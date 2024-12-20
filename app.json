@@ -20,6 +20,7 @@
       "**/*"
     ],
     "ios": {
+      "googleServicesFile": "./firebase/GoogleService-Info.plist",
       "supportsTablet": true,
       "bundleIdentifier": "com.alecgorge.ios.Listen-to-the-Dead",
       "infoPlist": {
@@ -27,9 +28,10 @@
           "audio"
         ]
       },
-      "buildNumber": "6002"
+      "buildNumber": "6003"
     },
     "android": {
+      "googleServicesFile": "./firebase/google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/ic_foreground.png",
         "backgroundImage": "./assets/ic_background.png",
@@ -37,7 +39,7 @@
       },
       "icon": "./assets/ic_playstore.png",
       "package": "net.relisten.android",
-      "versionCode": 6002
+      "versionCode": 6003
     },
     "jsEngine": "hermes",
     "web": {
@@ -58,11 +60,14 @@
             "newArchEnabled": true
           },
           "ios": {
-            "newArchEnabled": true
+            "newArchEnabled": true,
+            "useFrameworks": "static"
           }
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "@react-native-firebase/app",
+      "@react-native-firebase/crashlytics"
     ],
     "extra": {
       "router": {

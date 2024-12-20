@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "403146132454",
+    "firebase_url": "https://relisten-164dd.firebaseio.com",
+    "project_id": "relisten-164dd",
+    "storage_bucket": "relisten-164dd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:403146132454:android:347bfac48af7529f9ee427",
+        "android_client_info": {
+          "package_name": "net.relisten.android"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "403146132454-dhtsg4lcr0lnk6jl6emms0l76822p5le.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCYUC7SlpcUrm71M02mvOt1sNcYBOEtm9o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "403146132454-dhtsg4lcr0lnk6jl6emms0l76822p5le.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "403146132454-4k333945sq4pu0c7li54apv171js0see.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.alecgorge.ios.Listen-to-the-Dead",
+                "app_store_id": "715886886"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
