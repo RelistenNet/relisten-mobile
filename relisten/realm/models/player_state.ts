@@ -25,6 +25,7 @@ export class PlayerState extends Realm.Object<PlayerState> implements PlayerStat
       activeSourceTrackIndex: 'int?',
       activeSourceTrackShuffledIndex: 'int?',
       lastUpdatedAt: 'date',
+      progress: 'float?',
     },
   };
 
@@ -36,6 +37,7 @@ export class PlayerState extends Realm.Object<PlayerState> implements PlayerStat
   activeSourceTrackIndex?: number;
   activeSourceTrackShuffledIndex?: number;
   lastUpdatedAt!: Date;
+  progress?: number;
 
   static defaultObject(realm: Realm) {
     return realm.objectForPrimaryKey(PlayerState, PLAYER_STATE_SENTINEL);

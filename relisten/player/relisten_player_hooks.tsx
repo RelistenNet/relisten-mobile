@@ -15,7 +15,7 @@ export const RelistenPlayerProvider = ({ children }: PropsWithChildren<object>) 
 
   useEffect(() => {
     if (realm) {
-      RelistenPlayer.DEFAULT_INSTANCE.queue.restorePlayerState(realm);
+      player.queue.restorePlayerState(realm).then(() => {});
     }
   }, [player, realm]);
 

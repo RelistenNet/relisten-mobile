@@ -200,7 +200,7 @@ function PlayerControls() {
   const progress = useNativePlaybackProgress();
 
   return (
-    <Flex className="w-full items-center justify-center pt-0">
+    <Flex className="w-full items-center justify-center py-6">
       {Platform.OS === 'ios' && <View className="w-[44px]" />}
       <TouchableOpacity
         onPress={() => {

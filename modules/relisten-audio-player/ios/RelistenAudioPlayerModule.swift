@@ -126,24 +126,29 @@ public class RelistenAudioPlayerModule: Module {
         }
 
         Function("setNextStream") { (streamable: RelistenStreamable?) in
-            if streamable == nil {
-                player?.setNextStream(nil)
+            if streamable == nil, let player = self.player {
+                player.bassQueue.async {
+                    self.player?.setNextStream(nil)
+                }
             }
 
             guard let streamable = streamable, let url = streamable.url, let identifier = streamable.identifier, let title = streamable.title, let albumTitle = streamable.albumTitle, let albumArt = streamable.albumArt, let artist = streamable.artist else {
                 return
             }
-            player?.setNextStream(
-                RelistenGaplessStreamable(
-                    url: url,
-                    identifier: identifier,
-                    title: title,
-                    artist: artist,
-                    albumTitle: albumTitle,
-                    albumArt: albumArt,
-                    downloadDestination: streamable.downloadDestination
+            
+            player?.bassQueue.async {
+                self.player?.setNextStream(
+                    RelistenGaplessStreamable(
+                        url: url,
+                        identifier: identifier,
+                        title: title,
+                        artist: artist,
+                        albumTitle: albumTitle,
+                        albumArt: albumArt,
+                        downloadDestination: streamable.downloadDestination
+                    )
                 )
-            )
+            }
         }
 
         AsyncFunction("resume") { (promise: Promise) in

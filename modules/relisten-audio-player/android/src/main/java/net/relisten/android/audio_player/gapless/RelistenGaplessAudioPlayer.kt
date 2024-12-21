@@ -132,7 +132,9 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
 
             exoplayer.addMediaItem(exoplayer.currentMediaItemIndex + 1, newNextStream.mediaItem)
 
-            exoplayer.removeMediaItems(exoplayer.currentMediaItemIndex + 2, exoplayer.mediaItemCount)
+            if (exoplayer.currentMediaItemIndex + 2 < exoplayer.mediaItemCount) {
+                exoplayer.removeMediaItems(exoplayer.currentMediaItemIndex + 2, exoplayer.mediaItemCount)
+            }
         }
     }
 

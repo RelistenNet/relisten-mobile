@@ -79,7 +79,6 @@ export function useRelistenPlayerCurrentTrack(): PlayerQueueTrack | undefined {
 
   useEffect(() => {
     const teardown = queue.onCurrentTrackChanged.addListener((newCurrentTrack) => {
-      console.log('setCurrentTrack', newCurrentTrack);
       setCurrentTrack(newCurrentTrack);
     });
 

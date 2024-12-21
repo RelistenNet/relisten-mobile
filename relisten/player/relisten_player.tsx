@@ -40,7 +40,7 @@ export class RelistenPlayer {
   private _queue: RelistenPlayerQueue = new RelistenPlayerQueue(this);
 
   private _state: RelistenPlaybackState = RelistenPlaybackState.Stopped;
-  private _progress: PlaybackContextProgress | undefined = undefined;
+  public progress: PlaybackContextProgress | undefined = undefined;
 
   // region Public API
   onStateChanged = new EventSource<RelistenPlaybackState>();
@@ -74,7 +74,7 @@ export class RelistenPlayer {
 
     if (this.state === RelistenPlaybackState.Stopped) {
       if (this.queue.orderedTracks.length > 0) {
-        this.queue.playTrackAtIndex(0);
+        this.queue.playTrackAtIndex(this.queue.currentIndex ?? 0);
       }
 
       return;
@@ -91,11 +91,11 @@ export class RelistenPlayer {
     nativePlayer.pause().then(() => {});
   }
 
-  stop() {
+  async stop() {
     this.addPlayerListeners();
 
     state.setState(RelistenPlaybackState.Stopped);
-    nativePlayer.stop().then(() => {});
+    await nativePlayer.stop();
   }
 
   next() {
@@ -170,8 +170,8 @@ export class RelistenPlayer {
 
   private onProgress = (progress: PlaybackContextProgress) => {
     if (
-      this._progress &&
-      this._progress.percent <= 0.5 &&
+      this.progress &&
+      this.progress.percent <= 0.5 &&
       progress.percent > 0.5 &&
       this.queue.currentTrack
     ) {
@@ -183,7 +183,7 @@ export class RelistenPlayer {
       });
     }
 
-    this._progress = progress;
+    this.progress = progress;
   };
 
   private onNativePlayerStateChanged = (newState: RelistenPlaybackState) => {

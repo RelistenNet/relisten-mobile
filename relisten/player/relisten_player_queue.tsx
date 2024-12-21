@@ -445,7 +445,7 @@ export class RelistenPlayerQueue {
 
     this.playerStateDebounce = setTimeout(() => {
       if (realm) {
-        PlayerState.upsert(realm, {
+        const state = {
           queueShuffleState: this.shuffleState,
           queueRepeatState: this.repeatState,
           queueSourceTrackUuids: this.originalTracks.map((t) => t.sourceTrack.uuid),
@@ -453,14 +453,17 @@ export class RelistenPlayerQueue {
           activeSourceTrackIndex: this.originalTracksCurrentIndex,
           activeSourceTrackShuffledIndex: this.shuffledTracksCurrentIndex,
           lastUpdatedAt: new Date(),
-        });
+          progress: this.player.progress?.percent,
+        };
+        PlayerState.upsert(realm, state);
+        logger.debug(`wrote player state: ${JSON.stringify(state)}`);
       } else {
         logger.warn('Not writing player state -- realm is not available.');
       }
     }, 1000) as unknown as number;
   }
 
-  public restorePlayerState(realm: Realm) {
+  public async restorePlayerState(realm: Realm) {
     const playerState = PlayerState.defaultObject(realm);
 
     if (!playerState) {
@@ -468,7 +471,10 @@ export class RelistenPlayerQueue {
       return;
     }
 
-    console.log('found player state', playerState);
+    // allow the player to be fully set up
+    await this.player.stop();
+
+    logger.debug(`restoring player state: ${JSON.stringify(playerState)}`);
 
     const sourceTracksByUuid = groupByUuid([
       ...realm.objects(SourceTrack).filtered('uuid in $0', [...playerState.queueSourceTrackUuids]),
@@ -488,46 +494,22 @@ export class RelistenPlayerQueue {
         .filter((t) => !!t) as PlayerQueueTrack[];
     };
 
-    const unshuffledQueue = makeQueue(playerState.queueSourceTrackUuids);
-    const shuffledQueue = makeQueue(playerState.queueSourceTrackShuffledUuids);
-
-    // Only move from stopped to paused state if there's something to show in the bar
-    if (this.currentTrack) {
-      state.setState(RelistenPlaybackState.Paused);
-    }
-
-    console.log(
-      'restorePlayerState',
-      this.currentIndex,
-      this.currentTrack,
-      this.originalTracksCurrentIndex
-    );
-
     this.setShuffleState(playerState.queueShuffleState);
     this.setRepeatState(playerState.queueRepeatState);
 
+    const unshuffledQueue = makeQueue(playerState.queueSourceTrackUuids);
+    const shuffledQueue = makeQueue(playerState.queueSourceTrackShuffledUuids);
+
     this.replaceQueue(unshuffledQueue, undefined);
     this.shuffledTracks = shuffledQueue;
-
-    console.log(
-      'restorePlayerState',
-      this.currentIndex,
-      this.currentTrack,
-      this.originalTracksCurrentIndex
-    );
-
-    this.originalTracksCurrentIndex = playerState.activeSourceTrackIndex;
-    this.shuffledTracksCurrentIndex = playerState.activeSourceTrackShuffledIndex;
-
-    console.log(
-      'restorePlayerState',
-      this.currentIndex,
-      this.currentTrack,
-      this.originalTracksCurrentIndex
-    );
-
     this.onOrderedTracksChanged.dispatch(this.orderedTracks);
-    this.onCurrentTrackChanged.dispatch(this.currentTrack);
+
+    this.originalTracksCurrentIndex = playerState.activeSourceTrackIndex ?? 0;
+
+    if (this.currentTrack) {
+      this.onCurrentTrackIdentifierChanged(this.currentTrack.identifier);
+    }
+    logger.debug('finished restoring player state');
   }
   // endregion
 }

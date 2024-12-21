@@ -1,4 +1,4 @@
-import { consoleTransport, fileAsyncTransport, logger } from 'react-native-logs';
+import { consoleTransport, logger } from 'react-native-logs';
 import { InteractionManager } from 'react-native';
 
 export type LogLevels = 'debug' | 'info' | 'warn' | 'error';

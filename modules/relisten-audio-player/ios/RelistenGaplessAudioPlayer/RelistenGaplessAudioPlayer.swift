@@ -175,34 +175,30 @@ public class RelistenGaplessAudioPlayer {
         //     return
         // }
 
-        bassQueue.async {
-            self.playStreamableImmediately(streamable)
-        }
+        self.playStreamableImmediately(streamable)
     }
 
     public func setNextStream(_ streamable: RelistenGaplessStreamable?) {
-        bassQueue.async { [self] in
-            maybeSetupBASS()
+        maybeSetupBASS()
 
-            guard let streamable = streamable else {
-                maybeTearDownNextStream()
-
-                return
-            }
-
-            if nextStream?.streamable.identifier == streamable.identifier {
-                return
-            }
-
-            // do the same thing for inactive--but only if the next track is actually different
-            // and if something is currently playing
+        guard let streamable = streamable else {
             maybeTearDownNextStream()
 
-            nextStream = buildStream(streamable)
+            return
+        }
 
-            if activeStream?.preloadFinished == true {
-                startPreloadingNextStream()
-            }
+        if nextStream?.streamable.identifier == streamable.identifier {
+            return
+        }
+
+        // do the same thing for inactive--but only if the next track is actually different
+        // and if something is currently playing
+        maybeTearDownNextStream()
+
+        nextStream = buildStream(streamable)
+
+        if activeStream?.preloadFinished == true {
+            startPreloadingNextStream()
         }
     }
 
@@ -221,47 +217,39 @@ public class RelistenGaplessAudioPlayer {
     }
 
     public func resume() {
-        bassQueue.async {
-            self.maybeSetupBASS()
+        self.maybeSetupBASS()
 
-            if BASS_Start() != 0 {
-                self.currentState = .Playing
-            }
+        if BASS_Start() != 0 {
+            self.currentState = .Playing
         }
     }
 
     public func pause() {
-        bassQueue.async {
-            self.maybeSetupBASS()
+        self.maybeSetupBASS()
 
-            if BASS_Pause() != 0 {
-                self.currentState = .Paused
-            }
+        if BASS_Pause() != 0 {
+            self.currentState = .Paused
         }
     }
 
     public func stop() {
-        bassQueue.async {
-            self.maybeSetupBASS()
+        self.maybeSetupBASS()
 
-            if let mixerMainStream = self.mixerMainStream, BASS_ChannelStop(mixerMainStream) != 0 {
-                self.delegate?.trackChanged(self, previousStreamable: self.activeStream?.streamable, currentStreamable: nil)
-                self.currentState = .Stopped
+        if let mixerMainStream = self.mixerMainStream, BASS_ChannelStop(mixerMainStream) != 0 {
+            self.delegate?.trackChanged(self, previousStreamable: self.activeStream?.streamable, currentStreamable: nil)
+            self.currentState = .Stopped
 
-                self.maybeTearDownActiveStream()
-                self.maybeTearDownNextStream()
-            }
+            self.maybeTearDownActiveStream()
+            self.maybeTearDownNextStream()
         }
     }
 
     public func next() {
-        bassQueue.async {
-            self.maybeSetupBASS()
+        self.maybeSetupBASS()
 
-            if self.nextStream != nil, let activeStream = self.activeStream {
-                self.tearDownStream(activeStream)
-                self.mixInNextStream(completedStream: activeStream.stream)
-            }
+        if self.nextStream != nil, let activeStream = self.activeStream {
+            self.tearDownStream(activeStream)
+            self.mixInNextStream(completedStream: activeStream.stream)
         }
     }
 
@@ -271,9 +259,7 @@ public class RelistenGaplessAudioPlayer {
             return
         }
 
-        bassQueue.async {
-            self.seekToPercent(percent)
-        }
+        self.seekToPercent(percent)
     }
 
     public func _resume(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
