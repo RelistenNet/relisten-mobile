@@ -60,19 +60,6 @@ function RecentlyPlayedShows() {
   );
 }
 
-function MyLibraryHeader() {
-  return (
-    <>
-      <RelistenText
-        className="w-full py-4 pt-8 text-center text-4xl font-bold text-white"
-        selectable={false}
-      >
-        My Library
-      </RelistenText>
-    </>
-  );
-}
-
 function FavoriteShows() {
   const favoriteShowsQuery = useQuery(
     {

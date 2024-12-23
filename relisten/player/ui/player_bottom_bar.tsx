@@ -100,7 +100,7 @@ export function PlayerBottomBar() {
   return (
     <View onLayout={onLayout} style={{ bottom: tabBarHeight, position: 'absolute', width: '100%' }}>
       <View className={'w-full flex-1 p-0'}>
-        <View className="w-full rounded-t-sm bg-relisten-blue-800 pt-2">
+        <View className="rounded-t-s w-full border-t-2 border-t-relisten-blue-700 bg-relisten-blue-800 pt-2">
           <PlayerBottomBarContents />
         </View>
       </View>

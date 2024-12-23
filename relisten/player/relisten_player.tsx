@@ -100,10 +100,11 @@ export class RelistenPlayer {
   playTrackAtIndex(index: number) {
     const newIndex = Math.max(0, Math.min(index, this.queue.orderedTracks.length - 1));
 
-    this._stalledTimer = setTimeout(
-      () => state.setState(RelistenPlaybackState.Stalled),
-      100
-    ) as unknown as number;
+    this._stalledTimer = setTimeout(() => {
+      if (this.state != RelistenPlaybackState.Playing) {
+        state.setState(RelistenPlaybackState.Stalled);
+      }
+    }, 250) as unknown as number;
     nativePlayer.play(this.queue.orderedTracks[newIndex].toStreamable()).then(() => {});
     this.playbackIntentStarted = true;
 
@@ -199,8 +200,8 @@ ${indentString(this.queue.debugState(true))}
   private onProgress = (progress: PlaybackContextProgress) => {
     if (
       this.progress &&
-      this.progress.percent <= 0.5 &&
-      progress.percent > 0.5 &&
+      this.progress.percent <= 0.05 &&
+      progress.percent > 0.05 &&
       this.queue.currentTrack
     ) {
       const currentTrack = this.queue.currentTrack;
@@ -215,6 +216,8 @@ ${indentString(this.queue.debugState(true))}
   };
 
   private onNativePlayerStateChanged = (newState: RelistenPlaybackState) => {
+    logger.debug('onNativePlayerStateChanged', newState);
+
     // Clear the default stalled UI fallback
     if (this._stalledTimer === undefined) {
       clearTimeout(this._stalledTimer);

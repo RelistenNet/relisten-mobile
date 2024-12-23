@@ -8,12 +8,10 @@ import {
 } from '../relisten_section_list';
 import { SectionHeader } from '../section_header';
 import { FilterBar } from './filter_bar';
-import { FilterBarButton } from './filter_bar_buttons';
 import { Filter, SortDirection, useFilters } from './filters';
 import { NonIdealState } from '../non_ideal_state';
 import { RelistenText } from '../relisten_text';
 import Plur from '../plur';
-import { useRefreshContext } from '../refresh_context';
 
 const logger = log.extend('filter');
 
@@ -34,7 +32,7 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
   filtering,
   ...props
 }: FilterableListProps<T>) => {
-  const { filters, onFilterButtonPress, filter, clearFilters } = useFilters<K, T>();
+  const { filters, filter, clearFilters, searchText } = useFilters<K, T>();
   const filteringEnabled = filtering !== undefined ? filtering : true;
 
   if (!filteringEnabled) {
@@ -43,7 +41,7 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
 
   const sectionedData = useMemo(() => {
     const filteredData = data.map((section) => {
-      const filteredData = filteringEnabled ? filter(section.data) : section.data;
+      const filteredData = filteringEnabled ? filter(section.data, searchText) : section.data;
       const itemsHidden = section.data.length - filteredData.length;
 
       return { ...section, data: filteredData, itemsHidden };
@@ -61,7 +59,7 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
         ? { sectionTitle: FILTER_WARNING_SECTION_SENTINEL, data: [], metadata: itemsHidden }
         : { sectionTitle: HIDDEN_SECTION_SENTINEL, data: [] },
     ].filter((x) => x);
-  }, [data, filter, filters, filteringEnabled]);
+  }, [data, filter, filters, searchText, filteringEnabled]);
 
   function filterToString<K extends string, T>(f: Filter<K, T>) {
     return `${f.title}${f.active ? '*' : ''}${
@@ -87,18 +85,8 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
           }
 
           return (
-            <SectionHeader className="p-0 pt-3">
-              <FilterBar>
-                {filters.map((f) => {
-                  return (
-                    <FilterBarButton
-                      key={f.persistenceKey}
-                      filter={f}
-                      onPress={() => onFilterButtonPress(f)}
-                    />
-                  );
-                })}
-              </FilterBar>
+            <SectionHeader className="p-0">
+              <FilterBar />
             </SectionHeader>
           );
         }

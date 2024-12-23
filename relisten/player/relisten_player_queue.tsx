@@ -446,8 +446,6 @@ ${indentString(tracks)}
   };
 
   private recalculateTrackIndexes(newIdentifier: string) {
-    console.log(`recalculateTrackIndexes newIdentifier=${newIdentifier}`);
-
     for (let i = 0; i < this.originalTracks.length; i++) {
       const originalTrack = this.originalTracks[i];
       const shuffledTrack = this.shuffledTracks[i];
@@ -467,10 +465,6 @@ ${indentString(tracks)}
         break;
       }
     }
-
-    console.log(
-      `recalculateTrackIndexes originalTracksCurrentIndex=${this.originalTracksCurrentIndex}, shuffledTracksCurrentIndex=${this.shuffledTracksCurrentIndex}`
-    );
   }
   // endregion
 

@@ -38,6 +38,7 @@ export enum YearFilterKey {
   Year = 'year',
   Shows = 'shows',
   Tapes = 'tapes',
+  Search = 'search',
 }
 
 export default function Page() {
@@ -306,6 +307,14 @@ const YEAR_FILTERS: Filter<YearFilterKey, Year>[] = [
     active: false,
     isNumeric: true,
     sort: (years) => years.sort((a, b) => a.sourceCount - b.sourceCount),
+  },
+  {
+    persistenceKey: YearFilterKey.Search,
+    title: 'Search',
+    active: false,
+    searchFilter: (year: Year, searchText: string) => {
+      return year.year.indexOf(searchText) !== -1;
+    },
   },
 ];
 

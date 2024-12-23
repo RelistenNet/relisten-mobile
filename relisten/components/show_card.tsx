@@ -2,7 +2,7 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import { Show } from '@/relisten/realm/models/show';
 import { tw } from '@/relisten/util/tw';
 import { Link } from 'expo-router';
-import React from 'react';
+import React, { useLayoutEffect, useRef } from 'react';
 import { TouchableOpacity, View, ViewProps } from 'react-native';
 
 export function ShowCard({
@@ -21,8 +21,24 @@ export function ShowCard({
   className?: string;
   showArtist?: boolean;
 } & ViewProps) {
+  const ref = useRef<any>(null);
+
+  useLayoutEffect(() => {
+    if (!ref.current) {
+      return;
+    }
+    console.log(ref.current.unstable_getBoundingClientRect());
+    const { width, height } = ref.current.unstable_getBoundingClientRect();
+    // or unstable_getBoundingClientRect()
+    console.log('The view measures %sx%s', width, height);
+  }, []);
+
   return (
-    <View className={tw('shrink pl-1 pr-1 first:pr-0 last:pr-0', cn, className)} {...props}>
+    <View
+      className={tw('shrink pl-1 pr-1 first:pr-0 last:pr-0', cn, className)}
+      {...props}
+      ref={ref}
+    >
       <Link
         href={{
           pathname:

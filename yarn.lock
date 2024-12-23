@@ -10175,12 +10175,12 @@ remark-stringify@^11.0.0:
     mdast-util-to-markdown "^2.0.0"
     unified "^11.0.0"
 
-remeda@^2.15.0:
-  version "2.15.0"
-  resolved "https://registry.yarnpkg.com/remeda/-/remeda-2.15.0.tgz#02666dbf6ad388edf356b8fc76eaf6f5f452a87c"
-  integrity sha512-Q0Xdg6z3pDKMGVCAI9wGZ+Yz0y0HOzaxxY3wc9gdjJyxqH93LywDUJ4PJ/zhweicYgcB4HbbOliR8HsIdse6mA==
+remeda@^2.19.0:
+  version "2.19.0"
+  resolved "https://registry.yarnpkg.com/remeda/-/remeda-2.19.0.tgz#00cb7a876dbcb7371eb37f4e5acbccf08f07de97"
+  integrity sha512-B/2+zHNPXu0BAopJU8ZrqMjA0u56M/l6BUxDq8AcU+3LWlOYVuf98I6qpYrB5BeeEICunpmXPcQl2ReGXkiQyw==
   dependencies:
-    type-fest "^4.26.1"
+    type-fest "^4.30.0"
 
 remove-trailing-slash@^0.1.0:
   version "0.1.1"
@@ -11334,10 +11334,10 @@ type-fest@^3.8.0:
   resolved "https://registry.yarnpkg.com/type-fest/-/type-fest-3.13.1.tgz#bb744c1f0678bea7543a2d1ec24e83e68e8c8706"
   integrity sha512-tLq3bSNx+xSpwvAJnzrK0Ep5CLNWjvFTOp71URMaAEWBfRb9nnJiBoUe0tF8bI4ZFO3omgBR6NvnbzVUT3Ly4g==
 
-type-fest@^4.26.1:
-  version "4.26.1"
-  resolved "https://registry.yarnpkg.com/type-fest/-/type-fest-4.26.1.tgz#a4a17fa314f976dd3e6d6675ef6c775c16d7955e"
-  integrity sha512-yOGpmOAL7CkKe/91I5O3gPICmJNLJ1G4zFYVAsRHg7M64biSnPtRj0WNQt++bRkjYOqjWXrhnUw1utzmVErAdg==
+type-fest@^4.30.0:
+  version "4.30.2"
+  resolved "https://registry.yarnpkg.com/type-fest/-/type-fest-4.30.2.tgz#d94429edde1f7deacf554741650aab394197a4cc"
+  integrity sha512-UJShLPYi1aWqCdq9HycOL/gwsuqda1OISdBO3t8RlXQC4QvtuIz4b5FCfe2dQIWEpmlRExKmcTBfP1r9bhY7ig==
 
 typed-array-buffer@^1.0.2:
   version "1.0.2"

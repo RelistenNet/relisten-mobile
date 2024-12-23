@@ -15,7 +15,6 @@ export function SoundIndicator({ size, playing }: { size: number; playing: boole
   return (
     <LottieView
       ref={animationRef}
-      autoPlay
       style={{
         width: size,
         height: size,

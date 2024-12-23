@@ -52,7 +52,7 @@ export const FilterBarButton = <K extends string, T extends RelistenObject>({
   return (
     <TouchableOpacity
       className={tw(
-        'flex flex-row items-center rounded-lg p-1 px-2',
+        'mr-3 flex flex-row items-center rounded-lg p-1 px-2',
         filter.active
           ? 'border border-transparent bg-relisten-blue-600'
           : 'border border-relisten-blue-600/30',
@@ -85,3 +85,27 @@ export const FilterBarButton = <K extends string, T extends RelistenObject>({
     </TouchableOpacity>
   );
 };
+
+export function FilterBarButtons<K extends string, T extends RelistenObject>({
+  filters,
+  onFilterButtonPress,
+}: {
+  filters: ReadonlyArray<Filter<K, T>>;
+  onFilterButtonPress: (filter: Filter<K, T>) => void;
+}) {
+  return (
+    <>
+      {filters
+        .filter((f) => !f.searchFilter)
+        .map((f) => {
+          return (
+            <FilterBarButton
+              key={f.persistenceKey}
+              filter={f}
+              onPress={() => onFilterButtonPress(f)}
+            />
+          );
+        })}
+    </>
+  );
+}

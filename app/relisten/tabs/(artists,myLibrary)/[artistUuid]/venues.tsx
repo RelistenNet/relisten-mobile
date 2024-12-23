@@ -21,6 +21,7 @@ import {
 } from '@/relisten/components/filtering/filters';
 import { useEffect } from 'react';
 import { useGroupSegment } from '@/relisten/util/routes';
+import { SongFilterPersistenceKey } from '@/app/relisten/tabs/(artists,myLibrary)/[artistUuid]/songs';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -102,6 +103,7 @@ export enum VenueFilterKey {
   Library = 'library',
   Name = 'name',
   Shows = 'shows',
+  Search = 'search',
 }
 
 const VENUE_FILTERS: Filter<VenueFilterKey, Venue>[] = [
@@ -126,6 +128,20 @@ const VENUE_FILTERS: Filter<VenueFilterKey, Venue>[] = [
     active: false,
     isNumeric: true,
     sort: (venues) => venues.sort((a, b) => a.showsAtVenue - b.showsAtVenue),
+  },
+  {
+    persistenceKey: VenueFilterKey.Search,
+    title: 'Search',
+    active: false,
+    searchFilter: (venue, searchText) => {
+      const search = searchText.toLowerCase();
+
+      return (
+        venue.name.toLowerCase().indexOf(search) !== -1 ||
+        venue.location.toLowerCase().indexOf(search) !== -1 ||
+        venue.pastNames?.toLowerCase()?.indexOf(search) !== -1
+      );
+    },
   },
 ];
 

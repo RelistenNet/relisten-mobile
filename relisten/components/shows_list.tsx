@@ -77,6 +77,7 @@ export enum ShowFilterKey {
   Rating = 'rating',
   Tapes = 'tapes',
   Duration = 'duration',
+  Search = 'search',
 }
 
 export const SHOW_FILTERS: Filter<ShowFilterKey, Show>[] = [
@@ -124,6 +125,22 @@ export const SHOW_FILTERS: Filter<ShowFilterKey, Show>[] = [
     active: false,
     isNumeric: true,
     sort: (shows) => shows.sort((a, b) => (a.avgDuration || 0) - (b.avgDuration || 0)),
+  },
+  {
+    persistenceKey: ShowFilterKey.Search,
+    title: 'Search',
+    active: false,
+    searchFilter: (show, searchText) => {
+      const search = searchText.toLowerCase();
+
+      return (
+        show.displayDate.indexOf(search) !== -1 ||
+        show.venue?.name?.toLowerCase()?.indexOf(search) !== -1 ||
+        show.venue?.location?.toLowerCase()?.indexOf(search) !== -1 ||
+        show.venue?.pastNames?.toLowerCase()?.indexOf(search) !== -1 ||
+        show.artist.name.toLowerCase().indexOf(search) !== -1
+      );
+    },
   },
 ];
 

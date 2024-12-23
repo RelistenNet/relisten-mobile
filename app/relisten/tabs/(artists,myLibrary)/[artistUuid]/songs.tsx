@@ -20,6 +20,7 @@ import {
 } from '@/relisten/components/filtering/filters';
 import { Song } from '@/relisten/realm/models/song';
 import { useGroupSegment } from '@/relisten/util/routes';
+import { ShowFilterKey } from '@/relisten/components/shows_list';
 
 export default function Page() {
   const { artistUuid } = useLocalSearchParams();
@@ -94,6 +95,7 @@ export enum SongFilterPersistenceKey {
   Library = 'library',
   Name = 'name',
   Plays = 'plays',
+  Search = 'search',
 }
 
 const SONG_FILTERS: Filter<SongFilterPersistenceKey, Song>[] = [
@@ -118,6 +120,16 @@ const SONG_FILTERS: Filter<SongFilterPersistenceKey, Song>[] = [
     active: false,
     isNumeric: true,
     sort: (songs) => songs.sort((a, b) => a.showsPlayedAt - b.showsPlayedAt),
+  },
+  {
+    persistenceKey: SongFilterPersistenceKey.Search,
+    title: 'Search',
+    active: false,
+    searchFilter: (song, searchText) => {
+      const search = searchText.toLowerCase();
+
+      return song.name.toLowerCase().indexOf(search) !== -1;
+    },
   },
 ];
 

@@ -2,7 +2,7 @@ import {
   SourceTrackOfflineInfo,
   SourceTrackOfflineInfoStatus,
 } from '@/relisten/realm/models/source_track_offline_info';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { View } from 'react-native';
 import colors from 'tailwindcss/colors';
 
@@ -11,7 +11,7 @@ import * as Progress from 'react-native-progress';
 const SIZE = 18;
 
 export function SourceTrackSucceededIndicator({ size = 12 }: { size?: number }) {
-  return <MaterialCommunityIcons name="download" size={size} color={colors.blue['200']} />;
+  return <MaterialIcons name="check-circle" size={size} color={colors.blue['200']} />;
 }
 
 export function SourceTrackOfflineIndicator({

@@ -27,6 +27,7 @@ import plur from 'plur';
 import React, { useEffect, useMemo } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import Realm from 'realm';
+import { YearFilterKey } from '@/app/relisten/tabs/(artists,myLibrary)/[artistUuid]';
 
 const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) => {
   const nextRoute = useRoute('[artistUuid]');
@@ -69,6 +70,7 @@ const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) =>
 });
 
 export enum ArtistFilterKey {
+  Search = 'search',
   Library = 'library',
   Artists = 'artists',
 }
@@ -83,6 +85,14 @@ const ARTIST_FILTERS: Filter<ArtistFilterKey, Artist>[] = [
       artist.hasOfflineTracks ||
       artist.sourceTracks.filtered('show.isFavorite == true').length > 0,
     isGlobal: true,
+  },
+  {
+    persistenceKey: ArtistFilterKey.Search,
+    title: 'Search',
+    active: false,
+    searchFilter: (artist, search) => {
+      return artist.name.toLowerCase().indexOf(search.toLowerCase()) !== -1;
+    },
   },
 ];
 

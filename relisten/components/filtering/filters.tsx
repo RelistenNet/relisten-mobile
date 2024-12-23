@@ -1,6 +1,13 @@
 import { RouteFilterConfig, serializeFilters } from '@/relisten/realm/models/route_filter_config';
 import { useObject, useQuery, useRealm } from '@/relisten/realm/schema';
-import React, { PropsWithChildren, useCallback, useContext, useMemo, useRef } from 'react';
+import React, {
+  PropsWithChildren,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import Realm from 'realm';
 import { RelistenObject } from '../../api/models/relisten';
 
@@ -26,6 +33,8 @@ export interface Filter<K extends string, T> extends PersistedFilter<K> {
   // You must provide one of the two
   sort?: (data: T[]) => void;
   filter?: (data: T) => boolean;
+  searchFilter?: (data: T, searchText: string) => boolean;
+
   realmFilter?: (data: Realm.Results<T>) => Realm.Results<T>;
 }
 
@@ -37,8 +46,10 @@ export interface FilteringOptions<K extends string> {
 export interface FilteringContextProps<K extends string, T extends RelistenObject> {
   filters: ReadonlyArray<Filter<K, T>>;
   onFilterButtonPress: (filter: Filter<K, T>) => void;
-  filter: (allData: ReadonlyArray<T>) => ReadonlyArray<T>;
+  filter: (allData: ReadonlyArray<T>, textFilter?: string) => ReadonlyArray<T>;
+  onSearchTextChanged: (text?: string) => void;
   clearFilters: () => void;
+  searchText?: string;
 }
 
 export const FilteringContext = React.createContext<FilteringContextProps<any, any> | undefined>(
@@ -52,6 +63,7 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
 }: PropsWithChildren<{ filters: ReadonlyArray<Filter<K, T>>; options?: FilteringOptions<K> }>) => {
   const isInitialRender = useRef(true);
   const realm = useRealm();
+  const [textFilter, setTextFilter] = useState<string | undefined>(undefined);
 
   const filterPersistenceKey = options?.persistence?.key;
 
@@ -105,14 +117,17 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
   }, [routePersistedFilters, globalPersistedFilters]);
 
   const filter = useCallback(
-    (allData: ReadonlyArray<T>) => {
+    (allData: ReadonlyArray<T>, textFilter?: string) => {
       const filteredData: T[] = [];
 
       for (const row of allData) {
         let allowed = true;
 
         for (const filter of preparedFilters) {
-          if (filter.active && filter?.filter && !filter.filter(row)) {
+          if (filter.active && filter.filter && !filter.filter(row)) {
+            allowed = false;
+            break;
+          } else if (filter.searchFilter && textFilter && !filter.searchFilter(row, textFilter)) {
             allowed = false;
             break;
           }
@@ -155,8 +170,6 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
       const changingFilter = intermediateFilters.find(
         (f) => f.persistenceKey === thisFilter.persistenceKey
       );
-
-      console.log(`(before) changingFilter=${JSON.stringify(changingFilter)}`);
 
       if (changingFilter) {
         if (changingFilter.sortDirection !== undefined) {
@@ -242,7 +255,14 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
 
   return (
     <FilteringContext.Provider
-      value={{ filters: preparedFilters, onFilterButtonPress, filter, clearFilters }}
+      value={{
+        filters: preparedFilters,
+        onFilterButtonPress,
+        filter,
+        clearFilters,
+        onSearchTextChanged: setTextFilter,
+        searchText: textFilter,
+      }}
     >
       {children}
     </FilteringContext.Provider>
