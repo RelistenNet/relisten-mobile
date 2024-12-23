@@ -3,7 +3,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as fs from 'expo-file-system';
 
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { useRelistenPlayerPlaybackState } from '@/relisten/player/relisten_player_hooks';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import { useRealm } from '@/relisten/realm/schema';
 import { DevSettings } from 'react-native';
@@ -51,69 +50,34 @@ const useFileSystemInfo = () => {
 
 export default function Page() {
   const realm = useRealm();
-  const playbackState = useRelistenPlayerPlaybackState();
   const [fileSystemInfo, refresh] = useFileSystemInfo();
 
-  // const play = () => {
-  //   player.play({ url: 'https://phish.in/audio/000/012/258/12258.mp3', identifier: '1' });
-  //   player.setNextStream({ url: 'https://phish.in/audio/000/012/259/12259.mp3', identifier: '2' });
-
-  //   // setTimeout(() => {
-  //   //   player.pause();
-  //   // }, 20000);
-  // };
-
   return (
-    <SafeAreaView>
-      <Flex column cn="gap-2 mt-8">
-        <Link
-          href={{
-            pathname: '/relisten/tabs/(relisten)/today' as const,
-          }}
-          asChild
-        >
-          <RelistenButton>Today in History</RelistenButton>
-        </Link>
-        <RelistenButton
-          onPress={async () => {
-            if ((await fs.getInfoAsync(OFFLINE_DIRECTORY)).exists) {
-              await fs.deleteAsync(OFFLINE_DIRECTORY);
-              refresh();
-            }
-            realm.beginTransaction();
-            realm.deleteAll();
-            realm.commitTransaction();
-            DevSettings.reload();
-          }}
-        >
-          Reset Realm Cache & Delete Local Files
-        </RelistenButton>
-
-        <RelistenText>{JSON.stringify(fileSystemInfo, null, 2)}</RelistenText>
-      </Flex>
-      {/* <TouchableOpacity onPress={play} disabled={playbackState.playback}>
-        <Text className="rounded bg-red-500 p-12 text-white">play test</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        onPress={() => player.resume()}
-        disabled={playbackState.playback === 'Playing'}
+    <Flex column cn="gap-2 mt-8">
+      <Link
+        href={{
+          pathname: '/relisten/tabs/(relisten)/today' as const,
+        }}
+        asChild
       >
-        <Text className="rounded bg-yellow-500 p-12 text-white">RESUME</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity onPress={() => player.seekTo(0.95)}>
-        <Text className="rounded bg-green-500 p-12 text-white">skip to 95%</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        onPress={() => player.pause()}
-        disabled={playbackState.playback === 'Paused'}
+        <RelistenButton>Today in History</RelistenButton>
+      </Link>
+      <RelistenButton
+        onPress={async () => {
+          if ((await fs.getInfoAsync(OFFLINE_DIRECTORY)).exists) {
+            await fs.deleteAsync(OFFLINE_DIRECTORY);
+            refresh();
+          }
+          realm.beginTransaction();
+          realm.deleteAll();
+          realm.commitTransaction();
+          DevSettings.reload();
+        }}
       >
-        <Text className="rounded bg-orange-500 p-12 text-white">pause</Text>
-      </TouchableOpacity> */}
+        Reset Realm Cache & Delete Local Files
+      </RelistenButton>
 
-      <RelistenText>{JSON.stringify(playbackState, null, 2)}</RelistenText>
-    </SafeAreaView>
+      <RelistenText>{JSON.stringify(fileSystemInfo, null, 2)}</RelistenText>
+    </Flex>
   );
 }

@@ -43,7 +43,7 @@ function PlayerBottomBarContents() {
   if (playbackState == RelistenPlaybackState.Playing) {
     playbackStateIcon = <MaterialIcons name="pause" size={42} color="white" />;
   } else if (playbackState == RelistenPlaybackState.Stalled) {
-    playbackStateIcon = <Progress.CircleSnail indeterminate={true} size={42} color="white" />;
+    playbackStateIcon = <Progress.CircleSnail indeterminate={true} size={28} color="white" />;
   }
 
   const track = currentTrack.sourceTrack;
@@ -57,6 +57,7 @@ function PlayerBottomBarContents() {
               onPress={() => {
                 player.togglePauseResume();
               }}
+              className="flex h-[42px] w-[42px] items-center justify-center"
             >
               {playbackStateIcon}
             </TouchableOpacity>

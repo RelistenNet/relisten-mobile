@@ -74,7 +74,15 @@ export const SourceTrackComponent = ({
               >
                 {sourceTrack.humanizedDuration}
               </RelistenText>
-              <MaterialCommunityIcons name="dots-horizontal" size={16} color="rgb(156, 163, 175)" />
+              <View className="h-[16px] overflow-hidden">
+                <View style={{ marginTop: -4 }}>
+                  <MaterialCommunityIcons
+                    name="dots-horizontal"
+                    size={24}
+                    color="rgb(156, 163, 175)"
+                  />
+                </View>
+              </View>
             </Flex>
           </TouchableOpacity>
         </View>

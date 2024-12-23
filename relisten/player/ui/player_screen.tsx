@@ -27,13 +27,14 @@ import { type ParamListBase, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { router, useFocusEffect } from 'expo-router';
-import { LegacyRef, useCallback, useEffect, useRef } from 'react';
+import React, { LegacyRef, useCallback, useEffect, useRef } from 'react';
 import { FlatList, Platform, TouchableOpacity, View } from 'react-native';
 import AirPlayButton from 'react-native-airplay-button';
 import { HapticModeEnum, Slider } from 'react-native-awesome-slider';
 import { useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DisclosureIndicator } from '@/relisten/components/disclosure_indicator';
+import * as Progress from 'react-native-progress';
 
 export function ScrubberRow() {
   const progressObj = useNativePlaybackProgress();
@@ -199,6 +200,14 @@ function PlayerControls() {
   const playbackState = useRelistenPlayerPlaybackState();
   const progress = useNativePlaybackProgress();
 
+  let playbackStateIcon = <MaterialIcons name="play-arrow" size={80} color="white" />;
+
+  if (playbackState == RelistenPlaybackState.Playing) {
+    playbackStateIcon = <MaterialIcons name="pause" size={80} color="white" />;
+  } else if (playbackState == RelistenPlaybackState.Stalled) {
+    playbackStateIcon = <Progress.CircleSnail indeterminate={true} size={42} color="white" />;
+  }
+
   return (
     <Flex className="w-full items-center justify-center py-6">
       {Platform.OS === 'ios' && <View className="w-[44px]" />}
@@ -218,13 +227,9 @@ function PlayerControls() {
         onPress={() => {
           player.togglePauseResume();
         }}
-        className="mx-4"
+        className="mx-4 flex h-[80px] w-[80px] items-center justify-center"
       >
-        {playbackState === RelistenPlaybackState.Playing ? (
-          <MaterialIcons name="pause" size={80} color="white" />
-        ) : (
-          <MaterialIcons name="play-arrow" size={80} color="white" />
-        )}
+        {playbackStateIcon}
       </TouchableOpacity>
       <TouchableOpacity
         disabled={player.queue.isCurrentTrackLast}

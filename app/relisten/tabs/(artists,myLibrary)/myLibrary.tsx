@@ -42,7 +42,7 @@ function RecentlyPlayedShows() {
         asChild
       >
         <TouchableOpacity>
-          <MyLibrarySectionHeader>Recently Played Shows&nbsp;›</MyLibrarySectionHeader>
+          <MyLibrarySectionHeader>My Listening History&nbsp;›</MyLibrarySectionHeader>
         </TouchableOpacity>
       </Link>
 
