@@ -275,7 +275,7 @@ function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; 
         switch (selectedIndex) {
           case 0:
             // Play now
-            player.queue.playTrackAtIndex(index);
+            player.playTrackAtIndex(index);
             break;
           case 1:
             // Play next
@@ -298,7 +298,7 @@ function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; 
   };
 
   const onPress = () => {
-    player.queue.playTrackAtIndex(index);
+    player.playTrackAtIndex(index);
   };
 
   const subtitle = [artist?.name, show?.displayDate, show?.venue?.name, show?.venue?.location]

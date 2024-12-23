@@ -5,7 +5,7 @@ import {
 } from '@/modules/relisten-audio-player';
 import { addPlayerListeners } from '@/relisten/player/native_playback_state_hooks';
 import { RelistenPlayer } from '@/relisten/player/relisten_player';
-import { currentTrackIdentifier, state } from '@/relisten/player/shared_state';
+import { currentTrackIdentifier } from '@/relisten/player/shared_state';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { EventSource } from '@/relisten/util/event_source';
 import { realm } from '@/relisten/realm/schema';
@@ -13,6 +13,7 @@ import { PlayerState } from '@/relisten/realm/models/player_state';
 import { log } from '@/relisten/util/logging';
 import { groupByUuid } from '@/relisten/util/group_by';
 import { Realm } from '@realm/react';
+import { indentString } from '@/relisten/util/string_indent';
 
 const logger = log.extend('player-queue');
 
@@ -101,6 +102,10 @@ export class PlayerQueueTrack {
       downloadDestination,
     };
   }
+
+  debugState() {
+    return `identifier=${this.identifier}; title=${this.title}`.trim();
+  }
 }
 
 export class RelistenPlayerQueue {
@@ -176,23 +181,18 @@ export class RelistenPlayerQueue {
 
     if (playingTrackAtIndex !== undefined) {
       // recalculates next track
-      this.playTrackAtIndex(playingTrackAtIndex);
+      this.player.playTrackAtIndex(playingTrackAtIndex);
     } else {
       // recalculates next track
       this.onCurrentTrackIdentifierChanged(undefined);
-      nativePlayer.stop().then(() => {});
+
+      if (this.player.playbackIntentStarted) {
+        nativePlayer.stop().then(() => {});
+      }
     }
 
     this.onOrderedTracksChanged.dispatch(this.orderedTracks);
     this.savePlayerState();
-  }
-
-  playTrackAtIndex(index: number) {
-    const newIndex = Math.max(0, Math.min(index, this.orderedTracks.length - 1));
-
-    nativePlayer.play(this.orderedTracks[newIndex].toStreamable()).then(() => {});
-
-    this.recalculateNextTrack();
   }
 
   removeTrackAtIndex(index: number) {
@@ -302,6 +302,34 @@ export class RelistenPlayerQueue {
     }
   }
 
+  debugState(includingTracks: boolean = false) {
+    let tracks = '';
+
+    if (includingTracks) {
+      tracks = `
+
+PlayerQueueTracks; originalTracks (${this.originalTracks.length}):
+${indentString(this.originalTracks.map((t) => t.debugState()).join('\n'))}      
+
+PlayerQueueTracks; shuffledTracks (${this.shuffledTracks.length}):
+${indentString(this.shuffledTracks.map((t) => t.debugState()).join('\n'))}      
+`.trim();
+    }
+
+    return `
+RelistenPlayerQueue:
+  shuffleState=${this.shuffleState}
+  repeatState=${this.repeatState}
+  currentIndex=${this.currentIndex}
+  currentTrack=${this.currentTrack?.debugState()}
+  nextTrack=${this.currentTrack?.debugState()}
+  
+  originalTracksCurrentIndex=${this.originalTracksCurrentIndex}
+  shuffledTracksCurrentIndex=${this.shuffledTracksCurrentIndex}
+${indentString(tracks)}
+`.trim();
+  }
+
   // endregion
 
   // region Shuffling
@@ -320,13 +348,16 @@ export class RelistenPlayerQueue {
   // endregion
 
   // region Next track management
-  private recalculateNextTrack() {
+  public recalculateNextTrack() {
     const prevNextTrack = this._nextTrack;
     const newNextTrack = this.calculateNextTrack();
 
     this._nextTrack = newNextTrack;
 
-    if (newNextTrack?.identifier !== prevNextTrack?.identifier) {
+    if (
+      newNextTrack?.identifier !== prevNextTrack?.identifier &&
+      this.player.playbackIntentStarted
+    ) {
       if (newNextTrack) {
         nativePlayer.setNextStream(newNextTrack.toStreamable());
       } else {
@@ -400,6 +431,8 @@ export class RelistenPlayerQueue {
   private onCurrentTrackIdentifierChanged = (newIdentifier?: string) => {
     this.clearCurrentTrack();
 
+    console.log(`onCurrentTrackIdentifierChanged newIdentifier=${newIdentifier}`);
+
     if (newIdentifier !== undefined) {
       this.recalculateTrackIndexes(newIdentifier);
       this.currentTrackPlaybackStartedAt = new Date();
@@ -413,6 +446,8 @@ export class RelistenPlayerQueue {
   };
 
   private recalculateTrackIndexes(newIdentifier: string) {
+    console.log(`recalculateTrackIndexes newIdentifier=${newIdentifier}`);
+
     for (let i = 0; i < this.originalTracks.length; i++) {
       const originalTrack = this.originalTracks[i];
       const shuffledTrack = this.shuffledTracks[i];
@@ -432,6 +467,10 @@ export class RelistenPlayerQueue {
         break;
       }
     }
+
+    console.log(
+      `recalculateTrackIndexes originalTracksCurrentIndex=${this.originalTracksCurrentIndex}, shuffledTracksCurrentIndex=${this.shuffledTracksCurrentIndex}`
+    );
   }
   // endregion
 
@@ -455,8 +494,8 @@ export class RelistenPlayerQueue {
           lastUpdatedAt: new Date(),
           progress: this.player.progress?.percent,
         };
-        PlayerState.upsert(realm, state);
-        logger.debug(`wrote player state: ${JSON.stringify(state)}`);
+        const obj = PlayerState.upsert(realm, state);
+        logger.debug(`wrote player state: ${obj.debugState()}`);
       } else {
         logger.warn('Not writing player state -- realm is not available.');
       }
@@ -472,9 +511,10 @@ export class RelistenPlayerQueue {
     }
 
     // allow the player to be fully set up
-    await this.player.stop();
+    // await this.player.stop();
 
-    logger.debug(`restoring player state: ${JSON.stringify(playerState)}`);
+    logger.debug(`restoring player state: ${playerState.debugState()}`);
+    logger.debug('after init, before restore', this.player.debugState());
 
     const sourceTracksByUuid = groupByUuid([
       ...realm.objects(SourceTrack).filtered('uuid in $0', [...playerState.queueSourceTrackUuids]),
@@ -498,7 +538,14 @@ export class RelistenPlayerQueue {
     this.setRepeatState(playerState.queueRepeatState);
 
     const unshuffledQueue = makeQueue(playerState.queueSourceTrackUuids);
-    const shuffledQueue = makeQueue(playerState.queueSourceTrackShuffledUuids);
+    const shuffledQueue = [...unshuffledQueue];
+
+    shuffledQueue.sort((a, b) => {
+      const aOrder = playerState.queueSourceTrackShuffledUuids.indexOf(a.sourceTrack.uuid);
+      const bOrder = playerState.queueSourceTrackShuffledUuids.indexOf(b.sourceTrack.uuid);
+
+      return aOrder - bOrder;
+    });
 
     this.replaceQueue(unshuffledQueue, undefined);
     this.shuffledTracks = shuffledQueue;
@@ -509,7 +556,8 @@ export class RelistenPlayerQueue {
     if (this.currentTrack) {
       this.onCurrentTrackIdentifierChanged(this.currentTrack.identifier);
     }
-    logger.debug('finished restoring player state');
+    this.savePlayerState();
+    logger.debug('finished restoring player state', this.player.debugState());
   }
   // endregion
 }

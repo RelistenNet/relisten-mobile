@@ -20,6 +20,7 @@ import { EventSource } from '@/relisten/util/event_source';
 import { DownloadManager } from '@/relisten/offline/download_manager';
 import { showMessage } from 'react-native-flash-message';
 import { log } from '@/relisten/util/logging';
+import { indentString } from '@/relisten/util/string_indent';
 
 const logger = log.extend('player');
 
@@ -40,11 +41,16 @@ export class RelistenPlayer {
   private _queue: RelistenPlayerQueue = new RelistenPlayerQueue(this);
 
   private _state: RelistenPlaybackState = RelistenPlaybackState.Stopped;
+  private _stalledTimer: number | undefined = undefined;
   public progress: PlaybackContextProgress | undefined = undefined;
 
   // region Public API
   onStateChanged = new EventSource<RelistenPlaybackState>();
   onShouldReportTrack = new EventSource<RelistenPlayerReportTrackEvent>();
+
+  public playbackIntentStarted: boolean = false;
+  // When true, it means the native player should be fully initialized
+  public initialPlaybackStarted: boolean = false;
 
   get state() {
     this.addPlayerListeners();
@@ -74,7 +80,7 @@ export class RelistenPlayer {
 
     if (this.state === RelistenPlaybackState.Stopped) {
       if (this.queue.orderedTracks.length > 0) {
-        this.queue.playTrackAtIndex(this.queue.currentIndex ?? 0);
+        this.playTrackAtIndex(this.queue.currentIndex ?? 0);
       }
 
       return;
@@ -89,6 +95,19 @@ export class RelistenPlayer {
 
     state.setState(RelistenPlaybackState.Paused);
     nativePlayer.pause().then(() => {});
+  }
+
+  playTrackAtIndex(index: number) {
+    const newIndex = Math.max(0, Math.min(index, this.queue.orderedTracks.length - 1));
+
+    this._stalledTimer = setTimeout(
+      () => state.setState(RelistenPlaybackState.Stalled),
+      100
+    ) as unknown as number;
+    nativePlayer.play(this.queue.orderedTracks[newIndex].toStreamable()).then(() => {});
+    this.playbackIntentStarted = true;
+
+    this.queue.recalculateNextTrack();
   }
 
   async stop() {
@@ -117,7 +136,7 @@ export class RelistenPlayer {
     // switching to prior track, just restart the current one
     // if elapsed < 10, then go to prior track.
 
-    this.queue.playTrackAtIndex(currentIdx - 1);
+    this.playTrackAtIndex(currentIdx - 1);
   }
 
   prepareAudioSession() {
@@ -130,6 +149,15 @@ export class RelistenPlayer {
     this.addPlayerListeners();
 
     return nativePlayer.seekTo(pct);
+  }
+
+  debugState() {
+    return `
+RelistenPlayer
+  state=${this.state}
+  
+${indentString(this.queue.debugState(true))}
+    `.trim();
   }
 
   // endregion
@@ -187,6 +215,16 @@ export class RelistenPlayer {
   };
 
   private onNativePlayerStateChanged = (newState: RelistenPlaybackState) => {
+    // Clear the default stalled UI fallback
+    if (this._stalledTimer === undefined) {
+      clearTimeout(this._stalledTimer);
+      this._stalledTimer = undefined;
+    }
+
+    if (!this.initialPlaybackStarted && newState == RelistenPlaybackState.Playing) {
+      this.initialPlaybackStarted = true;
+    }
+
     if (this._state != newState) {
       this._state = newState;
       this.onStateChanged.dispatch(newState);

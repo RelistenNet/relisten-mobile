@@ -7,18 +7,14 @@ import {
 } from '@/relisten/player/relisten_player_hooks';
 import {
   useRelistenPlayerCurrentTrack,
-  useRelistenPlayerQueue,
   useRelistenPlayerQueueOrderedTracks,
 } from '@/relisten/player/relisten_player_queue_hooks';
-import { useArtist } from '@/relisten/realm/models/artist_repo';
-import { Show } from '@/relisten/realm/models/show';
-import { useObject, useRealm } from '@/relisten/realm/schema';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { PropsWithChildren, useCallback, useContext, useEffect, useState } from 'react';
+import React, { PropsWithChildren, useCallback, useContext, useState } from 'react';
 import { LayoutChangeEvent, Pressable, TouchableOpacity, View } from 'react-native';
 import { ScrubberRow } from './player_screen';
-import { RelistenPlayer } from '@/relisten/player/relisten_player';
+import * as Progress from 'react-native-progress';
 
 function PlayerBottomBarContents() {
   const currentTrack = useRelistenPlayerCurrentTrack();
@@ -42,6 +38,14 @@ function PlayerBottomBarContents() {
     return <></>;
   }
 
+  let playbackStateIcon = <MaterialIcons name="play-arrow" size={42} color="white" />;
+
+  if (playbackState == RelistenPlaybackState.Playing) {
+    playbackStateIcon = <MaterialIcons name="pause" size={42} color="white" />;
+  } else if (playbackState == RelistenPlaybackState.Stalled) {
+    playbackStateIcon = <Progress.CircleSnail indeterminate={true} size={42} color="white" />;
+  }
+
   const track = currentTrack.sourceTrack;
 
   return (
@@ -54,11 +58,7 @@ function PlayerBottomBarContents() {
                 player.togglePauseResume();
               }}
             >
-              {playbackState === RelistenPlaybackState.Playing ? (
-                <MaterialIcons name="pause" size={42} color="white" />
-              ) : (
-                <MaterialIcons name="play-arrow" size={42} color="white" />
-              )}
+              {playbackStateIcon}
             </TouchableOpacity>
           </Flex>
           <Flex column cn="ml-4 truncate flex-1">

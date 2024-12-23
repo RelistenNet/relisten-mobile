@@ -3,6 +3,9 @@ import { EventEmitter, NativeModulesProxy, Subscription } from 'expo-modules-cor
 // Import the native module. On web, it will be resolved to RelistenAudioPlayer.web.ts
 // and on native platforms to RelistenAudioPlayer.ts
 import RelistenAudioPlayerModule from './src/RelistenAudioPlayerModule';
+import { log } from '@/relisten/util/logging';
+
+const logger = log.extend('relisten-audio-player');
 
 const emitter = new EventEmitter(
   RelistenAudioPlayerModule ?? NativeModulesProxy.RelistenAudioPlayer
@@ -153,58 +156,72 @@ class RelistenGaplessPlayer {
   }
 
   get currentState(): `${RelistenPlaybackState}` {
+    logger.debug('get called');
     return RelistenAudioPlayerModule.currentStateStr();
   }
 
   get currentDuration(): number | undefined {
+    logger.debug('get called');
     return RelistenAudioPlayerModule.currentDuration();
   }
 
   get elapsed(): number | undefined {
+    logger.debug('get called');
     return RelistenAudioPlayerModule.elapsed();
   }
 
   get volume(): number {
+    logger.debug('get called');
     return RelistenAudioPlayerModule.volume();
   }
 
   set volume(newVolume: number) {
+    logger.debug('set called');
     RelistenAudioPlayerModule.setVolume(newVolume);
   }
 
   playbackProgress(): Promise<PlaybackProgress> {
+    logger.debug('playbackProgress called');
     return RelistenAudioPlayerModule.playbackProgress();
   }
 
   play(streamable: RelistenStreamable): Promise<void> {
+    logger.debug('play called');
     return RelistenAudioPlayerModule.play(streamable);
   }
 
   setNextStream(streamable?: RelistenStreamable) {
+    logger.debug('setNextStream called');
     RelistenAudioPlayerModule.setNextStream(streamable);
   }
 
   resume(): Promise<void> {
+    logger.debug('resume called');
     return RelistenAudioPlayerModule.resume();
   }
 
   pause(): Promise<void> {
+    logger.debug('pause called');
     return RelistenAudioPlayerModule.pause();
   }
 
   stop(): Promise<void> {
+    logger.debug('stop called');
     return RelistenAudioPlayerModule.stop();
   }
 
   next(): Promise<void> {
+    logger.debug('next called');
     return RelistenAudioPlayerModule.next();
   }
 
   prepareAudioSession() {
+    logger.debug('prepareAudioSession called');
     RelistenAudioPlayerModule.prepareAudioSession();
   }
 
   seekTo(pct: number): Promise<void> {
+    logger.debug('seekTo called');
     return RelistenAudioPlayerModule.seekTo(pct);
   }
 }

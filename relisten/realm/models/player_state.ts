@@ -61,4 +61,18 @@ export class PlayerState extends Realm.Object<PlayerState> implements PlayerStat
       }
     });
   }
+
+  debugState() {
+    return `
+RelistenPlayerState
+  queueShuffleState=${this.queueShuffleState}
+  queueRepeatState=${this.queueRepeatState}
+  queueSourceTrackUuids=${this.queueSourceTrackUuids.length}
+  queueSourceTrackShuffledUuids=${this.queueSourceTrackShuffledUuids.length}
+  activeSourceTrackIndex=${this.activeSourceTrackIndex}
+  activeSourceTrackShuffledIndex=${this.activeSourceTrackShuffledIndex}
+  lastUpdatedAt=${this.lastUpdatedAt}
+  progress=${this.progress}
+    `.trim();
+  }
 }
