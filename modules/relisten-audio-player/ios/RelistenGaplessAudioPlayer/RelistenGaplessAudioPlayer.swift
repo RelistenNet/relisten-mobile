@@ -264,21 +264,30 @@ public class RelistenGaplessAudioPlayer {
 
     public func _resume(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
         self.delegate?.remoteControl(method: "resume")
-        self.resume()
+        
+        self.bassQueue.async {
+            self.resume()
+        }
 
         return MPRemoteCommandHandlerStatus.success
     }
 
     public func _pause(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
         self.delegate?.remoteControl(method: "pause")
-        self.pause()
+        
+        self.bassQueue.async {
+            self.pause()
+        }
 
         return MPRemoteCommandHandlerStatus.success
     }
 
     public func _nextTrack(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
         self.delegate?.remoteControl(method: "nextTrack")
-        self.next()
+        
+        self.bassQueue.async {
+            self.next()
+        }
 
         return MPRemoteCommandHandlerStatus.success
     }
@@ -299,7 +308,9 @@ public class RelistenGaplessAudioPlayer {
         }
 
         if event.positionTime >= 0 && duration > 0 {
-            seekTo(percent: event.positionTime / duration)
+            self.bassQueue.async {
+                self.seekTo(percent: event.positionTime / duration)
+            }
             return .success
         }
 
