@@ -269,6 +269,14 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
   );
 };
 
+export function searchForSubstring(haystack: string | undefined, lowercaseNeedle: string): boolean {
+  if (!haystack) {
+    return false;
+  }
+
+  return haystack.toLowerCase().indexOf(lowercaseNeedle) > -1;
+}
+
 export const useFilters = <K extends string, T extends RelistenObject>() => {
   const context = useContext(FilteringContext);
 

@@ -5,7 +5,13 @@ import { View } from 'react-native';
 import { Show } from '../realm/models/show';
 import { useGroupSegment } from '../util/routes';
 import { FilterableList, FilterableListProps } from './filtering/filterable_list';
-import { Filter, FilteringOptions, FilteringProvider, SortDirection } from './filtering/filters';
+import {
+  Filter,
+  FilteringOptions,
+  FilteringProvider,
+  searchForSubstring,
+  SortDirection,
+} from './filtering/filters';
 import Flex from './flex';
 import Plur from './plur';
 import { RelistenText } from './relisten_text';
@@ -134,11 +140,11 @@ export const SHOW_FILTERS: Filter<ShowFilterKey, Show>[] = [
       const search = searchText.toLowerCase();
 
       return (
-        show.displayDate.indexOf(search) !== -1 ||
-        show.venue?.name?.toLowerCase()?.indexOf(search) !== -1 ||
-        show.venue?.location?.toLowerCase()?.indexOf(search) !== -1 ||
-        show.venue?.pastNames?.toLowerCase()?.indexOf(search) !== -1 ||
-        show.artist.name.toLowerCase().indexOf(search) !== -1
+        searchForSubstring(show.displayDate, search) ||
+        searchForSubstring(show.venue?.name, search) ||
+        searchForSubstring(show.venue?.location, search) ||
+        searchForSubstring(show.venue?.pastNames, search) ||
+        searchForSubstring(show.artist.name.toLowerCase(), search)
       );
     },
   },

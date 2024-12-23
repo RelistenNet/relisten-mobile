@@ -68,7 +68,7 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
           ? ' desc'
           : ' asc'
         : ''
-    }`;
+    }${f.searchFilter ? '=' + searchText : ''}`;
   }
 
   logger.debug('Filter config: ' + filters.map(filterToString).join('; '));
