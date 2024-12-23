@@ -28,7 +28,7 @@
           "audio"
         ]
       },
-      "buildNumber": "6003"
+      "buildNumber": "6004"
     },
     "android": {
       "googleServicesFile": "./firebase/google-services.json",
@@ -39,7 +39,7 @@
       },
       "icon": "./assets/ic_playstore.png",
       "package": "net.relisten.android",
-      "versionCode": 6003
+      "versionCode": 6004
     },
     "jsEngine": "hermes",
     "web": {
