@@ -205,7 +205,7 @@ const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => {
         <View className="flex px-4 pb-2">
           <RelistenText className="text-m font-bold">
             {todayShows.isNetworkLoading && todayShows.data.length == 0 ? (
-              <></>
+              <>Shows on this day</>
             ) : (
               <>
                 <Plur word="show" count={todayShows.data.length} /> on this day
@@ -213,11 +213,11 @@ const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => {
             )}
           </RelistenText>
         </View>
-        {todayShows.isNetworkLoading && todayShows.data.length == 0 ? (
-          <View className="mb-1 h-[78px] w-full flex-1 items-start pb-3 pl-3"></View>
-        ) : (
-          <ScrollView horizontal className="mb-1 pb-3 pl-3">
-            {todayShows.data.map((show) => (
+        <ScrollView horizontal className="mb-1 pb-3 pl-3">
+          {todayShows.isNetworkLoading && todayShows.data.length == 0 ? (
+            <View className="mb-1 h-[72px] w-full flex-1 items-start pb-3 pl-3"></View>
+          ) : (
+            todayShows.data.map((show) => (
               <ShowCard
                 show={show}
                 key={show.uuid}
@@ -225,9 +225,9 @@ const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => {
                 showArtist={false}
                 cn="h-full w-[168px]"
               />
-            ))}
-          </ScrollView>
-        )}
+            ))
+          )}
+        </ScrollView>
       </RefreshContextProvider>
     </>
   );

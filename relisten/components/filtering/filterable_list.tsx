@@ -73,7 +73,7 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
     }`;
   }
 
-  logger.debug(filters.map(filterToString).join('; '));
+  logger.debug('Filter config: ' + filters.map(filterToString).join('; '));
 
   return (
     <RelistenSectionList

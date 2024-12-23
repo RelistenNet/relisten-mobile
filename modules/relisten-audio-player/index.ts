@@ -156,27 +156,27 @@ class RelistenGaplessPlayer {
   }
 
   get currentState(): `${RelistenPlaybackState}` {
-    logger.debug('get called');
+    logger.debug('get currentState called');
     return RelistenAudioPlayerModule.currentStateStr();
   }
 
   get currentDuration(): number | undefined {
-    logger.debug('get called');
+    logger.debug('get currentDuration called');
     return RelistenAudioPlayerModule.currentDuration();
   }
 
   get elapsed(): number | undefined {
-    logger.debug('get called');
+    logger.debug('get elapsed called');
     return RelistenAudioPlayerModule.elapsed();
   }
 
   get volume(): number {
-    logger.debug('get called');
+    logger.debug('get volume called');
     return RelistenAudioPlayerModule.volume();
   }
 
   set volume(newVolume: number) {
-    logger.debug('set called');
+    logger.debug('set volume called');
     RelistenAudioPlayerModule.setVolume(newVolume);
   }
 

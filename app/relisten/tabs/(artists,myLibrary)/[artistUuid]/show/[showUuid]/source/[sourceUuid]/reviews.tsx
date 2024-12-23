@@ -1,13 +1,6 @@
-import { useActionSheet } from '@expo/react-native-action-sheet';
-import { useRealm } from '@/relisten/realm/schema';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
-import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
-import { useFullShow } from '@/relisten/realm/models/show_repo';
-import { useArtist } from '@/relisten/realm/models/artist_repo';
 import React, { useEffect } from 'react';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { useRelistenApi } from '@/relisten/api/context';
-import { useNetworkOnlyResults } from '@/relisten/realm/network_backed_behavior_hooks';
 import { View } from 'react-native';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import { RelistenBlue } from '@/relisten/relisten_blue';

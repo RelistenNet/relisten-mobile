@@ -1,50 +1,58 @@
-import { SafeAreaView } from 'react-native-safe-area-context';
-
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { ShowCard } from '@/relisten/components/show_card';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useTodayShows } from '@/relisten/realm/models/shows/today_shows_repo';
 import { realm } from '@/relisten/realm/schema';
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { ScrollView, View } from 'react-native';
 import * as R from 'remeda';
+import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
+import { List as ListContentLoader } from 'react-content-loader/native';
+import { RelistenBlue } from '@/relisten/relisten_blue';
 
 export default function Page() {
   const { data, isNetworkLoading } = useTodayShows();
   const groupedShows = useMemo(() => {
     const groupedByArtistUuid = R.groupBy([...data], (item) => item.artistUuid);
 
-    return Object.entries(groupedByArtistUuid).map(([artistUuid, shows]) => {
+    const grouped = Object.entries(groupedByArtistUuid).map(([artistUuid, shows]) => {
       const artist = realm?.objectForPrimaryKey('Artist', artistUuid) as Artist;
 
       return { artist, shows };
     });
+
+    grouped.sort((a, b) => {
+      return a.artist.name.localeCompare(b.artist.name);
+    });
+
+    return grouped;
   }, [data]);
 
   if (isNetworkLoading && !data.length) {
     return (
-      <SafeAreaView>
-        <RelistenText>Loading...</RelistenText>
-      </SafeAreaView>
+      <View className="w-full p-4">
+        <ListContentLoader
+          backgroundColor={RelistenBlue[800]}
+          foregroundColor={RelistenBlue[700]}
+        />
+      </View>
     );
   }
 
   return (
-    <SafeAreaView>
-      <ScrollView>
-        <View className="space-y-2">
-          {groupedShows.map(({ artist, shows }) => (
-            <View key={artist?.uuid} className="space-y-2">
-              <RelistenText cn="ml-2 text-xl font-bold">{artist?.name}</RelistenText>
-              <ScrollView horizontal className="pb-2 pl-2">
-                {shows.map((show) => (
-                  <ShowCard show={show} key={show.uuid} root="artists" cn="w-[144px] h-full" />
-                ))}
-              </ScrollView>
-            </View>
-          ))}
-        </View>
+    <ScrollScreen>
+      <ScrollView className="pt-2">
+        {groupedShows.map(({ artist, shows }) => (
+          <View key={artist?.uuid}>
+            <RelistenText cn="ml-2 text-xl font-bold px-2">{artist?.name}</RelistenText>
+            <ScrollView horizontal className="px-2 pb-4 pr-8 pt-2">
+              {shows.map((show) => (
+                <ShowCard show={show} key={show.uuid} root="artists" cn="w-[168px] h-full" />
+              ))}
+            </ScrollView>
+          </View>
+        ))}
       </ScrollView>
-    </SafeAreaView>
+    </ScrollScreen>
   );
 }
