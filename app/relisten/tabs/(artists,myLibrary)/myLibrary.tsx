@@ -146,15 +146,12 @@ function ActiveDownloads() {
 export default function MyLibraryPage() {
   // TODO: listening history that shows all tracks
   return (
-    <SafeAreaView className="w-full flex-1 flex-col">
-      <ScrollScreen>
-        <ScrollView className="flex-1">
-          <MyLibraryHeader />
-          <ActiveDownloads />
-          <RecentlyPlayedShows />
-          <FavoriteShows />
-        </ScrollView>
-      </ScrollScreen>
-    </SafeAreaView>
+    <ScrollScreen>
+      <ScrollView className="flex-1">
+        <ActiveDownloads />
+        <RecentlyPlayedShows />
+        <FavoriteShows />
+      </ScrollView>
+    </ScrollScreen>
   );
 }

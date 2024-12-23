@@ -138,16 +138,9 @@ export default function Page() {
   const results = useArtists();
   const groupSegment = useGroupSegment();
   const isDownloadedTab = useIsDownloadedTab();
-  const navigation = useNavigation();
   const { data: artists } = results;
 
   const downloads = useRemainingDownloads();
-
-  useEffect(() => {
-    navigation.setOptions({
-      headerShown: groupSegment !== '(myLibrary)',
-    });
-  }, [groupSegment]);
 
   if (groupSegment === '(myLibrary)') {
     return <MyLibraryPage />;
