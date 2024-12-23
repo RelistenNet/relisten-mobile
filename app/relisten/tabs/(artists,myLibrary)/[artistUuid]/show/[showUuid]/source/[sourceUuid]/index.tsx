@@ -15,7 +15,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Link, useLocalSearchParams, useNavigation } from 'expo-router';
 import React, { PropsWithChildren, useCallback, useEffect } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
-import { Animated, ScrollViewProps, View } from 'react-native';
+import { Animated, ScrollViewProps, TouchableOpacity, View } from 'react-native';
 import * as R from 'remeda';
 
 import { SourceSets } from '@/relisten/components/source/source_sets_component';
@@ -143,7 +143,9 @@ export default function Page() {
     navigation.setOptions({
       title: show?.displayDate,
       headerRight: () => (
-        <MaterialIcons name="more-horiz" color="white" size={22} onPress={onDotsPress} />
+        <TouchableOpacity onPressOut={onDotsPress}>
+          <MaterialIcons name="more-horiz" color="white" size={22} />
+        </TouchableOpacity>
       ),
     });
   }, [show]);

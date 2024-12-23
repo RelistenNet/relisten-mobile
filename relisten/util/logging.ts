@@ -10,7 +10,10 @@ export const log = logger.createLogger<LogLevels>({
   // TODO: when we have entry, also log to a file so that we can attach it to crash reports
   transport: [consoleTransport, crashlyticsTransport],
   transportOptions: {
-    CRASHLYTICS: crashlyticsModule,
+    CRASHLYTICS: {
+      recordError: (msg: string) => crashlyticsModule.log(msg),
+      log: (msg: string) => crashlyticsModule.log(msg),
+    },
   },
   severity: __DEV__ ? 'debug' : 'info',
   async: true,

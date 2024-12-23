@@ -52,6 +52,6 @@ export const FavoriteObjectButton = <T extends FavoritableObject>({
   }, [object, forceUpdate]);
 
   return (
-    <FavoriteIconButton isFavorited={object.isFavorite} onPress={favoriteOnPress} {...props} />
+    <FavoriteIconButton isFavorited={object.isFavorite} onPressOut={favoriteOnPress} {...props} />
   );
 };

@@ -393,7 +393,7 @@ export function PlayerScreen() {
       headerLeft: () => {
         return (
           <TouchableOpacity
-            onPress={() => {
+            onPressOut={() => {
               navigation.goBack();
             }}
             className="py-2 pr-2"
@@ -405,7 +405,7 @@ export function PlayerScreen() {
       headerRight: () => {
         return (
           <TouchableOpacity
-            onPress={() => {
+            onPressOut={() => {
               navigation.goBack();
 
               router.push({
