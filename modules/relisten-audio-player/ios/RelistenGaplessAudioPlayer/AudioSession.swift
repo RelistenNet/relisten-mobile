@@ -93,7 +93,10 @@ extension RelistenGaplessAudioPlayer {
             seccReason = "The category of the session object changed."
         case .oldDeviceUnavailable:
             seccReason = "The previous audio output path is no longer available."
-            pause()
+            
+            self.bassQueue.async {
+                self.pause()
+            }
         case .newDeviceAvailable:
             seccReason = "A preferred new audio output path is now available."
         case .unknown:
@@ -123,7 +126,9 @@ extension RelistenGaplessAudioPlayer {
 
             wasPlayingWhenInterrupted = state == .Playing || state == .Stalled
 
-            pause()
+            self.bassQueue.async {
+                self.pause()
+            }
         case .ended:
             // Make session active
             // Update user interface
@@ -136,7 +141,9 @@ extension RelistenGaplessAudioPlayer {
             case .shouldResume:
                 // Indicates that the audio session is active and immediately ready to be used. Your app can resume the audio operation that was interrupted.
                 if wasPlayingWhenInterrupted {
-                    resume()
+                    self.bassQueue.async {
+                        self.resume()
+                    }
                 }
             default:
                 break
@@ -161,13 +168,16 @@ extension RelistenGaplessAudioPlayer {
         bassQueue.async {[self] in
             let savedActiveStreamable = activeStream?.streamable
             let nextStreamable = nextStream?.streamable
+            let savedDuration = self.currentDuration
+            let savedElapsed = self.elapsed
 
             maybeTearDownBASS()
 
             currentState = .Stopped
 
             if let savedActiveStreamable {
-                playStreamableImmediately(savedActiveStreamable)
+                let pct: Double? = if let savedElapsed, let savedDuration { savedElapsed / savedDuration } else { nil }
+                playStreamableImmediately(savedActiveStreamable, startingAtPct: pct)
             }
 
             if let nextStreamable {
