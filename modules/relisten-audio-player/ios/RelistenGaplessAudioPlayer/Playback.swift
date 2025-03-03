@@ -105,10 +105,10 @@ extension RelistenGaplessAudioPlayer {
 
         NSLog("[bass][stream][seekToTimeMs=%llu] Found length in bytes to be %llu bytes/%f. Seeking to: %llu bytes/%f", timeMs, len, duration, seekTo, seekToDuration)
 
-        seekToBytes(seekTo)
+        seekToBytes(seekTo, pct: Double(seekToDuration) / Double(duration))
     }
     
-    func seekToBytes(_ seekTo: UInt64) {
+    func seekToBytes(_ seekTo: UInt64, pct: Double) {
         dispatchPrecondition(condition: .onQueue(bassQueue))
 
         // NOTE: all these calculations use the stream request offset to translate the #s into one's valid
@@ -127,14 +127,13 @@ extension RelistenGaplessAudioPlayer {
         let downloadedPct = 1.0 * Double(downloadedBytes) / Double(totalFileBytes)
 
         let seekingBeforeStartOfThisRequest = seekTo < activeStream.channelOffset
-        let seekingBeyondDownloaded = seekTo > downloadedBytes
-        
-        let pct = seekTo / totalFileBytes
+        let seekingBeyondDownloaded = pct > downloadedPct
 
         // seeking before the offset point --> we need to make a new request
         // seeking after the most recently downloaded data --> we need to make a new request
         if seekingBeforeStartOfThisRequest || seekingBeyondDownloaded {
-            let fileOffset = DWORD(seekTo)
+            // the file offset is different than the seekToBytes
+            let fileOffset = DWORD(floor(pct * Double(totalFileBytes)))
 
             NSLog("[bass][stream] Seek %% (%f/%u) is greater than downloaded %% (%f/%llu) OR seek channel byte (%llu) < start channel offset (%llu). Opening new stream.", pct, fileOffset, downloadedPct, downloadedBytes, seekTo, activeStream.channelOffset)
 
@@ -181,6 +180,6 @@ extension RelistenGaplessAudioPlayer {
 
         NSLog("[bass][stream][pct=%f] Found length in bytes to be %llu bytes/%f. Seeking to: %llu bytes/%f", pct, len, duration, seekTo, seekToDuration)
 
-        seekToBytes(seekTo)
+        seekToBytes(seekTo, pct: pct)
     }
 }
