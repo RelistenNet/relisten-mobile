@@ -185,9 +185,9 @@ class RelistenGaplessPlayer {
     return RelistenAudioPlayerModule.playbackProgress();
   }
 
-  play(streamable: RelistenStreamable): Promise<void> {
+  play(streamable: RelistenStreamable, startingAtPct?: number): Promise<void> {
     logger.debug('play called');
-    return RelistenAudioPlayerModule.play(streamable);
+    return RelistenAudioPlayerModule.play(streamable, startingAtPct);
   }
 
   setNextStream(streamable?: RelistenStreamable) {

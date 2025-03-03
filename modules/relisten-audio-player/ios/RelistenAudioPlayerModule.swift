@@ -103,7 +103,7 @@ public class RelistenAudioPlayerModule: Module {
             }
         }
 
-        AsyncFunction("play") { (streamable: RelistenStreamable, promise: Promise) in
+        AsyncFunction("play") { (streamable: RelistenStreamable, startingAtPct: Double?, promise: Promise) in
             guard let url = streamable.url, let identifier = streamable.identifier, let title = streamable.title, let albumArt = streamable.albumArt, let albumTitle = streamable.albumTitle, let artist = streamable.artist else {
                 promise.resolve()
                 return
@@ -119,7 +119,8 @@ public class RelistenAudioPlayerModule: Module {
                         albumTitle: albumTitle,
                         albumArt: albumArt,
                         downloadDestination: streamable.downloadDestination
-                    )
+                    ),
+                    startingAtPct: startingAtPct
                 )
                 promise.resolve()
             }

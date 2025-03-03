@@ -42,6 +42,9 @@ export class RelistenPlayer {
 
   private _state: RelistenPlaybackState = RelistenPlaybackState.Stopped;
   private _stalledTimer: number | undefined = undefined;
+  private seekIntentPct: number | undefined = undefined;
+  private updateSavedStateOnNextProgress: boolean = false;
+
   public progress: PlaybackContextProgress | undefined = undefined;
 
   // region Public API
@@ -80,7 +83,8 @@ export class RelistenPlayer {
 
     if (this.state === RelistenPlaybackState.Stopped) {
       if (this.queue.orderedTracks.length > 0) {
-        this.playTrackAtIndex(this.queue.currentIndex ?? 0);
+        this.playTrackAtIndex(this.queue.currentIndex ?? 0, this.seekIntentPct);
+        this.seekIntentPct = undefined;
       }
 
       return;
@@ -97,7 +101,7 @@ export class RelistenPlayer {
     nativePlayer.pause().then(() => {});
   }
 
-  playTrackAtIndex(index: number) {
+  playTrackAtIndex(index: number, seekToPct?: number) {
     const newIndex = Math.max(0, Math.min(index, this.queue.orderedTracks.length - 1));
 
     this._stalledTimer = setTimeout(() => {
@@ -105,7 +109,12 @@ export class RelistenPlayer {
         state.setState(RelistenPlaybackState.Stalled);
       }
     }, 250) as unknown as number;
-    nativePlayer.play(this.queue.orderedTracks[newIndex].toStreamable()).then(() => {});
+    nativePlayer.play(this.queue.orderedTracks[newIndex].toStreamable(), seekToPct).then(() => {});
+
+    if (seekToPct !== undefined) {
+      this.updateSavedStateOnNextProgress = true;
+    }
+
     this.playbackIntentStarted = true;
 
     this.queue.recalculateNextTrack();
@@ -148,6 +157,12 @@ export class RelistenPlayer {
 
   seekTo(pct: number): Promise<void> {
     this.addPlayerListeners();
+
+    // We cannot seek if we aren't playing. Save this for when attempt to play.
+    if (this.state == RelistenPlaybackState.Stopped) {
+      this.seekIntentPct = pct;
+      return Promise.resolve();
+    }
 
     return nativePlayer.seekTo(pct);
   }
@@ -210,6 +225,12 @@ ${indentString(this.queue.debugState(true))}
         playerQueueTrack: currentTrack,
         playbackStartedAt: this.queue.currentTrackPlaybackStartedAt || new Date(),
       });
+    }
+
+    // save state based on playback every 5 seconds
+    if (this.updateSavedStateOnNextProgress || Math.floor(progress.elapsed) % 5 === 0) {
+      this.updateSavedStateOnNextProgress = false;
+      this.queue.savePlayerState();
     }
 
     this.progress = progress;

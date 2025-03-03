@@ -25,7 +25,7 @@ extension URL {
 }
 
 extension RelistenGaplessAudioPlayer {
-    func playStreamableImmediately(_ streamable: RelistenGaplessStreamable) {
+    func playStreamableImmediately(_ streamable: RelistenGaplessStreamable, startingAtPct: Double?) {
         dispatchPrecondition(condition: .onQueue(bassQueue))
 
         maybeSetupBASS()
@@ -45,6 +45,11 @@ extension RelistenGaplessAudioPlayer {
         activeStream = buildStream(streamable)
 
         if let activeStream {
+            if let startingAtPct, startingAtPct > 0.0 {
+                // perform BASS level seek before mixing in the audio
+                seekToPercent(startingAtPct)
+            }
+            
             bass_assert(BASS_Mixer_StreamAddChannel(mixerMainStream,
                                                     activeStream.stream,
                                                     DWORD(BASS_STREAM_AUTOFREE | BASS_MIXER_NORAMPIN)))

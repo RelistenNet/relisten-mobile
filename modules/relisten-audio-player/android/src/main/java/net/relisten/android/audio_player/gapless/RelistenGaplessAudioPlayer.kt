@@ -88,15 +88,18 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
             }
         }
 
-    fun play(streamable: RelistenGaplessStreamable, startingAt: Double = 0.0) {
+    fun play(streamable: RelistenGaplessStreamable, startingAt: Double? = null) {
         val activeStream = activeStream
         val nextStream = nextStream
 
-        if (activeStream != null && nextStream != null && activeStream.streamable.identifier == nextStream.streamable.identifier) {
+        if (activeStream != null && nextStream != null && nextStream.streamable.identifier == streamable.identifier) {
             next()
         }
+        else if (activeStream != null && startingAt != null && activeStream.streamable.identifier == streamable.identifier) {
+            seekTo(startingAt)
+        }
 
-        playStreamableImmediately(streamable)
+        playStreamableImmediately(streamable, startingAt)
     }
 
     private fun maybeTearDownNextStream() {
@@ -204,7 +207,7 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
         play(streamable, startingAt = 0.0)
     }
 
-    internal fun playStreamableImmediately(streamable: RelistenGaplessStreamable) {
+    internal fun playStreamableImmediately(streamable: RelistenGaplessStreamable, startingAt: Double? = null) {
 
         val activeStream = streamManagement.buildStream(streamable)
         this.activeStream = activeStream
@@ -212,6 +215,8 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
 
         scope.launch {
             val exoplayer = exoplayerLifecycle.maybeSetupExoPlayer()
+
+            exoplayerLifecycle.initialSeekToPct = startingAt
 
             exoplayer.setMediaItem(activeStream.mediaItem)
             exoplayer.prepare()

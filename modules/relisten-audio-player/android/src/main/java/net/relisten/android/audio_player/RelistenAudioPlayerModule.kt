@@ -128,7 +128,7 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
             }
         }
 
-        AsyncFunction("play") { streamable: RelistenStreamable, promise: Promise ->
+        AsyncFunction("play") { streamable: RelistenStreamable, startingAtPct: Double?, promise: Promise ->
             player?.scope?.launch {
                 val gaplessStreamable = streamable.toGaplessStreamable()
 

@@ -5,7 +5,10 @@ import {
 } from '@/modules/relisten-audio-player';
 import { addPlayerListeners } from '@/relisten/player/native_playback_state_hooks';
 import { RelistenPlayer } from '@/relisten/player/relisten_player';
-import { currentTrackIdentifier } from '@/relisten/player/shared_state';
+import {
+  currentTrackIdentifier,
+  progress as sharedStateProgress,
+} from '@/relisten/player/shared_state';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { EventSource } from '@/relisten/util/event_source';
 import { realm } from '@/relisten/realm/schema';
@@ -471,7 +474,7 @@ ${indentString(tracks)}
   // region Player state serialization
   private playerStateDebounce: number | undefined = undefined;
 
-  private savePlayerState() {
+  public savePlayerState() {
     if (this.playerStateDebounce) {
       clearTimeout(this.playerStateDebounce);
     }
@@ -487,6 +490,7 @@ ${indentString(tracks)}
           activeSourceTrackShuffledIndex: this.shuffledTracksCurrentIndex,
           lastUpdatedAt: new Date(),
           progress: this.player.progress?.percent,
+          duration: this.player.progress?.duration,
         };
         const obj = PlayerState.upsert(realm, state);
         logger.debug(`wrote player state: ${obj.debugState()}`);
@@ -550,6 +554,18 @@ ${indentString(tracks)}
     if (this.currentTrack) {
       this.onCurrentTrackIdentifierChanged(this.currentTrack.identifier);
     }
+
+    if (playerState.progress && playerState.duration) {
+      this.player.seekTo(playerState.progress).then(() => {});
+
+      // forcibly update the UI
+      sharedStateProgress.setState({
+        elapsed: playerState.duration * playerState.progress,
+        duration: playerState.duration,
+        percent: playerState.progress,
+      });
+    }
+
     this.savePlayerState();
     logger.debug('finished restoring player state', this.player.debugState());
   }

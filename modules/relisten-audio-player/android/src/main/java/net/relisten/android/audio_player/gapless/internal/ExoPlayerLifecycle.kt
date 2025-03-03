@@ -3,9 +3,11 @@ package net.relisten.android.audio_player.gapless.internal
 import android.annotation.SuppressLint
 import android.content.ComponentName
 import android.util.Log
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
@@ -26,6 +28,7 @@ class ExoPlayerLifecycle internal constructor(private val player: RelistenGaples
         return player.exoPlayerFuture.get()
     }
 
+    var initialSeekToPct: Double? = null
     var controllerFuture: ListenableFuture<MediaController>? = null
 
     internal fun setupExoPlayer() {
@@ -121,6 +124,23 @@ class ExoPlayerLifecycle internal constructor(private val player: RelistenGaples
                 "relisten-audio-player",
                 "nextStream.mediaItem ${nextStream?.mediaItem} and previousStream.mediaItem ${previousStream?.mediaItem} doesn't match onMediaItemTransition mediaItem ${mediaItem}"
             )
+        }
+    }
+
+    override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+        val initialSeekToPct = this.initialSeekToPct
+
+        if (initialSeekToPct == null) {
+            return;
+        }
+
+        if (timeline.windowCount > 0) {
+            val window = Timeline.Window()
+            timeline.getWindow(0, window)
+            if (window.durationMs != C.TIME_UNSET) {
+                val startPositionMs = (window.durationMs * initialSeekToPct).toLong()
+                player.exoPlayer?.seekTo(startPositionMs)
+            }
         }
     }
 }

@@ -10,6 +10,8 @@ export interface PlayerStateProps {
   activeSourceTrackIndex?: number;
   activeSourceTrackShuffledIndex?: number;
   lastUpdatedAt: Date;
+  duration?: number;
+  progress?: number;
 }
 
 export class PlayerState extends Realm.Object<PlayerState> implements PlayerStateProps {
@@ -26,6 +28,7 @@ export class PlayerState extends Realm.Object<PlayerState> implements PlayerStat
       activeSourceTrackShuffledIndex: 'int?',
       lastUpdatedAt: 'date',
       progress: 'float?',
+      duration: 'float?',
     },
   };
 
@@ -38,6 +41,7 @@ export class PlayerState extends Realm.Object<PlayerState> implements PlayerStat
   activeSourceTrackShuffledIndex?: number;
   lastUpdatedAt!: Date;
   progress?: number;
+  duration?: number;
 
   static defaultObject(realm: Realm) {
     return realm.objectForPrimaryKey(PlayerState, PLAYER_STATE_SENTINEL);
@@ -55,6 +59,8 @@ export class PlayerState extends Realm.Object<PlayerState> implements PlayerStat
         obj.activeSourceTrackIndex = props.activeSourceTrackIndex;
         obj.activeSourceTrackShuffledIndex = props.activeSourceTrackShuffledIndex;
         obj.lastUpdatedAt = props.lastUpdatedAt;
+        obj.duration = props.duration;
+        obj.progress = props.progress;
         return obj;
       } else {
         return realm.create(PlayerState, { id: PLAYER_STATE_SENTINEL, ...props });
@@ -73,6 +79,7 @@ RelistenPlayerState
   activeSourceTrackShuffledIndex=${this.activeSourceTrackShuffledIndex}
   lastUpdatedAt=${this.lastUpdatedAt}
   progress=${this.progress}
+  duration=${this.duration}
     `.trim();
   }
 }
