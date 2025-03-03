@@ -185,9 +185,10 @@ class RelistenGaplessPlayer {
     return RelistenAudioPlayerModule.playbackProgress();
   }
 
-  play(streamable: RelistenStreamable, startingAtPct?: number): Promise<void> {
-    logger.debug('play called');
-    return RelistenAudioPlayerModule.play(streamable, startingAtPct);
+  play(streamable: RelistenStreamable, startingAtMs?: number): Promise<void> {
+    startingAtMs = startingAtMs !== undefined ? Math.floor(startingAtMs) : undefined;
+    logger.debug(`play called startingAtMs=${startingAtMs}`);
+    return RelistenAudioPlayerModule.play(streamable, startingAtMs);
   }
 
   setNextStream(streamable?: RelistenStreamable) {
@@ -223,6 +224,11 @@ class RelistenGaplessPlayer {
   seekTo(pct: number): Promise<void> {
     logger.debug('seekTo called');
     return RelistenAudioPlayerModule.seekTo(pct);
+  }
+
+  seekToTime(timeMs: number): Promise<void> {
+    logger.debug('seekToTime called');
+    return RelistenAudioPlayerModule.seekToTime(timeMs);
   }
 }
 

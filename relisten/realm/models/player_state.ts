@@ -12,6 +12,7 @@ export interface PlayerStateProps {
   lastUpdatedAt: Date;
   duration?: number;
   progress?: number;
+  elapsed?: number;
 }
 
 export class PlayerState extends Realm.Object<PlayerState> implements PlayerStateProps {
@@ -29,6 +30,7 @@ export class PlayerState extends Realm.Object<PlayerState> implements PlayerStat
       lastUpdatedAt: 'date',
       progress: 'float?',
       duration: 'float?',
+      elapsed: 'float?',
     },
   };
 
@@ -42,6 +44,7 @@ export class PlayerState extends Realm.Object<PlayerState> implements PlayerStat
   lastUpdatedAt!: Date;
   progress?: number;
   duration?: number;
+  elapsed?: number;
 
   static defaultObject(realm: Realm) {
     return realm.objectForPrimaryKey(PlayerState, PLAYER_STATE_SENTINEL);
@@ -61,6 +64,7 @@ export class PlayerState extends Realm.Object<PlayerState> implements PlayerStat
         obj.lastUpdatedAt = props.lastUpdatedAt;
         obj.duration = props.duration;
         obj.progress = props.progress;
+        obj.elapsed = props.elapsed;
         return obj;
       } else {
         return realm.create(PlayerState, { id: PLAYER_STATE_SENTINEL, ...props });
@@ -80,6 +84,7 @@ RelistenPlayerState
   lastUpdatedAt=${this.lastUpdatedAt}
   progress=${this.progress}
   duration=${this.duration}
+  elapsed=${this.elapsed}
     `.trim();
   }
 }

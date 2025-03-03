@@ -168,7 +168,6 @@ extension RelistenGaplessAudioPlayer {
         bassQueue.async {[self] in
             let savedActiveStreamable = activeStream?.streamable
             let nextStreamable = nextStream?.streamable
-            let savedDuration = self.currentDuration
             let savedElapsed = self.elapsed
 
             maybeTearDownBASS()
@@ -176,8 +175,11 @@ extension RelistenGaplessAudioPlayer {
             currentState = .Stopped
 
             if let savedActiveStreamable {
-                let pct: Double? = if let savedElapsed, let savedDuration { savedElapsed / savedDuration } else { nil }
-                playStreamableImmediately(savedActiveStreamable, startingAtPct: pct)
+                if let savedElapsed {
+                    playStreamableImmediately(savedActiveStreamable, startingAtMs: Int64(savedElapsed * 1000))
+                } else {
+                    playStreamableImmediately(savedActiveStreamable, startingAtMs: nil)
+                }
             }
 
             if let nextStreamable {

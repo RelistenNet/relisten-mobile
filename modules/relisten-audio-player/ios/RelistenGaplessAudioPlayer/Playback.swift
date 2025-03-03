@@ -25,7 +25,7 @@ extension URL {
 }
 
 extension RelistenGaplessAudioPlayer {
-    func playStreamableImmediately(_ streamable: RelistenGaplessStreamable, startingAtPct: Double?) {
+    func playStreamableImmediately(_ streamable: RelistenGaplessStreamable, startingAtMs: Int64?) {
         dispatchPrecondition(condition: .onQueue(bassQueue))
 
         maybeSetupBASS()
@@ -45,9 +45,9 @@ extension RelistenGaplessAudioPlayer {
         activeStream = buildStream(streamable)
 
         if let activeStream {
-            if let startingAtPct, startingAtPct > 0.0 {
+            if let startingAtMs, startingAtMs > 0 {
                 // perform BASS level seek before mixing in the audio
-                seekToPercent(startingAtPct)
+                seekToTime(startingAtMs)
             }
             
             bass_assert(BASS_Mixer_StreamAddChannel(mixerMainStream,
@@ -83,8 +83,8 @@ extension RelistenGaplessAudioPlayer {
             NSLog("[bass][stream] activeStream nil after buildingStream from \(streamable)")
         }
     }
-
-    func seekToPercent(_ pct: Double) {
+    
+    func seekToTime(_ timeMs: Int64) {
         dispatchPrecondition(condition: .onQueue(bassQueue))
 
         // NOTE: all these calculations use the stream request offset to translate the #s into one's valid
@@ -94,28 +94,47 @@ extension RelistenGaplessAudioPlayer {
         guard let activeStream else {
             // The user may have tried to seek before the stream has loaded.
             // TODO: Store the desired seek percent and apply it once the stream has loaded
-            NSLog("[bass][stream] Stream hasn't loaded yet. Ignoring seek to %f.", pct)
+            NSLog("[bass][stream] Stream hasn't loaded yet. Ignoring seek to %f ms.", timeMs)
             return
         }
 
         let len = BASS_ChannelGetLength(activeStream.stream, DWORD(BASS_POS_BYTE)) + activeStream.channelOffset
         let duration = BASS_ChannelBytes2Seconds(activeStream.stream, len)
-        let seekTo = BASS_ChannelSeconds2Bytes(activeStream.stream, duration * Double(pct))
+        let seekTo = BASS_ChannelSeconds2Bytes(activeStream.stream, Double(timeMs) / Double(1000))
         let seekToDuration = BASS_ChannelBytes2Seconds(activeStream.stream, seekTo)
 
-        NSLog("[bass][stream] Found length in bytes to be %llu bytes/%f. Seeking to: %llu bytes/%f", len, duration, seekTo, seekToDuration)
+        NSLog("[bass][stream][seekToTimeMs=%llu] Found length in bytes to be %llu bytes/%f. Seeking to: %llu bytes/%f", timeMs, len, duration, seekTo, seekToDuration)
 
+        seekToBytes(seekTo)
+    }
+    
+    func seekToBytes(_ seekTo: UInt64) {
+        dispatchPrecondition(condition: .onQueue(bassQueue))
+
+        // NOTE: all these calculations use the stream request offset to translate the #s into one's valid
+        // for the *entire* track. we must be careful to identify situations where we need to make a new request
+        maybeSetupBASS()
+
+        guard let activeStream else {
+            // The user may have tried to seek before the stream has loaded.
+            // TODO: Store the desired seek percent and apply it once the stream has loaded
+            NSLog("[bass][stream] Stream hasn't loaded yet. Ignoring seek to %f.", seekTo)
+            return
+        }
+        
         let downloadedBytes = BASS_StreamGetFilePosition(activeStream.stream, DWORD(BASS_FILEPOS_DOWNLOAD)) + UInt64(activeStream.fileOffset)
         let totalFileBytes = BASS_StreamGetFilePosition(activeStream.stream, DWORD(BASS_FILEPOS_SIZE)) + UInt64(activeStream.fileOffset)
         let downloadedPct = 1.0 * Double(downloadedBytes) / Double(totalFileBytes)
 
         let seekingBeforeStartOfThisRequest = seekTo < activeStream.channelOffset
-        let seekingBeyondDownloaded = Double(pct) > downloadedPct
+        let seekingBeyondDownloaded = seekTo > downloadedBytes
+        
+        let pct = seekTo / totalFileBytes
 
         // seeking before the offset point --> we need to make a new request
         // seeking after the most recently downloaded data --> we need to make a new request
         if seekingBeforeStartOfThisRequest || seekingBeyondDownloaded {
-            let fileOffset = DWORD(floor(pct * Double(totalFileBytes)))
+            let fileOffset = DWORD(seekTo)
 
             NSLog("[bass][stream] Seek %% (%f/%u) is greater than downloaded %% (%f/%llu) OR seek channel byte (%llu) < start channel offset (%llu). Opening new stream.", pct, fileOffset, downloadedPct, downloadedBytes, seekTo, activeStream.channelOffset)
 
@@ -139,5 +158,29 @@ extension RelistenGaplessAudioPlayer {
         } else {
             bass_assert(BASS_ChannelSetPosition(activeStream.stream, seekTo - activeStream.channelOffset, DWORD(BASS_POS_BYTE)))
         }
+    }
+
+    func seekToPercent(_ pct: Double) {
+        dispatchPrecondition(condition: .onQueue(bassQueue))
+
+        // NOTE: all these calculations use the stream request offset to translate the #s into one's valid
+        // for the *entire* track. we must be careful to identify situations where we need to make a new request
+        maybeSetupBASS()
+
+        guard let activeStream else {
+            // The user may have tried to seek before the stream has loaded.
+            // TODO: Store the desired seek percent and apply it once the stream has loaded
+            NSLog("[bass][stream] Stream hasn't loaded yet. Ignoring seek to %f.", pct)
+            return
+        }
+
+        let len = BASS_ChannelGetLength(activeStream.stream, DWORD(BASS_POS_BYTE)) + activeStream.channelOffset
+        let duration = BASS_ChannelBytes2Seconds(activeStream.stream, len)
+        let seekTo = BASS_ChannelSeconds2Bytes(activeStream.stream, duration * Double(pct))
+        let seekToDuration = BASS_ChannelBytes2Seconds(activeStream.stream, seekTo)
+
+        NSLog("[bass][stream][pct=%f] Found length in bytes to be %llu bytes/%f. Seeking to: %llu bytes/%f", pct, len, duration, seekTo, seekToDuration)
+
+        seekToBytes(seekTo)
     }
 }

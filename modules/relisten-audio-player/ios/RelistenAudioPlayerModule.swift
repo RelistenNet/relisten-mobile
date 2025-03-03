@@ -103,7 +103,7 @@ public class RelistenAudioPlayerModule: Module {
             }
         }
 
-        AsyncFunction("play") { (streamable: RelistenStreamable, startingAtPct: Double?, promise: Promise) in
+        AsyncFunction("play") { (streamable: RelistenStreamable, startingAtMs: Int64?, promise: Promise) in
             guard let url = streamable.url, let identifier = streamable.identifier, let title = streamable.title, let albumArt = streamable.albumArt, let albumTitle = streamable.albumTitle, let artist = streamable.artist else {
                 promise.resolve()
                 return
@@ -120,7 +120,7 @@ public class RelistenAudioPlayerModule: Module {
                         albumArt: albumArt,
                         downloadDestination: streamable.downloadDestination
                     ),
-                    startingAtPct: startingAtPct
+                    startingAtMs: startingAtMs
                 )
                 promise.resolve()
             }
@@ -183,6 +183,13 @@ public class RelistenAudioPlayerModule: Module {
         AsyncFunction("seekTo") { (pct: Double, promise: Promise) in
             player?.bassQueue.async {
                 self.player?.seekTo(percent: pct)
+                promise.resolve()
+            }
+        }
+        
+        AsyncFunction("seekToTime") { (timeMs: Int64, promise: Promise) in
+            player?.bassQueue.async {
+                self.player?.seekToTime(timeMs)
                 promise.resolve()
             }
         }

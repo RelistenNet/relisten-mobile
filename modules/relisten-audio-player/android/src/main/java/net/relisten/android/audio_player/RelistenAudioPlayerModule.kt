@@ -128,19 +128,19 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
             }
         }
 
-        AsyncFunction("play") { streamable: RelistenStreamable, startingAtPct: Double?, promise: Promise ->
+        AsyncFunction("play") { streamable: RelistenStreamable, startingAtMs: Long?, promise: Promise ->
             player?.scope?.launch {
                 val gaplessStreamable = streamable.toGaplessStreamable()
 
                 if (gaplessStreamable != null) {
-                    Log.e("relisten-audio", "player?.play")
-                    player?.play(gaplessStreamable)
-                    Log.e("relisten-audio", "after player?.play")
+                    Log.d("relisten-audio", "player?.play startingAtMs=$startingAtMs")
+                    player?.play(gaplessStreamable, startingAtMs = startingAtMs)
+                    Log.d("relisten-audio", "after player?.play")
                 }
 
-                Log.e("relisten-audio", "promise.resolve")
+                Log.d("relisten-audio", "promise.resolve")
                 promise.resolve(null)
-                Log.e("relisten-audio", "after promise.resolve")
+                Log.d("relisten-audio", "after promise.resolve")
             }
         }
 
@@ -190,6 +190,13 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
         AsyncFunction("seekTo") { pct: Double, promise: Promise ->
             player?.scope?.launch {
                 player?.seekTo(pct)
+                promise.resolve(null)
+            }
+        }
+
+        AsyncFunction("seekToTime") { timeMs: Long, promise: Promise ->
+            player?.scope?.launch {
+                player?.seekToTime(timeMs)
                 promise.resolve(null)
             }
         }

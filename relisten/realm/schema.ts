@@ -35,7 +35,7 @@ const realmConfig: Realm.Configuration = {
     PlaybackHistoryEntry,
     PlayerState,
   ],
-  schemaVersion: 3,
+  schemaVersion: 4,
 };
 
 export const { RealmProvider, useRealm, useObject, useQuery } = createRealmContext(realmConfig);

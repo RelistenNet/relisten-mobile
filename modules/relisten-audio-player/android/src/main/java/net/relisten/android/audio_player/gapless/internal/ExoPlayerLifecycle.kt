@@ -28,7 +28,6 @@ class ExoPlayerLifecycle internal constructor(private val player: RelistenGaples
         return player.exoPlayerFuture.get()
     }
 
-    var initialSeekToPct: Double? = null
     var controllerFuture: ListenableFuture<MediaController>? = null
 
     internal fun setupExoPlayer() {
@@ -124,23 +123,6 @@ class ExoPlayerLifecycle internal constructor(private val player: RelistenGaples
                 "relisten-audio-player",
                 "nextStream.mediaItem ${nextStream?.mediaItem} and previousStream.mediaItem ${previousStream?.mediaItem} doesn't match onMediaItemTransition mediaItem ${mediaItem}"
             )
-        }
-    }
-
-    override fun onTimelineChanged(timeline: Timeline, reason: Int) {
-        val initialSeekToPct = this.initialSeekToPct
-
-        if (initialSeekToPct == null) {
-            return;
-        }
-
-        if (timeline.windowCount > 0) {
-            val window = Timeline.Window()
-            timeline.getWindow(0, window)
-            if (window.durationMs != C.TIME_UNSET) {
-                val startPositionMs = (window.durationMs * initialSeekToPct).toLong()
-                player.exoPlayer?.seekTo(startPositionMs)
-            }
         }
     }
 }

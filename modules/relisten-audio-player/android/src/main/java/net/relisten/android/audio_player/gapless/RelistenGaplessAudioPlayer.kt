@@ -88,18 +88,18 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
             }
         }
 
-    fun play(streamable: RelistenGaplessStreamable, startingAt: Double? = null) {
+    fun play(streamable: RelistenGaplessStreamable, startingAtMs: Long? = null) {
         val activeStream = activeStream
         val nextStream = nextStream
 
         if (activeStream != null && nextStream != null && nextStream.streamable.identifier == streamable.identifier) {
             next()
         }
-        else if (activeStream != null && startingAt != null && activeStream.streamable.identifier == streamable.identifier) {
-            seekTo(startingAt)
+        else if (activeStream != null && startingAtMs != null && activeStream.streamable.identifier == streamable.identifier) {
+            seekToTime(startingAtMs)
         }
 
-        playStreamableImmediately(streamable, startingAt)
+        playStreamableImmediately(streamable, startingAtMs)
     }
 
     private fun maybeTearDownNextStream() {
@@ -199,15 +199,32 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
         }
     }
 
+    fun seekToTime(timeMs: Long) {
+        val activeStream = activeStream
+        val duration = currentDuration
+        if (activeStream != null && exoPlayer != null && duration != null) {
+            if (timeMs >= duration * 1000) {
+                next()
+            }
+
+            scope.launch {
+                exoPlayer?.let {
+                    it.seekTo(timeMs)
+                    it.play()
+                }
+            }
+        }
+    }
+
     fun prepareAudioSession() {
         // What does this mean on Android? MediaSession APIs?
     }
 
     fun play(streamable: RelistenGaplessStreamable) {
-        play(streamable, startingAt = 0.0)
+        play(streamable, startingAtMs = null)
     }
 
-    internal fun playStreamableImmediately(streamable: RelistenGaplessStreamable, startingAt: Double? = null) {
+    internal fun playStreamableImmediately(streamable: RelistenGaplessStreamable, startingAtMs: Long? = null) {
 
         val activeStream = streamManagement.buildStream(streamable)
         this.activeStream = activeStream
@@ -216,9 +233,12 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
         scope.launch {
             val exoplayer = exoplayerLifecycle.maybeSetupExoPlayer()
 
-            exoplayerLifecycle.initialSeekToPct = startingAt
-
-            exoplayer.setMediaItem(activeStream.mediaItem)
+            if (startingAtMs != null) {
+                exoplayer.setMediaItem(activeStream.mediaItem, startingAtMs)
+            }
+            else {
+                exoplayer.setMediaItem(activeStream.mediaItem)
+            }
             exoplayer.prepare()
             exoplayer.play()
 

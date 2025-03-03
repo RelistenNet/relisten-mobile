@@ -42,7 +42,7 @@ export class RelistenPlayer {
 
   private _state: RelistenPlaybackState = RelistenPlaybackState.Stopped;
   private _stalledTimer: number | undefined = undefined;
-  private seekIntentPct: number | undefined = undefined;
+  private seekIntent: number | undefined = undefined;
   private updateSavedStateOnNextProgress: boolean = false;
 
   public progress: PlaybackContextProgress | undefined = undefined;
@@ -83,8 +83,8 @@ export class RelistenPlayer {
 
     if (this.state === RelistenPlaybackState.Stopped) {
       if (this.queue.orderedTracks.length > 0) {
-        this.playTrackAtIndex(this.queue.currentIndex ?? 0, this.seekIntentPct);
-        this.seekIntentPct = undefined;
+        this.playTrackAtIndex(this.queue.currentIndex ?? 0, this.seekIntent);
+        this.seekIntent = undefined;
       }
 
       return;
@@ -101,7 +101,7 @@ export class RelistenPlayer {
     nativePlayer.pause().then(() => {});
   }
 
-  playTrackAtIndex(index: number, seekToPct?: number) {
+  playTrackAtIndex(index: number, seekToTime?: number) {
     const newIndex = Math.max(0, Math.min(index, this.queue.orderedTracks.length - 1));
 
     this._stalledTimer = setTimeout(() => {
@@ -109,9 +109,14 @@ export class RelistenPlayer {
         state.setState(RelistenPlaybackState.Stalled);
       }
     }, 250) as unknown as number;
-    nativePlayer.play(this.queue.orderedTracks[newIndex].toStreamable(), seekToPct).then(() => {});
+    nativePlayer
+      .play(
+        this.queue.orderedTracks[newIndex].toStreamable(),
+        seekToTime !== undefined ? seekToTime * 1000.0 : undefined
+      )
+      .then(() => {});
 
-    if (seekToPct !== undefined) {
+    if (seekToTime !== undefined) {
       this.updateSavedStateOnNextProgress = true;
     }
 
@@ -160,11 +165,22 @@ export class RelistenPlayer {
 
     // We cannot seek if we aren't playing. Save this for when attempt to play.
     if (this.state == RelistenPlaybackState.Stopped) {
-      this.seekIntentPct = pct;
       return Promise.resolve();
     }
 
     return nativePlayer.seekTo(pct);
+  }
+
+  seekToTime(time: number): Promise<void> {
+    this.addPlayerListeners();
+
+    // We cannot seek if we aren't playing. Save this for when attempt to play.
+    if (this.state == RelistenPlaybackState.Stopped) {
+      this.seekIntent = time;
+      return Promise.resolve();
+    }
+
+    return nativePlayer.seekToTime(time * 1000.0);
   }
 
   debugState() {

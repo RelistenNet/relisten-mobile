@@ -158,10 +158,10 @@ public class RelistenGaplessAudioPlayer {
     }
 
     public func play(_ streamable: RelistenGaplessStreamable) {
-        play(streamable, startingAtPct: 0.0)
+        play(streamable, startingAtMs: nil)
     }
 
-    public func play(_ streamable: RelistenGaplessStreamable, startingAtPct: Double?) {
+    public func play(_ streamable: RelistenGaplessStreamable, startingAtMs: Int64?) {
         setupAudioSession(shouldActivate: true)
 
         if let activeStream, let nextStream, activeStream.streamable.identifier == nextStream.streamable.identifier {
@@ -169,13 +169,13 @@ public class RelistenGaplessAudioPlayer {
 
             return
         }
-        else if let activeStream, let startingAtPct, activeStream.streamable.identifier == streamable.identifier {
-            seekToPercent(startingAtPct)
+        else if let activeStream, let startingAtMs, activeStream.streamable.identifier == streamable.identifier {
+            seekToTime(startingAtMs)
 
             return
         }
 
-        self.playStreamableImmediately(streamable, startingAtPct: startingAtPct)
+        self.playStreamableImmediately(streamable, startingAtMs: startingAtMs)
     }
 
     public func setNextStream(_ streamable: RelistenGaplessStreamable?) {

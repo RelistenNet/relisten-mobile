@@ -491,6 +491,7 @@ ${indentString(tracks)}
           lastUpdatedAt: new Date(),
           progress: this.player.progress?.percent,
           duration: this.player.progress?.duration,
+          elapsed: this.player.progress?.elapsed,
         };
         const obj = PlayerState.upsert(realm, state);
         logger.debug(`wrote player state: ${obj.debugState()}`);
@@ -555,12 +556,12 @@ ${indentString(tracks)}
       this.onCurrentTrackIdentifierChanged(this.currentTrack.identifier);
     }
 
-    if (playerState.progress && playerState.duration) {
-      this.player.seekTo(playerState.progress).then(() => {});
+    if (playerState.elapsed && playerState.progress && playerState.duration) {
+      this.player.seekToTime(playerState.elapsed).then(() => {});
 
       // forcibly update the UI
       sharedStateProgress.setState({
-        elapsed: playerState.duration * playerState.progress,
+        elapsed: playerState.elapsed,
         duration: playerState.duration,
         percent: playerState.progress,
       });
