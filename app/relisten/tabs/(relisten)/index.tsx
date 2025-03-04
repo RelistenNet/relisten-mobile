@@ -22,7 +22,7 @@ const BYTE_TO_GB = 1024 * 1024 * 1024;
 const formatBytes = (bytes: number) => sizeFormatter.format(bytes / BYTE_TO_GB);
 
 const useFileSystemInfo = () => {
-  const [, refresh] = useReducer((state) => state + 1, 0);
+  const [refreshState, refresh] = useReducer((state) => state + 1, 0);
   const [state, setState] = useState({
     totalDiskSpace: '',
     totalFreeDiskSpace: '',
@@ -43,7 +43,7 @@ const useFileSystemInfo = () => {
         totalSizeOfRelistenDirectory: formatBytes(dirInfo.exists ? dirInfo.size : 0),
       });
     })();
-  }, [state]);
+  }, [refreshState, setState]);
 
   return [state, refresh] as const;
 };
