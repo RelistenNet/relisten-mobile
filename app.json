@@ -56,11 +56,9 @@
         {
           "android": {
             "compileSdkVersion": 34,
-            "minSdkVersion": 30,
-            "newArchEnabled": true
+            "minSdkVersion": 30
           },
           "ios": {
-            "newArchEnabled": true,
             "useFrameworks": "static"
           }
         }
@@ -77,6 +75,7 @@
         "projectId": "3b18b7db-fdf8-4a2c-8c24-19e24a8fd3a8"
       }
     },
-    "owner": "relisten"
+    "owner": "relisten",
+    "newArchEnabled": true
   }
 }

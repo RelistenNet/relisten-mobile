@@ -14,7 +14,7 @@ export default function TabLayout() {
   return (
     <>
       <Tabs
-        initialRouteName="index"
+        // initialRouteName="index"
         screenOptions={({ route }) => ({
           headerShown: false,
           headerStyle: {

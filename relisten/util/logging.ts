@@ -1,18 +1,16 @@
 import { consoleTransport, crashlyticsTransport, logger } from 'react-native-logs';
 import { InteractionManager } from 'react-native';
-import crashlytics from '@react-native-firebase/crashlytics';
+import { getCrashlytics, log as crashlyticsLog } from '@react-native-firebase/crashlytics';
 
-const crashlyticsModule = crashlytics();
+const crashlyticsModule = getCrashlytics();
 
-export type LogLevels = 'debug' | 'info' | 'warn' | 'error';
-
-export const log = logger.createLogger<LogLevels>({
+export const log = logger.createLogger({
   // TODO: when we have entry, also log to a file so that we can attach it to crash reports
   transport: [consoleTransport, crashlyticsTransport],
   transportOptions: {
     CRASHLYTICS: {
-      recordError: (msg: string) => crashlyticsModule.log(msg),
-      log: (msg: string) => crashlyticsModule.log(msg),
+      recordError: (msg: string) => crashlyticsLog(crashlyticsModule, msg),
+      log: (msg: string) => crashlyticsLog(crashlyticsModule, msg),
     },
   },
   severity: __DEV__ ? 'debug' : 'info',

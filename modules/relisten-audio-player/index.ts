@@ -1,4 +1,4 @@
-import { EventEmitter, NativeModulesProxy, Subscription } from 'expo-modules-core';
+import { EventEmitter, EventSubscription } from 'expo-modules-core';
 
 // Import the native module. On web, it will be resolved to RelistenAudioPlayer.web.ts
 // and on native platforms to RelistenAudioPlayer.ts
@@ -7,9 +7,15 @@ import { log } from '@/relisten/util/logging';
 
 const logger = log.extend('relisten-audio-player');
 
-const emitter = new EventEmitter(
-  RelistenAudioPlayerModule ?? NativeModulesProxy.RelistenAudioPlayer
-);
+const emitter = new EventEmitter<{
+  onError: (event: RelistenErrorEvent) => void;
+  onPlaybackStateChanged: (event: RelistenPlaybackStateChangedEvent) => void;
+  onPlaybackProgressChanged: (event: RelistenPlaybackProgressChangedEvent) => void;
+  onDownloadProgressChanged: (event: RelistenDownloadProgressChangedEvent) => void;
+  onTrackChanged: (event: RelistenTrackChangedEvent) => void;
+  onRemoteControl: (event: RelistenRemoteControlEvent) => void;
+  onTrackStreamingCacheComplete: (event: RelistenTrackStreamingCacheCompleteEvent) => void;
+}>(RelistenAudioPlayerModule);
 
 export interface RelistenStreamable {
   url: string;
@@ -103,56 +109,42 @@ export interface PlaybackProgress {
 }
 
 class RelistenGaplessPlayer {
-  addErrorListener(listener: (event: RelistenErrorEvent) => void): Subscription {
-    return emitter.addListener<RelistenErrorEvent>('onError', listener);
-  }
-
-  removeListener(subscription: Subscription) {
-    emitter.removeSubscription(subscription);
+  addErrorListener(listener: (event: RelistenErrorEvent) => void): EventSubscription {
+    return emitter.addListener('onError', listener);
   }
 
   addPlaybackStateListener(
     listener: (event: RelistenPlaybackStateChangedEvent) => void
-  ): Subscription {
-    return emitter.addListener<RelistenPlaybackStateChangedEvent>(
-      'onPlaybackStateChanged',
-      listener
-    );
+  ): EventSubscription {
+    return emitter.addListener('onPlaybackStateChanged', listener);
   }
 
   addPlaybackProgressListener(
     listener: (event: RelistenPlaybackProgressChangedEvent) => void
-  ): Subscription {
-    return emitter.addListener<RelistenPlaybackProgressChangedEvent>(
-      'onPlaybackProgressChanged',
-      listener
-    );
+  ): EventSubscription {
+    return emitter.addListener('onPlaybackProgressChanged', listener);
   }
 
   addDownloadProgressListener(
     listener: (event: RelistenDownloadProgressChangedEvent) => void
-  ): Subscription {
-    return emitter.addListener<RelistenDownloadProgressChangedEvent>(
-      'onDownloadProgressChanged',
-      listener
-    );
+  ): EventSubscription {
+    return emitter.addListener('onDownloadProgressChanged', listener);
   }
 
-  addTrackChangedListener(listener: (event: RelistenTrackChangedEvent) => void): Subscription {
-    return emitter.addListener<RelistenTrackChangedEvent>('onTrackChanged', listener);
+  addTrackChangedListener(listener: (event: RelistenTrackChangedEvent) => void): EventSubscription {
+    return emitter.addListener('onTrackChanged', listener);
   }
 
-  addRemoteControlListener(listener: (event: RelistenRemoteControlEvent) => void): Subscription {
-    return emitter.addListener<RelistenRemoteControlEvent>('onRemoteControl', listener);
+  addRemoteControlListener(
+    listener: (event: RelistenRemoteControlEvent) => void
+  ): EventSubscription {
+    return emitter.addListener('onRemoteControl', listener);
   }
 
   addTrackStreamingCacheCompleteListener(
     listener: (event: RelistenTrackStreamingCacheCompleteEvent) => void
-  ): Subscription {
-    return emitter.addListener<RelistenTrackStreamingCacheCompleteEvent>(
-      'onTrackStreamingCacheComplete',
-      listener
-    );
+  ): EventSubscription {
+    return emitter.addListener('onTrackStreamingCacheComplete', listener);
   }
 
   get currentState(): `${RelistenPlaybackState}` {

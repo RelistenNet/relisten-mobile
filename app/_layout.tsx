@@ -2,6 +2,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-get-random-values';
 import 'react-native-reanimated';
 import 'uuid';
+import { DefaultTheme } from '@react-navigation/native';
 
 import { Slot, SplashScreen, useNavigationContainerRef } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -102,6 +103,7 @@ export default function TabLayout() {
                 background: RelistenBlue[900],
                 card: '#001114',
               },
+              fonts: DefaultTheme.fonts,
             }}
           >
             <RelistenPlayerBottomBarProvider>

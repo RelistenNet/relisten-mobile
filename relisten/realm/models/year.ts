@@ -20,7 +20,7 @@ export interface YearRequiredProperties extends RelistenObjectRequiredProperties
 
 export class Year
   extends Realm.Object<Year, keyof YearRequiredProperties & keyof YearRequiredRelationships>
-  implements YearRequiredRelationships, YearRequiredProperties, FavoritableObject
+  implements YearRequiredRelationships, YearRequiredProperties
 {
   static schema: Realm.ObjectSchema = {
     name: 'Year',

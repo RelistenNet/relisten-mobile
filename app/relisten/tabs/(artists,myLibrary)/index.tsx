@@ -98,7 +98,7 @@ const ARTIST_FILTERS: Filter<ArtistFilterKey, Artist>[] = [
 
 type ArtistsListProps = {
   artists: Realm.Results<Artist>;
-  filterOptions: FilteringOptions<YearFilterKey>;
+  filterOptions: FilteringOptions<ArtistFilterKey>;
 } & Omit<FilterableListProps<Artist>, 'data' | 'renderItem'>;
 
 const ArtistsList = ({ artists, ...props }: ArtistsListProps) => {
