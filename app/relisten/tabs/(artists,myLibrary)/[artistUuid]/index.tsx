@@ -19,7 +19,7 @@ import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
 import RowTitle from '@/relisten/components/row_title';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
-import { ShowCard } from '@/relisten/components/show_card';
+import { ShowCard, ShowCardLoader } from '@/relisten/components/show_card';
 import { SourceTrackSucceededIndicator } from '@/relisten/components/source/source_track_offline_indicator';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useArtistMetadata } from '@/relisten/realm/models/artist_repo';
@@ -216,7 +216,11 @@ const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => {
         </View>
         <ScrollView horizontal className="mb-1 pb-3 pl-3">
           {todayShows.isNetworkLoading && todayShows.data.length == 0 ? (
-            <View className="mb-1 h-[72px] w-full flex-1 items-start pb-3 pl-3"></View>
+            <ShowCardLoader
+              showArtist={false}
+              showVenue={artist.features().per_source_venues || artist.features().per_show_venues}
+              className="h-full w-[168px]"
+            />
           ) : (
             todayShows.data.map((show) => (
               <ShowCard
@@ -224,7 +228,7 @@ const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => {
                 key={show.uuid}
                 root="artists"
                 showArtist={false}
-                cn="h-full w-[168px]"
+                className="h-full w-[168px]"
               />
             ))
           )}

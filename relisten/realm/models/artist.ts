@@ -65,11 +65,11 @@ export class Artist
   sourceTracks!: Realm.List<SourceTrack>;
 
   private _features?: Features;
-  features() {
+  features(): Features {
     if (!this._features) {
       this._features = JSON.parse(this.featuresRaw);
     }
-    return this._features;
+    return this._features as Features;
   }
 
   private _upstreamSources?: ArtistUpstreamSource[];
