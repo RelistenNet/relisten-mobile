@@ -38,12 +38,13 @@ const getEtreeId = (s = '') =>
   );
 
 // our magic live music sort, taken from relisten-web
-// gives precedence to soundboards -> charlie miller/peter costello -> etree ids -> avg weighted rating
+// gives precedence to favorites -> soundboards -> charlie miller/peter costello -> etree ids -> avg weighted rating
 // https://github.com/RelistenNet/relisten-web/blob/69e05607c0a0699b5ccb0b3711a3ec17faf3a855/src/redux/modules/tapes.js#L63
 export const sortSources = (sources: Realm.Results<Source>) => {
   const sortedSources = sources
     ? Array.from(sources).sort(
-        firstBy((t: Source) => t.isSoundboard, 'desc')
+        firstBy((t: Source) => t.isFavorite, 'desc')
+          .thenBy((t: Source) => t.isSoundboard, 'desc')
           // Charlie for GD, Pete for JRAD
           .thenBy(
             (t: Source) =>
