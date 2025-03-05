@@ -26,7 +26,7 @@ import { useArtistMetadata } from '@/relisten/realm/models/artist_repo';
 import { useTodayShows } from '@/relisten/realm/models/shows/today_shows_repo';
 import { Year } from '@/relisten/realm/models/year';
 import { useArtistYears, useYearMetadata } from '@/relisten/realm/models/year_repo';
-import { useGroupSegment, useIsDownloadedTab, useRoute } from '@/relisten/util/routes';
+import { useGroupSegment, useIsOfflineTab, useRoute } from '@/relisten/util/routes';
 import { Link, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { useEffect, useMemo } from 'react';
 import { ScrollView, View } from 'react-native';
@@ -80,7 +80,7 @@ const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => {
   const { apiClient } = useRelistenApi();
   const currentRoute = useRoute();
   const router = useRouter();
-  const isDownloadedTab = useIsDownloadedTab();
+  const isOfflineTab = useIsOfflineTab();
   const groupSegment = useGroupSegment(true);
   const metadata = useArtistMetadata(artist);
   const todayShows = useTodayShows(artist?.uuid);
@@ -121,7 +121,7 @@ const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => {
             <Plur word="tape" count={metadata.sources} />
           </RelistenText>
         </View>
-        {!isDownloadedTab && (
+        {!isOfflineTab && (
           <>
             <View className="w-full flex-row px-4 pb-4" style={{ gap: 16 }}>
               <Link

@@ -7,9 +7,11 @@ import { Image } from 'react-native';
 import 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { useRemainingDownloads } from '@/relisten/realm/models/offline_repo';
+import { useUserSettings } from './(relisten)/Settings';
 
 export default function TabLayout() {
   const downloads = useRemainingDownloads();
+  const settings = useUserSettings();
 
   return (
     <>
@@ -28,6 +30,8 @@ export default function TabLayout() {
               return <MaterialCommunityIcons name={iconName as any} size={size} color={color} />;
             } else if (route.name === '(myLibrary)') {
               return <MaterialIcons name="library-music" size={size} color={color} />;
+            } else if (route.name === '(offline)') {
+              return <MaterialIcons name="check-circle" size={size} color={color} />;
             }
 
             return (
@@ -50,6 +54,14 @@ export default function TabLayout() {
           options={{
             title: 'My Library',
             tabBarBadge: downloads.length === 0 ? undefined : downloads.length,
+          }}
+        />
+
+        <Tabs.Screen
+          name="(offline)"
+          options={{
+            title: 'Offline',
+            tabBarItemStyle: { display: settings.showOfflineTab ? 'block' : 'none' },
           }}
         />
 

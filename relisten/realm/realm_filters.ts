@@ -1,5 +1,5 @@
 import type Realm from 'realm';
-import { useIsDownloadedTab } from '../util/routes';
+import { useIsOfflineTab } from '../util/routes';
 import { SourceTrackOfflineInfoStatus } from './models/source_track_offline_info';
 import { SourceTrack } from './models/source_track';
 import { RelistenObject } from '../api/models/relisten';
@@ -13,9 +13,9 @@ export const checkIfOfflineSourceTrackExists = (items: Realm.List<SourceTrack>) 
 };
 
 export const useRealmTabsFilter = <T extends RelistenObject>(items: Realm.Results<T>) => {
-  const isDownloadedTab = useIsDownloadedTab();
+  const isOfflineTab = useIsOfflineTab();
 
-  if (isDownloadedTab) {
+  if (isOfflineTab) {
     return items.filtered(
       'SUBQUERY(sourceTracks, $item, $item.offlineInfo.status == $0).@count > 0',
       SourceTrackOfflineInfoStatus.Succeeded

@@ -1,27 +1,26 @@
-import Flex from '@/relisten/components/flex';
-import { RefreshContextProvider } from '@/relisten/components/refresh_context';
-import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
-import RowTitle from '@/relisten/components/row_title';
-import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
-import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
-import { Venue } from '@/relisten/realm/models/venue';
-import { useArtistVenues } from '@/relisten/realm/models/venue_repo';
-import { Link, useLocalSearchParams, useNavigation } from 'expo-router';
 import {
   FilterableList,
   FilterableListProps,
 } from '@/relisten/components/filtering/filterable_list';
-import { RelistenText } from '@/relisten/components/relisten_text';
-import Plur from '@/relisten/components/plur';
 import {
   Filter,
   FilteringOptions,
   FilteringProvider,
   SortDirection,
 } from '@/relisten/components/filtering/filters';
-import { useEffect } from 'react';
+import Flex from '@/relisten/components/flex';
+import Plur from '@/relisten/components/plur';
+import { RefreshContextProvider } from '@/relisten/components/refresh_context';
+import { RelistenText } from '@/relisten/components/relisten_text';
+import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
+import RowTitle from '@/relisten/components/row_title';
+import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
+import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
+import { Venue } from '@/relisten/realm/models/venue';
+import { useArtistVenues } from '@/relisten/realm/models/venue_repo';
 import { useGroupSegment } from '@/relisten/util/routes';
-import { SongFilterPersistenceKey } from '@/app/relisten/tabs/(artists,myLibrary)/[artistUuid]/songs';
+import { Link, useLocalSearchParams, useNavigation } from 'expo-router';
+import { useEffect } from 'react';
 
 export default function Page() {
   const navigation = useNavigation();

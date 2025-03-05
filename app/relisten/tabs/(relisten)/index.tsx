@@ -2,14 +2,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import * as fs from 'expo-file-system';
 
-import { RelistenText } from '@/relisten/components/relisten_text';
-import { RelistenButton } from '@/relisten/components/relisten_button';
-import { useRealm } from '@/relisten/realm/schema';
-import { DevSettings } from 'react-native';
-import { useEffect, useReducer, useState } from 'react';
 import Flex from '@/relisten/components/flex';
+import { RelistenButton } from '@/relisten/components/relisten_button';
+import { RelistenText } from '@/relisten/components/relisten_text';
 import { OFFLINE_DIRECTORY } from '@/relisten/realm/models/source_track';
+import { useRealm } from '@/relisten/realm/schema';
 import { Link } from 'expo-router';
+import { useEffect, useReducer, useState } from 'react';
+import { DevSettings } from 'react-native';
+import Settings from './Settings';
 
 const sizeFormatter = new Intl.NumberFormat([], {
   style: 'unit',
@@ -43,7 +44,7 @@ const useFileSystemInfo = () => {
         totalSizeOfRelistenDirectory: formatBytes(dirInfo.exists ? dirInfo.size : 0),
       });
     })();
-  }, [refreshState, setState]);
+  }, [refreshState]);
 
   return [state, refresh] as const;
 };
@@ -52,32 +53,47 @@ export default function Page() {
   const realm = useRealm();
   const [fileSystemInfo, refresh] = useFileSystemInfo();
 
+  // const play = () => {
+  //   player.play({ url: 'https://phish.in/audio/000/012/258/12258.mp3', identifier: '1' });
+  //   player.setNextStream({ url: 'https://phish.in/audio/000/012/259/12259.mp3', identifier: '2' });
+
+  //   // setTimeout(() => {
+  //   //   player.pause();
+  //   // }, 20000);
+  // };
+
   return (
-    <Flex column cn="gap-2 mt-8">
-      <Link
-        href={{
-          pathname: '/relisten/tabs/(relisten)/today' as const,
-        }}
-        asChild
-      >
-        <RelistenButton>Today in History</RelistenButton>
-      </Link>
-      <RelistenButton
-        onPress={async () => {
-          if ((await fs.getInfoAsync(OFFLINE_DIRECTORY)).exists) {
-            await fs.deleteAsync(OFFLINE_DIRECTORY);
-            refresh();
-          }
-          realm.beginTransaction();
-          realm.deleteAll();
-          realm.commitTransaction();
-          DevSettings.reload();
-        }}
-      >
-        Reset Realm Cache & Delete Local Files
-      </RelistenButton>
+    <SafeAreaView>
+      <Flex column cn="gap-2 mx-4">
+        <Link
+          href={{
+            pathname: '/relisten/tabs/(relisten)/today' as const,
+          }}
+          asChild
+        >
+          <RelistenButton>Today in History</RelistenButton>
+        </Link>
+        <RelistenButton
+          onPress={async () => {
+            if ((await fs.getInfoAsync(OFFLINE_DIRECTORY)).exists) {
+              await fs.deleteAsync(OFFLINE_DIRECTORY);
+              refresh();
+            }
+            realm.beginTransaction();
+            realm.deleteAll();
+            realm.commitTransaction();
+            DevSettings.reload();
+          }}
+        >
+          Reset Realm Cache & Delete Local Files
+        </RelistenButton>
+
+        <Settings />
+      </Flex>
 
       <RelistenText>{JSON.stringify(fileSystemInfo, null, 2)}</RelistenText>
-    </Flex>
+
+      {/* <RelistenText>{JSON.stringify(playbackState, null, 2)}</RelistenText> */}
+    </SafeAreaView>
   );
 }
