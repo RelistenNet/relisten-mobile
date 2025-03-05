@@ -13,6 +13,7 @@ export const unstable_settings = {
 const TITLES = {
   '(artists)': 'Artists',
   '(myLibrary)': 'My Library',
+  '(offline)': 'Offline',
 };
 
 export default function ArtistsLayout() {

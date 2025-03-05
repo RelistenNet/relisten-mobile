@@ -25,6 +25,10 @@ export const useGroupSegment = (fallback?: boolean): RelistenTabGroupSegment => 
   return group as RelistenTabGroupSegment;
 };
 
-export const useIsDownloadedTab = () => {
-  return false;
+export const useIsOfflineTab = () => {
+  const segments = useSegments();
+
+  const group = segments.at(2);
+
+  return group === '(offline)';
 };
