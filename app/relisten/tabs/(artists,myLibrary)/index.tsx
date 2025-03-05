@@ -27,7 +27,8 @@ import plur from 'plur';
 import React, { useEffect, useMemo } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import Realm from 'realm';
-import { YearFilterKey } from '@/app/relisten/tabs/(artists,myLibrary)/[artistUuid]';
+
+import { YearFilterKey } from '@/relisten/pages/artist/years_filters';
 
 const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) => {
   const nextRoute = useRoute('[artistUuid]');

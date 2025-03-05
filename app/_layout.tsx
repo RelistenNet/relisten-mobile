@@ -2,6 +2,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-get-random-values';
 import 'react-native-reanimated';
 import 'uuid';
+import 'react-native-svg';
 import { DefaultTheme } from '@react-navigation/native';
 
 import { Slot, SplashScreen, useNavigationContainerRef } from 'expo-router';

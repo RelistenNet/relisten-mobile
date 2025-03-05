@@ -52,7 +52,7 @@ function RecentlyPlayedShows() {
             show={show.show}
             key={show.show.uuid}
             sourceUuid={show.source.uuid}
-            cn="shrink basis-1/2 my-1"
+            className="my-1 shrink basis-1/2"
           />
         ))}
       </View>
