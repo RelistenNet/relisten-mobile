@@ -63,21 +63,32 @@ export class DownloadManager {
       return;
     }
 
+    let offlineInfo: SourceTrackOfflineInfo | undefined = sourceTrack.offlineInfo;
+
     realm.write(() => {
       const d = new Date();
 
-      const offlineInfo = new SourceTrackOfflineInfo(realm!, {
-        sourceTrackUuid: sourceTrack.uuid,
-        type: SourceTrackOfflineInfoType.StreamingCache,
-        queuedAt: d,
-        status: SourceTrackOfflineInfoStatus.Succeeded,
-        totalBytes,
-        downloadedBytes: totalBytes,
-        percent: 1,
-        completedAt: d,
-      });
+      if (!offlineInfo) {
+        offlineInfo = new SourceTrackOfflineInfo(realm!, {
+          sourceTrackUuid: sourceTrack.uuid,
+          type: SourceTrackOfflineInfoType.StreamingCache,
+          queuedAt: d,
+          status: SourceTrackOfflineInfoStatus.Succeeded,
+          totalBytes,
+          downloadedBytes: totalBytes,
+          percent: 1,
+          completedAt: d,
+        });
 
-      sourceTrack.offlineInfo = offlineInfo;
+        sourceTrack.offlineInfo = offlineInfo;
+      } else if (offlineInfo.status !== SourceTrackOfflineInfoStatus.Succeeded) {
+        // if it had been previously queued but streaming cache completed it mark it as completed
+        offlineInfo.status = SourceTrackOfflineInfoStatus.Succeeded;
+        offlineInfo.totalBytes = totalBytes;
+        offlineInfo.downloadedBytes = totalBytes;
+        offlineInfo.percent = 1;
+        offlineInfo.completedAt = d;
+      }
     });
   }
 
