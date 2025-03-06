@@ -29,7 +29,7 @@ import FlashMessage from 'react-native-flash-message';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { PlaybackHistoryReporterComponent } from '@/relisten/components/playback_history_reporter';
 import * as Sentry from '@sentry/react-native';
-
+import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
 import { LogBox } from 'react-native';
 
 // c.f. https://github.com/meliorence/react-native-render-html/issues/661#issuecomment-2453476566
@@ -40,6 +40,13 @@ dayjs.extend(relativeTime);
 dayjs.extend(localizedFormat);
 
 SplashScreen.preventAutoHideAsync();
+
+configureReanimatedLogger({
+  level: ReanimatedLogLevel.warn,
+  // re-enable when react-native-awesome-slider stops logging these continually:
+  // Reading from `value` during component render. Please ensure that you do not access the `value` property or use `get` method of a shared value while React is rendering a component.
+  strict: false, // Reanimated runs in strict mode by default
+});
 
 // Construct a new integration instance. This is needed to communicate between the integration and React
 const navigationIntegration = Sentry.reactNavigationIntegration({
