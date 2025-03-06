@@ -1,4 +1,4 @@
-import MyLibraryPage from '@/app/relisten/tabs/(artists,myLibrary)/myLibrary';
+import MyLibraryPage from '@/app/relisten/tabs/(artists,myLibrary,offline)/myLibrary';
 import {
   FilterableList,
   FilterableListProps,
@@ -21,7 +21,7 @@ import { SourceTrackSucceededIndicator } from '@/relisten/components/source/sour
 import { Artist } from '@/relisten/realm/models/artist';
 import { useArtistMetadata, useArtists } from '@/relisten/realm/models/artist_repo';
 import { useRemainingDownloads } from '@/relisten/realm/models/offline_repo';
-import { useGroupSegment, useIsDownloadedTab, useRoute } from '@/relisten/util/routes';
+import { useGroupSegment, useIsOfflineTab, useRoute } from '@/relisten/util/routes';
 import { Link } from 'expo-router';
 import plur from 'plur';
 import React, { useMemo } from 'react';
@@ -101,7 +101,7 @@ type ArtistsListProps = {
 } & Omit<FilterableListProps<Artist>, 'data' | 'renderItem'>;
 
 const ArtistsList = ({ artists, ...props }: ArtistsListProps) => {
-  const isDownloadedTab = useIsDownloadedTab();
+  const isOfflineTab = useIsOfflineTab();
 
   const sectionedArtists = useMemo<RelistenSectionData<Artist>>(() => {
     const r = [];
@@ -112,7 +112,7 @@ const ArtistsList = ({ artists, ...props }: ArtistsListProps) => {
 
     const favorites = all.filter((a) => a.isFavorite);
 
-    if (!isDownloadedTab) {
+    if (!isOfflineTab) {
       if (favorites.length > 0) {
         r.push({
           sectionTitle: 'Favorites',
@@ -146,7 +146,7 @@ const ArtistsList = ({ artists, ...props }: ArtistsListProps) => {
 export default function Page() {
   const results = useArtists();
   const groupSegment = useGroupSegment();
-  const isDownloadedTab = useIsDownloadedTab();
+  const isOfflineTab = useIsOfflineTab();
   const { data: artists } = results;
 
   const downloads = useRemainingDownloads();
@@ -172,7 +172,7 @@ export default function Page() {
         )}
 
         {/* eslint-disable-next-line no-undef */}
-        {!isDownloadedTab && __DEV__ && (
+        {!isOfflineTab && __DEV__ && (
           <View>
             <Link
               href={{

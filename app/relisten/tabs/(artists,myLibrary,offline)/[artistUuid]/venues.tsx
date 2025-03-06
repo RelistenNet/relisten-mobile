@@ -21,7 +21,7 @@ import {
 } from '@/relisten/components/filtering/filters';
 import { useEffect } from 'react';
 import { useGroupSegment } from '@/relisten/util/routes';
-import { SongFilterPersistenceKey } from '@/app/relisten/tabs/(artists,myLibrary)/[artistUuid]/songs';
+import { SongFilterPersistenceKey } from '@/app/relisten/tabs/(artists,myLibrary,offline)/[artistUuid]/songs';
 
 export default function Page() {
   const navigation = useNavigation();

@@ -7,9 +7,14 @@ import { Image } from 'react-native';
 import 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { useRemainingDownloads } from '@/relisten/realm/models/offline_repo';
+import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
+import { ShowOfflineTabSetting } from '@/relisten/realm/models/user_settings';
+import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 
 export default function TabLayout() {
   const downloads = useRemainingDownloads();
+  const settings = useUserSettings();
+  const offline = !useShouldMakeNetworkRequests();
 
   return (
     <>
@@ -28,6 +33,8 @@ export default function TabLayout() {
               return <MaterialCommunityIcons name={iconName as any} size={size} color={color} />;
             } else if (route.name === '(myLibrary)') {
               return <MaterialIcons name="library-music" size={size} color={color} />;
+            } else if (route.name === '(offline)') {
+              return <MaterialIcons name="check-circle" size={size} color={color} />;
             }
 
             return (
@@ -50,6 +57,21 @@ export default function TabLayout() {
           options={{
             title: 'My Library',
             tabBarBadge: downloads.length === 0 ? undefined : downloads.length,
+          }}
+        />
+
+        <Tabs.Screen
+          name="(offline)"
+          options={{
+            title: 'Offline',
+            tabBarItemStyle: {
+              display:
+                settings?.showOfflineTabWithDefault() === ShowOfflineTabSetting.Always ||
+                (settings?.showOfflineTabWithDefault() === ShowOfflineTabSetting.WhenOffline &&
+                  offline)
+                  ? 'flex'
+                  : 'none',
+            },
           }}
         />
 

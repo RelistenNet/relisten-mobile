@@ -1,7 +1,7 @@
 import React from 'react';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useRelistenApi } from '@/relisten/api/context';
-import { useGroupSegment, useIsDownloadedTab, useRoute } from '@/relisten/util/routes';
+import { useGroupSegment, useIsOfflineTab, useRoute } from '@/relisten/util/routes';
 import { useRouter } from 'expo-router';
 import { useArtistMetadata } from '@/relisten/realm/models/artist_repo';
 import { View } from 'react-native';
@@ -14,7 +14,7 @@ export const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => 
   const { apiClient } = useRelistenApi();
   const currentRoute = useRoute();
   const router = useRouter();
-  const isDownloadedTab = useIsDownloadedTab();
+  const isOfflineTab = useIsOfflineTab();
   const groupSegment = useGroupSegment(true);
   const metadata = useArtistMetadata(artist);
 
@@ -54,7 +54,7 @@ export const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => 
             <Plur word="tape" count={metadata.sources} />
           </RelistenText>
         </View>
-        {!isDownloadedTab && (
+        {!isOfflineTab && (
           <ArtistActionButtons
             currentRoute={currentRoute}
             artist={artist}

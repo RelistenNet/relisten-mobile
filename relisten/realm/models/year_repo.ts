@@ -2,7 +2,7 @@ import { Repository } from '../repository';
 import { useObject, useQuery } from '../schema';
 import { Year } from './year';
 
-import { useIsDownloadedTab } from '@/relisten/util/routes';
+import { useIsOfflineTab } from '@/relisten/util/routes';
 import { useMemo } from 'react';
 import Realm from 'realm';
 import * as R from 'remeda';
@@ -135,14 +135,14 @@ export const useArtistYearShows = (artistUuid: string, yearUuid: string) => {
 };
 
 export const useYearMetadata = (year?: Year | null) => {
-  const isDownloadedTab = useIsDownloadedTab();
+  const isOfflineTab = useIsOfflineTab();
   const shows = useRealmTabsFilter(useQuery(Show).filtered('yearUuid = $0', year?.uuid));
 
   if (!year) {
     return { shows: undefined, sources: undefined };
   }
 
-  if (isDownloadedTab) {
+  if (isOfflineTab) {
     const sources = shows.reduce((memo, next) => next.sourceCount + memo, 0);
 
     return { shows: shows.length, sources };
