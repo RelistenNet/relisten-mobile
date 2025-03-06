@@ -35,6 +35,8 @@ import { useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DisclosureIndicator } from '@/relisten/components/disclosure_indicator';
 import * as Progress from 'react-native-progress';
+import ReorderableList, { useReorderableDrag } from 'react-native-reorderable-list';
+import { ReorderableListReorderEvent } from 'react-native-reorderable-list/src/types/props';
 
 export function ScrubberRow() {
   const progressObj = useNativePlaybackProgress();
@@ -261,6 +263,7 @@ function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; 
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
   const isPlayingThisTrack = currentPlayerTrack?.identifier == queueTrack.identifier;
   const playbackState = useRelistenPlayerPlaybackState();
+  const drag = useReorderableDrag();
   const sourceTrack = queueTrack.sourceTrack;
 
   const artist = sourceTrack.artist;
@@ -312,7 +315,11 @@ function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; 
     .join(' · ');
 
   return (
-    <TouchableOpacity className="flex flex-row items-start px-4" onPress={onPress}>
+    <TouchableOpacity
+      className="flex flex-row items-start px-4"
+      onPress={onPress}
+      onLongPress={drag}
+    >
       <View className="shrink flex-col">
         <View className="w-full grow flex-row items-center justify-between">
           <Flex column className="shrink py-3 pr-2">
@@ -325,17 +332,23 @@ function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; 
                   />
                 </View>
               )}
-              <RelistenText className="shrink text-lg">{sourceTrack.title}</RelistenText>
+              <RelistenText className="shrink text-lg" selectable={false}>
+                {sourceTrack.title}
+              </RelistenText>
               <SourceTrackOfflineIndicator offlineInfo={sourceTrack.offlineInfo} />
             </Flex>
             {subtitle.length > 0 && (
-              <RelistenText className="pt-1 text-sm text-gray-400" numberOfLines={2}>
+              <RelistenText
+                className="pt-1 text-sm text-gray-400"
+                numberOfLines={2}
+                selectable={false}
+              >
                 {subtitle}
               </RelistenText>
             )}
           </Flex>
           <View className="grow"></View>
-          <RelistenText className="py-3 text-base text-gray-400">
+          <RelistenText className="py-3 text-base text-gray-400" selectable={false}>
             {sourceTrack.humanizedDuration}
           </RelistenText>
           <TouchableOpacity className="shrink-0 grow-0 py-3 pl-4" onPress={onDotsPress}>
@@ -365,10 +378,15 @@ function PlayerQueue() {
     }
   });
 
+  const onReorder = ({ from, to }: ReorderableListReorderEvent) => {
+    player.queue.moveQueueTrack(from, to);
+  };
+
   return (
     <View className="flex-1">
-      <FlatList
+      <ReorderableList
         ref={flatlistRef as unknown as LegacyRef<FlatList<PlayerQueueTrack>>}
+        onReorder={onReorder}
         className="w-full flex-1"
         data={orderedQueueTracks}
         // onDragEnd={({ data }) => player.queue.reorderQueue(data.map((q) => q.sourceTrack))}
@@ -382,10 +400,10 @@ function PlayerQueue() {
         )}
         onScrollToIndexFailed={(info) => {
           setTimeout(() => {
-            flatlistRef.current?.scrollToIndex({ index: info.index, animated: true });
-          }, 100);
+            flatlistRef.current?.scrollToIndex({ index: info.index, animated: false });
+          }, 0);
         }}
-      ></FlatList>
+      ></ReorderableList>
     </View>
   );
 }

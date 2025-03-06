@@ -175,6 +175,25 @@ export class RelistenPlayerQueue {
     this.savePlayerState();
   }
 
+  moveQueueTrack(from: number, to: number) {
+    function reorderItems<T>(data: T[], from: number, to: number): T[] {
+      const newData = [...data];
+      newData.splice(to, 0, newData.splice(from, 1)[0]);
+      return newData;
+    }
+
+    // if in a shuffled state,
+    if (this.shuffleState == PlayerShuffleState.SHUFFLE_ON) {
+      this.shuffledTracks = reorderItems(this.shuffledTracks, from, to);
+    } else {
+      this.originalTracks = reorderItems(this.originalTracks, from, to);
+    }
+
+    this.recalculateNextTrack();
+    this.onOrderedTracksChanged.dispatch(this.orderedTracks);
+    this.savePlayerState();
+  }
+
   replaceQueue(newQueue: PlayerQueueTrack[], playingTrackAtIndex: number | undefined) {
     this.originalTracks = [...newQueue];
     this.originalTracksCurrentIndex = undefined;
