@@ -24,13 +24,12 @@ import useCacheAssets from './useCacheAssets';
 import { RelistenPlayerProvider } from '@/relisten/player/relisten_player_hooks';
 import { RelistenPlayerBottomBarProvider } from '@/relisten/player/ui/player_bottom_bar';
 import { ActionSheetProvider } from '@expo/react-native-action-sheet';
-import { DownloadManager } from '@/relisten/offline/download_manager';
 import FlashMessage from 'react-native-flash-message';
-import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { PlaybackHistoryReporterComponent } from '@/relisten/components/playback_history_reporter';
 import * as Sentry from '@sentry/react-native';
 import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
 import { LogBox } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 
 // c.f. https://github.com/meliorence/react-native-render-html/issues/661#issuecomment-2453476566
 LogBox.ignoreLogs([/Support for defaultProps will be removed/]);
@@ -53,16 +52,22 @@ const navigationIntegration = Sentry.reactNavigationIntegration({
   enableTimeToInitialDisplay: true,
 });
 
-Sentry.init({
-  dsn: 'https://11ea7022f688b7e51be3d304533ae364@o4508928035717120.ingest.us.sentry.io/4508928038404096',
-  debug: __DEV__, // If `true`, Sentry will try to print out useful debugging information if something goes wrong with sending the event. Set it to `false` in production
-  tracesSampleRate: 1.0, // Set tracesSampleRate to 1.0 to capture 100% of transactions for tracing. Adjusting this value in production.
-  integrations: [
-    // Pass integration
-    navigationIntegration,
-  ],
-  enableNativeFramesTracking: true, // Tracks slow and frozen frames in the application
-});
+if (!__DEV__) {
+  Sentry.init({
+    dsn: 'https://11ea7022f688b7e51be3d304533ae364@o4508928035717120.ingest.us.sentry.io/4508928038404096',
+    debug: __DEV__, // If `true`, Sentry will try to print out useful debugging information if something goes wrong with sending the event. Set it to `false` in production
+    tracesSampleRate: 1.0, // Set tracesSampleRate to 1.0 to capture 100% of transactions for tracing. Adjusting this value in production.
+    integrations: [
+      // Pass integration
+      navigationIntegration,
+      Sentry.feedbackIntegration({
+        // @ts-expect-error sentry's typing is off
+        imagePicker: ImagePicker,
+      }),
+    ],
+    enableNativeFramesTracking: true, // Tracks slow and frozen frames in the application
+  });
+}
 
 function TabLayout() {
   const realmRef = useRef<Realm | null>(null);
@@ -73,8 +78,6 @@ function TabLayout() {
 
   const isAppReady = useCacheAssets();
 
-  const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
-
   useEffect(() => {
     if (realmRef.current) {
       setRealm(realmRef.current);
@@ -82,17 +85,6 @@ function TabLayout() {
       setRealm(undefined);
     }
   }, [realmRef.current]);
-
-  useEffect(() => {
-    if (shouldMakeNetworkRequests) {
-      setTimeout(() => {
-        // wait a few seconds before resume downloads to prevent doing too much right at app launch
-        DownloadManager.SHARED_INSTANCE.resumeExistingDownloads().then(() => {});
-      }, 5000);
-    }
-  }, [shouldMakeNetworkRequests]);
-
-  useEffect(() => {}, []);
 
   useEffect(() => {
     if (!navigation?.isReady()) return;

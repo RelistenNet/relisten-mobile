@@ -34,9 +34,9 @@ export type RelistenSectionListProps<T> = Omit<
   pullToRefresh?: boolean;
 };
 
-export const FAKE_SENTINAL = '__FAKE__';
-export const LOADING_SENTINAL = '__LOADING__';
-export const ERROR_SENTINAL = '__ERROR__';
+export const FAKE_SENTINEL = '__FAKE__';
+export const LOADING_SENTINEL = '__LOADING__';
+export const ERROR_SENTINEL = '__ERROR__';
 
 export const RelistenSectionList = <T extends RelistenObject>({
   data,
@@ -61,11 +61,11 @@ export const RelistenSectionList = <T extends RelistenObject>({
     }
 
     if (refreshing) {
-      internalData.push({ sectionTitle: FAKE_SENTINAL });
-      internalData.push({ sectionTitle: LOADING_SENTINAL });
+      internalData.push({ sectionTitle: FAKE_SENTINEL });
+      internalData.push({ sectionTitle: LOADING_SENTINEL });
     } else if (errors && errors.length && !(data && data.length > 1 && data[1].data.length > 0)) {
-      internalData.push({ sectionTitle: FAKE_SENTINAL });
-      internalData.push({ sectionTitle: ERROR_SENTINAL });
+      internalData.push({ sectionTitle: FAKE_SENTINEL });
+      internalData.push({ sectionTitle: ERROR_SENTINEL });
 
       // always allow pull to refresh if we got an error. refreshing might fix it.
       pullToRefresh = true;
@@ -132,10 +132,10 @@ export const RelistenSectionList = <T extends RelistenObject>({
           if (props.item.sectionTitle === 'ListHeaderComponent') {
             return ListHeaderComponent as ReactElement;
           }
-          if (props.item.sectionTitle === FAKE_SENTINAL) {
+          if (props.item.sectionTitle === FAKE_SENTINEL) {
             return null;
           }
-          if (props.item.sectionTitle === LOADING_SENTINAL) {
+          if (props.item.sectionTitle === LOADING_SENTINEL) {
             return (
               <View className="w-full p-4">
                 <ListContentLoader
@@ -145,7 +145,7 @@ export const RelistenSectionList = <T extends RelistenObject>({
               </View>
             );
           }
-          if (props.item.sectionTitle === ERROR_SENTINAL) {
+          if (props.item.sectionTitle === ERROR_SENTINEL) {
             return (
               <View className="w-full p-4">
                 <RelistenErrors errors={errors} />

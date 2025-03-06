@@ -85,13 +85,13 @@ export class PlayerQueueTrack {
     );
   }
 
-  toStreamable(): RelistenStreamable {
+  toStreamable(allowStreamingCache: boolean): RelistenStreamable {
     let url = this.sourceTrack.mp3Url;
     let downloadDestination: string | undefined = undefined;
 
     if (this.sourceTrack.offlineInfo?.isPlayableOffline()) {
       url = 'file://' + this.sourceTrack.downloadedFileLocation();
-    } else {
+    } else if (allowStreamingCache) {
       downloadDestination = 'file://' + this.sourceTrack.downloadedFileLocation();
     }
 
@@ -381,7 +381,7 @@ ${indentString(tracks)}
       this.player.playbackIntentStarted
     ) {
       if (newNextTrack) {
-        nativePlayer.setNextStream(newNextTrack.toStreamable());
+        nativePlayer.setNextStream(newNextTrack.toStreamable(this.player.enableStreamingCache));
       } else {
         nativePlayer.setNextStream(undefined);
       }

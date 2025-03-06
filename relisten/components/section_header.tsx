@@ -1,8 +1,7 @@
 import { View, ViewProps } from 'react-native';
 import React, { PropsWithChildren } from 'react';
 import { RelistenText } from './relisten_text';
-import clsx from 'clsx';
-import { tw } from "@/relisten/util/tw";
+import { tw } from '@/relisten/util/tw';
 
 export const SectionHeader: React.FC<PropsWithChildren<{ title?: string } & ViewProps>> = ({
   title,

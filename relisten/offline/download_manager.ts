@@ -199,6 +199,18 @@ export class DownloadManager {
     }
   }
 
+  async removeAllDownloads() {
+    await this.removeAllPendingDownloads();
+
+    if (realm) {
+      const offlineInfos = realm.objects(SourceTrackOfflineInfo);
+
+      for (const offlineInfo of offlineInfos) {
+        await this.removeDownload(offlineInfo.sourceTrack);
+      }
+    }
+  }
+
   async retryFailedDownloads() {
     if (realm) {
       const offlineInfos = realm

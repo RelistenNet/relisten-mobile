@@ -3,7 +3,8 @@ import { log } from '@/relisten/util/logging';
 import { WebRewriteLoader } from '@/relisten/components/web_rewrite_loader';
 import { useEffect } from 'react';
 import { useRelistenApi } from '@/relisten/api/context';
-import { assert } from 'realm/dist/assert';
+import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
+import { AutoplayDeepLinkToTrackSetting } from '@/relisten/realm/models/user_settings';
 
 const logger = log.extend('deep-links');
 
@@ -11,6 +12,7 @@ export default function Page() {
   const { artistSlug, year, month, day, trackSlug, source: sourceId } = useLocalSearchParams();
   const router = useRouter();
   const { apiClient } = useRelistenApi();
+  const userSettings = useUserSettings();
 
   useEffect(() => {
     (async () => {
@@ -63,15 +65,22 @@ export default function Page() {
         logger.error(`Did not find a track matching ${trackSlug}`);
       }
 
+      const autoplay =
+        userSettings.autoplayDeepLinkToTrackWithDefault() ===
+        AutoplayDeepLinkToTrackSetting.PlayTrack;
+
       setTimeout(() => {
         const newPath =
           '/relisten/tabs/(artists)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/';
-        const params = {
+        const params: Record<string, string> = {
           artistUuid: showData.artist_uuid,
           showUuid: showData.uuid,
           sourceUuid: sourceUuid || 'initial',
-          playTrackUuid: trackUuid,
         };
+
+        if (autoplay && trackUuid) {
+          params['playTrackUuid'] = trackUuid;
+        }
 
         logger.info(`redirecting to ${newPath} ${JSON.stringify(params)}`);
 

@@ -1,6 +1,8 @@
 import React, { PropsWithChildren, useContext, useEffect, useState } from 'react';
 import { RelistenPlayer, RelistenPlayerReportTrackEvent } from '@/relisten/player/relisten_player';
 import { useRealm } from '@/relisten/realm/schema';
+import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
+import { AutocacheStreamedMusicSetting } from '@/relisten/realm/models/user_settings';
 
 export interface RelistenPlayerProps {
   player: RelistenPlayer;
@@ -12,12 +14,18 @@ export const RelistenPlayerContext = React.createContext<RelistenPlayerProps>({
 export const RelistenPlayerProvider = ({ children }: PropsWithChildren<object>) => {
   const player = RelistenPlayer.DEFAULT_INSTANCE;
   const realm = useRealm();
+  const userSettings = useUserSettings();
 
   useEffect(() => {
     if (realm) {
       player.queue.restorePlayerState(realm).then(() => {});
     }
   }, [player, realm]);
+
+  useEffect(() => {
+    player.enableStreamingCache =
+      userSettings.autocacheStreamedMusicWithDefault() == AutocacheStreamedMusicSetting.Always;
+  }, [player, userSettings.autocacheStreamedMusicWithDefault()]);
 
   return (
     <RelistenPlayerContext.Provider value={{ player }}>{children}</RelistenPlayerContext.Provider>

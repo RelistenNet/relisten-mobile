@@ -22,13 +22,11 @@ import { Artist } from '@/relisten/realm/models/artist';
 import { useArtistMetadata, useArtists } from '@/relisten/realm/models/artist_repo';
 import { useRemainingDownloads } from '@/relisten/realm/models/offline_repo';
 import { useGroupSegment, useIsDownloadedTab, useRoute } from '@/relisten/util/routes';
-import { Link, useNavigation } from 'expo-router';
+import { Link } from 'expo-router';
 import plur from 'plur';
-import React, { useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import Realm from 'realm';
-
-import { YearFilterKey } from '@/relisten/pages/artist/years_filters';
 
 const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) => {
   const nextRoute = useRoute('[artistUuid]');

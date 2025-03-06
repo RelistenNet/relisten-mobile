@@ -14,6 +14,7 @@ import { Song } from './models/song';
 import { SourceTrackOfflineInfo } from '@/relisten/realm/models/source_track_offline_info';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { PlayerState } from '@/relisten/realm/models/player_state';
+import { UserSettings } from '@/relisten/realm/models/user_settings';
 
 // uncomment to show realm queries (measured in microseconds):
 // Realm.setLogLevel('debug');
@@ -34,8 +35,9 @@ const realmConfig: Realm.Configuration = {
     SourceTrackOfflineInfo,
     PlaybackHistoryEntry,
     PlayerState,
+    UserSettings,
   ],
-  schemaVersion: 4,
+  schemaVersion: 5,
 };
 
 export const { RealmProvider, useRealm, useObject, useQuery } = createRealmContext(realmConfig);

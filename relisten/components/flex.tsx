@@ -11,7 +11,15 @@ export interface FlexProps {
   children?: React.ReactNode;
 }
 
-const Flex = ({ cn, center, column, as = View, full, ...props }: ViewProps & FlexProps) => {
+const Flex = ({
+  cn,
+  className,
+  center,
+  column,
+  as = View,
+  full,
+  ...props
+}: ViewProps & FlexProps) => {
   const Comp = as;
 
   return (
@@ -26,7 +34,8 @@ const Flex = ({ cn, center, column, as = View, full, ...props }: ViewProps & Fle
           'items-center': center,
           'w-full': full,
         },
-        cn
+        cn,
+        className
       )}
     />
   );

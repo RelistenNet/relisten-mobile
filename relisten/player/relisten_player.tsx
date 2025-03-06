@@ -21,6 +21,8 @@ import { DownloadManager } from '@/relisten/offline/download_manager';
 import { showMessage } from 'react-native-flash-message';
 import { log } from '@/relisten/util/logging';
 import { indentString } from '@/relisten/util/string_indent';
+import { realm } from '@/relisten/realm/schema';
+import { UserSettings } from '@/relisten/realm/models/user_settings';
 
 const logger = log.extend('player');
 
@@ -51,6 +53,7 @@ export class RelistenPlayer {
   onStateChanged = new EventSource<RelistenPlaybackState>();
   onShouldReportTrack = new EventSource<RelistenPlayerReportTrackEvent>();
 
+  public enableStreamingCache: boolean = true;
   public playbackIntentStarted: boolean = false;
   // When true, it means the native player should be fully initialized
   public initialPlaybackStarted: boolean = false;
@@ -109,9 +112,10 @@ export class RelistenPlayer {
         state.setState(RelistenPlaybackState.Stalled);
       }
     }, 250) as unknown as number;
+
     nativePlayer
       .play(
-        this.queue.orderedTracks[newIndex].toStreamable(),
+        this.queue.orderedTracks[newIndex].toStreamable(this.enableStreamingCache),
         seekToTime !== undefined ? seekToTime * 1000.0 : undefined
       )
       .then(() => {});
