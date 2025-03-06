@@ -20,7 +20,6 @@
       "**/*"
     ],
     "ios": {
-      "googleServicesFile": "./firebase/GoogleService-Info.plist",
       "associatedDomains": ["applinks:relisten.net"],
       "supportsTablet": true,
       "bundleIdentifier": "com.alecgorge.ios.Listen-to-the-Dead",
@@ -32,7 +31,6 @@
       "buildNumber": "6006"
     },
     "android": {
-      "googleServicesFile": "./firebase/google-services.json",
       "intentFilters": [
         {
           "action": "VIEW",
@@ -83,9 +81,7 @@
           }
         }
       ],
-      "expo-asset",
-      "@react-native-firebase/app",
-      "@react-native-firebase/crashlytics"
+      "expo-asset"
     ],
     "extra": {
       "router": {

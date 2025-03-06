@@ -16,8 +16,6 @@
     "@kesha-antonov/react-native-background-downloader": "^3.2.2",
     "@react-native-community/netinfo": "11.4.1",
     "@react-native-community/slider": "4.5.6",
-    "@react-native-firebase/app": "^21.6.1",
-    "@react-native-firebase/crashlytics": "21.10.1",
     "@realm/react": "^0.11.0",
     "@shopify/flash-list": "1.7.3",
     "@switz/driver": "^0.10.0",
