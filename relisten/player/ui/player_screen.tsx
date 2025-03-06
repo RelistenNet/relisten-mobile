@@ -118,6 +118,7 @@ function CurrentTrackInfo() {
 
   const artist = currentPlayerTrack?.sourceTrack?.artist;
   const show = currentPlayerTrack?.sourceTrack?.show;
+  const source = currentPlayerTrack?.sourceTrack?.source;
 
   const onDotsPress = useCallback(() => {
     if (!artist || !show) {
@@ -151,7 +152,7 @@ function CurrentTrackInfo() {
               params: {
                 artistUuid: artist.uuid,
                 showUuid: show.uuid,
-                sourceUuid: 'initial',
+                sourceUuid: source?.uuid || 'initial',
               },
             });
             break;
@@ -161,7 +162,7 @@ function CurrentTrackInfo() {
         }
       }
     );
-  }, [artist, router, show]);
+  }, [artist, router, show, source]);
 
   if (currentPlayerTrack === undefined || artist === undefined || show === undefined) {
     return <></>;

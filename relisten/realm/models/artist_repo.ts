@@ -69,3 +69,32 @@ export function useArtist(
 
   return { ...artists, data: artist };
 }
+
+export function useArtistBySlug(
+  artistSlug?: string,
+  options?: NetworkBackedBehaviorOptions
+): NetworkBackedResults<Artist | null> {
+  // memoize to prevent trying a new request each time the options "change"
+  const memoOptions = useMemo(() => {
+    return {
+      fetchStrategy: NetworkBackedBehaviorFetchStrategy.NetworkOnlyIfLocalIsNotShowable,
+      ...options,
+    };
+  }, [options]);
+
+  const artists = useArtists(memoOptions);
+
+  const artistQuery = useMemo(() => {
+    return artists.data.filtered('slug == $0', artistSlug);
+  }, [artists.data, artistSlug]);
+
+  const artist = useMemo(() => {
+    if (artistQuery.length > 0) {
+      return artistQuery[0];
+    }
+
+    return null;
+  }, [artistQuery]);
+
+  return { ...artists, data: artist };
+}

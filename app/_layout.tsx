@@ -3,7 +3,7 @@ import 'react-native-get-random-values';
 import 'react-native-reanimated';
 import 'uuid';
 import 'react-native-svg';
-import { DefaultTheme } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 
 import { Slot, SplashScreen, useNavigationContainerRef } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -12,7 +12,6 @@ import { Realm } from '@realm/react';
 import { RelistenApiProvider } from '@/relisten/api/context';
 import { RealmProvider, setRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
-import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 
 import dayjs from 'dayjs';

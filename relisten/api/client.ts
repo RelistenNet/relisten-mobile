@@ -260,6 +260,14 @@ export class RelistenApiClient {
     return this.getJson(`/v3/shows/${showUuid}`, options);
   }
 
+  public showWithSourcesOnDate(
+    artistIdOrSlug: string,
+    showDate: string,
+    options?: RelistenApiRequestOptions
+  ): Promise<RelistenApiResponse<ShowWithSources>> {
+    return this.getJson(`/v2/artists/${artistIdOrSlug}/shows/${showDate}`, options);
+  }
+
   public sourceReviews(
     sourceUuid: string,
     options?: RelistenApiRequestOptions

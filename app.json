@@ -21,6 +21,7 @@
     ],
     "ios": {
       "googleServicesFile": "./firebase/GoogleService-Info.plist",
+      "associatedDomains": ["applinks:relisten.net"],
       "supportsTablet": true,
       "bundleIdentifier": "com.alecgorge.ios.Listen-to-the-Dead",
       "infoPlist": {
@@ -32,6 +33,25 @@
     },
     "android": {
       "googleServicesFile": "./firebase/google-services.json",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "*.relisten.net",
+              "pathPrefix": "/"
+            },
+            {
+              "scheme": "https",
+              "host": "relisten.net",
+              "pathPrefix": "/"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/ic_foreground.png",
         "backgroundImage": "./assets/ic_background.png",
@@ -55,7 +75,7 @@
         "expo-build-properties",
         {
           "android": {
-            "compileSdkVersion": 34,
+            "compileSdkVersion": 35,
             "minSdkVersion": 30
           },
           "ios": {

@@ -42,6 +42,9 @@ export interface SlimSource {
   duration?: number;
   upstream_identifier: string;
   uuid: string;
+
+  // only used for deep-linking
+  id: string;
 }
 
 export interface Source extends SlimSource {

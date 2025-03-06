@@ -27,6 +27,13 @@
         <data android:scheme="relisten"/>
         <data android:scheme="net.relisten.android"/>
       </intent-filter>
+      <intent-filter android:autoVerify="true" data-generated="true">
+        <action android:name="android.intent.action.VIEW"/>
+        <data android:scheme="https" android:host="*.relisten.net" android:pathPrefix="/"/>
+        <data android:scheme="https" android:host="relisten.net" android:pathPrefix="/"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+      </intent-filter>
     </activity>
   </application>
 </manifest>

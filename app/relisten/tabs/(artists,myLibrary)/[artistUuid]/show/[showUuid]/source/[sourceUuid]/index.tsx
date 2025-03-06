@@ -13,7 +13,7 @@ import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useForceUpdate } from '@/relisten/util/forced_update';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Link, useLocalSearchParams, useNavigation } from 'expo-router';
-import React, { PropsWithChildren, useCallback, useEffect } from 'react';
+import React, { PropsWithChildren, useCallback, useEffect, useState } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import { Animated, ScrollViewProps, TouchableOpacity, View } from 'react-native';
 import * as R from 'remeda';
@@ -55,7 +55,8 @@ export default function Page() {
   const realm = useRealm();
   const navigation = useNavigation();
   const player = useRelistenPlayer();
-  const { showUuid, sourceUuid } = useLocalSearchParams();
+  const { showUuid, sourceUuid, playTrackUuid } = useLocalSearchParams();
+  const [hasAutoplayed, setHasAutoplayed] = useState(false);
 
   const { results, show, artist, selectedSource } = useFullShowWithSelectedSource(
     String(showUuid),
@@ -95,7 +96,6 @@ export default function Page() {
   };
 
   const onDotsPress = useCallback(() => {
-    console.log('@alecgorge onDotsPress');
     if (!show) {
       return;
     }
@@ -149,6 +149,22 @@ export default function Page() {
       ),
     });
   }, [show]);
+
+  useEffect(() => {
+    if (!selectedSource || hasAutoplayed) {
+      return;
+    }
+
+    for (const track of selectedSource.allSourceTracks()) {
+      if (track.uuid === playTrackUuid) {
+        playShow(track);
+
+        // Prevent autoplaying again if they switch sources and switch back
+        setHasAutoplayed(true);
+        break;
+      }
+    }
+  }, [show, playTrackUuid, playShow, selectedSource, setHasAutoplayed]);
 
   return (
     <RefreshContextProvider
