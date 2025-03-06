@@ -28,6 +28,7 @@ import { DownloadManager } from '@/relisten/offline/download_manager';
 import FlashMessage from 'react-native-flash-message';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { PlaybackHistoryReporterComponent } from '@/relisten/components/playback_history_reporter';
+import * as Sentry from '@sentry/react-native';
 
 import { LogBox } from 'react-native';
 
@@ -40,7 +41,23 @@ dayjs.extend(localizedFormat);
 
 SplashScreen.preventAutoHideAsync();
 
-export default function TabLayout() {
+// Construct a new integration instance. This is needed to communicate between the integration and React
+const navigationIntegration = Sentry.reactNavigationIntegration({
+  enableTimeToInitialDisplay: true,
+});
+
+Sentry.init({
+  dsn: 'https://11ea7022f688b7e51be3d304533ae364@o4508928035717120.ingest.us.sentry.io/4508928038404096',
+  debug: __DEV__, // If `true`, Sentry will try to print out useful debugging information if something goes wrong with sending the event. Set it to `false` in production
+  tracesSampleRate: 1.0, // Set tracesSampleRate to 1.0 to capture 100% of transactions for tracing. Adjusting this value in production.
+  integrations: [
+    // Pass integration
+    navigationIntegration,
+  ],
+  enableNativeFramesTracking: true, // Tracks slow and frozen frames in the application
+});
+
+function TabLayout() {
   const realmRef = useRef<Realm | null>(null);
 
   const navigation = useNavigationContainerRef();
@@ -89,6 +106,12 @@ export default function TabLayout() {
     }
   }, [isAppReady, isNavigationReady, hasRootViewLayoutFinished]);
 
+  useEffect(() => {
+    if (navigation?.current) {
+      navigationIntegration.registerNavigationContainer(navigation);
+    }
+  }, [navigation]);
+
   return (
     <RealmProvider realmRef={realmRef} closeOnUnmount={false}>
       <RelistenApiProvider>
@@ -124,3 +147,6 @@ export default function TabLayout() {
     </RealmProvider>
   );
 }
+
+// Wrap the Root Layout route component with `Sentry.wrap` to capture gesture info and profiling data.
+export default Sentry.wrap(TabLayout);

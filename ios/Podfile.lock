@@ -1894,6 +1894,29 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
+  - RNSentry (6.3.0):
+    - DoubleConversion
+    - glog
+    - hermes-engine
+    - RCT-Folly (= 2024.11.18.00)
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-hermes
+    - React-ImageManager
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - Sentry/HybridSDK (= 8.41.0)
+    - Yoga
   - RNSVG (15.8.0):
     - DoubleConversion
     - glog
@@ -1937,6 +1960,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
+  - Sentry/HybridSDK (8.41.0)
   - SocketRocket (0.7.1)
   - Yoga (0.0.0)
 
@@ -2037,6 +2061,7 @@ DEPENDENCIES:
   - RNGestureHandler (from `../node_modules/react-native-gesture-handler`)
   - RNReanimated (from `../node_modules/react-native-reanimated`)
   - RNScreens (from `../node_modules/react-native-screens`)
+  - "RNSentry (from `../node_modules/@sentry/react-native`)"
   - RNSVG (from `../node_modules/react-native-svg`)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
 
@@ -2045,6 +2070,7 @@ SPEC REPOS:
     - lottie-ios
     - MMKV
     - MMKVCore
+    - Sentry
     - SocketRocket
 
 EXTERNAL SOURCES:
@@ -2237,6 +2263,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-reanimated"
   RNScreens:
     :path: "../node_modules/react-native-screens"
+  RNSentry:
+    :path: "../node_modules/@sentry/react-native"
   RNSVG:
     :path: "../node_modules/react-native-svg"
   Yoga:
@@ -2340,7 +2368,9 @@ SPEC CHECKSUMS:
   RNGestureHandler: 75a1894590b15c560094c2b09c5dce6a64eefa29
   RNReanimated: 5c268cff742e86416974907d8596b173683e9ce6
   RNScreens: 6ce56b0e106dc2cffa856e9abdaf0f0fe356f93a
+  RNSentry: 9c176055cf2a943ad76dd40b11f26903016ea46e
   RNSVG: 575e518e8e550511e7c1572513d841bc7a6cbce4
+  Sentry: 54d0fe6c0df448497c8ed4cce66ccf7027e1823e
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   Yoga: 28b8cda182ee3092ff80203da66dcb3ffc8cf401
 
