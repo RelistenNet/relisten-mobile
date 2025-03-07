@@ -7,7 +7,6 @@ import {
   RelistenApiResponseType,
 } from '../api/client';
 import { useRelistenApi } from '../api/context';
-import { log } from '../util/logging';
 import {
   NetworkBackedBehavior,
   NetworkBackedBehaviorFetchStrategy,

@@ -112,6 +112,14 @@ export class SourceTrack
     return `${OFFLINE_DIRECTORY}/${this.uuid}.mp3`;
   }
 
+  playable(shouldMakeNetworkRequests: boolean) {
+    if (shouldMakeNetworkRequests) {
+      return true;
+    }
+
+    return this.offlineInfo?.isPlayableOffline() === true;
+  }
+
   static propertiesFromApi(relistenObj: ApiSourceTrack): SourceTrackRequiredProperties {
     return {
       uuid: relistenObj.uuid,

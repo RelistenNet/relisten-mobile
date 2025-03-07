@@ -12,7 +12,7 @@ import { useRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useForceUpdate } from '@/relisten/util/forced_update';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Link, useLocalSearchParams, useNavigation } from 'expo-router';
+import { Link, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { PropsWithChildren, useCallback, useEffect, useState } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import { Animated, ScrollViewProps, TouchableOpacity, View } from 'react-native';
@@ -34,6 +34,9 @@ import {
   SourceProperty,
   SourceSummary,
 } from '@/relisten/components/source/source_components';
+import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
+import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
+import { OfflineModeSetting } from '@/relisten/realm/models/user_settings';
 
 const logger = log.extend('source screen');
 
@@ -57,6 +60,7 @@ export default function Page() {
   const player = useRelistenPlayer();
   const { showUuid, sourceUuid, playTrackUuid } = useLocalSearchParams();
   const [hasAutoplayed, setHasAutoplayed] = useState(false);
+  const userSettings = useUserSettings();
 
   const { results, show, artist, selectedSource } = useFullShowWithSelectedSource(
     String(showUuid),
@@ -72,19 +76,27 @@ export default function Page() {
         return;
       }
 
-      const showTracks = selectedSource.allSourceTracks();
+      const showTracks = selectedSource.allSourceTracks().filter((t) => {
+        if (userSettings.offlineModeWithDefault() === OfflineModeSetting.AlwaysOffline) {
+          return t.playable(false);
+        }
+
+        return true;
+      });
 
       const trackIndex = Math.max(
         showTracks.findIndex((st) => st.uuid === sourceTrack?.uuid),
         0
       );
 
-      player.queue.replaceQueue(
-        showTracks.map((t) => PlayerQueueTrack.fromSourceTrack(t)),
-        trackIndex
-      );
+      if (showTracks.length > 0) {
+        player.queue.replaceQueue(
+          showTracks.map((t) => PlayerQueueTrack.fromSourceTrack(t)),
+          trackIndex
+        );
+      }
     },
-    [selectedSource]
+    [selectedSource, userSettings]
   ) satisfies PlayShow;
 
   const downloadShow = () => {
@@ -265,6 +277,7 @@ export const SourceHeader = ({
   downloadShow: () => void;
 }) => {
   const realm = useRealm();
+  const router = useRouter();
   const forceUpdate = useForceUpdate();
   const groupSegment = useGroupSegment(true);
 
@@ -290,9 +303,21 @@ export const SourceHeader = ({
           {show.displayDate}
         </RelistenText>
         {show.venue && (
-          <RelistenText className="w-full pb-2 text-center text-xl" selectable={false}>
-            {show.venue.name}, {show.venue.location}&nbsp;›
-          </RelistenText>
+          <TouchableOpacity
+            onPress={() =>
+              router.push({
+                pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/venue/[venueUuid]/`,
+                params: {
+                  artistUuid: show.artistUuid,
+                  venueUuid: show.venueUuid,
+                },
+              })
+            }
+          >
+            <RelistenText className="w-full pb-2 text-center text-xl" selectable={false}>
+              {show.venue.name}, {show.venue.location}&nbsp;›
+            </RelistenText>
+          </TouchableOpacity>
         )}
         {secondLine.length > 0 && (
           <RelistenText className="text-l w-full pb-2 text-center italic text-gray-400">

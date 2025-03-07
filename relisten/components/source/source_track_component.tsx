@@ -10,13 +10,15 @@ import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { TouchableOpacity, View } from 'react-native';
 import Flex from '../flex';
+import { tw } from '@/relisten/util/tw';
 
 interface SourceTrackProps {
   sourceTrack: SourceTrack;
   isLastTrackInSet: boolean;
-  onPress: PlayShow;
+  onPress?: PlayShow;
   onDotsPress?: PlayShow;
   showTrackNumber?: boolean;
+  disabled?: boolean;
 }
 
 export const SourceTrackComponent = ({
@@ -25,17 +27,20 @@ export const SourceTrackComponent = ({
   onPress,
   onDotsPress,
   showTrackNumber,
+  disabled,
 }: SourceTrackProps) => {
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
   const playbackState = useRelistenPlayerPlaybackState();
 
   const isPlayingThisTrack = currentPlayerTrack?.sourceTrack.uuid === sourceTrack.uuid;
 
+  const PressableView = disabled ? View : TouchableOpacity;
+
   showTrackNumber = showTrackNumber !== undefined ? showTrackNumber : true;
   return (
-    <TouchableOpacity
-      className="flex flex-row items-start pl-6 pr-4"
-      onPress={() => onPress(sourceTrack)}
+    <PressableView
+      className={tw('flex flex-row items-start pl-6 pr-4', { 'opacity-60': disabled })}
+      onPress={() => onPress && onPress(sourceTrack)}
     >
       {showTrackNumber && !isPlayingThisTrack && (
         <View className="basis-7 self-center">
@@ -88,6 +93,6 @@ export const SourceTrackComponent = ({
         </View>
         {!isLastTrackInSet && <ItemSeparator />}
       </View>
-    </TouchableOpacity>
+    </PressableView>
   );
 };

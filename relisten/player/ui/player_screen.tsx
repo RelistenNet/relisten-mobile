@@ -28,15 +28,15 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { router, useFocusEffect } from 'expo-router';
 import React, { LegacyRef, useCallback, useEffect, useRef } from 'react';
-import { FlatList, Platform, TouchableOpacity, View } from 'react-native';
+import { FlatList, Platform, Share, TouchableOpacity, View } from 'react-native';
 import AirPlayButton from 'react-native-airplay-button';
 import { HapticModeEnum, Slider } from 'react-native-awesome-slider';
 import { useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { DisclosureIndicator } from '@/relisten/components/disclosure_indicator';
 import * as Progress from 'react-native-progress';
 import ReorderableList, { useReorderableDrag } from 'react-native-reorderable-list';
 import { ReorderableListReorderEvent } from 'react-native-reorderable-list/src/types/props';
+import * as Sharing from 'expo-sharing';
 
 export function ScrubberRow() {
   const progressObj = useNativePlaybackProgress();
@@ -111,18 +111,17 @@ export function ScrubberRow() {
   );
 }
 
-function CurrentTrackInfo() {
+function useNavigateToCurrentTrackSheet() {
   const { showActionSheetWithOptions } = useActionSheet();
   const navigation = useNavigation();
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
   const groupSegment = useGroupSegment(true);
-  const progressObj = useNativePlaybackProgress();
 
   const artist = currentPlayerTrack?.sourceTrack?.artist;
   const show = currentPlayerTrack?.sourceTrack?.show;
   const source = currentPlayerTrack?.sourceTrack?.source;
 
-  const onDotsPress = useCallback(() => {
+  const showNavigateToCurrentTrackActionSheet = useCallback(() => {
     if (!artist || !show) {
       return;
     }
@@ -166,20 +165,56 @@ function CurrentTrackInfo() {
     );
   }, [artist, router, show, source]);
 
-  if (currentPlayerTrack === undefined || artist === undefined || show === undefined) {
+  return { showNavigateToCurrentTrackActionSheet };
+}
+
+function CurrentTrackInfo() {
+  const { showNavigateToCurrentTrackActionSheet } = useNavigateToCurrentTrackSheet();
+  const currentPlayerTrack = useRelistenPlayerCurrentTrack();
+  const progressObj = useNativePlaybackProgress();
+
+  const artist = currentPlayerTrack?.sourceTrack?.artist;
+  const show = currentPlayerTrack?.sourceTrack?.show;
+  const source = currentPlayerTrack?.sourceTrack?.source;
+  const track = currentPlayerTrack?.sourceTrack;
+
+  if (
+    currentPlayerTrack === undefined ||
+    artist === undefined ||
+    show === undefined ||
+    track === undefined ||
+    source === undefined
+  ) {
     return <></>;
   }
+
+  const onShare = () => {
+    const [year, month, day] = show.displayDate.split('-');
+    const url = `https://relisten.net/${artist.slug}/${year}/${month}/${day}/${track.slug}?source=${source.uuid}`;
+    Share.share({
+      message: `Check out ${track.title} by ${artist.name} (${show.displayDate}) on @relistenapp${Platform.OS === 'ios' ? '' : `: ${url}`}`,
+      url: url,
+    }).then(() => {});
+  };
 
   const currentTrack = currentPlayerTrack.sourceTrack;
 
   return (
     <Flex column className="mb-4">
-      <Flex className="items-center justify-between pb-1 pt-3">
-        <TouchableOpacity onPress={onDotsPress}>
-          <RelistenText className="text-3xl font-bold">
+      <Flex className="items-stretch justify-between">
+        <TouchableOpacity onPress={showNavigateToCurrentTrackActionSheet} className="flex-shrink">
+          <RelistenText className="pb-1 pr-3 pt-3 text-3xl font-bold">
             {currentTrack.title}
-            <DisclosureIndicator />
           </RelistenText>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onShare}>
+          <Flex className="flex-1 items-center pb-1 pl-4 pt-3">
+            <MaterialIcons
+              name={Platform.OS == 'ios' ? 'ios-share' : 'share'}
+              size={20}
+              color="white"
+            />
+          </Flex>
         </TouchableOpacity>
       </Flex>
       <RelistenText className="pb-0.5 text-lg">
@@ -316,12 +351,12 @@ function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; 
 
   return (
     <TouchableOpacity
-      className="flex flex-row items-start px-4"
+      className="flex flex-row items-start pl-4"
       onPress={onPress}
       onLongPress={drag}
     >
       <View className="shrink flex-col">
-        <View className="w-full grow flex-row items-center justify-between">
+        <View className="w-full grow flex-row items-stretch justify-between">
           <Flex column className="shrink py-3 pr-2">
             <Flex className="items-center">
               {isPlayingThisTrack && (
@@ -348,11 +383,15 @@ function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; 
             )}
           </Flex>
           <View className="grow"></View>
-          <RelistenText className="py-3 text-base text-gray-400" selectable={false}>
-            {sourceTrack.humanizedDuration}
-          </RelistenText>
-          <TouchableOpacity className="shrink-0 grow-0 py-3 pl-4" onPress={onDotsPress}>
-            <MaterialCommunityIcons name="dots-horizontal" size={16} color="white" />
+          <Flex className="items-center">
+            <RelistenText className="py-3 text-base text-gray-400" selectable={false}>
+              {sourceTrack.humanizedDuration}
+            </RelistenText>
+          </Flex>
+          <TouchableOpacity className="shrink-0 grow-0" onPress={onDotsPress}>
+            <Flex className="flex-1 items-center px-4">
+              <MaterialCommunityIcons name="dots-horizontal" size={16} color="white" />
+            </Flex>
           </TouchableOpacity>
         </View>
         <ItemSeparator />
@@ -410,7 +449,7 @@ function PlayerQueue() {
 
 export function PlayerScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<ParamListBase>>();
-  const currentPlayerTrack = useRelistenPlayerCurrentTrack();
+  const { showNavigateToCurrentTrackActionSheet } = useNavigateToCurrentTrackSheet();
 
   useEffect(() => {
     navigation.setOptions({
@@ -429,22 +468,10 @@ export function PlayerScreen() {
       headerRight: () => {
         return (
           <TouchableOpacity
-            onPressOut={() => {
-              navigation.goBack();
-
-              router.push({
-                pathname:
-                  '/relisten/tabs/(artists)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/',
-                params: {
-                  artistUuid: currentPlayerTrack?.sourceTrack.artistUuid,
-                  showUuid: currentPlayerTrack?.sourceTrack.showUuid,
-                  sourceUuid: currentPlayerTrack?.sourceTrack.sourceUuid,
-                },
-              });
-            }}
+            onPressOut={showNavigateToCurrentTrackActionSheet}
             className="py-2 pr-2"
           >
-            <MaterialIcons name="library-music" size={22} color="white" />
+            <MaterialCommunityIcons name="dots-horizontal" size={22} color="white" />
           </TouchableOpacity>
         );
       },

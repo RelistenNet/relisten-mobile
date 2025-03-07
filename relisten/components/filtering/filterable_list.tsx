@@ -1,5 +1,5 @@
 import { log } from '@/relisten/util/logging';
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { RelistenObject } from '../../api/models/relisten';
 import {
   RelistenSectionData,
@@ -19,6 +19,17 @@ export type FilterableListProps<T extends RelistenObject> = {
   data: RelistenSectionData<T>;
   hideFilterBar?: boolean;
   filtering?: boolean;
+  nonIdealState?: {
+    filtered?: {
+      title?: React.ReactNode;
+      description?: React.ReactNode;
+      actionText?: string;
+    };
+    noData?: {
+      title?: React.ReactNode;
+      description?: React.ReactNode;
+    };
+  };
 } & RelistenSectionListProps<T>;
 
 const ALL_SECTION_SENTINEL = '__ALL__';
@@ -30,6 +41,7 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
   data,
   hideFilterBar,
   filtering,
+  nonIdealState,
   ...props
 }: FilterableListProps<T>) => {
   const { filters, filter, clearFilters, searchText } = useFilters<K, T>();
@@ -95,12 +107,14 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
           if (props.metadata && props.metadata > 0) {
             return (
               <NonIdealState
-                title="No Results"
+                title={nonIdealState?.filtered?.title ?? 'No Results'}
                 description={
-                  <>
-                    Your filters are hiding <Plur count={props.metadata} word="item" />, tap below
-                    to clear them
-                  </>
+                  nonIdealState?.filtered?.description ?? (
+                    <>
+                      Your filters are hiding <Plur count={props.metadata} word="item" />, tap below
+                      to clear them
+                    </>
+                  )
                 }
                 actionText="Remove Filters"
                 onAction={clearFilters}
@@ -109,8 +123,11 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
           } else {
             return (
               <NonIdealState
-                title="No Results"
-                description="No data loaded, please refresh or adjust your filters."
+                title={nonIdealState?.noData?.title ?? 'No Results'}
+                description={
+                  nonIdealState?.noData?.description ??
+                  'No data loaded, please refresh or adjust your filters.'
+                }
               />
             );
           }

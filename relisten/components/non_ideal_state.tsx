@@ -24,7 +24,7 @@ export const NonIdealState = ({
     <View className="flex-1 items-center justify-center pb-2 pt-6">
       <MaterialIcons name={icon as any} size={32} color={colors.gray['200']} />
       <RelistenText className="my-1 text-3xl font-bold text-gray-200">{title}</RelistenText>
-      <RelistenText className="w-1/2 text-center text-gray-400">{description}</RelistenText>
+      <RelistenText className="w-2/3 text-center text-gray-400">{description}</RelistenText>
       {actionText && onAction && (
         <RelistenButton onPress={onAction} intent="primary" cn="mt-4">
           <Text className="font-semibold text-white">{actionText}</Text>

@@ -41,18 +41,19 @@ export function TrackWithArtist({
       asChild
     >
       <SectionedListItem>
-        <Flex cn="flex justify-between items-center" full>
-          <Flex cn="flex-1 pr-2" column>
-            <Flex cn="items-center" style={{ gap: 8 }}>
+        <Flex className="flex items-center justify-between" full>
+          <Flex className="flex-1 pr-2" column>
+            <Flex className="items-center" style={{ gap: 8 }}>
               <RowTitle>{sourceTrack.title}</RowTitle>
               {sourceTrack.source.isSoundboard && (
-                <RelistenText cn="text-xs font-bold text-relisten-blue-600">SBD</RelistenText>
+                <RelistenText className="text-xs font-bold text-relisten-blue-600">
+                  SBD
+                </RelistenText>
               )}
               {offlineIndicator && sourceTrack.offlineInfo?.isPlayableOffline() && (
                 <SourceTrackSucceededIndicator />
               )}
               <View className="grow" />
-              <SubtitleText>{sourceTrack.humanizedDuration}</SubtitleText>
             </Flex>
             <SubtitleRow {...{ column: !!subtitleColumn }}>
               <SubtitleText>
@@ -63,6 +64,8 @@ export function TrackWithArtist({
               {children}
             </SubtitleRow>
           </Flex>
+          <SubtitleText>{sourceTrack.humanizedDuration}</SubtitleText>
+
           {indicatorComponent}
         </Flex>
       </SectionedListItem>

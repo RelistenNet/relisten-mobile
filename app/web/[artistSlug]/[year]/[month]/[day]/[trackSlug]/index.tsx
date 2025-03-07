@@ -42,7 +42,7 @@ export default function Page() {
       let trackUuid: string | undefined = undefined;
 
       for (const source of showData.sources) {
-        if (String(source.id) !== sourceId) {
+        if (String(source.id) !== sourceId && source.uuid !== sourceId) {
           continue;
         }
 

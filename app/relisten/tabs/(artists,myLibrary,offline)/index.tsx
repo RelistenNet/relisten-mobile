@@ -130,6 +130,14 @@ const ArtistsList = ({ artists, ...props }: ArtistsListProps) => {
     return r;
   }, [artists]);
 
+  const nonIdealState = {
+    noData: {
+      title: 'No Offline Shows',
+      description:
+        'After you download something, all of your shows that are available offline will be shown here.',
+    },
+  };
+
   return (
     <FilteringProvider filters={ARTIST_FILTERS} options={props.filterOptions}>
       <FilterableList
@@ -137,6 +145,7 @@ const ArtistsList = ({ artists, ...props }: ArtistsListProps) => {
         renderItem={({ item }) => {
           return <ArtistListItem artist={item} />;
         }}
+        nonIdealState={nonIdealState}
         {...props}
       />
     </FilteringProvider>
@@ -146,7 +155,6 @@ const ArtistsList = ({ artists, ...props }: ArtistsListProps) => {
 export default function Page() {
   const results = useArtists();
   const groupSegment = useGroupSegment();
-  const isOfflineTab = useIsOfflineTab();
   const { data: artists } = results;
 
   const downloads = useRemainingDownloads();
@@ -169,25 +177,6 @@ export default function Page() {
               <RelistenText>{downloads.length} tracks downloading&nbsp;›</RelistenText>
             </Link>
           </TouchableOpacity>
-        )}
-
-        {/* eslint-disable-next-line no-undef */}
-        {!isOfflineTab && __DEV__ && (
-          <View>
-            <Link
-              href={{
-                pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
-                params: {
-                  artistUuid: '77a58ff9-2e01-c59c-b8eb-cff106049b72',
-                  showUuid: '104c96e5-719f-366f-b72d-8d53709c80e0',
-                  sourceUuid: 'initial',
-                },
-              }}
-              style={{ padding: 10 }}
-            >
-              <RelistenText>Barton hall test show</RelistenText>
-            </Link>
-          </View>
         )}
 
         <ArtistsList

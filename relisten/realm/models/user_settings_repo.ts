@@ -11,7 +11,7 @@ export const useUserSettings = () => {
     _calledDefaultObject = true;
   }
 
-  const liveObject = useObject(UserSettings, DEFAULT_SETTINGS_SENTINEL);
+  const liveObject = useObject(UserSettings, DEFAULT_SETTINGS_SENTINEL)!;
 
   return liveObject;
 };
