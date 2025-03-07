@@ -5,6 +5,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Stack } from 'expo-router/stack';
 import { useEffect } from 'react';
+import { Image } from 'react-native';
+import { RelistenText } from '@/relisten/components/relisten_text';
 
 export const unstable_settings = {
   initialRouteName: 'index',
@@ -34,6 +36,26 @@ export default function ArtistsLayout() {
           title: TITLES[groupSegment ?? '(artists)'],
           headerStyle: {
             backgroundColor: RelistenBlue['950'],
+          },
+          headerTitle: ({
+            children,
+          }: {
+            /**
+             * The title text of the header.
+             */
+            children: string;
+            /**
+             * Tint color for the header.
+             */
+            tintColor?: string;
+          }) => {
+            return groupSegment == '(artists)' ? (
+              <Image
+                source={require('../../../../assets/Relisten White.png')}
+                style={{ width: 200, height: 28 }}
+                resizeMode="contain"
+              />
+            ) : undefined;
           },
         }}
       />

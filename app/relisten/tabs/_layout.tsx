@@ -3,13 +3,14 @@ import TabBar from '@/relisten/components/TabBar';
 import { PlayerBottomBar } from '@/relisten/player/ui/player_bottom_bar';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
-import { Image } from 'react-native';
+import { type Animated, Image, type StyleProp, type ViewStyle } from 'react-native';
 import 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { useRemainingDownloads } from '@/relisten/realm/models/offline_repo';
 import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
 import { ShowOfflineTabSetting } from '@/relisten/realm/models/user_settings';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
+import { HeaderTitleProps } from '@react-navigation/elements/src/types';
 
 export default function TabLayout() {
   const downloads = useRemainingDownloads();
