@@ -28,7 +28,7 @@
           "audio"
         ]
       },
-      "buildNumber": "6006"
+      "buildNumber": "6007"
     },
     "android": {
       "intentFilters": [
@@ -57,7 +57,7 @@
       },
       "icon": "./assets/ic_playstore.png",
       "package": "net.relisten.android",
-      "versionCode": 6006
+      "versionCode": 6007
     },
     "jsEngine": "hermes",
     "web": {
