@@ -398,7 +398,7 @@ export const SourceHeader = ({
             >
               <RelistenButton textClassName="text-l" icon={null} disabled={show.sourceCount <= 1}>
                 <Plur word={'Review'} count={source.reviewCount} />
-                {source.avgRating ? ` • ${source.avgRating.toFixed(1)}★` : ''}
+                {source.avgRating ? `\u00A0•\u00A0${source.avgRating.toFixed(1)}★` : ''}
               </RelistenButton>
             </Link>
           )}
