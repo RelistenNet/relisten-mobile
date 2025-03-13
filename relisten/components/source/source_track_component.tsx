@@ -58,7 +58,7 @@ export const SourceTrackComponent = ({
 
       <View className="shrink flex-col">
         <View className="w-full grow flex-row items-center justify-between">
-          <RelistenText className="shrink pr-2 text-lg leading-[1]" selectable={false}>
+          <RelistenText className="shrink py-2 pr-2 text-lg leading-[1]" selectable={false}>
             {sourceTrack.title}
           </RelistenText>
           <View className="grow"></View>
