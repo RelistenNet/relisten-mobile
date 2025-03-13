@@ -393,7 +393,7 @@ function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; 
               <MaterialCommunityIcons name="dots-horizontal" size={16} color="white" />
             </Flex>
           </TouchableOpacity>
-          <View className="shrink-0 grow-0 py-3 pl-4">
+          <View className="flex shrink-0 grow-0 flex-row items-center py-3 pr-4">
             <MaterialIcons name="drag-handle" size={24} color="white" />
           </View>
         </View>
