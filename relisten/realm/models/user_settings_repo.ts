@@ -13,5 +13,5 @@ export const useUserSettings = () => {
 
   const liveObject = useObject(UserSettings, DEFAULT_SETTINGS_SENTINEL)!;
 
-  return liveObject;
+  return liveObject!;
 };
