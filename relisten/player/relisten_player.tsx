@@ -7,8 +7,10 @@ import {
   RelistenTrackStreamingCacheCompleteEvent,
 } from '@/modules/relisten-audio-player';
 import {
+  currentTrackIdentifier,
   latestError,
   PlaybackContextProgress,
+  progress as sharedStateProgress,
   progress,
   remoteControlEvent,
   state,
@@ -21,8 +23,6 @@ import { DownloadManager } from '@/relisten/offline/download_manager';
 import { showMessage } from 'react-native-flash-message';
 import { log } from '@/relisten/util/logging';
 import { indentString } from '@/relisten/util/string_indent';
-import { realm } from '@/relisten/realm/schema';
-import { UserSettings } from '@/relisten/realm/models/user_settings';
 
 const logger = log.extend('player');
 
@@ -107,15 +107,23 @@ export class RelistenPlayer {
   playTrackAtIndex(index: number, seekToTime?: number) {
     const newIndex = Math.max(0, Math.min(index, this.queue.orderedTracks.length - 1));
 
-    this._stalledTimer = setTimeout(() => {
-      if (this.state != RelistenPlaybackState.Playing) {
-        state.setState(RelistenPlaybackState.Stalled);
-      }
-    }, 250) as unknown as number;
+    const track = this.queue.orderedTracks[newIndex];
+    if (track.identifier === this.queue.currentTrack?.identifier && this.initialPlaybackStarted) {
+      this.seekTo(0.0);
+    }
+
+    // stop any playing sound while the next http request is buffering
+    this._state = RelistenPlaybackState.Paused;
+    nativePlayer.pause().then(() => {});
+
+    this.startStalledTimer();
+
+    // optimistically update the UI. should be before the native call to prevent race conditions
+    this.optimisticallyUpdateCurrentTrack(track, seekToTime);
 
     nativePlayer
       .play(
-        this.queue.orderedTracks[newIndex].toStreamable(this.enableStreamingCache),
+        track.toStreamable(this.enableStreamingCache),
         seekToTime !== undefined ? seekToTime * 1000.0 : undefined
       )
       .then(() => {});
@@ -126,7 +134,7 @@ export class RelistenPlayer {
 
     this.playbackIntentStarted = true;
 
-    this.queue.recalculateNextTrack();
+    // no need to recalculateNextTrack because currentTrackIdentifier.setState listeners will handle that
   }
 
   async stop() {
@@ -138,6 +146,15 @@ export class RelistenPlayer {
 
   next() {
     this.addPlayerListeners();
+
+    const nextTrack = this.queue.nextTrack;
+
+    if (nextTrack) {
+      // optimistically update the UI. should be before the native call to prevent race conditions
+      this.optimisticallyUpdateCurrentTrack(nextTrack);
+    }
+
+    this.startStalledTimer();
 
     nativePlayer.next().then(() => {});
   }
@@ -172,6 +189,21 @@ export class RelistenPlayer {
       return Promise.resolve();
     }
 
+    const currentTrack = this.queue.currentTrack;
+
+    if (currentTrack) {
+      const duration = currentTrack.sourceTrack.duration ?? 100;
+
+      // optimistically update the UI
+      sharedStateProgress.setState({
+        elapsed: pct * duration,
+        duration,
+        percent: pct,
+      });
+    }
+
+    this.startStalledTimer();
+
     return nativePlayer.seekTo(pct);
   }
 
@@ -197,6 +229,34 @@ ${indentString(this.queue.debugState(true))}
   }
 
   // endregion
+
+  private optimisticallyUpdateCurrentTrack(track: PlayerQueueTrack, seekToTime?: number) {
+    currentTrackIdentifier.setState(track.identifier);
+
+    const elapsed = seekToTime ?? 0;
+    const duration = track.sourceTrack.duration ?? 100;
+
+    sharedStateProgress.setState({
+      elapsed,
+      duration,
+      percent: elapsed / duration,
+    });
+  }
+
+  private startStalledTimer() {
+    logger.debug('starting stall timer');
+
+    this._stalledTimer = setTimeout(() => {
+      if (this.state != RelistenPlaybackState.Playing) {
+        logger.debug(
+          `hit stalledTimer, setting state to stalled because current state is ${this.state}`
+        );
+        state.setState(RelistenPlaybackState.Stalled);
+      } else {
+        logger.debug(`hit stalledTimer, but state is ${this.state}`);
+      }
+    }, 250) as unknown as number;
+  }
 
   // region Player event handling
   private addedPlayerListeners = false;
@@ -233,6 +293,11 @@ ${indentString(this.queue.debugState(true))}
   }
 
   private onProgress = (progress: PlaybackContextProgress) => {
+    if (this._stalledTimer !== undefined) {
+      // if we are waiting on a stall we've created an intent to play something
+      return;
+    }
+
     if (
       this.progress &&
       this.progress.percent <= 0.05 &&
@@ -260,7 +325,7 @@ ${indentString(this.queue.debugState(true))}
     logger.debug('onNativePlayerStateChanged', newState);
 
     // Clear the default stalled UI fallback
-    if (this._stalledTimer === undefined) {
+    if (this._stalledTimer !== undefined && newState === RelistenPlaybackState.Playing) {
       clearTimeout(this._stalledTimer);
       this._stalledTimer = undefined;
     }

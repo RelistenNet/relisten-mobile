@@ -576,13 +576,16 @@ ${indentString(tracks)}
     }
 
     if (playerState.elapsed && playerState.progress && playerState.duration) {
-      this.player.seekToTime(playerState.elapsed).then(() => {});
+      // very early seeks into a song are buggy
+      const elapsed = playerState.elapsed <= 15 ? 0 : playerState.elapsed;
+
+      this.player.seekToTime(elapsed).then(() => {});
 
       // forcibly update the UI
       sharedStateProgress.setState({
-        elapsed: playerState.elapsed,
+        elapsed: elapsed,
         duration: playerState.duration,
-        percent: playerState.progress,
+        percent: elapsed / playerState.duration,
       });
     }
 
