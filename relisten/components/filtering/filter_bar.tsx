@@ -1,4 +1,4 @@
-import { PropsWithChildren, useLayoutEffect, useRef, useState } from 'react';
+import { LegacyRef, PropsWithChildren, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ScrollView, TextInput, TouchableOpacity, View } from 'react-native';
 import { FilterBarButtons } from '@/relisten/components/filtering/filter_bar_buttons';
 import { RelistenObject } from '@/relisten/api/models/relisten';
@@ -34,9 +34,11 @@ export function NonSearchFilterBar<K extends string, T extends RelistenObject>({
 export function SearchFilterBar({
   search,
   exitSearch,
+  innerRef,
 }: {
   search: (input: string) => void;
   exitSearch: () => void;
+  innerRef: LegacyRef<TextInput>;
 }) {
   const debouncedSearch = useDebounce((input: string) => {
     search(input);
@@ -50,6 +52,7 @@ export function SearchFilterBar({
           placeholder="Search"
           placeholderTextColor="lightgray"
           onChangeText={debouncedSearch}
+          ref={innerRef}
         />
       </View>
       <TouchableOpacity className="flex-shrink py-1 pl-2" onPress={exitSearch}>
@@ -64,6 +67,13 @@ export function FilterBar<K extends string, T extends RelistenObject>({
 }: PropsWithChildren) {
   const { filters, onFilterButtonPress, onSearchTextChanged } = useFilters<K, T>();
   const [isTextFiltering, setIsTextFiltering] = useState(false);
+  const searchInputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    if (isTextFiltering) {
+      searchInputRef.current?.focus();
+    }
+  }, [searchInputRef, isTextFiltering]);
 
   return (
     <>
@@ -74,9 +84,10 @@ export function FilterBar<K extends string, T extends RelistenObject>({
             onSearchTextChanged(undefined);
             setIsTextFiltering(false);
           }}
+          innerRef={searchInputRef}
         />
       ) : (
-        <ScrollView horizontal className="w-full">
+        <ScrollView horizontal className="w-full" keyboardShouldPersistTaps="handled">
           <NonSearchFilterBar
             filters={filters}
             onFilterButtonPress={onFilterButtonPress}

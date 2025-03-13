@@ -101,6 +101,7 @@ export const RelistenSectionList = <T extends RelistenObject>({
   return (
     <FlashList
       data={internalData}
+      keyboardShouldPersistTaps="handled"
       estimatedItemSize={56}
       ItemSeparatorComponent={ItemSeparator}
       getItemType={(item) => {
