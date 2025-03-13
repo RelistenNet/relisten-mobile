@@ -5,6 +5,8 @@ import { RelistenButton } from '@/relisten/components/relisten_button';
 import * as Linking from 'expo-linking';
 import * as Sentry from '@sentry/react-native';
 import * as StoreReview from 'expo-store-review';
+import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { View } from 'react-native';
 
 /*
 - [ ]
@@ -21,6 +23,40 @@ export function RelistenAbout() {
       <SectionHeader title="About" />
 
       <Flex column className="gap-4 p-4">
+        <Flex className="w-full flex-wrap pb-2 pr-4">
+          <View className="basis-1/2 pb-1 pr-1">
+            <RelistenButton
+              onPress={() => Linking.openURL('mailto:team@relisten.net')}
+              icon={<MaterialIcons name="email" size={16} color="white" />}
+            >
+              team@relisten.net
+            </RelistenButton>
+          </View>
+          <View className="basis-1/2 pb-1 pl-1">
+            <RelistenButton
+              onPress={() => Linking.openURL('https://discord.gg/TSaj6vU')}
+              icon={<MaterialIcons name="discord" size={16} color="white" />}
+            >
+              Discord
+            </RelistenButton>
+          </View>
+          <View className="basis-1/2 pr-1 pt-1">
+            <RelistenButton
+              onPress={() => Linking.openURL('https://instagram.com/relistenapp')}
+              icon={<MaterialCommunityIcons name="instagram" size={16} color="white" />}
+            >
+              @relistenapp
+            </RelistenButton>
+          </View>
+          <View className="basis-1/2 pl-1 pt-1">
+            <RelistenButton
+              onPress={() => Linking.openURL('https://twitter.com/relistenapp')}
+              icon={<MaterialCommunityIcons name="twitter" size={16} color="white" />}
+            >
+              @relistenapp
+            </RelistenButton>
+          </View>
+        </Flex>
         <RowWithAction
           title="Built by the team at relisten.net"
           subtitle="This app was written by Alec Gorge, with help from Daniel Saewitz and Thenlie"
@@ -49,9 +85,6 @@ export function RelistenAbout() {
             </RelistenButton>
             <RelistenButton onPress={() => Linking.openURL('mailto:team@relisten.net')}>
               Email us
-            </RelistenButton>
-            <RelistenButton onPress={() => Linking.openURL('https://discord.gg/TSaj6vU')}>
-              Join Discord
             </RelistenButton>
           </Flex>
         </RowWithAction>
