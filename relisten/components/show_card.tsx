@@ -31,7 +31,7 @@ export function ShowCardContainer({
   PropsWithChildren) {
   return (
     <View
-      className={tw('h-full w-[168px] shrink pl-1 pr-1 first:pl-0 last:pr-0', cn, className)}
+      className={tw('w-[168px] shrink pl-1 pr-1 first:pl-0 last:pr-0', cn, className)}
       ref={innerRef}
       {...props}
     >
