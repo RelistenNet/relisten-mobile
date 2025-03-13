@@ -31,7 +31,7 @@ import React, { LegacyRef, useCallback, useEffect, useRef } from 'react';
 import { FlatList, Platform, Share, TouchableOpacity, View } from 'react-native';
 import AirPlayButton from 'react-native-airplay-button';
 import { HapticModeEnum, Slider } from 'react-native-awesome-slider';
-import { useSharedValue } from 'react-native-reanimated';
+import { runOnJS, useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Progress from 'react-native-progress';
 import ReorderableList, { useReorderableDrag } from 'react-native-reorderable-list';
@@ -347,7 +347,7 @@ function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; 
 
   const subtitle = [artist?.name, show?.displayDate, show?.venue?.name, show?.venue?.location]
     .filter((x) => !!x && x.length > 0)
-    .join(' · ');
+    .join('\u00A0·\u00A0');
 
   return (
     <TouchableOpacity
@@ -393,6 +393,9 @@ function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; 
               <MaterialCommunityIcons name="dots-horizontal" size={16} color="white" />
             </Flex>
           </TouchableOpacity>
+          <View className="shrink-0 grow-0 py-3 pl-4">
+            <MaterialIcons name="drag-handle" size={24} color="white" />
+          </View>
         </View>
         <ItemSeparator />
       </View>
@@ -417,6 +420,12 @@ function PlayerQueue() {
     }
   });
 
+  const triggerHaptics = useCallback(() => {
+    'worklet';
+
+    runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
+  }, []);
+
   const onReorder = ({ from, to }: ReorderableListReorderEvent) => {
     player.queue.moveQueueTrack(from, to);
   };
@@ -428,7 +437,9 @@ function PlayerQueue() {
         onReorder={onReorder}
         className="w-full flex-1"
         data={orderedQueueTracks}
-        // onDragEnd={({ data }) => player.queue.reorderQueue(data.map((q) => q.sourceTrack))}
+        onDragStart={triggerHaptics}
+        onDragEnd={triggerHaptics}
+        onIndexChange={triggerHaptics}
         keyExtractor={(item) => item.identifier}
         renderItem={({ item, index }) => (
           // <ScaleDecorator>
