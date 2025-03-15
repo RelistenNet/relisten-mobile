@@ -38,6 +38,8 @@ const realmConfig: Realm.Configuration = {
     UserSettings,
   ],
   schemaVersion: 5,
+  // As to not conflict with the prior versions default.realm that isn't readable with this version of the SDK
+  path: './relisten.realm',
 };
 
 export const { RealmProvider, useRealm, useObject, useQuery } = createRealmContext(realmConfig);
