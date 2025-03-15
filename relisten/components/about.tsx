@@ -83,7 +83,14 @@ export function RelistenAbout() {
             <RelistenButton onPress={() => Sentry.showFeedbackWidget()}>
               Submit feedback
             </RelistenButton>
-            <RelistenButton onPress={() => Linking.openURL('mailto:team@relisten.net')}>
+            <RelistenButton
+              onPress={async () => {
+                const url = 'mailto:team@relisten.net';
+                if (await Linking.canOpenURL(url)) {
+                  Linking.openURL(url);
+                }
+              }}
+            >
               Email us
             </RelistenButton>
           </Flex>
