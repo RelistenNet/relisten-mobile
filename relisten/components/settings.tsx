@@ -135,36 +135,37 @@ const SETTINGS: Array<Settings> = [
       return settings.autocacheStreamedMusicWithDefault() === AutocacheStreamedMusicSetting.Always;
     },
   },
-  {
-    label: 'Autocache Min. Free Space',
-    subtitle: 'Min. free storage before deleting tracks (in MB)',
-    type: 'int',
-    newSettings: (newValue: number): Partial<UserSettingsProps> => {
-      return {
-        autocacheMinAvailableStorageMB: newValue,
-      };
-    },
-    currentSetting: (settings: UserSettings) => {
-      return settings.autocacheMinAvailableStorageMBWithDefault();
-    },
-  },
-  {
-    label: 'Autocache Delete First',
-    subtitle: 'What do you want to delete first',
-    type: 'enum',
-    options: [
-      { label: 'Oldest Played', value: AutocacheDeleteFirstSetting.OldestPlayed },
-      { label: 'Oldest Cached', value: AutocacheDeleteFirstSetting.OldestCached },
-    ],
-    newSettings: (newValue: EnumSettingsEntryOption): Partial<UserSettingsProps> => {
-      return {
-        autocacheDeleteFirst: newValue.value as AutocacheDeleteFirstSetting,
-      };
-    },
-    currentSetting: (settings: UserSettings) => {
-      return settings.autocacheDeleteFirstWithDefault();
-    },
-  },
+  // TODO: implement these
+  // {
+  //   label: 'Autocache Min. Free Space',
+  //   subtitle: 'Min. free storage before deleting tracks (in MB)',
+  //   type: 'int',
+  //   newSettings: (newValue: number): Partial<UserSettingsProps> => {
+  //     return {
+  //       autocacheMinAvailableStorageMB: newValue,
+  //     };
+  //   },
+  //   currentSetting: (settings: UserSettings) => {
+  //     return settings.autocacheMinAvailableStorageMBWithDefault();
+  //   },
+  // },
+  // {
+  //   label: 'Autocache Delete First',
+  //   subtitle: 'What do you want to delete first',
+  //   type: 'enum',
+  //   options: [
+  //     { label: 'Oldest Played', value: AutocacheDeleteFirstSetting.OldestPlayed },
+  //     { label: 'Oldest Cached', value: AutocacheDeleteFirstSetting.OldestCached },
+  //   ],
+  //   newSettings: (newValue: EnumSettingsEntryOption): Partial<UserSettingsProps> => {
+  //     return {
+  //       autocacheDeleteFirst: newValue.value as AutocacheDeleteFirstSetting,
+  //     };
+  //   },
+  //   currentSetting: (settings: UserSettings) => {
+  //     return settings.autocacheDeleteFirstWithDefault();
+  //   },
+  // },
   {
     label: 'Autoplay Deep Linked Tracks',
     subtitle:
