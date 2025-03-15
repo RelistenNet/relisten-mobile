@@ -13,6 +13,18 @@ import { duration, trackDuration } from '@/relisten/util/duration';
 
 export const OFFLINE_DIRECTORY = `${RNBackgroundDownloader.directories.documents}/offline`;
 
+export const OFFLINE_DIRECTORY_LEGACY = `${RNBackgroundDownloader.directories.documents}/offline-mp3s`;
+export const OFFLINE_DIRECTORY_LEGACY_CACHE = `${RNBackgroundDownloader.directories.documents}/RelistenCache`;
+export const OFFLINE_DIRECTORY_LEGACY_API_CACHE = `${RNBackgroundDownloader.directories.documents}/RelistenApiCache`;
+export const OFFLINE_DIRECTORY_LEGACY_LOGS = `${RNBackgroundDownloader.directories.documents}/Logs`;
+
+export const OFFLINE_DIRECTORIES_LEGACY = [
+  OFFLINE_DIRECTORY_LEGACY,
+  OFFLINE_DIRECTORY_LEGACY_API_CACHE,
+  OFFLINE_DIRECTORY_LEGACY_CACHE,
+  OFFLINE_DIRECTORY_LEGACY_LOGS,
+];
+
 export interface SourceTrackRequiredRelationships {}
 
 export interface SourceTrackRequiredProperties extends RelistenObjectRequiredProperties {

@@ -1,4 +1,4 @@
-import { SourceTrack } from '@/relisten/realm/models/source_track';
+import { OFFLINE_DIRECTORIES_LEGACY, SourceTrack } from '@/relisten/realm/models/source_track';
 import {
   SourceTrackOfflineInfo,
   SourceTrackOfflineInfoStatus,
@@ -209,6 +209,17 @@ export class DownloadManager {
 
       for (const offlineInfo of offlineInfos) {
         await this.removeDownload(offlineInfo.sourceTrack);
+      }
+    }
+  }
+
+  async removeAllLegacyDownloads() {
+    for (const legacyPath of OFFLINE_DIRECTORIES_LEGACY) {
+      // delete file, if it exists
+      try {
+        await fs.deleteAsync(legacyPath, { idempotent: true });
+      } catch {
+        /* empty */
       }
     }
   }
