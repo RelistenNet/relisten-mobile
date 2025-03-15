@@ -35,7 +35,9 @@ export class DownloadManager {
 
         return;
       } else if (sourceTrack.offlineInfo.status !== SourceTrackOfflineInfoStatus.Failed) {
-        throw new Error('Source track already has offline info');
+        logger.warn(
+          `Source track already has offline info; skipping... ${sourceTrack.offlineInfo.status}`
+        );
       }
     }
 
