@@ -8,16 +8,14 @@ import * as StoreReview from 'expo-store-review';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { View } from 'react-native';
 
-/*
-- [ ]
-    - [ ]  about
-    - [ ]  thanks/FOSS credits
-    - [ ]  rate the app
-    - [ ]  what's new/changelog
-    - [ ]  support links to discord/email
- */
-
 export function RelistenAbout() {
+  const openEmail = async () => {
+    const url = 'mailto:team@relisten.net';
+    if (await Linking.canOpenURL(url)) {
+      Linking.openURL(url);
+    }
+  };
+
   return (
     <Flex column>
       <SectionHeader title="About" />
@@ -26,7 +24,7 @@ export function RelistenAbout() {
         <Flex className="w-full flex-wrap pb-2 pr-4">
           <View className="basis-1/2 pb-1 pr-1">
             <RelistenButton
-              onPress={() => Linking.openURL('mailto:team@relisten.net')}
+              onPress={openEmail}
               icon={<MaterialIcons name="email" size={16} color="white" />}
             >
               team@relisten.net
@@ -83,16 +81,7 @@ export function RelistenAbout() {
             <RelistenButton onPress={() => Sentry.showFeedbackWidget()}>
               Submit feedback
             </RelistenButton>
-            <RelistenButton
-              onPress={async () => {
-                const url = 'mailto:team@relisten.net';
-                if (await Linking.canOpenURL(url)) {
-                  Linking.openURL(url);
-                }
-              }}
-            >
-              Email us
-            </RelistenButton>
+            <RelistenButton onPress={openEmail}>Email us</RelistenButton>
           </Flex>
         </RowWithAction>
         <RowWithAction
