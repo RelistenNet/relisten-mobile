@@ -8,7 +8,7 @@ import {
   OFFLINE_DIRECTORIES_LEGACY,
   OFFLINE_DIRECTORY,
 } from '@/relisten/realm/models/source_track';
-import { Link, useFocusEffect } from 'expo-router';
+import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { RelistenSettings } from '@/relisten/components/settings';
 import { SectionHeader } from '@/relisten/components/section_header';
 import { RowWithAction } from '@/relisten/components/row_with_action';
@@ -17,6 +17,9 @@ import { DownloadManager } from '@/relisten/offline/download_manager';
 import { log } from '@/relisten/util/logging';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
 import { RelistenAbout } from '@/relisten/components/about';
+import { useArtists } from '@/relisten/realm/models/artist_repo';
+import { sample } from 'remeda';
+import { useRelistenApi } from '@/relisten/api/context';
 
 const sizeFormatter = new Intl.NumberFormat([], {
   style: 'unit',
@@ -183,13 +186,35 @@ function StorageUsage() {
 }
 
 export default function Page() {
-  const realm = useRealm();
+  const artists = useArtists();
+  const { apiClient } = useRelistenApi();
+  const router = useRouter();
+
+  const playRandomShow = async () => {
+    if (artists.data.length === 0) {
+      return;
+    }
+
+    const randomArtist = sample([...artists.data], 1)[0]!;
+    const randomShow = await apiClient.randomShow(randomArtist.uuid);
+
+    if (randomShow?.data?.uuid) {
+      router.push({
+        pathname: '/relisten/tabs/(artists)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/',
+        params: {
+          artistUuid: randomArtist.uuid,
+          showUuid: randomShow!.data!.uuid,
+          sourceUuid: 'initial',
+        },
+      });
+    }
+  };
 
   return (
     <ScrollScreen>
       <ScrollView className="">
         <Flex column>
-          <View className="p-4">
+          <Flex column className="gap-4 p-4">
             <RowWithAction
               title="Today in History"
               subtitle="See every show by every band played on this day in history."
@@ -203,7 +228,19 @@ export default function Page() {
                 <RelistenButton>Today in History</RelistenButton>
               </Link>
             </RowWithAction>
-          </View>
+            <RowWithAction
+              title="Random Show"
+              subtitle="Listen to a random show by any artist on Relisten."
+            >
+              <RelistenButton
+                automaticLoadingIndicator
+                asyncOnPress={playRandomShow}
+                disabled={artists.data.length === 0}
+              >
+                Random Show
+              </RelistenButton>
+            </RowWithAction>
+          </Flex>
           <StorageUsage />
 
           <RelistenSettings />

@@ -1,7 +1,13 @@
-import { TouchableOpacity, TouchableOpacityProps, View } from 'react-native';
+import {
+  ActivityIndicator,
+  GestureResponderEvent,
+  TouchableOpacity,
+  TouchableOpacityProps,
+  View,
+} from 'react-native';
 import clsx from 'clsx';
 import { RelistenText } from './relisten_text';
-import React from 'react';
+import React, { useState } from 'react';
 
 import { cva, type VariantProps } from 'class-variance-authority';
 import { tw } from '../util/tw';
@@ -57,14 +63,57 @@ export interface ButtonProps
   textClassName?: string;
   icon?: React.ReactNode;
   cn?: string;
+  automaticLoadingIndicator?: boolean;
+  asyncOnPress?: (event: GestureResponderEvent) => Promise<unknown>;
 }
-
 export const RelistenButton = React.forwardRef<any, ButtonProps>(
-  ({ children, cn, icon, intent, rounded, textClassName, disabled, ...props }, ref) => {
+  (
+    {
+      children,
+      cn,
+      icon,
+      intent,
+      rounded,
+      textClassName,
+      disabled,
+      asyncOnPress,
+      onPress,
+      automaticLoadingIndicator,
+      ...props
+    },
+    ref
+  ) => {
     const cls = tw(buttonVariants({ disabled, intent, rounded }), cn);
 
+    const [isLoading, setIsLoading] = useState<boolean>(false);
+
+    const wrappedOnPress = async (event: GestureResponderEvent) => {
+      const result = asyncOnPress && asyncOnPress(event);
+
+      if (result) {
+        setIsLoading(true);
+
+        try {
+          await result;
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    if (automaticLoadingIndicator && isLoading && !icon) {
+      icon = <ActivityIndicator size={8} className="mr-2" />;
+      disabled = true;
+    }
+
     return (
-      <TouchableOpacity ref={ref as any} className={cls} {...props} disabled={disabled}>
+      <TouchableOpacity
+        ref={ref as any}
+        className={cls}
+        onPress={asyncOnPress ? wrappedOnPress : onPress}
+        {...props}
+        disabled={disabled}
+      >
         {icon && <View className="pr-1">{icon}</View>}
         <RelistenText className={tw('text-center font-bold', textClassName)}>
           {children}

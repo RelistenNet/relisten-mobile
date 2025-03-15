@@ -37,6 +37,7 @@ import {
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
 import { OfflineModeSetting } from '@/relisten/realm/models/user_settings';
+import { Artist } from '@/relisten/realm/models/artist';
 
 const logger = log.extend('source screen');
 
@@ -186,7 +187,8 @@ export default function Page() {
       <DisappearingHeaderScreen
         ScrollableComponent={SourceComponent}
         show={show}
-        selectedSource={selectedSource!}
+        artist={artist.data || undefined}
+        selectedSource={selectedSource}
         playShow={playShow}
         downloadShow={downloadShow}
       />
@@ -198,11 +200,13 @@ const SourceComponent = ({
   show,
   selectedSource,
   playShow,
+  artist,
   downloadShow,
   ...props
 }: {
   show: Show | undefined;
   selectedSource?: Source;
+  artist?: Artist;
   playShow: PlayShow;
   downloadShow: () => void;
 } & ScrollViewProps) => {
@@ -223,7 +227,7 @@ const SourceComponent = ({
     );
   }
 
-  if (refreshing || !show) {
+  if (refreshing || !show || !artist) {
     return (
       <View className="w-full p-4">
         <ListContentLoader
@@ -250,6 +254,7 @@ const SourceComponent = ({
         show={show}
         downloadShow={downloadShow}
         playShow={playShow}
+        artist={artist}
       />
       <SourceSets source={selectedSource} playShow={playShow} onDotsPress={onDotsPress} />
       <SourceFooter source={selectedSource} />
@@ -268,12 +273,14 @@ function sourceRatingText(source: Source) {
 export const SourceHeader = ({
   show,
   source,
+  artist,
   playShow,
   downloadShow,
 }: {
   source: Source;
   show: Show;
   playShow: PlayShow;
+  artist: Artist;
   downloadShow: () => void;
 }) => {
   const realm = useRealm();
@@ -288,7 +295,7 @@ export const SourceHeader = ({
         source.sourceSets.map((s) => s.sourceTracks.length),
         (l) => l
       )} tracks`,
-      sourceRatingText(source),
+      artist.name,
     ],
     R.isTruthy
   );
@@ -321,7 +328,7 @@ export const SourceHeader = ({
         )}
         {secondLine.length > 0 && (
           <RelistenText className="text-l w-full pb-2 text-center italic text-gray-400">
-            {secondLine.join(' • ')}
+            {secondLine.join('\u00A0•\u00A0')}
           </RelistenText>
         )}
       </View>
@@ -396,7 +403,7 @@ export const SourceHeader = ({
               asChild
               className="flex-1"
             >
-              <RelistenButton textClassName="text-l" icon={null} disabled={show.sourceCount <= 1}>
+              <RelistenButton textClassName="text-l" icon={null} disabled={source.reviewCount < 1}>
                 <Plur word={'Review'} count={source.reviewCount} />
                 {source.avgRating ? `\u00A0•\u00A0${source.avgRating.toFixed(1)}★` : ''}
               </RelistenButton>
