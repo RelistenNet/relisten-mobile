@@ -46,7 +46,7 @@ export const DEFAULT_SETTINGS_OBJ = Object.freeze({
   trackListeningHistory: TrackListeningHistorySetting.Always,
   downloadViaCellularData: DownloadViaCellularDataSetting.Always,
   offlineMode: OfflineModeSetting.Automatic,
-  showOfflineTab: ShowOfflineTabSetting.WhenOffline,
+  showOfflineTab: ShowOfflineTabSetting.Always,
   autocacheStreamedMusic: AutocacheStreamedMusicSetting.Never,
   // min available storage to autosave when streaming
   autocacheMinAvailableStorageMB: 1000 * 10, // 10GB
