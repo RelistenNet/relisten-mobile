@@ -212,8 +212,8 @@ export function useFullShow(
 
 export function useFullShowWithSelectedSource(showUuid: string, selectedSourceUuid: string) {
   const results = useFullShow(String(showUuid));
-  const show = results?.data?.show;
-  const sources = results?.data?.sources;
+  const show = results.data?.show;
+  const sources = results.data?.sources;
   const artist = useArtist(show?.artistUuid);
 
   const sortedSources = useMemo(() => {
@@ -224,7 +224,12 @@ export function useFullShowWithSelectedSource(showUuid: string, selectedSourceUu
 
   // default sourceUuid is initial which will just fall back to sortedSources[0]
   const selectedSource =
-    sortedSources.find((source) => source.uuid === selectedSourceUuid) ?? sortedSources[0];
+    sortedSources.find(
+      (source) =>
+        source.uuid === selectedSourceUuid ||
+        // Prioritize favorited sources by default
+        (selectedSourceUuid === 'initial' && source.isFavorite)
+    ) ?? sortedSources[0];
 
   return {
     results,
