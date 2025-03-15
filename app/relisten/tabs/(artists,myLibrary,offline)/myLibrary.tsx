@@ -89,6 +89,13 @@ function FavoriteShows() {
       });
   }, [favoriteShowsQuery]);
 
+  const nonIdealState = {
+    noData: {
+      title: 'No Shows in Library',
+      description:
+        'After you tap the heart icon to add shows to your library, they will show up here.',
+    },
+  };
   // TODO(alecgorge): if the user has a favorited source within that show, take them directly there
 
   return (
@@ -102,6 +109,7 @@ function FavoriteShows() {
           filterOptions={{ persistence: { key: ['myLibrary', 'shows'].join('/') } }}
           // hide "My Library" filter since it's enabled by default here
           filters={SHOW_FILTERS.filter((sf) => sf.persistenceKey !== ShowFilterKey.Library)}
+          nonIdealState={nonIdealState}
         />
       </RefreshContextProvider>
     </View>

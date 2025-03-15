@@ -21,7 +21,7 @@ export const NonIdealState = ({
   onAction,
 }: NonIdealStateProps) => {
   return (
-    <View className="flex-1 items-center justify-center pb-2 pt-6">
+    <View className="flex-1 items-center justify-center py-6">
       <MaterialIcons name={icon as any} size={32} color={colors.gray['200']} />
       <RelistenText className="my-1 text-3xl font-bold text-gray-200">{title}</RelistenText>
       <RelistenText className="w-2/3 text-center text-gray-400">{description}</RelistenText>
