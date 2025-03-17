@@ -62,9 +62,8 @@ extension RelistenGaplessAudioPlayer {
 
     func fetchAlbumArt(href: String, completion: @escaping (MPMediaItemArtwork?) -> Void) {
         guard let url = URL(string: href) else { return }
-        getData(from: url) { [weak self] image in
-            guard let self = self,
-                  let downloadedImage = image else {
+        getData(from: url) { image in
+            guard let downloadedImage = image else {
                 completion(nil)
                 return
             }

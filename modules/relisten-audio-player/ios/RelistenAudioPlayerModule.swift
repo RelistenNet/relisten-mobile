@@ -43,6 +43,13 @@ public class RelistenAudioPlayerModule: Module {
             player = RelistenGaplessAudioPlayer()
             player?.delegate = self
         }
+        
+        OnDestroy {
+            player?.stop()
+            player?.maybeTearDownBASS()
+            
+            player = nil
+        }
 
         Events(
             "onError",

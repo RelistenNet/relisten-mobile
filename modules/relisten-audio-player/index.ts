@@ -184,7 +184,7 @@ class RelistenGaplessPlayer {
   }
 
   setNextStream(streamable?: RelistenStreamable) {
-    logger.debug('setNextStream called');
+    logger.debug('setNextStream called', streamable);
     RelistenAudioPlayerModule.setNextStream(streamable);
   }
 

@@ -16,6 +16,7 @@ public class RelistenStreamCacher {
 
     var file: FileHandle?
     var bytesWritten = 0
+    var bytesSeen = 0
 
     var lastBytesLogged = 0
 
@@ -39,9 +40,27 @@ public class RelistenStreamCacher {
             NSLog("[bass][stream caching] Failed to write data file=\(String(describing: file)) for streamable=\(streamable). Error=\(error)")
         }
     }
+    
+    private func sendProgressUpdate(bytes: Int?) {
+        if (player != nil) {
+            if let activeStream = player?.activeStream {
+                let isActiveTrack = activeStream.streamable.identifier == streamable.identifier;
+
+                let totalFileBytes = BASS_StreamGetFilePosition(activeStream.stream, DWORD(BASS_FILEPOS_SIZE))
+                
+                let downloadedBytes = if let bytes { UInt64(bytes) } else { totalFileBytes }
+
+                player?.delegate?.downloadProgressChanged(player!, forActiveTrack: isActiveTrack, downloadedBytes: downloadedBytes, totalBytes: totalFileBytes)
+            }
+        }
+    }
 
     private func writeDataUnsafe(_ data: Data) throws {
+        bytesSeen += data.count
+        
         guard let downloadDestination = streamable.downloadDestination else {
+            self.sendProgressUpdate(bytes: bytesSeen)
+            
             return
         }
 
@@ -79,16 +98,7 @@ public class RelistenStreamCacher {
             lastBytesLogged = bytesWritten
 
             // send download progress updates for streaming cache
-            if (player != nil) {
-                if let activeStream = player?.activeStream {
-                    let isActiveTrack = activeStream.streamable.identifier == streamable.identifier;
-
-                    let totalFileBytes = BASS_StreamGetFilePosition(activeStream.stream, DWORD(BASS_FILEPOS_SIZE))
-
-                    player?.delegate?.downloadProgressChanged(player!, forActiveTrack: isActiveTrack, downloadedBytes: UInt64(bytesWritten), totalBytes: totalFileBytes)
-
-                }
-            }
+            self.sendProgressUpdate(bytes: bytesWritten)
         }
     }
 
@@ -101,6 +111,7 @@ public class RelistenStreamCacher {
 
                 // emit event
                 player?.delegate?.streamingCacheCompleted(forStreamable: streamable, bytesWritten: bytesWritten)
+                self.sendProgressUpdate(bytes: nil)
             } catch {
                 NSLog("[bass][stream caching] Failed to close file=\(file) for streamable=\(streamable.identifier). Error=\(error)")
             }
