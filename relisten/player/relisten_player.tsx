@@ -350,6 +350,10 @@ ${indentString(this.queue.debugState(true))}
   };
 
   private onTrackStreamingCacheComplete = (event: RelistenTrackStreamingCacheCompleteEvent) => {
+    if (!this.enableStreamingCache) {
+      return;
+    }
+
     for (const track of this.queue.orderedTracks) {
       if (track.identifier === event.identifier) {
         DownloadManager.SHARED_INSTANCE.markCachedFileAsAvailableOffline(
