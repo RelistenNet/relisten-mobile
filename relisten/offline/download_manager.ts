@@ -169,7 +169,11 @@ export class DownloadManager {
 
     const task = {
       id: sourceTrack.uuid,
-      promise: ReactNativeBlobUtil.config({ fileCache: true }).fetch('GET', sourceTrack.mp3Url),
+      promise: ReactNativeBlobUtil.config({
+        fileCache: true,
+        Progress: { interval: 500, count: 10 },
+        timeout: 30 * 1000,
+      }).fetch('GET', sourceTrack.mp3Url),
     };
 
     this.pendingDownloadTasks--;
@@ -317,13 +321,15 @@ export class DownloadManager {
   ) {
     const percent = bytesDownloaded / bytesTotal;
 
-    realm.write(() => {
-      logger.debug(`${downloadTask.id}: progress; ${Math.floor(percent * 100)}`);
+    if (percent - offlineInfo.percent >= 0.1) {
+      realm.write(() => {
+        logger.debug(`${downloadTask.id}: progress; ${Math.floor(percent * 100)}`);
 
-      offlineInfo.downloadedBytes = bytesDownloaded;
-      offlineInfo.totalBytes = bytesTotal;
-      offlineInfo.percent = percent;
-    });
+        offlineInfo.downloadedBytes = bytesDownloaded;
+        offlineInfo.totalBytes = bytesTotal;
+        offlineInfo.percent = percent;
+      });
+    }
   }
 
   private attachDownloadHandlers(
@@ -333,20 +339,23 @@ export class DownloadManager {
     downloadTask: DownloadTask
   ) {
     downloadTask.promise
-      .progress((received, total) => {
-        logger.debug(`${downloadTask.id}: raw progress; received=${received} total=${total}`);
-
+      .progress({ count: 10, interval: 500 }, (received, total) => {
         this.writeProgress(realm, offlineInfo, downloadTask, {
           bytesDownloaded: Number(received),
           bytesTotal: Number(total),
         });
       })
       .then(async (res) => {
-        const dest = sourceTrack.downloadedFileLocation();
+        const dest = sourceTrack.downloadedFileLocation().replace('file://', '');
+        const path = res.path().replace('file://', '');
 
-        log.info(`${downloadTask.id}: copying ${res.path()} to ${dest}`);
+        log.info(`${downloadTask.id}: copying ${path} to ${dest}`);
+
         try {
-          await ReactNativeBlobUtil.fs.mv(res.path(), dest);
+          if (await ReactNativeBlobUtil.fs.exists(dest)) {
+            await ReactNativeBlobUtil.fs.unlink(dest);
+          }
+          await ReactNativeBlobUtil.fs.mv(path, dest);
         } finally {
           // if we encounter an error, clean up
           res.flush();
