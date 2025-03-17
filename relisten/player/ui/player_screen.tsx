@@ -282,8 +282,8 @@ function PlayerControls() {
       </TouchableOpacity>
       {Platform.OS === 'ios' && (
         <AirPlayButton
-          activeTintColor="blue"
-          tintColor="white"
+          activeTintColor="white"
+          tintColor="rgba(255, 255, 255, 0.5)"
           prioritizesVideoDevices={false}
           style={{ width: 42, height: 42, marginLeft: 8 }}
         />

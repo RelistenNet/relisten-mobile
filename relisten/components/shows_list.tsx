@@ -56,13 +56,13 @@ export const ShowListItem = ({ show, children }: ShowListItemProps) => {
               {show?.hasOfflineTracks && <SourceTrackSucceededIndicator />}
               <View className="grow" />
               <SubtitleText>
-                {show.humanizedAvgRating()} ★ &middot; {show.humanizedAvgDuration()}
+                {show.avgRating != 0 && show.humanizedAvgRating() + '\u00A0★\u00A0•\u00A0'}
+                {show.humanizedAvgDuration()}
               </SubtitleText>
             </Flex>
             <SubtitleRow>
               <SubtitleText>
-                {show.venue && `${show.venue.name}, ${show.venue.location}`}
-                &nbsp;&middot;&nbsp;
+                {show.venue && `${show.venue.name}, ${show.venue.location}\u00A0•\u00A0`}
                 <Plur word="tape" count={show.sourceCount} />
               </SubtitleText>
             </SubtitleRow>

@@ -65,7 +65,7 @@ class VenueShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
         queryForModel: true,
         upsertModels: {
           // every venue is the same here, so just do it once here
-          venues: false,
+          venues: true,
         },
       });
 
