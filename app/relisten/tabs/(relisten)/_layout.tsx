@@ -40,7 +40,7 @@ export default function ArtistsLayout() {
             return (
               <Image
                 source={require('../../../../assets/Relisten White.png')}
-                style={{ width: 200, height: 28 }}
+                style={{ width: '100%', height: 28 }}
                 resizeMode="contain"
               />
             );

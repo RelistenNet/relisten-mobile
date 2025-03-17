@@ -5,7 +5,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Stack } from 'expo-router/stack';
 import { useEffect } from 'react';
-import { Image } from 'react-native';
+import { Image, View } from 'react-native';
 import { RelistenText } from '@/relisten/components/relisten_text';
 
 export const unstable_settings = {
@@ -52,10 +52,14 @@ export default function ArtistsLayout() {
             return groupSegment == '(artists)' ? (
               <Image
                 source={require('../../../../assets/Relisten White.png')}
-                style={{ width: 200, height: 28 }}
+                style={{ width: '100%', height: 28 }}
                 resizeMode="contain"
               />
-            ) : undefined;
+            ) : (
+              <View className="flex flex-1 items-center justify-center">
+                <RelistenText className="text-lg font-bold">{children}</RelistenText>
+              </View>
+            );
           },
         }}
       />
