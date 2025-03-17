@@ -105,6 +105,8 @@ export class RelistenPlayer {
   }
 
   playTrackAtIndex(index: number, seekToTime?: number) {
+    this.playbackIntentStarted = true;
+
     const newIndex = Math.max(0, Math.min(index, this.queue.orderedTracks.length - 1));
 
     const track = this.queue.orderedTracks[newIndex];
@@ -113,8 +115,10 @@ export class RelistenPlayer {
     }
 
     // stop any playing sound while the next http request is buffering
-    this._state = RelistenPlaybackState.Paused;
-    nativePlayer.pause().then(() => {});
+    if (this.state !== RelistenPlaybackState.Stopped) {
+      this._state = RelistenPlaybackState.Paused;
+      nativePlayer.pause().then(() => {});
+    }
 
     this.startStalledTimer();
 
@@ -132,8 +136,6 @@ export class RelistenPlayer {
       this.updateSavedStateOnNextProgress = true;
     }
 
-    this.playbackIntentStarted = true;
-
     // no need to recalculateNextTrack because currentTrackIdentifier.setState listeners will handle that
   }
 
@@ -149,14 +151,15 @@ export class RelistenPlayer {
 
     const nextTrack = this.queue.nextTrack;
 
-    if (nextTrack) {
-      // optimistically update the UI. should be before the native call to prevent race conditions
-      this.optimisticallyUpdateCurrentTrack(nextTrack);
-    }
-
+    this.playbackIntentStarted = true;
     this.startStalledTimer();
 
-    nativePlayer.next().then(() => {});
+    nativePlayer.next().then(() => {
+      if (nextTrack) {
+        // optimistically update the UI. should be before the native call to prevent race conditions
+        this.optimisticallyUpdateCurrentTrack(nextTrack);
+      }
+    });
   }
 
   previous() {
@@ -231,7 +234,7 @@ ${indentString(this.queue.debugState(true))}
   // endregion
 
   private optimisticallyUpdateCurrentTrack(track: PlayerQueueTrack, seekToTime?: number) {
-    currentTrackIdentifier.setState(track.identifier);
+    this.queue.onCurrentTrackIdentifierChanged(track.identifier);
 
     const elapsed = seekToTime ?? 0;
     const duration = track.sourceTrack.duration ?? 100;

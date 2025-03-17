@@ -379,9 +379,13 @@ ${indentString(tracks)}
 
     this._nextTrack = newNextTrack;
 
+    log.debug(
+      `[recalculateNextTrack] ${newNextTrack?.identifier}, ${prevNextTrack?.identifier}, ${this.player.playbackIntentStarted}`
+    );
+
     if (
-      newNextTrack?.identifier !== prevNextTrack?.identifier &&
-      this.player.playbackIntentStarted
+      newNextTrack?.identifier !== prevNextTrack?.identifier ||
+      !this.player.playbackIntentStarted
     ) {
       if (newNextTrack) {
         nativePlayer.setNextStream(newNextTrack.toStreamable(this.player.enableStreamingCache));
@@ -453,10 +457,10 @@ ${indentString(tracks)}
     this.addedPlayerListeners = false;
   }
 
-  private onCurrentTrackIdentifierChanged = (newIdentifier?: string) => {
+  public onCurrentTrackIdentifierChanged = (newIdentifier?: string) => {
     this.clearCurrentTrack();
 
-    console.log(`onCurrentTrackIdentifierChanged newIdentifier=${newIdentifier}`);
+    log.debug(`onCurrentTrackIdentifierChanged newIdentifier=${newIdentifier}`);
 
     if (newIdentifier !== undefined) {
       this.recalculateTrackIndexes(newIdentifier);
@@ -577,6 +581,9 @@ ${indentString(tracks)}
     if (this.currentTrack) {
       this.onCurrentTrackIdentifierChanged(this.currentTrack.identifier);
     }
+
+    // reset this so that when we start playing, it can properly call setNextStream
+    this._nextTrack = undefined;
 
     if (playerState.elapsed && playerState.progress && playerState.duration) {
       // very early seeks into a song are buggy

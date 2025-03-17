@@ -179,7 +179,7 @@ class RelistenGaplessPlayer {
 
   play(streamable: RelistenStreamable, startingAtMs?: number): Promise<void> {
     startingAtMs = startingAtMs !== undefined ? Math.floor(startingAtMs) : undefined;
-    logger.debug(`play called startingAtMs=${startingAtMs}`);
+    logger.debug(`play called startingAtMs=${startingAtMs}`, streamable);
     return RelistenAudioPlayerModule.play(streamable, startingAtMs);
   }
 
