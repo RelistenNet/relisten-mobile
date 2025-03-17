@@ -7,7 +7,6 @@
 
 ```bash
 npx eas-cli@latest
-# Need to pass SENTRY_AUTH_TOKEN to have sourcemaps uploaded
-env SENTRY_AUTH_TOKEN=(op read "op://Private/Relisten Sentry SaaS/CI org auth token") npx eas-cli@latest build -p ios -e production --local
-env SENTRY_AUTH_TOKEN=(op read "op://Private/Relisten Sentry SaaS/CI org auth token") npx eas-cli@latest build -p android -e production --local
+
+./build_releases.sh
 ```
