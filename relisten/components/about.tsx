@@ -7,6 +7,7 @@ import * as Sentry from '@sentry/react-native';
 import * as StoreReview from 'expo-store-review';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { View } from 'react-native';
+import * as Application from 'expo-application';
 
 export function RelistenAbout() {
   const openEmail = async () => {
@@ -16,9 +17,12 @@ export function RelistenAbout() {
     }
   };
 
+  const userFacingVersion = Application.nativeApplicationVersion;
+  const buildVersion = Application.nativeBuildVersion;
+
   return (
     <Flex column>
-      <SectionHeader title="About" />
+      <SectionHeader title={`Relisten ${userFacingVersion} (${buildVersion})`} />
 
       <Flex column className="gap-4 p-4">
         <Flex className="w-full flex-wrap pb-2 pr-4">
