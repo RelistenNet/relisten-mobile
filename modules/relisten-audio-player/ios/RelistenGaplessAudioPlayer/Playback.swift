@@ -67,8 +67,7 @@ extension RelistenGaplessAudioPlayer {
 
             currentState = .Playing
 
-            updateControlCenter(artwork: nil)
-            fetchAlbumArt(href: activeStream.streamable.albumArt)
+            updateControlCenter()
 
             // this is needed because the stream download events don't fire for local music
             if activeStream.streamable.url.isFileURL {

@@ -9,7 +9,7 @@ import Foundation
 import MediaPlayer
 
 extension RelistenGaplessAudioPlayer {
-    func updateControlCenter(artwork: MPMediaItemArtwork?) {
+    func updateControlCenter() {
         guard let activeStream else {
             return
         }
@@ -21,7 +21,7 @@ extension RelistenGaplessAudioPlayer {
         nowPlayingInfo[MPMediaItemPropertyArtist] = activeStream.streamable.artist
         nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = activeStream.streamable.albumTitle
 
-        if artwork != nil {
+        if let artwork = activeStream.streamableArtwork {
             nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
         }
 
@@ -44,18 +44,35 @@ extension RelistenGaplessAudioPlayer {
         })
         .resume()
     }
+    
+    func fetchAlbumArt(stream: RelistenGaplessAudioStream) {
+        if !stream.fetchingArtwork && stream.streamableArtwork == nil {
+            stream.fetchingArtwork = true
+            
+            fetchAlbumArt(href: stream.streamable.albumArt) { [weak stream, weak self] artwork in
+                if let stream = stream, artwork != nil {
+                    stream.fetchingArtwork = false
+                    stream.streamableArtwork = artwork
+                    
+                    self?.updateControlCenter()
+                }
+            }
+        }
+    }
 
-    func fetchAlbumArt(href: String) {
+    func fetchAlbumArt(href: String, completion: @escaping (MPMediaItemArtwork?) -> Void) {
         guard let url = URL(string: href) else { return }
         getData(from: url) { [weak self] image in
             guard let self = self,
                   let downloadedImage = image else {
+                completion(nil)
                 return
             }
             let artwork = MPMediaItemArtwork.init(boundsSize: downloadedImage.size, requestHandler: { _ -> UIImage in
                 return downloadedImage
             })
-            self.updateControlCenter(artwork: artwork)
+            
+            completion(artwork)
         }
     }
 
@@ -110,7 +127,7 @@ extension RelistenGaplessAudioPlayer {
             }
 
             if sendPlaybackChanged || sendStateChanged {
-                updateControlCenter(artwork: nil)
+                updateControlCenter()
             }
 
             if sendPlaybackChanged {

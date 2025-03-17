@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import MediaPlayer
 
 public class RelistenGaplessAudioStream {
     var preloadStarted = false
@@ -17,6 +18,9 @@ public class RelistenGaplessAudioStream {
     var channelOffset: QWORD
 
     let streamable: RelistenGaplessStreamable
+    
+    var fetchingArtwork: Bool = false
+    var streamableArtwork: MPMediaItemArtwork? = nil
 
     let streamCacher: RelistenStreamCacher?
 

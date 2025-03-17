@@ -68,13 +68,17 @@ extension RelistenGaplessAudioPlayer {
 
         NSLog("[bass][stream] created new stream: %u. identifier=%@", newStream, streamable.identifier)
 
-        return RelistenGaplessAudioStream(
+        let stream = RelistenGaplessAudioStream(
             streamable: streamable,
             streamCacher: streamCacher,
             stream: newStream,
             fileOffset: fileOffset,
             channelOffset: channelOffset
         )
+        
+        fetchAlbumArt(stream: stream)
+        
+        return stream
     }
 
     func startPreloadingNextStream() {

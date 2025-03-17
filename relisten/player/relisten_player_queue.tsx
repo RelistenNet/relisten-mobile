@@ -75,13 +75,16 @@ export class PlayerQueueTrack {
     const source = sourceTrack.source;
     const venue = sourceTrack.show.venue;
 
+    const [year, month, day] = source.displayDate.split('-');
+
+    const albumArtUrl = `https://sonos.relisten.net/album-art/${artist?.slug}/years/${year}/${year}-${month}-${day}/${source.uuid}/550.png`;
+
     return new PlayerQueueTrack(
       sourceTrack,
       sourceTrack.title,
       [artist.name, source.displayDate, venue?.name].filter((part) => !!part).join(' • ') || '',
       [source.displayDate, venue?.name].filter((part) => !!part).join(' • ') || '',
-      'https://fastly.picsum.photos/id/311/550/550.jpg?hmac=HTOiKPHI1RJtHRyl2E88Qi1UeX_gIMSfKxwJzd9mWFg'
-      // `https://sonos.relisten.net/album-art/${artist?.slug}/years/${year}/${year}-${month}-${day}/${source.id}/550.png`
+      albumArtUrl
     );
   }
 
