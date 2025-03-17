@@ -1,7 +1,10 @@
 package net.relisten.android.audio_player.gapless
 
 import android.content.Context
+import android.util.Log
+import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
 import expo.modules.kotlin.AppContext
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
@@ -133,11 +136,15 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
             val newNextStream = streamManagement.buildStream(streamable)
             nextStream = newNextStream
 
+            logExoPlayerState("setNextStream(); pre-change", exoplayer)
+
             exoplayer.addMediaItem(exoplayer.currentMediaItemIndex + 1, newNextStream.mediaItem)
 
             if (exoplayer.currentMediaItemIndex + 2 < exoplayer.mediaItemCount) {
                 exoplayer.removeMediaItems(exoplayer.currentMediaItemIndex + 2, exoplayer.mediaItemCount)
             }
+
+            logExoPlayerState("setNextStream(); post-change", exoplayer)
         }
     }
 
@@ -177,8 +184,16 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
     fun next() {
         if (nextStream != null && activeStream != null) {
             scope.launch {
-                exoPlayer?.seekToNextMediaItem()
+                val exoplayer = exoPlayer
+
+                if (exoplayer != null) {
+                    logExoPlayerState("next(); pre-change", exoplayer)
+                    exoplayer.seekToNextMediaItem()
+                    logExoPlayerState("next(); post-change", exoplayer)
+                }
             }
+        } else {
+            Log.d("relisten-audio", "activeStream=${activeStream?.streamable?.identifier} nextStream=${nextStream?.streamable?.identifier}")
         }
     }
 
@@ -224,14 +239,32 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
         play(streamable, startingAtMs = null)
     }
 
+    internal fun logExoPlayerState(prefix: String, exoplayer: Player) {
+        var queueStr = ""
+
+        for (i in 0..<exoplayer.mediaItemCount) {
+            val mediaItem = exoplayer.getMediaItemAt(i)
+            queueStr += "\n$i${if (i == exoplayer.currentMediaItemIndex) "*" else ""}: ${mediaItem.mediaId} ${mediaItem.mediaMetadata.title}"
+        }
+
+        Log.d("relisten-audio", "$prefix; mediaItemCount=${exoplayer.mediaItemCount}, playbackState=${exoplayer.playbackState}, queue:$queueStr")
+    }
+
     internal fun playStreamableImmediately(streamable: RelistenGaplessStreamable, startingAtMs: Long? = null) {
 
         val activeStream = streamManagement.buildStream(streamable)
         this.activeStream = activeStream
-        nextStream = null
 
         scope.launch {
             val exoplayer = exoplayerLifecycle.maybeSetupExoPlayer()
+
+            var previousNext: MediaItem? = null
+
+            logExoPlayerState("playStreamableImmediately(); pre-change", exoplayer)
+
+            if (exoplayer.mediaItemCount > 1) {
+                previousNext = exoplayer.getMediaItemAt(exoplayer.currentMediaItemIndex + 1)
+            }
 
             if (startingAtMs != null) {
                 exoplayer.setMediaItem(activeStream.mediaItem, startingAtMs)
@@ -239,8 +272,16 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
             else {
                 exoplayer.setMediaItem(activeStream.mediaItem)
             }
+
             exoplayer.prepare()
             exoplayer.play()
+
+            if (previousNext != null) {
+                Log.d("relisten-audio", "playStreamableImmediately(); reinserting previousNext MediaItem mediaId=${previousNext.mediaId}")
+                exoplayer.addMediaItem(previousNext)
+            }
+
+            logExoPlayerState("playStreamableImmediately(); post-change", exoplayer)
 
             playbackUpdates.startUpdates()
         }

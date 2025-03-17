@@ -167,13 +167,9 @@ export class RelistenPlayer {
 
     const currentIdx = this.queue.currentIndex;
 
-    if (!currentIdx) {
+    if (currentIdx === undefined) {
       return;
     }
-
-    // TODO: if track.elapsed > 10 then instead of
-    // switching to prior track, just restart the current one
-    // if elapsed < 10, then go to prior track.
 
     this.playTrackAtIndex(currentIdx - 1);
   }

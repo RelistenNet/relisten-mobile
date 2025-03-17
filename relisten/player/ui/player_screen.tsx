@@ -251,7 +251,7 @@ function PlayerControls() {
       {Platform.OS === 'ios' && <View className="w-[44px]" />}
       <TouchableOpacity
         onPress={() => {
-          if (progress && (progress.elapsed < 5 || player.queue.currentIndex === 0)) {
+          if (progress && (progress.elapsed > 5 || player.queue.currentIndex === 0)) {
             player.seekTo(0).then(() => {});
           } else {
             player.previous();

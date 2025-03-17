@@ -12,6 +12,7 @@ class StreamManagement internal constructor(private val player: RelistenGaplessA
                 streamable = streamable,
                 mediaItem = MediaItem
                         .Builder()
+                        .setMediaId(streamable.identifier)
                         .setUri(streamable.url.toString())
                         .setMediaMetadata(
                                 MediaMetadata
