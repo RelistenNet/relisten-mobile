@@ -108,6 +108,14 @@ export default function Page() {
     });
   };
 
+  const removeDownloads = () => {
+    const showTracks = selectedSource.allSourceTracks();
+
+    showTracks.forEach((track) => {
+      DownloadManager.SHARED_INSTANCE.removeDownload(track);
+    });
+  };
+
   const onDotsPress = useCallback(() => {
     if (!show) {
       return;
@@ -116,6 +124,7 @@ export default function Page() {
     const options = [
       'Play Show',
       'Download Entire Show',
+      'Remove All Downloads for Show',
       'View Sources',
       'Toggle Favorite',
       'Cancel',
@@ -138,8 +147,12 @@ export default function Page() {
             break;
 
           case 2:
+            removeDownloads();
             break;
+
           case 3:
+            break;
+          case 4:
             realm.write(() => {
               selectedSource.isFavorite = !selectedSource.isFavorite;
             });
