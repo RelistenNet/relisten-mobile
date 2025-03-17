@@ -17,6 +17,7 @@ import {
   Filter,
   FilteringOptions,
   FilteringProvider,
+  searchForSubstring,
   SortDirection,
 } from '@/relisten/components/filtering/filters';
 import { useEffect } from 'react';
@@ -137,9 +138,9 @@ const VENUE_FILTERS: Filter<VenueFilterKey, Venue>[] = [
       const search = searchText.toLowerCase();
 
       return (
-        venue.name.toLowerCase().indexOf(search) !== -1 ||
-        venue.location.toLowerCase().indexOf(search) !== -1 ||
-        venue.pastNames?.toLowerCase()?.indexOf(search) !== -1
+        searchForSubstring(venue.name, search) ||
+        searchForSubstring(venue.location, search) ||
+        searchForSubstring(venue.pastNames, search)
       );
     },
   },
