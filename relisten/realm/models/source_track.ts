@@ -8,15 +8,15 @@ import { Artist } from './artist';
 import { Show } from './show';
 import { Source } from './source';
 import { Year } from './year';
-import RNBackgroundDownloader from '@kesha-antonov/react-native-background-downloader';
 import { duration, trackDuration } from '@/relisten/util/duration';
+import * as FileSystem from 'expo-file-system';
 
-export const OFFLINE_DIRECTORY = `${RNBackgroundDownloader.directories.documents}/offline`;
+export const OFFLINE_DIRECTORY = `${FileSystem.documentDirectory}/offline`;
 
-export const OFFLINE_DIRECTORY_LEGACY = `${RNBackgroundDownloader.directories.documents}/offline-mp3s`;
-export const OFFLINE_DIRECTORY_LEGACY_CACHE = `${RNBackgroundDownloader.directories.documents}/RelistenCache`;
-export const OFFLINE_DIRECTORY_LEGACY_API_CACHE = `${RNBackgroundDownloader.directories.documents}/RelistenApiCache`;
-export const OFFLINE_DIRECTORY_LEGACY_LOGS = `${RNBackgroundDownloader.directories.documents}/Logs`;
+export const OFFLINE_DIRECTORY_LEGACY = `${FileSystem.documentDirectory}/offline-mp3s`;
+export const OFFLINE_DIRECTORY_LEGACY_CACHE = `${FileSystem.documentDirectory}/RelistenCache`;
+export const OFFLINE_DIRECTORY_LEGACY_API_CACHE = `${FileSystem.documentDirectory}/RelistenApiCache`;
+export const OFFLINE_DIRECTORY_LEGACY_LOGS = `${FileSystem.documentDirectory}/Logs`;
 
 export const OFFLINE_DIRECTORIES_LEGACY = [
   OFFLINE_DIRECTORY_LEGACY,

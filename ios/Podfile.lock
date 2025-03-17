@@ -90,9 +90,6 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - MMKV (2.0.2):
-    - MMKVCore (~> 2.0.2)
-  - MMKVCore (2.0.2)
   - RCT-Folly (2024.11.18.00):
     - boost
     - DoubleConversion
@@ -1297,9 +1294,27 @@ PODS:
     - ReactCommon/turbomodule/core
   - react-native-airplay-button (1.1.0):
     - React-Core
-  - react-native-background-downloader (3.2.6):
-    - MMKV (~> 2.0.2)
+  - react-native-blob-util (0.21.2):
+    - DoubleConversion
+    - glog
+    - hermes-engine
+    - RCT-Folly (= 2024.11.18.00)
+    - RCTRequired
+    - RCTTypeSafety
     - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - Yoga
   - react-native-get-random-values (1.11.0):
     - React-Core
   - react-native-netinfo (11.4.1):
@@ -2032,7 +2047,7 @@ DEPENDENCIES:
   - React-Mapbuffer (from `../node_modules/react-native/ReactCommon`)
   - React-microtasksnativemodule (from `../node_modules/react-native/ReactCommon/react/nativemodule/microtasks`)
   - react-native-airplay-button (from `../node_modules/react-native-airplay-button`)
-  - "react-native-background-downloader (from `../node_modules/@kesha-antonov/react-native-background-downloader`)"
+  - react-native-blob-util (from `../node_modules/react-native-blob-util`)
   - react-native-get-random-values (from `../node_modules/react-native-get-random-values`)
   - "react-native-netinfo (from `../node_modules/@react-native-community/netinfo`)"
   - react-native-render-html (from `../node_modules/react-native-render-html`)
@@ -2081,8 +2096,6 @@ DEPENDENCIES:
 SPEC REPOS:
   trunk:
     - lottie-ios
-    - MMKV
-    - MMKVCore
     - Sentry
     - SocketRocket
 
@@ -2200,8 +2213,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/microtasks"
   react-native-airplay-button:
     :path: "../node_modules/react-native-airplay-button"
-  react-native-background-downloader:
-    :path: "../node_modules/@kesha-antonov/react-native-background-downloader"
+  react-native-blob-util:
+    :path: "../node_modules/react-native-blob-util"
   react-native-get-random-values:
     :path: "../node_modules/react-native-get-random-values"
   react-native-netinfo:
@@ -2319,8 +2332,6 @@ SPEC CHECKSUMS:
   hermes-engine: ccc24d29d650ea725d582a9a53d57cd417fbdb53
   lottie-ios: a881093fab623c467d3bce374367755c272bdd59
   lottie-react-native: 57ffc63285c1e5dcad6743dca0d3e1ed34cac598
-  MMKV: 3eacda84cd1c4fc95cf848d3ecb69d85ed56006c
-  MMKVCore: 508b4d3a8ce031f1b5c8bd235f0517fb3f4c73a9
   RCT-Folly: 36fe2295e44b10d831836cc0d1daec5f8abcf809
   RCTDeprecation: 664055db806cce35c3c1b43c84414dd66e117ae6
   RCTRequired: dc9a83fa1012054f94430d210337ca3a1afe6fc0
@@ -2351,7 +2362,7 @@ SPEC CHECKSUMS:
   React-Mapbuffer: 2976cb8ef91ef01700f56023dcf0b4838a0c4f95
   React-microtasksnativemodule: 7b94bd985daaeab923407ab6d248c02eae734720
   react-native-airplay-button: 90c7ba52402c8e92342003b8a1ff78dfb4357a9e
-  react-native-background-downloader: 3d0700cbefea2c34d84adea26333424b0ba2819b
+  react-native-blob-util: 875bbeee07e4ada135e4edf9fc7b22acf8d9721d
   react-native-get-random-values: 21325b2244dfa6b58878f51f9aa42821e7ba3d06
   react-native-netinfo: f0a9899081c185db1de5bb2fdc1c88c202a059ac
   react-native-render-html: 984dfe2294163d04bf5fe25d7c9f122e60e05ebe

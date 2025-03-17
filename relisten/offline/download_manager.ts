@@ -1,4 +1,8 @@
-import { OFFLINE_DIRECTORIES_LEGACY, SourceTrack } from '@/relisten/realm/models/source_track';
+import {
+  OFFLINE_DIRECTORIES_LEGACY,
+  OFFLINE_DIRECTORY,
+  SourceTrack,
+} from '@/relisten/realm/models/source_track';
 import {
   SourceTrackOfflineInfo,
   SourceTrackOfflineInfoStatus,
@@ -6,12 +10,16 @@ import {
 } from '@/relisten/realm/models/source_track_offline_info';
 import { realm } from '@/relisten/realm/schema';
 import { log } from '@/relisten/util/logging';
-import type { DownloadTask } from '@kesha-antonov/react-native-background-downloader';
-import RNBackgroundDownloader from '@kesha-antonov/react-native-background-downloader';
 import { Realm } from '@realm/react';
 import * as fs from 'expo-file-system';
+import ReactNativeBlobUtil, { FetchBlobResponse, StatefulPromise } from 'react-native-blob-util';
 
 const logger = log.extend('offline');
+
+interface DownloadTask {
+  id: string;
+  promise: StatefulPromise<FetchBlobResponse>;
+}
 
 export class DownloadManager {
   static SHARED_INSTANCE = new DownloadManager();
@@ -153,32 +161,30 @@ export class DownloadManager {
     // make sure the file doesn't already exist. the native code will error out. this should only be needed to recover
     // from strange error states/interactions with the streaming cache
     try {
+      await fs.makeDirectoryAsync(OFFLINE_DIRECTORY);
       await fs.deleteAsync(destination, { idempotent: true });
     } catch {
       /* empty */
     }
 
-    const task = RNBackgroundDownloader.download({
+    const task = {
       id: sourceTrack.uuid,
-      url: sourceTrack.mp3Url,
-      destination,
-      isNotificationVisible: true,
-    });
+      promise: ReactNativeBlobUtil.config({ fileCache: true }).fetch('GET', sourceTrack.mp3Url),
+    };
 
     this.pendingDownloadTasks--;
     this.runningDownloadTasks.push(task);
 
-    task.begin(({ expectedBytes }) => {
-      realm!.write(() => {
-        logger.debug(`${offlineInfo.sourceTrackUuid}: begin`);
+    realm!.write(() => {
+      logger.debug(
+        `${offlineInfo.sourceTrackUuid}: begin -> ${sourceTrack.downloadedFileLocation()}`
+      );
 
-        offlineInfo.status = SourceTrackOfflineInfoStatus.Downloading;
-        offlineInfo.startedAt = new Date();
-        offlineInfo.totalBytes = expectedBytes;
-      });
+      offlineInfo.status = SourceTrackOfflineInfoStatus.Downloading;
+      offlineInfo.startedAt = new Date();
     });
 
-    this.attachDownloadHandlers(realm!, offlineInfo!, task);
+    this.attachDownloadHandlers(realm!, sourceTrack, offlineInfo!, task);
 
     return task;
   }
@@ -186,8 +192,9 @@ export class DownloadManager {
   async removeAllPendingDownloads() {
     // stop all active downloads
     for (const downloadTask of this.runningDownloadTasks) {
-      downloadTask.stop();
-      this.runningDownloadTasks.splice(this.runningDownloadTasks.indexOf(downloadTask), 1);
+      downloadTask.promise.cancel();
+
+      // no need to remove from the array because cancelling will cause the failure handler to remove it
     }
 
     if (realm) {
@@ -246,8 +253,7 @@ export class DownloadManager {
     const task = this.downloadTaskById(sourceTrack.uuid);
 
     if (task) {
-      task.stop();
-      this.runningDownloadTasks.splice(this.runningDownloadTasks.indexOf(task), 1);
+      task.promise.cancel();
     }
 
     // delete file, if it exists
@@ -274,31 +280,21 @@ export class DownloadManager {
       return;
     }
 
-    RNBackgroundDownloader.setConfig({
-      progressInterval: 500 /* ms */,
-      // These are really noisy. If enabled, make sure it is only __DEV__
-      isLogsEnabled: false,
-    });
+    // these are downloads that were in progress when the app was killed
+    const stuckDownloads = realm
+      .objects(SourceTrackOfflineInfo)
+      .filtered('status == $0', SourceTrackOfflineInfoStatus.Downloading);
 
-    const lostTasks = await RNBackgroundDownloader.checkForExistingDownloads();
-
-    const resumedTaskIds = new Set<string>();
-
-    if (lostTasks.length > 0) {
-      for (const task of lostTasks) {
-        const offlineInfo = realm.objectForPrimaryKey(SourceTrackOfflineInfo, task.id);
-
-        if (offlineInfo) {
-          this.runningDownloadTasks.push(task);
-          this.attachDownloadHandlers(realm, offlineInfo, task);
-          resumedTaskIds.add(task.id);
-        } else {
-          task.stop();
-        }
+    realm.write(() => {
+      for (const stuckDownload of stuckDownloads) {
+        stuckDownload.status = SourceTrackOfflineInfoStatus.Queued;
+        stuckDownload.completedAt = undefined;
+        stuckDownload.startedAt = undefined;
+        stuckDownload.totalBytes = 0;
+        stuckDownload.downloadedBytes = 0;
+        stuckDownload.percent = 0;
       }
-    }
-
-    logger.info(`Resumed ${resumedTaskIds.size} background downloads from tasks.`);
+    });
 
     const restartedTaskIds = await this.maybeStartQueuedDownloads();
 
@@ -332,14 +328,30 @@ export class DownloadManager {
 
   private attachDownloadHandlers(
     realm: Realm,
+    sourceTrack: SourceTrack,
     offlineInfo: SourceTrackOfflineInfo,
     downloadTask: DownloadTask
   ) {
-    downloadTask
-      .progress((props) => {
-        this.writeProgress(realm, offlineInfo, downloadTask, props);
+    downloadTask.promise
+      .progress((received, total) => {
+        logger.debug(`${downloadTask.id}: raw progress; received=${received} total=${total}`);
+
+        this.writeProgress(realm, offlineInfo, downloadTask, {
+          bytesDownloaded: Number(received),
+          bytesTotal: Number(total),
+        });
       })
-      .done(() => {
+      .then(async (res) => {
+        const dest = sourceTrack.downloadedFileLocation();
+
+        log.info(`${downloadTask.id}: copying ${res.path()} to ${dest}`);
+        try {
+          await ReactNativeBlobUtil.fs.mv(res.path(), dest);
+        } finally {
+          // if we encounter an error, clean up
+          res.flush();
+        }
+
         realm.write(() => {
           logger.debug(`${downloadTask.id}: done`);
           offlineInfo.status = SourceTrackOfflineInfoStatus.Succeeded;
@@ -352,7 +364,9 @@ export class DownloadManager {
         this.runningDownloadTasks.splice(this.runningDownloadTasks.indexOf(downloadTask), 1);
         this.maybeStartQueuedDownloads().then(() => {});
       })
-      .error((error) => {
+      .catch((error) => {
+        log.error(`error downloading ${downloadTask.id}`, error);
+
         realm.write(() => {
           logger.debug(`${downloadTask.id}: error; ${JSON.stringify(error)}`);
 

@@ -52,11 +52,11 @@ const useFileSystemInfo = () => {
       const [totalDiskSpace, totalFreeDiskSpace, dirInfo] = await Promise.all([
         fs.getTotalDiskCapacityAsync(),
         fs.getFreeDiskStorageAsync(),
-        fs.getInfoAsync(OFFLINE_DIRECTORY),
+        fs.getInfoAsync(OFFLINE_DIRECTORY, { size: true }),
       ]);
 
       const legacyDirInfos = await Promise.all(
-        OFFLINE_DIRECTORIES_LEGACY.map((d) => fs.getInfoAsync(d))
+        OFFLINE_DIRECTORIES_LEGACY.map((d) => fs.getInfoAsync(d, { size: true }))
       );
 
       const legacyTotal = legacyDirInfos.reduce(
@@ -103,14 +103,17 @@ function StorageUsage() {
 
     options.push('Cancel');
 
+    const legacy = canDeleteLegacy
+      ? '\n\nDeleting legacy data will clear space from previous version of Relisten but cannot be recovered.'
+      : '';
+
     showActionSheetWithOptions(
       {
         options,
         cancelButtonIndex: options.length - 1,
         destructiveButtonIndex: options.length - 2,
         title: 'Are you sure you want to delete your downloaded tracks?',
-        message:
-          'Deleting all downloaded tracks will free up storage space, but you will not be able to play any songs without access to the Internet.\n\nDeleting legacy data will clear space from previous version of Relisten but cannot be recovered.',
+        message: `Deleting all downloaded tracks will free up storage space, but you will not be able to play any songs without access to the Internet.${legacy}`,
       },
       (selectedIdx?: number) => {
         if (selectedIdx === undefined || selectedIdx === options.length - 1) {
