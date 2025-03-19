@@ -6,17 +6,58 @@ import * as Linking from 'expo-linking';
 import * as Sentry from '@sentry/react-native';
 import * as StoreReview from 'expo-store-review';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
-import { View } from 'react-native';
+import { View, ViewProps } from 'react-native';
 import * as Application from 'expo-application';
+import { tw } from '@/relisten/util/tw';
+
+const openEmail = async () => {
+  const url = 'mailto:team@relisten.net';
+  if (await Linking.canOpenURL(url)) {
+    Linking.openURL(url);
+  }
+};
+
+export function SocialButtons({ className, ...props }: ViewProps) {
+  return (
+    <Flex className={tw('w-full flex-wrap', className)} {...props}>
+      <View className="basis-1/2 pb-1 pr-1">
+        <RelistenButton
+          onPress={openEmail}
+          icon={<MaterialIcons name="email" size={16} color="white" />}
+          textClassName="text-xs"
+        >
+          team@relisten.net
+        </RelistenButton>
+      </View>
+      <View className="basis-1/2 pb-1 pl-1">
+        <RelistenButton
+          onPress={() => Linking.openURL('https://discord.gg/TSaj6vU')}
+          icon={<MaterialIcons name="discord" size={16} color="white" />}
+        >
+          Discord
+        </RelistenButton>
+      </View>
+      <View className="basis-1/2 pr-1 pt-1">
+        <RelistenButton
+          onPress={() => Linking.openURL('https://instagram.com/relistenapp')}
+          icon={<MaterialCommunityIcons name="instagram" size={16} color="white" />}
+        >
+          @relistenapp
+        </RelistenButton>
+      </View>
+      <View className="basis-1/2 pl-1 pt-1">
+        <RelistenButton
+          onPress={() => Linking.openURL('https://twitter.com/relistenapp')}
+          icon={<MaterialCommunityIcons name="twitter" size={16} color="white" />}
+        >
+          @relistenapp
+        </RelistenButton>
+      </View>
+    </Flex>
+  );
+}
 
 export function RelistenAbout() {
-  const openEmail = async () => {
-    const url = 'mailto:team@relisten.net';
-    if (await Linking.canOpenURL(url)) {
-      Linking.openURL(url);
-    }
-  };
-
   const userFacingVersion = Application.nativeApplicationVersion;
   const buildVersion = Application.nativeBuildVersion;
 
@@ -25,40 +66,7 @@ export function RelistenAbout() {
       <SectionHeader title={`Relisten ${userFacingVersion} (${buildVersion})`} />
 
       <Flex column className="gap-4 p-4">
-        <Flex className="w-full flex-wrap pb-2 pr-4">
-          <View className="basis-1/2 pb-1 pr-1">
-            <RelistenButton
-              onPress={openEmail}
-              icon={<MaterialIcons name="email" size={16} color="white" />}
-            >
-              team@relisten.net
-            </RelistenButton>
-          </View>
-          <View className="basis-1/2 pb-1 pl-1">
-            <RelistenButton
-              onPress={() => Linking.openURL('https://discord.gg/TSaj6vU')}
-              icon={<MaterialIcons name="discord" size={16} color="white" />}
-            >
-              Discord
-            </RelistenButton>
-          </View>
-          <View className="basis-1/2 pr-1 pt-1">
-            <RelistenButton
-              onPress={() => Linking.openURL('https://instagram.com/relistenapp')}
-              icon={<MaterialCommunityIcons name="instagram" size={16} color="white" />}
-            >
-              @relistenapp
-            </RelistenButton>
-          </View>
-          <View className="basis-1/2 pl-1 pt-1">
-            <RelistenButton
-              onPress={() => Linking.openURL('https://twitter.com/relistenapp')}
-              icon={<MaterialCommunityIcons name="twitter" size={16} color="white" />}
-            >
-              @relistenapp
-            </RelistenButton>
-          </View>
-        </Flex>
+        <SocialButtons className="pb-2 pr-4" />
         <RowWithAction
           title="Built by the team at relisten.net"
           subtitle="This app was written by Alec Gorge, with help from Daniel Saewitz and Thenlie"

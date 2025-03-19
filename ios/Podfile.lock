@@ -1746,6 +1746,27 @@ PODS:
     - React
   - RelistenAudioPlayer (2.4.0):
     - ExpoModulesCore
+  - RNCAsyncStorage (1.23.1):
+    - DoubleConversion
+    - glog
+    - hermes-engine
+    - RCT-Folly (= 2024.11.18.00)
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - Yoga
   - RNFlashList (1.7.3):
     - DoubleConversion
     - glog
@@ -2088,6 +2109,7 @@ DEPENDENCIES:
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
   - RealmJS (from `../node_modules/realm`)
   - RelistenAudioPlayer (from `../modules/relisten-audio-player/ios`)
+  - "RNCAsyncStorage (from `../node_modules/@react-native-async-storage/async-storage`)"
   - "RNFlashList (from `../node_modules/@shopify/flash-list`)"
   - RNGestureHandler (from `../node_modules/react-native-gesture-handler`)
   - RNReanimated (from `../node_modules/react-native-reanimated`)
@@ -2294,6 +2316,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/realm"
   RelistenAudioPlayer:
     :path: "../modules/relisten-audio-player/ios"
+  RNCAsyncStorage:
+    :path: "../node_modules/@react-native-async-storage/async-storage"
   RNFlashList:
     :path: "../node_modules/@shopify/flash-list"
   RNGestureHandler:
@@ -2406,6 +2430,7 @@ SPEC CHECKSUMS:
   ReactCommon: 2b7aae141aa868224ef65cdc5144d1ec1acfed57
   RealmJS: f3f9d0a5361cc18ef5a6fe0fa1c274a821cef708
   RelistenAudioPlayer: 3b619e18f8ce7e05eca19ea1b96aa7d0b0b79015
+  RNCAsyncStorage: 3233c933bc5181159f92e5b3f2e93cffa28b66d3
   RNFlashList: f832facfc91d28650f73e75648267badc76b2b1c
   RNGestureHandler: 75a1894590b15c560094c2b09c5dce6a64eefa29
   RNReanimated: 5c268cff742e86416974907d8596b173683e9ce6

@@ -34,7 +34,7 @@ const sizeFormatter = new Intl.NumberFormat([], {
 const BYTE_TO_GB = 1000 * 1000 * 1000;
 const formatBytes = (bytes: number) => sizeFormatter.format(bytes / BYTE_TO_GB);
 
-const useFileSystemInfo = () => {
+export const useFileSystemInfo = () => {
   const [refreshState, refresh] = useReducer((state) => state + 1, 0);
   const [state, setState] = useState({
     totalDiskSpace: 0,
