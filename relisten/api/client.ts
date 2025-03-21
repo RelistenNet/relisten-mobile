@@ -368,9 +368,9 @@ export class RelistenApiClient {
   }
 
   public async recordPlayback(sourceTrackUuid: string): Promise<RelistenApiResponse<unknown>> {
-    // TODO(alecgorge): Android isn't support on the server yet
-    // const app_type = Platform.OS;
-    const app_type = 'ios';
+    const app_type = Platform.OS;
+
+    // const app_type = 'ios';
     return await this.postJson<unknown>(
       `/v2/live/play?app_type=${app_type}&track_uuid=${sourceTrackUuid}`,
       {}
