@@ -15,7 +15,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Link, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { PropsWithChildren, useCallback, useEffect, useState } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
-import { Animated, ScrollViewProps, TouchableOpacity, View } from 'react-native';
+import { Animated, Platform, ScrollViewProps, Share, TouchableOpacity, View } from 'react-native';
 import * as R from 'remeda';
 
 import { SourceSets } from '@/relisten/components/source/source_sets_component';
@@ -122,6 +122,7 @@ export default function Page() {
     }
 
     const options = [
+      'Share Show',
       'Play Show',
       'Download Entire Show',
       'Remove All Downloads for Show',
@@ -138,21 +139,31 @@ export default function Page() {
       },
       (selectedIndex?: number) => {
         switch (selectedIndex) {
-          case 0:
+          case 0: {
+            const [year, month, day] = selectedSource.displayDate.split('-');
+            const url = `https://relisten.net/${artist.data?.slug}/${year}/${month}/${day}?source=${selectedSource.uuid}`;
+            Share.share({
+              message: `Check out ${show.displayDate} (${show.venue?.name ?? ''}) by ${artist?.data?.name} on @relistenapp${Platform.OS === 'ios' ? '' : `: ${url}`}`,
+              url: url,
+            }).then(() => {});
+
+            break;
+          }
+          case 1:
             playShow(selectedSource?.sourceSets[0].sourceTracks[0]);
 
             break;
-          case 1:
+          case 2:
             downloadShow();
             break;
 
-          case 2:
+          case 3:
             removeDownloads();
             break;
 
-          case 3:
-            break;
           case 4:
+            break;
+          case 5:
             realm.write(() => {
               selectedSource.isFavorite = !selectedSource.isFavorite;
             });

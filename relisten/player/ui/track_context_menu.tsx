@@ -8,6 +8,7 @@ import {
   SourceTrackOfflineInfoType,
 } from '@/relisten/realm/models/source_track_offline_info';
 import { useCallback } from 'react';
+import { Platform, Share } from 'react-native';
 
 export type PlayShow = (sourceTrack?: SourceTrack) => void;
 
@@ -28,13 +29,14 @@ export function useSourceTrackContextMenu() {
       const sourceTrack = queueTrack.sourceTrack;
 
       const options = [
-        'Play now',
+        'Play Now',
         'Play Next',
         'Add to end of queue',
         sourceTrack.offlineInfo &&
         sourceTrack.offlineInfo.type != SourceTrackOfflineInfoType.StreamingCache
           ? offlineStatusToAction[sourceTrack.offlineInfo.status]
           : 'Download',
+        'Share Track',
         'Cancel',
       ];
 
@@ -72,6 +74,17 @@ export function useSourceTrackContextMenu() {
                 await DownloadManager.SHARED_INSTANCE.removeDownload(sourceTrack);
               }
               break;
+
+            case 4: {
+              const [year, month, day] = sourceTrack.show.displayDate.split('-');
+              const url = `https://relisten.net/${sourceTrack.artist.slug}/${year}/${month}/${day}/${sourceTrack.slug}?source=${sourceTrack.source.uuid}`;
+              Share.share({
+                message: `Check out ${sourceTrack.title} from ${sourceTrack.show.displayDate} by ${sourceTrack.artist?.name} on @relistenapp${Platform.OS === 'ios' ? '' : `: ${url}`}`,
+                url: url,
+              }).then(() => {});
+
+              break;
+            }
             case cancelButtonIndex:
               // Canceled
               break;
