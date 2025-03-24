@@ -77,7 +77,7 @@ export function RelistenAbout() {
         </RowWithAction>
         <RowWithAction
           title="Free and open source on Github"
-          subtitle="This app is free and open-source under the MIT license at github.com/relistennet/relisten-mobile"
+          subtitle="This app is free and open-source under the AGPLv3 license at github.com/relistennet/relisten-mobile"
         >
           <RelistenButton
             onPress={() => Linking.openURL('https://github.com/relistennet/relisten-mobile')}
