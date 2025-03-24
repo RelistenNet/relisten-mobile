@@ -6,12 +6,14 @@ import * as Linking from 'expo-linking';
 import * as Sentry from '@sentry/react-native';
 import * as StoreReview from 'expo-store-review';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
-import { View, ViewProps } from 'react-native';
+import { Platform, View, ViewProps } from 'react-native';
 import * as Application from 'expo-application';
 import { tw } from '@/relisten/util/tw';
 
 const openEmail = async () => {
-  const url = 'mailto:team@relisten.net';
+  const userFacingVersion = Application.nativeApplicationVersion;
+  const buildVersion = Application.nativeBuildVersion;
+  const url = `mailto:team@relisten.net?subject=[${Platform.OS}][${userFacingVersion}][${buildVersion}]`;
   if (await Linking.canOpenURL(url)) {
     Linking.openURL(url);
   }
