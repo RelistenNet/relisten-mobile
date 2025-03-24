@@ -47,7 +47,13 @@ export default function Page() {
             <RelistenText cn="ml-2 text-xl font-bold px-2">{artist?.name}</RelistenText>
             <ScrollView horizontal className="px-2 pb-4 pr-8 pt-2">
               {shows.map((show) => (
-                <ShowCard show={show} key={show.uuid} root="artists" className="h-full w-[168px]" />
+                <ShowCard
+                  show={show}
+                  key={show.uuid}
+                  root="artists"
+                  className="h-full w-[168px]"
+                  showArtist={false}
+                />
               ))}
             </ScrollView>
           </View>
