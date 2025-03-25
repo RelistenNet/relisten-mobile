@@ -2,22 +2,15 @@ import { RelistenApiClient } from '@/relisten/api/client';
 import Flex from '@/relisten/components/flex';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
+import { Stagger } from '@/relisten/components/Stagger';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { Link } from 'expo-router';
-import { AnimatePresence, MotiView } from 'moti';
+import { MotiView } from 'moti';
 import { useEffect, useReducer } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import { ScrollView, View } from 'react-native';
+import { FadeInRight, FadeOutDown } from 'react-native-reanimated';
 import TimeAgo from 'react-timeago';
-import {
-  FadeIn,
-  FadeOutDown,
-  SlideInLeft,
-  withSequence,
-  ZoomInEasyDown,
-  ZoomInEasyUp,
-} from 'react-native-reanimated';
-import { Stagger } from '@/relisten/components/Stagger';
 
 enum ACTIONS {
   UPDATE_DATA,
@@ -179,6 +172,13 @@ const defaultState = {
   data: [] as HistoryTrack[],
 };
 
+enum APP_TYPE {
+  'ios' = 1,
+  'web' = 2,
+  'sonos' = 3,
+  'android' = 4,
+}
+
 const removeDuplicates = (arr1: HistoryTrack[]) => {
   // Create a Set to track unique track UUIDs
   const uniqueIds = new Set<number>();
@@ -255,14 +255,11 @@ export default function Page() {
       <ScrollView className="pt-2">
         <Flex cn="gap-2" column>
           <Stagger
-            stagger={100}
-            // duration={300}
-            // exitDirection={-1}
             enterDirection={-1}
-            entering={() => FadeIn.duration(500)}
+            entering={() => FadeInRight.springify()}
             exiting={() => FadeOutDown.springify()}
           >
-            {state.data.map((item) => (
+            {state.data.map((item, index) => (
               <Link
                 href={{
                   pathname:
@@ -276,16 +273,32 @@ export default function Page() {
                 }}
                 key={item.id}
               >
-                <MotiView className="border border-white p-4">
-                  <RelistenText>
-                    {item.track.source.artist.name} {item.track.track.title}{' '}
-                    {/* {item.track.source.uuid} */}
-                    <TimeAgo
-                      date={item.created_at}
-                      formatter={formatterFn}
-                      component={RelistenText as any}
-                    />
+                <MotiView className="relative flex w-[98%] flex-col border border-white/20 p-2">
+                  <RelistenText cn="font-semibold">{item.track.track.title}</RelistenText>
+                  <RelistenText cn="text-gray-300">{item.track.source.artist.name}</RelistenText>
+                  <RelistenText cn="text-gray-400 text-sm">
+                    {item.track.source.display_date}
+                    {item.track.source.venue && (
+                      <>
+                        &nbsp;{item.track.source.venue.name} {item.track.source.venue.location}
+                      </>
+                    )}
                   </RelistenText>
+                  <RelistenText cn="text-gray-400 text-xs absolute top-5 right-2">
+                    {APP_TYPE[item.app_type]}
+                  </RelistenText>
+                  <TimeAgo
+                    date={item.created_at}
+                    formatter={formatterFn}
+                    component={(props: any) =>
+                      (
+                        <RelistenText
+                          cn="text-gray-400 text-xs absolute top-2 right-2"
+                          {...props}
+                        />
+                      ) as any
+                    }
+                  />
                 </MotiView>
               </Link>
             ))}

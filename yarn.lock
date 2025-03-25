@@ -20,11 +20,6 @@
     "@jridgewell/gen-mapping" "^0.3.5"
     "@jridgewell/trace-mapping" "^0.3.24"
 
-"@animatereactnative/stagger@^0.3.0":
-  version "0.3.0"
-  resolved "https://registry.yarnpkg.com/@animatereactnative/stagger/-/stagger-0.3.0.tgz#e7a0f40a80471da25eb389e5fc3c41e7e283e77d"
-  integrity sha512-jqgataLbIsT6enxQfdzO54nIGmyF2BV/jaL0CJaiq0dXuOGiiOOdL3XgRRR0hiqPe0Doo9VtEXI3N/vyzcs6pw==
-
 "@babel/code-frame@7.10.4", "@babel/code-frame@~7.10.4":
   version "7.10.4"
   resolved "https://registry.yarnpkg.com/@babel/code-frame/-/code-frame-7.10.4.tgz#168da1a36e90da68ae8d49c0f1b48c7c6249213a"
