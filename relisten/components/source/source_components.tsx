@@ -116,6 +116,20 @@ export function SourceSummary({
           </RelistenText>
         </SourceProperty>
       )}
+      {!hideExtraDetails && source.updatedAt && (
+        <SourceProperty title="Updated At" onTitlePress={navigate}>
+          <RelistenText numberOfLines={2} selectable={false}>
+            {dayjs(source.updatedAt).format('YYYY-MM-DD')}
+          </RelistenText>
+        </SourceProperty>
+      )}
+      {!hideExtraDetails && source.upstreamIdentifier && (
+        <SourceProperty title="ID" onTitlePress={navigate}>
+          <RelistenText numberOfLines={2} selectable={false}>
+            {source.upstreamIdentifier}
+          </RelistenText>
+        </SourceProperty>
+      )}
       {!hideExtraDetails && source.duration && (
         <SourceProperty title="Duration" onTitlePress={navigate}>
           <RelistenText numberOfLines={2} selectable={false}>
