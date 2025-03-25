@@ -217,7 +217,7 @@ export default function Page() {
     const getData = async () => {
       let params = '';
 
-      console.log(state.data[0]);
+      // console.log(state.data[0]);
       if (state.data[0]) {
         params = `?lastSeenId=${state.data[0]}`;
       }
@@ -225,7 +225,7 @@ export default function Page() {
         (res) => res.json()
       );
 
-      console.log(data);
+      // console.log(data);
       call({ type: ACTIONS.UPDATE_DATA, data: data?.toReversed() });
     };
 
