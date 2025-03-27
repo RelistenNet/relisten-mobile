@@ -20,7 +20,8 @@ extension RelistenGaplessAudioPlayer {
         isSetup = true
 
         // BASS_SetConfigPtr(BASS_CONFIG_NET_PROXY, "192.168.1.196:8888");
-        BASS_SetConfig(DWORD(BASS_CONFIG_NET_TIMEOUT), 15 * 1000)
+        // Increase timeout from 15 to 30 seconds to help with slower connections
+        BASS_SetConfig(DWORD(BASS_CONFIG_NET_TIMEOUT), 30 * 1000)
 
         // Disable mixing. To be called before BASS_Init.
         BASS_SetConfig(DWORD(BASS_CONFIG_IOS_MIXAUDIO), 0)

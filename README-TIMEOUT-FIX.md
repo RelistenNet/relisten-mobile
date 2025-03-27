@@ -1,6 +1,6 @@
 # BASS_ERROR_TIMEOUT Fix
 
-This document outlines the changes made to address the widespread `BASS_ERROR_TIMEOUT` issue in the Relisten mobile app.
+This document outlines the simple changes made to address the widespread `BASS_ERROR_TIMEOUT` issue in the Relisten mobile app.
 
 ## Problem
 
@@ -8,49 +8,42 @@ The app was generating a large number of Sentry error reports (117,000+) related
 
 ## Changes Made
 
-### 1. Enhanced Logging System
+### 1. Increased Timeout Value
 
-Created a custom logging module (`/relisten/util/logging-enhanced.ts`) that:
-- Throttles `BASS_ERROR_TIMEOUT` errors to reduce Sentry noise
-- Groups similar errors by user and tracks occurrence frequency
-- Collects network information to better diagnose issues
-- Provides specialized audio stream logging functions
+In `BASSLifecycle.swift`, we increased the BASS timeout value from 15 seconds to 30 seconds:
 
-### 2. Improved Native Player Error Handling
+```swift
+// Increase timeout from 15 to 30 seconds to help with slower connections
+BASS_SetConfig(DWORD(BASS_CONFIG_NET_TIMEOUT), 30 * 1000)
+```
 
-Updated the BASS audio player implementation (`BASSLifecycle-enhanced.swift`) to:
-- Increase timeout from 15 to 30 seconds for slower connections
-- Add automatic retry with exponential backoff for failed connections
-- Monitor network connectivity and handle reconnection seamlessly
-- Enhance error reporting with more detailed diagnostics
+This gives connections more time to establish, which should help users on slower networks.
 
-### 3. Player Component with Smart Retry Logic
+### 2. Sentry Error Filtering
 
-Modified the player hooks (`relisten_player_hooks.tsx`) to:
-- Track retry attempts per stream to prevent endless retry loops
-- Implement exponential backoff for retries
-- Monitor network status and adapt playback behavior accordingly
-- Provide detailed context for error logging
+We added a filter in the Sentry initialization to prevent BASS_ERROR_TIMEOUT errors from being reported:
 
-### 4. Sentry Filtering
+```javascript
+beforeSend: (event) => {
+  // Filter out the common BASS_ERROR_TIMEOUT errors to reduce noise in Sentry
+  if (event.exception?.values?.some(ex => 
+    ex.value?.includes('BASS_ERROR_TIMEOUT') || 
+    ex.value?.includes('sentryTransport')
+  )) {
+    // These are too common and not actionable individually
+    return null;
+  }
+  return event;
+}
+```
 
-Updated Sentry configuration to:
-- Filter out repetitive BASS timeout errors that are now handled by our enhanced system
-- Ensure critical errors still get reported
-- Provide better context for debugging
+This significantly reduces noise in the Sentry dashboard while still allowing other important errors to be reported.
 
-## Testing
+## Expected Results
 
-To test these changes:
-1. Try playing streams on slow connections
-2. Test with network interruptions
-3. Verify error logs contain sufficient diagnostic information
-4. Confirm Sentry is not flooded with duplicate timeout errors
+These simple changes should:
 
-## Future Improvements
+1. Reduce the frequency of timeout errors for users on slower connections
+2. Eliminate the flood of timeout errors in Sentry that don't provide actionable information
 
-Consider further enhancements:
-- Add user-facing notifications for persistent connection issues
-- Implement fallback audio sources for popular tracks
-- Add adaptive quality settings based on connection speed
-- Introduce offline caching preferences to reduce streaming issues
+If further improvements are needed, we can consider more complex solutions like automatic retry logic or adaptive quality settings based on connection speed.
