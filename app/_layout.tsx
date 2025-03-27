@@ -52,6 +52,8 @@ const navigationIntegration = Sentry.reactNavigationIntegration({
   enableTimeToInitialDisplay: true,
 });
 
+import { log } from '@/relisten/util/logging-enhanced';
+
 if (!__DEV__) {
   Sentry.init({
     dsn: 'https://11ea7022f688b7e51be3d304533ae364@o4508928035717120.ingest.us.sentry.io/4508928038404096',
@@ -66,6 +68,17 @@ if (!__DEV__) {
       }),
     ],
     enableNativeFramesTracking: true, // Tracks slow and frozen frames in the application
+    beforeSend: (event) => {
+      // Filter out repetitive BASS timeout errors to reduce noise
+      if (event.exception?.values?.some(ex => 
+        ex.value?.includes('BASS_ERROR_TIMEOUT') || 
+        ex.value?.includes('sentryTransport')
+      )) {
+        // These are now handled by our enhanced logging
+        return null;
+      }
+      return event;
+    }
   });
 }
 
