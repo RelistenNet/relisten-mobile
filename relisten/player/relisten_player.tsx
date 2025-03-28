@@ -299,8 +299,9 @@ ${indentString(this.queue.debugState(true))}
 
     if (
       this.progress &&
-      this.progress.percent <= 0.05 &&
-      progress.percent > 0.05 &&
+      // 40% through aligns with Last.FM
+      this.progress.percent <= 0.4 &&
+      progress.percent > 0.4 &&
       this.queue.currentTrack
     ) {
       const currentTrack = this.queue.currentTrack;

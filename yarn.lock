@@ -2409,6 +2409,43 @@
   dependencies:
     "@sinonjs/commons" "^3.0.0"
 
+"@statsig/client-core@3.15.0":
+  version "3.15.0"
+  resolved "https://registry.yarnpkg.com/@statsig/client-core/-/client-core-3.15.0.tgz#706dc520295a44abc6d6cab2081b59bbbe87917d"
+  integrity sha512-T6bMUlYtHjUw3nkrIpVozHZKMdWfDN+n9Ahf3F1UQAVlX1DCOICZ5dyc0g9cn3bCVLYgUGDcPjJF7Lt+IbeSKA==
+
+"@statsig/expo-bindings@^3.15.0":
+  version "3.15.0"
+  resolved "https://registry.yarnpkg.com/@statsig/expo-bindings/-/expo-bindings-3.15.0.tgz#3f4b0ac77b1f637625957e09fb1b7b4493ebec85"
+  integrity sha512-zTx51HANlvUY25WNzZw8DBKIXDh6LD6KQpPZ7pMhD7IVcY7zTF8Lut5uFx1823Bm4Pfq8mio4Uh54rriMVxRNw==
+  dependencies:
+    "@statsig/client-core" "3.15.0"
+    "@statsig/js-client" "3.15.0"
+    "@statsig/react-bindings" "3.15.0"
+    "@statsig/react-native-core" "3.15.0"
+
+"@statsig/js-client@3.15.0":
+  version "3.15.0"
+  resolved "https://registry.yarnpkg.com/@statsig/js-client/-/js-client-3.15.0.tgz#6b8c1fff2c5213b60adbc0aa1715895585b68dee"
+  integrity sha512-rUAwgBtzbP4G37HnktkmbYL4bwADYx6cJmmTAhZSY9nVKqEK71A2WbnOPA9Qwlip34H2ZBkO4QdWsNsCFJWI0w==
+  dependencies:
+    "@statsig/client-core" "3.15.0"
+
+"@statsig/react-bindings@3.15.0":
+  version "3.15.0"
+  resolved "https://registry.yarnpkg.com/@statsig/react-bindings/-/react-bindings-3.15.0.tgz#f9f85ab34b4d58630f6247699abf0ca7633d66ae"
+  integrity sha512-kiimjwW0I8pli12xduFAuByWMCqJK5Ar1t7yKKmuSlJ4y1Y1s+WXEMr7fVMGDRR5atnMKugkPyG2VfG87fe6hw==
+  dependencies:
+    "@statsig/client-core" "3.15.0"
+    "@statsig/js-client" "3.15.0"
+
+"@statsig/react-native-core@3.15.0":
+  version "3.15.0"
+  resolved "https://registry.yarnpkg.com/@statsig/react-native-core/-/react-native-core-3.15.0.tgz#237dc62240d73abb4f92247207d2b33fcbf6a006"
+  integrity sha512-hA+PhJ9a2Owv4pl3/JH2qQ+6iWBRuuXKTokmGl4lEk4HP4VaL66fC/lA9z6IqLeTJXf/fFlKLyij8mJRzT1Sig==
+  dependencies:
+    "@statsig/client-core" "3.15.0"
+
 "@switz/driver@^0.10.0":
   version "0.10.0"
   resolved "https://registry.yarnpkg.com/@switz/driver/-/driver-0.10.0.tgz#bf570c3c549823bc25cb4d4f295ee957a1223f57"
@@ -4803,6 +4840,13 @@ expo-crypto@~14.0.2:
   integrity sha512-WRc9PBpJraJN29VD5Ef7nCecxJmZNyRKcGkNiDQC1nhY5agppzwhqh7zEzNFarE/GqDgSiaDHS8yd5EgFhP9AQ==
   dependencies:
     base64-js "^1.3.0"
+
+expo-device@~7.0.2:
+  version "7.0.2"
+  resolved "https://registry.yarnpkg.com/expo-device/-/expo-device-7.0.2.tgz#daae3ed2b2067c393a8ba6dae27692e4ccd4eb89"
+  integrity sha512-0PkTixE4Qi8VQBjixnj4aw2f6vE4tUZH7GK8zHROGKlBypZKcWmsA+W/Vp3RC5AyREjX71pO/hjKTSo/vF0E2w==
+  dependencies:
+    ua-parser-js "^0.7.33"
 
 expo-file-system@~18.0.11:
   version "18.0.11"
@@ -9904,6 +9948,11 @@ typescript@~5.3.3:
   version "5.3.3"
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.3.3.tgz#b3ce6ba258e72e6305ba66f5c9b452aaee3ffe37"
   integrity sha512-pXWcraxM0uxAS+tN0AG/BF2TyqmHO014Z070UsJ+pFvYuRSq8KH8DmWpnbXe0pEPDHXZV3FcAbJkijJ5oNEnWw==
+
+ua-parser-js@^0.7.33:
+  version "0.7.40"
+  resolved "https://registry.yarnpkg.com/ua-parser-js/-/ua-parser-js-0.7.40.tgz#c87d83b7bb25822ecfa6397a0da5903934ea1562"
+  integrity sha512-us1E3K+3jJppDBa3Tl0L3MOJiGhe1C6P0+nIvQAFYbxlMAx0h81eOwLmU57xgqToduDDPx3y5QsdjPfDu+FgOQ==
 
 ua-parser-js@^1.0.35:
   version "1.0.40"

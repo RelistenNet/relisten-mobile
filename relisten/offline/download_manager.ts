@@ -13,6 +13,14 @@ import { log } from '@/relisten/util/logging';
 import { Realm } from '@realm/react';
 import * as fs from 'expo-file-system';
 import ReactNativeBlobUtil, { FetchBlobResponse, StatefulPromise } from 'react-native-blob-util';
+import { StatsigClientExpo } from '@statsig/expo-bindings';
+import {
+  downloadsResumedEvent,
+  sharedStatsigClient,
+  trackDownloadCompletedEvent,
+  trackDownloadFailureEvent,
+  trackDownloadQueuedEvent,
+} from '@/relisten/events';
 
 const logger = log.extend('offline');
 
@@ -26,7 +34,8 @@ export class DownloadManager {
   static MAX_CONCURRENT_DOWNLOADS = 3;
 
   private runningDownloadTasks: DownloadTask[] = [];
-  private pendingDownloadTasks: number = 0;
+  private pendingDownloadTasks: Set<string> = new Set<string>();
+  private statsig: StatsigClientExpo = sharedStatsigClient();
 
   async downloadTrack(sourceTrack: SourceTrack) {
     if (!realm) {
@@ -62,6 +71,8 @@ export class DownloadManager {
 
         sourceTrack.offlineInfo = offlineInfo;
       });
+
+      this.statsig.logEvent(trackDownloadQueuedEvent(sourceTrack));
     }
 
     await this.maybeCreateDownloadTask(sourceTrack, offlineInfo!);
@@ -110,6 +121,18 @@ export class DownloadManager {
       return null;
     }
 
+    if (this.pendingDownloadTasks.has(sourceTrack.uuid)) {
+      logger.debug(`${sourceTrack.uuid} is already pending download`);
+      return null;
+    }
+
+    for (const task of this.runningDownloadTasks) {
+      if (task.id === sourceTrack.uuid) {
+        logger.debug(`${sourceTrack.uuid} is already downloading`);
+        return null;
+      }
+    }
+
     return this.createDownloadTask(sourceTrack, offlineInfo);
   }
 
@@ -117,7 +140,7 @@ export class DownloadManager {
     return (
       DownloadManager.MAX_CONCURRENT_DOWNLOADS -
       this.runningDownloadTasks.length -
-      this.pendingDownloadTasks
+      this.pendingDownloadTasks.size
     );
   }
 
@@ -139,10 +162,19 @@ export class DownloadManager {
       .sorted('queuedAt')
       .slice(0, this.availableDownloadSlots());
 
+    // doing this before an await makes sure that nothing else will try to download these
+    for (const queuedDownload of queuedDownloads) {
+      this.pendingDownloadTasks.add(queuedDownload.sourceTrack.uuid);
+    }
+
     for (const queuedDownload of queuedDownloads) {
       const task = await this.createDownloadTask(queuedDownload.sourceTrack, queuedDownload);
 
       createdTasks.add(task.id);
+    }
+
+    for (const queuedDownload of queuedDownloads) {
+      this.pendingDownloadTasks.delete(queuedDownload.sourceTrack.uuid);
     }
 
     logger.debug(`Started createdTasks=${createdTasks.size} new download tasks`);
@@ -155,7 +187,7 @@ export class DownloadManager {
       `creating DownloadTask; sourceTrack.uuid=${sourceTrack.uuid}: mp3Url=${sourceTrack.mp3Url}`
     );
 
-    this.pendingDownloadTasks++;
+    this.pendingDownloadTasks.add(sourceTrack.uuid);
     const destination = sourceTrack.downloadedFileLocation();
 
     // make sure the file doesn't already exist. the native code will error out. this should only be needed to recover
@@ -176,7 +208,7 @@ export class DownloadManager {
       }).fetch('GET', sourceTrack.mp3Url),
     };
 
-    this.pendingDownloadTasks--;
+    this.pendingDownloadTasks.delete(sourceTrack.uuid);
     this.runningDownloadTasks.push(task);
 
     realm!.write(() => {
@@ -289,6 +321,8 @@ export class DownloadManager {
       .objects(SourceTrackOfflineInfo)
       .filtered('status == $0', SourceTrackOfflineInfoStatus.Downloading);
 
+    this.statsig.logEvent(downloadsResumedEvent(stuckDownloads.length));
+
     realm.write(() => {
       for (const stuckDownload of stuckDownloads) {
         stuckDownload.status = SourceTrackOfflineInfoStatus.Queued;
@@ -370,6 +404,8 @@ export class DownloadManager {
           offlineInfo.errorInfo = undefined;
         });
 
+        this.statsig.logEvent(trackDownloadCompletedEvent(sourceTrack));
+
         this.runningDownloadTasks.splice(this.runningDownloadTasks.indexOf(downloadTask), 1);
         this.maybeStartQueuedDownloads().then(() => {});
       })
@@ -383,6 +419,8 @@ export class DownloadManager {
           offlineInfo.completedAt = new Date();
           offlineInfo.errorInfo = JSON.stringify(error);
         });
+
+        this.statsig.logEvent(trackDownloadFailureEvent(sourceTrack, offlineInfo));
 
         this.runningDownloadTasks.splice(this.runningDownloadTasks.indexOf(downloadTask), 1);
         this.maybeStartQueuedDownloads().then(() => {});
