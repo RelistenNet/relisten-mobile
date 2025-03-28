@@ -20,6 +20,11 @@ export enum AutoplayDeepLinkToTrackSetting {
   ShowSource = 'show_source',
 }
 
+export enum AutoselectPrimarySource {
+  Always = 'always',
+  Never = 'never',
+}
+
 export enum TrackListeningHistorySetting {
   Always = 'always',
   Never = 'never',
@@ -52,6 +57,7 @@ export const DEFAULT_SETTINGS_OBJ = Object.freeze({
   autocacheMinAvailableStorageMB: 1000 * 10, // 10GB
   autocacheDeleteFirst: AutocacheDeleteFirstSetting.OldestCached,
   autoplayDeepLinkToTrack: AutoplayDeepLinkToTrackSetting.PlayTrack,
+  autoselectPrimarySource: AutoselectPrimarySource.Always,
 });
 
 export interface UserSettingsProps {
@@ -65,6 +71,7 @@ export interface UserSettingsProps {
   autocacheMinAvailableStorageMB: number;
   autocacheDeleteFirst: AutocacheDeleteFirstSetting;
   autoplayDeepLinkToTrack: AutoplayDeepLinkToTrackSetting;
+  autoselectPrimarySource: AutoselectPrimarySource;
 }
 
 export class UserSettings extends Realm.Object<UserSettings> implements Partial<UserSettingsProps> {
@@ -83,6 +90,7 @@ export class UserSettings extends Realm.Object<UserSettings> implements Partial<
       autocacheMinAvailableStorageMB: { type: 'int', optional: true, default: undefined },
       autocacheDeleteFirst: { type: 'string', optional: true, default: undefined },
       autoplayDeepLinkToTrack: { type: 'string', optional: true, default: undefined },
+      autoselectPrimarySource: { type: 'string', optional: true, default: undefined },
     },
   };
 
@@ -177,6 +185,14 @@ export class UserSettings extends Realm.Object<UserSettings> implements Partial<
       }
     }
 
+    if (props.autoselectPrimarySource !== undefined && props.autoselectPrimarySource !== null) {
+      if (props.autoselectPrimarySource === DEFAULT_SETTINGS_OBJ.autoselectPrimarySource) {
+        this.autoselectPrimarySource = undefined;
+      } else {
+        this.autoselectPrimarySource = props.autoselectPrimarySource;
+      }
+    }
+
     logger.debug('Settings upsert performed: ' + this.debugState());
 
     return this;
@@ -192,6 +208,7 @@ export class UserSettings extends Realm.Object<UserSettings> implements Partial<
   autocacheMinAvailableStorageMB?: number;
   autocacheDeleteFirst?: AutocacheDeleteFirstSetting;
   autoplayDeepLinkToTrack?: AutoplayDeepLinkToTrackSetting;
+  autoselectPrimarySource?: AutoselectPrimarySource;
 
   trackListeningHistoryWithDefault() {
     if (this.trackListeningHistory !== undefined && this.trackListeningHistory !== null) {
@@ -260,6 +277,14 @@ export class UserSettings extends Realm.Object<UserSettings> implements Partial<
     return DEFAULT_SETTINGS_OBJ.autoplayDeepLinkToTrack;
   }
 
+  autoselectPrimarySourceWithDefault() {
+    if (this.autoselectPrimarySource !== undefined && this.autoselectPrimarySource !== null) {
+      return this.autoselectPrimarySource;
+    }
+
+    return DEFAULT_SETTINGS_OBJ.autoselectPrimarySource;
+  }
+
   debugState() {
     return `
 RelistenUserSettings
@@ -272,6 +297,7 @@ RelistenUserSettings
   autocacheMinAvailableStorageMB=${this.autocacheMinAvailableStorageMB}, resolvedValue=${this.autocacheMinAvailableStorageMBWithDefault()}
   autocacheDeleteFirst=${this.autocacheDeleteFirst}, resolvedValue=${this.autocacheDeleteFirstWithDefault()}
   autoplayDeepLinkToTrack=${this.autoplayDeepLinkToTrack}, resolvedValue=${this.autoplayDeepLinkToTrackWithDefault()}
+  autoselectPrimarySource=${this.autoselectPrimarySource}, resolvedValue=${this.autoselectPrimarySourceWithDefault()}
     `.trim();
   }
 }

@@ -37,7 +37,7 @@ const realmConfig: Realm.Configuration = {
     PlayerState,
     UserSettings,
   ],
-  schemaVersion: 5,
+  schemaVersion: 6,
   // As to not conflict with the prior versions default.realm that isn't readable with this version of the SDK
   path: './relisten.realm',
 };

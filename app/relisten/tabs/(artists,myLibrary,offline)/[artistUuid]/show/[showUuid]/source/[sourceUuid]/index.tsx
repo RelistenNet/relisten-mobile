@@ -12,7 +12,7 @@ import { useRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useForceUpdate } from '@/relisten/util/forced_update';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Link, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { Link, Redirect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { PropsWithChildren, useCallback, useEffect, useState } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import { Animated, Platform, ScrollViewProps, Share, TouchableOpacity, View } from 'react-native';
@@ -36,7 +36,7 @@ import {
 } from '@/relisten/components/source/source_components';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
-import { OfflineModeSetting } from '@/relisten/realm/models/user_settings';
+import { AutoselectPrimarySource, OfflineModeSetting } from '@/relisten/realm/models/user_settings';
 import { Artist } from '@/relisten/realm/models/artist';
 
 const logger = log.extend('source screen');
@@ -59,7 +59,9 @@ export default function Page() {
   const realm = useRealm();
   const navigation = useNavigation();
   const player = useRelistenPlayer();
-  const { showUuid, sourceUuid, playTrackUuid } = useLocalSearchParams();
+  const { artistUuid, showUuid, sourceUuid, playTrackUuid } = useLocalSearchParams();
+  const settings = useUserSettings();
+
   const [hasAutoplayed, setHasAutoplayed] = useState(false);
   const userSettings = useUserSettings();
 
@@ -67,6 +69,26 @@ export default function Page() {
     String(showUuid),
     String(sourceUuid)
   );
+
+  if (
+    sourceUuid === 'initial' &&
+    show.sourceCount > 1 &&
+    settings.autoselectPrimarySource === AutoselectPrimarySource.Never
+  ) {
+    const groupSegment = useGroupSegment(true);
+
+    return (
+      <Redirect
+        href={{
+          pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/sources/`,
+          params: {
+            artistUuid,
+            showUuid,
+          },
+        }}
+      />
+    );
+  }
 
   const playShow = useCallback(
     (sourceTrack?: SourceTrack) => {
