@@ -29,7 +29,7 @@
           "audio"
         ]
       },
-      "buildNumber": "6010"
+      "buildNumber": "6011"
     },
     "android": {
       "playStoreUrl": "https://play.google.com/store/apps/details?id=net.relisten.android",
@@ -59,7 +59,7 @@
       },
       "icon": "./assets/ic_playstore.png",
       "package": "net.relisten.android",
-      "versionCode": 6010
+      "versionCode": 6011
     },
     "jsEngine": "hermes",
     "web": {
