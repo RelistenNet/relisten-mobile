@@ -115,6 +115,10 @@ export function ShowCard({
     if (show.venue.location) {
       details.push(show.venue.location.trim());
     }
+
+    if (show.sourceCount > 1) {
+      details.push(show.sourceCount + ' tapes');
+    }
   } else {
     details.push('Venue Unknown');
   }

@@ -1,25 +1,23 @@
 import Flex from '@/relisten/components/flex';
-import { RelistenText } from '@/relisten/components/relisten_text';
+import { RelistenButton } from '@/relisten/components/relisten_button';
+import { RowWithAction } from '@/relisten/components/row_with_action';
+import { SectionHeader } from '@/relisten/components/section_header';
 import {
-  AutocacheDeleteFirstSetting,
   AutocacheStreamedMusicSetting,
   AutoplayDeepLinkToTrackSetting,
-  DownloadViaCellularDataSetting,
+  AutoselectPrimarySource,
   OfflineModeSetting,
   ShowOfflineTabSetting,
   TrackListeningHistorySetting,
   UserSettings,
   UserSettingsProps,
 } from '@/relisten/realm/models/user_settings';
+import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
 import { useRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
+import { useActionSheet } from '@expo/react-native-action-sheet';
 import { useState } from 'react';
 import { Switch, SwitchProps, TextInput, TextInputProps } from 'react-native';
-import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
-import { SectionHeader } from '@/relisten/components/section_header';
-import { RelistenButton } from '@/relisten/components/relisten_button';
-import { useActionSheet } from '@expo/react-native-action-sheet';
-import { RowWithAction } from '@/relisten/components/row_with_action';
 
 interface BaseSettings {
   label: string;
@@ -182,6 +180,21 @@ const SETTINGS: Array<Settings> = [
       return (
         settings.autoplayDeepLinkToTrackWithDefault() === AutoplayDeepLinkToTrackSetting.PlayTrack
       );
+    },
+  },
+  {
+    label: 'Autoselect Primary Source',
+    subtitle: 'Turn this off to view all tapes before visiting a show',
+    type: 'bool',
+    newSettings: (newValue: boolean): Partial<UserSettingsProps> => {
+      return {
+        autoselectPrimarySource: newValue
+          ? AutoselectPrimarySource.Always
+          : AutoselectPrimarySource.Never,
+      };
+    },
+    currentSetting: (settings: UserSettings) => {
+      return settings.autoselectPrimarySourceWithDefault() === AutoselectPrimarySource.Always;
     },
   },
 ] as const;
