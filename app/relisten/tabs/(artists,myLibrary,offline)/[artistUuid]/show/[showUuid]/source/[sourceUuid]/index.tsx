@@ -72,7 +72,7 @@ export default function Page() {
 
   if (
     sourceUuid === 'initial' &&
-    show.sourceCount > 1 &&
+    show?.sourceCount > 1 &&
     settings.autoselectPrimarySource === AutoselectPrimarySource.Never
   ) {
     const groupSegment = useGroupSegment(true);
