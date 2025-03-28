@@ -184,7 +184,7 @@ export class DownloadManager {
 
   private async createDownloadTask(sourceTrack: SourceTrack, offlineInfo: SourceTrackOfflineInfo) {
     logger.debug(
-      `creating DownloadTask; sourceTrack.uuid=${sourceTrack.uuid}: mp3Url=${sourceTrack.mp3Url}`
+      `creating DownloadTask; sourceTrack.uuid=${sourceTrack.uuid}: mp3Url=${sourceTrack.streamingUrl()}`
     );
 
     this.pendingDownloadTasks.add(sourceTrack.uuid);
@@ -205,7 +205,7 @@ export class DownloadManager {
         fileCache: true,
         Progress: { interval: 500, count: 10 },
         timeout: 30 * 1000,
-      }).fetch('GET', sourceTrack.mp3Url),
+      }).fetch('GET', sourceTrack.streamingUrl()),
     };
 
     this.pendingDownloadTasks.delete(sourceTrack.uuid);
@@ -321,18 +321,20 @@ export class DownloadManager {
       .objects(SourceTrackOfflineInfo)
       .filtered('status == $0', SourceTrackOfflineInfoStatus.Downloading);
 
-    this.statsig.logEvent(downloadsResumedEvent(stuckDownloads.length));
+    if (stuckDownloads.length > 0) {
+      this.statsig.logEvent(downloadsResumedEvent(stuckDownloads.length));
 
-    realm.write(() => {
-      for (const stuckDownload of stuckDownloads) {
-        stuckDownload.status = SourceTrackOfflineInfoStatus.Queued;
-        stuckDownload.completedAt = undefined;
-        stuckDownload.startedAt = undefined;
-        stuckDownload.totalBytes = 0;
-        stuckDownload.downloadedBytes = 0;
-        stuckDownload.percent = 0;
-      }
-    });
+      realm.write(() => {
+        for (const stuckDownload of stuckDownloads) {
+          stuckDownload.status = SourceTrackOfflineInfoStatus.Queued;
+          stuckDownload.completedAt = undefined;
+          stuckDownload.startedAt = undefined;
+          stuckDownload.totalBytes = 0;
+          stuckDownload.downloadedBytes = 0;
+          stuckDownload.percent = 0;
+        }
+      });
+    }
 
     const restartedTaskIds = await this.maybeStartQueuedDownloads();
 

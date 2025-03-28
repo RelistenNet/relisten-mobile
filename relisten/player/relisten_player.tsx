@@ -7,7 +7,6 @@ import {
   RelistenTrackStreamingCacheCompleteEvent,
 } from '@/modules/relisten-audio-player';
 import {
-  currentTrackIdentifier,
   latestError,
   PlaybackContextProgress,
   progress as sharedStateProgress,
@@ -23,6 +22,7 @@ import { DownloadManager } from '@/relisten/offline/download_manager';
 import { showMessage } from 'react-native-flash-message';
 import { log } from '@/relisten/util/logging';
 import { indentString } from '@/relisten/util/string_indent';
+import { sharedStatsigClient, trackPlaybackErrorEvent } from '@/relisten/events';
 
 const logger = log.extend('player');
 
@@ -111,6 +111,7 @@ export class RelistenPlayer {
 
     const track = this.queue.orderedTracks[newIndex];
     if (track.identifier === this.queue.currentTrack?.identifier && this.initialPlaybackStarted) {
+      logger.debug('Requested track matches current track, seeking back to the start');
       this.seekTo(0.0);
     }
 
@@ -119,7 +120,6 @@ export class RelistenPlayer {
       this._state = RelistenPlaybackState.Paused;
       nativePlayer.pause().then(() => {});
     }
-
     this.startStalledTimer();
 
     // optimistically update the UI. should be before the native call to prevent race conditions
@@ -365,6 +365,8 @@ ${indentString(this.queue.debugState(true))}
 
   private onNativePlayerError = (error: RelistenErrorEvent) => {
     logger.error('Native playback error', error);
+
+    sharedStatsigClient().logEvent(trackPlaybackErrorEvent(this.queue.currentTrack?.sourceTrack));
 
     showMessage({
       message: 'Error: ' + (error.errorMessage ?? RelistenPlaybackErrorToName[error.error]),

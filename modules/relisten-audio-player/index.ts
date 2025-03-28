@@ -48,6 +48,7 @@ export enum RelistenPlaybackError {
   InsufficientMemory,
   No3D,
   Unknown,
+  Timeout = 40,
 }
 
 export const RelistenPlaybackErrorToName = {
@@ -65,6 +66,7 @@ export const RelistenPlaybackErrorToName = {
   [RelistenPlaybackError.InsufficientMemory]: 'InsufficientMemory',
   [RelistenPlaybackError.No3D]: 'No3D',
   [RelistenPlaybackError.Unknown]: 'Unknown',
+  [RelistenPlaybackError.Timeout]: 'Server Timeout',
 };
 
 export interface RelistenErrorEvent {

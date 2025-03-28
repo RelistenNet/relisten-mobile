@@ -5,12 +5,10 @@ import { PlaybackFlags } from '@/relisten/realm/models/history/playback_history_
 import { RelistenPlayerReportTrackEvent } from '@/relisten/player/relisten_player';
 import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
 import { TrackListeningHistorySetting } from '@/relisten/realm/models/user_settings';
-import { useStatsigClient } from '@statsig/expo-bindings';
-import { trackPlaybackEvent } from '@/relisten/events';
+import { sharedStatsigClient, trackPlaybackEvent } from '@/relisten/events';
 
 export function PlaybackHistoryReporterComponent() {
   const { playbackHistoryReporter } = useRelistenApi();
-  const { client: statsig } = useStatsigClient();
   const reportTrackEvent = useRelistenReportTrackEvent();
   const userSettings = useUserSettings();
 
@@ -23,7 +21,9 @@ export function PlaybackHistoryReporterComponent() {
     if (reportTrackEvent && reportTrackEvent !== lastReportedEvent) {
       setLastReportedEvent(reportTrackEvent);
 
-      statsig.logEvent(trackPlaybackEvent(reportTrackEvent.playerQueueTrack.sourceTrack));
+      sharedStatsigClient().logEvent(
+        trackPlaybackEvent(reportTrackEvent.playerQueueTrack.sourceTrack)
+      );
 
       if (userSettings.trackListeningHistoryWithDefault() === TrackListeningHistorySetting.Always) {
         playbackHistoryReporter.recordPlayback({
@@ -36,7 +36,7 @@ export function PlaybackHistoryReporterComponent() {
         });
       }
     }
-  }, [playbackHistoryReporter, reportTrackEvent, lastReportedEvent, setLastReportedEvent, statsig]);
+  }, [playbackHistoryReporter, reportTrackEvent, lastReportedEvent, setLastReportedEvent]);
 
   return <></>;
 }

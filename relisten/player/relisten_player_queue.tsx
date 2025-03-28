@@ -1,8 +1,4 @@
-import {
-  nativePlayer,
-  RelistenPlaybackState,
-  RelistenStreamable,
-} from '@/modules/relisten-audio-player';
+import { nativePlayer, RelistenStreamable } from '@/modules/relisten-audio-player';
 import { addPlayerListeners } from '@/relisten/player/native_playback_state_hooks';
 import { RelistenPlayer } from '@/relisten/player/relisten_player';
 import {
@@ -89,7 +85,7 @@ export class PlayerQueueTrack {
   }
 
   toStreamable(allowStreamingCache: boolean): RelistenStreamable {
-    let url = this.sourceTrack.mp3Url;
+    let url = this.sourceTrack.streamingUrl();
     let downloadDestination: string | undefined = undefined;
 
     if (this.sourceTrack.offlineInfo?.isPlayableOffline()) {

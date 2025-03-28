@@ -10,6 +10,7 @@ import { Source } from './source';
 import { Year } from './year';
 import { duration, trackDuration } from '@/relisten/util/duration';
 import * as FileSystem from 'expo-file-system';
+import { sharedStatsigClient } from '@/relisten/events';
 
 export const OFFLINE_DIRECTORY = `${FileSystem.documentDirectory}/offline`;
 
@@ -110,6 +111,24 @@ export class SourceTrack
   year!: Year;
   show!: Show;
   source!: Source;
+
+  _streamingUrl: string | undefined;
+  streamingUrl() {
+    // TODO: allow people to prefer FLAC
+
+    if (!this._streamingUrl) {
+      let url = this.mp3Url;
+
+      const proxyArchiveMp3s = sharedStatsigClient().checkGate('proxy_archive_mp3s');
+      if (proxyArchiveMp3s) {
+        url = url.replace('://archive.org/', '://audio.relisten.net/archive.org/');
+      }
+
+      this._streamingUrl = url;
+    }
+
+    return this._streamingUrl;
+  }
 
   private _humanizedDuration?: string;
   get humanizedDuration() {

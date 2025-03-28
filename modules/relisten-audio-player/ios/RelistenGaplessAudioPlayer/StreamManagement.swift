@@ -43,7 +43,14 @@ extension RelistenGaplessAudioPlayer {
 
         // oops
         if newStream == 0 {
-            let err = ErrorForErrorCode(BASS_ErrorGetCode())
+            let code = BASS_ErrorGetCode()
+            var err = ErrorForErrorCode(code)
+            
+            if (code == BASS_ERROR_TIMEOUT) {
+                err = NSError(domain: "net.relisten.ios.relisten-audio-player", code: err.code, userInfo: [NSLocalizedDescriptionKey: "Server timeout: Check your Internet connection or maybe \(streamable.url.host ?? streamable.url.absoluteString) is having issues"])
+            } else if (code == BASS_ERROR_FILEFORM) {
+                err = NSError(domain: "net.relisten.ios.relisten-audio-player", code: err.code, userInfo: [NSLocalizedDescriptionKey: "Non-audio content: \(streamable.url.host ?? streamable.url.absoluteString) did not provide audio, maybe there are server issues"])
+            }
 
             NSLog("[bass][stream] error creating new stream: %d %@", err.code, err.localizedDescription)
 

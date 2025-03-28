@@ -4,7 +4,6 @@ import 'react-native-reanimated';
 import 'uuid';
 import 'react-native-svg';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { StatsigProviderExpo } from '@statsig/expo-bindings';
 
 import { Slot, SplashScreen, useNavigationContainerRef } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -31,7 +30,6 @@ import * as Sentry from '@sentry/react-native';
 import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
 import { LogBox } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { STATSIG_CLIENT_KEY } from '@/relisten/events';
 
 // c.f. https://github.com/meliorence/react-native-render-html/issues/661#issuecomment-2453476566
 LogBox.ignoreLogs([/Support for defaultProps will be removed/]);
@@ -117,40 +115,38 @@ function TabLayout() {
   }, [navigation]);
 
   return (
-    <StatsigProviderExpo user={{}} sdkKey={STATSIG_CLIENT_KEY}>
-      <RealmProvider realmRef={realmRef} closeOnUnmount={false}>
-        <RelistenApiProvider>
-          <RelistenPlayerProvider>
-            <PlaybackHistoryReporterComponent />
-            <ThemeProvider
-              value={{
-                dark: true,
-                colors: {
-                  ...DarkTheme.colors,
-                  primary: 'rgb(0,157,193)',
-                  background: RelistenBlue[900],
-                  card: '#001114',
-                },
-                fonts: DefaultTheme.fonts,
-              }}
-            >
-              <RelistenPlayerBottomBarProvider>
-                <ActionSheetProvider>
-                  <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
-                    <SafeAreaProvider>
-                      {/* */}
-                      <StatusBar style="light" translucent={true} />
-                      <Slot />
-                      <FlashMessage position="top" />
-                    </SafeAreaProvider>
-                  </GestureHandlerRootView>
-                </ActionSheetProvider>
-              </RelistenPlayerBottomBarProvider>
-            </ThemeProvider>
-          </RelistenPlayerProvider>
-        </RelistenApiProvider>
-      </RealmProvider>
-    </StatsigProviderExpo>
+    <RealmProvider realmRef={realmRef} closeOnUnmount={false}>
+      <RelistenApiProvider>
+        <RelistenPlayerProvider>
+          <PlaybackHistoryReporterComponent />
+          <ThemeProvider
+            value={{
+              dark: true,
+              colors: {
+                ...DarkTheme.colors,
+                primary: 'rgb(0,157,193)',
+                background: RelistenBlue[900],
+                card: '#001114',
+              },
+              fonts: DefaultTheme.fonts,
+            }}
+          >
+            <RelistenPlayerBottomBarProvider>
+              <ActionSheetProvider>
+                <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
+                  <SafeAreaProvider>
+                    {/* */}
+                    <StatusBar style="light" translucent={true} />
+                    <Slot />
+                    <FlashMessage position="top" />
+                  </SafeAreaProvider>
+                </GestureHandlerRootView>
+              </ActionSheetProvider>
+            </RelistenPlayerBottomBarProvider>
+          </ThemeProvider>
+        </RelistenPlayerProvider>
+      </RelistenApiProvider>
+    </RealmProvider>
   );
 }
 

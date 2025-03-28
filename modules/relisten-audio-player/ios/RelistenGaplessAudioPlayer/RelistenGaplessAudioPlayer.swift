@@ -164,7 +164,7 @@ public class RelistenGaplessAudioPlayer {
     public func play(_ streamable: RelistenGaplessStreamable, startingAtMs: Int64?) {
         setupAudioSession(shouldActivate: true)
 
-        if let activeStream, let nextStream, activeStream.streamable.identifier == nextStream.streamable.identifier {
+        if let activeStream, let nextStream, nextStream.streamable.identifier == streamable.identifier {
             next()
 
             return
