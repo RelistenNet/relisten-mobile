@@ -20,6 +20,7 @@
       "**/*"
     ],
     "ios": {
+      "appStoreUrl": "https://apps.apple.com/us/app/relisten-all-live-music/id715886886",
       "associatedDomains": ["applinks:relisten.net"],
       "supportsTablet": true,
       "bundleIdentifier": "com.alecgorge.ios.Listen-to-the-Dead",
@@ -31,6 +32,7 @@
       "buildNumber": "6009"
     },
     "android": {
+      "playStoreUrl": "https://play.google.com/store/apps/details?id=net.relisten.android",
       "intentFilters": [
         {
           "action": "VIEW",

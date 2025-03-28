@@ -100,7 +100,7 @@ export function RelistenAbout() {
         </RowWithAction>
         <RowWithAction
           title="Ratings & reviews"
-          subtitle="Ratings and reviews are never expected, but it helps give us motivation to build this app 💪"
+          subtitle="Ratings and reviews are very much appreciated, thank you"
         >
           <RelistenButton onPress={() => StoreReview.requestReview()}>
             Leave a review
