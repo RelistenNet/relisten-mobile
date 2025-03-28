@@ -17,6 +17,8 @@ import { useGroupSegment } from '@/relisten/util/routes';
 import Flex from '@/relisten/components/flex';
 import Plur from '@/relisten/components/plur';
 import { SourceSummary } from '@/relisten/components/source/source_components';
+import { SectionHeader } from '@/relisten/components/section_header';
+import { Tag } from '@/relisten/components/tag';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -90,8 +92,8 @@ const SourcesList = ({
         </RelistenText>
       </View>
       <ItemSeparator />
-      {sources?.map((source) => {
-        return <SourceDetail key={source.uuid} source={source} show={show} />;
+      {sources?.map((source, idx) => {
+        return <SourceDetail key={source.uuid} source={source} show={show} idx={idx} />;
       })}
     </Animated.ScrollView>
   );
@@ -105,57 +107,72 @@ function sourceRatingText(source: Source) {
   return `${source.humanizedAvgRating()}★ (${source.numRatings || source.numReviews} ratings)`;
 }
 
-export const SourceDetail: React.FC<{ source: Source; show: Show }> = memo(({ show, source }) => {
-  const groupSegment = useGroupSegment(true);
+export const SourceDetail: React.FC<{ source: Source; show: Show; idx: number }> = memo(
+  ({ show, source, idx }) => {
+    const groupSegment = useGroupSegment(true);
 
-  return (
-    <View className="flex w-full items-center px-4">
-      <SourceSummary source={source} />
-      <View className="w-full pb-6">
-        <Flex className="w-full flex-row" style={{ gap: 16 }}>
-          <Link
-            href={{
-              pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
-              params: {
-                artistUuid: show.artistUuid,
-                yearUuid: show.yearUuid,
-                showUuid: show.uuid,
-                sourceUuid: source.uuid,
-              },
-            }}
-            asChild
-            className="flex-1"
-          >
-            <RelistenButton
-              textClassName="text-l"
-              icon={<MaterialIcons name="source" size={20} color="white" />}
-              disabled={show.sourceCount <= 1}
-            >
-              Select Source
-            </RelistenButton>
-          </Link>
-          {source.reviewCount > 0 && (
-            <Link
-              href={{
-                pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/reviews`,
-                params: {
-                  artistUuid: show.artistUuid,
-                  showUuid: show.uuid,
-                  sourceUuid: source.uuid,
-                },
-              }}
-              asChild
-              className="flex-1"
-            >
-              <RelistenButton textClassName="text-l" icon={null} disabled={show.sourceCount <= 1}>
-                <Plur word={'Review'} count={source.reviewCount} />
-                {source.avgRating ? ` • ${source.avgRating.toFixed(1)}★` : ''}
-              </RelistenButton>
-            </Link>
-          )}
-        </Flex>
+    return (
+      <View>
+        <View className="w-full">
+          <SectionHeader className="flex-row items-center">
+            <RelistenText className="text-m font-bold">Source #{idx + 1}</RelistenText>
+            {source.isSoundboard && (
+              <RelistenText cn="ml-2 text-xs font-bold text-relisten-blue-600">SBD</RelistenText>
+            )}
+          </SectionHeader>
+        </View>
+        <View className="flex w-full items-center px-4">
+          <SourceSummary source={source} />
+          <View className="w-full pb-6">
+            <Flex className="w-full flex-row" style={{ gap: 16 }}>
+              <Link
+                href={{
+                  pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
+                  params: {
+                    artistUuid: show.artistUuid,
+                    yearUuid: show.yearUuid,
+                    showUuid: show.uuid,
+                    sourceUuid: source.uuid,
+                  },
+                }}
+                asChild
+                className="flex-1"
+              >
+                <RelistenButton
+                  textClassName="text-l"
+                  icon={<MaterialIcons name="source" size={20} color="white" />}
+                  disabled={show.sourceCount <= 1}
+                >
+                  Select Source
+                </RelistenButton>
+              </Link>
+              {source.reviewCount > 0 && (
+                <Link
+                  href={{
+                    pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/reviews`,
+                    params: {
+                      artistUuid: show.artistUuid,
+                      showUuid: show.uuid,
+                      sourceUuid: source.uuid,
+                    },
+                  }}
+                  asChild
+                  className="flex-1"
+                >
+                  <RelistenButton
+                    textClassName="text-l"
+                    icon={null}
+                    disabled={show.sourceCount <= 1}
+                  >
+                    <Plur word={'Review'} count={source.reviewCount} />
+                    {source.avgRating ? ` • ${source.avgRating.toFixed(1)}★` : ''}
+                  </RelistenButton>
+                </Link>
+              )}
+            </Flex>
+          </View>
+        </View>
       </View>
-      {source.sourceSets.length === 1 && <ItemSeparator />}
-    </View>
-  );
-});
+    );
+  }
+);
