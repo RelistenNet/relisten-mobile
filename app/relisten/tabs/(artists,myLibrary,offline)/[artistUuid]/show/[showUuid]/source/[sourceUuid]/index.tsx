@@ -72,7 +72,7 @@ export default function Page() {
     (sourceTrack?: SourceTrack) => {
       if (!sourceTrack || !sourceTrack.mp3Url || !sourceTrack.uuid || !selectedSource) {
         logger.warn(
-          `Missing value when trying to play source track: sourceTrack=${sourceTrack} mp3Url=${sourceTrack?.mp3Url} uuid=${sourceTrack?.uuid} artist=${artist.data} show=${show} selectedSource=${selectedSource}`
+          `Missing value when trying to play source track: sourceTrack=${sourceTrack} sourceUuid=${sourceUuid} mp3Url=${sourceTrack?.mp3Url} uuid=${sourceTrack?.uuid} artist=${artist.data} show=${show} selectedSource=${selectedSource}`
         );
         return;
       }
@@ -101,6 +101,12 @@ export default function Page() {
   ) satisfies PlayShow;
 
   const downloadShow = () => {
+    if (!selectedSource) {
+      logger.warn(
+        `Missing value when trying to download show: artist=${artist.data} sourceUuid=${sourceUuid} show=${show} selectedSource=${selectedSource}`
+      );
+      return;
+    }
     const showTracks = selectedSource.allSourceTracks();
 
     showTracks.forEach((track) => {
@@ -109,6 +115,12 @@ export default function Page() {
   };
 
   const removeDownloads = () => {
+    if (!selectedSource) {
+      logger.warn(
+        `Missing value when trying to remove downloads: artist=${artist.data} sourceUuid=${sourceUuid} show=${show} selectedSource=${selectedSource}`
+      );
+      return;
+    }
     const showTracks = selectedSource.allSourceTracks();
 
     showTracks.forEach((track) => {
