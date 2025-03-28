@@ -359,7 +359,7 @@ export const SourceHeader = ({
       <SourceSummary source={source} hideExtraDetails />
       <View className="w-full flex-row pb-4" style={{ gap: 16 }}>
         <RelistenButton
-          className="shrink basis-1/3"
+          className="shrink basis-1/4"
           textClassName="text-l"
           icon={<MaterialIcons name="play-arrow" size={20} color="white" />}
           onPress={() => playShow(source.sourceSets[0].sourceTracks[0])}
@@ -367,14 +367,14 @@ export const SourceHeader = ({
           Play
         </RelistenButton>
         <RelistenButton
-          className="shrink basis-1/3"
+          className="shrink basis-1/4"
           textClassName="text-l"
           onPress={() => downloadShow()}
         >
           <MaterialIcons name="file-download" size={20} color="white" />
         </RelistenButton>
         <RelistenButton
-          className="shrink basis-1/3"
+          className="shrink basis-1/4"
           textClassName="text-l"
           onPress={() => {
             realm.write(() => {
@@ -389,6 +389,20 @@ export const SourceHeader = ({
             size={20}
             color={source.isFavorite || show.isFavorite ? 'red' : 'white'}
           />
+        </RelistenButton>
+        <RelistenButton
+          className="shrink basis-1/4"
+          textClassName="text-l"
+          onPress={() => {
+            const [year, month, day] = show.displayDate.split('-');
+            const url = `https://relisten.net/${artist?.slug}/${year}/${month}/${day}?source=${source.uuid}`;
+            Share.share({
+              message: `Check out ${show.displayDate} (${show.venue?.name ?? ''}) by ${artist?.name} on @relistenapp${Platform.OS === 'ios' ? '' : `: ${url}`}`,
+              url: url,
+            }).then(() => {});
+          }}
+        >
+          <MaterialIcons name="ios-share" size={20} />
         </RelistenButton>
       </View>
       {(show.sourceCount > 1 || source.reviewCount > 0) && (
