@@ -86,7 +86,15 @@ export class Repository<
       keyof RequiredProperties,
       RequiredProperties[keyof RequiredProperties],
     ][]) {
-      (model as any)[prop] = value;
+      if (prop === 'uuid' && (model as any)[prop] !== value) {
+        logger.error(
+          `ERROR; ATTEMPTING TO UPDATE PRIMARY KEY, skipping: ${String(prop)}=${value}, old value=${(model as any)[prop]}`
+        );
+      }
+
+      if (prop !== 'uuid') {
+        (model as any)[prop] = value;
+      }
     }
 
     if (r) {
@@ -140,6 +148,12 @@ export class Repository<
     }
 
     if (model) {
+      if (api.uuid !== model.uuid) {
+        logger.error(
+          `upsertWithinWrite with mismatched ${this.klass.name}: api.uuid=${api.uuid}, model.uuid=${model.uuid}`
+        );
+      }
+
       if (getUpdatedAt(api).toDate() > model.updatedAt) {
         this.updateObjectFromApi(realm, model, api);
 
