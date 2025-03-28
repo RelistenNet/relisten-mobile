@@ -12,6 +12,8 @@ import { Filter, SortDirection, useFilters } from './filters';
 import { NonIdealState } from '../non_ideal_state';
 import { RelistenText } from '../relisten_text';
 import Plur from '../plur';
+import { View } from 'react-native';
+import { RelistenButton } from '../relisten_button';
 
 const logger = log.extend('filter');
 
@@ -135,9 +137,22 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
 
         if (sectionTitle === FILTER_WARNING_SECTION_SENTINEL) {
           return (
-            <RelistenText cn="py-2 italic text-sm px-4 text-gray-400 text-center">
-              (<Plur count={props.metadata} word="item" /> hidden due to filters)
-            </RelistenText>
+            <>
+              <RelistenText cn="py-2 italic text-sm px-4 text-gray-400 text-center">
+                (<Plur count={props.metadata} word="item" /> hidden due to filters)
+              </RelistenText>
+
+              <View className="mx-auto min-w-[33%]">
+                <RelistenButton
+                  onPress={clearFilters}
+                  textClassName="text-sm"
+                  intent="outline"
+                  size="thin"
+                >
+                  Clear Filters
+                </RelistenButton>
+              </View>
+            </>
           );
         }
 
