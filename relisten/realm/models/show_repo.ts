@@ -29,13 +29,13 @@ export interface ShowWithSources {
   sources: Realm.Results<Source>;
 }
 
-const getEtreeId = (s = '') =>
-  Number(
-    s
-      .split('.')
-      .reverse()
-      .find((x) => /^[0-9]+$/.test(x))
-  );
+// const getEtreeId = (s = '') =>
+//   Number(
+//     s
+//       .split('.')
+//       .reverse()
+//       .find((x) => /^[0-9]+$/.test(x))
+//   );
 
 // our magic live music sort, taken from relisten-web
 // gives precedence to favorites -> soundboards -> charlie miller/peter costello -> etree ids -> avg weighted rating
@@ -43,7 +43,12 @@ const getEtreeId = (s = '') =>
 export const sortSources = (sources: Realm.Results<Source>) => {
   const sortedSources = sources
     ? Array.from(sources).sort(
-        firstBy((t: Source) => t.isFavorite, 'desc')
+        firstBy(
+          // sort first if favorited or downloaded
+          (t: Source) =>
+            t.isFavorite || t.allSourceTracks().some((tr) => tr?.offlineInfo?.isPlayableOffline()),
+          'desc'
+        )
           .thenBy((t: Source) => t.isSoundboard, 'desc')
           // Charlie for GD, Pete for JRAD
           .thenBy(
