@@ -116,8 +116,14 @@ export function ShowCard({
       details.push(show.venue.location.trim());
     }
 
-    if (show.sourceCount > 1) {
-      details.push(show.sourceCount + ' tapes');
+    const parts: string[] = [Plur({ word: 'tape', count: show.sourceCount })];
+
+    if (show.hasSoundboardSource) {
+      parts.push('SBD');
+    }
+
+    if (parts.length > 0) {
+      details.push(parts.join(' • '));
     }
   } else {
     details.push('Venue Unknown');
@@ -198,7 +204,9 @@ export function ShowCardLoader({
         title={<ShowCardTitle>Show loading...</ShowCardTitle>}
         subtitle={showArtist ? 'Artist loading' : undefined}
         details={
-          showVenue ? ['Venue name loading...', 'Venue location loading...'] : ['Venue loading...']
+          showVenue
+            ? ['Venue name loading...', 'Venue location loading...', 'Tapes loading...']
+            : ['Venue loading...', 'Tapes loading...']
         }
         innerRef={ref}
         textClassName="opacity-0"
