@@ -10,30 +10,33 @@ import MediaPlayer
 
 extension RelistenGaplessAudioPlayer {
     func updateControlCenter() {
-        guard let activeStream else {
-            return
+        self.bassQueue.async {
+            guard let activeStream = self.activeStream else {
+                return
+            }
+
+            var nowPlayingInfo = [String: Any]()
+            // Set metadata for your media
+            nowPlayingInfo[MPMediaItemPropertyTitle] = activeStream.streamable.title
+            nowPlayingInfo[MPMediaItemPropertyArtist] = activeStream.streamable.artist
+            nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = activeStream.streamable.albumTitle
+
+            if let artwork = activeStream.streamableArtwork {
+                nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
+            }
+
+            // Set the playback duration and current playback time
+            nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = self.currentDuration // in seconds
+            nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = self.elapsed // in seconds
+
+            // Set the playback rate (0.0 for paused, 1.0 for playing)
+            nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = 1.0
+
+            // Set the nowPlayingInfo
+            DispatchQueue.main.async {
+                MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+            }
         }
-
-        var nowPlayingInfo = [String: Any]()
-
-        // Set metadata for your media
-        nowPlayingInfo[MPMediaItemPropertyTitle] = activeStream.streamable.title
-        nowPlayingInfo[MPMediaItemPropertyArtist] = activeStream.streamable.artist
-        nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = activeStream.streamable.albumTitle
-
-        if let artwork = activeStream.streamableArtwork {
-            nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
-        }
-
-        // Set the playback duration and current playback time
-        nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = self.currentDuration // in seconds
-        nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = self.elapsed // in seconds
-
-        // Set the playback rate (0.0 for paused, 1.0 for playing)
-        nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = 1.0
-
-        // Set the nowPlayingInfo
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
     }
 
     func getData(from url: URL, completion: @escaping (UIImage?) -> Void) {
