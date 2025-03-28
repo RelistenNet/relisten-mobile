@@ -8,10 +8,12 @@ export class UrlRequestMetadata extends Realm.Object<UrlRequestMetadata> {
       url: 'string',
       etag: 'string',
       lastRequestCompletedAt: 'date',
+      etagLastUpdatedAt: { type: 'date', optional: true, default: undefined },
     },
   };
 
   url!: string;
   etag!: string;
   lastRequestCompletedAt!: Date;
+  etagLastUpdatedAt?: Date;
 }

@@ -127,6 +127,7 @@ export class RelistenApiClient {
   }
 
   static MIN_REQUEST_COOLDOWN_SECONDS = 1 * 60 * 60;
+  static MIN_ETAG_COOLDOWN_SECONDS = 24 * 60 * 60;
 
   private async makeJsonRequest<T>(
     method: RelistenApiRequestMethod,
@@ -185,34 +186,54 @@ export class RelistenApiClient {
         // TODO(alecgorge): This doesn't account for situations like VenuesWithShows
         //  where the Venue hasn't changed but the list of Shows has changed
         const etag = await calculateEtag(values);
+        const oldEtag = urlMetadata?.etag;
+
+        let etagLastUpdatedAt = urlMetadata?.etagLastUpdatedAt;
+
+        const msSinceEtagLastUpdated = etagLastUpdatedAt
+          ? Date.now() - etagLastUpdatedAt.getTime()
+          : undefined;
+
+        if (options?.bypassEtagCaching === true) {
+          logger.info(
+            `[etag] url=${url}, updating local database. bypassEtagCaching=${options?.bypassEtagCaching}`
+          );
+
+          etagLastUpdatedAt = completedAt;
+        } else if (etag === oldEtag) {
+          if (
+            msSinceEtagLastUpdated !== undefined &&
+            msSinceEtagLastUpdated < RelistenApiClient.MIN_ETAG_COOLDOWN_SECONDS * 1000
+          ) {
+            logger.info(`[etag] url=${resp.url}, request contents unchanged. etag=${etag}`);
+            return { type: RelistenApiResponseType.RequestContentsUnchanged };
+          } else {
+            logger.info(
+              `[etag] url=${resp.url}, request contents unchanged but expired. msSinceEtagLastUpdated=${msSinceEtagLastUpdated}, etag=${etag}`
+            );
+
+            etagLastUpdatedAt = completedAt;
+          }
+        }
+
+        logger.info(
+          `[etag] url=${resp.url}, updating local database; request contents changed or expired. msSinceEtagLastUpdated=${msSinceEtagLastUpdated}, stored_etag=${oldEtag}, new_etag=${etag}`
+        );
 
         realm?.write(() => {
           if (urlMetadata) {
             urlMetadata.etag = etag;
+            urlMetadata.etagLastUpdatedAt = etagLastUpdatedAt;
             urlMetadata.lastRequestCompletedAt = completedAt;
           } else {
             realm?.create(UrlRequestMetadata, {
               url,
               etag,
               lastRequestCompletedAt: completedAt,
+              etagLastUpdatedAt,
             });
           }
         });
-
-        if (options?.bypassEtagCaching === true) {
-          logger.info(
-            `[etag] url=${url}, updating local database. bypassEtagCaching=${options?.bypassEtagCaching}`
-          );
-        } else if (etag === urlMetadata?.etag) {
-          logger.info(
-            `[etag] url=${resp.url}, request contents unchanged. etag=${urlMetadata?.etag}`
-          );
-          return { type: RelistenApiResponseType.RequestContentsUnchanged };
-        } else {
-          logger.info(
-            `[etag] url=${resp.url}, updating local database; request contents changed. stored_etag=${urlMetadata?.etag}, new_etag=${etag}`
-          );
-        }
       }
 
       return {
