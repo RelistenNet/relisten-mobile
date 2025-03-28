@@ -37,6 +37,7 @@ export default function Page() {
       <RefreshContextProvider networkBackedResults={results}>
         <DisappearingHeaderScreen
           ScrollableComponent={ShowListContainer}
+          isLoading={results.isNetworkLoading}
           ListHeaderComponent={<YearHeader artist={artist} year={year} />}
           data={data}
           filterOptions={{

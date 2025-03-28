@@ -24,12 +24,15 @@ export default function Page() {
     });
   }, [artist]);
 
+  console.log({ isNetworkLoading: results.isNetworkLoading });
+
   return (
     <RefreshContextProvider networkBackedResults={results}>
       <DisappearingHeaderScreen
         ScrollableComponent={YearsListContainer}
         artist={artist}
         years={years}
+        isLoading={results.isNetworkLoading}
         filterOptions={{
           persistence: { key: ['artists', artistUuid, 'years'].join('/') },
           default: {

@@ -2334,8 +2334,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
 SPEC CHECKSUMS:
-  boost: 7e761d76ca2ce687f7cc98e698152abd03a18f90
-  DoubleConversion: cb417026b2400c8f53ae97020b2be961b59470cb
+  boost: 4cb898d0bf20404aab1850c656dcea009429d6c1
+  DoubleConversion: 76ab83afb40bddeeee456813d9c04f67f78771b5
   EXApplication: 27a524f5c3e671c6218220fba04752629466a1a9
   EXConstants: 0472d3c23d97943fe3505306daf9cde8024365c2
   EXImageLoader: 759063a65ab016b836f73972d3bb25404888713d
@@ -2358,7 +2358,7 @@ SPEC CHECKSUMS:
   fast_float: 06eeec4fe712a76acc9376682e4808b05ce978b6
   FBLazyVector: 79c4b7ec726447eec5f8593379466bd9fde1aa14
   fmt: a40bb5bd0294ea969aaaba240a927bd33d878cdd
-  glog: eb93e2f488219332457c3c4eafd2738ddc7e80b8
+  glog: 69ef571f3de08433d766d614c73a9838a06bf7eb
   hermes-engine: ccc24d29d650ea725d582a9a53d57cd417fbdb53
   lottie-ios: a881093fab623c467d3bce374367755c272bdd59
   lottie-react-native: 57ffc63285c1e5dcad6743dca0d3e1ed34cac598
@@ -2443,4 +2443,4 @@ SPEC CHECKSUMS:
 
 PODFILE CHECKSUM: a4074ecb260209a209920ab5d68b13d3809fb68b
 
-COCOAPODS: 1.16.2
+COCOAPODS: 1.14.3

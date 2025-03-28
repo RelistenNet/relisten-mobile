@@ -19,6 +19,7 @@ const logger = log.extend('filter');
 
 export type FilterableListProps<T extends RelistenObject> = {
   data: RelistenSectionData<T>;
+  isLoading?: boolean;
   hideFilterBar?: boolean;
   filtering?: boolean;
   nonIdealState?: {
@@ -41,6 +42,7 @@ const HIDDEN_SECTION_SENTINEL = '__HIDDEN__';
 
 export const FilterableList = <K extends string, T extends RelistenObject>({
   data,
+  isLoading,
   hideFilterBar,
   filtering,
   nonIdealState,
@@ -60,7 +62,8 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
 
       return { ...section, data: filteredData, itemsHidden };
     });
-    const noDataIsVisible = filteredData.filter((x) => x.data.length > 0).length === 0;
+    const noDataIsVisible =
+      !isLoading && filteredData.filter((x) => x.data.length > 0).length === 0;
     const itemsHidden = filteredData.reduce((memo, next) => memo + next.itemsHidden, 0);
 
     return [

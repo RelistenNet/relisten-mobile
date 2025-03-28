@@ -66,7 +66,10 @@ if (!__DEV__) {
       }),
     ],
     enableNativeFramesTracking: true, // Tracks slow and frozen frames in the application
+    enableAppStartTracking: !__DEV__,
   });
+} else {
+  Sentry.init({});
 }
 
 function TabLayout() {
