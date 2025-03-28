@@ -12,9 +12,10 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { PropsWithChildren, useCallback, useContext, useState } from 'react';
-import { LayoutChangeEvent, Pressable, TouchableOpacity, View } from 'react-native';
+import { LayoutChangeEvent, Platform, Pressable, TouchableOpacity, View } from 'react-native';
 import { ScrubberRow } from './player_screen';
 import * as Progress from 'react-native-progress';
+import AirPlayButton from 'react-native-airplay-button';
 
 function PlayerBottomBarContents() {
   const currentTrack = useRelistenPlayerCurrentTrack();
@@ -68,6 +69,20 @@ function PlayerBottomBarContents() {
               {subtitle ?? ''}
             </RelistenText>
           </Flex>
+          {Platform.OS === 'ios' && (
+            <Pressable
+              onPress={() => {
+                /* no op to stop it from opening the full player */
+              }}
+            >
+              <AirPlayButton
+                activeTintColor="white"
+                tintColor="rgba(255, 255, 255, 0.5)"
+                prioritizesVideoDevices={false}
+                className="mx-2 h-[42] w-[42]"
+              />
+            </Pressable>
+          )}
         </Flex>
       </Pressable>
       <View className="relative bg-relisten-blue-700">
