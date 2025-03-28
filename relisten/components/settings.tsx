@@ -184,10 +184,9 @@ const SETTINGS: Array<Settings> = [
   },
   {
     label: 'Autoselect Primary Source',
-    subtitle: 'Turn this off to view all sources before visiting a show',
+    subtitle: 'Turn this off to view all tapes before visiting a show',
     type: 'bool',
     newSettings: (newValue: boolean): Partial<UserSettingsProps> => {
-      console.log(newValue);
       return {
         autoselectPrimarySource: newValue
           ? AutoselectPrimarySource.Always
