@@ -16,6 +16,7 @@ import { assert } from 'realm/dist/assert';
 import ContentLoader from 'react-content-loader';
 import { List as ListContentLoader, Rect } from 'react-content-loader/native';
 import { RelistenBlue } from '@/relisten/relisten_blue';
+import Plur from './plur';
 
 export function ShowCardContainer({
   cn,
@@ -41,11 +42,24 @@ export function ShowCardContainer({
 }
 
 export interface ShowCardContentsProps {
-  title: string;
+  title: React.ReactNode;
   subtitle?: string;
   details?: ReadonlyArray<string>;
   textClassName?: string;
   innerRef?: LegacyRef<View> | undefined;
+}
+export function ShowCardTitle({
+  children,
+  textClassName,
+}: {
+  children: React.ReactNode;
+  textClassName?: string;
+}) {
+  return (
+    <RelistenText selectable={false} className={tw('text-md font-bold', textClassName)}>
+      {children}
+    </RelistenText>
+  );
 }
 
 export function ShowCardContents({
@@ -59,9 +73,7 @@ export function ShowCardContents({
 }: ShowCardContentsProps & ViewProps) {
   return (
     <View className={tw('rounded-lg bg-gray-600 p-2', className)} ref={innerRef} {...props}>
-      <RelistenText selectable={false} className={tw('text-md font-bold', textClassName)}>
-        {title}
-      </RelistenText>
+      {title}
       {subtitle && (
         <RelistenText selectable={false} className={tw('pt-1', textClassName)}>
           {subtitle}
@@ -125,7 +137,15 @@ export function ShowCard({
       >
         <TouchableOpacity>
           <ShowCardContents
-            title={show.displayDate}
+            title={
+              <View className="flex flex-row items-center justify-between">
+                <ShowCardTitle>{show.displayDate}</ShowCardTitle>
+                <RelistenText cn="text-xs">
+                  {/* <Plur word={'Review'} count={source.reviewCount} /> */}
+                  {show.avgRating ? ` ${show.humanizedAvgRating()}★` : ''}
+                </RelistenText>
+              </View>
+            }
             subtitle={showArtist && show.artist?.name ? show.artist?.name : undefined}
             details={details}
           />
@@ -171,7 +191,7 @@ export function ShowCardLoader({
   return (
     <ShowCardContainer innerRef={outerRef} {...props}>
       <ShowCardContents
-        title="Show loading..."
+        title={<ShowCardTitle>Show loading...</ShowCardTitle>}
         subtitle={showArtist ? 'Artist loading' : undefined}
         details={
           showVenue ? ['Venue name loading...', 'Venue location loading...'] : ['Venue loading...']
