@@ -33,8 +33,11 @@ class SongShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
     super(options);
   }
 
-  fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<SongWithShows>> {
-    return api.song(this.artistUuid, this.songUuid);
+  fetchFromApi(
+    api: RelistenApiClient,
+    forcedRefresh: boolean
+  ): Promise<RelistenApiResponse<SongWithShows>> {
+    return api.song(this.artistUuid, this.songUuid, api.refreshOptions(forcedRefresh));
   }
 
   useFetchFromLocal(): SongShows {

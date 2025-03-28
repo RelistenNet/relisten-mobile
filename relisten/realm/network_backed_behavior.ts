@@ -17,7 +17,10 @@ export interface NetworkBackedBehavior<TLocalData, TApiData> {
 
   useFetchFromLocal(): TLocalData;
 
-  fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<TApiData | undefined>>;
+  fetchFromApi(
+    api: RelistenApiClient,
+    forcedRefresh: boolean
+  ): Promise<RelistenApiResponse<TApiData | undefined>>;
 
   shouldPerformNetworkRequest(
     lastRequestAt: dayjs.Dayjs | undefined,
@@ -74,7 +77,10 @@ export abstract class ThrottledNetworkBackedBehavior<TLocalData, TApiData>
     return msSinceLastRequest >= this.minTimeBetweenRequestsSeconds * 1000;
   }
 
-  abstract fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<TApiData | undefined>>;
+  abstract fetchFromApi(
+    api: RelistenApiClient,
+    forcedRefresh: boolean
+  ): Promise<RelistenApiResponse<TApiData | undefined>>;
 
   abstract useFetchFromLocal(): TLocalData;
 
@@ -92,14 +98,20 @@ export class NetworkBackedModelArrayBehavior<
   constructor(
     public repository: Repository<TModel, TApi, RequiredProperties, RequiredRelationships>,
     public fetchFromRealm: () => Realm.Results<TModel>,
-    public apiCall: (api: RelistenApiClient) => Promise<RelistenApiResponse<TApi[]>>,
+    public apiCall: (
+      api: RelistenApiClient,
+      forcedRefresh: boolean
+    ) => Promise<RelistenApiResponse<TApi[]>>,
     options?: NetworkBackedBehaviorOptions
   ) {
     super(options);
   }
 
-  fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<TApi[]>> {
-    return this.apiCall(api);
+  fetchFromApi(
+    api: RelistenApiClient,
+    forcedRefresh: boolean
+  ): Promise<RelistenApiResponse<TApi[]>> {
+    return this.apiCall(api, forcedRefresh);
   }
 
   useFetchFromLocal(): Realm.Results<TModel> {
@@ -124,14 +136,17 @@ export class NetworkBackedModelBehavior<
   constructor(
     public repository: Repository<TModel, TApi, RequiredProperties, RequiredRelationships>,
     public fetchFromRealm: () => TModel | null,
-    public apiCall: (api: RelistenApiClient) => Promise<RelistenApiResponse<TApi>>,
+    public apiCall: (
+      api: RelistenApiClient,
+      forcedRefresh: boolean
+    ) => Promise<RelistenApiResponse<TApi>>,
     options?: NetworkBackedBehaviorOptions
   ) {
     super(options);
   }
 
-  fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<TApi>> {
-    return this.apiCall(api);
+  fetchFromApi(api: RelistenApiClient, forcedRefresh: boolean): Promise<RelistenApiResponse<TApi>> {
+    return this.apiCall(api, forcedRefresh);
   }
 
   useFetchFromLocal(): TModel | null {

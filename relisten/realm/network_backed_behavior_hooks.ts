@@ -92,7 +92,7 @@ export function useNetworkBackedBehavior<TLocalData, TApiData>(
       if (shouldForceLoadingSpinner) {
         setIsNetworkLoading(true);
       }
-      const apiData = await behavior.fetchFromApi(api.apiClient);
+      const apiData = await behavior.fetchFromApi(api.apiClient, shouldForceLoadingSpinner);
 
       if (apiData?.type == RelistenApiResponseType.OnlineRequestCompleted) {
         if (apiData?.data) {
@@ -114,7 +114,7 @@ export function useNetworkBackedBehavior<TLocalData, TApiData>(
       isNetworkLoading,
       data: localData,
       // if were pull-to-refreshing, always show the spinner
-      refresh: (force = true) => refresh(force),
+      refresh: (force = false) => refresh(force),
       errors: error ? [error] : undefined,
     };
   }, [isNetworkLoading, localData, refresh, error]);
@@ -135,7 +135,10 @@ export function createNetworkBackedModelArrayHook<
 >(
   repo: Repository<TModel, TApi, RequiredProperties, RequiredRelationships>,
   fetchFromRealm: () => Realm.Results<TModel>,
-  fetchFromApi: (api: RelistenApiClient) => Promise<RelistenApiResponse<TApi[]>>
+  fetchFromApi: (
+    api: RelistenApiClient,
+    forcedRefresh: boolean
+  ) => Promise<RelistenApiResponse<TApi[]>>
 ): (options?: NetworkBackedBehaviorOptions) => NetworkBackedResults<Realm.Results<TModel>> {
   return (options) => {
     const behavior = useMemo(() => {
@@ -154,7 +157,10 @@ export function createNetworkBackedModelHook<
 >(
   repo: Repository<TModel, TApi, RequiredProperties, RequiredRelationships>,
   fetchFromRealm: () => TModel | null,
-  fetchFromApi: (api: RelistenApiClient) => Promise<RelistenApiResponse<TApi>>
+  fetchFromApi: (
+    api: RelistenApiClient,
+    forcedRefresh: boolean
+  ) => Promise<RelistenApiResponse<TApi>>
 ): (options?: NetworkBackedBehaviorOptions) => NetworkBackedResults<TModel | null> {
   return (options) => {
     const behavior = useMemo(() => {

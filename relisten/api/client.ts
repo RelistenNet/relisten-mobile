@@ -240,6 +240,17 @@ export class RelistenApiClient {
     }
   }
 
+  public refreshOptions(forceRefresh: boolean): RelistenApiRequestOptions | undefined {
+    if (!forceRefresh) {
+      return;
+    }
+
+    return {
+      bypassEtagCaching: true,
+      bypassRateLimit: true,
+    };
+  }
+
   public artists(
     options?: RelistenApiRequestOptions
   ): Promise<RelistenApiResponse<ArtistWithCounts[]>> {

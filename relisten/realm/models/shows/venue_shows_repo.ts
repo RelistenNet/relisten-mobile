@@ -32,8 +32,11 @@ class VenueShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
     super(options);
   }
 
-  fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<VenueWithShows>> {
-    return api.venue(this.artistUuid, this.venueUuid);
+  fetchFromApi(
+    api: RelistenApiClient,
+    forcedRefresh: boolean
+  ): Promise<RelistenApiResponse<VenueWithShows>> {
+    return api.venue(this.artistUuid, this.venueUuid, api.refreshOptions(forcedRefresh));
   }
 
   useFetchFromLocal(): VenueShows {

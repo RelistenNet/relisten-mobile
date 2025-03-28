@@ -83,13 +83,14 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
   }
 
   fetchFromApi(
-    api: RelistenApiClient
+    api: RelistenApiClient,
+    forcedRefresh: boolean
   ): Promise<RelistenApiResponse<ApiShowWithSources | undefined>> {
     if (!this.showUuid) {
       return Promise.resolve({ type: RelistenApiResponseType.Offline, data: undefined });
     }
 
-    return api.showWithSources(this.showUuid);
+    return api.showWithSources(this.showUuid, api.refreshOptions(forcedRefresh));
   }
 
   useFetchFromLocal(): ShowWithSources {

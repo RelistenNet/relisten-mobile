@@ -15,12 +15,21 @@ import { ShowsWithVenueNetworkBackedBehavior } from '@/relisten/realm/models/sho
 import { NetworkBackedBehaviorFetchStrategy } from '@/relisten/realm/network_backed_behavior';
 
 class TopShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavior {
-  fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<ApiShow[] | undefined>> {
+  fetchFromApi(
+    api: RelistenApiClient,
+    forcedRefresh: boolean
+  ): Promise<RelistenApiResponse<ApiShow[] | undefined>> {
     if (!this.artistUuid) {
       return Promise.resolve({ type: RelistenApiResponseType.Offline, data: undefined });
     }
 
-    return api.topShow(this.artistUuid, { bypassEtagCaching: true, bypassRateLimit: true });
+    const refreshOptions = api.refreshOptions(forcedRefresh);
+
+    return api.topShow(this.artistUuid, {
+      bypassEtagCaching: true,
+      bypassRateLimit: true,
+      ...refreshOptions,
+    });
   }
 
   useFetchFromLocal(): Realm.Results<Show> {

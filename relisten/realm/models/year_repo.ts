@@ -73,8 +73,11 @@ class YearShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
     super(options);
   }
 
-  fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<YearWithShows>> {
-    return api.year(this.artistUuid, this.yearUuid);
+  fetchFromApi(
+    api: RelistenApiClient,
+    forcedRefresh: boolean
+  ): Promise<RelistenApiResponse<YearWithShows>> {
+    return api.year(this.artistUuid, this.yearUuid, api.refreshOptions(forcedRefresh));
   }
 
   useFetchFromLocal(): YearShows {

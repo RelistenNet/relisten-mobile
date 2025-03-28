@@ -31,20 +31,27 @@ class RecentShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavi
     super(artistUuid, options);
   }
 
-  fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<ApiShow[] | undefined>> {
+  fetchFromApi(
+    api: RelistenApiClient,
+    forcedRefresh: boolean
+  ): Promise<RelistenApiResponse<ApiShow[] | undefined>> {
     if (!this.artistUuid || !this.activeTab) {
       return Promise.resolve({ type: RelistenApiResponseType.Offline, data: undefined });
     }
+
+    const refreshOptions = api.refreshOptions(forcedRefresh) || {};
 
     if (this.activeTab === RecentShowTabs.Performed) {
       return api.recentPerformedShows(this.artistUuid, {
         bypassRateLimit: false,
         bypassEtagCaching: true,
+        ...refreshOptions,
       });
     } else {
       return api.recentUpdatedShows(this.artistUuid, {
         bypassRateLimit: false,
         bypassEtagCaching: true,
+        ...refreshOptions,
       });
     }
   }

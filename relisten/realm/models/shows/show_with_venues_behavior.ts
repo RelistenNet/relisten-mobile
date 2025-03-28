@@ -20,7 +20,8 @@ export abstract class ShowsWithVenueNetworkBackedBehavior extends ThrottledNetwo
   }
 
   abstract fetchFromApi(
-    api: RelistenApiClient
+    api: RelistenApiClient,
+    forcedRefresh: boolean
   ): Promise<RelistenApiResponse<ApiShow[] | undefined>>;
 
   abstract useFetchFromLocal(): Realm.Results<Show>;

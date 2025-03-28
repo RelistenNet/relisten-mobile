@@ -32,8 +32,11 @@ class TourShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
     super(options);
   }
 
-  fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<TourWithShows>> {
-    return api.tour(this.artistUuid, this.tourUuid);
+  fetchFromApi(
+    api: RelistenApiClient,
+    forcedRefresh: boolean
+  ): Promise<RelistenApiResponse<TourWithShows>> {
+    return api.tour(this.artistUuid, this.tourUuid, api.refreshOptions(forcedRefresh));
   }
 
   useFetchFromLocal(): TourShows {

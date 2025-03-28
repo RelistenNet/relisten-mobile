@@ -28,10 +28,16 @@ class TodayShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavio
     super(artistUuid, options);
   }
 
-  fetchFromApi(api: RelistenApiClient): Promise<RelistenApiResponse<ApiShow[] | undefined>> {
+  fetchFromApi(
+    api: RelistenApiClient,
+    forcedRefresh: boolean
+  ): Promise<RelistenApiResponse<ApiShow[] | undefined>> {
+    const refreshOptions = api.refreshOptions(forcedRefresh) || {};
+
     return api.todayShows(this.artistUuid, {
       bypassRateLimit: true,
       bypassEtagCaching: true,
+      ...refreshOptions,
     });
   }
 
