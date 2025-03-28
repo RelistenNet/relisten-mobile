@@ -7,6 +7,7 @@ import type { SourceSet } from './source_set';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { Artist } from '@/relisten/realm/models/artist';
 import { duration } from '@/relisten/util/duration';
+import { checkIfOfflineSourceTrackExists } from '@/relisten/realm/realm_filters';
 
 export interface SourceRequiredRelationships {
   // sourceSets: Realm.List<SourceSet>;
@@ -150,6 +151,10 @@ export class Source
     }
 
     return this._allSourceTracks;
+  }
+
+  get hasOfflineTracks() {
+    return checkIfOfflineSourceTrackExists(this.sourceTracks);
   }
 
   static propertiesFromApi(relistenObj: SourceFull): SourceRequiredProperties {

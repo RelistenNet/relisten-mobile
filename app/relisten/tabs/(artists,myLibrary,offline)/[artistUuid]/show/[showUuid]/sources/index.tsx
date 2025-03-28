@@ -8,7 +8,7 @@ import { sortSources, useFullShow } from '@/relisten/realm/models/show_repo';
 import { Source } from '@/relisten/realm/models/source';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { memo } from '@/relisten/util/memo';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { Link, useLocalSearchParams, useNavigation } from 'expo-router';
 import React, { useEffect, useMemo } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
@@ -19,6 +19,8 @@ import Plur from '@/relisten/components/plur';
 import { SourceSummary } from '@/relisten/components/source/source_components';
 import { SectionHeader } from '@/relisten/components/section_header';
 import { Tag } from '@/relisten/components/tag';
+import colors from 'tailwindcss/colors';
+import { SourceTrackSucceededIndicator } from '@/relisten/components/source/source_track_offline_indicator';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -117,8 +119,14 @@ export const SourceDetail: React.FC<{ source: Source; show: Show; idx: number }>
           <SectionHeader className="flex-row items-center">
             <RelistenText className="text-m font-bold">Source #{idx + 1}</RelistenText>
             {source.isSoundboard && (
-              <RelistenText cn="ml-2 text-xs font-bold text-relisten-blue-600">SBD</RelistenText>
+              <RelistenText cn="ml-1 text-xs font-bold text-relisten-blue-600">SBD</RelistenText>
             )}
+            {source.isFavorite && (
+              <View className="ml-1">
+                <MaterialCommunityIcons name="cards-heart" color={colors.blue['200']} />
+              </View>
+            )}
+            {source.hasOfflineTracks && <SourceTrackSucceededIndicator className="ml-1" />}
           </SectionHeader>
         </View>
         <View className="flex w-full items-center px-4">
