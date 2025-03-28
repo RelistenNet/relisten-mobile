@@ -232,6 +232,19 @@ export default function Page() {
               </Link>
             </RowWithAction>
             <RowWithAction
+              title="Recently Played"
+              subtitle="See what other people are listening to in real-time."
+            >
+              <Link
+                href={{
+                  pathname: '/relisten/tabs/(relisten)/recently-played' as const,
+                }}
+                asChild
+              >
+                <RelistenButton>Recently Played</RelistenButton>
+              </Link>
+            </RowWithAction>
+            <RowWithAction
               title="Random Show"
               subtitle="Listen to a random show by any artist on Relisten."
             >
