@@ -253,6 +253,14 @@ export default function Page() {
   return (
     <ScrollScreen>
       <ScrollView className="pt-2">
+        <View className="w-full">
+          <RelistenText className="bg-red-950 p-2 text-center">
+            <RelistenText className="font-bold">Experimental:</RelistenText>
+            &nbsp;this screen shows a live stream of what everyone is listening to right now.
+            {'\n\n'}
+            It will be improved over time.
+          </RelistenText>
+        </View>
         <Flex cn="gap-2" column>
           <Stagger
             enterDirection={-1}
