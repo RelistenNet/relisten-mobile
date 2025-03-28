@@ -121,19 +121,26 @@ export class DownloadManager {
       return null;
     }
 
-    if (this.pendingDownloadTasks.has(sourceTrack.uuid)) {
-      logger.debug(`${sourceTrack.uuid} is already pending download`);
+    if (this.isPendingOrDownloading(sourceTrack)) {
+      logger.debug(`${sourceTrack.uuid} is already pending or downloading`);
       return null;
+    }
+
+    return this.createDownloadTask(sourceTrack, offlineInfo);
+  }
+
+  private isPendingOrDownloading(sourceTrack: SourceTrack) {
+    if (this.pendingDownloadTasks.has(sourceTrack.uuid)) {
+      return true;
     }
 
     for (const task of this.runningDownloadTasks) {
       if (task.id === sourceTrack.uuid) {
-        logger.debug(`${sourceTrack.uuid} is already downloading`);
-        return null;
+        return true;
       }
     }
 
-    return this.createDownloadTask(sourceTrack, offlineInfo);
+    return false;
   }
 
   private availableDownloadSlots() {
@@ -162,19 +169,15 @@ export class DownloadManager {
       .sorted('queuedAt')
       .slice(0, this.availableDownloadSlots());
 
-    // doing this before an await makes sure that nothing else will try to download these
     for (const queuedDownload of queuedDownloads) {
-      this.pendingDownloadTasks.add(queuedDownload.sourceTrack.uuid);
-    }
+      if (this.isPendingOrDownloading(queuedDownload.sourceTrack)) {
+        logger.debug(`${queuedDownload.sourceTrack.uuid} is already pending or downloading`);
+        continue;
+      }
 
-    for (const queuedDownload of queuedDownloads) {
       const task = await this.createDownloadTask(queuedDownload.sourceTrack, queuedDownload);
 
       createdTasks.add(task.id);
-    }
-
-    for (const queuedDownload of queuedDownloads) {
-      this.pendingDownloadTasks.delete(queuedDownload.sourceTrack.uuid);
     }
 
     logger.debug(`Started createdTasks=${createdTasks.size} new download tasks`);
