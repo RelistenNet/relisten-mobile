@@ -70,7 +70,7 @@ export default function Page() {
 
   const playShow = useCallback(
     (sourceTrack?: SourceTrack) => {
-      if (!sourceTrack || !sourceTrack.mp3Url || !sourceTrack.uuid) {
+      if (!sourceTrack || !sourceTrack.mp3Url || !sourceTrack.uuid || !selectedSource) {
         logger.warn(
           `Missing value when trying to play source track: sourceTrack=${sourceTrack} mp3Url=${sourceTrack?.mp3Url} uuid=${sourceTrack?.uuid} artist=${artist.data} show=${show} selectedSource=${selectedSource}`
         );
