@@ -39,7 +39,7 @@ export const RelistenFlatList = <T extends { uuid: string }>({
           <RefreshControl refreshing={refreshing} onRefresh={() => onRefresh(true)} />
         ) : undefined
       }
-      contentContainerStyle={{ marginBottom: playerBottomBarHeight }}
+      // contentContainerStyle={{ marginBottom: playerBottomBarHeight }}
       {...props}
     ></FlatList>
   );

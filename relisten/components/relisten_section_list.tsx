@@ -173,7 +173,7 @@ export const RelistenSectionList = <T extends RelistenObject>({
           <RefreshControl refreshing={refreshing} onRefresh={() => onRefresh(true)} />
         ) : undefined
       }
-      contentContainerStyle={{ paddingBottom: playerBottomBarHeight }}
+      // contentContainerStyle={{ paddingBottom: playerBottomBarHeight }}
       {...props}
     />
   );

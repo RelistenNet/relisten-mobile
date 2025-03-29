@@ -5,5 +5,5 @@ import { View } from 'react-native';
 export const ScrollScreen = ({ children }: PropsWithChildren) => {
   const { playerBottomBarHeight } = useRelistenPlayerBottomBarContext();
 
-  return <View style={{ marginBottom: playerBottomBarHeight, flex: 1 }}>{children}</View>;
+  return <View style={{ paddingBottom: playerBottomBarHeight, flex: 1 }}>{children}</View>;
 };
