@@ -37,6 +37,7 @@ import * as Progress from 'react-native-progress';
 import ReorderableList, { useReorderableDrag } from 'react-native-reorderable-list';
 import { ReorderableListReorderEvent } from 'react-native-reorderable-list/src/types/props';
 import * as Sharing from 'expo-sharing';
+import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 
 export function ScrubberRow() {
   const progressObj = useNativePlaybackProgress();
@@ -116,6 +117,7 @@ function useNavigateToCurrentTrackSheet() {
   const navigation = useNavigation();
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
   const groupSegment = useGroupSegment(true);
+  const { pushShow } = usePushShowRespectingUserSettings();
 
   const artist = currentPlayerTrack?.sourceTrack?.artist;
   const show = currentPlayerTrack?.sourceTrack?.show;
@@ -147,14 +149,10 @@ function useNavigateToCurrentTrackSheet() {
             break;
           case 1:
             navigation.goBack();
-            router.push({
-              pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
-
-              params: {
-                artistUuid: artist.uuid,
-                showUuid: show.uuid,
-                sourceUuid: source?.uuid || 'initial',
-              },
+            pushShow({
+              artistUuid: artist.uuid,
+              showUuid: show.uuid,
+              sourceUuid: source?.uuid,
             });
             break;
           case cancelButtonIndex:

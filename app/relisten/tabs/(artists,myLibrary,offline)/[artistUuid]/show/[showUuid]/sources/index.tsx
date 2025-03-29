@@ -21,6 +21,7 @@ import { SectionHeader } from '@/relisten/components/section_header';
 import { Tag } from '@/relisten/components/tag';
 import colors from 'tailwindcss/colors';
 import { SourceTrackSucceededIndicator } from '@/relisten/components/source/source_track_offline_indicator';
+import { ShowLink } from '@/relisten/util/push_show';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -133,15 +134,11 @@ export const SourceDetail: React.FC<{ source: Source; show: Show; idx: number }>
           <SourceSummary source={source} />
           <View className="w-full pb-6">
             <Flex className="w-full flex-row" style={{ gap: 16 }}>
-              <Link
-                href={{
-                  pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
-                  params: {
-                    artistUuid: show.artistUuid,
-                    yearUuid: show.yearUuid,
-                    showUuid: show.uuid,
-                    sourceUuid: source.uuid,
-                  },
+              <ShowLink
+                show={{
+                  artistUuid: show.artistUuid,
+                  showUuid: show.uuid,
+                  sourceUuid: source.uuid,
                 }}
                 asChild
                 className="flex-1"
@@ -153,7 +150,7 @@ export const SourceDetail: React.FC<{ source: Source; show: Show; idx: number }>
                 >
                   Select Source
                 </RelistenButton>
-              </Link>
+              </ShowLink>
               {source.reviewCount > 0 && (
                 <Link
                   href={{

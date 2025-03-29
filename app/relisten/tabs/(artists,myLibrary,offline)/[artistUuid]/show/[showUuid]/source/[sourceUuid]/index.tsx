@@ -38,6 +38,7 @@ import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
 import { AutoselectPrimarySource, OfflineModeSetting } from '@/relisten/realm/models/user_settings';
 import { Artist } from '@/relisten/realm/models/artist';
+import { ShowLink } from '@/relisten/util/push_show';
 
 const logger = log.extend('source screen');
 
@@ -69,26 +70,6 @@ export default function Page() {
     String(showUuid),
     String(sourceUuid)
   );
-
-  if (
-    sourceUuid === 'initial' &&
-    show?.sourceCount > 1 &&
-    settings.autoselectPrimarySource === AutoselectPrimarySource.Never
-  ) {
-    const groupSegment = useGroupSegment(true);
-
-    return (
-      <Redirect
-        href={{
-          pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/sources/`,
-          params: {
-            artistUuid,
-            showUuid,
-          },
-        }}
-      />
-    );
-  }
 
   const playShow = useCallback(
     (sourceTrack?: SourceTrack) => {
@@ -463,14 +444,11 @@ export const SourceHeader = ({
             </Link>
           )}
           {source.reviewCount > 0 && (
-            <Link
-              href={{
-                pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/reviews`,
-                params: {
-                  artistUuid: show.artistUuid,
-                  showUuid: show.uuid,
-                  sourceUuid: source.uuid,
-                },
+            <ShowLink
+              show={{
+                artistUuid: show.artistUuid,
+                showUuid: show.uuid,
+                sourceUuid: source.uuid,
               }}
               asChild
               className="flex-1"
@@ -479,7 +457,7 @@ export const SourceHeader = ({
                 <Plur word={'Review'} count={source.reviewCount} />
                 {source.avgRating ? `\u00A0•\u00A0${source.avgRating.toFixed(1)}★` : ''}
               </RelistenButton>
-            </Link>
+            </ShowLink>
           )}
         </Flex>
       )}

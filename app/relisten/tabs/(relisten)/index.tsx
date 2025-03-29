@@ -20,6 +20,7 @@ import { RelistenAbout } from '@/relisten/components/about';
 import { useArtists } from '@/relisten/realm/models/artist_repo';
 import { sample } from 'remeda';
 import { useRelistenApi } from '@/relisten/api/context';
+import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 
 const sizeFormatter = new Intl.NumberFormat([], {
   style: 'unit',
@@ -191,7 +192,7 @@ function StorageUsage() {
 export default function Page() {
   const artists = useArtists();
   const { apiClient } = useRelistenApi();
-  const router = useRouter();
+  const { pushShow } = usePushShowRespectingUserSettings();
 
   const playRandomShow = async () => {
     if (artists.data.length === 0) {
@@ -202,13 +203,9 @@ export default function Page() {
     const randomShow = await apiClient.randomShow(randomArtist.uuid);
 
     if (randomShow?.data?.uuid) {
-      router.push({
-        pathname: '/relisten/tabs/(artists)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/',
-        params: {
-          artistUuid: randomArtist.uuid,
-          showUuid: randomShow!.data!.uuid,
-          sourceUuid: 'initial',
-        },
+      pushShow({
+        artistUuid: randomArtist.uuid,
+        showUuid: randomShow!.data!.uuid,
       });
     }
   };

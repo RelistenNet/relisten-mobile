@@ -21,6 +21,7 @@ import { SectionedListItem } from './sectioned_list_item';
 import { SourceTrackSucceededIndicator } from './source/source_track_offline_indicator';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import colors from 'tailwindcss/colors';
+import { ShowLink } from '@/relisten/util/push_show';
 
 interface ShowListItemProps {
   show: Show;
@@ -28,17 +29,11 @@ interface ShowListItemProps {
 }
 
 export const ShowListItem = ({ show, children }: ShowListItemProps) => {
-  const groupSegment = useGroupSegment();
-
   return (
-    <Link
-      href={{
-        pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
-        params: {
-          artistUuid: show.artistUuid,
-          showUuid: show.uuid,
-          sourceUuid: 'initial',
-        },
+    <ShowLink
+      show={{
+        artistUuid: show.artistUuid,
+        showUuid: show.uuid,
       }}
       asChild
     >
@@ -70,7 +65,7 @@ export const ShowListItem = ({ show, children }: ShowListItemProps) => {
           </Flex>
         </Flex>
       </SectionedListItem>
-    </Link>
+    </ShowLink>
   );
 };
 

@@ -9,14 +9,14 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import Plur from '@/relisten/components/plur';
 import { ArtistActionButtons } from '@/relisten/pages/artist/artist_action_buttons';
 import { ArtistShowsOnThisDayTray } from '@/relisten/pages/artist/artist_shows_on_this_day_tray';
+import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 
 export const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => {
   const { apiClient } = useRelistenApi();
   const currentRoute = useRoute();
-  const router = useRouter();
   const isOfflineTab = useIsOfflineTab();
-  const groupSegment = useGroupSegment(true);
   const metadata = useArtistMetadata(artist);
+  const { pushShow } = usePushShowRespectingUserSettings();
 
   if (!artist) {
     return null;
@@ -26,14 +26,7 @@ export const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => 
     const randomShow = await apiClient.randomShow(artist.uuid);
 
     if (randomShow?.data?.uuid) {
-      router.push({
-        pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
-        params: {
-          artistUuid: artist.uuid,
-          showUuid: randomShow!.data!.uuid,
-          sourceUuid: 'initial',
-        },
-      });
+      pushShow({ artistUuid: artist.uuid, showUuid: randomShow!.data!.uuid });
     }
   };
 

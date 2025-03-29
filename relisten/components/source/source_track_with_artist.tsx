@@ -9,6 +9,7 @@ import { Link } from 'expo-router';
 import React, { PropsWithChildren } from 'react';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { useGroupSegment } from '@/relisten/util/routes';
+import { ShowLink } from '@/relisten/util/push_show';
 
 export function TrackWithArtist({
   sourceTrack,
@@ -22,21 +23,16 @@ export function TrackWithArtist({
   indicatorComponent?: React.ReactNode;
   subtitleColumn?: boolean;
 }>) {
-  const groupSegment = useGroupSegment();
-
   if (offlineIndicator === undefined) {
     offlineIndicator = true;
   }
 
   return (
-    <Link
-      href={{
-        pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/`,
-        params: {
-          artistUuid: sourceTrack.artist.uuid,
-          showUuid: sourceTrack.show.uuid,
-          sourceUuid: sourceTrack.source.uuid,
-        },
+    <ShowLink
+      show={{
+        artistUuid: sourceTrack.artist.uuid,
+        showUuid: sourceTrack.show.uuid,
+        sourceUuid: sourceTrack.source.uuid,
       }}
       asChild
     >
@@ -69,6 +65,6 @@ export function TrackWithArtist({
           {indicatorComponent}
         </Flex>
       </SectionedListItem>
-    </Link>
+    </ShowLink>
   );
 }

@@ -1,22 +1,11 @@
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { Show } from '@/relisten/realm/models/show';
 import { tw } from '@/relisten/util/tw';
-import { Link } from 'expo-router';
-import React, {
-  LegacyRef,
-  PropsWithChildren,
-  ReactNode,
-  RefAttributes,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react';
+import React, { LegacyRef, PropsWithChildren, useLayoutEffect, useRef, useState } from 'react';
 import { TouchableOpacity, View, ViewProps } from 'react-native';
-import { assert } from 'realm/dist/assert';
-import ContentLoader from 'react-content-loader';
-import { List as ListContentLoader, Rect } from 'react-content-loader/native';
-import { RelistenBlue } from '@/relisten/relisten_blue';
+import { List as ListContentLoader } from 'react-content-loader/native';
 import Plur from './plur';
+import { ShowLink } from '@/relisten/util/push_show';
 
 export function ShowCardContainer({
   cn,
@@ -131,17 +120,12 @@ export function ShowCard({
 
   return (
     <ShowCardContainer {...props}>
-      <Link
-        href={{
-          pathname:
-            root === 'artists'
-              ? '/relisten/tabs/(artists)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/'
-              : '/relisten/tabs/(myLibrary)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/',
-          params: {
-            artistUuid: show.artistUuid,
-            showUuid: show.uuid,
-            sourceUuid: sourceUuid ?? 'initial',
-          },
+      <ShowLink
+        show={{
+          artistUuid: show.artistUuid,
+          showUuid: show.uuid,
+          sourceUuid: sourceUuid,
+          overrideGroupSegment: root === 'artists' ? '(artists)' : '(myLibrary)',
         }}
         asChild
       >
@@ -160,7 +144,7 @@ export function ShowCard({
             details={details}
           />
         </TouchableOpacity>
-      </Link>
+      </ShowLink>
     </ShowCardContainer>
   );
 }

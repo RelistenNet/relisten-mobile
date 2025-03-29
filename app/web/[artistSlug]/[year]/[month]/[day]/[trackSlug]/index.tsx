@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { useRelistenApi } from '@/relisten/api/context';
 import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
 import { AutoplayDeepLinkToTrackSetting } from '@/relisten/realm/models/user_settings';
+import { PushShowOptions, usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 
 const logger = log.extend('deep-links');
 
@@ -13,6 +14,7 @@ export default function Page() {
   const router = useRouter();
   const { apiClient } = useRelistenApi();
   const userSettings = useUserSettings();
+  const { pushShow } = usePushShowRespectingUserSettings();
 
   useEffect(() => {
     (async () => {
@@ -70,27 +72,20 @@ export default function Page() {
         AutoplayDeepLinkToTrackSetting.PlayTrack;
 
       setTimeout(() => {
-        const newPath =
-          '/relisten/tabs/(artists)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/';
-        const params: Record<string, string> = {
+        const params: PushShowOptions = {
           artistUuid: showData.artist_uuid,
           showUuid: showData.uuid,
-          sourceUuid: sourceUuid || 'initial',
+          sourceUuid: sourceUuid,
         };
 
         if (autoplay && trackUuid) {
-          params['playTrackUuid'] = trackUuid;
+          params.playTrackUuid = trackUuid;
         }
-
-        logger.info(`redirecting to ${newPath} ${JSON.stringify(params)}`);
 
         router.push({ pathname: '/relisten/tabs' });
 
         setTimeout(() => {
-          router.push({
-            pathname: newPath,
-            params,
-          });
+          pushShow(params);
         }, 0);
       }, 0);
     })();

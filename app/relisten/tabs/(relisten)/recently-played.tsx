@@ -11,6 +11,7 @@ import { List as ListContentLoader } from 'react-content-loader/native';
 import { ScrollView, View } from 'react-native';
 import { FadeInRight, FadeOutDown } from 'react-native-reanimated';
 import TimeAgo from 'react-timeago';
+import { ShowLink } from '@/relisten/util/push_show';
 
 enum ACTIONS {
   UPDATE_DATA,
@@ -267,17 +268,12 @@ export default function Page() {
             entering={() => FadeInRight.springify()}
             exiting={() => FadeOutDown.springify()}
           >
-            {state.data.map((item, index) => (
-              <Link
-                href={{
-                  pathname:
-                    '/relisten/tabs/(artists)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/',
-
-                  params: {
-                    artistUuid: item.track.source.artist.uuid,
-                    showUuid: item.track.source.show.uuid,
-                    sourceUuid: item.track.source.uuid || 'initial',
-                  },
+            {state.data.map((item) => (
+              <ShowLink
+                show={{
+                  artistUuid: item.track.source.artist.uuid,
+                  showUuid: item.track.source.show.uuid,
+                  sourceUuid: item.track.source.uuid,
                 }}
                 key={item.id}
               >
@@ -308,7 +304,7 @@ export default function Page() {
                     }
                   />
                 </MotiView>
-              </Link>
+              </ShowLink>
             ))}
           </Stagger>
         </Flex>
