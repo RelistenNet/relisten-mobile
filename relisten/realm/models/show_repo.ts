@@ -240,7 +240,7 @@ export function useFullShowWithSelectedSource(showUuid: string, selectedSourceUu
   return {
     results,
     show: show!,
-    sources,
+    sources: sortedSources,
     artist,
     selectedSource,
   };

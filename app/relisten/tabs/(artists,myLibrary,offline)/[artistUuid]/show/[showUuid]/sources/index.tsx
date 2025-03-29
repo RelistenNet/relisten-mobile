@@ -4,7 +4,11 @@ import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { Show } from '@/relisten/realm/models/show';
-import { sortSources, useFullShow } from '@/relisten/realm/models/show_repo';
+import {
+  sortSources,
+  useFullShow,
+  useFullShowWithSelectedSource,
+} from '@/relisten/realm/models/show_repo';
 import { Source } from '@/relisten/realm/models/source';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { memo } from '@/relisten/util/memo';
@@ -22,14 +26,21 @@ import { Tag } from '@/relisten/components/tag';
 import colors from 'tailwindcss/colors';
 import { SourceTrackSucceededIndicator } from '@/relisten/components/source/source_track_offline_indicator';
 import { ShowLink } from '@/relisten/util/push_show';
+import { Artist } from '@/relisten/realm/models/artist';
 
 export default function Page() {
   const navigation = useNavigation();
   const { showUuid } = useLocalSearchParams();
   const { sourceUuid } = useLocalSearchParams();
-  const results = useFullShow(String(showUuid));
-  const show = results?.data?.show;
-  const sources = results?.data?.sources;
+
+  const {
+    results,
+    show,
+    artist: artistResults,
+    sources,
+  } = useFullShowWithSelectedSource(String(showUuid), 'initial');
+
+  const artist = artistResults.data;
 
   useEffect(() => {
     navigation.setOptions({
@@ -37,15 +48,8 @@ export default function Page() {
     });
   }, [show]);
 
-  const sortedSources = useMemo(() => {
-    if (!sources) return [];
-
-    return sortSources(sources);
-  }, [sources]);
-
   // default sourceUuid is initial which will just fallback to sortedSources[0]
-  const selectedSource =
-    sortedSources.find((source) => source.uuid === sourceUuid) ?? sortedSources[0];
+  const selectedSource = sources.find((source) => source.uuid === sourceUuid) ?? sources[0];
 
   return (
     <RefreshContextProvider
@@ -55,8 +59,9 @@ export default function Page() {
       <DisappearingHeaderScreen
         ScrollableComponent={SourcesList}
         show={show}
-        sources={sortedSources}
+        sources={sources}
         selectedSource={selectedSource!}
+        artist={artist!}
       />
     </RefreshContextProvider>
   );
@@ -66,8 +71,14 @@ const SourcesList = ({
   show,
   selectedSource,
   sources,
+  artist,
   ...props
-}: { show: Show | undefined; selectedSource: Source; sources?: Source[] } & ScrollViewProps) => {
+}: {
+  show: Show | undefined;
+  artist: Artist;
+  selectedSource: Source;
+  sources?: Source[];
+} & ScrollViewProps) => {
   const { refreshing } = useRefreshContext();
 
   if (refreshing || !show) {
@@ -91,12 +102,16 @@ const SourcesList = ({
           {show.displayDate}
         </RelistenText>
         <RelistenText className="text-l w-full pb-2 text-center italic text-gray-400">
-          {show.sourceCount} sources
+          <Plur word="tape" count={show.sourceCount} />
+          {'\u00A0\u2022\u00A0'}
+          {artist.name}
         </RelistenText>
       </View>
       <ItemSeparator />
       {sources?.map((source, idx) => {
-        return <SourceDetail key={source.uuid} source={source} show={show} idx={idx} />;
+        return (
+          <SourceDetail key={source.uuid} source={source} show={show} artist={artist} idx={idx} />
+        );
       })}
     </Animated.ScrollView>
   );
@@ -110,8 +125,8 @@ function sourceRatingText(source: Source) {
   return `${source.humanizedAvgRating()}★ (${source.numRatings || source.numReviews} ratings)`;
 }
 
-export const SourceDetail: React.FC<{ source: Source; show: Show; idx: number }> = memo(
-  ({ show, source, idx }) => {
+export const SourceDetail: React.FC<{ source: Source; show: Show; idx: number; artist: Artist }> =
+  memo(({ show, source, artist, idx }) => {
     const groupSegment = useGroupSegment(true);
 
     return (
@@ -136,7 +151,7 @@ export const SourceDetail: React.FC<{ source: Source; show: Show; idx: number }>
             <Flex className="w-full flex-row" style={{ gap: 16 }}>
               <ShowLink
                 show={{
-                  artistUuid: show.artistUuid,
+                  artist,
                   showUuid: show.uuid,
                   sourceUuid: source.uuid,
                 }}
@@ -146,7 +161,6 @@ export const SourceDetail: React.FC<{ source: Source; show: Show; idx: number }>
                 <RelistenButton
                   textClassName="text-l"
                   icon={<MaterialIcons name="source" size={20} color="white" />}
-                  disabled={show.sourceCount <= 1}
                 >
                   Select Source
                 </RelistenButton>
@@ -179,5 +193,4 @@ export const SourceDetail: React.FC<{ source: Source; show: Show; idx: number }>
         </View>
       </View>
     );
-  }
-);
+  });

@@ -30,7 +30,7 @@ export function TrackWithArtist({
   return (
     <ShowLink
       show={{
-        artistUuid: sourceTrack.artist.uuid,
+        artist: sourceTrack.artist,
         showUuid: sourceTrack.show.uuid,
         sourceUuid: sourceTrack.source.uuid,
       }}

@@ -6,6 +6,8 @@ import { useRelistenApi } from '@/relisten/api/context';
 import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
 import { AutoplayDeepLinkToTrackSetting } from '@/relisten/realm/models/user_settings';
 import { PushShowOptions, usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
+import { useArtists } from '@/relisten/realm/models/artist_repo';
+import { groupByUuid } from '@/relisten/util/group_by';
 
 const logger = log.extend('deep-links');
 
@@ -15,8 +17,13 @@ export default function Page() {
   const { apiClient } = useRelistenApi();
   const userSettings = useUserSettings();
   const { pushShow } = usePushShowRespectingUserSettings();
+  const artistsResults = useArtists();
 
   useEffect(() => {
+    if (artistsResults.data.length === 0) {
+      return;
+    }
+
     (async () => {
       const show = await apiClient.showWithSourcesOnDate(
         String(artistSlug),
@@ -71,9 +78,11 @@ export default function Page() {
         userSettings.autoplayDeepLinkToTrackWithDefault() ===
         AutoplayDeepLinkToTrackSetting.PlayTrack;
 
+      const artistByUuid = groupByUuid([...artistsResults.data]);
+
       setTimeout(() => {
         const params: PushShowOptions = {
-          artistUuid: showData.artist_uuid,
+          artist: artistByUuid[showData.artist_uuid],
           showUuid: showData.uuid,
           sourceUuid: sourceUuid,
         };
@@ -89,7 +98,7 @@ export default function Page() {
         }, 0);
       }, 0);
     })();
-  }, [artistSlug, year, month, day]);
+  }, [artistSlug, year, month, day, artistsResults.data]);
 
   return <WebRewriteLoader />;
 }

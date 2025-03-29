@@ -24,8 +24,6 @@ export default function Page() {
     });
   }, [artist]);
 
-  console.log({ isNetworkLoading: results.isNetworkLoading });
-
   return (
     <RefreshContextProvider networkBackedResults={results}>
       <DisappearingHeaderScreen

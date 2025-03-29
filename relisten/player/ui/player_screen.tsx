@@ -150,7 +150,7 @@ function useNavigateToCurrentTrackSheet() {
           case 1:
             navigation.goBack();
             pushShow({
-              artistUuid: artist.uuid,
+              artist,
               showUuid: show.uuid,
               sourceUuid: source?.uuid,
             });

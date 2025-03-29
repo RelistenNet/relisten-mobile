@@ -204,7 +204,7 @@ export default function Page() {
 
     if (randomShow?.data?.uuid) {
       pushShow({
-        artistUuid: randomArtist.uuid,
+        artist: randomArtist,
         showUuid: randomShow!.data!.uuid,
       });
     }

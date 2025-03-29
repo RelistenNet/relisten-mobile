@@ -446,7 +446,7 @@ export const SourceHeader = ({
           {source.reviewCount > 0 && (
             <ShowLink
               show={{
-                artistUuid: show.artistUuid,
+                artist,
                 showUuid: show.uuid,
                 sourceUuid: source.uuid,
               }}

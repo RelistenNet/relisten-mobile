@@ -122,7 +122,7 @@ export function ShowCard({
     <ShowCardContainer {...props}>
       <ShowLink
         show={{
-          artistUuid: show.artistUuid,
+          artist: show.artist,
           showUuid: show.uuid,
           sourceUuid: sourceUuid,
           overrideGroupSegment: root === 'artists' ? '(artists)' : '(myLibrary)',

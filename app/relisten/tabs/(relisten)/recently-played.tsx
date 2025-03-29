@@ -6,12 +6,14 @@ import { Stagger } from '@/relisten/components/Stagger';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { Link } from 'expo-router';
 import { MotiView } from 'moti';
-import { useEffect, useReducer } from 'react';
+import { useEffect, useMemo, useReducer } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import { ScrollView, View } from 'react-native';
 import { FadeInRight, FadeOutDown } from 'react-native-reanimated';
 import TimeAgo from 'react-timeago';
 import { ShowLink } from '@/relisten/util/push_show';
+import { useArtists } from '@/relisten/realm/models/artist_repo';
+import { groupByUuid } from '@/relisten/util/group_by';
 
 enum ACTIONS {
   UPDATE_DATA,
@@ -213,6 +215,7 @@ const formatterFn = (value: number, unit: string) => value + unit.slice(0, 1);
 
 export default function Page() {
   const [state, call] = useReducer(reducer, defaultState);
+  const artistsResults = useArtists();
 
   useEffect(() => {
     const getData = async () => {
@@ -240,7 +243,11 @@ export default function Page() {
     };
   }, []);
 
-  if (state.isLoading && !state.data.length) {
+  const artistByUuid = useMemo(() => {
+    return groupByUuid([...artistsResults.data]);
+  }, [artistsResults.data]);
+
+  if ((state.isLoading && !state.data.length) || artistsResults.isNetworkLoading) {
     return (
       <View className="w-full p-4">
         <ListContentLoader
@@ -268,44 +275,52 @@ export default function Page() {
             entering={() => FadeInRight.springify()}
             exiting={() => FadeOutDown.springify()}
           >
-            {state.data.map((item) => (
-              <ShowLink
-                show={{
-                  artistUuid: item.track.source.artist.uuid,
-                  showUuid: item.track.source.show.uuid,
-                  sourceUuid: item.track.source.uuid,
-                }}
-                key={item.id}
-              >
-                <MotiView className="relative flex w-[98%] flex-col border border-white/20 p-2">
-                  <RelistenText cn="font-semibold">{item.track.track.title}</RelistenText>
-                  <RelistenText cn="text-gray-300">{item.track.source.artist.name}</RelistenText>
-                  <RelistenText cn="text-gray-400 text-sm">
-                    {item.track.source.display_date}
-                    {item.track.source.venue && (
-                      <>
-                        &nbsp;{item.track.source.venue.name} {item.track.source.venue.location}
-                      </>
-                    )}
-                  </RelistenText>
-                  <RelistenText cn="text-gray-400 text-xs absolute top-5 right-2">
-                    {APP_TYPE[item.app_type]}
-                  </RelistenText>
-                  <TimeAgo
-                    date={item.created_at}
-                    formatter={formatterFn}
-                    component={(props: any) =>
-                      (
-                        <RelistenText
-                          cn="text-gray-400 text-xs absolute top-2 right-2"
-                          {...props}
-                        />
-                      ) as any
-                    }
-                  />
-                </MotiView>
-              </ShowLink>
-            ))}
+            {state.data.map((item) => {
+              const artist = artistByUuid[item.track.source.artist.uuid];
+
+              if (!artist) {
+                return null;
+              }
+
+              return (
+                <ShowLink
+                  show={{
+                    artist,
+                    showUuid: item.track.source.show.uuid,
+                    sourceUuid: item.track.source.uuid,
+                  }}
+                  key={item.id}
+                >
+                  <MotiView className="relative flex w-[98%] flex-col border border-white/20 p-2">
+                    <RelistenText cn="font-semibold">{item.track.track.title}</RelistenText>
+                    <RelistenText cn="text-gray-300">{item.track.source.artist.name}</RelistenText>
+                    <RelistenText cn="text-gray-400 text-sm">
+                      {item.track.source.display_date}
+                      {item.track.source.venue && (
+                        <>
+                          &nbsp;{item.track.source.venue.name} {item.track.source.venue.location}
+                        </>
+                      )}
+                    </RelistenText>
+                    <RelistenText cn="text-gray-400 text-xs absolute top-5 right-2">
+                      {APP_TYPE[item.app_type]}
+                    </RelistenText>
+                    <TimeAgo
+                      date={item.created_at}
+                      formatter={formatterFn}
+                      component={(props: any) =>
+                        (
+                          <RelistenText
+                            cn="text-gray-400 text-xs absolute top-2 right-2"
+                            {...props}
+                          />
+                        ) as any
+                      }
+                    />
+                  </MotiView>
+                </ShowLink>
+              );
+            })}
           </Stagger>
         </Flex>
       </ScrollView>

@@ -32,7 +32,7 @@ export const ShowListItem = ({ show, children }: ShowListItemProps) => {
   return (
     <ShowLink
       show={{
-        artistUuid: show.artistUuid,
+        artist: show.artist,
         showUuid: show.uuid,
       }}
       asChild

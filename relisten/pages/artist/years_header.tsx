@@ -1,8 +1,7 @@
 import React from 'react';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useRelistenApi } from '@/relisten/api/context';
-import { useGroupSegment, useIsOfflineTab, useRoute } from '@/relisten/util/routes';
-import { useRouter } from 'expo-router';
+import { useIsOfflineTab, useRoute } from '@/relisten/util/routes';
 import { useArtistMetadata } from '@/relisten/realm/models/artist_repo';
 import { View } from 'react-native';
 import { RelistenText } from '@/relisten/components/relisten_text';
@@ -26,7 +25,7 @@ export const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => 
     const randomShow = await apiClient.randomShow(artist.uuid);
 
     if (randomShow?.data?.uuid) {
-      pushShow({ artistUuid: artist.uuid, showUuid: randomShow!.data!.uuid });
+      pushShow({ artist, showUuid: randomShow!.data!.uuid });
     }
   };
 
