@@ -86,7 +86,8 @@ export function ArtistActionButtons({
         <RelistenButton
           className="shrink basis-1/3"
           textClassName="text-l"
-          onPress={goToRandomShow}
+          automaticLoadingIndicator
+          asyncOnPress={goToRandomShow}
         >
           Random
         </RelistenButton>
