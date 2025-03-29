@@ -7,6 +7,7 @@ import {
   RelistenTrackStreamingCacheCompleteEvent,
 } from '@/modules/relisten-audio-player';
 import {
+  activeTrackDownloadProgress,
   latestError,
   PlaybackContextProgress,
   progress as sharedStateProgress,
@@ -104,33 +105,77 @@ export class RelistenPlayer {
     nativePlayer.pause().then(() => {});
   }
 
+  private currentlyProcessingPlayRequest: Promise<void> | undefined = undefined;
+  private nextPlayRequest: { index: number; seekToTime?: number } | undefined = undefined;
+
+  private maybeStartNextPlayRequest() {
+    this.currentlyProcessingPlayRequest = undefined;
+
+    if (!this.nextPlayRequest) {
+      return false;
+    }
+
+    const playRequest = this.nextPlayRequest;
+    this.nextPlayRequest = undefined;
+    this.playTrackAtIndex(playRequest.index, playRequest.seekToTime);
+
+    return true;
+  }
+
   playTrackAtIndex(index: number, seekToTime?: number) {
     this.playbackIntentStarted = true;
 
     const newIndex = Math.max(0, Math.min(index, this.queue.orderedTracks.length - 1));
 
     const track = this.queue.orderedTracks[newIndex];
-    if (track.identifier === this.queue.currentTrack?.identifier && this.initialPlaybackStarted) {
+    if (
+      track.identifier === this.queue.currentTrack?.identifier &&
+      this.initialPlaybackStarted &&
+      this.state == RelistenPlaybackState.Playing
+    ) {
       logger.debug('Requested track matches current track, seeking back to the start');
-      this.seekTo(0.0);
+      this.currentlyProcessingPlayRequest = this.seekTo(0.0).then(() => {
+        this.maybeStartNextPlayRequest();
+      });
+      return;
     }
-
-    // stop any playing sound while the next http request is buffering
-    if (this.state !== RelistenPlaybackState.Stopped) {
-      this._state = RelistenPlaybackState.Paused;
-      nativePlayer.pause().then(() => {});
-    }
-    this.startStalledTimer();
 
     // optimistically update the UI. should be before the native call to prevent race conditions
     this.optimisticallyUpdateCurrentTrack(track, seekToTime);
 
-    nativePlayer
-      .play(
-        track.toStreamable(this.enableStreamingCache),
-        seekToTime !== undefined ? seekToTime * 1000.0 : undefined
-      )
-      .then(() => {});
+    if (this.currentlyProcessingPlayRequest) {
+      this.nextPlayRequest = { index, seekToTime };
+      logger.debug('playTrackAtIndex requested but currentlyProcessingPlayRequest');
+      return;
+    }
+
+    let pausePromise = Promise.resolve();
+
+    // stop any playing sound while the next http request is buffering
+    if (this.state !== RelistenPlaybackState.Stopped) {
+      this._state = RelistenPlaybackState.Paused;
+      pausePromise = nativePlayer.pause();
+      this.currentlyProcessingPlayRequest = pausePromise;
+    }
+    this.startStalledTimer();
+
+    this.currentlyProcessingPlayRequest = pausePromise
+      .then(() => {
+        if (this.nextPlayRequest) {
+          this.maybeStartNextPlayRequest();
+
+          // if another request came in, don't try to play this original one
+          return Promise.resolve();
+        }
+
+        return nativePlayer.play(
+          track.toStreamable(this.enableStreamingCache),
+          seekToTime !== undefined ? seekToTime * 1000.0 : undefined
+        );
+      })
+      .then(() => {
+        this.maybeStartNextPlayRequest();
+      });
 
     if (seekToTime !== undefined) {
       this.updateSavedStateOnNextProgress = true;
@@ -230,7 +275,8 @@ ${indentString(this.queue.debugState(true))}
   // endregion
 
   private optimisticallyUpdateCurrentTrack(track: PlayerQueueTrack, seekToTime?: number) {
-    this.queue.onCurrentTrackIdentifierChanged(track.identifier);
+    // Do NOT use onCurrentTrackIdentifierChanged because that will also recalculate the next track
+    this.queue.onCurrentTrackChanged.dispatch(track);
 
     const elapsed = seekToTime ?? 0;
     const duration = track.sourceTrack.duration ?? 100;
@@ -239,6 +285,12 @@ ${indentString(this.queue.debugState(true))}
       elapsed,
       duration,
       percent: elapsed / duration,
+    });
+
+    activeTrackDownloadProgress.setState({
+      downloadedBytes: 0,
+      totalBytes: 1,
+      percent: 0.0,
     });
   }
 

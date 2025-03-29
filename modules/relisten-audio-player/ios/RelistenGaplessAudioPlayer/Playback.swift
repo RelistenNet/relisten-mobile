@@ -13,7 +13,7 @@ extension URL {
         do {
             return try FileManager.default.attributesOfItem(atPath: path)
         } catch let error as NSError {
-            print("FileAttribute error: \(error)")
+            NSLog("FileAttribute error: \(error)")
         }
         return nil
     }
@@ -56,7 +56,7 @@ extension RelistenGaplessAudioPlayer {
 
             // Make sure BASS is started, just in case we had paused it earlier
             BASS_Start()
-            print("[bass][stream] BASS_Start() called")
+            NSLog("[bass][stream] BASS_Start() called")
 
             // the TRUE for the second argument clears the buffer so there isn't old sound playing
             bass_assert(BASS_ChannelPlay(mixerMainStream, 1))

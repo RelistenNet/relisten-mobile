@@ -27,11 +27,13 @@ extension RelistenGaplessAudioPlayer {
         // Use 2 threads
         BASS_SetConfig(DWORD(BASS_CONFIG_UPDATETHREADS), 2)
         // Lower the update period to reduce latency
-        BASS_SetConfig(DWORD(BASS_CONFIG_UPDATEPERIOD), RelistenGaplessAudioPlayer.outputBufferSize)
+//        BASS_SetConfig(DWORD(BASS_CONFIG_UPDATEPERIOD), RelistenGaplessAudioPlayer.outputBufferSize)
         // Set the buffer length to the minimum amount + outputBufferSize
-        BASS_SetConfig(DWORD(BASS_CONFIG_BUFFER), BASS_GetConfig(DWORD(BASS_CONFIG_UPDATEPERIOD)) + RelistenGaplessAudioPlayer.outputBufferSize)
+//        BASS_SetConfig(DWORD(BASS_CONFIG_BUFFER), BASS_GetConfig(DWORD(BASS_CONFIG_UPDATEPERIOD)) + RelistenGaplessAudioPlayer.outputBufferSize)
         // Set DSP effects to use floating point math to avoid clipping within the effects chain
         BASS_SetConfig(DWORD(BASS_CONFIG_FLOATDSP), 1)
+        
+        BASS_SetConfigPtr(DWORD(BASS_CONFIG_NET_AGENT), "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36")
 
         bass_assert(BASS_Init(-1, 44100, 0, nil, nil))
 
@@ -63,7 +65,7 @@ extension RelistenGaplessAudioPlayer {
     func tearDownStream(_ relistenStream: RelistenGaplessAudioStream) {
         let stream = relistenStream.stream
 
-        print("[bass][stream] tearing down stream \(relistenStream)")
+        NSLog("[bass][stream] tearing down stream \(relistenStream)")
 
         // stop channels to allow them to be freed
         BASS_ChannelStop(stream)
@@ -89,7 +91,7 @@ extension RelistenGaplessAudioPlayer {
         let previousStream = activeStream
 
         if let nextStream {
-            print("[bass][stream] mixing in next stream with norampin")
+            NSLog("[bass][stream] mixing in next stream with norampin")
             bass_assert(BASS_Mixer_StreamAddChannel(mixerMainStream,
                                                     nextStream.stream,
                                                     DWORD(BASS_STREAM_AUTOFREE | BASS_MIXER_NORAMPIN)))
@@ -127,7 +129,7 @@ extension RelistenGaplessAudioPlayer {
     func streamDownloadComplete(_ stream: HSTREAM) {
         dispatchPrecondition(condition: .onQueue(bassQueue))
 
-        puts("[bass][stream] stream download complete: \(stream)")
+        NSLog("[bass][stream] stream download complete: \(stream)")
 
         if let activeStream, stream == activeStream.stream {
             if !activeStream.preloadFinished {
@@ -153,7 +155,7 @@ extension RelistenGaplessAudioPlayer {
         dispatchPrecondition(condition: .onQueue(bassQueue))
 
         if stream == activeStream?.stream {
-            puts("[bass][stream] stream stalled: \(stream)")
+            NSLog("[bass][stream] stream stalled: \(stream)")
             currentState = .Stalled
         }
     }
@@ -162,7 +164,7 @@ extension RelistenGaplessAudioPlayer {
         dispatchPrecondition(condition: .onQueue(bassQueue))
 
         if stream == activeStream?.stream {
-            puts("[bass][stream] stream resumed after stall: \(stream)")
+            NSLog("[bass][stream] stream resumed after stall: \(stream)")
             currentState = .Playing
         }
     }
@@ -176,7 +178,7 @@ internal var mixerEndSyncProc: @convention(c) (_ handle: HSYNC,
                                                 if let selfPtr = user {
                                                     let player: RelistenGaplessAudioPlayer = Unmanaged.fromOpaque(selfPtr).takeUnretainedValue()
 
-                                                    puts("[base][stream] mixer end sync \(player) \(handle)")
+                                                    NSLog("[base][stream] mixer end sync \(player) \(handle)")
 
                                                     player.bassQueue.async {
                                                         player.mixInNextStream(completedStream: channel)
@@ -194,7 +196,7 @@ internal var streamDownloadCompleteSyncProc: @convention(c) (_ handle: HSYNC,
 
                                                                     NSLog("[bass][stream] stream download completed: handle: %u. channel: %u", handle, channel)
 
-                                                                    puts("\(player) \(handle)")
+                                                                    NSLog("\(player) \(handle)")
 
                                                                     player.bassQueue.async {
                                                                         // channel is the HSTREAM we created before
@@ -213,7 +215,7 @@ internal var streamStallSyncProc: @convention(c) (_ handle: HSYNC,
 
                                                         NSLog("[bass][stream] stream stall: handle: %u. channel: %u", handle, channel)
 
-                                                        puts("\(player) \(handle)")
+                                                        NSLog("\(player) \(handle)")
 
                                                         player.bassQueue.async {
                                                             // channel is the HSTREAM we created before

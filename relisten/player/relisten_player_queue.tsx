@@ -89,9 +89,9 @@ export class PlayerQueueTrack {
     let downloadDestination: string | undefined = undefined;
 
     if (this.sourceTrack.offlineInfo?.isPlayableOffline()) {
-      url = 'file://' + this.sourceTrack.downloadedFileLocation();
+      url = this.sourceTrack.downloadedFileLocation();
     } else if (allowStreamingCache) {
-      downloadDestination = 'file://' + this.sourceTrack.downloadedFileLocation();
+      downloadDestination = this.sourceTrack.downloadedFileLocation();
     }
 
     return {
@@ -201,14 +201,13 @@ export class RelistenPlayerQueue {
     this.reshuffleTracks();
 
     if (playingTrackAtIndex !== undefined) {
-      // recalculates next track
       this.player.playTrackAtIndex(playingTrackAtIndex);
     } else {
       // recalculates next track
       this.onCurrentTrackIdentifierChanged(undefined);
 
       if (this.player.playbackIntentStarted) {
-        nativePlayer.stop().then(() => {});
+        nativePlayer.stop();
       }
     }
 
@@ -454,9 +453,27 @@ ${indentString(tracks)}
   }
 
   public onCurrentTrackIdentifierChanged = (newIdentifier?: string) => {
-    this.clearCurrentTrack();
-
     log.debug(`onCurrentTrackIdentifierChanged newIdentifier=${newIdentifier}`);
+
+    if (!newIdentifier) {
+      log.debug(`onCurrentTrackIdentifierChanged ignored because newIdentifier=${newIdentifier}`);
+
+      // prevent the player bottom bar UI from disappearing. always show whatever was last playing
+      return;
+    }
+
+    const match = this.originalTracks.find((t) => t.identifier === newIdentifier);
+
+    if (match === undefined) {
+      log.debug(
+        `onCurrentTrackIdentifierChanged ignored because newIdentifier=${newIdentifier} not found in the list of identifiers`
+      );
+
+      // prevent the player bottom bar UI from disappearing. always show whatever was last playing
+      return;
+    }
+
+    this.clearCurrentTrack();
 
     if (newIdentifier !== undefined) {
       this.recalculateTrackIndexes(newIdentifier);
@@ -516,7 +533,8 @@ ${indentString(tracks)}
           elapsed: this.player.progress?.elapsed,
         };
         const obj = PlayerState.upsert(realm, state);
-        logger.debug(`wrote player state: ${obj.debugState()}`);
+        // logger.debug(`wrote player state: ${obj.debugState()}`);
+        logger.debug('wrote player state');
       } else {
         logger.warn('Not writing player state -- realm is not available.');
       }

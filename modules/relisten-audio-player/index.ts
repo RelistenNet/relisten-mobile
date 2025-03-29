@@ -200,9 +200,23 @@ class RelistenGaplessPlayer {
     return RelistenAudioPlayerModule.pause();
   }
 
+  private stopPromise: Promise<void> | undefined = undefined;
   stop(): Promise<void> {
+    if (this.stopPromise) {
+      logger.debug('stop already in flight; returning the same promise');
+      return this.stopPromise;
+    }
+
     logger.debug('stop called');
-    return RelistenAudioPlayerModule.stop();
+    const stopPromise = RelistenAudioPlayerModule.stop();
+
+    stopPromise.then(() => {
+      this.stopPromise = undefined;
+    });
+
+    this.stopPromise = stopPromise;
+
+    return stopPromise;
   }
 
   next(): Promise<void> {

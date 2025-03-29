@@ -198,6 +198,7 @@ public class RelistenGaplessAudioPlayer {
         nextStream = buildStream(streamable)
 
         if activeStream?.preloadFinished == true {
+            NSLog("activeStream.preloadFinished == true; starting to preload the next stream")
             startPreloadingNextStream()
         }
     }

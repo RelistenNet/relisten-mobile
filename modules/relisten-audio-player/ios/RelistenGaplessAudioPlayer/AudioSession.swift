@@ -116,7 +116,7 @@ extension RelistenGaplessAudioPlayer {
             return
         }
 
-        print("[bass][handleInterruption]: %@ interruption type %@", notification.name, interruptionType)
+        NSLog("[bass][handleInterruption]: %@ interruption type %@", "\(notification.name)", "\(interruptionType)")
 
         switch interruptionType {
         case .began:
