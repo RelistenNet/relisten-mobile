@@ -35,14 +35,16 @@ export function SearchFilterBar({
   search,
   exitSearch,
   innerRef,
+  searchText,
 }: {
   search: (input: string) => void;
   exitSearch: () => void;
   innerRef: LegacyRef<TextInput>;
+  searchText?: string;
 }) {
-  const debouncedSearch = useDebounce((input: string) => {
+  const onChangeText = (input: string) => {
     search(input);
-  }, 100);
+  };
 
   return (
     <View className="min-h-[56px] w-full flex-1 flex-row items-center justify-between px-4 py-2">
@@ -51,7 +53,8 @@ export function SearchFilterBar({
           className="rounded-lg border border-relisten-blue-600/30 p-2 px-2 text-lg text-white"
           placeholder="Search"
           placeholderTextColor="lightgray"
-          onChangeText={debouncedSearch}
+          onChangeText={onChangeText}
+          value={searchText}
           ref={innerRef}
         />
       </View>
@@ -65,7 +68,7 @@ export function SearchFilterBar({
 export function FilterBar<K extends string, T extends RelistenObject>({
   children,
 }: PropsWithChildren) {
-  const { filters, onFilterButtonPress, onSearchTextChanged } = useFilters<K, T>();
+  const { filters, onFilterButtonPress, onSearchTextChanged, searchText } = useFilters<K, T>();
   const [isTextFiltering, setIsTextFiltering] = useState(false);
   const searchInputRef = useRef<TextInput>(null);
 
@@ -84,6 +87,7 @@ export function FilterBar<K extends string, T extends RelistenObject>({
             onSearchTextChanged(undefined);
             setIsTextFiltering(false);
           }}
+          searchText={searchText}
           innerRef={searchInputRef}
         />
       ) : (

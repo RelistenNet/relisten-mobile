@@ -224,6 +224,7 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
   );
 
   const clearFilters = () => {
+    setTextFilter('');
     realm.write(() => {
       if (filterPersistenceKey) {
         const globalFilters = preparedFilters.filter((f) => f.isGlobal);
