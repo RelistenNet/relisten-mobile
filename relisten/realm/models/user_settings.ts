@@ -57,7 +57,7 @@ export const DEFAULT_SETTINGS_OBJ = Object.freeze({
   autocacheMinAvailableStorageMB: 1000 * 10, // 10GB
   autocacheDeleteFirst: AutocacheDeleteFirstSetting.OldestCached,
   autoplayDeepLinkToTrack: AutoplayDeepLinkToTrackSetting.PlayTrack,
-  autoselectPrimarySource: AutoselectPrimarySource.Always,
+  autoselectPrimarySource: AutoselectPrimarySource.Never,
 });
 
 export interface UserSettingsProps {
