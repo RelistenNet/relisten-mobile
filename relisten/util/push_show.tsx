@@ -1,4 +1,4 @@
-import { Href, Link, LinkProps, useRouter } from 'expo-router';
+import { Href, Link, LinkProps, Redirect, useRouter } from 'expo-router';
 import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
 import { RelistenTabGroupSegment, useGroupSegment } from '@/relisten/util/routes';
 import { AutoselectPrimarySource, UserSettings } from '@/relisten/realm/models/user_settings';
@@ -66,6 +66,21 @@ export function ShowLink({ show, ...props }: { show: PushShowOptions } & Omit<Li
 
   return (
     <Link
+      href={showHref(userSettings, groupSegment, show.artist.features().multiple_sources, show)}
+      {...props}
+    />
+  );
+}
+
+export function ShowRedirect({
+  show,
+  ...props
+}: { show: PushShowOptions } & Omit<LinkProps, 'href'>) {
+  const userSettings = useUserSettings();
+  const groupSegment = useGroupSegment();
+
+  return (
+    <Redirect
       href={showHref(userSettings, groupSegment, show.artist.features().multiple_sources, show)}
       {...props}
     />

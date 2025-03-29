@@ -9,18 +9,17 @@ import { Source } from '@/relisten/realm/models/source';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { memo } from '@/relisten/util/memo';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
-import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useNavigation } from 'expo-router';
 import React, { useEffect } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import { Animated, ScrollViewProps, View } from 'react-native';
-import { useGroupSegment } from '@/relisten/util/routes';
 import Flex from '@/relisten/components/flex';
 import Plur from '@/relisten/components/plur';
 import { SourceReviewsButton, SourceSummary } from '@/relisten/components/source/source_components';
 import { SectionHeader } from '@/relisten/components/section_header';
 import colors from 'tailwindcss/colors';
 import { SourceTrackSucceededIndicator } from '@/relisten/components/source/source_track_offline_indicator';
-import { ShowLink } from '@/relisten/util/push_show';
+import { ShowLink, ShowRedirect } from '@/relisten/util/push_show';
 import { Artist } from '@/relisten/realm/models/artist';
 import dayjs from 'dayjs';
 
@@ -43,6 +42,12 @@ export default function Page() {
       title: show?.displayDate,
     });
   }, [show]);
+
+  if (sources.length === 1) {
+    return (
+      <ShowRedirect show={{ artist: artist!, showUuid: show.uuid, sourceUuid: sources[0].uuid }} />
+    );
+  }
 
   // default sourceUuid is initial which will just fallback to sortedSources[0]
   const selectedSource = sources.find((source) => source.uuid === sourceUuid) ?? sources[0];
@@ -113,19 +118,8 @@ const SourcesList = ({
   );
 };
 
-function sourceRatingText(source: Source) {
-  if (!source.avgRating) {
-    return null;
-  }
-
-  return `${source.humanizedAvgRating()}★ (${source.numRatings || source.numReviews} ratings)`;
-}
-
 export const SourceDetail: React.FC<{ source: Source; show: Show; idx: number; artist: Artist }> =
   memo(({ show, source, artist, idx }) => {
-    const groupSegment = useGroupSegment(true);
-    const router = useRouter();
-
     return (
       <View>
         <View className="w-full">
