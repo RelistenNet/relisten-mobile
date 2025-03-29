@@ -72,12 +72,14 @@ export function upsertShowList(
 
   const allShows = createdShows.concat(localShows);
 
-  if (createdShows.length > 0) {
-    const createdShowArtistUuids = new Set(createdShows.map((s) => s.artistUuid));
-    const artistsByUuid = groupByUuid([...artistRepo.forUuids(realm, [...createdShowArtistUuids])]);
+  const showsThatNeedsArtists = allShows.filter((s) => !s.artist);
 
-    for (const createdShow of allShows) {
-      createdShow.artist = artistsByUuid[createdShow.artistUuid];
+  if (showsThatNeedsArtists.length > 0) {
+    const showArtistUuids = new Set(showsThatNeedsArtists.map((s) => s.artistUuid));
+    const artistsByUuid = groupByUuid([...artistRepo.forUuids(realm, [...showArtistUuids])]);
+
+    for (const show of showsThatNeedsArtists) {
+      show.artist = artistsByUuid[show.artistUuid];
     }
   }
 

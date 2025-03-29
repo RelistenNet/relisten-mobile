@@ -3,8 +3,6 @@ import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
 import { RelistenTabGroupSegment, useGroupSegment } from '@/relisten/util/routes';
 import { AutoselectPrimarySource, UserSettings } from '@/relisten/realm/models/user_settings';
 import { NavigationOptions } from 'expo-router/build/global-state/routing';
-import { useMemo } from 'react';
-import { useArtist, useArtists } from '@/relisten/realm/models/artist_repo';
 import { Artist } from '@/relisten/realm/models/artist';
 
 export interface PushShowOptions {
