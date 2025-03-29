@@ -1,13 +1,17 @@
-import { TouchableOpacity, TouchableOpacityProps, View } from 'react-native';
+import { TouchableOpacity, TouchableOpacityProps, View, ViewProps } from 'react-native';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { router } from 'expo-router';
-import React, { PropsWithChildren } from 'react';
+import { Link, router } from 'expo-router';
+import React, { PropsWithChildren, ReactNode } from 'react';
 import { Source } from '@/relisten/realm/models/source';
 import { useGroupSegment } from '@/relisten/util/routes';
 import dayjs from 'dayjs';
 import { Link as SLink } from '@/relisten/api/models/source';
 import { openBrowserAsync } from 'expo-web-browser';
 import { RelistenLink } from '@/relisten/components/relisten_link';
+import { tw } from '@/relisten/util/tw';
+import { Show } from '@/relisten/realm/models/show';
+import { RelistenButton } from '@/relisten/components/relisten_button';
+import Plur from '@/relisten/components/plur';
 
 export const SourceProperty: React.FC<
   PropsWithChildren<{ title: string; value?: string; onTitlePress?: () => void }>
@@ -39,104 +43,77 @@ export const SourceProperty: React.FC<
   );
 };
 
-export function SourceSummary({
-  source,
-  hideExtraDetails,
-}: {
-  source: Source;
-  hideExtraDetails?: boolean;
-}) {
-  const groupSegment = useGroupSegment();
+function SourceDetailsLine({
+  title,
+  children,
+  ...props
+}: PropsWithChildren<{ title: ReactNode } & ViewProps>) {
+  return (
+    <View className="w-full" {...props}>
+      <RelistenText selectable={false}>
+        <RelistenText className="font-bold">{title}:</RelistenText> {children}
+      </RelistenText>
+    </View>
+  );
+}
 
-  const navigate = () => {
-    router.push({
-      pathname:
-        `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/source_details` as const,
-      params: {
-        artistUuid: source.artistUuid,
-        showUuid: source.showUuid,
-        sourceUuid: source.uuid,
-      },
-    });
-  };
-
-  const values = [
-    source.taper,
-    source.transferrer,
-    source.source,
-    !hideExtraDetails && source.lineage,
-    !hideExtraDetails && source.taperNotes,
-    !hideExtraDetails && source.description,
-    !hideExtraDetails && source.duration,
-  ].filter((x) => x);
-
-  if (values.length === 0) return null;
+export function SourceReviewsButton({ show, source }: { show: Show; source: Source }) {
+  const groupSegment = useGroupSegment(true);
 
   return (
-    <View className="w-full py-4">
+    <Link
+      href={{
+        pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/reviews`,
+        params: {
+          artistUuid: show.artistUuid,
+          showUuid: show.uuid,
+          sourceUuid: source.uuid,
+        },
+      }}
+      asChild
+      className="flex-1"
+    >
+      <RelistenButton textClassName="text-l" icon={null} disabled={source.reviewCount < 1}>
+        <Plur word={'Review'} count={source.reviewCount} />
+        {source.avgRating ? `\u00A0•\u00A0${source.avgRating.toFixed(1)}★` : ''}
+      </RelistenButton>
+    </Link>
+  );
+}
+
+export function SourceSummary({
+  source,
+  children,
+  className,
+  ...props
+}: PropsWithChildren<
+  {
+    source: Source;
+  } & ViewProps
+>) {
+  return (
+    <View className={tw('flex w-full flex-col py-4 pb-3', className)} {...props}>
       {source.taper && (
-        <SourceProperty title="Taper" onTitlePress={navigate}>
-          <RelistenText numberOfLines={2} selectable={false}>
-            {source.taper}
-          </RelistenText>
-        </SourceProperty>
+        <SourceDetailsLine title="Taper" className="mb-1">
+          {source.taper}
+        </SourceDetailsLine>
       )}
       {source.transferrer && (
-        <SourceProperty title="Transferrer" onTitlePress={navigate}>
-          <RelistenText numberOfLines={2} selectable={false}>
-            {source.transferrer}
-          </RelistenText>
-        </SourceProperty>
+        <SourceDetailsLine title="Transferrer" className="mb-1">
+          {source.transferrer}
+        </SourceDetailsLine>
       )}
       {source.source && (
-        <SourceProperty title="Source" onTitlePress={navigate}>
-          <RelistenText numberOfLines={2} selectable={false}>
-            {source.source}
-          </RelistenText>
-        </SourceProperty>
+        <SourceDetailsLine title="Source" className="mb-1">
+          {source.source}
+        </SourceDetailsLine>
       )}
-      {!hideExtraDetails && source.lineage && (
-        <SourceProperty title="Lineage" onTitlePress={navigate}>
-          <RelistenText numberOfLines={2} selectable={false}>
-            {source.lineage}
-          </RelistenText>
-        </SourceProperty>
+      {source.lineage && (
+        <SourceDetailsLine title="Lineage" className="mb-1">
+          {source.lineage}
+        </SourceDetailsLine>
       )}
-      {!hideExtraDetails && source.taperNotes && (
-        <SourceProperty title="Taper Notes" onTitlePress={navigate}>
-          <RelistenText numberOfLines={2} selectable={false}>
-            {source.taperNotes}
-          </RelistenText>
-        </SourceProperty>
-      )}
-      {!hideExtraDetails && source.description && (
-        <SourceProperty title="Description" onTitlePress={navigate}>
-          <RelistenText numberOfLines={2} selectable={false}>
-            {source.description}
-          </RelistenText>
-        </SourceProperty>
-      )}
-      {!hideExtraDetails && source.updatedAt && (
-        <SourceProperty title="Updated At" onTitlePress={navigate}>
-          <RelistenText numberOfLines={2} selectable={false}>
-            {dayjs(source.updatedAt).format('YYYY-MM-DD')}
-          </RelistenText>
-        </SourceProperty>
-      )}
-      {!hideExtraDetails && source.upstreamIdentifier && (
-        <SourceProperty title="ID" onTitlePress={navigate}>
-          <RelistenText numberOfLines={2} selectable={false}>
-            {source.upstreamIdentifier}
-          </RelistenText>
-        </SourceProperty>
-      )}
-      {!hideExtraDetails && source.duration && (
-        <SourceProperty title="Duration" onTitlePress={navigate}>
-          <RelistenText numberOfLines={2} selectable={false}>
-            {source.humanizedDuration()}
-          </RelistenText>
-        </SourceProperty>
-      )}
+      {children}
     </View>
   );
 }

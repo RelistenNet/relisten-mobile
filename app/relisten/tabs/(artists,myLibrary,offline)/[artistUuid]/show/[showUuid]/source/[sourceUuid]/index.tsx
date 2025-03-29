@@ -12,7 +12,7 @@ import { useRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useForceUpdate } from '@/relisten/util/forced_update';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Link, Redirect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { Link, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { PropsWithChildren, useCallback, useEffect, useState } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import { Animated, Platform, ScrollViewProps, Share, TouchableOpacity, View } from 'react-native';
@@ -32,13 +32,14 @@ import { RelistenErrors } from '@/relisten/components/relisten_errors';
 import {
   SourceFooter,
   SourceProperty,
+  SourceReviewsButton,
   SourceSummary,
 } from '@/relisten/components/source/source_components';
-import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
-import { AutoselectPrimarySource, OfflineModeSetting } from '@/relisten/realm/models/user_settings';
+import { OfflineModeSetting } from '@/relisten/realm/models/user_settings';
 import { Artist } from '@/relisten/realm/models/artist';
 import { ShowLink } from '@/relisten/util/push_show';
+import { DisclosureIndicator } from '@/relisten/components/disclosure_indicator';
 
 const logger = log.extend('source screen');
 
@@ -339,6 +340,18 @@ export const SourceHeader = ({
     R.isTruthy
   );
 
+  const pushSourceDetails = () => {
+    router.push({
+      pathname:
+        `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/source_details` as const,
+      params: {
+        artistUuid: source.artistUuid,
+        showUuid: source.showUuid,
+        sourceUuid: source.uuid,
+      },
+    });
+  };
+
   return (
     <View className="flex w-full items-center px-4">
       <View className="w-full">
@@ -371,7 +384,14 @@ export const SourceHeader = ({
           </RelistenText>
         )}
       </View>
-      <SourceSummary source={source} hideExtraDetails />
+      <TouchableOpacity onPress={pushSourceDetails} className="w-full">
+        <SourceSummary source={source}>
+          <RelistenText className="pb-3 pt-2 text-center text-sm" selectable={false}>
+            See details, taper notes & more
+            <DisclosureIndicator />
+          </RelistenText>
+        </SourceSummary>
+      </TouchableOpacity>
       <View className="w-full flex-row pb-4" style={{ gap: 16 }}>
         <RelistenButton
           className="shrink basis-1/4"
@@ -443,22 +463,7 @@ export const SourceHeader = ({
               </RelistenButton>
             </Link>
           )}
-          {source.reviewCount > 0 && (
-            <ShowLink
-              show={{
-                artist,
-                showUuid: show.uuid,
-                sourceUuid: source.uuid,
-              }}
-              asChild
-              className="flex-1"
-            >
-              <RelistenButton textClassName="text-l" icon={null} disabled={source.reviewCount < 1}>
-                <Plur word={'Review'} count={source.reviewCount} />
-                {source.avgRating ? `\u00A0•\u00A0${source.avgRating.toFixed(1)}★` : ''}
-              </RelistenButton>
-            </ShowLink>
-          )}
+          {source.reviewCount > 0 && <SourceReviewsButton source={source} show={show} />}
         </Flex>
       )}
       {source.sourceSets.length === 1 && <ItemSeparator />}

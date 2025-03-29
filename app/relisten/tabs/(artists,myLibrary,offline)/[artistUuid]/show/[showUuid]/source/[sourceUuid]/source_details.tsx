@@ -9,6 +9,7 @@ import RenderHtml from 'react-native-render-html';
 import { Source } from '@/relisten/realm/models/source';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
 import { SourceFooter, SourceProperty } from '@/relisten/components/source/source_components';
+import { useRelistenPlayerBottomBarContext } from '@/relisten/player/ui/player_bottom_bar';
 
 function SourceDetails({ source, ...props }: { source: Source } & ScrollViewProps) {
   const { width } = useWindowDimensions();
@@ -68,7 +69,7 @@ function SourceDetails({ source, ...props }: { source: Source } & ScrollViewProp
                 contentWidth={width - 32}
                 source={{ html: source.description }}
                 enableCSSInlineProcessing={false}
-                baseStyle={{ color: 'white' }}
+                baseStyle={{ color: 'white', whiteSpace: 'pre' }}
               />
             </SourceProperty>
           </View>
@@ -84,6 +85,7 @@ function SourceDetails({ source, ...props }: { source: Source } & ScrollViewProp
 export default function Page() {
   const navigation = useNavigation();
   const { showUuid, sourceUuid } = useLocalSearchParams();
+  const { playerBottomBarHeight } = useRelistenPlayerBottomBarContext();
 
   const {
     results: { isNetworkLoading },
@@ -108,7 +110,7 @@ export default function Page() {
 
   return (
     <ScrollScreen>
-      <SourceDetails source={source} />
+      <SourceDetails source={source} scrollIndicatorInsets={{ bottom: playerBottomBarHeight }} />
     </ScrollScreen>
   );
 }

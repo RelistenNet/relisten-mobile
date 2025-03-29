@@ -4,29 +4,25 @@ import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { Show } from '@/relisten/realm/models/show';
-import {
-  sortSources,
-  useFullShow,
-  useFullShowWithSelectedSource,
-} from '@/relisten/realm/models/show_repo';
+import { useFullShowWithSelectedSource } from '@/relisten/realm/models/show_repo';
 import { Source } from '@/relisten/realm/models/source';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { memo } from '@/relisten/util/memo';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
-import { Link, useLocalSearchParams, useNavigation } from 'expo-router';
-import React, { useEffect, useMemo } from 'react';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import React, { useEffect } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import { Animated, ScrollViewProps, View } from 'react-native';
 import { useGroupSegment } from '@/relisten/util/routes';
 import Flex from '@/relisten/components/flex';
 import Plur from '@/relisten/components/plur';
-import { SourceSummary } from '@/relisten/components/source/source_components';
+import { SourceReviewsButton, SourceSummary } from '@/relisten/components/source/source_components';
 import { SectionHeader } from '@/relisten/components/section_header';
-import { Tag } from '@/relisten/components/tag';
 import colors from 'tailwindcss/colors';
 import { SourceTrackSucceededIndicator } from '@/relisten/components/source/source_track_offline_indicator';
 import { ShowLink } from '@/relisten/util/push_show';
 import { Artist } from '@/relisten/realm/models/artist';
+import dayjs from 'dayjs';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -128,6 +124,7 @@ function sourceRatingText(source: Source) {
 export const SourceDetail: React.FC<{ source: Source; show: Show; idx: number; artist: Artist }> =
   memo(({ show, source, artist, idx }) => {
     const groupSegment = useGroupSegment(true);
+    const router = useRouter();
 
     return (
       <View>
@@ -143,10 +140,26 @@ export const SourceDetail: React.FC<{ source: Source; show: Show; idx: number; a
               </View>
             )}
             {source.hasOfflineTracks && <SourceTrackSucceededIndicator className="ml-1" />}
+            <View className="flex-grow" />
+            <RelistenText>
+              {source.avgRating != 0 && source.humanizedAvgRating() + '\u00A0★\u00A0•\u00A0'}
+              {source.humanizedDuration()}
+            </RelistenText>
           </SectionHeader>
         </View>
         <View className="flex w-full items-center px-4">
-          <SourceSummary source={source} />
+          <ShowLink show={{ artist, showUuid: show.uuid, sourceUuid: source.uuid }}>
+            <SourceSummary source={source}>
+              <RelistenText className="mt-2 text-sm" selectable={false}>
+                {source.upstreamIdentifier}
+              </RelistenText>
+              <View className="mb-1 mt-1 w-full">
+                <RelistenText className="text-sm" selectable={false}>
+                  Updated on {dayjs(source.updatedAt).format('YYYY-MM-DD')}
+                </RelistenText>
+              </View>
+            </SourceSummary>
+          </ShowLink>
           <View className="w-full pb-6">
             <Flex className="w-full flex-row" style={{ gap: 16 }}>
               <ShowLink
@@ -165,29 +178,7 @@ export const SourceDetail: React.FC<{ source: Source; show: Show; idx: number; a
                   Select Source
                 </RelistenButton>
               </ShowLink>
-              {source.reviewCount > 0 && (
-                <Link
-                  href={{
-                    pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/reviews`,
-                    params: {
-                      artistUuid: show.artistUuid,
-                      showUuid: show.uuid,
-                      sourceUuid: source.uuid,
-                    },
-                  }}
-                  asChild
-                  className="flex-1"
-                >
-                  <RelistenButton
-                    textClassName="text-l"
-                    icon={null}
-                    disabled={show.sourceCount <= 1}
-                  >
-                    <Plur word={'Review'} count={source.reviewCount} />
-                    {source.avgRating ? ` • ${source.avgRating.toFixed(1)}★` : ''}
-                  </RelistenButton>
-                </Link>
-              )}
+              {source.reviewCount > 0 && <SourceReviewsButton source={source} show={show} />}
             </Flex>
           </View>
         </View>

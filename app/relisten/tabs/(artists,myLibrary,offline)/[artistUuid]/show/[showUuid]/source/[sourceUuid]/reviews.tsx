@@ -10,10 +10,13 @@ import { useSourceReviews } from '@/relisten/realm/models/source_repo';
 import Flex from '@/relisten/components/flex';
 import dayjs from 'dayjs';
 import { memo } from '@/relisten/util/memo';
+import { useRelistenPlayerBottomBarContext } from '@/relisten/player/ui/player_bottom_bar';
+import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
 
 export default function Page() {
   const navigation = useNavigation();
   const { sourceUuid } = useLocalSearchParams();
+  const { playerBottomBarHeight } = useRelistenPlayerBottomBarContext();
 
   const { isNetworkLoading, data } = useSourceReviews(sourceUuid as string);
 
@@ -33,11 +36,13 @@ export default function Page() {
   }
 
   return (
-    <RelistenFlatList
-      data={data}
-      renderItem={({ item }) => <ReviewItem review={item} />}
-      className="w-full flex-1"
-    />
+    <ScrollScreen>
+      <RelistenFlatList
+        data={data}
+        renderItem={({ item }) => <ReviewItem review={item} />}
+        className="w-full flex-1"
+      />
+    </ScrollScreen>
   );
 }
 
