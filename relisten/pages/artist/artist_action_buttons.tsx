@@ -25,7 +25,11 @@ export function ArtistActionButtons({
           }}
           asChild
         >
-          <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+          <RelistenButton
+            className="shrink basis-1/3"
+            textClassName="text-l"
+            disabled={!(artist.features().per_source_venues || artist.features().per_show_venues)}
+          >
             Venues
           </RelistenButton>
         </Link>
@@ -38,7 +42,11 @@ export function ArtistActionButtons({
           }}
           asChild
         >
-          <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+          <RelistenButton
+            className="shrink basis-1/3"
+            textClassName="text-l"
+            disabled={!artist.features().tours}
+          >
             Tours
           </RelistenButton>
         </Link>
@@ -51,7 +59,11 @@ export function ArtistActionButtons({
           }}
           asChild
         >
-          <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+          <RelistenButton
+            className="shrink basis-1/3"
+            textClassName="text-l"
+            disabled={!artist.features().songs}
+          >
             Songs
           </RelistenButton>
         </Link>
@@ -66,7 +78,11 @@ export function ArtistActionButtons({
           }}
           asChild
         >
-          <RelistenButton className="shrink basis-1/3" textClassName="text-l">
+          <RelistenButton
+            className="shrink basis-1/3"
+            textClassName="text-l"
+            disabled={!artist.features().ratings}
+          >
             Top Rated
           </RelistenButton>
         </Link>
