@@ -134,6 +134,7 @@ export class RelistenPlayerQueue {
   onShuffleStateChanged = new EventSource<PlayerShuffleState>();
 
   public currentTrackPlaybackStartedAt: Date | undefined = undefined;
+  public prevNextTrackIndexIntentOffset = 0;
 
   queueNextTrack(queueTracks: PlayerQueueTrack[]) {
     function insertNext(arr: PlayerQueueTrack[], currentIndex: number | undefined) {
@@ -485,12 +486,9 @@ ${indentString(tracks)}
 
     this.clearCurrentTrack();
 
-    if (newIdentifier !== undefined) {
-      this.recalculateTrackIndexes(newIdentifier);
-      this.currentTrackPlaybackStartedAt = new Date();
-    } else {
-      this.currentTrackPlaybackStartedAt = undefined;
-    }
+    this.prevNextTrackIndexIntentOffset = 0;
+    this.recalculateTrackIndexes(newIdentifier);
+    this.currentTrackPlaybackStartedAt = new Date();
 
     this.recalculateNextTrack();
     this.onCurrentTrackChanged.dispatch(this.currentTrack);

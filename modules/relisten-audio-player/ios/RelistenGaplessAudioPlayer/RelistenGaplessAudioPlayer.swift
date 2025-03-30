@@ -290,7 +290,7 @@ public class RelistenGaplessAudioPlayer {
         NSLog("[relisten-audio-player] seekTo percent=\(percent)")
 
         if percent >= 1.0 {
-            next()
+            self.delegate?.remoteControl(method: "nextTrack")
             return
         }
 
@@ -319,10 +319,7 @@ public class RelistenGaplessAudioPlayer {
 
     public func _nextTrack(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
         self.delegate?.remoteControl(method: "nextTrack")
-        
-        self.bassQueue.async {
-            self.next()
-        }
+        // handled on the JS thread
 
         return MPRemoteCommandHandlerStatus.success
     }

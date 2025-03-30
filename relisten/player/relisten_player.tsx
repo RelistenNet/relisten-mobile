@@ -194,16 +194,20 @@ export class RelistenPlayer {
   next() {
     this.addPlayerListeners();
 
-    const nextTrackIndex = this.queue.nextTrackIndex;
+    const currentIdx = this.queue.currentIndex;
 
-    if (nextTrackIndex === undefined) {
+    if (
+      currentIdx === undefined ||
+      currentIdx + this.queue.prevNextTrackIndexIntentOffset >= this.queue.orderedTracks.length - 1
+    ) {
       return;
     }
 
     this.playbackIntentStarted = true;
     this.startStalledTimer();
 
-    this.playTrackAtIndex(nextTrackIndex);
+    this.queue.prevNextTrackIndexIntentOffset += 1;
+    this.playTrackAtIndex(currentIdx + this.queue.prevNextTrackIndexIntentOffset);
   }
 
   previous() {
@@ -211,11 +215,15 @@ export class RelistenPlayer {
 
     const currentIdx = this.queue.currentIndex;
 
-    if (currentIdx === undefined || currentIdx === 0) {
+    if (currentIdx === undefined || currentIdx - this.queue.prevNextTrackIndexIntentOffset < 0) {
       return;
     }
 
-    this.playTrackAtIndex(currentIdx - 1);
+    this.playbackIntentStarted = true;
+    this.startStalledTimer();
+
+    this.queue.prevNextTrackIndexIntentOffset -= 1;
+    this.playTrackAtIndex(currentIdx + this.queue.prevNextTrackIndexIntentOffset);
   }
 
   prepareAudioSession() {
@@ -394,6 +402,8 @@ ${indentString(this.queue.debugState(true))}
   private onRemoteControlEvent = (event: RelistenRemoteControlEvent) => {
     if (event.method === 'prevTrack') {
       this.previous();
+    } else if (event.method === 'nextTrack') {
+      this.next();
     }
   };
 
