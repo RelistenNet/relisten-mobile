@@ -206,6 +206,7 @@ export default function Page() {
       pushShow({
         artist: randomArtist,
         showUuid: randomShow!.data!.uuid,
+        overrideGroupSegment: '(artists)',
       });
     }
   };
