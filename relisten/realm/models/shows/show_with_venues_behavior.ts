@@ -34,7 +34,7 @@ export abstract class ShowsWithVenueNetworkBackedBehavior extends ThrottledNetwo
     realm.write(() => {
       upsertShowList(realm, apiData, localData, {
         performDeletes: false,
-        queryForModel: false,
+        queryForModel: true,
       });
     });
   }

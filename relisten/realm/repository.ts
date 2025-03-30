@@ -140,7 +140,7 @@ export class Repository<
     realm: Realm,
     api: TApi,
     model: TModel | undefined,
-    queryForModel = false
+    queryForModel = true
   ): UpsertResults<TModel> {
     if (queryForModel && !model) {
       model =
