@@ -194,17 +194,16 @@ export class RelistenPlayer {
   next() {
     this.addPlayerListeners();
 
-    const nextTrack = this.queue.nextTrack;
+    const nextTrackIndex = this.queue.nextTrackIndex;
+
+    if (nextTrackIndex === undefined) {
+      return;
+    }
 
     this.playbackIntentStarted = true;
     this.startStalledTimer();
 
-    nativePlayer.next().then(() => {
-      if (nextTrack) {
-        // optimistically update the UI. should be before the native call to prevent race conditions
-        this.optimisticallyUpdateCurrentTrack(nextTrack);
-      }
-    });
+    this.playTrackAtIndex(nextTrackIndex);
   }
 
   previous() {
@@ -212,7 +211,7 @@ export class RelistenPlayer {
 
     const currentIdx = this.queue.currentIndex;
 
-    if (currentIdx === undefined) {
+    if (currentIdx === undefined || currentIdx === 0) {
       return;
     }
 

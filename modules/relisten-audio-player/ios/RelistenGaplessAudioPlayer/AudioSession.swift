@@ -76,7 +76,7 @@ extension RelistenGaplessAudioPlayer {
               let reasonValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
               let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue)
         else {
-            NSLog("[bass][handleRouteChange] No AVAudioSessionRouteChangeReasonKey")
+            NSLog("[relisten-audio-player][bass][handleRouteChange] No AVAudioSessionRouteChangeReasonKey")
             return
         }
 
@@ -107,7 +107,7 @@ extension RelistenGaplessAudioPlayer {
             seccReason = "Unknown value: \(reason)"
         }
 
-        NSLog("handlRouteChange: %@", seccReason)
+        NSLog("[relisten-audio-player]handlRouteChange: %@", seccReason)
     }
 
     @objc func handleInterruption(_ notification: Notification) {
@@ -116,7 +116,7 @@ extension RelistenGaplessAudioPlayer {
             return
         }
 
-        NSLog("[bass][handleInterruption]: %@ interruption type %@", "\(notification.name)", "\(interruptionType)")
+        NSLog("[relisten-audio-player][bass][handleInterruption]: %@ interruption type %@", "\(notification.name)", "\(interruptionType)")
 
         switch interruptionType {
         case .began:
@@ -166,8 +166,8 @@ extension RelistenGaplessAudioPlayer {
         setupAudioSession(shouldActivate: true)
 
         bassQueue.async {[self] in
-            let savedActiveStreamable = activeStream?.streamable
-            let nextStreamable = nextStream?.streamable
+            let savedActiveStreamable = activeStreamIntent?.streamable
+            let nextStreamable = nextStreamIntent?.streamable
             let savedElapsed = self.elapsed
 
             maybeTearDownBASS()
@@ -183,7 +183,7 @@ extension RelistenGaplessAudioPlayer {
             }
 
             if let nextStreamable {
-                self.nextStream = buildStream(nextStreamable)
+                self.setNextStream(nextStreamable)
             }
         }
     }

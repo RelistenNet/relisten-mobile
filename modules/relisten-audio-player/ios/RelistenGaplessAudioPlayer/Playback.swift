@@ -13,7 +13,7 @@ extension URL {
         do {
             return try FileManager.default.attributesOfItem(atPath: path)
         } catch let error as NSError {
-            NSLog("FileAttribute error: \(error)")
+            NSLog("[relisten-audio-player]FileAttribute error: \(error)")
         }
         return nil
     }
@@ -26,23 +26,26 @@ extension URL {
 
 extension RelistenGaplessAudioPlayer {
     func playStreamableImmediately(_ streamable: RelistenGaplessStreamable, startingAtMs: Int64?) {
+        NSLog("[relisten-audio-player][bass][stream] playStreamableImmediately: streamable \(streamable.identifier) startingAtMs=\(String(describing: startingAtMs))")
+        
         dispatchPrecondition(condition: .onQueue(bassQueue))
 
         maybeSetupBASS()
 
         guard let mixerMainStream else {
-            assertionFailure("mixerMainStream is nil after setting up BASS")
+            assertionFailure("playStreamableImmediately: mixerMainStream is nil after setting up BASS")
             return
         }
 
         // stop playback
         bass_assert(BASS_ChannelStop(mixerMainStream))
 
-        if let activeStream {
-            tearDownStream(activeStream)
-        }
+        self.maybeTearDownActiveStream()
+        self.maybeTearDownNextStream()
 
-        activeStream = buildStream(streamable)
+        let newIntent = RelistenStreamIntent(streamable: streamable)
+        activeStreamIntent = newIntent
+        activeStream = buildStream(newIntent)
 
         if let activeStream {
             if let startingAtMs, startingAtMs > 0 {
@@ -56,13 +59,13 @@ extension RelistenGaplessAudioPlayer {
 
             // Make sure BASS is started, just in case we had paused it earlier
             BASS_Start()
-            NSLog("[bass][stream] BASS_Start() called")
+            NSLog("[relisten-audio-player][bass][stream] playStreamableImmediately: BASS_Start() called")
 
             // the TRUE for the second argument clears the buffer so there isn't old sound playing
             bass_assert(BASS_ChannelPlay(mixerMainStream, 1))
 
             DispatchQueue.main.async {
-                self.delegate?.trackChanged(self, previousStreamable: nil, currentStreamable: self.activeStream?.streamable)
+                self.delegate?.trackChanged(self, previousStreamable: nil, currentStreamable: newIntent.streamable)
             }
 
             currentState = .Playing
@@ -70,16 +73,16 @@ extension RelistenGaplessAudioPlayer {
             updateControlCenter()
 
             // this is needed because the stream download events don't fire for local music
-            if activeStream.streamable.url.isFileURL {
+            if newIntent.streamable.url.isFileURL {
                 // this will call nextTrackChanged and setupInactiveStreamWithNext
                 streamDownloadComplete(activeStream.stream)
                 // also trigger downloadProgress update since it won't be triggered or accurate for a local file
-                self.delegate?.downloadProgressChanged(self, forActiveTrack: true, downloadedBytes: activeStream.streamable.url.fileSize, totalBytes: activeStream.streamable.url.fileSize);
+                self.delegate?.downloadProgressChanged(self, forActiveTrack: true, downloadedBytes: newIntent.streamable.url.fileSize, totalBytes: newIntent.streamable.url.fileSize);
             }
             
             startUpdates()
         } else {
-            NSLog("[bass][stream] activeStream nil after buildingStream from \(streamable)")
+            NSLog("[relisten-audio-player][bass][stream] playStreamableImmediately: activeStream nil after buildingStream from \(streamable)")
         }
     }
     
@@ -93,7 +96,7 @@ extension RelistenGaplessAudioPlayer {
         guard let activeStream else {
             // The user may have tried to seek before the stream has loaded.
             // TODO: Store the desired seek percent and apply it once the stream has loaded
-            NSLog("[bass][stream] Stream hasn't loaded yet. Ignoring seek to %f ms.", timeMs)
+            NSLog("[relisten-audio-player][bass][stream] Stream hasn't loaded yet. Ignoring seek to %f ms.", timeMs)
             return
         }
 
@@ -102,7 +105,7 @@ extension RelistenGaplessAudioPlayer {
         let seekTo = BASS_ChannelSeconds2Bytes(activeStream.stream, Double(timeMs) / Double(1000))
         let seekToDuration = BASS_ChannelBytes2Seconds(activeStream.stream, seekTo)
 
-        NSLog("[bass][stream][seekToTimeMs=%llu] Found length in bytes to be %llu bytes/%f. Seeking to: %llu bytes/%f", timeMs, len, duration, seekTo, seekToDuration)
+        NSLog("[relisten-audio-player][bass][stream][seekToTimeMs=%llu] Found length in bytes to be %llu bytes/%f. Seeking to: %llu bytes/%f", timeMs, len, duration, seekTo, seekToDuration)
 
         seekToBytes(seekTo, pct: Double(seekToDuration) / Double(duration))
     }
@@ -114,10 +117,10 @@ extension RelistenGaplessAudioPlayer {
         // for the *entire* track. we must be careful to identify situations where we need to make a new request
         maybeSetupBASS()
 
-        guard let activeStream else {
+        guard let activeStreamIntent, let activeStream else {
             // The user may have tried to seek before the stream has loaded.
             // TODO: Store the desired seek percent and apply it once the stream has loaded
-            NSLog("[bass][stream] Stream hasn't loaded yet. Ignoring seek to %f.", seekTo)
+            NSLog("[relisten-audio-player][bass][stream] Stream hasn't loaded yet. Ignoring seek to %f.", seekTo)
             return
         }
         
@@ -134,14 +137,14 @@ extension RelistenGaplessAudioPlayer {
             // the file offset is different than the seekToBytes
             let fileOffset = DWORD(floor(pct * Double(totalFileBytes)))
 
-            NSLog("[bass][stream] Seek %% (%f/%u) is greater than downloaded %% (%f/%llu) OR seek channel byte (%llu) < start channel offset (%llu). Opening new stream.", pct, fileOffset, downloadedPct, downloadedBytes, seekTo, activeStream.channelOffset)
+            NSLog("[relisten-audio-player][bass][stream] Seek %% (%f/%u) is greater than downloaded %% (%f/%llu) OR seek channel byte (%llu) < start channel offset (%llu). Opening new stream.", pct, fileOffset, downloadedPct, downloadedBytes, seekTo, activeStream.channelOffset)
 
-            let oldActiveStream = activeStream
+            let oldActiveStreamIntent = activeStreamIntent
 
             //  tear down the stream cacher before building the new stream so there's no possible write lock conflict on the file
-            oldActiveStream.streamCacher?.teardown()
+            oldActiveStreamIntent.audioStream?.streamCacher?.teardown()
 
-            let newActiveStream = buildStream(activeStream.streamable, fileOffset: fileOffset, channelOffset: seekTo)
+            let newActiveStream = buildStream(activeStreamIntent, fileOffset: fileOffset, channelOffset: seekTo)
             self.activeStream = newActiveStream
 
             if let newActiveStream, let mixerMainStream {
@@ -151,7 +154,7 @@ extension RelistenGaplessAudioPlayer {
                 // the TRUE for the second argument clears the buffer to prevent bits of the old playback
                 bass_assert(BASS_ChannelPlay(mixerMainStream, 1))
 
-                tearDownStream(oldActiveStream)
+                tearDownStream(oldActiveStreamIntent)
             }
         } else {
             bass_assert(BASS_ChannelSetPosition(activeStream.stream, seekTo - activeStream.channelOffset, DWORD(BASS_POS_BYTE)))
@@ -168,7 +171,7 @@ extension RelistenGaplessAudioPlayer {
         guard let activeStream else {
             // The user may have tried to seek before the stream has loaded.
             // TODO: Store the desired seek percent and apply it once the stream has loaded
-            NSLog("[bass][stream] Stream hasn't loaded yet. Ignoring seek to %f.", pct)
+            NSLog("[relisten-audio-player][bass][stream] Stream hasn't loaded yet. Ignoring seek to %f.", pct)
             return
         }
 
@@ -177,7 +180,7 @@ extension RelistenGaplessAudioPlayer {
         let seekTo = BASS_ChannelSeconds2Bytes(activeStream.stream, duration * Double(pct))
         let seekToDuration = BASS_ChannelBytes2Seconds(activeStream.stream, seekTo)
 
-        NSLog("[bass][stream][pct=%f] Found length in bytes to be %llu bytes/%f. Seeking to: %llu bytes/%f", pct, len, duration, seekTo, seekToDuration)
+        NSLog("[relisten-audio-player][bass][stream][pct=%f] Found length in bytes to be %llu bytes/%f. Seeking to: %llu bytes/%f", pct, len, duration, seekTo, seekToDuration)
 
         seekToBytes(seekTo, pct: pct)
     }

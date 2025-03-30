@@ -7,23 +7,33 @@
 
 import Foundation
 
+var allStreamCachers: [RelistenStreamCacher] = []
+
 extension RelistenGaplessAudioPlayer {
-    func buildStream(_ streamable: RelistenGaplessStreamable, fileOffset: DWORD = 0, channelOffset: QWORD = 0) -> RelistenGaplessAudioStream? {
+    func buildStream(_ streamIntent: RelistenStreamIntent, fileOffset: DWORD = 0, channelOffset: QWORD = 0, attempts: Int = 2) -> RelistenGaplessAudioStream? {
         dispatchPrecondition(condition: .onQueue(bassQueue))
 
         maybeSetupBASS()
 
         var newStream: HSTREAM = 0
         var streamCacher: RelistenStreamCacher?
-
+        let streamable = streamIntent.streamable
+        
         if streamable.url.isFileURL {
+            NSLog("[relisten-audio-player][bass][stream] buildStream: calling BASS_StreamCreateFile for \(streamable.identifier)")
             newStream = BASS_StreamCreateFile(0,
                                               streamable.url.path.cString(using: .utf8),
                                               UInt64(fileOffset),
                                               0,
                                               DWORD(BASS_STREAM_DECODE | BASS_SAMPLE_FLOAT | BASS_ASYNCFILE | BASS_STREAM_PRESCAN))
         } else {
-            streamCacher = RelistenStreamCacher(self, streamable: streamable)
+            let newStreamCacher = RelistenStreamCacher(self, streamable: streamable)
+            allStreamCachers.append(newStreamCacher)
+            NSLog("[relisten-audio-player] Added StreamCacher for \(newStreamCacher.streamable.identifier); \(allStreamCachers.count) total")
+            
+            streamCacher = newStreamCacher
+
+            NSLog("[relisten-audio-player][bass][stream] buildStream: calling BASS_StreamCreateURL for \(streamable.identifier) with fileOffset=\(fileOffset)")
 
             if fileOffset == 0 {
                 newStream = BASS_StreamCreateURL(streamable.url.absoluteString.cString(using: .utf8),
@@ -40,10 +50,19 @@ extension RelistenGaplessAudioPlayer {
 
             }
         }
+        
+        NSLog("[relisten-audio-player][bass][stream] buildStream: calling BASS_StreamCreate* complete for \(streamable.identifier)")
+
 
         // oops
         if newStream == 0 {
             let code = BASS_ErrorGetCode()
+            
+            if (code == BASS_ERROR_UNKNOWN) {
+                NSLog("[relisten-audio-player][bass][stream] buildStream: error creating new stream, ignoring because it probably means setNextStream was called identifier=\(streamable.identifier): \(code)")
+                return nil
+            }
+            
             var err = ErrorForErrorCode(code)
             
             if (code == BASS_ERROR_TIMEOUT) {
@@ -52,7 +71,7 @@ extension RelistenGaplessAudioPlayer {
                 err = NSError(domain: "net.relisten.ios.relisten-audio-player", code: err.code, userInfo: [NSLocalizedDescriptionKey: "Non-audio content: \(streamable.url.host ?? streamable.url.absoluteString) did not provide audio, maybe there are server issues"])
             }
 
-            NSLog("[bass][stream] error creating new stream: %d %@", err.code, err.localizedDescription)
+            NSLog("[relisten-audio-player][bass][stream] buildStream: error creating new stream identifier=\(streamable.identifier): %d %@", err.code, err.localizedDescription)
 
             DispatchQueue.main.async {
                 self.delegate?.errorStartingStream(self, error: err, forStreamable: streamable)
@@ -73,31 +92,36 @@ extension RelistenGaplessAudioPlayer {
                                         streamStallSyncProc,
                                         Unmanaged.passUnretained(self).toOpaque()))
 
-        NSLog("[bass][stream] created new stream: %u. identifier=%@", newStream, streamable.identifier)
+        NSLog("[relisten-audio-player][bass][stream] created new stream: %u. identifier=%@", newStream, streamable.identifier)
 
         let stream = RelistenGaplessAudioStream(
-            streamable: streamable,
             streamCacher: streamCacher,
             stream: newStream,
             fileOffset: fileOffset,
             channelOffset: channelOffset
         )
         
-        fetchAlbumArt(stream: stream)
+        streamIntent.audioStream = stream
+        
+        fetchAlbumArt(streamIntent: streamIntent)
         
         return stream
     }
 
     func startPreloadingNextStream() {
         // don't start loading anything until the active stream has finished
-        guard let nextStream, activeStream?.preloadFinished == true else {
+        guard let nextStreamIntent, activeStream?.preloadFinished == true else {
             return
         }
 
-        NSLog("[bass][preloadNextTrack] Preloading next track")
+        NSLog("[relisten-audio-player][bass][preloadNextTrack] Preloading next track \(nextStreamIntent.streamable.identifier)")
+        
+        nextStream = buildStream(nextStreamIntent)
 
-        BASS_ChannelUpdate(nextStream.stream, 0)
-        nextStream.preloadStarted = true
+        if let nextStream {
+            BASS_ChannelUpdate(nextStream.stream, 0)
+            nextStream.preloadStarted = true
+        }
     }
 }
 
@@ -113,6 +137,15 @@ internal var streamDownloadProc: @convention(c) (_ buffer: UnsafeRawPointer?,
                                                             streamCacher.writeData(data)
                                                         } else {
                                                             streamCacher.finishWritingData()
+                                                            
+                                                            // Remove the extra reference that prevented crashes when the streamIntents get cleaned up
+                                                            for (idx, cacher) in allStreamCachers.enumerated() {
+                                                                if cacher.streamable.identifier == streamCacher.streamable.identifier {
+                                                                    NSLog("[relisten-audio-player] Removing StreamCacher for \(streamCacher.streamable.identifier) at idx=\(idx); \(allStreamCachers.count - 1) remaining")
+                                                                    allStreamCachers.remove(at: idx)
+                                                                    break
+                                                                }
+                                                            }
                                                         }
                                                     }
                                                  }

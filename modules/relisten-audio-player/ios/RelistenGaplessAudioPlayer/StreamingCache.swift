@@ -7,6 +7,8 @@
 
 import Foundation
 
+import Dispatch
+
 public class RelistenStreamCacher {
     let streamable: RelistenGaplessStreamable
     weak var player: RelistenGaplessAudioPlayer?
@@ -37,14 +39,14 @@ public class RelistenStreamCacher {
         do {
             try writeDataUnsafe(data)
         } catch {
-            NSLog("[bass][stream caching] Failed to write data file=\(String(describing: file)) for streamable=\(streamable). Error=\(error)")
+            NSLog("[relisten-audio-player][bass][stream caching] Failed to write data file=\(String(describing: file)) for streamable=\(streamable). Error=\(error)")
         }
     }
     
     private func sendProgressUpdate(bytes: Int?) {
         if (player != nil) {
-            if let activeStream = player?.activeStream {
-                let isActiveTrack = activeStream.streamable.identifier == streamable.identifier;
+            if let activeStreamIntent = player?.activeStreamIntent, let activeStream = player?.activeStream {
+                let isActiveTrack = activeStreamIntent.streamable.identifier == streamable.identifier;
 
                 let totalFileBytes = BASS_StreamGetFilePosition(activeStream.stream, DWORD(BASS_FILEPOS_SIZE))
                 
@@ -59,7 +61,13 @@ public class RelistenStreamCacher {
         bytesSeen += data.count
         
         guard let downloadDestination = streamable.downloadDestination else {
-            self.sendProgressUpdate(bytes: bytesSeen)
+            if (bytesSeen - lastBytesLogged) >= 1_000_000 {
+//                NSLog("[relisten-audio-player][bass][stream caching] Seen \(bytesSeen) bytes for streamable=\(streamable.identifier).")
+                lastBytesLogged = bytesSeen
+
+                // send download progress updates for streaming cache
+                self.sendProgressUpdate(bytes: bytesSeen)
+            }
             
             return
         }
@@ -80,13 +88,13 @@ public class RelistenStreamCacher {
 
                     file = try FileHandle(forWritingTo: downloadDestination)
                 } else {
-                    NSLog("[bass][stream caching] File already exists for streamable=\(streamable.identifier)")
+                    NSLog("[relisten-audio-player][bass][stream caching] File already exists for streamable=\(streamable.identifier)")
                 }
             } catch CocoaError.fileWriteFileExists, CocoaError.fileLocking {
                 // if the file already exists or is already opened for writing, don't do anything.
                 // this probably means the same track is the activeStream and the nextStream
                 failedToCreateFile = true
-                NSLog("[bass][stream caching] Failed to open file handle for streamable=\(streamable.identifier)")
+                NSLog("[relisten-audio-player][bass][stream caching] Failed to open file handle for streamable=\(streamable.identifier)")
             }
         } else if let file = file {
             file.write(data)
@@ -94,7 +102,7 @@ public class RelistenStreamCacher {
         }
 
         if (bytesWritten - lastBytesLogged) >= 1_000_000 {
-            NSLog("[bass][stream caching] Written \(bytesWritten) bytes for streamable=\(streamable.identifier).")
+//            NSLog("[relisten-audio-player][bass][stream caching] Written \(bytesWritten) bytes for streamable=\(streamable.identifier).")
             lastBytesLogged = bytesWritten
 
             // send download progress updates for streaming cache
@@ -113,7 +121,7 @@ public class RelistenStreamCacher {
                 player?.delegate?.streamingCacheCompleted(forStreamable: streamable, bytesWritten: bytesWritten)
                 self.sendProgressUpdate(bytes: nil)
             } catch {
-                NSLog("[bass][stream caching] Failed to close file=\(file) for streamable=\(streamable.identifier). Error=\(error)")
+                NSLog("[relisten-audio-player][bass][stream caching] Failed to close file=\(file) for streamable=\(streamable.identifier). Error=\(error)")
             }
         }
     }
@@ -124,7 +132,7 @@ public class RelistenStreamCacher {
             do {
                 try FileManager.default.removeItem(at: downloadDestination)
             } catch {
-                NSLog("[bass][stream caching] Failed remove file at downloadDestination=\(downloadDestination). Error=\(error)")
+                NSLog("[relisten-audio-player][bass][stream caching] Failed remove file at downloadDestination=\(downloadDestination). Error=\(error)")
             }
         }
     }

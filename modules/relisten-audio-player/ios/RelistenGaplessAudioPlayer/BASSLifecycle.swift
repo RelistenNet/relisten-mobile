@@ -16,6 +16,8 @@ extension RelistenGaplessAudioPlayer {
         if isSetup {
             return
         }
+        
+        NSLog("[relisten-audio-player] maybeSetupBASS: setting up")
 
         isSetup = true
 
@@ -43,29 +45,36 @@ extension RelistenGaplessAudioPlayer {
     }
 
     func maybeTearDownBASS() {
+        NSLog("[relisten-audio-player] maybeTearDownBASS")
+
         if !isSetup {
+            NSLog("[relisten-audio-player] maybeTearDownBASS: is not set up")
             return
         }
 
         isSetup = false
 
-        if let activeStream {
-            tearDownStream(activeStream)
-            self.activeStream = nil
+        if let activeStreamIntent {
+            tearDownStream(activeStreamIntent)
+            self.activeStreamIntent = nil
         }
 
-        if let nextStream {
-            tearDownStream(nextStream)
-            self.nextStream = nil
+        if let nextStreamIntent {
+            tearDownStream(nextStreamIntent)
+            self.nextStreamIntent = nil
         }
 
         BASS_Free()
     }
 
-    func tearDownStream(_ relistenStream: RelistenGaplessAudioStream) {
+    func tearDownStream(_ streamIntent: RelistenStreamIntent) {
+        guard let relistenStream = streamIntent.audioStream else {
+            return
+        }
+        
         let stream = relistenStream.stream
 
-        NSLog("[bass][stream] tearing down stream \(relistenStream)")
+        NSLog("[relisten-audio-player][bass][stream] tearing down stream \(streamIntent.streamable.identifier)")
 
         // stop channels to allow them to be freed
         BASS_ChannelStop(stream)
@@ -81,47 +90,59 @@ extension RelistenGaplessAudioPlayer {
 
     // MARK: - BASS Event Listeners
 
-    func mixInNextStream(completedStream _: HSTREAM) {
+    func mixInNextStream(completedStream: HSTREAM?) {
+        NSLog("[relisten-audio-player] mixInNextStream completedStream=\(String(describing: completedStream))")
+        
         dispatchPrecondition(condition: .onQueue(bassQueue))
 
         guard let mixerMainStream else {
             return
         }
 
-        let previousStream = activeStream
+        let previousStreamIntent = activeStreamIntent
 
-        if let nextStream {
-            NSLog("[bass][stream] mixing in next stream with norampin")
+        if let nextStreamIntent, let nextStream {
+            NSLog("[relisten-audio-player][bass][stream] mixing in next stream with norampin")
             bass_assert(BASS_Mixer_StreamAddChannel(mixerMainStream,
                                                     nextStream.stream,
                                                     DWORD(BASS_STREAM_AUTOFREE | BASS_MIXER_NORAMPIN)))
             bass_assert(BASS_ChannelSetPosition(mixerMainStream, 0, DWORD(BASS_POS_BYTE)))
 
+            // Make sure BASS is started, just in case we had paused it earlier
+            BASS_Start()
+
             // We cannot tear down yet because at mix time we've reached the end, the audio is still being used.
             // BASS_STREAM_AUTOFREE will automatically free the stream once it finishes playing.
 
-            activeStream = nextStream
-            self.nextStream = nil
+            activeStreamIntent = nextStreamIntent
+            self.nextStreamIntent = nil
 
             // this is needed because the stream download events don't fire for local music
-            if nextStream.streamable.url.isFileURL {
+            if nextStreamIntent.streamable.url.isFileURL {
                 streamDownloadComplete(nextStream.stream)
             }
+            
+            DispatchQueue.main.async {
+                self.delegate?.trackChanged(self, previousStreamable: previousStreamIntent?.streamable, currentStreamable: self.activeStreamIntent?.streamable)
+            }
+        } else if let nextStreamIntent {
+            NSLog("[relisten-audio-player][bass][stream] have nextStreamIntent \(nextStreamIntent.streamable.identifier) but no nextStream, calling playStreamableImmediately")
+            // we have a next stream intent but never actually built the stream
+            self.nextStreamIntent = nil
+            self.playStreamableImmediately(nextStreamIntent.streamable, startingAtMs: nil)
         } else {
             if BASS_ChannelStop(mixerMainStream) == 1 {
                 BASS_Stop()
                 currentState = .Stopped
 
-                if let activeStream {
-                    tearDownStream(activeStream)
-                    self.activeStream = nil
+                if let activeStreamIntent {
+                    tearDownStream(activeStreamIntent)
+                    self.activeStreamIntent = nil
                 }
             }
-        }
-
-        if let previousStream {
+            
             DispatchQueue.main.async {
-                self.delegate?.trackChanged(self, previousStreamable: previousStream.streamable, currentStreamable: self.activeStream?.streamable)
+                self.delegate?.trackChanged(self, previousStreamable: previousStreamIntent?.streamable, currentStreamable: nil)
             }
         }
     }
@@ -129,15 +150,19 @@ extension RelistenGaplessAudioPlayer {
     func streamDownloadComplete(_ stream: HSTREAM) {
         dispatchPrecondition(condition: .onQueue(bassQueue))
 
-        NSLog("[bass][stream] stream download complete: \(stream)")
+        if let activeStreamIntent, let activeStream, stream == activeStream.stream {
+            NSLog("[relisten-audio-player][bass][stream] stream download complete: \(activeStreamIntent.streamable.identifier)")
 
-        if let activeStream, stream == activeStream.stream {
             if !activeStream.preloadFinished {
                 activeStream.preloadFinished = true
 
-                startPreloadingNextStream()
+                self.bassQueue.async {
+                    self.startPreloadingNextStream()
+                }
             }
-        } else if let nextStream, stream == nextStream.stream {
+        } else if let nextStreamIntent, let nextStream, stream == nextStream.stream {
+            NSLog("[relisten-audio-player][bass][stream] stream download complete: \(nextStreamIntent.streamable.identifier)")
+
             nextStream.preloadStarted = true
             nextStream.preloadFinished = true
 
@@ -147,15 +172,15 @@ extension RelistenGaplessAudioPlayer {
             // The amount of data to render, in milliseconds... 0 = default (2 x update period)
             // bass_assert(BASS_ChannelUpdate(inactiveStream, 0));
         } else {
-            NSLog("[bass][ERROR] whoa, unknown stream finished downloading: %u", stream)
+            NSLog("[relisten-audio-player][bass][ERROR] whoa, unknown stream finished downloading: %u", stream)
         }
     }
 
     func streamStalled(_ stream: HSTREAM) {
         dispatchPrecondition(condition: .onQueue(bassQueue))
 
-        if stream == activeStream?.stream {
-            NSLog("[bass][stream] stream stalled: \(stream)")
+        if let activeStreamIntent, let activeStream, stream == activeStream.stream {
+            NSLog("[relisten-audio-player][bass][stream] stream stalled: \(activeStreamIntent.streamable.identifier)")
             currentState = .Stalled
         }
     }
@@ -163,8 +188,8 @@ extension RelistenGaplessAudioPlayer {
     func streamResumedAfterStall(_ stream: HSTREAM) {
         dispatchPrecondition(condition: .onQueue(bassQueue))
 
-        if stream == activeStream?.stream {
-            NSLog("[bass][stream] stream resumed after stall: \(stream)")
+        if let activeStreamIntent, let activeStream, stream == activeStream.stream {
+            NSLog("[relisten-audio-player][bass][stream] stream resumed after stall: \(activeStreamIntent.streamable.identifier)")
             currentState = .Playing
         }
     }
@@ -178,7 +203,7 @@ internal var mixerEndSyncProc: @convention(c) (_ handle: HSYNC,
                                                 if let selfPtr = user {
                                                     let player: RelistenGaplessAudioPlayer = Unmanaged.fromOpaque(selfPtr).takeUnretainedValue()
 
-                                                    NSLog("[base][stream] mixer end sync \(player) \(handle)")
+                                                    NSLog("[relisten-audio-player][base][stream] mixer end sync \(player) \(handle)")
 
                                                     player.bassQueue.async {
                                                         player.mixInNextStream(completedStream: channel)
@@ -194,9 +219,9 @@ internal var streamDownloadCompleteSyncProc: @convention(c) (_ handle: HSYNC,
                                                                 if let selfPtr = user {
                                                                     let player: RelistenGaplessAudioPlayer = Unmanaged.fromOpaque(selfPtr).takeUnretainedValue()
 
-                                                                    NSLog("[bass][stream] stream download completed: handle: %u. channel: %u", handle, channel)
+                                                                    NSLog("[relisten-audio-player][bass][stream] stream download completed: handle: %u. channel: %u", handle, channel)
 
-                                                                    NSLog("\(player) \(handle)")
+                                                                    NSLog("[relisten-audio-player] \(player) \(handle)")
 
                                                                     player.bassQueue.async {
                                                                         // channel is the HSTREAM we created before
@@ -213,9 +238,9 @@ internal var streamStallSyncProc: @convention(c) (_ handle: HSYNC,
                                                     if let selfPtr = user {
                                                         let player: RelistenGaplessAudioPlayer = Unmanaged.fromOpaque(selfPtr).takeUnretainedValue()
 
-                                                        NSLog("[bass][stream] stream stall: handle: %u. channel: %u", handle, channel)
+                                                        NSLog("[relisten-audio-player][bass][stream] stream stall: handle: %u. channel: %u", handle, channel)
 
-                                                        NSLog("\(player) \(handle)")
+                                                        NSLog("[relisten-audio-player]\(player) \(handle)")
 
                                                         player.bassQueue.async {
                                                             // channel is the HSTREAM we created before

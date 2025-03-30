@@ -118,6 +118,7 @@ export class RelistenPlayerQueue {
   private _repeatState = PlayerRepeatState.REPEAT_OFF;
 
   private _nextTrack?: PlayerQueueTrack;
+  private _nextTrackIndex?: number;
 
   private originalTracks: PlayerQueueTrack[] = [];
   private originalTracksCurrentIndex?: number;
@@ -259,6 +260,10 @@ export class RelistenPlayerQueue {
     return this._nextTrack;
   }
 
+  get nextTrackIndex() {
+    return this._nextTrackIndex;
+  }
+
   get orderedTracks() {
     return this.shuffleState == PlayerShuffleState.SHUFFLE_ON
       ? this.shuffledTracks
@@ -370,18 +375,17 @@ ${indentString(tracks)}
   // region Next track management
   public recalculateNextTrack() {
     const prevNextTrack = this._nextTrack;
+    const newNextTrackIndex = this.calculateNextTrackIndex();
     const newNextTrack = this.calculateNextTrack();
 
+    this._nextTrackIndex = newNextTrackIndex;
     this._nextTrack = newNextTrack;
 
     log.debug(
       `[recalculateNextTrack] ${newNextTrack?.identifier}, ${prevNextTrack?.identifier}, ${this.player.playbackIntentStarted}`
     );
 
-    if (
-      newNextTrack?.identifier !== prevNextTrack?.identifier ||
-      !this.player.playbackIntentStarted
-    ) {
+    if (newNextTrack?.identifier !== prevNextTrack?.identifier) {
       if (newNextTrack) {
         nativePlayer.setNextStream(newNextTrack.toStreamable(this.player.enableStreamingCache));
       } else {
@@ -390,25 +394,35 @@ ${indentString(tracks)}
     }
   }
 
-  private calculateNextTrack(): PlayerQueueTrack | undefined {
+  private calculateNextTrackIndex(): number | undefined {
     if (this.currentIndex === undefined) {
       return undefined;
     }
 
     if (this.repeatState === PlayerRepeatState.REPEAT_TRACK) {
-      return this.currentTrack;
+      return this.currentIndex;
     }
 
     const maybeNextIndex = this.currentIndex + 1;
 
     if (maybeNextIndex < this.orderedTracks.length) {
-      return this.orderedTracks[maybeNextIndex];
+      return maybeNextIndex;
     }
 
     if (this.repeatState === PlayerRepeatState.REPEAT_QUEUE) {
-      return this.orderedTracks[0];
+      return 0;
     } else if (this.repeatState === PlayerRepeatState.REPEAT_OFF) {
       return undefined;
+    }
+
+    return undefined;
+  }
+
+  private calculateNextTrack(): PlayerQueueTrack | undefined {
+    const nextTrackIndex = this.calculateNextTrackIndex();
+
+    if (nextTrackIndex !== undefined) {
+      return this.orderedTracks[nextTrackIndex];
     }
 
     return undefined;
@@ -420,10 +434,6 @@ ${indentString(tracks)}
   private clearCurrentTrack() {
     this.originalTracksCurrentIndex = undefined;
     this.shuffledTracksCurrentIndex = undefined;
-  }
-
-  private clearNextTrack() {
-    this._nextTrack = undefined;
   }
 
   // endregion
@@ -593,11 +603,12 @@ ${indentString(tracks)}
     this.originalTracksCurrentIndex = playerState.activeSourceTrackIndex ?? 0;
 
     if (this.currentTrack) {
-      this.onCurrentTrackIdentifierChanged(this.currentTrack.identifier);
+      this.onCurrentTrackChanged.dispatch(this.currentTrack);
     }
 
     // reset this so that when we start playing, it can properly call setNextStream
     this._nextTrack = undefined;
+    this._nextTrackIndex = undefined;
 
     if (playerState.elapsed && playerState.progress && playerState.duration) {
       // very early seeks into a song are buggy

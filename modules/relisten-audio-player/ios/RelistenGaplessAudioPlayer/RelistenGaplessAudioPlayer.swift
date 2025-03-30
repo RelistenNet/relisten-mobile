@@ -52,8 +52,25 @@ public class RelistenGaplessAudioPlayer {
 
     private(set) static var bassOutputBufferLengthMillis: DWORD = 0
 
-    public internal(set) var activeStream: RelistenGaplessAudioStream?
-    public internal(set) var nextStream: RelistenGaplessAudioStream?
+    public internal(set) var activeStreamIntent: RelistenStreamIntent?
+    public internal(set) var nextStreamIntent: RelistenStreamIntent?
+    
+    public internal(set) var activeStream: RelistenGaplessAudioStream? {
+        get { self.activeStreamIntent?.audioStream }
+        set {
+            if let activeStreamIntent {
+                activeStreamIntent.audioStream = newValue
+            }
+        }
+    }
+    public internal(set) var nextStream: RelistenGaplessAudioStream? {
+        get { self.nextStreamIntent?.audioStream }
+        set {
+            if let nextStreamIntent {
+                nextStreamIntent.audioStream = newValue
+            }
+        }
+    }
 
     public let commandCenter = MPRemoteCommandCenter.shared()
 
@@ -162,14 +179,17 @@ public class RelistenGaplessAudioPlayer {
     }
 
     public func play(_ streamable: RelistenGaplessStreamable, startingAtMs: Int64?) {
+        NSLog("[relisten-audio-player] play: streamable=\(streamable) startingAtMs=\(String(describing: startingAtMs))")
         setupAudioSession(shouldActivate: true)
 
-        if let activeStream, let nextStream, nextStream.streamable.identifier == streamable.identifier {
+        if let nextStreamIntent, nextStreamIntent.streamable.identifier == streamable.identifier {
+            NSLog("[relisten-audio-player] play: calling next nextStream=\(nextStreamIntent.streamable.identifier)")
             next()
 
             return
         }
-        else if let activeStream, let startingAtMs, activeStream.streamable.identifier == streamable.identifier {
+        else if let activeStreamIntent, let startingAtMs, activeStreamIntent.streamable.identifier == streamable.identifier {
+            NSLog("[relisten-audio-player] play: calling seekToTime activeStream=\(activeStreamIntent.streamable.identifier)")
             seekToTime(startingAtMs)
 
             return
@@ -179,6 +199,7 @@ public class RelistenGaplessAudioPlayer {
     }
 
     public func setNextStream(_ streamable: RelistenGaplessStreamable?) {
+        NSLog("[relisten-audio-player] setNextStream: streamable=\(String(describing: streamable))")
         maybeSetupBASS()
 
         guard let streamable = streamable else {
@@ -187,37 +208,41 @@ public class RelistenGaplessAudioPlayer {
             return
         }
 
-        if nextStream?.streamable.identifier == streamable.identifier {
+        if nextStreamIntent?.streamable.identifier == streamable.identifier {
             return
         }
 
         // do the same thing for inactive--but only if the next track is actually different
         // and if something is currently playing
         maybeTearDownNextStream()
-
-        nextStream = buildStream(streamable)
+        
+        nextStreamIntent = RelistenStreamIntent(streamable: streamable)
 
         if activeStream?.preloadFinished == true {
-            NSLog("activeStream.preloadFinished == true; starting to preload the next stream")
+            NSLog("[relisten-audio-player] activeStream.preloadFinished == true; starting to preload the next stream")
             startPreloadingNextStream()
         }
     }
 
     func maybeTearDownActiveStream() {
-        if let activeStream {
-            tearDownStream(activeStream)
-            self.activeStream = nil
+        if let activeStreamIntent {
+            NSLog("[relisten-audio-player] tearing down activeStream=\(activeStreamIntent.streamable.identifier)")
+            tearDownStream(activeStreamIntent)
+            self.activeStreamIntent = nil
         }
     }
 
     func maybeTearDownNextStream() {
-        if let nextStream {
-            tearDownStream(nextStream)
-            self.nextStream = nil
+        if let nextStreamIntent {
+            NSLog("[relisten-audio-player] tearing down nextStream=\(nextStreamIntent.streamable.identifier)")
+            tearDownStream(nextStreamIntent)
+            self.nextStreamIntent = nil
         }
     }
 
     public func resume() {
+        NSLog("[relisten-audio-player] resume")
+
         self.maybeSetupBASS()
 
         if BASS_Start() != 0 {
@@ -226,6 +251,8 @@ public class RelistenGaplessAudioPlayer {
     }
 
     public func pause() {
+        NSLog("[relisten-audio-player] pause")
+
         self.maybeSetupBASS()
 
         if BASS_Pause() != 0 {
@@ -234,10 +261,11 @@ public class RelistenGaplessAudioPlayer {
     }
 
     public func stop() {
+        NSLog("[relisten-audio-player] stop")
         self.maybeSetupBASS()
 
         if let mixerMainStream = self.mixerMainStream, BASS_ChannelStop(mixerMainStream) != 0 {
-            self.delegate?.trackChanged(self, previousStreamable: self.activeStream?.streamable, currentStreamable: nil)
+            self.delegate?.trackChanged(self, previousStreamable: self.activeStreamIntent?.streamable, currentStreamable: nil)
             self.currentState = .Stopped
 
             self.maybeTearDownActiveStream()
@@ -246,15 +274,21 @@ public class RelistenGaplessAudioPlayer {
     }
 
     public func next() {
+        NSLog("[relisten-audio-player] next")
+        
         self.maybeSetupBASS()
 
-        if self.nextStream != nil, let activeStream = self.activeStream {
-            self.tearDownStream(activeStream)
-            self.mixInNextStream(completedStream: activeStream.stream)
+        if let activeStreamIntent {
+            self.tearDownStream(activeStreamIntent)
+            self.activeStreamIntent = nil
         }
+        
+        self.mixInNextStream(completedStream: activeStream?.stream)
     }
 
     public func seekTo(percent: Double) {
+        NSLog("[relisten-audio-player] seekTo percent=\(percent)")
+
         if percent >= 1.0 {
             next()
             return
@@ -320,7 +354,7 @@ public class RelistenGaplessAudioPlayer {
 
     // MARK: - Private properties
 
-    internal let bassQueue = DispatchQueue(label: "net.relisten.ios.bass-queue")
+    internal let bassQueue = DispatchQueue(label: "net.relisten.ios.bass-queue", attributes: .concurrent)
     internal var mixerMainStream: HSTREAM?
     internal var isSetup = false
 

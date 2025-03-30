@@ -204,15 +204,20 @@ public class RelistenAudioPlayerModule: Module {
 }
 
 extension RelistenAudioPlayerModule: RelistenGaplessAudioPlayerDelegate {
+    public func sendAndLogEvent(_ eventName: String, _ body: [String: Any?] = [:]) {
+        NSLog("[relisten-audio-player] sendEvent: eventName=\(eventName) body=\(body)")
+        self.sendEvent(eventName, body)
+    }
+    
     public func streamingCacheCompleted(forStreamable streamable: RelistenGaplessStreamable, bytesWritten: Int) {
-        self.sendEvent("onTrackStreamingCacheComplete", [
+        self.sendAndLogEvent("onTrackStreamingCacheComplete", [
             "identifier": streamable.identifier,
             "totalBytes": bytesWritten
         ])
     }
     
     public func errorStartingStream(_ player: RelistenGaplessAudioPlayer, error: NSError, forStreamable: RelistenGaplessStreamable) {
-        self.sendEvent("onError", [
+        self.sendAndLogEvent("onError", [
             "error": error.code,
             "errorDescription": error.localizedDescription,
             "identifier": forStreamable.identifier
@@ -220,7 +225,7 @@ extension RelistenAudioPlayerModule: RelistenGaplessAudioPlayerDelegate {
     }
 
     public func playbackStateChanged(_ player: RelistenGaplessAudioPlayer, newPlaybackState playbackState: PlaybackState) {
-        self.sendEvent("onPlaybackStateChanged", [
+        self.sendAndLogEvent("onPlaybackStateChanged", [
             "newPlaybackState": String(describing: playbackState)
         ])
     }
@@ -233,7 +238,6 @@ extension RelistenAudioPlayerModule: RelistenGaplessAudioPlayerDelegate {
     }
 
     public func downloadProgressChanged(_ player: RelistenGaplessAudioPlayer, forActiveTrack: Bool, downloadedBytes: UInt64, totalBytes: UInt64) {
-        NSLog("[downloadProgressChanged] %d / %d", downloadedBytes, totalBytes)
         self.sendEvent("onDownloadProgressChanged", [
             "forActiveTrack": forActiveTrack,
             "downloadedBytes": downloadedBytes,
@@ -242,14 +246,14 @@ extension RelistenAudioPlayerModule: RelistenGaplessAudioPlayerDelegate {
     }
 
     public func trackChanged(_ player: RelistenGaplessAudioPlayer, previousStreamable: RelistenGaplessStreamable?, currentStreamable: RelistenGaplessStreamable?) {
-        self.sendEvent("onTrackChanged", [
+        self.sendAndLogEvent("onTrackChanged", [
             "previousIdentifier": previousStreamable?.identifier,
             "currentIdentifier": currentStreamable?.identifier
         ])
     }
 
     public func remoteControl(method: String) {
-        self.sendEvent("onRemoteControl", [
+        self.sendAndLogEvent("onRemoteControl", [
             "method": method
         ])
     }

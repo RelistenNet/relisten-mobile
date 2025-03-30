@@ -153,6 +153,7 @@ function useNavigateToCurrentTrackSheet() {
               artist,
               showUuid: show.uuid,
               sourceUuid: source?.uuid,
+              overrideGroupSegment: '(artists)',
             });
             break;
           case cancelButtonIndex:
@@ -411,13 +412,6 @@ function PlayerQueue() {
     navigation.setOptions({ title: `${orderedQueueTracks.length} Tracks` });
   }, [orderedQueueTracks.length]);
 
-  useFocusEffect(() => {
-    const idx = player.queue.currentIndex;
-    if (idx) {
-      flatlistRef.current?.scrollToIndex({ index: idx, animated: false });
-    }
-  });
-
   const triggerHaptics = useCallback(() => {
     'worklet';
 
@@ -446,11 +440,6 @@ function PlayerQueue() {
           // </TouchableOpacity>
           // </ScaleDecorator>
         )}
-        onScrollToIndexFailed={(info) => {
-          setTimeout(() => {
-            flatlistRef.current?.scrollToIndex({ index: info.index, animated: false });
-          }, 0);
-        }}
       ></ReorderableList>
     </View>
   );

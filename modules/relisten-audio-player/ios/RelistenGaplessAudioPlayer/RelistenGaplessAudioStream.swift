@@ -17,20 +17,32 @@ public class RelistenGaplessAudioStream {
     var fileOffset: DWORD
     var channelOffset: QWORD
 
-    let streamable: RelistenGaplessStreamable
-    
     var fetchingArtwork: Bool = false
     var streamableArtwork: MPMediaItemArtwork? = nil
 
     let streamCacher: RelistenStreamCacher?
 
-    public init(streamable: RelistenGaplessStreamable, streamCacher: RelistenStreamCacher?, stream: HSTREAM, preloadStarted: Bool = false, preloadFinished: Bool = false, fileOffset: DWORD = 0, channelOffset: QWORD = 0) {
+    public init(streamCacher: RelistenStreamCacher?, stream: HSTREAM, preloadStarted: Bool = false, preloadFinished: Bool = false, fileOffset: DWORD = 0, channelOffset: QWORD = 0) {
         self.preloadStarted = preloadStarted
         self.preloadFinished = preloadFinished
         self.stream = stream
         self.fileOffset = fileOffset
         self.channelOffset = channelOffset
-        self.streamable = streamable
         self.streamCacher = streamCacher
+    }
+}
+
+
+public class RelistenStreamIntent {
+    let streamable: RelistenGaplessStreamable
+    var audioStream: RelistenGaplessAudioStream? = nil
+    
+    let createdAt: Date
+    
+    public init(streamable: RelistenGaplessStreamable, createdAt: Date? = nil, audioStream: RelistenGaplessAudioStream? = nil) {
+        self.streamable = streamable
+        self.audioStream = audioStream
+        
+        self.createdAt = createdAt ?? Date()
     }
 }

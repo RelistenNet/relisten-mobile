@@ -11,15 +11,15 @@ import MediaPlayer
 extension RelistenGaplessAudioPlayer {
     func updateControlCenter() {
         self.bassQueue.async {
-            guard let activeStream = self.activeStream else {
+            guard let activeStreamIntent = self.activeStreamIntent, let activeStream = self.activeStream else {
                 return
             }
 
             var nowPlayingInfo = [String: Any]()
             // Set metadata for your media
-            nowPlayingInfo[MPMediaItemPropertyTitle] = activeStream.streamable.title
-            nowPlayingInfo[MPMediaItemPropertyArtist] = activeStream.streamable.artist
-            nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = activeStream.streamable.albumTitle
+            nowPlayingInfo[MPMediaItemPropertyTitle] = activeStreamIntent.streamable.title
+            nowPlayingInfo[MPMediaItemPropertyArtist] = activeStreamIntent.streamable.artist
+            nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = activeStreamIntent.streamable.albumTitle
 
             if let artwork = activeStream.streamableArtwork {
                 nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
@@ -48,11 +48,15 @@ extension RelistenGaplessAudioPlayer {
         .resume()
     }
     
-    func fetchAlbumArt(stream: RelistenGaplessAudioStream) {
+    func fetchAlbumArt(streamIntent: RelistenStreamIntent) {
+        guard let stream = streamIntent.audioStream else {
+            return
+        }
+        
         if !stream.fetchingArtwork && stream.streamableArtwork == nil {
             stream.fetchingArtwork = true
             
-            fetchAlbumArt(href: stream.streamable.albumArt) { [weak stream, weak self] artwork in
+            fetchAlbumArt(href: streamIntent.streamable.albumArt) { [weak stream, weak self] artwork in
                 if let stream = stream, artwork != nil {
                     stream.fetchingArtwork = false
                     stream.streamableArtwork = artwork
@@ -91,7 +95,7 @@ extension RelistenGaplessAudioPlayer {
         let oldTotalFileBytes = BASS_StreamGetFilePosition(activeStream.stream, DWORD(BASS_FILEPOS_SIZE))
 
         bassQueue.asyncAfter(deadline: .now() + .milliseconds(100)) { [self] in
-            guard let activeStream = self.activeStream else {
+            guard let activeStreamIntent, let activeStream = self.activeStream else {
                 return
             }
 
@@ -117,7 +121,7 @@ extension RelistenGaplessAudioPlayer {
                (oldKilobytes != newKilobytes || oldTotalFileBytes != totalFileBytes) {
                 // don't send download progress for a file url
                 // as BASS_FILEPOS_DOWNLOAD or BASS_FILEPOS_BUFFER return -1 here (because we are not streaming the http file)
-                if (!activeStream.streamable.url.isFileURL) {
+                if (!activeStreamIntent.streamable.url.isFileURL) {
                     sendDownloadChanged = true
                 }
             }
@@ -133,17 +137,17 @@ extension RelistenGaplessAudioPlayer {
             }
 
             if sendPlaybackChanged {
-                NSLog("[playback updates] sendPlaybackChanged")
+//                NSLog("[relisten-audio-player][playback updates] sendPlaybackChanged elapsed=\(String(describing: thisElapsed)) duration=\(String(describing: thisDuration))")
                 self.delegate?.playbackProgressChanged(self, elapsed: thisElapsed, duration: thisDuration)
             }
 
             if sendDownloadChanged {
-                NSLog("[playback updates] sendDownloadChanged")
+//                NSLog("[relisten-audio-player][playback updates] sendDownloadChanged downloadedBytes=\(downloadedBytes) totalBytes=\(totalFileBytes)")
                 self.delegate?.downloadProgressChanged(self, forActiveTrack: true, downloadedBytes: downloadedBytes, totalBytes: totalFileBytes)
             }
 
             if sendStateChanged {
-                NSLog("[playback updates] sendStateChanged")
+                NSLog("[relisten-audio-player][playback updates] sendStateChanged newPlaybackState=\(thisState)")
                 self.delegate?.playbackStateChanged(self, newPlaybackState: thisState)
             }
 
