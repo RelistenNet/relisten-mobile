@@ -12,9 +12,10 @@ Relisten Mobile is licensed under AGPLv3 - and we welcome contributions. If you 
 
 If you are on a Mac and would like to get the app running locally on iOS simulator, please:
 
+1. Clone this repository and `cd` into it
 1. Install [nodejs](https://nodejs.org/en/download) and yarn
   - We recommend installing nodejs 22 or more recent via nvm
-  - To install yarn: `npm install --global yarn`
+  - To install yarn: `npm install --global yarn && yarn`
 2. Follow these steps https://docs.expo.dev/workflow/ios-simulator to install XCode and XCode Command Line Tools
 3. [Install cocoapods](https://guides.cocoapods.org/using/getting-started.html) - you may have to use sudo: `sudo gem install cocoapods`
 4. Update your cocoapods: `cd ios && pod install && cd ..`
