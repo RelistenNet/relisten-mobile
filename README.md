@@ -8,13 +8,26 @@ Relisten Mobile is licensed under AGPLv3 - and we welcome contributions. If you 
 
 ### Running the app locally
 
+#### Mac + iOS Simulator
+
 If you are on a Mac and would like to get the app running locally on iOS simulator, please:
 
-1. Install nodejs and yarn
+1. Install [nodejs](https://nodejs.org/en/download) and yarn
+  - We recommend installing nodejs 22 or more recent via nvm
+  - To install yarn: `npm install --global yarn`
 2. Follow these steps https://docs.expo.dev/workflow/ios-simulator to install XCode and XCode Command Line Tools
-3. `npx expo run:ios -d`
+3. `npx expo run:ios -d` and select which Simulator you would like to run on
+4. You may have to hit the `r` key once the Simulator runs, it should bundle the application and render
 
 There's some more steps - we'll update this README with more instructions as we help people onboard. If you are getting set up yourself, consider taking notes and sending a PR to improve this documentation - thanks!!
+
+#### Mac + Android
+
+TODO
+
+#### Windows
+
+TODO
 
 ### Figma
 
