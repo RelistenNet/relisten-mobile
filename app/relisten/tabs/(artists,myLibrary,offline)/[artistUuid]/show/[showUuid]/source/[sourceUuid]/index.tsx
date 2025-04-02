@@ -63,6 +63,8 @@ export default function Page() {
   const player = useRelistenPlayer();
   const { artistUuid, showUuid, sourceUuid, playTrackUuid } = useLocalSearchParams();
   const settings = useUserSettings();
+  const router = useRouter();
+  const groupSegment = useGroupSegment(true);
 
   const [hasAutoplayed, setHasAutoplayed] = useState(false);
   const userSettings = useUserSettings();
@@ -142,7 +144,7 @@ export default function Page() {
       'Play Show',
       'Download Entire Show',
       'Remove All Downloads for Show',
-      'View Sources',
+      'Switch Source',
       'Toggle Favorite',
       'Cancel',
     ];
@@ -156,6 +158,7 @@ export default function Page() {
       (selectedIndex?: number) => {
         switch (selectedIndex) {
           case 0: {
+            // Share Show
             const [year, month, day] = selectedSource.displayDate.split('-');
             const url = `https://relisten.net/${artist.data?.slug}/${year}/${month}/${day}?source=${selectedSource.uuid}`;
             Share.share({
@@ -166,27 +169,42 @@ export default function Page() {
             break;
           }
           case 1:
+            // Play Show
             playShow(selectedSource?.sourceSets[0].sourceTracks[0]);
 
             break;
           case 2:
+            // Download Entire Show
             downloadShow();
             break;
 
           case 3:
+            // Remove All Downloads for Show
             removeDownloads();
             break;
 
           case 4:
+            // Switch Source
+            router.push({
+              pathname:
+                `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/sources/` as const,
+              params: {
+                artistUuid: show.artistUuid,
+                showUuid: show.uuid,
+              },
+            });
+
             break;
           case 5:
+            // Toggle Favorite
             realm.write(() => {
               selectedSource.isFavorite = !selectedSource.isFavorite;
             });
+
             break;
           case cancelButtonIndex:
+            // Cancel
             break;
-          // Canceled
         }
       }
     );
