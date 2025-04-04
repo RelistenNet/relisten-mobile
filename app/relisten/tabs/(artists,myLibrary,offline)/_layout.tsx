@@ -51,7 +51,7 @@ export default function ArtistsLayout() {
           }) => {
             return groupSegment == '(artists)' ? (
               <Image
-                source={require('../../../../assets/Relisten White.png')}
+                source={require('@/assets/Relisten White.png')}
                 style={{ width: '100%', height: 28 }}
                 resizeMode="contain"
               />
