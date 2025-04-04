@@ -22,7 +22,7 @@ export function SoundIndicator({ size, playing }: { size: number; playing: boole
       }}
       // colorFilters={[{ keypath: 'soundIndicator', color: 'red' }]}
       // from: https://lottiefiles.com/animations/sound-indicator-kRvrZVbrcJ by Jose Vittone
-      source={require('../../assets/lottie/sound_indicator.json')}
+      source={require('@/assets/lottie/sound_indicator.json')}
     />
   );
 }

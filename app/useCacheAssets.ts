@@ -26,7 +26,7 @@ export default function useCacheAssets() {
   useEffect(() => {
     async function loadResourcesAndDataAsync() {
       try {
-        const imageAssets = cacheImages([require('../assets/toolbar_relisten.png')]);
+        const imageAssets = cacheImages([require('@/assets/toolbar_relisten.png')]);
 
         const fontAssets = cacheFonts([MaterialIcons.font, MaterialCommunityIcons.font]);
 

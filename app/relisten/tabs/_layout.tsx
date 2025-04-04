@@ -40,7 +40,7 @@ export default function TabLayout() {
 
             return (
               <Image
-                source={require('../../../assets/toolbar_relisten.png')}
+                source={require('@/assets/toolbar_relisten.png')}
                 style={{ tintColor: color, width: size, height: size }}
               />
             );
