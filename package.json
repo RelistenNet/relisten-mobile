@@ -2,12 +2,12 @@
   "name": "relisten",
   "version": "1.0.0",
   "scripts": {
-    "start": "expo start --dev-client",
     "android": "expo run:android",
-    "ios": "expo run:ios",
+    "ios": "expo run:ios -d",
     "web": "expo start --web",
     "ts:check": "tsc",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "pods": "npx pod-install"
   },
   "dependencies": {
     "@expo/react-native-action-sheet": "^4.0.1",
