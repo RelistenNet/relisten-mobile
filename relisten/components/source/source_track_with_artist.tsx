@@ -1,15 +1,13 @@
-import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import Flex from '@/relisten/components/flex';
-import RowTitle from '@/relisten/components/row_title';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { SourceTrackSucceededIndicator } from '@/relisten/components/source/source_track_offline_indicator';
-import { View } from 'react-native';
 import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
-import { Link } from 'expo-router';
-import React, { PropsWithChildren } from 'react';
+import RowTitle from '@/relisten/components/row_title';
+import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
+import { SourceTrackSucceededIndicator } from '@/relisten/components/source/source_track_offline_indicator';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
-import { useGroupSegment } from '@/relisten/util/routes';
 import { ShowLink } from '@/relisten/util/push_show';
+import React, { PropsWithChildren } from 'react';
+import { View } from 'react-native';
 
 export function TrackWithArtist({
   sourceTrack,
