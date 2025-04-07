@@ -288,6 +288,7 @@ export default function Page() {
                     artist,
                     showUuid: item.track.source.show.uuid,
                     sourceUuid: item.track.source.uuid,
+                    overrideGroupSegment: '(artists)',
                   }}
                   key={item.id}
                 >
