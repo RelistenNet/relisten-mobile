@@ -4,10 +4,12 @@ import {
   TouchableOpacity,
   TouchableOpacityProps,
   View,
+  Text,
 } from 'react-native';
 import clsx from 'clsx';
 import { RelistenText } from './relisten_text';
 import React, { useState } from 'react';
+import Popover from 'react-native-popover-view';
 
 import { cva, type VariantProps } from 'class-variance-authority';
 import { tw } from '../util/tw';
@@ -65,6 +67,7 @@ export interface ButtonProps
   cn?: string;
   automaticLoadingIndicator?: boolean;
   asyncOnPress?: (event: GestureResponderEvent) => Promise<unknown>;
+  disabledPopoverText?: string;
 }
 export const RelistenButton = React.forwardRef<any, ButtonProps>(
   (
@@ -79,6 +82,7 @@ export const RelistenButton = React.forwardRef<any, ButtonProps>(
       asyncOnPress,
       onPress,
       automaticLoadingIndicator,
+      disabledPopoverText,
       ...props
     },
     ref
@@ -104,6 +108,24 @@ export const RelistenButton = React.forwardRef<any, ButtonProps>(
     if (automaticLoadingIndicator && isLoading && !icon) {
       icon = <ActivityIndicator size={8} className="mr-2" />;
       disabled = true;
+    }
+
+    if (disabled && disabledPopoverText) {
+      return (
+        <Popover
+          from={
+            <TouchableOpacity ref={ref as any} className={cls} {...props}>
+              <RelistenText className={tw('text-center font-bold', textClassName)}>
+                {children}
+              </RelistenText>
+            </TouchableOpacity>
+          }
+        >
+          <Text className="p-2" style={{ fontWeight: 'bold' }}>
+            {disabledPopoverText}
+          </Text>
+        </Popover>
+      );
     }
 
     return (
