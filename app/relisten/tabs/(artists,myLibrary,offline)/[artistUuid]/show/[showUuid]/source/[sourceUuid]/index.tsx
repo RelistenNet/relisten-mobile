@@ -40,6 +40,7 @@ import { OfflineModeSetting } from '@/relisten/realm/models/user_settings';
 import { Artist } from '@/relisten/realm/models/artist';
 import { ShowLink } from '@/relisten/util/push_show';
 import { DisclosureIndicator } from '@/relisten/components/disclosure_indicator';
+import { SourceTrackOfflineInfoStatus, SourceTrackOfflineInfoType } from '@/relisten/realm/models/source_track_offline_info';
 
 const logger = log.extend('source screen');
 
@@ -370,6 +371,15 @@ export const SourceHeader = ({
     });
   };
 
+  // If all tracks on this show have offlineInfo and it is Succeeded, then the show is fully downloaded
+  const isFullyDownloaded = source.sourceTracks.every(
+    (st) =>
+      st.offlineInfo &&
+      st.offlineInfo.type !== SourceTrackOfflineInfoType.StreamingCache &&
+      st.offlineInfo.status === SourceTrackOfflineInfoStatus.Succeeded
+  );
+  // TODO - after https://github.com/RelistenNet/relisten-mobile/pull/108 use popover for this button
+
   return (
     <View className="flex w-full items-center px-4">
       <View className="w-full">
@@ -423,6 +433,7 @@ export const SourceHeader = ({
           className="shrink basis-1/4"
           textClassName="text-l"
           onPress={() => downloadShow()}
+          disabled={isFullyDownloaded}
         >
           <MaterialIcons name="file-download" size={20} color="white" />
         </RelistenButton>
