@@ -1,4 +1,4 @@
 import main from '@switz/eslint-config/eslint.config.mjs';
 import react from '@switz/eslint-config/react.mjs';
 
-export default [...react, ...main];
+export default [...main, ...react];

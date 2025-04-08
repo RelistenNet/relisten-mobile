@@ -78,7 +78,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.23.6",
-    "@switz/eslint-config": "^12.2.0",
+    "@switz/eslint-config": "^12.3.1",
     "@types/react": "~18.3.11",
     "@types/uuid": "^10.0.0",
     "eslint": "^9.24.0",

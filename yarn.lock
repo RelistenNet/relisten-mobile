@@ -2440,10 +2440,10 @@
   resolved "https://registry.yarnpkg.com/@switz/driver/-/driver-0.10.0.tgz#bf570c3c549823bc25cb4d4f295ee957a1223f57"
   integrity sha512-suS6HhQE6x8n/UHOGSCk3rAToQKrY/+PWHp79Dbwkhqg2oygyb5Wse9OORlBWhDm5QpVZGXX/xGCgMmRxPOm8Q==
 
-"@switz/eslint-config@^12.2.0":
-  version "12.2.0"
-  resolved "https://registry.yarnpkg.com/@switz/eslint-config/-/eslint-config-12.2.0.tgz#fc003b3e974ae75d77a80c91957e9ce2f08b9b83"
-  integrity sha512-fQifTZdDQ6qly/4GxVp+dN3RGFeyd0zzd39ydAwzxBY8AVHzHqV6TyRHXU/sO7bVyCzUvZ3KD0AnohgwS9uHZw==
+"@switz/eslint-config@^12.3.1":
+  version "12.3.1"
+  resolved "https://registry.yarnpkg.com/@switz/eslint-config/-/eslint-config-12.3.1.tgz#0d0d2871a558bfdc1e80f2a283a36debdda125d0"
+  integrity sha512-2LuIjaFa1H3HqoglqZcSdXvthIgsH9/FYr3ALKjqDJ4CUDc8hOHy2n5mXTUj4ZU1QrEg8AHV15UDwyZMVBmSZw==
   dependencies:
     "@eslint/js" "^9.24.0"
     "@typescript-eslint/parser" "^8.29.1"
