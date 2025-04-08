@@ -14,7 +14,7 @@ If you are on a Mac and would like to get the app running locally on iOS simulat
 
 1. Clone this repository and `cd` into it
 1. Install [nodejs](https://nodejs.org/en/download) and yarn
-  - We recommend installing nodejs 22 or more recent via nvm
+  - We recommend installing nodejs 22 or more recent via nvm (`nvm use` to use version 22 from `.nvmrc`)
   - To install yarn: `npm install --global yarn && yarn`
 2. Follow these steps https://docs.expo.dev/workflow/ios-simulator to install XCode and XCode Command Line Tools
 4. Update your cocoapods: `npx pod-install` (or `yarn pods`)

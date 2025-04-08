@@ -11,11 +11,10 @@ import {
   useArtistRecentShows,
 } from '@/relisten/realm/models/shows/recent_shows_repo';
 import { ListRenderItem } from '@shopify/flash-list';
-import { clsx } from 'clsx';
 import dayjs from 'dayjs';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
-import { tw } from "@/relisten/util/tw";
+import { tw } from '@/relisten/util/tw';
 
 export default function Page() {
   const navigation = useNavigation();
