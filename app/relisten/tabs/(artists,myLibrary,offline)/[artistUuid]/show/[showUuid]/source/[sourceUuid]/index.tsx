@@ -475,7 +475,6 @@ export const SourceHeader = ({
               <RelistenButton
                 textClassName="text-l"
                 icon={<MaterialIcons name="source" size={20} color="white" />}
-                disabled={show.sourceCount <= 1}
               >
                 Switch Source
               </RelistenButton>

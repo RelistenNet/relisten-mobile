@@ -29,6 +29,7 @@ export function ArtistActionButtons({
             className="shrink basis-1/3"
             textClassName="text-l"
             disabled={!(artist.features().per_source_venues || artist.features().per_show_venues)}
+            disabledPopoverText="Venues feature not available for this artist"
           >
             Venues
           </RelistenButton>
@@ -46,6 +47,7 @@ export function ArtistActionButtons({
             className="shrink basis-1/3"
             textClassName="text-l"
             disabled={!artist.features().tours}
+            disabledPopoverText="Tours feature not available for this artist"
           >
             Tours
           </RelistenButton>
@@ -63,6 +65,7 @@ export function ArtistActionButtons({
             className="shrink basis-1/3"
             textClassName="text-l"
             disabled={!artist.features().songs}
+            disabledPopoverText="Songs feature not available for this artist"
           >
             Songs
           </RelistenButton>
@@ -82,6 +85,7 @@ export function ArtistActionButtons({
             className="shrink basis-1/3"
             textClassName="text-l"
             disabled={!artist.features().ratings}
+            disabledPopoverText="Top Rated feature not available for this artist"
           >
             Top Rated
           </RelistenButton>
