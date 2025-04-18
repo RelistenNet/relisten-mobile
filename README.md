@@ -6,6 +6,8 @@ This is the Relisten v6 app. It is written on top of react native, typescript, a
 
 Relisten Mobile is licensed under AGPLv3 - and we welcome contributions. If you are interested in contributing, the best way to get started is to [join our Discord](https://relisten.net/discord) and say hello in the #new-contributors channel. Here you can get help setting up the repository and figuring out what might be worthwhile to work on. In general, we graciously welcome contributions, but we also maintain some level of control over the feature-set and code quality, so it's always worth checking in with us before writing code.
 
+To keep the code base clean, use the steps below to run locally and verify your changes. Also, before checking in code and creating Pull Requests, run `yarn lint` to make sure your new code does not throw any new `lint` errors.
+
 ### Running the app locally
 
 #### Mac + iOS Simulator
