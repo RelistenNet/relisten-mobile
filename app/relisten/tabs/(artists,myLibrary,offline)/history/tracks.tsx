@@ -12,13 +12,7 @@ import {
 import { TouchableOpacity, View } from 'react-native';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import Plur from '@/relisten/components/plur';
-import { Link } from 'expo-router';
-import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
-import Flex from '@/relisten/components/flex';
-import RowTitle from '@/relisten/components/row_title';
-import { SourceTrackSucceededIndicator } from '@/relisten/components/source/source_track_offline_indicator';
-import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
-import { useGroupSegment } from '@/relisten/util/routes';
+import { SubtitleText } from '@/relisten/components/row_subtitle';
 import { ListRenderItem } from '@shopify/flash-list';
 import { TrackWithArtist } from '@/relisten/components/source/source_track_with_artist';
 import { type ParamListBase, useNavigation } from '@react-navigation/native';
