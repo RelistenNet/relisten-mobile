@@ -378,7 +378,6 @@ export const SourceHeader = ({
       st.offlineInfo.type !== SourceTrackOfflineInfoType.StreamingCache &&
       st.offlineInfo.status === SourceTrackOfflineInfoStatus.Succeeded
   );
-  // TODO - after https://github.com/RelistenNet/relisten-mobile/pull/108 use popover for this button
 
   return (
     <View className="flex w-full items-center px-4">
@@ -434,6 +433,7 @@ export const SourceHeader = ({
           textClassName="text-l"
           onPress={() => downloadShow()}
           disabled={isFullyDownloaded}
+          disabledPopoverText="This show is already fully downloaded"
         >
           <MaterialIcons name="file-download" size={20} color="white" />
         </RelistenButton>
