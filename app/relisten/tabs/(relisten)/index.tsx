@@ -1,14 +1,13 @@
 import * as fs from 'expo-file-system';
 import { RelistenButton } from '@/relisten/components/relisten_button';
-import { useRealm } from '@/relisten/realm/schema';
-import { ActivityIndicator, DevSettings, ScrollView, View } from 'react-native';
+import { ActivityIndicator, ScrollView, View } from 'react-native';
 import { useCallback, useEffect, useReducer, useState } from 'react';
 import Flex from '@/relisten/components/flex';
 import {
   OFFLINE_DIRECTORIES_LEGACY,
   OFFLINE_DIRECTORY,
 } from '@/relisten/realm/models/source_track';
-import { Link, useFocusEffect, useRouter } from 'expo-router';
+import { Link, useFocusEffect } from 'expo-router';
 import { RelistenSettings } from '@/relisten/components/settings';
 import { SectionHeader } from '@/relisten/components/section_header';
 import { RowWithAction } from '@/relisten/components/row_with_action';

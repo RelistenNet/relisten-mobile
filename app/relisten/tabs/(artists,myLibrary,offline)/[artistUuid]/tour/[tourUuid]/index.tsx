@@ -1,7 +1,7 @@
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
-import { ShowFilterKey, ShowList, ShowListContainer } from '@/relisten/components/shows_list';
+import { ShowFilterKey, ShowListContainer } from '@/relisten/components/shows_list';
 import { TourShows, useArtistTourShows } from '@/relisten/realm/models/shows/tour_shows_repo';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import Plur from '@/relisten/components/plur';
@@ -13,7 +13,7 @@ export default function Page() {
   const navigation = useNavigation();
   const { artistUuid, tourUuid } = useLocalSearchParams();
   const results = useArtistTourShows(String(artistUuid), String(tourUuid));
-  const { artist, tour } = results.data;
+  const { tour } = results.data;
   const { shows } = tour;
 
   useEffect(() => {

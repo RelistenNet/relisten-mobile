@@ -26,7 +26,6 @@ import { useGroupSegment } from '@/relisten/util/routes';
 import { useActionSheet } from '@expo/react-native-action-sheet';
 import { DownloadManager } from '@/relisten/offline/download_manager';
 import Flex from '@/relisten/components/flex';
-import Plur from '@/relisten/components/plur';
 import { log } from '@/relisten/util/logging';
 import { RelistenErrors } from '@/relisten/components/relisten_errors';
 import {
@@ -38,8 +37,11 @@ import {
 import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
 import { OfflineModeSetting } from '@/relisten/realm/models/user_settings';
 import { Artist } from '@/relisten/realm/models/artist';
-import { ShowLink } from '@/relisten/util/push_show';
 import { DisclosureIndicator } from '@/relisten/components/disclosure_indicator';
+import {
+  SourceTrackOfflineInfoStatus,
+  SourceTrackOfflineInfoType,
+} from '@/relisten/realm/models/source_track_offline_info';
 
 const logger = log.extend('source screen');
 
@@ -61,8 +63,7 @@ export default function Page() {
   const realm = useRealm();
   const navigation = useNavigation();
   const player = useRelistenPlayer();
-  const { artistUuid, showUuid, sourceUuid, playTrackUuid } = useLocalSearchParams();
-  const settings = useUserSettings();
+  const { showUuid, sourceUuid, playTrackUuid } = useLocalSearchParams();
   const router = useRouter();
   const groupSegment = useGroupSegment(true);
 
@@ -370,6 +371,14 @@ export const SourceHeader = ({
     });
   };
 
+  // If all tracks on this show have offlineInfo and it is Succeeded, then the show is fully downloaded
+  const isFullyDownloaded = source.sourceTracks.every(
+    (st) =>
+      st.offlineInfo &&
+      st.offlineInfo.type !== SourceTrackOfflineInfoType.StreamingCache &&
+      st.offlineInfo.status === SourceTrackOfflineInfoStatus.Succeeded
+  );
+
   return (
     <View className="flex w-full items-center px-4">
       <View className="w-full">
@@ -423,6 +432,8 @@ export const SourceHeader = ({
           className="shrink basis-1/4"
           textClassName="text-l"
           onPress={() => downloadShow()}
+          disabled={isFullyDownloaded}
+          disabledPopoverText="This show is already fully downloaded"
         >
           <MaterialIcons name="file-download" size={20} color="white" />
         </RelistenButton>

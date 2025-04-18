@@ -25,9 +25,8 @@ export class PlaybackHistoryReporter {
     private realm: Realm
   ) {}
 
-  // eslint-disable-next-line no-undef
   private retryTimer: NodeJS.Timeout | undefined = undefined;
-  // eslint-disable-next-line no-undef
+
   private reportTimer: NodeJS.Timeout | undefined = undefined;
 
   private networkAvailable = false;

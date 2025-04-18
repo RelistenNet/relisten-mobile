@@ -20,7 +20,6 @@ import {
 } from '@/relisten/components/filtering/filters';
 import { Song } from '@/relisten/realm/models/song';
 import { useGroupSegment } from '@/relisten/util/routes';
-import { ShowFilterKey } from '@/relisten/components/shows_list';
 
 export default function Page() {
   const { artistUuid } = useLocalSearchParams();
