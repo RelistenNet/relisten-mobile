@@ -351,7 +351,8 @@ public class RelistenGaplessAudioPlayer {
 
     // MARK: - Private properties
 
-    internal let bassQueue = DispatchQueue(label: "net.relisten.ios.bass-queue", attributes: .concurrent)
+    internal let bassQueue = DispatchQueue(label: "net.relisten.ios.bass-queue")
+    internal let networkQueue = DispatchQueue(label: "net.relisten.ios.bass-network-queue", attributes: .concurrent)
     internal var mixerMainStream: HSTREAM?
     internal var isSetup = false
 

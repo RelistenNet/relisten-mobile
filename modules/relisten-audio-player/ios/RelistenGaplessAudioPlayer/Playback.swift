@@ -45,14 +45,18 @@ extension RelistenGaplessAudioPlayer {
 
         let newIntent = RelistenStreamIntent(streamable: streamable)
         activeStreamIntent = newIntent
-        activeStream = buildStream(newIntent)
 
-        if let activeStream {
-            if let startingAtMs, startingAtMs > 0 {
-                // perform BASS level seek before mixing in the audio
-                seekToTime(startingAtMs)
-            }
-            
+        buildStream(newIntent) { [weak self] stream in
+            guard let self else { return }
+
+            self.activeStream = stream
+
+            if let activeStream = stream {
+                if let startingAtMs, startingAtMs > 0 {
+                    // perform BASS level seek before mixing in the audio
+                    self.seekToTime(startingAtMs)
+                }
+
             bass_assert(BASS_Mixer_StreamAddChannel(mixerMainStream,
                                                     activeStream.stream,
                                                     DWORD(BASS_STREAM_AUTOFREE | BASS_MIXER_NORAMPIN)))
@@ -80,9 +84,10 @@ extension RelistenGaplessAudioPlayer {
                 self.delegate?.downloadProgressChanged(self, forActiveTrack: true, downloadedBytes: newIntent.streamable.url.fileSize, totalBytes: newIntent.streamable.url.fileSize);
             }
             
-            startUpdates()
-        } else {
-            NSLog("[relisten-audio-player][bass][stream] playStreamableImmediately: activeStream nil after buildingStream from \(streamable)")
+                self.startUpdates()
+            } else {
+                NSLog("[relisten-audio-player][bass][stream] playStreamableImmediately: activeStream nil after buildingStream from \(streamable)")
+            }
         }
     }
     
@@ -145,18 +150,20 @@ extension RelistenGaplessAudioPlayer {
             //  tear down the stream cacher before building the new stream so there's no possible write lock conflict on the file
             oldActiveStreamIntent.audioStream?.streamCacher?.teardown()
 
-            let newActiveStream = buildStream(activeStreamIntent, fileOffset: fileOffset, channelOffset: seekTo)
-            self.activeStream = newActiveStream
+            buildStream(activeStreamIntent, fileOffset: fileOffset, channelOffset: seekTo) { [weak self] newActiveStream in
+                guard let self else { return }
+                self.activeStream = newActiveStream
 
-            if let newActiveStream, let mixerMainStream {
-                bass_assert(BASS_Mixer_StreamAddChannel(mixerMainStream, newActiveStream.stream, DWORD(BASS_STREAM_AUTOFREE | BASS_MIXER_NORAMPIN)))
+                if let newActiveStream, let mixerMainStream {
+                    bass_assert(BASS_Mixer_StreamAddChannel(mixerMainStream, newActiveStream.stream, DWORD(BASS_STREAM_AUTOFREE | BASS_MIXER_NORAMPIN)))
 
-                BASS_Start()
-                // the TRUE for the second argument clears the buffer to prevent bits of the old playback
-                bass_assert(BASS_ChannelPlay(mixerMainStream, 1))
+                    BASS_Start()
+                    // the TRUE for the second argument clears the buffer to prevent bits of the old playback
+                    bass_assert(BASS_ChannelPlay(mixerMainStream, 1))
 
-                if let oldActiveStream {
-                    tearDownStream(oldActiveStream)
+                    if let oldActiveStream {
+                        tearDownStream(oldActiveStream)
+                    }
                 }
             }
         } else {
