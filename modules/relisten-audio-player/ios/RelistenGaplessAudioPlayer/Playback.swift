@@ -152,6 +152,7 @@ extension RelistenGaplessAudioPlayer {
 
             buildStream(activeStreamIntent, fileOffset: fileOffset, channelOffset: seekTo) { [weak self] newActiveStream in
                 guard let self else { return }
+                
                 self.activeStream = newActiveStream
 
                 if let newActiveStream, let mixerMainStream {
