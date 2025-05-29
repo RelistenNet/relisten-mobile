@@ -10,104 +10,117 @@ import Foundation
 var allStreamCachers: [RelistenStreamCacher] = []
 
 extension RelistenGaplessAudioPlayer {
-    func buildStream(_ streamIntent: RelistenStreamIntent, fileOffset: DWORD = 0, channelOffset: QWORD = 0, attempts: Int = 2) -> RelistenGaplessAudioStream? {
+    func buildStream(_ streamIntent: RelistenStreamIntent,
+                     fileOffset: DWORD = 0,
+                     channelOffset: QWORD = 0,
+                     attempts: Int = 2,
+                     completion: @escaping (RelistenGaplessAudioStream?) -> Void) {
         dispatchPrecondition(condition: .onQueue(bassQueue))
 
         maybeSetupBASS()
 
-        var newStream: HSTREAM = 0
-        var streamCacher: RelistenStreamCacher?
         let streamable = streamIntent.streamable
-        
-        if streamable.url.isFileURL {
-            NSLog("[relisten-audio-player][bass][stream] buildStream: calling BASS_StreamCreateFile for \(streamable.identifier)")
-            newStream = BASS_StreamCreateFile(0,
-                                              streamable.url.path.cString(using: .utf8),
-                                              UInt64(fileOffset),
-                                              0,
-                                              DWORD(BASS_STREAM_DECODE | BASS_SAMPLE_FLOAT | BASS_ASYNCFILE | BASS_STREAM_PRESCAN))
-        } else {
-            let newStreamCacher = RelistenStreamCacher(self, streamable: streamable)
-            allStreamCachers.append(newStreamCacher)
-            NSLog("[relisten-audio-player] Added StreamCacher for \(newStreamCacher.streamable.identifier); \(allStreamCachers.count) total")
-            
-            streamCacher = newStreamCacher
 
-            NSLog("[relisten-audio-player][bass][stream] buildStream: calling BASS_StreamCreateURL for \(streamable.identifier) with fileOffset=\(fileOffset)")
+        networkQueue.async { [weak self] in
+            guard let self else { return }
 
-            if fileOffset == 0 {
-                newStream = BASS_StreamCreateURL(streamable.url.absoluteString.cString(using: .utf8),
-                                                 fileOffset,
-                                                 DWORD(BASS_STREAM_DECODE | BASS_SAMPLE_FLOAT),
-                                                 streamDownloadProc,
-                                                 Unmanaged.passUnretained(streamCacher!).toOpaque())
+            var newStream: HSTREAM = 0
+            var streamCacher: RelistenStreamCacher?
+
+            if streamable.url.isFileURL {
+                NSLog("[relisten-audio-player][bass][stream] buildStream: calling BASS_StreamCreateFile for \(streamable.identifier)")
+                newStream = BASS_StreamCreateFile(0,
+                                                  streamable.url.path.cString(using: .utf8),
+                                                  UInt64(fileOffset),
+                                                  0,
+                                                  DWORD(BASS_STREAM_DECODE | BASS_SAMPLE_FLOAT | BASS_ASYNCFILE | BASS_STREAM_PRESCAN))
             } else {
-                newStream = BASS_StreamCreateURL(streamable.url.absoluteString.cString(using: .utf8),
-                                                 fileOffset,
-                                                 DWORD(BASS_STREAM_DECODE | BASS_SAMPLE_FLOAT),
-                                                 nil,
-                                                 nil)
+                let newStreamCacher = RelistenStreamCacher(self, streamable: streamable)
+                allStreamCachers.append(newStreamCacher)
+                NSLog("[relisten-audio-player] Added StreamCacher for \(newStreamCacher.streamable.identifier); \(allStreamCachers.count) total")
 
+                streamCacher = newStreamCacher
+
+                NSLog("[relisten-audio-player][bass][stream] buildStream: calling BASS_StreamCreateURL for \(streamable.identifier) with fileOffset=\(fileOffset)")
+
+                if fileOffset == 0 {
+                    newStream = BASS_StreamCreateURL(streamable.url.absoluteString.cString(using: .utf8),
+                                                     fileOffset,
+                                                     DWORD(BASS_STREAM_DECODE | BASS_SAMPLE_FLOAT),
+                                                     streamDownloadProc,
+                                                     Unmanaged.passUnretained(streamCacher!).toOpaque())
+                } else {
+                    newStream = BASS_StreamCreateURL(streamable.url.absoluteString.cString(using: .utf8),
+                                                     fileOffset,
+                                                     DWORD(BASS_STREAM_DECODE | BASS_SAMPLE_FLOAT),
+                                                     nil,
+                                                     nil)
+
+                }
+            }
+
+            NSLog("[relisten-audio-player][bass][stream] buildStream: calling BASS_StreamCreate* complete for \(streamable.identifier)")
+
+            let errorCode = (newStream == 0) ? BASS_ErrorGetCode() : 0
+
+            self.bassQueue.async { [weak self] in
+                guard let self else { return }
+
+                if newStream == 0 {
+                    if errorCode == BASS_ERROR_UNKNOWN {
+                        NSLog("[relisten-audio-player][bass][stream] buildStream: error creating new stream, ignoring because it probably means setNextStream was called identifier=\(streamable.identifier): \(errorCode)")
+                        completion(nil)
+                        return
+                    }
+
+                    var err = ErrorForErrorCode(errorCode)
+
+                    let issueSource = streamable.url.host?.replacingOccurrences(of: "audio.relisten.net", with: "archive.org") ?? streamable.url.absoluteString
+
+                    if errorCode == BASS_ERROR_TIMEOUT {
+                        err = NSError(domain: "net.relisten.ios.relisten-audio-player", code: err.code, userInfo: [NSLocalizedDescriptionKey: "Server timeout: Check your Internet connection or maybe \(issueSource) is having issues"])
+                    } else if errorCode == BASS_ERROR_FILEFORM {
+                        err = NSError(domain: "net.relisten.ios.relisten-audio-player", code: err.code, userInfo: [NSLocalizedDescriptionKey: "Non-audio content: \(issueSource) did not provide audio, maybe there are server issues"])
+                    }
+
+                    NSLog("[relisten-audio-player][bass][stream] buildStream: error creating new stream identifier=\(streamable.identifier): %d %@", err.code, err.localizedDescription)
+
+                    DispatchQueue.main.async {
+                        self.delegate?.errorStartingStream(self, error: err, forStreamable: streamable)
+                    }
+
+                    completion(nil)
+                    return
+                }
+
+                bass_assert(BASS_ChannelSetSync(newStream,
+                                                DWORD(BASS_SYNC_MIXTIME | BASS_SYNC_DOWNLOAD),
+                                                0,
+                                                streamDownloadCompleteSyncProc,
+                                                Unmanaged.passUnretained(self).toOpaque()))
+
+                bass_assert(BASS_ChannelSetSync(newStream,
+                                                DWORD(BASS_SYNC_MIXTIME | BASS_SYNC_STALL),
+                                                0,
+                                                streamStallSyncProc,
+                                                Unmanaged.passUnretained(self).toOpaque()))
+
+                NSLog("[relisten-audio-player][bass][stream] created new stream: %u. identifier=%@", newStream, streamable.identifier)
+
+                let stream = RelistenGaplessAudioStream(
+                    streamCacher: streamCacher,
+                    stream: newStream,
+                    fileOffset: fileOffset,
+                    channelOffset: channelOffset
+                )
+
+                streamIntent.audioStream = stream
+
+                self.fetchAlbumArt(streamIntent: streamIntent)
+
+                completion(stream)
             }
         }
-        
-        NSLog("[relisten-audio-player][bass][stream] buildStream: calling BASS_StreamCreate* complete for \(streamable.identifier)")
-
-
-        // oops
-        if newStream == 0 {
-            let code = BASS_ErrorGetCode()
-            
-            if (code == BASS_ERROR_UNKNOWN) {
-                NSLog("[relisten-audio-player][bass][stream] buildStream: error creating new stream, ignoring because it probably means setNextStream was called identifier=\(streamable.identifier): \(code)")
-                return nil
-            }
-            
-            var err = ErrorForErrorCode(code)
-            
-            let issueSource = streamable.url.host?.replacingOccurrences(of: "audio.relisten.net", with: "archive.org") ?? streamable.url.absoluteString
-            
-            if (code == BASS_ERROR_TIMEOUT) {
-                err = NSError(domain: "net.relisten.ios.relisten-audio-player", code: err.code, userInfo: [NSLocalizedDescriptionKey: "Server timeout: Check your Internet connection or maybe \(issueSource) is having issues"])
-            } else if (code == BASS_ERROR_FILEFORM) {
-                err = NSError(domain: "net.relisten.ios.relisten-audio-player", code: err.code, userInfo: [NSLocalizedDescriptionKey: "Non-audio content: \(issueSource) did not provide audio, maybe there are server issues"])
-            }
-
-            NSLog("[relisten-audio-player][bass][stream] buildStream: error creating new stream identifier=\(streamable.identifier): %d %@", err.code, err.localizedDescription)
-
-            DispatchQueue.main.async {
-                self.delegate?.errorStartingStream(self, error: err, forStreamable: streamable)
-            }
-
-            return nil
-        }
-
-        bass_assert(BASS_ChannelSetSync(newStream,
-                                        DWORD(BASS_SYNC_MIXTIME | BASS_SYNC_DOWNLOAD),
-                                        0,
-                                        streamDownloadCompleteSyncProc,
-                                        Unmanaged.passUnretained(self).toOpaque()))
-
-        bass_assert(BASS_ChannelSetSync(newStream,
-                                        DWORD(BASS_SYNC_MIXTIME | BASS_SYNC_STALL),
-                                        0,
-                                        streamStallSyncProc,
-                                        Unmanaged.passUnretained(self).toOpaque()))
-
-        NSLog("[relisten-audio-player][bass][stream] created new stream: %u. identifier=%@", newStream, streamable.identifier)
-
-        let stream = RelistenGaplessAudioStream(
-            streamCacher: streamCacher,
-            stream: newStream,
-            fileOffset: fileOffset,
-            channelOffset: channelOffset
-        )
-        
-        streamIntent.audioStream = stream
-        
-        fetchAlbumArt(streamIntent: streamIntent)
-        
-        return stream
     }
 
     func startPreloadingNextStream() {
@@ -118,11 +131,14 @@ extension RelistenGaplessAudioPlayer {
 
         NSLog("[relisten-audio-player][bass][preloadNextTrack] Preloading next track \(nextStreamIntent.streamable.identifier)")
         
-        nextStream = buildStream(nextStreamIntent)
+        buildStream(nextStreamIntent) { [weak self] stream in
+            guard let self else { return }
+            self.nextStream = stream
 
-        if let nextStream {
-            BASS_ChannelUpdate(nextStream.stream, 0)
-            nextStream.preloadStarted = true
+            if let nextStream = stream {
+                BASS_ChannelUpdate(nextStream.stream, 0)
+                nextStream.preloadStarted = true
+            }
         }
     }
 }
