@@ -81,7 +81,7 @@ public class RelistenGaplessAudioPlayer {
 
         let len = BASS_ChannelGetLength(activeStream.stream, DWORD(BASS_POS_BYTE))
 
-        if len == DWORD(bitPattern: -1) {
+        if len == QWORD(bitPattern: -1) {
             return nil
         }
 
@@ -95,7 +95,7 @@ public class RelistenGaplessAudioPlayer {
 
         let elapsedBytes = BASS_ChannelGetPosition(activeStream.stream, DWORD(BASS_POS_BYTE))
 
-        if elapsedBytes == DWORD(bitPattern: -1) {
+        if elapsedBytes == QWORD(bitPattern: -1) {
             return nil
         }
 
