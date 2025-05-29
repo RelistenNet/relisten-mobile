@@ -140,6 +140,7 @@ extension RelistenGaplessAudioPlayer {
             NSLog("[relisten-audio-player][bass][stream] Seek %% (%f/%u) is greater than downloaded %% (%f/%llu) OR seek channel byte (%llu) < start channel offset (%llu). Opening new stream.", pct, fileOffset, downloadedPct, downloadedBytes, seekTo, activeStream.channelOffset)
 
             let oldActiveStreamIntent = activeStreamIntent
+            let oldActiveStream = activeStreamIntent.audioStream
 
             //  tear down the stream cacher before building the new stream so there's no possible write lock conflict on the file
             oldActiveStreamIntent.audioStream?.streamCacher?.teardown()
@@ -154,7 +155,9 @@ extension RelistenGaplessAudioPlayer {
                 // the TRUE for the second argument clears the buffer to prevent bits of the old playback
                 bass_assert(BASS_ChannelPlay(mixerMainStream, 1))
 
-                tearDownStream(oldActiveStreamIntent)
+                if let oldActiveStream {
+                    tearDownStream(oldActiveStream)
+                }
             }
         } else {
             bass_assert(BASS_ChannelSetPosition(activeStream.stream, seekTo - activeStream.channelOffset, DWORD(BASS_POS_BYTE)))

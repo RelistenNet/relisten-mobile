@@ -55,26 +55,33 @@ extension RelistenGaplessAudioPlayer {
         isSetup = false
 
         if let activeStreamIntent {
-            tearDownStream(activeStreamIntent)
+            tearDownStreamIntent(activeStreamIntent)
             self.activeStreamIntent = nil
         }
 
         if let nextStreamIntent {
-            tearDownStream(nextStreamIntent)
+            tearDownStreamIntent(nextStreamIntent)
             self.nextStreamIntent = nil
         }
 
         BASS_Free()
     }
 
-    func tearDownStream(_ streamIntent: RelistenStreamIntent) {
+    func tearDownStreamIntent(_ streamIntent: RelistenStreamIntent) {
         guard let relistenStream = streamIntent.audioStream else {
             return
         }
         
+        NSLog("[relisten-audio-player][bass][stream] tearing down stream identifier=\(streamIntent.streamable.identifier) handle=\(relistenStream.stream)")
+        
+        tearDownStream(relistenStream)
+        streamIntent.audioStream = nil
+    }
+    
+    func tearDownStream(_ relistenStream: RelistenGaplessAudioStream) {
         let stream = relistenStream.stream
 
-        NSLog("[relisten-audio-player][bass][stream] tearing down stream \(streamIntent.streamable.identifier)")
+        NSLog("[relisten-audio-player][bass][stream] tearing down stream handle=\(relistenStream.stream)")
 
         // stop channels to allow them to be freed
         BASS_ChannelStop(stream)
@@ -136,7 +143,7 @@ extension RelistenGaplessAudioPlayer {
                 currentState = .Stopped
 
                 if let activeStreamIntent {
-                    tearDownStream(activeStreamIntent)
+                    tearDownStreamIntent(activeStreamIntent)
                     self.activeStreamIntent = nil
                 }
             }

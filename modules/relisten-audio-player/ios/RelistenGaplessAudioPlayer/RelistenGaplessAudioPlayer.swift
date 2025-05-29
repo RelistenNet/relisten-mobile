@@ -227,7 +227,7 @@ public class RelistenGaplessAudioPlayer {
     func maybeTearDownActiveStream() {
         if let activeStreamIntent {
             NSLog("[relisten-audio-player] tearing down activeStream=\(activeStreamIntent.streamable.identifier)")
-            tearDownStream(activeStreamIntent)
+            tearDownStreamIntent(activeStreamIntent)
             self.activeStreamIntent = nil
         }
     }
@@ -235,7 +235,7 @@ public class RelistenGaplessAudioPlayer {
     func maybeTearDownNextStream() {
         if let nextStreamIntent {
             NSLog("[relisten-audio-player] tearing down nextStream=\(nextStreamIntent.streamable.identifier)")
-            tearDownStream(nextStreamIntent)
+            tearDownStreamIntent(nextStreamIntent)
             self.nextStreamIntent = nil
         }
     }
@@ -279,7 +279,7 @@ public class RelistenGaplessAudioPlayer {
         self.maybeSetupBASS()
 
         if let activeStreamIntent {
-            self.tearDownStream(activeStreamIntent)
+            self.tearDownStreamIntent(activeStreamIntent)
             self.activeStreamIntent = nil
         }
         
