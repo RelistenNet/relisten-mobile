@@ -26,9 +26,9 @@ import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { type ParamListBase, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
-import { router, useFocusEffect } from 'expo-router';
-import React, { LegacyRef, useCallback, useEffect, useRef } from 'react';
-import { FlatList, Platform, Share, TouchableOpacity, View } from 'react-native';
+import { router } from 'expo-router';
+import React, { useCallback, useEffect } from 'react';
+import { Platform, Share, TouchableOpacity, View } from 'react-native';
 import AirPlayButton from 'react-native-airplay-button';
 import { HapticModeEnum, Slider } from 'react-native-awesome-slider';
 import { runOnJS, useSharedValue } from 'react-native-reanimated';
@@ -36,7 +36,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Progress from 'react-native-progress';
 import ReorderableList, { useReorderableDrag } from 'react-native-reorderable-list';
 import { ReorderableListReorderEvent } from 'react-native-reorderable-list/src/types/props';
-import * as Sharing from 'expo-sharing';
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 
 export function ScrubberRow() {
@@ -406,7 +405,6 @@ function PlayerQueue() {
   const player = useRelistenPlayer();
   const orderedQueueTracks = useRelistenPlayerQueueOrderedTracks();
   const navigation = useNavigation<NativeStackNavigationProp<ParamListBase>>();
-  const flatlistRef = useRef<FlatList<PlayerQueueTrack>>();
 
   useEffect(() => {
     navigation.setOptions({ title: `${orderedQueueTracks.length} Tracks` });
@@ -425,7 +423,6 @@ function PlayerQueue() {
   return (
     <View className="flex-1">
       <ReorderableList
-        ref={flatlistRef as unknown as LegacyRef<FlatList<PlayerQueueTrack>>}
         onReorder={onReorder}
         className="w-full flex-1"
         data={orderedQueueTracks}

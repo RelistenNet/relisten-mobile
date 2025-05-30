@@ -3,9 +3,7 @@ import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Stack } from 'expo-router/stack';
 import { useEffect } from 'react';
-import { HeaderTitleProps } from '@react-navigation/elements/src/types';
 import { Image } from 'react-native';
-import { NativeStackHeaderProps } from '@react-navigation/native-stack/src/types';
 
 export default function ArtistsLayout() {
   const bottomTabBarHeight = useBottomTabBarHeight();

@@ -21,7 +21,9 @@
     ],
     "ios": {
       "appStoreUrl": "https://apps.apple.com/us/app/relisten-all-live-music/id715886886",
-      "associatedDomains": ["applinks:relisten.net"],
+      "associatedDomains": [
+        "applinks:relisten.net"
+      ],
       "supportsTablet": true,
       "bundleIdentifier": "com.alecgorge.ios.Listen-to-the-Dead",
       "infoPlist": {
@@ -32,6 +34,7 @@
       "buildNumber": "6014"
     },
     "android": {
+      "edgeToEdgeEnabled": true,
       "playStoreUrl": "https://play.google.com/store/apps/details?id=net.relisten.android",
       "intentFilters": [
         {
@@ -49,7 +52,10 @@
               "pathPrefix": "/"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ],
       "adaptiveIcon": {
@@ -89,11 +95,10 @@
         {
           "organization": "relisten-zp",
           "project": "relisten-mobile",
-          // If you are using a self-hosted instance, update the value of the url property
-          // to point towards your self-hosted instance. For example, https://self-hosted.example.com/.
           "url": "https://sentry.io/"
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "extra": {
       "router": {
