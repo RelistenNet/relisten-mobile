@@ -413,6 +413,10 @@ export class RelistenApiClient {
     artistUuid?: string,
     options?: RelistenApiRequestOptions
   ): Promise<RelistenApiResponse<Show[]>> {
-    return this.getJson('/v2/shows/today', options);
+    const now = new Date();
+    return this.getJson(
+      `/v2/shows/today?month=${now.getMonth() + 1}&day=${now.getDate()}`,
+      options
+    );
   }
 }
