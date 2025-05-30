@@ -79,7 +79,7 @@ export function useSourceTrackContextMenu() {
               const [year, month, day] = sourceTrack.show.displayDate.split('-');
               const url = `https://relisten.net/${sourceTrack.artist.slug}/${year}/${month}/${day}/${sourceTrack.slug}?source=${sourceTrack.source.uuid}`;
               Share.share({
-                message: `Check out ${sourceTrack.title} from ${sourceTrack.show.displayDate} by ${sourceTrack.artist?.name} on @relistenapp${Platform.OS === 'ios' ? '' : `: ${url}`}`,
+                message: `Check out ${sourceTrack.title} (${sourceTrack.humanizedDuration}) from ${sourceTrack.show.displayDate} by ${sourceTrack.artist?.name} on @relistenapp${Platform.OS === 'ios' ? '' : `: ${url}`}`,
                 url: url,
               }).then(() => {});
 
