@@ -78,7 +78,7 @@ public class RelistenStreamCacher {
 
         if file == nil {
             do {
-                if !FileManager.default.fileExists(atPath: downloadDestination.absoluteString) {
+                if !FileManager.default.fileExists(atPath: downloadDestination.path) {
                     // you must create the file before opening a file handle
                     try FileManager.default.createDirectory(at: downloadDestination.deletingLastPathComponent(), withIntermediateDirectories: true)
 
