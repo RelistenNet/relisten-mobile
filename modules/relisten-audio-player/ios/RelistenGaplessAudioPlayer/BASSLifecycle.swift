@@ -63,8 +63,9 @@ extension RelistenGaplessAudioPlayer {
             tearDownStreamIntent(nextStreamIntent)
             self.nextStreamIntent = nil
         }
-
+        
         BASS_Free()
+        self.mixerMainStream = nil
     }
 
     func tearDownStreamIntent(_ streamIntent: RelistenStreamIntent) {
