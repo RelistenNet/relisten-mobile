@@ -66,7 +66,12 @@ const DownloadStatusTime = ({ item }: { item: SourceTrackOfflineInfo }) => {
     );
   }
 
-  return <SubtitleText>Queued {dayjs(item.queuedAt).fromNow()}</SubtitleText>;
+  return (
+    <SubtitleText>
+      Queued {dayjs(item.queuedAt).fromNow()}
+      {item.errorInfo ? `\n${item.errorInfo}` : ''}
+    </SubtitleText>
+  );
 };
 
 const OfflineHeader = ({ downloads }: { downloads: Realm.Results<SourceTrackOfflineInfo> }) => {

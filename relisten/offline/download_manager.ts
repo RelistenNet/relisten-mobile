@@ -415,14 +415,21 @@ export class DownloadManager {
         this.maybeStartQueuedDownloads().then(() => {});
       })
       .catch((error) => {
-        log.error(`error downloading ${downloadTask.id}`, error);
+        log.warn(`error downloading ${downloadTask.id}`, error);
 
         realm.write(() => {
           logger.debug(`${downloadTask.id}: error; ${JSON.stringify(error)}`);
 
-          offlineInfo.status = SourceTrackOfflineInfoStatus.Failed;
-          offlineInfo.completedAt = new Date();
           offlineInfo.errorInfo = JSON.stringify(error);
+
+          if (!offlineInfo.errorInfo) {
+            // first failure, let it try again
+            offlineInfo.status = SourceTrackOfflineInfoStatus.Queued;
+            offlineInfo.startedAt = undefined;
+          } else {
+            offlineInfo.status = SourceTrackOfflineInfoStatus.Failed;
+            offlineInfo.completedAt = new Date();
+          }
         });
 
         this.statsig.logEvent(trackDownloadFailureEvent(sourceTrack, offlineInfo));
