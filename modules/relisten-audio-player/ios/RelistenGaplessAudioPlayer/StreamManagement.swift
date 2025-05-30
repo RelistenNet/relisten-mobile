@@ -36,8 +36,7 @@ extension RelistenGaplessAudioPlayer {
                                                   DWORD(BASS_STREAM_DECODE | BASS_SAMPLE_FLOAT | BASS_ASYNCFILE | BASS_STREAM_PRESCAN))
             } else {
                 let newStreamCacher = RelistenStreamCacher(self, streamable: streamable)
-                allStreamCachers.append(newStreamCacher)
-                NSLog("[relisten-audio-player] Added StreamCacher for \(newStreamCacher.streamable.identifier); \(allStreamCachers.count) total")
+                NSLog("[relisten-audio-player] Added StreamCacher for \(newStreamCacher.streamable.identifier); \(allStreamCachers.count) existing")
 
                 streamCacher = newStreamCacher
 
@@ -91,6 +90,11 @@ extension RelistenGaplessAudioPlayer {
 
                     completion(nil)
                     return
+                }
+                
+                if let streamCacher {
+                    // only add the stream cacher after error handling to ensure there's no leak
+                    allStreamCachers.append(streamCacher)
                 }
 
                 bass_assert(BASS_ChannelSetSync(newStream,
