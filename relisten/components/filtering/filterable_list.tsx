@@ -1,5 +1,6 @@
 import { log } from '@/relisten/util/logging';
 import React, { useMemo } from 'react';
+import { Text } from 'react-native';
 import { RelistenObject } from '../../api/models/relisten';
 import {
   RelistenSectionData,
@@ -161,6 +162,15 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
 
         if (sectionTitle === HIDDEN_SECTION_SENTINEL) {
           return <></>;
+        }
+
+        if (props.headerComponent) {
+          return (
+            <>
+              <SectionHeader title={sectionTitle} />
+              <View>{props.headerComponent}</View>
+            </>
+          );
         }
 
         return <SectionHeader title={sectionTitle} />;

@@ -35,8 +35,47 @@ import { DownloadManager } from '@/relisten/offline/download_manager';
 import { log } from '@/relisten/util/logging';
 import { useFileSystemInfo } from '@/app/relisten/tabs/(relisten)';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ArtistShowsOnThisDayTray } from '@/relisten/pages/artist/artist_shows_on_this_day_tray';
+import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
+import { useRelistenApi } from '@/relisten/api/context';
+import { sample } from 'remeda';
 
 const logger = log.extend('home-screen');
+
+const FavoritesSectionHeader = ({ favorites }: { favorites: Artist[] }) => {
+  const { apiClient } = useRelistenApi();
+  const { pushShow } = usePushShowRespectingUserSettings();
+
+  const playRandomShow = async () => {
+    const randomFavorite = sample([...favorites], 1)[0]!;
+    const randomShow = await apiClient.randomShow(randomFavorite.uuid);
+
+    console.log('randomFavorite', randomFavorite);
+    console.log('randomShow', randomShow);
+
+    if (randomShow?.data?.uuid) {
+      pushShow({
+        artist: randomFavorite,
+        showUuid: randomShow!.data!.uuid,
+        overrideGroupSegment: '(artists)',
+      });
+    }
+  };
+
+  return (
+    <View style={{ margin: 10 }}>
+      <RelistenButton
+        className="m-2"
+        onPress={() => {
+          playRandomShow();
+        }}
+      >
+        Random Show
+      </RelistenButton>
+      <ArtistShowsOnThisDayTray artist={favorites[0]} />
+    </View>
+  );
+};
 
 const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) => {
   const nextRoute = useRoute('[artistUuid]');
@@ -124,8 +163,10 @@ const ArtistsList = ({ artists, ...props }: ArtistsListProps) => {
 
     if (!isOfflineTab) {
       if (favorites.length > 0) {
+        console.log(favorites);
         r.push({
           sectionTitle: 'Favorites',
+          headerComponent: <FavoritesSectionHeader favorites={favorites} />,
           data: favorites,
         });
       }
