@@ -22,10 +22,10 @@ class TodayShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavio
   private emitter = new EventEmitter();
 
   constructor(
-    public artistUuid?: string,
+    public artistUuids?: string[],
     options?: NetworkBackedBehaviorOptions
   ) {
-    super(artistUuid, options);
+    super(artistUuids, options);
   }
 
   fetchFromApi(
@@ -34,7 +34,7 @@ class TodayShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavio
   ): Promise<RelistenApiResponse<ApiShow[] | undefined>> {
     const refreshOptions = api.refreshOptions(forcedRefresh) || {};
 
-    return api.todayShows(this.artistUuid, {
+    return api.todayShows({
       bypassRateLimit: true,
       bypassEtagCaching: true,
       ...refreshOptions,
@@ -53,10 +53,10 @@ class TodayShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavio
     return useQuery(
       Show,
       (query) =>
-        this.artistUuid
-          ? query.filtered('uuid in $0', showUuids).filtered('artistUuid == $0', this.artistUuid)
+        this.artistUuids
+          ? query.filtered('uuid in $0', showUuids).filtered('artistUuid in $0', this.artistUuids)
           : query.filtered('uuid in $0', showUuids),
-      [this.artistUuid, showUuids]
+      [this.artistUuids, showUuids]
     );
   }
 
@@ -72,12 +72,12 @@ class TodayShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavio
   }
 }
 
-export const useTodayShows = (artistUuid?: string) => {
+export const useTodayShows = (artistUuids?: string[]) => {
   const behavior = useMemo(() => {
-    return new TodayShowsNetworkBackedBehavior(artistUuid, {
+    return new TodayShowsNetworkBackedBehavior(artistUuids, {
       fetchStrategy: NetworkBackedBehaviorFetchStrategy.NetworkAlwaysFirst,
     });
-  }, [artistUuid]);
+  }, [artistUuids]);
 
   return useNetworkBackedBehavior(behavior);
 };

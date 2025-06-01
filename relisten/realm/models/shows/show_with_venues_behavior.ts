@@ -13,7 +13,7 @@ export abstract class ShowsWithVenueNetworkBackedBehavior extends ThrottledNetwo
   ApiShow[]
 > {
   constructor(
-    public artistUuid?: string,
+    public artistUuid?: string[],
     options?: NetworkBackedBehaviorOptions
   ) {
     super(options);

@@ -72,7 +72,7 @@ const FavoritesSectionHeader = ({ favorites }: { favorites: Artist[] }) => {
       >
         Random Show
       </RelistenButton>
-      <ArtistShowsOnThisDayTray artist={favorites[0]} />
+      <ArtistShowsOnThisDayTray artists={favorites} />
     </View>
   );
 };
