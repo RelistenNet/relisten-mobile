@@ -8,7 +8,7 @@ import { useMemo } from 'react';
 import { ScrollView, View } from 'react-native';
 
 export function ArtistShowsOnThisDayTray({ artists }: { artists: Artist[] }) {
-  const todayShows = useTodayShows(artists?.map((artist) => artist.uuid));
+  const todayShows = useTodayShows(...artists.map((artist) => artist.uuid));
 
   const sortedShows = useMemo(() => {
     const shows = [...todayShows.data];

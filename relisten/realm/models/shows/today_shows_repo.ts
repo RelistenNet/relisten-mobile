@@ -72,12 +72,12 @@ class TodayShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavio
   }
 }
 
-export const useTodayShows = (artistUuids?: string[]) => {
+export const useTodayShows = (...artistUuids: string[]) => {
   const behavior = useMemo(() => {
     return new TodayShowsNetworkBackedBehavior(artistUuids, {
       fetchStrategy: NetworkBackedBehaviorFetchStrategy.NetworkAlwaysFirst,
     });
-  }, [artistUuids]);
+  }, [...artistUuids]);
 
   return useNetworkBackedBehavior(behavior);
 };
