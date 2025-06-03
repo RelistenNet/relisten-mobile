@@ -50,9 +50,6 @@ const FavoritesSectionHeader = ({ favorites }: { favorites: Artist[] }) => {
     const randomFavorite = sample([...favorites], 1)[0]!;
     const randomShow = await apiClient.randomShow(randomFavorite.uuid);
 
-    console.log('randomFavorite', randomFavorite);
-    console.log('randomShow', randomShow);
-
     if (randomShow?.data?.uuid) {
       pushShow({
         artist: randomFavorite,
@@ -64,12 +61,7 @@ const FavoritesSectionHeader = ({ favorites }: { favorites: Artist[] }) => {
 
   return (
     <View style={{ margin: 10 }}>
-      <RelistenButton
-        className="m-2"
-        onPress={() => {
-          playRandomShow();
-        }}
-      >
+      <RelistenButton className="m-2" asyncOnPress={playRandomShow} automaticLoadingIndicator>
         Random Show
       </RelistenButton>
       <ArtistShowsOnThisDayTray artists={favorites} />
