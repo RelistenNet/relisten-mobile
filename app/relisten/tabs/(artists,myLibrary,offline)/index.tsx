@@ -158,7 +158,6 @@ const ArtistsList = ({ artists, ...props }: ArtistsListProps) => {
 
     if (!isOfflineTab) {
       if (favorites.length > 0) {
-        console.log(favorites);
         r.push({
           sectionTitle: 'Favorites',
           headerComponent: <FavoritesSectionHeader favorites={favorites} />,
