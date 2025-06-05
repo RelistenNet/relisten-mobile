@@ -1,11 +1,8 @@
-/** @type {import('tailwindcss').Config} */
-// tailwind.config.js
-// const nativewind = require('nativewind/tailwind/native');
-
 const { RelistenBlue } = require('./relisten/relisten_blue');
 
 const baseFontSize = 14;
 
+/** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
     './App.{js,jsx,ts,tsx}',
@@ -32,5 +29,6 @@ module.exports = {
       },
     },
   },
+  presets: [require('nativewind/preset')],
   // plugins: [nativewind()],
 };

@@ -20,11 +20,7 @@ export function ShowCardContainer({
 } & ViewProps &
   PropsWithChildren) {
   return (
-    <View
-      className={tw('w-[168px] shrink pl-1 pr-1 first:pl-0 last:pr-0', cn, className)}
-      ref={innerRef}
-      {...props}
-    >
+    <View className={tw('w-[22rem] shrink', cn, className)} ref={innerRef} {...props}>
       {children}
     </View>
   );
@@ -64,7 +60,12 @@ export function ShowCardContents({
     <View className={tw('rounded-lg bg-gray-600 p-2', className)} ref={innerRef} {...props}>
       {title}
       {subtitle && (
-        <RelistenText selectable={false} className={tw('pt-1', textClassName)}>
+        <RelistenText
+          selectable={false}
+          className={tw('pt-1', textClassName)}
+          numberOfLines={1}
+          ellipsizeMode="middle"
+        >
           {subtitle}
         </RelistenText>
       )}

@@ -1,3 +1,5 @@
+import '@/relisten/global.css';
+
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-get-random-values';
 import 'react-native-reanimated';

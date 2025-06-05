@@ -74,6 +74,7 @@ export const RelistenButton = React.forwardRef<any, ButtonProps>(
     {
       children,
       cn,
+      className,
       icon,
       intent,
       rounded,
@@ -87,7 +88,7 @@ export const RelistenButton = React.forwardRef<any, ButtonProps>(
     },
     ref
   ) => {
-    const cls = tw(buttonVariants({ disabled, intent, rounded }), cn);
+    const cls = tw(buttonVariants({ disabled, intent, rounded }), cn, className);
 
     const [isLoading, setIsLoading] = useState<boolean>(false);
 

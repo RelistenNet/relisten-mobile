@@ -6,6 +6,7 @@ import { Artist } from '@/relisten/realm/models/artist';
 import { useTodayShows } from '@/relisten/realm/models/shows/today_shows_repo';
 import { useMemo } from 'react';
 import { ScrollView, View } from 'react-native';
+import Flex from '@/relisten/components/flex';
 
 export function ArtistShowsOnThisDayTray({ artists }: { artists: Artist[] }) {
   const todayShows = useTodayShows(...artists.map((artist) => artist.uuid));
@@ -32,18 +33,25 @@ export function ArtistShowsOnThisDayTray({ artists }: { artists: Artist[] }) {
         </RelistenText>
       </View>
       <ScrollView horizontal className="mb-1 pb-3 pl-3">
-        {todayShows.isNetworkLoading && sortedShows.length == 0 ? (
-          <ShowCardLoader
-            showArtist={artists.length > 1}
-            showVenue={
-              artists[0].features().per_source_venues || artists[0].features().per_show_venues
-            }
-          />
-        ) : (
-          sortedShows.map((show) => (
-            <ShowCard show={show} key={show.uuid} root="artists" showArtist={artists.length > 1} />
-          ))
-        )}
+        <Flex className="gap-x-2">
+          {todayShows.isNetworkLoading && sortedShows.length == 0 ? (
+            <ShowCardLoader
+              showArtist={artists.length > 1}
+              showVenue={
+                artists[0].features().per_source_venues || artists[0].features().per_show_venues
+              }
+            />
+          ) : (
+            sortedShows.map((show) => (
+              <ShowCard
+                show={show}
+                key={show.uuid}
+                root="artists"
+                showArtist={artists.length > 1}
+              />
+            ))
+          )}
+        </Flex>
       </ScrollView>
     </RefreshContextProvider>
   );
