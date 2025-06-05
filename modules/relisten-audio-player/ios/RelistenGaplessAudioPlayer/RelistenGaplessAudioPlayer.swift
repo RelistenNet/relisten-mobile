@@ -426,7 +426,9 @@ public class RelistenGaplessAudioPlayer {
     internal var latestDebouncedStreamIntent: RelistenStreamIntent? = nil
 
     deinit {
-        maybeTearDownBASS()
-        tearDownAudioSession()
+        bassQueue.sync {
+            maybeTearDownBASS()
+            tearDownAudioSession()
+        }
     }
 }
