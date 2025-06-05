@@ -425,7 +425,7 @@ ${indentString(this.queue.debugState(true))}
   };
 
   private onNativePlayerError = (error: RelistenErrorEvent) => {
-    logger.error('Native playback error', error);
+    logger.warn('Native playback error', error);
 
     sharedStatsigClient().logEvent(trackPlaybackErrorEvent(this.queue.currentTrack?.sourceTrack));
 

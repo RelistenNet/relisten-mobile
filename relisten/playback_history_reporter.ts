@@ -131,7 +131,7 @@ export class PlaybackHistoryReporter {
       const res = await this.attemptReport(entry);
 
       if (res.error) {
-        logger.error(
+        logger.warn(
           `Error reporting ${entry.uuid}. Will try again in 30s; ${JSON.stringify(res.error)}`
         );
 
