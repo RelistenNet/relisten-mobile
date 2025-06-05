@@ -133,6 +133,7 @@ export function Stagger({
                   runOnJS(onExitFinished)();
                 }
               })}
+            // @ts-expect-error child.props is unknown
             style={[child.props.style]}
           >
             {child}
