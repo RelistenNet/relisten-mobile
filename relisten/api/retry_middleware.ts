@@ -1,3 +1,5 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-nocheck
 /**
  * This file is from https://github.com/elbywan/wretch/blob/master/src/middlewares/retry.ts
  *

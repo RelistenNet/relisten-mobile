@@ -164,7 +164,7 @@ function openRealmDatabase() {
 }
 
 // Example of using the schemas
-async function exampleUsage() {
+export async function exampleUsage() {
   const realm = await openRealmDatabase();
 
   try {
@@ -177,7 +177,7 @@ async function exampleUsage() {
       .objects('OfflineTrack')
       .filtered('state = $0', OfflineTrackState.DOWNLOADED);
 
-    console.log(`You have ${downloadedTracks.length} offline sources`, downloadedTracks);
+    console.log(`You have ${downloadedTracks.length} offline tracks`, downloadedTracks);
 
     const offlineSources = realm.objects('OfflineSource');
     console.log(`You have ${offlineSources.length} offline sources`, offlineSources);

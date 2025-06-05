@@ -6,6 +6,7 @@ import { Stack } from 'expo-router/stack';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { useEffect } from 'react';
 import { DownloadManager } from '@/relisten/offline/download_manager';
+import * as oldIosSchema from '@/relisten/realm/old_ios_schema';
 
 export default function TabLayout() {
   const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
@@ -18,6 +19,14 @@ export default function TabLayout() {
       }, 5000);
     }
   }, [shouldMakeNetworkRequests]);
+
+  // Test accessing old schema
+  // useEffect(() => {
+  //   (async () => {
+  //     console.log('TRYING OLD SCHEMA');
+  //     await oldIosSchema.exampleUsage();
+  //   })();
+  // }, []);
 
   return (
     <Stack screenOptions={{ headerShown: false }}>

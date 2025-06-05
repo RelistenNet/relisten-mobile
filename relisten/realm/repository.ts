@@ -4,6 +4,7 @@ import dayjs from 'dayjs';
 import * as R from 'remeda';
 import { log } from '../util/logging';
 import { groupByUuid } from '@/relisten/util/group_by';
+// @ts-expect-error tsc doesn't like it but this works? AnyRealmObject is exported from 'realm' but RealmObject is not
 import { RealmObject } from 'realm/dist/public-types/Object';
 
 const logger = log.extend('repo');
