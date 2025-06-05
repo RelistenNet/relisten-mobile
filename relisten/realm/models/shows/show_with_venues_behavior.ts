@@ -12,10 +12,7 @@ export abstract class ShowsWithVenueNetworkBackedBehavior extends ThrottledNetwo
   Realm.Results<Show>,
   ApiShow[]
 > {
-  constructor(
-    public artistUuid?: string[],
-    options?: NetworkBackedBehaviorOptions
-  ) {
+  constructor(options?: NetworkBackedBehaviorOptions) {
     super(options);
   }
 

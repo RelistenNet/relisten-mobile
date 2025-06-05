@@ -25,7 +25,7 @@ class TodayShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavio
     public artistUuids?: string[],
     options?: NetworkBackedBehaviorOptions
   ) {
-    super(artistUuids, options);
+    super(options);
   }
 
   fetchFromApi(

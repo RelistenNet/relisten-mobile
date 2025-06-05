@@ -12,9 +12,19 @@ import {
 } from '@/relisten/api/client';
 import { useQuery } from '@/relisten/realm/schema';
 import { ShowsWithVenueNetworkBackedBehavior } from '@/relisten/realm/models/shows/show_with_venues_behavior';
-import { NetworkBackedBehaviorFetchStrategy } from '@/relisten/realm/network_backed_behavior';
+import {
+  NetworkBackedBehaviorFetchStrategy,
+  NetworkBackedBehaviorOptions,
+} from '@/relisten/realm/network_backed_behavior';
 
 class TopShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavior {
+  constructor(
+    public artistUuid: string,
+    options?: NetworkBackedBehaviorOptions
+  ) {
+    super(options);
+  }
+
   fetchFromApi(
     api: RelistenApiClient,
     forcedRefresh: boolean

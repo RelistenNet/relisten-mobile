@@ -28,7 +28,7 @@ class RecentShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavi
     public activeTab?: RecentShowTabs,
     options?: NetworkBackedBehaviorOptions
   ) {
-    super(artistUuid, options);
+    super(options);
   }
 
   fetchFromApi(
