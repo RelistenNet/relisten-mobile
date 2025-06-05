@@ -14,6 +14,7 @@ public class RelistenStreamCacher {
     weak var player: RelistenGaplessAudioPlayer?
 
     var complete = false
+    var tearDownCalled = false
     var failedToCreateFile = false
 
     var file: FileHandle?
@@ -28,13 +29,21 @@ public class RelistenStreamCacher {
     }
 
     func teardown() {
+        if tearDownCalled {
+            return
+        }
+        
+        tearDownCalled = true
+        
         if !complete {
             deleteFile()
         }
     }
 
     func writeData(_ data: Data) {
-        assert(!self.complete)
+        if complete || tearDownCalled {
+            return
+        }
 
         do {
             try writeDataUnsafe(data)
@@ -44,15 +53,17 @@ public class RelistenStreamCacher {
     }
     
     private func sendProgressUpdate(bytes: Int?) {
-        if (player != nil) {
-            if let activeStreamIntent = player?.activeStreamIntent, let activeStream = player?.activeStream {
+        player?.bassQueue.async { [weak self] in
+            if let self, let player = self.player, let activeStreamIntent = player.activeStreamIntent, let activeStream = player.activeStream {
                 let isActiveTrack = activeStreamIntent.streamable.identifier == streamable.identifier;
 
                 let totalFileBytes = BASS_StreamGetFilePosition(activeStream.stream, DWORD(BASS_FILEPOS_SIZE))
                 
                 let downloadedBytes = if let bytes { UInt64(bytes) } else { totalFileBytes }
 
-                player?.delegate?.downloadProgressChanged(player!, forActiveTrack: isActiveTrack, downloadedBytes: downloadedBytes, totalBytes: totalFileBytes)
+                player.delegateQueue.async {
+                    player.delegate?.downloadProgressChanged(player, forActiveTrack: isActiveTrack, downloadedBytes: downloadedBytes, totalBytes: totalFileBytes)
+                }
             }
         }
     }
@@ -111,6 +122,10 @@ public class RelistenStreamCacher {
     }
 
     func finishWritingData() {
+        if complete || tearDownCalled {
+            return
+        }
+
         if let file = file {
             do {
                 try file.close()
@@ -118,7 +133,11 @@ public class RelistenStreamCacher {
                 complete = true
 
                 // emit event
-                player?.delegate?.streamingCacheCompleted(forStreamable: streamable, bytesWritten: bytesWritten)
+                player?.delegateQueue.async { [weak self] in
+                    guard let self else { return }
+                    
+                    player?.delegate?.streamingCacheCompleted(forStreamable: streamable, bytesWritten: bytesWritten)
+                }
                 self.sendProgressUpdate(bytes: nil)
             } catch {
                 NSLog("[relisten-audio-player][bass][stream caching] Failed to close file=\(file) for streamable=\(streamable.identifier). Error=\(error)")

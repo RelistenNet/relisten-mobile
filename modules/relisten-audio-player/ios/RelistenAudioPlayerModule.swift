@@ -45,8 +45,10 @@ public class RelistenAudioPlayerModule: Module {
         }
         
         OnDestroy {
-            player?.stop()
-            player?.maybeTearDownBASS()
+            player?.bassQueue.sync {
+                player?.stop()
+                player?.maybeTearDownBASS()
+            }
             
             player = nil
         }
@@ -62,19 +64,27 @@ public class RelistenAudioPlayerModule: Module {
         )
 
         Function("currentDuration") {
-            return player?.currentDuration
+            return player?.bassQueue.sync {
+                return player?.currentDuration
+            }
         }
 
         Function("currentState") {
-            return player?.currentState ?? .Stopped
+            return player?.bassQueue.sync {
+                return player?.currentState ?? .Stopped
+            }
         }
 
         Function("currentStateStr") {
-            return String(describing: player?.currentState ?? .Stopped)
+            return player?.bassQueue.sync {
+                return String(describing: player?.currentState ?? .Stopped)
+            }
         }
 
         Function("elapsed") {
-            return player?.elapsed
+            return player?.bassQueue.sync {
+                return player?.elapsed
+            }
         }
 
         Function("volume") {
@@ -86,7 +96,9 @@ public class RelistenAudioPlayerModule: Module {
         }
 
         Function("prepareAudioSession") {
-            player?.prepareAudioSession()
+            return player?.bassQueue.sync {
+                player?.prepareAudioSession()
+            }
         }
 
         AsyncFunction("playbackProgress") { (promise: Promise) in

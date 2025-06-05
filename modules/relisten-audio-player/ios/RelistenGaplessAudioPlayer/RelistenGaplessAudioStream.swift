@@ -38,11 +38,13 @@ public class RelistenStreamIntent {
     var audioStream: RelistenGaplessAudioStream? = nil
     
     let createdAt: Date
+    let startingAtMs: Int64?
     
-    public init(streamable: RelistenGaplessStreamable, createdAt: Date? = nil, audioStream: RelistenGaplessAudioStream? = nil) {
+    public init(streamable: RelistenGaplessStreamable, createdAt: Date? = nil, audioStream: RelistenGaplessAudioStream? = nil, startingAtMs: Int64? = nil) {
         self.streamable = streamable
         self.audioStream = audioStream
         
         self.createdAt = createdAt ?? Date()
+        self.startingAtMs = startingAtMs
     }
 }

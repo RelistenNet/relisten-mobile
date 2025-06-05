@@ -10,31 +10,43 @@ import MediaPlayer
 
 extension RelistenGaplessAudioPlayer {
     func updateControlCenter() {
-        self.bassQueue.async {
-            guard let activeStreamIntent = self.activeStreamIntent, let activeStream = self.activeStream else {
+        // important to make sure currentDuration and elapsed calls are consistent. BASS is threadsafe but Relisten's
+        // stream references are not thread safe.
+        self.bassQueue.async { [weak self] in
+            guard let self, let activeStreamIntent = self.activeStreamIntent else {
                 return
             }
 
             var nowPlayingInfo = [String: Any]()
-            // Set metadata for your media
+
             nowPlayingInfo[MPMediaItemPropertyTitle] = activeStreamIntent.streamable.title
             nowPlayingInfo[MPMediaItemPropertyArtist] = activeStreamIntent.streamable.artist
             nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = activeStreamIntent.streamable.albumTitle
 
-            if let artwork = activeStream.streamableArtwork {
-                nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
+            if let activeStream = self.activeStream {
+                if let artwork = activeStream.streamableArtwork {
+                    nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
+                }
+
+                // Set the playback duration and current playback time
+                nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = self.currentDuration // in seconds
+                nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = self.elapsed // in seconds
+
+                // Set the playback rate (0.0 for paused, 1.0 for playing)
+                nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = self.currentState == .Playing ? 1.0 : 0.0
             }
 
-            // Set the playback duration and current playback time
-            nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = self.currentDuration // in seconds
-            nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = self.elapsed // in seconds
-
-            // Set the playback rate (0.0 for paused, 1.0 for playing)
-            nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = 1.0
-
             // Set the nowPlayingInfo
-            DispatchQueue.main.async {
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                
                 MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+                
+                if commandCenter.nextTrackCommand.isEnabled == false || commandCenter.previousTrackCommand.isEnabled == false {
+                    NSLog("[relisten-audio-player][playbackUpdates] nextTrackCommand.isEnabled == \(commandCenter.nextTrackCommand.isEnabled)")
+                    NSLog("[relisten-audio-player][playbackUpdates] previousTrackCommand.isEnabled == \(commandCenter.previousTrackCommand.isEnabled)")
+                    addCommandCenterListeners()
+                }
             }
         }
     }
@@ -83,6 +95,8 @@ extension RelistenGaplessAudioPlayer {
     }
 
     func startUpdates() {
+        dispatchPrecondition(condition: .onQueue(bassQueue))
+        
         guard let activeStream else {
             return
         }
@@ -138,17 +152,23 @@ extension RelistenGaplessAudioPlayer {
 
             if sendPlaybackChanged {
 //                NSLog("[relisten-audio-player][playback updates] sendPlaybackChanged elapsed=\(String(describing: thisElapsed)) duration=\(String(describing: thisDuration))")
-                self.delegate?.playbackProgressChanged(self, elapsed: thisElapsed, duration: thisDuration)
+                delegateQueue.async {
+                    self.delegate?.playbackProgressChanged(self, elapsed: thisElapsed, duration: thisDuration)
+                }
             }
 
             if sendDownloadChanged {
 //                NSLog("[relisten-audio-player][playback updates] sendDownloadChanged downloadedBytes=\(downloadedBytes) totalBytes=\(totalFileBytes)")
-                self.delegate?.downloadProgressChanged(self, forActiveTrack: true, downloadedBytes: downloadedBytes, totalBytes: totalFileBytes)
+                delegateQueue.async {
+                    self.delegate?.downloadProgressChanged(self, forActiveTrack: true, downloadedBytes: downloadedBytes, totalBytes: totalFileBytes)
+                }
             }
 
             if sendStateChanged {
                 NSLog("[relisten-audio-player][playback updates] sendStateChanged newPlaybackState=\(thisState)")
-                self.delegate?.playbackStateChanged(self, newPlaybackState: thisState)
+                delegateQueue.async {
+                    self.delegate?.playbackStateChanged(self, newPlaybackState: thisState)
+                }
             }
 
             startUpdates()

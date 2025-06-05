@@ -7,28 +7,57 @@
 
 import Foundation
 
-var allStreamCachers: [RelistenStreamCacher] = []
+/// A class to provide threadsafe access to the underlying array of StreamCachers
+class StreamCacherRegistry {
+    public static let sharedInstance = StreamCacherRegistry()
+    
+    internal let queue = DispatchQueue(label: "net.relisten.ios.stream-cacher-registry")
+    internal var allStreamCachers: [RelistenStreamCacher] = []
+    
+    func register(_ newStreamCacher: RelistenStreamCacher) {
+        queue.sync {
+            NSLog("[relisten-audio-player] Adding StreamCacher for \(newStreamCacher.streamable.identifier); \(allStreamCachers.count) existing")
+            allStreamCachers.append(newStreamCacher)
+        }
+    }
+    
+    func discard(_ streamCacher: RelistenStreamCacher) {
+        queue.sync {
+            if let idx = allStreamCachers.firstIndex(where: { $0.streamable.identifier == streamCacher.streamable.identifier }) {
+                NSLog("[relisten-audio-player] Removing StreamCacher for \(streamCacher.streamable.identifier) at idx=\(idx); \(allStreamCachers.count - 1) remaining")
+                allStreamCachers.remove(at: idx)
+            }
+        }
+    }
+}
 
 extension RelistenGaplessAudioPlayer {
+    /// completion is always called on bassQueue
     func buildStream(_ streamIntent: RelistenStreamIntent,
                      fileOffset: DWORD = 0,
                      channelOffset: QWORD = 0,
                      attempts: Int = 3,
-                     completion: @escaping (RelistenGaplessAudioStream?) -> Void) {
-        dispatchPrecondition(condition: .onQueue(bassQueue))
-
-        maybeSetupBASS()
+                     completion: @escaping (RelistenGaplessAudioStream?) -> Void,
+                     isRetry: Bool = false) {
+        assert(isSetup)
 
         let streamable = streamIntent.streamable
+        
+        if (!isRetry) {
+            dispatchPrecondition(condition: .onQueue(bassQueue))
+            numberOfStreamsFetching += 1
+        }
 
         networkQueue.async { [weak self] in
             guard let self else { return }
 
             var newStream: HSTREAM = 0
             var streamCacher: RelistenStreamCacher?
-
+            
+            let timingStart = DispatchTime.now()
+            
             if streamable.url.isFileURL {
-                NSLog("[relisten-audio-player][bass][stream] buildStream: calling BASS_StreamCreateFile for \(streamable.identifier)")
+                NSLog("[relisten-audio-player][bass][stream][] buildStream: calling BASS_StreamCreateFile for \(streamable.identifier) numberOfStreamsFetching=\(numberOfStreamsFetching)")
                 newStream = BASS_StreamCreateFile(0,
                                                   streamable.url.path.cString(using: .utf8),
                                                   UInt64(fileOffset),
@@ -36,11 +65,10 @@ extension RelistenGaplessAudioPlayer {
                                                   DWORD(BASS_STREAM_DECODE | BASS_SAMPLE_FLOAT | BASS_ASYNCFILE | BASS_STREAM_PRESCAN))
             } else {
                 let newStreamCacher = RelistenStreamCacher(self, streamable: streamable)
-                NSLog("[relisten-audio-player] Added StreamCacher for \(newStreamCacher.streamable.identifier); \(allStreamCachers.count) existing")
-
+                
                 streamCacher = newStreamCacher
 
-                NSLog("[relisten-audio-player][bass][stream] buildStream: calling BASS_StreamCreateURL for \(streamable.identifier) with fileOffset=\(fileOffset)")
+                NSLog("[relisten-audio-player][bass][stream] buildStream: calling BASS_StreamCreateURL for \(streamable.identifier) with fileOffset=\(fileOffset) numberOfStreamsFetching=\(numberOfStreamsFetching)")
 
                 if fileOffset == 0 {
                     newStream = BASS_StreamCreateURL(streamable.url.absoluteString.cString(using: .utf8),
@@ -58,17 +86,15 @@ extension RelistenGaplessAudioPlayer {
                 }
             }
 
-            NSLog("[relisten-audio-player][bass][stream] buildStream: calling BASS_StreamCreate* complete for \(streamable.identifier)")
+            let timingEnd = DispatchTime.now()
+            let streamCreationDurationMs = Int(Double(timingEnd.uptimeNanoseconds - timingStart.uptimeNanoseconds) / 1e6)
+            
+            let host = streamable.url.host ?? "<unknown host>"
+            NSLog("[relisten-audio-player][bass][stream] buildStream: calling BASS_StreamCreate* complete in \(streamCreationDurationMs)ms (\(host)) for stream=\(newStream) identifer=\(streamable.identifier) numberOfStreamsFetching=\(numberOfStreamsFetching)")
 
             let errorCode = (newStream == 0) ? BASS_ErrorGetCode() : 0
 
-            if newStream == 0 {
-                if errorCode == BASS_ERROR_UNKNOWN {
-                    NSLog("[relisten-audio-player][bass][stream] buildStream: error creating new stream, ignoring because it probably means setNextStream was called identifier=\(streamable.identifier): \(errorCode)")
-                    completion(nil)
-                    return
-                }
-
+            if newStream == 0 {	
                 var err = ErrorForErrorCode(errorCode)
 
                 let issueSource = streamable.url.host?.replacingOccurrences(of: "audio.relisten.net", with: "archive.org") ?? streamable.url.absoluteString
@@ -79,30 +105,33 @@ extension RelistenGaplessAudioPlayer {
                     err = NSError(domain: "net.relisten.ios.relisten-audio-player", code: err.code, userInfo: [NSLocalizedDescriptionKey: "Non-audio content: \(issueSource) did not provide audio, maybe there are server issues"])
                 }
 
-                NSLog("[relisten-audio-player][bass][stream] buildStream: error creating new stream identifier=\(streamable.identifier): %d %@", err.code, err.localizedDescription)
+                NSLog("[relisten-audio-player][bass][stream] buildStream: error creating new streamr stream=\(newStream) identifier=\(streamable.identifier): %d %@", err.code, err.localizedDescription)
                 
                 if (attempts - 1) > 0 {
                     NSLog("[relisten-audio-player][bass][stream] buildStream: retrying for identifier=\(streamable.identifier)")
                     
-                    buildStream(streamIntent, fileOffset: fileOffset, channelOffset: channelOffset, attempts: attempts - 1, completion: completion)
+                    buildStream(streamIntent, fileOffset: fileOffset, channelOffset: channelOffset, attempts: attempts - 1, completion: completion, isRetry: true)
                 } else {
-                    DispatchQueue.main.async {
+                    self.delegateQueue.async {
                         self.delegate?.errorStartingStream(self, error: err, forStreamable: streamable)
                     }
 
-                    self.bassQueue.async {
+                    self.bassQueue.async { [weak self] in
+                        guard let self else { return }
+                        
+                        self.numberOfStreamsFetching -= 1
                         completion(nil)
                     }
                 }
 
                 return
             }
-            
+                        
             if let streamCacher {
                 // only add the stream cacher after error handling to ensure there's no leak
-                allStreamCachers.append(streamCacher)
+                StreamCacherRegistry.sharedInstance.register(streamCacher)
             }
-            
+
             self.bassQueue.async { [weak self] in
                 guard let self else { return }
 
@@ -118,7 +147,7 @@ extension RelistenGaplessAudioPlayer {
                                                 streamStallSyncProc,
                                                 Unmanaged.passUnretained(self).toOpaque()))
 
-                NSLog("[relisten-audio-player][bass][stream] created new stream: %u. identifier=%@", newStream, streamable.identifier)
+                NSLog("[relisten-audio-player][bass][stream] created new stream=%u identifier=%@", newStream, streamable.identifier)
 
                 let stream = RelistenGaplessAudioStream(
                     streamCacher: streamCacher,
@@ -131,6 +160,7 @@ extension RelistenGaplessAudioPlayer {
 
                 self.fetchAlbumArt(streamIntent: streamIntent)
 
+                numberOfStreamsFetching -= 1
                 completion(stream)
             }
         }
@@ -138,14 +168,26 @@ extension RelistenGaplessAudioPlayer {
 
     func startPreloadingNextStream() {
         // don't start loading anything until the active stream has finished
-        guard let nextStreamIntent, activeStream?.preloadFinished == true else {
+        guard let startingNextStreamIntent = nextStreamIntent, activeStream?.preloadFinished == true else {
             return
         }
 
-        NSLog("[relisten-audio-player][bass][preloadNextTrack] Preloading next track \(nextStreamIntent.streamable.identifier)")
+        NSLog("[relisten-audio-player][bass][preloadNextTrack] Preloading next track \(startingNextStreamIntent.streamable.identifier)")
         
-        buildStream(nextStreamIntent) { [weak self] stream in
+        buildStream(startingNextStreamIntent) { [weak self] stream in
             guard let self else { return }
+            
+            if startingNextStreamIntent.streamable.identifier != self.nextStreamIntent?.streamable.identifier {
+                NSLog("[relisten-audio-player][bass][stream] startPreloadingNextStream: next stream intent changed during buildStream for \(startingNextStreamIntent.streamable.identifier)")
+
+                if let stream {
+                    NSLog("[relisten-audio-player][bass][stream] startPreloadingNextStream: tearing down BASS audio stream for \(startingNextStreamIntent.streamable.identifier)")
+                    tearDownStream(stream)
+                }
+                
+                return
+            }
+            
             self.nextStream = stream
 
             if let nextStream = stream {
@@ -164,19 +206,17 @@ internal var streamDownloadProc: @convention(c) (_ buffer: UnsafeRawPointer?,
                                                         let streamCacher: RelistenStreamCacher = Unmanaged.fromOpaque(streamCacherPtr).takeUnretainedValue()
 
                                                         if let safeBuffer = buffer, length > 0 {
-                                                            let data = Data(bytes: safeBuffer, count: Int(length))
-                                                            streamCacher.writeData(data)
-                                                        } else {
-                                                            streamCacher.finishWritingData()
-                                                            
-                                                            // Remove the extra reference that prevented crashes when the streamIntents get cleaned up
-                                                            for (idx, cacher) in allStreamCachers.enumerated() {
-                                                                if cacher.streamable.identifier == streamCacher.streamable.identifier {
-                                                                    NSLog("[relisten-audio-player] Removing StreamCacher for \(streamCacher.streamable.identifier) at idx=\(idx); \(allStreamCachers.count - 1) remaining")
-                                                                    allStreamCachers.remove(at: idx)
-                                                                    break
-                                                                }
+                                                            if !streamCacher.tearDownCalled {
+                                                                let data = Data(bytes: safeBuffer, count: Int(length))
+                                                                streamCacher.writeData(data)
                                                             }
+                                                        } else {
+                                                            if !streamCacher.tearDownCalled {
+                                                                streamCacher.finishWritingData()
+                                                            }
+                                                            
+                                                            // This should not be called earlier because as long as this proc is called, the pointer needs to be valid.
+                                                            StreamCacherRegistry.sharedInstance.discard(streamCacher)
                                                         }
                                                     }
                                                  }

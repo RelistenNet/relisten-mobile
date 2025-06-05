@@ -45,6 +45,8 @@ extension RelistenGaplessAudioPlayer {
     }
 
     func maybeTearDownBASS() {
+        dispatchPrecondition(condition: .onQueue(bassQueue))
+
         NSLog("[relisten-audio-player] maybeTearDownBASS")
 
         if !isSetup {
@@ -69,6 +71,8 @@ extension RelistenGaplessAudioPlayer {
     }
 
     func tearDownStreamIntent(_ streamIntent: RelistenStreamIntent) {
+        dispatchPrecondition(condition: .onQueue(bassQueue))
+
         guard let relistenStream = streamIntent.audioStream else {
             return
         }
@@ -80,18 +84,38 @@ extension RelistenGaplessAudioPlayer {
     }
     
     func tearDownStream(_ relistenStream: RelistenGaplessAudioStream) {
+        dispatchPrecondition(condition: .onQueue(bassQueue))
+
         let stream = relistenStream.stream
 
         NSLog("[relisten-audio-player][bass][stream] tearing down stream handle=\(relistenStream.stream)")
 
         // stop channels to allow them to be freed
-        BASS_ChannelStop(stream)
+        if BASS_ChannelStop(stream) == 0 {
+            NSLog("[relisten-audio-player][bass][stream] error calling BASS_ChannelStop(stream): \(BASS_ErrorGetCode())")
+        }
 
         // remove this stream from the mixer
         // not assert'd because sometimes it should fail (i.e. hasn't been added to the mixer yet)
-        BASS_Mixer_ChannelRemove(stream)
+        let mixerError = BASS_Mixer_ChannelRemove(stream)
+        var errorCode: Int32? = nil
+        
+        if mixerError == 0 {
+            errorCode = BASS_ErrorGetCode()
+            NSLog("[relisten-audio-player][bass][stream] error calling BASS_Mixer_ChannelRemove(stream): \(errorCode!)")
+        }
 
-        BASS_StreamFree(stream)
+        // BASS_StreamFree will *crash* if the handle is invalid
+        if errorCode == nil || errorCode != BASS_ERROR_HANDLE {
+            if BASS_StreamFree(stream) == 0 {
+                NSLog("[relisten-audio-player][bass][stream] error calling BASS_StreamFree(stream): \(BASS_ErrorGetCode())")
+            }
+        } else {
+            NSLog("[relisten-audio-player][bass][stream] skipping BASS_StreamFree(stream), got BASS_ERROR_HANDLE from BASS_Mixer_ChannelRemove(stream)")
+        }
+        
+        // Do NOT call StreamCacherRegistry.sharedInstance.discard(streamCacher) here:
+        // It could remove the last strong reference, causing streamDownloadProc to segfault (exc_bad_access)
 
         relistenStream.streamCacher?.teardown()
     }
@@ -99,9 +123,9 @@ extension RelistenGaplessAudioPlayer {
     // MARK: - BASS Event Listeners
 
     func mixInNextStream(completedStream: HSTREAM?) {
-        NSLog("[relisten-audio-player] mixInNextStream completedStream=\(String(describing: completedStream))")
-        
         dispatchPrecondition(condition: .onQueue(bassQueue))
+
+        NSLog("[relisten-audio-player] mixInNextStream completedStream=\(String(describing: completedStream))")
 
         guard let mixerMainStream else {
             return
@@ -130,8 +154,8 @@ extension RelistenGaplessAudioPlayer {
                 streamDownloadComplete(nextStream.stream)
             }
             
-            DispatchQueue.main.async {
-                self.delegate?.trackChanged(self, previousStreamable: previousStreamIntent?.streamable, currentStreamable: self.activeStreamIntent?.streamable)
+            delegateQueue.async {
+                self.delegate?.trackChanged(self, previousStreamable: previousStreamIntent?.streamable, currentStreamable: nextStreamIntent.streamable)
             }
         } else if let nextStreamIntent {
             NSLog("[relisten-audio-player][bass][stream] have nextStreamIntent \(nextStreamIntent.streamable.identifier) but no nextStream, calling playStreamableImmediately")
@@ -149,7 +173,7 @@ extension RelistenGaplessAudioPlayer {
                 }
             }
             
-            DispatchQueue.main.async {
+            delegateQueue.async {
                 self.delegate?.trackChanged(self, previousStreamable: previousStreamIntent?.streamable, currentStreamable: nil)
             }
         }

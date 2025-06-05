@@ -29,64 +29,117 @@ extension RelistenGaplessAudioPlayer {
         NSLog("[relisten-audio-player][bass][stream] playStreamableImmediately: streamable \(streamable.identifier) startingAtMs=\(String(describing: startingAtMs))")
         
         dispatchPrecondition(condition: .onQueue(bassQueue))
-
+        
         maybeSetupBASS()
-
+        
+        guard let mixerMainStream else {
+            assertionFailure("playStreamableImmediately: mixerMainStream is nil after setting up BASS")
+            return
+        }
+        
+        // stop playback
+        bass_assert(BASS_ChannelStop(mixerMainStream))
+        
+        self.maybeTearDownActiveStream()
+        self.maybeTearDownNextStream()
+        
+        let newIntent = RelistenStreamIntent(streamable: streamable, startingAtMs: startingAtMs)
+        activeStreamIntent = newIntent
+        updateControlCenter()
+        
+        if numberOfStreamsFetching >= 2 {
+            // If we already have a network request in flight, do not create another one immediately. This ensures that we
+            // make at maximum one HTTP request every 500ms to prevent creating a huge backlog for BASS to work through. This
+            // helps optimize the case where someone hits next frequently.
+            //
+            // Note that we allow the first 2 requests to be < 500ms apart to optimze pressing the next button once.
+            
+            NSLog("[relisten-audio-player][bass][stream] playStreamableImmediately: debouncing: newIntent=\(newIntent.streamable.identifier) numberOfStreamsFetching=\(numberOfStreamsFetching)")
+            
+            latestDebouncedStreamIntent = newIntent
+            
+            bassQueue.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                // latestDebouncedStreamIntent must not be nil, otherwise it means something got through to build immediately
+                guard let self else { return }
+                
+                if self.latestDebouncedStreamIntent?.streamable.identifier != newIntent.streamable.identifier {
+                    NSLog("[relisten-audio-player][bass][stream] playStreamableImmediately: debounce work item changed, skipping: latestDebouncedStreamIntent=\(self.latestDebouncedStreamIntent?.streamable.identifier ?? "nil") newIntent=\(newIntent.streamable.identifier) numberOfStreamsFetching=\(self.numberOfStreamsFetching)")
+                    return
+                }
+                
+                NSLog("[relisten-audio-player][bass][stream] playStreamableImmediately: calling buildStreamAndPlayImmediately after debounce: newIntent=\(newIntent.streamable.identifier) numberOfStreamsFetching=\(self.numberOfStreamsFetching)")
+                
+                self.latestDebouncedStreamIntent = nil
+                self.buildStreamAndPlayImmediately(newIntent)
+            }
+        } else {
+            NSLog("[relisten-audio-player][bass][stream] playStreamableImmediately: building imediately; newIntent=\(newIntent.streamable.identifier) numberOfStreamsFetching=\(numberOfStreamsFetching)")
+            
+            latestDebouncedStreamIntent = nil
+            buildStreamAndPlayImmediately(newIntent)
+        }
+    }
+    
+    private func buildStreamAndPlayImmediately(_ newIntent: RelistenStreamIntent) {
         guard let mixerMainStream else {
             assertionFailure("playStreamableImmediately: mixerMainStream is nil after setting up BASS")
             return
         }
 
-        // stop playback
-        bass_assert(BASS_ChannelStop(mixerMainStream))
-
-        self.maybeTearDownActiveStream()
-        self.maybeTearDownNextStream()
-
-        let newIntent = RelistenStreamIntent(streamable: streamable)
-        activeStreamIntent = newIntent
-
         buildStream(newIntent) { [weak self] stream in
             guard let self else { return }
+            
+            if newIntent.streamable.identifier != self.activeStreamIntent?.streamable.identifier {
+                NSLog("[relisten-audio-player][bass][stream] buildStreamAndPlayImmediately: stream intent changed during buildStream for \(newIntent.streamable.identifier)")
+
+                if let stream {
+                    NSLog("[relisten-audio-player][bass][stream] buildStreamAndPlayImmediately: tearing down BASS audio stream for \(newIntent.streamable.identifier)")
+                    tearDownStream(stream)
+                }
+                
+                return
+            }
 
             self.activeStream = stream
 
             if let activeStream = stream {
-                if let startingAtMs, startingAtMs > 0 {
+                if let startingAtMs = newIntent.startingAtMs, startingAtMs > 0 {
                     // perform BASS level seek before mixing in the audio
                     self.seekToTime(startingAtMs)
                 }
 
-            bass_assert(BASS_Mixer_StreamAddChannel(mixerMainStream,
-                                                    activeStream.stream,
-                                                    DWORD(BASS_STREAM_AUTOFREE | BASS_MIXER_NORAMPIN)))
+                bass_assert(BASS_Mixer_StreamAddChannel(mixerMainStream,
+                                                        activeStream.stream,
+                                                        DWORD(BASS_STREAM_AUTOFREE | BASS_MIXER_NORAMPIN)))
 
-            // Make sure BASS is started, just in case we had paused it earlier
-            BASS_Start()
-            NSLog("[relisten-audio-player][bass][stream] playStreamableImmediately: BASS_Start() called")
+                // Make sure BASS is started, just in case we had paused it earlier
+                BASS_Start()
+                NSLog("[relisten-audio-player][bass][stream] buildStreamAndPlayImmediately: BASS_Start() called")
 
-            // the TRUE for the second argument clears the buffer so there isn't old sound playing
-            bass_assert(BASS_ChannelPlay(mixerMainStream, 1))
+                // the TRUE for the second argument clears the buffer so there isn't old sound playing
+                bass_assert(BASS_ChannelPlay(mixerMainStream, 1))
 
-            DispatchQueue.main.async {
-                self.delegate?.trackChanged(self, previousStreamable: nil, currentStreamable: newIntent.streamable)
-            }
+                delegateQueue.async {
+                    self.delegate?.trackChanged(self, previousStreamable: nil, currentStreamable: newIntent.streamable)
+                }
 
-            currentState = .Playing
+                currentState = .Playing
 
-            updateControlCenter()
+                updateControlCenter()
 
-            // this is needed because the stream download events don't fire for local music
-            if newIntent.streamable.url.isFileURL {
-                // this will call nextTrackChanged and setupInactiveStreamWithNext
-                streamDownloadComplete(activeStream.stream)
-                // also trigger downloadProgress update since it won't be triggered or accurate for a local file
-                self.delegate?.downloadProgressChanged(self, forActiveTrack: true, downloadedBytes: newIntent.streamable.url.fileSize, totalBytes: newIntent.streamable.url.fileSize);
-            }
+                // this is needed because the stream download events don't fire for local music
+                if newIntent.streamable.url.isFileURL {
+                    // this will call nextTrackChanged and setupInactiveStreamWithNext
+                    streamDownloadComplete(activeStream.stream)
+                    // also trigger downloadProgress update since it won't be triggered or accurate for a local file
+                    delegateQueue.async {
+                        self.delegate?.downloadProgressChanged(self, forActiveTrack: true, downloadedBytes: newIntent.streamable.url.fileSize, totalBytes: newIntent.streamable.url.fileSize);
+                    }
+                }
             
                 self.startUpdates()
             } else {
-                NSLog("[relisten-audio-player][bass][stream] playStreamableImmediately: activeStream nil after buildingStream from \(streamable)")
+                NSLog("[relisten-audio-player][bass][stream] buildStreamAndPlayImmediately: activeStream nil after buildingStream from \(newIntent.streamable)")
             }
         }
     }
@@ -150,8 +203,19 @@ extension RelistenGaplessAudioPlayer {
             //  tear down the stream cacher before building the new stream so there's no possible write lock conflict on the file
             oldActiveStreamIntent.audioStream?.streamCacher?.teardown()
 
-            buildStream(activeStreamIntent, fileOffset: fileOffset, channelOffset: seekTo) { [weak self] newActiveStream in
+            buildStream(oldActiveStreamIntent, fileOffset: fileOffset, channelOffset: seekTo) { [weak self] newActiveStream in
                 guard let self else { return }
+                
+                if oldActiveStreamIntent.streamable.identifier != self.activeStreamIntent?.streamable.identifier {
+                    NSLog("[relisten-audio-player][bass][stream] seekToBytes: stream intent changed during buildStream for \(oldActiveStreamIntent.streamable.identifier)")
+
+                    if let newActiveStream {
+                        NSLog("[relisten-audio-player][bass][stream] seekToBytes: tearing down BASS audio stream for \(oldActiveStreamIntent.streamable.identifier)")
+                        tearDownStream(newActiveStream)
+                    }
+                    
+                    return
+                }
                 
                 self.activeStream = newActiveStream
 

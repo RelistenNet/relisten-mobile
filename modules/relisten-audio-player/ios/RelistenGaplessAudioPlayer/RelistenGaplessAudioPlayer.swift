@@ -52,8 +52,28 @@ public class RelistenGaplessAudioPlayer {
 
     private(set) static var bassOutputBufferLengthMillis: DWORD = 0
 
-    public internal(set) var activeStreamIntent: RelistenStreamIntent?
-    public internal(set) var nextStreamIntent: RelistenStreamIntent?
+    private var _activeStreamIntent: RelistenStreamIntent?
+    public internal(set) var activeStreamIntent: RelistenStreamIntent? {
+        get {
+            dispatchPrecondition(condition: .onQueue(bassQueue))
+            return _activeStreamIntent
+        }
+        set {
+            dispatchPrecondition(condition: .onQueue(bassQueue))
+            _activeStreamIntent = newValue
+        }
+    }
+    private var _nextStreamIntent: RelistenStreamIntent?
+    public internal(set) var nextStreamIntent: RelistenStreamIntent?  {
+        get {
+            dispatchPrecondition(condition: .onQueue(bassQueue))
+            return _nextStreamIntent
+        }
+        set {
+            dispatchPrecondition(condition: .onQueue(bassQueue))
+            _nextStreamIntent = newValue
+        }
+    }
     
     public internal(set) var activeStream: RelistenGaplessAudioStream? {
         get { self.activeStreamIntent?.audioStream }
@@ -103,7 +123,7 @@ public class RelistenGaplessAudioPlayer {
     }
 
     public var activeTrackDownloadedBytes: UInt64? {
-        guard isSetup, let activeStream = activeStream else {
+        guard isSetup, let activeStream else {
             return nil
         }
 
@@ -113,7 +133,7 @@ public class RelistenGaplessAudioPlayer {
     }
 
     public var activeTrackTotalBytes: UInt64? {
-        guard isSetup, let activeStream = activeStream else {
+        guard isSetup, let activeStream else {
             return nil
         }
 
@@ -150,25 +170,31 @@ public class RelistenGaplessAudioPlayer {
         }
 
         set {
+            dispatchPrecondition(condition: .onQueue(bassQueue))
+
             _currentState = newValue
 
-            if newValue == .Playing {
-                MPNowPlayingInfoCenter.default().playbackState = .playing
-            } else if newValue == .Paused {
-                MPNowPlayingInfoCenter.default().playbackState = .paused
-            } else if newValue == .Stalled {
-                MPNowPlayingInfoCenter.default().playbackState = .interrupted
-            } else {
-                MPNowPlayingInfoCenter.default().playbackState = .stopped
+            DispatchQueue.main.async {
+                if newValue == .Playing {
+                    MPNowPlayingInfoCenter.default().playbackState = .playing
+                } else if newValue == .Paused {
+                    MPNowPlayingInfoCenter.default().playbackState = .paused
+                } else if newValue == .Stalled {
+                    MPNowPlayingInfoCenter.default().playbackState = .interrupted
+                } else {
+                    MPNowPlayingInfoCenter.default().playbackState = .stopped
+                }
             }
 
-            DispatchQueue.main.async { [self] in
+            delegateQueue.async { [self] in
                 delegate?.playbackStateChanged(self, newPlaybackState: _currentState)
             }
         }
     }
 
     public func prepareAudioSession() {
+        dispatchPrecondition(condition: .onQueue(bassQueue))
+
         // needed to handle weird car bluetooth scenarios
         let shouldActivate = !(AVAudioSession.sharedInstance().secondaryAudioShouldBeSilencedHint)
         setupAudioSession(shouldActivate: shouldActivate)
@@ -177,8 +203,12 @@ public class RelistenGaplessAudioPlayer {
     public func play(_ streamable: RelistenGaplessStreamable) {
         play(streamable, startingAtMs: nil)
     }
+    
+    internal var numberOfStreamsFetching = 0
 
     public func play(_ streamable: RelistenGaplessStreamable, startingAtMs: Int64?) {
+        dispatchPrecondition(condition: .onQueue(bassQueue))
+
         NSLog("[relisten-audio-player] play: streamable=\(streamable) startingAtMs=\(String(describing: startingAtMs))")
         setupAudioSession(shouldActivate: true)
 
@@ -197,8 +227,10 @@ public class RelistenGaplessAudioPlayer {
 
         self.playStreamableImmediately(streamable, startingAtMs: startingAtMs)
     }
-
+    
     public func setNextStream(_ streamable: RelistenGaplessStreamable?) {
+        dispatchPrecondition(condition: .onQueue(bassQueue))
+
         NSLog("[relisten-audio-player] setNextStream: streamable=\(String(describing: streamable))")
         maybeSetupBASS()
 
@@ -225,6 +257,8 @@ public class RelistenGaplessAudioPlayer {
     }
 
     func maybeTearDownActiveStream() {
+        dispatchPrecondition(condition: .onQueue(bassQueue))
+
         if let activeStreamIntent {
             NSLog("[relisten-audio-player] tearing down activeStream=\(activeStreamIntent.streamable.identifier)")
             tearDownStreamIntent(activeStreamIntent)
@@ -233,6 +267,8 @@ public class RelistenGaplessAudioPlayer {
     }
 
     func maybeTearDownNextStream() {
+        dispatchPrecondition(condition: .onQueue(bassQueue))
+
         if let nextStreamIntent {
             NSLog("[relisten-audio-player] tearing down nextStream=\(nextStreamIntent.streamable.identifier)")
             tearDownStreamIntent(nextStreamIntent)
@@ -241,6 +277,8 @@ public class RelistenGaplessAudioPlayer {
     }
 
     public func resume() {
+        dispatchPrecondition(condition: .onQueue(bassQueue))
+
         NSLog("[relisten-audio-player] resume")
 
         self.maybeSetupBASS()
@@ -251,6 +289,8 @@ public class RelistenGaplessAudioPlayer {
     }
 
     public func pause() {
+        dispatchPrecondition(condition: .onQueue(bassQueue))
+
         NSLog("[relisten-audio-player] pause")
 
         self.maybeSetupBASS()
@@ -261,11 +301,18 @@ public class RelistenGaplessAudioPlayer {
     }
 
     public func stop() {
+        dispatchPrecondition(condition: .onQueue(bassQueue))
+
         NSLog("[relisten-audio-player] stop")
         self.maybeSetupBASS()
 
         if let mixerMainStream = self.mixerMainStream, BASS_ChannelStop(mixerMainStream) != 0 {
-            self.delegate?.trackChanged(self, previousStreamable: self.activeStreamIntent?.streamable, currentStreamable: nil)
+            let activeStreamIntent = activeStreamIntent
+            
+            delegateQueue.async {
+                self.delegate?.trackChanged(self, previousStreamable: activeStreamIntent?.streamable, currentStreamable: nil)
+            }
+            
             self.currentState = .Stopped
 
             self.maybeTearDownActiveStream()
@@ -274,6 +321,8 @@ public class RelistenGaplessAudioPlayer {
     }
 
     public func next() {
+        dispatchPrecondition(condition: .onQueue(bassQueue))
+
         NSLog("[relisten-audio-player] next")
         
         self.maybeSetupBASS()
@@ -287,10 +336,15 @@ public class RelistenGaplessAudioPlayer {
     }
 
     public func seekTo(percent: Double) {
+        dispatchPrecondition(condition: .onQueue(bassQueue))
+
         NSLog("[relisten-audio-player] seekTo percent=\(percent)")
 
         if percent >= 1.0 {
-            self.delegate?.remoteControl(method: "nextTrack")
+            delegateQueue.async {
+                self.delegate?.remoteControl(method: "nextTrack")
+            }
+            
             return
         }
 
@@ -298,7 +352,9 @@ public class RelistenGaplessAudioPlayer {
     }
 
     public func _resume(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
-        self.delegate?.remoteControl(method: "resume")
+        delegateQueue.async {
+            self.delegate?.remoteControl(method: "resume")
+        }
         
         self.bassQueue.async {
             self.resume()
@@ -308,7 +364,9 @@ public class RelistenGaplessAudioPlayer {
     }
 
     public func _pause(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
-        self.delegate?.remoteControl(method: "pause")
+        delegateQueue.async {
+            self.delegate?.remoteControl(method: "pause")
+        }
         
         self.bassQueue.async {
             self.pause()
@@ -318,30 +376,31 @@ public class RelistenGaplessAudioPlayer {
     }
 
     public func _nextTrack(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
-        self.delegate?.remoteControl(method: "nextTrack")
+        delegateQueue.async {
+            self.delegate?.remoteControl(method: "nextTrack")
+        }
         // handled on the JS thread
 
         return MPRemoteCommandHandlerStatus.success
     }
 
     public func _prevTrack(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
-        self.delegate?.remoteControl(method: "prevTrack")
+        delegateQueue.async {
+            self.delegate?.remoteControl(method: "prevTrack")
+        }
         // handled on the JS thread
 
         return MPRemoteCommandHandlerStatus.success
     }
 
     public func _seekTo(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
-        guard let duration = self.currentDuration else {
-            return .commandFailed
-        }
         guard let event = event as? MPChangePlaybackPositionCommandEvent else {
             return .commandFailed
         }
 
-        if event.positionTime >= 0 && duration > 0 {
+        if event.positionTime >= 0 {
             self.bassQueue.async {
-                self.seekTo(percent: event.positionTime / duration)
+                self.seekToTime(Int64(event.positionTime * 1000))
             }
             return .success
         }
@@ -351,8 +410,10 @@ public class RelistenGaplessAudioPlayer {
 
     // MARK: - Private properties
 
-    internal let bassQueue = DispatchQueue(label: "net.relisten.ios.bass-queue")
-    internal let networkQueue = DispatchQueue(label: "net.relisten.ios.bass-network-queue", attributes: .concurrent)
+    internal let bassQueue = DispatchQueue(label: "net.relisten.ios.bass-queue", qos: .userInteractive)
+    internal let networkQueue = DispatchQueue(label: "net.relisten.ios.bass-network-queue", qos: .userInitiated, attributes: .concurrent)
+    internal let delegateQueue = DispatchQueue(label: "net.relisten.ios.delegate-queue", qos: .userInteractive)
+    
     internal var mixerMainStream: HSTREAM?
     internal var isSetup = false
 
@@ -361,6 +422,8 @@ public class RelistenGaplessAudioPlayer {
 
     internal var _currentState: PlaybackState = .Stopped
     internal var wasPlayingWhenInterrupted: Bool = false
+    
+    internal var latestDebouncedStreamIntent: RelistenStreamIntent? = nil
 
     deinit {
         maybeTearDownBASS()
