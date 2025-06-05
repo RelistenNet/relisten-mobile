@@ -2,7 +2,7 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import { Show } from '@/relisten/realm/models/show';
 import { tw } from '@/relisten/util/tw';
 import React, { LegacyRef, PropsWithChildren, useLayoutEffect, useRef, useState } from 'react';
-import { TouchableOpacity, View, ViewProps } from 'react-native';
+import { TouchableOpacity, useWindowDimensions, View, ViewProps } from 'react-native';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import Plur from './plur';
 import { ShowLink } from '@/relisten/util/push_show';
@@ -19,8 +19,12 @@ export function ShowCardContainer({
   innerRef?: LegacyRef<View> | undefined;
 } & ViewProps &
   PropsWithChildren) {
+  const { fontScale } = useWindowDimensions();
+
+  const width = `${Math.round(12 * fontScale)}rem`;
+
   return (
-    <View className={tw('w-[22rem] shrink', cn, className)} ref={innerRef} {...props}>
+    <View className={tw(`w-[${width}] shrink`, cn, className)} ref={innerRef} {...props}>
       {children}
     </View>
   );
