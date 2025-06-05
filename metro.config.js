@@ -4,4 +4,7 @@ const { withNativeWind } = require('nativewind/metro');
 
 const config = getSentryExpoConfig(__dirname);
 
-module.exports = withNativeWind(config, { input: './relisten/global.css' });
+module.exports = withNativeWind(config, {
+  input: './relisten/global.css',
+  inlineNativeRem: 16, // Modify this
+});
