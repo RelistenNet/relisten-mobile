@@ -1,4 +1,4 @@
-import wretch, { ConfiguredMiddleware, WretchError } from 'wretch';
+import wretch, { ConfiguredMiddleware, WretchError, WretchOptions } from 'wretch';
 import { log } from '../util/logging';
 import { ArtistWithCounts } from './models/artist';
 import { Year, YearWithShows } from './models/year';
@@ -13,6 +13,7 @@ import { TourWithShowCount, TourWithShows } from './models/tour';
 import { SongWithPlayCount, SongWithShows } from './models/song';
 import { Show } from './models/show';
 import { Platform } from 'react-native';
+import { retry } from './retry_middleware';
 
 const logger = log.extend('network');
 
@@ -83,8 +84,35 @@ export class RelistenApiClient {
   static API_BASE = 'https://api.relisten.net/api';
   // static API_BASE = 'http://192.168.88.14:3823/api';
 
-  private api = wretch(RelistenApiClient.API_BASE).middlewares([loggingMiddleware]);
-  // TODO: wretch error handling
+  private api = wretch(RelistenApiClient.API_BASE).middlewares([
+    loggingMiddleware,
+    retry({
+      delayTimer: 100,
+      maxAttempts: 3,
+      retryOnNetworkError: true,
+      resolveWithLatestResponse: true,
+      onRetry: ({
+        response,
+        options,
+        url,
+        error: e,
+      }: {
+        response?: Response;
+        error?: Error;
+        url: string;
+        options: WretchOptions;
+      }) => {
+        if (response && response instanceof Response) {
+          const wretchError = e as WretchError;
+          logger.warn(
+            `Retrying error: ${wretchError.status} method=${options.method} url=${url} text=${wretchError.text}`
+          );
+        } else {
+          logger.warn(`Retrying error: method=${options.method} url=${url} ${e}`);
+        }
+      },
+    }),
+  ]);
 
   private inflightRequests: Map<string, Promise<RelistenApiResponse<unknown>>> = new Map();
 
@@ -246,11 +274,11 @@ export class RelistenApiClient {
       if (e.response && e.response instanceof Response) {
         const wretchError = e as WretchError;
         err.httpError = wretchError;
-        logger.error(`${wretchError.status} method=${method} url=${url} text=${wretchError.text}`);
+        logger.warn(`${wretchError.status} method=${method} url=${url} text=${wretchError.text}`);
       } else {
         err.error = e;
         err.message = `Error loading ${url}`;
-        logger.error(`method=${method} url=${url} ${e}`);
+        logger.warn(`method=${method} url=${url} ${e}`);
       }
 
       return {
