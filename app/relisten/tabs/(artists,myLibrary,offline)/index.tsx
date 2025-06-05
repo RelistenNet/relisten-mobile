@@ -60,10 +60,13 @@ const FavoritesSectionHeader = ({ favorites }: { favorites: Artist[] }) => {
   };
 
   return (
-    <View style={{ margin: 10 }}>
-      <RelistenButton className="m-2" asyncOnPress={playRandomShow} automaticLoadingIndicator>
-        Random Show
-      </RelistenButton>
+    <View>
+      <View className="flex flex-row justify-between items-center px-4">
+        <RelistenText className="text-m font-bold">Favorites</RelistenText>
+        <RelistenButton className="m-2" asyncOnPress={playRandomShow} automaticLoadingIndicator>
+          Random Show
+        </RelistenButton>
+      </View>
       <ArtistShowsOnThisDayTray artists={favorites} />
     </View>
   );
