@@ -163,6 +163,10 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
           return <></>;
         }
 
+        if (props.headerComponent) {
+          return <View>{props.headerComponent}</View>;
+        }
+
         return <SectionHeader title={sectionTitle} />;
       }}
     />

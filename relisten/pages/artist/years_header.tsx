@@ -54,7 +54,7 @@ export const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => 
           />
         )}
       </View>
-      {!isOfflineTab && <ArtistShowsOnThisDayTray artist={artist} />}
+      {!isOfflineTab && <ArtistShowsOnThisDayTray artists={[artist]} />}
     </>
   );
 };

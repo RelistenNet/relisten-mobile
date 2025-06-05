@@ -7,8 +7,8 @@ import { useTodayShows } from '@/relisten/realm/models/shows/today_shows_repo';
 import { useMemo } from 'react';
 import { ScrollView, View } from 'react-native';
 
-export function ArtistShowsOnThisDayTray({ artist }: { artist: Artist }) {
-  const todayShows = useTodayShows(artist.uuid);
+export function ArtistShowsOnThisDayTray({ artists }: { artists: Artist[] }) {
+  const todayShows = useTodayShows(...artists.map((artist) => artist.uuid));
 
   const sortedShows = useMemo(() => {
     const shows = [...todayShows.data];
@@ -34,12 +34,14 @@ export function ArtistShowsOnThisDayTray({ artist }: { artist: Artist }) {
       <ScrollView horizontal className="mb-1 pb-3 pl-3">
         {todayShows.isNetworkLoading && sortedShows.length == 0 ? (
           <ShowCardLoader
-            showArtist={false}
-            showVenue={artist.features().per_source_venues || artist.features().per_show_venues}
+            showArtist={artists.length > 1}
+            showVenue={
+              artists[0].features().per_source_venues || artists[0].features().per_show_venues
+            }
           />
         ) : (
           sortedShows.map((show) => (
-            <ShowCard show={show} key={show.uuid} root="artists" showArtist={false} />
+            <ShowCard show={show} key={show.uuid} root="artists" showArtist={artists.length > 1} />
           ))
         )}
       </ScrollView>

@@ -15,7 +15,11 @@ export interface RelistenSection<T> {
   data: ReadonlyArray<T>;
 }
 
-export type RelistenSectionHeader = { sectionTitle: string; metadata?: number };
+export type RelistenSectionHeader = {
+  sectionTitle: string;
+  metadata?: number;
+  headerComponent?: ReactElement;
+};
 
 export type RelistenSectionData<T> = ReadonlyArray<RelistenSection<T>>;
 
