@@ -13,7 +13,7 @@ extension RelistenGaplessAudioPlayer {
     func buildStream(_ streamIntent: RelistenStreamIntent,
                      fileOffset: DWORD = 0,
                      channelOffset: QWORD = 0,
-                     attempts: Int = 2,
+                     attempts: Int = 3,
                      completion: @escaping (RelistenGaplessAudioStream?) -> Void) {
         dispatchPrecondition(condition: .onQueue(bassQueue))
 
@@ -62,40 +62,49 @@ extension RelistenGaplessAudioPlayer {
 
             let errorCode = (newStream == 0) ? BASS_ErrorGetCode() : 0
 
-            self.bassQueue.async { [weak self] in
-                guard let self else { return }
+            if newStream == 0 {
+                if errorCode == BASS_ERROR_UNKNOWN {
+                    NSLog("[relisten-audio-player][bass][stream] buildStream: error creating new stream, ignoring because it probably means setNextStream was called identifier=\(streamable.identifier): \(errorCode)")
+                    completion(nil)
+                    return
+                }
 
-                if newStream == 0 {
-                    if errorCode == BASS_ERROR_UNKNOWN {
-                        NSLog("[relisten-audio-player][bass][stream] buildStream: error creating new stream, ignoring because it probably means setNextStream was called identifier=\(streamable.identifier): \(errorCode)")
-                        completion(nil)
-                        return
-                    }
+                var err = ErrorForErrorCode(errorCode)
 
-                    var err = ErrorForErrorCode(errorCode)
+                let issueSource = streamable.url.host?.replacingOccurrences(of: "audio.relisten.net", with: "archive.org") ?? streamable.url.absoluteString
 
-                    let issueSource = streamable.url.host?.replacingOccurrences(of: "audio.relisten.net", with: "archive.org") ?? streamable.url.absoluteString
+                if errorCode == BASS_ERROR_TIMEOUT {
+                    err = NSError(domain: "net.relisten.ios.relisten-audio-player", code: err.code, userInfo: [NSLocalizedDescriptionKey: "Server timeout: Check your Internet connection or maybe \(issueSource) is having issues"])
+                } else if errorCode == BASS_ERROR_FILEFORM {
+                    err = NSError(domain: "net.relisten.ios.relisten-audio-player", code: err.code, userInfo: [NSLocalizedDescriptionKey: "Non-audio content: \(issueSource) did not provide audio, maybe there are server issues"])
+                }
 
-                    if errorCode == BASS_ERROR_TIMEOUT {
-                        err = NSError(domain: "net.relisten.ios.relisten-audio-player", code: err.code, userInfo: [NSLocalizedDescriptionKey: "Server timeout: Check your Internet connection or maybe \(issueSource) is having issues"])
-                    } else if errorCode == BASS_ERROR_FILEFORM {
-                        err = NSError(domain: "net.relisten.ios.relisten-audio-player", code: err.code, userInfo: [NSLocalizedDescriptionKey: "Non-audio content: \(issueSource) did not provide audio, maybe there are server issues"])
-                    }
-
-                    NSLog("[relisten-audio-player][bass][stream] buildStream: error creating new stream identifier=\(streamable.identifier): %d %@", err.code, err.localizedDescription)
-
+                NSLog("[relisten-audio-player][bass][stream] buildStream: error creating new stream identifier=\(streamable.identifier): %d %@", err.code, err.localizedDescription)
+                
+                if (attempts - 1) > 0 {
+                    NSLog("[relisten-audio-player][bass][stream] buildStream: retrying for identifier=\(streamable.identifier)")
+                    
+                    buildStream(streamIntent, fileOffset: fileOffset, channelOffset: channelOffset, attempts: attempts - 1, completion: completion)
+                } else {
                     DispatchQueue.main.async {
                         self.delegate?.errorStartingStream(self, error: err, forStreamable: streamable)
                     }
 
-                    completion(nil)
-                    return
+                    self.bassQueue.async {
+                        completion(nil)
+                    }
                 }
-                
-                if let streamCacher {
-                    // only add the stream cacher after error handling to ensure there's no leak
-                    allStreamCachers.append(streamCacher)
-                }
+
+                return
+            }
+            
+            if let streamCacher {
+                // only add the stream cacher after error handling to ensure there's no leak
+                allStreamCachers.append(streamCacher)
+            }
+            
+            self.bassQueue.async { [weak self] in
+                guard let self else { return }
 
                 bass_assert(BASS_ChannelSetSync(newStream,
                                                 DWORD(BASS_SYNC_MIXTIME | BASS_SYNC_DOWNLOAD),
