@@ -1185,6 +1185,10 @@
     find-up "^5.0.0"
     js-yaml "^4.1.0"
 
+"@g4rb4g3/react-native-carplay@https://gitpkg.vercel.app/g4rb4g3/react-native-carplay/packages/react-native-carplay?b736f4240eccdb0f0bdfc4c1ca362b6a2eff9432":
+  version "2.6.0-beta37"
+  resolved "https://gitpkg.vercel.app/g4rb4g3/react-native-carplay/packages/react-native-carplay?b736f4240eccdb0f0bdfc4c1ca362b6a2eff9432#53df7af665a6fe6bfac69fc7b15f513f89995826"
+
 "@gorhom/bottom-sheet@^5.1.5":
   version "5.1.6"
   resolved "https://registry.yarnpkg.com/@gorhom/bottom-sheet/-/bottom-sheet-5.1.6.tgz#92365894ae4d4eefdbaa577408cfaf62463a9490"

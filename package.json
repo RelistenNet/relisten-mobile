@@ -12,6 +12,7 @@
   "dependencies": {
     "@expo/react-native-action-sheet": "^4.0.1",
     "@expo/vector-icons": "^14.1.0",
+    "@g4rb4g3/react-native-carplay": "https://gitpkg.vercel.app/g4rb4g3/react-native-carplay/packages/react-native-carplay?b736f4240eccdb0f0bdfc4c1ca362b6a2eff9432",
     "@gorhom/bottom-sheet": "^5.1.5",
     "@react-native-async-storage/async-storage": "2.1.2",
     "@react-native-community/netinfo": "11.4.1",
