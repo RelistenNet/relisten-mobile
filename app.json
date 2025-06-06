@@ -6,7 +6,7 @@
     },
     "name": "Relisten",
     "slug": "relisten",
-    "version": "6.0.1",
+    "version": "6.0.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -31,7 +31,7 @@
           "audio"
         ]
       },
-      "buildNumber": "6014"
+      "buildNumber": "6015"
     },
     "android": {
       "edgeToEdgeEnabled": true,
@@ -65,7 +65,7 @@
       },
       "icon": "./assets/ic_playstore.png",
       "package": "net.relisten.android",
-      "versionCode": 6014
+      "versionCode": 6015
     },
     "jsEngine": "hermes",
     "web": {
