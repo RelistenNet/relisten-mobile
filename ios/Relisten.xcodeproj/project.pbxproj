@@ -11,6 +11,9 @@
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
 		4087CBC6AD2DB9F44ED96AFD /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C185EBB7A15010B4529F113B /* ExpoModulesProvider.swift */; };
 		7930E7716C84A1200F7AB07C /* Pods_Relisten.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 111141AB83D6DE660A8A7CA6 /* Pods_Relisten.framework */; };
+		7CD424CD2DF37E2500879728 /* CarSceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CD424CC2DF37E2200879728 /* CarSceneDelegate.swift */; };
+		7CD424CF2DF37E2B00879728 /* PhoneSceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CD424CE2DF37E2800879728 /* PhoneSceneDelegate.swift */; };
+		7CD424D32DF3851D00879728 /* AppDelegate+CarPlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CD424D22DF3851900879728 /* AppDelegate+CarPlay.swift */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 		F4EB643385E494FA8A4F9239 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 60515680218C1495B7AA48CE /* PrivacyInfo.xcprivacy */; };
@@ -22,6 +25,9 @@
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = Relisten/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = Relisten/Info.plist; sourceTree = "<group>"; };
 		60515680218C1495B7AA48CE /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = Relisten/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		7CD424CC2DF37E2200879728 /* CarSceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarSceneDelegate.swift; sourceTree = "<group>"; };
+		7CD424CE2DF37E2800879728 /* PhoneSceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneSceneDelegate.swift; sourceTree = "<group>"; };
+		7CD424D22DF3851900879728 /* AppDelegate+CarPlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppDelegate+CarPlay.swift"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = Relisten/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
 		BC7336265FF56815C2B8EE58 /* Pods-Relisten.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Relisten.release.xcconfig"; path = "Target Support Files/Pods-Relisten/Pods-Relisten.release.xcconfig"; sourceTree = "<group>"; };
@@ -47,6 +53,7 @@
 		13B07FAE1A68108700A75B9A /* Relisten */ = {
 			isa = PBXGroup;
 			children = (
+				7CD424CB2DF37E1400879728 /* Scenes */,
 				F11748412D0307B40044C1D9 /* AppDelegate.swift */,
 				F11748442D0722820044C1D9 /* Relisten-Bridging-Header.h */,
 				BB2F792B24A3F905000567C9 /* Supporting */,
@@ -82,6 +89,16 @@
 				E064772B15D1BEB61B3A2301 /* Relisten */,
 			);
 			name = ExpoModulesProviders;
+			sourceTree = "<group>";
+		};
+		7CD424CB2DF37E1400879728 /* Scenes */ = {
+			isa = PBXGroup;
+			children = (
+				7CD424D22DF3851900879728 /* AppDelegate+CarPlay.swift */,
+				7CD424CE2DF37E2800879728 /* PhoneSceneDelegate.swift */,
+				7CD424CC2DF37E2200879728 /* CarSceneDelegate.swift */,
+			);
+			path = Scenes;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -358,7 +375,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7CD424CD2DF37E2500879728 /* CarSceneDelegate.swift in Sources */,
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
+				7CD424D32DF3851D00879728 /* AppDelegate+CarPlay.swift in Sources */,
+				7CD424CF2DF37E2B00879728 /* PhoneSceneDelegate.swift in Sources */,
 				4087CBC6AD2DB9F44ED96AFD /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -500,10 +520,7 @@
 				LIBRARY_SEARCH_PATHS = "$(SDKROOT)/usr/lib/swift\"$(inherited)\"";
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					" ",
-				);
+				OTHER_LDFLAGS = "$(inherited)  ";
 				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
@@ -569,10 +586,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = "$(SDKROOT)/usr/lib/swift\"$(inherited)\"";
 				MTL_ENABLE_DEBUG_INFO = NO;
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					" ",
-				);
+				OTHER_LDFLAGS = "$(inherited)  ";
 				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
 				USE_HERMES = true;

@@ -37,7 +37,7 @@ PODS:
     - Yoga
   - ExpoAsset (11.1.5):
     - ExpoModulesCore
-  - ExpoCrypto (14.1.4):
+  - ExpoCrypto (14.1.5):
     - ExpoModulesCore
   - ExpoDevice (7.1.4):
     - ExpoModulesCore
@@ -1473,6 +1473,8 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
+  - react-native-carplay (2.6.0-beta37):
+    - React
   - react-native-get-random-values (1.11.0):
     - React-Core
   - react-native-netinfo (11.4.1):
@@ -2343,6 +2345,7 @@ DEPENDENCIES:
   - React-microtasksnativemodule (from `../node_modules/react-native/ReactCommon/react/nativemodule/microtasks`)
   - react-native-airplay-button (from `../node_modules/react-native-airplay-button`)
   - react-native-blob-util (from `../node_modules/react-native-blob-util`)
+  - "react-native-carplay (from `../node_modules/@g4rb4g3/react-native-carplay`)"
   - react-native-get-random-values (from `../node_modules/react-native-get-random-values`)
   - "react-native-netinfo (from `../node_modules/@react-native-community/netinfo`)"
   - react-native-render-html (from `../node_modules/react-native-render-html`)
@@ -2521,6 +2524,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-airplay-button"
   react-native-blob-util:
     :path: "../node_modules/react-native-blob-util"
+  react-native-carplay:
+    :path: "../node_modules/@g4rb4g3/react-native-carplay"
   react-native-get-random-values:
     :path: "../node_modules/react-native-get-random-values"
   react-native-netinfo:
@@ -2624,7 +2629,7 @@ SPEC CHECKSUMS:
   EXImageLoader: 4d3d3284141f1a45006cc4d0844061c182daf7ee
   Expo: 116e821c61d3e46c3722010eedf197842f55b0fb
   ExpoAsset: 3bc9adb7dbbf27ae82c18ca97eb988a3ae7e73b1
-  ExpoCrypto: e5098d184ff5989ac395542d5d41f84e2051bffa
+  ExpoCrypto: a9f1d75baeea6ef8b03c1660621585196c382e85
   ExpoDevice: 7082f03af1c588333ef1417d5aa8287081d94b24
   ExpoFileSystem: c36eb8155eb2381c83dda7dc210e3eec332368b6
   ExpoFont: abbb91a911eb961652c2b0a22eef801860425ed6
@@ -2679,6 +2684,7 @@ SPEC CHECKSUMS:
   React-microtasksnativemodule: 953b922f9473c100dd153cc51739e0d210bfd617
   react-native-airplay-button: 67346bac38f575ce06978b5746052b0aa2741439
   react-native-blob-util: e032f2a9d5779aa94934139a60fe5ed6c5071328
+  react-native-carplay: aee4ad391a0fb3eebc032c2c6f53b928057630ca
   react-native-get-random-values: d16467cf726c618e9c7a8c3c39c31faa2244bbba
   react-native-netinfo: cec9c4e86083cb5b6aba0e0711f563e2fbbff187
   react-native-render-html: 5afc4751f1a98621b3009432ef84c47019dcb2bd
