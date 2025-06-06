@@ -21,11 +21,12 @@ export function ShowCardContainer({
   PropsWithChildren) {
   const { fontScale } = useWindowDimensions();
 
-  const width = `${Math.round(168 * fontScale)}px`;
+  const width = Math.round(168 * fontScale);
 
   return (
     <View
-      className={tw(`w-[${width}] shrink pl-1 pr-1 first:pl-0 last:pr-0`, cn, className)}
+      className={tw(`shrink pl-1 pr-1 first:pl-0 last:pr-0`, cn, className)}
+      style={{ width }}
       ref={innerRef}
       {...props}
     >
