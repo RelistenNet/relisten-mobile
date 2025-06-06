@@ -33,7 +33,7 @@ export function ArtistShowsOnThisDayTray({ artists }: { artists: Artist[] }) {
         </RelistenText>
       </View>
       <ScrollView horizontal className="mb-1 pb-3 pl-3">
-        <Flex className="gap-x-2">
+        <Flex className="">
           {todayShows.isNetworkLoading && sortedShows.length == 0 ? (
             <ShowCardLoader
               showArtist={artists.length > 1}

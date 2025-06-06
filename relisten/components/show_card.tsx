@@ -21,10 +21,14 @@ export function ShowCardContainer({
   PropsWithChildren) {
   const { fontScale } = useWindowDimensions();
 
-  const width = `${Math.round(12 * fontScale)}rem`;
+  const width = `${Math.round(168 * fontScale)}px`;
 
   return (
-    <View className={tw(`w-[${width}] shrink`, cn, className)} ref={innerRef} {...props}>
+    <View
+      className={tw(`w-[${width}] shrink pl-1 pr-1 first:pl-0 last:pr-0`, cn, className)}
+      ref={innerRef}
+      {...props}
+    >
       {children}
     </View>
   );
