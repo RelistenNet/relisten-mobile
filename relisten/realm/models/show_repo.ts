@@ -150,10 +150,16 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
       }
 
       if (localData.show && apiData.venue) {
+        let venueToUpdate = localData.show.venue;
+
+        if (venueToUpdate && venueToUpdate.uuid !== apiData.venue.uuid) {
+          venueToUpdate = undefined;
+        }
+
         const { createdModels: createdVenues, updatedModels: updatedVenues } = venueRepo.upsert(
           realm,
           apiData.venue,
-          localData.show.venue,
+          venueToUpdate,
           true
         );
 
