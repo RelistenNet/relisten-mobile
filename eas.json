@@ -1,9 +1,13 @@
 {
   "cli": {
     "version": ">= 3.15.1",
-    "promptToConfigurePushNotifications": false
+    "promptToConfigurePushNotifications": false,
+    "appVersionSource": "local"
   },
   "build": {
+    "base": {
+      "node": "22.14.0"
+    },
     "development": {
       "distribution": "internal",
       "android": {
