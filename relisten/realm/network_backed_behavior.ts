@@ -123,7 +123,7 @@ export class NetworkBackedModelArrayBehavior<
   }
 
   upsert(realm: Realm, localData: Realm.Results<TModel>, apiData: TApi[]): void {
-    this.repository.upsertMultiple(realm, apiData, localData);
+    this.repository.upsertMultiple(realm, apiData, localData, true, true);
   }
 }
 
