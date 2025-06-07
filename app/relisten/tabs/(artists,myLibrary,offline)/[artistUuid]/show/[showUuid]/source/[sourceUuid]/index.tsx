@@ -15,7 +15,15 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Link, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { PropsWithChildren, useCallback, useEffect, useState } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
-import { Animated, Platform, ScrollViewProps, Share, TouchableOpacity, View } from 'react-native';
+import {
+  Animated,
+  Platform,
+  ScrollViewProps,
+  Share,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import * as R from 'remeda';
 
 import { SourceSets } from '@/relisten/components/source/source_sets_component';
@@ -346,6 +354,7 @@ export const SourceHeader = ({
   const router = useRouter();
   const forceUpdate = useForceUpdate();
   const groupSegment = useGroupSegment(true);
+  const { fontScale } = useWindowDimensions();
 
   const secondLine = R.filter(
     [
@@ -423,7 +432,7 @@ export const SourceHeader = ({
         <RelistenButton
           className="shrink basis-1/4"
           textClassName="text-l"
-          icon={<MaterialIcons name="play-arrow" size={20} color="white" />}
+          icon={<MaterialIcons name="play-arrow" size={20 * fontScale} color="white" />}
           onPress={() => playShow(source.sourceSets[0].sourceTracks[0])}
         >
           Play
@@ -435,7 +444,7 @@ export const SourceHeader = ({
           disabled={isFullyDownloaded}
           disabledPopoverText="This show is already fully downloaded"
         >
-          <MaterialIcons name="file-download" size={20} color="white" />
+          <MaterialIcons name="file-download" size={20 * fontScale} color="white" />
         </RelistenButton>
         <RelistenButton
           className="shrink basis-1/4"
@@ -450,7 +459,7 @@ export const SourceHeader = ({
         >
           <MaterialIcons
             name={source.isFavorite || show.isFavorite ? 'favorite' : 'favorite-outline'}
-            size={20}
+            size={20 * fontScale}
             color={source.isFavorite || show.isFavorite ? 'red' : 'white'}
           />
         </RelistenButton>
@@ -466,7 +475,7 @@ export const SourceHeader = ({
             }).then(() => {});
           }}
         >
-          <MaterialIcons name="ios-share" size={20} />
+          <MaterialIcons name="ios-share" size={20 * fontScale} />
         </RelistenButton>
       </View>
       {(show.sourceCount > 1 || source.reviewCount > 0) && (
@@ -485,7 +494,7 @@ export const SourceHeader = ({
             >
               <RelistenButton
                 textClassName="text-l"
-                icon={<MaterialIcons name="source" size={20} color="white" />}
+                icon={<MaterialIcons name="source" size={20 * fontScale} color="white" />}
               >
                 Switch Source
               </RelistenButton>

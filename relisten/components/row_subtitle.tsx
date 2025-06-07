@@ -27,11 +27,16 @@ export const SubtitleText = ({
   className,
   style,
   as = RelistenText,
+  numberOfLines,
   ...props
 }: TextProps & NewProps) => {
   const Comp = as;
 
   return (
-    <Comp className={tw('text-s text-gray-400', className, cn)} numberOfLines={2} {...props} />
+    <Comp
+      className={tw('text-s text-gray-400', className, cn)}
+      numberOfLines={numberOfLines || 2}
+      {...props}
+    />
   );
 };

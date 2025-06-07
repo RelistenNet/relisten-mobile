@@ -1,7 +1,7 @@
 import { ListRenderItem } from '@shopify/flash-list';
 import { Link } from 'expo-router';
 import React, { ReactNode } from 'react';
-import { View } from 'react-native';
+import { useWindowDimensions, View } from 'react-native';
 import { Show } from '../realm/models/show';
 import { useGroupSegment } from '../util/routes';
 import { FilterableList, FilterableListProps } from './filtering/filterable_list';
@@ -29,6 +29,8 @@ interface ShowListItemProps {
 }
 
 export const ShowListItem = ({ show, children }: ShowListItemProps) => {
+  const { fontScale } = useWindowDimensions();
+
   return (
     <ShowLink
       show={{
@@ -40,7 +42,7 @@ export const ShowListItem = ({ show, children }: ShowListItemProps) => {
       <SectionedListItem>
         <Flex cn="flex justify-between" full>
           <Flex cn="flex-1 pr-2" column>
-            <Flex cn="items-center" style={{ gap: 8 }}>
+            <Flex cn="items-center flex-wrap" style={{ gap: 8 }}>
               <RowTitle>{show.displayDate}</RowTitle>
               {show.hasSoundboardSource && (
                 <RelistenText cn="text-xs font-bold text-relisten-blue-600">SBD</RelistenText>
@@ -56,7 +58,7 @@ export const ShowListItem = ({ show, children }: ShowListItemProps) => {
               </SubtitleText>
             </Flex>
             <SubtitleRow>
-              <SubtitleText>
+              <SubtitleText numberOfLines={fontScale > 1.5 ? 3 : 2}>
                 {show.venue && `${show.venue.name}, ${show.venue.location}\u00A0•\u00A0`}
                 <Plur word="tape" count={show.sourceCount} />
               </SubtitleText>

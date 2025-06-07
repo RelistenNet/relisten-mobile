@@ -3,7 +3,7 @@ import {
   SourceTrackOfflineInfoStatus,
 } from '@/relisten/realm/models/source_track_offline_info';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
-import { View, ViewProps } from 'react-native';
+import { useWindowDimensions, View, ViewProps } from 'react-native';
 import colors from 'tailwindcss/colors';
 
 import * as Progress from 'react-native-progress';
@@ -22,6 +22,8 @@ export function SourceTrackOfflineIndicator({
 }: {
   offlineInfo: SourceTrackOfflineInfo | undefined;
 }) {
+  const { fontScale } = useWindowDimensions();
+
   if (!offlineInfo) {
     return <></>;
   }
@@ -32,19 +34,27 @@ export function SourceTrackOfflineIndicator({
 
   switch (offlineInfo.status) {
     case SourceTrackOfflineInfoStatus.UNKNOWN:
-      contents = <MaterialCommunityIcons name="download-off" size={SIZE} color={color} />;
+      contents = (
+        <MaterialCommunityIcons name="download-off" size={SIZE * fontScale} color={color} />
+      );
       break;
     case SourceTrackOfflineInfoStatus.Queued:
-      contents = <MaterialCommunityIcons name="progress-download" size={SIZE} color={color} />;
+      contents = (
+        <MaterialCommunityIcons name="progress-download" size={SIZE * fontScale} color={color} />
+      );
       break;
     case SourceTrackOfflineInfoStatus.Downloading:
-      contents = <Progress.Pie size={SIZE} color={color} progress={offlineInfo.percent} />;
+      contents = (
+        <Progress.Pie size={SIZE * fontScale} color={color} progress={offlineInfo.percent} />
+      );
       break;
     case SourceTrackOfflineInfoStatus.Failed:
-      contents = <MaterialCommunityIcons name="download-off" size={SIZE} color={color} />;
+      contents = (
+        <MaterialCommunityIcons name="download-off" size={SIZE * fontScale} color={color} />
+      );
       break;
     case SourceTrackOfflineInfoStatus.Succeeded:
-      contents = <SourceTrackSucceededIndicator size={SIZE} />;
+      contents = <SourceTrackSucceededIndicator size={SIZE * fontScale} />;
       break;
   }
 

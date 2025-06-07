@@ -8,7 +8,7 @@ import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player
 import { PlayShow } from '@/relisten/player/ui/track_context_menu';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { TouchableOpacity, View } from 'react-native';
+import { TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import Flex from '../flex';
 import { tw } from '@/relisten/util/tw';
 
@@ -31,6 +31,7 @@ export const SourceTrackComponent = ({
 }: SourceTrackProps) => {
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
   const playbackState = useRelistenPlayerPlaybackState();
+  const { fontScale } = useWindowDimensions();
 
   const isPlayingThisTrack = currentPlayerTrack?.sourceTrack.uuid === sourceTrack.uuid;
 
@@ -52,7 +53,10 @@ export const SourceTrackComponent = ({
 
       {isPlayingThisTrack && (
         <View className="basis-7 pt-2">
-          <SoundIndicator size={18} playing={playbackState === RelistenPlaybackState.Playing} />
+          <SoundIndicator
+            size={18 * fontScale}
+            playing={playbackState === RelistenPlaybackState.Playing}
+          />
         </View>
       )}
 
@@ -62,34 +66,35 @@ export const SourceTrackComponent = ({
             {sourceTrack.title}
           </RelistenText>
           <View className="grow"></View>
-          <SourceTrackOfflineIndicator offlineInfo={sourceTrack.offlineInfo} />
-
-          <TouchableOpacity
-            className="shrink-0 grow-0 px-2 py-3"
-            onPress={() => {
-              if (onDotsPress) {
-                onDotsPress(sourceTrack);
-              }
-            }}
-          >
-            <Flex cn="items-center gap-2">
-              <RelistenText
-                className="basis-12 text-right text-base text-gray-400"
-                selectable={false}
-              >
-                {sourceTrack.humanizedDuration}
-              </RelistenText>
-              <View className="h-[16px] overflow-hidden">
-                <View style={{ marginTop: -4 }}>
-                  <MaterialCommunityIcons
-                    name="dots-horizontal"
-                    size={24}
-                    color="rgb(156, 163, 175)"
-                  />
+          <View className="shrink-0 flex-row items-center justify-between">
+            <SourceTrackOfflineIndicator offlineInfo={sourceTrack.offlineInfo} />
+            <TouchableOpacity
+              className="shrink-0  grow-0 px-2 py-3"
+              onPress={() => {
+                if (onDotsPress) {
+                  onDotsPress(sourceTrack);
+                }
+              }}
+            >
+              <Flex cn="items-center grow">
+                <RelistenText
+                  className="grow text-right text-base mr-2 text-gray-400"
+                  selectable={false}
+                >
+                  {sourceTrack.humanizedDuration}
+                </RelistenText>
+                <View className="h-[16px] overflow-hidden">
+                  <View style={{ marginTop: -4 }}>
+                    <MaterialCommunityIcons
+                      name="dots-horizontal"
+                      size={24}
+                      color="rgb(156, 163, 175)"
+                    />
+                  </View>
                 </View>
-              </View>
-            </Flex>
-          </TouchableOpacity>
+              </Flex>
+            </TouchableOpacity>
+          </View>
         </View>
         {!isLastTrackInSet && <ItemSeparator />}
       </View>
