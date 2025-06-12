@@ -17,15 +17,23 @@ const openEmail = async () => {
     // https://github.com/expo/expo/issues/7817#issuecomment-2018743116
     return;
   }
-  
+
   const userFacingVersion = Application.nativeApplicationVersion;
   const buildVersion = Application.nativeBuildVersion;
+
   const subject = `[${Platform.OS}][${userFacingVersion}][${buildVersion}]`;
   const url = `mailto:team@relisten.net?subject=${encodeURIComponent(subject)}`;
+
   if (await Linking.canOpenURL(url)) {
     openEmailPromise = Linking.openURL(url);
-    await openEmailPromise;
-    openEmailPromise = undefined;
+
+    openEmailPromise.catch((e) => {
+      console.error('Error opening link!', url, e);
+    });
+
+    openEmailPromise.finally(() => {
+      openEmailPromise = undefined;
+    });
   }
 };
 
