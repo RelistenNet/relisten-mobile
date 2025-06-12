@@ -182,12 +182,12 @@ extension RelistenGaplessAudioPlayer {
     }
 
     internal func restartPlayback() {
-        tearDownAudioSession()
-        setupAudioSession(shouldActivate: true)
-
         bassQueue.async { [weak self] in
             guard let self else { return }
-            
+
+            tearDownAudioSession()
+            setupAudioSession(shouldActivate: true)
+
             let savedActiveStreamable = activeStreamIntent?.streamable
             let nextStreamable = nextStreamIntent?.streamable
             let savedElapsed = self.elapsed
