@@ -10,12 +10,22 @@ import { Platform, View, ViewProps } from 'react-native';
 import * as Application from 'expo-application';
 import { tw } from '@/relisten/util/tw';
 
+let openEmailPromise: Promise<true> | undefined = undefined;
+
 const openEmail = async () => {
+  if (openEmailPromise) {
+    // https://github.com/expo/expo/issues/7817#issuecomment-2018743116
+    return;
+  }
+  
   const userFacingVersion = Application.nativeApplicationVersion;
   const buildVersion = Application.nativeBuildVersion;
-  const url = `mailto:team@relisten.net?subject=[${Platform.OS}][${userFacingVersion}][${buildVersion}]`;
+  const subject = `[${Platform.OS}][${userFacingVersion}][${buildVersion}]`;
+  const url = `mailto:team@relisten.net?subject=${encodeURIComponent(subject)}`;
   if (await Linking.canOpenURL(url)) {
-    Linking.openURL(url);
+    openEmailPromise = Linking.openURL(url);
+    await openEmailPromise;
+    openEmailPromise = undefined;
   }
 };
 
