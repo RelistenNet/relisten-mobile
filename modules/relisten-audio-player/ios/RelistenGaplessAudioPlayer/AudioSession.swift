@@ -174,11 +174,11 @@ extension RelistenGaplessAudioPlayer {
     }
 
     @objc func handleMediaServicesWereReset(_: Notification) {
-        self?.restartPlayback()
+        restartPlayback()
     }
 
     @objc func handleMediaServicesWereLost(_: Notification) {
-        self?.restartPlayback()
+        restartPlayback()
     }
 
     internal func restartPlayback() {
