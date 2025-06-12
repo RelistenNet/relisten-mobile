@@ -174,20 +174,24 @@ extension RelistenGaplessAudioPlayer {
     }
 
     @objc func handleMediaServicesWereReset(_: Notification) {
-        restartPlayback()
+        bassQueue.async { [weak self] in
+            self?.restartPlayback()
+        }
     }
 
     @objc func handleMediaServicesWereLost(_: Notification) {
-        restartPlayback()
+        bassQueue.async { [weak self] in
+            self?.restartPlayback()
+        }
     }
 
     internal func restartPlayback() {
-        tearDownAudioSession()
-        setupAudioSession(shouldActivate: true)
-
         bassQueue.async { [weak self] in
             guard let self else { return }
-            
+
+            tearDownAudioSession()
+            setupAudioSession(shouldActivate: true)
+
             let savedActiveStreamable = activeStreamIntent?.streamable
             let nextStreamable = nextStreamIntent?.streamable
             let savedElapsed = self.elapsed
