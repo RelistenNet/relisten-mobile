@@ -91,18 +91,25 @@ extension RelistenGaplessAudioPlayer {
         NSLog("[relisten-audio-player][bass][stream] tearing down stream handle=\(relistenStream.stream)")
 
         // stop channels to allow them to be freed
-        if BASS_ChannelStop(stream) == 0 {
-            NSLog("[relisten-audio-player][bass][stream] error calling BASS_ChannelStop(stream): \(BASS_ErrorGetCode())")
+        let channelStopError = BASS_ChannelStop(stream)
+        var errorCode: Int32? = nil
+
+        if channelStopError == 0 {
+            errorCode = BASS_ErrorGetCode()
+            NSLog("[relisten-audio-player][bass][stream] error calling BASS_ChannelStop(stream): \(String(describing: errorCode))")
         }
 
-        // remove this stream from the mixer
-        // not assert'd because sometimes it should fail (i.e. hasn't been added to the mixer yet)
-        let mixerError = BASS_Mixer_ChannelRemove(stream)
-        var errorCode: Int32? = nil
-        
-        if mixerError == 0 {
-            errorCode = BASS_ErrorGetCode()
-            NSLog("[relisten-audio-player][bass][stream] error calling BASS_Mixer_ChannelRemove(stream): \(errorCode!)")
+        if errorCode == nil || errorCode != BASS_ERROR_HANDLE {
+            // remove this stream from the mixer
+            // not assert'd because sometimes it should fail (i.e. hasn't been added to the mixer yet)
+            let mixerError = BASS_Mixer_ChannelRemove(stream)
+            
+            if mixerError == 0 {
+                errorCode = BASS_ErrorGetCode()
+                NSLog("[relisten-audio-player][bass][stream] error calling BASS_Mixer_ChannelRemove(stream): \(String(describing: errorCode))")
+            }
+        } else {
+            NSLog("[relisten-audio-player][bass][stream] skipping BASS_Mixer_ChannelRemove(stream), got BASS_ERROR_HANDLE from BASS_ChannelStop(stream)")
         }
 
         // BASS_StreamFree will *crash* if the handle is invalid
@@ -111,7 +118,7 @@ extension RelistenGaplessAudioPlayer {
                 NSLog("[relisten-audio-player][bass][stream] error calling BASS_StreamFree(stream): \(BASS_ErrorGetCode())")
             }
         } else {
-            NSLog("[relisten-audio-player][bass][stream] skipping BASS_StreamFree(stream), got BASS_ERROR_HANDLE from BASS_Mixer_ChannelRemove(stream)")
+            NSLog("[relisten-audio-player][bass][stream] skipping BASS_StreamFree(stream), got BASS_ERROR_HANDLE from previous step")
         }
         
         // Do NOT call StreamCacherRegistry.sharedInstance.discard(streamCacher) here:
