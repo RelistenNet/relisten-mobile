@@ -19,6 +19,8 @@ export default function Page() {
   const { pushShow } = usePushShowRespectingUserSettings();
   const artistsResults = useArtists();
 
+  console.error('deep links hit');
+
   useEffect(() => {
     if (artistsResults.data.length === 0) {
       return;

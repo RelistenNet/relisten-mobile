@@ -5,7 +5,15 @@ import 'uuid';
 import 'react-native-svg';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 
-import { Slot, SplashScreen, useNavigationContainerRef } from 'expo-router';
+import {
+  Redirect,
+  Slot,
+  SplashScreen,
+  useGlobalSearchParams,
+  useNavigationContainerRef,
+  usePathname,
+  useRootNavigationState,
+} from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Realm } from '@realm/react';
 
@@ -32,9 +40,12 @@ import { LogBox } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { CarPlay } from '@g4rb4g3/react-native-carplay/src';
 import { setupCarPlay } from '@/relisten/carplay/templates';
+import { log } from '@/relisten/util/logging';
 
 // c.f. https://github.com/meliorence/react-native-render-html/issues/661#issuecomment-2453476566
 LogBox.ignoreLogs([/Support for defaultProps will be removed/]);
+
+const notFoundLogger = log.extend('not-found');
 
 dayjs.extend(duration);
 dayjs.extend(relativeTime);
@@ -128,6 +139,24 @@ function TabLayout() {
       navigationIntegration.registerNavigationContainer(navigation);
     }
   }, [navigation]);
+
+  const pathname = usePathname();
+  const globalSearchParams = useGlobalSearchParams();
+  // const rootNavigationState = useRootNavigationState();
+
+  console.log('not found', pathname);
+
+  // if (!rootNavigationState?.key) return null;
+  //
+  const [_, artistSlug] = pathname.split('/');
+  //
+  if (artistSlug && artistSlug !== 'relisten') {
+    //   // deep link from web
+    notFoundLogger.info(
+      `redirecting to /relisten/web${pathname} ${JSON.stringify(globalSearchParams)}`
+    );
+    return <Redirect href={{ pathname: '/relisten/web' + pathname, params: globalSearchParams }} />;
+  }
 
   return (
     <RealmProvider realmRef={realmRef} closeOnUnmount={false}>

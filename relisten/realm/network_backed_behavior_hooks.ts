@@ -73,6 +73,16 @@ export function useNetworkOnlyResults<TApiData>(
   return results;
 }
 
+export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
+  public isNetworkLoading: boolean;
+
+  constructor(
+    public readonly behavior: NetworkBackedBehavior<TLocalData, TApiData>,
+    private api: RelistenApiClient,
+    private realm: Realm
+  ) {}
+}
+
 export function useNetworkBackedBehavior<TLocalData, TApiData>(
   behavior: NetworkBackedBehavior<TLocalData, TApiData>
 ): NetworkBackedResults<TLocalData> {

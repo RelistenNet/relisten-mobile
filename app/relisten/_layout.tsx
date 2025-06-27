@@ -40,6 +40,10 @@ export default function TabLayout() {
         }}
       />
       <Stack.Screen name="tabs" />
+      <Stack.Screen name="web/[artistSlug]" />
+      <Stack.Screen name="web/[artistSlug]/[year]" />
+      <Stack.Screen name="web/[artistSlug]/[year]/[month]/[day]" />
+      <Stack.Screen name="web/[artistSlug]/[year]/[month]/[day]/[trackSlug]" />
     </Stack>
   );
 }

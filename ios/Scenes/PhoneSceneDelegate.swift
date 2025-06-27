@@ -7,6 +7,7 @@
 import Foundation
 import UIKit
 import SwiftUI
+import React
 
 class PhoneSceneDelegate: UIResponder, UIWindowSceneDelegate {
   var window: UIWindow?
@@ -32,5 +33,9 @@ class PhoneSceneDelegate: UIResponder, UIWindowSceneDelegate {
     
     self.window = window
     appDelegate.window = window
+  }
+  
+  func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
+    RCTLinkingManager.application(UIApplication.shared, continue: userActivity, restorationHandler: { restoring in })
   }
 }
