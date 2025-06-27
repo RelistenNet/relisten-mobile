@@ -560,8 +560,8 @@ ${indentString(tracks)}
     // allow the player to be fully set up
     // await this.player.stop();
 
-    logger.debug(`restoring player state: ${playerState.debugState()}`);
-    logger.debug('after init, before restore', this.player.debugState());
+    // logger.debug(`restoring player state: ${playerState.debugState()}`);
+    // logger.debug('after init, before restore', this.player.debugState());
 
     const sourceTracksByUuid = groupByUuid([
       ...realm.objects(SourceTrack).filtered('uuid in $0', [...playerState.queueSourceTrackUuids]),
@@ -623,7 +623,7 @@ ${indentString(tracks)}
     }
 
     this.savePlayerState();
-    logger.debug('finished restoring player state', this.player.debugState());
+    // logger.debug('finished restoring player state', this.player.debugState());
   }
   // endregion
 }
