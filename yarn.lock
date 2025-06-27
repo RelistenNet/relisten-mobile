@@ -1951,10 +1951,10 @@
   dependencies:
     "@sentry/core" "8.54.0"
 
-"@shopify/flash-list@2.0.0-alpha.19":
-  version "2.0.0-alpha.19"
-  resolved "https://registry.yarnpkg.com/@shopify/flash-list/-/flash-list-2.0.0-alpha.19.tgz#791829fffc69d949db5bd2b4c9ca92133e1136e9"
-  integrity sha512-cDU56bXZrFOgF9SN9baS0Q1qVYV1Ijh/r7lMgwHyFxS22BY3jrXLm6ev5NnkaQr4ATpvOuNfWFfGZ5qX+LLJdw==
+"@shopify/flash-list@2.0.0-rc.9":
+  version "2.0.0-rc.9"
+  resolved "https://registry.yarnpkg.com/@shopify/flash-list/-/flash-list-2.0.0-rc.9.tgz#2b160ef35d8a9f3715fbacd0f889748d6c8eb187"
+  integrity sha512-s6sHtXhVeZZ9bx76kgS0fQFDKgXmgVjzzuCxf2ZAWmkmXJQYJho8jOgnEZpcqjUhlHd8jObz9naEJfm7YNTSVg==
   dependencies:
     recyclerlistview "4.2.3"
     tslib "2.8.1"
