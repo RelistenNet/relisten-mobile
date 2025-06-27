@@ -382,9 +382,38 @@ export class DownloadManager {
     offlineInfo: SourceTrackOfflineInfo,
     downloadTask: DownloadTask
   ) {
+    let offlineInfoRef = offlineInfo;
+
+    const refreshOfflineInfo = () => {
+      if (!offlineInfoRef.isValid()) {
+        const newOfflineInfo = realm.objectForPrimaryKey<SourceTrackOfflineInfo>(
+          SourceTrackOfflineInfo,
+          sourceTrack.uuid
+        );
+
+        if (newOfflineInfo) {
+          offlineInfoRef = newOfflineInfo;
+        } else {
+          return;
+        }
+      }
+
+      if (offlineInfoRef.status !== SourceTrackOfflineInfoStatus.Downloading) {
+        return;
+      }
+
+      return offlineInfoRef;
+    };
+
     downloadTask.promise
       .progress({ count: 10, interval: 500 }, (received, total) => {
-        this.writeProgress(realm, offlineInfo, downloadTask, {
+        const oi = refreshOfflineInfo();
+
+        if (!oi) {
+          return;
+        }
+
+        this.writeProgress(realm, oi, downloadTask, {
           bytesDownloaded: Number(received),
           bytesTotal: Number(total),
         });
@@ -405,13 +434,19 @@ export class DownloadManager {
           res.flush();
         }
 
+        const oi = refreshOfflineInfo();
+
+        if (!oi) {
+          return;
+        }
+
         realm.write(() => {
           logger.debug(`${downloadTask.id}: done`);
-          offlineInfo.status = SourceTrackOfflineInfoStatus.Succeeded;
-          offlineInfo.completedAt = new Date();
-          offlineInfo.downloadedBytes = offlineInfo.totalBytes;
-          offlineInfo.percent = 1.0;
-          offlineInfo.errorInfo = undefined;
+          oi.status = SourceTrackOfflineInfoStatus.Succeeded;
+          oi.completedAt = new Date();
+          oi.downloadedBytes = oi.totalBytes;
+          oi.percent = 1.0;
+          oi.errorInfo = undefined;
         });
 
         this.statsig.logEvent(trackDownloadCompletedEvent(sourceTrack));
@@ -422,22 +457,28 @@ export class DownloadManager {
       .catch((error) => {
         log.warn(`error downloading ${downloadTask.id}`, error);
 
+        const oi = refreshOfflineInfo();
+
+        if (!oi) {
+          return;
+        }
+
         realm.write(() => {
           logger.debug(`${downloadTask.id}: error; ${JSON.stringify(error)}`);
 
-          offlineInfo.errorInfo = JSON.stringify(error);
+          oi.errorInfo = JSON.stringify(error);
 
-          if (!offlineInfo.errorInfo) {
+          if (!oi.errorInfo) {
             // first failure, let it try again
-            offlineInfo.status = SourceTrackOfflineInfoStatus.Queued;
-            offlineInfo.startedAt = undefined;
+            oi.status = SourceTrackOfflineInfoStatus.Queued;
+            oi.startedAt = undefined;
           } else {
-            offlineInfo.status = SourceTrackOfflineInfoStatus.Failed;
-            offlineInfo.completedAt = new Date();
+            oi.status = SourceTrackOfflineInfoStatus.Failed;
+            oi.completedAt = new Date();
           }
         });
 
-        this.statsig.logEvent(trackDownloadFailureEvent(sourceTrack, offlineInfo));
+        this.statsig.logEvent(trackDownloadFailureEvent(sourceTrack, oi));
 
         this.runningDownloadTasks.splice(this.runningDownloadTasks.indexOf(downloadTask), 1);
         this.maybeStartQueuedDownloads().then(() => {});
