@@ -211,6 +211,11 @@ export class DownloadManager {
       }).fetch('GET', sourceTrack.streamingUrl()),
     };
 
+    // Ensure that when we call `.cancel()` later it does not throw an unhandled promise rejection error
+    task.promise.catch((error) => {
+      logger.info(`ReactNativeBlobUtil promise error: ${JSON.stringify(error)}`);
+    });
+
     this.pendingDownloadTasks.delete(sourceTrack.uuid);
     this.runningDownloadTasks.push(task);
 
