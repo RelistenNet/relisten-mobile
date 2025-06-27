@@ -103,9 +103,9 @@ export class RelistenApiClient {
         options: WretchOptions;
       }) => {
         if (response && response instanceof Response) {
-          const wretchError = e as WretchError;
+          const wretchError = e as WretchError | undefined;
           logger.warn(
-            `Retrying error: ${wretchError.status} method=${options.method} url=${url} text=${wretchError.text}`
+            `Retrying error: ${wretchError?.status} method=${options.method} url=${url} text=${wretchError?.text}`
           );
         } else {
           logger.warn(`Retrying error: method=${options.method} url=${url} ${e}`);
