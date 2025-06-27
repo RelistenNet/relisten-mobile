@@ -84,6 +84,8 @@ extension RelistenGaplessAudioPlayer {
             DispatchQueue.main.async {
                 UIApplication.shared.endReceivingRemoteControlEvents()
             }
+
+            audioSessionObserversSetUp = false
         }
     }
 
