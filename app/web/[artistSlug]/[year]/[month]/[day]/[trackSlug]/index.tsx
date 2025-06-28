@@ -85,6 +85,7 @@ export default function Page() {
           artist: artistByUuid[showData.artist_uuid],
           showUuid: showData.uuid,
           sourceUuid: sourceUuid,
+          overrideGroupSegment: '(artists)',
         };
 
         if (autoplay && trackUuid) {
