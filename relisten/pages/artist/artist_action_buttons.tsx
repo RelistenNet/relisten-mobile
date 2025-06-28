@@ -3,6 +3,8 @@ import { useWindowDimensions, View } from 'react-native';
 import { Link } from 'expo-router';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import React from 'react';
+import { RelistenText } from '@/relisten/components/relisten_text';
+import { tw } from '@/relisten/util/tw';
 
 export function ArtistActionButtons({
   currentRoute,
@@ -19,8 +21,6 @@ export function ArtistActionButtons({
   const buttonsPerRow = rowCount === 3 ? 2 : 3;
   const basis = `basis-1/${buttonsPerRow}`;
 
-  console.log(fontScale, rowCount, buttonsPerRow, basis);
-
   const buttons: React.JSX.Element[] = [
     <Link
       key="venues"
@@ -33,7 +33,7 @@ export function ArtistActionButtons({
       asChild
     >
       <RelistenButton
-        className={`shrink ${basis}`}
+        className={tw(`grow shrink`, basis)}
         textClassName="text-l"
         disabled={!(artist.features().per_source_venues || artist.features().per_show_venues)}
         disabledPopoverText="Venues feature not available for this artist"
@@ -52,7 +52,7 @@ export function ArtistActionButtons({
       asChild
     >
       <RelistenButton
-        className={`shrink ${basis}`}
+        className={tw(`grow shrink`, basis)}
         textClassName="text-l"
         disabled={!artist.features().tours}
         disabledPopoverText="Tours feature not available for this artist"
@@ -71,7 +71,7 @@ export function ArtistActionButtons({
       asChild
     >
       <RelistenButton
-        className={`shrink ${basis}`}
+        className={tw(`grow shrink`, basis)}
         textClassName="text-l"
         disabled={!artist.features().songs}
         disabledPopoverText="Songs feature not available for this artist"
@@ -90,7 +90,7 @@ export function ArtistActionButtons({
       asChild
     >
       <RelistenButton
-        className={`shrink ${basis}`}
+        className={tw(`grow shrink`, basis)}
         textClassName="text-l"
         disabled={!artist.features().ratings}
         disabledPopoverText="Top Rated feature not available for this artist"
@@ -108,13 +108,13 @@ export function ArtistActionButtons({
       }}
       asChild
     >
-      <RelistenButton className={`shrink ${basis}`} textClassName="text-l">
+      <RelistenButton className={tw(`grow shrink`, basis)} textClassName="text-l">
         Recent
       </RelistenButton>
     </Link>,
     <RelistenButton
       key="random"
-      className={`shrink ${basis}`}
+      className={tw(`grow shrink`, basis)}
       textClassName="text-l"
       automaticLoadingIndicator
       asyncOnPress={goToRandomShow}
