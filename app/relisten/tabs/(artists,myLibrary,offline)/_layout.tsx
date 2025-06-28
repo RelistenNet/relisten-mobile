@@ -108,6 +108,7 @@ export default function ArtistsLayout() {
         }}
       />
       <Stack.Screen name="[artistUuid]/song/[songUuid]/index" options={{ title: '' }} />
+      <Stack.Screen name="history/tracks" options={{ title: 'My History' }} />
     </Stack>
   );
 }
