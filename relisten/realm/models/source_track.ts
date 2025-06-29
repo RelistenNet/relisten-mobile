@@ -119,9 +119,16 @@ export class SourceTrack
     if (!this._streamingUrl) {
       let url = this.mp3Url;
 
-      const proxyArchiveMp3s = sharedStatsigClient().checkGate('proxy_archive_mp3s');
-      if (proxyArchiveMp3s) {
-        url = url.replace('://archive.org/', '://audio.relisten.net/archive.org/');
+      const proxyConfig = sharedStatsigClient().getDynamicConfig(
+        'proxy_audio_through_audio.relisten.net'
+      );
+      const urlReplacements = proxyConfig.get('url_replacements', {
+        '://archive.org/': '://audio.relisten.net/archive.org/',
+        '://phish.in/': '://audio.relisten.net/phish.in/',
+      });
+
+      for (const [key, value] of Object.entries(urlReplacements)) {
+        url = url.replace(key, value);
       }
 
       this._streamingUrl = url;

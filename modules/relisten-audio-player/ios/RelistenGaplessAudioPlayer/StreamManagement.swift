@@ -97,7 +97,7 @@ extension RelistenGaplessAudioPlayer {
             if newStream == 0 {	
                 var err = ErrorForErrorCode(errorCode)
 
-                let issueSource = streamable.url.host?.replacingOccurrences(of: "audio.relisten.net", with: "archive.org") ?? streamable.url.absoluteString
+                let issueSource = streamable.url.host?.replacingOccurrences(of: "audio.relisten.net/", with: "") ?? streamable.url.absoluteString
 
                 if errorCode == BASS_ERROR_TIMEOUT {
                     err = NSError(domain: "net.relisten.ios.relisten-audio-player", code: err.code, userInfo: [NSLocalizedDescriptionKey: "Server timeout: Check your Internet connection or maybe \(issueSource) is having issues"])
