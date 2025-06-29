@@ -50,12 +50,13 @@ export default function TabLayout() {
         tabBar={TabBar}
         // initialRouteName="artists"
       >
-        <Tabs.Screen name="(artists)" options={{ title: 'Artists' }} />
+        <Tabs.Screen name="(artists)" options={{ title: 'Artists', lazy: false }} />
 
         <Tabs.Screen
           name="(myLibrary)"
           options={{
             title: 'My Library',
+            lazy: false,
             tabBarBadge: downloads.length === 0 ? undefined : downloads.length,
           }}
         />
@@ -64,6 +65,7 @@ export default function TabLayout() {
           name="(offline)"
           options={{
             title: 'Offline',
+            lazy: false,
             tabBarItemStyle: {
               display:
                 settings?.showOfflineTabWithDefault() === ShowOfflineTabSetting.Always ||
@@ -75,7 +77,7 @@ export default function TabLayout() {
           }}
         />
 
-        <Tabs.Screen name="(relisten)" options={{ title: 'Relisten' }} />
+        <Tabs.Screen name="(relisten)" options={{ title: 'Relisten', lazy: false }} />
       </Tabs>
       <PlayerBottomBar />
     </>
