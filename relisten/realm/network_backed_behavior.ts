@@ -143,7 +143,7 @@ export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
     api: RelistenApiClient,
     matcher: (results: NetworkBackedResults<TLocalData>) => boolean
   ): Promise<NetworkBackedResults<TLocalData>> {
-    const executor = new NetworkBackedBehaviorExecutor(behavior, api);
+    const executor = behavior.sharedExecutor(api);
     const result = await executor.start().firstMatch(matcher);
 
     executor.tearDown();
