@@ -1,6 +1,10 @@
 // JavaScript equivalent of OfflineSourceMetadata.swift for Realm
-
 import Realm from 'realm';
+import { log } from '@/relisten/util/logging';
+import * as fs from 'expo-file-system';
+import { aggregateBy, groupBy } from '@/relisten/util/group_by';
+
+const logger = log.extend('migration');
 
 const FavoritedArtistSchema = {
   name: 'FavoritedArtist',
@@ -10,6 +14,11 @@ const FavoritedArtistSchema = {
     created_at: 'date',
   },
 };
+
+interface FavoritedArtist {
+  uuid: string;
+  created_at: Date;
+}
 
 const FavoritedShowSchema = {
   name: 'FavoritedShow',
@@ -21,6 +30,13 @@ const FavoritedShowSchema = {
     artist_uuid: 'string',
   },
 };
+
+interface FavoritedShow {
+  uuid: string;
+  created_at: Date;
+  show_date: Date;
+  artist_uuid: string;
+}
 
 const FavoritedSourceSchema = {
   name: 'FavoritedSource',
@@ -34,6 +50,14 @@ const FavoritedSourceSchema = {
   },
 };
 
+export interface FavoritedSource {
+  uuid: string;
+  created_at: Date;
+  artist_uuid: string;
+  show_uuid: string;
+  show_date: Date;
+}
+
 const FavoritedTrackSchema = {
   name: 'FavoritedTrack',
   primaryKey: 'uuid',
@@ -45,6 +69,14 @@ const FavoritedTrackSchema = {
     source_uuid: 'string',
   },
 };
+
+interface FavoritedTrack {
+  uuid: string;
+  created_at: Date;
+  artist_uuid: string;
+  show_uuid: string;
+  source_uuid: string;
+}
 
 const RecentlyPlayedTrackSchema = {
   name: 'RecentlyPlayedTrack',
@@ -62,13 +94,13 @@ const RecentlyPlayedTrackSchema = {
 };
 
 // Define enum for OfflineTrackState
-const OfflineTrackState = {
-  UNKNOWN: 0,
-  DOWNLOAD_QUEUED: 1,
-  DOWNLOADING: 2,
-  DOWNLOADED: 3,
-  DELETING: 4,
-};
+enum OfflineTrackState {
+  UNKNOWN = 0,
+  DOWNLOAD_QUEUED = 1,
+  DOWNLOADING = 2,
+  DOWNLOADED = 3,
+  DELETING = 4,
+}
 
 const OfflineTrackSchema = {
   name: 'OfflineTrack',
@@ -83,6 +115,16 @@ const OfflineTrackSchema = {
     file_size: 'int?',
   },
 };
+
+export interface OfflineTrack {
+  track_uuid: string;
+  artist_uuid: string;
+  show_uuid: string;
+  source_uuid: string;
+  created_at: Date;
+  state: OfflineTrackState;
+  file_size?: number;
+}
 
 const OfflineSourceSchema = {
   name: 'OfflineSource',
@@ -163,27 +205,97 @@ function openRealmDatabase() {
   });
 }
 
+export interface LegacyDatabaseContents {
+  trackUuids: string[];
+  showUuids: string[];
+  sources: FavoritedSource[];
+  artistUuids: string[];
+  offlineTracksBySource: Record<string, ReadonlyArray<OfflineTrack>>;
+  offlineFilenames: string[];
+}
+
+export function isLegacyDatabaseEmpty(legacyData: LegacyDatabaseContents) {
+  return !(
+    legacyData.trackUuids.length > 0 ||
+    legacyData.showUuids.length > 0 ||
+    legacyData.sources.length > 0 ||
+    legacyData.artistUuids.length > 0 ||
+    Object.entries(legacyData.offlineTracksBySource).length > 0 ||
+    legacyData.offlineFilenames.length > 0
+  );
+}
+
 // Example of using the schemas
-export async function exampleUsage() {
+export async function loadLegacyDatabaseContents(): Promise<LegacyDatabaseContents> {
   const realm = await openRealmDatabase();
 
   try {
     // Query for favorite tracks
-    const favoriteTracks = realm.objects('FavoritedTrack');
-    console.log(`You have ${favoriteTracks.length} favorite tracks`);
+    const favoriteTracks = realm
+      .objects<FavoritedTrack>('FavoritedTrack')
+      .map((o) => o.uuid.toLowerCase())
+      .sort();
+    const favoriteShows = realm
+      .objects<FavoritedShow>('FavoritedShow')
+      .map((o) => o.uuid.toLowerCase())
+      .sort();
+    const favoriteSources: FavoritedSource[] = realm
+      .objects<FavoritedSource>('FavoritedSource')
+      .map((o) => {
+        return {
+          uuid: o.uuid.toLowerCase(),
+          created_at: o.created_at,
+          artist_uuid: o.artist_uuid.toLowerCase(),
+          show_uuid: o.show_uuid.toLowerCase(),
+          show_date: o.show_date,
+        };
+      });
+    const favoriteArtists = realm
+      .objects<FavoritedArtist>('FavoritedArtist')
+      .map((o) => o.uuid.toLowerCase())
+      .sort();
 
     // Get offline tracks that are downloaded
-    const downloadedTracks = realm
-      .objects('OfflineTrack')
-      .filtered('state = $0', OfflineTrackState.DOWNLOADED);
+    const offlineTracks: OfflineTrack[] = realm
+      .objects<OfflineTrack>('OfflineTrack')
+      .filtered('state = $0', OfflineTrackState.DOWNLOADED)
+      .map((o) => {
+        return {
+          track_uuid: o.track_uuid.toLowerCase(),
+          artist_uuid: o.artist_uuid.toLowerCase(),
+          show_uuid: o.show_uuid.toLowerCase(),
+          source_uuid: o.source_uuid.toLowerCase(),
+          created_at: o.created_at,
+          state: o.state,
+          file_size: o.file_size,
+        };
+      });
+    const legacyDir = fs.documentDirectory + 'offline-mp3s/';
+    const offlineFilenames = (await fs.readDirectoryAsync(legacyDir))
+      .sort()
+      .map((f) => legacyDir + f);
 
-    console.log(`You have ${downloadedTracks.length} offline tracks`, downloadedTracks);
+    const offlineTracksBySourceUuid = aggregateBy(offlineTracks, (t) => t.source_uuid);
 
-    const offlineSources = realm.objects('OfflineSource');
-    console.log(`You have ${offlineSources.length} offline sources`, offlineSources);
+    return {
+      trackUuids: favoriteTracks,
+      showUuids: favoriteShows,
+      sources: favoriteSources,
+      artistUuids: favoriteArtists,
+      offlineTracksBySource: offlineTracksBySourceUuid,
+      offlineFilenames: offlineFilenames,
+    };
+  } catch (e) {
+    logger.warn(`Error loading legacy database: ${e}`);
+    return {
+      trackUuids: [],
+      showUuids: [],
+      sources: [],
+      artistUuids: [],
+      offlineTracksBySource: {},
+      offlineFilenames: [],
+    };
   } finally {
     realm.close();
   }
 }
-
-// exampleUsage();

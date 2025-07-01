@@ -6,7 +6,6 @@ import {
   RelistenApiResponse,
   RelistenApiResponseType,
 } from '@/relisten/api/client';
-import { useQuery } from '@/relisten/realm/schema';
 import { useArtist } from '@/relisten/realm/models/artist_repo';
 import { useMemo } from 'react';
 import { mergeNetworkBackedResults } from '@/relisten/realm/network_backed_results';
@@ -16,6 +15,8 @@ import {
   NetworkBackedBehaviorFetchStrategy,
   NetworkBackedBehaviorOptions,
 } from '@/relisten/realm/network_backed_behavior';
+import { useRealm } from '../../schema';
+import { RealmQueryValueStream } from '@/relisten/realm/value_streams';
 
 export enum RecentShowTabs {
   Performed = 'performed',
@@ -24,11 +25,12 @@ export enum RecentShowTabs {
 
 class RecentShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavior {
   constructor(
+    public realm: Realm.Realm,
     public artistUuid?: string,
     public activeTab?: RecentShowTabs,
     options?: NetworkBackedBehaviorOptions
   ) {
-    super(options);
+    super(realm, options);
   }
 
   fetchFromApi(
@@ -56,22 +58,23 @@ class RecentShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavi
     }
   }
 
-  useFetchFromLocal(): Realm.Results<Show> {
+  override createLocalUpdatingResults(): RealmQueryValueStream<Show> {
     const sortKey = this.activeTab === RecentShowTabs.Performed ? 'date' : 'updatedAt';
-    return useQuery(
-      Show,
-      (query) => query.filtered('artistUuid == $0', this.artistUuid).sorted(sortKey, true),
-      [this.artistUuid, sortKey]
+
+    return new RealmQueryValueStream<Show>(
+      this.realm,
+      this.realm.objects(Show).filtered('artistUuid == $0', this.artistUuid).sorted(sortKey, true)
     );
   }
 }
 
 export const useRecentShows = (artistUuid?: string, activeTab?: RecentShowTabs) => {
+  const realm = useRealm();
   const behavior = useMemo(() => {
-    return new RecentShowsNetworkBackedBehavior(artistUuid, activeTab, {
+    return new RecentShowsNetworkBackedBehavior(realm, artistUuid, activeTab, {
       fetchStrategy: NetworkBackedBehaviorFetchStrategy.NetworkAlwaysFirst,
     });
-  }, [artistUuid, activeTab]);
+  }, [realm, artistUuid, activeTab]);
 
   return useNetworkBackedBehavior(behavior);
 };

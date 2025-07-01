@@ -1,28 +1,30 @@
 import { Repository } from '../repository';
-import { useQuery } from '../schema';
-import { createNetworkBackedModelArrayHook } from '../network_backed_behavior_hooks';
+import { useRealm } from '../schema';
+import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
 import { useArtist } from './artist_repo';
 import { mergeNetworkBackedResults } from '../network_backed_results';
 import { useMemo } from 'react';
 import { Tour } from './tour';
+import { NetworkBackedBehaviorOptions } from '@/relisten/realm/network_backed_behavior';
+import { NetworkBackedModelArrayBehavior } from '@/relisten/realm/network_backed_model_array_behavior';
 
 export const tourRepo = new Repository(Tour);
 
-export const useTours = (artistUuid: string) => {
-  return createNetworkBackedModelArrayHook(
-    tourRepo,
-    () => {
-      const artistQuery = useQuery(
-        Tour,
-        (query) => query.filtered('artistUuid == $0', artistUuid),
-        [artistUuid]
-      );
+export function useTours(artistUuid: string, options?: NetworkBackedBehaviorOptions) {
+  const realm = useRealm();
 
-      return artistQuery;
-    },
-    (api) => api.tours(artistUuid)
-  )();
-};
+  const behavior = useMemo(() => {
+    return new NetworkBackedModelArrayBehavior(
+      realm,
+      tourRepo,
+      (realm) => realm.objects(Tour).filtered('artistUuid == $0', artistUuid),
+      (api) => api.tours(artistUuid),
+      options
+    );
+  }, [realm, artistUuid, options]);
+
+  return useNetworkBackedBehavior(behavior);
+}
 
 export const useArtistTours = (artistUuid: string) => {
   const artistResults = useArtist(artistUuid);

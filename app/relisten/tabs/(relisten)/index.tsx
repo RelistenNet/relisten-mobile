@@ -1,7 +1,7 @@
 import * as fs from 'expo-file-system';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import { ActivityIndicator, ScrollView, View } from 'react-native';
-import { useCallback, useEffect, useReducer, useState } from 'react';
+import React, { useCallback, useEffect, useReducer, useState } from 'react';
 import Flex from '@/relisten/components/flex';
 import {
   OFFLINE_DIRECTORIES_LEGACY,
@@ -20,6 +20,13 @@ import { useArtists } from '@/relisten/realm/models/artist_repo';
 import { sample } from 'remeda';
 import { useRelistenApi } from '@/relisten/api/context';
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
+import {
+  isLegacyDatabaseEmpty,
+  LegacyDatabaseContents,
+  loadLegacyDatabaseContents,
+} from '@/relisten/realm/old_ios_schema';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LegacyDataMigrationModal, SEEN_MODAL_KEY } from '@/relisten/pages/legacy_migration';
 
 const sizeFormatter = new Intl.NumberFormat([], {
   style: 'unit',
@@ -86,6 +93,14 @@ function StorageUsage() {
   const [fileSystemInfo, refresh] = useFileSystemInfo();
   const { showActionSheetWithOptions } = useActionSheet();
   const [deleting, setDeleting] = useState(false);
+  const [legacyData, setLegacyData] = useState<LegacyDatabaseContents | undefined>(undefined);
+  const [showMigrationModal, setShowMigrationModal] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      setLegacyData(await loadLegacyDatabaseContents());
+    })();
+  }, [setLegacyData]);
 
   useFocusEffect(
     useCallback(() => {
@@ -157,6 +172,23 @@ function StorageUsage() {
     <View>
       <SectionHeader title="Storage Usage" />
       <Flex column className="gap-4 p-4">
+        {legacyData && !isLegacyDatabaseEmpty(legacyData) && (
+          <RowWithAction
+            title={'Migrate legacy data'}
+            subtitle={
+              'You have legacy data (shows, sources, downloaded tracks) you can try to migrate.'
+            }
+          >
+            <RelistenButton
+              onPress={async () => {
+                await AsyncStorage.removeItem(SEEN_MODAL_KEY);
+                setShowMigrationModal(true);
+              }}
+            >
+              Migrate
+            </RelistenButton>
+          </RowWithAction>
+        )}
         <RowWithAction
           title={'Relisten Storage Usage'}
           subtitle={
@@ -184,6 +216,10 @@ function StorageUsage() {
           subtitle={`${fileSystemInfo.totalFreeDiskSpaceFormatted} out of ${fileSystemInfo.totalDiskSpaceFormatted}`}
         />
       </Flex>
+      <LegacyDataMigrationModal
+        forceShow={showMigrationModal}
+        onDismiss={() => setShowMigrationModal(false)}
+      />
     </View>
   );
 }

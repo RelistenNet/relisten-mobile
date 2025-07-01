@@ -437,8 +437,11 @@ export class RelistenApiClient {
     );
   }
 
-  public todayShows(options?: RelistenApiRequestOptions): Promise<RelistenApiResponse<Show[]>> {
-    const now = new Date();
+  public todayShows(
+    asOf?: Date,
+    options?: RelistenApiRequestOptions
+  ): Promise<RelistenApiResponse<Show[]>> {
+    const now = asOf ?? new Date();
     return this.getJson(
       `/v2/shows/today?month=${now.getMonth() + 1}&day=${now.getDate()}`,
       options

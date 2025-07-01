@@ -77,7 +77,8 @@ export default function TabLayout() {
           }}
         />
 
-        <Tabs.Screen name="(relisten)" options={{ title: 'Relisten', lazy: false }} />
+        {/* This one should be lazy to prevent the hits to the fs to check storage */}
+        <Tabs.Screen name="(relisten)" options={{ title: 'Relisten', lazy: true }} />
       </Tabs>
       <PlayerBottomBar />
     </>

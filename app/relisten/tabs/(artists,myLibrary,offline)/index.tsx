@@ -39,6 +39,7 @@ import { ArtistShowsOnThisDayTray } from '@/relisten/pages/artist/artist_shows_o
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { useRelistenApi } from '@/relisten/api/context';
 import { sample } from 'remeda';
+import { LegacyDataMigrationModal } from '@/relisten/pages/legacy_migration';
 
 const logger = log.extend('home-screen');
 
@@ -197,136 +198,6 @@ const ArtistsList = ({ artists, ...props }: ArtistsListProps) => {
   );
 };
 
-const SEEN_MODAL_KEY = '@relistenapp/seen-v6-upgrade-modal';
-
-function LegacyMigrationModal() {
-  const [modalVisible, setModalVisible] = useState(false);
-  const [seenModalBefore, setSeenModalBefore] = useState(false);
-  const [diskUsage] = useFileSystemInfo();
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const value = await AsyncStorage.getItem(SEEN_MODAL_KEY);
-        if (value !== null) {
-          setSeenModalBefore(true);
-        }
-      } catch {
-        setSeenModalBefore(false);
-      }
-    })();
-  }, [setSeenModalBefore]);
-
-  useEffect(() => {
-    if (diskUsage.totalSizeOfLegacyRelistenDirectoryFormatted !== '') {
-      const hasNotDismissed = !seenModalBefore;
-      const eligibleForModal = hasNotDismissed && Platform.OS === 'ios';
-      const hasLegacyData = diskUsage.totalSizeOfLegacyRelistenDirectory > 0;
-
-      logger.debug(
-        `seenModalBefore=${seenModalBefore}, eligibleForModal=${eligibleForModal}, hasLegacyData=${hasLegacyData}`
-      );
-
-      if (eligibleForModal && hasLegacyData) {
-        setModalVisible(true);
-      }
-    }
-  }, [diskUsage, setModalVisible, seenModalBefore]);
-
-  const clearModal = (deleteLegacyData: boolean) => {
-    if (deleteLegacyData) {
-      logger.info('Removing all legacy data.');
-
-      DownloadManager.SHARED_INSTANCE.removeAllLegacyDownloads()
-        .then(() => {
-          logger.info('Removed all legacy data.');
-        })
-        .catch((e) => {
-          logger.error(`Error removing all legacy data: ${e}`);
-        });
-    }
-
-    (async function () {
-      try {
-        await AsyncStorage.setItem(SEEN_MODAL_KEY, 'true');
-      } catch (e) {
-        logger.error(`Error setting ${SEEN_MODAL_KEY}: ${e}`);
-      }
-    })();
-    setModalVisible(false);
-  };
-
-  return (
-    <>
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => {
-          setModalVisible(false);
-        }}
-      >
-        <Flex
-          className="flex-1 items-center justify-center"
-          style={{ backgroundColor: 'rgba(0,0,0,0.75)' }}
-        >
-          <Flex
-            column
-            className="h-5/6 w-10/12 rounded-lg border-2 border-relisten-blue-700 bg-relisten-blue-900 p-4"
-          >
-            <Image
-              source={require('@/assets/Relisten White.png')}
-              resizeMode="contain"
-              className="mb-2 h-[28] w-full"
-            />
-            <ScrollView className="grow">
-              <RelistenText>
-                Welcome to Relisten v6, our first major update in over six years and the 13th update
-                in the twelve years since Relisten first launched in October 2013.
-                {'\n\n'}
-                We've completely rewritten Relisten for improved stability, reliability, exciting
-                new features, and Android support (tell your friends!).{' '}
-                <Text className="font-bold">
-                  Unfortunately, due to significant technical changes, your previous favorites and
-                  downloaded shows won't carry over to the new app.{' '}
-                </Text>
-                We understand how disappointing it is to lose your carefully curated library and
-                sincerely apologize—we explored every possible solution to avoid this.
-                {'\n\n'}
-                You can retain your old data in case future migration becomes possible or delete it
-                to start fresh.
-                {'\n\n'}
-                Thank you for your continued support and understanding! Follow us on Instagram or
-                Twitter at @relistenapp, and join our Discord to share feedback and suggestions for
-                new futures to add!
-                {'\n\n'}
-                Keep on truckin'
-                {'\n'}
-                Alec & Daniel
-              </RelistenText>
-            </ScrollView>
-            <View className="pt-4">
-              <SocialButtons className="border-b-2 border-relisten-blue-800 pb-4" />
-              <Flex className="w-full justify-stretch pt-4">
-                <View className="basis-1/2 pr-1">
-                  <RelistenButton onPress={() => clearModal(false)}>
-                    Keep data ({diskUsage.totalSizeOfLegacyRelistenDirectoryFormatted})
-                  </RelistenButton>
-                </View>
-                <View className="flex basis-1/2 flex-row items-stretch justify-stretch pl-1">
-                  <RelistenButton onPress={() => clearModal(true)} className="flex-1 bg-green-600">
-                    Start fresh
-                  </RelistenButton>
-                </View>
-              </Flex>
-            </View>
-          </Flex>
-        </Flex>
-      </Modal>
-    </>
-  );
-}
-
 export default function Page() {
   const results = useArtists();
   const groupSegment = useGroupSegment();
@@ -366,7 +237,7 @@ export default function Page() {
           }}
         />
       </RefreshContextProvider>
-      <LegacyMigrationModal />
+      <LegacyDataMigrationModal />
     </View>
   );
 }

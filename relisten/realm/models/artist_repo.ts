@@ -3,23 +3,48 @@ import {
   NetworkBackedBehaviorOptions,
 } from '@/relisten/realm/network_backed_behavior';
 import { useMemo } from 'react';
-import { createNetworkBackedModelArrayHook } from '../network_backed_behavior_hooks';
+import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
 import { NetworkBackedResults } from '../network_backed_results';
 import { Repository } from '../repository';
-import { useQuery } from '../schema';
+import { useQuery, useRealm } from '../schema';
 import { Artist } from './artist';
 
 import { useIsOfflineTab } from '@/relisten/util/routes';
-import { useRealmTabsFilter } from '../realm_filters';
+import { filterForUser, useRealmTabsFilter } from '../realm_filters';
 import { Show } from './show';
 import { Source } from './source';
+import { NetworkBackedModelArrayBehavior } from '@/relisten/realm/network_backed_model_array_behavior';
 
 export const artistRepo = new Repository(Artist);
-export const useArtists = createNetworkBackedModelArrayHook(
-  artistRepo,
-  () => useRealmTabsFilter(useQuery(Artist)),
-  (api) => api.artists()
-);
+
+export function artistsNetworkBackedBehavior(
+  realm: Realm.Realm,
+  availableOfflineOnly: boolean,
+  options?: NetworkBackedBehaviorOptions
+) {
+  return new NetworkBackedModelArrayBehavior(
+    realm,
+    artistRepo,
+    (realm) =>
+      filterForUser(realm.objects<Artist>(Artist), {
+        isFavorite: null,
+        isPlayableOffline: availableOfflineOnly ? availableOfflineOnly : null,
+      }),
+    (api) => api.artists(),
+    options
+  );
+}
+
+export function useArtists(options?: NetworkBackedBehaviorOptions) {
+  const realm = useRealm();
+  const isOfflineTab = useIsOfflineTab();
+
+  const behavior = useMemo(() => {
+    return artistsNetworkBackedBehavior(realm, isOfflineTab, options);
+  }, [realm, options, isOfflineTab]);
+
+  return useNetworkBackedBehavior(behavior);
+}
 
 export function useArtistMetadata(artist?: Artist | null) {
   const isOfflineTab = useIsOfflineTab();

@@ -1,28 +1,30 @@
 import { Repository } from '../repository';
-import { useQuery } from '../schema';
-import { createNetworkBackedModelArrayHook } from '../network_backed_behavior_hooks';
+import { useRealm } from '../schema';
+import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
 import { useArtist } from './artist_repo';
 import { mergeNetworkBackedResults } from '../network_backed_results';
 import { useMemo } from 'react';
 import { Venue } from './venue';
+import { NetworkBackedBehaviorOptions } from '@/relisten/realm/network_backed_behavior';
+import { NetworkBackedModelArrayBehavior } from '@/relisten/realm/network_backed_model_array_behavior';
 
 export const venueRepo = new Repository(Venue);
 
-export const useVenues = (artistUuid: string) => {
-  return createNetworkBackedModelArrayHook(
-    venueRepo,
-    () => {
-      const venueQuery = useQuery(
-        Venue,
-        (query) => query.filtered('artistUuid == $0 && showsAtVenue > 0', artistUuid),
-        [artistUuid]
-      );
+export function useVenues(artistUuid: string, options?: NetworkBackedBehaviorOptions) {
+  const realm = useRealm();
 
-      return venueQuery;
-    },
-    (api) => api.venues(artistUuid)
-  )();
-};
+  const behavior = useMemo(() => {
+    return new NetworkBackedModelArrayBehavior(
+      realm,
+      venueRepo,
+      (realm) => realm.objects(Venue).filtered('artistUuid == $0 && showsAtVenue > 0', artistUuid),
+      (api) => api.venues(artistUuid),
+      options
+    );
+  }, [realm, artistUuid, options]);
+
+  return useNetworkBackedBehavior(behavior);
+}
 
 export const useArtistVenues = (artistUuid: string) => {
   const artistResults = useArtist(artistUuid);

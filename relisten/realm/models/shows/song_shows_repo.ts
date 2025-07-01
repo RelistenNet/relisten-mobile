@@ -3,17 +3,21 @@ import { SongWithShows } from '@/relisten/api/models/song';
 import { upsertShowList } from '@/relisten/realm/models/repo_utils';
 import { useMemo } from 'react';
 import Realm from 'realm';
-import {
-  NetworkBackedBehaviorOptions,
-  ThrottledNetworkBackedBehavior,
-} from '../../network_backed_behavior';
+import { NetworkBackedBehaviorOptions } from '../../network_backed_behavior';
 import { useNetworkBackedBehavior } from '../../network_backed_behavior_hooks';
 import { mergeNetworkBackedResults, NetworkBackedResults } from '../../network_backed_results';
-import { useObject, useQuery } from '../../schema';
 import { useArtist } from '../artist_repo';
 import { Show } from '../show';
 import { Song } from '../song';
 import { songRepo } from '../song_repo';
+import { useRealm } from '@/relisten/realm/schema';
+import {
+  CombinedValueStream,
+  RealmObjectValueStream,
+  RealmQueryValueStream,
+  ValueStream,
+} from '@/relisten/realm/value_streams';
+import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_network_backed_behavior';
 
 export interface SongShows {
   song: Song | null;
@@ -26,11 +30,12 @@ class SongShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
 > {
   private showUuids: string[] = [];
   constructor(
+    realm: Realm.Realm,
     public artistUuid: string,
     public songUuid: string,
     options?: NetworkBackedBehaviorOptions
   ) {
-    super(options);
+    super(realm, options);
   }
 
   fetchFromApi(
@@ -40,37 +45,36 @@ class SongShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
     return api.song(this.artistUuid, this.songUuid, api.refreshOptions(forcedRefresh));
   }
 
-  useFetchFromLocal(): SongShows {
-    const song = useObject(Song, this.songUuid) || null;
-    const shows = useQuery(Show, (query) => query.filtered('uuid in $0', this.showUuids), [
-      this.showUuids,
-    ]);
+  override createLocalUpdatingResults(): ValueStream<SongShows> {
+    const songResults = new RealmObjectValueStream(this.realm, Song, this.songUuid);
+    const showsResults = new RealmQueryValueStream<Show>(
+      this.realm,
+      this.realm.objects(Show).filtered('songUuid == $0', this.songUuid)
+    );
 
-    const obj = useMemo(() => {
+    return new CombinedValueStream(songResults, showsResults, (song, shows) => {
       return { song, shows };
-    }, [song, shows]);
-
-    return obj;
+    });
   }
 
   isLocalDataShowable(localData: SongShows): boolean {
     return localData.song !== null && localData.shows.length > 0;
   }
 
-  upsert(realm: Realm, localData: SongShows, apiData: SongWithShows): void {
+  override upsert(localData: SongShows, apiData: SongWithShows): void {
     if (!localData.shows.isValid()) {
       return;
     }
 
-    realm.write(() => {
-      upsertShowList(realm, apiData.shows, localData.shows, {
+    this.realm.write(() => {
+      upsertShowList(this.realm, apiData.shows, localData.shows, {
         // we may not have all the shows here on initial load
         performDeletes: false,
         queryForModel: true,
       });
 
       songRepo.upsert(
-        realm,
+        this.realm,
         { ...apiData, shows_played_at: apiData.shows.length },
         localData.song || undefined
       );
@@ -84,9 +88,10 @@ export function useSongShows(
   artistUuid: string,
   songUuid: string
 ): NetworkBackedResults<SongShows> {
+  const realm = useRealm();
   const behavior = useMemo(() => {
-    return new SongShowsNetworkBackedBehavior(artistUuid, songUuid);
-  }, [artistUuid, songUuid]);
+    return new SongShowsNetworkBackedBehavior(realm, artistUuid, songUuid);
+  }, [realm, artistUuid, songUuid]);
 
   return useNetworkBackedBehavior(behavior);
 }

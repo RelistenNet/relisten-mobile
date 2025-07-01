@@ -1,8 +1,14 @@
-import { RelistenApiUpdatableObject, Repository } from './repository';
-import { RelistenObjectRequiredProperties } from './relisten_object';
-import { RelistenApiClient, RelistenApiResponse } from '../api/client';
+import {
+  RelistenApiClient,
+  RelistenApiClientError,
+  RelistenApiResponse,
+  RelistenApiResponseType,
+} from '../api/client';
 import dayjs from 'dayjs';
-import Realm from 'realm';
+import { useEffect, useMemo, useState } from 'react';
+import { NetworkBackedResults } from '@/relisten/realm/network_backed_results';
+import { log } from '@/relisten/util/logging';
+import { EmittableValueStream, ValueStream } from '@/relisten/realm/value_streams';
 
 export enum NetworkBackedBehaviorFetchStrategy {
   UNKNOWN,
@@ -12,69 +18,37 @@ export enum NetworkBackedBehaviorFetchStrategy {
   NetworkOnlyIfLocalIsNotShowable,
 }
 
-export interface NetworkBackedBehavior<TLocalData, TApiData> {
-  fetchStrategy: NetworkBackedBehaviorFetchStrategy;
+export abstract class NetworkBackedBehavior<TLocalData, TApiData> {
+  abstract fetchStrategy: NetworkBackedBehaviorFetchStrategy;
 
-  useFetchFromLocal(): TLocalData;
+  abstract createLocalUpdatingResults(): ValueStream<TLocalData>;
 
-  fetchFromApi(
-    api: RelistenApiClient,
-    forcedRefresh: boolean
-  ): Promise<RelistenApiResponse<TApiData | undefined>>;
+  useFetchFromLocal(): TLocalData {
+    const updatingResults = useMemo(() => {
+      return this.createLocalUpdatingResults();
+    }, []);
+    const [localData, setLocalData] = useState<TLocalData>(updatingResults.currentValue);
 
-  shouldPerformNetworkRequest(
-    lastRequestAt: dayjs.Dayjs | undefined,
-    localData: TLocalData
-  ): boolean;
+    useEffect(() => {
+      updatingResults.addListener((newLocalData) => {
+        setLocalData(newLocalData);
+      });
 
-  isLocalDataShowable(localData: TLocalData): boolean;
+      return () => {
+        updatingResults.tearDown();
+      };
+    }, [updatingResults, setLocalData]);
 
-  upsert(realm: Realm, localData: TLocalData | null, apiData: TApiData): void;
-}
-
-export interface NetworkBackedBehaviorOptions {
-  minTimeBetweenRequestsSeconds?: number;
-  fetchStrategy?: NetworkBackedBehaviorFetchStrategy;
-}
-
-export abstract class ThrottledNetworkBackedBehavior<TLocalData, TApiData>
-  implements NetworkBackedBehavior<TLocalData, TApiData>
-{
-  protected lastRequestAt: dayjs.Dayjs | undefined;
-  protected minTimeBetweenRequestsSeconds: number;
-  public readonly fetchStrategy: NetworkBackedBehaviorFetchStrategy;
-
-  protected constructor(options?: NetworkBackedBehaviorOptions) {
-    this.minTimeBetweenRequestsSeconds = 60 * 15;
-    this.fetchStrategy =
-      options?.fetchStrategy || NetworkBackedBehaviorFetchStrategy.StaleWhileRevalidate;
-
-    if (options?.minTimeBetweenRequestsSeconds !== undefined) {
-      this.minTimeBetweenRequestsSeconds = options.minTimeBetweenRequestsSeconds;
-    }
+    return localData;
   }
 
-  shouldPerformNetworkRequest(
-    lastRequestAt: dayjs.Dayjs | undefined,
-    localData: TLocalData
-  ): boolean {
-    if (
-      this.fetchStrategy === NetworkBackedBehaviorFetchStrategy.LocalOnly ||
-      (this.fetchStrategy === NetworkBackedBehaviorFetchStrategy.NetworkOnlyIfLocalIsNotShowable &&
-        this.isLocalDataShowable(localData))
-    ) {
-      return false;
+  private _sharedExecutor: NetworkBackedBehaviorExecutor<TLocalData, TApiData> | undefined;
+  sharedExecutor(api: RelistenApiClient) {
+    if (!this._sharedExecutor) {
+      this._sharedExecutor = new NetworkBackedBehaviorExecutor(this, api);
     }
 
-    if (!lastRequestAt) {
-      return true;
-    }
-
-    this.lastRequestAt = lastRequestAt;
-
-    const msSinceLastRequest = dayjs().diff(lastRequestAt, 'milliseconds');
-
-    return msSinceLastRequest >= this.minTimeBetweenRequestsSeconds * 1000;
+    return this._sharedExecutor;
   }
 
   abstract fetchFromApi(
@@ -82,82 +56,148 @@ export abstract class ThrottledNetworkBackedBehavior<TLocalData, TApiData>
     forcedRefresh: boolean
   ): Promise<RelistenApiResponse<TApiData | undefined>>;
 
-  abstract useFetchFromLocal(): TLocalData;
+  abstract shouldPerformNetworkRequest(
+    lastRequestAt: dayjs.Dayjs | undefined,
+    localData: TLocalData
+  ): boolean;
 
   abstract isLocalDataShowable(localData: TLocalData): boolean;
 
-  abstract upsert(realm: Realm, localData: TLocalData, apiData: TApiData): void;
+  abstract upsert(localData: TLocalData | null, apiData: TApiData): void;
 }
 
-export class NetworkBackedModelArrayBehavior<
-  TModel extends RequiredProperties & RequiredRelationships,
-  TApi extends RelistenApiUpdatableObject,
-  RequiredProperties extends RelistenObjectRequiredProperties,
-  RequiredRelationships extends object,
-> extends ThrottledNetworkBackedBehavior<Realm.Results<TModel>, TApi[]> {
+export interface NetworkBackedBehaviorOptions {
+  minTimeBetweenRequestsSeconds?: number;
+  fetchStrategy?: NetworkBackedBehaviorFetchStrategy;
+}
+
+const logger = log.extend('NetworkBackedBehaviorExecutor');
+
+export const defaultNetworkLoadingValue = (
+  fetchStrategy: NetworkBackedBehaviorFetchStrategy,
+  dataExists: boolean
+) => {
+  return fetchStrategy === NetworkBackedBehaviorFetchStrategy.NetworkAlwaysFirst || !dataExists;
+};
+
+export class NetworkBackedResultValueStream<TLocalData> extends EmittableValueStream<
+  NetworkBackedResults<TLocalData>
+> {
+  firstMatch(
+    matcher: (result: NetworkBackedResults<TLocalData>) => boolean
+  ): Promise<NetworkBackedResults<TLocalData>> {
+    return new Promise((resolve) => {
+      const tearDown = this.addListener((newResults) => {
+        if (matcher(newResults)) {
+          setImmediate(() => tearDown());
+          resolve(newResults);
+        }
+      });
+    });
+  }
+}
+
+export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
+  private isNetworkLoading: boolean;
+  private isNetworkLoadingDefault: boolean;
+  private errors: RelistenApiClientError[] | undefined = undefined;
+  private localData: ValueStream<TLocalData>;
+  private output: NetworkBackedResultValueStream<TLocalData>;
+
   constructor(
-    public repository: Repository<TModel, TApi, RequiredProperties, RequiredRelationships>,
-    public fetchFromRealm: () => Realm.Results<TModel>,
-    public apiCall: (
-      api: RelistenApiClient,
-      forcedRefresh: boolean
-    ) => Promise<RelistenApiResponse<TApi[]>>,
-    options?: NetworkBackedBehaviorOptions
+    private behavior: NetworkBackedBehavior<TLocalData, TApiData>,
+    private api: RelistenApiClient
   ) {
-    super(options);
+    this.localData = this.behavior.createLocalUpdatingResults();
+
+    const dataExists = this.behavior.isLocalDataShowable(this.localData.currentValue);
+    this.isNetworkLoadingDefault = defaultNetworkLoadingValue(
+      this.behavior.fetchStrategy,
+      dataExists
+    );
+
+    this.isNetworkLoading = this.isNetworkLoadingDefault;
+
+    this.output = new NetworkBackedResultValueStream<TLocalData>(this.buildResult());
+
+    this.localData.addListener(() => {
+      // If the local data changes, emit another output event
+      this.buildAndEmit();
+    });
   }
 
-  fetchFromApi(
+  currentResults(): NetworkBackedResults<TLocalData> {
+    return this.output.currentValue;
+  }
+
+  start(): NetworkBackedResultValueStream<TLocalData> {
+    this.refresh(this.isNetworkLoadingDefault).catch((e) => {
+      logger.error(e);
+    });
+
+    return this.output;
+  }
+
+  static async executeUntilMatches<TLocalData, TApiData>(
+    behavior: NetworkBackedBehavior<TLocalData, TApiData>,
     api: RelistenApiClient,
-    forcedRefresh: boolean
-  ): Promise<RelistenApiResponse<TApi[]>> {
-    return this.apiCall(api, forcedRefresh);
+    matcher: (results: NetworkBackedResults<TLocalData>) => boolean
+  ): Promise<NetworkBackedResults<TLocalData>> {
+    const executor = behavior.sharedExecutor(api);
+    const result = await executor.start().firstMatch(matcher);
+
+    executor.tearDown();
+
+    return result;
   }
 
-  useFetchFromLocal(): Realm.Results<TModel> {
-    return this.fetchFromRealm();
+  static executeToFirstShowableData<TLocalData, TApiData>(
+    behavior: NetworkBackedBehavior<TLocalData, TApiData>,
+    api: RelistenApiClient
+  ): Promise<NetworkBackedResults<TLocalData>> {
+    return this.executeUntilMatches(behavior, api, (result) => {
+      return behavior.isLocalDataShowable(result.data);
+    });
   }
 
-  isLocalDataShowable(localData: Realm.Results<TModel>): boolean {
-    return localData.length > 0;
+  public tearDown() {
+    this.output.tearDown();
+    this.localData.tearDown();
   }
 
-  upsert(realm: Realm, localData: Realm.Results<TModel>, apiData: TApi[]): void {
-    this.repository.upsertMultiple(realm, apiData, localData, true, true);
-  }
-}
-
-export class NetworkBackedModelBehavior<
-  TModel extends RequiredProperties & RequiredRelationships,
-  TApi extends RelistenApiUpdatableObject,
-  RequiredProperties extends RelistenObjectRequiredProperties,
-  RequiredRelationships extends object,
-> extends ThrottledNetworkBackedBehavior<TModel | null, TApi> {
-  constructor(
-    public repository: Repository<TModel, TApi, RequiredProperties, RequiredRelationships>,
-    public fetchFromRealm: () => TModel | null,
-    public apiCall: (
-      api: RelistenApiClient,
-      forcedRefresh: boolean
-    ) => Promise<RelistenApiResponse<TApi>>,
-    options?: NetworkBackedBehaviorOptions
-  ) {
-    super(options);
+  private buildResult(): NetworkBackedResults<TLocalData> {
+    // It is important that all of these have stable values and only change identities
+    // when there has been a semantic change for React compatiblity.
+    return {
+      isNetworkLoading: this.isNetworkLoading,
+      data: this.localData.currentValue,
+      refresh: this.refresh,
+      errors: this.errors,
+    };
   }
 
-  fetchFromApi(api: RelistenApiClient, forcedRefresh: boolean): Promise<RelistenApiResponse<TApi>> {
-    return this.apiCall(api, forcedRefresh);
+  private buildAndEmit() {
+    this.output.emit(this.buildResult());
   }
 
-  useFetchFromLocal(): TModel | null {
-    return this.fetchFromRealm();
-  }
+  refresh = async (shouldForceLoadingSpinner: boolean = false) => {
+    if (shouldForceLoadingSpinner) {
+      this.isNetworkLoading = true;
+      this.buildAndEmit();
+    }
+    const apiData = await this.behavior.fetchFromApi(this.api, shouldForceLoadingSpinner);
 
-  isLocalDataShowable(localData: TModel | null): boolean {
-    return localData !== null;
-  }
+    if (apiData?.type == RelistenApiResponseType.OnlineRequestCompleted) {
+      if (apiData?.data) {
+        this.behavior.upsert(this.localData.currentValue, apiData.data);
+      }
 
-  upsert(realm: Realm, localData: TModel, apiData: TApi): void {
-    this.repository.upsert(realm, apiData, localData);
-  }
+      if (apiData?.error) {
+        this.errors = [apiData?.error];
+      }
+    }
+
+    this.isNetworkLoading = false;
+    this.buildAndEmit();
+  };
 }
