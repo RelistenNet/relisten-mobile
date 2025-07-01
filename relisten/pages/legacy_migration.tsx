@@ -360,7 +360,6 @@ export function LegacyDataMigrationModal({
     (async () => {
       try {
         const value = await AsyncStorage.getItem(SEEN_MODAL_KEY);
-        console.log(`SEEN_MODAL_KEY=${SEEN_MODAL_KEY}, value=${value}`);
         setSeenModalBefore(value === 'true');
       } catch {
         setSeenModalBefore(false);

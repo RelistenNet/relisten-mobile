@@ -3,7 +3,6 @@ import { useWindowDimensions, View } from 'react-native';
 import { Link } from 'expo-router';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import React from 'react';
-import { RelistenText } from '@/relisten/components/relisten_text';
 import { tw } from '@/relisten/util/tw';
 
 export function ArtistActionButtons({

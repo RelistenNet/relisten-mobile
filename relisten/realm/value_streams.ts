@@ -154,7 +154,6 @@ export class RealmObjectValueStream<T extends AnyRealmObject> extends ValueStrea
   private setupCollectionListener() {
     const collection = this.realm.objects(this.type as never);
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const collectionListener: CollectionCallback = (_, changes) => {
       const primaryKeyProperty = collection?.[0]?.objectSchema()?.primaryKey;
 
@@ -173,15 +172,15 @@ export class RealmObjectValueStream<T extends AnyRealmObject> extends ValueStrea
           }
         }
       }
+    };
 
-      collection.addListener(collectionListener);
+    collection.addListener(collectionListener);
 
-      this.collectionListenerTearDown = () => {
-        // If the app is closing, the realm will be closed and the listener does not need to be removed if
-        if (!this.realm.isClosed && collection) {
-          collection.removeListener(collectionListener);
-        }
-      };
+    this.collectionListenerTearDown = () => {
+      // If the app is closing, the realm will be closed and the listener does not need to be removed if
+      if (!this.realm.isClosed && collection) {
+        collection.removeListener(collectionListener);
+      }
     };
   }
 
