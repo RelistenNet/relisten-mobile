@@ -27,16 +27,21 @@ export const yearRepo = new Repository(Year);
 
 export function useYears(artistUuid: string, options?: NetworkBackedBehaviorOptions) {
   const realm = useRealm();
+  const isOfflineTab = useIsOfflineTab();
 
   const behavior = useMemo(() => {
     return new NetworkBackedModelArrayBehavior(
       realm,
       yearRepo,
-      (realm) => realm.objects(Year).filtered('artistUuid == $0', artistUuid),
+      (realm) =>
+        filterForUser<Year>(realm.objects(Year).filtered('artistUuid == $0', artistUuid), {
+          isFavorite: null,
+          isPlayableOffline: isOfflineTab ? true : null,
+        }),
       (api) => api.years(artistUuid),
       options
     );
-  }, [realm, artistUuid, options]);
+  }, [realm, isOfflineTab, artistUuid, options]);
 
   return useNetworkBackedBehavior(behavior);
 }
@@ -125,6 +130,7 @@ export function useYearShows(
   const behavior = useMemo(() => {
     return new YearShowsNetworkBackedBehavior(realm, artistUuid, yearUuid, {
       isPlayableOffline: isOfflineTab ? true : null,
+      isFavorite: null,
     });
   }, [realm, artistUuid, yearUuid, isOfflineTab]);
 

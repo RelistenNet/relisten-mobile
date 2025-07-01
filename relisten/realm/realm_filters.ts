@@ -31,7 +31,7 @@ export interface UserFilters {
   operator?: 'AND' | 'OR';
 }
 
-export function filterForUser<T extends RelistenObject & FavoritableObject>(
+export function filterForUser<T extends RelistenObject>(
   query: Realm.Results<T>,
   { isFavorite = true, isPlayableOffline = true, operator = 'OR' }: UserFilters
 ): Realm.Results<T> {
