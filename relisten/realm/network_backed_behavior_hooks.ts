@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Realm from 'realm';
+import Realm, { AnyRealmObject } from 'realm';
 import {
   RelistenApiClient,
   RelistenApiClientError,
@@ -9,22 +9,15 @@ import {
 import { useRelistenApi } from '../api/context';
 import {
   NetworkBackedBehavior,
-  NetworkBackedBehaviorFetchStrategy,
+  NetworkBackedBehaviorExecutor,
   NetworkBackedBehaviorOptions,
-  NetworkBackedModelArrayBehavior,
-  NetworkBackedModelBehavior,
 } from './network_backed_behavior';
 import { NetworkBackedResults } from './network_backed_results';
 import { RelistenObjectRequiredProperties } from './relisten_object';
 import { RelistenApiUpdatableObject, Repository } from './repository';
 import { useRealm } from './schema';
-
-const defaultNetworkLoadingValue = (
-  fetchStrategy: NetworkBackedBehaviorFetchStrategy,
-  dataExists: boolean
-) => {
-  return fetchStrategy === NetworkBackedBehaviorFetchStrategy.NetworkAlwaysFirst || !dataExists;
-};
+import { NetworkBackedModelArrayBehavior } from '@/relisten/realm/network_backed_model_array_behavior';
+import { NetworkBackedModelBehavior } from '@/relisten/realm/network_backed_model_behavior';
 
 export function useNetworkOnlyResults<TApiData>(
   fetchFromNetwork: () => Promise<RelistenApiResponse<TApiData | undefined>>
@@ -76,73 +69,52 @@ export function useNetworkOnlyResults<TApiData>(
 export function useNetworkBackedBehavior<TLocalData, TApiData>(
   behavior: NetworkBackedBehavior<TLocalData, TApiData>
 ): NetworkBackedResults<TLocalData> {
-  const realm = useRealm();
-  const localData = behavior.useFetchFromLocal();
-  const api = useRelistenApi();
-  const dataExists = behavior.isLocalDataShowable(localData);
-  const [error, setError] = useState<RelistenApiClientError | undefined>();
+  const { apiClient } = useRelistenApi();
+  const executor = behavior.sharedExecutor(apiClient);
 
-  // if data doesn't exist, initialize the loading state
-  const [isNetworkLoading, setIsNetworkLoading] = useState(
-    defaultNetworkLoadingValue(behavior.fetchStrategy, dataExists)
+  const [results, setResults] = useState<NetworkBackedResults<TLocalData>>(
+    executor.currentResults()
   );
-
-  const refresh = useCallback(
-    async (shouldForceLoadingSpinner: boolean) => {
-      if (shouldForceLoadingSpinner) {
-        setIsNetworkLoading(true);
-      }
-      const apiData = await behavior.fetchFromApi(api.apiClient, shouldForceLoadingSpinner);
-
-      if (apiData?.type == RelistenApiResponseType.OnlineRequestCompleted) {
-        if (apiData?.data) {
-          behavior.upsert(realm, localData, apiData.data);
-        }
-
-        if (apiData?.error) {
-          setError(apiData?.error);
-        }
-      }
-
-      setIsNetworkLoading(false);
-    },
-    [setIsNetworkLoading, localData, behavior, setError]
-  );
-
-  const results = useMemo<NetworkBackedResults<TLocalData>>(() => {
-    return {
-      isNetworkLoading,
-      data: localData,
-      // if were pull-to-refreshing, always show the spinner
-      refresh: (force = false) => refresh(force),
-      errors: error ? [error] : undefined,
-    };
-  }, [isNetworkLoading, localData, refresh, error]);
 
   useEffect(() => {
-    // if data doesn't exist, show the loading spinner. purposely not putting dataExists in the deps chart.
-    refresh(defaultNetworkLoadingValue(behavior.fetchStrategy, dataExists));
-  }, [behavior]);
+    const output = executor.start();
+    const tearDownListener = output.addListener((newResults) => {
+      setResults(newResults);
+    });
+
+    return () => {
+      tearDownListener();
+      executor.tearDown();
+    };
+  }, [behavior, apiClient, setResults]);
 
   return results;
 }
 
 export function createNetworkBackedModelArrayHook<
-  TModel extends RequiredProperties & RequiredRelationships,
+  TModel extends AnyRealmObject & RequiredProperties & RequiredRelationships,
   TApi extends RelistenApiUpdatableObject,
   RequiredProperties extends RelistenObjectRequiredProperties,
   RequiredRelationships extends object,
 >(
   repo: Repository<TModel, TApi, RequiredProperties, RequiredRelationships>,
-  fetchFromRealm: () => Realm.Results<TModel>,
+  fetchFromRealm: (realm: Realm.Realm) => Realm.Results<TModel>,
   fetchFromApi: (
     api: RelistenApiClient,
     forcedRefresh: boolean
   ) => Promise<RelistenApiResponse<TApi[]>>
 ): (options?: NetworkBackedBehaviorOptions) => NetworkBackedResults<Realm.Results<TModel>> {
   return (options) => {
+    const realm = useRealm();
+
     const behavior = useMemo(() => {
-      return new NetworkBackedModelArrayBehavior(repo, fetchFromRealm, fetchFromApi, options);
+      return new NetworkBackedModelArrayBehavior(
+        realm,
+        repo,
+        fetchFromRealm,
+        fetchFromApi,
+        options
+      );
     }, [options]);
 
     return useNetworkBackedBehavior(behavior);
@@ -150,21 +122,26 @@ export function createNetworkBackedModelArrayHook<
 }
 
 export function createNetworkBackedModelHook<
-  TModel extends RequiredProperties & RequiredRelationships,
+  TModel extends AnyRealmObject & RequiredProperties & RequiredRelationships,
   TApi extends RelistenApiUpdatableObject,
   RequiredProperties extends RelistenObjectRequiredProperties,
   RequiredRelationships extends object,
 >(
   repo: Repository<TModel, TApi, RequiredProperties, RequiredRelationships>,
-  fetchFromRealm: () => TModel | null,
+  fetchFromRealm: () => [
+    type: string | (new (...args: unknown[]) => TModel),
+    primaryKey: TModel[keyof TModel],
+  ],
   fetchFromApi: (
     api: RelistenApiClient,
     forcedRefresh: boolean
   ) => Promise<RelistenApiResponse<TApi>>
 ): (options?: NetworkBackedBehaviorOptions) => NetworkBackedResults<TModel | null> {
   return (options) => {
+    const realm = useRealm();
+
     const behavior = useMemo(() => {
-      return new NetworkBackedModelBehavior(repo, fetchFromRealm, fetchFromApi, options);
+      return new NetworkBackedModelBehavior(realm, repo, fetchFromRealm, fetchFromApi, options);
     }, [options]);
 
     return useNetworkBackedBehavior(behavior);

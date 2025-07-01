@@ -10,19 +10,21 @@ import {
   RelistenApiResponse,
   RelistenApiResponseType,
 } from '@/relisten/api/client';
-import { useQuery } from '@/relisten/realm/schema';
+import { useRealm } from '@/relisten/realm/schema';
 import { ShowsWithVenueNetworkBackedBehavior } from '@/relisten/realm/models/shows/show_with_venues_behavior';
 import {
   NetworkBackedBehaviorFetchStrategy,
   NetworkBackedBehaviorOptions,
 } from '@/relisten/realm/network_backed_behavior';
+import { RealmQueryValueStream } from '@/relisten/realm/value_streams';
 
 class TopShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavior {
   constructor(
+    realm: Realm.Realm,
     public artistUuid: string,
     options?: NetworkBackedBehaviorOptions
   ) {
-    super(options);
+    super(realm, options);
   }
 
   fetchFromApi(
@@ -42,20 +44,21 @@ class TopShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavior 
     });
   }
 
-  useFetchFromLocal(): Realm.Results<Show> {
-    const topShows = useQuery(
-      Show,
-      (query) => query.filtered('artistUuid == $0', this.artistUuid).sorted('avgRating', true),
-      [this.artistUuid]
+  override createLocalUpdatingResults(): RealmQueryValueStream<Show> {
+    return new RealmQueryValueStream<Show>(
+      this.realm,
+      this.realm
+        .objects(Show)
+        .filtered('artistUuid == $0', this.artistUuid)
+        .sorted('avgRating', true)
     );
-
-    return topShows;
   }
 }
 
 export const useTopShows = (artistUuid: string) => {
+  const realm = useRealm();
   const behavior = useMemo(() => {
-    return new TopShowsNetworkBackedBehavior(artistUuid, {
+    return new TopShowsNetworkBackedBehavior(realm, artistUuid, {
       fetchStrategy: NetworkBackedBehaviorFetchStrategy.NetworkAlwaysFirst,
     });
   }, [artistUuid]);

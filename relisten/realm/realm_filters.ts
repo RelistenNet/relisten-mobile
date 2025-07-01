@@ -25,22 +25,24 @@ export const useRealmTabsFilter = <T extends RelistenObject>(items: Realm.Result
   return items;
 };
 
+export interface UserFilters {
+  isFavorite?: boolean | null;
+  isPlayableOffline?: boolean | null;
+  operator?: 'AND' | 'OR';
+}
+
 export function filterForUser<T extends RelistenObject & FavoritableObject>(
   query: Realm.Results<T>,
-  {
-    isFavorite = true,
-    isPlayableOffline = true,
-    operator = 'OR',
-  }: { isFavorite?: boolean; isPlayableOffline?: boolean; operator?: 'AND' | 'OR' }
+  { isFavorite = true, isPlayableOffline = true, operator = 'OR' }: UserFilters
 ): Realm.Results<T> {
   const filters: string[] = [];
   const args: unknown[] = [];
 
-  if (isFavorite !== undefined) {
+  if (isFavorite !== null) {
     filters.push(`isFavorite == $${args.length}`);
     args.push(isFavorite);
   }
-  if (isPlayableOffline !== undefined) {
+  if (isPlayableOffline !== null) {
     filters.push(
       `SUBQUERY(sourceTracks, $item, $item.offlineInfo.status == ${SourceTrackOfflineInfoStatus.Succeeded}).@count ${isPlayableOffline ? '>' : '='} 0`
     );

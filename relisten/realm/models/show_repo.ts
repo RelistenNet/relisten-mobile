@@ -9,18 +9,22 @@ import { NetworkBackedResults } from '../network_backed_results';
 import { firstBy } from 'thenby';
 import { RelistenApiClient, RelistenApiResponse, RelistenApiResponseType } from '../../api/client';
 import { ShowWithSources as ApiShowWithSources } from '../../api/models/source';
-import {
-  NetworkBackedBehaviorOptions,
-  ThrottledNetworkBackedBehavior,
-} from '../network_backed_behavior';
+import { NetworkBackedBehaviorOptions } from '../network_backed_behavior';
 import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
-import { useObject, useQuery, useRealm } from '../schema';
 import { Show } from './show';
 import { Source } from './source';
 import { venueRepo } from './venue_repo';
 import { Artist } from './artist';
 import { Year } from './year';
 import { useArtist } from '@/relisten/realm/models/artist_repo';
+import { useRealm } from '@/relisten/realm/schema';
+import {
+  CombinedValueStream,
+  RealmObjectValueStream,
+  RealmQueryValueStream,
+  ValueStream,
+} from '@/relisten/realm/value_streams';
+import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_network_backed_behavior';
 
 export const showRepo = new Repository(Show);
 
@@ -70,16 +74,17 @@ export const sortSources = (sources: Realm.Results<Source>) => {
   return sortedSources;
 };
 
-class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
+export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
   ShowWithSources,
   ApiShowWithSources
 > {
   constructor(
+    realm: Realm.Realm,
     public showUuid?: string,
     public sourceUuid?: string,
     options?: NetworkBackedBehaviorOptions
   ) {
-    super(options);
+    super(realm, options);
   }
 
   fetchFromApi(
@@ -93,11 +98,9 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
     return api.showWithSources(this.showUuid, api.refreshOptions(forcedRefresh));
   }
 
-  useFetchFromLocal(): ShowWithSources {
-    const realm = useRealm();
-
+  override createLocalUpdatingResults(): ValueStream<ShowWithSources> {
     if (this.sourceUuid !== undefined && this.showUuid === undefined) {
-      const source = realm.objectForPrimaryKey(Source, this.sourceUuid);
+      const source = this.realm.objectForPrimaryKey(Source, this.sourceUuid);
 
       if (source) {
         this.showUuid = source.showUuid;
@@ -106,40 +109,36 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
 
     const showUuid = this.showUuid || '__no_show_sentinel__';
 
-    const show = useObject(Show, showUuid) || undefined;
-    const sources = useQuery(Source, (query) => query.filtered('showUuid == $0', showUuid), [
-      showUuid,
-    ]);
+    const showResults = new RealmObjectValueStream(this.realm, Show, showUuid);
+    const sourcesResults = new RealmQueryValueStream<Source>(
+      this.realm,
+      this.realm.objects(Source).filtered('showUuid == $0', showUuid)
+    );
 
-    const obj = useMemo(() => {
-      return {
-        show,
-        sources,
-      };
-    }, [show, sources]);
-
-    return obj;
+    return new CombinedValueStream(showResults, sourcesResults, (show, sources) => {
+      return { show: show || undefined, sources } as ShowWithSources;
+    });
   }
 
   isLocalDataShowable(localData: ShowWithSources): boolean {
     return localData.show !== null && localData.sources.length > 0;
   }
 
-  upsert(realm: Realm, localData: ShowWithSources, apiData: ApiShowWithSources): void {
-    const artist = realm.objectForPrimaryKey(Artist, apiData.artist_uuid);
-    const year = realm.objectForPrimaryKey(Year, apiData.year_uuid);
+  override upsert(localData: ShowWithSources, apiData: ApiShowWithSources): void {
+    const artist = this.realm.objectForPrimaryKey(Artist, apiData.artist_uuid);
+    const year = this.realm.objectForPrimaryKey(Year, apiData.year_uuid);
     const apiSourceSets = R.flatMap(apiData.sources, (s) => s.sets);
     const apiSourceTracks = R.flatMap(apiSourceSets, (s) => s.tracks);
     const apiSourceSetsBySource = R.groupBy(apiSourceSets, (s) => s.source_uuid);
     const apiSourceTracksBySet = R.groupBy(apiSourceTracks, (s) => s.source_set_uuid);
 
-    realm.write(() => {
+    this.realm.write(() => {
       // TODO: maybe should be inside if statement?
       // it broke doing that, but worth reivisiting
       const {
         createdModels: [createdShow],
         updatedModels: [updatedShow],
-      } = showRepo.upsert(realm, apiData, localData.show);
+      } = showRepo.upsert(this.realm, apiData, localData.show);
 
       if (createdShow) {
         createdShow.artist = artist!;
@@ -157,7 +156,7 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
         }
 
         const { createdModels: createdVenues, updatedModels: updatedVenues } = venueRepo.upsert(
-          realm,
+          this.realm,
           apiData.venue,
           venueToUpdate,
           true
@@ -173,7 +172,7 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
       }
 
       const { createdModels: createdSources } = sourceRepo.upsertMultiple(
-        realm,
+        this.realm,
         apiData.sources,
         localData.sources
       );
@@ -184,7 +183,7 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
 
       for (const source of localData.sources) {
         const { createdModels: createdSourceSets } = sourceSetRepo.upsertMultiple(
-          realm,
+          this.realm,
           apiSourceSetsBySource[source.uuid] || [],
           source.sourceSets
         );
@@ -193,7 +192,7 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
 
         for (const sourceSet of source.sourceSets) {
           const { createdModels: createdSourceTracks } = sourceTrackRepo.upsertMultiple(
-            realm,
+            this.realm,
             apiSourceTracksBySet[sourceSet.uuid],
             sourceSet.sourceTracks
           );
@@ -215,9 +214,10 @@ class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBeh
 export function useFullShow(
   showUuid: string | undefined
 ): NetworkBackedResults<ShowWithSources | undefined> {
+  const realm = useRealm();
   const behavior = useMemo(() => {
-    return new ShowWithFullSourcesNetworkBackedBehavior(showUuid);
-  }, [showUuid]);
+    return new ShowWithFullSourcesNetworkBackedBehavior(realm, showUuid);
+  }, [realm, showUuid]);
 
   return useNetworkBackedBehavior(behavior);
 }
@@ -250,22 +250,4 @@ export function useFullShowWithSelectedSource(showUuid: string, selectedSourceUu
     artist,
     selectedSource,
   };
-}
-
-export function useFullShowFromSource(
-  sourceUuid: string | undefined
-): NetworkBackedResults<ShowWithSources | undefined> {
-  const behavior = useMemo(() => {
-    return new ShowWithFullSourcesNetworkBackedBehavior(undefined, sourceUuid);
-  }, [sourceUuid]);
-
-  return useNetworkBackedBehavior(behavior);
-}
-
-export function useShow(showUuid?: string): ShowWithSources | undefined {
-  const behavior = useMemo(() => {
-    return new ShowWithFullSourcesNetworkBackedBehavior(showUuid);
-  }, [showUuid]);
-
-  return behavior.useFetchFromLocal();
 }

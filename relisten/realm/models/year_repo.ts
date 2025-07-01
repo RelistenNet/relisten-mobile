@@ -1,46 +1,45 @@
 import { Repository } from '../repository';
-import { useObject, useQuery } from '../schema';
+import { useQuery, useRealm } from '../schema';
 import { Year } from './year';
 
 import { useIsOfflineTab } from '@/relisten/util/routes';
 import { useMemo } from 'react';
 import Realm from 'realm';
-import * as R from 'remeda';
 import { RelistenApiClient, RelistenApiResponse } from '../../api/client';
 import { YearWithShows } from '../../api/models/year';
-import { Show as ApiShow } from '../../api/models/show';
-import {
-  NetworkBackedBehaviorOptions,
-  ThrottledNetworkBackedBehavior,
-} from '../network_backed_behavior';
-import {
-  createNetworkBackedModelArrayHook,
-  useNetworkBackedBehavior,
-} from '../network_backed_behavior_hooks';
-import { NetworkBackedResults, mergeNetworkBackedResults } from '../network_backed_results';
-import { useRealmTabsFilter } from '../realm_filters';
+import { NetworkBackedBehaviorOptions } from '../network_backed_behavior';
+import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
+import { mergeNetworkBackedResults, NetworkBackedResults } from '../network_backed_results';
+import { filterForUser, useRealmTabsFilter, UserFilters } from '../realm_filters';
 import { useArtist } from './artist_repo';
 import { Show } from './show';
-import { showRepo } from './show_repo';
-import { Venue } from './venue';
-import { venueRepo } from './venue_repo';
 import { upsertShowList } from '@/relisten/realm/models/repo_utils';
+import {
+  CombinedValueStream,
+  RealmObjectValueStream,
+  RealmQueryValueStream,
+  ValueStream,
+} from '@/relisten/realm/value_streams';
+import { NetworkBackedModelArrayBehavior } from '@/relisten/realm/network_backed_model_array_behavior';
+import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_network_backed_behavior';
 
 export const yearRepo = new Repository(Year);
 
-export const useYears = (artistUuid: string) => {
-  return createNetworkBackedModelArrayHook(
-    yearRepo,
-    () => {
-      const artistQuery = useRealmTabsFilter(
-        useQuery(Year, (query) => query.filtered('artistUuid == $0', artistUuid), [artistUuid])
-      );
+export function useYears(artistUuid: string, options?: NetworkBackedBehaviorOptions) {
+  const realm = useRealm();
 
-      return artistQuery;
-    },
-    (api) => api.years(artistUuid)
-  )();
-};
+  const behavior = useMemo(() => {
+    return new NetworkBackedModelArrayBehavior(
+      realm,
+      yearRepo,
+      (realm) => realm.objects(Year).filtered('artistUuid == $0', artistUuid),
+      (api) => api.years(artistUuid),
+      options
+    );
+  }, [realm, artistUuid, options]);
+
+  return useNetworkBackedBehavior(behavior);
+}
 
 export const useArtistYears = (artistUuid: string) => {
   const artistResults = useArtist(artistUuid);
@@ -66,11 +65,13 @@ class YearShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
   YearWithShows
 > {
   constructor(
+    public realm: Realm.Realm,
     public artistUuid: string,
     public yearUuid: string,
+    private userFilters: UserFilters,
     options?: NetworkBackedBehaviorOptions
   ) {
-    super(options);
+    super(realm, options);
   }
 
   fetchFromApi(
@@ -80,30 +81,32 @@ class YearShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
     return api.year(this.artistUuid, this.yearUuid, api.refreshOptions(forcedRefresh));
   }
 
-  useFetchFromLocal(): YearShows {
-    const year = useObject(Year, this.yearUuid) || null;
-    const shows = useRealmTabsFilter(
-      useQuery(Show, (query) => query.filtered('yearUuid == $0', this.yearUuid), [this.yearUuid])
+  override createLocalUpdatingResults(): ValueStream<YearShows> {
+    const yearResults = new RealmObjectValueStream(this.realm, Year, this.yearUuid);
+    const showsResults = new RealmQueryValueStream<Show>(
+      this.realm,
+      filterForUser(
+        this.realm.objects(Show).filtered('yearUuid == $0', this.yearUuid),
+        this.userFilters
+      )
     );
 
-    const obj = useMemo(() => {
+    return new CombinedValueStream(yearResults, showsResults, (year, shows) => {
       return { year, shows };
-    }, [year, shows]);
-
-    return obj;
+    });
   }
 
   isLocalDataShowable(localData: YearShows): boolean {
     return localData.year !== null && localData.shows.length > 0;
   }
 
-  upsert(realm: Realm, localData: YearShows, apiData: YearWithShows): void {
+  override upsert(localData: YearShows, apiData: YearWithShows): void {
     if (!localData.shows.isValid()) {
       return;
     }
 
-    realm.write(() => {
-      upsertShowList(realm, apiData.shows, localData.shows, {
+    this.realm.write(() => {
+      upsertShowList(this.realm, apiData.shows, localData.shows, {
         // we may not have all the shows here on initial load
         performDeletes: false,
         queryForModel: true, // we know this list of shows is authoritative
@@ -116,9 +119,14 @@ export function useYearShows(
   artistUuid: string,
   yearUuid: string
 ): NetworkBackedResults<YearShows> {
+  const realm = useRealm();
+  const isOfflineTab = useIsOfflineTab();
+
   const behavior = useMemo(() => {
-    return new YearShowsNetworkBackedBehavior(artistUuid, yearUuid);
-  }, [artistUuid, yearUuid]);
+    return new YearShowsNetworkBackedBehavior(realm, artistUuid, yearUuid, {
+      isPlayableOffline: isOfflineTab ? true : null,
+    });
+  }, [realm, artistUuid, yearUuid, isOfflineTab]);
 
   return useNetworkBackedBehavior(behavior);
 }
