@@ -14,6 +14,7 @@ import { SongWithPlayCount, SongWithShows } from './models/song';
 import { Show } from './models/show';
 import { Platform } from 'react-native';
 import { retry } from './retry_middleware';
+import NetInfo from '@react-native-community/netinfo';
 
 const logger = log.extend('network');
 
@@ -193,6 +194,14 @@ export class RelistenApiClient {
           `[rate limiting] url=${url}, making request. secondsSinceLastRequest=${msSinceLastRequest}`
         );
       }
+    }
+
+    const networkState = await NetInfo.fetch();
+    const isOnline = networkState.isInternetReachable;
+
+    if (!isOnline) {
+      logger.info(`[api] Offline, skipping request: ${method} ${url}`);
+      return { type: RelistenApiResponseType.Offline };
     }
 
     const startedAt = dayjs();
