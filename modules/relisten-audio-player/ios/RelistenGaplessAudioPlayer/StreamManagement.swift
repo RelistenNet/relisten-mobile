@@ -75,7 +75,11 @@ extension RelistenGaplessAudioPlayer {
                                                      fileOffset,
                                                      DWORD(BASS_STREAM_DECODE | BASS_SAMPLE_FLOAT),
                                                      streamDownloadProc,
-                                                     Unmanaged.passUnretained(streamCacher!).toOpaque())
+                                                     // Retain the stream cacher so that it stays alive
+                                                     // for the lifetime of the DOWNLOADPROC callbacks.
+                                                     // It will be released once the download finishes
+                                                     // in `streamDownloadProc`.
+                                                     Unmanaged.passRetained(streamCacher!).toOpaque())
                 } else {
                     newStream = BASS_StreamCreateURL(streamable.url.absoluteString.cString(using: .utf8),
                                                      fileOffset,
@@ -203,7 +207,10 @@ internal var streamDownloadProc: @convention(c) (_ buffer: UnsafeRawPointer?,
                                                  _ user: UnsafeMutableRawPointer?) -> Void = {
                                                     buffer, length, user in
                                                     if let streamCacherPtr = user {
-                                                        let streamCacher: RelistenStreamCacher = Unmanaged.fromOpaque(streamCacherPtr).takeUnretainedValue()
+                                                        // The pointer was passed using `passRetained` so obtain the
+                                                        // unmanaged reference to allow manual release when finished.
+                                                        let streamCacherUnmanaged = Unmanaged<RelistenStreamCacher>.fromOpaque(streamCacherPtr)
+                                                        let streamCacher = streamCacherUnmanaged.takeUnretainedValue()
 
                                                         if let safeBuffer = buffer, length > 0 {
                                                             if !streamCacher.tearDownCalled {
@@ -214,9 +221,13 @@ internal var streamDownloadProc: @convention(c) (_ buffer: UnsafeRawPointer?,
                                                             if !streamCacher.tearDownCalled {
                                                                 streamCacher.finishWritingData()
                                                             }
-                                                            
-                                                            // This should not be called earlier because as long as this proc is called, the pointer needs to be valid.
+
+                                                            // This should not be called earlier because as long as this proc is called,
+                                                            // the pointer needs to be valid.
                                                             StreamCacherRegistry.sharedInstance.discard(streamCacher)
+
+                                                            // Release the reference retained when the stream was created.
+                                                            streamCacherUnmanaged.release()
                                                         }
-                                                    }
-                                                 }
+                                                   }
+                                                }
