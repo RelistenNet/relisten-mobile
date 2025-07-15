@@ -201,7 +201,7 @@ function openRealmDatabase() {
   return Realm.open({
     schema: schema,
     schemaVersion: 2,
-    path: './default.realm', // set to schema path
+    path: './default.realm',
   });
 }
 
@@ -227,9 +227,11 @@ export function isLegacyDatabaseEmpty(legacyData: LegacyDatabaseContents) {
 
 // Example of using the schemas
 export async function loadLegacyDatabaseContents(): Promise<LegacyDatabaseContents> {
-  const realm = await openRealmDatabase();
+  let realm: Realm.Realm | undefined = undefined;
 
   try {
+    realm = await openRealmDatabase();
+
     // Query for favorite tracks
     const favoriteTracks = realm
       .objects<FavoritedTrack>('FavoritedTrack')
@@ -286,7 +288,7 @@ export async function loadLegacyDatabaseContents(): Promise<LegacyDatabaseConten
       offlineFilenames: offlineFilenames,
     };
   } catch (e) {
-    logger.warn(`Error loading legacy database: ${e}`);
+    logger.error(`Error loading legacy database: ${e}`);
     return {
       trackUuids: [],
       showUuids: [],
@@ -296,6 +298,6 @@ export async function loadLegacyDatabaseContents(): Promise<LegacyDatabaseConten
       offlineFilenames: [],
     };
   } finally {
-    realm.close();
+    realm?.close();
   }
 }
