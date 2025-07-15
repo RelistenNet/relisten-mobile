@@ -9,6 +9,7 @@ import { checkIfOfflineSourceTrackExists } from '../realm_filters';
 import { Tour } from './tour';
 import { Artist } from './artist';
 import { duration } from '@/relisten/util/duration';
+import type { Song } from '@/relisten/realm/models/song';
 
 export interface ShowRequiredRelationships {}
 
@@ -58,6 +59,11 @@ export class Show
         objectType: 'SourceTrack',
         property: 'show',
       },
+      songs: {
+        type: 'linkingObjects',
+        objectType: 'Song',
+        property: 'shows',
+      },
       tour: 'Tour?',
       artist: 'Artist?',
     },
@@ -81,6 +87,7 @@ export class Show
 
   venue?: Venue;
   sourceTracks!: Realm.List<SourceTrack>;
+  songs!: Realm.Set<Song>;
   artist!: Artist;
   tour?: Tour;
 

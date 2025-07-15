@@ -27,6 +27,7 @@ export interface UpsertResults<T> {
   deleted: number;
   updatedModels: T[];
   createdModels: T[];
+  allModels: T[];
 }
 
 function combinedUpsertResults<T>(acc: UpsertResults<T>, b: UpsertResults<T>): UpsertResults<T> {
@@ -35,12 +36,13 @@ function combinedUpsertResults<T>(acc: UpsertResults<T>, b: UpsertResults<T>): U
   acc.deleted += b.deleted;
   acc.updatedModels.push(...b.updatedModels);
   acc.createdModels.push(...b.createdModels);
+  acc.allModels.push(...b.allModels);
 
   return acc;
 }
 
 function humanizeUpsertResults(a: UpsertResults<unknown>) {
-  return `created=${a.created}, updated=${a.updated}, deleted=${a.deleted}`;
+  return `created=${a.created}, updated=${a.updated}, deleted=${a.deleted}; all=${a.allModels.length}`;
 }
 
 function getUpdatedAt<T extends { updated_at: string }>(obj: T): dayjs.Dayjs {
@@ -158,14 +160,35 @@ export class Repository<
       if (getUpdatedAt(api).toDate() > model.updatedAt) {
         this.updateObjectFromApi(realm, model, api);
 
-        return { created: 0, updated: 1, deleted: 0, updatedModels: [model], createdModels: [] };
+        return {
+          created: 0,
+          updated: 1,
+          deleted: 0,
+          updatedModels: [model],
+          createdModels: [],
+          allModels: [model],
+        };
       }
 
-      return { created: 0, updated: 0, deleted: 0, createdModels: [], updatedModels: [] };
+      return {
+        created: 0,
+        updated: 0,
+        deleted: 0,
+        createdModels: [],
+        updatedModels: [],
+        allModels: [model],
+      };
     } else {
       const newModel = this.realmObjectFromApi(realm, api);
 
-      return { created: 1, updated: 0, deleted: 0, createdModels: [newModel], updatedModels: [] };
+      return {
+        created: 1,
+        updated: 0,
+        deleted: 0,
+        createdModels: [newModel],
+        updatedModels: [],
+        allModels: [newModel],
+      };
     }
   }
 
@@ -187,7 +210,14 @@ export class Repository<
     const modelsById = groupByUuid(models as ReadonlyArray<TModel>);
     const networkApisByUuid = groupByUuid(api);
 
-    const acc = { created: 0, updated: 0, deleted: 0, updatedModels: [], createdModels: [] };
+    const acc = {
+      created: 0,
+      updated: 0,
+      deleted: 0,
+      updatedModels: [],
+      createdModels: [],
+      allModels: [],
+    };
 
     const writeHandler = () => {
       if (performDeletes) {

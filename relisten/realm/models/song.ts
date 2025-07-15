@@ -3,6 +3,7 @@ import { SongWithPlayCount } from '../../api/models/song';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import dayjs from 'dayjs';
 import { FavoritableObject } from '../favoritable_object';
+import type { Show } from '@/relisten/realm/models/show';
 
 export interface SongRequiredRelationships {}
 
@@ -36,6 +37,10 @@ export class Song
       uuid: 'string',
       showsPlayedAt: 'int',
       isFavorite: { type: 'bool', default: false },
+      shows: {
+        type: 'set',
+        objectType: 'Show',
+      },
     },
   };
 
@@ -48,6 +53,8 @@ export class Song
   upstreamIdentifier!: string;
   sortName!: string;
   showsPlayedAt!: number;
+
+  shows!: Realm.Set<Show>;
 
   isFavorite!: boolean;
 

@@ -28,7 +28,6 @@ class SongShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
   SongShows,
   SongWithShows
 > {
-  private showUuids: string[] = [];
   constructor(
     realm: Realm.Realm,
     public artistUuid: string,
@@ -49,7 +48,7 @@ class SongShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
     const songResults = new RealmObjectValueStream(this.realm, Song, this.songUuid);
     const showsResults = new RealmQueryValueStream<Show>(
       this.realm,
-      this.realm.objects(Show).filtered('songUuid == $0', this.songUuid)
+      this.realm.objects(Show).filtered('ANY songs.uuid == $0', this.songUuid)
     );
 
     return new CombinedValueStream(songResults, showsResults, (song, shows) => {
@@ -62,25 +61,28 @@ class SongShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
   }
 
   override upsert(localData: SongShows, apiData: SongWithShows): void {
-    if (!localData.shows.isValid()) {
+    if (!localData.shows.isValid() || !localData.song?.isValid()) {
       return;
     }
 
     this.realm.write(() => {
-      upsertShowList(this.realm, apiData.shows, localData.shows, {
-        // we may not have all the shows here on initial load
-        performDeletes: false,
-        queryForModel: true,
-      });
-
-      songRepo.upsert(
+      const { createdModels, updatedModels } = songRepo.upsert(
         this.realm,
         { ...apiData, shows_played_at: apiData.shows.length },
         localData.song || undefined
       );
-    });
 
-    this.showUuids = apiData.shows.map((s) => s.uuid);
+      const allModels = [localData.song, ...createdModels, ...updatedModels].filter((s) => !!s);
+
+      upsertShowList(this.realm, apiData.shows, localData.shows, {
+        // we may not have all the shows here on initial load
+        performDeletes: false,
+        queryForModel: true,
+        upsertModels: {
+          song: allModels.length > 0 ? allModels[0] : undefined,
+        },
+      });
+    });
   }
 }
 

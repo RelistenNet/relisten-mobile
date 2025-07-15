@@ -133,6 +133,10 @@ export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
   start(): NetworkBackedResultValueStream<TLocalData> {
     this.refresh(this.isNetworkLoadingDefault).catch((e) => {
       logger.error(e);
+
+      if (__DEV__) {
+        throw e;
+      }
     });
 
     return this.output;

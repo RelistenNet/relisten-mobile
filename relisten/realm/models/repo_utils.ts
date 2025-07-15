@@ -9,6 +9,7 @@ import { artistRepo } from '@/relisten/realm/models/artist_repo';
 import { RelistenApiUpdatableObject, Repository } from '@/relisten/realm/repository';
 import { RelistenObjectRequiredProperties } from '@/relisten/realm/relisten_object';
 import { log } from '@/relisten/util/logging';
+import { Song } from '@/relisten/realm/models/song';
 
 const logger = log.extend('repo-utils');
 
@@ -56,21 +57,20 @@ export function upsertShowList(
     upsertModels?: {
       tours?: boolean;
       venues?: boolean;
+      song?: Song;
     };
   }
 ) {
   upsertModels ||= {};
   upsertModels = { tours: true, venues: true, ...upsertModels };
 
-  const { createdModels: createdShows } = showRepo.upsertMultiple(
+  const { createdModels: createdShows, allModels: allShows } = showRepo.upsertMultiple(
     realm,
     apiShows,
     localShows,
     performDeletes,
     queryForModel
   );
-
-  const allShows = createdShows.concat(localShows);
 
   const showsThatNeedsArtists = allShows.filter((s) => !s.artist);
 
@@ -111,5 +111,23 @@ export function upsertShowList(
         }
       }
     );
+  }
+
+  const song = upsertModels.song;
+  if (song) {
+    const writeHandler = () => {
+      logger.info(
+        `updating song shows allShows=${allShows.length}; apiShows=${apiShows.length}; createdShows=${createdShows.length}; localShows=${localShows.length}`
+      );
+      for (const show of allShows) {
+        song.shows.add(show);
+      }
+    };
+
+    if (realm.isInTransaction) {
+      writeHandler();
+    } else {
+      realm.write(writeHandler);
+    }
   }
 }
