@@ -82,7 +82,8 @@
         {
           "android": {
             "compileSdkVersion": 35,
-            "minSdkVersion": 30
+            "minSdkVersion": 30,
+            "targetSdkVersion": 35
           },
           "ios": {
             "useFrameworks": "static"
