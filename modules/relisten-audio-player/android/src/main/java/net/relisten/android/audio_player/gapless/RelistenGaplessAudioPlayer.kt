@@ -262,7 +262,7 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
 
             logExoPlayerState("playStreamableImmediately(); pre-change", exoplayer)
 
-            if (exoplayer.mediaItemCount > 1) {
+            if (exoplayer.currentMediaItemIndex + 1 < exoplayer.mediaItemCount) {
                 previousNext = exoplayer.getMediaItemAt(exoplayer.currentMediaItemIndex + 1)
             }
 
