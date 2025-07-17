@@ -3,6 +3,7 @@ import Realm from 'realm';
 import { log } from '@/relisten/util/logging';
 import * as fs from 'expo-file-system';
 import { aggregateBy, groupBy } from '@/relisten/util/group_by';
+import { LegacyApiClient, LegacyUpgradeResponse } from '@/relisten/api/legacy_client';
 
 const logger = log.extend('migration');
 
@@ -227,53 +228,27 @@ export function isLegacyDatabaseEmpty(legacyData: LegacyDatabaseContents) {
 
 // Example of using the schemas
 export async function loadLegacyDatabaseContents(): Promise<LegacyDatabaseContents> {
-  let realm: Realm.Realm | undefined = undefined;
-
   try {
-    realm = await openRealmDatabase();
+    // First, check if legacy database file exists
+    const databasePath = './default.realm';
+    const databaseInfo = await fs.getInfoAsync(databasePath);
 
-    // Query for favorite tracks
-    const favoriteTracks = realm
-      .objects<FavoritedTrack>('FavoritedTrack')
-      .map((o) => o.uuid.toLowerCase())
-      .sort();
-    const favoriteShows = realm
-      .objects<FavoritedShow>('FavoritedShow')
-      .map((o) => o.uuid.toLowerCase())
-      .sort();
-    const favoriteSources: FavoritedSource[] = realm
-      .objects<FavoritedSource>('FavoritedSource')
-      .map((o) => {
-        return {
-          uuid: o.uuid.toLowerCase(),
-          created_at: o.created_at,
-          artist_uuid: o.artist_uuid.toLowerCase(),
-          show_uuid: o.show_uuid.toLowerCase(),
-          show_date: o.show_date,
-        };
-      });
-    const favoriteArtists = realm
-      .objects<FavoritedArtist>('FavoritedArtist')
-      .map((o) => o.uuid.toLowerCase())
-      .sort();
+    if (!databaseInfo.exists) {
+      logger.info('No legacy database file found');
+      return getEmptyLegacyData();
+    }
 
-    // Get offline tracks that are downloaded
-    const offlineTracks: OfflineTrack[] = realm
-      .objects<OfflineTrack>('OfflineTrack')
-      .filtered('state = $0', OfflineTrackState.DOWNLOADED)
-      .map((o) => {
-        return {
-          track_uuid: o.track_uuid.toLowerCase(),
-          artist_uuid: o.artist_uuid.toLowerCase(),
-          show_uuid: o.show_uuid.toLowerCase(),
-          source_uuid: o.source_uuid.toLowerCase(),
-          created_at: o.created_at,
-          state: o.state,
-          file_size: o.file_size,
-        };
-      });
+    // Upload the database file directly using expo-file-system
+    const legacyClient = new LegacyApiClient();
+    const apiResponse = await legacyClient.uploadRealmDatabase(databasePath);
+
+    if (!apiResponse.success) {
+      logger.error('Failed to upload legacy database to API');
+      return getEmptyLegacyData();
+    }
+
+    // Get offline filenames from local directory (this is not handled by the API)
     const legacyDir = fs.documentDirectory + 'offline-mp3s/';
-
     const legacyDirInfo = await fs.getInfoAsync(legacyDir);
     let offlineFilenames: string[] = [];
 
@@ -281,27 +256,49 @@ export async function loadLegacyDatabaseContents(): Promise<LegacyDatabaseConten
       offlineFilenames = (await fs.readDirectoryAsync(legacyDir)).sort().map((f) => legacyDir + f);
     }
 
-    const offlineTracksBySourceUuid = aggregateBy(offlineTracks, (t) => t.source_uuid);
+    // Convert API response to our expected format
+    const sources: FavoritedSource[] = apiResponse.data.sources.map((s) => ({
+      uuid: s.uuid,
+      created_at: new Date(s.created_at),
+      artist_uuid: s.artist_uuid,
+      show_uuid: s.show_uuid,
+      show_date: new Date(s.show_date),
+    }));
+
+    const offlineTracksBySource: Record<string, ReadonlyArray<OfflineTrack>> = {};
+    for (const [sourceUuid, tracks] of Object.entries(apiResponse.data.offlineTracksBySource)) {
+      offlineTracksBySource[sourceUuid] = tracks.map((t) => ({
+        track_uuid: t.track_uuid,
+        artist_uuid: t.artist_uuid,
+        show_uuid: t.show_uuid,
+        source_uuid: t.source_uuid,
+        created_at: new Date(t.created_at),
+        state: t.state as OfflineTrackState,
+        file_size: t.file_size,
+      }));
+    }
 
     return {
-      trackUuids: favoriteTracks,
-      showUuids: favoriteShows,
-      sources: favoriteSources,
-      artistUuids: favoriteArtists,
-      offlineTracksBySource: offlineTracksBySourceUuid,
+      trackUuids: apiResponse.data.trackUuids,
+      showUuids: apiResponse.data.showUuids,
+      sources: sources,
+      artistUuids: apiResponse.data.artistUuids,
+      offlineTracksBySource: offlineTracksBySource,
       offlineFilenames: offlineFilenames,
     };
   } catch (e) {
     logger.error(`Error loading legacy database: ${e}`);
-    return {
-      trackUuids: [],
-      showUuids: [],
-      sources: [],
-      artistUuids: [],
-      offlineTracksBySource: {},
-      offlineFilenames: [],
-    };
-  } finally {
-    realm?.close();
+    return getEmptyLegacyData();
   }
+}
+
+function getEmptyLegacyData(): LegacyDatabaseContents {
+  return {
+    trackUuids: [],
+    showUuids: [],
+    sources: [],
+    artistUuids: [],
+    offlineTracksBySource: {},
+    offlineFilenames: [],
+  };
 }

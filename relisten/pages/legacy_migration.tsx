@@ -350,6 +350,7 @@ export function LegacyDataMigrationModal({
   const [modalVisible, setModalVisible] = useState(forceShow);
   const [seenModalBefore, setSeenModalBefore] = useState(false);
   const [migrating, setMigrating] = useState(false);
+  const [loadingLegacyData, setLoadingLegacyData] = useState(false);
   const [legacyData, setLegacyData] = useState<LegacyDatabaseContents | undefined>(undefined);
   const [migrationProgress, setMigrationProgress] = useState<string>('');
   const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
@@ -373,7 +374,23 @@ export function LegacyDataMigrationModal({
     }
 
     (async () => {
-      setLegacyData(await loadLegacyDatabaseContents());
+      setLoadingLegacyData(true);
+      try {
+        const data = await loadLegacyDatabaseContents();
+        setLegacyData(data);
+      } catch (error) {
+        logger.error(`Failed to load legacy data: ${error}`);
+        setLegacyData({
+          trackUuids: [],
+          showUuids: [],
+          sources: [],
+          artistUuids: [],
+          offlineTracksBySource: {},
+          offlineFilenames: [],
+        });
+      } finally {
+        setLoadingLegacyData(false);
+      }
     })();
   }, [seenModalBefore, setLegacyData]);
 
@@ -504,7 +521,17 @@ export function LegacyDataMigrationModal({
               className="mb-2 h-[28] w-full"
             />
             <ScrollView className="grow">
-              {legacyData ? (
+              {loadingLegacyData ? (
+                <View className="flex-1 items-center justify-center">
+                  <ActivityIndicator size="large" color="white" />
+                  <RelistenText className="mt-4 text-center">
+                    Loading legacy data...
+                  </RelistenText>
+                  <RelistenText className="mt-2 text-center text-sm opacity-75">
+                    This may take a few seconds as we analyze your previous app data.
+                  </RelistenText>
+                </View>
+              ) : legacyData ? (
                 <>
                   <RelistenText className="mb-2">
                     <Text className="font-bold">
@@ -544,6 +571,9 @@ export function LegacyDataMigrationModal({
               ) : (
                 <View className="flex-1 items-center justify-center">
                   <ActivityIndicator size="large" color="white" />
+                  <RelistenText className="mt-4 text-center">
+                    Initializing...
+                  </RelistenText>
                 </View>
               )}
             </ScrollView>
@@ -552,7 +582,7 @@ export function LegacyDataMigrationModal({
                 <View className="basis-1/2 pr-1">
                   <RelistenButton
                     onPress={() => clearModal({ markAsSeen: true })}
-                    disabled={migrating}
+                    disabled={migrating || loadingLegacyData}
                   >
                     Later
                   </RelistenButton>
@@ -561,9 +591,9 @@ export function LegacyDataMigrationModal({
                   <RelistenButton
                     onPress={() => migrateLegacyData()}
                     className="flex-1 bg-green-600"
-                    disabled={migrating}
+                    disabled={migrating || loadingLegacyData || !legacyData}
                   >
-                    Migrate data
+                    {loadingLegacyData ? 'Loading...' : 'Migrate data'}
                   </RelistenButton>
                 </View>
               </Flex>
