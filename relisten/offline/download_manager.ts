@@ -430,8 +430,12 @@ export class DownloadManager {
           }
           await ReactNativeBlobUtil.fs.mv(path, dest);
         } finally {
-          // if we encounter an error, clean up
-          res.flush();
+          // if we encounter an error, clean up the temporary file
+          try {
+            await res.flush();
+          } catch (e) {
+            log.warn(`Failed to flush temporary download ${path}`, e);
+          }
         }
 
         const oi = refreshOfflineInfo();
