@@ -273,9 +273,13 @@ export async function loadLegacyDatabaseContents(): Promise<LegacyDatabaseConten
         };
       });
     const legacyDir = fs.documentDirectory + 'offline-mp3s/';
-    const offlineFilenames = (await fs.readDirectoryAsync(legacyDir))
-      .sort()
-      .map((f) => legacyDir + f);
+
+    const legacyDirInfo = await fs.getInfoAsync(legacyDir);
+    let offlineFilenames: string[] = [];
+
+    if (legacyDirInfo.exists && legacyDirInfo.isDirectory) {
+      offlineFilenames = (await fs.readDirectoryAsync(legacyDir)).sort().map((f) => legacyDir + f);
+    }
 
     const offlineTracksBySourceUuid = aggregateBy(offlineTracks, (t) => t.source_uuid);
 
