@@ -112,8 +112,6 @@ export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
   }
 
   start(): NetworkBackedResultValueStream<TLocalData> {
-    this.behavior.shouldPerformNetworkRequest();
-
     this.refresh(this.isNetworkLoadingDefault).catch((e) => {
       logger.error(e);
 
