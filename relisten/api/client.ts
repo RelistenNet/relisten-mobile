@@ -45,6 +45,7 @@ export interface RelistenApiResponse<T> {
   type: RelistenApiResponseType;
   data?: T;
   error?: RelistenApiClientError;
+  duplicate?: boolean;
 }
 
 export interface RelistenApiRequestOptions {
@@ -148,7 +149,13 @@ export class RelistenApiClient {
       }
     } else if (hasInFlightRequest) {
       logger.info(`[dedupe] url=${url}, duplicate request found.`);
-      req = this.inflightRequests.get(key) as Promise<RelistenApiResponse<T>>;
+      const inFlightRequest = this.inflightRequests.get(key) as Promise<RelistenApiResponse<T>>;
+      req = inFlightRequest.then((resp) => {
+        return {
+          ...resp,
+          duplicate: true,
+        };
+      });
     }
 
     return req!;

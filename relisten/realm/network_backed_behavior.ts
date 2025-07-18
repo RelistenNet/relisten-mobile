@@ -23,25 +23,6 @@ export abstract class NetworkBackedBehavior<TLocalData, TApiData> {
 
   abstract createLocalUpdatingResults(): ValueStream<TLocalData>;
 
-  useFetchFromLocal(): TLocalData {
-    const updatingResults = useMemo(() => {
-      return this.createLocalUpdatingResults();
-    }, []);
-    const [localData, setLocalData] = useState<TLocalData>(updatingResults.currentValue);
-
-    useEffect(() => {
-      updatingResults.addListener((newLocalData) => {
-        setLocalData(newLocalData);
-      });
-
-      return () => {
-        updatingResults.tearDown();
-      };
-    }, [updatingResults, setLocalData]);
-
-    return localData;
-  }
-
   private _sharedExecutor: NetworkBackedBehaviorExecutor<TLocalData, TApiData> | undefined;
   sharedExecutor(api: RelistenApiClient) {
     if (!this._sharedExecutor) {
@@ -131,6 +112,8 @@ export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
   }
 
   start(): NetworkBackedResultValueStream<TLocalData> {
+    this.behavior.shouldPerformNetworkRequest();
+
     this.refresh(this.isNetworkLoadingDefault).catch((e) => {
       logger.error(e);
 
@@ -192,7 +175,7 @@ export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
     const apiData = await this.behavior.fetchFromApi(this.api, shouldForceLoadingSpinner);
 
     if (apiData?.type == RelistenApiResponseType.OnlineRequestCompleted) {
-      if (apiData?.data) {
+      if (apiData?.data && !apiData.duplicate) {
         this.behavior.upsert(this.localData.currentValue, apiData.data);
       }
 
