@@ -19,6 +19,7 @@ import {
   FavoritedSource,
   isLegacyDatabaseEmpty,
   LegacyDatabaseContents,
+  legacyDatabaseExists,
   loadLegacyDatabaseContents,
   OfflineTrack,
 } from '@/relisten/realm/old_ios_schema';
@@ -39,10 +40,12 @@ import {
 import { OFFLINE_DIRECTORY } from '@/relisten/realm/models/source_track';
 import { NetworkBackedBehaviorExecutor } from '@/relisten/realm/network_backed_behavior';
 import { useRelistenApi } from '@/relisten/api/context';
+import { isIOS } from 'react-native-draggable-flatlist/lib/typescript/constants';
+import { yearsNetworkBackedModelArrayBehavior } from '@/relisten/realm/models/year_repo';
 
 const logger = log.extend('LegacyDataMigrationModal');
 
-export const SEEN_MODAL_KEY = '@relistenapp/seen-v6-migration-modal';
+export const SEEN_MODAL_KEY = '@relistenapp/seen-v6-migration-modal/v2';
 
 export interface LegacyDataMigrationResult {
   type: 'artist' | 'offline_track' | 'source' | 'show';
@@ -197,6 +200,19 @@ export class LegacyDataMigrator {
     const show = result.data.show;
 
     if (show) {
+      const yearsBehavior = yearsNetworkBackedModelArrayBehavior(
+        this.realm,
+        false,
+        show.artistUuid
+      );
+      const _ = await NetworkBackedBehaviorExecutor.executeUntilMatches(
+        yearsBehavior,
+        this.api,
+        (result) => {
+          return (result.errors?.length ?? 0) > 0 || yearsBehavior.isLocalDataShowable(result.data);
+        }
+      );
+
       const alreadyMigrated = show.isFavorite === true;
 
       if (!alreadyMigrated) {
@@ -348,7 +364,6 @@ export function LegacyDataMigrationModal({
   ...props
 }: { forceShow?: boolean } & ModalProps) {
   const [modalVisible, setModalVisible] = useState(forceShow);
-  const [seenModalBefore, setSeenModalBefore] = useState(false);
   const [migrating, setMigrating] = useState(false);
   const [loadingLegacyData, setLoadingLegacyData] = useState(false);
   const [legacyData, setLegacyData] = useState<LegacyDatabaseContents | undefined>(undefined);
@@ -359,56 +374,35 @@ export function LegacyDataMigrationModal({
 
   useEffect(() => {
     (async () => {
-      try {
-        const value = await AsyncStorage.getItem(SEEN_MODAL_KEY);
-        setSeenModalBefore(value === 'true');
-      } catch {
-        setSeenModalBefore(false);
+      const isIOS = Platform.OS === 'ios';
+
+      if (!isIOS) {
+        return;
       }
-    })();
-  }, [setSeenModalBefore, forceShow]);
 
-  useEffect(() => {
-    if (seenModalBefore) {
-      return;
-    }
-
-    (async () => {
-      setLoadingLegacyData(true);
-      try {
-        const data = await loadLegacyDatabaseContents();
-        setLegacyData(data);
-      } catch (error) {
-        logger.error(`Failed to load legacy data: ${error}`);
-        setLegacyData({
-          trackUuids: [],
-          showUuids: [],
-          sources: [],
-          artistUuids: [],
-          offlineTracksBySource: {},
-          offlineFilenames: [],
-        });
-      } finally {
-        setLoadingLegacyData(false);
-      }
-    })();
-  }, [seenModalBefore, setLegacyData]);
-
-  useEffect(() => {
-    if (legacyData) {
+      const seenModalBefore = (await AsyncStorage.getItem(SEEN_MODAL_KEY)) === 'true';
       const hasNotDismissed = !seenModalBefore;
-      const eligibleForModal = hasNotDismissed && Platform.OS === 'ios';
-      const hasLegacyData = !isLegacyDatabaseEmpty(legacyData);
+      const legacyDbExists = await legacyDatabaseExists();
+      const eligibleForModal = legacyDbExists && hasNotDismissed && isIOS;
 
-      logger.debug(
-        `seenModalBefore=${seenModalBefore}, eligibleForModal=${eligibleForModal}, hasLegacyData=${hasLegacyData}`
-      );
-
-      if (eligibleForModal && hasLegacyData && shouldMakeNetworkRequests) {
+      if (forceShow || (eligibleForModal && shouldMakeNetworkRequests)) {
         setModalVisible(true);
       }
+    })();
+  }, [forceShow]);
+
+  const loadLegacyData = async () => {
+    setLoadingLegacyData(true);
+    try {
+      const data = await loadLegacyDatabaseContents();
+      setLegacyData(data);
+    } catch (error) {
+      logger.error(`Failed to load legacy data: ${error}`);
+      setMigrationProgress(`Error loading legacy data. Please try again later.\n\nError: ${error}`);
+    } finally {
+      setLoadingLegacyData(false);
     }
-  }, [legacyData, setModalVisible, seenModalBefore]);
+  };
 
   const clearModal = ({ markAsSeen }: { markAsSeen: boolean }) => {
     if (markAsSeen) {
@@ -489,9 +483,8 @@ export function LegacyDataMigrationModal({
 
     addProgress('Migration complete!');
 
-    setMigrating(false);
-
     setTimeout(() => {
+      setMigrating(false);
       clearModal({ markAsSeen: true });
     }, 5000);
   };
@@ -521,68 +514,63 @@ export function LegacyDataMigrationModal({
               className="mb-2 h-[28] w-full"
             />
             <ScrollView className="grow">
-              {loadingLegacyData ? (
-                <View className="flex-1 items-center justify-center">
-                  <ActivityIndicator size="large" color="white" />
-                  <RelistenText className="mt-4 text-center">
-                    Loading legacy data...
-                  </RelistenText>
-                  <RelistenText className="mt-2 text-center text-sm opacity-75">
-                    This may take a few seconds as we analyze your previous app data.
-                  </RelistenText>
-                </View>
-              ) : legacyData ? (
-                <>
-                  <RelistenText className="mb-2">
-                    <Text className="font-bold">
-                      You can now migrate your favorites and offlined shows from the previous
-                      version of the app!
-                    </Text>
-                  </RelistenText>
-                  <RelistenText className="mb-4">
-                    By pressing the &ldquo;Migrate data&rdquo; button below, all your prior
-                    favorites will be migrated and joined in with any existing favorites you&apos;ve
-                    made in the new app.{' '}
-                    <RelistenText className="font-bold">
-                      You need an Internet connection to perform this migration.
-                    </RelistenText>{' '}
-                    If you don&apos;t have an Internet connection, you can still use the app, just
-                    press the &ldquo;Later&rdquo; button below to dismiss this message and migrate
-                    later from the Relisten tab.
-                  </RelistenText>
+              <>
+                <RelistenText className="mb-2">
+                  <Text className="font-bold">
+                    NEW AND UPDATED: You can now migrate your favorites and offlined shows from the
+                    previous version of the app!
+                  </Text>
+                </RelistenText>
+                <RelistenText className="mb-4">
+                  By pressing the &ldquo;Migrate data&rdquo; button below, all your prior favorites
+                  will be migrated and joined in with any existing favorites you&apos;ve made in the
+                  new app.{' '}
                   <RelistenText className="font-bold">
-                    Legacy data that will be migrated
-                  </RelistenText>
-                  <RelistenText>{legacyData.artistUuids.length} Favorited artists</RelistenText>
-                  <RelistenText>{legacyData.showUuids.length} Favorited shows</RelistenText>
-                  <RelistenText>{legacyData.sources.length} Favorited sources</RelistenText>
-                  <RelistenText>
-                    {legacyData.offlineFilenames.length} Downloaded tracks
-                  </RelistenText>
-                  {migrationProgress.length > 0 && (
-                    <>
-                      <RelistenText className="mt-4 font-bold">Migration progress</RelistenText>
-                      <RelistenText className="whitespace-pre-wrap">
-                        {migrationProgress}
-                      </RelistenText>
-                    </>
-                  )}
-                </>
-              ) : (
-                <View className="flex-1 items-center justify-center">
-                  <ActivityIndicator size="large" color="white" />
-                  <RelistenText className="mt-4 text-center">
-                    Initializing...
-                  </RelistenText>
-                </View>
-              )}
+                    You need an Internet connection to perform this migration.
+                  </RelistenText>{' '}
+                  If you don&apos;t have an Internet connection, you can still use the app, just
+                  press the &ldquo;Later&rdquo; button below to dismiss this message and migrate
+                  later from the Relisten tab.
+                </RelistenText>
+                {loadingLegacyData ? (
+                  <View className="flex-1 items-center justify-center">
+                    <ActivityIndicator size="large" color="white" />
+                    <RelistenText className="mt-4 text-center">Loading legacy data...</RelistenText>
+                    <RelistenText className="mt-2 text-center text-sm opacity-75">
+                      This may take a few seconds as we analyze your previous app data.
+                    </RelistenText>
+                  </View>
+                ) : legacyData ? (
+                  <>
+                    <RelistenText className="font-bold">
+                      Legacy data that will be migrated
+                    </RelistenText>
+                    <RelistenText>{legacyData.artistUuids.length} Favorited artists</RelistenText>
+                    <RelistenText>{legacyData.showUuids.length} Favorited shows</RelistenText>
+                    <RelistenText>{legacyData.sources.length} Favorited sources</RelistenText>
+                    <RelistenText>
+                      {legacyData.offlineFilenames.length} Downloaded tracks
+                    </RelistenText>
+                  </>
+                ) : (
+                  <RelistenButton onPress={loadLegacyData} className={'bg-green-600'}>
+                    Load Legacy Data
+                  </RelistenButton>
+                )}
+                {migrationProgress.length > 0 && (
+                  <>
+                    <RelistenText className="mt-4 font-bold">Migration progress</RelistenText>
+                    <RelistenText className="whitespace-pre-wrap">{migrationProgress}</RelistenText>
+                  </>
+                )}
+              </>
             </ScrollView>
             <View className="pt-4">
               <Flex className="w-full justify-stretch pt-4">
                 <View className="basis-1/2 pr-1">
                   <RelistenButton
                     onPress={() => clearModal({ markAsSeen: true })}
-                    disabled={migrating || loadingLegacyData}
+                    disabled={migrating}
                   >
                     Later
                   </RelistenButton>

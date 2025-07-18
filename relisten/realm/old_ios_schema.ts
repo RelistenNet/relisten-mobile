@@ -226,21 +226,36 @@ export function isLegacyDatabaseEmpty(legacyData: LegacyDatabaseContents) {
   );
 }
 
-// Example of using the schemas
-export async function loadLegacyDatabaseContents(): Promise<LegacyDatabaseContents> {
-  try {
-    // First, check if legacy database file exists
-    const databasePath = './default.realm';
-    const databaseInfo = await fs.getInfoAsync(databasePath);
+const LEGACY_DB_PATH = fs.documentDirectory + 'default.realm';
 
-    if (!databaseInfo.exists) {
+let legacyDatabaseExistsPromise: Promise<boolean> | undefined = undefined;
+
+export async function legacyDatabaseExists() {
+  if (legacyDatabaseExistsPromise) {
+    // only make the fs call one time
+    return legacyDatabaseExistsPromise;
+  }
+
+  const p = fs
+    .getInfoAsync(LEGACY_DB_PATH)
+    .then((info) => info.exists)
+    .catch(() => false);
+
+  legacyDatabaseExistsPromise = p;
+
+  return p;
+}
+
+async function _loadLegacyDatabaseContents(): Promise<LegacyDatabaseContents> {
+  try {
+    if (!(await legacyDatabaseExists())) {
       logger.info('No legacy database file found');
       return getEmptyLegacyData();
     }
 
     // Upload the database file directly using expo-file-system
     const legacyClient = new LegacyApiClient();
-    const apiResponse = await legacyClient.uploadRealmDatabase(databasePath);
+    const apiResponse = await legacyClient.uploadRealmDatabase(LEGACY_DB_PATH);
 
     if (!apiResponse.success) {
       logger.error('Failed to upload legacy database to API');
@@ -290,6 +305,18 @@ export async function loadLegacyDatabaseContents(): Promise<LegacyDatabaseConten
     logger.error(`Error loading legacy database: ${e}`);
     return getEmptyLegacyData();
   }
+}
+
+let loadLegacyDatabaseContentsPromise: Promise<LegacyDatabaseContents> | undefined = undefined;
+export async function loadLegacyDatabaseContents(): Promise<LegacyDatabaseContents> {
+  if (loadLegacyDatabaseContentsPromise) {
+    return loadLegacyDatabaseContentsPromise;
+  }
+
+  const p = _loadLegacyDatabaseContents();
+  loadLegacyDatabaseContentsPromise = p;
+
+  return p;
 }
 
 function getEmptyLegacyData(): LegacyDatabaseContents {

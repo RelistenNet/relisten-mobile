@@ -23,6 +23,7 @@ import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import {
   isLegacyDatabaseEmpty,
   LegacyDatabaseContents,
+  legacyDatabaseExists,
   loadLegacyDatabaseContents,
 } from '@/relisten/realm/old_ios_schema';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -93,14 +94,14 @@ function StorageUsage() {
   const [fileSystemInfo, refresh] = useFileSystemInfo();
   const { showActionSheetWithOptions } = useActionSheet();
   const [deleting, setDeleting] = useState(false);
-  const [legacyData, setLegacyData] = useState<LegacyDatabaseContents | undefined>(undefined);
+  const [hasLegacyData, setHasLegacyData] = useState<boolean>(false);
   const [showMigrationModal, setShowMigrationModal] = useState(false);
 
   useEffect(() => {
     (async () => {
-      setLegacyData(await loadLegacyDatabaseContents());
+      setHasLegacyData(await legacyDatabaseExists());
     })();
-  }, [setLegacyData]);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -172,7 +173,7 @@ function StorageUsage() {
     <View>
       <SectionHeader title="Storage Usage" />
       <Flex column className="gap-4 p-4">
-        {legacyData && !isLegacyDatabaseEmpty(legacyData) && (
+        {hasLegacyData && (
           <RowWithAction
             title={'Migrate legacy data'}
             subtitle={

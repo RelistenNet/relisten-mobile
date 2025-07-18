@@ -16,28 +16,31 @@ export interface LegacyUpgradeResponse {
       show_date: string;
     }>;
     artistUuids: string[];
-    offlineTracksBySource: Record<string, Array<{
-      track_uuid: string;
-      artist_uuid: string;
-      show_uuid: string;
-      source_uuid: string;
-      created_at: string;
-      state: number;
-      file_size: number;
-    }>>;
+    offlineTracksBySource: Record<
+      string,
+      Array<{
+        track_uuid: string;
+        artist_uuid: string;
+        show_uuid: string;
+        source_uuid: string;
+        created_at: string;
+        state: number;
+        file_size: number;
+      }>
+    >;
     schemaVersion: number;
   };
   isEmpty: boolean;
 }
 
 export class LegacyApiClient {
-  static API_BASE = 'https://relisten.net/api';
+  static API_BASE = 'https://realm-migrator.relisten.net';
 
   async uploadRealmDatabase(databaseFilePath: string): Promise<LegacyUpgradeResponse> {
-    const uploadUrl = `${LegacyApiClient.API_BASE}/realm/upgrade`;
-    
-    logger.info(`[legacy-api] POST ${uploadUrl}`);
-    
+    const uploadUrl = `${LegacyApiClient.API_BASE}/migrate`;
+
+    logger.info(`POST ${uploadUrl}`);
+
     try {
       const uploadResult = await FileSystem.uploadAsync(uploadUrl, databaseFilePath, {
         fieldName: 'database',

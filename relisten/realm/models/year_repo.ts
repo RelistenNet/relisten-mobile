@@ -25,22 +25,31 @@ import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_netwo
 
 export const yearRepo = new Repository(Year);
 
+export function yearsNetworkBackedModelArrayBehavior(
+  realm: Realm.Realm,
+  isOfflineTab: boolean,
+  artistUuid: string,
+  options?: NetworkBackedBehaviorOptions
+) {
+  return new NetworkBackedModelArrayBehavior(
+    realm,
+    yearRepo,
+    (realm) =>
+      filterForUser<Year>(realm.objects(Year).filtered('artistUuid == $0', artistUuid), {
+        isFavorite: null,
+        isPlayableOffline: isOfflineTab ? true : null,
+      }),
+    (api) => api.years(artistUuid),
+    options
+  );
+}
+
 export function useYears(artistUuid: string, options?: NetworkBackedBehaviorOptions) {
   const realm = useRealm();
   const isOfflineTab = useIsOfflineTab();
 
   const behavior = useMemo(() => {
-    return new NetworkBackedModelArrayBehavior(
-      realm,
-      yearRepo,
-      (realm) =>
-        filterForUser<Year>(realm.objects(Year).filtered('artistUuid == $0', artistUuid), {
-          isFavorite: null,
-          isPlayableOffline: isOfflineTab ? true : null,
-        }),
-      (api) => api.years(artistUuid),
-      options
-    );
+    return yearsNetworkBackedModelArrayBehavior(realm, isOfflineTab, artistUuid, options);
   }, [realm, isOfflineTab, artistUuid, options]);
 
   return useNetworkBackedBehavior(behavior);
