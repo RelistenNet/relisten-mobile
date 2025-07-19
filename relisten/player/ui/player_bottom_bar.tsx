@@ -16,6 +16,16 @@ import { LayoutChangeEvent, Platform, Pressable, TouchableOpacity, View } from '
 import { ScrubberRow } from './player_screen';
 import * as Progress from 'react-native-progress';
 import AirPlayButton from 'react-native-airplay-button';
+import { useNetInfo } from '@react-native-community/netinfo';
+
+function OfflineBanner() {
+  return (
+    <View className="bg-red-800 flex flex-row justify-center items-center p-1.5">
+      <MaterialIcons name="cloud-off" size={20} color={'white'} style={{ marginRight: 4 }} />
+      <RelistenText>Offline. You can stream downloaded tracks</RelistenText>
+    </View>
+  );
+}
 
 function PlayerBottomBarContents() {
   const currentTrack = useRelistenPlayerCurrentTrack();
@@ -93,6 +103,7 @@ function PlayerBottomBarContents() {
 }
 
 export function PlayerBottomBar() {
+  const isOnline = useNetInfo().isInternetReachable ?? true;
   const { tabBarHeight, playerBottomBarHeight, setPlayerBottomBarHeight } =
     useRelistenPlayerBottomBarContext();
 
@@ -115,6 +126,7 @@ export function PlayerBottomBar() {
   return (
     <View onLayout={onLayout} style={{ bottom: tabBarHeight, position: 'absolute', width: '100%' }}>
       <View className={'w-full flex-1 p-0'}>
+        {!isOnline && <OfflineBanner />}
         <View className="rounded-t-s w-full border-t-2 border-t-relisten-blue-700 bg-relisten-blue-800 pt-2">
           <PlayerBottomBarContents />
         </View>
