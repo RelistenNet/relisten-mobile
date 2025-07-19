@@ -4,10 +4,12 @@ import ReactAppDependencyProvider
 
 @UIApplicationMain
 public class AppDelegate: ExpoAppDelegate {
-  var window: UIWindow?
-
   var reactNativeDelegate: ExpoReactNativeFactoryDelegate?
   var reactNativeFactory: RCTReactNativeFactory?
+  var launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+  
+  // Some parts of expo/react native seem to expect this property to be here
+  public var window: UIWindow? = nil
 
   public override func application(
     _ application: UIApplication,
@@ -19,16 +21,16 @@ public class AppDelegate: ExpoAppDelegate {
 
     reactNativeDelegate = delegate
     reactNativeFactory = factory
+    self.launchOptions = launchOptions
     bindReactNativeFactory(factory)
 
-#if os(iOS) || os(tvOS)
-    window = UIWindow(frame: UIScreen.main.bounds)
-    factory.startReactNative(
-      withModuleName: "main",
-      in: window,
-      launchOptions: launchOptions)
-#endif
-
+    // window moved to PhoneSceneDelegate
+//    window = UIWindow(frame: UIScreen.main.bounds)
+//    factory.startReactNative(
+//      withModuleName: "main",
+//      in: window,
+//      launchOptions: launchOptions)
+    
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 

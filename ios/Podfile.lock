@@ -1473,6 +1473,8 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
+  - react-native-carplay (2.6.0-75):
+    - React
   - react-native-get-random-values (1.11.0):
     - React-Core
   - react-native-netinfo (11.4.1):
@@ -2343,6 +2345,7 @@ DEPENDENCIES:
   - React-microtasksnativemodule (from `../node_modules/react-native/ReactCommon/react/nativemodule/microtasks`)
   - react-native-airplay-button (from `../node_modules/react-native-airplay-button`)
   - react-native-blob-util (from `../node_modules/react-native-blob-util`)
+  - "react-native-carplay (from `../node_modules/@g4rb4g3/react-native-carplay`)"
   - react-native-get-random-values (from `../node_modules/react-native-get-random-values`)
   - "react-native-netinfo (from `../node_modules/@react-native-community/netinfo`)"
   - react-native-render-html (from `../node_modules/react-native-render-html`)
@@ -2521,6 +2524,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-airplay-button"
   react-native-blob-util:
     :path: "../node_modules/react-native-blob-util"
+  react-native-carplay:
+    :path: "../node_modules/@g4rb4g3/react-native-carplay"
   react-native-get-random-values:
     :path: "../node_modules/react-native-get-random-values"
   react-native-netinfo:
@@ -2679,6 +2684,7 @@ SPEC CHECKSUMS:
   React-microtasksnativemodule: 44180d1c009908666733364261fabf0613ac77e7
   react-native-airplay-button: 67346bac38f575ce06978b5746052b0aa2741439
   react-native-blob-util: e032f2a9d5779aa94934139a60fe5ed6c5071328
+  react-native-carplay: c346b9a77ca3267a998852854cf0360aa919f4d4
   react-native-get-random-values: d16467cf726c618e9c7a8c3c39c31faa2244bbba
   react-native-netinfo: cec9c4e86083cb5b6aba0e0711f563e2fbbff187
   react-native-render-html: 5afc4751f1a98621b3009432ef84c47019dcb2bd

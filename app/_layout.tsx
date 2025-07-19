@@ -10,7 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Realm } from '@realm/react';
 
 import { RelistenApiProvider } from '@/relisten/api/context';
-import { RealmProvider, setRealm } from '@/relisten/realm/schema';
+import { realm, RealmProvider, setRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { StatusBar } from 'expo-status-bar';
 
@@ -30,6 +30,8 @@ import * as Sentry from '@sentry/react-native';
 import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
 import { LogBox } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { CarPlay } from '@g4rb4g3/react-native-carplay/src';
+import { setupCarPlay } from '@/relisten/carplay/templates';
 
 // c.f. https://github.com/meliorence/react-native-render-html/issues/661#issuecomment-2453476566
 LogBox.ignoreLogs([/Support for defaultProps will be removed/]);
@@ -72,6 +74,12 @@ if (!__DEV__) {
   Sentry.init({});
 }
 
+function onConnect() {
+  if (realm) {
+    setupCarPlay(realm!);
+  }
+}
+
 function TabLayout() {
   const realmRef = useRef<Realm | null>(null);
 
@@ -80,6 +88,13 @@ function TabLayout() {
   const [hasRootViewLayoutFinished, setHasRootViewLayoutFinished] = useState(false);
 
   const isAppReady = useCacheAssets();
+
+  useEffect(() => {
+    CarPlay.registerOnConnect(onConnect);
+    return () => {
+      CarPlay.unregisterOnConnect(onConnect);
+    };
+  });
 
   useEffect(() => {
     if (realmRef.current) {
