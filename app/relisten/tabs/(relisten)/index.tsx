@@ -253,19 +253,6 @@ export default function Page() {
         <Flex column>
           <Flex column className="gap-4 p-4">
             <RowWithAction
-              title="Today in History"
-              subtitle="See every show by every band played on this day in history."
-            >
-              <Link
-                href={{
-                  pathname: '/relisten/tabs/(relisten)/today' as const,
-                }}
-                asChild
-              >
-                <RelistenButton>Today in History</RelistenButton>
-              </Link>
-            </RowWithAction>
-            <RowWithAction
               title="Recently Played"
               subtitle="See what other people are listening to in real-time."
             >

@@ -47,12 +47,6 @@ export default function ArtistsLayout() {
       />
 
       <Stack.Screen
-        name="today"
-        options={{
-          title: 'Today in History',
-        }}
-      />
-      <Stack.Screen
         name="recently-played"
         options={{
           title: 'Recently Played',
