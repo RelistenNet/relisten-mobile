@@ -17,7 +17,7 @@ extension RelistenGaplessAudioPlayer {
 
         let session = AVAudioSession.sharedInstance()
 
-        try? session.setCategory(.playback)
+        try? session.setCategory(.playback, mode: .default, policy: .longFormAudio)
         try? session.setActive(shouldActivate)
 
         // Register for Route Change notifications
@@ -49,22 +49,35 @@ extension RelistenGaplessAudioPlayer {
     internal func addCommandCenterListeners() {
         NSLog("[relisten-audio-player] addCommandCenterListeners()")
 
+        commandCenter.playCommand.removeTarget(_resume)
         commandCenter.playCommand.isEnabled = true
         commandCenter.playCommand.addTarget(handler: _resume)
+
+        commandCenter.pauseCommand.removeTarget(_pause)
         commandCenter.pauseCommand.isEnabled = true
         commandCenter.pauseCommand.addTarget(handler: _pause)
+
+        commandCenter.changePlaybackPositionCommand.removeTarget(_seekTo)
         commandCenter.changePlaybackPositionCommand.isEnabled = true
         commandCenter.changePlaybackPositionCommand.addTarget(handler: _seekTo)
+
+        commandCenter.nextTrackCommand.removeTarget(_nextTrack)
         commandCenter.nextTrackCommand.isEnabled = true
         commandCenter.nextTrackCommand.addTarget(handler: _nextTrack)
+
+        commandCenter.previousTrackCommand.removeTarget(_prevTrack)
         commandCenter.previousTrackCommand.isEnabled = true
         commandCenter.previousTrackCommand.addTarget(handler: _prevTrack)
+
+        // Explicitly disable skip commands to prevent them from interfering with track commands
+        commandCenter.skipForwardCommand.isEnabled = false
+        commandCenter.skipBackwardCommand.isEnabled = false
     }
 
     internal func tearDownAudioSession() {
         if audioSessionObserversSetUp {
             NSLog("[relisten-audio-player] tearDownAudioSession()")
-            
+
             NotificationCenter.default.removeObserver(self, name: AVAudioSession.routeChangeNotification, object: nil)
             NotificationCenter.default.removeObserver(self, name: AVAudioSession.interruptionNotification, object: nil)
             NotificationCenter.default.removeObserver(self, name: AVAudioSession.mediaServicesWereResetNotification, object: nil)
@@ -80,6 +93,8 @@ extension RelistenGaplessAudioPlayer {
             commandCenter.nextTrackCommand.removeTarget(_nextTrack)
             commandCenter.previousTrackCommand.isEnabled = false
             commandCenter.previousTrackCommand.removeTarget(_prevTrack)
+            commandCenter.skipForwardCommand.isEnabled = false
+            commandCenter.skipBackwardCommand.isEnabled = false
 
             DispatchQueue.main.async {
                 UIApplication.shared.endReceivingRemoteControlEvents()

@@ -99,7 +99,8 @@
           "url": "https://sentry.io/"
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-font"
     ],
     "extra": {
       "router": {
