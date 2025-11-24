@@ -30,6 +30,7 @@ import * as Sentry from '@sentry/react-native';
 import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
 import { LogBox } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { setupCarPlay } from '@/relisten/carplay';
 
 // c.f. https://github.com/meliorence/react-native-render-html/issues/661#issuecomment-2453476566
 LogBox.ignoreLogs([/Support for defaultProps will be removed/]);
@@ -88,6 +89,10 @@ function TabLayout() {
       setRealm(undefined);
     }
   }, [realmRef.current]);
+
+  useEffect(() => {
+    setupCarPlay();
+  }, []);
 
   useEffect(() => {
     if (!navigation?.isReady()) return;
