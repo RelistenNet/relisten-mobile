@@ -103,9 +103,9 @@ PODS:
   - FBLazyVector (0.81.5)
   - fmt (11.0.2)
   - glog (0.3.5)
-  - hermes-engine (0.81.4):
-    - hermes-engine/Pre-built (= 0.81.4)
-  - hermes-engine/Pre-built (0.81.4)
+  - hermes-engine (0.81.5):
+    - hermes-engine/Pre-built (= 0.81.5)
+  - hermes-engine/Pre-built (0.81.5)
   - lottie-ios (4.5.0)
   - lottie-react-native (7.3.4):
     - boost
@@ -3348,10 +3348,10 @@ SPEC CHECKSUMS:
   FBLazyVector: 5beb8028d5a2e75dd9634917f23e23d3a061d2aa
   fmt: a40bb5bd0294ea969aaaba240a927bd33d878cdd
   glog: 5683914934d5b6e4240e497e0f4a3b42d1854183
-  hermes-engine: 35c763d57c9832d0eef764316ca1c4d043581394
+  hermes-engine: 9f4dfe93326146a1c99eb535b1cb0b857a3cd172
   lottie-ios: a881093fab623c467d3bce374367755c272bdd59
   lottie-react-native: d2b7601b28c063bde347fac764166b5362037846
-  RCT-Folly: 59ec0ac1f2f39672a0c6e6cecdd39383b764646f
+  RCT-Folly: 846fda9475e61ec7bcbf8a3fe81edfcaeb090669
   RCTDeprecation: 5eb1d2eeff5fb91151e8a8eef45b6c7658b6c897
   RCTRequired: cebcf9442fc296c9b89ac791dfd463021d9f6f23
   RCTTypeSafety: b99aa872829ee18f6e777e0ef55852521c5a6788
