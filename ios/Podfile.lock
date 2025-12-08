@@ -3391,6 +3391,7 @@ SPEC CHECKSUMS:
   React-microtasksnativemodule: 63ee6730cec233feab9cdcc0c100dc28a12e4165
   react-native-airplay-button: 67346bac38f575ce06978b5746052b0aa2741439
   react-native-blob-util: b42f4cb2244f901b647de58788df2258a6b8b93d
+  react-native-carplay: c346b9a77ca3267a998852854cf0360aa919f4d4
   react-native-get-random-values: d16467cf726c618e9c7a8c3c39c31faa2244bbba
   react-native-netinfo: cec9c4e86083cb5b6aba0e0711f563e2fbbff187
   react-native-render-html: 5afc4751f1a98621b3009432ef84c47019dcb2bd

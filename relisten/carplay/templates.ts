@@ -1,126 +1,66 @@
-import { CarPlay, ListTemplate, ListItem } from '@g4rb4g3/react-native-carplay/src';
-import { Artist } from '@/relisten/realm/models/artist';
+import { CarPlay, TabBarTemplate, TabBarTemplates } from '@g4rb4g3/react-native-carplay';
 import { Realm } from '@realm/react';
-import { Results } from 'realm';
-import plur from 'plur';
-import React from 'react';
-import { ListSection } from '@g4rb4g3/react-native-carplay/src/interfaces/ListSection';
-import { artistsNetworkBackedBehavior } from '@/relisten/realm/models/artist_repo';
 import { RelistenApiClient } from '@/relisten/api/client';
-import { NetworkBackedResults } from '@/relisten/realm/network_backed_results';
-import { TabBarTemplate, Template } from '@g4rb4g3/react-native-carplay';
-import { TabBarTemplates } from '@g4rb4g3/react-native-carplay/src/templates/TabBarTemplate';
-import { log } from '../util/logging';
-
-const logger = log.extend('carplay');
-
-class RelistenCarPlayContext {
-  constructor(
-    public readonly realm: Realm,
-    public readonly apiClient: RelistenApiClient
-  ) {}
-
-  private teardowns: Array<() => void> = [];
-
-  addTeardown(teardown: () => void) {
-    this.teardowns.push(teardown);
-  }
-
-  tearDown() {
-    for (const teardown of this.teardowns) {
-      try {
-        teardown();
-      } catch (e) {
-        logger.error('Error tearing down carplay context', e);
-      }
-    }
-
-    this.teardowns = [];
-  }
-}
+import { RelistenCarPlayContext } from '@/relisten/carplay/relisten_car_play_context';
+import { carplay_logger } from '@/relisten/carplay/carplay_logger';
+import { createArtistsListTemplate } from '@/relisten/carplay/artists';
+import { createNowPlayingTemplate, createQueueListTemplate } from '@/relisten/carplay/queue';
+import { RelistenPlayer } from '@/relisten/player/relisten_player';
+import { createLibraryTemplate, createRecentTemplate } from '@/relisten/carplay/library';
 
 export function setupCarPlay(realm: Realm, apiClient: RelistenApiClient) {
-  const ctx = new RelistenCarPlayContext(realm, apiClient);
+  carplay_logger.info('Setting up CarPlay');
 
-  CarPlay.setRootTemplate(
-    new TabBarTemplate({
-      title: 'Relisten',
-      templates: [createArtistsListTemplate(ctx)],
-    }),
-    true
-  );
+  const player = RelistenPlayer.DEFAULT_INSTANCE;
+  const ctx = new RelistenCarPlayContext(realm, apiClient, player);
+  carplay_logger.info('CarPlay context initialized');
 
-  CarPlay.enableNowPlaying();
-
-  return () => ctx.tearDown();
-}
-
-function networkBackedResultsListTemplate<T>(
-  results: NetworkBackedResults<T>,
-  contentHandler: (data: T) => TabBarTemplates
-) {
-  if (results.isNetworkLoading) {
-    return new ListTemplate({
-      title: 'Loading...',
-      sections: [{ items: [{ text: 'Loading...' }] }],
-    });
-  }
-
-  return contentHandler(results.data);
-}
-
-function createArtistsListTemplate(ctx: RelistenCarPlayContext): ListTemplate {
-  const artistsBehavior = artistsNetworkBackedBehavior(ctx.realm, false);
-  const executor = artistsBehavior.sharedExecutor(ctx.apiClient);
-
-  const results = executor.start();
-
-  const template = new ListTemplate({
-    title: 'Relisten',
-    async onItemSelect(item: { templateId: string; index: number; id: string }): Promise<void> {
-      const selectedArtist = results.currentValue.data[item.index];
-      console.log('carplay selected', item);
-    },
-    sections: [],
-    emptyViewTitleVariants: ['Loading...'],
-    tabTitle: 'Relisten',
-  });
-
-  results.addListener((nextValue) => {
-    const artists = nextValue.data;
-
-    const sections: ListSection[] = [];
-
-    const all = [...artists].sort((a, b) => {
-      return a.sortName.localeCompare(b.sortName);
+  const queueTemplateBuilder = () =>
+    createQueueListTemplate(ctx, {
+      title: 'Now Playing',
+      tabTitle: 'Queue',
+      includeNowPlayingRow: true,
     });
 
-    const createItem = (a: Artist) => {
-      return { text: a.name };
-    };
-
-    const favorites = all.filter((a) => a.isFavorite);
-
-    if (favorites.length > 0) {
-      sections.push({
-        header: 'Favorites',
-        items: favorites.map(createItem),
-      });
+  const nowPlayingTemplate = createNowPlayingTemplate(ctx, queueTemplateBuilder);
+  const ensureNowPlayingVisible = () => {
+    if (ctx.nowPlayingVisible) {
+      carplay_logger.info('Bringing existing Now Playing to front');
+      CarPlay.popToTemplate(nowPlayingTemplate, true);
+      return;
     }
 
-    const featured = all.filter((a) => a.featured !== 0);
+    carplay_logger.info('Pushing Now Playing template');
+    CarPlay.pushTemplate(nowPlayingTemplate, true);
+  };
+  ctx.showNowPlaying = ensureNowPlayingVisible;
 
-    sections.push({ header: 'Featured', items: featured.map(createItem) });
+  CarPlay.enableNowPlaying();
+  carplay_logger.info('Enabled system Now Playing');
 
-    sections.push({
-      header: `${all.length} ${plur('artist', all.length)}`,
-      items: all.map(createItem),
-    });
+  const browseTemplate = createArtistsListTemplate(ctx, 'browse');
+  const libraryTemplate = createLibraryTemplate(ctx);
+  const recentTemplate = createRecentTemplate(ctx);
+  const queueTemplate = queueTemplateBuilder();
 
-    template.updateSections(sections);
+  const tabBar = new TabBarTemplate({
+    title: 'Relisten',
+    templates: [browseTemplate, recentTemplate, libraryTemplate, queueTemplate],
+    onTemplateSelect(
+      template: TabBarTemplates | undefined,
+      e: { templateId: string; selectedTemplateId: string }
+    ) {
+      carplay_logger.info('onTemplateSelect', e, template?.id);
+    },
   });
 
-  ctx.addTeardown(() => results.tearDown());
+  CarPlay.setRootTemplate(tabBar, true);
 
-  return template;
+  const disconnectHandler = () => ctx.tearDown();
+  CarPlay.registerOnDisconnect(disconnectHandler);
+
+  return () => {
+    CarPlay.unregisterOnDisconnect(disconnectHandler);
+    ctx.tearDown();
+  };
 }

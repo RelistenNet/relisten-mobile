@@ -12,6 +12,8 @@ extension AppDelegate {
     configurationForConnecting connectingSceneSession: UISceneSession,
     options: UIScene.ConnectionOptions
   ) -> UISceneConfiguration {
+    print("[carplay-debug] Class: \(type(of: self)), Method: \(#function) role=\(connectingSceneSession.role)")
+
     if (connectingSceneSession.role == UISceneSession.Role.carTemplateApplication) {
       let scene =  UISceneConfiguration(name: "CarPlay", sessionRole: connectingSceneSession.role)
       scene.delegateClass = CarSceneDelegate.self

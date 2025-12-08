@@ -74,7 +74,7 @@ export interface YearShows {
   shows: Realm.Results<Show>;
 }
 
-class YearShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
+export class YearShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
   YearShows,
   YearWithShows
 > {
@@ -127,6 +127,16 @@ class YearShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
       });
     });
   }
+}
+
+export function createYearShowsNetworkBackedBehavior(
+  realm: Realm.Realm,
+  artistUuid: string,
+  yearUuid: string,
+  userFilters: UserFilters,
+  options?: NetworkBackedBehaviorOptions
+) {
+  return new YearShowsNetworkBackedBehavior(realm, artistUuid, yearUuid, userFilters, options);
 }
 
 export function useYearShows(

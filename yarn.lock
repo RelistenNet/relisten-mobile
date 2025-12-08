@@ -1399,6 +1399,11 @@
     find-up "^5.0.0"
     js-yaml "^4.1.0"
 
+"@g4rb4g3/react-native-carplay@2.6.0-75":
+  version "2.6.0-75"
+  resolved "https://registry.yarnpkg.com/@g4rb4g3/react-native-carplay/-/react-native-carplay-2.6.0-75.tgz#ad015c456f664b70dbc31fa4710e7aa298094439"
+  integrity sha512-o+O4VeuSr8Uy9rCLEVqQKvPt6isjr8jVZbbUUJ9wMBGLFcCAjS32lnIWHtnYRMmLTlhlDg5MIdZ3wrQ++XF+rg==
+
 "@gorhom/bottom-sheet@^5.2.6":
   version "5.2.6"
   resolved "https://registry.yarnpkg.com/@gorhom/bottom-sheet/-/bottom-sheet-5.2.6.tgz#5f2045f6ca965383afe39f7dfa3afad1502b7467"
