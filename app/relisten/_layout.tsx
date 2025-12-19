@@ -1,17 +1,16 @@
-import "react-native-gesture-handler";
-import "react-native-reanimated";
+import 'react-native-gesture-handler';
+import 'react-native-reanimated';
 
-import { RelistenBlue } from "@/relisten/relisten_blue";
-import { Stack } from "expo-router/stack";
-import { useShouldMakeNetworkRequests } from "@/relisten/util/netinfo";
-import { useEffect } from "react";
-import { DownloadManager } from "@/relisten/offline/download_manager";
-import { useRelistenApi } from "@/relisten/api/context";
-import { CarPlay } from "@g4rb4g3/react-native-carplay/src";
-import { RelistenApiClient } from "@/relisten/api/client";
-import { realm } from "@/relisten/realm/schema";
-import { setupCarPlay } from "@/relisten/carplay/templates";
-
+import { RelistenBlue } from '@/relisten/relisten_blue';
+import { Stack } from 'expo-router/stack';
+import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
+import { useEffect } from 'react';
+import { DownloadManager } from '@/relisten/offline/download_manager';
+import { useRelistenApi } from '@/relisten/api/context';
+import { CarPlay } from '@g4rb4g3/react-native-carplay/src';
+import { RelistenApiClient } from '@/relisten/api/client';
+import { realm } from '@/relisten/realm/schema';
+import { setupCarPlay } from '@/relisten/carplay/templates';
 
 function onConnect(apiClient: RelistenApiClient) {
   return () => {

@@ -5,11 +5,11 @@ import { carplay_logger } from '@/relisten/carplay/carplay_logger';
 import { RealmQueryValueStream } from '@/relisten/realm/value_streams';
 import { Show } from '@/relisten/realm/models/show';
 import { filterForUser } from '@/relisten/realm/realm_filters';
-import { createSourcesListTemplate } from '@/relisten/carplay/artists';
-import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
+import { createSourcesListTemplate } from '@/relisten/carplay/show_templates';
 import { OfflineModeSetting } from '@/relisten/realm/models/user_settings';
 import plur from 'plur';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
+import { queuePlaybackHistoryEntry } from '@/relisten/carplay/queue_helpers';
 
 export function createLibraryTemplate(ctx: RelistenCarPlayContext): ListTemplate {
   carplay_logger.info('createLibraryTemplate');
@@ -141,9 +141,7 @@ export function createRecentTemplate(ctx: RelistenCarPlayContext): ListTemplate 
         return;
       }
 
-      const queueTrack = PlayerQueueTrack.fromSourceTrack(track);
-      ctx.player.queue.replaceQueue([queueTrack], 0);
-      ctx.showNowPlaying?.();
+      await queuePlaybackHistoryEntry(ctx, 'browse', entry);
     },
     sections: [],
     emptyViewTitleVariants: ['Loading history...'],

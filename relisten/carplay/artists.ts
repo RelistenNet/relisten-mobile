@@ -7,32 +7,27 @@ import {
   YearShows,
   yearsNetworkBackedModelArrayBehavior,
 } from '@/relisten/realm/models/year_repo';
-import {
-  ShowWithFullSourcesNetworkBackedBehavior,
-  sortSources,
-} from '@/relisten/realm/models/show_repo';
 import { Artist } from '@/relisten/realm/models/artist';
 import { Year } from '@/relisten/realm/models/year';
 import { Show } from '@/relisten/realm/models/show';
-import { Source } from '@/relisten/realm/models/source';
-import { SourceTrack } from '@/relisten/realm/models/source_track';
-import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
 import { NetworkBackedBehaviorFetchStrategy } from '@/relisten/realm/network_backed_behavior';
 import { carplay_logger } from '@/relisten/carplay/carplay_logger';
-import { OfflineModeSetting } from '@/relisten/realm/models/user_settings';
+import { createSourcesListTemplate } from '@/relisten/carplay/show_templates';
+import { createTodayShowsTemplate } from '@/relisten/carplay/today';
+import { CarPlayScope, SCOPE_META } from '@/relisten/carplay/scope';
+import { formatShowDetail } from '@/relisten/carplay/show_formatters';
+import { upsertShowWithSources } from '@/relisten/realm/models/show_repo';
+import { sample } from 'remeda';
 import plur from 'plur';
-
-export type CarPlayScope = 'browse' | 'offline' | 'library';
 
 type ItemMap<T extends { uuid: string }> = Map<string, T>;
 
 type YearShowsResults = YearShows;
 
-const SCOPE_META: Record<CarPlayScope, { title: string; tabTitle: string }> = {
-  browse: { title: 'Relisten', tabTitle: 'Browse' },
-  offline: { title: 'Offline', tabTitle: 'Offline' },
-  library: { title: 'My Library', tabTitle: 'Library' },
-};
+const FAVORITES_ACTION_ON_THIS_DAY = 'action:favorites:on-this-day';
+const FAVORITES_ACTION_RANDOM = 'action:favorites:random-show';
+const ARTIST_ACTION_ON_THIS_DAY = 'action:artist:on-this-day';
+const ARTIST_ACTION_RANDOM = 'action:artist:random-show';
 
 export function createArtistsListTemplate(
   ctx: RelistenCarPlayContext,
@@ -55,12 +50,41 @@ export function createArtistsListTemplate(
   ctx.addTeardown(() => executor.tearDown());
 
   const artistMap: ItemMap<Artist> = new Map();
+  let favoriteArtists: Artist[] = [];
 
   const template = new ListTemplate({
     title: SCOPE_META[scope].title,
     tabTitle: SCOPE_META[scope].tabTitle,
     tabSystemImageName: 'music.pages.fill',
     async onItemSelect({ id }: { templateId: string; index: number; id: string }) {
+      if (scope === 'browse') {
+        if (id === FAVORITES_ACTION_ON_THIS_DAY && favoriteArtists.length > 0) {
+          const todayTemplate = createTodayShowsTemplate(
+            ctx,
+            scope,
+            favoriteArtists,
+            'On This Day'
+          );
+          CarPlay.pushTemplate(todayTemplate, true);
+          return;
+        }
+
+        if (id === FAVORITES_ACTION_RANDOM && favoriteArtists.length > 0) {
+          const randomArtist = sample([...favoriteArtists], 1)[0]!;
+          const randomShow = await ctx.apiClient.randomShow(randomArtist.uuid);
+
+          if (randomShow?.data?.uuid) {
+            const show = upsertShowWithSources(ctx.realm, randomShow.data);
+
+            if (show && show.artist) {
+              const sourcesTemplate = createSourcesListTemplate(ctx, scope, show.artist, show);
+              CarPlay.pushTemplate(sourcesTemplate, true);
+            }
+          }
+          return;
+        }
+      }
+
       carplay_logger.info('artist selected', { id, scope });
       const artist = artistMap.get(String(id));
 
@@ -110,11 +134,32 @@ export function createArtistsListTemplate(
 
     const favorites = sorted.filter((a) => a.isFavorite);
     const offline = sorted.filter((a) => a.hasOfflineTracks);
+    favoriteArtists = favorites;
 
     if (scope === 'browse') {
       if (favorites.length > 0) {
         sections.push({
           header: 'Favorites',
+          items: [
+            {
+              id: FAVORITES_ACTION_ON_THIS_DAY,
+              text: 'On This Day',
+              detailText: 'Shows on this day by favorite artists.',
+              showsDisclosureIndicator: true,
+            },
+            {
+              id: FAVORITES_ACTION_RANDOM,
+              text: 'Random Show',
+              detailText: 'Play a random show by a favorite artist.',
+              showsDisclosureIndicator: true,
+            },
+          ],
+        });
+      }
+
+      if (favorites.length > 0) {
+        sections.push({
+          header: 'Favorite Artists',
           items: favorites.map((artist) => artistListItem(artist)),
         });
       }
@@ -192,6 +237,26 @@ function createYearsListTemplate(
     tabTitle: SCOPE_META[scope].tabTitle,
     tabSystemImageName: 'music.pages.fill',
     async onItemSelect({ id }: { templateId: string; index: number; id: string }) {
+      if (id === ARTIST_ACTION_ON_THIS_DAY) {
+        const todayTemplate = createTodayShowsTemplate(ctx, scope, [artist], 'On This Day');
+        CarPlay.pushTemplate(todayTemplate, true);
+        return;
+      }
+
+      if (id === ARTIST_ACTION_RANDOM) {
+        const randomShow = await ctx.apiClient.randomShow(artist.uuid);
+
+        if (randomShow?.data?.uuid) {
+          const show = upsertShowWithSources(ctx.realm, randomShow.data);
+
+          if (show && show.artist) {
+            const sourcesTemplate = createSourcesListTemplate(ctx, scope, show.artist, show);
+            CarPlay.pushTemplate(sourcesTemplate, true);
+          }
+        }
+        return;
+      }
+
       carplay_logger.info('year selected', { id, artist: artist.uuid, scope });
       const year = yearMap.get(String(id));
       if (!year) return;
@@ -220,12 +285,31 @@ function createYearsListTemplate(
       showsDisclosureIndicator: true,
     }));
 
-    template.updateSections([
+    const sections: ListSection[] = [
+      {
+        header: 'Actions',
+        items: [
+          {
+            id: ARTIST_ACTION_ON_THIS_DAY,
+            text: 'On This Day',
+            detailText: `Shows on this day by ${artist.name}.`,
+            showsDisclosureIndicator: true,
+          },
+          {
+            id: ARTIST_ACTION_RANDOM,
+            text: 'Random Show',
+            detailText: `Play a random ${artist.name} show.`,
+            showsDisclosureIndicator: true,
+          },
+        ],
+      },
       {
         header: `${sorted.length} ${plur('year', sorted.length)}`,
         items,
       },
-    ]);
+    ];
+
+    template.updateSections(sections);
   });
 
   return template;
@@ -310,141 +394,6 @@ function createShowsListTemplate(
   return template;
 }
 
-export function createSourcesListTemplate(
-  ctx: RelistenCarPlayContext,
-  scope: CarPlayScope,
-  artist: Artist,
-  show: Show
-): ListTemplate {
-  carplay_logger.info('createSourcesListTemplate', { scope, artist: artist.uuid, show: show.uuid });
-  const behavior = new ShowWithFullSourcesNetworkBackedBehavior(ctx.realm, show.uuid);
-  const executor = behavior.sharedExecutor(ctx.apiClient);
-  const results = executor.start();
-
-  ctx.addTeardown(() => executor.tearDown());
-  ctx.addTeardown(() => results.tearDown());
-
-  const sourceMap: ItemMap<Source> = new Map();
-
-  const template = new ListTemplate({
-    title: `${artist.name} • ${show.displayDate}`,
-    tabTitle: SCOPE_META[scope].tabTitle,
-    tabSystemImageName: 'music.pages.fill',
-    async onItemSelect({ id }: { templateId: string; index: number; id: string }) {
-      carplay_logger.info('source selected', { id, artist: artist.uuid, show: show.uuid });
-      const source = sourceMap.get(String(id));
-      if (!source) return;
-
-      const tracksTemplate = createTracksListTemplate(ctx, scope, artist, show, source);
-      CarPlay.pushTemplate(tracksTemplate, true);
-    },
-    sections: [],
-    emptyViewTitleVariants: ['Loading sources...'],
-  });
-
-  results.addListener((nextValue) => {
-    const data = nextValue.data;
-    const sources = data?.sources ? sortSources(data.sources) : [];
-
-    const filteredSources = sources.filter((source) => includeSourceForScope(scope, source));
-
-    sourceMap.clear();
-    for (const source of filteredSources) {
-      sourceMap.set(source.uuid, source);
-    }
-
-    const items = filteredSources.map((source) => ({
-      id: source.uuid,
-      text: source.source || 'Source',
-      detailText: formatSourceDetail(source),
-      showsDisclosureIndicator: true,
-    }));
-
-    template.updateSections([
-      {
-        header: `${filteredSources.length} ${plur('source', filteredSources.length)}`,
-        items,
-      },
-    ]);
-  });
-
-  return template;
-}
-
-export function createTracksListTemplate(
-  ctx: RelistenCarPlayContext,
-  scope: CarPlayScope,
-  artist: Artist,
-  show: Show,
-  source: Source
-): ListTemplate {
-  carplay_logger.info('createTracksListTemplate', {
-    scope,
-    artist: artist.uuid,
-    show: show.uuid,
-    source: source.uuid,
-  });
-  const offlineMode = ctx.userSettings.offlineModeWithDefault();
-  const tracks = flattenTracks(source);
-
-  const template = new ListTemplate({
-    title: `${artist.name} • ${show.displayDate}`,
-    tabTitle: SCOPE_META[scope].tabTitle,
-    tabSystemImageName: 'music.pages.fill',
-    async onItemSelect({ id }: { templateId: string; index: number; id: string }) {
-      carplay_logger.info('track selected', { id, scope, source: source.uuid, show: show.uuid });
-      const targetIndex = tracks.findIndex((t) => t.uuid === id);
-      if (targetIndex === -1) return;
-
-      const playableTracks = tracks.filter((track) =>
-        isTrackPlayableInScope(scope, offlineMode, track)
-      );
-
-      const queueTracks = playableTracks.map((t) => PlayerQueueTrack.fromSourceTrack(t));
-      const playIndex = playableTracks.findIndex((t) => t.uuid === id);
-
-      if (queueTracks.length === 0) {
-        carplay_logger.warn('No playable tracks found for source', source.uuid);
-        return;
-      }
-
-      if (playIndex < 0) {
-        carplay_logger.warn('Selected track not playable in current scope', id);
-        return;
-      }
-
-      carplay_logger.info('Replacing queue from CarPlay', {
-        queueLength: queueTracks.length,
-        playIndex,
-        source: source.uuid,
-      });
-      ctx.player.queue.replaceQueue(queueTracks, playIndex);
-      ctx.showNowPlaying?.();
-    },
-    sections: [],
-    emptyViewTitleVariants: ['Loading tracks...'],
-  });
-
-  const items = tracks
-    .filter((track) => includeTrackForScope(scope, offlineMode, track))
-    .map((track) => ({
-      id: track.uuid,
-      text: `${track.trackPosition}. ${track.title}`,
-      detailText: track.humanizedDuration || undefined,
-      isPlaying: ctx.player.queue.currentTrack?.sourceTrack.uuid === track.uuid,
-      showsDisclosureIndicator: false,
-    }));
-
-  template.updateSections([
-    {
-      header: `${items.length} ${plur('track', items.length)}`,
-      items,
-    },
-  ]);
-
-  return template;
-}
-
 function includeArtistForScope(scope: CarPlayScope, artist: Artist) {
   if (scope === 'offline') {
     return artist.hasOfflineTracks;
@@ -487,42 +436,6 @@ function includeShowForScope(scope: CarPlayScope, show: Show) {
   return true;
 }
 
-function includeSourceForScope(scope: CarPlayScope, source: Source) {
-  if (scope === 'offline') {
-    return source.hasOfflineTracks;
-  }
-
-  if (scope === 'library') {
-    return source.isFavorite || source.hasOfflineTracks;
-  }
-
-  return true;
-}
-
-function includeTrackForScope(
-  scope: CarPlayScope,
-  offlineMode: OfflineModeSetting,
-  track: SourceTrack
-) {
-  if (scope === 'offline') {
-    return track.offlineInfo?.isPlayableOffline();
-  }
-
-  if (offlineMode === OfflineModeSetting.AlwaysOffline) {
-    return track.offlineInfo?.isPlayableOffline();
-  }
-
-  return true;
-}
-
-function isTrackPlayableInScope(
-  scope: CarPlayScope,
-  offlineMode: OfflineModeSetting,
-  track: SourceTrack
-) {
-  return includeTrackForScope(scope, offlineMode, track) && !!track.streamingUrl();
-}
-
 function artistListItem(artist: Artist) {
   return {
     id: artist.uuid,
@@ -530,41 +443,4 @@ function artistListItem(artist: Artist) {
     detailText: `${artist.showCount} ${plur('show', artist.showCount)} • ${artist.sourceCount} ${plur('tape', artist.sourceCount)}`,
     showsDisclosureIndicator: true,
   };
-}
-
-function formatShowDetail(show: Show) {
-  const venue = show.venue?.name;
-  const location = show.venue?.location;
-  const locationText = [venue, location].filter(Boolean).join(' • ');
-  const rating = show.avgRating ? `${show.humanizedAvgRating()}★` : undefined;
-  const duration = show.avgDuration ? show.humanizedAvgDuration() : undefined;
-  const parts = [locationText, rating, duration].filter(Boolean);
-
-  return parts.join(' • ');
-}
-
-function formatSourceDetail(source: Source) {
-  const rating = source.avgRating ? `${source.humanizedAvgRating()}★` : undefined;
-  const duration = source.duration ? source.humanizedDuration() : undefined;
-  const type = source.isSoundboard ? 'SBD' : undefined;
-  const taper = source.taper;
-  const transferrer = source.transferrer;
-  const taperInfo = [taper, transferrer].filter(Boolean).join(' / ');
-
-  return [type, rating, duration, taperInfo].filter(Boolean).join(' • ');
-}
-
-function flattenTracks(source: Source) {
-  const sortedSets = Array.from(source.sourceSets || []).sort((a, b) => a.index - b.index);
-
-  const tracks: SourceTrack[] = [];
-
-  for (const set of sortedSets) {
-    const setTracks = Array.from<SourceTrack>(set.sourceTracks || []).sort(
-      (a, b) => a.trackPosition - b.trackPosition
-    );
-    tracks.push(...setTracks);
-  }
-
-  return tracks;
 }

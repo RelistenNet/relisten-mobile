@@ -14,7 +14,7 @@ import Realm from 'realm';
 import EventEmitter from 'react-native/Libraries/vendor/emitter/EventEmitter';
 import { RealmQueryValueStream } from '@/relisten/realm/value_streams';
 
-class TodayShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavior {
+export class TodayShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavior {
   private emitter = new EventEmitter();
   private asOf = new Date();
 

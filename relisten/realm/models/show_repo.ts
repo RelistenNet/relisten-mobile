@@ -251,3 +251,16 @@ export function useFullShowWithSelectedSource(showUuid: string, selectedSourceUu
     selectedSource,
   };
 }
+
+export function upsertShowWithSources(
+  realm: Realm.Realm,
+  apiData: ApiShowWithSources
+): Show | undefined {
+  const existingShow = realm.objectForPrimaryKey(Show, apiData.uuid) || undefined;
+  const existingSources = realm.objects(Source).filtered('showUuid == $0', apiData.uuid);
+  const behavior = new ShowWithFullSourcesNetworkBackedBehavior(realm, apiData.uuid);
+
+  behavior.upsert({ show: existingShow, sources: existingSources }, apiData);
+
+  return realm.objectForPrimaryKey(Show, apiData.uuid) || existingShow;
+}

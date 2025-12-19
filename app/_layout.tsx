@@ -1,35 +1,35 @@
-import { GestureHandlerRootView } from "react-native-gesture-handler";
-import "react-native-get-random-values";
-import "react-native-reanimated";
-import "uuid";
-import "react-native-svg";
-import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import 'react-native-get-random-values';
+import 'react-native-reanimated';
+import 'uuid';
+import 'react-native-svg';
+import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 
-import { Slot, SplashScreen, useNavigationContainerRef } from "expo-router";
-import { SafeAreaProvider } from "react-native-safe-area-context";
-import { Realm } from "@realm/react";
+import { Slot, SplashScreen, useNavigationContainerRef } from 'expo-router';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Realm } from '@realm/react';
 
-import { RelistenApiProvider } from "@/relisten/api/context";
-import { RealmProvider, setRealm } from "@/relisten/realm/schema";
-import { RelistenBlue } from "@/relisten/relisten_blue";
-import { StatusBar } from "expo-status-bar";
+import { RelistenApiProvider } from '@/relisten/api/context';
+import { RealmProvider, setRealm } from '@/relisten/realm/schema';
+import { RelistenBlue } from '@/relisten/relisten_blue';
+import { StatusBar } from 'expo-status-bar';
 
-import dayjs from "dayjs";
-import duration from "dayjs/plugin/duration";
-import relativeTime from "dayjs/plugin/relativeTime";
-import localizedFormat from "dayjs/plugin/localizedFormat";
-import { useCallback, useEffect, useRef, useState } from "react";
-import useCacheAssets from "./useCacheAssets";
+import dayjs from 'dayjs';
+import duration from 'dayjs/plugin/duration';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import localizedFormat from 'dayjs/plugin/localizedFormat';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import useCacheAssets from './useCacheAssets';
 
-import { RelistenPlayerProvider } from "@/relisten/player/relisten_player_hooks";
-import { RelistenPlayerBottomBarProvider } from "@/relisten/player/ui/player_bottom_bar";
-import { ActionSheetProvider } from "@expo/react-native-action-sheet";
-import FlashMessage from "react-native-flash-message";
-import { PlaybackHistoryReporterComponent } from "@/relisten/components/playback_history_reporter";
-import * as Sentry from "@sentry/react-native";
-import { configureReanimatedLogger, ReanimatedLogLevel } from "react-native-reanimated";
-import { LogBox } from "react-native";
-import * as ImagePicker from "expo-image-picker";
+import { RelistenPlayerProvider } from '@/relisten/player/relisten_player_hooks';
+import { RelistenPlayerBottomBarProvider } from '@/relisten/player/ui/player_bottom_bar';
+import { ActionSheetProvider } from '@expo/react-native-action-sheet';
+import FlashMessage from 'react-native-flash-message';
+import { PlaybackHistoryReporterComponent } from '@/relisten/components/playback_history_reporter';
+import * as Sentry from '@sentry/react-native';
+import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
+import { LogBox } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 
 // c.f. https://github.com/meliorence/react-native-render-html/issues/661#issuecomment-2453476566
 LogBox.ignoreLogs([/Support for defaultProps will be removed/]);
@@ -71,7 +71,6 @@ if (!__DEV__) {
 } else {
   Sentry.init({});
 }
-
 
 function TabLayout() {
   const realmRef = useRef<Realm | null>(null);

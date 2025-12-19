@@ -400,7 +400,11 @@ ${indentString(this.queue.debugState(true))}
   };
 
   private onRemoteControlEvent = (event: RelistenRemoteControlEvent) => {
-    if (event.method === 'prevTrack') {
+    if (event.method === 'pause') {
+      this.pause();
+    } else if (event.method === 'resume' || event.method === 'play') {
+      this.resume();
+    } else if (event.method === 'prevTrack') {
       this.previous();
     } else if (event.method === 'nextTrack') {
       this.next();
