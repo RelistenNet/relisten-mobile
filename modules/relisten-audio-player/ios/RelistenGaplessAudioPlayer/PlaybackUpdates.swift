@@ -42,7 +42,14 @@ extension RelistenGaplessAudioPlayer {
                 
                 MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
                 
-                if commandCenter.nextTrackCommand.isEnabled == false || commandCenter.previousTrackCommand.isEnabled == false {
+                if commandCenter.playCommand.isEnabled == false ||
+                    commandCenter.pauseCommand.isEnabled == false ||
+                    commandCenter.togglePlayPauseCommand.isEnabled == false ||
+                    commandCenter.nextTrackCommand.isEnabled == false ||
+                    commandCenter.previousTrackCommand.isEnabled == false {
+                    NSLog("[relisten-audio-player][playbackUpdates] playCommand.isEnabled == \(commandCenter.playCommand.isEnabled)")
+                    NSLog("[relisten-audio-player][playbackUpdates] pauseCommand.isEnabled == \(commandCenter.pauseCommand.isEnabled)")
+                    NSLog("[relisten-audio-player][playbackUpdates] togglePlayPauseCommand.isEnabled == \(commandCenter.togglePlayPauseCommand.isEnabled)")
                     NSLog("[relisten-audio-player][playbackUpdates] nextTrackCommand.isEnabled == \(commandCenter.nextTrackCommand.isEnabled)")
                     NSLog("[relisten-audio-player][playbackUpdates] previousTrackCommand.isEnabled == \(commandCenter.previousTrackCommand.isEnabled)")
                     addCommandCenterListeners()

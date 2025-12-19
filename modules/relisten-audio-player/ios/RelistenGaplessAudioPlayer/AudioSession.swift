@@ -57,6 +57,10 @@ extension RelistenGaplessAudioPlayer {
         commandCenter.pauseCommand.isEnabled = true
         commandCenter.pauseCommand.addTarget(handler: _pause)
 
+        commandCenter.togglePlayPauseCommand.removeTarget(_togglePlayPause)
+        commandCenter.togglePlayPauseCommand.isEnabled = true
+        commandCenter.togglePlayPauseCommand.addTarget(handler: _togglePlayPause)
+
         commandCenter.changePlaybackPositionCommand.removeTarget(_seekTo)
         commandCenter.changePlaybackPositionCommand.isEnabled = true
         commandCenter.changePlaybackPositionCommand.addTarget(handler: _seekTo)
@@ -68,6 +72,10 @@ extension RelistenGaplessAudioPlayer {
         commandCenter.previousTrackCommand.removeTarget(_prevTrack)
         commandCenter.previousTrackCommand.isEnabled = true
         commandCenter.previousTrackCommand.addTarget(handler: _prevTrack)
+
+        commandCenter.changePlaybackRateCommand.isEnabled = false
+        commandCenter.changeRepeatModeCommand.isEnabled = false
+        commandCenter.changeShuffleModeCommand.isEnabled = false
 
         // Explicitly disable skip commands to prevent them from interfering with track commands
         commandCenter.skipForwardCommand.isEnabled = false
@@ -87,12 +95,17 @@ extension RelistenGaplessAudioPlayer {
             commandCenter.playCommand.removeTarget(_resume)
             commandCenter.pauseCommand.isEnabled = false
             commandCenter.pauseCommand.removeTarget(_pause)
+            commandCenter.togglePlayPauseCommand.isEnabled = false
+            commandCenter.togglePlayPauseCommand.removeTarget(_togglePlayPause)
             commandCenter.changePlaybackPositionCommand.isEnabled = false
             commandCenter.changePlaybackPositionCommand.removeTarget(_seekTo)
             commandCenter.nextTrackCommand.isEnabled = false
             commandCenter.nextTrackCommand.removeTarget(_nextTrack)
             commandCenter.previousTrackCommand.isEnabled = false
             commandCenter.previousTrackCommand.removeTarget(_prevTrack)
+            commandCenter.changePlaybackRateCommand.isEnabled = false
+            commandCenter.changeRepeatModeCommand.isEnabled = false
+            commandCenter.changeShuffleModeCommand.isEnabled = false
             commandCenter.skipForwardCommand.isEnabled = false
             commandCenter.skipBackwardCommand.isEnabled = false
 

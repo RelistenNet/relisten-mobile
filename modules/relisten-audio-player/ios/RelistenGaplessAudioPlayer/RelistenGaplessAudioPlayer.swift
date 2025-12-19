@@ -375,6 +375,24 @@ public class RelistenGaplessAudioPlayer {
         return MPRemoteCommandHandlerStatus.success
     }
 
+    public func _togglePlayPause(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
+        let shouldPause = self.currentState == .Playing
+
+        delegateQueue.async {
+            self.delegate?.remoteControl(method: shouldPause ? "pause" : "resume")
+        }
+
+        self.bassQueue.async {
+            if shouldPause {
+                self.pause()
+            } else {
+                self.resume()
+            }
+        }
+
+        return MPRemoteCommandHandlerStatus.success
+    }
+
     public func _nextTrack(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
         delegateQueue.async {
             self.delegate?.remoteControl(method: "nextTrack")
