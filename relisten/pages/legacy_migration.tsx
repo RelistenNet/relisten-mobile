@@ -513,7 +513,7 @@ export function LegacyDataMigrationModal({
             className="h-5/6 w-10/12 rounded-lg border-2 border-relisten-blue-700 bg-relisten-blue-900 p-4"
           >
             <Image
-              source={require('@/assets/Relisten White.png')}
+              source={require('@/assets/relisten_white.png')}
               resizeMode="contain"
               className="mb-2 h-[28] w-full"
             />

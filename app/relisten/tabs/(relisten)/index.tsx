@@ -1,4 +1,4 @@
-import * as fs from 'expo-file-system';
+import { Directory, File, Paths } from 'expo-file-system';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import { ActivityIndicator, ScrollView, View } from 'react-native';
 import React, { useCallback, useEffect, useReducer, useState } from 'react';
@@ -20,12 +20,7 @@ import { useArtists } from '@/relisten/realm/models/artist_repo';
 import { sample } from 'remeda';
 import { useRelistenApi } from '@/relisten/api/context';
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
-import {
-  isLegacyDatabaseEmpty,
-  LegacyDatabaseContents,
-  legacyDatabaseExists,
-  loadLegacyDatabaseContents,
-} from '@/relisten/realm/old_ios_schema';
+import { legacyDatabaseExists } from '@/relisten/realm/old_ios_schema';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LegacyDataMigrationModal, SEEN_MODAL_KEY } from '@/relisten/pages/legacy_migration';
 
@@ -56,33 +51,36 @@ export const useFileSystemInfo = () => {
   });
 
   useEffect(() => {
-    (async () => {
-      const [totalDiskSpace, totalFreeDiskSpace, dirInfo] = await Promise.all([
-        fs.getTotalDiskCapacityAsync(),
-        fs.getFreeDiskStorageAsync(),
-        fs.getInfoAsync(OFFLINE_DIRECTORY, { size: true }),
-      ]);
+    const totalDiskSpace = Paths.totalDiskSpace ?? 0;
+    const totalFreeDiskSpace = Paths.availableDiskSpace ?? 0;
+    const relistenDir = new Directory(OFFLINE_DIRECTORY);
+    const relistenDirSize = relistenDir.exists ? (relistenDir.size ?? 0) : 0;
 
-      const legacyDirInfos = await Promise.all(
-        OFFLINE_DIRECTORIES_LEGACY.map((d) => fs.getInfoAsync(d, { size: true }))
-      );
+    const legacyTotal = OFFLINE_DIRECTORIES_LEGACY.reduce((acc, legacyPath) => {
+      const legacyInfo = Paths.info(legacyPath);
+      if (!legacyInfo.exists) {
+        return acc;
+      }
 
-      const legacyTotal = legacyDirInfos.reduce(
-        (acc, current) => acc + (current.exists ? current.size : 0),
-        0
-      );
+      if (legacyInfo.isDirectory) {
+        const legacyDir = new Directory(legacyPath);
+        return acc + (legacyDir.size ?? 0);
+      }
 
-      setState({
-        totalDiskSpace: totalDiskSpace,
-        totalDiskSpaceFormatted: formatBytes(totalDiskSpace),
-        totalFreeDiskSpace: totalFreeDiskSpace,
-        totalFreeDiskSpaceFormatted: formatBytes(totalFreeDiskSpace),
-        totalSizeOfRelistenDirectory: dirInfo.exists ? dirInfo.size : 0,
-        totalSizeOfRelistenDirectoryFormatted: formatBytes(dirInfo.exists ? dirInfo.size : 0),
-        totalSizeOfLegacyRelistenDirectory: legacyTotal,
-        totalSizeOfLegacyRelistenDirectoryFormatted: formatBytes(legacyTotal),
-      });
-    })();
+      const legacyFile = new File(legacyPath);
+      return acc + legacyFile.size;
+    }, 0);
+
+    setState({
+      totalDiskSpace: totalDiskSpace,
+      totalDiskSpaceFormatted: formatBytes(totalDiskSpace),
+      totalFreeDiskSpace: totalFreeDiskSpace,
+      totalFreeDiskSpaceFormatted: formatBytes(totalFreeDiskSpace),
+      totalSizeOfRelistenDirectory: relistenDirSize,
+      totalSizeOfRelistenDirectoryFormatted: formatBytes(relistenDirSize),
+      totalSizeOfLegacyRelistenDirectory: legacyTotal,
+      totalSizeOfLegacyRelistenDirectoryFormatted: formatBytes(legacyTotal),
+    });
   }, [refreshState, setState]);
 
   return [state, refresh] as const;

@@ -20,6 +20,8 @@ export default function ArtistsLayout() {
         name="index"
         options={{
           title: 'Relisten',
+          headerTitleAlign: 'center',
+          headerLargeTitle: false,
           headerStyle: {
             backgroundColor: RelistenBlue['950'],
           },
@@ -37,8 +39,8 @@ export default function ArtistsLayout() {
           }) => {
             return (
               <Image
-                source={require('@/assets/Relisten White.png')}
-                style={{ width: '100%', height: 28 }}
+                source={require('@/assets/relisten_white.png')}
+                style={{ width: '100%', height: 32, marginTop: 4 }}
                 resizeMode="contain"
               />
             );
