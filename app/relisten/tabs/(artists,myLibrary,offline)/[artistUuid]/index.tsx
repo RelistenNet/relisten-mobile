@@ -7,6 +7,7 @@ import { useLocalSearchParams, useNavigation } from 'expo-router';
 import React, { useEffect } from 'react';
 import { YearsListContainer } from '@/relisten/pages/artist/years_list';
 import { YearFilterKey } from '@/relisten/pages/artist/years_filters';
+import { View } from 'react-native';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -20,7 +21,7 @@ export default function Page() {
   useEffect(() => {
     navigation.setOptions({
       title: artist?.name,
-      headerRight: () => artist && <FavoriteObjectButton object={artist} />,
+      headerRight: () => artist && <FavoriteObjectButton object={artist} className="p-2" />,
     });
   }, [artist]);
 
