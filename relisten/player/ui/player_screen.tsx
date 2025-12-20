@@ -454,7 +454,7 @@ export function PlayerScreen() {
             onPressOut={() => {
               navigation.goBack();
             }}
-            className="py-2 pr-2"
+            className="p-2"
           >
             <MaterialCommunityIcons name="close" size={22} color="white" />
           </TouchableOpacity>
@@ -462,10 +462,7 @@ export function PlayerScreen() {
       },
       headerRight: () => {
         return (
-          <TouchableOpacity
-            onPressOut={showNavigateToCurrentTrackActionSheet}
-            className="py-2 pr-2"
-          >
+          <TouchableOpacity onPressOut={showNavigateToCurrentTrackActionSheet} className="p-2">
             <MaterialCommunityIcons name="dots-horizontal" size={22} color="white" />
           </TouchableOpacity>
         );

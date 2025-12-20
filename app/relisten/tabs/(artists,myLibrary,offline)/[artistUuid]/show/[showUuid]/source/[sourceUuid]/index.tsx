@@ -223,7 +223,7 @@ export default function Page() {
     navigation.setOptions({
       title: show?.displayDate,
       headerRight: () => (
-        <TouchableOpacity onPressOut={onDotsPress}>
+        <TouchableOpacity onPressOut={onDotsPress} className="p-2">
           <MaterialIcons name="more-horiz" color="white" size={22} />
         </TouchableOpacity>
       ),
