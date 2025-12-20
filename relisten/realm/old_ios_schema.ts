@@ -1,7 +1,7 @@
 // JavaScript equivalent of OfflineSourceMetadata.swift for Realm
 import Realm from 'realm';
 import { log } from '@/relisten/util/logging';
-import * as fs from 'expo-file-system';
+import { Directory, File, Paths } from 'expo-file-system';
 import { aggregateBy, groupBy } from '@/relisten/util/group_by';
 import { LegacyApiClient, LegacyUpgradeResponse } from '@/relisten/api/legacy_client';
 
@@ -226,7 +226,7 @@ export function isLegacyDatabaseEmpty(legacyData: LegacyDatabaseContents) {
   );
 }
 
-const LEGACY_DB_PATH = fs.documentDirectory + 'default.realm';
+const LEGACY_DB_PATH = new File(Paths.document, 'default.realm').uri;
 
 let legacyDatabaseExistsPromise: Promise<boolean> | undefined = undefined;
 
@@ -236,9 +236,8 @@ export async function legacyDatabaseExists() {
     return legacyDatabaseExistsPromise;
   }
 
-  const p = fs
-    .getInfoAsync(LEGACY_DB_PATH)
-    .then((info) => info.exists)
+  const p = Promise.resolve()
+    .then(() => new File(LEGACY_DB_PATH).exists)
     .catch(() => false);
 
   legacyDatabaseExistsPromise = p;
@@ -263,12 +262,16 @@ async function _loadLegacyDatabaseContents(): Promise<LegacyDatabaseContents> {
     }
 
     // Get offline filenames from local directory (this is not handled by the API)
-    const legacyDir = fs.documentDirectory + 'offline-mp3s/';
-    const legacyDirInfo = await fs.getInfoAsync(legacyDir);
+    const legacyDir = new Directory(Paths.document, 'offline-mp3s');
+    const legacyDirInfo = Paths.info(legacyDir.uri);
     let offlineFilenames: string[] = [];
 
     if (legacyDirInfo.exists && legacyDirInfo.isDirectory) {
-      offlineFilenames = (await fs.readDirectoryAsync(legacyDir)).sort().map((f) => legacyDir + f);
+      offlineFilenames = legacyDir
+        .list()
+        .filter((entry): entry is File => entry instanceof File)
+        .map((entry) => entry.uri)
+        .sort();
     }
 
     // Convert API response to our expected format

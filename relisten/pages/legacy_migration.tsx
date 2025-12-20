@@ -30,7 +30,7 @@ import { artistsNetworkBackedBehavior } from '@/relisten/realm/models/artist_rep
 import { groupByUuid } from '@/relisten/util/group_by';
 import { ShowWithFullSourcesNetworkBackedBehavior } from '@/relisten/realm/models/show_repo';
 import { CryptoDigestAlgorithm, digestStringAsync } from 'expo-crypto';
-import * as fs from 'expo-file-system';
+import { Directory, File } from 'expo-file-system';
 import { realm, useRealm } from '@/relisten/realm/schema';
 import {
   SourceTrackOfflineInfo,
@@ -140,20 +140,24 @@ export class LegacyDataMigrator {
 
       for (const filename of allOfflineFiles) {
         if (filename.includes(expectedLegacyFilename)) {
-          const info = await fs.getInfoAsync(filename, { size: true });
+          const legacyFile = new File(filename);
 
-          if (!info.exists) {
+          if (!legacyFile.exists) {
             continue;
           }
 
           try {
-            await fs.makeDirectoryAsync(OFFLINE_DIRECTORY);
+            new Directory(OFFLINE_DIRECTORY).create({ intermediates: true, idempotent: true });
           } catch {
             /* no extra work to do */
           }
 
           // Move the file first so that we don't show offline UI when it isn't available
-          await fs.moveAsync({ from: filename, to: sourceTrack.downloadedFileLocation() });
+          const destinationFile = new File(sourceTrack.downloadedFileLocation());
+          if (destinationFile.exists) {
+            destinationFile.delete();
+          }
+          legacyFile.move(destinationFile);
 
           this.realm.write(() => {
             const newOfflineInfo = new SourceTrackOfflineInfo(realm!, {
@@ -161,8 +165,8 @@ export class LegacyDataMigrator {
               queuedAt: new Date(),
               startedAt: new Date(),
               completedAt: new Date(),
-              downloadedBytes: info.size,
-              totalBytes: info.size,
+              downloadedBytes: legacyFile.size,
+              totalBytes: legacyFile.size,
               percent: 1.0,
               status: SourceTrackOfflineInfoStatus.Succeeded,
               type: SourceTrackOfflineInfoType.UserInitiated,

@@ -11,7 +11,7 @@ import {
 import { realm } from '@/relisten/realm/schema';
 import { log } from '@/relisten/util/logging';
 import { Realm } from '@realm/react';
-import * as fs from 'expo-file-system';
+import { Directory, File, Paths } from 'expo-file-system';
 import ReactNativeBlobUtil, { FetchBlobResponse, StatefulPromise } from 'react-native-blob-util';
 import { StatsigClientExpo } from '@statsig/expo-bindings';
 import {
@@ -196,8 +196,13 @@ export class DownloadManager {
     // make sure the file doesn't already exist. the native code will error out. this should only be needed to recover
     // from strange error states/interactions with the streaming cache
     try {
-      await fs.makeDirectoryAsync(OFFLINE_DIRECTORY);
-      await fs.deleteAsync(destination, { idempotent: true });
+      const offlineDir = new Directory(OFFLINE_DIRECTORY);
+      offlineDir.create({ intermediates: true, idempotent: true });
+
+      const destinationFile = new File(destination);
+      if (destinationFile.exists) {
+        destinationFile.delete();
+      }
     } catch {
       /* empty */
     }
@@ -268,7 +273,16 @@ export class DownloadManager {
     for (const legacyPath of OFFLINE_DIRECTORIES_LEGACY) {
       // delete file, if it exists
       try {
-        await fs.deleteAsync(legacyPath, { idempotent: true });
+        const legacyInfo = Paths.info(legacyPath);
+        if (!legacyInfo.exists) {
+          continue;
+        }
+
+        if (legacyInfo.isDirectory) {
+          new Directory(legacyPath).delete();
+        } else {
+          new File(legacyPath).delete();
+        }
       } catch {
         /* empty */
       }
@@ -302,7 +316,10 @@ export class DownloadManager {
 
     // delete file, if it exists
     try {
-      await fs.deleteAsync(sourceTrack.downloadedFileLocation(), { idempotent: true });
+      const downloadedFile = new File(sourceTrack.downloadedFileLocation());
+      if (downloadedFile.exists) {
+        downloadedFile.delete();
+      }
     } catch {
       /* empty */
     }

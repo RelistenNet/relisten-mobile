@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import { File } from 'expo-file-system';
 import { log } from '../util/logging';
 
 const logger = log.extend('legacy-network');
@@ -42,17 +42,21 @@ export class LegacyApiClient {
     logger.info(`POST ${uploadUrl}`);
 
     try {
-      const uploadResult = await FileSystem.uploadAsync(uploadUrl, databaseFilePath, {
-        fieldName: 'database',
-        httpMethod: 'POST',
-        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+      const databaseFile = new File(databaseFilePath);
+      const formData = new FormData();
+      formData.append('database', databaseFile, databaseFile.name);
+
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        body: formData,
       });
 
-      if (uploadResult.status !== 200) {
-        throw new Error(`Upload failed with status ${uploadResult.status}: ${uploadResult.body}`);
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(`Upload failed with status ${response.status}: ${body}`);
       }
 
-      return JSON.parse(uploadResult.body) as LegacyUpgradeResponse;
+      return (await response.json()) as LegacyUpgradeResponse;
     } catch (error) {
       logger.error(`Failed to upload database: ${error}`);
       throw error;
