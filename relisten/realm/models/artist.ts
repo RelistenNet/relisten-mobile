@@ -5,6 +5,7 @@ import { FavoritableObject } from '../favoritable_object';
 import { checkIfOfflineSourceTrackExists } from '../realm_filters';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import { SourceTrack } from './source_track';
+import { Popularity } from './popularity';
 
 export interface ArtistRequiredRelationships {}
 
@@ -14,6 +15,7 @@ export interface ArtistRequiredProperties extends RelistenObjectRequiredProperti
   featured: Realm.Types.Int;
   slug: string;
   sortName: string;
+  popularity?: Popularity;
   featuresRaw: string;
   upstreamSourcesRaw: string;
   showCount: Realm.Types.Int;
@@ -36,6 +38,7 @@ export class Artist
       featured: 'int',
       slug: 'string',
       sortName: 'string',
+      popularity: 'Popularity?',
       featuresRaw: 'string',
       upstreamSourcesRaw: 'string',
       showCount: 'int',
@@ -57,6 +60,7 @@ export class Artist
   featured!: number;
   slug!: string;
   sortName!: string;
+  popularity?: Popularity;
   featuresRaw!: string;
   upstreamSourcesRaw!: string;
   showCount!: number;
@@ -85,6 +89,7 @@ export class Artist
   }
 
   static propertiesFromApi(relistenObj: ArtistWithCounts): ArtistRequiredProperties {
+    const popularity = relistenObj.popularity;
     return {
       uuid: relistenObj.uuid,
       createdAt: dayjs(relistenObj.created_at).toDate(),
@@ -94,6 +99,15 @@ export class Artist
       featured: relistenObj.featured,
       slug: relistenObj.slug,
       sortName: relistenObj.sort_name,
+      popularity: popularity
+        ? ({
+            hotScore: popularity.hot_score,
+            momentumScore: popularity.momentum_score,
+            trendRatio: popularity.trend_ratio,
+            plays30d: popularity.plays_30d,
+            plays48h: popularity.plays_48h,
+          } as Popularity)
+        : undefined,
       featuresRaw: JSON.stringify(relistenObj.features),
       upstreamSourcesRaw: JSON.stringify(relistenObj.upstream_sources),
       showCount: relistenObj.show_count,

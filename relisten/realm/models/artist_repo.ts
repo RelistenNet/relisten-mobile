@@ -46,6 +46,16 @@ export function useArtists(options?: NetworkBackedBehaviorOptions) {
   return useNetworkBackedBehavior(behavior);
 }
 
+export function useAllArtists(options?: NetworkBackedBehaviorOptions) {
+  const realm = useRealm();
+
+  const behavior = useMemo(() => {
+    return artistsNetworkBackedBehavior(realm, false, options);
+  }, [realm, options]);
+
+  return useNetworkBackedBehavior(behavior);
+}
+
 export function useArtistMetadata(artist?: Artist | null) {
   const isOfflineTab = useIsOfflineTab();
   const sh = useRealmTabsFilter(

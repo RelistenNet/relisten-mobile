@@ -1,41 +1,36 @@
 import MyLibraryPage from '@/app/relisten/tabs/(artists,myLibrary,offline)/myLibrary';
-import {
-  FilterableList,
-  FilterableListProps,
-} from '@/relisten/components/filtering/filterable_list';
+import { NonSearchFilterBar } from '@/relisten/components/filtering/filter_bar';
 import {
   Filter,
   FilteringOptions,
   FilteringProvider,
   SortDirection,
+  useFilters,
 } from '@/relisten/components/filtering/filters';
-import Flex from '@/relisten/components/flex';
-import Plur from '@/relisten/components/plur';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
-import { RelistenSectionData } from '@/relisten/components/relisten_section_list';
+import {
+  RelistenSectionData,
+  RelistenSectionList,
+} from '@/relisten/components/relisten_section_list';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
-import RowTitle from '@/relisten/components/row_title';
-import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
-import { SourceTrackSucceededIndicator } from '@/relisten/components/source/source_track_offline_indicator';
+import { RelistenButton } from '@/relisten/components/relisten_button';
+import { RowWithAction } from '@/relisten/components/row_with_action';
+import { ArtistListItem } from '@/relisten/components/artist_rows';
 import { Artist } from '@/relisten/realm/models/artist';
-import { useArtistMetadata, useArtists } from '@/relisten/realm/models/artist_repo';
+import { useArtists } from '@/relisten/realm/models/artist_repo';
 import { useRemainingDownloads } from '@/relisten/realm/models/offline_repo';
-import { useGroupSegment, useIsOfflineTab, useRoute } from '@/relisten/util/routes';
-import { Link } from 'expo-router';
-import plur from 'plur';
-import React, { useMemo } from 'react';
+import { useGroupSegment, useIsOfflineTab } from '@/relisten/util/routes';
+import { Link, useRouter } from 'expo-router';
+import { useMemo, type ReactElement } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import Realm from 'realm';
-import { RelistenButton } from '@/relisten/components/relisten_button';
-import { log } from '@/relisten/util/logging';
 import { ArtistShowsOnThisDayTray } from '@/relisten/pages/artist/artist_shows_on_this_day_tray';
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { useRelistenApi } from '@/relisten/api/context';
 import { sample } from 'remeda';
 import { LegacyDataMigrationModal } from '@/relisten/pages/legacy_migration';
 
-const logger = log.extend('home-screen');
+const ALL_ARTISTS_LIMIT = 100;
 
 const FavoritesSectionHeader = ({ favorites }: { favorites: Artist[] }) => {
   const { apiClient } = useRelistenApi();
@@ -56,7 +51,7 @@ const FavoritesSectionHeader = ({ favorites }: { favorites: Artist[] }) => {
 
   return (
     <View>
-      <View className="flex flex-row justify-between items-center px-4">
+      <View className="flex flex-row items-center justify-between px-4">
         <RelistenText className="text-m font-bold">Favorites</RelistenText>
         <RelistenButton className="m-2" asyncOnPress={playRandomShow} automaticLoadingIndicator>
           Random Show
@@ -67,127 +62,173 @@ const FavoritesSectionHeader = ({ favorites }: { favorites: Artist[] }) => {
   );
 };
 
-const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) => {
-  const nextRoute = useRoute('[artistUuid]');
-  const metadata = useArtistMetadata(artist);
-  const hasOfflineTracks = artist.hasOfflineTracks;
-
-  return (
-    <Link
-      href={{
-        pathname: nextRoute,
-        params: {
-          artistUuid: artist.uuid,
-        },
-      }}
-      asChild
-    >
-      <SectionedListItem ref={ref}>
-        <Flex cn="justify-between" full>
-          <Flex cn="flex-1 flex-col pr-3">
-            <RowTitle>{artist.name}</RowTitle>
-            <SubtitleRow cn="flex flex-row justify-between">
-              <SubtitleText>
-                <Plur word="show" count={metadata.shows} />
-                {hasOfflineTracks && (
-                  <>
-                    &nbsp;
-                    <SourceTrackSucceededIndicator />
-                  </>
-                )}
-              </SubtitleText>
-              <SubtitleText>
-                <Plur word="tape" count={metadata.sources} />
-              </SubtitleText>
-            </SubtitleRow>
-          </Flex>
-        </Flex>
-      </SectionedListItem>
-    </Link>
-  );
-});
-
-export enum ArtistFilterKey {
+export enum FeaturedSortKey {
+  Name = 'name',
+  Popular = 'popular',
+  Trending = 'trending',
   Search = 'search',
-  Library = 'library',
-  Artists = 'artists',
 }
 
-const ARTIST_FILTERS: Filter<ArtistFilterKey, Artist>[] = [
+const FEATURED_SORT_FILTERS: Filter<FeaturedSortKey, Artist>[] = [
   {
-    persistenceKey: ArtistFilterKey.Library,
-    title: 'My Library',
-    active: false,
-    filter: (artist) =>
-      artist.isFavorite ||
-      artist.hasOfflineTracks ||
-      artist.sourceTracks.filtered('show.isFavorite == true').length > 0,
-    isGlobal: true,
+    persistenceKey: FeaturedSortKey.Name,
+    title: 'Name',
+    sortDirection: SortDirection.Ascending,
+    active: true,
+    isNumeric: false,
+    sort: (artists) => artists.sort((a, b) => a.sortName.localeCompare(b.sortName)),
   },
   {
-    persistenceKey: ArtistFilterKey.Search,
+    persistenceKey: FeaturedSortKey.Popular,
+    title: 'Popular',
+    sortDirection: SortDirection.Descending,
+    active: false,
+    isNumeric: true,
+    sort: (artists) =>
+      artists.sort((a, b) => (a.popularity?.hotScore ?? 0) - (b.popularity?.hotScore ?? 0)),
+  },
+  {
+    persistenceKey: FeaturedSortKey.Trending,
+    title: 'Trending',
+    sortDirection: SortDirection.Descending,
+    active: false,
+    isNumeric: true,
+    sort: (artists) =>
+      artists.sort(
+        (a, b) => (a.popularity?.momentumScore ?? 0) - (b.popularity?.momentumScore ?? 0)
+      ),
+  },
+  {
+    persistenceKey: FeaturedSortKey.Search,
     title: 'Search',
     active: false,
-    searchFilter: (artist, search) => {
-      return artist.name.toLowerCase().indexOf(search.toLowerCase()) !== -1;
-    },
+    searchFilter: () => true,
   },
 ];
 
 type ArtistsListProps = {
   artists: Realm.Results<Artist>;
-  filterOptions: FilteringOptions<ArtistFilterKey>;
-} & Omit<FilterableListProps<Artist>, 'data' | 'renderItem'>;
+  filterOptions: FilteringOptions<FeaturedSortKey>;
+};
 
-const ArtistsList = ({ artists, ...props }: ArtistsListProps) => {
-  const isOfflineTab = useIsOfflineTab();
+const FeaturedSectionHeader = () => {
+  const router = useRouter();
+  const groupSegment = useGroupSegment();
+  const { filters, onFilterButtonPress } = useFilters<FeaturedSortKey, Artist>();
 
-  const sectionedArtists = useMemo<RelistenSectionData<Artist>>(() => {
-    const r = [];
-
-    const all = [...artists].sort((a, b) => {
-      return a.sortName.localeCompare(b.sortName);
-    });
-
-    const favorites = all.filter((a) => a.isFavorite);
-
-    if (!isOfflineTab) {
-      if (favorites.length > 0) {
-        r.push({
-          sectionTitle: 'Favorites',
-          headerComponent: <FavoritesSectionHeader favorites={favorites} />,
-          data: favorites,
-        });
-      }
-
-      const featured = all.filter((a) => a.featured !== 0);
-
-      r.push({ sectionTitle: 'Featured', data: featured });
-    }
-
-    r.push({ sectionTitle: `${all.length} ${plur('artist', all.length)}`, data: all });
-
-    return r;
-  }, [artists]);
-
-  const nonIdealState = {
-    noData: {
-      title: 'No Offline Shows',
-      description:
-        'After you download something, all of your shows that are available offline will be shown here.',
-    },
-  };
+  const allArtistsRoute = `/relisten/tabs/${groupSegment}/all`;
 
   return (
-    <FilteringProvider filters={ARTIST_FILTERS} options={props.filterOptions}>
-      <FilterableList
-        data={sectionedArtists}
-        renderItem={({ item }) => {
-          return <ArtistListItem artist={item} />;
-        }}
-        nonIdealState={nonIdealState}
-        {...props}
-      />
+    <View>
+      <View className="bg-relisten-blue-800 px-4 py-2">
+        <RowWithAction title="Featured Artists" subtitle="Top artists right now">
+          <RelistenButton intent="outline" size="thin" onPress={() => router.push(allArtistsRoute)}>
+            View All
+          </RelistenButton>
+        </RowWithAction>
+      </View>
+      <View className="bg-relisten-blue-800">
+        <NonSearchFilterBar
+          filters={filters}
+          onFilterButtonPress={onFilterButtonPress}
+          enterSearch={() => router.push(allArtistsRoute)}
+        />
+      </View>
+    </View>
+  );
+};
+
+const FavoritesEmptyState = ({ onViewAll }: { onViewAll: () => void }) => {
+  return (
+    <View className="px-4 py-6">
+      <RelistenText className="text-xl font-bold">Build your library</RelistenText>
+      <RelistenText className="pt-2 text-gray-400">
+        Add artists to build your library and get quick access to your favorites.
+      </RelistenText>
+      <View className="pt-4">
+        <RelistenButton onPress={onViewAll}>Browse all 4,500+ artists</RelistenButton>
+      </View>
+    </View>
+  );
+};
+
+const ArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => {
+  const isOfflineTab = useIsOfflineTab();
+  const router = useRouter();
+  const groupSegment = useGroupSegment();
+  const { filter } = useFilters<FeaturedSortKey, Artist>();
+
+  const allArtistsRoute = `/relisten/tabs/${groupSegment}/all`;
+
+  const { all, favorites, featured } = useMemo(() => {
+    const allSorted = [...artists].sort((a, b) => a.sortName.localeCompare(b.sortName));
+    const favoritesSorted = allSorted
+      .filter((a) => a.isFavorite)
+      .sort((a, b) => a.sortName.localeCompare(b.sortName));
+    const featuredSorted = filter(
+      allSorted.filter((a) => a.featured !== 0),
+      undefined
+    ).slice(0, ALL_ARTISTS_LIMIT);
+
+    return {
+      all: allSorted,
+      favorites: favoritesSorted,
+      featured: featuredSorted,
+    };
+  }, [artists, filter]);
+
+  const sectionedArtists = useMemo<RelistenSectionData<Artist>>(() => {
+    const sections: {
+      sectionTitle?: string;
+      data: Artist[];
+      headerComponent?: ReactElement;
+    }[] =
+      [];
+
+    if (isOfflineTab) {
+      sections.push({ data: all });
+      return sections;
+    }
+
+    if (favorites.length > 0) {
+      sections.push({
+        sectionTitle: 'Favorites',
+        headerComponent: <FavoritesSectionHeader favorites={favorites} />,
+        data: favorites,
+      });
+    }
+
+    if (featured.length > 0) {
+      sections.push({
+        sectionTitle: 'Featured',
+        headerComponent: <FeaturedSectionHeader />,
+        data: featured,
+      });
+    }
+
+    return sections;
+  }, [all, favorites, featured, isOfflineTab]);
+
+  return (
+    <RelistenSectionList
+      data={sectionedArtists}
+      renderItem={({ item }) => {
+        return <ArtistListItem artist={item} />;
+      }}
+      ListHeaderComponent={
+        !isOfflineTab && favorites.length === 0 ? (
+          <FavoritesEmptyState onViewAll={() => router.push(allArtistsRoute)} />
+        ) : undefined
+      }
+      pullToRefresh
+    />
+  );
+};
+
+const ArtistsList = ({ artists, filterOptions }: ArtistsListProps) => {
+  return (
+    <FilteringProvider filters={FEATURED_SORT_FILTERS} options={filterOptions}>
+      <ArtistsListContent artists={artists} />
     </FilteringProvider>
   );
 };
@@ -222,10 +263,10 @@ export default function Page() {
         <ArtistsList
           artists={artists}
           filterOptions={{
-            persistence: { key: 'artists' },
+            persistence: { key: 'artists/featured' },
             default: {
-              persistenceKey: ArtistFilterKey.Artists,
-              sortDirection: SortDirection.Descending,
+              persistenceKey: FeaturedSortKey.Name,
+              sortDirection: SortDirection.Ascending,
               active: true,
             },
           }}

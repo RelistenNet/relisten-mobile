@@ -10,6 +10,7 @@ export interface SlimArtist {
   updated_at: string;
   musicbrainz_id: string;
   name: string;
+  popularity?: Popularity;
   /** Format: int32 */
   featured: number;
   slug: string;
@@ -83,4 +84,12 @@ export interface Features {
   reviews_have_ratings: boolean;
   track_durations: boolean;
   can_have_flac: boolean;
+}
+
+export interface Popularity {
+  hot_score: number;
+  momentum_score: number;
+  trend_ratio: number;
+  plays_30d: number;
+  plays_48h: number;
 }

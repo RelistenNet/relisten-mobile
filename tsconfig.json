@@ -3,6 +3,7 @@
   "compilerOptions": {
     "strict": true,
     "experimentalDecorators": true,
+    "skipLibCheck": true,
     "paths": {
       "@/relisten/*": [
         "./relisten/*"

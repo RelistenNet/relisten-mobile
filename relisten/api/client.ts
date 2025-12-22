@@ -13,7 +13,7 @@ import { TourWithShowCount, TourWithShows } from './models/tour';
 import { SongWithPlayCount, SongWithShows } from './models/song';
 import { Show } from './models/show';
 import { Platform } from 'react-native';
-import { retry } from './retry_middleware';
+import { OnRetryFunctionResponse, retry } from './retry_middleware';
 
 const logger = log.extend('network');
 
@@ -92,7 +92,7 @@ export class RelistenApiClient {
       maxAttempts: 3,
       retryOnNetworkError: true,
       resolveWithLatestResponse: true,
-      onRetry: ({
+      onRetry: async ({
         response,
         options,
         url,
@@ -102,15 +102,17 @@ export class RelistenApiClient {
         error?: Error;
         url: string;
         options: WretchOptions;
-      }) => {
+      }): Promise<OnRetryFunctionResponse> => {
         if (response && response instanceof Response) {
           const wretchError = e as WretchError | undefined;
           logger.warn(
-            `Retrying error: ${wretchError?.status} method=${options.method} url=${url} text=${wretchError?.text}`
+            `Retrying error: ${wretchError?.status} method=${options.method} url=${url} text=${await wretchError?.response.text()}`
           );
         } else {
           logger.warn(`Retrying error: method=${options.method} url=${url} ${e}`);
         }
+
+        return undefined;
       },
     }),
   ]);
@@ -281,7 +283,9 @@ export class RelistenApiClient {
       if (e.response && e.response instanceof Response) {
         const wretchError = e as WretchError;
         err.httpError = wretchError;
-        logger.warn(`${wretchError.status} method=${method} url=${url} text=${wretchError.text}`);
+        logger.warn(
+          `${wretchError.status} method=${method} url=${url} text=${await wretchError.response.text()}`
+        );
       } else {
         err.error = e;
         err.message = `Error loading ${url}`;
