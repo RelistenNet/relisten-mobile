@@ -1,3 +1,4 @@
+/* global module */
 module.exports = {
   RelistenBlue: {
     DEFAULT: '#009DC1',

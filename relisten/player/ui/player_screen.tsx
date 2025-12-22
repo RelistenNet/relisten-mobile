@@ -27,7 +27,7 @@ import { type ParamListBase, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import React, { useCallback, useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { Platform, Share, TouchableOpacity, View } from 'react-native';
 import AirPlayButton from 'react-native-airplay-button';
 import { HapticModeEnum, Slider } from 'react-native-awesome-slider';

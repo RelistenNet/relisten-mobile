@@ -1,7 +1,7 @@
 import { Directory, File, Paths } from 'expo-file-system';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import { ActivityIndicator, ScrollView, View } from 'react-native';
-import React, { useCallback, useEffect, useReducer, useState } from 'react';
+import { useCallback, useEffect, useReducer, useState } from 'react';
 import Flex from '@/relisten/components/flex';
 import {
   OFFLINE_DIRECTORIES_LEGACY,

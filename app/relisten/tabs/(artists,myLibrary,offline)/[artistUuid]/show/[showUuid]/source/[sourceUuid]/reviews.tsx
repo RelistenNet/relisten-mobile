@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useNavigation } from 'expo-router';
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { View } from 'react-native';
 import { List as ListContentLoader } from 'react-content-loader/native';
@@ -10,14 +10,11 @@ import { useSourceReviews } from '@/relisten/realm/models/source_repo';
 import Flex from '@/relisten/components/flex';
 import dayjs from 'dayjs';
 import { memo } from '@/relisten/util/memo';
-import { useRelistenPlayerBottomBarContext } from '@/relisten/player/ui/player_bottom_bar';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
 
 export default function Page() {
   const navigation = useNavigation();
   const { sourceUuid } = useLocalSearchParams();
-  const { playerBottomBarHeight } = useRelistenPlayerBottomBarContext();
-
   const { isNetworkLoading, data } = useSourceReviews(sourceUuid as string);
 
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useNavigation } from 'expo-router';
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { ScrollView, ScrollViewProps, useWindowDimensions, View } from 'react-native';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import { RelistenBlue } from '@/relisten/relisten_blue';

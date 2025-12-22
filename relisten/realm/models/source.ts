@@ -9,10 +9,6 @@ import { Artist } from '@/relisten/realm/models/artist';
 import { duration } from '@/relisten/util/duration';
 import { checkIfOfflineSourceTrackExists } from '@/relisten/realm/realm_filters';
 
-export interface SourceRequiredRelationships {
-  // sourceSets: Realm.List<SourceSet>;
-}
-
 export interface SourceRequiredProperties extends RelistenObjectRequiredProperties {
   artistUuid: string;
   venueUuid?: string;
@@ -39,8 +35,8 @@ export interface SourceRequiredProperties extends RelistenObjectRequiredProperti
 }
 
 export class Source
-  extends Realm.Object<Source, keyof SourceRequiredProperties & keyof SourceRequiredRelationships>
-  implements SourceRequiredRelationships, SourceRequiredProperties, FavoritableObject
+  extends Realm.Object<Source, keyof SourceRequiredProperties>
+  implements SourceRequiredProperties, FavoritableObject
 {
   static schema: Realm.ObjectSchema = {
     name: 'Source',

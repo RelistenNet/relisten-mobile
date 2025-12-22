@@ -16,7 +16,7 @@ export default function Page() {
 
   if (!rootNavigationState?.key) return null;
 
-  const [_, artistSlug] = pathname.split('/');
+  const [, artistSlug] = pathname.split('/');
 
   if (artistSlug && artistSlug !== 'relisten' && artistSlug !== 'web') {
     // deep link from web

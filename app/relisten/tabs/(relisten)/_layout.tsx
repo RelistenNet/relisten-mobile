@@ -4,6 +4,7 @@ import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Stack } from 'expo-router/stack';
 import { useEffect } from 'react';
 import { Image } from 'react-native';
+import RelistenWhite from '@/assets/relisten_white.png';
 
 export default function ArtistsLayout() {
   const bottomTabBarHeight = useBottomTabBarHeight();
@@ -25,21 +26,10 @@ export default function ArtistsLayout() {
           headerStyle: {
             backgroundColor: RelistenBlue['950'],
           },
-          headerTitle: ({
-            children,
-          }: {
-            /**
-             * The title text of the header.
-             */
-            children: string;
-            /**
-             * Tint color for the header.
-             */
-            tintColor?: string;
-          }) => {
+          headerTitle: () => {
             return (
               <Image
-                source={require('@/assets/relisten_white.png')}
+                source={RelistenWhite}
                 style={{ width: '100%', height: 32, marginTop: 4 }}
                 resizeMode="contain"
               />

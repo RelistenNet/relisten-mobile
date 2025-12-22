@@ -1,4 +1,3 @@
-import { useRelistenPlayerBottomBarContext } from '@/relisten/player/ui/player_bottom_bar';
 import { FlatList, ListRenderItem, RefreshControl } from 'react-native';
 import { FlatListProps } from 'react-native/Libraries/Lists/FlatList';
 import { ItemSeparator } from './item_separator';
@@ -15,8 +14,6 @@ export const RelistenFlatList = <T extends { uuid: string }>({
   pullToRefresh?: boolean;
 } & FlatListProps<T>) => {
   const { onRefresh, refreshing } = useRefreshContext(pullToRefresh || false);
-  const { playerBottomBarHeight } = useRelistenPlayerBottomBarContext();
-
   // if (refreshing) {
   //   return (
   //     <View className="w-full p-4">

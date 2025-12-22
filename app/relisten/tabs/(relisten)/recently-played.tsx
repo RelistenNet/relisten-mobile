@@ -4,9 +4,8 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
 import { Stagger } from '@/relisten/components/Stagger';
 import { RelistenBlue } from '@/relisten/relisten_blue';
-import { Link } from 'expo-router';
 import { MotiView } from 'moti';
-import { useEffect, useMemo, useReducer } from 'react';
+import { useEffect, useMemo, useReducer, type ReactNode } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import { ScrollView, View } from 'react-native';
 import { FadeInRight, FadeOutDown } from 'react-native-reanimated';
@@ -309,14 +308,11 @@ export default function Page() {
                     <TimeAgo
                       date={item.created_at}
                       formatter={formatterFn}
-                      component={(props: any) =>
-                        (
-                          <RelistenText
-                            cn="text-gray-400 text-xs absolute top-2 right-2"
-                            {...props}
-                          />
-                        ) as any
-                      }
+                      component={({ children }: { children?: ReactNode }) => (
+                        <RelistenText cn="text-gray-400 text-xs absolute top-2 right-2">
+                          {children}
+                        </RelistenText>
+                      )}
                     />
                   </MotiView>
                 </ShowLink>

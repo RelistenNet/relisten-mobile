@@ -277,10 +277,10 @@ export class RelistenApiClient {
         type: RelistenApiResponseType.OnlineRequestCompleted,
         data: j as T,
       };
-    } catch (e: any) {
+    } catch (e) {
       const err: RelistenApiClientError = {};
 
-      if (e.response && e.response instanceof Response) {
+      if (e && typeof e === 'object' && 'response' in e) {
         const wretchError = e as WretchError;
         err.httpError = wretchError;
         logger.warn(

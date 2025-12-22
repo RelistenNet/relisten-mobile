@@ -1,5 +1,5 @@
 import { FilteringOptions, FilteringProvider } from '@/relisten/components/filtering/filters';
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Artist } from '@/relisten/realm/models/artist';
 import Realm from 'realm';
 import { Year } from '@/relisten/realm/models/year';
@@ -74,7 +74,7 @@ export const YearsListContainer = (props: YearsListProps) => {
   );
 };
 
-const YearsList = ({ artist, years, filterOptions, ...props }: YearsListProps) => {
+const YearsList = ({ artist, years, ...props }: YearsListProps) => {
   const data = useMemo(() => {
     return [{ data: [...years] }];
   }, [years]);

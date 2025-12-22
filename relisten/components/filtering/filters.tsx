@@ -1,5 +1,5 @@
 import { RouteFilterConfig, serializeFilters } from '@/relisten/realm/models/route_filter_config';
-import { useObject, useQuery, useRealm } from '@/relisten/realm/schema';
+import { useObject, useRealm } from '@/relisten/realm/schema';
 import React, {
   PropsWithChildren,
   useCallback,
@@ -52,9 +52,9 @@ export interface FilteringContextProps<K extends string, T extends RelistenObjec
   searchText?: string;
 }
 
-export const FilteringContext = React.createContext<FilteringContextProps<any, any> | undefined>(
-  undefined
-);
+export const FilteringContext = React.createContext<
+  FilteringContextProps<string, RelistenObject> | undefined
+>(undefined);
 
 export const FilteringProvider = <K extends string, T extends RelistenObject>({
   children,

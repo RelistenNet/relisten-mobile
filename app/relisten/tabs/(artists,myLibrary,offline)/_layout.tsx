@@ -7,6 +7,7 @@ import { Stack } from 'expo-router/stack';
 import { useEffect } from 'react';
 import { Image, View } from 'react-native';
 import { RelistenText } from '@/relisten/components/relisten_text';
+import RelistenWhite from '@/assets/relisten_white.png';
 
 export const unstable_settings = {
   initialRouteName: 'index',
@@ -53,7 +54,7 @@ export default function ArtistsLayout() {
           }) => {
             return groupSegment == '(artists)' ? (
               <Image
-                source={require('@/assets/relisten_white.png')}
+                source={RelistenWhite}
                 onError={(error) => console.log('Image failed to load:', error.nativeEvent.error)}
                 style={{
                   width: '100%',

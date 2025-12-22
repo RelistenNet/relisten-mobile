@@ -540,8 +540,7 @@ ${indentString(tracks)}
           duration: this.player.progress?.duration,
           elapsed: this.player.progress?.elapsed,
         };
-        const obj = PlayerState.upsert(realm, state);
-        // logger.debug(`wrote player state: ${obj.debugState()}`);
+        PlayerState.upsert(realm, state);
         logger.debug('wrote player state');
       } else {
         logger.warn('Not writing player state -- realm is not available.');

@@ -26,8 +26,6 @@ export const OFFLINE_DIRECTORIES_LEGACY = [
   OFFLINE_DIRECTORY_LEGACY_LOGS,
 ];
 
-export interface SourceTrackRequiredRelationships {}
-
 export interface SourceTrackRequiredProperties extends RelistenObjectRequiredProperties {
   uuid: string;
   createdAt: Date;
@@ -49,11 +47,8 @@ export interface SourceTrackRequiredProperties extends RelistenObjectRequiredPro
 }
 
 export class SourceTrack
-  extends Realm.Object<
-    SourceTrack,
-    keyof SourceTrackRequiredProperties & keyof SourceTrackRequiredRelationships
-  >
-  implements SourceTrackRequiredRelationships, SourceTrackRequiredProperties
+  extends Realm.Object<SourceTrack, keyof SourceTrackRequiredProperties>
+  implements SourceTrackRequiredProperties
 {
   static schema: Realm.ObjectSchema = {
     name: 'SourceTrack',

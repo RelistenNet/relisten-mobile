@@ -4,8 +4,6 @@ import { RelistenObjectRequiredProperties } from '../relisten_object';
 import dayjs from 'dayjs';
 import { FavoritableObject } from '../favoritable_object';
 
-export interface TourRequiredRelationships {}
-
 export interface TourRequiredProperties extends RelistenObjectRequiredProperties {
   uuid: string;
   createdAt: Date;
@@ -20,8 +18,8 @@ export interface TourRequiredProperties extends RelistenObjectRequiredProperties
 }
 
 export class Tour
-  extends Realm.Object<Tour, keyof TourRequiredProperties & keyof TourRequiredRelationships>
-  implements TourRequiredRelationships, TourRequiredProperties, FavoritableObject
+  extends Realm.Object<Tour, keyof TourRequiredProperties>
+  implements TourRequiredProperties, FavoritableObject
 {
   static schema: Realm.ObjectSchema = {
     name: 'Tour',

@@ -7,8 +7,6 @@ import { RelistenObjectRequiredProperties } from '../relisten_object';
 import { SourceTrack } from './source_track';
 import { Popularity } from './popularity';
 
-export interface ArtistRequiredRelationships {}
-
 export interface ArtistRequiredProperties extends RelistenObjectRequiredProperties {
   musicbrainzId: string;
   name: string;
@@ -23,8 +21,8 @@ export interface ArtistRequiredProperties extends RelistenObjectRequiredProperti
 }
 
 export class Artist
-  extends Realm.Object<Artist, keyof ArtistRequiredProperties & keyof ArtistRequiredRelationships>
-  implements ArtistRequiredRelationships, ArtistRequiredProperties, FavoritableObject
+  extends Realm.Object<Artist, keyof ArtistRequiredProperties>
+  implements ArtistRequiredProperties, FavoritableObject
 {
   static schema: Realm.ObjectSchema = {
     name: 'Artist',

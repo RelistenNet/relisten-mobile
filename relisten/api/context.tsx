@@ -8,7 +8,7 @@ export const RelistenApiContext = React.createContext<
   { apiClient: RelistenApiClient; playbackHistoryReporter: PlaybackHistoryReporter } | undefined
 >(undefined);
 
-export const RelistenApiProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
+export const RelistenApiProvider: React.FC<PropsWithChildren> = ({ children }) => {
   const apiClient = useMemo(() => new RelistenApiClient(), []);
   const realm = useRealm();
   const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();

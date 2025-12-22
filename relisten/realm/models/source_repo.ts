@@ -5,7 +5,6 @@ import { useCallback } from 'react';
 import { useRelistenApi } from '@/relisten/api/context';
 import { NetworkBackedResults } from '@/relisten/realm/network_backed_results';
 import { SourceReview } from '@/relisten/api/models/source';
-import { RelistenApiResponse } from '@/relisten/api/client';
 
 export const sourceRepo = new Repository(Source);
 

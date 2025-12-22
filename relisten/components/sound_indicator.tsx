@@ -1,5 +1,6 @@
 import LottieView from 'lottie-react-native';
 import { useEffect, useRef } from 'react';
+import SoundIndicatorAnimation from '@/assets/lottie/sound_indicator.json';
 
 export function SoundIndicator({ size, playing }: { size: number; playing: boolean }) {
   const animationRef = useRef<LottieView>(null);
@@ -22,7 +23,7 @@ export function SoundIndicator({ size, playing }: { size: number; playing: boole
       }}
       // colorFilters={[{ keypath: 'soundIndicator', color: 'red' }]}
       // from: https://lottiefiles.com/animations/sound-indicator-kRvrZVbrcJ by Jose Vittone
-      source={require('@/assets/lottie/sound_indicator.json')}
+      source={SoundIndicatorAnimation}
     />
   );
 }

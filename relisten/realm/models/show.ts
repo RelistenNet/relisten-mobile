@@ -11,8 +11,6 @@ import { Artist } from './artist';
 import { duration } from '@/relisten/util/duration';
 import type { Song } from '@/relisten/realm/models/song';
 
-export interface ShowRequiredRelationships {}
-
 export interface ShowRequiredProperties extends RelistenObjectRequiredProperties {
   artistUuid: string;
   yearUuid: string;
@@ -30,8 +28,8 @@ export interface ShowRequiredProperties extends RelistenObjectRequiredProperties
 }
 
 export class Show
-  extends Realm.Object<Show, keyof ShowRequiredProperties & keyof ShowRequiredRelationships>
-  implements ShowRequiredRelationships, ShowRequiredProperties, FavoritableObject
+  extends Realm.Object<Show, keyof ShowRequiredProperties>
+  implements ShowRequiredProperties, FavoritableObject
 {
   static schema: Realm.ObjectSchema = {
     name: 'Show',

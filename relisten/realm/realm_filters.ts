@@ -3,7 +3,6 @@ import { useIsOfflineTab } from '../util/routes';
 import { SourceTrackOfflineInfoStatus } from './models/source_track_offline_info';
 import { SourceTrack } from './models/source_track';
 import { RelistenObject } from '../api/models/relisten';
-import { FavoritableObject } from '@/relisten/realm/favoritable_object';
 
 export const checkIfOfflineSourceTrackExists = (items: Realm.List<SourceTrack>) => {
   return (

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Image } from 'react-native';
 import * as Font from 'expo-font';
 import { Icon } from '@expo/vector-icons/build/createIconSet';
+import ToolbarRelisten from '@/assets/toolbar_relisten.png';
 
 function cacheImages(images: Array<string | number>) {
   return images.map((image) => {
@@ -26,7 +27,7 @@ export default function useCacheAssets() {
   useEffect(() => {
     async function loadResourcesAndDataAsync() {
       try {
-        const imageAssets = cacheImages([require('@/assets/toolbar_relisten.png')]);
+        const imageAssets = cacheImages([ToolbarRelisten]);
 
         const fontAssets = cacheFonts([MaterialIcons.font, MaterialCommunityIcons.font]);
 

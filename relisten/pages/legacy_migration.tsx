@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ActivityIndicator,
@@ -10,14 +10,12 @@ import {
   Text,
   View,
 } from 'react-native';
-import { DownloadManager } from '@/relisten/offline/download_manager';
 import Flex from '@/relisten/components/flex';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import { log } from '@/relisten/util/logging';
 import {
   FavoritedSource,
-  isLegacyDatabaseEmpty,
   LegacyDatabaseContents,
   legacyDatabaseExists,
   loadLegacyDatabaseContents,
@@ -40,8 +38,8 @@ import {
 import { OFFLINE_DIRECTORY } from '@/relisten/realm/models/source_track';
 import { NetworkBackedBehaviorExecutor } from '@/relisten/realm/network_backed_behavior';
 import { useRelistenApi } from '@/relisten/api/context';
-import { isIOS } from 'react-native-draggable-flatlist/lib/typescript/constants';
 import { yearsNetworkBackedModelArrayBehavior } from '@/relisten/realm/models/year_repo';
+import RelistenWhite from '@/assets/relisten_white.png';
 
 const logger = log.extend('LegacyDataMigrationModal');
 
@@ -209,13 +207,9 @@ export class LegacyDataMigrator {
         false,
         show.artistUuid
       );
-      const _ = await NetworkBackedBehaviorExecutor.executeUntilMatches(
-        yearsBehavior,
-        this.api,
-        (result) => {
-          return (result.errors?.length ?? 0) > 0 || yearsBehavior.isLocalDataShowable(result.data);
-        }
-      );
+      await NetworkBackedBehaviorExecutor.executeUntilMatches(yearsBehavior, this.api, (result) => {
+        return (result.errors?.length ?? 0) > 0 || yearsBehavior.isLocalDataShowable(result.data);
+      });
 
       const alreadyMigrated = show.isFavorite === true;
 
@@ -512,11 +506,7 @@ export function LegacyDataMigrationModal({
             column
             className="h-5/6 w-10/12 rounded-lg border-2 border-relisten-blue-700 bg-relisten-blue-900 p-4"
           >
-            <Image
-              source={require('@/assets/relisten_white.png')}
-              resizeMode="contain"
-              className="mb-2 h-[28] w-full"
-            />
+            <Image source={RelistenWhite} resizeMode="contain" className="mb-2 h-[28] w-full" />
             <ScrollView className="grow">
               <>
                 <RelistenText className="mb-2">

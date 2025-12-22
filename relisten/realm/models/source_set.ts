@@ -5,8 +5,6 @@ import { RelistenObjectRequiredProperties } from '../relisten_object';
 import dayjs from 'dayjs';
 import type { SourceTrack } from './source_track';
 
-export interface SourceSetRequiredRelationships {}
-
 export interface SourceSetRequiredProperties extends RelistenObjectRequiredProperties {
   uuid: string;
   createdAt: Date;
@@ -21,11 +19,8 @@ export interface SourceSetRequiredProperties extends RelistenObjectRequiredPrope
 }
 
 export class SourceSet
-  extends Realm.Object<
-    SourceSet,
-    keyof SourceSetRequiredProperties & keyof SourceSetRequiredRelationships
-  >
-  implements SourceSetRequiredRelationships, SourceSetRequiredProperties
+  extends Realm.Object<SourceSet, keyof SourceSetRequiredProperties>
+  implements SourceSetRequiredProperties
 {
   static schema: Realm.ObjectSchema = {
     name: 'SourceSet',

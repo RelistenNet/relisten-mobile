@@ -4,10 +4,9 @@ import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { useArtistYears } from '@/relisten/realm/models/year_repo';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { YearsListContainer } from '@/relisten/pages/artist/years_list';
 import { YearFilterKey } from '@/relisten/pages/artist/years_filters';
-import { View } from 'react-native';
 
 export default function Page() {
   const navigation = useNavigation();

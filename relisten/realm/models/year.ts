@@ -1,12 +1,9 @@
 import dayjs from 'dayjs';
 import Realm from 'realm';
 import { Year as ApiYear } from '../../api/models/year';
-import { FavoritableObject } from '../favoritable_object';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import { checkIfOfflineSourceTrackExists } from '../realm_filters';
 import { SourceTrack } from './source_track';
-
-export interface YearRequiredRelationships {}
 
 export interface YearRequiredProperties extends RelistenObjectRequiredProperties {
   artistUuid: string;
@@ -19,8 +16,8 @@ export interface YearRequiredProperties extends RelistenObjectRequiredProperties
 }
 
 export class Year
-  extends Realm.Object<Year, keyof YearRequiredProperties & keyof YearRequiredRelationships>
-  implements YearRequiredRelationships, YearRequiredProperties
+  extends Realm.Object<Year, keyof YearRequiredProperties>
+  implements YearRequiredProperties
 {
   static schema: Realm.ObjectSchema = {
     name: 'Year',

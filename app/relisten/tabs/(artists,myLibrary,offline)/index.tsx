@@ -182,8 +182,7 @@ const ArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => 
       sectionTitle?: string;
       data: Artist[];
       headerComponent?: ReactElement;
-    }[] =
-      [];
+    }[] = [];
 
     if (isOfflineTab) {
       sections.push({ data: all });

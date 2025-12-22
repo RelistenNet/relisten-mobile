@@ -1,9 +1,7 @@
 import { ListRenderItem } from '@shopify/flash-list';
-import { Link } from 'expo-router';
 import React, { ReactNode } from 'react';
 import { useWindowDimensions, View } from 'react-native';
 import { Show } from '../realm/models/show';
-import { useGroupSegment } from '../util/routes';
 import { FilterableList, FilterableListProps } from './filtering/filterable_list';
 import {
   Filter,
@@ -179,9 +177,7 @@ export const ShowListContainer = (
 
 export const ShowList = ({
   data,
-  children,
   renderItem,
-  filterOptions,
   ...props
 }: ShowListProps & Omit<FilterableListProps<Show>, 'renderItem'>) => {
   return (

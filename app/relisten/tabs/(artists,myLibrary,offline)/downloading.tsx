@@ -7,7 +7,7 @@ import { Realm } from '@realm/react';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { SubtitleText } from '@/relisten/components/row_subtitle';
 import { useNavigation } from 'expo-router';
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import dayjs from 'dayjs';
 import { SourceTrackOfflineIndicator } from '@/relisten/components/source/source_track_offline_indicator';

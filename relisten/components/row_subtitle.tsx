@@ -13,7 +13,6 @@ interface NewProps {
 export const SubtitleRow = ({
   cn,
   className,
-  style,
   as = Flex,
   ...props
 }: TextProps & NewProps & FlexProps) => {
@@ -25,7 +24,6 @@ export const SubtitleRow = ({
 export const SubtitleText = ({
   cn,
   className,
-  style,
   as = RelistenText,
   numberOfLines,
   ...props

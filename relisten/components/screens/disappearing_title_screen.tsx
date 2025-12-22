@@ -1,6 +1,11 @@
 import { useNavigation } from '@react-navigation/native';
 import React, { PropsWithChildren, useEffect, useRef } from 'react';
-import { Animated, ScrollViewProps } from 'react-native';
+import {
+  Animated,
+  ScrollViewProps,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from 'react-native';
 import { RelistenBlue } from '../../relisten_blue';
 import { RelistenText } from '../relisten_text';
 import { ScrollScreen } from './ScrollScreen';
@@ -44,9 +49,9 @@ export const DisappearingHeaderScreen = <
     });
   }, [headerOpacity]);
 
-  const Component = ScrollableComponent as any;
+  const Component = ScrollableComponent;
 
-  const onScroll = (e: any) => {
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     scrolling.setValue(e.nativeEvent.contentOffset.y);
   };
 

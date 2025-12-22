@@ -1,6 +1,6 @@
 import { TouchableOpacity, TouchableOpacityProps, View, ViewProps } from 'react-native';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { Link, router } from 'expo-router';
+import { Link } from 'expo-router';
 import React, { PropsWithChildren, ReactNode } from 'react';
 import { Source } from '@/relisten/realm/models/source';
 import { useGroupSegment } from '@/relisten/util/routes';

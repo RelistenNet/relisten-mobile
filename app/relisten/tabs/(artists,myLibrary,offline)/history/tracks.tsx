@@ -1,7 +1,7 @@
 import { useQuery, useRealm } from '@/relisten/realm/schema';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
-import React, { useEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { aggregateBy } from '@/relisten/util/group_by';
 import dayjs from 'dayjs';
@@ -94,7 +94,7 @@ export default function Page() {
         .reduce((acc, curr) => acc + curr, 0);
 
       return {
-        sectionTitle: d + `  ·  ${dayjs.duration(totalDuration, 'seconds').humanize()}`,
+        sectionTitle: `${d} · ${dayjs.duration(totalDuration, 'seconds').humanize()}`,
         data: byDate[d],
       };
     });

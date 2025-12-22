@@ -1,10 +1,9 @@
-import { LegacyRef, PropsWithChildren, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { LegacyRef, PropsWithChildren, useEffect, useRef, useState } from 'react';
 import { ScrollView, TextInput, TouchableOpacity, View } from 'react-native';
 import { FilterBarButtons } from '@/relisten/components/filtering/filter_bar_buttons';
 import { RelistenObject } from '@/relisten/api/models/relisten';
 import { Filter, useFilters } from '@/relisten/components/filtering/filters';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useDebounce } from '@/relisten/util/debounce';
 
 export function NonSearchFilterBar<K extends string, T extends RelistenObject>({
   children,

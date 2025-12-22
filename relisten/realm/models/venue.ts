@@ -5,8 +5,6 @@ import { FavoritableObject } from '../favoritable_object';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import dayjs from 'dayjs';
 
-export interface VenueRequiredRelationships {}
-
 export interface VenueRequiredProperties extends RelistenObjectRequiredProperties {
   createdAt: Date;
   artistUuid: string;
@@ -22,8 +20,8 @@ export interface VenueRequiredProperties extends RelistenObjectRequiredPropertie
 }
 
 export class Venue
-  extends Realm.Object<Venue, keyof VenueRequiredProperties & keyof VenueRequiredRelationships>
-  implements VenueRequiredRelationships, VenueRequiredProperties, FavoritableObject
+  extends Realm.Object<Venue, keyof VenueRequiredProperties>
+  implements VenueRequiredProperties, FavoritableObject
 {
   static schema: Realm.ObjectSchema = {
     name: 'Venue',

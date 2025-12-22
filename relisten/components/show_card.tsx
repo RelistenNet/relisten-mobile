@@ -175,8 +175,17 @@ export function ShowCardLoader({
       return;
     }
 
-    const current = ref.current as unknown as any;
-    const outerCurrent = outerRef.current as unknown as any;
+    type BoundingRectHost = {
+      unstable_getBoundingClientRect: () => {
+        width: number;
+        height: number;
+        left: number;
+        top: number;
+      };
+    };
+
+    const current = ref.current as unknown as BoundingRectHost;
+    const outerCurrent = outerRef.current as unknown as BoundingRectHost;
 
     const bounds = current.unstable_getBoundingClientRect();
     const outerBounds = outerCurrent.unstable_getBoundingClientRect();

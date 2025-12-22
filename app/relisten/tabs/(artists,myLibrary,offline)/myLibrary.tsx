@@ -13,9 +13,8 @@ import { aggregateBy } from '@/relisten/util/group_by';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { tw } from '@/relisten/util/tw';
 import { Link } from 'expo-router';
-import { PropsWithChildren, default as React, useMemo } from 'react';
+import { PropsWithChildren, useMemo } from 'react';
 import { ScrollView, TouchableOpacity, View, ViewProps } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { filterForUser } from '@/relisten/realm/realm_filters';
 
 function MyLibrarySectionHeader({ children, className, ...props }: PropsWithChildren<ViewProps>) {

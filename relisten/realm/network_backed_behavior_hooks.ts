@@ -7,11 +7,7 @@ import {
   RelistenApiResponseType,
 } from '../api/client';
 import { useRelistenApi } from '../api/context';
-import {
-  NetworkBackedBehavior,
-  NetworkBackedBehaviorExecutor,
-  NetworkBackedBehaviorOptions,
-} from './network_backed_behavior';
+import { NetworkBackedBehavior, NetworkBackedBehaviorOptions } from './network_backed_behavior';
 import { NetworkBackedResults } from './network_backed_results';
 import { RelistenObjectRequiredProperties } from './relisten_object';
 import { RelistenApiUpdatableObject, Repository } from './repository';

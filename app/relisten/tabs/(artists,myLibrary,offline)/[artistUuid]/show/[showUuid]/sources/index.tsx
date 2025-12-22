@@ -9,8 +9,8 @@ import { Source } from '@/relisten/realm/models/source';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { memo } from '@/relisten/util/memo';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
-import { Redirect, useLocalSearchParams, useNavigation } from 'expo-router';
-import React, { useEffect } from 'react';
+import { useLocalSearchParams, useNavigation } from 'expo-router';
+import { useEffect, type FC } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import { Animated, ScrollViewProps, View } from 'react-native';
 import Flex from '@/relisten/components/flex';
@@ -70,14 +70,12 @@ export default function Page() {
 
 const SourcesList = ({
   show,
-  selectedSource,
   sources,
   artist,
   ...props
 }: {
   show: Show | undefined;
   artist: Artist;
-  selectedSource: Source;
   sources?: Source[];
 } & ScrollViewProps) => {
   const { refreshing } = useRefreshContext();
@@ -118,8 +116,8 @@ const SourcesList = ({
   );
 };
 
-export const SourceDetail: React.FC<{ source: Source; show: Show; idx: number; artist: Artist }> =
-  memo(({ show, source, artist, idx }) => {
+export const SourceDetail: FC<{ source: Source; show: Show; idx: number; artist: Artist }> = memo(
+  ({ show, source, artist, idx }) => {
     return (
       <View>
         <View className="w-full">
@@ -178,4 +176,5 @@ export const SourceDetail: React.FC<{ source: Source; show: Show; idx: number; a
         </View>
       </View>
     );
-  });
+  }
+);

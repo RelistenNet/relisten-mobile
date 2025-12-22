@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import Realm from 'realm';
 import { RelistenObjectRequiredProperties } from './relisten_object';
 import dayjs from 'dayjs';

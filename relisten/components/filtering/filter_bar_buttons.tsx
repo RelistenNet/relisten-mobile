@@ -22,7 +22,7 @@ export const FilterBarButton = <K extends string, T extends RelistenObject>({
     color?: string;
   } & TouchableOpacityProps
 >) => {
-  const [_, forceUpdate] = useReducer((x) => x + 1, 0);
+  const [, forceUpdate] = useReducer((x) => x + 1, 0);
 
   const filterIcon = driver({
     states: {

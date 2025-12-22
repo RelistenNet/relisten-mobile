@@ -5,8 +5,10 @@ import colors from 'tailwindcss/colors';
 import { RelistenButton } from './relisten_button';
 import { RelistenText } from './relisten_text';
 
+type MaterialIconName = keyof typeof MaterialIcons.glyphMap;
+
 type NonIdealStateProps = {
-  icon?: string; // Make icon optional
+  icon?: MaterialIconName;
   title: React.ReactNode;
   description: React.ReactNode;
   actionText?: React.ReactNode;
@@ -22,7 +24,7 @@ export const NonIdealState = ({
 }: NonIdealStateProps) => {
   return (
     <View className="flex-1 items-center justify-center py-6">
-      <MaterialIcons name={icon as any} size={32} color={colors.gray['200']} />
+      <MaterialIcons name={icon} size={32} color={colors.gray['200']} />
       <RelistenText className="my-1 text-3xl font-bold text-gray-200">{title}</RelistenText>
       <RelistenText className="w-2/3 text-center text-gray-400">{description}</RelistenText>
       {actionText && onAction && (

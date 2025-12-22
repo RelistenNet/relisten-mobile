@@ -6,7 +6,6 @@ import {
   View,
   Text,
 } from 'react-native';
-import clsx from 'clsx';
 import { RelistenText } from './relisten_text';
 import React, { useState } from 'react';
 import Popover from 'react-native-popover-view';
@@ -69,7 +68,9 @@ export interface ButtonProps
   asyncOnPress?: (event: GestureResponderEvent) => Promise<unknown>;
   disabledPopoverText?: string;
 }
-export const RelistenButton = React.forwardRef<any, ButtonProps>(
+type TouchableOpacityRef = React.ElementRef<typeof TouchableOpacity>;
+
+export const RelistenButton = React.forwardRef<TouchableOpacityRef, ButtonProps>(
   (
     {
       children,
@@ -115,7 +116,7 @@ export const RelistenButton = React.forwardRef<any, ButtonProps>(
       return (
         <Popover
           from={
-            <TouchableOpacity ref={ref as any} className={cls} {...props}>
+            <TouchableOpacity ref={ref} className={cls} {...props}>
               <RelistenText className={tw('text-center font-bold', textClassName)}>
                 {children}
               </RelistenText>
@@ -131,7 +132,7 @@ export const RelistenButton = React.forwardRef<any, ButtonProps>(
 
     return (
       <TouchableOpacity
-        ref={ref as any}
+        ref={ref}
         className={cls}
         onPress={asyncOnPress ? wrappedOnPress : onPress}
         {...props}

@@ -3,7 +3,6 @@ import { ReactElement, useMemo } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import { RefreshControl, View } from 'react-native';
 import { RelistenObject } from '../api/models/relisten';
-import { useRelistenPlayerBottomBarContext } from '../player/ui/player_bottom_bar';
 import { RelistenBlue } from '../relisten_blue';
 import { ItemSeparator } from './item_separator';
 import { useRefreshContext } from './refresh_context';
@@ -51,8 +50,6 @@ export const RelistenSectionList = <T extends RelistenObject>({
   ...props
 }: RelistenSectionListProps<T>) => {
   const { onRefresh, refreshing, errors } = useRefreshContext(/* refreshRequired= */ false);
-  const { playerBottomBarHeight } = useRelistenPlayerBottomBarContext();
-
   // you might ask why we need this
   // and you'd be correct
   // ..

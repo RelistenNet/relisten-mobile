@@ -10,6 +10,7 @@ import { useRemainingDownloads } from '@/relisten/realm/models/offline_repo';
 import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
 import { ShowOfflineTabSetting } from '@/relisten/realm/models/user_settings';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
+import ToolbarRelisten from '@/assets/toolbar_relisten.png';
 
 export default function TabLayout() {
   const downloads = useRemainingDownloads();
@@ -30,7 +31,7 @@ export default function TabLayout() {
 
             if (route.name === '(artists)') {
               iconName = focused ? 'account-music' : 'account-music-outline';
-              return <MaterialCommunityIcons name={iconName as any} size={size} color={color} />;
+              return <MaterialCommunityIcons name={iconName} size={size} color={color} />;
             } else if (route.name === '(myLibrary)') {
               return <MaterialIcons name="library-music" size={size} color={color} />;
             } else if (route.name === '(offline)') {
@@ -39,7 +40,7 @@ export default function TabLayout() {
 
             return (
               <Image
-                source={require('@/assets/toolbar_relisten.png')}
+                source={ToolbarRelisten}
                 style={{ tintColor: color, width: size, height: size }}
               />
             );

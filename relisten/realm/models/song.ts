@@ -5,8 +5,6 @@ import dayjs from 'dayjs';
 import { FavoritableObject } from '../favoritable_object';
 import type { Show } from '@/relisten/realm/models/show';
 
-export interface SongRequiredRelationships {}
-
 export interface SongRequiredProperties extends RelistenObjectRequiredProperties {
   uuid: string;
   createdAt: Date;
@@ -20,8 +18,8 @@ export interface SongRequiredProperties extends RelistenObjectRequiredProperties
 }
 
 export class Song
-  extends Realm.Object<Song, keyof SongRequiredProperties & keyof SongRequiredRelationships>
-  implements SongRequiredRelationships, SongRequiredProperties, FavoritableObject
+  extends Realm.Object<Song, keyof SongRequiredProperties>
+  implements SongRequiredProperties, FavoritableObject
 {
   static schema: Realm.ObjectSchema = {
     name: 'Song',
