@@ -1,7 +1,6 @@
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-get-random-values';
 import 'react-native-reanimated';
-import 'uuid';
 import 'react-native-svg';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 

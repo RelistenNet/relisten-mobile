@@ -82,8 +82,8 @@ export function errorDisplayString(err?: RelistenApiClientError): string {
 }
 
 export class RelistenApiClient {
-  // static API_BASE = 'https://api.relisten.net/api';
-  static API_BASE = 'http://192.168.6.100:3823/api';
+  static API_BASE = 'https://api.relisten.net/api';
+  // static API_BASE = 'http://192.168.6.100:3823/api';
 
   private api = wretch(RelistenApiClient.API_BASE).middlewares([
     loggingMiddleware,
