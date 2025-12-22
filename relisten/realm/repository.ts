@@ -14,6 +14,7 @@ interface ModelClass<TModel, TApi, RequiredProperties, RequiredRelationships> {
   new (realm: Realm, props: RequiredProperties): TModel;
   propertiesFromApi(relistenObj: TApi): RequiredProperties;
   relationshipsFromApi?(relistenObj: TApi): RequiredRelationships;
+  shouldUpdateFromApi?(model: TModel, relistenObj: TApi): boolean;
   schema: Realm.ObjectSchema;
 }
 
@@ -158,7 +159,9 @@ export class Repository<
         );
       }
 
-      if (getUpdatedAt(api).toDate() > model.updatedAt) {
+      const shouldUpdateFromApi = this.klass.shouldUpdateFromApi?.(model, api) ?? false;
+
+      if (getUpdatedAt(api).toDate() > model.updatedAt || shouldUpdateFromApi) {
         this.updateObjectFromApi(realm, model, api);
 
         return {

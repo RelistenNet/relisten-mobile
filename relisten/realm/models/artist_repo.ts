@@ -7,7 +7,7 @@ import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
 import { NetworkBackedResults } from '../network_backed_results';
 import { Repository } from '../repository';
 import { useQuery, useRealm } from '../schema';
-import { Artist } from './artist';
+import { Artist, ArtistFeaturedFlags } from './artist';
 
 import { useIsOfflineTab } from '@/relisten/util/routes';
 import { filterForUser, useRealmTabsFilter } from '../realm_filters';
@@ -20,17 +20,26 @@ export const artistRepo = new Repository(Artist);
 export function artistsNetworkBackedBehavior(
   realm: Realm.Realm,
   availableOfflineOnly: boolean,
+  includeAutomaticallyCreated: boolean,
   options?: NetworkBackedBehaviorOptions
 ) {
   return new NetworkBackedModelArrayBehavior(
     realm,
     artistRepo,
-    (realm) =>
-      filterForUser(realm.objects<Artist>(Artist), {
+    (realm) => {
+      let q = filterForUser(realm.objects<Artist>(Artist), {
         isFavorite: null,
         isPlayableOffline: availableOfflineOnly ? availableOfflineOnly : null,
-      }),
-    (api) => api.artists(),
+      });
+
+      if (!includeAutomaticallyCreated) {
+        q = q.filtered(`featured != ${ArtistFeaturedFlags.AutoCreated}`);
+      }
+
+      return q;
+    },
+    (api, forcedRefresh) =>
+      api.artists(includeAutomaticallyCreated, api.refreshOptions(forcedRefresh)),
     options
   );
 }
@@ -40,7 +49,7 @@ export function useArtists(options?: NetworkBackedBehaviorOptions) {
   const isOfflineTab = useIsOfflineTab();
 
   const behavior = useMemo(() => {
-    return artistsNetworkBackedBehavior(realm, isOfflineTab, options);
+    return artistsNetworkBackedBehavior(realm, isOfflineTab, false, options);
   }, [realm, options, isOfflineTab]);
 
   return useNetworkBackedBehavior(behavior);
@@ -50,7 +59,7 @@ export function useAllArtists(options?: NetworkBackedBehaviorOptions) {
   const realm = useRealm();
 
   const behavior = useMemo(() => {
-    return artistsNetworkBackedBehavior(realm, false, options);
+    return artistsNetworkBackedBehavior(realm, false, true, options);
   }, [realm, options]);
 
   return useNetworkBackedBehavior(behavior);
@@ -88,7 +97,7 @@ export function useArtist(
     };
   }, [options]);
 
-  const artists = useArtists(memoOptions);
+  const artists = useAllArtists(memoOptions);
 
   const artistQuery = useMemo(() => {
     return artists.data.filtered('uuid == $0', artistUuid);
@@ -117,7 +126,7 @@ export function useArtistBySlug(
     };
   }, [options]);
 
-  const artists = useArtists(memoOptions);
+  const artists = useAllArtists(memoOptions);
 
   const artistQuery = useMemo(() => {
     return artists.data.filtered('slug == $0', artistSlug);

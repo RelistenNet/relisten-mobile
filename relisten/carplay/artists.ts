@@ -42,6 +42,7 @@ export function createArtistsListTemplate(
   const artistsBehavior = artistsNetworkBackedBehavior(
     ctx.realm,
     scope === 'offline',
+    false,
     behaviorOptions
   );
   const executor = artistsBehavior.sharedExecutor(ctx.apiClient);
@@ -164,7 +165,7 @@ export function createArtistsListTemplate(
         });
       }
 
-      const featured = sorted.filter((a) => a.featured !== 0);
+      const featured = sorted.filter((a) => a.isFeatured());
       if (featured.length > 0) {
         sections.push({
           header: 'Featured',

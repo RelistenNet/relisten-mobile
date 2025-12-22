@@ -1,7 +1,6 @@
 import MyLibraryPage from '@/app/relisten/tabs/(artists,myLibrary,offline)/myLibrary';
 import { NonSearchFilterBar } from '@/relisten/components/filtering/filter_bar';
 import {
-  Filter,
   FilteringOptions,
   FilteringProvider,
   SortDirection,
@@ -12,6 +11,7 @@ import {
   RelistenSectionData,
   RelistenSectionList,
 } from '@/relisten/components/relisten_section_list';
+import { SectionHeader } from '@/relisten/components/section_header';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RowWithAction } from '@/relisten/components/row_with_action';
@@ -22,15 +22,15 @@ import { useRemainingDownloads } from '@/relisten/realm/models/offline_repo';
 import { useGroupSegment, useIsOfflineTab } from '@/relisten/util/routes';
 import { Link, useRouter } from 'expo-router';
 import { useMemo, type ReactElement } from 'react';
-import { TouchableOpacity, View } from 'react-native';
+import { ScrollView, TouchableOpacity, View } from 'react-native';
 import Realm from 'realm';
 import { ArtistShowsOnThisDayTray } from '@/relisten/pages/artist/artist_shows_on_this_day_tray';
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { useRelistenApi } from '@/relisten/api/context';
 import { sample } from 'remeda';
 import { LegacyDataMigrationModal } from '@/relisten/pages/legacy_migration';
-
-const ALL_ARTISTS_LIMIT = 100;
+import { ARTIST_SORT_FILTERS, ArtistSortKey } from '@/relisten/components/artist_filters';
+import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
 
 const FavoritesSectionHeader = ({ favorites }: { favorites: Artist[] }) => {
   const { apiClient } = useRelistenApi();
@@ -62,59 +62,15 @@ const FavoritesSectionHeader = ({ favorites }: { favorites: Artist[] }) => {
   );
 };
 
-export enum FeaturedSortKey {
-  Name = 'name',
-  Popular = 'popular',
-  Trending = 'trending',
-  Search = 'search',
-}
-
-const FEATURED_SORT_FILTERS: Filter<FeaturedSortKey, Artist>[] = [
-  {
-    persistenceKey: FeaturedSortKey.Name,
-    title: 'Name',
-    sortDirection: SortDirection.Ascending,
-    active: true,
-    isNumeric: false,
-    sort: (artists) => artists.sort((a, b) => a.sortName.localeCompare(b.sortName)),
-  },
-  {
-    persistenceKey: FeaturedSortKey.Popular,
-    title: 'Popular',
-    sortDirection: SortDirection.Descending,
-    active: false,
-    isNumeric: true,
-    sort: (artists) =>
-      artists.sort((a, b) => (a.popularity?.hotScore ?? 0) - (b.popularity?.hotScore ?? 0)),
-  },
-  {
-    persistenceKey: FeaturedSortKey.Trending,
-    title: 'Trending',
-    sortDirection: SortDirection.Descending,
-    active: false,
-    isNumeric: true,
-    sort: (artists) =>
-      artists.sort(
-        (a, b) => (a.popularity?.momentumScore ?? 0) - (b.popularity?.momentumScore ?? 0)
-      ),
-  },
-  {
-    persistenceKey: FeaturedSortKey.Search,
-    title: 'Search',
-    active: false,
-    searchFilter: () => true,
-  },
-];
-
 type ArtistsListProps = {
   artists: Realm.Results<Artist>;
-  filterOptions: FilteringOptions<FeaturedSortKey>;
+  filterOptions: FilteringOptions<ArtistSortKey>;
 };
 
 const FeaturedSectionHeader = () => {
   const router = useRouter();
   const groupSegment = useGroupSegment();
-  const { filters, onFilterButtonPress } = useFilters<FeaturedSortKey, Artist>();
+  const { filters, onFilterButtonPress } = useFilters<ArtistSortKey, Artist>();
 
   const allArtistsRoute = `/relisten/tabs/${groupSegment}/all`;
 
@@ -128,11 +84,13 @@ const FeaturedSectionHeader = () => {
         </RowWithAction>
       </View>
       <View className="bg-relisten-blue-800">
-        <NonSearchFilterBar
-          filters={filters}
-          onFilterButtonPress={onFilterButtonPress}
-          enterSearch={() => router.push(allArtistsRoute)}
-        />
+        <ScrollView horizontal keyboardShouldPersistTaps="handled">
+          <NonSearchFilterBar
+            filters={filters}
+            onFilterButtonPress={onFilterButtonPress}
+            enterSearch={() => router.push(allArtistsRoute)}
+          />
+        </ScrollView>
       </View>
     </View>
   );
@@ -156,7 +114,7 @@ const ArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => 
   const isOfflineTab = useIsOfflineTab();
   const router = useRouter();
   const groupSegment = useGroupSegment();
-  const { filter } = useFilters<FeaturedSortKey, Artist>();
+  const { filter } = useFilters<ArtistSortKey, Artist>();
 
   const allArtistsRoute = `/relisten/tabs/${groupSegment}/all`;
 
@@ -166,9 +124,9 @@ const ArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => 
       .filter((a) => a.isFavorite)
       .sort((a, b) => a.sortName.localeCompare(b.sortName));
     const featuredSorted = filter(
-      allSorted.filter((a) => a.featured !== 0),
+      allSorted.filter((a) => !a.isAutomaticallyCreated()),
       undefined
-    ).slice(0, ALL_ARTISTS_LIMIT);
+    );
 
     return {
       all: allSorted,
@@ -180,7 +138,7 @@ const ArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => 
   const sectionedArtists = useMemo<RelistenSectionData<Artist>>(() => {
     const sections: {
       sectionTitle?: string;
-      data: Artist[];
+      data: ReadonlyArray<Artist>;
       headerComponent?: ReactElement;
     }[] = [];
 
@@ -214,6 +172,13 @@ const ArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => 
       renderItem={({ item }) => {
         return <ArtistListItem artist={item} />;
       }}
+      renderSectionHeader={({ headerComponent, sectionTitle }) => {
+        if (headerComponent) {
+          return <View>{headerComponent}</View>;
+        }
+
+        return <SectionHeader title={sectionTitle} />;
+      }}
       ListHeaderComponent={
         !isOfflineTab && favorites.length === 0 ? (
           <FavoritesEmptyState onViewAll={() => router.push(allArtistsRoute)} />
@@ -226,7 +191,7 @@ const ArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => 
 
 const ArtistsList = ({ artists, filterOptions }: ArtistsListProps) => {
   return (
-    <FilteringProvider filters={FEATURED_SORT_FILTERS} options={filterOptions}>
+    <FilteringProvider filters={ARTIST_SORT_FILTERS} options={filterOptions}>
       <ArtistsListContent artists={artists} />
     </FilteringProvider>
   );
@@ -244,7 +209,7 @@ export default function Page() {
   }
 
   return (
-    <View style={{ flex: 1, width: '100%' }}>
+    <ScrollScreen>
       <RefreshContextProvider networkBackedResults={results}>
         {downloads.length > 0 && (
           <TouchableOpacity>
@@ -264,14 +229,14 @@ export default function Page() {
           filterOptions={{
             persistence: { key: 'artists/featured' },
             default: {
-              persistenceKey: FeaturedSortKey.Name,
-              sortDirection: SortDirection.Ascending,
+              persistenceKey: ArtistSortKey.Popular,
+              sortDirection: SortDirection.Descending,
               active: true,
             },
           }}
         />
       </RefreshContextProvider>
       <LegacyDataMigrationModal />
-    </View>
+    </ScrollScreen>
   );
 }

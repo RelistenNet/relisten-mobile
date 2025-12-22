@@ -1,52 +1,47 @@
-import { SearchFilterBar } from '@/relisten/components/filtering/filter_bar';
+import { NonSearchFilterBar, SearchFilterBar } from '@/relisten/components/filtering/filter_bar';
 import {
-  Filter,
   FilteringProvider,
-  searchForSubstring,
+  SortDirection,
   useFilters,
 } from '@/relisten/components/filtering/filters';
-import { FilterableList } from '@/relisten/components/filtering/filterable_list';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
+import {
+  RelistenSectionData,
+  RelistenSectionList,
+} from '@/relisten/components/relisten_section_list';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { WebRewriteLoader } from '@/relisten/components/web_rewrite_loader';
-import { ArtistCompactListItem } from '@/relisten/components/artist_rows';
+import { ArtistListItem } from '@/relisten/components/artist_rows';
+import { ARTIST_SORT_FILTERS, ArtistSortKey } from '@/relisten/components/artist_filters';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useAllArtists } from '@/relisten/realm/models/artist_repo';
-import { NetworkBackedBehaviorFetchStrategy } from '@/relisten/realm/network_backed_behavior';
 import { useNavigation } from 'expo-router';
-import { useEffect, useMemo, useRef } from 'react';
-import { TextInput, View } from 'react-native';
+import { type ReactElement, useEffect, useMemo, useRef } from 'react';
+import { Keyboard, ScrollView, TextInput, View } from 'react-native';
+import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
 
-export enum AllArtistsFilterKey {
-  Search = 'search',
-}
-
-const ALL_ARTISTS_FILTERS: Filter<AllArtistsFilterKey, Artist>[] = [
-  {
-    persistenceKey: AllArtistsFilterKey.Search,
-    title: 'Search',
-    active: false,
-    searchFilter: (artist, searchText) => {
-      const search = searchText.toLowerCase();
-      return searchForSubstring(artist.name, search);
-    },
-  },
-];
-
-const AllArtistsHeader = () => {
-  const { onSearchTextChanged, searchText } = useFilters<AllArtistsFilterKey, Artist>();
+const AllArtistsHeader = ({ artists }: { artists?: Realm.Results<Artist> }) => {
   const searchInputRef = useRef<TextInput>(null);
-
-  useEffect(() => {
-    searchInputRef.current?.focus();
-  }, []);
+  const { filters, onFilterButtonPress, onSearchTextChanged, searchText } = useFilters<
+    ArtistSortKey,
+    Artist
+  >();
 
   return (
     <View>
-      <RelistenText className="px-4 pt-4 text-2xl font-bold">All Artists</RelistenText>
+      <RelistenText className="px-4 pt-4 text-2xl font-bold">
+        All {artists ? artists.length + ' ' : ''}Artists
+      </RelistenText>
+      <ScrollView horizontal keyboardShouldPersistTaps="handled">
+        <NonSearchFilterBar
+          filters={filters}
+          onFilterButtonPress={onFilterButtonPress}
+          enterSearch={() => searchInputRef.current?.focus()}
+        />
+      </ScrollView>
       <SearchFilterBar
         search={onSearchTextChanged}
-        exitSearch={() => onSearchTextChanged(undefined)}
+        exitSearch={() => onSearchTextChanged('')}
         searchText={searchText}
         innerRef={searchInputRef}
       />
@@ -54,33 +49,36 @@ const AllArtistsHeader = () => {
   );
 };
 
-const AllArtistsList = ({ artists, isLoading }: { artists: Artist[]; isLoading: boolean }) => {
+const AllArtistsList = ({
+  artists,
+  isLoading,
+  listHeader,
+}: {
+  artists: Artist[];
+  isLoading: boolean;
+  listHeader: ReactElement;
+}) => {
+  const { filter, searchText } = useFilters<ArtistSortKey, Artist>();
+
   const data = useMemo(() => {
-    return [...artists].sort((a, b) => a.sortName.localeCompare(b.sortName));
-  }, [artists]);
+    return filter([...artists], searchText);
+  }, [artists, filter, searchText]);
 
   if (isLoading && data.length === 0) {
     return <WebRewriteLoader />;
   }
 
+  const sectionedData: RelistenSectionData<Artist> = [{ data }];
+
   return (
-    <FilterableList
-      data={[{ data }]}
-      hideFilterBar
-      isLoading={isLoading}
-      nonIdealState={{
-        noData: {
-          title: 'No artists loaded',
-          description: 'Pull to refresh or try again later.',
-        },
-        filtered: {
-          title: 'No Results',
-          description: 'No artists found. Try a different search.',
-        },
-      }}
+    <RelistenSectionList
+      data={sectionedData}
+      ListHeaderComponent={listHeader}
       renderItem={({ item }) => {
-        return <ArtistCompactListItem artist={item} />;
+        return <ArtistListItem artist={item} />;
       }}
+      keyboardDismissMode="on-drag"
+      onScrollBeginDrag={() => Keyboard.dismiss()}
       pullToRefresh
     />
   );
@@ -88,23 +86,33 @@ const AllArtistsList = ({ artists, isLoading }: { artists: Artist[]; isLoading: 
 
 export default function Page() {
   const navigation = useNavigation();
-  const results = useAllArtists({
-    fetchStrategy: NetworkBackedBehaviorFetchStrategy.NetworkAlwaysFirst,
-  });
+  const allArtists = useAllArtists();
 
   useEffect(() => {
     navigation.setOptions({ title: 'All Artists' });
   }, [navigation]);
 
   return (
-    <RefreshContextProvider networkBackedResults={results}>
+    <ScrollScreen>
       <FilteringProvider
-        filters={ALL_ARTISTS_FILTERS}
-        options={{ persistence: { key: 'artists/all' } }}
+        filters={ARTIST_SORT_FILTERS}
+        options={{
+          persistence: { key: 'artists/all' },
+          default: {
+            persistenceKey: ArtistSortKey.Name,
+            sortDirection: SortDirection.Ascending,
+            active: true,
+          },
+        }}
       >
-        <AllArtistsHeader />
-        <AllArtistsList artists={[...results.data]} isLoading={results.isNetworkLoading} />
+        <RefreshContextProvider networkBackedResults={allArtists}>
+          <AllArtistsList
+            artists={[...allArtists.data]}
+            isLoading={allArtists.isNetworkLoading}
+            listHeader={<AllArtistsHeader artists={allArtists.data} />}
+          />
+        </RefreshContextProvider>
       </FilteringProvider>
-    </RefreshContextProvider>
+    </ScrollScreen>
   );
 }

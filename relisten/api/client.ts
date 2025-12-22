@@ -82,8 +82,8 @@ export function errorDisplayString(err?: RelistenApiClientError): string {
 }
 
 export class RelistenApiClient {
-  static API_BASE = 'https://api.relisten.net/api';
-  // static API_BASE = 'http://192.168.88.14:3823/api';
+  // static API_BASE = 'https://api.relisten.net/api';
+  static API_BASE = 'http://192.168.6.100:3823/api';
 
   private api = wretch(RelistenApiClient.API_BASE).middlewares([
     loggingMiddleware,
@@ -312,9 +312,10 @@ export class RelistenApiClient {
   }
 
   public artists(
+    includeAutomaticallyCreated: boolean,
     options?: RelistenApiRequestOptions
   ): Promise<RelistenApiResponse<ArtistWithCounts[]>> {
-    return this.getJson('/v3/artists', options);
+    return this.getJson(`/v3/artists?include_autocreated=${includeAutomaticallyCreated}`, options);
   }
 
   public artist(

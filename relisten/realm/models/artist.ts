@@ -20,6 +20,12 @@ export interface ArtistRequiredProperties extends RelistenObjectRequiredProperti
   sourceCount: Realm.Types.Int;
 }
 
+export enum ArtistFeaturedFlags {
+  None = 0,
+  Featured = 1 << 0,
+  AutoCreated = 1 << 1,
+}
+
 export class Artist
   extends Realm.Object<Artist, keyof ArtistRequiredProperties>
   implements ArtistRequiredProperties, FavoritableObject
@@ -66,6 +72,14 @@ export class Artist
   isFavorite!: boolean;
   sourceTracks!: Realm.List<SourceTrack>;
 
+  isAutomaticallyCreated() {
+    return (this.featured & ArtistFeaturedFlags.AutoCreated) !== 0;
+  }
+
+  isFeatured(): boolean {
+    return (this.featured & ArtistFeaturedFlags.Featured) !== 0;
+  }
+
   private _features?: Features;
   features(): Features {
     if (!this._features) {
@@ -111,5 +125,25 @@ export class Artist
       showCount: relistenObj.show_count,
       sourceCount: relistenObj.source_count,
     };
+  }
+
+  static shouldUpdateFromApi(model: Artist, relistenObj: ArtistWithCounts): boolean {
+    const popularity = relistenObj.popularity;
+
+    if (!popularity) {
+      return false;
+    }
+
+    if (!model.popularity) {
+      return true;
+    }
+
+    return (
+      model.popularity.hotScore !== popularity.hot_score ||
+      model.popularity.momentumScore !== popularity.momentum_score ||
+      model.popularity.trendRatio !== popularity.trend_ratio ||
+      model.popularity.plays30d !== popularity.plays_30d ||
+      model.popularity.plays48h !== popularity.plays_48h
+    );
   }
 }
