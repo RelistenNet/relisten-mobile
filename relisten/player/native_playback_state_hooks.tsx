@@ -8,7 +8,7 @@ import {
   RelistenTrackChangedEvent,
   RelistenTrackStreamingCacheCompleteEvent,
 } from '@/modules/relisten-audio-player';
-import { sharedStates } from '@/relisten/player/shared_state';
+import { PlaybackSource, sharedStates } from '@/relisten/player/shared_state';
 import { SharedState } from '@/relisten/util/shared_state';
 import { useEffect, useState } from 'react';
 
@@ -20,6 +20,9 @@ export function addPlayerListeners() {
   }
   listenersRegisters = true;
 
+  const shouldUseNativeUpdates = () =>
+    sharedStates.playbackSource.lastState() !== PlaybackSource.Cast;
+
   // console.log('[playback state] adding playback event listeners');
 
   const download = nativePlayer.addDownloadProgressListener(
@@ -28,7 +31,7 @@ export function addPlayerListeners() {
 
       // only update download progress for active track for now
       // later we may want to have data for the next track
-      if (download.forActiveTrack) {
+      if (download.forActiveTrack && shouldUseNativeUpdates()) {
         sharedStates.activeTrackDownloadProgress.setState({
           downloadedBytes: download.downloadedBytes,
           totalBytes: download.totalBytes,
@@ -41,6 +44,10 @@ export function addPlayerListeners() {
   const listener = nativePlayer.addPlaybackProgressListener(
     (progress: RelistenPlaybackProgressChangedEvent) => {
       // console.info('got playback progress', progress);
+
+      if (!shouldUseNativeUpdates()) {
+        return;
+      }
 
       const newProgress = {
         elapsed: progress.elapsed ?? 0,
@@ -63,7 +70,9 @@ export function addPlayerListeners() {
     (playbackState: RelistenPlaybackStateChangedEvent) => {
       // console.info('got playbackState', playbackState);
 
-      sharedStates.state.setState(playbackState.newPlaybackState);
+      if (shouldUseNativeUpdates()) {
+        sharedStates.state.setState(playbackState.newPlaybackState);
+      }
     }
   );
 
@@ -71,7 +80,9 @@ export function addPlayerListeners() {
     (trackChanged: RelistenTrackChangedEvent) => {
       // console.info('got trackChanged', trackChanged);
 
-      sharedStates.currentTrackIdentifier.setState(trackChanged.currentIdentifier);
+      if (shouldUseNativeUpdates()) {
+        sharedStates.currentTrackIdentifier.setState(trackChanged.currentIdentifier);
+      }
     }
   );
 
@@ -86,14 +97,18 @@ export function addPlayerListeners() {
   const latestErrorListener = nativePlayer.addErrorListener((latestError: RelistenErrorEvent) => {
     // logger.error('ERROR!', latestError);
 
-    sharedStates.latestError.setState(latestError);
+    if (shouldUseNativeUpdates()) {
+      sharedStates.latestError.setState(latestError);
+    }
   });
 
   const trackStreamingCacheCompleteListener = nativePlayer.addTrackStreamingCacheCompleteListener(
     (event: RelistenTrackStreamingCacheCompleteEvent) => {
       // console.info('got trackStreamingCacheComplete', event);
 
-      sharedStates.trackStreamingCacheComplete.setState(event);
+      if (shouldUseNativeUpdates()) {
+        sharedStates.trackStreamingCacheComplete.setState(event);
+      }
     }
   );
 

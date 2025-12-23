@@ -37,6 +37,8 @@ import * as Progress from 'react-native-progress';
 import ReorderableList, { useReorderableDrag } from 'react-native-reorderable-list';
 import { ReorderableListReorderEvent } from 'react-native-reorderable-list/src/types/props';
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
+import { RelistenCastButton, useRelistenCastStatus } from '@/relisten/casting/cast_ui';
+import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 
 export function ScrubberRow() {
   const progressObj = useNativePlaybackProgress();
@@ -170,6 +172,7 @@ function CurrentTrackInfo() {
   const { showNavigateToCurrentTrackActionSheet } = useNavigateToCurrentTrackSheet();
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
   const progressObj = useNativePlaybackProgress();
+  const { isCasting, deviceName } = useRelistenCastStatus();
 
   const artist = currentPlayerTrack?.sourceTrack?.artist;
   const show = currentPlayerTrack?.sourceTrack?.show;
@@ -223,6 +226,11 @@ function CurrentTrackInfo() {
           {show.venue.name}, {show.venue.location}
         </RelistenText>
       )}
+      {isCasting && (
+        <RelistenText className="pt-1 text-xs text-gray-300" numberOfLines={1}>
+          Casting{deviceName ? ` to ${deviceName}` : ''}
+        </RelistenText>
+      )}
       <Flex cn="justify-between mt-2">
         <RelistenText cn="font-semibold">{trackDuration(progressObj?.elapsed ?? 0)}</RelistenText>
         <RelistenText cn="font-semibold">{trackDuration(progressObj?.duration ?? 0)}</RelistenText>
@@ -235,6 +243,7 @@ function PlayerControls() {
   const player = useRelistenPlayer();
   const playbackState = useRelistenPlayerPlaybackState();
   const progress = useNativePlaybackProgress();
+  const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
 
   let playbackStateIcon = <MaterialIcons name="play-arrow" size={80} color="white" />;
 
@@ -246,7 +255,11 @@ function PlayerControls() {
 
   return (
     <Flex className="w-full items-center justify-center py-6">
-      {Platform.OS === 'ios' && <View className="w-[44px]" />}
+      {shouldMakeNetworkRequests ? (
+        <RelistenCastButton tintColor="rgba(255, 255, 255, 0.7)" className="mr-4 h-[42] w-[42]" />
+      ) : (
+        <View className="w-[44px]" />
+      )}
       <TouchableOpacity
         onPress={() => {
           if (progress && (progress.elapsed > 5 || player.queue.currentIndex === 0)) {

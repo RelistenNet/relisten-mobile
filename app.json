@@ -101,7 +101,8 @@
       ],
       "expo-web-browser",
       "expo-font",
-      "@sentry/react-native"
+      "@sentry/react-native",
+      "react-native-google-cast"
     ],
     "extra": {
       "router": {

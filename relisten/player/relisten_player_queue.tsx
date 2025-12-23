@@ -1,4 +1,4 @@
-import { nativePlayer, RelistenStreamable } from '@/modules/relisten-audio-player';
+import { RelistenStreamable } from '@/modules/relisten-audio-player';
 import { addPlayerListeners } from '@/relisten/player/native_playback_state_hooks';
 import { RelistenPlayer } from '@/relisten/player/relisten_player';
 import {
@@ -209,7 +209,7 @@ export class RelistenPlayerQueue {
       this.onCurrentTrackIdentifierChanged(undefined);
 
       if (this.player.playbackIntentStarted) {
-        nativePlayer.stop();
+        this.player.stop();
       }
     }
 
@@ -388,9 +388,9 @@ ${indentString(tracks)}
 
     if (newNextTrack?.identifier !== prevNextTrack?.identifier) {
       if (newNextTrack) {
-        nativePlayer.setNextStream(newNextTrack.toStreamable(this.player.enableStreamingCache));
+        this.player.setNextStream(newNextTrack.toStreamable(this.player.enableStreamingCache));
       } else {
-        nativePlayer.setNextStream(undefined);
+        this.player.setNextStream(undefined);
       }
     }
   }

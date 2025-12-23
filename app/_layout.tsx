@@ -22,6 +22,7 @@ import useCacheAssets from './useCacheAssets';
 
 import { RelistenPlayerProvider } from '@/relisten/player/relisten_player_hooks';
 import { RelistenPlayerBottomBarProvider } from '@/relisten/player/ui/player_bottom_bar';
+import { RelistenCastProvider } from '@/relisten/casting/cast_provider';
 import { ActionSheetProvider } from '@expo/react-native-action-sheet';
 import FlashMessage from 'react-native-flash-message';
 import { PlaybackHistoryReporterComponent } from '@/relisten/components/playback_history_reporter';
@@ -117,32 +118,34 @@ function TabLayout() {
     <RealmProvider realmRef={realmRef} closeOnUnmount={false}>
       <RelistenApiProvider>
         <RelistenPlayerProvider>
-          <PlaybackHistoryReporterComponent />
-          <ThemeProvider
-            value={{
-              dark: true,
-              colors: {
-                ...DarkTheme.colors,
-                primary: 'rgb(0,157,193)',
-                background: RelistenBlue[900],
-                card: '#001114',
-              },
-              fonts: DefaultTheme.fonts,
-            }}
-          >
-            <RelistenPlayerBottomBarProvider>
-              <ActionSheetProvider>
-                <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
-                  <SafeAreaProvider>
-                    {/* */}
-                    <StatusBar style="light" translucent={true} />
-                    <Slot />
-                    <FlashMessage position="top" />
-                  </SafeAreaProvider>
-                </GestureHandlerRootView>
-              </ActionSheetProvider>
-            </RelistenPlayerBottomBarProvider>
-          </ThemeProvider>
+          <RelistenCastProvider>
+            <PlaybackHistoryReporterComponent />
+            <ThemeProvider
+              value={{
+                dark: true,
+                colors: {
+                  ...DarkTheme.colors,
+                  primary: 'rgb(0,157,193)',
+                  background: RelistenBlue[900],
+                  card: '#001114',
+                },
+                fonts: DefaultTheme.fonts,
+              }}
+            >
+              <RelistenPlayerBottomBarProvider>
+                <ActionSheetProvider>
+                  <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
+                    <SafeAreaProvider>
+                      {/* */}
+                      <StatusBar style="light" translucent={true} />
+                      <Slot />
+                      <FlashMessage position="top" />
+                    </SafeAreaProvider>
+                  </GestureHandlerRootView>
+                </ActionSheetProvider>
+              </RelistenPlayerBottomBarProvider>
+            </ThemeProvider>
+          </RelistenCastProvider>
         </RelistenPlayerProvider>
       </RelistenApiProvider>
     </RealmProvider>

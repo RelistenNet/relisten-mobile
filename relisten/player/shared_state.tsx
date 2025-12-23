@@ -18,6 +18,11 @@ export interface PlaybackContextProgress {
   percent: number;
 }
 
+export enum PlaybackSource {
+  Native = 'native',
+  Cast = 'cast',
+}
+
 export const latestError = new SharedState<RelistenErrorEvent>();
 export const state = new SharedState<RelistenPlaybackState>();
 export const currentTrackIdentifier = new SharedState<string | undefined>();
@@ -26,6 +31,7 @@ export const activeTrackDownloadProgress = new SharedState<PlaybackContextDownlo
 export const remoteControlEvent = new SharedState<RelistenRemoteControlEvent>();
 export const trackStreamingCacheComplete =
   new SharedState<RelistenTrackStreamingCacheCompleteEvent>();
+export const playbackSource = new SharedState<PlaybackSource>();
 
 export const sharedStates = {
   latestError,
@@ -35,4 +41,5 @@ export const sharedStates = {
   activeTrackDownloadProgress,
   remoteControlEvent,
   trackStreamingCacheComplete,
+  playbackSource,
 };

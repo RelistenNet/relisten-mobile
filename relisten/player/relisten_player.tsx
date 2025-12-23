@@ -24,6 +24,11 @@ import { showMessage } from 'react-native-flash-message';
 import { log } from '@/relisten/util/logging';
 import { indentString } from '@/relisten/util/string_indent';
 import { sharedStatsigClient, trackPlaybackErrorEvent } from '@/relisten/events';
+import {
+  NativePlaybackDriver,
+  PlaybackDriver,
+  PlaybackQueueContext,
+} from '@/relisten/player/playback_driver';
 
 const logger = log.extend('player');
 
@@ -48,6 +53,9 @@ export class RelistenPlayer {
   private seekIntent: number | undefined = undefined;
   private updateSavedStateOnNextProgress: boolean = false;
 
+  private nativeDriver = new NativePlaybackDriver();
+  private playbackDriver: PlaybackDriver = this.nativeDriver;
+
   public progress: PlaybackContextProgress | undefined = undefined;
 
   // region Public API
@@ -69,6 +77,23 @@ export class RelistenPlayer {
     this.addPlayerListeners();
 
     return this._queue;
+  }
+
+  setPlaybackDriver(driver: PlaybackDriver) {
+    if (this.playbackDriver === driver) {
+      return;
+    }
+
+    logger.debug(`Switching playback driver to ${driver.name}`);
+    this.playbackDriver = driver;
+  }
+
+  getNativePlaybackDriver() {
+    return this.nativeDriver;
+  }
+
+  setNextStream(streamable?: ReturnType<PlayerQueueTrack['toStreamable']>) {
+    this.playbackDriver.setNextStream(streamable);
   }
 
   togglePauseResume() {
@@ -95,14 +120,14 @@ export class RelistenPlayer {
     }
 
     state.setState(RelistenPlaybackState.Playing);
-    nativePlayer.resume().then(() => {});
+    this.playbackDriver.resume().then(() => {});
   }
 
   pause() {
     this.addPlayerListeners();
 
     state.setState(RelistenPlaybackState.Paused);
-    nativePlayer.pause().then(() => {});
+    this.playbackDriver.pause().then(() => {});
   }
 
   private currentlyProcessingPlayRequest: Promise<void> | undefined = undefined;
@@ -154,10 +179,19 @@ export class RelistenPlayer {
     // stop any playing sound while the next http request is buffering
     if (this.state !== RelistenPlaybackState.Stopped) {
       this._state = RelistenPlaybackState.Paused;
-      pausePromise = nativePlayer.pause();
+      pausePromise = this.playbackDriver.pause();
       this.currentlyProcessingPlayRequest = pausePromise;
     }
     this.startStalledTimer();
+
+    const queueContext: PlaybackQueueContext = {
+      orderedTracks: this.queue.orderedTracks,
+      startIndex: newIndex,
+      startTimeMs: seekToTime !== undefined ? seekToTime * 1000.0 : undefined,
+      repeatState: this.queue.repeatState,
+      shuffleState: this.queue.shuffleState,
+      autoplay: true,
+    };
 
     this.currentlyProcessingPlayRequest = pausePromise
       .then(() => {
@@ -168,9 +202,9 @@ export class RelistenPlayer {
           return Promise.resolve();
         }
 
-        return nativePlayer.play(
+        return this.playbackDriver.play(
           track.toStreamable(this.enableStreamingCache),
-          seekToTime !== undefined ? seekToTime * 1000.0 : undefined
+          queueContext
         );
       })
       .then(() => {
@@ -188,7 +222,7 @@ export class RelistenPlayer {
     this.addPlayerListeners();
 
     state.setState(RelistenPlaybackState.Stopped);
-    await nativePlayer.stop();
+    await this.playbackDriver.stop();
   }
 
   next() {
@@ -255,7 +289,7 @@ export class RelistenPlayer {
 
     this.startStalledTimer();
 
-    return nativePlayer.seekTo(pct);
+    return this.playbackDriver.seekTo(pct);
   }
 
   seekToTime(time: number): Promise<void> {
@@ -267,7 +301,7 @@ export class RelistenPlayer {
       return Promise.resolve();
     }
 
-    return nativePlayer.seekToTime(time * 1000.0);
+    return this.playbackDriver.seekToTime(time * 1000.0);
   }
 
   debugState() {

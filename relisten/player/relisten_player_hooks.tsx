@@ -3,6 +3,7 @@ import { RelistenPlayer, RelistenPlayerReportTrackEvent } from '@/relisten/playe
 import { useRealm } from '@/relisten/realm/schema';
 import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
 import { AutocacheStreamedMusicSetting } from '@/relisten/realm/models/user_settings';
+import { PlaybackSource, sharedStates } from '@/relisten/player/shared_state';
 
 export interface RelistenPlayerProps {
   player: RelistenPlayer;
@@ -21,6 +22,10 @@ export const RelistenPlayerProvider = ({ children }: PropsWithChildren<object>) 
       player.queue.restorePlayerState(realm).then(() => {});
     }
   }, [player, realm]);
+
+  useEffect(() => {
+    sharedStates.playbackSource.setState(PlaybackSource.Native);
+  }, []);
 
   useEffect(() => {
     player.enableStreamingCache =

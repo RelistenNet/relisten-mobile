@@ -16,7 +16,8 @@ import { LayoutChangeEvent, Platform, Pressable, TouchableOpacity, View } from '
 import { ScrubberRow } from './player_screen';
 import * as Progress from 'react-native-progress';
 import AirPlayButton from 'react-native-airplay-button';
-import { useNetInfo } from '@react-native-community/netinfo';
+import { RelistenCastButton, useRelistenCastStatus } from '@/relisten/casting/cast_ui';
+import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 
 function OfflineBanner() {
   return (
@@ -32,6 +33,7 @@ function PlayerBottomBarContents() {
   const playbackState = useRelistenPlayerPlaybackState();
   const player = useRelistenPlayer();
   const router = useRouter();
+  const { isCasting, deviceName } = useRelistenCastStatus();
 
   const artist = currentTrack?.sourceTrack?.artist;
   const showCache = currentTrack?.sourceTrack?.show;
@@ -61,40 +63,44 @@ function PlayerBottomBarContents() {
 
   return (
     <Flex column cn="flex-1 gap-3">
-      <Pressable onPress={() => router.push({ pathname: '/relisten/player' })}>
+      <Flex cn="items-center">
+        <Pressable onPress={() => router.push({ pathname: '/relisten/player' })} className="flex-1">
+          <Flex cn="items-center">
+            <Flex cn="ml-2 h-full items-center">
+              <TouchableOpacity
+                onPress={() => {
+                  player.togglePauseResume();
+                }}
+                className="flex h-[42px] w-[42px] items-center justify-center"
+              >
+                {playbackStateIcon}
+              </TouchableOpacity>
+            </Flex>
+            <Flex column cn="ml-4 truncate flex-1">
+              <RelistenText className="text-lg font-semibold">{track?.title ?? ''}</RelistenText>
+              <RelistenText className="truncate" numberOfLines={1}>
+                {subtitle ?? ''}
+              </RelistenText>
+              {isCasting && (
+                <RelistenText className="text-xs text-gray-300" numberOfLines={1}>
+                  Casting{deviceName ? ` to ${deviceName}` : ''}
+                </RelistenText>
+              )}
+            </Flex>
+          </Flex>
+        </Pressable>
         <Flex cn="items-center">
-          <Flex cn="ml-2 h-full items-center">
-            <TouchableOpacity
-              onPress={() => {
-                player.togglePauseResume();
-              }}
-              className="flex h-[42px] w-[42px] items-center justify-center"
-            >
-              {playbackStateIcon}
-            </TouchableOpacity>
-          </Flex>
-          <Flex column cn="ml-4 truncate flex-1">
-            <RelistenText className="text-lg font-semibold">{track?.title ?? ''}</RelistenText>
-            <RelistenText className="truncate" numberOfLines={1}>
-              {subtitle ?? ''}
-            </RelistenText>
-          </Flex>
           {Platform.OS === 'ios' && (
-            <Pressable
-              onPress={() => {
-                /* no op to stop it from opening the full player */
-              }}
-            >
-              <AirPlayButton
-                activeTintColor="white"
-                tintColor="rgba(255, 255, 255, 0.5)"
-                prioritizesVideoDevices={false}
-                className="mx-2 h-[42] w-[42]"
-              />
-            </Pressable>
+            <AirPlayButton
+              activeTintColor="white"
+              tintColor="rgba(255, 255, 255, 0.5)"
+              prioritizesVideoDevices={false}
+              className="mx-2 h-[42] w-[42]"
+            />
           )}
+          <RelistenCastButton tintColor="rgba(255, 255, 255, 0.7)" className="mr-2 h-[42] w-[42]" />
         </Flex>
-      </Pressable>
+      </Flex>
       <View className="relative bg-relisten-blue-700">
         <ScrubberRow />
       </View>
@@ -103,7 +109,7 @@ function PlayerBottomBarContents() {
 }
 
 export function PlayerBottomBar() {
-  const isOnline = useNetInfo().isInternetReachable ?? true;
+  const isOnline = useShouldMakeNetworkRequests();
   const { tabBarHeight, playerBottomBarHeight, setPlayerBottomBarHeight } =
     useRelistenPlayerBottomBarContext();
 

@@ -8331,6 +8331,11 @@ react-native-get-random-values@~1.11.0:
   dependencies:
     fast-base64-decode "^1.0.0"
 
+react-native-google-cast@^4.9.1:
+  version "4.9.1"
+  resolved "https://registry.yarnpkg.com/react-native-google-cast/-/react-native-google-cast-4.9.1.tgz#f1c453c11460a1f787accff80072492a4cd3e86c"
+  integrity sha512-/HvIKAaWHtG6aTNCxrNrqA2ftWGkfH0M/2iN+28pdGUXpKmueb33mgL1m8D4zzwEODQMcmpfoCsym1IwDvugBQ==
+
 react-native-iphone-screen-helper@^2.0.2:
   version "2.1.2"
   resolved "https://registry.yarnpkg.com/react-native-iphone-screen-helper/-/react-native-iphone-screen-helper-2.1.2.tgz#6b376f71616080294c1b39c2fe064120ffdc79bf"
