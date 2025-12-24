@@ -27,7 +27,7 @@ import { type ParamListBase, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { Platform, Share, TouchableOpacity, View } from 'react-native';
 import AirPlayButton from 'react-native-airplay-button';
 import { HapticModeEnum, Slider } from 'react-native-awesome-slider';
@@ -38,23 +38,14 @@ import ReorderableList, { useReorderableDrag } from 'react-native-reorderable-li
 import { ReorderableListReorderEvent } from 'react-native-reorderable-list/src/types/props';
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { RelistenCastButton, useRelistenCastStatus } from '@/relisten/casting/cast_ui';
+import { sharedStates } from '@/relisten/player/shared_state';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 
 export function ScrubberRow() {
   const progressObj = useNativePlaybackProgress();
   const downloadProgress = useNativeActiveTrackDownloadProgress();
   const player = useRelistenPlayer();
-
-  const doSeek = useCallback(
-    (value: number) => {
-      if (progressObj?.duration === undefined) {
-        return;
-      }
-
-      player.seekTo(value / progressObj.duration).then(() => {});
-    },
-    [player, progressObj?.duration]
-  );
+  const { isCasting } = useRelistenCastStatus();
 
   const cacheValue = (downloadProgress?.percent ?? 0) * (progressObj?.duration ?? 0);
 
@@ -63,9 +54,45 @@ export function ScrubberRow() {
   const max = useSharedValue(progressObj?.duration ?? 0);
   const cache = useSharedValue(cacheValue);
   const isScrubbing = useSharedValue(false);
+  const pendingSeekRef = useRef<{ value: number; startedAt: number } | null>(null);
+
+  const doSeek = useCallback(
+    (value: number) => {
+      if (progressObj?.duration === undefined) {
+        return;
+      }
+
+      progress.value = value;
+      pendingSeekRef.current = { value, startedAt: Date.now() };
+      if (isCasting) {
+        sharedStates.progress.setState({
+          elapsed: value,
+          duration: progressObj.duration,
+          percent: progressObj.duration ? value / progressObj.duration : 0,
+        });
+      }
+      player.seekTo(value / progressObj.duration).then(() => {});
+    },
+    [isCasting, player, progress, progressObj?.duration]
+  );
 
   useEffect(() => {
     if (!isScrubbing.value) {
+      const pendingSeek = pendingSeekRef.current;
+      if (pendingSeek) {
+        const elapsed = progressObj?.elapsed;
+        if (elapsed === undefined) {
+          return;
+        }
+        const elapsedDelta = Math.abs(elapsed - pendingSeek.value);
+        const elapsedMs = Date.now() - pendingSeek.startedAt;
+        const maxPendingMs = isCasting ? 10000 : 3000;
+        if (elapsedDelta <= 1 || elapsedMs > maxPendingMs) {
+          pendingSeekRef.current = null;
+        } else {
+          return;
+        }
+      }
       progress.value = progressObj?.elapsed ?? 0;
     }
   }, [progressObj?.elapsed, isScrubbing.value]);
@@ -100,6 +127,7 @@ export function ScrubberRow() {
       bubble={(value) => {
         return trackDuration(value);
       }}
+      bubbleTextStyle={{ fontVariant: ['tabular-nums'], textAlign: 'center' }}
 
       // scrubbedColor={RelistenBlue['100']}
       // trackColor="white"

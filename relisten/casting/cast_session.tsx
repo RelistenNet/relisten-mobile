@@ -2,6 +2,8 @@ import { AppState, AppStateStatus } from 'react-native';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   CastState,
+  MediaQueueType,
+  MediaRepeatMode,
   useCastState,
   useMediaStatus,
   useRemoteMediaClient,
@@ -52,6 +54,11 @@ export function useRelistenCastSession(player: RelistenPlayer) {
   const disconnectTimeoutRef = useRef<number | undefined>(undefined);
   const isCastingRef = useRef(isCasting);
   const lastQueueSignatureRef = useRef<string | undefined>(undefined);
+  const repeatModeMismatchRef = useRef(false);
+  const isAdoptingCastSessionRef = useRef(false);
+  const shouldLoadFromLocalRef = useRef(false);
+  const mediaStatusRef = useRef(mediaStatus);
+  const castLoadTimeoutRef = useRef<number | undefined>(undefined);
 
   // Clear any cached state used to resume local playback after a cast session ends.
   const resetCastResumeState = useCallback(() => {
@@ -68,8 +75,16 @@ export function useRelistenCastSession(player: RelistenPlayer) {
     }
   }, []);
 
+  const clearCastLoadTimeout = useCallback(() => {
+    if (castLoadTimeoutRef.current !== undefined) {
+      clearTimeout(castLoadTimeoutRef.current);
+      castLoadTimeoutRef.current = undefined;
+    }
+  }, []);
+
   // Build a queue snapshot to load on Cast. We can optionally prefer local elapsed time
   // because Cast status/streamPosition may not be ready immediately after connecting.
+  // Repeat/shuffle are forced off for Cast to match the UI (no controls).
   const getQueueContext = useCallback(
     (autoplay: boolean, useLocalElapsed: boolean = false) => {
       const orderedTracks = player.queue.orderedTracks;
@@ -108,11 +123,7 @@ export function useRelistenCastSession(player: RelistenPlayer) {
         return;
       }
 
-      const queueSignature = [
-        orderedTracks.map((track) => track.identifier).join('|'),
-        player.queue.repeatState,
-        player.queue.shuffleState,
-      ].join('|');
+      const queueSignature = orderedTracks.map((track) => track.identifier).join('|');
 
       if (!options?.force && queueSignature === lastQueueSignatureRef.current) {
         return;
@@ -121,8 +132,13 @@ export function useRelistenCastSession(player: RelistenPlayer) {
       lastQueueSignatureRef.current = queueSignature;
 
       const queueContext = getQueueContext(autoplay, options?.useLocalElapsed);
+      const normalizedQueueContext = {
+        ...queueContext,
+        repeatState: PlayerRepeatState.REPEAT_OFF,
+        shuffleState: PlayerShuffleState.SHUFFLE_OFF,
+      };
       logger.debug('Syncing queue to cast', {
-        startIndex: queueContext.startIndex,
+        startIndex: normalizedQueueContext.startIndex,
         trackCount: orderedTracks.length,
       });
 
@@ -130,7 +146,7 @@ export function useRelistenCastSession(player: RelistenPlayer) {
       try {
         await client.loadMedia({
           autoplay,
-          queueData: buildQueueData(queueContext),
+          queueData: buildQueueData(normalizedQueueContext),
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -155,9 +171,55 @@ export function useRelistenCastSession(player: RelistenPlayer) {
     [client, getQueueContext, isCasting, player.queue]
   );
 
+  const syncQueueFromCastStatus = useCallback(
+    async (autoplay: boolean, status: typeof mediaStatus) => {
+      if (!client || !isCasting || !status?.queueItems?.length) {
+        return;
+      }
+
+      if (syncInFlightRef.current) {
+        logger.debug('Queue sync in flight; skipping cast-status repeat normalization');
+        return;
+      }
+
+      const queueItems = status.queueItems;
+      const currentItemIndex = queueItems.findIndex((item) => item.itemId === status.currentItemId);
+      const startTime = streamPosition ?? 0;
+      const sanitizedQueueItems = queueItems.map((item) => ({
+        mediaInfo: item.mediaInfo,
+        autoplay: item.autoplay,
+        preloadTime: item.preloadTime,
+        startTime: item.startTime,
+        playbackDuration: item.playbackDuration,
+        activeTrackIds: item.activeTrackIds,
+        customData: item.customData,
+      }));
+
+      syncInFlightRef.current = true;
+      try {
+        await client.loadMedia({
+          autoplay,
+          queueData: {
+            items: sanitizedQueueItems,
+            type: MediaQueueType.PLAYLIST,
+            repeatMode: MediaRepeatMode.OFF,
+            startIndex: currentItemIndex >= 0 ? currentItemIndex : 0,
+            startTime: startTime > 0 ? startTime : undefined,
+          },
+        });
+      } catch (error) {
+        logger.warn('Cast queue sync from status failed', error);
+      } finally {
+        syncInFlightRef.current = false;
+      }
+    },
+    [client, isCasting, streamPosition]
+  );
+
   // Cast session started: switch the playback driver, pause native audio, then
   // load the queue on Cast using local state for fast start. We store expected
-  // track/time so we can reconcile once Cast status arrives.
+  // track/time so we can reconcile once Cast status arrives. If the receiver
+  // already has an active queue (app relaunch), adopt that instead of overwriting it.
   useEffect(() => {
     if (!isCasting || !castDriver) {
       return;
@@ -167,6 +229,9 @@ export function useRelistenCastSession(player: RelistenPlayer) {
       return;
     }
 
+    const wasPlaying = player.state === RelistenPlaybackState.Playing;
+    shouldLoadFromLocalRef.current = wasPlaying || player.playbackIntentStarted;
+    isAdoptingCastSessionRef.current = !shouldLoadFromLocalRef.current;
     hasInitializedCastRef.current = true;
     sharedStates.playbackSource.setState(PlaybackSource.Cast);
     player.setPlaybackDriver(castDriver);
@@ -176,15 +241,58 @@ export function useRelistenCastSession(player: RelistenPlayer) {
       .then(() => {});
     resetCastResumeState();
     lastQueueSignatureRef.current = undefined;
-    expectedIdentifierRef.current =
-      player.queue.currentTrack?.identifier ??
-      player.queue.orderedTracks[player.queue.currentIndex ?? 0]?.identifier;
-    expectedElapsedRef.current = player.progress?.elapsed ?? 0;
-    hasReconciledRef.current = false;
+    const existingQueueItems = mediaStatus?.queueItems ?? [];
+    const hasActiveCastQueue = existingQueueItems.length > 0;
 
-    const shouldAutoplay = player.state === RelistenPlaybackState.Playing;
-    syncQueueToCast(shouldAutoplay, { useLocalElapsed: true }).then(() => {});
-  }, [castDriver, isCasting, player, resetCastResumeState, syncQueueToCast]);
+    if (hasActiveCastQueue) {
+      isAdoptingCastSessionRef.current = true;
+      shouldLoadFromLocalRef.current = false;
+      expectedIdentifierRef.current = (
+        existingQueueItems.find((item) => item.itemId === mediaStatus?.currentItemId)?.mediaInfo
+          ?.customData as { identifier?: string } | undefined
+      )?.identifier;
+      expectedElapsedRef.current = streamPosition ?? 0;
+      hasReconciledRef.current = true;
+      clearCastLoadTimeout();
+      return;
+    }
+
+    isAdoptingCastSessionRef.current = false;
+    client?.requestStatus().then(() => {});
+    clearCastLoadTimeout();
+    // Only fall back to loading the local queue if the user explicitly initiated
+    // playback while casting (or was already playing when they hit Cast).
+    castLoadTimeoutRef.current = setTimeout(() => {
+      if (!isCastingRef.current) {
+        return;
+      }
+      const status = mediaStatusRef.current;
+      if (status?.queueItems?.length) {
+        return;
+      }
+      if (!shouldLoadFromLocalRef.current) {
+        return;
+      }
+      expectedIdentifierRef.current =
+        player.queue.currentTrack?.identifier ??
+        player.queue.orderedTracks[player.queue.currentIndex ?? 0]?.identifier;
+      expectedElapsedRef.current = player.progress?.elapsed ?? 0;
+      hasReconciledRef.current = false;
+
+      const shouldAutoplay = wasPlaying;
+      syncQueueToCast(shouldAutoplay, { useLocalElapsed: true }).then(() => {});
+    }, 1000) as unknown as number;
+  }, [
+    castDriver,
+    client,
+    isCasting,
+    mediaStatus,
+    player,
+    resetCastResumeState,
+    streamPosition,
+    syncQueueToCast,
+    clearCastLoadTimeout,
+  ]);
 
   // Consume Cast media status and translate it into the app's shared playback state.
   // Also reconcile initial queue load if Cast starts on an unexpected item/time.
@@ -193,11 +301,30 @@ export function useRelistenCastSession(player: RelistenPlayer) {
       return;
     }
 
+    mediaStatusRef.current = mediaStatus;
+
     if (!mediaStatus) {
       sharedStates.state.setState(RelistenPlaybackState.Stopped);
       lastCastStateRef.current = RelistenPlaybackState.Stopped;
       resetCastResumeState();
       return;
+    }
+
+    if (mediaStatus.queueRepeatMode && mediaStatus.queueRepeatMode !== MediaRepeatMode.OFF) {
+      if (!repeatModeMismatchRef.current) {
+        repeatModeMismatchRef.current = true;
+        const shouldAutoplay =
+          mapMediaPlayerState(mediaStatus.playerState) === RelistenPlaybackState.Playing;
+        if (shouldLoadFromLocalRef.current) {
+          logger.warn('Cast repeat mode out of sync; forcing repeat off via local queue');
+          syncQueueToCast(shouldAutoplay, { force: true }).then(() => {});
+        } else {
+          logger.warn('Cast repeat mode out of sync; forcing repeat off via cast queue');
+          syncQueueFromCastStatus(shouldAutoplay, mediaStatus).then(() => {});
+        }
+      }
+    } else if (repeatModeMismatchRef.current) {
+      repeatModeMismatchRef.current = false;
     }
 
     const playbackState = mapMediaPlayerState(mediaStatus.playerState);
@@ -214,6 +341,9 @@ export function useRelistenCastSession(player: RelistenPlayer) {
     if (identifier) {
       sharedStates.currentTrackIdentifier.setState(identifier);
       lastCastIdentifierRef.current = identifier;
+    }
+    if (mediaStatus.queueItems?.length && isAdoptingCastSessionRef.current) {
+      shouldLoadFromLocalRef.current = false;
     }
 
     if (!hasReconciledRef.current && expectedIdentifierRef.current && identifier) {
@@ -269,6 +399,9 @@ export function useRelistenCastSession(player: RelistenPlayer) {
   // try to resume the same track/time locally. Otherwise only seek when safe.
   useEffect(() => {
     isCastingRef.current = isCasting;
+    if (!isCasting) {
+      clearCastLoadTimeout();
+    }
   }, [isCasting]);
 
   useEffect(() => {
@@ -280,11 +413,18 @@ export function useRelistenCastSession(player: RelistenPlayer) {
       appStateRef.current = nextState;
       if (nextState !== 'active') {
         clearDisconnectTimeout();
+        return;
+      }
+
+      if (isCastingRef.current && client) {
+        client.requestStatus().catch((error) => {
+          logger.debug('Failed to request Cast status on foreground', error);
+        });
       }
     });
 
     return () => subscription.remove();
-  }, [clearDisconnectTimeout]);
+  }, [clearDisconnectTimeout, client]);
 
   useEffect(() => {
     if (isCasting || !wasCastingRef.current) {
@@ -364,32 +504,28 @@ export function useRelistenCastSession(player: RelistenPlayer) {
     }, 3000) as unknown as number;
   }, [castState, clearDisconnectTimeout, isCasting, player, resetCastResumeState]);
 
-  // Whenever the local queue or repeat/shuffle settings change while casting,
-  // reload the Cast queue snapshot to preserve parity.
+  // Whenever the local queue changes while casting, reload the Cast queue snapshot
+  // with repeat/shuffle forced off (the UI doesn't expose those modes).
   useEffect(() => {
     if (!isCasting) {
       return;
     }
 
     const orderedTracksTeardown = player.queue.onOrderedTracksChanged.addListener(() => {
-      const shouldAutoplay = lastCastWasPlayingRef.current;
-      syncQueueToCast(shouldAutoplay).then(() => {});
-    });
-
-    const repeatTeardown = player.queue.onRepeatStateChanged.addListener(() => {
-      const shouldAutoplay = lastCastWasPlayingRef.current;
-      syncQueueToCast(shouldAutoplay).then(() => {});
-    });
-
-    const shuffleTeardown = player.queue.onShuffleStateChanged.addListener(() => {
+      if (isAdoptingCastSessionRef.current && !player.playbackIntentStarted) {
+        return;
+      }
+      if (!player.playbackIntentStarted && !shouldLoadFromLocalRef.current) {
+        return;
+      }
+      isAdoptingCastSessionRef.current = false;
+      shouldLoadFromLocalRef.current = true;
       const shouldAutoplay = lastCastWasPlayingRef.current;
       syncQueueToCast(shouldAutoplay).then(() => {});
     });
 
     return () => {
       orderedTracksTeardown();
-      repeatTeardown();
-      shuffleTeardown();
     };
   }, [isCasting, player.queue, syncQueueToCast]);
 }

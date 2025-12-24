@@ -84,13 +84,18 @@ export class PlayerQueueTrack {
     );
   }
 
-  toStreamable(allowStreamingCache: boolean): RelistenStreamable {
+  toStreamable(
+    allowStreamingCache: boolean,
+    options?: {
+      forceStreaming?: boolean;
+    }
+  ): RelistenStreamable {
     let url = this.sourceTrack.streamingUrl();
     let downloadDestination: string | undefined = undefined;
 
-    if (this.sourceTrack.offlineInfo?.isPlayableOffline()) {
+    if (!options?.forceStreaming && this.sourceTrack.offlineInfo?.isPlayableOffline()) {
       url = this.sourceTrack.downloadedFileLocation();
-    } else if (allowStreamingCache) {
+    } else if (!options?.forceStreaming && allowStreamingCache) {
       downloadDestination = this.sourceTrack.downloadedFileLocation();
     }
 
