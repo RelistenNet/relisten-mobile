@@ -156,7 +156,7 @@ export class Artist
       return false;
     }
 
-    if (!model.popularity) {
+    if (!model.popularity || !model.popularity.windows) {
       return true;
     }
 

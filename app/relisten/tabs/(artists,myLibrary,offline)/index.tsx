@@ -100,9 +100,10 @@ const FeaturedSectionHeader = () => {
 const FavoritesEmptyState = ({ onViewAll }: { onViewAll: () => void }) => {
   return (
     <View className="px-4 py-6">
-      <RelistenText className="text-xl font-bold">Build your library</RelistenText>
+      <RelistenText className="text-xl font-bold">Follow the music</RelistenText>
       <RelistenText className="pt-2 text-gray-400">
-        Add artists to build your library and get quick access to your favorites.
+        Tap the heart to favorite artists. You’ll get On This Day picks and quick access to your
+        go-tos.
       </RelistenText>
       <View className="pt-4">
         <RelistenButton onPress={onViewAll}>Browse all 4,500+ artists</RelistenButton>
@@ -136,10 +137,20 @@ const ArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => 
     const favoritesSorted = allSorted
       .filter((a) => a.isFavorite)
       .sort((a, b) => a.sortName.localeCompare(b.sortName));
-    const featuredSorted = filter(
-      allSorted.filter((a) => !a.isAutomaticallyCreated()),
-      undefined
+    const featuredAll = allSorted.filter((a) => !a.isAutomaticallyCreated());
+    const hasPopularity = featuredAll.some(
+      (artist) => artist.popularity?.windows?.days30d?.plays !== undefined
     );
+    const featuredCandidates = hasPopularity
+      ? [...featuredAll]
+          .sort(
+            (a, b) =>
+              (b.popularity?.windows?.days30d?.plays ?? 0) -
+              (a.popularity?.windows?.days30d?.plays ?? 0)
+          )
+          .slice(0, 100)
+      : featuredAll;
+    const featuredSorted = filter(featuredCandidates, undefined);
 
     return {
       all: allSorted,

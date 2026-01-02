@@ -13,6 +13,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Link } from 'expo-router';
 import React, { ComponentProps } from 'react';
 import { TouchableOpacity } from 'react-native';
+import { useFilters } from '@/relisten/components/filtering/filters';
+import { ArtistSortKey } from '@/relisten/components/artist_filters';
 
 type TouchableOpacityRef = React.ElementRef<typeof TouchableOpacity>;
 
@@ -59,11 +61,34 @@ const formatPlays30d = (plays?: number) => {
   return plays.toFixed(0);
 };
 
-const ArtistPopularitySummary = ({ artist }: { artist: Artist }) => {
-  const bucket = getMomentumBucket(artist.popularity?.momentumScore);
-  const plays30dText = formatPlays30d(artist.popularity?.windows?.days30d?.plays);
+const formatMomentumPercent = (score?: number) => {
+  if (score === undefined || score === null) {
+    return undefined;
+  }
 
-  if (!bucket && !plays30dText) {
+  const percent = Math.round(score * 100);
+  const clamped = Math.max(0, Math.min(100, percent));
+
+  return `${clamped}%`;
+};
+
+const ArtistPopularitySummary = ({ artist }: { artist: Artist }) => {
+  const { filters } = useFilters<ArtistSortKey, Artist>();
+  const isTrendingSort = filters.some(
+    (filter) => filter.active && filter.persistenceKey === ArtistSortKey.Trending
+  );
+  const momentumScore = artist.popularity?.momentumScore;
+  const bucket = getMomentumBucket(momentumScore);
+  let detailText: string | undefined;
+
+  if (isTrendingSort) {
+    detailText = formatMomentumPercent(momentumScore);
+  } else {
+    const plays30dText = formatPlays30d(artist.popularity?.windows?.days30d?.plays);
+    detailText = plays30dText ? `${plays30dText} 30d` : undefined;
+  }
+
+  if (!bucket && !detailText) {
     return null;
   }
 
@@ -76,11 +101,22 @@ const ArtistPopularitySummary = ({ artist }: { artist: Artist }) => {
       4: 'trending-up' as ComponentProps<typeof MaterialIcons>['name'],
     }[bucket];
 
+  if (isTrendingSort) {
+    return (
+      <Flex className="items-center gap-1">
+        {detailText ? (
+          <RelistenText className="text-xs text-gray-400">{detailText}</RelistenText>
+        ) : null}
+        {icon ? <MaterialIcons name={icon} color="white" size={16} /> : null}
+      </Flex>
+    );
+  }
+
   return (
     <Flex className="items-center gap-1">
       {icon ? <MaterialIcons name={icon} color="white" size={16} /> : null}
-      {plays30dText ? (
-        <RelistenText className="text-xs text-gray-400">{plays30dText} 30d</RelistenText>
+      {detailText ? (
+        <RelistenText className="text-xs text-gray-400">{detailText}</RelistenText>
       ) : null}
     </Flex>
   );
