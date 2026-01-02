@@ -21,20 +21,14 @@ class PhoneSceneDelegate: UIResponder, UIWindowSceneDelegate {
     
     guard
       let appDelegate = (UIApplication.shared.delegate as? AppDelegate),
-      let windowScene = (scene as? UIWindowScene),
-      let reactNativeFactory = appDelegate.reactNativeFactory
+      let windowScene = (scene as? UIWindowScene)
     else { return }
 
     let window = UIWindow(windowScene: windowScene)
     
-    // This calls makeKeyAndVisible
-    reactNativeFactory.startReactNative(
-      withModuleName: "main",
-      in: window,
-      launchOptions: appDelegate.launchOptions)
+    appDelegate.attachReactNative(to: window)
     
     self.window = window
-    appDelegate.window = window
   }
   
   func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {

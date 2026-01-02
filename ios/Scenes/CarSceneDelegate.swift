@@ -6,6 +6,7 @@
 //
 import Foundation
 import CarPlay
+import UIKit
 import react_native_carplay
 
 class CarSceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
@@ -26,6 +27,10 @@ class CarSceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
                                 to window: CPWindow) {
     print("[carplay-debug] Class: \(type(of: self)), Method: \(#function)")
 
+    if let appDelegate = UIApplication.shared.delegate as? AppDelegate {
+      appDelegate.ensureReactNativeStartedForCarPlay()
+    }
+
     RNCarPlay.connect(with: interfaceController, window: window)
   }
 
@@ -43,6 +48,10 @@ class CarSceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     didConnect interfaceController: CPInterfaceController
   ) {
     print("[carplay-debug] Class: \(type(of: self)), Method: \(#function)")
+
+    if let appDelegate = UIApplication.shared.delegate as? AppDelegate {
+      appDelegate.ensureReactNativeStartedForCarPlay()
+    }
 
     RNCarPlay.connect(with: interfaceController, window: templateApplicationScene.carWindow)
   }

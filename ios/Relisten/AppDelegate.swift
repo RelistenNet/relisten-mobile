@@ -1,4 +1,5 @@
 import Expo
+import UIKit
 // @generated begin react-native-google-cast-import - expo prebuild (DO NOT MODIFY) sync-4cd300bca26a1d1fcc83f4baf37b0e62afcc1867
 #if canImport(GoogleCast) && os(iOS)
 import GoogleCast
@@ -12,6 +13,8 @@ public class AppDelegate: ExpoAppDelegate {
   var reactNativeDelegate: ExpoReactNativeFactoryDelegate?
   var reactNativeFactory: RCTReactNativeFactory?
   var launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+  var reactNativeRootViewController: UIViewController?
+  var reactNativeBootstrapWindow: UIWindow?
   
   // Some parts of expo/react native seem to expect this property to be here
   public var window: UIWindow? = nil
@@ -34,14 +37,8 @@ public class AppDelegate: ExpoAppDelegate {
     GCKCastContext.sharedInstance().useDefaultExpandedMediaControls = true
 #endif
 // @generated end react-native-google-cast-didFinishLaunchingWithOptions
-    let delegate = ReactNativeDelegate()
-    let factory = ExpoReactNativeFactory(delegate: delegate)
-    delegate.dependencyProvider = RCTAppDependencyProvider()
-
-    reactNativeDelegate = delegate
-    reactNativeFactory = factory
     self.launchOptions = launchOptions
-    bindReactNativeFactory(factory)
+    configureReactNativeFactoryIfNeeded()
 
     // window moved to PhoneSceneDelegate
 //    window = UIWindow(frame: UIScreen.main.bounds)
@@ -51,6 +48,56 @@ public class AppDelegate: ExpoAppDelegate {
 //      launchOptions: launchOptions)
     
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  private func configureReactNativeFactoryIfNeeded() {
+    if reactNativeFactory != nil {
+      return
+    }
+
+    let delegate = ReactNativeDelegate()
+    let factory = ExpoReactNativeFactory(delegate: delegate)
+    delegate.dependencyProvider = RCTAppDependencyProvider()
+
+    reactNativeDelegate = delegate
+    reactNativeFactory = factory
+    bindReactNativeFactory(factory)
+  }
+
+  public func ensureReactNativeStartedForCarPlay() {
+    configureReactNativeFactoryIfNeeded()
+
+    if reactNativeRootViewController != nil {
+      return
+    }
+
+    guard let factory = reactNativeFactory else { return }
+
+    let bootstrapWindow = UIWindow(frame: UIScreen.main.bounds)
+    factory.startReactNative(withModuleName: "main", in: bootstrapWindow, launchOptions: launchOptions)
+    reactNativeRootViewController = bootstrapWindow.rootViewController
+    reactNativeBootstrapWindow = bootstrapWindow
+    window = bootstrapWindow
+  }
+
+  public func attachReactNative(to window: UIWindow) {
+    configureReactNativeFactoryIfNeeded()
+
+    if let existingRoot = reactNativeRootViewController {
+      window.rootViewController = existingRoot
+      window.makeKeyAndVisible()
+
+      if let bootstrapWindow = reactNativeBootstrapWindow, bootstrapWindow !== window {
+        bootstrapWindow.isHidden = true
+        bootstrapWindow.rootViewController = nil
+        reactNativeBootstrapWindow = nil
+      }
+    } else if let factory = reactNativeFactory {
+      factory.startReactNative(withModuleName: "main", in: window, launchOptions: launchOptions)
+      reactNativeRootViewController = window.rootViewController
+    }
+
+    self.window = window
   }
 
   // Linking API

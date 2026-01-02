@@ -7,31 +7,15 @@ import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { useEffect } from 'react';
 import { DownloadManager } from '@/relisten/offline/download_manager';
 import { useRelistenApi } from '@/relisten/api/context';
-import { CarPlay } from '@g4rb4g3/react-native-carplay/src';
-import { RelistenApiClient } from '@/relisten/api/client';
-import { realm } from '@/relisten/realm/schema';
-import { setupCarPlay } from '@/relisten/carplay/templates';
-
-function onConnect(apiClient: RelistenApiClient) {
-  return () => {
-    if (realm) {
-      setupCarPlay(realm!, apiClient);
-    }
-  };
-}
+import { useRealm } from '@/relisten/realm/schema';
+import { useCarPlaySetup } from '@/relisten/carplay/useCarPlaySetup';
 
 export default function TabLayout() {
   const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
   const { apiClient } = useRelistenApi();
+  const realm = useRealm();
 
-  useEffect(() => {
-    const connect = onConnect(apiClient);
-
-    CarPlay.registerOnConnect(connect);
-    return () => {
-      CarPlay.unregisterOnConnect(connect);
-    };
-  });
+  useCarPlaySetup(apiClient, realm);
 
   useEffect(() => {
     if (shouldMakeNetworkRequests) {
