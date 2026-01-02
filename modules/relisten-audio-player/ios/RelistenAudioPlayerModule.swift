@@ -171,6 +171,18 @@ public class RelistenAudioPlayerModule: Module {
             }
         }
 
+        Function("setRepeatMode") { (repeatMode: Int) in
+            player?.bassQueue.async {
+                self.player?.setRepeatMode(repeatMode)
+            }
+        }
+
+        Function("setShuffleMode") { (shuffleMode: Int) in
+            player?.bassQueue.async {
+                self.player?.setShuffleMode(shuffleMode)
+            }
+        }
+
         AsyncFunction("resume") { (promise: Promise) in
             player?.bassQueue.async {
                 self.player?.resume()

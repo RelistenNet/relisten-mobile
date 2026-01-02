@@ -16,6 +16,9 @@ import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
 import {
   useRelistenPlayerCurrentTrack,
   useRelistenPlayerQueueOrderedTracks,
+  useRelistenPlayerQueue,
+  useRelistenPlayerRepeatState,
+  useRelistenPlayerShuffleState,
 } from '@/relisten/player/relisten_player_queue_hooks';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { trackDuration } from '@/relisten/util/duration';
@@ -40,6 +43,7 @@ import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { RelistenCastButton, useRelistenCastStatus } from '@/relisten/casting/cast_ui';
 import { sharedStates } from '@/relisten/player/shared_state';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
+import { PlayerRepeatState, PlayerShuffleState } from '@/relisten/player/relisten_player_queue';
 
 export function ScrubberRow() {
   const progressObj = useNativePlaybackProgress();
@@ -271,7 +275,6 @@ function PlayerControls() {
   const player = useRelistenPlayer();
   const playbackState = useRelistenPlayerPlaybackState();
   const progress = useNativePlaybackProgress();
-  const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
 
   let playbackStateIcon = <MaterialIcons name="play-arrow" size={80} color="white" />;
 
@@ -283,11 +286,6 @@ function PlayerControls() {
 
   return (
     <Flex className="w-full items-center justify-center py-6">
-      {shouldMakeNetworkRequests ? (
-        <RelistenCastButton tintColor="rgba(255, 255, 255, 0.7)" className="mr-4 h-[42] w-[42]" />
-      ) : (
-        <View className="w-[44px]" />
-      )}
       <TouchableOpacity
         onPress={() => {
           if (progress && (progress.elapsed > 5 || player.queue.currentIndex === 0)) {
@@ -319,14 +317,72 @@ function PlayerControls() {
       >
         <MaterialCommunityIcons name="skip-forward" size={42} color="white" />
       </TouchableOpacity>
-      {Platform.OS === 'ios' && (
-        <AirPlayButton
-          activeTintColor="white"
-          tintColor="rgba(255, 255, 255, 0.5)"
-          prioritizesVideoDevices={false}
-          style={{ width: 42, height: 42, marginLeft: 8 }}
-        />
-      )}
+    </Flex>
+  );
+}
+
+function PlayerSecondaryControls() {
+  const queue = useRelistenPlayerQueue();
+  const [shuffleState] = useRelistenPlayerShuffleState();
+  const [repeatState] = useRelistenPlayerRepeatState();
+  const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
+
+  const isShuffleOn = shuffleState === PlayerShuffleState.SHUFFLE_ON;
+  const isRepeatTrack = repeatState === PlayerRepeatState.REPEAT_TRACK;
+  const isRepeatQueue = repeatState === PlayerRepeatState.REPEAT_QUEUE;
+
+  const shuffleColor = isShuffleOn ? RelistenBlue['300'] : 'rgba(255, 255, 255, 0.7)';
+  const repeatColor =
+    isRepeatTrack || isRepeatQueue ? RelistenBlue['300'] : 'rgba(255, 255, 255, 0.7)';
+
+  const toggleShuffle = () => {
+    queue.setShuffleState(
+      shuffleState === PlayerShuffleState.SHUFFLE_ON
+        ? PlayerShuffleState.SHUFFLE_OFF
+        : PlayerShuffleState.SHUFFLE_ON
+    );
+  };
+
+  const toggleRepeat = () => {
+    const nextRepeatState =
+      repeatState === PlayerRepeatState.REPEAT_OFF
+        ? PlayerRepeatState.REPEAT_QUEUE
+        : repeatState === PlayerRepeatState.REPEAT_QUEUE
+          ? PlayerRepeatState.REPEAT_TRACK
+          : PlayerRepeatState.REPEAT_OFF;
+
+    queue.setRepeatState(nextRepeatState);
+  };
+
+  return (
+    <Flex className="w-full items-center justify-between py-3">
+      <Flex className="flex-row items-center gap-2">
+        <TouchableOpacity onPress={toggleShuffle} className="p-2">
+          <MaterialCommunityIcons name="shuffle" size={24} color={shuffleColor} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={toggleRepeat} className="p-2">
+          <MaterialCommunityIcons
+            name={isRepeatTrack ? 'repeat-once' : 'repeat'}
+            size={24}
+            color={repeatColor}
+          />
+        </TouchableOpacity>
+      </Flex>
+      <Flex className="flex-row items-center gap-2">
+        {shouldMakeNetworkRequests ? (
+          <RelistenCastButton tintColor="rgba(255, 255, 255, 0.7)" className="h-[42] w-[42]" />
+        ) : (
+          <View className="w-[42px]" />
+        )}
+        {Platform.OS === 'ios' && (
+          <AirPlayButton
+            activeTintColor="white"
+            tintColor="rgba(255, 255, 255, 0.5)"
+            prioritizesVideoDevices={false}
+            className="h-[42] w-[42]"
+          />
+        )}
+      </Flex>
     </Flex>
   );
 }
@@ -521,6 +577,7 @@ export function PlayerScreen() {
           <CurrentTrackInfo />
           <ScrubberRow />
           <PlayerControls />
+          <PlayerSecondaryControls />
         </Flex>
       </Flex>
     </SafeAreaView>

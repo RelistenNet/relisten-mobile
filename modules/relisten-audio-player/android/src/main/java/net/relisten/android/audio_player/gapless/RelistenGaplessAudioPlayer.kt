@@ -76,6 +76,22 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
             return mediaController.setDeviceVolume((newValue * 100).toInt(), 0)
         }
 
+    fun setRepeatMode(repeatMode: Int) {
+        val mediaController = exoPlayer ?: return
+
+        mediaController.repeatMode = when (repeatMode) {
+            2 -> Player.REPEAT_MODE_ONE
+            3 -> Player.REPEAT_MODE_ALL
+            else -> Player.REPEAT_MODE_OFF
+        }
+    }
+
+    fun setShuffleMode(shuffleMode: Int) {
+        val mediaController = exoPlayer ?: return
+
+        mediaController.shuffleModeEnabled = shuffleMode == 2
+    }
+
     internal var _currentState: RelistenPlaybackState? = null
     var currentState: RelistenPlaybackState
         get() {

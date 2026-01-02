@@ -1,4 +1,5 @@
 import { RelistenStreamable } from '@/modules/relisten-audio-player';
+import { nativePlayer } from '@/modules/relisten-audio-player';
 import { addPlayerListeners } from '@/relisten/player/native_playback_state_hooks';
 import { RelistenPlayer } from '@/relisten/player/relisten_player';
 import {
@@ -320,6 +321,7 @@ export class RelistenPlayerQueue {
       this.onShuffleStateChanged.dispatch(shuffleState);
       this.onOrderedTracksChanged.dispatch(this.orderedTracks);
       this.savePlayerState();
+      nativePlayer.setShuffleMode(shuffleState);
     }
   }
 
@@ -330,6 +332,7 @@ export class RelistenPlayerQueue {
       this.recalculateNextTrack();
       this.onRepeatStateChanged.dispatch(repeatState);
       this.savePlayerState();
+      nativePlayer.setRepeatMode(repeatState);
     }
   }
 

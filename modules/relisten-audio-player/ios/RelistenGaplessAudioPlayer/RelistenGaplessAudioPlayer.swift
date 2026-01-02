@@ -256,6 +256,31 @@ public class RelistenGaplessAudioPlayer {
         }
     }
 
+    public func setRepeatMode(_ repeatMode: Int) {
+        let repeatType: MPRepeatType
+
+        switch repeatMode {
+        case 2:
+            repeatType = .one
+        case 3:
+            repeatType = .all
+        default:
+            repeatType = .off
+        }
+
+        DispatchQueue.main.async {
+            self.commandCenter.changeRepeatModeCommand.currentRepeatType = repeatType
+        }
+    }
+
+    public func setShuffleMode(_ shuffleMode: Int) {
+        let shuffleType: MPShuffleType = shuffleMode == 2 ? .items : .off
+
+        DispatchQueue.main.async {
+            self.commandCenter.changeShuffleModeCommand.currentShuffleType = shuffleType
+        }
+    }
+
     func maybeTearDownActiveStream() {
         dispatchPrecondition(condition: .onQueue(bassQueue))
 

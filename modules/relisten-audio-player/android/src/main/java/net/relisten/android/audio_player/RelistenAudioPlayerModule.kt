@@ -159,6 +159,14 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
             return@Function
         }
 
+        Function("setRepeatMode") { repeatMode: Int ->
+            player?.setRepeatMode(repeatMode)
+        }
+
+        Function("setShuffleMode") { shuffleMode: Int ->
+            player?.setShuffleMode(shuffleMode)
+        }
+
         AsyncFunction("resume") { promise: Promise ->
             player?.scope?.launch {
                 player?.resume()

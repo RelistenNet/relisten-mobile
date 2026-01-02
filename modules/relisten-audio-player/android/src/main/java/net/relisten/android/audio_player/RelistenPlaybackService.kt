@@ -4,6 +4,9 @@ package net.relisten.android.audio_player
 
 import android.content.Intent
 import androidx.media3.common.C
+import androidx.media3.common.FlagSet
+import androidx.media3.common.ForwardingPlayer
+import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
@@ -24,7 +27,8 @@ class RelistenPlaybackService : MediaSessionService() {
         val player = ExoPlayer.Builder(this).setLoadControl(RelistenLoadControl()).build()
         player.addAnalyticsListener(EventLogger())
 
-        mediaSession = MediaSession.Builder(this, player).build()
+        val uiStatePlayer = RelistenUiStatePlayer(player)
+        mediaSession = MediaSession.Builder(this, uiStatePlayer).build()
 
         exoPlayer = player
     }
@@ -54,6 +58,57 @@ class RelistenPlaybackService : MediaSessionService() {
             controllerInfo: MediaSession.ControllerInfo
     ): MediaSession? {
         return mediaSession
+    }
+}
+
+class RelistenUiStatePlayer(player: Player) : ForwardingPlayer(player) {
+    private var repeatModeState = player.repeatMode
+    private var shuffleModeEnabledState = player.shuffleModeEnabled
+    private val listeners = mutableSetOf<Player.Listener>()
+
+    override fun addListener(listener: Player.Listener) {
+        super.addListener(listener)
+        listeners.add(listener)
+    }
+
+    override fun removeListener(listener: Player.Listener) {
+        super.removeListener(listener)
+        listeners.remove(listener)
+    }
+
+    override fun setRepeatMode(repeatMode: Int) {
+        if (repeatModeState == repeatMode) {
+            return
+        }
+
+        repeatModeState = repeatMode
+        val events = Player.Events(FlagSet.Builder().add(Player.EVENT_REPEAT_MODE_CHANGED).build())
+        listeners.forEach { listener ->
+            listener.onRepeatModeChanged(repeatMode)
+            listener.onEvents(this, events)
+        }
+    }
+
+    override fun getRepeatMode(): Int {
+        return repeatModeState
+    }
+
+    override fun setShuffleModeEnabled(shuffleModeEnabled: Boolean) {
+        if (shuffleModeEnabledState == shuffleModeEnabled) {
+            return
+        }
+
+        shuffleModeEnabledState = shuffleModeEnabled
+        val events =
+            Player.Events(FlagSet.Builder().add(Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED).build())
+        listeners.forEach { listener ->
+            listener.onShuffleModeEnabledChanged(shuffleModeEnabled)
+            listener.onEvents(this, events)
+        }
+    }
+
+    override fun getShuffleModeEnabled(): Boolean {
+        return shuffleModeEnabledState
     }
 }
 

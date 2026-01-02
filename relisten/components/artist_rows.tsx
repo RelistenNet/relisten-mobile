@@ -96,82 +96,84 @@ const ArtistRowActions = ({ artist }: { artist: Artist }) => {
 
 export const ArtistListItem = React.forwardRef<TouchableOpacityRef, { artist: Artist }>(
   ({ artist }, ref) => {
-  const groupSegment = useGroupSegment();
-  const metadata = useArtistMetadata(artist);
-  const hasOfflineTracks = artist.hasOfflineTracks;
+    const groupSegment = useGroupSegment();
+    const metadata = useArtistMetadata(artist);
+    const hasOfflineTracks = artist.hasOfflineTracks;
 
-  return (
-    <Link
-      href={{
-        pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/`,
-        params: {
-          artistUuid: artist.uuid,
-        },
-      }}
-      asChild
-    >
-      <SectionedListItem ref={ref}>
-        <Flex cn="items-center justify-between" full>
-          <Flex cn="flex-1 flex-col pr-3">
-            <Flex cn="items-center">
-              <Flex cn="flex-1 pr-2">
-                <RowTitle>{artist.name}</RowTitle>
+    return (
+      <Link
+        href={{
+          pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/`,
+          params: {
+            artistUuid: artist.uuid,
+          },
+        }}
+        asChild
+      >
+        <SectionedListItem ref={ref}>
+          <Flex cn="items-center justify-between" full>
+            <Flex cn="flex-1 flex-col pr-3">
+              <Flex cn="items-center">
+                <Flex cn="flex-1 pr-2">
+                  <RowTitle>{artist.name}</RowTitle>
+                </Flex>
+                <Flex cn="flex-shrink-0 items-center">
+                  <ArtistPopularitySummary artist={artist} />
+                </Flex>
               </Flex>
-              <Flex cn="flex-shrink-0 items-center">
-                <ArtistPopularitySummary artist={artist} />
-              </Flex>
+              <SubtitleRow cn="flex flex-row justify-between">
+                <SubtitleText>
+                  <Plur word="show" count={metadata.shows} />
+                  {hasOfflineTracks && (
+                    <>
+                      &nbsp;
+                      <SourceTrackSucceededIndicator />
+                    </>
+                  )}
+                </SubtitleText>
+                <SubtitleText>
+                  <Plur word="tape" count={metadata.sources} />
+                </SubtitleText>
+              </SubtitleRow>
             </Flex>
-            <SubtitleRow cn="flex flex-row justify-between">
-              <SubtitleText>
-                <Plur word="show" count={metadata.shows} />
-                {hasOfflineTracks && (
-                  <>
-                    &nbsp;
-                    <SourceTrackSucceededIndicator />
-                  </>
-                )}
-              </SubtitleText>
-              <SubtitleText>
-                <Plur word="tape" count={metadata.sources} />
-              </SubtitleText>
-            </SubtitleRow>
+            <ArtistRowActions artist={artist} />
           </Flex>
-          <ArtistRowActions artist={artist} />
-        </Flex>
-      </SectionedListItem>
-    </Link>
-  );
-});
+        </SectionedListItem>
+      </Link>
+    );
+  }
+);
 
 export const ArtistCompactListItem = React.forwardRef<TouchableOpacityRef, { artist: Artist }>(
   ({ artist }, ref) => {
-  const nextRoute = useRoute('[artistUuid]');
+    const nextRoute = useRoute('[artistUuid]');
 
-  return (
-    <Link
-      href={{
-        pathname: nextRoute,
-        params: {
-          artistUuid: artist.uuid,
-        },
-      }}
-      asChild
-    >
-      <SectionedListItem ref={ref}>
-        <Flex cn="items-center justify-between" full>
-          <Flex cn="flex-1 flex-col pr-3">
-            <Flex cn="items-center">
-              <Flex cn="flex-1 pr-2">
-                <RowTitle>{artist.name}</RowTitle>
-              </Flex>
-              <Flex cn="flex-shrink-0 items-center">
-                <ArtistPopularitySummary artist={artist} />
+    return (
+      <Link
+        href={{
+          pathname: nextRoute,
+          params: {
+            artistUuid: artist.uuid,
+          },
+        }}
+        asChild
+      >
+        <SectionedListItem ref={ref}>
+          <Flex cn="items-center justify-between" full>
+            <Flex cn="flex-1 flex-col pr-3">
+              <Flex cn="items-center">
+                <Flex cn="flex-1 pr-2">
+                  <RowTitle>{artist.name}</RowTitle>
+                </Flex>
+                <Flex cn="flex-shrink-0 items-center">
+                  <ArtistPopularitySummary artist={artist} />
+                </Flex>
               </Flex>
             </Flex>
+            <ArtistRowActions artist={artist} />
           </Flex>
-          <ArtistRowActions artist={artist} />
-        </Flex>
-      </SectionedListItem>
-    </Link>
-  );
-});
+        </SectionedListItem>
+      </Link>
+    );
+  }
+);

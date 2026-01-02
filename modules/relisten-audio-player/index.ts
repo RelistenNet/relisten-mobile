@@ -190,6 +190,16 @@ class RelistenGaplessPlayer {
     RelistenAudioPlayerModule.setNextStream(streamable);
   }
 
+  setRepeatMode(repeatMode: number) {
+    logger.debug('setRepeatMode called', repeatMode);
+    RelistenAudioPlayerModule.setRepeatMode(repeatMode);
+  }
+
+  setShuffleMode(shuffleMode: number) {
+    logger.debug('setShuffleMode called', shuffleMode);
+    RelistenAudioPlayerModule.setShuffleMode(shuffleMode);
+  }
+
   resume(): Promise<void> {
     logger.debug('resume called');
     return RelistenAudioPlayerModule.resume();

@@ -1,7 +1,11 @@
 import { CarPlay, ListTemplate, NowPlayingTemplate } from '@g4rb4g3/react-native-carplay';
 import { ListSection } from '@g4rb4g3/react-native-carplay/src/interfaces/ListSection';
 import { RelistenCarPlayContext } from '@/relisten/carplay/relisten_car_play_context';
-import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
+import {
+  PlayerQueueTrack,
+  PlayerRepeatState,
+  PlayerShuffleState,
+} from '@/relisten/player/relisten_player_queue';
 import {
   progress as playbackProgress,
   state as playbackState,
@@ -103,6 +107,37 @@ export function createNowPlayingTemplate(
       const queueTemplate = buildQueueTemplate();
       CarPlay.pushTemplate(queueTemplate, true);
     },
+    onButtonPressed({ id }) {
+      if (id === 'shuffle') {
+        const nextShuffleState =
+          ctx.player.queue.shuffleState === PlayerShuffleState.SHUFFLE_ON
+            ? PlayerShuffleState.SHUFFLE_OFF
+            : PlayerShuffleState.SHUFFLE_ON;
+        ctx.player.queue.setShuffleState(nextShuffleState);
+        return;
+      }
+
+      if (id === 'repeat') {
+        const currentRepeat = ctx.player.queue.repeatState;
+        const nextRepeatState =
+          currentRepeat === PlayerRepeatState.REPEAT_OFF
+            ? PlayerRepeatState.REPEAT_QUEUE
+            : currentRepeat === PlayerRepeatState.REPEAT_QUEUE
+              ? PlayerRepeatState.REPEAT_TRACK
+              : PlayerRepeatState.REPEAT_OFF;
+        ctx.player.queue.setRepeatState(nextRepeatState);
+      }
+    },
+    buttons: [
+      {
+        id: 'shuffle',
+        type: 'shuffle',
+      },
+      {
+        id: 'repeat',
+        type: 'repeat',
+      },
+    ],
     onDidAppear() {
       ctx.nowPlayingVisible = true;
       carplay_logger.info('Now Playing appeared');
