@@ -75,6 +75,8 @@ export enum ShowFilterKey {
   Soundboard = 'soundboard',
   PlayableOffline = 'playableOffline',
   Date = 'date',
+  Popular = 'popular',
+  Trending = 'trending',
   Rating = 'rating',
   Tapes = 'tapes',
   Duration = 'duration',
@@ -102,6 +104,28 @@ export const SHOW_FILTERS: Filter<ShowFilterKey, Show>[] = [
     active: true,
     isNumeric: true,
     sort: (shows) => shows.sort((a, b) => a.displayDate.localeCompare(b.displayDate)),
+  },
+  {
+    persistenceKey: ShowFilterKey.Popular,
+    title: 'Popular',
+    sortDirection: SortDirection.Descending,
+    active: false,
+    isNumeric: true,
+    sort: (shows) =>
+      shows.sort(
+        (a, b) =>
+          (a.popularity?.windows?.days30d?.hotScore ?? 0) -
+          (b.popularity?.windows?.days30d?.hotScore ?? 0)
+      ),
+  },
+  {
+    persistenceKey: ShowFilterKey.Trending,
+    title: 'Trending',
+    sortDirection: SortDirection.Descending,
+    active: false,
+    isNumeric: true,
+    sort: (shows) =>
+      shows.sort((a, b) => (a.popularity?.momentumScore ?? 0) - (b.popularity?.momentumScore ?? 0)),
   },
   {
     persistenceKey: ShowFilterKey.Rating,

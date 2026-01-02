@@ -16,6 +16,8 @@
 - `yarn ts:check`: run TypeScript type checking.
 - `./build_releases.sh`: build production releases with EAS (requires `npx eas-cli@latest`).
 
+Always run `yarn lint` and `yarn ts:check` after making changes to ensure that keep the code clean.
+
 ## Coding Style & Naming Conventions
 - TypeScript + React Native; keep files ASCII and prefer functional components.
 - Indentation: 2 spaces (match existing files).
