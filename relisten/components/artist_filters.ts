@@ -27,7 +27,11 @@ export const ARTIST_SORT_FILTERS: Filter<ArtistSortKey, Artist>[] = [
     active: false,
     isNumeric: true,
     sort: (artists) =>
-      artists.sort((a, b) => (a.popularity?.hotScore ?? 0) - (b.popularity?.hotScore ?? 0)),
+      artists.sort(
+        (a, b) =>
+          (a.popularity?.windows?.days30d?.hotScore ?? 0) -
+          (b.popularity?.windows?.days30d?.hotScore ?? 0)
+      ),
   },
   {
     persistenceKey: ArtistSortKey.Trending,

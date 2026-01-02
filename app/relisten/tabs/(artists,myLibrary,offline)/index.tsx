@@ -15,6 +15,7 @@ import { SectionHeader } from '@/relisten/components/section_header';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RowWithAction } from '@/relisten/components/row_with_action';
+import { NonIdealState } from '@/relisten/components/non_ideal_state';
 import { ArtistListItem } from '@/relisten/components/artist_rows';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useArtists } from '@/relisten/realm/models/artist_repo';
@@ -117,6 +118,18 @@ const ArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => 
   const { filter } = useFilters<ArtistSortKey, Artist>();
 
   const allArtistsRoute = `/relisten/tabs/${groupSegment}/all`;
+
+  if (isOfflineTab && artists.length === 0) {
+    return (
+      <NonIdealState
+        icon="cloud-off"
+        title="No offline shows yet"
+        description="Download tracks from any show and they'll appear here for offline playback."
+        actionText="Browse all artists"
+        onAction={() => router.push(allArtistsRoute)}
+      />
+    );
+  }
 
   const { all, favorites, featured } = useMemo(() => {
     const allSorted = [...artists].sort((a, b) => a.sortName.localeCompare(b.sortName));

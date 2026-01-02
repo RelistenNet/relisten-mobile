@@ -87,9 +87,19 @@ export interface Features {
 }
 
 export interface Popularity {
-  hot_score: number;
   momentum_score: number;
   trend_ratio: number;
-  plays_30d: number;
-  plays_48h: number;
+  windows: PopularityWindows;
+}
+
+export interface PopularityWindows {
+  '48h': PopularityWindow;
+  '7d': PopularityWindow;
+  '30d': PopularityWindow;
+}
+
+export interface PopularityWindow {
+  plays: number;
+  hours: number;
+  hot_score: number;
 }

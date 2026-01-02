@@ -1,5 +1,5 @@
 import { log } from '@/relisten/util/logging';
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { RelistenObject } from '../../api/models/relisten';
 import {
   RelistenSectionData,
@@ -88,7 +88,11 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
     }${f.searchFilter ? '=' + searchText : ''}`;
   }
 
-  logger.debug('Filter config: ' + filters.map(filterToString).join('; '));
+  const filterConfig = useMemo(() => filters.map(filterToString).join('; '), [filters, searchText]);
+
+  useEffect(() => {
+    logger.debug('Filter config: ' + filterConfig);
+  }, [filterConfig]);
 
   return (
     <RelistenSectionList

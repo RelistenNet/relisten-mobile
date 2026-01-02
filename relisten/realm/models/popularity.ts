@@ -1,11 +1,59 @@
 import Realm from 'realm';
 
 export interface PopularityRequiredProperties {
-  hotScore: number;
   momentumScore: number;
   trendRatio: number;
-  plays30d: number;
-  plays48h: number;
+  windows: PopularityWindows;
+}
+
+export interface PopularityWindowRequiredProperties {
+  plays: number;
+  hours: number;
+  hotScore: number;
+}
+
+export class PopularityWindow
+  extends Realm.Object<PopularityWindow, keyof PopularityWindowRequiredProperties>
+  implements PopularityWindowRequiredProperties
+{
+  static schema: Realm.ObjectSchema = {
+    name: 'PopularityWindow',
+    embedded: true,
+    properties: {
+      plays: 'int',
+      hours: 'double',
+      hotScore: 'double',
+    },
+  };
+
+  plays!: number;
+  hours!: number;
+  hotScore!: number;
+}
+
+export interface PopularityWindowsRequiredProperties {
+  hours48h: PopularityWindow;
+  days7d: PopularityWindow;
+  days30d: PopularityWindow;
+}
+
+export class PopularityWindows
+  extends Realm.Object<PopularityWindows, keyof PopularityWindowsRequiredProperties>
+  implements PopularityWindowsRequiredProperties
+{
+  static schema: Realm.ObjectSchema = {
+    name: 'PopularityWindows',
+    embedded: true,
+    properties: {
+      hours48h: 'PopularityWindow',
+      days7d: 'PopularityWindow',
+      days30d: 'PopularityWindow',
+    },
+  };
+
+  hours48h!: PopularityWindow;
+  days7d!: PopularityWindow;
+  days30d!: PopularityWindow;
 }
 
 export class Popularity
@@ -16,17 +64,13 @@ export class Popularity
     name: 'Popularity',
     embedded: true,
     properties: {
-      hotScore: 'double',
       momentumScore: 'double',
       trendRatio: 'double',
-      plays30d: 'int',
-      plays48h: 'int',
+      windows: 'PopularityWindows',
     },
   };
 
-  hotScore!: number;
   momentumScore!: number;
   trendRatio!: number;
-  plays30d!: number;
-  plays48h!: number;
+  windows!: PopularityWindows;
 }

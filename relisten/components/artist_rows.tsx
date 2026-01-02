@@ -12,6 +12,9 @@ import { useGroupSegment, useRoute } from '@/relisten/util/routes';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Link } from 'expo-router';
 import React, { ComponentProps } from 'react';
+import { TouchableOpacity } from 'react-native';
+
+type TouchableOpacityRef = React.ElementRef<typeof TouchableOpacity>;
 
 const getMomentumBucket = (momentumScore?: number) => {
   if (momentumScore === undefined || momentumScore === null) {
@@ -58,7 +61,7 @@ const formatPlays30d = (plays?: number) => {
 
 const ArtistPopularitySummary = ({ artist }: { artist: Artist }) => {
   const bucket = getMomentumBucket(artist.popularity?.momentumScore);
-  const plays30dText = formatPlays30d(artist.popularity?.plays30d);
+  const plays30dText = formatPlays30d(artist.popularity?.windows?.days30d?.plays);
 
   if (!bucket && !plays30dText) {
     return null;
@@ -91,7 +94,8 @@ const ArtistRowActions = ({ artist }: { artist: Artist }) => {
   );
 };
 
-export const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) => {
+export const ArtistListItem = React.forwardRef<TouchableOpacityRef, { artist: Artist }>(
+  ({ artist }, ref) => {
   const groupSegment = useGroupSegment();
   const metadata = useArtistMetadata(artist);
   const hasOfflineTracks = artist.hasOfflineTracks;
@@ -139,7 +143,8 @@ export const ArtistListItem = React.forwardRef(({ artist }: { artist: Artist }, 
   );
 });
 
-export const ArtistCompactListItem = React.forwardRef(({ artist }: { artist: Artist }, ref) => {
+export const ArtistCompactListItem = React.forwardRef<TouchableOpacityRef, { artist: Artist }>(
+  ({ artist }, ref) => {
   const nextRoute = useRoute('[artistUuid]');
 
   return (

@@ -15,7 +15,11 @@ import { SourceTrackOfflineInfo } from '@/relisten/realm/models/source_track_off
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { PlayerState } from '@/relisten/realm/models/player_state';
 import { UserSettings } from '@/relisten/realm/models/user_settings';
-import { Popularity } from '@/relisten/realm/models/popularity';
+import {
+  Popularity,
+  PopularityWindow,
+  PopularityWindows,
+} from '@/relisten/realm/models/popularity';
 
 // uncomment to show realm queries (measured in microseconds):
 // Realm.setLogLevel('debug');
@@ -38,8 +42,10 @@ const realmConfig: Realm.Configuration = {
     PlayerState,
     UserSettings,
     Popularity,
+    PopularityWindow,
+    PopularityWindows,
   ],
-  schemaVersion: 9,
+  schemaVersion: 10,
   // As to not conflict with the prior versions default.realm that isn't readable with this version of the SDK
   path: './relisten.realm',
 };
