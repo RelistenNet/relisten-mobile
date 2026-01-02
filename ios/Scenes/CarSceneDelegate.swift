@@ -28,6 +28,7 @@ class CarSceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     print("[carplay-debug] Class: \(type(of: self)), Method: \(#function)")
 
     if let appDelegate = UIApplication.shared.delegate as? AppDelegate {
+      // Ensure RN is bootstrapped before CarPlay connects so JS can build templates.
       appDelegate.ensureReactNativeStartedForCarPlay()
     }
 
@@ -40,6 +41,11 @@ class CarSceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     print("[carplay-debug] Class: \(type(of: self)), Method: \(#function)")
 
     RNCarPlay.disconnect()
+
+    if let appDelegate = UIApplication.shared.delegate as? AppDelegate {
+      // Hide any bootstrap window to avoid a stale key window after disconnect.
+      appDelegate.handleCarPlayDisconnect()
+    }
   }
 
   // For non-navigation apps CarPlay calls the variants without the CPWindow parameter.
@@ -50,6 +56,7 @@ class CarSceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     print("[carplay-debug] Class: \(type(of: self)), Method: \(#function)")
 
     if let appDelegate = UIApplication.shared.delegate as? AppDelegate {
+      // Non-navigation connect path still needs RN started before CarPlay connects.
       appDelegate.ensureReactNativeStartedForCarPlay()
     }
 
@@ -63,5 +70,10 @@ class CarSceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     print("[carplay-debug] Class: \(type(of: self)), Method: \(#function)")
 
     RNCarPlay.disconnect()
+
+    if let appDelegate = UIApplication.shared.delegate as? AppDelegate {
+      // Match the connect path; keep RN alive but hide bootstrap window.
+      appDelegate.handleCarPlayDisconnect()
+    }
   }
 }

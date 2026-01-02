@@ -5,17 +5,19 @@ import { RelistenApiClient } from '@/relisten/api/client';
 import { setupCarPlay } from '@/relisten/carplay/templates';
 
 export function useCarPlaySetup(apiClient: RelistenApiClient, realm?: Realm) {
+  const apiClientRef = useRef(apiClient);
+  const realmRef = useRef(realm);
   const isCarPlayConnected = useRef(false);
   const hasSetupCarPlay = useRef(false);
   const teardownRef = useRef<(() => void) | null>(null);
 
   const trySetupCarPlay = useCallback(() => {
     if (hasSetupCarPlay.current) return;
-    if (!realm || !isCarPlayConnected.current) return;
+    if (!realmRef.current || !isCarPlayConnected.current) return;
 
-    teardownRef.current = setupCarPlay(realm, apiClient);
+    teardownRef.current = setupCarPlay(realmRef.current, apiClientRef.current);
     hasSetupCarPlay.current = true;
-  }, [apiClient, realm]);
+  }, []);
 
   useEffect(() => {
     const handleConnect = () => {
@@ -33,6 +35,11 @@ export function useCarPlaySetup(apiClient: RelistenApiClient, realm?: Realm) {
     CarPlay.registerOnConnect(handleConnect);
     CarPlay.registerOnDisconnect(handleDisconnect);
 
+    if (CarPlay.connected) {
+      isCarPlayConnected.current = true;
+      trySetupCarPlay();
+    }
+
     return () => {
       CarPlay.unregisterOnConnect(handleConnect);
       CarPlay.unregisterOnDisconnect(handleDisconnect);
@@ -41,6 +48,11 @@ export function useCarPlaySetup(apiClient: RelistenApiClient, realm?: Realm) {
   }, [trySetupCarPlay]);
 
   useEffect(() => {
+    apiClientRef.current = apiClient;
+  }, [apiClient]);
+
+  useEffect(() => {
+    realmRef.current = realm;
     trySetupCarPlay();
-  }, [trySetupCarPlay]);
+  }, [realm, trySetupCarPlay]);
 }

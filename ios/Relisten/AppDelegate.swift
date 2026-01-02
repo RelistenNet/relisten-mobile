@@ -68,12 +68,27 @@ public class AppDelegate: ExpoAppDelegate {
     configureReactNativeFactoryIfNeeded()
 
     if reactNativeRootViewController != nil {
+      // CarPlay reconnects can happen quickly; keep the existing bridge and unhide any bootstrap window.
+      if let bootstrapWindow = reactNativeBootstrapWindow, bootstrapWindow.isHidden {
+        bootstrapWindow.isHidden = false
+      }
       return
     }
 
     guard let factory = reactNativeFactory else { return }
 
-    let bootstrapWindow = UIWindow(frame: UIScreen.main.bounds)
+    // If a phone UIWindowScene exists, prefer it; otherwise fall back to a scene-less window for CarPlay-only launches.
+    let bootstrapWindow: UIWindow
+    if let windowScene = UIApplication.shared.connectedScenes
+      .compactMap({ $0 as? UIWindowScene })
+      .first(where: { $0.session.role == .windowApplication && $0.activationState == .foregroundActive }) ??
+      UIApplication.shared.connectedScenes
+        .compactMap({ $0 as? UIWindowScene })
+        .first(where: { $0.session.role == .windowApplication }) {
+      bootstrapWindow = UIWindow(windowScene: windowScene)
+    } else {
+      bootstrapWindow = UIWindow(frame: UIScreen.main.bounds)
+    }
     factory.startReactNative(withModuleName: "main", in: bootstrapWindow, launchOptions: launchOptions)
     reactNativeRootViewController = bootstrapWindow.rootViewController
     reactNativeBootstrapWindow = bootstrapWindow
@@ -84,10 +99,12 @@ public class AppDelegate: ExpoAppDelegate {
     configureReactNativeFactoryIfNeeded()
 
     if let existingRoot = reactNativeRootViewController {
+      // Reattach the existing bridge to the phone window so we don't create a second RN instance.
       window.rootViewController = existingRoot
       window.makeKeyAndVisible()
 
       if let bootstrapWindow = reactNativeBootstrapWindow, bootstrapWindow !== window {
+        // Clear the bootstrap window to avoid competing key windows and duplicate view hierarchies.
         bootstrapWindow.isHidden = true
         bootstrapWindow.rootViewController = nil
         reactNativeBootstrapWindow = nil
@@ -97,7 +114,20 @@ public class AppDelegate: ExpoAppDelegate {
       reactNativeRootViewController = window.rootViewController
     }
 
+    // Edge case: if multiple phone scenes exist, we keep the most recent attach as the active window.
     self.window = window
+  }
+
+  public func handleCarPlayDisconnect() {
+    guard let bootstrapWindow = reactNativeBootstrapWindow else { return }
+
+    // Hide the bootstrap window on CarPlay disconnect to reduce key-window conflicts until the phone UI attaches.
+    if window === bootstrapWindow {
+      bootstrapWindow.isHidden = true
+    }
+
+    // Edge case: if no phone scene ever attaches, the RN bridge stays alive without a visible window.
+    // This is intentional to keep reconnects fast, but it can complicate debugging if the app seems "running".
   }
 
   // Linking API
