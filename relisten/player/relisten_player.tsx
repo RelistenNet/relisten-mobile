@@ -390,19 +390,18 @@ ${indentString(this.queue.debugState(true))}
       return;
     }
 
-    if (
-      this.progress &&
-      // 40% through aligns with Last.FM
-      this.progress.percent <= 0.4 &&
-      progress.percent > 0.4 &&
-      this.queue.currentTrack
-    ) {
-      const currentTrack = this.queue.currentTrack;
+    if (this.progress && this.queue.currentTrack) {
+      const wasEligible = this.progress.elapsed >= 240 || this.progress.percent >= 0.5;
+      const nowEligible = progress.elapsed >= 240 || progress.percent >= 0.5;
 
-      this.onShouldReportTrack.dispatch({
-        playerQueueTrack: currentTrack,
-        playbackStartedAt: this.queue.currentTrackPlaybackStartedAt || new Date(),
-      });
+      if (!wasEligible && nowEligible) {
+        const currentTrack = this.queue.currentTrack;
+
+        this.onShouldReportTrack.dispatch({
+          playerQueueTrack: currentTrack,
+          playbackStartedAt: this.queue.currentTrackPlaybackStartedAt || new Date(),
+        });
+      }
     }
 
     // save state based on playback every 5 seconds

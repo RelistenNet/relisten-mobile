@@ -15,6 +15,8 @@ import { SourceTrackOfflineInfo } from '@/relisten/realm/models/source_track_off
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { PlayerState } from '@/relisten/realm/models/player_state';
 import { UserSettings } from '@/relisten/realm/models/user_settings';
+import { LastFmSettings } from '@/relisten/realm/models/lastfm_settings';
+import { LastFmScrobbleEntry } from '@/relisten/realm/models/lastfm_scrobble_entry';
 import {
   Popularity,
   PopularityWindow,
@@ -41,11 +43,13 @@ const realmConfig: Realm.Configuration = {
     PlaybackHistoryEntry,
     PlayerState,
     UserSettings,
+    LastFmSettings,
+    LastFmScrobbleEntry,
     Popularity,
     PopularityWindow,
     PopularityWindows,
   ],
-  schemaVersion: 11,
+  schemaVersion: 12,
   // As to not conflict with the prior versions default.realm that isn't readable with this version of the SDK
   path: './relisten.realm',
 };

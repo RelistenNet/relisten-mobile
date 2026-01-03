@@ -18,6 +18,9 @@ import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useActionSheet } from '@expo/react-native-action-sheet';
 import { useState } from 'react';
 import { Switch, SwitchProps, TextInput, TextInputProps } from 'react-native';
+import { LastFmAuth } from '@/relisten/lastfm/lastfm_auth';
+import { LastFmClient } from '@/relisten/lastfm/lastfm_client';
+import { useLastFmSettings } from '@/relisten/realm/models/lastfm_settings_repo';
 
 interface BaseSettings {
   label: string;
@@ -278,6 +281,93 @@ function EnumPicker({
   return <RelistenButton onPress={showOptions}>{currentLabel}</RelistenButton>;
 }
 
+function LastFmSettingsSection() {
+  const realm = useRealm();
+  const lastFmSettings = useLastFmSettings();
+
+  const isConfigured = LastFmClient.hasEnv();
+  const username = lastFmSettings.username;
+  const isConnected = !!username;
+  const isEnabled = lastFmSettings.enabledWithDefault();
+  const isAuthInvalid = lastFmSettings.authInvalidWithDefault();
+
+  const onEnable = async () => {
+    await LastFmAuth.startAuth();
+  };
+
+  const onReconnect = async () => {
+    await LastFmAuth.startAuth();
+  };
+
+  const onDisconnect = async () => {
+    await LastFmAuth.disconnect(realm);
+  };
+
+  const onToggleEnabled = (nextValue: boolean) => {
+    realm.write(() => {
+      lastFmSettings.upsert({ enabled: nextValue });
+    });
+  };
+
+  return (
+    <Flex column>
+      <SectionHeader title="Last.fm" />
+
+      <Flex column className="gap-4 p-4">
+        {!isConnected && (
+          <RowWithAction
+            title="Enable Last.fm Scrobbling"
+            subtitle="Connect your Last.fm account to scrobble plays"
+          >
+            <RelistenButton
+              asyncOnPress={onEnable}
+              automaticLoadingIndicator
+              disabled={!isConfigured}
+              disabledPopoverText="Missing Last.fm API keys"
+            >
+              Enable
+            </RelistenButton>
+          </RowWithAction>
+        )}
+
+        {isConnected && (
+          <>
+            <RowWithAction
+              title={`Connected as ${username}`}
+              subtitle="Enable or disable scrobbling"
+            >
+              <InternalSwitch value={isEnabled} onValueChange={onToggleEnabled} />
+            </RowWithAction>
+
+            {isAuthInvalid && (
+              <RowWithAction title="Auth expired" subtitle="Reconnect to resume scrobbling">
+                <RelistenButton
+                  asyncOnPress={onReconnect}
+                  automaticLoadingIndicator
+                  disabled={!isConfigured}
+                  disabledPopoverText="Missing Last.fm API keys"
+                >
+                  Reconnect
+                </RelistenButton>
+              </RowWithAction>
+            )}
+
+            <RowWithAction title="Disconnect" subtitle="Stop scrobbling and remove authorization">
+              <RelistenButton
+                intent="outline"
+                asyncOnPress={onDisconnect}
+                automaticLoadingIndicator
+              >
+                Disconnect
+              </RelistenButton>
+            </RowWithAction>
+          </>
+        )}
+      </Flex>
+    </Flex>
+  );
+}
+
 export function RelistenSettings() {
   const realm = useRealm();
   const settings = useUserSettings();
@@ -334,6 +424,8 @@ export function RelistenSettings() {
           </RowWithAction>
         ))}
       </Flex>
+
+      <LastFmSettingsSection />
     </Flex>
   );
 }

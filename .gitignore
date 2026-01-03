@@ -100,3 +100,4 @@ modules/relisten-audio-player/android/build
 /builds
 
 .vscode/*
+.env.local

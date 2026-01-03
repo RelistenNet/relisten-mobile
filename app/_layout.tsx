@@ -26,6 +26,8 @@ import { RelistenCastProvider } from '@/relisten/casting/cast_provider';
 import { ActionSheetProvider } from '@expo/react-native-action-sheet';
 import FlashMessage from 'react-native-flash-message';
 import { PlaybackHistoryReporterComponent } from '@/relisten/components/playback_history_reporter';
+import { LastFmReporterComponent } from '@/relisten/lastfm/lastfm_reporter_component';
+import { LastFmAuthListener } from '@/relisten/lastfm/lastfm_auth_listener';
 import * as Sentry from '@sentry/react-native';
 import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
 import { LogBox } from 'react-native';
@@ -120,6 +122,8 @@ function TabLayout() {
         <RelistenPlayerProvider>
           <RelistenCastProvider>
             <PlaybackHistoryReporterComponent />
+            <LastFmReporterComponent />
+            <LastFmAuthListener />
             <ThemeProvider
               value={{
                 dark: true,
