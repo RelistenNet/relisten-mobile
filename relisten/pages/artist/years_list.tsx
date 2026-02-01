@@ -1,4 +1,8 @@
-import { FilteringOptions, FilteringProvider } from '@/relisten/components/filtering/filters';
+import {
+  FilteringOptions,
+  FilteringProvider,
+  useFilters,
+} from '@/relisten/components/filtering/filters';
 import { useMemo } from 'react';
 import { Artist } from '@/relisten/realm/models/artist';
 import Realm from 'realm';
@@ -18,11 +22,16 @@ import Plur from '@/relisten/components/plur';
 import { SourceTrackSucceededIndicator } from '@/relisten/components/source/source_track_offline_indicator';
 import { YEAR_FILTERS, YearFilterKey } from '@/relisten/pages/artist/years_filters';
 import { YearsHeader } from '@/relisten/pages/artist/years_header';
+import { PopularityIndicator } from '@/relisten/components/popularity_indicator';
 
 const YearListItem = ({ year }: { year: Year }) => {
   const nextRoute = useRoute('year/[yearUuid]');
   const metadata = useYearMetadata(year);
   const hasOfflineTracks = year.hasOfflineTracks;
+  const { filters } = useFilters<YearFilterKey, Year>();
+  const isTrendingSort = filters.some(
+    (filter) => filter.active && filter.persistenceKey === YearFilterKey.Trending
+  );
 
   return (
     <Link
@@ -38,7 +47,10 @@ const YearListItem = ({ year }: { year: Year }) => {
       <SectionedListItem>
         <Flex cn="justify-between items-center" full>
           <Flex column cn="flex-1">
-            <RowTitle>{year.year}</RowTitle>
+            <Flex cn="items-center justify-between">
+              <RowTitle>{year.year}</RowTitle>
+              <PopularityIndicator popularity={year.popularity} isTrendingSort={isTrendingSort} />
+            </Flex>
             <SubtitleRow>
               <SubtitleText>
                 <Plur word="show" count={metadata.shows} />

@@ -106,7 +106,7 @@ const FavoritesEmptyState = ({ onViewAll }: { onViewAll: () => void }) => {
         go-tos.
       </RelistenText>
       <View className="pt-4">
-        <RelistenButton onPress={onViewAll}>Browse all 4,500+ artists</RelistenButton>
+        <RelistenButton onPress={onViewAll}>Browse all 4,000+ artists</RelistenButton>
       </View>
     </View>
   );

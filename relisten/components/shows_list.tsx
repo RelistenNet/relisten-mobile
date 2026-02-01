@@ -9,6 +9,7 @@ import {
   FilteringProvider,
   searchForSubstring,
   SortDirection,
+  useFilters,
 } from './filtering/filters';
 import Flex from './flex';
 import Plur from './plur';
@@ -20,6 +21,7 @@ import { SourceTrackSucceededIndicator } from './source/source_track_offline_ind
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import colors from 'tailwindcss/colors';
 import { ShowLink } from '@/relisten/util/push_show';
+import { PopularityIndicator } from '@/relisten/components/popularity_indicator';
 
 interface ShowListItemProps {
   show: Show;
@@ -28,6 +30,10 @@ interface ShowListItemProps {
 
 export const ShowListItem = ({ show, children }: ShowListItemProps) => {
   const { fontScale } = useWindowDimensions();
+  const { filters } = useFilters<ShowFilterKey, Show>();
+  const isTrendingSort = filters.some(
+    (filter) => filter.active && filter.persistenceKey === ShowFilterKey.Trending
+  );
 
   return (
     <ShowLink
@@ -38,27 +44,38 @@ export const ShowListItem = ({ show, children }: ShowListItemProps) => {
       asChild
     >
       <SectionedListItem>
-        <Flex cn="flex justify-between" full>
-          <Flex cn="flex-1 pr-2" column>
-            <Flex cn="items-center flex-wrap" style={{ gap: 8 }}>
+        <Flex className="flex justify-between" full>
+          <Flex className="flex-1 pr-2 grow" column>
+            <Flex className="items-center flex-wrap" style={{ gap: 8 }}>
               <RowTitle>{show.displayDate}</RowTitle>
               {show.hasSoundboardSource && (
-                <RelistenText cn="text-xs font-bold text-relisten-blue-600">SBD</RelistenText>
+                <RelistenText className="text-xs font-bold text-relisten-blue-600">
+                  SBD
+                </RelistenText>
               )}
               {show?.isFavorite && (
                 <MaterialCommunityIcons name="cards-heart" color={colors.blue['200']} />
               )}
               {show?.hasOfflineTracks && <SourceTrackSucceededIndicator />}
-              <View className="grow" />
-              <SubtitleText>
-                {show.avgRating != 0 && show.humanizedAvgRating() + '\u00A0★\u00A0•\u00A0'}
-                {show.humanizedAvgDuration()}
-              </SubtitleText>
+              <View className="grow">
+                <Flex className="items-center justify-end">
+                  <PopularityIndicator
+                    popularity={show.popularity}
+                    isTrendingSort={isTrendingSort}
+                  />
+                  <SubtitleText>
+                    {show.avgRating != 0 && '\u00A0\u00A0' + show.humanizedAvgRating() + '\u00A0★'}
+                  </SubtitleText>
+                </Flex>
+              </View>
             </Flex>
-            <SubtitleRow>
-              <SubtitleText numberOfLines={fontScale > 1.5 ? 3 : 2}>
-                {show.venue && `${show.venue.name}, ${show.venue.location}\u00A0•\u00A0`}
+            <SubtitleRow className="flex-row flex-1">
+              <SubtitleText numberOfLines={fontScale > 1.5 ? 3 : 2} className="flex-shrink">
+                {show.venue && `${show.venue.name}, ${show.venue.location}`}
+              </SubtitleText>
+              <SubtitleText className="text-right pl-2">
                 <Plur word="tape" count={show.sourceCount} />
+                {'\u00A0•\u00A0' + show.humanizedAvgDuration()}
               </SubtitleText>
             </SubtitleRow>
             {children}
