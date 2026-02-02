@@ -57,10 +57,31 @@ const realmConfig: Realm.Configuration = {
 export const { RealmProvider, useRealm, useObject, useQuery } = createRealmContext(realmConfig);
 
 export let realm: Realm | undefined = undefined;
+let realmOpenPromise: Promise<Realm> | null = null;
 
 export function setRealm(newRealm: Realm | undefined) {
   if (realm !== newRealm) {
     console.info('Realm database path', newRealm?.path);
     realm = newRealm;
   }
+}
+
+export async function openRealm(): Promise<Realm> {
+  if (realm) {
+    return realm;
+  }
+
+  if (!realmOpenPromise) {
+    realmOpenPromise = Realm.open(realmConfig)
+      .then((openedRealm) => {
+        setRealm(openedRealm);
+        return openedRealm;
+      })
+      .catch((error) => {
+        realmOpenPromise = null;
+        throw error;
+      });
+  }
+
+  return realmOpenPromise;
 }

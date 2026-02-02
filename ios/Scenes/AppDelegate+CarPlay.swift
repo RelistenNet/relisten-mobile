@@ -15,6 +15,9 @@ extension AppDelegate {
     print("[carplay-debug] Class: \(type(of: self)), Method: \(#function) role=\(connectingSceneSession.role)")
 
     if (connectingSceneSession.role == UISceneSession.Role.carTemplateApplication) {
+      // CarPlay can be launched before any phone UI exists; bootstrap RN early to avoid blank CarPlay screens.
+      // Note: this can run before didFinish sets launchOptions, so RN may start with nil launchOptions.
+      ensureReactNativeStartedForCarPlay()
       let scene =  UISceneConfiguration(name: "CarPlay", sessionRole: connectingSceneSession.role)
       scene.delegateClass = CarSceneDelegate.self
       return scene

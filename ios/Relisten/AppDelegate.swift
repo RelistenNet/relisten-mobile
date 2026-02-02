@@ -78,6 +78,7 @@ public class AppDelegate: ExpoAppDelegate {
     guard let factory = reactNativeFactory else { return }
 
     // If a phone UIWindowScene exists, prefer it; otherwise fall back to a scene-less window for CarPlay-only launches.
+    // Scene-less windows are a last resort (CarPlay-only cold start) and can have odd lifecycle/trait behavior.
     let bootstrapWindow: UIWindow
     if let windowScene = UIApplication.shared.connectedScenes
       .compactMap({ $0 as? UIWindowScene })
@@ -100,15 +101,20 @@ public class AppDelegate: ExpoAppDelegate {
 
     if let existingRoot = reactNativeRootViewController {
       // Reattach the existing bridge to the phone window so we don't create a second RN instance.
-      window.rootViewController = existingRoot
-      window.makeKeyAndVisible()
-
       if let bootstrapWindow = reactNativeBootstrapWindow, bootstrapWindow !== window {
-        // Clear the bootstrap window to avoid competing key windows and duplicate view hierarchies.
-        bootstrapWindow.isHidden = true
+        // Detach before reattaching so UIKit doesn't keep the controller bound to the old window.
         bootstrapWindow.rootViewController = nil
+        bootstrapWindow.isHidden = true
         reactNativeBootstrapWindow = nil
       }
+
+      window.rootViewController = existingRoot
+      window.makeKeyAndVisible()
+      existingRoot.view.frame = window.bounds
+      existingRoot.view.setNeedsLayout()
+      existingRoot.view.layoutIfNeeded()
+      // Note: reusing a root view controller across scenes can carry over prior traits.
+      // If we see UI/trait glitches on phone attach, consider recreating the root view here.
     } else if let factory = reactNativeFactory {
       factory.startReactNative(withModuleName: "main", in: window, launchOptions: launchOptions)
       reactNativeRootViewController = window.rootViewController

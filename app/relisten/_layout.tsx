@@ -6,16 +6,9 @@ import { Stack } from 'expo-router/stack';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { useEffect } from 'react';
 import { DownloadManager } from '@/relisten/offline/download_manager';
-import { useRelistenApi } from '@/relisten/api/context';
-import { useRealm } from '@/relisten/realm/schema';
-import { useCarPlaySetup } from '@/relisten/carplay/useCarPlaySetup';
 
 export default function TabLayout() {
   const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
-  const { apiClient } = useRelistenApi();
-  const realm = useRealm();
-
-  useCarPlaySetup(apiClient, realm);
 
   useEffect(() => {
     if (shouldMakeNetworkRequests) {

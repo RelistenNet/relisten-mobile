@@ -8,15 +8,12 @@ import { Slot, SplashScreen, useNavigationContainerRef } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Realm } from '@realm/react';
 
-import { RelistenApiProvider } from '@/relisten/api/context';
-import { RealmProvider, setRealm } from '@/relisten/realm/schema';
+import { RelistenApiProvider, useRelistenApi } from '@/relisten/api/context';
+import { RealmProvider, setRealm, useRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { StatusBar } from 'expo-status-bar';
 
-import dayjs from 'dayjs';
-import duration from 'dayjs/plugin/duration';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import localizedFormat from 'dayjs/plugin/localizedFormat';
+import '@/relisten/util/dayjs_setup';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import useCacheAssets from './useCacheAssets';
 
@@ -32,13 +29,10 @@ import * as Sentry from '@sentry/react-native';
 import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
 import { LogBox } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { useCarPlaySetup } from '@/relisten/carplay/useCarPlaySetup';
 
 // c.f. https://github.com/meliorence/react-native-render-html/issues/661#issuecomment-2453476566
 LogBox.ignoreLogs([/Support for defaultProps will be removed/]);
-
-dayjs.extend(duration);
-dayjs.extend(relativeTime);
-dayjs.extend(localizedFormat);
 
 SplashScreen.preventAutoHideAsync();
 
@@ -74,6 +68,30 @@ if (!__DEV__) {
   Sentry.init({});
 }
 
+function RealmBridge() {
+  console.log('@alecgorge: RealmBridge');
+  const realm = useRealm();
+
+  useEffect(() => {
+    setRealm(realm);
+    return () => setRealm(undefined);
+  }, [realm]);
+
+  return null;
+}
+
+function CarPlayBootstrap() {
+  console.log('@alecgorge: CarPlayBootstrap');
+  const realm = useRealm();
+  const { apiClient } = useRelistenApi();
+
+  useCarPlaySetup(apiClient, realm);
+
+  return null;
+}
+
+console.log('@alecgorge: _layout.tsx');
+
 function TabLayout() {
   const realmRef = useRef<Realm | null>(null);
 
@@ -82,14 +100,6 @@ function TabLayout() {
   const [hasRootViewLayoutFinished, setHasRootViewLayoutFinished] = useState(false);
 
   const isAppReady = useCacheAssets();
-
-  useEffect(() => {
-    if (realmRef.current) {
-      setRealm(realmRef.current);
-    } else {
-      setRealm(undefined);
-    }
-  }, [realmRef.current]);
 
   useEffect(() => {
     if (!navigation?.isReady()) return;
@@ -124,6 +134,8 @@ function TabLayout() {
             <PlaybackHistoryReporterComponent />
             <LastFmReporterComponent />
             <LastFmAuthListener />
+            <RealmBridge />
+            <CarPlayBootstrap />
             <ThemeProvider
               value={{
                 dark: true,

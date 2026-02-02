@@ -1,5 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import React, { ComponentProps } from 'react';
+import { ComponentProps } from 'react';
 import Flex from '@/relisten/components/flex';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { Popularity } from '@/relisten/realm/models/popularity';
