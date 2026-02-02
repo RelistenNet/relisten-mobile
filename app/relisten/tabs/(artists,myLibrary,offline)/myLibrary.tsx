@@ -15,7 +15,10 @@ import { tw } from '@/relisten/util/tw';
 import { Link } from 'expo-router';
 import { PropsWithChildren, useMemo } from 'react';
 import { ScrollView, TouchableOpacity, View, ViewProps } from 'react-native';
-import { filterForUser } from '@/relisten/realm/realm_filters';
+import {
+  SourceTrackOfflineInfoStatus,
+  SourceTrackOfflineInfoType,
+} from '@/relisten/realm/models/source_track_offline_info';
 
 function MyLibrarySectionHeader({ children, className, ...props }: PropsWithChildren<ViewProps>) {
   return (
@@ -64,7 +67,11 @@ function FavoriteShows() {
     {
       type: Show,
       query: (query) =>
-        filterForUser(query, { isFavorite: true, isPlayableOffline: true, operator: 'OR' }),
+        query.filtered(
+          'isFavorite == true OR SUBQUERY(sourceTracks, $item, $item.offlineInfo.status == $0 AND $item.offlineInfo.type == $1).@count > 0',
+          SourceTrackOfflineInfoStatus.Succeeded,
+          SourceTrackOfflineInfoType.UserInitiated
+        ),
     },
     []
   );
