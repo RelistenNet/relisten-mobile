@@ -1,6 +1,7 @@
 import React, { PropsWithChildren } from 'react';
 import { Platform, StyleProp, Text, TextProps, TextStyle } from 'react-native';
 import { tw } from '../util/tw';
+import { useIsDesktopLayout } from '@/relisten/util/layout';
 
 export const RelistenText: React.FC<PropsWithChildren<TextProps> & { cn?: string }> = ({
   children,
@@ -8,6 +9,7 @@ export const RelistenText: React.FC<PropsWithChildren<TextProps> & { cn?: string
   className,
   ...props
 }) => {
+  const isDesktopLayout = useIsDesktopLayout();
   const fontProps: StyleProp<TextStyle> = {};
 
   if (Platform.OS === 'android') {
@@ -16,7 +18,12 @@ export const RelistenText: React.FC<PropsWithChildren<TextProps> & { cn?: string
 
   return (
     <Text
-      className={tw('text-base tabular-nums text-white', cn, className)}
+      className={tw(
+        isDesktopLayout ? 'text-lg' : 'text-base',
+        'tabular-nums text-white',
+        cn,
+        className
+      )}
       selectable={true}
       {...props}
     >

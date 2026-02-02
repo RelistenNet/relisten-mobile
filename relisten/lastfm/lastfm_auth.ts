@@ -13,13 +13,29 @@ const LASTFM_AUTH_TOKEN_KEY = 'lastfm_auth_token';
 const LASTFM_AUTH_PATH = 'lastfm-auth';
 
 export const LastFmAuth = {
+  async hasPendingAuth(): Promise<boolean> {
+    return !!(await AsyncStorage.getItem(LASTFM_AUTH_TOKEN_KEY));
+  },
   getCallbackPath() {
     return LASTFM_AUTH_PATH;
   },
   isCallbackUrl(url: string) {
     const parsed = Linking.parse(url);
+    const rawPath = parsed.path ?? '';
+    const normalizedPath = rawPath.replace(/^\//, '');
+    const withoutExpoPrefix = normalizedPath.startsWith('--/')
+      ? normalizedPath.slice(3)
+      : normalizedPath;
 
-    return parsed.path === LASTFM_AUTH_PATH;
+    if (withoutExpoPrefix === LASTFM_AUTH_PATH) {
+      return true;
+    }
+
+    if (parsed.hostname === LASTFM_AUTH_PATH) {
+      return true;
+    }
+
+    return false;
   },
   async startAuth(): Promise<void> {
     const client = LastFmClient.fromEnv();

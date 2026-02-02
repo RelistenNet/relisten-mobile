@@ -5,15 +5,17 @@ import { Stack } from 'expo-router/stack';
 import { useEffect } from 'react';
 import { Image } from 'react-native';
 import RelistenWhite from '@/assets/relisten_white.png';
+import { useIsDesktopLayout } from '@/relisten/util/layout';
 
 export default function ArtistsLayout() {
   const bottomTabBarHeight = useBottomTabBarHeight();
+  const isDesktopLayout = useIsDesktopLayout();
 
   const { setTabBarHeight } = useRelistenPlayerBottomBarContext();
 
   useEffect(() => {
-    setTabBarHeight(bottomTabBarHeight);
-  }, [bottomTabBarHeight, setTabBarHeight]);
+    setTabBarHeight(isDesktopLayout ? 0 : bottomTabBarHeight);
+  }, [bottomTabBarHeight, isDesktopLayout, setTabBarHeight]);
 
   return (
     <Stack screenOptions={{ headerShadowVisible: false }}>

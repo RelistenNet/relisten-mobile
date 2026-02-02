@@ -313,7 +313,7 @@ function LastFmSettingsSection() {
     <Flex column>
       <SectionHeader title="Last.fm" />
 
-      <Flex column className="gap-4 p-4">
+      <Flex column className="gap-4 p-4 pr-6">
         {!isConnected && (
           <RowWithAction
             title="Enable Last.fm Scrobbling"
@@ -331,37 +331,30 @@ function LastFmSettingsSection() {
         )}
 
         {isConnected && (
-          <>
-            <RowWithAction
-              title={`Connected as ${username}`}
-              subtitle="Enable or disable scrobbling"
+          <RowWithAction title={`Connected as ${username}`} subtitle="Enable or disable scrobbling">
+            <InternalSwitch value={isEnabled} onValueChange={onToggleEnabled} />
+          </RowWithAction>
+        )}
+
+        {isAuthInvalid && (
+          <RowWithAction title="Auth expired" subtitle="Reconnect to resume scrobbling">
+            <RelistenButton
+              asyncOnPress={onReconnect}
+              automaticLoadingIndicator
+              disabled={!isConfigured}
+              disabledPopoverText="Missing Last.fm API keys"
             >
-              <InternalSwitch value={isEnabled} onValueChange={onToggleEnabled} />
-            </RowWithAction>
+              Reconnect
+            </RelistenButton>
+          </RowWithAction>
+        )}
 
-            {isAuthInvalid && (
-              <RowWithAction title="Auth expired" subtitle="Reconnect to resume scrobbling">
-                <RelistenButton
-                  asyncOnPress={onReconnect}
-                  automaticLoadingIndicator
-                  disabled={!isConfigured}
-                  disabledPopoverText="Missing Last.fm API keys"
-                >
-                  Reconnect
-                </RelistenButton>
-              </RowWithAction>
-            )}
-
-            <RowWithAction title="Disconnect" subtitle="Stop scrobbling and remove authorization">
-              <RelistenButton
-                intent="outline"
-                asyncOnPress={onDisconnect}
-                automaticLoadingIndicator
-              >
-                Disconnect
-              </RelistenButton>
-            </RowWithAction>
-          </>
+        {isConnected && (
+          <RowWithAction title="Disconnect" subtitle="Stop scrobbling and remove authorization">
+            <RelistenButton intent="outline" asyncOnPress={onDisconnect} automaticLoadingIndicator>
+              Disconnect
+            </RelistenButton>
+          </RowWithAction>
         )}
       </Flex>
     </Flex>
@@ -399,7 +392,7 @@ export function RelistenSettings() {
     <Flex column>
       <SectionHeader title="Settings" />
 
-      <Flex column className="gap-4 p-4">
+      <Flex column className="gap-4 p-4 pr-6">
         {SETTINGS.map((setting) => (
           <RowWithAction key={setting.label} title={setting.label} subtitle={setting.subtitle}>
             {setting.type === 'bool' && (

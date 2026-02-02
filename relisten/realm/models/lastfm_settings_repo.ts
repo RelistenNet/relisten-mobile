@@ -14,7 +14,12 @@ export const useLastFmSettings = () => {
     _calledDefaultObject = true;
   }
 
-  const liveObject = useObject(LastFmSettings, DEFAULT_LASTFM_SETTINGS_SENTINEL)!;
+  const liveObject = useObject(LastFmSettings, DEFAULT_LASTFM_SETTINGS_SENTINEL, [
+    'enabled',
+    'username',
+    'lastAuthAt',
+    'authInvalid',
+  ])!;
 
   return liveObject!;
 };

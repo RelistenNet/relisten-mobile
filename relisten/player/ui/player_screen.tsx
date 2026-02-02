@@ -145,12 +145,17 @@ export function ScrubberRow() {
   );
 }
 
-function useNavigateToCurrentTrackSheet() {
+type NavigateToCurrentTrackSheetOptions = {
+  dismissOnNavigate?: boolean;
+};
+
+function useNavigateToCurrentTrackSheet(options?: NavigateToCurrentTrackSheetOptions) {
   const { showActionSheetWithOptions } = useActionSheet();
   const navigation = useNavigation();
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
   const groupSegment = useGroupSegment(true);
   const { pushShow } = usePushShowRespectingUserSettings();
+  const dismissOnNavigate = options?.dismissOnNavigate ?? true;
 
   const artist = currentPlayerTrack?.sourceTrack?.artist;
   const show = currentPlayerTrack?.sourceTrack?.show;
@@ -172,7 +177,9 @@ function useNavigateToCurrentTrackSheet() {
       (selectedIndex?: number) => {
         switch (selectedIndex) {
           case 0:
-            navigation.goBack();
+            if (dismissOnNavigate) {
+              navigation.goBack();
+            }
             router.push({
               pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/`,
               params: {
@@ -181,7 +188,9 @@ function useNavigateToCurrentTrackSheet() {
             });
             break;
           case 1:
-            navigation.goBack();
+            if (dismissOnNavigate) {
+              navigation.goBack();
+            }
             pushShow({
               artist,
               showUuid: show.uuid,
@@ -195,13 +204,19 @@ function useNavigateToCurrentTrackSheet() {
         }
       }
     );
-  }, [artist, router, show, source]);
+  }, [artist, dismissOnNavigate, groupSegment, navigation, pushShow, router, show, source]);
 
   return { showNavigateToCurrentTrackActionSheet };
 }
 
-function CurrentTrackInfo() {
-  const { showNavigateToCurrentTrackActionSheet } = useNavigateToCurrentTrackSheet();
+type CurrentTrackInfoProps = {
+  dismissOnNavigate?: boolean;
+};
+
+function CurrentTrackInfo({ dismissOnNavigate }: CurrentTrackInfoProps) {
+  const { showNavigateToCurrentTrackActionSheet } = useNavigateToCurrentTrackSheet({
+    dismissOnNavigate,
+  });
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
   const progressObj = useNativePlaybackProgress();
   const { isCasting, deviceName } = useRelistenCastStatus();
@@ -539,11 +554,21 @@ function PlayerQueue() {
   );
 }
 
-export function PlayerScreen() {
+export type PlayerScreenVariant = 'modal' | 'embedded';
+
+type PlayerScreenProps = {
+  variant?: PlayerScreenVariant;
+};
+
+export function PlayerScreen({ variant = 'modal' }: PlayerScreenProps) {
   const navigation = useNavigation<NativeStackNavigationProp<ParamListBase>>();
   const { showNavigateToCurrentTrackActionSheet } = useNavigateToCurrentTrackSheet();
+  const isEmbedded = variant === 'embedded';
 
   useEffect(() => {
+    if (isEmbedded) {
+      return;
+    }
     navigation.setOptions({
       headerLeft: () => {
         return (
@@ -565,7 +590,7 @@ export function PlayerScreen() {
         );
       },
     });
-  }, [navigation]);
+  }, [isEmbedded, navigation, showNavigateToCurrentTrackActionSheet]);
 
   return (
     <SafeAreaView className="flex-1 bg-relisten-blue-800" edges={['bottom']}>
@@ -574,7 +599,7 @@ export function PlayerScreen() {
           <PlayerQueue />
         </View>
         <Flex column className="flex-shrink border-t border-relisten-blue-700 px-8 pt-4">
-          <CurrentTrackInfo />
+          <CurrentTrackInfo dismissOnNavigate={!isEmbedded} />
           <ScrubberRow />
           <PlayerControls />
           <PlayerSecondaryControls />

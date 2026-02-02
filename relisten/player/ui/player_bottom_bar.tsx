@@ -18,6 +18,7 @@ import * as Progress from 'react-native-progress';
 import AirPlayButton from 'react-native-airplay-button';
 import { RelistenCastButton, useRelistenCastStatus } from '@/relisten/casting/cast_ui';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
+import { useIsDesktopLayout } from '@/relisten/util/layout';
 
 function OfflineBanner() {
   return (
@@ -144,8 +145,9 @@ export function PlayerBottomBar() {
 export const useIsPlayerBottomBarVisible = () => {
   const playbackState = useRelistenPlayerPlaybackState();
   const tracks = useRelistenPlayerQueueOrderedTracks();
+  const isDesktopLayout = useIsDesktopLayout();
 
-  return playbackState !== undefined && tracks.length > 0;
+  return !isDesktopLayout && playbackState !== undefined && tracks.length > 0;
 };
 
 export interface RelistenPlayerBottomBarContextProps {

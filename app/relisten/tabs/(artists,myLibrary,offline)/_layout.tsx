@@ -1,6 +1,7 @@
 import { useRelistenPlayerBottomBarContext } from '@/relisten/player/ui/player_bottom_bar';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useGroupSegment } from '@/relisten/util/routes';
+import { useIsDesktopLayout } from '@/relisten/util/layout';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Stack } from 'expo-router/stack';
@@ -22,12 +23,13 @@ const TITLES = {
 export default function ArtistsLayout() {
   const groupSegment = useGroupSegment();
   const bottomTabBarHeight = useBottomTabBarHeight();
+  const isDesktopLayout = useIsDesktopLayout();
 
   const { setTabBarHeight } = useRelistenPlayerBottomBarContext();
 
   useEffect(() => {
-    setTabBarHeight(bottomTabBarHeight);
-  }, [bottomTabBarHeight, setTabBarHeight]);
+    setTabBarHeight(isDesktopLayout ? 0 : bottomTabBarHeight);
+  }, [bottomTabBarHeight, isDesktopLayout, setTabBarHeight]);
 
   return (
     <Stack screenOptions={{ headerShadowVisible: false }}>

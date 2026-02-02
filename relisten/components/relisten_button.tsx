@@ -12,6 +12,7 @@ import Popover from 'react-native-popover-view';
 
 import { cva, type VariantProps } from 'class-variance-authority';
 import { tw } from '../util/tw';
+import { useIsDesktopLayout } from '@/relisten/util/layout';
 
 const buttonVariants = cva('flex-row items-center justify-center border border-transparent', {
   variants: {
@@ -89,7 +90,13 @@ export const RelistenButton = React.forwardRef<TouchableOpacityRef, ButtonProps>
     },
     ref
   ) => {
-    const cls = tw(buttonVariants({ disabled, intent, rounded }), cn, className);
+    const isDesktopLayout = useIsDesktopLayout();
+    const cls = tw(
+      buttonVariants({ disabled, intent, rounded }),
+      isDesktopLayout && 'min-h-[40px] px-5 py-3',
+      cn,
+      className
+    );
 
     const [isLoading, setIsLoading] = useState<boolean>(false);
 

@@ -120,18 +120,6 @@ const ArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => 
 
   const allArtistsRoute = `/relisten/tabs/${groupSegment}/all`;
 
-  if (isOfflineTab && artists.length === 0) {
-    return (
-      <NonIdealState
-        icon="cloud-off"
-        title="No offline shows yet"
-        description="Download tracks from any show and they'll appear here for offline playback."
-        actionText="Browse all artists"
-        onAction={() => router.push(allArtistsRoute)}
-      />
-    );
-  }
-
   const { all, favorites, featured } = useMemo(() => {
     const allSorted = [...artists].sort((a, b) => a.sortName.localeCompare(b.sortName));
     const favoritesSorted = allSorted
@@ -189,6 +177,18 @@ const ArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => 
 
     return sections;
   }, [all, favorites, featured, isOfflineTab]);
+
+  if (isOfflineTab && artists.length === 0) {
+    return (
+      <NonIdealState
+        icon="cloud-off"
+        title="No offline shows yet"
+        description="Download tracks from any show and they'll appear here for offline playback."
+        actionText="Browse all artists"
+        onAction={() => router.push(allArtistsRoute)}
+      />
+    );
+  }
 
   return (
     <RelistenSectionList
