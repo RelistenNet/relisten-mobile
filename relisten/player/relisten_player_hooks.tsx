@@ -4,6 +4,7 @@ import { useRealm } from '@/relisten/realm/schema';
 import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
 import { AutocacheStreamedMusicSetting } from '@/relisten/realm/models/user_settings';
 import { PlaybackSource, sharedStates } from '@/relisten/player/shared_state';
+import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 
 export interface RelistenPlayerProps {
   player: RelistenPlayer;
@@ -19,7 +20,15 @@ export const RelistenPlayerProvider = ({ children }: PropsWithChildren<object>) 
 
   useEffect(() => {
     if (realm) {
-      player.queue.restorePlayerState(realm).then(() => {});
+      const hasActivePlayback =
+        player.state !== RelistenPlaybackState.Stopped ||
+        player.queue.orderedTracks.length > 0 ||
+        player.playbackIntentStarted ||
+        player.initialPlaybackStarted;
+
+      if (!hasActivePlayback) {
+        player.queue.restorePlayerState(realm).then(() => {});
+      }
     }
   }, [player, realm]);
 

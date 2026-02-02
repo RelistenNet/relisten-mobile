@@ -4,6 +4,8 @@ import { RelistenApiClient } from '@/relisten/api/client';
 import { setupCarPlay } from '@/relisten/carplay/templates';
 import { openRealm } from '@/relisten/realm/schema';
 import { Realm } from '@realm/react';
+import { PlaybackSource, sharedStates } from '@/relisten/player/shared_state';
+import { RelistenPlayer } from '@/relisten/player/relisten_player';
 
 type CarPlayDependencyInput = {
   apiClient?: RelistenApiClient;
@@ -15,7 +17,6 @@ let providedRealm: Realm | null = null;
 let teardown: (() => void) | null = null;
 let connected = false;
 let setupInFlight: Promise<void> | null = null;
-let setupSource: 'provided' | 'fallback' | null = null;
 
 const ensureApiClient = () => {
   if (!providedApiClient) {
@@ -49,7 +50,6 @@ const ensureSetup = () => {
     }
 
     teardown = setupCarPlay(realm, apiClient);
-    setupSource = providedRealm && providedApiClient ? 'provided' : 'fallback';
   })()
     .catch((error) => {
       console.warn('CarPlay setup failed', error);
@@ -72,12 +72,8 @@ export const setCarPlayDependencies = ({ apiClient, realm }: CarPlayDependencyIn
     return;
   }
 
-  if (teardown && setupSource === 'fallback' && providedApiClient && providedRealm) {
-    teardown();
-    teardown = null;
-    setupSource = null;
-  }
-
+  // If we already have an active template stack, keep it to avoid resetting CarPlay UI.
+  // The provided dependencies will be used on the next setup (e.g., after disconnect/reconnect).
   ensureSetup();
 };
 
@@ -86,8 +82,22 @@ const registerCarPlayBootstrap = () => {
     return;
   }
 
+  const prepareNativeAudioSession = () => {
+    if (sharedStates.playbackSource.lastState() === PlaybackSource.Cast) {
+      return;
+    }
+
+    // Ensure MPRemoteCommandCenter + Now Playing are ready for CarPlay controls,
+    // even if the app is cold-started from the CarPlay UI.
+    RelistenPlayer.DEFAULT_INSTANCE.prepareAudioSession();
+  };
+
   const handleConnect = () => {
     connected = true;
+    if (sharedStates.playbackSource.lastState() !== PlaybackSource.Cast) {
+      sharedStates.playbackSource.setState(PlaybackSource.Native);
+    }
+    prepareNativeAudioSession();
     ensureSetup();
   };
 
@@ -95,7 +105,6 @@ const registerCarPlayBootstrap = () => {
     connected = false;
     teardown?.();
     teardown = null;
-    setupSource = null;
   };
 
   CarPlay.registerOnConnect(handleConnect);
@@ -103,6 +112,7 @@ const registerCarPlayBootstrap = () => {
 
   if (CarPlay.connected) {
     connected = true;
+    prepareNativeAudioSession();
     ensureSetup();
   }
 };

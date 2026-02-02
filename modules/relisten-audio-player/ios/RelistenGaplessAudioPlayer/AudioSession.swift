@@ -22,21 +22,19 @@ extension RelistenGaplessAudioPlayer {
 
         // Register for Route Change notifications
         if shouldActivate, !audioSessionObserversSetUp {
-            NSLog("[relisten-audio-player] setupAudioSession(shouldActivate: \(shouldActivate)): setting up notifications and command center")
+            NSLog("[relisten-audio-player] setupAudioSession(shouldActivate: \(shouldActivate)): setting up notifications")
 
             NotificationCenter.default.addObserver(self, selector: #selector(handleRouteChange), name: AVAudioSession.routeChangeNotification, object: session)
             NotificationCenter.default.addObserver(self, selector: #selector(handleInterruption), name: AVAudioSession.interruptionNotification, object: session)
             NotificationCenter.default.addObserver(self, selector: #selector(handleMediaServicesWereReset), name: AVAudioSession.mediaServicesWereResetNotification, object: session)
             NotificationCenter.default.addObserver(self, selector: #selector(handleMediaServicesWereLost), name: AVAudioSession.mediaServicesWereLostNotification, object: session)
 
-            addCommandCenterListeners()
-
-            DispatchQueue.main.async {
-                UIApplication.shared.beginReceivingRemoteControlEvents()
-            }
-
             audioSessionObserversSetUp = true
         }
+
+        // Always ensure the command center is ready; some CarPlay cold-start flows
+        // end up with only Play enabled unless this is registered on the main queue.
+        addCommandCenterListeners()
 
         if !audioSessionAlreadySetUp {
             delegateQueue.async {
@@ -47,6 +45,13 @@ extension RelistenGaplessAudioPlayer {
     }
     
     internal func addCommandCenterListeners() {
+        if !Thread.isMainThread {
+            DispatchQueue.main.async { [weak self] in
+                self?.addCommandCenterListeners()
+            }
+            return
+        }
+
         NSLog("[relisten-audio-player] addCommandCenterListeners()")
 
         commandCenter.playCommand.removeTarget(_resume)
@@ -80,6 +85,8 @@ extension RelistenGaplessAudioPlayer {
         // Explicitly disable skip commands to prevent them from interfering with track commands
         commandCenter.skipForwardCommand.isEnabled = false
         commandCenter.skipBackwardCommand.isEnabled = false
+
+        UIApplication.shared.beginReceivingRemoteControlEvents()
     }
 
     internal func tearDownAudioSession() {
