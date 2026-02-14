@@ -17,7 +17,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PlayerBottomBar, useIsPlayerBottomBarVisible } from './player_bottom_bar';
-import { PlayerScreen } from './player_screen';
+import { EmbeddedPlayerScreen } from './player_screen';
 import {
   PLAYER_SHEET_STATES,
   PlayerSheetState,
@@ -299,7 +299,7 @@ export function PlayerSheetHost() {
               <MaterialCommunityIcons name="chevron-down" size={28} color="white" />
             </Pressable>
           </View>
-          <PlayerScreen variant="embedded" />
+          <EmbeddedPlayerScreen onDismissRequest={collapse} />
         </View>
       </View>
     );
@@ -340,7 +340,7 @@ export function PlayerSheetHost() {
                       <MaterialCommunityIcons name="chevron-down" size={28} color="white" />
                     </Pressable>
                   </View>
-                  <PlayerScreen variant="embedded" />
+                  <EmbeddedPlayerScreen onDismissRequest={collapse} />
                 </Animated.View>
               </Animated.View>
             </GestureDetector>
@@ -369,7 +369,7 @@ export function PlayerSheetHost() {
                     </View>
                   </View>
                 </GestureDetector>
-                <PlayerScreen variant="embedded" />
+                <EmbeddedPlayerScreen onDismissRequest={collapse} />
               </Animated.View>
             </Animated.View>
           )}

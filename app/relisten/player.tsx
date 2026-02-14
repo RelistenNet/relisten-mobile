@@ -17,6 +17,7 @@ export default function Page() {
     }
     hasHandledRedirect.current = true;
 
+    // Compatibility-only route: expanded player UI is hosted in /relisten/tabs.
     if (queueTracks.length > 0) {
       expand();
     }

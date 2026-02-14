@@ -44,6 +44,7 @@ import { RelistenCastButton, useRelistenCastStatus } from '@/relisten/casting/ca
 import { sharedStates } from '@/relisten/player/shared_state';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { PlayerRepeatState, PlayerShuffleState } from '@/relisten/player/relisten_player_queue';
+import { usePlayerSheetControls } from './player_sheet_state';
 
 export function ScrubberRow() {
   const progressObj = useNativePlaybackProgress();
@@ -146,16 +147,15 @@ export function ScrubberRow() {
 }
 
 type NavigateToCurrentTrackSheetOptions = {
-  dismissOnNavigate?: boolean;
+  onDismissRequest?: () => void;
 };
 
 function useNavigateToCurrentTrackSheet(options?: NavigateToCurrentTrackSheetOptions) {
   const { showActionSheetWithOptions } = useActionSheet();
-  const navigation = useNavigation();
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
   const groupSegment = useGroupSegment(true);
   const { pushShow } = usePushShowRespectingUserSettings();
-  const dismissOnNavigate = options?.dismissOnNavigate ?? true;
+  const onDismissRequest = options?.onDismissRequest;
 
   const artist = currentPlayerTrack?.sourceTrack?.artist;
   const show = currentPlayerTrack?.sourceTrack?.show;
@@ -177,9 +177,7 @@ function useNavigateToCurrentTrackSheet(options?: NavigateToCurrentTrackSheetOpt
       (selectedIndex?: number) => {
         switch (selectedIndex) {
           case 0:
-            if (dismissOnNavigate) {
-              navigation.goBack();
-            }
+            onDismissRequest?.();
             router.push({
               pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/`,
               params: {
@@ -188,9 +186,7 @@ function useNavigateToCurrentTrackSheet(options?: NavigateToCurrentTrackSheetOpt
             });
             break;
           case 1:
-            if (dismissOnNavigate) {
-              navigation.goBack();
-            }
+            onDismissRequest?.();
             pushShow({
               artist,
               showUuid: show.uuid,
@@ -204,18 +200,18 @@ function useNavigateToCurrentTrackSheet(options?: NavigateToCurrentTrackSheetOpt
         }
       }
     );
-  }, [artist, dismissOnNavigate, groupSegment, navigation, pushShow, router, show, source]);
+  }, [artist, groupSegment, onDismissRequest, pushShow, router, show, source]);
 
   return { showNavigateToCurrentTrackActionSheet };
 }
 
 type CurrentTrackInfoProps = {
-  dismissOnNavigate?: boolean;
+  onDismissRequest?: () => void;
 };
 
-function CurrentTrackInfo({ dismissOnNavigate }: CurrentTrackInfoProps) {
+function CurrentTrackInfo({ onDismissRequest }: CurrentTrackInfoProps) {
   const { showNavigateToCurrentTrackActionSheet } = useNavigateToCurrentTrackSheet({
-    dismissOnNavigate,
+    onDismissRequest,
   });
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
   const progressObj = useNativePlaybackProgress();
@@ -513,14 +509,21 @@ function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; 
   );
 }
 
-function PlayerQueue() {
+type PlayerQueueProps = {
+  showNavigationTitle?: boolean;
+};
+
+function PlayerQueue({ showNavigationTitle = true }: PlayerQueueProps) {
   const player = useRelistenPlayer();
   const orderedQueueTracks = useRelistenPlayerQueueOrderedTracks();
   const navigation = useNavigation<NativeStackNavigationProp<ParamListBase>>();
 
   useEffect(() => {
+    if (!showNavigationTitle) {
+      return;
+    }
     navigation.setOptions({ title: `${orderedQueueTracks.length} Tracks` });
-  }, [orderedQueueTracks.length]);
+  }, [navigation, orderedQueueTracks.length, showNavigationTitle]);
 
   const triggerHaptics = useCallback(() => {
     'worklet';
@@ -560,10 +563,60 @@ type PlayerScreenProps = {
   variant?: PlayerScreenVariant;
 };
 
+type PlayerScreenContentProps = {
+  onDismissRequest?: () => void;
+  showNavigationTitle?: boolean;
+};
+
+export function PlayerScreenContent({
+  onDismissRequest,
+  showNavigationTitle = true,
+}: PlayerScreenContentProps) {
+  return (
+    <SafeAreaView className="flex-1 bg-relisten-blue-800" edges={['bottom']}>
+      <Flex column className="flex-1">
+        <View className="flex-1 flex-grow bg-relisten-blue-900">
+          <PlayerQueue showNavigationTitle={showNavigationTitle} />
+        </View>
+        <Flex column className="flex-shrink border-t border-relisten-blue-700 px-8 pt-4">
+          <CurrentTrackInfo onDismissRequest={onDismissRequest} />
+          <ScrubberRow />
+          <PlayerControls />
+          <PlayerSecondaryControls />
+        </Flex>
+      </Flex>
+    </SafeAreaView>
+  );
+}
+
+type EmbeddedPlayerScreenProps = {
+  onDismissRequest?: () => void;
+};
+
+export function EmbeddedPlayerScreen({ onDismissRequest }: EmbeddedPlayerScreenProps) {
+  return <PlayerScreenContent onDismissRequest={onDismissRequest} showNavigationTitle={false} />;
+}
+
 export function PlayerScreen({ variant = 'modal' }: PlayerScreenProps) {
   const navigation = useNavigation<NativeStackNavigationProp<ParamListBase>>();
-  const { showNavigateToCurrentTrackActionSheet } = useNavigateToCurrentTrackSheet();
+  const { collapse } = usePlayerSheetControls();
   const isEmbedded = variant === 'embedded';
+  const dismissPlayerScreen = useCallback(() => {
+    if (isEmbedded) {
+      collapse();
+      return;
+    }
+
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+
+    collapse();
+  }, [collapse, isEmbedded, navigation]);
+  const { showNavigateToCurrentTrackActionSheet } = useNavigateToCurrentTrackSheet({
+    onDismissRequest: dismissPlayerScreen,
+  });
 
   useEffect(() => {
     if (isEmbedded) {
@@ -572,12 +625,7 @@ export function PlayerScreen({ variant = 'modal' }: PlayerScreenProps) {
     navigation.setOptions({
       headerLeft: () => {
         return (
-          <TouchableOpacity
-            onPressOut={() => {
-              navigation.goBack();
-            }}
-            className="p-2"
-          >
+          <TouchableOpacity onPressOut={dismissPlayerScreen} className="p-2">
             <MaterialCommunityIcons name="close" size={22} color="white" />
           </TouchableOpacity>
         );
@@ -590,21 +638,11 @@ export function PlayerScreen({ variant = 'modal' }: PlayerScreenProps) {
         );
       },
     });
-  }, [isEmbedded, navigation, showNavigateToCurrentTrackActionSheet]);
+  }, [dismissPlayerScreen, isEmbedded, navigation, showNavigateToCurrentTrackActionSheet]);
 
-  return (
-    <SafeAreaView className="flex-1 bg-relisten-blue-800" edges={['bottom']}>
-      <Flex column className="flex-1">
-        <View className="flex-1 flex-grow bg-relisten-blue-900">
-          <PlayerQueue />
-        </View>
-        <Flex column className="flex-shrink border-t border-relisten-blue-700 px-8 pt-4">
-          <CurrentTrackInfo dismissOnNavigate={!isEmbedded} />
-          <ScrubberRow />
-          <PlayerControls />
-          <PlayerSecondaryControls />
-        </Flex>
-      </Flex>
-    </SafeAreaView>
-  );
+  if (isEmbedded) {
+    return <EmbeddedPlayerScreen onDismissRequest={dismissPlayerScreen} />;
+  }
+
+  return <PlayerScreenContent onDismissRequest={dismissPlayerScreen} />;
 }
