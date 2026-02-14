@@ -20,7 +20,18 @@ export default function Page() {
   useEffect(() => {
     navigation.setOptions({
       title: artist?.name,
-      headerRight: () => artist && <FavoriteObjectButton object={artist} className="p-2" />,
+      headerRight: () =>
+        artist && (
+          <FavoriteObjectButton
+            object={artist}
+            className="p-2"
+            accessibilityLabel={
+              artist.isFavorite
+                ? `Remove ${artist.name} from favorites`
+                : `Add ${artist.name} to favorites`
+            }
+          />
+        ),
     });
   }, [artist]);
 

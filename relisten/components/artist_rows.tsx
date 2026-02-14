@@ -26,9 +26,13 @@ const ArtistPopularitySummary = ({ artist }: { artist: Artist }) => {
 };
 
 const ArtistRowActions = ({ artist }: { artist: Artist }) => {
+  const actionLabel = artist.isFavorite
+    ? `Remove ${artist.name} from favorites`
+    : `Add ${artist.name} to favorites`;
+
   return (
-    <Flex className="items-center gap-2">
-      <FavoriteObjectButton object={artist} />
+    <Flex className="items-center">
+      <FavoriteObjectButton object={artist} accessibilityLabel={actionLabel} />
     </Flex>
   );
 };
@@ -40,18 +44,18 @@ export const ArtistListItem = React.forwardRef<TouchableOpacityRef, { artist: Ar
     const hasOfflineTracks = artist.hasOfflineTracks;
 
     return (
-      <Link
-        href={{
-          pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/`,
-          params: {
-            artistUuid: artist.uuid,
-          },
-        }}
-        asChild
-      >
-        <SectionedListItem ref={ref}>
-          <Flex cn="items-center justify-between" full>
-            <Flex cn="flex-1 flex-col pr-3">
+      <Flex cn="items-center" full>
+        <Link
+          href={{
+            pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/`,
+            params: {
+              artistUuid: artist.uuid,
+            },
+          }}
+          asChild
+        >
+          <SectionedListItem ref={ref} cn="flex-1 pr-0">
+            <Flex cn="flex-1 flex-col pr-2">
               <Flex cn="items-center">
                 <Flex cn="flex-1 pr-2">
                   <RowTitle>{artist.name}</RowTitle>
@@ -75,10 +79,12 @@ export const ArtistListItem = React.forwardRef<TouchableOpacityRef, { artist: Ar
                 </SubtitleText>
               </SubtitleRow>
             </Flex>
-            <ArtistRowActions artist={artist} />
-          </Flex>
-        </SectionedListItem>
-      </Link>
+          </SectionedListItem>
+        </Link>
+        <Flex cn="pr-4">
+          <ArtistRowActions artist={artist} />
+        </Flex>
+      </Flex>
     );
   }
 );
@@ -88,18 +94,18 @@ export const ArtistCompactListItem = React.forwardRef<TouchableOpacityRef, { art
     const nextRoute = useRoute('[artistUuid]');
 
     return (
-      <Link
-        href={{
-          pathname: nextRoute,
-          params: {
-            artistUuid: artist.uuid,
-          },
-        }}
-        asChild
-      >
-        <SectionedListItem ref={ref}>
-          <Flex cn="items-center justify-between" full>
-            <Flex cn="flex-1 flex-col pr-3">
+      <Flex cn="items-center" full>
+        <Link
+          href={{
+            pathname: nextRoute,
+            params: {
+              artistUuid: artist.uuid,
+            },
+          }}
+          asChild
+        >
+          <SectionedListItem ref={ref} cn="flex-1 pr-0">
+            <Flex cn="flex-1 flex-col pr-2">
               <Flex cn="items-center">
                 <Flex cn="flex-1 pr-2">
                   <RowTitle>{artist.name}</RowTitle>
@@ -109,10 +115,12 @@ export const ArtistCompactListItem = React.forwardRef<TouchableOpacityRef, { art
                 </Flex>
               </Flex>
             </Flex>
-            <ArtistRowActions artist={artist} />
-          </Flex>
-        </SectionedListItem>
-      </Link>
+          </SectionedListItem>
+        </Link>
+        <Flex cn="pr-4">
+          <ArtistRowActions artist={artist} />
+        </Flex>
+      </Flex>
     );
   }
 );

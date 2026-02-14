@@ -21,12 +21,27 @@ const styles = StyleSheet.create({
   },
 });
 
-export const FavoriteIconButton: React.FC<{ isFavorited: boolean } & TouchableOpacityProps> = ({
-  isFavorited,
-  ...props
-}) => {
+export const FavoriteIconButton: React.FC<
+  {
+    isFavorited: boolean;
+    accessibilityLabel?: string;
+    accessibilityHint?: string;
+  } & TouchableOpacityProps
+> = ({ isFavorited, accessibilityLabel, accessibilityHint, accessibilityState, ...props }) => {
+  const defaultAccessibilityLabel = isFavorited ? 'Remove from favorites' : 'Add to favorites';
+
   return (
-    <TouchableOpacity style={styles.container} {...props}>
+    <TouchableOpacity
+      style={styles.container}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? defaultAccessibilityLabel}
+      accessibilityHint={accessibilityHint}
+      accessibilityState={{
+        ...accessibilityState,
+        selected: isFavorited,
+      }}
+      {...props}
+    >
       <MaterialCommunityIcons
         name={isFavorited ? 'cards-heart' : 'cards-heart-outline'}
         size={18}
@@ -52,6 +67,6 @@ export const FavoriteObjectButton = <T extends FavoritableObject>({
   }, [object, forceUpdate]);
 
   return (
-    <FavoriteIconButton isFavorited={object.isFavorite} onPressOut={favoriteOnPress} {...props} />
+    <FavoriteIconButton isFavorited={object.isFavorite} onPress={favoriteOnPress} {...props} />
   );
 };
