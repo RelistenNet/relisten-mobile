@@ -393,3 +393,35 @@ Run summary: /Users/alecgorge/code/relisten/relisten-mobile/.ralph/runs/run-2026
   - Useful context
   - Fallback screenshot evidence captured at `/tmp/us003-ios-fallback.png` when MCP interaction tooling became unavailable.
 ---
+## [2026-02-13 19:50:34 PST] - US-004: Implement shared-element geometry pipeline for bar-to-sheet morph
+Thread: 
+Run: 20260213-191642-58230 (iteration 4)
+Run log: /Users/alecgorge/code/relisten/relisten-mobile/.ralph/runs/run-20260213-191642-58230-iter-4.log
+Run summary: /Users/alecgorge/code/relisten/relisten-mobile/.ralph/runs/run-20260213-191642-58230-iter-4.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 8e0e4e2 feat(player-sheet): add shared geometry continuity layer
+- Post-commit status: `clean`
+- Verification:
+  - Command: `yarn lint` -> PASS
+  - Command: `yarn ts:check` -> PASS
+  - Command: `RN Debugger MCP: scan_metro, ensure_connection, ocr_screenshot(platform=ios), ensure_connection(forceRefresh=true)` -> FAIL (blocked: repeated `Transport closed` after one reconnect attempt)
+  - Command: `xcrun simctl io booted screenshot .ralph/screenshots/us004-fallback-current.png` -> PASS
+- Files changed:
+  - relisten/player/ui/player_bottom_bar.tsx
+  - relisten/player/ui/player_sheet_host.tsx
+  - .ralph/activity.log
+  - .ralph/progress.md
+- What was implemented
+  - Added explicit transition geometry state in `PlayerSheetHost` for `collapsedFrame` and `expandedFrame`, then interpolated one continuity layer frame (`x`, `y`, `width`, `height`, radius, border, shadow) from gesture progress.
+  - Replaced the prior dual-surface bottom-bar fade + bottom-entry sheet pattern with a single morphing continuity surface so collapsed-to-expanded motion reads as one object.
+  - Extracted `PlayerBottomBarSurface` from `PlayerBottomBar` so the host can render the same collapsed surface inside the continuity layer while preserving bottom-bar measurement updates.
+  - Kept existing two-state snap logic (`collapsed`/`expanded`), iOS/Android gesture thresholds, and queue defer behavior intact.
+- **Learnings for future iterations:**
+  - Patterns discovered
+  - A reusable collapsed surface component plus host-owned geometry interpolation makes the continuity contract explicit without changing playback business logic.
+  - Gotchas encountered
+  - RN Debugger MCP transport can drop mid-run even after a healthy initial connection; run one reconnect attempt, then record bounded fallback evidence instead of claiming full scenario coverage.
+  - Useful context
+  - `xcrun simctl io booted screenshot` provides minimal fallback visual evidence, but gesture continuity assertions remain blocked without rn-debugger interaction tooling.
+---
