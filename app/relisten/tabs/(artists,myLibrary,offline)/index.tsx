@@ -32,6 +32,7 @@ import { sample } from 'remeda';
 import { LegacyDataMigrationModal } from '@/relisten/pages/legacy_migration';
 import { ARTIST_SORT_FILTERS, ArtistSortKey } from '@/relisten/components/artist_filters';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
+import { useTopPlayedArtistUuidsOnce } from '@/relisten/realm/models/history/playback_history_entry_repo';
 
 const FavoritesSectionHeader = ({ favorites }: { favorites: Artist[] }) => {
   const { apiClient } = useRelistenApi();
@@ -147,6 +148,27 @@ const ArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => 
     };
   }, [artists, filter]);
 
+  const shouldSuggestFavorites = favorites.length < 3;
+  const topPlayedArtistUuids = useTopPlayedArtistUuidsOnce(6, shouldSuggestFavorites);
+
+  const suggestedFavorites = useMemo(() => {
+    if (!shouldSuggestFavorites || topPlayedArtistUuids.length === 0) {
+      return [];
+    }
+
+    const favoriteUuids = new Set(favorites.map((artist) => artist.uuid));
+    const artistByUuid = new Map(all.map((artist) => [artist.uuid, artist]));
+    const needed = Math.max(0, 3 - favorites.length);
+
+    return topPlayedArtistUuids
+      .map((uuid) => artistByUuid.get(uuid))
+      .filter((artist): artist is Artist => !!artist && !favoriteUuids.has(artist.uuid))
+      .slice(0, needed);
+  }, [all, favorites, topPlayedArtistUuids]);
+
+  const favoritesForSection =
+    favorites.length < 3 ? [...favorites, ...suggestedFavorites] : favorites;
+
   const sectionedArtists = useMemo<RelistenSectionData<Artist>>(() => {
     const sections: {
       sectionTitle?: string;
@@ -159,11 +181,11 @@ const ArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => 
       return sections;
     }
 
-    if (favorites.length > 0) {
+    if (favoritesForSection.length > 0) {
       sections.push({
         sectionTitle: 'Favorites',
-        headerComponent: <FavoritesSectionHeader favorites={favorites} />,
-        data: favorites,
+        headerComponent: <FavoritesSectionHeader favorites={favoritesForSection} />,
+        data: favoritesForSection,
       });
     }
 
@@ -176,7 +198,7 @@ const ArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => 
     }
 
     return sections;
-  }, [all, favorites, featured, isOfflineTab]);
+  }, [all, favoritesForSection, featured, isOfflineTab]);
 
   if (isOfflineTab && artists.length === 0) {
     return (
@@ -204,7 +226,7 @@ const ArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => 
         return <SectionHeader title={sectionTitle} />;
       }}
       ListHeaderComponent={
-        !isOfflineTab && favorites.length === 0 ? (
+        !isOfflineTab && favoritesForSection.length === 0 ? (
           <FavoritesEmptyState onViewAll={() => router.push(allArtistsRoute)} />
         ) : undefined
       }
