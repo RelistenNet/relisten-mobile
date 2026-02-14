@@ -113,3 +113,4 @@
 [2026-02-13 20:02:02] US-006 audit: reviewing existing scenario specs and validation artifacts
 [2026-02-13 20:04:34] US-006 major artifact: added docs/player-sheet-polish-regression-us006.md with full scenario matrix outcomes and blocker evidence
 [2026-02-13 20:05:57] US-006 verification: yarn lint PASS, yarn ts:check PASS, expo run:ios PASS, rn-debugger matrix execution blocked by Transport closed and missing adb
+[2026-02-13 20:06:41] US-006 progress log updated with regression matrix outcomes, verification, and blocker artifacts

@@ -458,3 +458,34 @@ Run summary: /Users/alecgorge/code/relisten/relisten-mobile/.ralph/runs/run-2026
   - Useful context
   - `CI=1 npx expo run:ios --device "iPhone 17 Pro" --no-bundler --no-install` remains a reliable build/launch smoke check even when RN Debugger interaction tooling is unavailable.
 ---
+## [2026-02-14 08:14 PST] - US-006: Add RN Debugger MCP regression coverage for production polish
+Thread: 019c5a4f-5b4c-70a1-b5f4-96082fbfbde3
+Run: 20260213-191642-58230 (iteration 6)
+Run log: /Users/alecgorge/code/relisten/relisten-mobile/.ralph/runs/run-20260213-191642-58230-iter-6.log
+Run summary: /Users/alecgorge/code/relisten/relisten-mobile/.ralph/runs/run-20260213-191642-58230-iter-6.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: e44d0da docs(player-sheet): record us-006 regression run
+- Post-commit status: `clean`
+- Verification:
+  - Command: `source ~/.nvm/nvm.sh && nvm use >/dev/null && yarn lint` -> PASS
+  - Command: `source ~/.nvm/nvm.sh && nvm use >/dev/null && yarn ts:check` -> PASS
+  - Command: `source ~/.nvm/nvm.sh && nvm use >/dev/null && CI=1 npx expo run:ios --device "iPhone 17 Pro" --no-bundler --no-install` -> PASS
+  - Command: `RN Debugger MCP: scan_metro, get_apps, ensure_connection, ocr_screenshot(platform=ios), ensure_connection(forceRefresh=true), ios_screenshot, list_android_devices` -> FAIL (blocked: iOS `Transport closed` after one reconnect attempt; Android `adb` missing)
+  - Command: `xcrun simctl io booted screenshot .ralph/screenshots/us006-ios-fallback-current.png` -> PASS
+- Files changed:
+  - docs/player-sheet-polish-regression-us006.md
+  - .ralph/activity.log
+  - .ralph/progress.md
+- What was implemented
+  - Added `docs/player-sheet-polish-regression-us006.md` to encode the approved US-001 scenario matrix execution for US-006 with deterministic per-scenario outcomes across scroll-under, clipping, and continuity categories.
+  - Captured and stored clear platform-specific pass/fail outcomes for all required scenarios (`PS-SCROLL-*`, `PS-CLIP-*`, `PS-CONTINUITY-*`) with explicit gate result and blocker impact.
+  - Included reproducible failure artifacts and route/state context for failed required scenarios, including RN Debugger MCP error signatures and fallback iOS simulator screenshot evidence.
+- **Learnings for future iterations:**
+  - Patterns discovered
+  - A dedicated regression outcome artifact tied to stable scenario IDs makes polish gate status auditable and repeatable across runs.
+  - Gotchas encountered
+  - RN Debugger MCP can lose transport immediately after a healthy connection and requires a strict one-reconnect fallback path; Android coverage requires local `adb` tooling.
+  - Useful context
+  - Baseline fallback state for this run was captured at `.ralph/screenshots/us006-ios-fallback-current.png` (artists tab with collapsed player bar visible).
+---
