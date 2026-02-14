@@ -35,6 +35,7 @@ export class DownloadManager {
 
   private runningDownloadTasks: DownloadTask[] = [];
   private pendingDownloadTasks: Set<string> = new Set<string>();
+  private removingDownloadTasks: Set<string> = new Set<string>();
   private statsig: StatsigClientExpo = sharedStatsigClient();
 
   async downloadTrack(sourceTrack: SourceTrack) {
@@ -307,33 +308,49 @@ export class DownloadManager {
   }
 
   async removeDownload(sourceTrack: SourceTrack) {
-    // remove task, if it exists
-    const task = this.downloadTaskById(sourceTrack.uuid);
-
-    if (task) {
-      task.promise.cancel();
+    if (this.removingDownloadTasks.has(sourceTrack.uuid)) {
+      logger.debug(`${sourceTrack.uuid} is already being removed`);
+      return;
     }
 
-    // delete file, if it exists
+    this.removingDownloadTasks.add(sourceTrack.uuid);
+
     try {
-      const downloadedFile = new File(sourceTrack.downloadedFileLocation());
-      if (downloadedFile.exists) {
-        downloadedFile.delete();
+      // remove task, if it exists
+      const task = this.downloadTaskById(sourceTrack.uuid);
+
+      if (task) {
+        task.promise.cancel();
       }
-    } catch {
-      /* empty */
-    }
 
-    // remove SourceTrackOfflineInfo
-    if (realm) {
-      realm.write(() => {
-        const offlineInfo = sourceTrack.offlineInfo;
-
-        sourceTrack.offlineInfo = undefined;
-        if (offlineInfo?.isValid()) {
-          realm!.delete(offlineInfo);
+      // delete file, if it exists
+      try {
+        const downloadedFile = new File(sourceTrack.downloadedFileLocation());
+        if (downloadedFile.exists) {
+          downloadedFile.delete();
         }
-      });
+      } catch {
+        /* empty */
+      }
+
+      // remove SourceTrackOfflineInfo
+      const activeRealm = realm;
+      if (activeRealm) {
+        activeRealm.write(() => {
+          if (!sourceTrack.isValid()) {
+            return;
+          }
+
+          const offlineInfo = sourceTrack.offlineInfo;
+
+          sourceTrack.offlineInfo = undefined;
+          if (offlineInfo?.isValid()) {
+            activeRealm.delete(offlineInfo);
+          }
+        });
+      }
+    } finally {
+      this.removingDownloadTasks.delete(sourceTrack.uuid);
     }
   }
 

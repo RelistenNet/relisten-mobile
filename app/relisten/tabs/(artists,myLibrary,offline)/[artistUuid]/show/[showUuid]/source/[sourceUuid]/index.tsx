@@ -13,7 +13,7 @@ import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useForceUpdate } from '@/relisten/util/forced_update';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Link, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import React, { PropsWithChildren, useCallback, useEffect, useState } from 'react';
+import React, { PropsWithChildren, useCallback, useEffect, useRef, useState } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import {
   Animated,
@@ -76,6 +76,8 @@ export default function Page() {
   const groupSegment = useGroupSegment(true);
 
   const [hasAutoplayed, setHasAutoplayed] = useState(false);
+  const [isRemovingDownloads, setIsRemovingDownloads] = useState(false);
+  const isRemovingDownloadsRef = useRef(false);
   const userSettings = useUserSettings();
 
   const { results, show, artist, selectedSource } = useFullShowWithSelectedSource(
@@ -129,18 +131,32 @@ export default function Page() {
     });
   };
 
-  const removeDownloads = () => {
+  const removeDownloads = async () => {
     if (!selectedSource) {
       logger.warn(
         `Missing value when trying to remove downloads: artist=${artist.data} sourceUuid=${sourceUuid} show=${show} selectedSource=${selectedSource}`
       );
       return;
     }
+
+    if (isRemovingDownloadsRef.current) {
+      logger.debug('Already removing downloads for this show; skipping duplicate request.');
+      return;
+    }
+
     const showTracks = selectedSource.allSourceTracks();
 
-    showTracks.forEach((track) => {
-      DownloadManager.SHARED_INSTANCE.removeDownload(track);
-    });
+    isRemovingDownloadsRef.current = true;
+    setIsRemovingDownloads(true);
+
+    try {
+      await Promise.allSettled(
+        showTracks.map((track) => DownloadManager.SHARED_INSTANCE.removeDownload(track))
+      );
+    } finally {
+      isRemovingDownloadsRef.current = false;
+      setIsRemovingDownloads(false);
+    }
   };
 
   const onDotsPress = useCallback(() => {
@@ -152,7 +168,7 @@ export default function Page() {
       'Share Show',
       'Play Show',
       'Download Entire Show',
-      'Remove All Downloads for Show',
+      isRemovingDownloads ? 'Removing Downloads...' : 'Remove All Downloads for Show',
       'Switch Source',
       'Toggle Favorite',
       'Cancel',
@@ -164,7 +180,7 @@ export default function Page() {
         options,
         cancelButtonIndex,
       },
-      (selectedIndex?: number) => {
+      async (selectedIndex?: number) => {
         switch (selectedIndex) {
           case 0: {
             // Share Show
@@ -189,7 +205,7 @@ export default function Page() {
 
           case 3:
             // Remove All Downloads for Show
-            removeDownloads();
+            await removeDownloads();
             break;
 
           case 4:
@@ -217,7 +233,19 @@ export default function Page() {
         }
       }
     );
-  }, [show]);
+  }, [
+    artist.data,
+    downloadShow,
+    groupSegment,
+    isRemovingDownloads,
+    playShow,
+    realm,
+    removeDownloads,
+    router,
+    selectedSource,
+    show,
+    showActionSheetWithOptions,
+  ]);
 
   useEffect(() => {
     navigation.setOptions({
@@ -228,7 +256,7 @@ export default function Page() {
         </TouchableOpacity>
       ),
     });
-  }, [show]);
+  }, [navigation, onDotsPress, show?.displayDate]);
 
   useEffect(() => {
     if (!selectedSource || hasAutoplayed) {
