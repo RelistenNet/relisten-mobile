@@ -2,8 +2,16 @@ import { useRelistenPlayerBottomBarContext } from '@/relisten/player/ui/player_b
 import { PropsWithChildren } from 'react';
 import { View } from 'react-native';
 
-export const ScrollScreen = ({ children }: PropsWithChildren) => {
+type ScrollScreenProps = PropsWithChildren<{
+  reserveBottomInset?: boolean;
+}>;
+
+export const ScrollScreen = ({ children, reserveBottomInset = true }: ScrollScreenProps) => {
   const { collapsedSheetFootprint } = useRelistenPlayerBottomBarContext();
 
-  return <View style={{ paddingBottom: collapsedSheetFootprint, flex: 1 }}>{children}</View>;
+  return (
+    <View style={{ paddingBottom: reserveBottomInset ? collapsedSheetFootprint : 0, flex: 1 }}>
+      {children}
+    </View>
+  );
 };

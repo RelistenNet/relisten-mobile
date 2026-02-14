@@ -19,6 +19,7 @@ import {
   SourceTrackOfflineInfoStatus,
   SourceTrackOfflineInfoType,
 } from '@/relisten/realm/models/source_track_offline_info';
+import { useRelistenPlayerBottomBarContext } from '@/relisten/player/ui/player_bottom_bar';
 
 function MyLibrarySectionHeader({ children, className, ...props }: PropsWithChildren<ViewProps>) {
   return (
@@ -145,10 +146,16 @@ function ActiveDownloads() {
 }
 
 export default function MyLibraryPage() {
+  const { collapsedSheetFootprint } = useRelistenPlayerBottomBarContext();
+
   // TODO: listening history that shows all tracks
   return (
-    <ScrollScreen>
-      <ScrollView className="flex-1">
+    <ScrollScreen reserveBottomInset={false}>
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ paddingBottom: collapsedSheetFootprint }}
+        scrollIndicatorInsets={{ bottom: collapsedSheetFootprint }}
+      >
         <ActiveDownloads />
         <RecentlyPlayedShows />
         <FavoriteShows />

@@ -1,6 +1,7 @@
 # Activity Log
 
 ## Run Summary
+- 2026-02-13 19:24:02 | run=20260213-191642-58230 | iter=1 | mode=build | story=US-001 | duration=440s | status=success
 - 2026-02-13 18:40:33 | run=20260213-173022-97259 | iter=9 | mode=build | story=US-009 | duration=391s | status=success
 - 2026-02-13 18:34:00 | run=20260213-173022-97259 | iter=8 | mode=build | story=US-008 | duration=322s | status=success
 - 2026-02-13 18:28:36 | run=20260213-173022-97259 | iter=7 | mode=build | story=US-007 | duration=625s | status=success
@@ -77,3 +78,9 @@
 [2026-02-13 19:18:29] US-001 code change: added docs/player-sheet-polish-spec.md with invariants and RN Debugger scenario matrix
 [2026-02-13 19:22:00] US-001 verification: yarn lint PASS, yarn ts:check PASS; RN Debugger MCP scenarios blocked by missing idb/adb automation dependencies
 [2026-02-13 19:23:02] US-001 progress log updated with spec artifact, verification, and RN Debugger blocker details
+[2026-02-13 19:24:02] ITERATION 1 end (duration=440s)
+[2026-02-13 19:24:04] ITERATION 2 start (mode=build story=US-002)
+[2026-02-13 19:24:26] Start US-002 iteration 2: auditing scroll-under-player layering across tab scroll containers
+[2026-02-13 19:27:52] US-002 major code changes: moved artists/myLibrary/offline root scroll spacing from container padding to scroll content insets
+[2026-02-13 19:29:17] Verification run: yarn lint PASS, yarn ts:check PASS, RN Debugger blocked (ADB missing; transport closed during iOS MCP calls)
+[2026-02-13 19:33:26] Verification complete: lint+ts+ios build passed; RN Debugger MCP blocked (transport closed, Android ADB missing); captured manual iOS screenshots for artists root

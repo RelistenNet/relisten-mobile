@@ -19,6 +19,7 @@ import { useNavigation } from 'expo-router';
 import { type ReactElement, useEffect, useMemo, useRef } from 'react';
 import { Keyboard, ScrollView, TextInput, View } from 'react-native';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
+import { useRelistenPlayerBottomBarContext } from '@/relisten/player/ui/player_bottom_bar';
 
 const AllArtistsHeader = ({ artists }: { artists?: Realm.Results<Artist> }) => {
   const searchInputRef = useRef<TextInput>(null);
@@ -58,6 +59,7 @@ const AllArtistsList = ({
   isLoading: boolean;
   listHeader: ReactElement;
 }) => {
+  const { collapsedSheetFootprint } = useRelistenPlayerBottomBarContext();
   const { filter, searchText } = useFilters<ArtistSortKey, Artist>();
 
   const data = useMemo(() => {
@@ -77,6 +79,8 @@ const AllArtistsList = ({
       renderItem={({ item }) => {
         return <ArtistListItem artist={item} />;
       }}
+      contentContainerStyle={{ paddingBottom: collapsedSheetFootprint }}
+      scrollIndicatorInsets={{ bottom: collapsedSheetFootprint }}
       keyboardDismissMode="on-drag"
       onScrollBeginDrag={() => Keyboard.dismiss()}
       pullToRefresh
@@ -93,7 +97,7 @@ export default function Page() {
   }, [navigation]);
 
   return (
-    <ScrollScreen>
+    <ScrollScreen reserveBottomInset={false}>
       <FilteringProvider
         filters={ARTIST_SORT_FILTERS}
         options={{

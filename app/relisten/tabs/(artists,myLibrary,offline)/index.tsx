@@ -33,6 +33,7 @@ import { LegacyDataMigrationModal } from '@/relisten/pages/legacy_migration';
 import { ARTIST_SORT_FILTERS, ArtistSortKey } from '@/relisten/components/artist_filters';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
 import { useTopPlayedArtistUuidsOnce } from '@/relisten/realm/models/history/playback_history_entry_repo';
+import { useRelistenPlayerBottomBarContext } from '@/relisten/player/ui/player_bottom_bar';
 
 const FavoritesSectionHeader = ({ favorites }: { favorites: Artist[] }) => {
   const { apiClient } = useRelistenApi();
@@ -114,6 +115,7 @@ const FavoritesEmptyState = ({ onViewAll }: { onViewAll: () => void }) => {
 };
 
 const ArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => {
+  const { collapsedSheetFootprint } = useRelistenPlayerBottomBarContext();
   const isOfflineTab = useIsOfflineTab();
   const router = useRouter();
   const groupSegment = useGroupSegment();
@@ -230,6 +232,8 @@ const ArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => 
           <FavoritesEmptyState onViewAll={() => router.push(allArtistsRoute)} />
         ) : undefined
       }
+      contentContainerStyle={{ paddingBottom: collapsedSheetFootprint }}
+      scrollIndicatorInsets={{ bottom: collapsedSheetFootprint }}
       pullToRefresh
     />
   );
@@ -255,7 +259,7 @@ export default function Page() {
   }
 
   return (
-    <ScrollScreen>
+    <ScrollScreen reserveBottomInset={false}>
       <RefreshContextProvider networkBackedResults={results}>
         {downloads.length > 0 && (
           <TouchableOpacity>
