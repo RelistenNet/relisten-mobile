@@ -426,3 +426,35 @@ Run summary: /Users/alecgorge/code/relisten/relisten-mobile/.ralph/runs/run-2026
   - Useful context
   - `xcrun simctl io booted screenshot` provides minimal fallback visual evidence, but gesture continuity assertions remain blocked without rn-debugger interaction tooling.
 ---
+## [2026-02-14 00:21:03 PST] - US-005: Bind gesture interaction so bar movement tracks finger continuously
+Thread: 
+Run: 20260213-191642-58230 (iteration 5)
+Run log: /Users/alecgorge/code/relisten/relisten-mobile/.ralph/runs/run-20260213-191642-58230-iter-5.log
+Run summary: /Users/alecgorge/code/relisten/relisten-mobile/.ralph/runs/run-20260213-191642-58230-iter-5.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 84e1117 fix(player-sheet): interrupt settle on drag begin
+- Post-commit status: `clean`
+- Verification:
+  - Command: `source ~/.nvm/nvm.sh && nvm use >/dev/null && yarn lint` -> PASS
+  - Command: `source ~/.nvm/nvm.sh && nvm use >/dev/null && yarn ts:check` -> PASS
+  - Command: `source ~/.nvm/nvm.sh && nvm use >/dev/null && CI=1 npx expo run:ios --device "iPhone 17 Pro" --no-bundler --no-install` -> PASS
+  - Command: `RN Debugger MCP: scan_metro, ensure_connection, get_apps, get_bundle_status, ocr_screenshot(platform=ios), ensure_connection(forceRefresh=true)` -> FAIL (blocked: repeated `Transport closed` after one reconnect attempt)
+  - Command: `xcrun simctl io booted screenshot .ralph/screenshots/us005-fallback-post-build.png` -> PASS
+- Files changed:
+  - relisten/player/ui/player_sheet_host.tsx
+  - .ralph/activity.log
+  - .ralph/progress.md
+- What was implemented
+  - Updated `createPanGesture` in `PlayerSheetHost` so Android now cancels in-flight settle animation and captures `dragStartTranslateY` on `onBegin` (touch-down), matching iOS interruption behavior.
+  - Kept Android mount toggling on `onStart` so expanded content does not mount on non-drag taps, while still ensuring drag-up, drag-down, and reversal gestures use a continuous sheet position source.
+  - This removes the Android interruption lag where settle animation could continue until gesture activation threshold, improving bar-to-sheet finger tracking continuity during reversal/interruption paths.
+  - RN Debugger continuity scenario execution remained blocked by transport instability; fallback iOS simulator screenshot evidence captured and coverage limits documented.
+- **Learnings for future iterations:**
+  - Patterns discovered
+  - Capturing drag baseline and canceling settle at touch-down is necessary for physically coherent interruption on Android where pan activation is delayed.
+  - Gotchas encountered
+  - RN Debugger MCP can report healthy connection status, then immediately fail with `Transport closed` on interaction tools; guardrail fallback path is required.
+  - Useful context
+  - `CI=1 npx expo run:ios --device "iPhone 17 Pro" --no-bundler --no-install` remains a reliable build/launch smoke check even when RN Debugger interaction tooling is unavailable.
+---
