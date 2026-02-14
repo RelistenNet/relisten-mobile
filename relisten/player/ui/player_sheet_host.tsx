@@ -342,36 +342,23 @@ export function PlayerSheetHost() {
 
     return panGesture
       .onBegin(() => {
-        if (isAndroid) {
-          return;
-        }
-
         cancelAnimation(sheetTranslateY);
         dragStartTranslateY.value = sheetTranslateY.value;
         if (__DEV__) {
           runOnJS(logGestureStart)(
-            'ios',
+            isAndroid ? 'android' : 'ios',
             dragStartTranslateY.value,
             collapsedTranslateYShared.value
           );
         }
-        runOnJS(setSheetMounted)(true);
+        if (!isAndroid) {
+          runOnJS(setSheetMounted)(true);
+        }
       })
       .onStart(() => {
-        if (!isAndroid) {
-          return;
+        if (isAndroid) {
+          runOnJS(setSheetMounted)(true);
         }
-
-        cancelAnimation(sheetTranslateY);
-        dragStartTranslateY.value = sheetTranslateY.value;
-        if (__DEV__) {
-          runOnJS(logGestureStart)(
-            'android',
-            dragStartTranslateY.value,
-            collapsedTranslateYShared.value
-          );
-        }
-        runOnJS(setSheetMounted)(true);
       })
       .onUpdate((event) => {
         const nextTranslateY = clamp(

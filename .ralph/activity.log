@@ -1,6 +1,7 @@
 # Activity Log
 
 ## Run Summary
+- 2026-02-13 19:53:16 | run=20260213-191642-58230 | iter=4 | mode=build | story=US-004 | duration=715s | status=success
 - 2026-02-13 19:41:19 | run=20260213-191642-58230 | iter=3 | mode=build | story=US-003 | duration=369s | status=success
 - 2026-02-13 19:35:08 | run=20260213-191642-58230 | iter=2 | mode=build | story=US-002 | duration=664s | status=success
 - 2026-02-13 19:24:02 | run=20260213-191642-58230 | iter=1 | mode=build | story=US-001 | duration=440s | status=success
@@ -100,3 +101,8 @@
 [2026-02-13 19:49:44] US-004 verification: yarn lint + yarn ts:check passed; RN debugger validation blocked by transport closed after one reconnect attempt
 [2026-02-13 19:50:50] US-004 progress entry appended with commit/test/blocker details
 [2026-02-13 19:52:48] US-004 additional verification: iOS expo run build/install succeeded; RN debugger still transport-blocked
+[2026-02-13 19:53:16] ITERATION 4 end (duration=715s)
+[2026-02-13 19:53:18] ITERATION 5 start (mode=build story=US-005)
+[2026-02-13 19:53:41] Start US-005 iteration 5: audit guardrails, errors, and player-sheet gesture flow
+[2026-02-13 19:57:02] US-005 major code change: moved Android pan interruption capture to onBegin for continuous finger tracking during settle/reversal
+[2026-02-13 19:59:57] US-005 verification: yarn lint PASS, yarn ts:check PASS, expo run:ios PASS, rn-debugger blocked by Transport closed after one reconnect; captured fallback screenshot .ralph/screenshots/us005-fallback-post-build.png
