@@ -10,7 +10,6 @@ import {
   useRelistenPlayerQueueOrderedTracks,
 } from '@/relisten/player/relisten_player_queue_hooks';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import React, { PropsWithChildren, useCallback, useContext, useState } from 'react';
 import { LayoutChangeEvent, Platform, Pressable, TouchableOpacity, View } from 'react-native';
 import { ScrubberRow } from './player_screen';
@@ -19,6 +18,7 @@ import AirPlayButton from 'react-native-airplay-button';
 import { RelistenCastButton, useRelistenCastStatus } from '@/relisten/casting/cast_ui';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { useIsDesktopLayout } from '@/relisten/util/layout';
+import { usePlayerSheetControls } from './player_sheet_state';
 
 function OfflineBanner() {
   return (
@@ -33,7 +33,7 @@ function PlayerBottomBarContents() {
   const currentTrack = useRelistenPlayerCurrentTrack();
   const playbackState = useRelistenPlayerPlaybackState();
   const player = useRelistenPlayer();
-  const router = useRouter();
+  const { expand } = usePlayerSheetControls();
   const { isCasting, deviceName } = useRelistenCastStatus();
 
   const artist = currentTrack?.sourceTrack?.artist;
@@ -65,7 +65,7 @@ function PlayerBottomBarContents() {
   return (
     <Flex column cn="flex-1 gap-3">
       <Flex cn="items-center">
-        <Pressable onPress={() => router.push({ pathname: '/relisten/player' })} className="flex-1">
+        <Pressable onPress={expand} className="flex-1">
           <Flex cn="items-center">
             <Flex cn="ml-2 h-full items-center">
               <TouchableOpacity

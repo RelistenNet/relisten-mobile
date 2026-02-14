@@ -1,7 +1,7 @@
 import { Tabs, usePathname, useRouter, useSegments } from 'expo-router';
 import TabBar from '@/relisten/components/TabBar';
 import DesktopTabList from '@/relisten/components/DesktopTabList';
-import { PlayerBottomBar } from '@/relisten/player/ui/player_bottom_bar';
+import { PlayerSheetHost } from '@/relisten/player/ui/player_sheet_host';
 import { PlayerScreen } from '@/relisten/player/ui/player_screen';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
@@ -157,7 +157,7 @@ export default function TabLayout() {
         </View>
         <View className="flex-1">
           {tabs}
-          <PlayerBottomBar />
+          <PlayerSheetHost />
         </View>
         <View
           style={{ width: DESKTOP_NOW_PLAYING_WIDTH }}
@@ -172,7 +172,7 @@ export default function TabLayout() {
   return (
     <>
       {tabs}
-      <PlayerBottomBar />
+      <PlayerSheetHost />
     </>
   );
 }
