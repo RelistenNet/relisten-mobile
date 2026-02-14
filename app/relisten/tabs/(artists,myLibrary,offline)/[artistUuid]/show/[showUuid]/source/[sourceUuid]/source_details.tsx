@@ -85,7 +85,7 @@ function SourceDetails({ source, ...props }: { source: Source } & ScrollViewProp
 export default function Page() {
   const navigation = useNavigation();
   const { showUuid, sourceUuid } = useLocalSearchParams();
-  const { playerBottomBarHeight } = useRelistenPlayerBottomBarContext();
+  const { collapsedSheetFootprint } = useRelistenPlayerBottomBarContext();
 
   const {
     results: { isNetworkLoading },
@@ -110,7 +110,7 @@ export default function Page() {
 
   return (
     <ScrollScreen>
-      <SourceDetails source={source} scrollIndicatorInsets={{ bottom: playerBottomBarHeight }} />
+      <SourceDetails source={source} scrollIndicatorInsets={{ bottom: collapsedSheetFootprint }} />
     </ScrollScreen>
   );
 }

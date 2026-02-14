@@ -19,7 +19,7 @@ export function PlayerSheetHost() {
   }
 
   // Two host UI states:
-  // - collapsed: existing bottom bar entrypoint during playback.
+  // - collapsed: floating bottom card entrypoint during playback.
   // - expanded: full player surface mounted in tabs with collapse action.
   if (!isExpanded) {
     return <PlayerBottomBar />;

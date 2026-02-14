@@ -11,7 +11,14 @@ import {
 } from '@/relisten/player/relisten_player_queue_hooks';
 import { MaterialIcons } from '@expo/vector-icons';
 import React, { PropsWithChildren, useCallback, useContext, useState } from 'react';
-import { LayoutChangeEvent, Platform, Pressable, TouchableOpacity, View } from 'react-native';
+import {
+  LayoutChangeEvent,
+  Platform,
+  Pressable,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { ScrubberRow } from './player_screen';
 import * as Progress from 'react-native-progress';
 import AirPlayButton from 'react-native-airplay-button';
@@ -19,6 +26,9 @@ import { RelistenCastButton, useRelistenCastStatus } from '@/relisten/casting/ca
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { useIsDesktopLayout } from '@/relisten/util/layout';
 import { usePlayerSheetControls } from './player_sheet_state';
+
+const COLLAPSED_CARD_HORIZONTAL_MARGIN = 12;
+const COLLAPSED_CARD_BOTTOM_MARGIN = 8;
 
 function OfflineBanner() {
   return (
@@ -131,11 +141,21 @@ export function PlayerBottomBar() {
   }
 
   return (
-    <View onLayout={onLayout} style={{ bottom: tabBarHeight, position: 'absolute', width: '100%' }}>
-      <View className={'w-full flex-1 p-0'}>
-        {!isOnline && <OfflineBanner />}
-        <View className="rounded-t-s w-full border-t-2 border-t-relisten-blue-700 bg-relisten-blue-800 pt-2">
-          <PlayerBottomBarContents />
+    <View
+      onLayout={onLayout}
+      style={[
+        styles.container,
+        {
+          bottom: tabBarHeight + COLLAPSED_CARD_BOTTOM_MARGIN,
+        },
+      ]}
+    >
+      <View style={styles.surfaceShadow}>
+        <View style={styles.surface}>
+          {!isOnline && <OfflineBanner />}
+          <View className="w-full border-t-2 border-t-relisten-blue-700 bg-relisten-blue-800 pt-2">
+            <PlayerBottomBarContents />
+          </View>
         </View>
       </View>
     </View>
@@ -153,6 +173,7 @@ export const useIsPlayerBottomBarVisible = () => {
 export interface RelistenPlayerBottomBarContextProps {
   tabBarHeight: number;
   playerBottomBarHeight: number;
+  collapsedSheetFootprint: number;
 
   setTabBarHeight: (num: number) => void;
   setPlayerBottomBarHeight: (num: number) => void;
@@ -164,6 +185,7 @@ const DEFAULT_PLAYER_BOTTOM_BAR_HEIGHT = 64;
 const DEFAULT_CONTEXT_VALUE: RelistenPlayerBottomBarContextProps = {
   tabBarHeight: DEFAULT_TAB_BAR_HEIGHT,
   playerBottomBarHeight: DEFAULT_PLAYER_BOTTOM_BAR_HEIGHT,
+  collapsedSheetFootprint: DEFAULT_PLAYER_BOTTOM_BAR_HEIGHT + COLLAPSED_CARD_BOTTOM_MARGIN,
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   setTabBarHeight: (num: number) => {},
@@ -186,6 +208,9 @@ export const RelistenPlayerBottomBarProvider = ({ children }: PropsWithChildren<
       value={{
         tabBarHeight,
         playerBottomBarHeight: isPlayerBottomBarVisible ? playerBottomBarHeight : 0,
+        collapsedSheetFootprint: isPlayerBottomBarVisible
+          ? playerBottomBarHeight + COLLAPSED_CARD_BOTTOM_MARGIN
+          : 0,
         setTabBarHeight,
         setPlayerBottomBarHeight,
       }}
@@ -203,3 +228,30 @@ export const useRelistenPlayerBottomBarContext = () => {
 
   return context;
 };
+
+const styles = StyleSheet.create({
+  container: {
+    left: COLLAPSED_CARD_HORIZONTAL_MARGIN,
+    position: 'absolute',
+    right: COLLAPSED_CARD_HORIZONTAL_MARGIN,
+  },
+  surface: {
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  surfaceShadow: {
+    borderRadius: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.35,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 12,
+      },
+      default: {},
+    }),
+  },
+});

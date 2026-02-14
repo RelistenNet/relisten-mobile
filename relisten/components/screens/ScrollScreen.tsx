@@ -3,7 +3,7 @@ import { PropsWithChildren } from 'react';
 import { View } from 'react-native';
 
 export const ScrollScreen = ({ children }: PropsWithChildren) => {
-  const { playerBottomBarHeight } = useRelistenPlayerBottomBarContext();
+  const { collapsedSheetFootprint } = useRelistenPlayerBottomBarContext();
 
-  return <View style={{ paddingBottom: playerBottomBarHeight, flex: 1 }}>{children}</View>;
+  return <View style={{ paddingBottom: collapsedSheetFootprint, flex: 1 }}>{children}</View>;
 };
