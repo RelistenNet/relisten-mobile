@@ -1,9 +1,6 @@
-import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { Asset } from 'expo-asset';
 import { useEffect, useState } from 'react';
 import { Image } from 'react-native';
-import * as Font from 'expo-font';
-import { Icon } from '@expo/vector-icons/build/createIconSet';
 import ToolbarRelisten from '@/assets/toolbar_relisten.png';
 
 function cacheImages(images: Array<string | number>) {
@@ -16,10 +13,6 @@ function cacheImages(images: Array<string | number>) {
   });
 }
 
-function cacheFonts(fonts: Array<Icon<string, string>['font']>) {
-  return fonts.map((font) => Font.loadAsync(font));
-}
-
 export default function useCacheAssets() {
   const [isAppReady, setIsAppReady] = useState(false);
 
@@ -28,10 +21,12 @@ export default function useCacheAssets() {
     async function loadResourcesAndDataAsync() {
       try {
         const imageAssets = cacheImages([ToolbarRelisten]);
-
-        const fontAssets = cacheFonts([MaterialIcons.font, MaterialCommunityIcons.font]);
-
-        await Promise.all([...imageAssets, ...fontAssets]);
+        const preloadedAssets = await Promise.allSettled(imageAssets);
+        for (const result of preloadedAssets) {
+          if (result.status === 'rejected') {
+            console.warn(result.reason);
+          }
+        }
       } catch (e) {
         // You might want to provide this error information to an error reporting service
         console.warn(e);

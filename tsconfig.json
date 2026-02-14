@@ -22,8 +22,10 @@
   "include": [
     "./relisten/**/*.ts",
     "./relisten/**/*.tsx",
+    "./relisten/**/*.d.ts",
     "./app/**/*.ts",
     "./app/**/*.tsx",
+    "./app/**/*.d.ts",
     "nativewind-env.d.ts"
   ]
 }
