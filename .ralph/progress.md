@@ -359,3 +359,37 @@ Run summary: /Users/alecgorge/code/relisten/relisten-mobile/.ralph/runs/run-2026
   - Useful context
   - `CI=1 npx expo run:ios --device "iPhone 17 Pro" --no-bundler --no-install` remains a reliable local iOS build+launch smoke check for this repo.
 ---
+## [2026-02-13 19:41:42 PST] - US-003: Resolve collapsed player bar clipping and border integrity
+Thread: 
+Run: 20260213-191642-58230 (iteration 3)
+Run log: /Users/alecgorge/code/relisten/relisten-mobile/.ralph/runs/run-20260213-191642-58230-iter-3.log
+Run summary: /Users/alecgorge/code/relisten/relisten-mobile/.ralph/runs/run-20260213-191642-58230-iter-3.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: a0d2409 fix(player-sheet): prevent collapsed bar clipping
+- Post-commit status: `clean`
+- Verification:
+  - Command: `yarn lint` -> PASS
+  - Command: `yarn ts:check` -> PASS
+  - Command: `RN Debugger MCP: scan_metro, get_apps, get_connection_status, get_bundle_status` -> PASS (iOS connection + healthy bundle)
+  - Command: `RN Debugger MCP: list_android_devices` -> FAIL (blocked: ADB is not installed or not in PATH)
+  - Command: `RN Debugger MCP: ocr_screenshot(platform=ios), ensure_connection(forceRefresh=true)` -> FAIL (blocked: repeated `Transport closed`)
+  - Command: `xcrun simctl io booted screenshot /tmp/us003-ios-fallback.png` -> PASS (manual fallback evidence capture)
+- Files changed:
+  - .ralph/activity.log
+  - relisten/player/ui/player_bottom_bar.tsx
+  - relisten/player/ui/player_sheet_host.tsx
+  - .ralph/progress.md
+- What was implemented
+  - Reworked collapsed player bar layering so shadow/elevation, clipping, and stroke are handled by separate style responsibilities.
+  - Added explicit collapsed card stroke (`borderWidth` + `borderColor`) and non-clipping wrappers (`overflow: 'visible'`) to preserve corners and border integrity.
+  - Updated `PlayerSheetHost` overlay wrappers to use explicit non-clipping host styles so collapsed bar shadow/border is not cut by parent bounds during drag/settle animation.
+  - Built and executed a clipping-focused validation checklist for `/relisten/tabs` idle/drag/settle paths; full MCP gesture execution was blocked by tooling transport and missing Android ADB, and fallback evidence was captured.
+- **Learnings for future iterations:**
+  - Patterns discovered
+  - Keeping shadow and clip layers separate plus explicit parent `overflow: 'visible'` reduces cross-platform clipping artifacts during overlay animation.
+  - Gotchas encountered
+  - RN Debugger MCP may drop to `Transport closed` mid-run; Android coverage depends on local `adb` availability.
+  - Useful context
+  - Fallback screenshot evidence captured at `/tmp/us003-ios-fallback.png` when MCP interaction tooling became unavailable.
+---
