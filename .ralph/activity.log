@@ -1,6 +1,7 @@
 # Activity Log
 
 ## Run Summary
+- 2026-02-13 20:01:13 | run=20260213-191642-58230 | iter=5 | mode=build | story=US-005 | duration=475s | status=success
 - 2026-02-13 19:53:16 | run=20260213-191642-58230 | iter=4 | mode=build | story=US-004 | duration=715s | status=success
 - 2026-02-13 19:41:19 | run=20260213-191642-58230 | iter=3 | mode=build | story=US-003 | duration=369s | status=success
 - 2026-02-13 19:35:08 | run=20260213-191642-58230 | iter=2 | mode=build | story=US-002 | duration=664s | status=success
@@ -107,3 +108,8 @@
 [2026-02-13 19:57:02] US-005 major code change: moved Android pan interruption capture to onBegin for continuous finger tracking during settle/reversal
 [2026-02-13 19:59:57] US-005 verification: yarn lint PASS, yarn ts:check PASS, expo run:ios PASS, rn-debugger blocked by Transport closed after one reconnect; captured fallback screenshot .ralph/screenshots/us005-fallback-post-build.png
 [2026-02-13 20:00:40] US-005 progress entry appended with verification and fallback rn-debugger notes
+[2026-02-13 20:01:13] ITERATION 5 end (duration=475s)
+[2026-02-13 20:01:15] ITERATION 6 start (mode=build story=US-006)
+[2026-02-13 20:02:02] US-006 audit: reviewing existing scenario specs and validation artifacts
+[2026-02-13 20:04:34] US-006 major artifact: added docs/player-sheet-polish-regression-us006.md with full scenario matrix outcomes and blocker evidence
+[2026-02-13 20:05:57] US-006 verification: yarn lint PASS, yarn ts:check PASS, expo run:ios PASS, rn-debugger matrix execution blocked by Transport closed and missing adb
