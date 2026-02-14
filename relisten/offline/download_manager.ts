@@ -330,7 +330,9 @@ export class DownloadManager {
         const offlineInfo = sourceTrack.offlineInfo;
 
         sourceTrack.offlineInfo = undefined;
-        realm!.delete(offlineInfo);
+        if (offlineInfo?.isValid()) {
+          realm!.delete(offlineInfo);
+        }
       });
     }
   }
