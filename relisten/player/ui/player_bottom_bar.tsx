@@ -148,7 +148,6 @@ export function PlayerBottomBar({ gesture }: PlayerBottomBarProps) {
 
   const bar = (
     <View
-      onLayout={onLayout}
       style={[
         styles.container,
         {
@@ -156,11 +155,13 @@ export function PlayerBottomBar({ gesture }: PlayerBottomBarProps) {
         },
       ]}
     >
-      <View style={styles.surfaceShadow}>
-        <View style={styles.surface}>
-          {!isOnline && <OfflineBanner />}
-          <View className="w-full border-t-2 border-t-relisten-blue-700 bg-relisten-blue-800 pt-2">
-            <PlayerBottomBarContents />
+      <View onLayout={onLayout} style={styles.surfaceFrame}>
+        <View style={styles.surfaceShadow}>
+          <View style={styles.surface}>
+            {!isOnline && <OfflineBanner />}
+            <View className="w-full border-t-2 border-t-relisten-blue-700 bg-relisten-blue-800 pt-2">
+              <PlayerBottomBarContents />
+            </View>
           </View>
         </View>
       </View>
@@ -235,15 +236,23 @@ export const useRelistenPlayerBottomBarContext = () => {
 const styles = StyleSheet.create({
   container: {
     left: COLLAPSED_CARD_HORIZONTAL_MARGIN,
+    overflow: 'visible',
     position: 'absolute',
     right: COLLAPSED_CARD_HORIZONTAL_MARGIN,
   },
+  surfaceFrame: {
+    overflow: 'visible',
+  },
   surface: {
+    backgroundColor: '#00141a',
+    borderColor: 'rgba(255, 255, 255, 0.12)',
     borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
   },
   surfaceShadow: {
     borderRadius: 16,
+    overflow: 'visible',
     ...Platform.select({
       ios: {
         shadowColor: '#000000',

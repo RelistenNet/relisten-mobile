@@ -418,7 +418,7 @@ export function PlayerSheetHost() {
     }
 
     return (
-      <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      <View pointerEvents="box-none" style={styles.hostRoot}>
         <View style={[styles.expandedSurface, { paddingTop: safeAreaInsets.top }]}>
           <View style={styles.collapseButtonContainer}>
             <Pressable
@@ -444,10 +444,10 @@ export function PlayerSheetHost() {
   // - collapsed: floating bottom card entrypoint during playback (with drag affordance).
   // - expanded: full player surface mounted in tabs with interruptible snapping behavior.
   return (
-    <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+    <View pointerEvents="box-none" style={styles.hostRoot}>
       <Animated.View
         pointerEvents="box-none"
-        style={[StyleSheet.absoluteFill, bottomBarAnimatedStyle]}
+        style={[styles.bottomBarLayer, bottomBarAnimatedStyle]}
       >
         <PlayerBottomBar gesture={bottomBarPanGesture} />
       </Animated.View>
@@ -525,6 +525,10 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#000000',
   },
+  bottomBarLayer: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'visible',
+  },
   androidGestureHeader: {
     height: ANDROID_GESTURE_HEADER_HEIGHT,
     left: 0,
@@ -546,5 +550,9 @@ const styles = StyleSheet.create({
   },
   collapseButton: {
     padding: 8,
+  },
+  hostRoot: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'visible',
   },
 });

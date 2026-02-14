@@ -1,6 +1,7 @@
 # Activity Log
 
 ## Run Summary
+- 2026-02-13 19:35:08 | run=20260213-191642-58230 | iter=2 | mode=build | story=US-002 | duration=664s | status=success
 - 2026-02-13 19:24:02 | run=20260213-191642-58230 | iter=1 | mode=build | story=US-001 | duration=440s | status=success
 - 2026-02-13 18:40:33 | run=20260213-173022-97259 | iter=9 | mode=build | story=US-009 | duration=391s | status=success
 - 2026-02-13 18:34:00 | run=20260213-173022-97259 | iter=8 | mode=build | story=US-008 | duration=322s | status=success
@@ -85,3 +86,8 @@
 [2026-02-13 19:29:17] Verification run: yarn lint PASS, yarn ts:check PASS, RN Debugger blocked (ADB missing; transport closed during iOS MCP calls)
 [2026-02-13 19:33:26] Verification complete: lint+ts+ios build passed; RN Debugger MCP blocked (transport closed, Android ADB missing); captured manual iOS screenshots for artists root
 [2026-02-13 19:34:32] Updated US-002 progress entry with commit e3fcb92, verification results, and RN Debugger blocker notes
+[2026-02-13 19:35:08] ITERATION 2 end (duration=664s)
+[2026-02-13 19:35:10] ITERATION 3 start (mode=build story=US-003)
+[2026-02-13 19:35:42] US-003 iteration 3 start: reviewing player bar clipping and border integrity
+[2026-02-13 19:38:15] US-003 code changes: hardened collapsed bar shadow/clip/stroke layering and non-clipping host wrappers
+[2026-02-13 19:39:51] US-003 verification: yarn lint/pass, yarn ts:check/pass, RN Debugger blocked (Transport closed + Android ADB missing); captured fallback iOS screenshot /tmp/us003-ios-fallback.png
