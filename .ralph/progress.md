@@ -489,3 +489,35 @@ Run summary: /Users/alecgorge/code/relisten/relisten-mobile/.ralph/runs/run-2026
   - Useful context
   - Baseline fallback state for this run was captured at `.ralph/screenshots/us006-ios-fallback-current.png` (artists tab with collapsed player bar visible).
 ---
+## [2026-02-13 20:13 PST] - US-007: Finalize production polish signoff and rollback-safe guardrails
+Thread: 
+Run: 20260213-191642-58230 (iteration 7)
+Run log: /Users/alecgorge/code/relisten/relisten-mobile/.ralph/runs/run-20260213-191642-58230-iter-7.log
+Run summary: /Users/alecgorge/code/relisten/relisten-mobile/.ralph/runs/run-20260213-191642-58230-iter-7.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 05cfe0a docs(player-sheet): publish us-007 signoff package
+- Post-commit status: `clean`
+- Verification:
+  - Command: `source ~/.nvm/nvm.sh && nvm use >/dev/null && yarn lint` -> PASS
+  - Command: `source ~/.nvm/nvm.sh && nvm use >/dev/null && yarn ts:check` -> PASS
+  - Command: `source ~/.nvm/nvm.sh && nvm use >/dev/null && CI=1 npx expo run:ios --device "iPhone 17 Pro" --no-bundler --no-install` -> PASS
+  - Command: `RN Debugger MCP: scan_metro, get_apps, ensure_connection, ocr_screenshot(platform=ios), ensure_connection(forceRefresh=true), get_connection_status, get_bundle_status` -> FAIL (blocked: repeated `Transport closed` after one reconnect attempt)
+  - Command: `xcrun simctl openurl booted "relisten://relisten/tabs" && xcrun simctl openurl booted "relisten://relisten/player" && xcrun simctl io booted screenshot .ralph/screenshots/us007-*.png` -> PASS (manual fallback evidence capture)
+- Files changed:
+  - docs/player-sheet-polish-signoff-us007.md
+  - .ralph/activity.log
+  - .ralph/progress.md
+- What was implemented
+  - Added `docs/player-sheet-polish-signoff-us007.md` as the final release-signoff artifact that maps each PRD success metric to concrete evidence, with explicit pass/partial/fail status per metric.
+  - Documented `/relisten/tabs` and `/relisten/player` compatibility checks using current fallback screenshots plus route-host implementation references, and explicitly marked expanded/gesture validation coverage as blocked.
+  - Included before/after references for earlier clipping and continuity defects and codified rollback-targeted guidance by defect class for release safety.
+  - Enforced negative-case behavior in the signoff decision: release remains blocked because required RN Debugger MCP scenario evidence is still unresolved.
+- **Learnings for future iterations:**
+  - Patterns discovered
+  - A metric-to-evidence matrix in the final signoff artifact makes release-block decisions auditable when tooling is partially unavailable.
+  - Gotchas encountered
+  - RN Debugger MCP can report healthy connection once and then fail all interaction APIs with `Transport closed`; fallback evidence must be captured immediately after the single reconnect attempt.
+  - Useful context
+  - Current fallback screenshots for this run are `.ralph/screenshots/us007-tabs-collapsed-spotcheck.png`, `.ralph/screenshots/us007-player-compat-spotcheck.png`, and `.ralph/screenshots/us007-tabs-post-player-spotcheck.png`.
+---
