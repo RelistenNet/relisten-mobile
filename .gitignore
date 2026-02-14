@@ -101,3 +101,6 @@ modules/relisten-audio-player/android/build
 
 .vscode/*
 .env.local
+
+/.ralph/
+/.codex/
