@@ -20,6 +20,7 @@ import useCacheAssets from './useCacheAssets';
 import { RelistenPlayerProvider } from '@/relisten/player/relisten_player_hooks';
 import { RelistenPlayerBottomBarProvider } from '@/relisten/player/ui/player_bottom_bar';
 import { PlayerSheetStateProvider } from '@/relisten/player/ui/player_sheet_state';
+import { TabInsetAdapterProvider } from '@/relisten/player/ui/tab_inset_adapter';
 import { RelistenCastProvider } from '@/relisten/casting/cast_provider';
 import { ActionSheetProvider } from '@expo/react-native-action-sheet';
 import FlashMessage from 'react-native-flash-message';
@@ -149,20 +150,22 @@ function TabLayout() {
                 fonts: DefaultTheme.fonts,
               }}
             >
-              <RelistenPlayerBottomBarProvider>
-                <PlayerSheetStateProvider>
-                  <ActionSheetProvider>
-                    <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
-                      <SafeAreaProvider>
-                        {/* */}
-                        <StatusBar style="light" translucent={true} />
-                        <Slot />
-                        <FlashMessage position="top" />
-                      </SafeAreaProvider>
-                    </GestureHandlerRootView>
-                  </ActionSheetProvider>
-                </PlayerSheetStateProvider>
-              </RelistenPlayerBottomBarProvider>
+              <TabInsetAdapterProvider>
+                <RelistenPlayerBottomBarProvider>
+                  <PlayerSheetStateProvider>
+                    <ActionSheetProvider>
+                      <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
+                        <SafeAreaProvider>
+                          {/* */}
+                          <StatusBar style="light" translucent={true} />
+                          <Slot />
+                          <FlashMessage position="top" />
+                        </SafeAreaProvider>
+                      </GestureHandlerRootView>
+                    </ActionSheetProvider>
+                  </PlayerSheetStateProvider>
+                </RelistenPlayerBottomBarProvider>
+              </TabInsetAdapterProvider>
             </ThemeProvider>
           </RelistenCastProvider>
         </RelistenPlayerProvider>

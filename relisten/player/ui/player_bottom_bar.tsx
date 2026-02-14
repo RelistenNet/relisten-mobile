@@ -27,6 +27,7 @@ import { RelistenCastButton, useRelistenCastStatus } from '@/relisten/casting/ca
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { useIsDesktopLayout } from '@/relisten/util/layout';
 import { usePlayerSheetControls } from './player_sheet_state';
+import { useTabInsetSnapshot } from './tab_inset_adapter';
 
 const COLLAPSED_CARD_HORIZONTAL_MARGIN = 12;
 const COLLAPSED_CARD_BOTTOM_MARGIN = 8;
@@ -126,8 +127,8 @@ type PlayerBottomBarProps = {
 
 export function PlayerBottomBar({ gesture }: PlayerBottomBarProps) {
   const isOnline = useShouldMakeNetworkRequests();
-  const { tabBarHeight, playerBottomBarHeight, setPlayerBottomBarHeight } =
-    useRelistenPlayerBottomBarContext();
+  const { bottomInset: tabInsetBottom } = useTabInsetSnapshot();
+  const { playerBottomBarHeight, setPlayerBottomBarHeight } = useRelistenPlayerBottomBarContext();
 
   const onLayout = useCallback(
     (e: LayoutChangeEvent) => {
@@ -151,7 +152,7 @@ export function PlayerBottomBar({ gesture }: PlayerBottomBarProps) {
       style={[
         styles.container,
         {
-          bottom: tabBarHeight + COLLAPSED_CARD_BOTTOM_MARGIN,
+          bottom: tabInsetBottom + COLLAPSED_CARD_BOTTOM_MARGIN,
         },
       ]}
     >
@@ -182,24 +183,18 @@ export const useIsPlayerBottomBarVisible = () => {
 };
 
 export interface RelistenPlayerBottomBarContextProps {
-  tabBarHeight: number;
   playerBottomBarHeight: number;
   collapsedSheetFootprint: number;
 
-  setTabBarHeight: (num: number) => void;
   setPlayerBottomBarHeight: (num: number) => void;
 }
 
-const DEFAULT_TAB_BAR_HEIGHT = 44;
 const DEFAULT_PLAYER_BOTTOM_BAR_HEIGHT = 64;
 
 const DEFAULT_CONTEXT_VALUE: RelistenPlayerBottomBarContextProps = {
-  tabBarHeight: DEFAULT_TAB_BAR_HEIGHT,
   playerBottomBarHeight: DEFAULT_PLAYER_BOTTOM_BAR_HEIGHT,
   collapsedSheetFootprint: DEFAULT_PLAYER_BOTTOM_BAR_HEIGHT + COLLAPSED_CARD_BOTTOM_MARGIN,
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  setTabBarHeight: (num: number) => {},
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   setPlayerBottomBarHeight: (num: number) => {},
 };
@@ -208,7 +203,6 @@ export const RelistenPlayerBottomBarContext =
   React.createContext<RelistenPlayerBottomBarContextProps>(DEFAULT_CONTEXT_VALUE);
 
 export const RelistenPlayerBottomBarProvider = ({ children }: PropsWithChildren<object>) => {
-  const [tabBarHeight, setTabBarHeight] = useState(DEFAULT_TAB_BAR_HEIGHT);
   const [playerBottomBarHeight, setPlayerBottomBarHeight] = useState(
     DEFAULT_PLAYER_BOTTOM_BAR_HEIGHT
   );
@@ -217,12 +211,10 @@ export const RelistenPlayerBottomBarProvider = ({ children }: PropsWithChildren<
   return (
     <RelistenPlayerBottomBarContext.Provider
       value={{
-        tabBarHeight,
         playerBottomBarHeight: isPlayerBottomBarVisible ? playerBottomBarHeight : 0,
         collapsedSheetFootprint: isPlayerBottomBarVisible
           ? playerBottomBarHeight + COLLAPSED_CARD_BOTTOM_MARGIN
           : 0,
-        setTabBarHeight,
         setPlayerBottomBarHeight,
       }}
     >

@@ -1,8 +1,10 @@
-import { useRelistenPlayerBottomBarContext } from '@/relisten/player/ui/player_bottom_bar';
+import {
+  LEGACY_TAB_INSET_REPORTER,
+  useTabInsetReporter,
+} from '@/relisten/player/ui/tab_inset_adapter';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Stack } from 'expo-router/stack';
-import { useEffect } from 'react';
 import { Image } from 'react-native';
 import RelistenWhite from '@/assets/relisten_white.png';
 import { useIsDesktopLayout } from '@/relisten/util/layout';
@@ -10,12 +12,9 @@ import { useIsDesktopLayout } from '@/relisten/util/layout';
 export default function ArtistsLayout() {
   const bottomTabBarHeight = useBottomTabBarHeight();
   const isDesktopLayout = useIsDesktopLayout();
+  const tabInsetBottom = isDesktopLayout ? 0 : bottomTabBarHeight;
 
-  const { setTabBarHeight } = useRelistenPlayerBottomBarContext();
-
-  useEffect(() => {
-    setTabBarHeight(isDesktopLayout ? 0 : bottomTabBarHeight);
-  }, [bottomTabBarHeight, isDesktopLayout, setTabBarHeight]);
+  useTabInsetReporter(LEGACY_TAB_INSET_REPORTER.relistenGroup, tabInsetBottom);
 
   return (
     <Stack screenOptions={{ headerShadowVisible: false }}>
