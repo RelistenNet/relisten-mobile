@@ -321,3 +321,41 @@ Run summary: /Users/alecgorge/code/relisten/relisten-mobile/.ralph/runs/run-2026
   - Useful context
   - Route coverage for artists/myLibrary/offline shares the grouped stack under `app/relisten/tabs/(artists,myLibrary,offline)/_layout.tsx` while the host surface lives in `app/relisten/tabs/_layout.tsx`.
 ---
+## [2026-02-13 19:34:04 PST] - US-002: Fix scroll-under-player layering across tab scroll containers
+Thread: 88958
+Run: 20260213-191642-58230 (iteration 2)
+Run log: /Users/alecgorge/code/relisten/relisten-mobile/.ralph/runs/run-20260213-191642-58230-iter-2.log
+Run summary: /Users/alecgorge/code/relisten/relisten-mobile/.ralph/runs/run-20260213-191642-58230-iter-2.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: e3fcb92 fix(player-sheet): enable scroll-under on tab roots
+- Post-commit status: `dirty` (`.ralph/progress.md`, `.ralph/activity.log` pending follow-up commit)
+- Verification:
+  - Command: `yarn lint` -> PASS
+  - Command: `yarn ts:check` -> PASS
+  - Command: `CI=1 npx expo run:ios --device "iPhone 17 Pro" --no-bundler --no-install` -> PASS
+  - Command: `RN Debugger MCP: scan_metro, get_apps` -> PASS (initial connection only)
+  - Command: `RN Debugger MCP: ocr_screenshot(platform=ios), ensure_connection(forceRefresh=true), get_connection_status` -> FAIL (blocked: repeated `Transport closed` MCP errors)
+  - Command: `RN Debugger MCP: list_android_devices` -> FAIL (blocked: `ADB is not installed or not in PATH`)
+  - Command: `xcrun simctl io booted screenshot /tmp/us002-ios-post-build.png` -> PASS (manual fallback evidence capture)
+- Files changed:
+  - relisten/components/screens/ScrollScreen.tsx
+  - app/relisten/tabs/(artists,myLibrary,offline)/index.tsx
+  - app/relisten/tabs/(artists,myLibrary,offline)/all.tsx
+  - app/relisten/tabs/(artists,myLibrary,offline)/myLibrary.tsx
+  - .ralph/activity.log
+  - .ralph/progress.md
+- What was implemented
+  - Added `reserveBottomInset` to `ScrollScreen` (default `true`) so in-scope tab roots can opt out of container-level bottom padding that caused hard-stop scrolling above the collapsed player bar.
+  - Updated artists/offline root list (`index.tsx`) and all-artists route (`all.tsx`) to use `reserveBottomInset={false}` and moved spacing to `RelistenSectionList` `contentContainerStyle`/`scrollIndicatorInsets` using `collapsedSheetFootprint`.
+  - Updated my library root (`myLibrary.tsx`) to use `reserveBottomInset={false}` and apply collapsed-player bottom spacing on the root `ScrollView` content/indicators.
+  - Resulting layout behavior: scroll viewport can pass under the collapsed player surface while maintaining reachable terminal content via content-bottom padding.
+  - RN Debugger full gesture/UI matrix could not be completed in this environment; fallback manual iOS screenshots were captured at `/tmp/us002-ios-current.png`, `/tmp/us002-ios-after-reboot-2.png`, and `/tmp/us002-ios-post-build.png`.
+- **Learnings for future iterations:**
+  - Patterns discovered
+  - Container-level bottom padding on non-scroll wrappers causes visual hard-stop behavior; moving inset to scroll content preserves underlay motion and end-of-list reachability.
+  - Gotchas encountered
+  - RN Debugger MCP can enter a `Transport closed` state mid-session; Android validation also requires local `adb` availability.
+  - Useful context
+  - `CI=1 npx expo run:ios --device "iPhone 17 Pro" --no-bundler --no-install` remains a reliable local iOS build+launch smoke check for this repo.
+---
