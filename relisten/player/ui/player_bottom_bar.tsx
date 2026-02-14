@@ -19,6 +19,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { GestureDetector, GestureType } from 'react-native-gesture-handler';
 import { ScrubberRow } from './player_screen';
 import * as Progress from 'react-native-progress';
 import AirPlayButton from 'react-native-airplay-button';
@@ -119,7 +120,11 @@ function PlayerBottomBarContents() {
   );
 }
 
-export function PlayerBottomBar() {
+type PlayerBottomBarProps = {
+  gesture?: GestureType;
+};
+
+export function PlayerBottomBar({ gesture }: PlayerBottomBarProps) {
   const isOnline = useShouldMakeNetworkRequests();
   const { tabBarHeight, playerBottomBarHeight, setPlayerBottomBarHeight } =
     useRelistenPlayerBottomBarContext();
@@ -140,7 +145,7 @@ export function PlayerBottomBar() {
     return <></>;
   }
 
-  return (
+  const bar = (
     <View
       onLayout={onLayout}
       style={[
@@ -160,6 +165,12 @@ export function PlayerBottomBar() {
       </View>
     </View>
   );
+
+  if (!gesture) {
+    return bar;
+  }
+
+  return <GestureDetector gesture={gesture}>{bar}</GestureDetector>;
 }
 
 export const useIsPlayerBottomBarVisible = () => {
