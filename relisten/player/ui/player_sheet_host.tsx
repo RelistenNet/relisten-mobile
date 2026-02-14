@@ -48,7 +48,6 @@ const ANDROID_SHEET_DISTANCE_THRESHOLD = 56;
 const ANDROID_GESTURE_MIN_DISTANCE = 8;
 const ANDROID_GESTURE_ACTIVE_OFFSET_Y: [number, number] = [-10, 10];
 const ANDROID_GESTURE_FAIL_OFFSET_X: [number, number] = [-20, 20];
-const ANDROID_GESTURE_HEADER_HEIGHT = 72;
 const SHEET_SPRING_CONFIG = {
   damping: 30,
   mass: 0.8,
@@ -342,6 +341,7 @@ export function PlayerSheetHost() {
 
     return panGesture
       .onBegin(() => {
+        'worklet';
         cancelAnimation(sheetTranslateY);
         dragStartTranslateY.value = sheetTranslateY.value;
         if (__DEV__) {
@@ -356,11 +356,13 @@ export function PlayerSheetHost() {
         }
       })
       .onStart(() => {
+        'worklet';
         if (isAndroid) {
           runOnJS(setSheetMounted)(true);
         }
       })
       .onUpdate((event) => {
+        'worklet';
         const nextTranslateY = clamp(
           dragStartTranslateY.value + event.translationY,
           0,
@@ -369,6 +371,7 @@ export function PlayerSheetHost() {
         sheetTranslateY.value = nextTranslateY;
       })
       .onEnd((event) => {
+        'worklet';
         const velocityThreshold = isAndroid
           ? ANDROID_SHEET_VELOCITY_THRESHOLD
           : IOS_SHEET_VELOCITY_THRESHOLD;
@@ -455,6 +458,35 @@ export function PlayerSheetHost() {
 
   const sheetPanGesture = useMemo(() => createPanGesture(), [createPanGesture]);
   const bottomBarPanGesture = useMemo(() => createPanGesture(), [createPanGesture]);
+  const sheetHeader = (
+    <View style={[styles.expandedHeader, { paddingTop: safeAreaInsets.top }]}>
+      <View style={styles.expandedHeaderSide} />
+      <View style={styles.expandedHeaderCenter}>
+        {isAndroid ? (
+          <GestureDetector gesture={sheetPanGesture}>
+            <View style={styles.expandedHeaderGestureZone}>
+              <View style={styles.expandedHeaderHandle} />
+            </View>
+          </GestureDetector>
+        ) : (
+          <View style={styles.expandedHeaderGestureZone}>
+            <View style={styles.expandedHeaderHandle} />
+          </View>
+        )}
+      </View>
+      <View style={styles.expandedHeaderSide}>
+        <Pressable
+          accessibilityLabel="Collapse player"
+          accessibilityRole="button"
+          hitSlop={COLLAPSE_BUTTON_HIT_SLOP}
+          onPress={collapse}
+          style={styles.collapseButton}
+        >
+          <MaterialCommunityIcons name="chevron-down" size={28} color="white" />
+        </Pressable>
+      </View>
+    </View>
+  );
 
   const backdropAnimatedStyle = useAnimatedStyle(() => {
     const progress = 1 - sheetTranslateY.value / Math.max(collapsedTranslateYShared.value, 1);
@@ -528,22 +560,15 @@ export function PlayerSheetHost() {
 
     return (
       <View pointerEvents="box-none" style={styles.hostRoot}>
-        <View style={[styles.expandedSurface, { paddingTop: safeAreaInsets.top }]}>
-          <View style={styles.collapseButtonContainer}>
-            <Pressable
-              accessibilityLabel="Collapse player"
-              accessibilityRole="button"
-              hitSlop={COLLAPSE_BUTTON_HIT_SLOP}
-              onPress={collapse}
-              style={styles.collapseButton}
-            >
-              <MaterialCommunityIcons name="chevron-down" size={28} color="white" />
-            </Pressable>
+        <View style={styles.expandedSurface}>
+          {sheetHeader}
+          <View style={styles.expandedContent}>
+            <EmbeddedPlayerScreen
+              includeTopSafeArea={false}
+              onDismissRequest={collapse}
+              shouldRenderQueue={shouldRenderEmbeddedQueue}
+            />
           </View>
-          <EmbeddedPlayerScreen
-            onDismissRequest={collapse}
-            shouldRenderQueue={shouldRenderEmbeddedQueue}
-          />
         </View>
       </View>
     );
@@ -569,45 +594,16 @@ export function PlayerSheetHost() {
       {shouldRenderSheet && (
         <Animated.View
           pointerEvents={isExpanded ? 'auto' : 'box-none'}
-          style={[
-            styles.expandedSurface,
-            expandedSurfaceAnimatedStyle,
-            { paddingTop: safeAreaInsets.top },
-          ]}
+          style={[styles.expandedSurface, expandedSurfaceAnimatedStyle]}
         >
-          {isAndroid ? (
-            <GestureDetector gesture={sheetPanGesture}>
-              <View style={styles.androidGestureHeader}>
-                <View style={styles.collapseButtonContainer}>
-                  <Pressable
-                    accessibilityLabel="Collapse player"
-                    accessibilityRole="button"
-                    hitSlop={COLLAPSE_BUTTON_HIT_SLOP}
-                    onPress={collapse}
-                    style={styles.collapseButton}
-                  >
-                    <MaterialCommunityIcons name="chevron-down" size={28} color="white" />
-                  </Pressable>
-                </View>
-              </View>
-            </GestureDetector>
-          ) : (
-            <View style={styles.collapseButtonContainer}>
-              <Pressable
-                accessibilityLabel="Collapse player"
-                accessibilityRole="button"
-                hitSlop={COLLAPSE_BUTTON_HIT_SLOP}
-                onPress={collapse}
-                style={styles.collapseButton}
-              >
-                <MaterialCommunityIcons name="chevron-down" size={28} color="white" />
-              </Pressable>
-            </View>
-          )}
-          <EmbeddedPlayerScreen
-            onDismissRequest={collapse}
-            shouldRenderQueue={shouldRenderEmbeddedQueue}
-          />
+          {sheetHeader}
+          <View style={styles.expandedContent}>
+            <EmbeddedPlayerScreen
+              includeTopSafeArea={false}
+              onDismissRequest={collapse}
+              shouldRenderQueue={shouldRenderEmbeddedQueue}
+            />
+          </View>
         </Animated.View>
       )}
     </Animated.View>
@@ -633,14 +629,6 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#000000',
   },
-  androidGestureHeader: {
-    height: ANDROID_GESTURE_HEADER_HEIGHT,
-    left: 0,
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    zIndex: 3,
-  },
   collapsedSurfaceLayer: {
     left: 0,
     position: 'absolute',
@@ -662,11 +650,39 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     zIndex: 1,
   },
-  collapseButtonContainer: {
-    position: 'absolute',
-    right: 8,
-    top: 4,
-    zIndex: 4,
+  expandedContent: {
+    flex: 1,
+  },
+  expandedHeader: {
+    alignItems: 'center',
+    backgroundColor: '#00141a',
+    borderBottomColor: 'rgba(255, 255, 255, 0.12)',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    minHeight: 56,
+    paddingHorizontal: 8,
+  },
+  expandedHeaderCenter: {
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+  },
+  expandedHeaderGestureZone: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 40,
+    paddingHorizontal: 16,
+  },
+  expandedHeaderHandle: {
+    backgroundColor: 'rgba(255, 255, 255, 0.35)',
+    borderRadius: 2,
+    height: 4,
+    width: 42,
+  },
+  expandedHeaderSide: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 44,
   },
   collapseButton: {
     padding: 8,

@@ -567,6 +567,7 @@ type PlayerScreenContentProps = {
   onDismissRequest?: () => void;
   showNavigationTitle?: boolean;
   shouldRenderQueue?: boolean;
+  includeTopSafeArea?: boolean;
 };
 
 function DeferredQueuePlaceholder() {
@@ -581,9 +582,13 @@ export function PlayerScreenContent({
   onDismissRequest,
   showNavigationTitle = true,
   shouldRenderQueue = true,
+  includeTopSafeArea = true,
 }: PlayerScreenContentProps) {
   return (
-    <SafeAreaView className="flex-1 bg-relisten-blue-800" edges={['bottom']}>
+    <SafeAreaView
+      className="flex-1 bg-relisten-blue-800"
+      edges={includeTopSafeArea ? ['top', 'bottom'] : ['bottom']}
+    >
       <Flex column className="flex-1">
         <View className="flex-1 flex-grow bg-relisten-blue-900">
           {shouldRenderQueue ? (
@@ -606,17 +611,20 @@ export function PlayerScreenContent({
 type EmbeddedPlayerScreenProps = {
   onDismissRequest?: () => void;
   shouldRenderQueue?: boolean;
+  includeTopSafeArea?: boolean;
 };
 
 export function EmbeddedPlayerScreen({
   onDismissRequest,
   shouldRenderQueue = true,
+  includeTopSafeArea = true,
 }: EmbeddedPlayerScreenProps) {
   return (
     <PlayerScreenContent
       onDismissRequest={onDismissRequest}
       showNavigationTitle={false}
       shouldRenderQueue={shouldRenderQueue}
+      includeTopSafeArea={includeTopSafeArea}
     />
   );
 }

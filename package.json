@@ -4,6 +4,7 @@
   "scripts": {
     "android": "expo run:android",
     "ios": "expo run:ios -d",
+    "ios-agent": "expo run:ios -d 'iPhone 17 Pro'",
     "web": "expo start --web",
     "ts:check": "tsc",
     "lint": "eslint app relisten",
