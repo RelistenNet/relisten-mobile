@@ -24,9 +24,16 @@ export const LEGACY_TAB_INSET_REPORTER = {
   libraryGroup: 'legacy-tabs/group/artists-myLibrary-offline',
 } as const;
 
+export const NATIVE_TAB_INSET_REPORTER = {
+  tabSlot: 'native-tabs/tab-slot',
+  relistenGroup: 'native-tabs/group/relisten',
+  libraryGroup: 'native-tabs/group/artists-myLibrary-offline',
+} as const;
+
 export interface TabInsetReport {
   sourceId: string;
   bottomInset: number;
+  sourceAdapter?: TabInsetAdapterSource;
 }
 
 export interface TabInsetSnapshot {
@@ -39,6 +46,13 @@ export interface TabInsetAdapterContract extends TabInsetSnapshot {
   reportInset: (report: TabInsetReport) => void;
   clearInset: (sourceId: string) => void;
 }
+
+interface TabInsetAdapterProviderProps extends PropsWithChildren {
+  sourceAdapter?: TabInsetAdapterSource;
+}
+
+type ReportedInsetsByAdapter = Record<TabInsetAdapterSource, Record<string, number>>;
+type LastKnownInsetByAdapter = Record<TabInsetAdapterSource, number>;
 
 const DEFAULT_TAB_INSET_SNAPSHOT: TabInsetSnapshot = {
   bottomInset: DEFAULT_TAB_INSET,
@@ -53,6 +67,14 @@ const DEFAULT_CONTEXT_VALUE: TabInsetAdapterContract = {
 };
 
 const TabInsetAdapterContext = createContext<TabInsetAdapterContract>(DEFAULT_CONTEXT_VALUE);
+
+const DEFAULT_CONFIGURED_TAB_INSET_ADAPTER_SOURCE = resolveTabInsetAdapterSource(
+  process.env.EXPO_PUBLIC_PLAYER_TAB_INSET_ADAPTER
+);
+const FALLBACK_ADAPTER_SOURCE: Record<TabInsetAdapterSource, TabInsetAdapterSource> = {
+  [TAB_INSET_ADAPTER_SOURCE.legacyTabs]: TAB_INSET_ADAPTER_SOURCE.nativeTabs,
+  [TAB_INSET_ADAPTER_SOURCE.nativeTabs]: TAB_INSET_ADAPTER_SOURCE.legacyTabs,
+};
 
 const normalizeInset = (value: number): number => {
   if (!Number.isFinite(value)) {
@@ -72,57 +94,131 @@ const selectReportedInset = (reports: Record<string, number>): number => {
   return Math.max(0, ...reportValues);
 };
 
-export const TabInsetAdapterProvider = ({ children }: PropsWithChildren) => {
-  const [reportedInsets, setReportedInsets] = useState<Record<string, number>>({});
+const createEmptyReportedInsetsByAdapter = (): ReportedInsetsByAdapter => ({
+  [TAB_INSET_ADAPTER_SOURCE.legacyTabs]: {},
+  [TAB_INSET_ADAPTER_SOURCE.nativeTabs]: {},
+});
+
+const DEFAULT_LAST_KNOWN_INSET_BY_ADAPTER: LastKnownInsetByAdapter = {
+  [TAB_INSET_ADAPTER_SOURCE.legacyTabs]: DEFAULT_TAB_INSET,
+  [TAB_INSET_ADAPTER_SOURCE.nativeTabs]: DEFAULT_TAB_INSET,
+};
+
+export function resolveTabInsetAdapterSource(
+  sourceValue: string | null | undefined
+): TabInsetAdapterSource {
+  return sourceValue === TAB_INSET_ADAPTER_SOURCE.nativeTabs
+    ? TAB_INSET_ADAPTER_SOURCE.nativeTabs
+    : TAB_INSET_ADAPTER_SOURCE.legacyTabs;
+}
+
+export const TabInsetAdapterProvider = ({
+  children,
+  sourceAdapter,
+}: TabInsetAdapterProviderProps) => {
+  const selectedSourceAdapter = sourceAdapter ?? DEFAULT_CONFIGURED_TAB_INSET_ADAPTER_SOURCE;
+  const [reportedInsetsByAdapter, setReportedInsetsByAdapter] = useState<ReportedInsetsByAdapter>(
+    createEmptyReportedInsetsByAdapter
+  );
   const [lastUpdatedAt, setLastUpdatedAt] = useState(DEFAULT_TAB_INSET_SNAPSHOT.lastUpdatedAt);
-  const [lastKnownBottomInset, setLastKnownBottomInset] = useState(DEFAULT_TAB_INSET);
+  const [lastKnownInsetByAdapter, setLastKnownInsetByAdapter] = useState<LastKnownInsetByAdapter>(
+    DEFAULT_LAST_KNOWN_INSET_BY_ADAPTER
+  );
 
   const reportInset = useCallback((report: TabInsetReport) => {
+    const reportSourceAdapter = report.sourceAdapter ?? TAB_INSET_ADAPTER_SOURCE.legacyTabs;
     const nextInset = normalizeInset(report.bottomInset);
-    setReportedInsets((current) => {
-      if (current[report.sourceId] === nextInset) {
+    setReportedInsetsByAdapter((current) => {
+      const currentSourceReports = current[reportSourceAdapter];
+      if (currentSourceReports[report.sourceId] === nextInset) {
         return current;
       }
 
-      return { ...current, [report.sourceId]: nextInset };
+      return {
+        ...current,
+        [reportSourceAdapter]: {
+          ...currentSourceReports,
+          [report.sourceId]: nextInset,
+        },
+      };
     });
     if (nextInset > 0) {
-      setLastKnownBottomInset(nextInset);
+      setLastKnownInsetByAdapter((current) => {
+        if (current[reportSourceAdapter] === nextInset) {
+          return current;
+        }
+
+        return {
+          ...current,
+          [reportSourceAdapter]: nextInset,
+        };
+      });
     }
     setLastUpdatedAt(Date.now());
   }, []);
 
   const clearInset = useCallback((sourceId: string) => {
-    setReportedInsets((current) => {
-      if (!(sourceId in current)) {
-        return current;
+    setReportedInsetsByAdapter((current) => {
+      let hasChanged = false;
+      const next: ReportedInsetsByAdapter = {
+        [TAB_INSET_ADAPTER_SOURCE.legacyTabs]: current[TAB_INSET_ADAPTER_SOURCE.legacyTabs],
+        [TAB_INSET_ADAPTER_SOURCE.nativeTabs]: current[TAB_INSET_ADAPTER_SOURCE.nativeTabs],
+      };
+
+      for (const adapterSource of Object.values(TAB_INSET_ADAPTER_SOURCE)) {
+        if (!(sourceId in current[adapterSource])) {
+          continue;
+        }
+
+        hasChanged = true;
+        const adapterReports = { ...current[adapterSource] };
+        delete adapterReports[sourceId];
+        next[adapterSource] = adapterReports;
       }
 
-      const next = { ...current };
-      delete next[sourceId];
-      return next;
+      return hasChanged ? next : current;
     });
     setLastUpdatedAt(Date.now());
   }, []);
 
   const bottomInset = useMemo(() => {
-    const reportedInset = selectReportedInset(reportedInsets);
-    if (reportedInset > 0) {
-      return reportedInset;
+    const selectedReportedInset = selectReportedInset(
+      reportedInsetsByAdapter[selectedSourceAdapter]
+    );
+    if (selectedReportedInset > 0) {
+      return selectedReportedInset;
     }
 
-    return lastKnownBottomInset;
-  }, [lastKnownBottomInset, reportedInsets]);
+    const fallbackSourceAdapter = FALLBACK_ADAPTER_SOURCE[selectedSourceAdapter];
+    const fallbackReportedInset = selectReportedInset(
+      reportedInsetsByAdapter[fallbackSourceAdapter]
+    );
+    if (fallbackReportedInset > 0) {
+      return fallbackReportedInset;
+    }
+
+    const selectedLastKnownInset = lastKnownInsetByAdapter[selectedSourceAdapter];
+    if (selectedLastKnownInset > 0) {
+      return selectedLastKnownInset;
+    }
+
+    const fallbackLastKnownInset = lastKnownInsetByAdapter[fallbackSourceAdapter];
+    if (fallbackLastKnownInset > 0) {
+      return fallbackLastKnownInset;
+    }
+
+    return DEFAULT_TAB_INSET;
+  }, [lastKnownInsetByAdapter, reportedInsetsByAdapter, selectedSourceAdapter]);
 
   const value = useMemo<TabInsetAdapterContract>(
     () => ({
       bottomInset,
-      sourceAdapter: TAB_INSET_ADAPTER_SOURCE.legacyTabs,
+      sourceAdapter: selectedSourceAdapter,
       lastUpdatedAt,
       reportInset,
       clearInset,
     }),
-    [bottomInset, clearInset, lastUpdatedAt, reportInset]
+    [bottomInset, clearInset, lastUpdatedAt, reportInset, selectedSourceAdapter]
   );
 
   return (
@@ -150,7 +246,27 @@ export const useTabInsetReporter = (sourceId: string, bottomInset: number) => {
   const { clearInset, reportInset } = useTabInsetAdapter();
 
   useEffect(() => {
-    reportInset({ sourceId, bottomInset });
+    reportInset({
+      sourceId,
+      bottomInset,
+      sourceAdapter: TAB_INSET_ADAPTER_SOURCE.legacyTabs,
+    });
+
+    return () => {
+      clearInset(sourceId);
+    };
+  }, [bottomInset, clearInset, reportInset, sourceId]);
+};
+
+export const useNativeTabInsetReporter = (sourceId: string, bottomInset: number) => {
+  const { clearInset, reportInset } = useTabInsetAdapter();
+
+  useEffect(() => {
+    reportInset({
+      sourceId,
+      bottomInset,
+      sourceAdapter: TAB_INSET_ADAPTER_SOURCE.nativeTabs,
+    });
 
     return () => {
       clearInset(sourceId);
