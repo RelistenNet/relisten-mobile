@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { isRelistenTabKey, RelistenTabKey, tabKeyToRoute } from '@/relisten/util/tabs';
 import { useRelistenPlayerQueueOrderedTracks } from '@/relisten/player/relisten_player_queue_hooks';
 import { NonIdealState } from '@/relisten/components/non_ideal_state';
+import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
 const DESKTOP_SIDEBAR_WIDTH = 220;
 const DESKTOP_NOW_PLAYING_WIDTH = 380;
@@ -57,7 +58,10 @@ export default function TabLayout() {
     });
   }, [activeSegment, pathname]);
 
-  const tabBarComponent = isDesktopLayout ? () => null : TabBar;
+  const tabBarComponent = useCallback(
+    (props: BottomTabBarProps) => (isDesktopLayout ? null : <TabBar {...props} />),
+    [isDesktopLayout]
+  );
   const handleTabSelect = useCallback(
     (key: RelistenTabKey) => {
       if (key === activeTab) {
