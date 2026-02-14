@@ -23,15 +23,30 @@ export function setupCarPlay(realm: Realm, apiClient: RelistenApiClient) {
     });
 
   const nowPlayingTemplate = createNowPlayingTemplate(ctx, queueTemplateBuilder);
+  let showNowPlayingInFlight: Promise<void> | null = null;
+
   const ensureNowPlayingVisible = () => {
-    if (ctx.nowPlayingVisible) {
-      carplay_logger.info('Bringing existing Now Playing to front');
-      CarPlay.popToTemplate(nowPlayingTemplate, true);
+    if (showNowPlayingInFlight) {
       return;
     }
 
-    carplay_logger.info('Pushing Now Playing template');
-    CarPlay.pushTemplate(nowPlayingTemplate, true);
+    showNowPlayingInFlight = (async () => {
+      const topTemplateId = await CarPlay.getTopTemplate();
+
+      if (topTemplateId === nowPlayingTemplate.id || ctx.nowPlayingVisible) {
+        carplay_logger.info('Now Playing already visible');
+        return;
+      }
+
+      carplay_logger.info('Pushing Now Playing template', { topTemplateId });
+      CarPlay.pushTemplate(nowPlayingTemplate, true);
+    })()
+      .catch((error) => {
+        carplay_logger.error('Failed to show Now Playing template', error);
+      })
+      .finally(() => {
+        showNowPlayingInFlight = null;
+      });
   };
   ctx.showNowPlaying = ensureNowPlayingVisible;
 

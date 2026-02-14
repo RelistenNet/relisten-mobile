@@ -1,5 +1,4 @@
-import { CarPlay, ListTemplate } from '@g4rb4g3/react-native-carplay';
-import { ListSection } from '@g4rb4g3/react-native-carplay/src/interfaces/ListSection';
+import { ListTemplate } from '@g4rb4g3/react-native-carplay';
 import { RelistenCarPlayContext } from '@/relisten/carplay/relisten_car_play_context';
 import {
   ShowWithFullSourcesNetworkBackedBehavior,
@@ -18,6 +17,7 @@ import { queueTracksFromSelection } from '@/relisten/carplay/queue_helpers';
 import plur from 'plur';
 
 type ItemMap<T extends { uuid: string }> = Map<string, T>;
+const ACTION_SHOW_SOURCES = 'action:show:sources';
 
 export function createSourcesListTemplate(
   ctx: RelistenCarPlayContext,
@@ -37,7 +37,63 @@ export function createSourcesListTemplate(
   let currentMode: 'sources' | 'tracks' = 'sources';
   let orderedTracks: SourceTrack[] = [];
   let activeSourceUuid: string | undefined;
+  let displaySources: Source[] = [];
   const offlineMode = ctx.userSettings.offlineModeWithDefault();
+
+  const showSources = () => {
+    currentMode = 'sources';
+    orderedTracks = [];
+    activeSourceUuid = undefined;
+
+    sourceMap.clear();
+    for (const source of displaySources) {
+      sourceMap.set(source.uuid, source);
+    }
+
+    const items = displaySources.map((source) => ({
+      id: source.uuid,
+      text: source.source || 'Source',
+      detailText: formatSourceDetail(source),
+      showsDisclosureIndicator: true,
+    }));
+
+    template.updateSections([
+      {
+        header: `${displaySources.length} ${plur('source', displaySources.length)}`,
+        items,
+      },
+    ]);
+  };
+
+  const showTracks = (source: Source) => {
+    const { orderedTracks: nextTracks, sections } = buildTrackSections({
+      source,
+      artist,
+      scope,
+      offlineMode,
+      currentTrackUuid: ctx.player.queue.currentTrack?.sourceTrack.uuid,
+    });
+
+    currentMode = 'tracks';
+    orderedTracks = nextTracks;
+    activeSourceUuid = source.uuid;
+
+    if (displaySources.length > 1) {
+      sections.unshift({
+        header: 'Source',
+        items: [
+          {
+            id: ACTION_SHOW_SOURCES,
+            text: 'Choose Different Source',
+            detailText: source.source || 'Source',
+            showsDisclosureIndicator: false,
+          },
+        ],
+      });
+    }
+
+    template.updateSections(sections);
+  };
 
   const template = new ListTemplate({
     title: `${artist.name} • ${show.displayDate}`,
@@ -45,6 +101,11 @@ export function createSourcesListTemplate(
     tabSystemImageName: 'music.pages.fill',
     async onItemSelect({ id }: { templateId: string; index: number; id: string }) {
       if (currentMode === 'tracks') {
+        if (id === ACTION_SHOW_SOURCES) {
+          showSources();
+          return;
+        }
+
         queueTracksFromSelection({
           ctx,
           scope,
@@ -59,8 +120,7 @@ export function createSourcesListTemplate(
       const source = sourceMap.get(String(id));
       if (!source) return;
 
-      const tracksTemplate = createTracksListTemplate(ctx, scope, artist, show, source);
-      CarPlay.pushTemplate(tracksTemplate, true);
+      showTracks(source);
     },
     sections: [],
     emptyViewTitleVariants: ['Loading sources...'],
@@ -69,94 +129,33 @@ export function createSourcesListTemplate(
   results.addListener((nextValue) => {
     const data = nextValue.data;
     const sources = data?.sources ? sortSources(data.sources) : [];
-    const { displaySources, autoSelectSource } = resolveSourcesForScope(scope, show, sources);
+    const { displaySources: nextDisplaySources, autoSelectSource } = resolveSourcesForScope(
+      scope,
+      show,
+      sources
+    );
+    displaySources = nextDisplaySources;
 
-    if (autoSelectSource) {
-      const { orderedTracks: nextTracks, sections } = buildTrackSections({
-        source: autoSelectSource,
-        artist,
-        scope,
-        offlineMode,
-        currentTrackUuid: ctx.player.queue.currentTrack?.sourceTrack.uuid,
-      });
-
-      currentMode = 'tracks';
-      orderedTracks = nextTracks;
-      activeSourceUuid = autoSelectSource.uuid;
-      template.updateSections(sections);
+    if (displaySources.length === 0) {
+      showSources();
       return;
     }
 
-    currentMode = 'sources';
-    orderedTracks = [];
-    activeSourceUuid = undefined;
-    sourceMap.clear();
-    for (const source of displaySources) {
-      sourceMap.set(source.uuid, source);
+    if (autoSelectSource) {
+      showTracks(autoSelectSource);
+      return;
     }
 
-    const items = displaySources.map((source) => ({
-      id: source.uuid,
-      text: source.source || 'Source',
-      detailText: formatSourceDetail(source),
-      showsDisclosureIndicator: true,
-    }));
+    if (currentMode === 'tracks' && activeSourceUuid) {
+      const activeSource = displaySources.find((source) => source.uuid === activeSourceUuid);
+      if (activeSource) {
+        showTracks(activeSource);
+        return;
+      }
+    }
 
-    const sections: ListSection[] = [
-      {
-        header: `${displaySources.length} ${plur('source', displaySources.length)}`,
-        items,
-      },
-    ];
-
-    template.updateSections(sections);
+    showSources();
   });
-
-  return template;
-}
-
-export function createTracksListTemplate(
-  ctx: RelistenCarPlayContext,
-  scope: CarPlayScope,
-  artist: Artist,
-  show: Show,
-  source: Source
-): ListTemplate {
-  carplay_logger.info('createTracksListTemplate', {
-    scope,
-    artist: artist.uuid,
-    show: show.uuid,
-    source: source.uuid,
-  });
-  const offlineMode = ctx.userSettings.offlineModeWithDefault();
-
-  const { orderedTracks, sections } = buildTrackSections({
-    source,
-    artist,
-    scope,
-    offlineMode,
-    currentTrackUuid: ctx.player.queue.currentTrack?.sourceTrack.uuid,
-  });
-
-  const template = new ListTemplate({
-    title: `${artist.name} • ${show.displayDate}`,
-    tabTitle: SCOPE_META[scope].tabTitle,
-    tabSystemImageName: 'music.pages.fill',
-    async onItemSelect({ id }: { templateId: string; index: number; id: string }) {
-      carplay_logger.info('track selected', { id, scope, source: source.uuid, show: show.uuid });
-      queueTracksFromSelection({
-        ctx,
-        scope,
-        orderedTracks,
-        selectedTrackUuid: String(id),
-        sourceUuid: source.uuid,
-      });
-    },
-    sections: [],
-    emptyViewTitleVariants: ['Loading tracks...'],
-  });
-
-  template.updateSections(sections);
 
   return template;
 }
