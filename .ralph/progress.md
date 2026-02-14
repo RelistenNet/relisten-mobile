@@ -405,6 +405,7 @@ Run summary: /Users/alecgorge/code/relisten/relisten-mobile/.ralph/runs/run-2026
 - Verification:
   - Command: `yarn lint` -> PASS
   - Command: `yarn ts:check` -> PASS
+  - Command: `CI=1 npx expo run:ios --device "iPhone 17 Pro" --no-bundler --no-install` -> PASS
   - Command: `RN Debugger MCP: scan_metro, ensure_connection, ocr_screenshot(platform=ios), ensure_connection(forceRefresh=true)` -> FAIL (blocked: repeated `Transport closed` after one reconnect attempt)
   - Command: `xcrun simctl io booted screenshot .ralph/screenshots/us004-fallback-current.png` -> PASS
 - Files changed:
