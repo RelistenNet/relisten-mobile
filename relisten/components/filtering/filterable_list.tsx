@@ -8,7 +8,7 @@ import {
 } from '../relisten_section_list';
 import { SectionHeader } from '../section_header';
 import { FilterBar } from './filter_bar';
-import { Filter, SortDirection, useFilters } from './filters';
+import { FilterControl, SortDirection, useFilters } from './filters';
 import { NonIdealState } from '../non_ideal_state';
 import { RelistenText } from '../relisten_text';
 import Plur from '../plur';
@@ -78,14 +78,14 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
     ].filter((x) => x);
   }, [data, filter, filters, searchText, filteringEnabled]);
 
-  function filterToString<K extends string, T>(f: Filter<K, T>) {
+  function filterToString<K extends string>(f: FilterControl<K>) {
     return `${f.title}${f.active ? '*' : ''}${
       f.sortDirection !== undefined
         ? f.sortDirection === SortDirection.Descending
           ? ' desc'
           : ' asc'
         : ''
-    }${f.searchFilter ? '=' + searchText : ''}`;
+    }${f.hasSearchFilter ? '=' + searchText : ''}`;
   }
 
   const filterConfig = useMemo(() => filters.map(filterToString).join('; '), [filters, searchText]);

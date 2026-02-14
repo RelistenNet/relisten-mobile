@@ -2,13 +2,12 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import driver from '@switz/driver';
 import { PropsWithChildren } from 'react';
 import { TouchableOpacity, TouchableOpacityProps, View } from 'react-native';
-import { RelistenObject } from '../../api/models/relisten';
 import { RelistenText } from '../relisten_text';
-import { Filter, SortDirection } from './filters';
+import { FilterControl, SortDirection } from './filters';
 import { tw } from '@/relisten/util/tw';
 import { useIsDesktopLayout } from '@/relisten/util/layout';
 
-export const FilterBarButton = <K extends string, T extends RelistenObject>({
+export const FilterBarButton = <K extends string>({
   filter,
   className,
   color,
@@ -18,7 +17,7 @@ export const FilterBarButton = <K extends string, T extends RelistenObject>({
   ...props
 }: PropsWithChildren<
   {
-    filter: Filter<K, T>;
+    filter: FilterControl<K>;
     size?: number;
     color?: string;
   } & TouchableOpacityProps
@@ -83,17 +82,17 @@ export const FilterBarButton = <K extends string, T extends RelistenObject>({
   );
 };
 
-export function FilterBarButtons<K extends string, T extends RelistenObject>({
+export function FilterBarButtons<K extends string>({
   filters,
   onFilterButtonPress,
 }: {
-  filters: ReadonlyArray<Filter<K, T>>;
-  onFilterButtonPress: (filter: Filter<K, T>) => void;
+  filters: ReadonlyArray<FilterControl<K>>;
+  onFilterButtonPress: (filter: FilterControl<K>) => void;
 }) {
   return (
     <>
       {filters
-        .filter((f) => !f.searchFilter)
+        .filter((f) => !f.hasSearchFilter)
         .map((f) => {
           return (
             <FilterBarButton

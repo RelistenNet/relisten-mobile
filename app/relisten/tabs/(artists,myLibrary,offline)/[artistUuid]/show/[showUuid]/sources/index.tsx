@@ -61,7 +61,6 @@ export default function Page() {
         ScrollableComponent={SourcesList}
         show={show}
         sources={sources}
-        selectedSource={selectedSource!}
         artist={artist!}
       />
     </RefreshContextProvider>

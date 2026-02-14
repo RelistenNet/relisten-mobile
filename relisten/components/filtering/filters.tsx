@@ -31,11 +31,17 @@ export interface Filter<K extends string, T> extends PersistedFilter<K> {
   title: string;
 
   // You must provide one of the two
-  sort?: (data: T[]) => void;
-  filter?: (data: T) => boolean;
-  searchFilter?: (data: T, searchText: string) => boolean;
+  sort?(data: T[]): void;
+  filter?(data: T): boolean;
+  searchFilter?(data: T, searchText: string): boolean;
 
-  realmFilter?: (data: Realm.Results<T>) => Realm.Results<T>;
+  realmFilter?(data: Realm.Results<T>): Realm.Results<T>;
+}
+
+export interface FilterControl<K extends string> extends PersistedFilter<K> {
+  isNumeric?: boolean;
+  title: string;
+  hasSearchFilter?: boolean;
 }
 
 export interface FilteringOptions<K extends string> {
@@ -44,11 +50,11 @@ export interface FilteringOptions<K extends string> {
 }
 
 export interface FilteringContextProps<K extends string, T extends RelistenObject> {
-  filters: ReadonlyArray<Filter<K, T>>;
-  onFilterButtonPress: (filter: Filter<K, T>) => void;
-  filter: (allData: ReadonlyArray<T>, textFilter?: string) => ReadonlyArray<T>;
-  onSearchTextChanged: (text?: string) => void;
-  clearFilters: () => void;
+  filters: ReadonlyArray<FilterControl<K>>;
+  onFilterButtonPress(filter: FilterControl<K>): void;
+  filter(allData: ReadonlyArray<T>, textFilter?: string): ReadonlyArray<T>;
+  onSearchTextChanged(text?: string): void;
+  clearFilters(): void;
   searchText?: string;
 }
 
@@ -156,7 +162,7 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
   );
 
   const onFilterButtonPress = useCallback(
-    (thisFilter: Filter<K, T>) => {
+    (thisFilter: FilterControl<K>) => {
       /*
     - multiple thisFilters can be active at the same time
     - thisFilters can be active at the same time as sorting
@@ -254,19 +260,31 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
     });
   };
 
+  const filterControls = useMemo<ReadonlyArray<FilterControl<K>>>(() => {
+    return preparedFilters.map((f) => ({
+      persistenceKey: f.persistenceKey,
+      active: f.active,
+      sortDirection: f.sortDirection,
+      isGlobal: f.isGlobal,
+      isNumeric: f.isNumeric,
+      title: f.title,
+      hasSearchFilter: !!f.searchFilter,
+    }));
+  }, [preparedFilters]);
+
+  const contextValue = {
+    filters: filterControls,
+    onFilterButtonPress,
+    filter,
+    clearFilters,
+    onSearchTextChanged: setTextFilter,
+    searchText: textFilter,
+  };
+  const typedContextValue = contextValue as FilteringContextProps<string, RelistenObject> &
+    FilteringContextProps<K, T>;
+
   return (
-    <FilteringContext.Provider
-      value={{
-        filters: preparedFilters,
-        onFilterButtonPress,
-        filter,
-        clearFilters,
-        onSearchTextChanged: setTextFilter,
-        searchText: textFilter,
-      }}
-    >
-      {children}
-    </FilteringContext.Provider>
+    <FilteringContext.Provider value={typedContextValue}>{children}</FilteringContext.Provider>
   );
 };
 
@@ -278,12 +296,15 @@ export function searchForSubstring(haystack: string | undefined, lowercaseNeedle
   return haystack.toLowerCase().indexOf(lowercaseNeedle) > -1;
 }
 
-export const useFilters = <K extends string, T extends RelistenObject>() => {
+export const useFilters = <K extends string, T extends RelistenObject>(): FilteringContextProps<
+  K,
+  T
+> => {
   const context = useContext(FilteringContext);
 
   if (context === undefined) {
     throw new Error('useFilters must be used within a FilteringProvider');
   }
 
-  return context as FilteringContextProps<K, T>;
+  return context as FilteringContextProps<string, RelistenObject> & FilteringContextProps<K, T>;
 };

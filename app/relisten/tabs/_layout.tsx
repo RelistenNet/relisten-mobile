@@ -89,7 +89,7 @@ export default function TabLayout() {
           backgroundColor: RelistenBlue['950'],
         },
         tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
+          let iconName: keyof typeof MaterialCommunityIcons.glyphMap;
 
           if (route.name === '(artists)') {
             iconName = focused ? 'account-music' : 'account-music-outline';

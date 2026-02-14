@@ -12,16 +12,17 @@ import { ScrollScreen } from './ScrollScreen';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export const DisappearingHeaderScreen = <
-  TProps extends Partial<Pick<ScrollViewProps, 'onScroll' | 'scrollEventThrottle'>>,
->({
-  ScrollableComponent,
-  ...props
-}: PropsWithChildren<
+type InjectedScrollProps = Pick<ScrollViewProps, 'onScroll' | 'scrollEventThrottle'>;
+type DisappearingHeaderScreenProps<TProps extends InjectedScrollProps> = PropsWithChildren<
   {
     ScrollableComponent: React.ComponentType<TProps>;
-  } & TProps
->) => {
+  } & Omit<TProps, keyof InjectedScrollProps>
+>;
+
+export const DisappearingHeaderScreen = <TProps extends InjectedScrollProps>({
+  ScrollableComponent,
+  ...props
+}: DisappearingHeaderScreenProps<TProps>) => {
   const navigation = useNavigation();
   const headerHeight = useHeaderHeight();
   const safeAreaInsets = useSafeAreaInsets();
@@ -54,10 +55,15 @@ export const DisappearingHeaderScreen = <
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     scrolling.setValue(e.nativeEvent.contentOffset.y);
   };
+  const componentProps = {
+    ...props,
+    onScroll,
+    scrollEventThrottle: 16,
+  } as Omit<DisappearingHeaderScreenProps<TProps>, 'ScrollableComponent'> & TProps;
 
   return (
     <ScrollScreen>
-      <Component onScroll={onScroll} scrollEventThrottle={16} {...props} />
+      <Component {...componentProps} />
     </ScrollScreen>
   );
 };

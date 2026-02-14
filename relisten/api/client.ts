@@ -287,7 +287,7 @@ export class RelistenApiClient {
           `${wretchError.status} method=${method} url=${url} text=${await wretchError.response.text()}`
         );
       } else {
-        err.error = e;
+        err.error = e instanceof Error ? e : new Error(String(e));
         err.message = `Error loading ${url}`;
         logger.warn(`method=${method} url=${url} ${e}`);
       }

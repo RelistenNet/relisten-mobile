@@ -2,20 +2,20 @@ import { LegacyRef, PropsWithChildren, useEffect, useRef, useState } from 'react
 import { ScrollView, TextInput, TouchableOpacity, View } from 'react-native';
 import { FilterBarButtons } from '@/relisten/components/filtering/filter_bar_buttons';
 import { RelistenObject } from '@/relisten/api/models/relisten';
-import { Filter, useFilters } from '@/relisten/components/filtering/filters';
+import { FilterControl, useFilters } from '@/relisten/components/filtering/filters';
 import { MaterialIcons } from '@expo/vector-icons';
 
-export function NonSearchFilterBar<K extends string, T extends RelistenObject>({
+export function NonSearchFilterBar<K extends string>({
   children,
   filters,
   onFilterButtonPress,
   enterSearch,
 }: PropsWithChildren & {
-  filters: ReadonlyArray<Filter<K, T>>;
-  onFilterButtonPress: (filter: Filter<K, T>) => void;
+  filters: ReadonlyArray<FilterControl<K>>;
+  onFilterButtonPress: (filter: FilterControl<K>) => void;
   enterSearch: () => void;
 }) {
-  const hasSearch = filters.filter((f) => !!f.searchFilter).length > 0;
+  const hasSearch = filters.filter((f) => !!f.hasSearchFilter).length > 0;
 
   return (
     <View className="flex min-h-[56px] w-full flex-row items-center space-x-3 px-4 py-3">
