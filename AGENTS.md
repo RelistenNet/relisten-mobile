@@ -10,7 +10,7 @@
 ## Build, Test, and Development Commands
 - `nvm use`: load the repo's Node version (required for `npm`/`npx`).
 - `yarn ios` / `yarn android`: run the app on a simulator or device via Expo.
-- `yarn web`: start the Expo web build.
+- `yarn web`: start the Expo web build (currently fails unless `web` is added back to `app.json` `platforms`).
 - `yarn pods`: install or update CocoaPods for iOS.
 - `yarn lint`: run ESLint on `app/` and `relisten/`.
 - `yarn ts:check`: run TypeScript type checking.

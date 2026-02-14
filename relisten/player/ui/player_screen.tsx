@@ -566,17 +566,31 @@ type PlayerScreenProps = {
 type PlayerScreenContentProps = {
   onDismissRequest?: () => void;
   showNavigationTitle?: boolean;
+  shouldRenderQueue?: boolean;
 };
+
+function DeferredQueuePlaceholder() {
+  return (
+    <View className="flex-1 items-center justify-center px-8">
+      <RelistenText className="text-sm text-gray-400">Preparing queue...</RelistenText>
+    </View>
+  );
+}
 
 export function PlayerScreenContent({
   onDismissRequest,
   showNavigationTitle = true,
+  shouldRenderQueue = true,
 }: PlayerScreenContentProps) {
   return (
     <SafeAreaView className="flex-1 bg-relisten-blue-800" edges={['bottom']}>
       <Flex column className="flex-1">
         <View className="flex-1 flex-grow bg-relisten-blue-900">
-          <PlayerQueue showNavigationTitle={showNavigationTitle} />
+          {shouldRenderQueue ? (
+            <PlayerQueue showNavigationTitle={showNavigationTitle} />
+          ) : (
+            <DeferredQueuePlaceholder />
+          )}
         </View>
         <Flex column className="flex-shrink border-t border-relisten-blue-700 px-8 pt-4">
           <CurrentTrackInfo onDismissRequest={onDismissRequest} />
@@ -591,10 +605,20 @@ export function PlayerScreenContent({
 
 type EmbeddedPlayerScreenProps = {
   onDismissRequest?: () => void;
+  shouldRenderQueue?: boolean;
 };
 
-export function EmbeddedPlayerScreen({ onDismissRequest }: EmbeddedPlayerScreenProps) {
-  return <PlayerScreenContent onDismissRequest={onDismissRequest} showNavigationTitle={false} />;
+export function EmbeddedPlayerScreen({
+  onDismissRequest,
+  shouldRenderQueue = true,
+}: EmbeddedPlayerScreenProps) {
+  return (
+    <PlayerScreenContent
+      onDismissRequest={onDismissRequest}
+      showNavigationTitle={false}
+      shouldRenderQueue={shouldRenderQueue}
+    />
+  );
 }
 
 export function PlayerScreen({ variant = 'modal' }: PlayerScreenProps) {

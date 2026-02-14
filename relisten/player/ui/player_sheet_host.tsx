@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useIsDesktopLayout } from '@/relisten/util/layout';
+import { log } from '@/relisten/util/logging';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -43,6 +44,7 @@ const ANDROID_SHEET_TIMING_CONFIG = {
   duration: 220,
   easing: Easing.out(Easing.cubic),
 };
+const EMBEDDED_QUEUE_RENDER_DELAY_MS = 140;
 
 export function PlayerSheetHost() {
   const { isExpanded, collapse, setSheetState } = usePlayerSheetStateController();
@@ -62,10 +64,89 @@ export function PlayerSheetHost() {
 
   const [isSheetMounted, setIsSheetMounted] = useState(isExpanded);
   const isSheetMountedRef = useRef(isExpanded);
+  const queueRenderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const transitionLogger = useMemo(() => log.extend('player-sheet-transition'), []);
+  const [shouldRenderEmbeddedQueue, setShouldRenderEmbeddedQueue] = useState(isExpanded);
+  const logDevMarker = useCallback(
+    (marker: string, details?: string) => {
+      if (!__DEV__) {
+        return;
+      }
+
+      transitionLogger.debug(`[marker] ${marker}${details ? ` ${details}` : ''}`);
+    },
+    [transitionLogger]
+  );
+  const clearQueueRenderTimer = useCallback(() => {
+    if (queueRenderTimerRef.current === null) {
+      return;
+    }
+
+    clearTimeout(queueRenderTimerRef.current);
+    queueRenderTimerRef.current = null;
+  }, []);
+  const logGestureStart = useCallback(
+    (platformName: 'ios' | 'android', startTranslateY: number, collapsedY: number) => {
+      logDevMarker(
+        'gesture_start',
+        `platform=${platformName} startY=${startTranslateY.toFixed(1)} collapsedY=${collapsedY.toFixed(1)}`
+      );
+    },
+    [logDevMarker]
+  );
+  const logGestureEnd = useCallback(
+    (translationY: number, velocityY: number, progress: number, nextState: PlayerSheetState) => {
+      logDevMarker(
+        'gesture_end',
+        `translationY=${translationY.toFixed(1)} velocityY=${velocityY.toFixed(1)} progress=${progress.toFixed(3)} next=${nextState}`
+      );
+    },
+    [logDevMarker]
+  );
+  const logTransitionComplete = useCallback(
+    (nextState: PlayerSheetState) => {
+      logDevMarker('transition_complete', `state=${nextState}`);
+    },
+    [logDevMarker]
+  );
   const setSheetMounted = useCallback((mounted: boolean) => {
     isSheetMountedRef.current = mounted;
     setIsSheetMounted(mounted);
   }, []);
+
+  useEffect(() => {
+    return () => {
+      clearQueueRenderTimer();
+    };
+  }, [clearQueueRenderTimer]);
+
+  useEffect(() => {
+    if (!shouldRenderHost) {
+      clearQueueRenderTimer();
+      setShouldRenderEmbeddedQueue(false);
+      return;
+    }
+
+    if (!shouldUseAnimatedSheet) {
+      setShouldRenderEmbeddedQueue(isExpanded);
+      return;
+    }
+
+    if (!isExpanded) {
+      clearQueueRenderTimer();
+      setShouldRenderEmbeddedQueue(false);
+      logDevMarker('queue_gate', 'deferred while collapsed');
+      return;
+    }
+
+    clearQueueRenderTimer();
+    logDevMarker('queue_gate', `schedule delayMs=${EMBEDDED_QUEUE_RENDER_DELAY_MS}`);
+    queueRenderTimerRef.current = setTimeout(() => {
+      setShouldRenderEmbeddedQueue(true);
+      queueRenderTimerRef.current = null;
+      logDevMarker('queue_gate', 'mounted after expand settle');
+    }, EMBEDDED_QUEUE_RENDER_DELAY_MS);
+  }, [clearQueueRenderTimer, isExpanded, logDevMarker, shouldRenderHost, shouldUseAnimatedSheet]);
 
   useEffect(() => {
     if (!shouldUseAnimatedSheet || !shouldRenderHost) {
@@ -92,12 +173,24 @@ export function PlayerSheetHost() {
       return;
     }
 
+    logDevMarker(
+      'transition_start',
+      `target=${isExpanded ? 'expanded' : 'collapsed'} source=state`
+    );
     cancelAnimation(sheetTranslateY);
     if (isExpanded) {
       setSheetMounted(true);
       sheetTranslateY.value = shouldUseInteractiveIos
-        ? withSpring(0, SHEET_SPRING_CONFIG)
-        : withTiming(0, ANDROID_SHEET_TIMING_CONFIG);
+        ? withSpring(0, SHEET_SPRING_CONFIG, (done) => {
+            if (done && __DEV__) {
+              runOnJS(logTransitionComplete)(PLAYER_SHEET_STATES.expanded);
+            }
+          })
+        : withTiming(0, ANDROID_SHEET_TIMING_CONFIG, (done) => {
+            if (done && __DEV__) {
+              runOnJS(logTransitionComplete)(PLAYER_SHEET_STATES.expanded);
+            }
+          });
       return;
     }
 
@@ -106,6 +199,9 @@ export function PlayerSheetHost() {
         collapsedTranslateYShared.value,
         SHEET_SPRING_CONFIG,
         (done) => {
+          if (done && __DEV__) {
+            runOnJS(logTransitionComplete)(PLAYER_SHEET_STATES.collapsed);
+          }
           if (done) {
             runOnJS(setSheetMounted)(false);
           }
@@ -118,6 +214,9 @@ export function PlayerSheetHost() {
       collapsedTranslateYShared.value,
       ANDROID_SHEET_TIMING_CONFIG,
       (done) => {
+        if (done && __DEV__) {
+          runOnJS(logTransitionComplete)(PLAYER_SHEET_STATES.collapsed);
+        }
         if (done) {
           runOnJS(setSheetMounted)(false);
         }
@@ -126,6 +225,8 @@ export function PlayerSheetHost() {
   }, [
     collapsedTranslateYShared,
     isExpanded,
+    logDevMarker,
+    logTransitionComplete,
     setSheetMounted,
     sheetTranslateY,
     shouldRenderHost,
@@ -151,6 +252,13 @@ export function PlayerSheetHost() {
 
         cancelAnimation(sheetTranslateY);
         dragStartTranslateY.value = sheetTranslateY.value;
+        if (__DEV__) {
+          runOnJS(logGestureStart)(
+            'ios',
+            dragStartTranslateY.value,
+            collapsedTranslateYShared.value
+          );
+        }
         runOnJS(setSheetMounted)(true);
       })
       .onStart(() => {
@@ -160,6 +268,13 @@ export function PlayerSheetHost() {
 
         cancelAnimation(sheetTranslateY);
         dragStartTranslateY.value = sheetTranslateY.value;
+        if (__DEV__) {
+          runOnJS(logGestureStart)(
+            'android',
+            dragStartTranslateY.value,
+            collapsedTranslateYShared.value
+          );
+        }
         runOnJS(setSheetMounted)(true);
       })
       .onUpdate((event) => {
@@ -198,6 +313,13 @@ export function PlayerSheetHost() {
 
         const targetTranslateY =
           nextState === PLAYER_SHEET_STATES.expanded ? 0 : collapsedTranslateYShared.value;
+        if (__DEV__) {
+          runOnJS(logGestureEnd)(event.translationY, event.velocityY, progress, nextState);
+          runOnJS(logDevMarker)(
+            'transition_start',
+            `target=${nextState} source=gesture velocityY=${event.velocityY.toFixed(1)}`
+          );
+        }
 
         if (shouldUseInteractiveIos) {
           sheetTranslateY.value = withSpring(targetTranslateY, SHEET_SPRING_CONFIG, (done) => {
@@ -205,6 +327,9 @@ export function PlayerSheetHost() {
               return;
             }
 
+            if (__DEV__) {
+              runOnJS(logTransitionComplete)(nextState);
+            }
             runOnJS(setSheetState)(nextState);
             if (nextState === PLAYER_SHEET_STATES.collapsed) {
               runOnJS(setSheetMounted)(false);
@@ -221,6 +346,9 @@ export function PlayerSheetHost() {
               return;
             }
 
+            if (__DEV__) {
+              runOnJS(logTransitionComplete)(nextState);
+            }
             runOnJS(setSheetState)(nextState);
             if (nextState === PLAYER_SHEET_STATES.collapsed) {
               runOnJS(setSheetMounted)(false);
@@ -232,6 +360,10 @@ export function PlayerSheetHost() {
     collapsedTranslateYShared,
     dragStartTranslateY,
     isAndroid,
+    logDevMarker,
+    logGestureEnd,
+    logGestureStart,
+    logTransitionComplete,
     setSheetMounted,
     setSheetState,
     sheetTranslateY,
@@ -299,7 +431,10 @@ export function PlayerSheetHost() {
               <MaterialCommunityIcons name="chevron-down" size={28} color="white" />
             </Pressable>
           </View>
-          <EmbeddedPlayerScreen onDismissRequest={collapse} />
+          <EmbeddedPlayerScreen
+            onDismissRequest={collapse}
+            shouldRenderQueue={shouldRenderEmbeddedQueue}
+          />
         </View>
       </View>
     );
@@ -340,7 +475,10 @@ export function PlayerSheetHost() {
                       <MaterialCommunityIcons name="chevron-down" size={28} color="white" />
                     </Pressable>
                   </View>
-                  <EmbeddedPlayerScreen onDismissRequest={collapse} />
+                  <EmbeddedPlayerScreen
+                    onDismissRequest={collapse}
+                    shouldRenderQueue={shouldRenderEmbeddedQueue}
+                  />
                 </Animated.View>
               </Animated.View>
             </GestureDetector>
@@ -369,7 +507,10 @@ export function PlayerSheetHost() {
                     </View>
                   </View>
                 </GestureDetector>
-                <EmbeddedPlayerScreen onDismissRequest={collapse} />
+                <EmbeddedPlayerScreen
+                  onDismissRequest={collapse}
+                  shouldRenderQueue={shouldRenderEmbeddedQueue}
+                />
               </Animated.View>
             </Animated.View>
           )}
