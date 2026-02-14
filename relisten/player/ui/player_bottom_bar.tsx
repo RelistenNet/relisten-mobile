@@ -29,8 +29,9 @@ import { useIsDesktopLayout } from '@/relisten/util/layout';
 import { usePlayerSheetControls } from './player_sheet_state';
 import { useTabInsetSnapshot } from './tab_inset_adapter';
 
-const COLLAPSED_CARD_HORIZONTAL_MARGIN = 12;
-const COLLAPSED_CARD_BOTTOM_MARGIN = 8;
+export const COLLAPSED_CARD_HORIZONTAL_MARGIN = 12;
+export const COLLAPSED_CARD_BOTTOM_MARGIN = 8;
+export const COLLAPSED_CARD_BORDER_RADIUS = 16;
 
 function OfflineBanner() {
   return (
@@ -125,8 +126,27 @@ type PlayerBottomBarProps = {
   gesture?: GestureType;
 };
 
-export function PlayerBottomBar({ gesture }: PlayerBottomBarProps) {
+type PlayerBottomBarSurfaceProps = {
+  onLayout?: (e: LayoutChangeEvent) => void;
+};
+
+export function PlayerBottomBarSurface({ onLayout }: PlayerBottomBarSurfaceProps) {
   const isOnline = useShouldMakeNetworkRequests();
+  return (
+    <View onLayout={onLayout} style={styles.surfaceFrame}>
+      <View style={styles.surfaceShadow}>
+        <View style={styles.surface}>
+          {!isOnline && <OfflineBanner />}
+          <View className="w-full border-t-2 border-t-relisten-blue-700 bg-relisten-blue-800 pt-2">
+            <PlayerBottomBarContents />
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+export function PlayerBottomBar({ gesture }: PlayerBottomBarProps) {
   const { bottomInset: tabInsetBottom } = useTabInsetSnapshot();
   const { playerBottomBarHeight, setPlayerBottomBarHeight } = useRelistenPlayerBottomBarContext();
 
@@ -155,16 +175,7 @@ export function PlayerBottomBar({ gesture }: PlayerBottomBarProps) {
         },
       ]}
     >
-      <View onLayout={onLayout} style={styles.surfaceFrame}>
-        <View style={styles.surfaceShadow}>
-          <View style={styles.surface}>
-            {!isOnline && <OfflineBanner />}
-            <View className="w-full border-t-2 border-t-relisten-blue-700 bg-relisten-blue-800 pt-2">
-              <PlayerBottomBarContents />
-            </View>
-          </View>
-        </View>
-      </View>
+      <PlayerBottomBarSurface onLayout={onLayout} />
     </View>
   );
 
@@ -246,12 +257,12 @@ const styles = StyleSheet.create({
   surface: {
     backgroundColor: '#00141a',
     borderColor: 'rgba(255, 255, 255, 0.12)',
-    borderRadius: 16,
+    borderRadius: COLLAPSED_CARD_BORDER_RADIUS,
     borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
   },
   surfaceShadow: {
-    borderRadius: 16,
+    borderRadius: COLLAPSED_CARD_BORDER_RADIUS,
     overflow: 'visible',
     ...Platform.select({
       ios: {

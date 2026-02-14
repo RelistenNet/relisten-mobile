@@ -2,11 +2,17 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useIsDesktopLayout } from '@/relisten/util/layout';
 import { log } from '@/relisten/util/logging';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import {
+  LayoutChangeEvent,
+  Platform,
+  Pressable,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
-  Extrapolation,
   cancelAnimation,
   clamp,
   interpolate,
@@ -17,13 +23,22 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { PlayerBottomBar, useIsPlayerBottomBarVisible } from './player_bottom_bar';
+import {
+  COLLAPSED_CARD_BORDER_RADIUS,
+  COLLAPSED_CARD_BOTTOM_MARGIN,
+  COLLAPSED_CARD_HORIZONTAL_MARGIN,
+  PlayerBottomBar,
+  PlayerBottomBarSurface,
+  useIsPlayerBottomBarVisible,
+  useRelistenPlayerBottomBarContext,
+} from './player_bottom_bar';
 import { EmbeddedPlayerScreen } from './player_screen';
 import {
   PLAYER_SHEET_STATES,
   PlayerSheetState,
   usePlayerSheetStateController,
 } from './player_sheet_state';
+import { useTabInsetSnapshot } from './tab_inset_adapter';
 
 const COLLAPSE_BUTTON_HIT_SLOP = 8;
 const IOS_SHEET_VELOCITY_THRESHOLD = 900;
@@ -45,13 +60,29 @@ const ANDROID_SHEET_TIMING_CONFIG = {
   easing: Easing.out(Easing.cubic),
 };
 const EMBEDDED_QUEUE_RENDER_DELAY_MS = 140;
+const COLLAPSED_LAYER_FADE_END_PROGRESS = 0.52;
+const EXPANDED_LAYER_FADE_START_PROGRESS = 0.56;
+
+interface PlayerSheetFrame {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface PlayerSheetTransitionGeometryState {
+  collapsedFrame: PlayerSheetFrame;
+  expandedFrame: PlayerSheetFrame;
+}
 
 export function PlayerSheetHost() {
   const { isExpanded, collapse, setSheetState } = usePlayerSheetStateController();
   const isDesktopLayout = useIsDesktopLayout();
   const isBottomBarVisible = useIsPlayerBottomBarVisible();
   const safeAreaInsets = useSafeAreaInsets();
-  const { height: windowHeight } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const { bottomInset: tabInsetBottom } = useTabInsetSnapshot();
+  const { playerBottomBarHeight, setPlayerBottomBarHeight } = useRelistenPlayerBottomBarContext();
 
   const isAndroid = Platform.OS === 'android';
   const shouldUseInteractiveIos = Platform.OS === 'ios';
@@ -62,11 +93,55 @@ export function PlayerSheetHost() {
   const dragStartTranslateY = useSharedValue(0);
   const collapsedTranslateYShared = useSharedValue(collapsedTranslateY);
 
+  const transitionGeometry = useMemo<PlayerSheetTransitionGeometryState>(() => {
+    const collapsedWidth = Math.max(windowWidth - COLLAPSED_CARD_HORIZONTAL_MARGIN * 2, 1);
+    const collapsedHeight = Math.max(playerBottomBarHeight, 1);
+    const collapsedY = Math.max(
+      windowHeight - tabInsetBottom - COLLAPSED_CARD_BOTTOM_MARGIN - collapsedHeight,
+      0
+    );
+
+    return {
+      collapsedFrame: {
+        x: COLLAPSED_CARD_HORIZONTAL_MARGIN,
+        y: collapsedY,
+        width: collapsedWidth,
+        height: collapsedHeight,
+      },
+      expandedFrame: {
+        x: 0,
+        y: 0,
+        width: Math.max(windowWidth, 1),
+        height: Math.max(windowHeight, 1),
+      },
+    };
+  }, [playerBottomBarHeight, tabInsetBottom, windowHeight, windowWidth]);
+
+  const collapsedFrameX = useSharedValue(transitionGeometry.collapsedFrame.x);
+  const collapsedFrameY = useSharedValue(transitionGeometry.collapsedFrame.y);
+  const collapsedFrameWidth = useSharedValue(transitionGeometry.collapsedFrame.width);
+  const collapsedFrameHeight = useSharedValue(transitionGeometry.collapsedFrame.height);
+  const expandedFrameX = useSharedValue(transitionGeometry.expandedFrame.x);
+  const expandedFrameY = useSharedValue(transitionGeometry.expandedFrame.y);
+  const expandedFrameWidth = useSharedValue(transitionGeometry.expandedFrame.width);
+  const expandedFrameHeight = useSharedValue(transitionGeometry.expandedFrame.height);
+
   const [isSheetMounted, setIsSheetMounted] = useState(isExpanded);
   const isSheetMountedRef = useRef(isExpanded);
   const queueRenderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const transitionLogger = useMemo(() => log.extend('player-sheet-transition'), []);
   const [shouldRenderEmbeddedQueue, setShouldRenderEmbeddedQueue] = useState(isExpanded);
+
+  const onCollapsedSurfaceLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      const { height } = e.nativeEvent.layout;
+      if (playerBottomBarHeight !== height) {
+        setPlayerBottomBarHeight(height);
+      }
+    },
+    [playerBottomBarHeight, setPlayerBottomBarHeight]
+  );
+
   const logDevMarker = useCallback(
     (marker: string, details?: string) => {
       if (!__DEV__) {
@@ -77,6 +152,7 @@ export function PlayerSheetHost() {
     },
     [transitionLogger]
   );
+
   const clearQueueRenderTimer = useCallback(() => {
     if (queueRenderTimerRef.current === null) {
       return;
@@ -85,6 +161,7 @@ export function PlayerSheetHost() {
     clearTimeout(queueRenderTimerRef.current);
     queueRenderTimerRef.current = null;
   }, []);
+
   const logGestureStart = useCallback(
     (platformName: 'ios' | 'android', startTranslateY: number, collapsedY: number) => {
       logDevMarker(
@@ -94,6 +171,7 @@ export function PlayerSheetHost() {
     },
     [logDevMarker]
   );
+
   const logGestureEnd = useCallback(
     (translationY: number, velocityY: number, progress: number, nextState: PlayerSheetState) => {
       logDevMarker(
@@ -103,12 +181,14 @@ export function PlayerSheetHost() {
     },
     [logDevMarker]
   );
+
   const logTransitionComplete = useCallback(
     (nextState: PlayerSheetState) => {
       logDevMarker('transition_complete', `state=${nextState}`);
     },
     [logDevMarker]
   );
+
   const setSheetMounted = useCallback((mounted: boolean) => {
     isSheetMountedRef.current = mounted;
     setIsSheetMounted(mounted);
@@ -154,18 +234,34 @@ export function PlayerSheetHost() {
     }
 
     collapsedTranslateYShared.value = collapsedTranslateY;
+    collapsedFrameX.value = transitionGeometry.collapsedFrame.x;
+    collapsedFrameY.value = transitionGeometry.collapsedFrame.y;
+    collapsedFrameWidth.value = transitionGeometry.collapsedFrame.width;
+    collapsedFrameHeight.value = transitionGeometry.collapsedFrame.height;
+    expandedFrameX.value = transitionGeometry.expandedFrame.x;
+    expandedFrameY.value = transitionGeometry.expandedFrame.y;
+    expandedFrameWidth.value = transitionGeometry.expandedFrame.width;
+    expandedFrameHeight.value = transitionGeometry.expandedFrame.height;
 
     if (!isSheetMountedRef.current && !isExpanded) {
       sheetTranslateY.value = collapsedTranslateY;
     }
   }, [
+    collapsedFrameHeight,
+    collapsedFrameWidth,
+    collapsedFrameX,
+    collapsedFrameY,
     collapsedTranslateY,
     collapsedTranslateYShared,
+    expandedFrameHeight,
+    expandedFrameWidth,
+    expandedFrameX,
+    expandedFrameY,
     isExpanded,
     sheetTranslateY,
     shouldRenderHost,
     shouldUseAnimatedSheet,
-    shouldUseInteractiveIos,
+    transitionGeometry,
   ]);
 
   useEffect(() => {
@@ -373,33 +469,59 @@ export function PlayerSheetHost() {
   const sheetPanGesture = useMemo(() => createPanGesture(), [createPanGesture]);
   const bottomBarPanGesture = useMemo(() => createPanGesture(), [createPanGesture]);
 
-  const sheetAnimatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ translateY: sheetTranslateY.value }],
-    };
-  });
   const backdropAnimatedStyle = useAnimatedStyle(() => {
     const progress = 1 - sheetTranslateY.value / Math.max(collapsedTranslateYShared.value, 1);
     const clampedProgress = clamp(progress, 0, 1);
 
     return {
-      opacity: interpolate(clampedProgress, [0, 1], [0, 0.5], Extrapolation.CLAMP),
+      opacity: interpolate(clampedProgress, [0, 1], [0, 0.5]),
     };
   });
+
+  const continuitySurfaceAnimatedStyle = useAnimatedStyle(() => {
+    const progress = 1 - sheetTranslateY.value / Math.max(collapsedTranslateYShared.value, 1);
+    const clampedProgress = clamp(progress, 0, 1);
+
+    return {
+      borderRadius: interpolate(clampedProgress, [0, 1], [COLLAPSED_CARD_BORDER_RADIUS, 0]),
+      borderWidth: interpolate(clampedProgress, [0, 1], [StyleSheet.hairlineWidth, 0]),
+      elevation: interpolate(clampedProgress, [0, 1], [12, 0]),
+      height: interpolate(
+        clampedProgress,
+        [0, 1],
+        [collapsedFrameHeight.value, expandedFrameHeight.value]
+      ),
+      left: interpolate(clampedProgress, [0, 1], [collapsedFrameX.value, expandedFrameX.value]),
+      shadowOpacity: interpolate(clampedProgress, [0, 1], [0.35, 0]),
+      shadowRadius: interpolate(clampedProgress, [0, 1], [12, 0]),
+      top: interpolate(clampedProgress, [0, 1], [collapsedFrameY.value, expandedFrameY.value]),
+      width: interpolate(
+        clampedProgress,
+        [0, 1],
+        [collapsedFrameWidth.value, expandedFrameWidth.value]
+      ),
+    };
+  });
+
+  const collapsedSurfaceAnimatedStyle = useAnimatedStyle(() => {
+    const progress = 1 - sheetTranslateY.value / Math.max(collapsedTranslateYShared.value, 1);
+    const clampedProgress = clamp(progress, 0, 1);
+
+    return {
+      opacity: interpolate(
+        clampedProgress,
+        [0, COLLAPSED_LAYER_FADE_END_PROGRESS, 1],
+        [1, 0.08, 0]
+      ),
+    };
+  });
+
   const expandedSurfaceAnimatedStyle = useAnimatedStyle(() => {
     const progress = 1 - sheetTranslateY.value / Math.max(collapsedTranslateYShared.value, 1);
     const clampedProgress = clamp(progress, 0, 1);
 
     return {
-      borderRadius: interpolate(clampedProgress, [0, 1], [20, 0], Extrapolation.CLAMP),
-    };
-  });
-  const bottomBarAnimatedStyle = useAnimatedStyle(() => {
-    const progress = 1 - sheetTranslateY.value / Math.max(collapsedTranslateYShared.value, 1);
-    const clampedProgress = clamp(progress, 0, 1);
-
-    return {
-      opacity: interpolate(clampedProgress, [0, 1], [1, 0], Extrapolation.CLAMP),
+      opacity: interpolate(clampedProgress, [0, EXPANDED_LAYER_FADE_START_PROGRESS, 1], [0, 0, 1]),
     };
   });
 
@@ -440,81 +562,80 @@ export function PlayerSheetHost() {
     );
   }
 
+  const continuityLayer = (
+    <Animated.View style={[styles.continuitySurface, continuitySurfaceAnimatedStyle]}>
+      <Animated.View
+        pointerEvents={isExpanded ? 'none' : 'auto'}
+        style={[styles.collapsedSurfaceLayer, collapsedSurfaceAnimatedStyle]}
+      >
+        {isAndroid ? (
+          <GestureDetector gesture={bottomBarPanGesture}>
+            <View>
+              <PlayerBottomBarSurface onLayout={onCollapsedSurfaceLayout} />
+            </View>
+          </GestureDetector>
+        ) : (
+          <PlayerBottomBarSurface onLayout={onCollapsedSurfaceLayout} />
+        )}
+      </Animated.View>
+
+      {shouldRenderSheet && (
+        <Animated.View
+          pointerEvents={isExpanded ? 'auto' : 'box-none'}
+          style={[
+            styles.expandedSurface,
+            expandedSurfaceAnimatedStyle,
+            { paddingTop: safeAreaInsets.top },
+          ]}
+        >
+          {isAndroid ? (
+            <GestureDetector gesture={sheetPanGesture}>
+              <View style={styles.androidGestureHeader}>
+                <View style={styles.collapseButtonContainer}>
+                  <Pressable
+                    accessibilityLabel="Collapse player"
+                    accessibilityRole="button"
+                    hitSlop={COLLAPSE_BUTTON_HIT_SLOP}
+                    onPress={collapse}
+                    style={styles.collapseButton}
+                  >
+                    <MaterialCommunityIcons name="chevron-down" size={28} color="white" />
+                  </Pressable>
+                </View>
+              </View>
+            </GestureDetector>
+          ) : (
+            <View style={styles.collapseButtonContainer}>
+              <Pressable
+                accessibilityLabel="Collapse player"
+                accessibilityRole="button"
+                hitSlop={COLLAPSE_BUTTON_HIT_SLOP}
+                onPress={collapse}
+                style={styles.collapseButton}
+              >
+                <MaterialCommunityIcons name="chevron-down" size={28} color="white" />
+              </Pressable>
+            </View>
+          )}
+          <EmbeddedPlayerScreen
+            onDismissRequest={collapse}
+            shouldRenderQueue={shouldRenderEmbeddedQueue}
+          />
+        </Animated.View>
+      )}
+    </Animated.View>
+  );
+
   // Two host UI states:
   // - collapsed: floating bottom card entrypoint during playback (with drag affordance).
   // - expanded: full player surface mounted in tabs with interruptible snapping behavior.
   return (
     <View pointerEvents="box-none" style={styles.hostRoot}>
-      <Animated.View
-        pointerEvents="box-none"
-        style={[styles.bottomBarLayer, bottomBarAnimatedStyle]}
-      >
-        <PlayerBottomBar gesture={bottomBarPanGesture} />
-      </Animated.View>
-      {shouldRenderSheet && (
-        <>
-          {shouldUseInteractiveIos ? (
-            <GestureDetector gesture={sheetPanGesture}>
-              <Animated.View style={[StyleSheet.absoluteFill, sheetAnimatedStyle]}>
-                <Animated.View style={[styles.backdrop, backdropAnimatedStyle]} />
-                <Animated.View
-                  style={[
-                    styles.expandedSurface,
-                    expandedSurfaceAnimatedStyle,
-                    { paddingTop: safeAreaInsets.top },
-                  ]}
-                >
-                  <View style={styles.collapseButtonContainer}>
-                    <Pressable
-                      accessibilityLabel="Collapse player"
-                      accessibilityRole="button"
-                      hitSlop={COLLAPSE_BUTTON_HIT_SLOP}
-                      onPress={collapse}
-                      style={styles.collapseButton}
-                    >
-                      <MaterialCommunityIcons name="chevron-down" size={28} color="white" />
-                    </Pressable>
-                  </View>
-                  <EmbeddedPlayerScreen
-                    onDismissRequest={collapse}
-                    shouldRenderQueue={shouldRenderEmbeddedQueue}
-                  />
-                </Animated.View>
-              </Animated.View>
-            </GestureDetector>
-          ) : (
-            <Animated.View style={[StyleSheet.absoluteFill, sheetAnimatedStyle]}>
-              <Animated.View style={[styles.backdrop, backdropAnimatedStyle]} />
-              <Animated.View
-                style={[
-                  styles.expandedSurface,
-                  expandedSurfaceAnimatedStyle,
-                  { paddingTop: safeAreaInsets.top },
-                ]}
-              >
-                <GestureDetector gesture={sheetPanGesture}>
-                  <View style={styles.androidGestureHeader}>
-                    <View style={styles.collapseButtonContainer}>
-                      <Pressable
-                        accessibilityLabel="Collapse player"
-                        accessibilityRole="button"
-                        hitSlop={COLLAPSE_BUTTON_HIT_SLOP}
-                        onPress={collapse}
-                        style={styles.collapseButton}
-                      >
-                        <MaterialCommunityIcons name="chevron-down" size={28} color="white" />
-                      </Pressable>
-                    </View>
-                  </View>
-                </GestureDetector>
-                <EmbeddedPlayerScreen
-                  onDismissRequest={collapse}
-                  shouldRenderQueue={shouldRenderEmbeddedQueue}
-                />
-              </Animated.View>
-            </Animated.View>
-          )}
-        </>
+      <Animated.View pointerEvents="none" style={[styles.backdrop, backdropAnimatedStyle]} />
+      {shouldUseInteractiveIos ? (
+        <GestureDetector gesture={sheetPanGesture}>{continuityLayer}</GestureDetector>
+      ) : (
+        continuityLayer
       )}
     </View>
   );
@@ -525,28 +646,40 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#000000',
   },
-  bottomBarLayer: {
-    ...StyleSheet.absoluteFillObject,
-    overflow: 'visible',
-  },
   androidGestureHeader: {
     height: ANDROID_GESTURE_HEADER_HEIGHT,
     left: 0,
     position: 'absolute',
     right: 0,
     top: 0,
+    zIndex: 3,
+  },
+  collapsedSurfaceLayer: {
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
     zIndex: 2,
+  },
+  continuitySurface: {
+    backgroundColor: '#00141a',
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    overflow: 'hidden',
+    position: 'absolute',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
   },
   expandedSurface: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#00141a',
     overflow: 'hidden',
+    zIndex: 1,
   },
   collapseButtonContainer: {
     position: 'absolute',
     right: 8,
     top: 4,
-    zIndex: 2,
+    zIndex: 4,
   },
   collapseButton: {
     padding: 8,
