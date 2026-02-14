@@ -16,6 +16,18 @@
       ],
       "@/assets/*": [
         "./assets/*"
+      ],
+      "@g4rb4g3/react-native-carplay": [
+        "./node_modules/@g4rb4g3/react-native-carplay/lib/src/index.d.ts"
+      ],
+      "@g4rb4g3/react-native-carplay/src/*": [
+        "./node_modules/@g4rb4g3/react-native-carplay/lib/src/*"
+      ],
+      "src/*": [
+        "./node_modules/@g4rb4g3/react-native-carplay/lib/src/*"
+      ],
+      "react-native/types": [
+        "./node_modules/react-native/types/index.d.ts"
       ]
     }
   },
