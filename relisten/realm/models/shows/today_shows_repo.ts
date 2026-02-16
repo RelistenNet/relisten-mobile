@@ -11,11 +11,9 @@ import { useNetworkBackedBehavior } from '@/relisten/realm/network_backed_behavi
 import { useRealm } from '@/relisten/realm/schema';
 import { useMemo } from 'react';
 import Realm from 'realm';
-import EventEmitter from 'react-native/Libraries/vendor/emitter/EventEmitter';
 import { RealmQueryValueStream } from '@/relisten/realm/value_streams';
 
 export class TodayShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavior {
-  private emitter = new EventEmitter();
   private asOf = new Date();
 
   constructor(
@@ -54,12 +52,17 @@ export class TodayShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBacked
 
 export const useTodayShows = (...artistUuids: string[]) => {
   const realm = useRealm();
+  const artistUuidsKey = useMemo(() => {
+    return [...new Set(artistUuids)].sort().join(',');
+  }, [artistUuids]);
 
   const behavior = useMemo(() => {
-    return new TodayShowsNetworkBackedBehavior(realm, artistUuids, {
+    const normalizedArtistUuids = artistUuidsKey.length > 0 ? artistUuidsKey.split(',') : [];
+
+    return new TodayShowsNetworkBackedBehavior(realm, normalizedArtistUuids, {
       fetchStrategy: NetworkBackedBehaviorFetchStrategy.NetworkAlwaysFirst,
     });
-  }, [realm, JSON.stringify(artistUuids)]);
+  }, [realm, artistUuidsKey]);
 
   return useNetworkBackedBehavior(behavior);
 };

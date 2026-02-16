@@ -69,19 +69,24 @@ if (!__DEV__) {
 }
 
 function RealmBridge() {
-  console.log('@alecgorge: RealmBridge');
   const realm = useRealm();
 
   useEffect(() => {
     setRealm(realm);
-    return () => setRealm(undefined);
+
+    return () => {
+      // React Strict Mode runs effect cleanup during the initial mount cycle in development.
+      // Keep the realm reference stable there to avoid transient startup churn.
+      if (!__DEV__) {
+        setRealm(undefined);
+      }
+    };
   }, [realm]);
 
   return null;
 }
 
 function CarPlayBootstrap() {
-  console.log('@alecgorge: CarPlayBootstrap');
   const realm = useRealm();
   const { apiClient } = useRelistenApi();
 
@@ -89,8 +94,6 @@ function CarPlayBootstrap() {
 
   return null;
 }
-
-console.log('@alecgorge: _layout.tsx');
 
 function TabLayout() {
   const realmRef = useRef<Realm | null>(null);

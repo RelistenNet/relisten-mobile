@@ -51,12 +51,17 @@ class ShowsByMomentumNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBe
 
 export const useShowsByMomentum = (artistUuids: string[]) => {
   const realm = useRealm();
+  const artistUuidsKey = useMemo(() => {
+    return [...new Set(artistUuids)].sort().join(',');
+  }, [artistUuids]);
 
   const behavior = useMemo(() => {
-    return new ShowsByMomentumNetworkBackedBehavior(realm, artistUuids, {
+    const normalizedArtistUuids = artistUuidsKey.length > 0 ? artistUuidsKey.split(',') : [];
+
+    return new ShowsByMomentumNetworkBackedBehavior(realm, normalizedArtistUuids, {
       fetchStrategy: NetworkBackedBehaviorFetchStrategy.StaleWhileRevalidate,
     });
-  }, [realm, artistUuids]);
+  }, [realm, artistUuidsKey]);
 
   return useNetworkBackedBehavior(behavior);
 };
