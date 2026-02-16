@@ -26,6 +26,7 @@ import { useMemo, type ReactElement } from 'react';
 import { ScrollView, TouchableOpacity, View } from 'react-native';
 import Realm from 'realm';
 import { ArtistShowsOnThisDayTray } from '@/relisten/pages/artist/artist_shows_on_this_day_tray';
+import { ArtistShowsByMomentumTray } from '@/relisten/pages/artist/artist_shows_by_momentum_tray';
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { useRelistenApi } from '@/relisten/api/context';
 import { sample } from 'remeda';
@@ -60,6 +61,7 @@ const FavoritesSectionHeader = ({ favorites }: { favorites: Artist[] }) => {
         </RelistenButton>
       </View>
       <ArtistShowsOnThisDayTray artists={favorites} />
+      <ArtistShowsByMomentumTray artists={favorites} />
     </View>
   );
 };
@@ -166,8 +168,10 @@ const ArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => 
       .slice(0, needed);
   }, [all, favorites, topPlayedArtistUuids]);
 
-  const favoritesForSection =
-    favorites.length < 3 ? [...favorites, ...suggestedFavorites] : favorites;
+  const favoritesForSection = useMemo(
+    () => (favorites.length < 3 ? [...favorites, ...suggestedFavorites] : favorites),
+    [favorites, suggestedFavorites]
+  );
 
   const sectionedArtists = useMemo<RelistenSectionData<Artist>>(() => {
     const sections: {

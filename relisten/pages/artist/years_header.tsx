@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useRelistenApi } from '@/relisten/api/context';
 import { useIsOfflineTab, useRoute } from '@/relisten/util/routes';
@@ -8,6 +8,7 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import Plur from '@/relisten/components/plur';
 import { ArtistActionButtons } from '@/relisten/pages/artist/artist_action_buttons';
 import { ArtistShowsOnThisDayTray } from '@/relisten/pages/artist/artist_shows_on_this_day_tray';
+import { ArtistShowsByMomentumTray } from '@/relisten/pages/artist/artist_shows_by_momentum_tray';
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 
 export const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => {
@@ -28,6 +29,8 @@ export const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => 
       pushShow({ artist, showUuid: randomShow!.data!.uuid });
     }
   };
+
+  const artistAsArray = useMemo(() => [artist], [artist]);
 
   return (
     <>
@@ -54,7 +57,8 @@ export const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => 
           />
         )}
       </View>
-      {!isOfflineTab && <ArtistShowsOnThisDayTray artists={[artist]} />}
+      {!isOfflineTab && <ArtistShowsOnThisDayTray artists={artistAsArray} />}
+      {!isOfflineTab && <ArtistShowsByMomentumTray artists={artistAsArray} />}
     </>
   );
 };

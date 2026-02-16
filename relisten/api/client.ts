@@ -365,6 +365,17 @@ export class RelistenApiClient {
     return this.getJson(`/v2/artists/${artistUuid}/shows/top`, options);
   }
 
+  public showsByMomentum(
+    artistUuids: string[],
+    options?: RelistenApiRequestOptions
+  ): Promise<RelistenApiResponse<Show[]>> {
+    // Returns max 25 shows across all artists passed in
+    return this.getJson(
+      `/v3/shows/momentum?${artistUuids.map((v) => 'artistUuids=' + v).join('&')}`,
+      options
+    );
+  }
+
   public years(
     artistUuid: string,
     options?: RelistenApiRequestOptions

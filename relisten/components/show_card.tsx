@@ -6,6 +6,7 @@ import { TouchableOpacity, useWindowDimensions, View, ViewProps } from 'react-na
 import { List as ListContentLoader } from 'react-content-loader/native';
 import Plur from './plur';
 import { ShowLink } from '@/relisten/util/push_show';
+import { PopularityIndicator } from '@/relisten/components/popularity_indicator';
 
 export function ShowCardContainer({
   cn,
@@ -39,6 +40,7 @@ export interface ShowCardContentsProps {
   title: React.ReactNode;
   subtitle?: string;
   details?: ReadonlyArray<string>;
+  footer?: React.ReactNode;
   textClassName?: string;
   innerRef?: LegacyRef<View> | undefined;
 }
@@ -60,6 +62,7 @@ export function ShowCardContents({
   title,
   subtitle,
   details,
+  footer,
   className,
   textClassName,
   innerRef = undefined,
@@ -88,6 +91,7 @@ export function ShowCardContents({
           {d}
         </RelistenText>
       ))}
+      {footer}
     </View>
   );
 }
@@ -105,6 +109,7 @@ export function ShowCard({
   showArtist?: boolean;
 } & ViewProps) {
   const details: string[] = [];
+  let tapesAndSbdLine: string | undefined = undefined;
 
   if (show.venue) {
     if (show.venue.name) {
@@ -122,7 +127,7 @@ export function ShowCard({
     }
 
     if (parts.length > 0) {
-      details.push(parts.join(' • '));
+      tapesAndSbdLine = parts.join(' • ');
     }
   } else {
     details.push('Venue Unknown');
@@ -152,6 +157,20 @@ export function ShowCard({
             }
             subtitle={showArtist && show.artist?.name ? show.artist?.name : undefined}
             details={details}
+            footer={
+              tapesAndSbdLine ? (
+                <View className="flex-row items-center justify-between pt-1">
+                  <RelistenText numberOfLines={1} selectable={false} className="text-xs">
+                    {tapesAndSbdLine}
+                  </RelistenText>
+                  <PopularityIndicator
+                    popularity={show.popularity}
+                    isTrendingSort={false}
+                    cn="items-center justify-end"
+                  />
+                </View>
+              ) : undefined
+            }
           />
         </TouchableOpacity>
       </ShowLink>
