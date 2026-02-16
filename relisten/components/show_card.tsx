@@ -2,7 +2,7 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import { Show } from '@/relisten/realm/models/show';
 import { tw } from '@/relisten/util/tw';
 import React, { LegacyRef, PropsWithChildren, useLayoutEffect, useRef, useState } from 'react';
-import { TouchableOpacity, useWindowDimensions, View, ViewProps } from 'react-native';
+import { Pressable, useWindowDimensions, View, ViewProps } from 'react-native';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import Plur from './plur';
 import { ShowLink } from '@/relisten/util/push_show';
@@ -22,7 +22,7 @@ export function ShowCardContainer({
   PropsWithChildren) {
   const { fontScale } = useWindowDimensions();
 
-  const width = Math.round(168 * fontScale);
+  const width = Math.round(176 * fontScale);
 
   return (
     <View
@@ -52,7 +52,7 @@ export function ShowCardTitle({
   textClassName?: string;
 }) {
   return (
-    <RelistenText selectable={false} className={tw('text-md font-bold', textClassName)}>
+    <RelistenText selectable={false} className={tw('text-base font-semibold', textClassName)}>
       {children}
     </RelistenText>
   );
@@ -69,14 +69,18 @@ export function ShowCardContents({
   ...props
 }: ShowCardContentsProps & ViewProps) {
   return (
-    <View className={tw('rounded-lg bg-gray-600 p-2', className)} ref={innerRef} {...props}>
+    <View
+      className={tw('rounded-xl border border-white/10 bg-slate-700/80 p-2 shadow-sm', className)}
+      ref={innerRef}
+      {...props}
+    >
       {title}
       {subtitle && (
         <RelistenText
           selectable={false}
-          className={tw('pt-1', textClassName)}
+          className={tw('pt-0.5 text-sm text-gray-200', textClassName)}
           numberOfLines={1}
-          ellipsizeMode="middle"
+          ellipsizeMode="tail"
         >
           {subtitle}
         </RelistenText>
@@ -86,13 +90,25 @@ export function ShowCardContents({
           numberOfLines={1}
           key={idx}
           selectable={false}
-          className={tw('pt-1 text-xs', textClassName)}
+          className={tw('pt-0.5 text-xs text-gray-200', textClassName)}
         >
           {d}
         </RelistenText>
       ))}
       {footer}
     </View>
+  );
+}
+
+function ShowCardMetaChip({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <View className={tw('rounded-full bg-black/20 px-1.5 py-0.5', className)}>{children}</View>
   );
 }
 
@@ -109,7 +125,6 @@ export function ShowCard({
   showArtist?: boolean;
 } & ViewProps) {
   const details: string[] = [];
-  let tapesAndSbdLine: string | undefined = undefined;
 
   if (show.venue) {
     if (show.venue.name) {
@@ -118,16 +133,6 @@ export function ShowCard({
 
     if (show.venue.location) {
       details.push(show.venue.location.trim());
-    }
-
-    const parts: string[] = [Plur({ word: 'tape', count: show.sourceCount })];
-
-    if (show.hasSoundboardSource) {
-      parts.push('SBD');
-    }
-
-    if (parts.length > 0) {
-      tapesAndSbdLine = parts.join(' • ');
     }
   } else {
     details.push('Venue Unknown');
@@ -144,35 +149,64 @@ export function ShowCard({
         }}
         asChild
       >
-        <TouchableOpacity>
-          <ShowCardContents
-            title={
-              <View className="flex flex-row items-center justify-between">
-                <ShowCardTitle>{show.displayDate}</ShowCardTitle>
-                <RelistenText cn="text-xs">
-                  {/* <Plur word={'Review'} count={source.reviewCount} /> */}
-                  {show.avgRating ? ` ${show.humanizedAvgRating()}★` : ''}
-                </RelistenText>
-              </View>
-            }
-            subtitle={showArtist && show.artist?.name ? show.artist?.name : undefined}
-            details={details}
-            footer={
-              tapesAndSbdLine ? (
-                <View className="flex-row items-center justify-between pt-1">
-                  <RelistenText numberOfLines={1} selectable={false} className="text-xs">
-                    {tapesAndSbdLine}
+        <Pressable
+          style={({ pressed }) => (pressed ? { transform: [{ scale: 0.975 }] } : undefined)}
+        >
+          {({ pressed }) => (
+            <ShowCardContents
+              className={pressed ? 'border-white/20 bg-slate-600/90 opacity-90' : undefined}
+              title={
+                <View className="flex flex-row items-center justify-between">
+                  <ShowCardTitle>{show.displayDate}</ShowCardTitle>
+                  <RelistenText cn="text-xs text-gray-200">
+                    {/* <Plur word={'Review'} count={source.reviewCount} /> */}
+                    {show.avgRating ? ` ${show.humanizedAvgRating()}★` : ''}
                   </RelistenText>
-                  <PopularityIndicator
-                    popularity={show.popularity}
-                    isTrendingSort={false}
-                    cn="items-center justify-end"
-                  />
                 </View>
-              ) : undefined
-            }
-          />
-        </TouchableOpacity>
+              }
+              subtitle={showArtist && show.artist?.name ? show.artist?.name : undefined}
+              details={details}
+              footer={
+                <View className="flex-row items-center pt-1">
+                  <View className="flex-1 flex-row items-center pr-2">
+                    <ShowCardMetaChip className={show.hasSoundboardSource ? 'mr-1' : undefined}>
+                      <RelistenText
+                        numberOfLines={1}
+                        selectable={false}
+                        className="text-xs text-gray-100"
+                      >
+                        <Plur word="tape" count={show.sourceCount} />
+                      </RelistenText>
+                    </ShowCardMetaChip>
+                    {show.hasSoundboardSource ? (
+                      <ShowCardMetaChip>
+                        <RelistenText
+                          numberOfLines={1}
+                          selectable={false}
+                          className="text-xs font-semibold text-gray-100"
+                        >
+                          SBD
+                        </RelistenText>
+                      </ShowCardMetaChip>
+                    ) : null}
+                  </View>
+                  <View className="ml-auto items-end">
+                    {show.popularity ? (
+                      <ShowCardMetaChip>
+                        <PopularityIndicator
+                          popularity={show.popularity}
+                          isTrendingSort={false}
+                          showIcon={false}
+                          cn="items-center"
+                        />
+                      </ShowCardMetaChip>
+                    ) : null}
+                  </View>
+                </View>
+              }
+            />
+          )}
+        </Pressable>
       </ShowLink>
     </ShowCardContainer>
   );

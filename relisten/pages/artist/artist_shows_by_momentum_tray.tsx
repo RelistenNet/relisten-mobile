@@ -29,33 +29,35 @@ export function ArtistShowsByMomentumTray({ artists }: { artists: Artist[] }) {
   }, [momentumShows.data]);
 
   return (
-    <RefreshContextProvider networkBackedResults={momentumShows}>
-      <View className="flex px-4 pb-2">
-        <RelistenText className="text-m font-bold">Popular and trending shows</RelistenText>
-      </View>
-      <ScrollView horizontal className="mb-1 pb-3 pl-3">
-        <Flex className="">
-          {momentumShows.isNetworkLoading && topMomentumShows.length == 0 ? (
-            <ShowCardLoader
-              showArtist={artists.length > 1}
-              showVenue={
-                !primaryArtist ||
-                primaryArtist.features().per_source_venues ||
-                primaryArtist.features().per_show_venues
-              }
-            />
-          ) : (
-            topMomentumShows.map((show) => (
-              <ShowCard
-                show={show}
-                key={show.uuid}
-                root="artists"
+    <View className="mb-2">
+      <RefreshContextProvider networkBackedResults={momentumShows}>
+        <View className="flex px-4 pb-2">
+          <RelistenText className="text-m font-bold">Popular and trending shows</RelistenText>
+        </View>
+        <ScrollView horizontal className="pb-2 pl-3">
+          <Flex className="">
+            {momentumShows.isNetworkLoading && topMomentumShows.length == 0 ? (
+              <ShowCardLoader
                 showArtist={artists.length > 1}
+                showVenue={
+                  !primaryArtist ||
+                  primaryArtist.features().per_source_venues ||
+                  primaryArtist.features().per_show_venues
+                }
               />
-            ))
-          )}
-        </Flex>
-      </ScrollView>
-    </RefreshContextProvider>
+            ) : (
+              topMomentumShows.map((show) => (
+                <ShowCard
+                  show={show}
+                  key={show.uuid}
+                  root="artists"
+                  showArtist={artists.length > 1}
+                />
+              ))
+            )}
+          </Flex>
+        </ScrollView>
+      </RefreshContextProvider>
+    </View>
   );
 }

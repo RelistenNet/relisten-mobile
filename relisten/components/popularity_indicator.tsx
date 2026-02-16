@@ -63,12 +63,18 @@ interface PopularityIndicatorProps {
   popularity?: Popularity;
   isTrendingSort: boolean;
   cn?: string;
+  iconSize?: number;
+  compact30d?: boolean;
+  showIcon?: boolean;
 }
 
 export const PopularityIndicator = ({
   popularity,
   isTrendingSort,
   cn,
+  iconSize = 16,
+  compact30d = false,
+  showIcon = true,
 }: PopularityIndicatorProps) => {
   const momentumScore = popularity?.momentumScore;
   const bucket = getMomentumBucket(momentumScore);
@@ -78,7 +84,7 @@ export const PopularityIndicator = ({
     detailText = formatMomentumPercent(momentumScore);
   } else {
     const plays30dText = formatPlays30d(popularity?.windows?.days30d?.plays);
-    detailText = plays30dText ? `${plays30dText} 30d` : undefined;
+    detailText = plays30dText ? `${plays30dText}${compact30d ? '' : ' 30d'}` : undefined;
   }
 
   if (!bucket && !detailText) {
@@ -100,16 +106,16 @@ export const PopularityIndicator = ({
         {detailText ? (
           <RelistenText className="text-xs text-gray-400 pr-1">{detailText}</RelistenText>
         ) : null}
-        {icon ? <MaterialIcons name={icon} color="white" size={16} /> : null}
+        {showIcon && icon ? <MaterialIcons name={icon} color="white" size={iconSize} /> : null}
       </Flex>
     );
   }
 
   return (
     <Flex cn={cn ?? 'items-center'}>
-      {icon ? (
+      {showIcon && icon ? (
         <View className="pr-1">
-          <MaterialIcons name={icon} color="white" size={16} />
+          <MaterialIcons name={icon} color="white" size={iconSize} />
         </View>
       ) : null}
       {detailText ? <RelistenText className="text-xs">{detailText}</RelistenText> : null}

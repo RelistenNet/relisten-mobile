@@ -20,39 +20,41 @@ export function ArtistShowsOnThisDayTray({ artists }: { artists: Artist[] }) {
   }, [todayShows.data]);
 
   return (
-    <RefreshContextProvider networkBackedResults={todayShows}>
-      <View className="flex px-4 pb-2">
-        <RelistenText className="text-m font-bold">
-          {todayShows.isNetworkLoading && sortedShows.length == 0 ? (
-            <>Shows on this day</>
-          ) : (
-            <>
-              <Plur word="show" count={sortedShows.length} /> on this day
-            </>
-          )}
-        </RelistenText>
-      </View>
-      <ScrollView horizontal className="mb-1 pb-3 pl-3">
-        <Flex className="">
-          {todayShows.isNetworkLoading && sortedShows.length == 0 ? (
-            <ShowCardLoader
-              showArtist={artists.length > 1}
-              showVenue={
-                artists[0].features().per_source_venues || artists[0].features().per_show_venues
-              }
-            />
-          ) : (
-            sortedShows.map((show) => (
-              <ShowCard
-                show={show}
-                key={show.uuid}
-                root="artists"
+    <View className="mb-2">
+      <RefreshContextProvider networkBackedResults={todayShows}>
+        <View className="flex px-4 pb-2">
+          <RelistenText className="text-m font-bold">
+            {todayShows.isNetworkLoading && sortedShows.length == 0 ? (
+              <>Shows on this day</>
+            ) : (
+              <>
+                <Plur word="show" count={sortedShows.length} /> on this day
+              </>
+            )}
+          </RelistenText>
+        </View>
+        <ScrollView horizontal className="pb-2 pl-3">
+          <Flex className="">
+            {todayShows.isNetworkLoading && sortedShows.length == 0 ? (
+              <ShowCardLoader
                 showArtist={artists.length > 1}
+                showVenue={
+                  artists[0].features().per_source_venues || artists[0].features().per_show_venues
+                }
               />
-            ))
-          )}
-        </Flex>
-      </ScrollView>
-    </RefreshContextProvider>
+            ) : (
+              sortedShows.map((show) => (
+                <ShowCard
+                  show={show}
+                  key={show.uuid}
+                  root="artists"
+                  showArtist={artists.length > 1}
+                />
+              ))
+            )}
+          </Flex>
+        </ScrollView>
+      </RefreshContextProvider>
+    </View>
   );
 }
