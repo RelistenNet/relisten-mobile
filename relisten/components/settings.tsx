@@ -31,6 +31,7 @@ interface BoolSettingsEntry extends BaseSettings {
   type: 'bool';
   newSettings: (newValue: boolean) => Partial<UserSettingsProps>;
   currentSetting: (settings: UserSettings) => boolean;
+  warnOnEnable?: boolean;
 }
 
 interface IntSettingsEntry extends BaseSettings {
@@ -91,8 +92,10 @@ const SETTINGS: Array<Settings> = [
   //   },
   // },
   {
-    label: 'Offline Mode',
-    subtitle: 'Only display tracks that can play offline',
+    label: 'Always Offline Mode',
+    subtitle:
+      'This prevents streaming any tracks that have not been previously downloaded or cached',
+    warnOnEnable: true,
     type: 'bool',
     newSettings: (newValue: boolean): Partial<UserSettingsProps> => {
       return {
@@ -394,7 +397,14 @@ export function RelistenSettings() {
 
       <Flex column className="gap-4 p-4 pr-6">
         {SETTINGS.map((setting) => (
-          <RowWithAction key={setting.label} title={setting.label} subtitle={setting.subtitle}>
+          <RowWithAction
+            key={setting.label}
+            title={setting.label}
+            subtitle={setting.subtitle}
+            warnOnEnable={
+              setting.type === 'bool' && setting.currentSetting(settings) && setting.warnOnEnable
+            }
+          >
             {setting.type === 'bool' && (
               <InternalSwitch
                 value={setting.currentSetting(settings)}
