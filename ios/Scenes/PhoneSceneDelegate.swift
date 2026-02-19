@@ -27,8 +27,26 @@ class PhoneSceneDelegate: UIResponder, UIWindowSceneDelegate {
     let window = UIWindow(windowScene: windowScene)
     
     appDelegate.attachReactNative(to: window)
-    
+
     self.window = window
+
+    // Forward universal links received on cold start
+    for userActivity in connectionOptions.userActivities {
+      RCTLinkingManager.application(
+        UIApplication.shared,
+        continue: userActivity,
+        restorationHandler: { _ in }
+      )
+    }
+
+    // Forward custom URL scheme links received on cold start
+    for urlContext in connectionOptions.urlContexts {
+      RCTLinkingManager.application(
+        UIApplication.shared,
+        open: urlContext.url,
+        options: [:]
+      )
+    }
   }
   
   func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
