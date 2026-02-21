@@ -109,9 +109,9 @@ export const RelistenSectionList = <T extends RelistenObject>({
         return 'rawItem' in item ? 'row' : 'sectionHeader';
       }}
       // stickyHeaderIndices={stickyHeaderIndices}
-      keyExtractor={(item) => {
+      keyExtractor={(item, index) => {
         if ('sectionTitle' in item) {
-          return item.sectionTitle;
+          return [item.sectionTitle, index].join(':');
         } else if ('uuid' in item.rawItem) {
           if ('keyPrefix' in item) {
             // keyPrefix is for situations where we have 2 rows in the same list

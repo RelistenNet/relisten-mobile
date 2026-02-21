@@ -13,8 +13,8 @@ import { aggregateBy } from '@/relisten/util/group_by';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { tw } from '@/relisten/util/tw';
 import { Link } from 'expo-router';
-import { PropsWithChildren, useMemo } from 'react';
-import { ScrollView, TouchableOpacity, View, ViewProps } from 'react-native';
+import { PropsWithChildren, ReactNode, useMemo } from 'react';
+import { TouchableOpacity, View, ViewProps } from 'react-native';
 import {
   SourceTrackOfflineInfoStatus,
   SourceTrackOfflineInfoType,
@@ -62,7 +62,7 @@ function RecentlyPlayedShows() {
   );
 }
 
-function FavoriteShows() {
+function FavoriteShows({ topContent }: { topContent?: ReactNode }) {
   const favoriteShowsQuery = useQuery(
     {
       type: Show,
@@ -105,20 +105,23 @@ function FavoriteShows() {
   // TODO(alecgorge): if the user has a favorited source within that show, take them directly there
 
   return (
-    <View className="pt-4">
-      <RefreshContextProvider>
-        <MyLibrarySectionHeader>
-          <Plur word="Show" count={favoriteShowsQuery.length} /> in My Library
-        </MyLibrarySectionHeader>
-        <ShowListContainer
-          data={favoriteShowsByArtist}
-          filterOptions={{ persistence: { key: ['myLibrary', 'shows'].join('/') } }}
-          // hide "My Library" filter since it's enabled by default here
-          filters={SHOW_FILTERS.filter((sf) => sf.persistenceKey !== ShowFilterKey.Library)}
-          nonIdealState={nonIdealState}
-        />
-      </RefreshContextProvider>
-    </View>
+    <RefreshContextProvider>
+      <ShowListContainer
+        data={favoriteShowsByArtist}
+        ListHeaderComponent={
+          <View className="pt-4">
+            {topContent}
+            <MyLibrarySectionHeader>
+              <Plur word="Show" count={favoriteShowsQuery.length} /> in My Library
+            </MyLibrarySectionHeader>
+          </View>
+        }
+        filterOptions={{ persistence: { key: ['myLibrary', 'shows'].join('/') } }}
+        // hide "My Library" filter since it's enabled by default here
+        filters={SHOW_FILTERS.filter((sf) => sf.persistenceKey !== ShowFilterKey.Library)}
+        nonIdealState={nonIdealState}
+      />
+    </RefreshContextProvider>
   );
 }
 
@@ -148,11 +151,14 @@ export default function MyLibraryPage() {
   // TODO: listening history that shows all tracks
   return (
     <ScrollScreen>
-      <ScrollView className="flex-1">
-        <ActiveDownloads />
-        <RecentlyPlayedShows />
-        <FavoriteShows />
-      </ScrollView>
+      <FavoriteShows
+        topContent={
+          <>
+            <ActiveDownloads />
+            <RecentlyPlayedShows />
+          </>
+        }
+      />
     </ScrollScreen>
   );
 }
