@@ -24,7 +24,10 @@ class RelistenPlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
 
-        val player = ExoPlayer.Builder(this).setLoadControl(RelistenLoadControl()).build()
+        val player = ExoPlayer.Builder(this)
+            .setLoadControl(RelistenLoadControl())
+            .setHandleAudioBecomingNoisy(true)
+            .build()
         player.addAnalyticsListener(EventLogger())
 
         val uiStatePlayer = RelistenUiStatePlayer(player)
