@@ -110,7 +110,8 @@
         }
       ],
       "@sentry/react-native",
-      "react-native-google-cast"
+      "react-native-google-cast",
+      "expo-secure-store"
     ],
     "extra": {
       "router": {
