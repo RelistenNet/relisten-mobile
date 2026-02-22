@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { CarPlay } from '@g4rb4g3/react-native-carplay/src';
+import { CarPlay } from '@g4rb4g3/react-native-carplay';
 import { RelistenApiClient } from '@/relisten/api/client';
 import { setupCarPlay } from '@/relisten/carplay/templates';
 import { openRealm } from '@/relisten/realm/schema';

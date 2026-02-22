@@ -13,7 +13,7 @@
     "@expo/metro-runtime": "~6.1.2",
     "@expo/react-native-action-sheet": "^4.0.1",
     "@expo/vector-icons": "^15.0.3",
-    "@g4rb4g3/react-native-carplay": "2.7.22",
+    "@g4rb4g3/react-native-carplay": "github:RelistenNet/react-native-carplay#1151a8e",
     "@gorhom/bottom-sheet": "^5.2.8",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/netinfo": "11.4.1",

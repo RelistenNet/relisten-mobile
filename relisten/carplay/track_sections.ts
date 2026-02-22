@@ -1,4 +1,4 @@
-import { ListSection } from '@g4rb4g3/react-native-carplay/src/interfaces/ListSection';
+import { ListSection } from '@g4rb4g3/react-native-carplay';
 import plur from 'plur';
 import { Artist } from '@/relisten/realm/models/artist';
 import { Source } from '@/relisten/realm/models/source';

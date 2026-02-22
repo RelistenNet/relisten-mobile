@@ -52,6 +52,8 @@
     </array>
     <key>NSCameraUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your camera</string>
+    <key>NSFaceIDUsageDescription</key>
+    <string>Allow $(PRODUCT_NAME) to access your Face ID biometric data.</string>
     <key>NSLocalNetworkUsageDescription</key>
     <string>${PRODUCT_NAME} uses the local network to discover Cast-enabled devices on your WiFi network</string>
     <key>NSMicrophoneUsageDescription</key>

@@ -1,5 +1,5 @@
 import { CarPlay, ListTemplate, NowPlayingTemplate } from '@g4rb4g3/react-native-carplay';
-import { ListSection } from '@g4rb4g3/react-native-carplay/src/interfaces/ListSection';
+import { ListSection } from '@g4rb4g3/react-native-carplay';
 import { RelistenCarPlayContext } from '@/relisten/carplay/relisten_car_play_context';
 import {
   PlayerQueueTrack,

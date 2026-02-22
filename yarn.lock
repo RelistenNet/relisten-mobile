@@ -1440,10 +1440,9 @@
     find-up "^5.0.0"
     js-yaml "^4.1.0"
 
-"@g4rb4g3/react-native-carplay@2.7.22":
+"@g4rb4g3/react-native-carplay@github:RelistenNet/react-native-carplay#1151a8e":
   version "2.7.22"
-  resolved "https://registry.yarnpkg.com/@g4rb4g3/react-native-carplay/-/react-native-carplay-2.7.22.tgz#e003fa5c6c0be67da5fe607bdfe46ba706c6314d"
-  integrity sha512-+MCWe/5ueNdvgidef6NYg3GUTksEySZv59kO1bxfjAhAZIPfo/16fiyIwjNrzLrMBM0aLZyBrERpHmsUmAjfoQ==
+  resolved "https://codeload.github.com/RelistenNet/react-native-carplay/tar.gz/1151a8e69842ff3127293b55b854a100db6fe506"
 
 "@gorhom/bottom-sheet@^5.2.8":
   version "5.2.8"
