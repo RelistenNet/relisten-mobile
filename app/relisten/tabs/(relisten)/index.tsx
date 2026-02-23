@@ -16,6 +16,7 @@ import { DownloadManager } from '@/relisten/offline/download_manager';
 import { log } from '@/relisten/util/logging';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
 import { RelistenAbout } from '@/relisten/components/about';
+import { UpdatesStatusSection } from '@/relisten/components/updates_status_section';
 import { useArtists } from '@/relisten/realm/models/artist_repo';
 import { sample } from 'remeda';
 import { useRelistenApi } from '@/relisten/api/context';
@@ -170,7 +171,7 @@ function StorageUsage() {
   return (
     <View>
       <SectionHeader title="Storage Usage" />
-      <Flex column className="gap-4 p-4">
+      <Flex column className="gap-4 p-4 pr-8">
         {hasLegacyData && (
           <RowWithAction
             title={'Migrate legacy data'}
@@ -249,7 +250,7 @@ export default function Page() {
     <ScrollScreen>
       <ScrollView className="">
         <Flex column>
-          <Flex column className="gap-4 p-4">
+          <Flex column className="gap-4 p-4 pr-8">
             <RowWithAction
               title="Recently Played"
               subtitle="See what other people are listening to in real-time."

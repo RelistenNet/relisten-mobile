@@ -316,7 +316,7 @@ function LastFmSettingsSection() {
     <Flex column>
       <SectionHeader title="Last.fm" />
 
-      <Flex column className="gap-4 p-4 pr-6">
+      <Flex column className="gap-4 p-4 pr-8">
         {!isConnected && (
           <RowWithAction
             title="Enable Last.fm Scrobbling"
@@ -395,7 +395,7 @@ export function RelistenSettings() {
     <Flex column>
       <SectionHeader title="Settings" />
 
-      <Flex column className="gap-4 p-4 pr-6">
+      <Flex column className="gap-4 p-4 pr-8">
         {SETTINGS.map((setting) => (
           <RowWithAction
             key={setting.label}

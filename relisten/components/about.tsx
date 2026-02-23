@@ -85,8 +85,8 @@ export function RelistenAbout() {
     <Flex column>
       <SectionHeader title={`Relisten ${userFacingVersion} (${buildVersion})`} />
 
-      <Flex column className="gap-4 p-4">
-        <SocialButtons className="pb-2 pr-4" />
+      <Flex column className="gap-4 p-4 pr-8">
+        <SocialButtons className="pb-2" />
         <RowWithAction
           title="Built by the team at relisten.net"
           subtitle="This app was written by Alec Gorge, with help from Daniel Saewitz and Thenlie"
