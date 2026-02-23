@@ -280,6 +280,7 @@ export default function Page() {
 
           <RelistenSettings />
           <RelistenAbout />
+          <UpdatesStatusSection />
         </Flex>
       </ScrollView>
     </ScrollScreen>

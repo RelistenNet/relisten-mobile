@@ -20,7 +20,19 @@
     "preview": {
       "distribution": "internal"
     },
-    "production": {}
+    "production": {
+      "channel": "production",
+      "env": {
+        "RELEASE_CHANNEL": "production"
+      }
+    },
+    "testflight": {
+      "extends": "production",
+      "channel": "testflight",
+      "env": {
+        "RELEASE_CHANNEL": "testflight"
+      }
+    }
   },
   "submit": {
     "production": {}

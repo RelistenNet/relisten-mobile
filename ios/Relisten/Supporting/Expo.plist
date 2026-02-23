@@ -4,9 +4,40 @@
   <dict>
     <key>EXUpdatesCheckOnLaunch</key>
     <string>ALWAYS</string>
+    <key>EXUpdatesCodeSigningCertificate</key>
+    <string>-----BEGIN CERTIFICATE-----&#xD;
+MIIC0zCCAbugAwIBAgIJQBK+VG8UFkrQMA0GCSqGSIb3DQEBCwUAMBMxETAPBgNV&#xD;
+BAMTCFJlbGlzdGVuMB4XDTI2MDIyMzAwMDIwN1oXDTM2MDIyMzAwMDIwN1owEzER&#xD;
+MA8GA1UEAxMIUmVsaXN0ZW4wggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIB&#xD;
+AQDCBKGL5JrjKPD03WEqhPU9tqgFJwG/Yo89KU4ZizNkVhHkgfwo7xmCe1v04ld8&#xD;
+y46L9ehfhxsr/tdwCYL7WYNKb4P0UDPQdg4WMTppyIhoWAiQjQqHNqJhHu+zeqaz&#xD;
+iNQfrQTQFtRHgNlF6H7tSVRbQOeBfnsH6GdIINXOsqdnfSeHMWVZ1+DworHQ2TQb&#xD;
+o4AuI2DVxFfuy1uE7hPb//ej4V87Dp4ZeleoXnNLA4NzN2auMe/hK+/d8jfJC/2N&#xD;
+YeKQrdqZ9Z0V9QX5NPH2xbwgvg+otgqOE7n0PU2ShrOLvFvTfXDpxVbsqlwBZULh&#xD;
+//H/py4EHi/y34iCc5m9U7BNAgMBAAGjKjAoMA4GA1UdDwEB/wQEAwIHgDAWBgNV&#xD;
+HSUBAf8EDDAKBggrBgEFBQcDAzANBgkqhkiG9w0BAQsFAAOCAQEATPXhRZxqSuL1&#xD;
+prZkecifA9acNznH8uezJjxhc/vM0WKLJrXTC/dMws7tQ7DJc1oHt5h3raWk93nN&#xD;
+RSV2TW2Chwz0oIIFizfqYQIxhZO90YUyYfx4qjdIhFkakFEjjgkrtnTI9ZukBfTh&#xD;
+Nkew8WaJQ2r2R2E2SDmpdsHIo4b6PdY3BuvGK+O+R7Q5gnO9mLhntHziy2OfJkWN&#xD;
+zMipC6H0b+ZFWzwcm0ne3nxGfrqnPZADcjZmLDQw/QOs8ZhyUhDpcC3UrQSHkUnh&#xD;
+h3l7oHWxbTpzUD5f5i24e1chRzbR5Y+Y7eWoBNFzIGnS0VJopfoEUjvRB+MO+zo7&#xD;
+DkwMR+jRkQ==&#xD;
+-----END CERTIFICATE-----&#xD;
+</string>
+    <key>EXUpdatesCodeSigningMetadata</key>
+    <dict>
+      <key>keyid</key>
+      <string>main</string>
+      <key>alg</key>
+      <string>rsa-v1_5-sha256</string>
+    </dict>
     <key>EXUpdatesEnabled</key>
-    <false/>
+    <true/>
     <key>EXUpdatesLaunchWaitMs</key>
     <integer>0</integer>
+    <key>EXUpdatesRequestHeaders</key>
+    <dict/>
+    <key>EXUpdatesURL</key>
+    <string>https://ota.relisten.net/manifest</string>
   </dict>
 </plist>
