@@ -1,6 +1,6 @@
 import { useSegments } from 'expo-router';
 
-export type RelistenTabGroupSegment = '(artists)' | '(myLibrary)' | undefined;
+export type RelistenTabGroupSegment = '(artists)' | '(myLibrary)' | '(offline)' | undefined;
 
 export const useRoute = (nextRoute?: string) => {
   const segments = useSegments();

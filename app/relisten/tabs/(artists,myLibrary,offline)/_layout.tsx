@@ -6,7 +6,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Stack } from 'expo-router/stack';
 import { useEffect } from 'react';
-import { Image, View } from 'react-native';
+import { Image } from 'react-native';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import RelistenWhite from '@/assets/relisten_white.png';
 
@@ -24,6 +24,7 @@ export default function ArtistsLayout() {
   const groupSegment = useGroupSegment();
   const bottomTabBarHeight = useBottomTabBarHeight();
   const isDesktopLayout = useIsDesktopLayout();
+  const currentTitle = TITLES[groupSegment ?? '(artists)'] ?? TITLES['(artists)'];
 
   const { setTabBarHeight } = useRelistenPlayerBottomBarContext();
 
@@ -36,25 +37,14 @@ export default function ArtistsLayout() {
       <Stack.Screen
         name="index"
         options={{
-          title: TITLES[groupSegment ?? '(artists)'],
+          title: currentTitle,
           headerTitleAlign: 'center',
           headerLargeTitle: false,
           headerStyle: {
             backgroundColor: RelistenBlue['950'],
           },
-          headerTitle: ({
-            children,
-          }: {
-            /**
-             * The title text of the header.
-             */
-            children: string;
-            /**
-             * Tint color for the header.
-             */
-            tintColor?: string;
-          }) => {
-            return groupSegment == '(artists)' ? (
+          headerTitle: () => {
+            return groupSegment === '(artists)' ? (
               <Image
                 source={RelistenWhite}
                 onError={(error) => console.log('Image failed to load:', error.nativeEvent.error)}
@@ -66,9 +56,7 @@ export default function ArtistsLayout() {
                 resizeMode="contain"
               />
             ) : (
-              <View className="flex flex-1 items-center justify-center">
-                <RelistenText className="text-lg font-bold">{children}</RelistenText>
-              </View>
+              <RelistenText className="text-lg font-bold">{currentTitle}</RelistenText>
             );
           },
         }}
