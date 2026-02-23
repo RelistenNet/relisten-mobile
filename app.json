@@ -31,7 +31,7 @@
           "audio"
         ]
       },
-      "buildNumber": "6025"
+      "buildNumber": "6026"
     },
     "android": {
       "edgeToEdgeEnabled": true,
@@ -65,7 +65,7 @@
       },
       "icon": "./assets/ic_playstore.png",
       "package": "net.relisten.android",
-      "versionCode": 6025
+      "versionCode": 6026
     },
     "jsEngine": "hermes",
     "web": {
