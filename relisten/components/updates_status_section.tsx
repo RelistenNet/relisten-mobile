@@ -3,7 +3,7 @@ import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { SectionHeader } from '@/relisten/components/section_header';
 import { useMemo, useState } from 'react';
-import { Clipboard } from 'react-native';
+import { Clipboard, Pressable } from 'react-native';
 import * as Updates from 'expo-updates';
 
 const formatDateTime = (date?: Date | null) => {
@@ -97,8 +97,8 @@ export function UpdatesStatusSection() {
   const source = !isUpdatesEnabled
     ? 'Unavailable'
     : currentlyRunning.isEmbeddedLaunch
-      ? 'Built-in bundle'
-      : 'Downloaded OTA';
+      ? 'Built-in app bundle'
+      : 'Downloaded update';
   const currentUpdateId = isUpdatesEnabled
     ? (currentlyRunning.updateId ?? Updates.updateId)
     : undefined;
@@ -200,7 +200,7 @@ export function UpdatesStatusSection() {
       }
 
       if (result.isAvailable) {
-        setActionSuccess('Update available. Tap "Download update" to fetch it.');
+        setActionSuccess('Update available. Download to prepare installation.');
         return;
       }
 
@@ -261,129 +261,121 @@ export function UpdatesStatusSection() {
 
   return (
     <Flex column>
-      <SectionHeader title="Update Status" />
+      <SectionHeader title="App Update" />
       <Flex column className="gap-2 p-4 pr-8">
-        <RelistenText className="font-semibold">{status}</RelistenText>
-        <Flex column className="gap-0.5">
-          <RelistenText className="text-sm text-gray-400">Source: {source}</RelistenText>
-          <RelistenText className="text-sm text-gray-400">
-            Current update: {shortenId(currentUpdateId)}
-          </RelistenText>
-          <RelistenText className="text-sm text-gray-400">
-            Channel: {currentChannel} • Runtime: {currentRuntime}
-          </RelistenText>
-          <RelistenText className="text-sm text-gray-400">
-            Published: {formatDateTime(publishedAt)}
-          </RelistenText>
-          <RelistenText className="text-sm text-gray-400">
-            Last checked: {formatDateTime(lastCheckForUpdateTimeSinceRestart)}
-          </RelistenText>
-        </Flex>
-
-        {isUpdatesEnabled ? (
-          <Flex className="flex-wrap">
-            <RelistenButton
-              size="xs"
-              asyncOnPress={onCheckForUpdates}
-              automaticLoadingIndicator
-              disabled={controlsDisabled}
-              className="mr-2"
-            >
-              Check for updates
-            </RelistenButton>
-            {isUpdateAvailable && !isUpdatePending && (
-              <RelistenButton
-                size="xs"
-                asyncOnPress={onDownloadUpdate}
-                automaticLoadingIndicator
-                disabled={controlsDisabled}
-                className="mr-2"
-              >
-                Download update
-              </RelistenButton>
-            )}
-            {isUpdatePending && (
-              <RelistenButton
-                size="xs"
-                intent="primary"
-                asyncOnPress={onRestartToApply}
-                automaticLoadingIndicator
-                disabled={controlsDisabled}
-                className="mr-2"
-              >
-                Restart to apply
-              </RelistenButton>
-            )}
-          </Flex>
-        ) : (
-          <Flex className="pl-0.5">
-            <RelistenText className="text-sm text-gray-400">
-              OTA controls are only available in release/EAS builds.
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setShowDebug((prev) => !prev)}
+          className="rounded-md border border-white/10 bg-relisten-blue-900 p-3"
+        >
+          <RelistenText className="font-semibold">{status}</RelistenText>
+          <Flex column className="gap-0.5">
+            <RelistenText className="text-sm text-gray-300">Source: {source}</RelistenText>
+            <RelistenText className="text-sm text-gray-300">
+              Current update: {shortenId(currentUpdateId)}
+            </RelistenText>
+            <RelistenText className="text-sm text-gray-300">
+              Published: {formatDateTime(publishedAt)}
+            </RelistenText>
+            <RelistenText className="text-sm text-gray-300">
+              Last checked: {formatDateTime(lastCheckForUpdateTimeSinceRestart)}
+            </RelistenText>
+            <RelistenText className="text-xs text-gray-400">
+              {showDebug ? 'Tap to hide details' : 'Tap to show details'}
             </RelistenText>
           </Flex>
-        )}
+        </Pressable>
 
-        {!!actionMessage && (
-          <RelistenText
-            className={actionMessageIsError ? 'text-sm text-red-400' : 'text-sm text-gray-300'}
-          >
-            {actionMessage}
-          </RelistenText>
-        )}
-
-        <Flex column className="gap-2">
-          <RelistenButton size="xs" intent="outline" onPress={() => setShowDebug((prev) => !prev)}>
-            {showDebug ? 'Hide debug details' : 'Show debug details'}
-          </RelistenButton>
-
-          {showDebug && (
-            <Flex
-              column
-              className="gap-1 rounded-md border border-white/10 bg-relisten-blue-900 p-3"
-            >
-              <RelistenText className="text-sm text-gray-300">
-                Updates enabled: {isUpdatesEnabled ? 'yes' : 'no'}
-              </RelistenText>
-              <RelistenText className="text-sm text-gray-300">
-                Check automatically:{' '}
-                {isUpdatesEnabled ? (Updates.checkAutomatically ?? 'N/A') : 'N/A'}
-              </RelistenText>
-              <RelistenText className="text-sm text-gray-300">
-                Emergency launch: {currentlyRunning.isEmergencyLaunch ? 'yes' : 'no'}
-              </RelistenText>
-              {currentlyRunning.isEmergencyLaunch && (
-                <RelistenText className="text-sm text-amber-300">
-                  Emergency reason: {currentlyRunning.emergencyLaunchReason ?? 'N/A'}
-                </RelistenText>
+        {showDebug && (
+          <Flex column className="gap-2 rounded-md border border-white/10 bg-relisten-blue-900 p-3">
+            <Flex className="flex-wrap">
+              <RelistenButton
+                size="xs"
+                asyncOnPress={onCheckForUpdates}
+                automaticLoadingIndicator
+                disabled={controlsDisabled}
+                className="mr-2"
+              >
+                Check for updates
+              </RelistenButton>
+              {isUpdateAvailable && !isUpdatePending && (
+                <RelistenButton
+                  size="xs"
+                  asyncOnPress={onDownloadUpdate}
+                  automaticLoadingIndicator
+                  disabled={controlsDisabled}
+                  className="mr-2"
+                >
+                  Download update
+                </RelistenButton>
               )}
-              <RelistenText className="text-sm text-gray-300">
-                Available update:{' '}
-                {availableUpdate
-                  ? `${availableUpdate.type} ${shortenId(availableUpdate.updateId)} (${formatDateTime(availableUpdate.createdAt)})`
-                  : 'N/A'}
-              </RelistenText>
-              <RelistenText className="text-sm text-gray-300">
-                Downloaded update:{' '}
-                {downloadedUpdate
-                  ? `${downloadedUpdate.type} ${shortenId(downloadedUpdate.updateId)} (${formatDateTime(downloadedUpdate.createdAt)})`
-                  : 'N/A'}
-              </RelistenText>
-              {checkError && (
-                <RelistenText className="text-sm text-red-400">
-                  Check error: {summarizeError(checkError)}
-                </RelistenText>
-              )}
-              {downloadError && (
-                <RelistenText className="text-sm text-red-400">
-                  Download error: {summarizeError(downloadError)}
-                </RelistenText>
+              {isUpdatePending && (
+                <RelistenButton
+                  size="xs"
+                  intent="primary"
+                  asyncOnPress={onRestartToApply}
+                  automaticLoadingIndicator
+                  disabled={controlsDisabled}
+                  className="mr-2"
+                >
+                  Restart to apply
+                </RelistenButton>
               )}
               <RelistenButton size="xs" intent="outline" onPress={onCopyDiagnostics}>
                 Copy diagnostics
               </RelistenButton>
             </Flex>
-          )}
-        </Flex>
+
+            {!!actionMessage && (
+              <RelistenText
+                className={actionMessageIsError ? 'text-sm text-red-400' : 'text-sm text-gray-300'}
+              >
+                {actionMessage}
+              </RelistenText>
+            )}
+
+            <RelistenText className="text-sm text-gray-300">
+              Updates enabled: {isUpdatesEnabled ? 'yes' : 'no'}
+            </RelistenText>
+            <RelistenText className="text-sm text-gray-300">
+              Channel: {currentChannel} • Runtime: {currentRuntime}
+            </RelistenText>
+            <RelistenText className="text-sm text-gray-300">
+              Check automatically:{' '}
+              {isUpdatesEnabled ? (Updates.checkAutomatically ?? 'N/A') : 'N/A'}
+            </RelistenText>
+            <RelistenText className="text-sm text-gray-300">
+              Emergency launch: {currentlyRunning.isEmergencyLaunch ? 'yes' : 'no'}
+            </RelistenText>
+            {currentlyRunning.isEmergencyLaunch && (
+              <RelistenText className="text-sm text-amber-300">
+                Emergency reason: {currentlyRunning.emergencyLaunchReason ?? 'N/A'}
+              </RelistenText>
+            )}
+            <RelistenText className="text-sm text-gray-300">
+              Available update:{' '}
+              {availableUpdate
+                ? `${availableUpdate.type} ${shortenId(availableUpdate.updateId)} (${formatDateTime(availableUpdate.createdAt)})`
+                : 'N/A'}
+            </RelistenText>
+            <RelistenText className="text-sm text-gray-300">
+              Downloaded update:{' '}
+              {downloadedUpdate
+                ? `${downloadedUpdate.type} ${shortenId(downloadedUpdate.updateId)} (${formatDateTime(downloadedUpdate.createdAt)})`
+                : 'N/A'}
+            </RelistenText>
+            {checkError && (
+              <RelistenText className="text-sm text-red-400">
+                Check error: {summarizeError(checkError)}
+              </RelistenText>
+            )}
+            {downloadError && (
+              <RelistenText className="text-sm text-red-400">
+                Download error: {summarizeError(downloadError)}
+              </RelistenText>
+            )}
+          </Flex>
+        )}
       </Flex>
     </Flex>
   );
