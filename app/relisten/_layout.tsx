@@ -11,11 +11,18 @@ export default function TabLayout() {
   const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
 
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout | undefined;
     if (shouldMakeNetworkRequests) {
-      setTimeout(() => {
+      timeoutId = setTimeout(() => {
         // wait a few seconds before resume downloads to prevent doing too much right at app launch
         DownloadManager.SHARED_INSTANCE.resumeExistingDownloads().then(() => {});
       }, 5000);
+
+      return () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      };
     }
   }, [shouldMakeNetworkRequests]);
 
