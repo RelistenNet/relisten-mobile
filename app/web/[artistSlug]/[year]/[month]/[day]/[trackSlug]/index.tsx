@@ -24,6 +24,9 @@ export default function Page() {
       return;
     }
 
+    let cancelled = false;
+    const timeoutIds: ReturnType<typeof setTimeout>[] = [];
+
     (async () => {
       const show = await apiClient.showWithSourcesOnDate(
         String(artistSlug),
@@ -35,14 +38,18 @@ export default function Page() {
         }
       );
 
+      if (cancelled) return;
+
       const showData = show.data;
 
       if (!showData) {
         logger.error(`Did not find a show matching ${year}-${month}-${day} for ${artistSlug}`);
 
-        setTimeout(() => {
-          router.push({ pathname: '/relisten/tabs' });
-        }, 0);
+        timeoutIds.push(
+          setTimeout(() => {
+            if (!cancelled) router.push({ pathname: '/relisten/tabs' });
+          }, 0)
+        );
 
         return;
       }
@@ -80,25 +87,36 @@ export default function Page() {
 
       const artistByUuid = groupByUuid([...artistsResults.data]);
 
-      setTimeout(() => {
-        const params: PushShowOptions = {
-          artist: artistByUuid[showData.artist_uuid],
-          showUuid: showData.uuid,
-          sourceUuid: sourceUuid,
-          overrideGroupSegment: '(artists)',
-        };
-
-        if (autoplay && trackUuid) {
-          params.playTrackUuid = trackUuid;
-        }
-
-        router.push({ pathname: '/relisten/tabs' });
-
+      timeoutIds.push(
         setTimeout(() => {
-          pushShow(params);
-        }, 0);
-      }, 0);
+          if (cancelled) return;
+
+          const params: PushShowOptions = {
+            artist: artistByUuid[showData.artist_uuid],
+            showUuid: showData.uuid,
+            sourceUuid: sourceUuid,
+            overrideGroupSegment: '(artists)',
+          };
+
+          if (autoplay && trackUuid) {
+            params.playTrackUuid = trackUuid;
+          }
+
+          router.push({ pathname: '/relisten/tabs' });
+
+          timeoutIds.push(
+            setTimeout(() => {
+              if (!cancelled) pushShow(params);
+            }, 0)
+          );
+        }, 0)
+      );
     })();
+
+    return () => {
+      cancelled = true;
+      timeoutIds.forEach(clearTimeout);
+    };
   }, [artistSlug, year, month, day, artistsResults.data]);
 
   return <WebRewriteLoader />;

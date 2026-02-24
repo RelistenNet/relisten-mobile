@@ -217,19 +217,24 @@ export default function Page() {
   const artistsResults = useArtists();
 
   useEffect(() => {
+    const controller = new AbortController();
+
     const getData = async () => {
       let params = '';
 
-      // console.log(state.data[0]);
       if (state.data[0]) {
         params = `?lastSeenId=${state.data[0]}`;
       }
-      const data = await fetch(RelistenApiClient.API_BASE + `/v2/live/history${params}`).then(
-        (res) => res.json()
-      );
+      try {
+        const data = await fetch(RelistenApiClient.API_BASE + `/v2/live/history${params}`, {
+          signal: controller.signal,
+        }).then((res) => res.json());
 
-      // console.log(data);
-      call({ type: ACTIONS.UPDATE_DATA, data: data?.toReversed() });
+        call({ type: ACTIONS.UPDATE_DATA, data: data?.toReversed() });
+      } catch (e) {
+        if (e instanceof DOMException && e.name === 'AbortError') return;
+        throw e;
+      }
     };
 
     getData();
@@ -239,6 +244,7 @@ export default function Page() {
 
     return () => {
       clearInterval(interval);
+      controller.abort();
     };
   }, []);
 

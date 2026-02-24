@@ -97,9 +97,18 @@ function StorageUsage() {
   const [showMigrationModal, setShowMigrationModal] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+
     (async () => {
-      setHasLegacyData(await legacyDatabaseExists());
+      const exists = await legacyDatabaseExists();
+      if (!cancelled) {
+        setHasLegacyData(exists);
+      }
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useFocusEffect(

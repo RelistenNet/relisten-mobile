@@ -18,13 +18,23 @@ export default function Page() {
       const params = { artistUuid: artist.data?.uuid };
       logger.info(`redirecting to ${newPath} ${JSON.stringify(params)}`);
 
-      setTimeout(() => {
-        router.push({ pathname: '/relisten/tabs' });
+      const timeoutIds: ReturnType<typeof setTimeout>[] = [];
 
+      timeoutIds.push(
         setTimeout(() => {
-          router.push({ pathname: newPath, params });
-        }, 0);
-      }, 0);
+          router.push({ pathname: '/relisten/tabs' });
+
+          timeoutIds.push(
+            setTimeout(() => {
+              router.push({ pathname: newPath, params });
+            }, 0)
+          );
+        }, 0)
+      );
+
+      return () => {
+        timeoutIds.forEach(clearTimeout);
+      };
     }
   }, [artist.data]);
 
