@@ -18,6 +18,8 @@ export default function useCacheAssets() {
 
   // Load any resources or data that you need prior to rendering the app
   useEffect(() => {
+    let cancelled = false;
+
     async function loadResourcesAndDataAsync() {
       try {
         const imageAssets = cacheImages([ToolbarRelisten]);
@@ -28,14 +30,19 @@ export default function useCacheAssets() {
           }
         }
       } catch (e) {
-        // You might want to provide this error information to an error reporting service
         console.warn(e);
       } finally {
-        setIsAppReady(true);
+        if (!cancelled) {
+          setIsAppReady(true);
+        }
       }
     }
 
     loadResourcesAndDataAsync();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return isAppReady;

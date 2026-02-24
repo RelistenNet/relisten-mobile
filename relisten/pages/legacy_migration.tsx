@@ -371,6 +371,8 @@ export function LegacyDataMigrationModal({
   const realm = useRealm();
 
   useEffect(() => {
+    let cancelled = false;
+
     (async () => {
       const isIOS = Platform.OS === 'ios';
 
@@ -383,10 +385,14 @@ export function LegacyDataMigrationModal({
       const legacyDbExists = await legacyDatabaseExists();
       const eligibleForModal = legacyDbExists && hasNotDismissed && isIOS;
 
-      if (forceShow || (eligibleForModal && shouldMakeNetworkRequests)) {
+      if (!cancelled && (forceShow || (eligibleForModal && shouldMakeNetworkRequests))) {
         setModalVisible(true);
       }
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [forceShow]);
 
   const loadLegacyData = async () => {
