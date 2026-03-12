@@ -1,4 +1,4 @@
-import { CarPlay, ListTemplate, NowPlayingTemplate } from '@g4rb4g3/react-native-carplay';
+import { ListTemplate, NowPlayingTemplate } from '@g4rb4g3/react-native-carplay';
 import { ListSection } from '@g4rb4g3/react-native-carplay';
 import { RelistenCarPlayContext } from '@/relisten/carplay/relisten_car_play_context';
 import {
@@ -93,20 +93,12 @@ export function createQueueListTemplate(
   return template;
 }
 
-export function createNowPlayingTemplate(
-  ctx: RelistenCarPlayContext,
-  buildQueueTemplate: () => ListTemplate
-): NowPlayingTemplate {
+export function createNowPlayingTemplate(ctx: RelistenCarPlayContext): NowPlayingTemplate {
   return new NowPlayingTemplate({
     id: 'relisten-now-playing',
     tabTitle: 'Now Playing',
     albumArtistButtonEnabled: false,
-    upNextButtonEnabled: true,
-    upNextButtonTitle: 'Up Next',
-    onUpNextButtonPressed() {
-      const queueTemplate = buildQueueTemplate();
-      CarPlay.pushTemplate(queueTemplate, true);
-    },
+    upNextButtonEnabled: false,
     onButtonPressed({ id }) {
       if (id === 'shuffle') {
         const nextShuffleState =

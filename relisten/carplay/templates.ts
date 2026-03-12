@@ -22,7 +22,7 @@ export function setupCarPlay(realm: Realm, apiClient: RelistenApiClient) {
       includeNowPlayingRow: true,
     });
 
-  const nowPlayingTemplate = createNowPlayingTemplate(ctx, queueTemplateBuilder);
+  const nowPlayingTemplate = createNowPlayingTemplate(ctx);
   let showNowPlayingInFlight: Promise<void> | null = null;
 
   const ensureNowPlayingVisible = () => {
