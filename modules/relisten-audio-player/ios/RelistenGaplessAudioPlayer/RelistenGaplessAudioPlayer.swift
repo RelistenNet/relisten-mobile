@@ -232,6 +232,8 @@ public class RelistenGaplessAudioPlayer {
         dispatchPrecondition(condition: .onQueue(bassQueue))
 
         NSLog("[relisten-audio-player] setNextStream: streamable=\(String(describing: streamable))")
+
+        cancelPendingBASSTeardown(reason: "updating next stream")
         maybeSetupBASS()
 
         guard let streamable = streamable else {
@@ -306,6 +308,7 @@ public class RelistenGaplessAudioPlayer {
 
         NSLog("[relisten-audio-player] resume")
 
+        cancelPendingBASSTeardown(reason: "resuming playback")
         self.maybeSetupBASS()
 
         if BASS_Start() != 0 {
@@ -342,6 +345,7 @@ public class RelistenGaplessAudioPlayer {
 
             self.maybeTearDownActiveStream()
             self.maybeTearDownNextStream()
+            self.requestFullTeardownWhenIdle(reason: "explicit stop")
         }
     }
 
@@ -350,14 +354,52 @@ public class RelistenGaplessAudioPlayer {
 
         NSLog("[relisten-audio-player] next")
         
+        cancelPendingBASSTeardown(reason: "manual next")
         self.maybeSetupBASS()
 
-        if let activeStreamIntent {
-            self.tearDownStreamIntent(activeStreamIntent)
+        guard let mixerMainStream else {
+            return
+        }
+
+        let previousStreamIntent = activeStreamIntent
+
+        guard let queuedNextStreamIntent = nextStreamIntent else {
+            if BASS_ChannelStop(mixerMainStream) == 1 {
+                self.maybeTearDownActiveStream()
+                self.currentState = .Stopped
+                self.requestFullTeardownWhenIdle(reason: "manual next at end of queue")
+
+                delegateQueue.async {
+                    self.delegate?.trackChanged(self,
+                                                previousStreamable: previousStreamIntent?.streamable,
+                                                currentStreamable: nil)
+                }
+            }
+
+            return
+        }
+
+        guard queuedNextStreamIntent.audioStream != nil else {
+            NSLog("[relisten-audio-player][bass][stream] manual next has nextStreamIntent \(queuedNextStreamIntent.streamable.identifier) but no nextStream, calling playStreamableImmediately")
+            self.nextStreamIntent = nil
+            self.playStreamableImmediately(queuedNextStreamIntent.streamable, startingAtMs: nil)
+            return
+        }
+
+        // Manual next behaves like a replace, not a natural gapless handoff.
+        // Reset the mixer first so old attached channels are dropped before we reattach the promoted stream.
+        resetMixerMainStreamForReplacement()
+
+        if let previousStreamIntent {
+            self.tearDownStreamIntent(previousStreamIntent)
             self.activeStreamIntent = nil
         }
-        
-        self.mixInNextStream(completedStream: activeStream?.stream)
+
+        if !promoteNextStreamToActive(previousStreamIntent: previousStreamIntent, mode: .manualSkip) {
+            NSLog("[relisten-audio-player][bass][stream] manual next failed to promote \(queuedNextStreamIntent.streamable.identifier), calling playStreamableImmediately")
+            self.nextStreamIntent = nil
+            self.playStreamableImmediately(queuedNextStreamIntent.streamable, startingAtMs: nil)
+        }
     }
 
     public func seekTo(percent: Double) {
@@ -467,6 +509,13 @@ public class RelistenGaplessAudioPlayer {
     internal var wasPlayingWhenInterrupted: Bool = false
     
     internal var latestDebouncedStreamIntent: RelistenStreamIntent? = nil
+    internal var pendingIdleBASSTeardown = false
+    internal var playCommandTarget: Any?
+    internal var pauseCommandTarget: Any?
+    internal var togglePlayPauseCommandTarget: Any?
+    internal var changePlaybackPositionCommandTarget: Any?
+    internal var nextTrackCommandTarget: Any?
+    internal var previousTrackCommandTarget: Any?
 
     deinit {
         bassQueue.sync {

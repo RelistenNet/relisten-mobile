@@ -7,8 +7,48 @@
 
 import Foundation
 
+enum NextStreamTransitionMode: String {
+    case manualSkip = "manualSkip"
+    case naturalEnd = "naturalEnd"
+}
+
 extension RelistenGaplessAudioPlayer {
     // MARK: - BASS Lifecycle
+
+    private func createMixerMainStream() {
+        dispatchPrecondition(condition: .onQueue(bassQueue))
+
+        mixerMainStream = BASS_Mixer_StreamCreate(44100, 2, DWORD(BASS_MIXER_END))
+        guard let mixerMainStream else {
+            assertionFailure("createMixerMainStream: mixerMainStream is nil")
+            return
+        }
+        bass_assert(mixerMainStream)
+
+        BASS_ChannelSetSync(mixerMainStream,
+                            DWORD(BASS_SYNC_END | BASS_SYNC_MIXTIME),
+                            0,
+                            mixerEndSyncProc,
+                            Unmanaged.passUnretained(self).toOpaque())
+    }
+
+    func resetMixerMainStreamForReplacement() {
+        dispatchPrecondition(condition: .onQueue(bassQueue))
+
+        if let mixerMainStream {
+            NSLog("[relisten-audio-player][bass][stream] resetting mixerMainStream for replacement handle=\(mixerMainStream)")
+
+            if BASS_ChannelStop(mixerMainStream) == 0 {
+                NSLog("[relisten-audio-player][bass][stream] error calling BASS_ChannelStop(mixerMainStream): \(BASS_ErrorGetCode())")
+            }
+
+            // Freeing replacement-era mixers during rapid churn is still crashing inside BASS.
+            // Leave retired mixers stopped and let BASS_Free() reclaim them during full teardown.
+            self.mixerMainStream = nil
+        }
+
+        createMixerMainStream()
+    }
 
     func maybeSetupBASS() {
         dispatchPrecondition(condition: .onQueue(bassQueue))
@@ -34,14 +74,12 @@ extension RelistenGaplessAudioPlayer {
 //        BASS_SetConfig(DWORD(BASS_CONFIG_BUFFER), BASS_GetConfig(DWORD(BASS_CONFIG_UPDATEPERIOD)) + RelistenGaplessAudioPlayer.outputBufferSize)
         // Set DSP effects to use floating point math to avoid clipping within the effects chain
         BASS_SetConfig(DWORD(BASS_CONFIG_FLOATDSP), 1)
-        
+
         BASS_SetConfigPtr(DWORD(BASS_CONFIG_NET_AGENT), "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36")
 
         bass_assert(BASS_Init(-1, 44100, 0, nil, nil))
 
-        mixerMainStream = BASS_Mixer_StreamCreate(44100, 2, DWORD(BASS_MIXER_END))
-
-        BASS_ChannelSetSync(mixerMainStream!, DWORD(BASS_SYNC_END | BASS_SYNC_MIXTIME), 0, mixerEndSyncProc, Unmanaged.passUnretained(self).toOpaque())
+        createMixerMainStream()
     }
 
     func maybeTearDownBASS() {
@@ -70,6 +108,53 @@ extension RelistenGaplessAudioPlayer {
         self.mixerMainStream = nil
     }
 
+    func requestFullTeardownWhenIdle(reason: String) {
+        dispatchPrecondition(condition: .onQueue(bassQueue))
+
+        guard isSetup else {
+            return
+        }
+
+        pendingIdleBASSTeardown = true
+
+        NSLog("[relisten-audio-player][bass][stream] scheduled full BASS teardown when idle reason=\(reason) numberOfStreamsFetching=\(numberOfStreamsFetching)")
+
+        performPendingBASSTeardownIfIdle()
+    }
+
+    func cancelPendingBASSTeardown(reason: String) {
+        dispatchPrecondition(condition: .onQueue(bassQueue))
+
+        guard pendingIdleBASSTeardown else {
+            return
+        }
+
+        pendingIdleBASSTeardown = false
+        NSLog("[relisten-audio-player][bass][stream] canceled pending full BASS teardown reason=\(reason)")
+    }
+
+    func performPendingBASSTeardownIfIdle() {
+        dispatchPrecondition(condition: .onQueue(bassQueue))
+
+        guard pendingIdleBASSTeardown else {
+            return
+        }
+
+        guard currentState == .Stopped else {
+            NSLog("[relisten-audio-player][bass][stream] deferring pending full BASS teardown because playbackState=\(currentState.rawValue)")
+            return
+        }
+
+        guard numberOfStreamsFetching == 0 else {
+            NSLog("[relisten-audio-player][bass][stream] deferring pending full BASS teardown because numberOfStreamsFetching=\(numberOfStreamsFetching)")
+            return
+        }
+
+        pendingIdleBASSTeardown = false
+        NSLog("[relisten-audio-player][bass][stream] performing deferred full BASS teardown")
+        maybeTearDownBASS()
+    }
+
     func tearDownStreamIntent(_ streamIntent: RelistenStreamIntent) {
         dispatchPrecondition(condition: .onQueue(bassQueue))
 
@@ -86,9 +171,24 @@ extension RelistenGaplessAudioPlayer {
     func tearDownStream(_ relistenStream: RelistenGaplessAudioStream) {
         dispatchPrecondition(condition: .onQueue(bassQueue))
 
+        if relistenStream.tornDown {
+            NSLog("[relisten-audio-player][bass][stream] skipping tearDownStream for already torn down handle=\(relistenStream.stream)")
+            return
+        }
+
+        relistenStream.tornDown = true
+
         let stream = relistenStream.stream
 
         NSLog("[relisten-audio-player][bass][stream] tearing down stream handle=\(relistenStream.stream)")
+
+        if relistenStream.attachedToMixer {
+            NSLog("[relisten-audio-player][bass][stream] skipping direct BASS teardown for mixer-managed handle=\(stream); relying on mixer stop/autofree")
+            relistenStream.attachedToMixer = false
+            relistenStream.stream = 0
+            relistenStream.streamCacher?.teardown()
+            return
+        }
 
         // stop channels to allow them to be freed
         let channelStopError = BASS_ChannelStop(stream)
@@ -99,27 +199,16 @@ extension RelistenGaplessAudioPlayer {
             NSLog("[relisten-audio-player][bass][stream] error calling BASS_ChannelStop(stream): \(String(describing: errorCode))")
         }
 
-        if errorCode == nil || errorCode != BASS_ERROR_HANDLE {
-            // remove this stream from the mixer
-            // not assert'd because sometimes it should fail (i.e. hasn't been added to the mixer yet)
-            let mixerError = BASS_Mixer_ChannelRemove(stream)
-            
-            if mixerError == 0 {
-                errorCode = BASS_ErrorGetCode()
-                NSLog("[relisten-audio-player][bass][stream] error calling BASS_Mixer_ChannelRemove(stream): \(String(describing: errorCode))")
-            }
+        // Rapid skip churn can leave BASS handles in a state where explicit frees crash, even when they were
+        // never attached to the mixer. Prefer relying on mixer autofree plus BASS_Free() during full teardown.
+        if errorCode == BASS_ERROR_HANDLE {
+            NSLog("[relisten-audio-player][bass][stream] skipping explicit BASS_StreamFree for invalid non-mixer handle=\(stream)")
         } else {
-            NSLog("[relisten-audio-player][bass][stream] skipping BASS_Mixer_ChannelRemove(stream), got BASS_ERROR_HANDLE from BASS_ChannelStop(stream)")
+            NSLog("[relisten-audio-player][bass][stream] skipping explicit BASS_StreamFree for non-mixer handle=\(stream); will rely on BASS_Free()")
         }
 
-        // BASS_StreamFree will *crash* if the handle is invalid
-        if errorCode == nil || errorCode != BASS_ERROR_HANDLE {
-            if BASS_StreamFree(stream) == 0 {
-                NSLog("[relisten-audio-player][bass][stream] error calling BASS_StreamFree(stream): \(BASS_ErrorGetCode())")
-            }
-        } else {
-            NSLog("[relisten-audio-player][bass][stream] skipping BASS_StreamFree(stream), got BASS_ERROR_HANDLE from previous step")
-        }
+        relistenStream.attachedToMixer = false
+        relistenStream.stream = 0
         
         // Do NOT call StreamCacherRegistry.sharedInstance.discard(streamCacher) here:
         // It could remove the last strong reference, causing streamDownloadProc to segfault (exc_bad_access)
@@ -128,6 +217,52 @@ extension RelistenGaplessAudioPlayer {
     }
 
     // MARK: - BASS Event Listeners
+
+    // Both manual next and natural end-of-track promote the queued next stream into the active slot.
+    // The transition mode controls whether the mixer was already stopped before this handoff.
+    @discardableResult
+    func promoteNextStreamToActive(previousStreamIntent: RelistenStreamIntent?,
+                                   mode: NextStreamTransitionMode) -> Bool {
+        dispatchPrecondition(condition: .onQueue(bassQueue))
+
+        guard let mixerMainStream, let nextStreamIntent, let nextStream else {
+            return false
+        }
+
+        NSLog("[relisten-audio-player][bass][stream] promoting next stream mode=\(mode.rawValue) identifier=\(nextStreamIntent.streamable.identifier)")
+
+        activeStreamIntent = nextStreamIntent
+        self.nextStreamIntent = nil
+
+        bass_assert(BASS_Mixer_StreamAddChannel(mixerMainStream,
+                                                nextStream.stream,
+                                                DWORD(BASS_STREAM_AUTOFREE | BASS_MIXER_NORAMPIN)))
+        nextStream.attachedToMixer = true
+
+        if mode == .naturalEnd {
+            bass_assert(BASS_ChannelSetPosition(mixerMainStream, 0, DWORD(BASS_POS_BYTE)))
+        }
+
+        BASS_Start()
+
+        if mode == .manualSkip {
+            bass_assert(BASS_ChannelPlay(mixerMainStream, 1))
+            currentState = .Playing
+            updateControlCenter()
+        }
+
+        if nextStreamIntent.streamable.url.isFileURL {
+            streamDownloadComplete(nextStream.stream)
+        }
+
+        delegateQueue.async {
+            self.delegate?.trackChanged(self,
+                                        previousStreamable: previousStreamIntent?.streamable,
+                                        currentStreamable: nextStreamIntent.streamable)
+        }
+
+        return true
+    }
 
     func mixInNextStream(completedStream: HSTREAM?) {
         dispatchPrecondition(condition: .onQueue(bassQueue))
@@ -140,30 +275,9 @@ extension RelistenGaplessAudioPlayer {
 
         let previousStreamIntent = activeStreamIntent
 
-        if let nextStreamIntent, let nextStream {
-            NSLog("[relisten-audio-player][bass][stream] mixing in next stream with norampin")
-            bass_assert(BASS_Mixer_StreamAddChannel(mixerMainStream,
-                                                    nextStream.stream,
-                                                    DWORD(BASS_STREAM_AUTOFREE | BASS_MIXER_NORAMPIN)))
-            bass_assert(BASS_ChannelSetPosition(mixerMainStream, 0, DWORD(BASS_POS_BYTE)))
-
-            // Make sure BASS is started, just in case we had paused it earlier
-            BASS_Start()
-
+        if promoteNextStreamToActive(previousStreamIntent: previousStreamIntent, mode: .naturalEnd) {
             // We cannot tear down yet because at mix time we've reached the end, the audio is still being used.
-            // BASS_STREAM_AUTOFREE will automatically free the stream once it finishes playing.
-
-            activeStreamIntent = nextStreamIntent
-            self.nextStreamIntent = nil
-
-            // this is needed because the stream download events don't fire for local music
-            if nextStreamIntent.streamable.url.isFileURL {
-                streamDownloadComplete(nextStream.stream)
-            }
-            
-            delegateQueue.async {
-                self.delegate?.trackChanged(self, previousStreamable: previousStreamIntent?.streamable, currentStreamable: nextStreamIntent.streamable)
-            }
+            // BASS_STREAM_AUTOFREE will automatically free the previous stream once it finishes playing.
         } else if let nextStreamIntent {
             NSLog("[relisten-audio-player][bass][stream] have nextStreamIntent \(nextStreamIntent.streamable.identifier) but no nextStream, calling playStreamableImmediately")
             // we have a next stream intent but never actually built the stream
@@ -179,6 +293,8 @@ extension RelistenGaplessAudioPlayer {
                     self.activeStreamIntent = nil
                 }
             }
+
+            requestFullTeardownWhenIdle(reason: "natural end of queue")
             
             delegateQueue.async {
                 self.delegate?.trackChanged(self, previousStreamable: previousStreamIntent?.streamable, currentStreamable: nil)

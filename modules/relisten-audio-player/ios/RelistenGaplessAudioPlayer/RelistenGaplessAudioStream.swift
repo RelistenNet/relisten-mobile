@@ -11,6 +11,8 @@ import MediaPlayer
 public class RelistenGaplessAudioStream {
     var preloadStarted = false
     var preloadFinished = false
+    var attachedToMixer = false
+    var tornDown = false
 
     var stream: HSTREAM
 

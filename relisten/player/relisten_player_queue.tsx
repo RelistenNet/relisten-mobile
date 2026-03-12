@@ -202,10 +202,12 @@ export class RelistenPlayerQueue {
   }
 
   replaceQueue(newQueue: PlayerQueueTrack[], playingTrackAtIndex: number | undefined) {
+    this.player.cancelPendingPlayRequests('replaceQueue');
     this.originalTracks = [...newQueue];
     this.originalTracksCurrentIndex = undefined;
 
     this.shuffledTracksCurrentIndex = undefined;
+    this.prevNextTrackIndexIntentOffset = 0;
     this.reshuffleTracks();
 
     if (playingTrackAtIndex !== undefined) {

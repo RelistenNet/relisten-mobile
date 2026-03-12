@@ -29,17 +29,18 @@ extension RelistenGaplessAudioPlayer {
         NSLog("[relisten-audio-player][bass][stream] playStreamableImmediately: streamable \(streamable.identifier) startingAtMs=\(String(describing: startingAtMs))")
         
         dispatchPrecondition(condition: .onQueue(bassQueue))
+
+        cancelPendingBASSTeardown(reason: "starting replacement playback")
         
         maybeSetupBASS()
         
-        guard let mixerMainStream else {
+        resetMixerMainStreamForReplacement()
+
+        guard mixerMainStream != nil else {
             assertionFailure("playStreamableImmediately: mixerMainStream is nil after setting up BASS")
             return
         }
-        
-        // stop playback
-        bass_assert(BASS_ChannelStop(mixerMainStream))
-        
+
         self.maybeTearDownActiveStream()
         self.maybeTearDownNextStream()
         
@@ -62,7 +63,7 @@ extension RelistenGaplessAudioPlayer {
                 // latestDebouncedStreamIntent must not be nil, otherwise it means something got through to build immediately
                 guard let self else { return }
                 
-                if self.latestDebouncedStreamIntent?.streamable.identifier != newIntent.streamable.identifier {
+                if self.latestDebouncedStreamIntent !== newIntent {
                     NSLog("[relisten-audio-player][bass][stream] playStreamableImmediately: debounce work item changed, skipping: latestDebouncedStreamIntent=\(self.latestDebouncedStreamIntent?.streamable.identifier ?? "nil") newIntent=\(newIntent.streamable.identifier) numberOfStreamsFetching=\(self.numberOfStreamsFetching)")
                     return
                 }
@@ -89,13 +90,15 @@ extension RelistenGaplessAudioPlayer {
         buildStream(newIntent) { [weak self] stream in
             guard let self else { return }
             
-            if newIntent.streamable.identifier != self.activeStreamIntent?.streamable.identifier {
+            if self.activeStreamIntent !== newIntent {
                 NSLog("[relisten-audio-player][bass][stream] buildStreamAndPlayImmediately: stream intent changed during buildStream for \(newIntent.streamable.identifier)")
 
                 if let stream {
                     NSLog("[relisten-audio-player][bass][stream] buildStreamAndPlayImmediately: tearing down BASS audio stream for \(newIntent.streamable.identifier)")
                     tearDownStream(stream)
                 }
+
+                self.performPendingBASSTeardownIfIdle()
                 
                 return
             }
@@ -111,6 +114,7 @@ extension RelistenGaplessAudioPlayer {
                 bass_assert(BASS_Mixer_StreamAddChannel(mixerMainStream,
                                                         activeStream.stream,
                                                         DWORD(BASS_STREAM_AUTOFREE | BASS_MIXER_NORAMPIN)))
+                activeStream.attachedToMixer = true
 
                 // Make sure BASS is started, just in case we had paused it earlier
                 BASS_Start()
@@ -141,6 +145,8 @@ extension RelistenGaplessAudioPlayer {
             } else {
                 NSLog("[relisten-audio-player][bass][stream] buildStreamAndPlayImmediately: activeStream nil after buildingStream from \(newIntent.streamable)")
             }
+
+            self.performPendingBASSTeardownIfIdle()
         }
     }
     
@@ -206,7 +212,7 @@ extension RelistenGaplessAudioPlayer {
             buildStream(oldActiveStreamIntent, fileOffset: fileOffset, channelOffset: seekTo) { [weak self] newActiveStream in
                 guard let self else { return }
                 
-                if oldActiveStreamIntent.streamable.identifier != self.activeStreamIntent?.streamable.identifier {
+                if self.activeStreamIntent !== oldActiveStreamIntent {
                     NSLog("[relisten-audio-player][bass][stream] seekToBytes: stream intent changed during buildStream for \(oldActiveStreamIntent.streamable.identifier)")
 
                     if let newActiveStream {
@@ -221,6 +227,7 @@ extension RelistenGaplessAudioPlayer {
 
                 if let newActiveStream, let mixerMainStream {
                     bass_assert(BASS_Mixer_StreamAddChannel(mixerMainStream, newActiveStream.stream, DWORD(BASS_STREAM_AUTOFREE | BASS_MIXER_NORAMPIN)))
+                    newActiveStream.attachedToMixer = true
 
                     BASS_Start()
                     // the TRUE for the second argument clears the buffer to prevent bits of the old playback

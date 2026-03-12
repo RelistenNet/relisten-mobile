@@ -125,6 +125,7 @@ extension RelistenGaplessAudioPlayer {
                         
                         self.numberOfStreamsFetching -= 1
                         completion(nil)
+                        self.performPendingBASSTeardownIfIdle()
                     }
                 }
 
@@ -166,6 +167,7 @@ extension RelistenGaplessAudioPlayer {
 
                 numberOfStreamsFetching -= 1
                 completion(stream)
+                self.performPendingBASSTeardownIfIdle()
             }
         }
     }
@@ -181,7 +183,7 @@ extension RelistenGaplessAudioPlayer {
         buildStream(startingNextStreamIntent) { [weak self] stream in
             guard let self else { return }
             
-            if startingNextStreamIntent.streamable.identifier != self.nextStreamIntent?.streamable.identifier {
+            if self.nextStreamIntent !== startingNextStreamIntent {
                 NSLog("[relisten-audio-player][bass][stream] startPreloadingNextStream: next stream intent changed during buildStream for \(startingNextStreamIntent.streamable.identifier)")
 
                 if let stream {

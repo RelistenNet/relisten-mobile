@@ -54,29 +54,41 @@ extension RelistenGaplessAudioPlayer {
 
         NSLog("[relisten-audio-player] addCommandCenterListeners()")
 
-        commandCenter.playCommand.removeTarget(_resume)
+        if let playCommandTarget {
+            commandCenter.playCommand.removeTarget(playCommandTarget)
+        }
         commandCenter.playCommand.isEnabled = true
-        commandCenter.playCommand.addTarget(handler: _resume)
+        playCommandTarget = commandCenter.playCommand.addTarget(handler: _resume)
 
-        commandCenter.pauseCommand.removeTarget(_pause)
+        if let pauseCommandTarget {
+            commandCenter.pauseCommand.removeTarget(pauseCommandTarget)
+        }
         commandCenter.pauseCommand.isEnabled = true
-        commandCenter.pauseCommand.addTarget(handler: _pause)
+        pauseCommandTarget = commandCenter.pauseCommand.addTarget(handler: _pause)
 
-        commandCenter.togglePlayPauseCommand.removeTarget(_togglePlayPause)
+        if let togglePlayPauseCommandTarget {
+            commandCenter.togglePlayPauseCommand.removeTarget(togglePlayPauseCommandTarget)
+        }
         commandCenter.togglePlayPauseCommand.isEnabled = true
-        commandCenter.togglePlayPauseCommand.addTarget(handler: _togglePlayPause)
+        togglePlayPauseCommandTarget = commandCenter.togglePlayPauseCommand.addTarget(handler: _togglePlayPause)
 
-        commandCenter.changePlaybackPositionCommand.removeTarget(_seekTo)
+        if let changePlaybackPositionCommandTarget {
+            commandCenter.changePlaybackPositionCommand.removeTarget(changePlaybackPositionCommandTarget)
+        }
         commandCenter.changePlaybackPositionCommand.isEnabled = true
-        commandCenter.changePlaybackPositionCommand.addTarget(handler: _seekTo)
+        changePlaybackPositionCommandTarget = commandCenter.changePlaybackPositionCommand.addTarget(handler: _seekTo)
 
-        commandCenter.nextTrackCommand.removeTarget(_nextTrack)
+        if let nextTrackCommandTarget {
+            commandCenter.nextTrackCommand.removeTarget(nextTrackCommandTarget)
+        }
         commandCenter.nextTrackCommand.isEnabled = true
-        commandCenter.nextTrackCommand.addTarget(handler: _nextTrack)
+        nextTrackCommandTarget = commandCenter.nextTrackCommand.addTarget(handler: _nextTrack)
 
-        commandCenter.previousTrackCommand.removeTarget(_prevTrack)
+        if let previousTrackCommandTarget {
+            commandCenter.previousTrackCommand.removeTarget(previousTrackCommandTarget)
+        }
         commandCenter.previousTrackCommand.isEnabled = true
-        commandCenter.previousTrackCommand.addTarget(handler: _prevTrack)
+        previousTrackCommandTarget = commandCenter.previousTrackCommand.addTarget(handler: _prevTrack)
 
         commandCenter.changePlaybackRateCommand.isEnabled = false
         commandCenter.changeRepeatModeCommand.isEnabled = false
@@ -99,17 +111,35 @@ extension RelistenGaplessAudioPlayer {
             NotificationCenter.default.removeObserver(self, name: AVAudioSession.mediaServicesWereLostNotification, object: nil)
 
             commandCenter.playCommand.isEnabled = false
-            commandCenter.playCommand.removeTarget(_resume)
+            if let playCommandTarget {
+                commandCenter.playCommand.removeTarget(playCommandTarget)
+                self.playCommandTarget = nil
+            }
             commandCenter.pauseCommand.isEnabled = false
-            commandCenter.pauseCommand.removeTarget(_pause)
+            if let pauseCommandTarget {
+                commandCenter.pauseCommand.removeTarget(pauseCommandTarget)
+                self.pauseCommandTarget = nil
+            }
             commandCenter.togglePlayPauseCommand.isEnabled = false
-            commandCenter.togglePlayPauseCommand.removeTarget(_togglePlayPause)
+            if let togglePlayPauseCommandTarget {
+                commandCenter.togglePlayPauseCommand.removeTarget(togglePlayPauseCommandTarget)
+                self.togglePlayPauseCommandTarget = nil
+            }
             commandCenter.changePlaybackPositionCommand.isEnabled = false
-            commandCenter.changePlaybackPositionCommand.removeTarget(_seekTo)
+            if let changePlaybackPositionCommandTarget {
+                commandCenter.changePlaybackPositionCommand.removeTarget(changePlaybackPositionCommandTarget)
+                self.changePlaybackPositionCommandTarget = nil
+            }
             commandCenter.nextTrackCommand.isEnabled = false
-            commandCenter.nextTrackCommand.removeTarget(_nextTrack)
+            if let nextTrackCommandTarget {
+                commandCenter.nextTrackCommand.removeTarget(nextTrackCommandTarget)
+                self.nextTrackCommandTarget = nil
+            }
             commandCenter.previousTrackCommand.isEnabled = false
-            commandCenter.previousTrackCommand.removeTarget(_prevTrack)
+            if let previousTrackCommandTarget {
+                commandCenter.previousTrackCommand.removeTarget(previousTrackCommandTarget)
+                self.previousTrackCommandTarget = nil
+            }
             commandCenter.changePlaybackRateCommand.isEnabled = false
             commandCenter.changeRepeatModeCommand.isEnabled = false
             commandCenter.changeShuffleModeCommand.isEnabled = false
