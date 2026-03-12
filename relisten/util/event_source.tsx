@@ -10,7 +10,11 @@ export class EventSource<T> {
   }
 
   removeListener(listener: EventSourceListener<T>) {
-    const removed = this.listeners.splice(this.listeners.indexOf(listener), 1);
+    const idx = this.listeners.indexOf(listener);
+    if (idx === -1) {
+      return false;
+    }
+    const removed = this.listeners.splice(idx, 1);
 
     return removed.length > 0;
   }

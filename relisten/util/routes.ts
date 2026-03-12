@@ -6,10 +6,10 @@ export const useRoute = (nextRoute?: string) => {
   const segments = useSegments();
 
   if (nextRoute) {
-    return segments.concat(nextRoute + '/').join('/');
+    return '/' + segments.concat(nextRoute).join('/');
   }
 
-  return segments.join('/');
+  return segments.length > 0 ? '/' + segments.join('/') : '/';
 };
 
 export const useGroupSegment = (fallback?: boolean): RelistenTabGroupSegment => {

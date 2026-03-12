@@ -24,7 +24,12 @@ export abstract class ValueStream<T> {
     listener(this.currentValue);
 
     return () => {
-      this.listeners = this.listeners.splice(this.listeners.indexOf(listener), 1);
+      const idx = this.listeners.indexOf(listener);
+      if (idx === -1) {
+        return;
+      }
+
+      this.listeners.splice(idx, 1);
     };
   }
 }
@@ -46,6 +51,8 @@ export class EmittableValueStream<T> extends ValueStream<T> {
 
 export class CombinedValueStream<T, A, B> extends ValueStream<T> {
   public currentValue!: T;
+  private readonly tearDownA: () => void;
+  private readonly tearDownB: () => void;
 
   constructor(
     private resultsA: ValueStream<A>,
@@ -54,10 +61,18 @@ export class CombinedValueStream<T, A, B> extends ValueStream<T> {
   ) {
     super();
 
-    this.resultsA.addListener(() => this.executeTransform());
-    this.resultsB.addListener(() => this.executeTransform());
+    this.tearDownA = this.resultsA.addListener(() => this.executeTransform());
+    this.tearDownB = this.resultsB.addListener(() => this.executeTransform());
 
     this.executeTransform();
+  }
+
+  override tearDown() {
+    super.tearDown();
+    this.tearDownA();
+    this.tearDownB();
+    this.resultsA.tearDown();
+    this.resultsB.tearDown();
   }
 
   private executeTransform() {

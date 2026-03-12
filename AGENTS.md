@@ -40,3 +40,21 @@ Always run `yarn lint` and `yarn ts:check` after making changes to ensure that k
 ## Environment & Setup Tips
 - Use Node 22+ (see `.nvmrc`) and Yarn (`yarn` to install dependencies).
 - For iOS development, install Xcode and run `yarn pods` after dependency changes.
+
+## iOS Simulator + MCP Workflow
+- Native iOS changes (`ios/`, native modules, pods, app config) require a rebuild/install:
+  - `npx expo run:ios -d 'iPhone 17 Pro'` (or `yarn ios`).
+  - This also starts Metro; that is expected for native rebuild runs.
+- JS/TS-only changes usually do not require a native rebuild:
+  1. Start Metro for the dev client: `npx expo start --dev-client` (add `--clear` if needed).
+  2. Boot/open Simulator (`open -a Simulator` or `mcp__ios-simulator__open_simulator`).
+  3. Launch the already-installed app from Simulator. Re-run `expo run:ios` only if the app is missing or native bits changed.
+- Log sources:
+  - Metro/bundler logs: the terminal running `expo start`.
+  - iOS simulator system/app logs: `xcrun simctl spawn booted log stream --style compact --level debug`
+  - Note: there is no iOS-simulator MCP tool for live log streaming in this environment.
+- Available iOS Simulator MCP controls:
+  - Boot/open/query: `mcp__ios-simulator__open_simulator`, `mcp__ios-simulator__get_booted_sim_id`
+  - Install/launch: `mcp__ios-simulator__install_app`, `mcp__ios-simulator__launch_app`
+  - UI automation: `mcp__ios-simulator__ui_view`, `mcp__ios-simulator__ui_describe_all`, `mcp__ios-simulator__ui_describe_point`, `mcp__ios-simulator__ui_tap`, `mcp__ios-simulator__ui_swipe`, `mcp__ios-simulator__ui_type`
+  - Capture artifacts: `mcp__ios-simulator__screenshot`, `mcp__ios-simulator__record_video`, `mcp__ios-simulator__stop_recording`
