@@ -1,6 +1,34 @@
+import React, { PropsWithChildren, useContext, useMemo } from 'react';
 import { useSegments } from 'expo-router';
 
 export type RelistenTabGroupSegment = '(artists)' | '(myLibrary)' | '(offline)' | undefined;
+
+type RelistenNavigationContextValue = {
+  groupSegment: RelistenTabGroupSegment;
+};
+
+const RelistenNavigationContext = React.createContext<RelistenNavigationContextValue | undefined>(
+  undefined
+);
+
+export const relistenTabGroupFromSegments = (segments: ReadonlyArray<string>) => {
+  const group = segments.at(2);
+
+  if (!group) {
+    return undefined;
+  }
+
+  return group as RelistenTabGroupSegment;
+};
+
+export function RelistenNavigationProvider({
+  children,
+  groupSegment,
+}: PropsWithChildren<{ groupSegment: RelistenTabGroupSegment }>) {
+  const value = useMemo(() => ({ groupSegment }), [groupSegment]);
+
+  return React.createElement(RelistenNavigationContext.Provider, { value }, children);
+}
 
 export const useRoute = (nextRoute?: string) => {
   const segments = useSegments();
@@ -13,9 +41,8 @@ export const useRoute = (nextRoute?: string) => {
 };
 
 export const useGroupSegment = (fallback?: boolean): RelistenTabGroupSegment => {
-  const segments = useSegments();
-
-  const group = segments.at(2);
+  const navigation = useContext(RelistenNavigationContext);
+  const group = navigation?.groupSegment;
 
   if (!group) {
     if (fallback) return '(artists)';
@@ -26,9 +53,5 @@ export const useGroupSegment = (fallback?: boolean): RelistenTabGroupSegment => 
 };
 
 export const useIsOfflineTab = () => {
-  const segments = useSegments();
-
-  const group = segments.at(2);
-
-  return group === '(offline)';
+  return useGroupSegment() === '(offline)';
 };

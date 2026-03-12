@@ -2,6 +2,8 @@ import 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { RelistenBlue } from '@/relisten/relisten_blue';
+import { RelistenNavigationProvider, relistenTabGroupFromSegments } from '@/relisten/util/routes';
+import { useSegments } from 'expo-router';
 import { Stack } from 'expo-router/stack';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { useEffect } from 'react';
@@ -9,6 +11,8 @@ import { DownloadManager } from '@/relisten/offline/download_manager';
 
 export default function TabLayout() {
   const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
+  const segments = useSegments();
+  const groupSegment = relistenTabGroupFromSegments(segments);
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout | undefined;
@@ -35,17 +39,19 @@ export default function TabLayout() {
   // }, []);
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen
-        name="player"
-        options={{
-          presentation: 'modal',
-          animation: 'slide_from_bottom',
-          headerShown: true,
-          headerStyle: { backgroundColor: RelistenBlue['900'] },
-        }}
-      />
-      <Stack.Screen name="tabs" />
-    </Stack>
+    <RelistenNavigationProvider groupSegment={groupSegment}>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen
+          name="player"
+          options={{
+            presentation: 'modal',
+            animation: 'slide_from_bottom',
+            headerShown: true,
+            headerStyle: { backgroundColor: RelistenBlue['900'] },
+          }}
+        />
+        <Stack.Screen name="tabs" />
+      </Stack>
+    </RelistenNavigationProvider>
   );
 }
