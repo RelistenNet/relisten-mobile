@@ -101,12 +101,12 @@ export function upsertShowList(
   if (upsertModels.venues) {
     upsertShowRelationship(
       realm,
-      apiShows.map((s) => s.venue),
-      apiShows.map((s) => s.venue_uuid).filter((s) => !!s) as string[],
+      apiShows.map((show) => show.venue),
+      apiShows.map((show) => show.venue_uuid).filter((uuid) => !!uuid) as string[],
       venueRepo,
       allShows,
       (show, venuesByUuid) => {
-        if (show.venueUuid && !show.venue) {
+        if (show.venueUuid && (!show.venue || show.venue.uuid !== show.venueUuid)) {
           show.venue = venuesByUuid[show.venueUuid];
         }
       }

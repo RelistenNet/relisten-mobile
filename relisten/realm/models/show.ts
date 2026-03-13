@@ -167,6 +167,12 @@ export class Show
     const window48h = windows?.['48h'];
     const window7d = windows?.['7d'];
     const window30d = windows?.['30d'];
+    const apiVenueUuid = relistenObj.venue_uuid || undefined;
+    const apiTourUuid = relistenObj.tour_uuid || undefined;
+
+    if (model.venueUuid !== apiVenueUuid || model.tourUuid !== apiTourUuid) {
+      return true;
+    }
 
     if (!popularity) {
       return false;
