@@ -27,12 +27,14 @@ import { LastFmReporterComponent } from '@/relisten/lastfm/lastfm_reporter_compo
 import { LastFmAuthListener } from '@/relisten/lastfm/lastfm_auth_listener';
 import * as Sentry from '@sentry/react-native';
 import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
+import { enableFreeze } from 'react-native-screens';
 import { LogBox } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useCarPlaySetup } from '@/relisten/carplay/useCarPlaySetup';
 
 // c.f. https://github.com/meliorence/react-native-render-html/issues/661#issuecomment-2453476566
 LogBox.ignoreLogs([/Support for defaultProps will be removed/]);
+enableFreeze(true);
 
 SplashScreen.preventAutoHideAsync();
 

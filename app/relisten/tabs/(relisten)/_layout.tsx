@@ -18,7 +18,7 @@ export default function ArtistsLayout() {
   }, [bottomTabBarHeight, isDesktopLayout, setTabBarHeight]);
 
   return (
-    <Stack screenOptions={{ headerShadowVisible: false }}>
+    <Stack screenOptions={{ headerShadowVisible: false, freezeOnBlur: true }}>
       <Stack.Screen
         name="index"
         options={{
