@@ -71,6 +71,15 @@ type ArtistsListProps = {
   filterOptions: FilteringOptions<ArtistSortKey>;
 };
 
+const FEATURED_ARTISTS_FILTER_OPTIONS: FilteringOptions<ArtistSortKey> = {
+  persistence: { key: 'artists/featured' },
+  default: {
+    persistenceKey: ArtistSortKey.Popular,
+    sortDirection: SortDirection.Descending,
+    active: true,
+  },
+};
+
 const FeaturedSectionHeader = () => {
   const router = useRouter();
   const groupSegment = useGroupSegment();
@@ -274,17 +283,7 @@ export default function Page() {
           </TouchableOpacity>
         )}
 
-        <ArtistsList
-          artists={artists}
-          filterOptions={{
-            persistence: { key: 'artists/featured' },
-            default: {
-              persistenceKey: ArtistSortKey.Popular,
-              sortDirection: SortDirection.Descending,
-              active: true,
-            },
-          }}
-        />
+        <ArtistsList artists={artists} filterOptions={FEATURED_ARTISTS_FILTER_OPTIONS} />
       </RefreshContextProvider>
       <LegacyDataMigrationModal />
     </ScrollScreen>

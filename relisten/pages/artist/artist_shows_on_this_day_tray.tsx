@@ -1,7 +1,7 @@
 import Plur from '@/relisten/components/plur';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { ShowCard, ShowCardLoader, ShowCardPlaceholder } from '@/relisten/components/show_card';
+import { ShowCard, ShowCardLoader } from '@/relisten/components/show_card';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useTodayShows } from '@/relisten/realm/models/shows/today_shows_repo';
 import { useMemo } from 'react';
@@ -9,7 +9,7 @@ import { ScrollView, View } from 'react-native';
 import Flex from '@/relisten/components/flex';
 import { useRenderAfterInteractions } from '@/relisten/util/use_render_after_interactions';
 
-const DEFERRED_TRAY_PLACEHOLDER_COUNT = 3;
+const DEFERRED_TRAY_STANDBY_CARD_COUNT = 3;
 
 export function ArtistShowsOnThisDayTray({ artists }: { artists: Artist[] }) {
   const todayShows = useTodayShows(...artists.map((artist) => artist.uuid));
@@ -59,8 +59,8 @@ export function ArtistShowsOnThisDayTray({ artists }: { artists: Artist[] }) {
         ) : (
           <View className="overflow-hidden pb-2 pl-3">
             <Flex className="">
-              {Array.from({ length: DEFERRED_TRAY_PLACEHOLDER_COUNT }, (_, index) => (
-                <ShowCardPlaceholder
+              {Array.from({ length: DEFERRED_TRAY_STANDBY_CARD_COUNT }, (_, index) => (
+                <ShowCardLoader
                   key={`placeholder-${index}`}
                   showArtist={artists.length > 1}
                   showVenue={showVenue}

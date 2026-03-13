@@ -229,7 +229,7 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
     [preparedFilters, realm, filterPersistenceKey, options]
   );
 
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
     setTextFilter('');
     realm.write(() => {
       if (filterPersistenceKey) {
@@ -258,7 +258,7 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
         }
       }
     });
-  };
+  }, [filterPersistenceKey, globalFilterConfig, preparedFilters, realm, routeFilterConfig]);
 
   const filterControls = useMemo<ReadonlyArray<FilterControl<K>>>(() => {
     return preparedFilters.map((f) => ({
@@ -272,14 +272,17 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
     }));
   }, [preparedFilters]);
 
-  const contextValue = {
-    filters: filterControls,
-    onFilterButtonPress,
-    filter,
-    clearFilters,
-    onSearchTextChanged: setTextFilter,
-    searchText: textFilter,
-  };
+  const contextValue = useMemo(
+    () => ({
+      filters: filterControls,
+      onFilterButtonPress,
+      filter,
+      clearFilters,
+      onSearchTextChanged: setTextFilter,
+      searchText: textFilter,
+    }),
+    [clearFilters, filter, filterControls, onFilterButtonPress, textFilter]
+  );
   const typedContextValue = contextValue as FilteringContextProps<string, RelistenObject> &
     FilteringContextProps<K, T>;
 

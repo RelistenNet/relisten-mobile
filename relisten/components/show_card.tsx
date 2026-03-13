@@ -212,36 +212,6 @@ export function ShowCard({
   );
 }
 
-export function ShowCardPlaceholder({
-  showArtist = true,
-  showVenue = true,
-  ...props
-}: { showArtist: boolean; showVenue: boolean } & ViewProps) {
-  return (
-    <ShowCardContainer {...props}>
-      <View className="rounded-xl border border-white/10 bg-slate-700/80 p-2 shadow-sm">
-        <View className="flex flex-row items-center justify-between">
-          <View className="h-5 w-24 rounded bg-white/10" />
-          <View className="h-4 w-12 rounded bg-white/10" />
-        </View>
-        {showArtist ? <View className="mt-0.5 h-4 w-24 rounded bg-white/10" /> : null}
-        {showVenue ? (
-          <>
-            <View className="mt-0.5 h-3 w-32 rounded bg-white/10" />
-            <View className="mt-0.5 h-3 w-24 rounded bg-white/10" />
-          </>
-        ) : (
-          <View className="mt-0.5 h-3 w-24 rounded bg-white/10" />
-        )}
-        <View className="mt-1 flex-row items-center justify-between">
-          <View className="h-5 w-14 rounded-full bg-black/20" />
-          <View className="h-5 w-12 rounded-full bg-black/20" />
-        </View>
-      </View>
-    </ShowCardContainer>
-  );
-}
-
 export function ShowCardLoader({
   showArtist = true,
   showVenue = true,
@@ -287,12 +257,50 @@ export function ShowCardLoader({
   return (
     <ShowCardContainer innerRef={outerRef} {...props}>
       <ShowCardContents
-        title={<ShowCardTitle>Show loading...</ShowCardTitle>}
+        title={
+          <View className="flex flex-row items-center justify-between">
+            <ShowCardTitle textClassName="opacity-0">Show loading...</ShowCardTitle>
+            <RelistenText cn="text-xs text-gray-200 opacity-0">0.0★</RelistenText>
+          </View>
+        }
         subtitle={showArtist ? 'Artist loading' : undefined}
         details={
-          showVenue
-            ? ['Venue name loading...', 'Venue location loading...', 'Tapes loading...']
-            : ['Venue loading...', 'Tapes loading...']
+          showVenue ? ['Venue name loading...', 'Venue location loading...'] : ['Venue loading...']
+        }
+        footer={
+          <View className="flex-row items-center pt-1 opacity-0">
+            <View className="flex-1 flex-row items-center pr-2">
+              <ShowCardMetaChip className="mr-1">
+                <RelistenText
+                  numberOfLines={1}
+                  selectable={false}
+                  className="text-xs text-gray-100"
+                >
+                  99 tapes
+                </RelistenText>
+              </ShowCardMetaChip>
+              <ShowCardMetaChip>
+                <RelistenText
+                  numberOfLines={1}
+                  selectable={false}
+                  className="text-xs font-semibold text-gray-100"
+                >
+                  SBD
+                </RelistenText>
+              </ShowCardMetaChip>
+            </View>
+            <View className="ml-auto items-end">
+              <ShowCardMetaChip>
+                <RelistenText
+                  numberOfLines={1}
+                  selectable={false}
+                  className="text-xs text-gray-100"
+                >
+                  0.0k 30d
+                </RelistenText>
+              </ShowCardMetaChip>
+            </View>
+          </View>
         }
         innerRef={ref}
         textClassName="opacity-0"
