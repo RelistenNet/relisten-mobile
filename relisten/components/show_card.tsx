@@ -1,7 +1,14 @@
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { Show } from '@/relisten/realm/models/show';
 import { tw } from '@/relisten/util/tw';
-import React, { LegacyRef, PropsWithChildren, useLayoutEffect, useRef, useState } from 'react';
+import React, {
+  LegacyRef,
+  memo,
+  PropsWithChildren,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { Pressable, useWindowDimensions, View, ViewProps } from 'react-native';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import Plur from './plur';
@@ -321,3 +328,19 @@ export function ShowCardLoader({
     </ShowCardContainer>
   );
 }
+
+export const ShowCardStandbyTray = memo(function ShowCardStandbyTray({
+  showArtist,
+  showVenue,
+}: {
+  showArtist: boolean;
+  showVenue: boolean;
+}) {
+  return (
+    <View className="overflow-hidden pb-2 pl-3">
+      <View className="flex-row">
+        <ShowCardLoader showArtist={showArtist} showVenue={showVenue} />
+      </View>
+    </View>
+  );
+});

@@ -1,5 +1,5 @@
 import { ListRenderItem } from '@shopify/flash-list';
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useMemo } from 'react';
 import { useWindowDimensions, View } from 'react-native';
 import { Show } from '../realm/models/show';
 import { FilterableList, FilterableListProps } from './filtering/filterable_list';
@@ -28,13 +28,17 @@ interface ShowListItemProps {
   children?: ReactNode;
 }
 
-export const ShowListItem = ({ show, children }: ShowListItemProps) => {
-  const { fontScale } = useWindowDimensions();
-  const { filters } = useFilters<ShowFilterKey, Show>();
-  const isTrendingSort = filters.some(
-    (filter) => filter.active && filter.persistenceKey === ShowFilterKey.Trending
-  );
+interface ShowListItemViewProps extends ShowListItemProps {
+  isTrendingSort: boolean;
+  venueLineCount: number;
+}
 
+const ShowListItemView = ({
+  show,
+  children,
+  isTrendingSort,
+  venueLineCount,
+}: ShowListItemViewProps) => {
   return (
     <ShowLink
       show={{
@@ -70,7 +74,7 @@ export const ShowListItem = ({ show, children }: ShowListItemProps) => {
               </View>
             </Flex>
             <SubtitleRow className="flex-row flex-1">
-              <SubtitleText numberOfLines={fontScale > 1.5 ? 3 : 2} className="flex-shrink">
+              <SubtitleText numberOfLines={venueLineCount} className="flex-shrink">
                 {show.venue && `${show.venue.name}, ${show.venue.location}`}
               </SubtitleText>
               <SubtitleText className="text-right pl-2">
@@ -83,6 +87,21 @@ export const ShowListItem = ({ show, children }: ShowListItemProps) => {
         </Flex>
       </SectionedListItem>
     </ShowLink>
+  );
+};
+
+export const ShowListItem = ({ show, children }: ShowListItemProps) => {
+  const { fontScale } = useWindowDimensions();
+  const { filters } = useFilters<ShowFilterKey, Show>();
+  const isTrendingSort = filters.some(
+    (filter) => filter.active && filter.persistenceKey === ShowFilterKey.Trending
+  );
+  const venueLineCount = fontScale > 1.5 ? 3 : 2;
+
+  return (
+    <ShowListItemView show={show} isTrendingSort={isTrendingSort} venueLineCount={venueLineCount}>
+      {children}
+    </ShowListItemView>
   );
 };
 
@@ -199,10 +218,6 @@ interface ShowListProps {
   filters?: Filter<ShowFilterKey, Show>[];
 }
 
-const showListRenderItemDefault: ListRenderItem<Show> = ({ item: show }) => {
-  return <ShowListItem show={show} />;
-};
-
 export const ShowListContainer = (
   props: ShowListProps & Omit<FilterableListProps<Show>, 'renderItem'>
 ) => {
@@ -221,6 +236,24 @@ export const ShowList = ({
   renderItem,
   ...props
 }: ShowListProps & Omit<FilterableListProps<Show>, 'renderItem'>) => {
+  const { fontScale } = useWindowDimensions();
+  const { filters } = useFilters<ShowFilterKey, Show>();
+  const isTrendingSort = filters.some(
+    (filter) => filter.active && filter.persistenceKey === ShowFilterKey.Trending
+  );
+  const venueLineCount = fontScale > 1.5 ? 3 : 2;
+  const showListRenderItemDefault = useMemo<ListRenderItem<Show>>(() => {
+    const renderShowListItem: ListRenderItem<Show> = (info) => (
+      <ShowListItemView
+        show={info.item}
+        isTrendingSort={isTrendingSort}
+        venueLineCount={venueLineCount}
+      />
+    );
+
+    return renderShowListItem;
+  }, [isTrendingSort, venueLineCount]);
+
   return (
     <FilterableList data={data} renderItem={renderItem || showListRenderItemDefault} {...props} />
   );
