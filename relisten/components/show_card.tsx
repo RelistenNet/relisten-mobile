@@ -1,15 +1,8 @@
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { Show } from '@/relisten/realm/models/show';
 import { tw } from '@/relisten/util/tw';
-import React, {
-  LegacyRef,
-  memo,
-  PropsWithChildren,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react';
-import { Pressable, useWindowDimensions, View, ViewProps } from 'react-native';
+import React, { LegacyRef, memo, PropsWithChildren, useState } from 'react';
+import { LayoutChangeEvent, Pressable, useWindowDimensions, View, ViewProps } from 'react-native';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import Plur from './plur';
 import { ShowLink } from '@/relisten/util/push_show';
@@ -224,45 +217,35 @@ export function ShowCardLoader({
   showVenue = true,
   ...props
 }: { showArtist: boolean; showVenue: boolean } & ViewProps) {
-  const ref = useRef<View>(null);
-  const outerRef = useRef<View>(null);
   const [contentsLayout, setContentsLayout] = useState<
     { width: number; height: number; left: number; top: number } | undefined
   >();
 
-  useLayoutEffect(() => {
-    if (!ref.current || !outerRef.current) {
-      return;
-    }
-
-    type BoundingRectHost = {
-      unstable_getBoundingClientRect: () => {
-        width: number;
-        height: number;
-        left: number;
-        top: number;
-      };
+  const onContentsLayout = ({ nativeEvent: { layout } }: LayoutChangeEvent) => {
+    const nextLayout = {
+      width: layout.width,
+      height: layout.height,
+      left: Math.floor(layout.x),
+      top: Math.floor(layout.y),
     };
 
-    const current = ref.current as unknown as BoundingRectHost;
-    const outerCurrent = outerRef.current as unknown as BoundingRectHost;
+    setContentsLayout((currentLayout) => {
+      if (
+        currentLayout &&
+        currentLayout.width === nextLayout.width &&
+        currentLayout.height === nextLayout.height &&
+        currentLayout.left === nextLayout.left &&
+        currentLayout.top === nextLayout.top
+      ) {
+        return currentLayout;
+      }
 
-    const bounds = current.unstable_getBoundingClientRect();
-    const outerBounds = outerCurrent.unstable_getBoundingClientRect();
-    const { width, height } = bounds;
-
-    const newContentsLayout = {
-      width,
-      height,
-      left: Math.floor(bounds.left - outerBounds.left),
-      top: Math.floor(bounds.top - outerBounds.top),
-    };
-
-    setContentsLayout(newContentsLayout);
-  }, [setContentsLayout]);
+      return nextLayout;
+    });
+  };
 
   return (
-    <ShowCardContainer innerRef={outerRef} {...props}>
+    <ShowCardContainer {...props}>
       <ShowCardContents
         title={
           <View className="flex flex-row items-center justify-between">
@@ -309,7 +292,7 @@ export function ShowCardLoader({
             </View>
           </View>
         }
-        innerRef={ref}
+        onLayout={onContentsLayout}
         textClassName="opacity-0"
       />
       {contentsLayout && (

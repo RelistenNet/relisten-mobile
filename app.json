@@ -34,7 +34,6 @@
       "buildNumber": "6028"
     },
     "android": {
-      "edgeToEdgeEnabled": true,
       "playStoreUrl": "https://play.google.com/store/apps/details?id=net.relisten.android",
       "intentFilters": [
         {
@@ -67,7 +66,6 @@
       "package": "net.relisten.android",
       "versionCode": 6028
     },
-    "jsEngine": "hermes",
     "web": {
       "favicon": "./assets/favicon.png"
     },
@@ -81,9 +79,9 @@
         "expo-build-properties",
         {
           "android": {
-            "compileSdkVersion": 35,
+            "compileSdkVersion": 36,
             "minSdkVersion": 30,
-            "targetSdkVersion": 35
+            "targetSdkVersion": 36
           },
           "ios": {
             "useFrameworks": "static"
@@ -100,6 +98,7 @@
         }
       ],
       "expo-web-browser",
+      "expo-sharing",
       [
         "expo-font",
         {
@@ -121,7 +120,6 @@
         "projectId": "3b18b7db-fdf8-4a2c-8c24-19e24a8fd3a8"
       }
     },
-    "owner": "relisten",
-    "newArchEnabled": true
+    "owner": "relisten"
   }
 }

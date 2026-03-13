@@ -1,4 +1,4 @@
-import Expo
+internal import Expo
 import UIKit
 // @generated begin react-native-google-cast-import - expo prebuild (DO NOT MODIFY) sync-4cd300bca26a1d1fcc83f4baf37b0e62afcc1867
 #if canImport(GoogleCast) && os(iOS)
@@ -9,7 +9,7 @@ import React
 import ReactAppDependencyProvider
 
 @UIApplicationMain
-public class AppDelegate: ExpoAppDelegate {
+class AppDelegate: ExpoAppDelegate {
   var reactNativeDelegate: ExpoReactNativeFactoryDelegate?
   var reactNativeFactory: RCTReactNativeFactory?
   var launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
@@ -17,9 +17,9 @@ public class AppDelegate: ExpoAppDelegate {
   var reactNativeBootstrapWindow: UIWindow?
   
   // Some parts of expo/react native seem to expect this property to be here
-  public var window: UIWindow? = nil
+  var window: UIWindow? = nil
 
-  public override func application(
+  override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
@@ -61,10 +61,9 @@ public class AppDelegate: ExpoAppDelegate {
 
     reactNativeDelegate = delegate
     reactNativeFactory = factory
-    bindReactNativeFactory(factory)
   }
 
-  public func ensureReactNativeStartedForCarPlay() {
+  func ensureReactNativeStartedForCarPlay() {
     configureReactNativeFactoryIfNeeded()
 
     if reactNativeRootViewController != nil {
@@ -96,7 +95,7 @@ public class AppDelegate: ExpoAppDelegate {
     window = bootstrapWindow
   }
 
-  public func attachReactNative(to window: UIWindow) {
+  func attachReactNative(to window: UIWindow) {
     configureReactNativeFactoryIfNeeded()
 
     if let existingRoot = reactNativeRootViewController {
@@ -124,7 +123,7 @@ public class AppDelegate: ExpoAppDelegate {
     self.window = window
   }
 
-  public func handleCarPlayDisconnect() {
+  func handleCarPlayDisconnect() {
     guard let bootstrapWindow = reactNativeBootstrapWindow else { return }
 
     // Hide the bootstrap window on CarPlay disconnect to reduce key-window conflicts until the phone UI attaches.
@@ -137,7 +136,7 @@ public class AppDelegate: ExpoAppDelegate {
   }
 
   // Linking API
-  public override func application(
+  override func application(
     _ app: UIApplication,
     open url: URL,
     options: [UIApplication.OpenURLOptionsKey: Any] = [:]
@@ -146,7 +145,7 @@ public class AppDelegate: ExpoAppDelegate {
   }
 
   // Universal Links
-  public override func application(
+  override func application(
     _ application: UIApplication,
     continue userActivity: NSUserActivity,
     restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void

@@ -134,19 +134,16 @@ export class Source
     return this.avgRating.toFixed(2);
   }
 
-  private _allSourceTracks?: SourceTrack[];
   allSourceTracks() {
-    if (this._allSourceTracks === undefined) {
-      this._allSourceTracks = [];
+    const tracks: SourceTrack[] = [];
 
-      for (const set of this.sourceSets) {
-        for (const track of set.sourceTracks) {
-          this._allSourceTracks.push(track);
-        }
+    for (const set of this.sourceSets) {
+      for (const track of set.sourceTracks) {
+        tracks.push(track);
       }
     }
 
-    return this._allSourceTracks;
+    return tracks;
   }
 
   get hasOfflineTracks() {
