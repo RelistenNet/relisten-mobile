@@ -2105,7 +2105,7 @@ PODS:
     - SocketRocket
   - react-native-airplay-button (1.1.0):
     - React-Core
-  - react-native-blob-util (0.24.5):
+  - react-native-blob-util (0.24.7):
     - boost
     - DoubleConversion
     - fast_float
@@ -3798,7 +3798,7 @@ SPEC CHECKSUMS:
   React-Mapbuffer: 341b7d1814f97c607f95b20976423f7b47a84ad7
   React-microtasksnativemodule: 3f5e36e093777ff82ce812f54656697418eb8c08
   react-native-airplay-button: 67346bac38f575ce06978b5746052b0aa2741439
-  react-native-blob-util: 5fd27d409dccab13c4ef8474a9a9a339acae6647
+  react-native-blob-util: 573f119564b0cf1d498e0c25ef94084292a52cd2
   react-native-carplay: 7afdba69aea327bf6e9c5ddb97c92e621847af72
   react-native-get-random-values: d16467cf726c618e9c7a8c3c39c31faa2244bbba
   react-native-google-cast: 7be68a5d0b7eeb95a5924c3ecef8d319ef6c0a44
