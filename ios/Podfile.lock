@@ -167,9 +167,9 @@ PODS:
   - fmt (11.0.2)
   - glog (0.3.5)
   - google-cast-sdk (4.8.4)
-  - hermes-engine (0.14.1):
-    - hermes-engine/Pre-built (= 0.14.1)
-  - hermes-engine/Pre-built (0.14.1)
+  - hermes-engine (250829098.0.4):
+    - hermes-engine/Pre-built (= 250829098.0.4)
+  - hermes-engine/Pre-built (250829098.0.4)
   - libavif/core (1.0.0)
   - libavif/libdav1d (1.0.0):
     - libavif/core
@@ -3531,7 +3531,7 @@ EXTERNAL SOURCES:
     :podspec: "../node_modules/react-native/third-party-podspecs/glog.podspec"
   hermes-engine:
     :podspec: "../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec"
-    :tag: hermes-v0.14.1
+    :tag: hermes-v250829098.0.4
   lottie-react-native:
     :path: "../node_modules/lottie-react-native"
   RCT-Folly:
@@ -3753,7 +3753,7 @@ SPEC CHECKSUMS:
   fmt: a40bb5bd0294ea969aaaba240a927bd33d878cdd
   glog: 5683914934d5b6e4240e497e0f4a3b42d1854183
   google-cast-sdk: 32f65af50d164e3c475e79ad123db3cc26fbcd37
-  hermes-engine: 858cc78f547d383e7e0352ce5cf75aba8be61380
+  hermes-engine: d2b69a42e080394822d604336980f61df1603742
   libavif: 5f8e715bea24debec477006f21ef9e95432e254d
   libdav1d: 23581a4d8ec811ff171ed5e2e05cd27bad64c39f
   libwebp: 02b23773aedb6ff1fd38cec7a77b81414c6842a8
@@ -3848,7 +3848,7 @@ SPEC CHECKSUMS:
   RNScreens: 199799bdab32fa1e17ebf938b06fec52033e81e5
   RNSentry: ad96b6c44a1d3610430d6e32b2c04742f8efc0c2
   RNSVG: 282c14a0d61ce7231e2f4aa213c618171f1dced5
-  RNWorklets: 01efdd402d236a13651ea5ea5437ca85a44e7afa
+  RNWorklets: b2d54014a57a29d3c5848283069360d982880e60
   SDWebImage: e9fc87c1aab89a8ab1bbd74eba378c6f53be8abf
   SDWebImageAVIFCoder: afe194a084e851f70228e4be35ef651df0fc5c57
   SDWebImageSVGCoder: 15a300a97ec1c8ac958f009c02220ac0402e936c
@@ -3857,6 +3857,6 @@ SPEC CHECKSUMS:
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   Yoga: 89dfd64939cad2d0d2cc2dc48193100cef28bd98
 
-PODFILE CHECKSUM: fc82832947db0b1ccade91b8a538ae6b3f24c9a4
+PODFILE CHECKSUM: 0093dd29a1a89b6fcd1b6f38a8c02a51a34c13e0
 
 COCOAPODS: 1.16.2

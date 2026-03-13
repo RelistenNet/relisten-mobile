@@ -79,11 +79,15 @@
         "expo-build-properties",
         {
           "android": {
+            "buildReactNativeFromSource": true,
             "compileSdkVersion": 36,
             "minSdkVersion": 30,
-            "targetSdkVersion": 36
+            "targetSdkVersion": 36,
+            "useHermesV1": true
           },
           "ios": {
+            "buildReactNativeFromSource": true,
+            "useHermesV1": true,
             "useFrameworks": "static"
           }
         }
