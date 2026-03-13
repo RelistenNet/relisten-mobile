@@ -212,6 +212,36 @@ export function ShowCard({
   );
 }
 
+export function ShowCardPlaceholder({
+  showArtist = true,
+  showVenue = true,
+  ...props
+}: { showArtist: boolean; showVenue: boolean } & ViewProps) {
+  return (
+    <ShowCardContainer {...props}>
+      <View className="rounded-xl border border-white/10 bg-slate-700/80 p-2 shadow-sm">
+        <View className="flex flex-row items-center justify-between">
+          <View className="h-5 w-24 rounded bg-white/10" />
+          <View className="h-4 w-12 rounded bg-white/10" />
+        </View>
+        {showArtist ? <View className="mt-0.5 h-4 w-24 rounded bg-white/10" /> : null}
+        {showVenue ? (
+          <>
+            <View className="mt-0.5 h-3 w-32 rounded bg-white/10" />
+            <View className="mt-0.5 h-3 w-24 rounded bg-white/10" />
+          </>
+        ) : (
+          <View className="mt-0.5 h-3 w-24 rounded bg-white/10" />
+        )}
+        <View className="mt-1 flex-row items-center justify-between">
+          <View className="h-5 w-14 rounded-full bg-black/20" />
+          <View className="h-5 w-12 rounded-full bg-black/20" />
+        </View>
+      </View>
+    </ShowCardContainer>
+  );
+}
+
 export function ShowCardLoader({
   showArtist = true,
   showVenue = true,
