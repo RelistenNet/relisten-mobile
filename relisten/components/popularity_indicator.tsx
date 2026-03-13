@@ -83,7 +83,8 @@ export const PopularityIndicator = ({
   if (isTrendingSort) {
     detailText = formatMomentumPercent(momentumScore);
   } else {
-    const plays30dText = formatPlays30d(popularity?.windows?.days30d?.plays);
+    const plays30d = popularity?.windows?.days30d?.plays;
+    const plays30dText = formatPlays30d(plays30d);
     detailText = plays30dText ? `${plays30dText}${compact30d ? '' : ' 30d'}` : undefined;
   }
 

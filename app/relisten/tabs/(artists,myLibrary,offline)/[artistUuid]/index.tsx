@@ -22,7 +22,7 @@ export default function Page() {
       title: artist?.name,
       headerRight: () => artist && <FavoriteObjectButton object={artist} className="p-2" />,
     });
-  }, [artist]);
+  }, [artist, navigation]);
 
   return (
     <RefreshContextProvider networkBackedResults={results}>

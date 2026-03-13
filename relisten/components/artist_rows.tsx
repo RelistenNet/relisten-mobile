@@ -7,8 +7,11 @@ import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { SourceTrackSucceededIndicator } from '@/relisten/components/source/source_track_offline_indicator';
 import { PopularityIndicator } from '@/relisten/components/popularity_indicator';
 import { Artist } from '@/relisten/realm/models/artist';
-import { useArtistMetadata } from '@/relisten/realm/models/artist_repo';
-import { useGroupSegment, useRoute } from '@/relisten/util/routes';
+import {
+  ArtistMetadataSummary,
+  useOfflineArtistMetadata,
+} from '@/relisten/realm/models/artist_repo';
+import { useGroupSegment, useIsOfflineTab, useRoute } from '@/relisten/util/routes';
 import { Link } from 'expo-router';
 import React from 'react';
 import { TouchableOpacity } from 'react-native';
@@ -33,53 +36,83 @@ const ArtistRowActions = ({ artist }: { artist: Artist }) => {
   );
 };
 
+const ArtistListItemLayout = React.forwardRef<
+  TouchableOpacityRef,
+  { artist: Artist; metadata: ArtistMetadataSummary }
+>(({ artist, metadata }, ref) => {
+  const groupSegment = useGroupSegment();
+  const hasOfflineTracks = artist.hasOfflineTracks;
+
+  return (
+    <Link
+      href={{
+        pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/`,
+        params: {
+          artistUuid: artist.uuid,
+        },
+      }}
+      asChild
+    >
+      <SectionedListItem ref={ref}>
+        <Flex cn="items-center justify-between" full>
+          <Flex cn="flex-1 flex-col pr-3">
+            <Flex cn="items-center">
+              <Flex cn="flex-1 pr-2">
+                <RowTitle>{artist.name}</RowTitle>
+              </Flex>
+              <Flex cn="flex-shrink-0 items-center">
+                <ArtistPopularitySummary artist={artist} />
+              </Flex>
+            </Flex>
+            <SubtitleRow cn="flex flex-row justify-between">
+              <SubtitleText>
+                <Plur word="show" count={metadata.shows} />
+                {hasOfflineTracks && (
+                  <>
+                    &nbsp;
+                    <SourceTrackSucceededIndicator />
+                  </>
+                )}
+              </SubtitleText>
+              <SubtitleText>
+                <Plur word="tape" count={metadata.sources} />
+              </SubtitleText>
+            </SubtitleRow>
+          </Flex>
+          <ArtistRowActions artist={artist} />
+        </Flex>
+      </SectionedListItem>
+    </Link>
+  );
+});
+
 export const ArtistListItem = React.forwardRef<TouchableOpacityRef, { artist: Artist }>(
   ({ artist }, ref) => {
-    const groupSegment = useGroupSegment();
-    const metadata = useArtistMetadata(artist);
-    const hasOfflineTracks = artist.hasOfflineTracks;
+    const isOfflineTab = useIsOfflineTab();
+    if (isOfflineTab) {
+      return <OfflineArtistListItem artist={artist} ref={ref} />;
+    }
 
-    return (
-      <Link
-        href={{
-          pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/`,
-          params: {
-            artistUuid: artist.uuid,
-          },
-        }}
-        asChild
-      >
-        <SectionedListItem ref={ref}>
-          <Flex cn="items-center justify-between" full>
-            <Flex cn="flex-1 flex-col pr-3">
-              <Flex cn="items-center">
-                <Flex cn="flex-1 pr-2">
-                  <RowTitle>{artist.name}</RowTitle>
-                </Flex>
-                <Flex cn="flex-shrink-0 items-center">
-                  <ArtistPopularitySummary artist={artist} />
-                </Flex>
-              </Flex>
-              <SubtitleRow cn="flex flex-row justify-between">
-                <SubtitleText>
-                  <Plur word="show" count={metadata.shows} />
-                  {hasOfflineTracks && (
-                    <>
-                      &nbsp;
-                      <SourceTrackSucceededIndicator />
-                    </>
-                  )}
-                </SubtitleText>
-                <SubtitleText>
-                  <Plur word="tape" count={metadata.sources} />
-                </SubtitleText>
-              </SubtitleRow>
-            </Flex>
-            <ArtistRowActions artist={artist} />
-          </Flex>
-        </SectionedListItem>
-      </Link>
-    );
+    return <OnlineArtistListItem artist={artist} ref={ref} />;
+  }
+);
+
+const OnlineArtistListItem = React.forwardRef<TouchableOpacityRef, { artist: Artist }>(
+  ({ artist }, ref) => {
+    const metadata: ArtistMetadataSummary = {
+      shows: artist.showCount,
+      sources: artist.sourceCount,
+    };
+
+    return <ArtistListItemLayout artist={artist} metadata={metadata} ref={ref} />;
+  }
+);
+
+const OfflineArtistListItem = React.forwardRef<TouchableOpacityRef, { artist: Artist }>(
+  ({ artist }, ref) => {
+    const metadata = useOfflineArtistMetadata(artist);
+
+    return <ArtistListItemLayout artist={artist} metadata={metadata} ref={ref} />;
   }
 );
 

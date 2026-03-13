@@ -17,6 +17,11 @@ import { NetworkBackedModelArrayBehavior } from '@/relisten/realm/network_backed
 
 export const artistRepo = new Repository(Artist);
 
+export interface ArtistMetadataSummary {
+  shows: number | undefined;
+  sources: number | undefined;
+}
+
 export function artistsNetworkBackedBehavior(
   realm: Realm.Realm,
   availableOfflineOnly: boolean,
@@ -65,8 +70,7 @@ export function useAllArtists(options?: NetworkBackedBehaviorOptions) {
   return useNetworkBackedBehavior(behavior);
 }
 
-export function useArtistMetadata(artist?: Artist | null) {
-  const isOfflineTab = useIsOfflineTab();
+export function useOfflineArtistMetadata(artist?: Artist | null): ArtistMetadataSummary {
   const sh = useRealmTabsFilter(
     useQuery(Show, (query) => query.filtered('artistUuid = $0', artist?.uuid), [artist?.uuid])
   );
@@ -78,11 +82,7 @@ export function useArtistMetadata(artist?: Artist | null) {
     return { shows: undefined, sources: undefined };
   }
 
-  if (isOfflineTab) {
-    return { shows: sh.length, sources: src.length };
-  }
-
-  return { shows: artist.showCount, sources: artist.sourceCount };
+  return { shows: sh.length, sources: src.length };
 }
 
 export function useArtist(

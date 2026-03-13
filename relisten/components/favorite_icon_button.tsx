@@ -49,7 +49,7 @@ export const FavoriteObjectButton = <T extends FavoritableObject>({
       object.isFavorite = !object.isFavorite;
       forceUpdate();
     });
-  }, [object, forceUpdate]);
+  }, [forceUpdate, object, realm]);
 
   return (
     <FavoriteIconButton isFavorited={object.isFavorite} onPressOut={favoriteOnPress} {...props} />
