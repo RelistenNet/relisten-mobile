@@ -6,14 +6,22 @@ import { openRealm } from '@/relisten/realm/schema';
 import { Realm } from '@realm/react';
 import { PlaybackSource, sharedStates } from '@/relisten/player/shared_state';
 import { RelistenPlayer } from '@/relisten/player/relisten_player';
+import { LibraryIndex } from '@/relisten/realm/library_index';
+import { UserSettingsStore } from '@/relisten/realm/user_settings_store';
 
 type CarPlayDependencyInput = {
   apiClient?: RelistenApiClient;
   realm?: Realm;
+  libraryIndex?: LibraryIndex;
+  userSettingsStore?: UserSettingsStore;
 };
 
 let providedApiClient: RelistenApiClient | null = null;
 let providedRealm: Realm | null = null;
+let providedLibraryIndex: LibraryIndex | null = null;
+let providedUserSettingsStore: UserSettingsStore | null = null;
+let ownedLibraryIndex: LibraryIndex | null = null;
+let ownedUserSettingsStore: UserSettingsStore | null = null;
 let teardown: (() => void) | null = null;
 let connected = false;
 let setupInFlight: Promise<void> | null = null;
@@ -34,22 +42,46 @@ const ensureRealm = async () => {
   return openRealm();
 };
 
+const ensureLibraryIndex = async () => {
+  if (providedLibraryIndex) {
+    return providedLibraryIndex;
+  }
+
+  const realm = await ensureRealm();
+  ownedLibraryIndex = new LibraryIndex(realm);
+  providedLibraryIndex = ownedLibraryIndex;
+  return providedLibraryIndex;
+};
+
+const ensureUserSettingsStore = async () => {
+  if (providedUserSettingsStore) {
+    return providedUserSettingsStore;
+  }
+
+  const realm = await ensureRealm();
+  ownedUserSettingsStore = new UserSettingsStore(realm);
+  providedUserSettingsStore = ownedUserSettingsStore;
+  return providedUserSettingsStore;
+};
+
 const ensureSetup = () => {
   if (!connected || teardown || setupInFlight) {
     return;
   }
 
   setupInFlight = (async () => {
-    const [realm, apiClient] = await Promise.all([
+    const [realm, apiClient, libraryIndex, userSettingsStore] = await Promise.all([
       ensureRealm(),
       Promise.resolve(ensureApiClient()),
+      ensureLibraryIndex(),
+      ensureUserSettingsStore(),
     ]);
 
     if (!connected || teardown) {
       return;
     }
 
-    teardown = setupCarPlay(realm, apiClient);
+    teardown = setupCarPlay(realm, apiClient, libraryIndex, userSettingsStore);
   })()
     .catch((error) => {
       console.warn('CarPlay setup failed', error);
@@ -59,13 +91,34 @@ const ensureSetup = () => {
     });
 };
 
-export const setCarPlayDependencies = ({ apiClient, realm }: CarPlayDependencyInput) => {
+export const setCarPlayDependencies = ({
+  apiClient,
+  realm,
+  libraryIndex,
+  userSettingsStore,
+}: CarPlayDependencyInput) => {
   if (apiClient) {
     providedApiClient = apiClient;
   }
 
   if (realm) {
     providedRealm = realm;
+  }
+
+  if (libraryIndex) {
+    if (ownedLibraryIndex) {
+      ownedLibraryIndex.tearDown();
+      ownedLibraryIndex = null;
+    }
+    providedLibraryIndex = libraryIndex;
+  }
+
+  if (userSettingsStore) {
+    if (ownedUserSettingsStore) {
+      ownedUserSettingsStore.tearDown();
+      ownedUserSettingsStore = null;
+    }
+    providedUserSettingsStore = userSettingsStore;
   }
 
   if (!connected) {
@@ -105,6 +158,18 @@ const registerCarPlayBootstrap = () => {
     connected = false;
     teardown?.();
     teardown = null;
+    const disconnectedLibraryIndex = ownedLibraryIndex;
+    disconnectedLibraryIndex?.tearDown();
+    ownedLibraryIndex = null;
+    if (providedLibraryIndex === disconnectedLibraryIndex) {
+      providedLibraryIndex = null;
+    }
+    const disconnectedUserSettingsStore = ownedUserSettingsStore;
+    disconnectedUserSettingsStore?.tearDown();
+    ownedUserSettingsStore = null;
+    if (providedUserSettingsStore === disconnectedUserSettingsStore) {
+      providedUserSettingsStore = null;
+    }
   };
 
   CarPlay.registerOnConnect(handleConnect);

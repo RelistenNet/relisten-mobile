@@ -10,12 +10,41 @@ import { useFocusEffect } from 'expo-router';
 import { useRenderAfterInteractions } from '@/relisten/util/use_render_after_interactions';
 
 export function ArtistShowsByMomentumTray({ artists }: { artists: Artist[] }) {
+  const shouldRenderTrayScroller = useRenderAfterInteractions();
+  const primaryArtist = artists[0];
+
+  const showVenue =
+    !primaryArtist ||
+    primaryArtist.features().per_source_venues ||
+    primaryArtist.features().per_show_venues;
+
+  return (
+    <View className="mb-2">
+      {shouldRenderTrayScroller ? (
+        <ArtistShowsByMomentumTrayContent artists={artists} showVenue={showVenue} />
+      ) : (
+        <>
+          <View className="flex px-4 pb-2">
+            <RelistenText className="text-m font-bold">Popular and trending shows</RelistenText>
+          </View>
+          <ShowCardStandbyTray showArtist={artists.length > 1} showVenue={showVenue} />
+        </>
+      )}
+    </View>
+  );
+}
+
+function ArtistShowsByMomentumTrayContent({
+  artists,
+  showVenue,
+}: {
+  artists: Artist[];
+  showVenue: boolean;
+}) {
   const artistUuids = useMemo(() => artists.map((artist) => artist.uuid), [artists]);
   const momentumShows = useShowsByMomentum(artistUuids);
-  const shouldRenderTrayScroller = useRenderAfterInteractions();
   const hasFocusedOnce = useRef(false);
   const refreshRef = useRef(momentumShows.refresh);
-  const primaryArtist = artists[0];
 
   useEffect(() => {
     refreshRef.current = momentumShows.refresh;
@@ -35,38 +64,27 @@ export function ArtistShowsByMomentumTray({ artists }: { artists: Artist[] }) {
     return [...momentumShows.data].slice(0, 25);
   }, [momentumShows.data]);
 
-  const showVenue =
-    !primaryArtist ||
-    primaryArtist.features().per_source_venues ||
-    primaryArtist.features().per_show_venues;
-
   return (
-    <View className="mb-2">
-      <RefreshContextProvider networkBackedResults={momentumShows}>
-        <View className="flex px-4 pb-2">
-          <RelistenText className="text-m font-bold">Popular and trending shows</RelistenText>
-        </View>
-        {shouldRenderTrayScroller ? (
-          <ScrollView horizontal className="pb-2 pl-3">
-            <Flex className="">
-              {momentumShows.isNetworkLoading && topMomentumShows.length == 0 ? (
-                <ShowCardLoader showArtist={artists.length > 1} showVenue={showVenue} />
-              ) : (
-                topMomentumShows.map((show) => (
-                  <ShowCard
-                    show={show}
-                    key={show.uuid}
-                    root="artists"
-                    showArtist={artists.length > 1}
-                  />
-                ))
-              )}
-            </Flex>
-          </ScrollView>
-        ) : (
-          <ShowCardStandbyTray showArtist={artists.length > 1} showVenue={showVenue} />
-        )}
-      </RefreshContextProvider>
-    </View>
+    <RefreshContextProvider networkBackedResults={momentumShows}>
+      <View className="flex px-4 pb-2">
+        <RelistenText className="text-m font-bold">Popular and trending shows</RelistenText>
+      </View>
+      <ScrollView horizontal className="pb-2 pl-3">
+        <Flex className="">
+          {momentumShows.isNetworkLoading && topMomentumShows.length == 0 ? (
+            <ShowCardLoader showArtist={artists.length > 1} showVenue={showVenue} />
+          ) : (
+            topMomentumShows.map((show) => (
+              <ShowCard
+                show={show}
+                key={show.uuid}
+                root="artists"
+                showArtist={artists.length > 1}
+              />
+            ))
+          )}
+        </Flex>
+      </ScrollView>
+    </RefreshContextProvider>
   );
 }

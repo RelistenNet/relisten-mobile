@@ -22,6 +22,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import colors from 'tailwindcss/colors';
 import { ShowLink } from '@/relisten/util/push_show';
 import { PopularityIndicator } from '@/relisten/components/popularity_indicator';
+import { useLibraryIndex } from '@/relisten/realm/root_services';
 
 interface ShowListItemProps {
   show: Show;
@@ -39,6 +40,9 @@ const ShowListItemView = ({
   isTrendingSort,
   venueLineCount,
 }: ShowListItemViewProps) => {
+  const libraryIndex = useLibraryIndex();
+  const hasOfflineTracks = show.hasOfflineTracks(libraryIndex);
+
   return (
     <ShowLink
       show={{
@@ -60,11 +64,11 @@ const ShowListItemView = ({
               {show?.isFavorite && (
                 <MaterialCommunityIcons name="cards-heart" color={colors.blue['200']} />
               )}
-              {show?.hasOfflineTracks && <SourceTrackSucceededIndicator />}
+              {hasOfflineTracks && <SourceTrackSucceededIndicator />}
               <View className="grow">
                 <Flex className="items-center justify-end">
                   <PopularityIndicator
-                    popularity={show.popularity}
+                    popularity={show.popularity?.snapshot()}
                     isTrendingSort={isTrendingSort}
                   />
                   <SubtitleText>
@@ -119,91 +123,99 @@ export enum ShowFilterKey {
   Search = 'search',
 }
 
-export const SHOW_FILTERS: Filter<ShowFilterKey, Show>[] = [
-  {
-    persistenceKey: ShowFilterKey.Soundboard,
-    title: 'SBD',
-    active: false,
-    filter: (show) => show.hasSoundboardSource,
-  },
-  {
-    persistenceKey: ShowFilterKey.Library,
-    title: 'My Library',
-    active: false,
-    filter: (show) => show.hasOfflineTracks || show.isFavorite,
-    isGlobal: true,
-  },
-  {
-    persistenceKey: ShowFilterKey.Date,
-    title: 'Date',
-    sortDirection: SortDirection.Ascending,
-    active: true,
-    isNumeric: true,
-    sort: (shows) => shows.sort((a, b) => a.displayDate.localeCompare(b.displayDate)),
-  },
-  {
-    persistenceKey: ShowFilterKey.Popular,
-    title: 'Popular',
-    sortDirection: SortDirection.Descending,
-    active: false,
-    isNumeric: true,
-    sort: (shows) =>
-      shows.sort(
-        (a, b) =>
-          (a.popularity?.windows?.days30d?.hotScore ?? 0) -
-          (b.popularity?.windows?.days30d?.hotScore ?? 0)
-      ),
-  },
-  {
-    persistenceKey: ShowFilterKey.Trending,
-    title: 'Trending',
-    sortDirection: SortDirection.Descending,
-    active: false,
-    isNumeric: true,
-    sort: (shows) =>
-      shows.sort((a, b) => (a.popularity?.momentumScore ?? 0) - (b.popularity?.momentumScore ?? 0)),
-  },
-  {
-    persistenceKey: ShowFilterKey.Rating,
-    title: 'Rating',
-    sortDirection: SortDirection.Descending,
-    active: false,
-    isNumeric: true,
-    sort: (shows) => shows.sort((a, b) => a.avgRating - b.avgRating),
-  },
-  {
-    persistenceKey: ShowFilterKey.Tapes,
-    title: 'Tapes',
-    sortDirection: SortDirection.Descending,
-    active: false,
-    isNumeric: true,
-    sort: (shows) => shows.sort((a, b) => a.sourceCount - b.sourceCount),
-  },
-  {
-    persistenceKey: ShowFilterKey.Duration,
-    title: 'Duration',
-    sortDirection: SortDirection.Descending,
-    active: false,
-    isNumeric: true,
-    sort: (shows) => shows.sort((a, b) => (a.avgDuration || 0) - (b.avgDuration || 0)),
-  },
-  {
-    persistenceKey: ShowFilterKey.Search,
-    title: 'Search',
-    active: false,
-    searchFilter: (show, searchText) => {
-      const search = searchText.toLowerCase();
+export function useShowFilters(): Filter<ShowFilterKey, Show>[] {
+  const libraryIndex = useLibraryIndex();
 
-      return (
-        searchForSubstring(show.displayDate, search) ||
-        searchForSubstring(show.venue?.name, search) ||
-        searchForSubstring(show.venue?.location, search) ||
-        searchForSubstring(show.venue?.pastNames, search) ||
-        searchForSubstring(show.artist.name.toLowerCase(), search)
-      );
-    },
-  },
-];
+  return useMemo(() => {
+    return [
+      {
+        persistenceKey: ShowFilterKey.Soundboard,
+        title: 'SBD',
+        active: false,
+        filter: (show) => show.hasSoundboardSource,
+      },
+      {
+        persistenceKey: ShowFilterKey.Library,
+        title: 'My Library',
+        active: false,
+        filter: (show) => libraryIndex.showIsInLibrary(show.uuid),
+        isGlobal: true,
+      },
+      {
+        persistenceKey: ShowFilterKey.Date,
+        title: 'Date',
+        sortDirection: SortDirection.Ascending,
+        active: true,
+        isNumeric: true,
+        sort: (shows) => shows.sort((a, b) => a.displayDate.localeCompare(b.displayDate)),
+      },
+      {
+        persistenceKey: ShowFilterKey.Popular,
+        title: 'Popular',
+        sortDirection: SortDirection.Descending,
+        active: false,
+        isNumeric: true,
+        sort: (shows) =>
+          shows.sort(
+            (a, b) =>
+              (a.popularity?.windows?.days30d?.hotScore ?? 0) -
+              (b.popularity?.windows?.days30d?.hotScore ?? 0)
+          ),
+      },
+      {
+        persistenceKey: ShowFilterKey.Trending,
+        title: 'Trending',
+        sortDirection: SortDirection.Descending,
+        active: false,
+        isNumeric: true,
+        sort: (shows) =>
+          shows.sort(
+            (a, b) => (a.popularity?.momentumScore ?? 0) - (b.popularity?.momentumScore ?? 0)
+          ),
+      },
+      {
+        persistenceKey: ShowFilterKey.Rating,
+        title: 'Rating',
+        sortDirection: SortDirection.Descending,
+        active: false,
+        isNumeric: true,
+        sort: (shows) => shows.sort((a, b) => a.avgRating - b.avgRating),
+      },
+      {
+        persistenceKey: ShowFilterKey.Tapes,
+        title: 'Tapes',
+        sortDirection: SortDirection.Descending,
+        active: false,
+        isNumeric: true,
+        sort: (shows) => shows.sort((a, b) => a.sourceCount - b.sourceCount),
+      },
+      {
+        persistenceKey: ShowFilterKey.Duration,
+        title: 'Duration',
+        sortDirection: SortDirection.Descending,
+        active: false,
+        isNumeric: true,
+        sort: (shows) => shows.sort((a, b) => (a.avgDuration || 0) - (b.avgDuration || 0)),
+      },
+      {
+        persistenceKey: ShowFilterKey.Search,
+        title: 'Search',
+        active: false,
+        searchFilter: (show, searchText) => {
+          const search = searchText.toLowerCase();
+
+          return (
+            searchForSubstring(show.displayDate, search) ||
+            searchForSubstring(show.venue?.name, search) ||
+            searchForSubstring(show.venue?.location, search) ||
+            searchForSubstring(show.venue?.pastNames, search) ||
+            searchForSubstring(show.artist.name.toLowerCase(), search)
+          );
+        },
+      },
+    ];
+  }, [libraryIndex]);
+}
 
 const DEFAULT_SHOW_FILTER = {
   persistenceKey: ShowFilterKey.Date,
@@ -221,9 +233,11 @@ interface ShowListProps {
 export const ShowListContainer = (
   props: ShowListProps & Omit<FilterableListProps<Show>, 'renderItem'>
 ) => {
+  const filters = useShowFilters();
+
   return (
     <FilteringProvider
-      filters={props.filters ?? SHOW_FILTERS}
+      filters={props.filters ?? filters}
       options={{ default: DEFAULT_SHOW_FILTER, ...(props.filterOptions || {}) }}
     >
       <ShowList {...props} />

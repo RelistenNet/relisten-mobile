@@ -89,7 +89,7 @@ export default function Page() {
     (sourceTrack?: SourceTrack) => {
       if (!sourceTrack || !sourceTrack.streamingUrl() || !sourceTrack.uuid || !selectedSource) {
         logger.warn(
-          `Missing value when trying to play source track: sourceTrack=${sourceTrack} sourceUuid=${sourceUuid} mp3Url=${sourceTrack?.streamingUrl()} uuid=${sourceTrack?.uuid} artist=${artist.data} show=${show} selectedSource=${selectedSource}`
+          `Missing value when trying to play source track: sourceTrack=${sourceTrack} sourceUuid=${sourceUuid} mp3Url=${sourceTrack?.streamingUrl()} uuid=${sourceTrack?.uuid} artist=${artist} show=${show} selectedSource=${selectedSource}`
         );
         return;
       }
@@ -120,7 +120,7 @@ export default function Page() {
   const downloadShow = () => {
     if (!selectedSource) {
       logger.warn(
-        `Missing value when trying to download show: artist=${artist.data} sourceUuid=${sourceUuid} show=${show} selectedSource=${selectedSource}`
+        `Missing value when trying to download show: artist=${artist} sourceUuid=${sourceUuid} show=${show} selectedSource=${selectedSource}`
       );
       return;
     }
@@ -134,7 +134,7 @@ export default function Page() {
   const removeDownloads = async () => {
     if (!selectedSource) {
       logger.warn(
-        `Missing value when trying to remove downloads: artist=${artist.data} sourceUuid=${sourceUuid} show=${show} selectedSource=${selectedSource}`
+        `Missing value when trying to remove downloads: artist=${artist} sourceUuid=${sourceUuid} show=${show} selectedSource=${selectedSource}`
       );
       return;
     }
@@ -185,9 +185,9 @@ export default function Page() {
           case 0: {
             // Share Show
             const [year, month, day] = selectedSource.displayDate.split('-');
-            const url = `https://relisten.net/${artist.data?.slug}/${year}/${month}/${day}?source=${selectedSource.uuid}`;
+            const url = `https://relisten.net/${artist?.slug}/${year}/${month}/${day}?source=${selectedSource.uuid}`;
             Share.share({
-              message: `Check out ${show.displayDate} (${show.venue?.name ?? ''}) by ${artist?.data?.name} on @relistenapp${Platform.OS === 'ios' ? '' : `: ${url}`}`,
+              message: `Check out ${show.displayDate} (${show.venue?.name ?? ''}) by ${artist?.name} on @relistenapp${Platform.OS === 'ios' ? '' : `: ${url}`}`,
               url: url,
             }).then(() => {});
 
@@ -234,7 +234,7 @@ export default function Page() {
       }
     );
   }, [
-    artist.data,
+    artist,
     downloadShow,
     groupSegment,
     isRemovingDownloads,
@@ -282,7 +282,7 @@ export default function Page() {
       <DisappearingHeaderScreen
         ScrollableComponent={SourceComponent}
         show={show}
-        artist={artist.data || undefined}
+        artist={artist}
         selectedSource={selectedSource}
         playShow={playShow}
         downloadShow={downloadShow}

@@ -25,6 +25,8 @@ import {
   ValueStream,
 } from '@/relisten/realm/value_streams';
 import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_network_backed_behavior';
+import { LibraryIndex } from '@/relisten/realm/library_index';
+import { useLibraryIndex } from '@/relisten/realm/root_services';
 
 export const showRepo = new Repository(Show);
 
@@ -44,13 +46,15 @@ export interface ShowWithSources {
 // our magic live music sort, taken from relisten-web
 // gives precedence to favorites -> soundboards -> charlie miller/peter costello -> etree ids -> avg weighted rating
 // https://github.com/RelistenNet/relisten-web/blob/69e05607c0a0699b5ccb0b3711a3ec17faf3a855/src/redux/modules/tapes.js#L63
-export const sortSources = (sources: Realm.Results<Source>) => {
+export const sortSources = (
+  sources: Realm.Results<Source>,
+  libraryIndex?: Pick<LibraryIndex, 'sourceHasOfflineTracks'>
+) => {
   const sortedSources = sources
     ? Array.from(sources).sort(
         firstBy(
           // sort first if favorited or downloaded
-          (t: Source) =>
-            t.isFavorite || t.allSourceTracks().some((tr) => tr?.offlineInfo?.isPlayableOffline()),
+          (t: Source) => t.isFavorite || t.hasOfflineTracks(libraryIndex),
           'desc'
         )
           .thenBy((t: Source) => t.isSoundboard, 'desc')
@@ -227,12 +231,13 @@ export function useFullShowWithSelectedSource(showUuid: string, selectedSourceUu
   const show = results.data?.show;
   const sources = results.data?.sources;
   const artist = useArtist(show?.artistUuid);
+  const libraryIndex = useLibraryIndex();
 
   const sortedSources = useMemo(() => {
     if (!sources) return [];
 
-    return sortSources(sources);
-  }, [sources]);
+    return sortSources(sources, libraryIndex);
+  }, [libraryIndex, sources]);
 
   // default sourceUuid is initial which will just fall back to sortedSources[0]
   const selectedSource =

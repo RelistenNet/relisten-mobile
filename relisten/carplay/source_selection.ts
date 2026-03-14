@@ -1,8 +1,14 @@
 import { CarPlayScope } from '@/relisten/carplay/scope';
 import { Show } from '@/relisten/realm/models/show';
 import { Source } from '@/relisten/realm/models/source';
+import { LibraryIndex } from '@/relisten/realm/library_index';
 
-export function resolveSourcesForScope(scope: CarPlayScope, show: Show, sources: Source[]) {
+export function resolveSourcesForScope(
+  scope: CarPlayScope,
+  show: Show,
+  sources: Source[],
+  libraryIndex: Pick<LibraryIndex, 'sourceHasOfflineTracks'>
+) {
   if (scope === 'browse') {
     return {
       displaySources: sources,
@@ -11,14 +17,18 @@ export function resolveSourcesForScope(scope: CarPlayScope, show: Show, sources:
   }
 
   if (scope === 'offline') {
-    const offlineSources = sources.filter((source) => source.hasOfflineTracks);
+    const offlineSources = sources.filter((source) =>
+      libraryIndex.sourceHasOfflineTracks(source.uuid)
+    );
     return {
       displaySources: offlineSources,
       autoSelectSource: offlineSources.length === 1 ? offlineSources[0] : undefined,
     };
   }
 
-  const preferredSources = sources.filter((source) => source.isFavorite || source.hasOfflineTracks);
+  const preferredSources = sources.filter(
+    (source) => source.isFavorite || libraryIndex.sourceHasOfflineTracks(source.uuid)
+  );
 
   if (show.isFavorite && preferredSources.length === 0) {
     return {

@@ -106,7 +106,7 @@ export function createArtistsListTemplate(
     const isLoading = nextValue.isNetworkLoading;
     const artists = Array.from(nextValue.data || []);
 
-    const filtered = artists.filter((artist) => includeArtistForScope(scope, artist));
+    const filtered = artists.filter((artist) => includeArtistForScope(ctx, scope, artist));
     const sorted = filtered.sort((a, b) => a.sortName.localeCompare(b.sortName));
 
     artistMap.clear();
@@ -136,7 +136,7 @@ export function createArtistsListTemplate(
     }
 
     const favorites = sorted.filter((a) => a.isFavorite);
-    const offline = sorted.filter((a) => a.hasOfflineTracks);
+    const offline = sorted.filter((a) => ctx.libraryIndex.artistHasOfflineTracks(a.uuid));
     favoriteArtists = favorites;
 
     if (scope === 'browse') {
@@ -322,7 +322,7 @@ function createYearsListTemplate(
     ]);
 
     const userFilters = {
-      isPlayableOffline: scope === 'offline' ? true : null,
+      isPlayableOffline: scope === 'offline' || scope === 'library' ? true : null,
       isFavorite: scope === 'library' ? true : null,
       operator: 'OR' as const,
     };
@@ -347,7 +347,7 @@ function createYearsListTemplate(
 
       const value: YearShowsResults = nextValue.data;
       const shows = value?.shows ? Array.from(value.shows) : [];
-      const filteredShows = shows.filter((show) => includeShowForScope(scope, show));
+      const filteredShows = shows.filter((show) => includeShowForScope(ctx, scope, show));
       const sortedShows = filteredShows.sort((a, b) => a.displayDate.localeCompare(b.displayDate));
 
       showMap.clear();
@@ -529,7 +529,7 @@ function createYearsListTemplate(
 
   results.addListener((nextValue) => {
     const years = Array.from(nextValue.data || []);
-    const filtered = years.filter((year) => includeYearForScope(scope, year));
+    const filtered = years.filter((year) => includeYearForScope(ctx, scope, year));
     const sorted = filtered.sort((a, b) => a.year.localeCompare(b.year));
 
     yearMap.clear();
@@ -550,43 +550,37 @@ function createYearsListTemplate(
   return template;
 }
 
-function includeArtistForScope(scope: CarPlayScope, artist: Artist) {
+function includeArtistForScope(ctx: RelistenCarPlayContext, scope: CarPlayScope, artist: Artist) {
   if (scope === 'offline') {
-    return artist.hasOfflineTracks;
+    return ctx.libraryIndex.artistHasOfflineTracks(artist.uuid);
   }
 
   if (scope === 'library') {
-    return (
-      artist.isFavorite ||
-      artist.hasOfflineTracks ||
-      artist.sourceTracks.filtered('show.isFavorite == true').length > 0
-    );
+    return ctx.libraryIndex.artistIsInLibrary(artist.uuid);
   }
 
   return true;
 }
 
-function includeYearForScope(scope: CarPlayScope, year: Year) {
+function includeYearForScope(ctx: RelistenCarPlayContext, scope: CarPlayScope, year: Year) {
   if (scope === 'offline') {
-    return year.hasOfflineTracks;
+    return ctx.libraryIndex.yearHasOfflineTracks(year.uuid);
   }
 
   if (scope === 'library') {
-    return (
-      year.hasOfflineTracks || year.sourceTracks.filtered('show.isFavorite == true').length > 0
-    );
+    return ctx.libraryIndex.yearIsInLibrary(year.uuid);
   }
 
   return true;
 }
 
-function includeShowForScope(scope: CarPlayScope, show: Show) {
+function includeShowForScope(ctx: RelistenCarPlayContext, scope: CarPlayScope, show: Show) {
   if (scope === 'offline') {
-    return show.hasOfflineTracks;
+    return ctx.libraryIndex.showHasOfflineTracks(show.uuid);
   }
 
   if (scope === 'library') {
-    return show.isFavorite || show.hasOfflineTracks;
+    return ctx.libraryIndex.showIsInLibrary(show.uuid);
   }
 
   return true;

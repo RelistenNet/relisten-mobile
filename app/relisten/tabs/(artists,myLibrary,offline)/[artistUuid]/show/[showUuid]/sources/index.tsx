@@ -22,6 +22,7 @@ import { SourceTrackSucceededIndicator } from '@/relisten/components/source/sour
 import { ShowLink, ShowRedirect } from '@/relisten/util/push_show';
 import { Artist } from '@/relisten/realm/models/artist';
 import dayjs from 'dayjs';
+import { useLibraryIndex } from '@/relisten/realm/root_services';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -78,6 +79,7 @@ const SourcesList = ({
   sources?: Source[];
 } & ScrollViewProps) => {
   const { refreshing } = useRefreshContext();
+  const libraryIndex = useLibraryIndex();
 
   if (refreshing || !show) {
     return (
@@ -108,72 +110,83 @@ const SourcesList = ({
       <ItemSeparator />
       {sources?.map((source, idx) => {
         return (
-          <SourceDetail key={source.uuid} source={source} show={show} artist={artist} idx={idx} />
+          <SourceDetail
+            key={source.uuid}
+            source={source}
+            show={show}
+            artist={artist}
+            idx={idx}
+            hasOfflineTracks={source.hasOfflineTracks(libraryIndex)}
+          />
         );
       })}
     </Animated.ScrollView>
   );
 };
 
-export const SourceDetail: FC<{ source: Source; show: Show; idx: number; artist: Artist }> = memo(
-  ({ show, source, artist, idx }) => {
-    return (
-      <View>
-        <View className="w-full">
-          <SectionHeader className="flex-row items-center">
-            <RelistenText className="text-m font-bold">Source #{idx + 1}</RelistenText>
-            {source.isSoundboard && (
-              <RelistenText cn="ml-1 text-xs font-bold text-relisten-blue-600">SBD</RelistenText>
-            )}
-            {source.isFavorite && (
-              <View className="ml-1">
-                <MaterialCommunityIcons name="cards-heart" color={colors.blue['200']} />
-              </View>
-            )}
-            {source.hasOfflineTracks && <SourceTrackSucceededIndicator className="ml-1" />}
-            <View className="flex-grow" />
-            <RelistenText>
-              {source.avgRating != 0 && source.humanizedAvgRating() + '\u00A0★\u00A0•\u00A0'}
-              {source.humanizedDuration()}
+export const SourceDetail: FC<{
+  source: Source;
+  show: Show;
+  idx: number;
+  artist: Artist;
+  hasOfflineTracks: boolean;
+}> = memo(({ show, source, artist, idx, hasOfflineTracks }) => {
+  return (
+    <View>
+      <View className="w-full">
+        <SectionHeader className="flex-row items-center">
+          <RelistenText className="text-m font-bold">Source #{idx + 1}</RelistenText>
+          {source.isSoundboard && (
+            <RelistenText cn="ml-1 text-xs font-bold text-relisten-blue-600">SBD</RelistenText>
+          )}
+          {source.isFavorite && (
+            <View className="ml-1">
+              <MaterialCommunityIcons name="cards-heart" color={colors.blue['200']} />
+            </View>
+          )}
+          {hasOfflineTracks && <SourceTrackSucceededIndicator className="ml-1" />}
+          <View className="flex-grow" />
+          <RelistenText>
+            {source.avgRating != 0 && source.humanizedAvgRating() + '\u00A0★\u00A0•\u00A0'}
+            {source.humanizedDuration()}
+          </RelistenText>
+        </SectionHeader>
+      </View>
+      <View className="flex w-full items-center px-4">
+        <ShowLink show={{ artist, showUuid: show.uuid, sourceUuid: source.uuid }}>
+          <SourceSummary source={source}>
+            <RelistenText className="mt-2 text-sm" selectable={false}>
+              {source.upstreamIdentifier}
             </RelistenText>
-          </SectionHeader>
-        </View>
-        <View className="flex w-full items-center px-4">
-          <ShowLink show={{ artist, showUuid: show.uuid, sourceUuid: source.uuid }}>
-            <SourceSummary source={source}>
-              <RelistenText className="mt-2 text-sm" selectable={false}>
-                {source.upstreamIdentifier}
+            <View className="mb-1 mt-1 w-full">
+              <RelistenText className="text-sm" selectable={false}>
+                Updated on {dayjs(source.updatedAt).format('YYYY-MM-DD')}
               </RelistenText>
-              <View className="mb-1 mt-1 w-full">
-                <RelistenText className="text-sm" selectable={false}>
-                  Updated on {dayjs(source.updatedAt).format('YYYY-MM-DD')}
-                </RelistenText>
-              </View>
-            </SourceSummary>
-          </ShowLink>
-          <View className="w-full pb-6">
-            <Flex className="w-full flex-row" style={{ gap: 16 }}>
-              <ShowLink
-                show={{
-                  artist,
-                  showUuid: show.uuid,
-                  sourceUuid: source.uuid,
-                }}
-                asChild
-                className="flex-1"
+            </View>
+          </SourceSummary>
+        </ShowLink>
+        <View className="w-full pb-6">
+          <Flex className="w-full flex-row" style={{ gap: 16 }}>
+            <ShowLink
+              show={{
+                artist,
+                showUuid: show.uuid,
+                sourceUuid: source.uuid,
+              }}
+              asChild
+              className="flex-1"
+            >
+              <RelistenButton
+                textClassName="text-l"
+                icon={<MaterialIcons name="source" size={20} color="white" />}
               >
-                <RelistenButton
-                  textClassName="text-l"
-                  icon={<MaterialIcons name="source" size={20} color="white" />}
-                >
-                  Select Source
-                </RelistenButton>
-              </ShowLink>
-              {source.reviewCount > 0 && <SourceReviewsButton source={source} show={show} />}
-            </Flex>
-          </View>
+                Select Source
+              </RelistenButton>
+            </ShowLink>
+            {source.reviewCount > 0 && <SourceReviewsButton source={source} show={show} />}
+          </Flex>
         </View>
       </View>
-    );
-  }
-);
+    </View>
+  );
+});

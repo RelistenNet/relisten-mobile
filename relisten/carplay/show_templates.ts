@@ -128,11 +128,12 @@ export function createSourcesListTemplate(
 
   results.addListener((nextValue) => {
     const data = nextValue.data;
-    const sources = data?.sources ? sortSources(data.sources) : [];
+    const sources = data?.sources ? sortSources(data.sources, ctx.libraryIndex) : [];
     const { displaySources: nextDisplaySources, autoSelectSource } = resolveSourcesForScope(
       scope,
       show,
-      sources
+      sources,
+      ctx.libraryIndex
     );
     displaySources = nextDisplaySources;
 

@@ -11,6 +11,7 @@ import { Artist } from './artist';
 import { duration } from '@/relisten/util/duration';
 import type { Song } from '@/relisten/realm/models/song';
 import { Popularity } from './popularity';
+import type { LibraryIndex } from '@/relisten/realm/library_index';
 
 export interface ShowRequiredProperties extends RelistenObjectRequiredProperties {
   artistUuid: string;
@@ -108,8 +109,10 @@ export class Show
     return this.avgRating.toFixed(2);
   }
 
-  get hasOfflineTracks() {
-    return checkIfOfflineSourceTrackExists(this.sourceTracks);
+  hasOfflineTracks(libraryIndex?: Pick<LibraryIndex, 'showHasOfflineTracks'>) {
+    return libraryIndex
+      ? libraryIndex.showHasOfflineTracks(this.uuid)
+      : checkIfOfflineSourceTrackExists(this.sourceTracks);
   }
 
   static propertiesFromApi(relistenObj: ApiShow): ShowRequiredProperties {

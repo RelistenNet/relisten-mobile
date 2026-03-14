@@ -73,4 +73,48 @@ export class Popularity
   momentumScore!: number;
   trendRatio!: number;
   windows!: PopularityWindows;
+
+  snapshot(): PopularitySnapshot {
+    return {
+      momentumScore: this.momentumScore,
+      trendRatio: this.trendRatio,
+      windows: {
+        hours48h: {
+          plays: this.windows.hours48h.plays,
+          hours: this.windows.hours48h.hours,
+          hotScore: this.windows.hours48h.hotScore,
+        },
+        days7d: {
+          plays: this.windows.days7d.plays,
+          hours: this.windows.days7d.hours,
+          hotScore: this.windows.days7d.hotScore,
+        },
+        days30d: {
+          plays: this.windows.days30d.plays,
+          hours: this.windows.days30d.hours,
+          hotScore: this.windows.days30d.hotScore,
+        },
+      },
+    };
+  }
+
+  static snapshot(
+    popularity?: Popularity | PopularitySnapshot | null
+  ): PopularitySnapshot | undefined {
+    if (!popularity) {
+      return undefined;
+    }
+
+    return popularity instanceof Popularity ? popularity.snapshot() : popularity;
+  }
+}
+
+export interface PopularitySnapshot {
+  momentumScore: number;
+  trendRatio: number;
+  windows: {
+    hours48h: PopularityWindowRequiredProperties;
+    days7d: PopularityWindowRequiredProperties;
+    days30d: PopularityWindowRequiredProperties;
+  };
 }

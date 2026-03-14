@@ -194,7 +194,7 @@ export function ShowCard({
                     {show.popularity ? (
                       <ShowCardMetaChip>
                         <PopularityIndicator
-                          popularity={show.popularity}
+                          popularity={show.popularity?.snapshot()}
                           isTrendingSort={false}
                           showIcon={false}
                           cn="items-center"

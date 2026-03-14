@@ -172,7 +172,9 @@ export const useArtistYearShows = (artistUuid: string, yearUuid: string) => {
 
 export const useYearMetadata = (year?: Year | null) => {
   const isOfflineTab = useIsOfflineTab();
-  const shows = useRealmTabsFilter(useQuery(Show).filtered('yearUuid = $0', year?.uuid));
+  const shows = useRealmTabsFilter(
+    useQuery(Show, (query) => query.filtered('yearUuid = $0', year?.uuid), [year?.uuid])
+  );
 
   if (!year) {
     return { shows: undefined, sources: undefined };

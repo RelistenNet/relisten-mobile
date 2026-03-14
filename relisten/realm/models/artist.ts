@@ -6,6 +6,7 @@ import { checkIfOfflineSourceTrackExists } from '../realm_filters';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import { SourceTrack } from './source_track';
 import { Popularity } from './popularity';
+import type { LibraryIndex } from '@/relisten/realm/library_index';
 
 export interface ArtistRequiredProperties extends RelistenObjectRequiredProperties {
   musicbrainzId: string;
@@ -96,8 +97,10 @@ export class Artist
     return this._upstreamSources;
   }
 
-  get hasOfflineTracks() {
-    return checkIfOfflineSourceTrackExists(this.sourceTracks);
+  hasOfflineTracks(libraryIndex?: Pick<LibraryIndex, 'artistHasOfflineTracks'>) {
+    return libraryIndex
+      ? libraryIndex.artistHasOfflineTracks(this.uuid)
+      : checkIfOfflineSourceTrackExists(this.sourceTracks);
   }
 
   static propertiesFromApi(relistenObj: ArtistWithCounts): ArtistRequiredProperties {

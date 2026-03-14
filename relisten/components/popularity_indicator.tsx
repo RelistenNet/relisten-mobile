@@ -2,7 +2,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { ComponentProps } from 'react';
 import Flex from '@/relisten/components/flex';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { Popularity } from '@/relisten/realm/models/popularity';
+import { PopularitySnapshot } from '@/relisten/realm/models/popularity';
 import { View } from 'react-native';
 
 const getMomentumBucket = (momentumScore?: number) => {
@@ -60,7 +60,7 @@ const formatMomentumPercent = (score?: number) => {
 };
 
 interface PopularityIndicatorProps {
-  popularity?: Popularity;
+  popularity?: PopularitySnapshot;
   isTrendingSort: boolean;
   cn?: string;
   iconSize?: number;

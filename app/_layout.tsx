@@ -31,6 +31,11 @@ import { enableFreeze } from 'react-native-screens';
 import { LogBox } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useCarPlaySetup } from '@/relisten/carplay/useCarPlaySetup';
+import {
+  RootServicesProvider,
+  useRootLibraryIndex,
+  useRootUserSettingsStore,
+} from '@/relisten/realm/root_services';
 
 // c.f. https://github.com/meliorence/react-native-render-html/issues/661#issuecomment-2453476566
 LogBox.ignoreLogs([/Support for defaultProps will be removed/]);
@@ -91,8 +96,10 @@ function RealmBridge() {
 function CarPlayBootstrap() {
   const realm = useRealm();
   const { apiClient } = useRelistenApi();
+  const libraryIndex = useRootLibraryIndex();
+  const userSettingsStore = useRootUserSettingsStore();
 
-  useCarPlaySetup(apiClient, realm);
+  useCarPlaySetup(apiClient, realm, libraryIndex, userSettingsStore);
 
   return null;
 }
@@ -133,42 +140,44 @@ function TabLayout() {
 
   return (
     <RealmProvider realmRef={realmRef} closeOnUnmount={false}>
-      <RelistenApiProvider>
-        <RelistenPlayerProvider>
-          <RelistenCastProvider>
-            <PlaybackHistoryReporterComponent />
-            <LastFmReporterComponent />
-            <LastFmAuthListener />
-            <RealmBridge />
-            <CarPlayBootstrap />
-            <ThemeProvider
-              value={{
-                dark: true,
-                colors: {
-                  ...DarkTheme.colors,
-                  primary: 'rgb(0,157,193)',
-                  background: RelistenBlue[900],
-                  card: '#001114',
-                },
-                fonts: DefaultTheme.fonts,
-              }}
-            >
-              <RelistenPlayerBottomBarProvider>
-                <ActionSheetProvider>
-                  <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
-                    <SafeAreaProvider>
-                      {/* */}
-                      <StatusBar style="light" translucent={true} />
-                      <Slot />
-                      <FlashMessage position="top" />
-                    </SafeAreaProvider>
-                  </GestureHandlerRootView>
-                </ActionSheetProvider>
-              </RelistenPlayerBottomBarProvider>
-            </ThemeProvider>
-          </RelistenCastProvider>
-        </RelistenPlayerProvider>
-      </RelistenApiProvider>
+      <RootServicesProvider>
+        <RelistenApiProvider>
+          <RelistenPlayerProvider>
+            <RelistenCastProvider>
+              <PlaybackHistoryReporterComponent />
+              <LastFmReporterComponent />
+              <LastFmAuthListener />
+              <RealmBridge />
+              <CarPlayBootstrap />
+              <ThemeProvider
+                value={{
+                  dark: true,
+                  colors: {
+                    ...DarkTheme.colors,
+                    primary: 'rgb(0,157,193)',
+                    background: RelistenBlue[900],
+                    card: '#001114',
+                  },
+                  fonts: DefaultTheme.fonts,
+                }}
+              >
+                <RelistenPlayerBottomBarProvider>
+                  <ActionSheetProvider>
+                    <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
+                      <SafeAreaProvider>
+                        {/* */}
+                        <StatusBar style="light" translucent={true} />
+                        <Slot />
+                        <FlashMessage position="top" />
+                      </SafeAreaProvider>
+                    </GestureHandlerRootView>
+                  </ActionSheetProvider>
+                </RelistenPlayerBottomBarProvider>
+              </ThemeProvider>
+            </RelistenCastProvider>
+          </RelistenPlayerProvider>
+        </RelistenApiProvider>
+      </RootServicesProvider>
     </RealmProvider>
   );
 }

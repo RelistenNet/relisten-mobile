@@ -79,7 +79,7 @@ export function createLibraryTemplate(ctx: RelistenCarPlayContext): ListTemplate
         return {
           id: show.uuid,
           text: show.displayDate,
-          detailText: formatLibraryShowDetail(show),
+          detailText: formatLibraryShowDetail(ctx, show),
           showsDisclosureIndicator: true,
         };
       });
@@ -184,11 +184,11 @@ export function createRecentTemplate(ctx: RelistenCarPlayContext): ListTemplate 
   return template;
 }
 
-function formatLibraryShowDetail(show: Show) {
+function formatLibraryShowDetail(ctx: RelistenCarPlayContext, show: Show) {
   const venue = show.venue?.name;
   const location = show.venue?.location;
   const locationText = [venue, location].filter(Boolean).join(' • ');
-  const offline = show.hasOfflineTracks ? 'Offline' : undefined;
+  const offline = ctx.libraryIndex.showHasOfflineTracks(show.uuid) ? 'Offline' : undefined;
   const rating = show.avgRating ? `${show.humanizedAvgRating()}★` : undefined;
   const duration = show.avgDuration ? show.humanizedAvgDuration() : undefined;
 

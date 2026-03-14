@@ -13,6 +13,7 @@ import {
 } from '@/relisten/components/filtering/filterable_list';
 import { useIsOfflineTab, useRoute } from '@/relisten/util/routes';
 import { useYearMetadata } from '@/relisten/realm/models/year_repo';
+import { useLibraryIndex } from '@/relisten/realm/root_services';
 import { Link } from 'expo-router';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import Flex from '@/relisten/components/flex';
@@ -20,7 +21,7 @@ import RowTitle from '@/relisten/components/row_title';
 import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
 import Plur from '@/relisten/components/plur';
 import { SourceTrackSucceededIndicator } from '@/relisten/components/source/source_track_offline_indicator';
-import { YEAR_FILTERS, YearFilterKey } from '@/relisten/pages/artist/years_filters';
+import { useYearFilters, YearFilterKey } from '@/relisten/pages/artist/years_filters';
 import { YearsHeader } from '@/relisten/pages/artist/years_header';
 import { PopularityIndicator } from '@/relisten/components/popularity_indicator';
 
@@ -69,7 +70,10 @@ const YearListItemContents = ({
       <Flex column cn="flex-1">
         <Flex cn="items-center justify-between">
           <RowTitle>{year.year}</RowTitle>
-          <PopularityIndicator popularity={year.popularity} isTrendingSort={isTrendingSort} />
+          <PopularityIndicator
+            popularity={year.popularity?.snapshot()}
+            isTrendingSort={isTrendingSort}
+          />
         </Flex>
         <SubtitleRow>
           <SubtitleText>
@@ -92,7 +96,8 @@ const YearListItemContents = ({
 
 const OfflineYearListItem = ({ isTrendingSort, nextRoute, year }: YearListItemBaseProps) => {
   const metadata = useYearMetadata(year);
-  const hasOfflineTracks = year.hasOfflineTracks;
+  const libraryIndex = useLibraryIndex();
+  const hasOfflineTracks = year.hasOfflineTracks(libraryIndex);
 
   return (
     <YearListItemLink nextRoute={nextRoute} year={year}>
@@ -108,10 +113,11 @@ const OfflineYearListItem = ({ isTrendingSort, nextRoute, year }: YearListItemBa
 };
 
 const YearListItem = ({ isTrendingSort, nextRoute, year }: YearListItemBaseProps) => {
+  const libraryIndex = useLibraryIndex();
   return (
     <YearListItemLink nextRoute={nextRoute} year={year}>
       <YearListItemContents
-        hasOfflineTracks={year.hasOfflineTracks}
+        hasOfflineTracks={year.hasOfflineTracks(libraryIndex)}
         isTrendingSort={isTrendingSort}
         shows={year.showCount}
         sources={year.sourceCount}
@@ -128,8 +134,10 @@ type YearsListProps = {
 } & Omit<FilterableListProps<Year>, 'data' | 'renderItem'>;
 
 export const YearsListContainer = (props: YearsListProps) => {
+  const filters = useYearFilters();
+
   return (
-    <FilteringProvider filters={YEAR_FILTERS} options={props.filterOptions}>
+    <FilteringProvider filters={filters} options={props.filterOptions}>
       <YearsList {...props} />
     </FilteringProvider>
   );

@@ -120,7 +120,7 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
     }
 
     return [...internalFilters];
-  }, [routePersistedFilters, globalPersistedFilters]);
+  }, [filters, globalPersistedFilters, options?.default, routePersistedFilters]);
 
   const filter = useCallback(
     (allData: ReadonlyArray<T>, textFilter?: string) => {

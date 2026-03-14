@@ -10,8 +10,34 @@ import Flex from '@/relisten/components/flex';
 import { useRenderAfterInteractions } from '@/relisten/util/use_render_after_interactions';
 
 export function ArtistShowsOnThisDayTray({ artists }: { artists: Artist[] }) {
-  const todayShows = useTodayShows(...artists.map((artist) => artist.uuid));
   const shouldRenderTrayScroller = useRenderAfterInteractions();
+  const showVenue =
+    artists[0].features().per_source_venues || artists[0].features().per_show_venues;
+
+  return (
+    <View className="mb-2">
+      {shouldRenderTrayScroller ? (
+        <ArtistShowsOnThisDayTrayContent artists={artists} showVenue={showVenue} />
+      ) : (
+        <>
+          <View className="flex px-4 pb-2">
+            <RelistenText className="text-m font-bold">Shows on this day</RelistenText>
+          </View>
+          <ShowCardStandbyTray showArtist={artists.length > 1} showVenue={showVenue} />
+        </>
+      )}
+    </View>
+  );
+}
+
+function ArtistShowsOnThisDayTrayContent({
+  artists,
+  showVenue,
+}: {
+  artists: Artist[];
+  showVenue: boolean;
+}) {
+  const todayShows = useTodayShows(...artists.map((artist) => artist.uuid));
 
   const sortedShows = useMemo(() => {
     const shows = [...todayShows.data];
@@ -21,44 +47,35 @@ export function ArtistShowsOnThisDayTray({ artists }: { artists: Artist[] }) {
     return shows;
   }, [todayShows.data]);
 
-  const showVenue =
-    artists[0].features().per_source_venues || artists[0].features().per_show_venues;
-
   return (
-    <View className="mb-2">
-      <RefreshContextProvider networkBackedResults={todayShows}>
-        <View className="flex px-4 pb-2">
-          <RelistenText className="text-m font-bold">
-            {todayShows.isNetworkLoading && sortedShows.length == 0 ? (
-              <>Shows on this day</>
-            ) : (
-              <>
-                <Plur word="show" count={sortedShows.length} /> on this day
-              </>
-            )}
-          </RelistenText>
-        </View>
-        {shouldRenderTrayScroller ? (
-          <ScrollView horizontal className="pb-2 pl-3">
-            <Flex className="">
-              {todayShows.isNetworkLoading && sortedShows.length == 0 ? (
-                <ShowCardLoader showArtist={artists.length > 1} showVenue={showVenue} />
-              ) : (
-                sortedShows.map((show) => (
-                  <ShowCard
-                    show={show}
-                    key={show.uuid}
-                    root="artists"
-                    showArtist={artists.length > 1}
-                  />
-                ))
-              )}
-            </Flex>
-          </ScrollView>
-        ) : (
-          <ShowCardStandbyTray showArtist={artists.length > 1} showVenue={showVenue} />
-        )}
-      </RefreshContextProvider>
-    </View>
+    <RefreshContextProvider networkBackedResults={todayShows}>
+      <View className="flex px-4 pb-2">
+        <RelistenText className="text-m font-bold">
+          {todayShows.isNetworkLoading && sortedShows.length == 0 ? (
+            <>Shows on this day</>
+          ) : (
+            <>
+              <Plur word="show" count={sortedShows.length} /> on this day
+            </>
+          )}
+        </RelistenText>
+      </View>
+      <ScrollView horizontal className="pb-2 pl-3">
+        <Flex className="">
+          {todayShows.isNetworkLoading && sortedShows.length == 0 ? (
+            <ShowCardLoader showArtist={artists.length > 1} showVenue={showVenue} />
+          ) : (
+            sortedShows.map((show) => (
+              <ShowCard
+                show={show}
+                key={show.uuid}
+                root="artists"
+                showArtist={artists.length > 1}
+              />
+            ))
+          )}
+        </Flex>
+      </ScrollView>
+    </RefreshContextProvider>
   );
 }

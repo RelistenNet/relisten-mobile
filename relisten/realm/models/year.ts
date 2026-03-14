@@ -5,6 +5,7 @@ import { RelistenObjectRequiredProperties } from '../relisten_object';
 import { checkIfOfflineSourceTrackExists } from '../realm_filters';
 import { SourceTrack } from './source_track';
 import { Popularity } from './popularity';
+import type { LibraryIndex } from '@/relisten/realm/library_index';
 
 export interface YearRequiredProperties extends RelistenObjectRequiredProperties {
   artistUuid: string;
@@ -60,8 +61,10 @@ export class Year
 
   sourceTracks!: Realm.List<SourceTrack>;
 
-  get hasOfflineTracks() {
-    return checkIfOfflineSourceTrackExists(this.sourceTracks);
+  hasOfflineTracks(libraryIndex?: Pick<LibraryIndex, 'yearHasOfflineTracks'>) {
+    return libraryIndex
+      ? libraryIndex.yearHasOfflineTracks(this.uuid)
+      : checkIfOfflineSourceTrackExists(this.sourceTracks);
   }
 
   static propertiesFromApi(relistenObj: ApiYear): YearRequiredProperties {

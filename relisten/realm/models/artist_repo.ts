@@ -1,3 +1,5 @@
+import Realm from 'realm';
+import { RelistenApiClient } from '@/relisten/api/client';
 import {
   NetworkBackedBehaviorFetchStrategy,
   NetworkBackedBehaviorOptions,
@@ -8,12 +10,15 @@ import { NetworkBackedResults } from '../network_backed_results';
 import { Repository } from '../repository';
 import { useQuery, useRealm } from '../schema';
 import { Artist, ArtistFeaturedFlags } from './artist';
+import { ArtistWithCounts } from '@/relisten/api/models/artist';
 
 import { useIsOfflineTab } from '@/relisten/util/routes';
 import { filterForUser, useRealmTabsFilter } from '../realm_filters';
 import { Show } from './show';
 import { Source } from './source';
 import { NetworkBackedModelArrayBehavior } from '@/relisten/realm/network_backed_model_array_behavior';
+import { RealmQueryValueStream, ValueStream } from '@/relisten/realm/value_streams';
+import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_network_backed_behavior';
 
 export const artistRepo = new Repository(Artist);
 
@@ -70,6 +75,69 @@ export function useAllArtists(options?: NetworkBackedBehaviorOptions) {
   return useNetworkBackedBehavior(behavior);
 }
 
+class SingleArtistValueStream extends ValueStream<Artist | null> {
+  public currentValue: Artist | null;
+  private readonly resultsStream: RealmQueryValueStream<Artist>;
+  private readonly tearDownResultsListener: () => void;
+
+  constructor(realm: Realm.Realm, query: Realm.Results<Artist>) {
+    super();
+
+    this.resultsStream = new RealmQueryValueStream(realm, query);
+    this.currentValue = this.resolveCurrentArtist(this.resultsStream.currentValue);
+    this.tearDownResultsListener = this.resultsStream.addListener((nextResults) => {
+      this.currentValue = this.resolveCurrentArtist(nextResults);
+      this.emitCurrentValue();
+    });
+  }
+
+  override tearDown() {
+    super.tearDown();
+    this.tearDownResultsListener();
+    this.resultsStream.tearDown();
+  }
+
+  private resolveCurrentArtist(results: Realm.Results<Artist>) {
+    return results[0] ?? null;
+  }
+}
+
+class ArtistBootstrapNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
+  Artist | null,
+  ArtistWithCounts[]
+> {
+  constructor(
+    realm: Realm.Realm,
+    private readonly localQueryFactory: (realm: Realm.Realm) => Realm.Results<Artist>,
+    options?: NetworkBackedBehaviorOptions
+  ) {
+    super(realm, {
+      fetchStrategy: NetworkBackedBehaviorFetchStrategy.NetworkOnlyIfLocalIsNotShowable,
+      ...options,
+    });
+  }
+
+  override fetchFromApi(api: RelistenApiClient, forcedRefresh: boolean) {
+    return api.artists(true, api.refreshOptions(forcedRefresh));
+  }
+
+  override createLocalUpdatingResults(): ValueStream<Artist | null> {
+    return new SingleArtistValueStream(this.realm, this.localQueryFactory(this.realm));
+  }
+
+  override isLocalDataShowable(localData: Artist | null): boolean {
+    return localData !== null;
+  }
+
+  override upsert(_localData: Artist | null, apiData: ArtistWithCounts[]): void {
+    if (apiData.length === 0) {
+      return;
+    }
+
+    artistRepo.upsertMultiple(this.realm, apiData, [], false, true);
+  }
+}
+
 export function useOfflineArtistMetadata(artist?: Artist | null): ArtistMetadataSummary {
   const sh = useRealmTabsFilter(
     useQuery(Show, (query) => query.filtered('artistUuid = $0', artist?.uuid), [artist?.uuid])
@@ -89,56 +157,44 @@ export function useArtist(
   artistUuid?: string,
   options?: NetworkBackedBehaviorOptions
 ): NetworkBackedResults<Artist | null> {
-  // memoize to prevent trying a new request each time the options "change"
   const memoOptions = useMemo(() => {
     return {
       fetchStrategy: NetworkBackedBehaviorFetchStrategy.NetworkOnlyIfLocalIsNotShowable,
       ...options,
     };
   }, [options]);
+  const realm = useRealm();
+  const behavior = useMemo(() => {
+    return new ArtistBootstrapNetworkBackedBehavior(
+      realm,
+      (currentRealm) =>
+        currentRealm.objects(Artist).filtered('uuid == $0', artistUuid ?? '__missing__'),
+      memoOptions
+    );
+  }, [artistUuid, memoOptions, realm]);
 
-  const artists = useAllArtists(memoOptions);
-
-  const artistQuery = useMemo(() => {
-    return artists.data.filtered('uuid == $0', artistUuid);
-  }, [artists.data, artistUuid]);
-
-  const artist = useMemo(() => {
-    if (artistQuery.length > 0) {
-      return artistQuery[0];
-    }
-
-    return null;
-  }, [artistQuery]);
-
-  return { ...artists, data: artist };
+  return useNetworkBackedBehavior(behavior);
 }
 
 export function useArtistBySlug(
   artistSlug?: string,
   options?: NetworkBackedBehaviorOptions
 ): NetworkBackedResults<Artist | null> {
-  // memoize to prevent trying a new request each time the options "change"
   const memoOptions = useMemo(() => {
     return {
       fetchStrategy: NetworkBackedBehaviorFetchStrategy.NetworkOnlyIfLocalIsNotShowable,
       ...options,
     };
   }, [options]);
+  const realm = useRealm();
+  const behavior = useMemo(() => {
+    return new ArtistBootstrapNetworkBackedBehavior(
+      realm,
+      (currentRealm) =>
+        currentRealm.objects(Artist).filtered('slug == $0', artistSlug ?? '__missing__'),
+      memoOptions
+    );
+  }, [artistSlug, memoOptions, realm]);
 
-  const artists = useAllArtists(memoOptions);
-
-  const artistQuery = useMemo(() => {
-    return artists.data.filtered('slug == $0', artistSlug);
-  }, [artists.data, artistSlug]);
-
-  const artist = useMemo(() => {
-    if (artistQuery.length > 0) {
-      return artistQuery[0];
-    }
-
-    return null;
-  }, [artistQuery]);
-
-  return { ...artists, data: artist };
+  return useNetworkBackedBehavior(behavior);
 }

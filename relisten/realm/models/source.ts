@@ -8,6 +8,7 @@ import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { Artist } from '@/relisten/realm/models/artist';
 import { duration } from '@/relisten/util/duration';
 import { checkIfOfflineSourceTrackExists } from '@/relisten/realm/realm_filters';
+import type { LibraryIndex } from '@/relisten/realm/library_index';
 
 export interface SourceRequiredProperties extends RelistenObjectRequiredProperties {
   artistUuid: string;
@@ -146,8 +147,10 @@ export class Source
     return tracks;
   }
 
-  get hasOfflineTracks() {
-    return checkIfOfflineSourceTrackExists(this.sourceTracks);
+  hasOfflineTracks(libraryIndex?: Pick<LibraryIndex, 'sourceHasOfflineTracks'>) {
+    return libraryIndex
+      ? libraryIndex.sourceHasOfflineTracks(this.uuid)
+      : checkIfOfflineSourceTrackExists(this.sourceTracks);
   }
 
   static propertiesFromApi(relistenObj: SourceFull): SourceRequiredProperties {

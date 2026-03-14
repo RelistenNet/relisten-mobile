@@ -36,18 +36,6 @@ function PlayerBottomBarContents() {
   const router = useRouter();
   const { isCasting, deviceName } = useRelistenCastStatus();
 
-  const artist = currentTrack?.sourceTrack?.artist;
-  const showCache = currentTrack?.sourceTrack?.show;
-
-  const subtitle = [
-    artist?.name,
-    showCache?.displayDate,
-    showCache?.venue?.name,
-    showCache?.venue?.location,
-  ]
-    .filter((x) => !!x && x.length > 0)
-    .join(' · ');
-
   if (!currentTrack) {
     return <></>;
   }
@@ -80,7 +68,7 @@ function PlayerBottomBarContents() {
             <Flex column cn="ml-4 truncate flex-1">
               <RelistenText className="text-lg font-semibold">{track?.title ?? ''}</RelistenText>
               <RelistenText className="truncate" numberOfLines={1}>
-                {subtitle ?? ''}
+                {currentTrack.subtitle ?? ''}
               </RelistenText>
               {isCasting && (
                 <RelistenText className="text-xs text-gray-300" numberOfLines={1}>

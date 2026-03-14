@@ -11,6 +11,7 @@ import {
   ArtistMetadataSummary,
   useOfflineArtistMetadata,
 } from '@/relisten/realm/models/artist_repo';
+import { useLibraryIndex } from '@/relisten/realm/root_services';
 import { useGroupSegment, useIsOfflineTab, useRoute } from '@/relisten/util/routes';
 import { Link } from 'expo-router';
 import React from 'react';
@@ -25,7 +26,12 @@ const ArtistPopularitySummary = ({ artist }: { artist: Artist }) => {
   const isTrendingSort = filters.some(
     (filter) => filter.active && filter.persistenceKey === ArtistSortKey.Trending
   );
-  return <PopularityIndicator popularity={artist.popularity} isTrendingSort={isTrendingSort} />;
+  return (
+    <PopularityIndicator
+      popularity={artist.popularity?.snapshot()}
+      isTrendingSort={isTrendingSort}
+    />
+  );
 };
 
 const ArtistRowActions = ({ artist }: { artist: Artist }) => {
@@ -41,7 +47,8 @@ const ArtistListItemLayout = React.forwardRef<
   { artist: Artist; metadata: ArtistMetadataSummary }
 >(({ artist, metadata }, ref) => {
   const groupSegment = useGroupSegment();
-  const hasOfflineTracks = artist.hasOfflineTracks;
+  const libraryIndex = useLibraryIndex();
+  const hasOfflineTracks = artist.hasOfflineTracks(libraryIndex);
 
   return (
     <Link

@@ -7,12 +7,19 @@ import { createArtistsListTemplate } from '@/relisten/carplay/artists';
 import { createNowPlayingTemplate, createQueueListTemplate } from '@/relisten/carplay/queue';
 import { RelistenPlayer } from '@/relisten/player/relisten_player';
 import { createLibraryTemplate, createRecentTemplate } from '@/relisten/carplay/library';
+import { LibraryIndex } from '@/relisten/realm/library_index';
+import { UserSettingsStore } from '@/relisten/realm/user_settings_store';
 
-export function setupCarPlay(realm: Realm, apiClient: RelistenApiClient) {
+export function setupCarPlay(
+  realm: Realm,
+  apiClient: RelistenApiClient,
+  libraryIndex: LibraryIndex,
+  userSettingsStore: UserSettingsStore
+) {
   carplay_logger.info('Setting up CarPlay');
 
   const player = RelistenPlayer.DEFAULT_INSTANCE;
-  const ctx = new RelistenCarPlayContext(realm, apiClient, player);
+  const ctx = new RelistenCarPlayContext(realm, apiClient, player, libraryIndex, userSettingsStore);
   carplay_logger.info('CarPlay context initialized');
 
   const queueTemplateBuilder = () =>

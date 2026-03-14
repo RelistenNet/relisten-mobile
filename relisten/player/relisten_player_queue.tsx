@@ -61,6 +61,7 @@ export class PlayerQueueTrack {
     public readonly sourceTrack: SourceTrack,
     public readonly title: string,
     public readonly artist: string,
+    public readonly subtitle: string,
     public readonly albumTitle: string,
     public readonly albumArt: string
   ) {
@@ -80,6 +81,9 @@ export class PlayerQueueTrack {
       sourceTrack,
       sourceTrack.title,
       [artist.name, source.displayDate, venue?.name].filter((part) => !!part).join(' • ') || '',
+      [artist.name, source.displayDate, venue?.name, venue?.location]
+        .filter((part) => !!part)
+        .join(' • ') || '',
       [source.displayDate, venue?.name].filter((part) => !!part).join(' • ') || '',
       albumArtUrl
     );
