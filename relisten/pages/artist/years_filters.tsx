@@ -1,6 +1,6 @@
 import { Filter, SortDirection } from '@/relisten/components/filtering/filters';
 import { Year } from '@/relisten/realm/models/year';
-import { useLibraryIndex } from '@/relisten/realm/root_services';
+import { useLibraryMembershipIndex } from '@/relisten/realm/root_services';
 import { useMemo } from 'react';
 
 export enum YearFilterKey {
@@ -15,7 +15,7 @@ export enum YearFilterKey {
 }
 
 export function useYearFilters(): Filter<YearFilterKey, Year>[] {
-  const libraryIndex = useLibraryIndex();
+  const libraryIndex = useLibraryMembershipIndex();
 
   return useMemo(() => {
     return [

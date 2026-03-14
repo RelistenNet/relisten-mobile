@@ -6,12 +6,12 @@ import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { tw } from '@/relisten/util/tw';
 import { isRelistenTabKey, RelistenTabKey, tabKeyToRoute } from '@/relisten/util/tabs';
-import { useRemainingDownloads } from '@/relisten/realm/models/offline_repo';
 import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
 import { ShowOfflineTabSetting } from '@/relisten/realm/models/user_settings';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import RelistenWhite from '@/assets/relisten_white.png';
 import ToolbarRelisten from '@/assets/toolbar_relisten.png';
+import { useRemainingDownloadsCount } from '@/relisten/realm/root_services';
 
 type TabItem = {
   key: RelistenTabKey;
@@ -77,7 +77,7 @@ type DesktopTabListProps = {
 export default function DesktopTabList({ onSelectTab, activeKey }: DesktopTabListProps) {
   const router = useRouter();
   const segments = useSegments();
-  const downloads = useRemainingDownloads();
+  const downloadsCount = useRemainingDownloadsCount();
   const settings = useUserSettings();
   const offline = !useShouldMakeNetworkRequests();
 
@@ -97,7 +97,7 @@ export default function DesktopTabList({ onSelectTab, activeKey }: DesktopTabLis
       <View className="gap-2 px-3">
         {visibleTabs.map((item) => {
           const isActive = activeGroup === item.key;
-          const showBadge = item.key === '(myLibrary)' && downloads.length > 0;
+          const showBadge = item.key === '(myLibrary)' && downloadsCount > 0;
 
           return (
             <Pressable
@@ -123,7 +123,7 @@ export default function DesktopTabList({ onSelectTab, activeKey }: DesktopTabLis
               </RelistenText>
               {showBadge ? (
                 <View className="ml-auto rounded-full bg-relisten-blue-500 px-2 py-0.5">
-                  <RelistenText className="text-xs font-bold">{downloads.length}</RelistenText>
+                  <RelistenText className="text-xs font-bold">{downloadsCount}</RelistenText>
                 </View>
               ) : null}
             </Pressable>

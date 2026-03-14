@@ -22,7 +22,7 @@ import { SourceTrackSucceededIndicator } from '@/relisten/components/source/sour
 import { ShowLink, ShowRedirect } from '@/relisten/util/push_show';
 import { Artist } from '@/relisten/realm/models/artist';
 import dayjs from 'dayjs';
-import { useLibraryIndex } from '@/relisten/realm/root_services';
+import { useSourceHasOfflineTracks } from '@/relisten/realm/root_services';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -75,7 +75,6 @@ const SourcesList = ({
   sources?: Source[];
 } & ScrollViewProps) => {
   const { refreshing } = useRefreshContext();
-  const libraryIndex = useLibraryIndex();
 
   if (refreshing || !show) {
     return (
@@ -106,14 +105,7 @@ const SourcesList = ({
       <ItemSeparator />
       {sources?.map((source, idx) => {
         return (
-          <SourceDetail
-            key={source.uuid}
-            source={source}
-            show={show}
-            artist={artist}
-            idx={idx}
-            hasOfflineTracks={source.hasOfflineTracks(libraryIndex)}
-          />
+          <SourceDetail key={source.uuid} source={source} show={show} artist={artist} idx={idx} />
         );
       })}
     </Animated.ScrollView>
@@ -125,8 +117,8 @@ export const SourceDetail: FC<{
   show: Show;
   idx: number;
   artist: Artist;
-  hasOfflineTracks: boolean;
-}> = memo(({ show, source, artist, idx, hasOfflineTracks }) => {
+}> = memo(({ show, source, artist, idx }) => {
+  const hasOfflineTracks = useSourceHasOfflineTracks(source.uuid);
   return (
     <View>
       <View className="w-full">

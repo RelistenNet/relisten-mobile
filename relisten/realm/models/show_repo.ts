@@ -25,7 +25,7 @@ import {
 } from '@/relisten/realm/value_streams';
 import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_network_backed_behavior';
 import { LibraryIndex } from '@/relisten/realm/library_index';
-import { useLibraryIndex } from '@/relisten/realm/root_services';
+import { useOfflineAvailabilityIndex } from '@/relisten/realm/root_services';
 
 export const showRepo = new Repository(Show);
 
@@ -233,7 +233,7 @@ export function useFullShowWithSelectedSource(showUuid: string, selectedSourceUu
     Artist,
     show?.artistUuid ?? sources?.[0]?.artistUuid ?? '__missing__'
   );
-  const libraryIndex = useLibraryIndex();
+  const libraryIndex = useOfflineAvailabilityIndex();
 
   const sortedSources = useMemo(() => {
     if (!sources) return [];

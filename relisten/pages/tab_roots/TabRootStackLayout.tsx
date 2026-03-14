@@ -20,7 +20,7 @@ const TITLES = {
   '(offline)': 'Offline',
 };
 
-export default function ArtistsLayout() {
+export default function TabRootStackLayout() {
   const groupSegment = useGroupSegment();
   const bottomTabBarHeight = useBottomTabBarHeight();
   const isDesktopLayout = useIsDesktopLayout();

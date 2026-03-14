@@ -6,19 +6,20 @@ import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
 import { ShowCard } from '@/relisten/components/show_card';
 import { ShowFilterKey, ShowListContainer, useShowFilters } from '@/relisten/components/shows_list';
 import { useHistoryRecentlyPlayedShows } from '@/relisten/realm/models/history/playback_history_entry_repo';
-import { useRemainingDownloads } from '@/relisten/realm/models/offline_repo';
 import { Show } from '@/relisten/realm/models/show';
 import { useQuery } from '@/relisten/realm/schema';
 import { aggregateBy } from '@/relisten/util/group_by';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { tw } from '@/relisten/util/tw';
-import { Link } from 'expo-router';
-import { PropsWithChildren, ReactNode, useMemo } from 'react';
+import { Link, useFocusEffect } from 'expo-router';
+import { PropsWithChildren, ReactNode, useCallback, useEffect, useMemo } from 'react';
 import { TouchableOpacity, View, ViewProps } from 'react-native';
 import {
   SourceTrackOfflineInfoStatus,
   SourceTrackOfflineInfoType,
 } from '@/relisten/realm/models/source_track_offline_info';
+import { useRemainingDownloadsCount } from '@/relisten/realm/root_services';
+import { logTabRootDebug } from '@/relisten/util/profile_logging';
 
 function MyLibrarySectionHeader({ children, className, ...props }: PropsWithChildren<ViewProps>) {
   return (
@@ -30,6 +31,14 @@ function MyLibrarySectionHeader({ children, className, ...props }: PropsWithChil
 
 function RecentlyPlayedShows() {
   const recentlyPlayedShows = useHistoryRecentlyPlayedShows();
+
+  useEffect(() => {
+    logTabRootDebug('myLibrary.recentlyPlayed mount');
+
+    return () => {
+      logTabRootDebug('myLibrary.recentlyPlayed unmount');
+    };
+  }, []);
 
   if (recentlyPlayedShows.length === 0) {
     return <></>;
@@ -105,6 +114,14 @@ function FavoriteShows({ topContent }: { topContent?: ReactNode }) {
   };
   // TODO(alecgorge): if the user has a favorited source within that show, take them directly there
 
+  useEffect(() => {
+    logTabRootDebug('myLibrary.favoriteShows mount');
+
+    return () => {
+      logTabRootDebug('myLibrary.favoriteShows unmount');
+    };
+  }, []);
+
   return (
     <RefreshContextProvider>
       <ShowListContainer
@@ -128,10 +145,18 @@ function FavoriteShows({ topContent }: { topContent?: ReactNode }) {
 
 function ActiveDownloads() {
   const groupSegment = useGroupSegment();
-  const downloads = useRemainingDownloads();
+  const downloadsCount = useRemainingDownloadsCount();
+
+  useEffect(() => {
+    logTabRootDebug('myLibrary.activeDownloads mount');
+
+    return () => {
+      logTabRootDebug('myLibrary.activeDownloads unmount');
+    };
+  }, []);
 
   return (
-    downloads.length > 0 && (
+    downloadsCount > 0 && (
       <Link
         href={{
           pathname: `/relisten/tabs/${groupSegment}/downloading`,
@@ -140,7 +165,7 @@ function ActiveDownloads() {
       >
         <TouchableOpacity className="mb-4 bg-relisten-blue-700 px-4 py-4">
           <RelistenText className="text-center font-bold">
-            <Plur count={downloads.length} word="track" /> downloading&nbsp;›
+            <Plur count={downloadsCount} word="track" /> downloading&nbsp;›
           </RelistenText>
         </TouchableOpacity>
       </Link>
@@ -148,8 +173,26 @@ function ActiveDownloads() {
   );
 }
 
-export default function MyLibraryPage() {
+export default function MyLibraryTabRootPage() {
   // TODO: listening history that shows all tracks
+  useEffect(() => {
+    logTabRootDebug('myLibrary.page mount');
+
+    return () => {
+      logTabRootDebug('myLibrary.page unmount');
+    };
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      logTabRootDebug('myLibrary.page focus');
+
+      return () => {
+        logTabRootDebug('myLibrary.page blur');
+      };
+    }, [])
+  );
+
   return (
     <ScrollScreen>
       <FavoriteShows

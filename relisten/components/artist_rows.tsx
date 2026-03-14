@@ -11,7 +11,7 @@ import {
   ArtistMetadataSummary,
   useOfflineArtistMetadata,
 } from '@/relisten/realm/models/artist_repo';
-import { useLibraryIndex } from '@/relisten/realm/root_services';
+import { useArtistHasOfflineTracks } from '@/relisten/realm/root_services';
 import { useGroupSegment, useIsOfflineTab, useRoute } from '@/relisten/util/routes';
 import { Link } from 'expo-router';
 import React from 'react';
@@ -47,8 +47,7 @@ const ArtistListItemLayout = React.forwardRef<
   { artist: Artist; metadata: ArtistMetadataSummary }
 >(({ artist, metadata }, ref) => {
   const groupSegment = useGroupSegment();
-  const libraryIndex = useLibraryIndex();
-  const hasOfflineTracks = artist.hasOfflineTracks(libraryIndex);
+  const hasOfflineTracks = useArtistHasOfflineTracks(artist.uuid);
 
   return (
     <Link

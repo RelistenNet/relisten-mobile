@@ -22,7 +22,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import colors from 'tailwindcss/colors';
 import { ShowLink } from '@/relisten/util/push_show';
 import { PopularityIndicator } from '@/relisten/components/popularity_indicator';
-import { useLibraryIndex } from '@/relisten/realm/root_services';
+import { useLibraryMembershipIndex, useShowHasOfflineTracks } from '@/relisten/realm/root_services';
 
 interface ShowListItemProps {
   show: Show;
@@ -40,8 +40,7 @@ const ShowListItemView = ({
   isTrendingSort,
   venueLineCount,
 }: ShowListItemViewProps) => {
-  const libraryIndex = useLibraryIndex();
-  const hasOfflineTracks = show.hasOfflineTracks(libraryIndex);
+  const hasOfflineTracks = useShowHasOfflineTracks(show.uuid);
 
   return (
     <ShowLink
@@ -124,7 +123,7 @@ export enum ShowFilterKey {
 }
 
 export function useShowFilters(): Filter<ShowFilterKey, Show>[] {
-  const libraryIndex = useLibraryIndex();
+  const libraryIndex = useLibraryMembershipIndex();
 
   return useMemo(() => {
     return [

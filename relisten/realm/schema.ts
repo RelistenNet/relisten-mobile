@@ -22,8 +22,9 @@ import {
   PopularityWindow,
   PopularityWindows,
 } from '@/relisten/realm/models/popularity';
+import { isVerboseProfileLoggingEnabled } from '@/relisten/util/profile_logging';
 
-if (__DEV__) {
+if (isVerboseProfileLoggingEnabled()) {
   Realm.setLogger(({ category, level, message }) => {
     console.log(`[Realm ${category} ${level}] ${message}`);
   });

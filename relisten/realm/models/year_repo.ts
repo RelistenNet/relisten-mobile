@@ -170,8 +170,7 @@ export const useArtistYearShows = (artistUuid: string, yearUuid: string) => {
   return results;
 };
 
-export const useYearMetadata = (year?: Year | null) => {
-  const isOfflineTab = useIsOfflineTab();
+export const useOfflineYearMetadata = (year?: Year | null) => {
   const shows = useRealmTabsFilter(
     useQuery(Show, (query) => query.filtered('yearUuid = $0', year?.uuid), [year?.uuid])
   );
@@ -180,11 +179,7 @@ export const useYearMetadata = (year?: Year | null) => {
     return { shows: undefined, sources: undefined };
   }
 
-  if (isOfflineTab) {
-    const sources = shows.reduce((memo, next) => next.sourceCount + memo, 0);
+  const sources = shows.reduce((memo, next) => next.sourceCount + memo, 0);
 
-    return { shows: shows.length, sources };
-  }
-
-  return { shows: year.showCount, sources: year.sourceCount };
+  return { shows: shows.length, sources };
 };

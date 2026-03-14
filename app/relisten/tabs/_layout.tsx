@@ -8,7 +8,6 @@ import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { Image, View } from 'react-native';
 import 'react-native-gesture-handler';
 import 'react-native-reanimated';
-import { useRemainingDownloads } from '@/relisten/realm/models/offline_repo';
 import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
 import { ShowOfflineTabSetting } from '@/relisten/realm/models/user_settings';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
@@ -18,6 +17,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { isRelistenTabKey, RelistenTabKey, tabKeyToRoute } from '@/relisten/util/tabs';
 import { useRelistenPlayerQueueOrderedTracks } from '@/relisten/player/relisten_player_queue_hooks';
 import { NonIdealState } from '@/relisten/components/non_ideal_state';
+import { useRemainingDownloadsCount } from '@/relisten/realm/root_services';
 
 const DESKTOP_SIDEBAR_WIDTH = 220;
 const DESKTOP_NOW_PLAYING_WIDTH = 380;
@@ -29,7 +29,7 @@ const DEFAULT_TAB_ROUTES: Record<RelistenTabKey, string> = {
 };
 
 export default function TabLayout() {
-  const downloads = useRemainingDownloads();
+  const downloadsCount = useRemainingDownloadsCount();
   const settings = useUserSettings();
   const offline = !useShouldMakeNetworkRequests();
   const isDesktopLayout = useIsDesktopLayout();
@@ -122,7 +122,7 @@ export default function TabLayout() {
         options={{
           title: 'My Library',
           lazy: true,
-          tabBarBadge: downloads.length === 0 ? undefined : downloads.length,
+          tabBarBadge: downloadsCount === 0 ? undefined : downloadsCount,
         }}
       />
 

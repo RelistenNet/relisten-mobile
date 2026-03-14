@@ -12,8 +12,8 @@ import {
   FilterableListProps,
 } from '@/relisten/components/filtering/filterable_list';
 import { useIsOfflineTab, useRoute } from '@/relisten/util/routes';
-import { useYearMetadata } from '@/relisten/realm/models/year_repo';
-import { useLibraryIndex } from '@/relisten/realm/root_services';
+import { useOfflineYearMetadata } from '@/relisten/realm/models/year_repo';
+import { useYearHasOfflineTracks } from '@/relisten/realm/root_services';
 import { Link } from 'expo-router';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import Flex from '@/relisten/components/flex';
@@ -95,9 +95,8 @@ const YearListItemContents = ({
 };
 
 const OfflineYearListItem = ({ isTrendingSort, nextRoute, year }: YearListItemBaseProps) => {
-  const metadata = useYearMetadata(year);
-  const libraryIndex = useLibraryIndex();
-  const hasOfflineTracks = year.hasOfflineTracks(libraryIndex);
+  const metadata = useOfflineYearMetadata(year);
+  const hasOfflineTracks = useYearHasOfflineTracks(year.uuid);
 
   return (
     <YearListItemLink nextRoute={nextRoute} year={year}>
@@ -113,11 +112,11 @@ const OfflineYearListItem = ({ isTrendingSort, nextRoute, year }: YearListItemBa
 };
 
 const YearListItem = ({ isTrendingSort, nextRoute, year }: YearListItemBaseProps) => {
-  const libraryIndex = useLibraryIndex();
+  const hasOfflineTracks = useYearHasOfflineTracks(year.uuid);
   return (
     <YearListItemLink nextRoute={nextRoute} year={year}>
       <YearListItemContents
-        hasOfflineTracks={year.hasOfflineTracks(libraryIndex)}
+        hasOfflineTracks={hasOfflineTracks}
         isTrendingSort={isTrendingSort}
         shows={year.showCount}
         sources={year.sourceCount}

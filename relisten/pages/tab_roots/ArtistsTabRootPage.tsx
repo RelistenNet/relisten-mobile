@@ -1,4 +1,3 @@
-import MyLibraryPage from '@/app/relisten/tabs/(artists,myLibrary,offline)/myLibrary';
 import { NonSearchFilterBar } from '@/relisten/components/filtering/filter_bar';
 import {
   FilteringOptions,
@@ -19,10 +18,9 @@ import { NonIdealState } from '@/relisten/components/non_ideal_state';
 import { ArtistListItem } from '@/relisten/components/artist_rows';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useArtists } from '@/relisten/realm/models/artist_repo';
-import { useRemainingDownloads } from '@/relisten/realm/models/offline_repo';
 import { useGroupSegment, useIsOfflineTab } from '@/relisten/util/routes';
-import { Link, useRouter } from 'expo-router';
-import { useMemo, type ReactElement } from 'react';
+import { Link, useFocusEffect, useRouter } from 'expo-router';
+import { useEffect, useMemo, useCallback, type ReactElement } from 'react';
 import { ScrollView, TouchableOpacity, View } from 'react-native';
 import Realm from 'realm';
 import { ArtistShowsOnThisDayTray } from '@/relisten/pages/artist/artist_shows_on_this_day_tray';
@@ -34,6 +32,8 @@ import { LegacyDataMigrationModal } from '@/relisten/pages/legacy_migration';
 import { ARTIST_SORT_FILTERS, ArtistSortKey } from '@/relisten/components/artist_filters';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
 import { useTopPlayedArtistUuidsOnce } from '@/relisten/realm/models/history/playback_history_entry_repo';
+import { useRemainingDownloadsCount } from '@/relisten/realm/root_services';
+import { logTabRootDebug } from '@/relisten/util/profile_logging';
 
 const FavoritesSectionHeader = ({ favorites }: { favorites: Artist[] }) => {
   const { apiClient } = useRelistenApi();
@@ -287,13 +287,13 @@ function ArtistsRootPage() {
   const results = useArtists();
   const groupSegment = useGroupSegment();
   const { data: artists } = results;
-  const downloads = useRemainingDownloads();
+  const downloadsCount = useRemainingDownloadsCount();
   const effectiveGroupSegment = groupSegment ?? '(artists)';
 
   return (
     <ScrollScreen>
       <RefreshContextProvider networkBackedResults={results}>
-        {downloads.length > 0 && (
+        {downloadsCount > 0 && (
           <TouchableOpacity>
             <Link
               href={{
@@ -301,7 +301,7 @@ function ArtistsRootPage() {
               }}
               className="bg-relisten-blue-700 px-4 py-4 text-center"
             >
-              <RelistenText>{downloads.length} tracks downloading&nbsp;›</RelistenText>
+              <RelistenText>{downloadsCount} tracks downloading&nbsp;›</RelistenText>
             </Link>
           </TouchableOpacity>
         )}
@@ -313,12 +313,26 @@ function ArtistsRootPage() {
   );
 }
 
-export default function Page() {
+export default function ArtistsTabRootPage() {
   const groupSegment = useGroupSegment();
 
-  if (groupSegment === '(myLibrary)') {
-    return <MyLibraryPage />;
-  }
+  useEffect(() => {
+    logTabRootDebug(`mount group=${groupSegment ?? '<unknown>'}`);
+
+    return () => {
+      logTabRootDebug(`unmount group=${groupSegment ?? '<unknown>'}`);
+    };
+  }, [groupSegment]);
+
+  useFocusEffect(
+    useCallback(() => {
+      logTabRootDebug(`focus group=${groupSegment ?? '<unknown>'}`);
+
+      return () => {
+        logTabRootDebug(`blur group=${groupSegment ?? '<unknown>'}`);
+      };
+    }, [groupSegment])
+  );
 
   return <ArtistsRootPage />;
 }
