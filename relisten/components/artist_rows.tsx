@@ -20,13 +20,19 @@ import { useFilters } from '@/relisten/components/filtering/filters';
 import { ArtistSortKey } from '@/relisten/components/artist_filters';
 
 type TouchableOpacityRef = React.ElementRef<typeof TouchableOpacity>;
-type ArtistListItemProps = { artist: Artist; metadata?: ArtistMetadataSummary };
+type ArtistListItemProps = {
+  artist: Artist;
+  metadata?: ArtistMetadataSummary;
+  isTrendingSort?: boolean;
+};
 
-const ArtistPopularitySummary = ({ artist }: { artist: Artist }) => {
-  const { filters } = useFilters<ArtistSortKey, Artist>();
-  const isTrendingSort = filters.some(
-    (filter) => filter.active && filter.persistenceKey === ArtistSortKey.Trending
-  );
+const ArtistPopularitySummary = ({
+  artist,
+  isTrendingSort,
+}: {
+  artist: Artist;
+  isTrendingSort: boolean;
+}) => {
   return (
     <PopularityIndicator
       popularity={artist.popularity?.snapshot()}
@@ -45,10 +51,9 @@ const ArtistRowActions = ({ artist }: { artist: Artist }) => {
 
 const ArtistListItemLayout = React.forwardRef<
   TouchableOpacityRef,
-  { artist: Artist; metadata: ArtistMetadataSummary }
->(({ artist, metadata }, ref) => {
+  { artist: Artist; metadata: ArtistMetadataSummary; isTrendingSort: boolean }
+>(({ artist, metadata, isTrendingSort }, ref) => {
   const groupSegment = useGroupSegment();
-  const isOfflineTab = useIsOfflineTab();
   const hasOfflineTracks = useArtistHasOfflineTracks(artist.uuid);
 
   return (
@@ -68,11 +73,9 @@ const ArtistListItemLayout = React.forwardRef<
               <Flex cn="flex-1 pr-2">
                 <RowTitle>{artist.name}</RowTitle>
               </Flex>
-              {!isOfflineTab && (
-                <Flex cn="flex-shrink-0 items-center">
-                  <ArtistPopularitySummary artist={artist} />
-                </Flex>
-              )}
+              <Flex cn="flex-shrink-0 items-center">
+                <ArtistPopularitySummary artist={artist} isTrendingSort={isTrendingSort} />
+              </Flex>
             </Flex>
             <SubtitleRow cn="flex flex-row justify-between">
               <SubtitleText>
@@ -97,10 +100,17 @@ const ArtistListItemLayout = React.forwardRef<
 });
 
 export const ArtistListItem = React.forwardRef<TouchableOpacityRef, ArtistListItemProps>(
-  ({ artist, metadata: providedOfflineMetadata }, ref) => {
+  ({ artist, metadata: providedOfflineMetadata, isTrendingSort = false }, ref) => {
     const isOfflineTab = useIsOfflineTab();
     if (isOfflineTab) {
-      return <OfflineArtistListItem artist={artist} metadata={providedOfflineMetadata} ref={ref} />;
+      return (
+        <OfflineArtistListItem
+          artist={artist}
+          metadata={providedOfflineMetadata}
+          isTrendingSort={isTrendingSort}
+          ref={ref}
+        />
+      );
     }
 
     return <OnlineArtistListItem artist={artist} ref={ref} />;
@@ -109,57 +119,73 @@ export const ArtistListItem = React.forwardRef<TouchableOpacityRef, ArtistListIt
 
 const OnlineArtistListItem = React.forwardRef<TouchableOpacityRef, { artist: Artist }>(
   ({ artist }, ref) => {
+    const { filters } = useFilters<ArtistSortKey, Artist>();
+    const isTrendingSort = filters.some(
+      (filter) => filter.active && filter.persistenceKey === ArtistSortKey.Trending
+    );
     const metadata: ArtistMetadataSummary = {
       shows: artist.showCount,
       sources: artist.sourceCount,
     };
 
-    return <ArtistListItemLayout artist={artist} metadata={metadata} ref={ref} />;
+    return (
+      <ArtistListItemLayout
+        artist={artist}
+        metadata={metadata}
+        isTrendingSort={isTrendingSort}
+        ref={ref}
+      />
+    );
   }
 );
 
 const OfflineArtistListItem = React.forwardRef<TouchableOpacityRef, ArtistListItemProps>(
-  ({ artist, metadata: providedMetadata }, ref) => {
+  ({ artist, metadata: providedMetadata, isTrendingSort = false }, ref) => {
     const queriedMetadata = useOfflineArtistMetadata(artist);
     const metadata = providedMetadata ?? queriedMetadata;
 
-    return <ArtistListItemLayout artist={artist} metadata={metadata} ref={ref} />;
-  }
-);
-
-export const ArtistCompactListItem = React.forwardRef<TouchableOpacityRef, { artist: Artist }>(
-  ({ artist }, ref) => {
-    const nextRoute = useRoute('[artistUuid]');
-    const isOfflineTab = useIsOfflineTab();
-
     return (
-      <Link
-        href={{
-          pathname: nextRoute,
-          params: {
-            artistUuid: artist.uuid,
-          },
-        }}
-        asChild
-      >
-        <SectionedListItem ref={ref}>
-          <Flex cn="items-center justify-between" full>
-            <Flex cn="flex-1 flex-col pr-3">
-              <Flex cn="items-center">
-                <Flex cn="flex-1 pr-2">
-                  <RowTitle>{artist.name}</RowTitle>
-                </Flex>
-                {!isOfflineTab && (
-                  <Flex cn="flex-shrink-0 items-center">
-                    <ArtistPopularitySummary artist={artist} />
-                  </Flex>
-                )}
-              </Flex>
-            </Flex>
-            <ArtistRowActions artist={artist} />
-          </Flex>
-        </SectionedListItem>
-      </Link>
+      <ArtistListItemLayout
+        artist={artist}
+        metadata={metadata}
+        isTrendingSort={isTrendingSort}
+        ref={ref}
+      />
     );
   }
 );
+
+export const ArtistCompactListItem = React.forwardRef<
+  TouchableOpacityRef,
+  { artist: Artist; isTrendingSort?: boolean }
+>(({ artist, isTrendingSort = false }, ref) => {
+  const nextRoute = useRoute('[artistUuid]');
+
+  return (
+    <Link
+      href={{
+        pathname: nextRoute,
+        params: {
+          artistUuid: artist.uuid,
+        },
+      }}
+      asChild
+    >
+      <SectionedListItem ref={ref}>
+        <Flex cn="items-center justify-between" full>
+          <Flex cn="flex-1 flex-col pr-3">
+            <Flex cn="items-center">
+              <Flex cn="flex-1 pr-2">
+                <RowTitle>{artist.name}</RowTitle>
+              </Flex>
+              <Flex cn="flex-shrink-0 items-center">
+                <ArtistPopularitySummary artist={artist} isTrendingSort={isTrendingSort} />
+              </Flex>
+            </Flex>
+          </Flex>
+          <ArtistRowActions artist={artist} />
+        </Flex>
+      </SectionedListItem>
+    </Link>
+  );
+});

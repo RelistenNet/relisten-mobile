@@ -52,6 +52,14 @@ function useLastFmConnectivity(serviceRef: React.MutableRefObject<LastFmService 
   }, [shouldMakeNetworkRequests, serviceRef]);
 
   useEffect(() => {
+    if (!serviceRef.current || !shouldMakeNetworkRequests || !settings) {
+      return;
+    }
+
+    serviceRef.current.flushQueue(settings);
+  }, [serviceRef, settings, shouldMakeNetworkRequests]);
+
+  useEffect(() => {
     if (!serviceRef.current) {
       return;
     }
