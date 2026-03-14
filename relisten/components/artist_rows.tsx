@@ -20,6 +20,7 @@ import { useFilters } from '@/relisten/components/filtering/filters';
 import { ArtistSortKey } from '@/relisten/components/artist_filters';
 
 type TouchableOpacityRef = React.ElementRef<typeof TouchableOpacity>;
+type ArtistListItemProps = { artist: Artist; metadata?: ArtistMetadataSummary };
 
 const ArtistPopularitySummary = ({ artist }: { artist: Artist }) => {
   const { filters } = useFilters<ArtistSortKey, Artist>();
@@ -47,6 +48,7 @@ const ArtistListItemLayout = React.forwardRef<
   { artist: Artist; metadata: ArtistMetadataSummary }
 >(({ artist, metadata }, ref) => {
   const groupSegment = useGroupSegment();
+  const isOfflineTab = useIsOfflineTab();
   const hasOfflineTracks = useArtistHasOfflineTracks(artist.uuid);
 
   return (
@@ -66,9 +68,11 @@ const ArtistListItemLayout = React.forwardRef<
               <Flex cn="flex-1 pr-2">
                 <RowTitle>{artist.name}</RowTitle>
               </Flex>
-              <Flex cn="flex-shrink-0 items-center">
-                <ArtistPopularitySummary artist={artist} />
-              </Flex>
+              {!isOfflineTab && (
+                <Flex cn="flex-shrink-0 items-center">
+                  <ArtistPopularitySummary artist={artist} />
+                </Flex>
+              )}
             </Flex>
             <SubtitleRow cn="flex flex-row justify-between">
               <SubtitleText>
@@ -92,11 +96,11 @@ const ArtistListItemLayout = React.forwardRef<
   );
 });
 
-export const ArtistListItem = React.forwardRef<TouchableOpacityRef, { artist: Artist }>(
-  ({ artist }, ref) => {
+export const ArtistListItem = React.forwardRef<TouchableOpacityRef, ArtistListItemProps>(
+  ({ artist, metadata: providedOfflineMetadata }, ref) => {
     const isOfflineTab = useIsOfflineTab();
     if (isOfflineTab) {
-      return <OfflineArtistListItem artist={artist} ref={ref} />;
+      return <OfflineArtistListItem artist={artist} metadata={providedOfflineMetadata} ref={ref} />;
     }
 
     return <OnlineArtistListItem artist={artist} ref={ref} />;
@@ -114,9 +118,10 @@ const OnlineArtistListItem = React.forwardRef<TouchableOpacityRef, { artist: Art
   }
 );
 
-const OfflineArtistListItem = React.forwardRef<TouchableOpacityRef, { artist: Artist }>(
-  ({ artist }, ref) => {
-    const metadata = useOfflineArtistMetadata(artist);
+const OfflineArtistListItem = React.forwardRef<TouchableOpacityRef, ArtistListItemProps>(
+  ({ artist, metadata: providedMetadata }, ref) => {
+    const queriedMetadata = useOfflineArtistMetadata(artist);
+    const metadata = providedMetadata ?? queriedMetadata;
 
     return <ArtistListItemLayout artist={artist} metadata={metadata} ref={ref} />;
   }
@@ -125,6 +130,7 @@ const OfflineArtistListItem = React.forwardRef<TouchableOpacityRef, { artist: Ar
 export const ArtistCompactListItem = React.forwardRef<TouchableOpacityRef, { artist: Artist }>(
   ({ artist }, ref) => {
     const nextRoute = useRoute('[artistUuid]');
+    const isOfflineTab = useIsOfflineTab();
 
     return (
       <Link
@@ -143,9 +149,11 @@ export const ArtistCompactListItem = React.forwardRef<TouchableOpacityRef, { art
                 <Flex cn="flex-1 pr-2">
                   <RowTitle>{artist.name}</RowTitle>
                 </Flex>
-                <Flex cn="flex-shrink-0 items-center">
-                  <ArtistPopularitySummary artist={artist} />
-                </Flex>
+                {!isOfflineTab && (
+                  <Flex cn="flex-shrink-0 items-center">
+                    <ArtistPopularitySummary artist={artist} />
+                  </Flex>
+                )}
               </Flex>
             </Flex>
             <ArtistRowActions artist={artist} />

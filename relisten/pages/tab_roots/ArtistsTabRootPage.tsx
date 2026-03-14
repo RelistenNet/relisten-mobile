@@ -17,7 +17,7 @@ import { RowWithAction } from '@/relisten/components/row_with_action';
 import { NonIdealState } from '@/relisten/components/non_ideal_state';
 import { ArtistListItem } from '@/relisten/components/artist_rows';
 import { Artist } from '@/relisten/realm/models/artist';
-import { useArtists } from '@/relisten/realm/models/artist_repo';
+import { useArtists, useOfflineArtistMetadataMap } from '@/relisten/realm/models/artist_repo';
 import { useGroupSegment, useIsOfflineTab } from '@/relisten/util/routes';
 import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { useEffect, useMemo, useCallback, type ReactElement } from 'react';
@@ -235,13 +235,17 @@ const OfflineArtistsListContent = ({ artists }: { artists: Realm.Results<Artist>
   const groupSegment = useGroupSegment();
 
   const allArtistsRoute = `/relisten/tabs/${groupSegment}/all`;
+  const sortedArtists = useMemo(() => {
+    return [...artists].sort((a, b) => a.sortName.localeCompare(b.sortName));
+  }, [artists]);
+  const offlineMetadataMap = useOfflineArtistMetadataMap(sortedArtists);
   const data = useMemo<RelistenSectionData<Artist>>(() => {
     return [
       {
-        data: [...artists].sort((a, b) => a.sortName.localeCompare(b.sortName)),
+        data: sortedArtists,
       },
     ];
-  }, [artists]);
+  }, [sortedArtists]);
 
   if (artists.length === 0) {
     return (
@@ -259,7 +263,7 @@ const OfflineArtistsListContent = ({ artists }: { artists: Realm.Results<Artist>
     <RelistenSectionList
       data={data}
       renderItem={({ item }) => {
-        return <ArtistListItem artist={item} />;
+        return <ArtistListItem artist={item} metadata={offlineMetadataMap.get(item.uuid)} />;
       }}
       pullToRefresh
     />

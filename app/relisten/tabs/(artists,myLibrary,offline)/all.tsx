@@ -14,11 +14,16 @@ import { WebRewriteLoader } from '@/relisten/components/web_rewrite_loader';
 import { ArtistListItem } from '@/relisten/components/artist_rows';
 import { ARTIST_SORT_FILTERS, ArtistSortKey } from '@/relisten/components/artist_filters';
 import { Artist } from '@/relisten/realm/models/artist';
-import { useAllArtists } from '@/relisten/realm/models/artist_repo';
+import {
+  ArtistMetadataSummary,
+  useAllArtists,
+  useOfflineArtistMetadataMap,
+} from '@/relisten/realm/models/artist_repo';
 import { useNavigation } from 'expo-router';
 import { type ReactElement, useEffect, useMemo, useRef } from 'react';
 import { Keyboard, ScrollView, TextInput, View } from 'react-native';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
+import { useIsOfflineTab } from '@/relisten/util/routes';
 
 const AllArtistsHeader = ({ artists }: { artists?: Realm.Results<Artist> }) => {
   const searchInputRef = useRef<TextInput>(null);
@@ -59,6 +64,7 @@ const AllArtistsList = ({
   listHeader: ReactElement;
 }) => {
   const { filter, searchText } = useFilters<ArtistSortKey, Artist>();
+  const isOfflineTab = useIsOfflineTab();
 
   const data = useMemo(() => {
     return filter([...artists], searchText);
@@ -70,16 +76,51 @@ const AllArtistsList = ({
 
   const sectionedData: RelistenSectionData<Artist> = [{ data }];
 
+  if (isOfflineTab) {
+    return <OfflineAllArtistsList data={sectionedData} listHeader={listHeader} />;
+  }
+
+  return <AllArtistsSectionList data={sectionedData} listHeader={listHeader} />;
+};
+
+const AllArtistsSectionList = ({
+  data,
+  listHeader,
+  getMetadata,
+}: {
+  data: RelistenSectionData<Artist>;
+  listHeader: ReactElement;
+  getMetadata?: (artist: Artist) => ArtistMetadataSummary | undefined;
+}) => {
   return (
     <RelistenSectionList
-      data={sectionedData}
+      data={data}
       ListHeaderComponent={listHeader}
       renderItem={({ item }) => {
-        return <ArtistListItem artist={item} />;
+        return <ArtistListItem artist={item} metadata={getMetadata?.(item)} />;
       }}
       keyboardDismissMode="on-drag"
       onScrollBeginDrag={() => Keyboard.dismiss()}
       pullToRefresh
+    />
+  );
+};
+
+const OfflineAllArtistsList = ({
+  data,
+  listHeader,
+}: {
+  data: RelistenSectionData<Artist>;
+  listHeader: ReactElement;
+}) => {
+  const offlineArtists = data[0]?.data ?? [];
+  const offlineMetadataMap = useOfflineArtistMetadataMap(offlineArtists);
+
+  return (
+    <AllArtistsSectionList
+      data={data}
+      listHeader={listHeader}
+      getMetadata={(artist) => offlineMetadataMap.get(artist.uuid)}
     />
   );
 };

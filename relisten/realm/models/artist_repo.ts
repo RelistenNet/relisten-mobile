@@ -139,10 +139,10 @@ class ArtistBootstrapNetworkBackedBehavior extends ThrottledNetworkBackedBehavio
 }
 
 export function useOfflineArtistMetadata(artist?: Artist | null): ArtistMetadataSummary {
-  const sh = useRealmTabsFilter(
+  const shows = useRealmTabsFilter(
     useQuery(Show, (query) => query.filtered('artistUuid = $0', artist?.uuid), [artist?.uuid])
   );
-  const src = useRealmTabsFilter(
+  const sources = useRealmTabsFilter(
     useQuery(Source, (query) => query.filtered('artistUuid = $0', artist?.uuid), [artist?.uuid])
   );
 
@@ -150,7 +150,38 @@ export function useOfflineArtistMetadata(artist?: Artist | null): ArtistMetadata
     return { shows: undefined, sources: undefined };
   }
 
-  return { shows: sh.length, sources: src.length };
+  return { shows: shows.length, sources: sources.length };
+}
+
+export function useOfflineArtistMetadataMap(
+  artists: ReadonlyArray<Artist>
+): ReadonlyMap<string, ArtistMetadataSummary> {
+  const shows = useRealmTabsFilter(useQuery(Show));
+  const sources = useRealmTabsFilter(useQuery(Source));
+
+  return useMemo(() => {
+    const metadataMap = new Map<string, ArtistMetadataSummary>();
+
+    for (const artist of artists) {
+      metadataMap.set(artist.uuid, { shows: 0, sources: 0 });
+    }
+
+    for (const show of shows) {
+      const existing = metadataMap.get(show.artistUuid);
+      if (existing) {
+        existing.shows = (existing.shows ?? 0) + 1;
+      }
+    }
+
+    for (const source of sources) {
+      const existing = metadataMap.get(source.artistUuid);
+      if (existing) {
+        existing.sources = (existing.sources ?? 0) + 1;
+      }
+    }
+
+    return metadataMap;
+  }, [artists, shows, sources]);
 }
 
 export function useArtist(
