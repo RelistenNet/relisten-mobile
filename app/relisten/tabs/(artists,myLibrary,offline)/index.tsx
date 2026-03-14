@@ -68,7 +68,7 @@ const FavoritesSectionHeader = ({ favorites }: { favorites: Artist[] }) => {
 
 type ArtistsListProps = {
   artists: Realm.Results<Artist>;
-  filterOptions: FilteringOptions<ArtistSortKey>;
+  filterOptions?: FilteringOptions<ArtistSortKey>;
 };
 
 const FEATURED_ARTISTS_FILTER_OPTIONS: FilteringOptions<ArtistSortKey> = {
@@ -124,8 +124,7 @@ const FavoritesEmptyState = ({ onViewAll }: { onViewAll: () => void }) => {
   );
 };
 
-const ArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => {
-  const isOfflineTab = useIsOfflineTab();
+const OnlineArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => {
   const router = useRouter();
   const groupSegment = useGroupSegment();
   const { filter } = useFilters<ArtistSortKey, Artist>();
@@ -189,11 +188,6 @@ const ArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => 
       headerComponent?: ReactElement;
     }[] = [];
 
-    if (isOfflineTab) {
-      sections.push({ data: all });
-      return sections;
-    }
-
     if (favoritesForSection.length > 0) {
       sections.push({
         sectionTitle: 'Favorites',
@@ -211,19 +205,7 @@ const ArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => 
     }
 
     return sections;
-  }, [all, favoritesForSection, featured, isOfflineTab]);
-
-  if (isOfflineTab && artists.length === 0) {
-    return (
-      <NonIdealState
-        icon="cloud-off"
-        title="No offline shows yet"
-        description="Download tracks from any show and they'll appear here for offline playback."
-        actionText="Browse all artists"
-        onAction={() => router.push(allArtistsRoute)}
-      />
-    );
-  }
+  }, [favoritesForSection, featured]);
 
   return (
     <RelistenSectionList
@@ -239,7 +221,7 @@ const ArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => 
         return <SectionHeader title={sectionTitle} />;
       }}
       ListHeaderComponent={
-        !isOfflineTab && favoritesForSection.length === 0 ? (
+        favoritesForSection.length === 0 ? (
           <FavoritesEmptyState onViewAll={() => router.push(allArtistsRoute)} />
         ) : undefined
       }
@@ -248,24 +230,65 @@ const ArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => 
   );
 };
 
-const ArtistsList = ({ artists, filterOptions }: ArtistsListProps) => {
+const OfflineArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => {
+  const router = useRouter();
+  const groupSegment = useGroupSegment();
+
+  const allArtistsRoute = `/relisten/tabs/${groupSegment}/all`;
+  const data = useMemo<RelistenSectionData<Artist>>(() => {
+    return [
+      {
+        data: [...artists].sort((a, b) => a.sortName.localeCompare(b.sortName)),
+      },
+    ];
+  }, [artists]);
+
+  if (artists.length === 0) {
+    return (
+      <NonIdealState
+        icon="cloud-off"
+        title="No offline shows yet"
+        description="Download tracks from any show and they'll appear here for offline playback."
+        actionText="Browse all artists"
+        onAction={() => router.push(allArtistsRoute)}
+      />
+    );
+  }
+
   return (
-    <FilteringProvider filters={ARTIST_SORT_FILTERS} options={filterOptions}>
-      <ArtistsListContent artists={artists} />
+    <RelistenSectionList
+      data={data}
+      renderItem={({ item }) => {
+        return <ArtistListItem artist={item} />;
+      }}
+      pullToRefresh
+    />
+  );
+};
+
+const ArtistsList = ({ artists, filterOptions }: ArtistsListProps) => {
+  const isOfflineTab = useIsOfflineTab();
+
+  if (isOfflineTab) {
+    return <OfflineArtistsListContent artists={artists} />;
+  }
+
+  return (
+    <FilteringProvider
+      filters={ARTIST_SORT_FILTERS}
+      options={filterOptions ?? FEATURED_ARTISTS_FILTER_OPTIONS}
+    >
+      <OnlineArtistsListContent artists={artists} />
     </FilteringProvider>
   );
 };
 
-export default function Page() {
+function ArtistsRootPage() {
   const results = useArtists();
   const groupSegment = useGroupSegment();
   const { data: artists } = results;
-
   const downloads = useRemainingDownloads();
-
-  if (groupSegment === '(myLibrary)') {
-    return <MyLibraryPage />;
-  }
+  const effectiveGroupSegment = groupSegment ?? '(artists)';
 
   return (
     <ScrollScreen>
@@ -274,7 +297,7 @@ export default function Page() {
           <TouchableOpacity>
             <Link
               href={{
-                pathname: `/relisten/tabs/${groupSegment}/downloading`,
+                pathname: `/relisten/tabs/${effectiveGroupSegment}/downloading`,
               }}
               className="bg-relisten-blue-700 px-4 py-4 text-center"
             >
@@ -283,9 +306,19 @@ export default function Page() {
           </TouchableOpacity>
         )}
 
-        <ArtistsList artists={artists} filterOptions={FEATURED_ARTISTS_FILTER_OPTIONS} />
+        <ArtistsList artists={artists} />
       </RefreshContextProvider>
       <LegacyDataMigrationModal />
     </ScrollScreen>
   );
+}
+
+export default function Page() {
+  const groupSegment = useGroupSegment();
+
+  if (groupSegment === '(myLibrary)') {
+    return <MyLibraryPage />;
+  }
+
+  return <ArtistsRootPage />;
 }

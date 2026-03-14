@@ -29,14 +29,10 @@ export default function Page() {
   const { showUuid } = useLocalSearchParams();
   const { sourceUuid } = useLocalSearchParams();
 
-  const {
-    results,
-    show,
-    artist: artistResults,
-    sources,
-  } = useFullShowWithSelectedSource(String(showUuid), 'initial');
-
-  const artist = artistResults.data;
+  const { results, show, artist, sources } = useFullShowWithSelectedSource(
+    String(showUuid),
+    'initial'
+  );
 
   useEffect(() => {
     navigation.setOptions({

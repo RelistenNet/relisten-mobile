@@ -85,6 +85,7 @@ export default function TabLayout() {
       // initialRouteName="index"
       screenOptions={({ route }) => ({
         headerShown: false,
+        freezeOnBlur: true,
         headerStyle: {
           backgroundColor: RelistenBlue['950'],
         },
@@ -120,7 +121,7 @@ export default function TabLayout() {
         name="(myLibrary)"
         options={{
           title: 'My Library',
-          lazy: false,
+          lazy: true,
           tabBarBadge: downloads.length === 0 ? undefined : downloads.length,
         }}
       />
@@ -129,7 +130,7 @@ export default function TabLayout() {
         name="(offline)"
         options={{
           title: 'Offline',
-          lazy: false,
+          lazy: true,
           tabBarItemStyle: {
             display:
               settings?.showOfflineTabWithDefault() === ShowOfflineTabSetting.Always ||

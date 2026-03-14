@@ -4,9 +4,10 @@ import 'react-native-reanimated';
 import 'react-native-svg';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 
-import { Slot, SplashScreen, useNavigationContainerRef } from 'expo-router';
+import { Slot, SplashScreen, useNavigationContainerRef, usePathname } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Realm } from '@realm/react';
+import type { NavigationState, PartialState } from '@react-navigation/native';
 
 import { RelistenApiProvider, useRelistenApi } from '@/relisten/api/context';
 import { RealmProvider, setRealm, useRealm } from '@/relisten/realm/schema';
@@ -36,6 +37,7 @@ import {
   useRootLibraryIndex,
   useRootUserSettingsStore,
 } from '@/relisten/realm/root_services';
+import { routingQueue } from 'expo-router/build/global-state/routing';
 
 // c.f. https://github.com/meliorence/react-native-render-html/issues/661#issuecomment-2453476566
 LogBox.ignoreLogs([/Support for defaultProps will be removed/]);
@@ -108,10 +110,17 @@ function TabLayout() {
   const realmRef = useRef<Realm | null>(null);
 
   const navigation = useNavigationContainerRef();
+  const pathname = usePathname();
   const [isNavigationReady, setIsNavigationReady] = useState(false);
   const [hasRootViewLayoutFinished, setHasRootViewLayoutFinished] = useState(false);
+  const previousPathnameRef = useRef<string | null>(null);
+  const pathnameRef = useRef(pathname);
 
   const isAppReady = useCacheAssets();
+
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
 
   useEffect(() => {
     if (!navigation?.isReady()) return;
@@ -136,6 +145,45 @@ function TabLayout() {
     if (navigation?.current) {
       navigationIntegration.registerNavigationContainer(navigation);
     }
+  }, [navigation]);
+
+  useEffect(() => {
+    if (!__DEV__) {
+      return;
+    }
+
+    const previousPathname = previousPathnameRef.current;
+    if (previousPathname === pathname) {
+      return;
+    }
+
+    console.log(
+      `[RouteDebug] commit ${previousPathname ?? '<initial>'} -> ${pathname} stack=${describeNavigationStack(
+        navigation.getRootState()
+      )}`
+    );
+    previousPathnameRef.current = pathname;
+  }, [navigation, pathname]);
+
+  useEffect(() => {
+    if (!__DEV__) {
+      return;
+    }
+
+    const originalAdd = routingQueue.add.bind(routingQueue);
+
+    routingQueue.add = (action: Parameters<typeof originalAdd>[0]) => {
+      console.log(
+        `[RouteDebug] dispatch from=${pathnameRef.current} stack=${describeNavigationStack(
+          navigation.getRootState()
+        )} action=${describeRoutingQueueAction(action)}`
+      );
+      return originalAdd(action);
+    };
+
+    return () => {
+      routingQueue.add = originalAdd;
+    };
   }, [navigation]);
 
   return (
@@ -180,6 +228,70 @@ function TabLayout() {
       </RootServicesProvider>
     </RealmProvider>
   );
+}
+
+function describeRoutingQueueAction(action: unknown) {
+  if (!action || typeof action !== 'object' || !('type' in action)) {
+    return String(action);
+  }
+
+  const type = typeof action.type === 'string' ? action.type : 'unknown';
+  const payload =
+    'payload' in action && action.payload && typeof action.payload === 'object'
+      ? action.payload
+      : undefined;
+
+  if (type === 'ROUTER_LINK') {
+    const href =
+      payload && 'href' in payload && typeof payload.href === 'string' ? payload.href : undefined;
+    const options = payload && 'options' in payload ? safeStringify(payload.options) : undefined;
+
+    return [type, href ? `href=${href}` : undefined, options ? `options=${options}` : undefined]
+      .filter(Boolean)
+      .join(' ');
+  }
+
+  const details = payload ? safeStringify(payload) : undefined;
+
+  return [type, details ? `payload=${details}` : undefined].filter(Boolean).join(' ');
+}
+
+function safeStringify(value: unknown) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return '[unserializable]';
+  }
+}
+
+function describeNavigationStack(
+  state?: NavigationState | PartialState<NavigationState> | undefined
+): string {
+  if (!state || !state.routes.length) {
+    return '<empty>';
+  }
+
+  const routes: string[] = [];
+  let currentState: NavigationState | PartialState<NavigationState> | undefined = state;
+
+  while (currentState && currentState.routes.length > 0) {
+    const index = currentState.index ?? currentState.routes.length - 1;
+    const route = currentState.routes[index] as {
+      name: string;
+      state?: NavigationState | PartialState<NavigationState>;
+    };
+    routes.push(route.name);
+    currentState =
+      route.state && 'routes' in route.state
+        ? (route.state as NavigationState | PartialState<NavigationState>)
+        : undefined;
+  }
+
+  return routes.join(' > ');
 }
 
 // Wrap the Root Layout route component with `Sentry.wrap` to capture gesture info and profiling data.

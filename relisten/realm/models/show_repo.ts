@@ -16,8 +16,7 @@ import { Source } from './source';
 import { venueRepo } from './venue_repo';
 import { Artist } from './artist';
 import { Year } from './year';
-import { useArtist } from '@/relisten/realm/models/artist_repo';
-import { useRealm } from '@/relisten/realm/schema';
+import { useObject, useRealm } from '@/relisten/realm/schema';
 import {
   CombinedValueStream,
   RealmObjectValueStream,
@@ -230,7 +229,10 @@ export function useFullShowWithSelectedSource(showUuid: string, selectedSourceUu
   const results = useFullShow(String(showUuid));
   const show = results.data?.show;
   const sources = results.data?.sources;
-  const artist = useArtist(show?.artistUuid);
+  const fallbackArtist = useObject(
+    Artist,
+    show?.artistUuid ?? sources?.[0]?.artistUuid ?? '__missing__'
+  );
   const libraryIndex = useLibraryIndex();
 
   const sortedSources = useMemo(() => {
@@ -252,7 +254,7 @@ export function useFullShowWithSelectedSource(showUuid: string, selectedSourceUu
     results,
     show: show!,
     sources: sortedSources,
-    artist,
+    artist: show?.artist ?? selectedSource?.artist ?? sortedSources[0]?.artist ?? fallbackArtist,
     selectedSource,
   };
 }

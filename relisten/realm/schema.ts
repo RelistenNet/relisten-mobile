@@ -23,8 +23,15 @@ import {
   PopularityWindows,
 } from '@/relisten/realm/models/popularity';
 
-// uncomment to show realm queries (measured in microseconds):
-// Realm.setLogLevel('debug');
+if (__DEV__) {
+  Realm.setLogger(({ category, level, message }) => {
+    console.log(`[Realm ${category} ${level}] ${message}`);
+  });
+
+  Realm.setLogLevel('debug', 'Realm.Storage');
+  Realm.setLogLevel('debug', 'Realm.Storage.Transaction');
+  Realm.setLogLevel('debug', 'Realm.Storage.Notification');
+}
 
 const realmConfig: Realm.Configuration = {
   schema: [

@@ -4,7 +4,7 @@ import { RelistenSectionData } from '@/relisten/components/relisten_section_list
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
 import { ShowCard } from '@/relisten/components/show_card';
-import { SHOW_FILTERS, ShowFilterKey, ShowListContainer } from '@/relisten/components/shows_list';
+import { ShowFilterKey, ShowListContainer, useShowFilters } from '@/relisten/components/shows_list';
 import { useHistoryRecentlyPlayedShows } from '@/relisten/realm/models/history/playback_history_entry_repo';
 import { useRemainingDownloads } from '@/relisten/realm/models/offline_repo';
 import { Show } from '@/relisten/realm/models/show';
@@ -63,6 +63,7 @@ function RecentlyPlayedShows() {
 }
 
 function FavoriteShows({ topContent }: { topContent?: ReactNode }) {
+  const showFilters = useShowFilters();
   const favoriteShowsQuery = useQuery(
     {
       type: Show,
@@ -118,7 +119,7 @@ function FavoriteShows({ topContent }: { topContent?: ReactNode }) {
         }
         filterOptions={{ persistence: { key: ['myLibrary', 'shows'].join('/') } }}
         // hide "My Library" filter since it's enabled by default here
-        filters={SHOW_FILTERS.filter((sf) => sf.persistenceKey !== ShowFilterKey.Library)}
+        filters={showFilters.filter((sf) => sf.persistenceKey !== ShowFilterKey.Library)}
         nonIdealState={nonIdealState}
       />
     </RefreshContextProvider>
