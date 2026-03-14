@@ -8,6 +8,8 @@ Relisten Mobile is licensed under AGPLv3 - and we welcome contributions. If you 
 
 To keep the code base clean, use the steps below to run locally and verify your changes. Also, before checking in code and creating Pull Requests, run `yarn lint` to make sure your new code does not throw any new `lint` errors.
 
+React Compiler is enabled repo-wide, and compiler diagnostics are treated as hard failures. If you hit new React Compiler issues while iterating, run `npx react-compiler-healthcheck@latest` to get a repo-level inventory in addition to `yarn lint`.
+
 ### Running the app locally
 
 #### Mac + iOS Simulator

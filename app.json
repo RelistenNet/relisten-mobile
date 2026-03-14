@@ -1,6 +1,7 @@
 {
   "expo": {
     "experiments": {
+      "reactCompiler": true,
       "tsconfigPaths": true,
       "typedRoutes": false
     },

@@ -61,7 +61,7 @@ export const useTopShows = (artistUuid: string) => {
     return new TopShowsNetworkBackedBehavior(realm, artistUuid, {
       fetchStrategy: NetworkBackedBehaviorFetchStrategy.NetworkAlwaysFirst,
     });
-  }, [artistUuid]);
+  }, [artistUuid, realm]);
 
   return useNetworkBackedBehavior(behavior);
 };

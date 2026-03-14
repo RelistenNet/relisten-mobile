@@ -37,7 +37,7 @@ function ArtistShowsOnThisDayTrayContent({
   artists: Artist[];
   showVenue: boolean;
 }) {
-  const todayShows = useTodayShows(...artists.map((artist) => artist.uuid));
+  const todayShows = useTodayShows(artists.map((artist) => artist.uuid));
 
   const sortedShows = useMemo(() => {
     const shows = [...todayShows.data];

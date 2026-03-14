@@ -50,11 +50,9 @@ export class TodayShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBacked
   }
 }
 
-export const useTodayShows = (...artistUuids: string[]) => {
+export const useTodayShows = (artistUuids: readonly string[]) => {
   const realm = useRealm();
-  const artistUuidsKey = useMemo(() => {
-    return [...new Set(artistUuids)].sort().join(',');
-  }, [artistUuids]);
+  const artistUuidsKey = [...new Set(artistUuids)].sort().join(',');
 
   const behavior = useMemo(() => {
     const normalizedArtistUuids = artistUuidsKey.length > 0 ? artistUuidsKey.split(',') : [];

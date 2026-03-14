@@ -32,6 +32,10 @@ function useLastFmConnectivity(serviceRef: React.MutableRefObject<LastFmService 
   const settingsRef = useRef(settings);
 
   useEffect(() => {
+    if (!settings) {
+      return;
+    }
+
     settingsRef.current = settings;
   }, [settings]);
 
@@ -42,7 +46,7 @@ function useLastFmConnectivity(serviceRef: React.MutableRefObject<LastFmService 
 
     serviceRef.current.setConnectivity(shouldMakeNetworkRequests);
 
-    if (shouldMakeNetworkRequests) {
+    if (shouldMakeNetworkRequests && settingsRef.current) {
       serviceRef.current.flushQueue(settingsRef.current);
     }
   }, [shouldMakeNetworkRequests, serviceRef]);
@@ -53,7 +57,7 @@ function useLastFmConnectivity(serviceRef: React.MutableRefObject<LastFmService 
     }
 
     const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') {
+      if (state === 'active' && settingsRef.current) {
         serviceRef.current?.flushQueue(settingsRef.current);
       }
     });
@@ -76,7 +80,12 @@ export function LastFmReporterComponent() {
   const lastNowPlayingIdRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
-    if (!serviceRef.current || !currentTrack || playbackState !== RelistenPlaybackState.Playing) {
+    if (
+      !serviceRef.current ||
+      !settings ||
+      !currentTrack ||
+      playbackState !== RelistenPlaybackState.Playing
+    ) {
       return;
     }
 
@@ -89,7 +98,7 @@ export function LastFmReporterComponent() {
   }, [currentTrack, playbackState, settings]);
 
   useEffect(() => {
-    if (!serviceRef.current || !reportTrackEvent) {
+    if (!serviceRef.current || !settings || !reportTrackEvent) {
       return;
     }
 

@@ -25,12 +25,13 @@ export const RefreshContextProvider = <T extends object>({
   let refreshing = networkBackedResults.isNetworkLoading;
 
   if (extraRefreshingConsideration) {
-    refreshing ||= extraRefreshingConsideration(networkBackedResults);
+    refreshing = refreshing || extraRefreshingConsideration(networkBackedResults);
   }
 
-  refreshing ||=
-    networkBackedResults.data === undefined &&
-    !(networkBackedResults.errors && networkBackedResults.errors.length > 0);
+  refreshing =
+    refreshing ||
+    (networkBackedResults.data === undefined &&
+      !(networkBackedResults.errors && networkBackedResults.errors.length > 0));
 
   return (
     <RefreshContext.Provider

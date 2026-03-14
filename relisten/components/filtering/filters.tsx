@@ -1,13 +1,6 @@
 import { RouteFilterConfig, serializeFilters } from '@/relisten/realm/models/route_filter_config';
 import { useObject, useRealm } from '@/relisten/realm/schema';
-import React, {
-  PropsWithChildren,
-  useCallback,
-  useContext,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { PropsWithChildren, useCallback, useContext, useMemo, useState } from 'react';
 import Realm from 'realm';
 import { RelistenObject } from '../../api/models/relisten';
 
@@ -67,14 +60,14 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
   filters,
   options,
 }: PropsWithChildren<{ filters: ReadonlyArray<Filter<K, T>>; options?: FilteringOptions<K> }>) => {
-  const isInitialRender = useRef(true);
   const realm = useRealm();
   const [textFilter, setTextFilter] = useState<string | undefined>(undefined);
 
   const filterPersistenceKey = options?.persistence?.key;
+  const defaultFilter = options?.default;
 
-  let routeFilterConfig = useObject(RouteFilterConfig, filterPersistenceKey || '__no_object__');
-  let globalFilterConfig = useObject(RouteFilterConfig, GLOBAL_FILTER_KEY);
+  const routeFilterConfig = useObject(RouteFilterConfig, filterPersistenceKey || '__no_object__');
+  const globalFilterConfig = useObject(RouteFilterConfig, GLOBAL_FILTER_KEY);
 
   const routePersistedFilters = routeFilterConfig ? routeFilterConfig.filters() : undefined;
   const globalPersistedFilters = globalFilterConfig ? globalFilterConfig.filters() : undefined;
@@ -83,24 +76,19 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
     if (!routePersistedFilters) return [...filters];
 
     const internalFilters = filters.map((f) => {
-      return { ...f };
-    });
-
-    // this only runs on the initial render pass
-    if (isInitialRender.current) {
-      for (const filter of internalFilters) {
-        if (filter) {
-          if (options?.default && options.default.persistenceKey === filter.persistenceKey) {
-            filter.active = options.default.active;
-            filter.sortDirection = options.default.sortDirection;
-          } else {
-            filter.active = false;
-          }
-        }
+      if (defaultFilter && defaultFilter.persistenceKey === f.persistenceKey) {
+        return {
+          ...f,
+          active: defaultFilter.active,
+          sortDirection: defaultFilter.sortDirection,
+        };
       }
 
-      isInitialRender.current = false;
-    }
+      return {
+        ...f,
+        active: false,
+      };
+    });
 
     // this runs on every render pass (assuming filters/data changes)
     for (const internalFilter of internalFilters) {
@@ -120,7 +108,7 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
     }
 
     return [...internalFilters];
-  }, [filters, globalPersistedFilters, options?.default, routePersistedFilters]);
+  }, [defaultFilter, filters, globalPersistedFilters, routePersistedFilters]);
 
   const filter = useCallback(
     (allData: ReadonlyArray<T>, textFilter?: string) => {
@@ -207,26 +195,25 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
           const globalFilters = intermediateFilters.filter((f) => f.isGlobal);
           const localFilters = intermediateFilters.filter((f) => !f.isGlobal);
 
-          if (routeFilterConfig) {
-            routeFilterConfig.setFilters(localFilters);
-          } else {
-            routeFilterConfig = realm.create(RouteFilterConfig, {
+          const nextRouteFilterConfig =
+            routeFilterConfig ??
+            realm.create(RouteFilterConfig, {
               key: filterPersistenceKey,
               rawFilters: serializeFilters(localFilters),
             });
-          }
-          if (globalFilterConfig) {
-            globalFilterConfig.setFilters(globalFilters);
-          } else {
-            globalFilterConfig = realm.create(RouteFilterConfig, {
+          nextRouteFilterConfig.setFilters(localFilters);
+
+          const nextGlobalFilterConfig =
+            globalFilterConfig ??
+            realm.create(RouteFilterConfig, {
               key: GLOBAL_FILTER_KEY,
               rawFilters: serializeFilters(globalFilters),
             });
-          }
+          nextGlobalFilterConfig.setFilters(globalFilters);
         }
       });
     },
-    [preparedFilters, realm, filterPersistenceKey, options]
+    [filterPersistenceKey, globalFilterConfig, preparedFilters, realm, routeFilterConfig]
   );
 
   const clearFilters = useCallback(() => {
@@ -240,22 +227,21 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
         globalFilters.forEach((f) => f.sortDirection === undefined && (f.active = false));
         localFilters.forEach((f) => f.sortDirection === undefined && (f.active = false));
 
-        if (routeFilterConfig) {
-          routeFilterConfig.setFilters(localFilters);
-        } else {
-          routeFilterConfig = realm.create(RouteFilterConfig, {
+        const nextRouteFilterConfig =
+          routeFilterConfig ??
+          realm.create(RouteFilterConfig, {
             key: filterPersistenceKey,
             rawFilters: serializeFilters(localFilters),
           });
-        }
-        if (globalFilterConfig) {
-          globalFilterConfig.setFilters(globalFilters);
-        } else {
-          globalFilterConfig = realm.create(RouteFilterConfig, {
+        nextRouteFilterConfig.setFilters(localFilters);
+
+        const nextGlobalFilterConfig =
+          globalFilterConfig ??
+          realm.create(RouteFilterConfig, {
             key: GLOBAL_FILTER_KEY,
             rawFilters: serializeFilters(globalFilters),
           });
-        }
+        nextGlobalFilterConfig.setFilters(globalFilters);
       }
     });
   }, [filterPersistenceKey, globalFilterConfig, preparedFilters, realm, routeFilterConfig]);

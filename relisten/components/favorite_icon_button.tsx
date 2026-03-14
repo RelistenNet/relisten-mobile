@@ -21,6 +21,18 @@ const styles = StyleSheet.create({
   },
 });
 
+function toggleFavoriteObject<T extends FavoritableObject>(
+  realm: ReturnType<typeof useRealm>,
+  object: T,
+  forceUpdate: () => void
+) {
+  LayoutAnimation.configureNext(DefaultLayoutAnimationConfig);
+  realm.write(() => {
+    object.isFavorite = !object.isFavorite;
+    forceUpdate();
+  });
+}
+
 export const FavoriteIconButton: React.FC<{ isFavorited: boolean } & TouchableOpacityProps> = ({
   isFavorited,
   ...props
@@ -44,11 +56,7 @@ export const FavoriteObjectButton = <T extends FavoritableObject>({
   const forceUpdate = useForceUpdate();
 
   const favoriteOnPress = useCallback(() => {
-    LayoutAnimation.configureNext(DefaultLayoutAnimationConfig);
-    realm.write(() => {
-      object.isFavorite = !object.isFavorite;
-      forceUpdate();
-    });
+    toggleFavoriteObject(realm, object, forceUpdate);
   }, [forceUpdate, object, realm]);
 
   return (

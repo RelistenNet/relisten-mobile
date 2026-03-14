@@ -1,5 +1,5 @@
 import { useNavigation } from '@react-navigation/native';
-import React, { PropsWithChildren, useEffect, useRef } from 'react';
+import React, { PropsWithChildren, useEffect, useMemo } from 'react';
 import {
   Animated,
   ScrollViewProps,
@@ -27,7 +27,7 @@ export const DisappearingHeaderScreen = <TProps extends InjectedScrollProps>({
   const headerHeight = useHeaderHeight();
   const safeAreaInsets = useSafeAreaInsets();
 
-  const scrolling = useRef(new Animated.Value(0)).current;
+  const scrolling = useMemo(() => new Animated.Value(0), []);
 
   const headerOpacity = scrolling.interpolate({
     inputRange: [0, headerHeight - safeAreaInsets.top],
@@ -48,7 +48,7 @@ export const DisappearingHeaderScreen = <TProps extends InjectedScrollProps>({
         );
       },
     });
-  }, [headerOpacity]);
+  }, [headerOpacity, navigation]);
 
   const Component = ScrollableComponent;
 

@@ -19,20 +19,15 @@ export default function useCacheAssets() {
   // Load any resources or data that you need prior to rendering the app
   useEffect(() => {
     async function loadResourcesAndDataAsync() {
-      try {
-        const imageAssets = cacheImages([ToolbarRelisten]);
-        const preloadedAssets = await Promise.allSettled(imageAssets);
-        for (const result of preloadedAssets) {
-          if (result.status === 'rejected') {
-            console.warn(result.reason);
-          }
+      const imageAssets = cacheImages([ToolbarRelisten]);
+      const preloadedAssets = await Promise.allSettled(imageAssets);
+      for (const result of preloadedAssets) {
+        if (result.status === 'rejected') {
+          console.warn(result.reason);
         }
-      } catch (e) {
-        // You might want to provide this error information to an error reporting service
-        console.warn(e);
-      } finally {
-        setIsAppReady(true);
       }
+
+      setIsAppReady(true);
     }
 
     loadResourcesAndDataAsync();

@@ -108,63 +108,78 @@ export function useRelistenCastSession(player: RelistenPlayer) {
   // When "force" is true, reload even if the queue signature matches.
   const syncQueueToCast = useCallback(
     async (autoplay: boolean, options?: { force?: boolean; useLocalElapsed?: boolean }) => {
-      if (!client || !isCasting) {
-        return;
-      }
+      let nextSyncRequest: {
+        autoplay: boolean;
+        options?: { force?: boolean; useLocalElapsed?: boolean };
+      } | null = { autoplay, options };
 
-      if (syncInFlightRef.current) {
-        pendingSyncRef.current = { autoplay, options };
-        logger.debug('Queue sync in flight; coalescing a follow-up sync request');
-        return;
-      }
+      while (nextSyncRequest) {
+        const currentSyncRequest = nextSyncRequest;
+        nextSyncRequest = null;
 
-      const orderedTracks = player.queue.orderedTracks;
-      if (orderedTracks.length === 0) {
-        return;
-      }
-
-      const queueSignature = orderedTracks.map((track) => track.identifier).join('|');
-
-      if (!options?.force && queueSignature === lastQueueSignatureRef.current) {
-        return;
-      }
-
-      lastQueueSignatureRef.current = queueSignature;
-
-      const queueContext = getQueueContext(autoplay, options?.useLocalElapsed);
-      const normalizedQueueContext = {
-        ...queueContext,
-        repeatState: PlayerRepeatState.REPEAT_OFF,
-        shuffleState: PlayerShuffleState.SHUFFLE_OFF,
-      };
-      logger.debug('Syncing queue to cast', {
-        startIndex: normalizedQueueContext.startIndex,
-        trackCount: orderedTracks.length,
-      });
-
-      syncInFlightRef.current = true;
-      try {
-        await client.loadMedia({
-          autoplay,
-          queueData: buildQueueData(normalizedQueueContext),
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        if (
-          message.includes('aborted') ||
-          message.includes('overridding request') ||
-          message.includes('Invalid request')
-        ) {
-          logger.debug('Cast queue sync aborted or superseded');
-        } else {
-          logger.warn('Cast queue sync failed', error);
+        if (!client || !isCasting) {
+          return;
         }
-      } finally {
+
+        if (syncInFlightRef.current) {
+          pendingSyncRef.current = currentSyncRequest;
+          logger.debug('Queue sync in flight; coalescing a follow-up sync request');
+          return;
+        }
+
+        const orderedTracks = player.queue.orderedTracks;
+        if (orderedTracks.length === 0) {
+          return;
+        }
+
+        const queueSignature = orderedTracks.map((track) => track.identifier).join('|');
+
+        if (
+          !currentSyncRequest.options?.force &&
+          queueSignature === lastQueueSignatureRef.current
+        ) {
+          return;
+        }
+
+        lastQueueSignatureRef.current = queueSignature;
+
+        const queueContext = getQueueContext(
+          currentSyncRequest.autoplay,
+          currentSyncRequest.options?.useLocalElapsed
+        );
+        const normalizedQueueContext = {
+          ...queueContext,
+          repeatState: PlayerRepeatState.REPEAT_OFF,
+          shuffleState: PlayerShuffleState.SHUFFLE_OFF,
+        };
+        logger.debug('Syncing queue to cast', {
+          startIndex: normalizedQueueContext.startIndex,
+          trackCount: orderedTracks.length,
+        });
+
+        syncInFlightRef.current = true;
+        try {
+          await client.loadMedia({
+            autoplay: currentSyncRequest.autoplay,
+            queueData: buildQueueData(normalizedQueueContext),
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (
+            message.includes('aborted') ||
+            message.includes('overridding request') ||
+            message.includes('Invalid request')
+          ) {
+            logger.debug('Cast queue sync aborted or superseded');
+          } else {
+            logger.warn('Cast queue sync failed', error);
+          }
+        }
+
         syncInFlightRef.current = false;
         if (pendingSyncRef.current) {
-          const pending = pendingSyncRef.current;
+          nextSyncRequest = pendingSyncRef.current;
           pendingSyncRef.current = null;
-          syncQueueToCast(pending.autoplay, pending.options).then(() => {});
         }
       }
     },
@@ -194,24 +209,27 @@ export function useRelistenCastSession(player: RelistenPlayer) {
         activeTrackIds: item.activeTrackIds,
         customData: item.customData,
       }));
+      const startIndex = currentItemIndex >= 0 ? currentItemIndex : 0;
+      const normalizedStartTime = startTime > 0 ? startTime : undefined;
+      const queueData = {
+        items: sanitizedQueueItems,
+        type: MediaQueueType.PLAYLIST,
+        repeatMode: MediaRepeatMode.OFF,
+        startIndex,
+        startTime: normalizedStartTime,
+      };
 
       syncInFlightRef.current = true;
       try {
         await client.loadMedia({
           autoplay,
-          queueData: {
-            items: sanitizedQueueItems,
-            type: MediaQueueType.PLAYLIST,
-            repeatMode: MediaRepeatMode.OFF,
-            startIndex: currentItemIndex >= 0 ? currentItemIndex : 0,
-            startTime: startTime > 0 ? startTime : undefined,
-          },
+          queueData,
         });
       } catch (error) {
         logger.warn('Cast queue sync from status failed', error);
-      } finally {
-        syncInFlightRef.current = false;
       }
+
+      syncInFlightRef.current = false;
     },
     [client, isCasting, streamPosition]
   );

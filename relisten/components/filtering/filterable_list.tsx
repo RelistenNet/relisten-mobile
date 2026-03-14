@@ -39,21 +39,18 @@ const ALL_SECTION_SENTINEL = '__ALL__';
 const EMPTY_SECTION_SENTINEL = '__EMPTY__';
 const FILTER_WARNING_SECTION_SENTINEL = '__FILTER_WARNING__';
 const HIDDEN_SECTION_SENTINEL = '__HIDDEN__';
+type SectionHeaderProps<T extends RelistenObject> = Parameters<
+  NonNullable<RelistenSectionListProps<T>['renderSectionHeader']>
+>[0];
 
-export const FilterableList = <K extends string, T extends RelistenObject>({
-  data,
-  isLoading,
-  hideFilterBar,
-  filtering,
-  nonIdealState,
-  ...props
-}: FilterableListProps<T>) => {
+export const FilterableList = <K extends string, T extends RelistenObject>(
+  filterableListProps: FilterableListProps<T>
+) => {
+  const { data, isLoading, hideFilterBar, filtering, nonIdealState, ...props } =
+    filterableListProps;
   const { filters, filter, clearFilters, searchText } = useFilters<K, T>();
   const filteringEnabled = filtering !== undefined ? filtering : true;
-
-  if (!filteringEnabled) {
-    hideFilterBar = true;
-  }
+  const shouldHideFilterBar = !filteringEnabled || hideFilterBar;
 
   const sectionedData = useMemo(() => {
     const filteredData = data.map((section) => {
@@ -76,19 +73,20 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
         ? { sectionTitle: FILTER_WARNING_SECTION_SENTINEL, data: [], metadata: itemsHidden }
         : { sectionTitle: HIDDEN_SECTION_SENTINEL, data: [] },
     ].filter((x) => x);
-  }, [data, filter, filters, searchText, filteringEnabled]);
+  }, [data, filter, filters, isLoading, searchText, filteringEnabled]);
 
-  function filterToString<K extends string>(f: FilterControl<K>) {
-    return `${f.title}${f.active ? '*' : ''}${
-      f.sortDirection !== undefined
-        ? f.sortDirection === SortDirection.Descending
-          ? ' desc'
-          : ' asc'
-        : ''
-    }${f.hasSearchFilter ? '=' + searchText : ''}`;
-  }
-
-  const filterConfig = useMemo(() => filters.map(filterToString).join('; '), [filters, searchText]);
+  const filterConfig = filters
+    .map(
+      (filterControl: FilterControl<K>) =>
+        `${filterControl.title}${filterControl.active ? '*' : ''}${
+          filterControl.sortDirection !== undefined
+            ? filterControl.sortDirection === SortDirection.Descending
+              ? ' desc'
+              : ' asc'
+            : ''
+        }${filterControl.hasSearchFilter ? '=' + searchText : ''}`
+    )
+    .join('; ');
 
   useEffect(() => {
     logger.debug('Filter config: ' + filterConfig);
@@ -99,9 +97,10 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
       data={sectionedData}
       pullToRefresh
       {...props}
-      renderSectionHeader={({ sectionTitle, ...props }) => {
+      renderSectionHeader={(headerProps: SectionHeaderProps<T>) => {
+        const { sectionTitle } = headerProps;
         if (sectionTitle === ALL_SECTION_SENTINEL) {
-          if (hideFilterBar) {
+          if (shouldHideFilterBar) {
             return <></>;
           }
 
@@ -113,15 +112,15 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
         }
 
         if (sectionTitle === EMPTY_SECTION_SENTINEL) {
-          if (props.metadata && props.metadata > 0) {
+          if (headerProps.metadata && headerProps.metadata > 0) {
             return (
               <NonIdealState
                 title={nonIdealState?.filtered?.title ?? 'No Results'}
                 description={
                   nonIdealState?.filtered?.description ?? (
                     <>
-                      Your filters are hiding <Plur count={props.metadata} word="item" />, tap below
-                      to clear them
+                      Your filters are hiding <Plur count={headerProps.metadata} word="item" />, tap
+                      below to clear them
                     </>
                   )
                 }
@@ -146,7 +145,7 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
           return (
             <>
               <RelistenText cn="py-2 italic text-sm px-4 text-gray-400 text-center">
-                (<Plur count={props.metadata} word="item" /> hidden due to filters)
+                (<Plur count={headerProps.metadata} word="item" /> hidden due to filters)
               </RelistenText>
 
               <View className="mx-auto min-w-[33%]">
@@ -167,8 +166,8 @@ export const FilterableList = <K extends string, T extends RelistenObject>({
           return <></>;
         }
 
-        if (props.headerComponent) {
-          return <View>{props.headerComponent}</View>;
+        if (headerProps.headerComponent) {
+          return <View>{headerProps.headerComponent}</View>;
         }
 
         return <SectionHeader title={sectionTitle} />;

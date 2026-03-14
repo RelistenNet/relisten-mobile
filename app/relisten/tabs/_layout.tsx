@@ -1,5 +1,4 @@
 import { Tabs, usePathname, useRouter, useSegments } from 'expo-router';
-import TabBar from '@/relisten/components/TabBar';
 import DesktopTabList from '@/relisten/components/DesktopTabList';
 import { PlayerBottomBar } from '@/relisten/player/ui/player_bottom_bar';
 import { PlayerScreen } from '@/relisten/player/ui/player_screen';
@@ -14,6 +13,7 @@ import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { useIsDesktopLayout } from '@/relisten/util/layout';
 import ToolbarRelisten from '@/assets/toolbar_relisten.png';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { BottomTabBar, BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { isRelistenTabKey, RelistenTabKey, tabKeyToRoute } from '@/relisten/util/tabs';
 import { useRelistenPlayerQueueOrderedTracks } from '@/relisten/player/relisten_player_queue_hooks';
 import { NonIdealState } from '@/relisten/components/non_ideal_state';
@@ -57,7 +57,16 @@ export default function TabLayout() {
     });
   }, [activeSegment, pathname]);
 
-  const tabBarComponent = isDesktopLayout ? () => null : TabBar;
+  const renderTabBar = useCallback(
+    (tabBarProps: BottomTabBarProps) => {
+      if (isDesktopLayout) {
+        return null;
+      }
+
+      return <BottomTabBar {...tabBarProps} />;
+    },
+    [isDesktopLayout]
+  );
   const handleTabSelect = useCallback(
     (key: RelistenTabKey) => {
       if (key === activeTab) {
@@ -112,7 +121,7 @@ export default function TabLayout() {
         tabBarInactiveTintColor: 'gray',
         ...(isDesktopLayout ? { tabBarStyle: { display: 'none' } } : undefined),
       })}
-      tabBar={tabBarComponent}
+      tabBar={renderTabBar}
       // initialRouteName="artists"
     >
       <Tabs.Screen name="(artists)" options={{ title: 'Artists', lazy: false }} />

@@ -20,6 +20,10 @@ import { useState } from 'react';
 import { Switch, SwitchProps, TextInput, TextInputProps } from 'react-native';
 import { LastFmAuth } from '@/relisten/lastfm/lastfm_auth';
 import { LastFmClient } from '@/relisten/lastfm/lastfm_client';
+import {
+  DEFAULT_LASTFM_SETTINGS_OBJ,
+  LastFmSettings,
+} from '@/relisten/realm/models/lastfm_settings';
 import { useLastFmSettings } from '@/relisten/realm/models/lastfm_settings_repo';
 
 interface BaseSettings {
@@ -289,10 +293,11 @@ function LastFmSettingsSection() {
   const lastFmSettings = useLastFmSettings();
 
   const isConfigured = LastFmClient.hasEnv();
-  const username = lastFmSettings.username;
+  const username = lastFmSettings?.username;
   const isConnected = !!username;
-  const isEnabled = lastFmSettings.enabledWithDefault();
-  const isAuthInvalid = lastFmSettings.authInvalidWithDefault();
+  const isEnabled = lastFmSettings?.enabledWithDefault() ?? DEFAULT_LASTFM_SETTINGS_OBJ.enabled;
+  const isAuthInvalid =
+    lastFmSettings?.authInvalidWithDefault() ?? DEFAULT_LASTFM_SETTINGS_OBJ.authInvalid;
 
   const onEnable = async () => {
     await LastFmAuth.startAuth();
@@ -307,9 +312,7 @@ function LastFmSettingsSection() {
   };
 
   const onToggleEnabled = (nextValue: boolean) => {
-    realm.write(() => {
-      lastFmSettings.upsert({ enabled: nextValue });
-    });
+    LastFmSettings.upsert(realm, { enabled: nextValue });
   };
 
   return (

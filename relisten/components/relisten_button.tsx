@@ -108,8 +108,10 @@ export const RelistenButton = React.forwardRef<TouchableOpacityRef, ButtonProps>
 
         try {
           await result;
-        } finally {
           setIsLoading(false);
+        } catch (error) {
+          setIsLoading(false);
+          throw error;
         }
       }
     };

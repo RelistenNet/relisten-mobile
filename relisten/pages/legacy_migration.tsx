@@ -397,9 +397,9 @@ export function LegacyDataMigrationModal({
     } catch (error) {
       logger.error(`Failed to load legacy data: ${error}`);
       setMigrationProgress(`Error loading legacy data. Please try again later.\n\nError: ${error}`);
-    } finally {
-      setLoadingLegacyData(false);
     }
+
+    setLoadingLegacyData(false);
   };
 
   const clearModal = ({ markAsSeen }: { markAsSeen: boolean }) => {

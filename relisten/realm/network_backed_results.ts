@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { RelistenApiClientError } from '@/relisten/api/client';
 
 export interface NetworkBackedResults<T> {
@@ -65,29 +64,23 @@ export function useMergedNetworkBackedResults<
 ): NetworkBackedResults<{
   [Property in keyof TResults]: ExtractHookDataType<TResults[Property]>;
 }> {
-  const all: Array<NetworkBackedResults<unknown>> = [];
   const r: {
     [Property in keyof TResults]?: NetworkBackedResults<ExtractHookDataType<TResults[Property]>>;
   } = {};
 
   for (const key of Object.keys(results) as Array<keyof TResults>) {
-    all.push(results[key].results);
     r[key] = results[key].results as NetworkBackedResults<
       ExtractHookDataType<TResults[typeof key]>
     >;
   }
 
-  const merged: NetworkBackedResults<{
-    [Property in keyof TResults]: Exclude<ExtractHookDataType<TResults[Property]>, unknown>;
-  }> = useMemo(() => {
-    return mergeNetworkBackedResults(
-      r as unknown as {
-        [Property in keyof TResults]: NetworkBackedResults<
-          Exclude<ExtractHookDataType<TResults[Property]>, unknown>
-        >;
-      }
-    );
-  }, all);
-
-  return merged;
+  return mergeNetworkBackedResults(
+    r as unknown as {
+      [Property in keyof TResults]: NetworkBackedResults<
+        Exclude<ExtractHookDataType<TResults[Property]>, unknown>
+      >;
+    }
+  ) as NetworkBackedResults<{
+    [Property in keyof TResults]: ExtractHookDataType<TResults[Property]>;
+  }>;
 }

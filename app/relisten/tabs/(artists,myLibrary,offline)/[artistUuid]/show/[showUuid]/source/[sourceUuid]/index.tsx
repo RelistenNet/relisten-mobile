@@ -53,6 +53,26 @@ import {
 
 const logger = log.extend('source screen');
 
+function toggleSourceFavorite(
+  realm: ReturnType<typeof useRealm>,
+  source: Source,
+  show: Show,
+  forceUpdate: () => void
+) {
+  realm.write(() => {
+    const nextFavorite = !(source.isFavorite || show.isFavorite);
+    source.isFavorite = nextFavorite;
+    show.isFavorite = nextFavorite;
+    forceUpdate();
+  });
+}
+
+function toggleSelectedSourceFavorite(realm: ReturnType<typeof useRealm>, source: Source) {
+  realm.write(() => {
+    source.isFavorite = !source.isFavorite;
+  });
+}
+
 export const SourceList = ({ sources }: { sources: Source[] }) => {
   return (
     <RelistenFlatList
@@ -85,37 +105,34 @@ export default function Page() {
     String(sourceUuid)
   );
 
-  const playShow = useCallback(
-    (sourceTrack?: SourceTrack) => {
-      if (!sourceTrack || !sourceTrack.streamingUrl() || !sourceTrack.uuid || !selectedSource) {
-        logger.warn(
-          `Missing value when trying to play source track: sourceTrack=${sourceTrack} sourceUuid=${sourceUuid} mp3Url=${sourceTrack?.streamingUrl()} uuid=${sourceTrack?.uuid} artist=${artist} show=${show} selectedSource=${selectedSource}`
-        );
-        return;
-      }
-
-      const showTracks = selectedSource.allSourceTracks().filter((t) => {
-        if (userSettings.offlineModeWithDefault() === OfflineModeSetting.AlwaysOffline) {
-          return t.playable(false);
-        }
-
-        return true;
-      });
-
-      const trackIndex = Math.max(
-        showTracks.findIndex((st) => st.uuid === sourceTrack?.uuid),
-        0
+  const playShow = ((sourceTrack?: SourceTrack) => {
+    if (!sourceTrack || !sourceTrack.streamingUrl() || !sourceTrack.uuid || !selectedSource) {
+      logger.warn(
+        `Missing value when trying to play source track: sourceTrack=${sourceTrack} sourceUuid=${sourceUuid} mp3Url=${sourceTrack?.streamingUrl()} uuid=${sourceTrack?.uuid} artist=${artist} show=${show} selectedSource=${selectedSource}`
       );
+      return;
+    }
 
-      if (showTracks.length > 0) {
-        player.queue.replaceQueue(
-          showTracks.map((t) => PlayerQueueTrack.fromSourceTrack(t)),
-          trackIndex
-        );
+    const showTracks = selectedSource.allSourceTracks().filter((t) => {
+      if (userSettings.offlineModeWithDefault() === OfflineModeSetting.AlwaysOffline) {
+        return t.playable(false);
       }
-    },
-    [selectedSource, userSettings]
-  ) satisfies PlayShow;
+
+      return true;
+    });
+
+    const trackIndex = Math.max(
+      showTracks.findIndex((st) => st.uuid === sourceTrack?.uuid),
+      0
+    );
+
+    if (showTracks.length > 0) {
+      player.queue.replaceQueue(
+        showTracks.map((t) => PlayerQueueTrack.fromSourceTrack(t)),
+        trackIndex
+      );
+    }
+  }) satisfies PlayShow;
 
   const downloadShow = () => {
     if (!selectedSource) {
@@ -149,14 +166,12 @@ export default function Page() {
     isRemovingDownloadsRef.current = true;
     setIsRemovingDownloads(true);
 
-    try {
-      await Promise.allSettled(
-        showTracks.map((track) => DownloadManager.SHARED_INSTANCE.removeDownload(track))
-      );
-    } finally {
-      isRemovingDownloadsRef.current = false;
-      setIsRemovingDownloads(false);
-    }
+    await Promise.allSettled(
+      showTracks.map((track) => DownloadManager.SHARED_INSTANCE.removeDownload(track))
+    );
+
+    isRemovingDownloadsRef.current = false;
+    setIsRemovingDownloads(false);
   };
 
   const onDotsPress = useCallback(() => {
@@ -222,9 +237,7 @@ export default function Page() {
             break;
           case 5:
             // Toggle Favorite
-            realm.write(() => {
-              selectedSource.isFavorite = !selectedSource.isFavorite;
-            });
+            toggleSelectedSourceFavorite(realm, selectedSource);
 
             break;
           case cancelButtonIndex:
@@ -308,11 +321,14 @@ const SourceComponent = ({
   const { refreshing, errors, hasData } = useRefreshContext();
   const { showContextMenu } = useSourceTrackContextMenu();
 
-  const onDotsPress = useCallback((sourceTrack: SourceTrack) => {
-    const queueTrack = PlayerQueueTrack.fromSourceTrack(sourceTrack);
+  const onDotsPress = useCallback(
+    (sourceTrack: SourceTrack) => {
+      const queueTrack = PlayerQueueTrack.fromSourceTrack(sourceTrack);
 
-    showContextMenu(queueTrack, playShow);
-  }, []);
+      showContextMenu(queueTrack, playShow);
+    },
+    [playShow, showContextMenu]
+  );
 
   if (errors && !hasData) {
     return (
@@ -478,11 +494,7 @@ export const SourceHeader = ({
           className="shrink basis-1/4"
           textClassName="text-l"
           onPress={() => {
-            realm.write(() => {
-              source.isFavorite = !(source.isFavorite || show.isFavorite);
-              show.isFavorite = source.isFavorite;
-              forceUpdate();
-            });
+            toggleSourceFavorite(realm, source, show, forceUpdate);
           }}
         >
           <MaterialIcons

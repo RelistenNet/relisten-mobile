@@ -117,7 +117,6 @@ function TabLayout() {
 
   const navigation = useNavigationContainerRef();
   const pathname = usePathname();
-  const [isNavigationReady, setIsNavigationReady] = useState(false);
   const [hasRootViewLayoutFinished, setHasRootViewLayoutFinished] = useState(false);
   const previousRouteSignatureRef = useRef<string | null>(null);
   const previousRouteLabelRef = useRef<string | null>(null);
@@ -129,12 +128,6 @@ function TabLayout() {
     pathnameRef.current = pathname;
   }, [pathname]);
 
-  useEffect(() => {
-    if (!navigation?.isReady()) return;
-
-    setIsNavigationReady(true);
-  }, [navigation?.isReady(), setIsNavigationReady]);
-
   // https://docs.expo.dev/versions/latest/sdk/splash-screen/#usage
   const onLayoutRootView = useCallback(async () => {
     if (hasRootViewLayoutFinished) return;
@@ -143,10 +136,10 @@ function TabLayout() {
   }, [hasRootViewLayoutFinished, setHasRootViewLayoutFinished]);
 
   useEffect(() => {
-    if (isAppReady && isNavigationReady && hasRootViewLayoutFinished) {
+    if (isAppReady && hasRootViewLayoutFinished) {
       SplashScreen.hideAsync();
     }
-  }, [isAppReady, isNavigationReady, hasRootViewLayoutFinished]);
+  }, [isAppReady, hasRootViewLayoutFinished]);
 
   useEffect(() => {
     if (navigation?.current) {

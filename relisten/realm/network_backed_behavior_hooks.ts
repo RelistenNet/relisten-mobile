@@ -139,7 +139,7 @@ export function createNetworkBackedModelArrayHook<
         fetchFromApi,
         options
       );
-    }, [options]);
+    }, [options, realm]);
 
     return useNetworkBackedBehavior(behavior);
   };
@@ -166,7 +166,7 @@ export function createNetworkBackedModelHook<
 
     const behavior = useMemo(() => {
       return new NetworkBackedModelBehavior(realm, repo, fetchFromRealm, fetchFromApi, options);
-    }, [options]);
+    }, [options, realm]);
 
     return useNetworkBackedBehavior(behavior);
   };

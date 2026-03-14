@@ -126,7 +126,7 @@ export function useTopPlayedArtistUuidsOnce(
         const end = Math.min(index + SCAN_CHUNK_SIZE, total);
         let shouldStop = false;
 
-        for (; index < end; index += 1) {
+        while (index < end) {
           const entry = entries[index];
           const artist = entry.artist;
           const uuid = artist?.uuid;
@@ -156,6 +156,8 @@ export function useTopPlayedArtistUuidsOnce(
               break;
             }
           }
+
+          index += 1;
         }
 
         if (shouldStop || index >= total) {

@@ -46,6 +46,8 @@ import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { PlayerRepeatState, PlayerShuffleState } from '@/relisten/player/relisten_player_queue';
 
 export function ScrubberRow() {
+  'use no memo';
+
   const progressObj = useNativePlaybackProgress();
   const downloadProgress = useNativeActiveTrackDownloadProgress();
   const player = useRelistenPlayer();
@@ -204,7 +206,17 @@ function useNavigateToCurrentTrackSheet(options?: NavigateToCurrentTrackSheetOpt
         }
       }
     );
-  }, [artist, dismissOnNavigate, groupSegment, navigation, pushShow, router, show, source]);
+  }, [
+    artist,
+    dismissOnNavigate,
+    groupSegment,
+    navigation,
+    pushShow,
+    router,
+    show,
+    showActionSheetWithOptions,
+    source,
+  ]);
 
   return { showNavigateToCurrentTrackActionSheet };
 }
