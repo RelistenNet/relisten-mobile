@@ -5,7 +5,7 @@ import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
 import RowTitle from '@/relisten/components/row_title';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
-import { Link, useLocalSearchParams } from 'expo-router';
+import { Link, useLocalSearchParams, useNavigation } from 'expo-router';
 import {
   FilterableList,
   FilterableListProps,
@@ -20,11 +20,19 @@ import {
 } from '@/relisten/components/filtering/filters';
 import { Song } from '@/relisten/realm/models/song';
 import { useGroupSegment } from '@/relisten/util/routes';
+import { useEffect } from 'react';
 
 export default function Page() {
+  const navigation = useNavigation();
   const { artistUuid } = useLocalSearchParams();
   const results = useArtistSongs(String(artistUuid));
   const { data } = results;
+
+  useEffect(() => {
+    navigation.setOptions({
+      title: 'Songs',
+    });
+  }, [navigation]);
 
   return (
     <RefreshContextProvider networkBackedResults={results}>
