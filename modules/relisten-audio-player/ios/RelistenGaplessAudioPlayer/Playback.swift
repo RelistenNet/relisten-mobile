@@ -25,6 +25,35 @@ extension URL {
 }
 
 extension RelistenGaplessAudioPlayer {
+    func bassChannelLengthIncludingOffset(_ activeStream: RelistenGaplessAudioStream, context: String) -> QWORD? {
+        let channelLength = BASS_ChannelGetLength(activeStream.stream, DWORD(BASS_POS_BYTE))
+
+        guard channelLength != QWORD(bitPattern: -1) else {
+            NSLog("[relisten-audio-player][bass][stream] Failed to get channel length while \(context). stream=%u error=%d", activeStream.stream, BASS_ErrorGetCode())
+            return nil
+        }
+
+        let (lengthIncludingOffset, didOverflow) = channelLength.addingReportingOverflow(activeStream.channelOffset)
+
+        guard !didOverflow else {
+            NSLog("[relisten-audio-player][bass][stream] Overflow combining channel length=%llu and offset=%llu while \(context). stream=%u", channelLength, activeStream.channelOffset, activeStream.stream)
+            return nil
+        }
+
+        return lengthIncludingOffset
+    }
+
+    func bassChannelPositionIncludingOffset(_ channelPosition: QWORD, activeStream: RelistenGaplessAudioStream, context: String) -> QWORD? {
+        let (positionIncludingOffset, didOverflow) = channelPosition.addingReportingOverflow(activeStream.channelOffset)
+
+        guard !didOverflow else {
+            NSLog("[relisten-audio-player][bass][stream] Overflow combining channel position=%llu and offset=%llu while \(context). stream=%u", channelPosition, activeStream.channelOffset, activeStream.stream)
+            return nil
+        }
+
+        return positionIncludingOffset
+    }
+
     func playStreamableImmediately(_ streamable: RelistenGaplessStreamable, startingAtMs: Int64?) {
         NSLog("[relisten-audio-player][bass][stream] playStreamableImmediately: streamable \(streamable.identifier) startingAtMs=\(String(describing: startingAtMs))")
         
@@ -164,7 +193,9 @@ extension RelistenGaplessAudioPlayer {
             return
         }
 
-        let len = BASS_ChannelGetLength(activeStream.stream, DWORD(BASS_POS_BYTE)) + activeStream.channelOffset
+        guard let len = bassChannelLengthIncludingOffset(activeStream, context: "seeking to time") else {
+            return
+        }
         let duration = BASS_ChannelBytes2Seconds(activeStream.stream, len)
         let seekTo = BASS_ChannelSeconds2Bytes(activeStream.stream, Double(timeMs) / Double(1000))
         let seekToDuration = BASS_ChannelBytes2Seconds(activeStream.stream, seekTo)
@@ -257,7 +288,9 @@ extension RelistenGaplessAudioPlayer {
             return
         }
 
-        let len = BASS_ChannelGetLength(activeStream.stream, DWORD(BASS_POS_BYTE)) + activeStream.channelOffset
+        guard let len = bassChannelLengthIncludingOffset(activeStream, context: "seeking to percent \(pct)") else {
+            return
+        }
         let duration = BASS_ChannelBytes2Seconds(activeStream.stream, len)
         let seekTo = BASS_ChannelSeconds2Bytes(activeStream.stream, duration * Double(pct))
         let seekToDuration = BASS_ChannelBytes2Seconds(activeStream.stream, seekTo)

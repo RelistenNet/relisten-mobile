@@ -99,13 +99,11 @@ public class RelistenGaplessAudioPlayer {
             return nil
         }
 
-        let len = BASS_ChannelGetLength(activeStream.stream, DWORD(BASS_POS_BYTE))
-
-        if len == QWORD(bitPattern: -1) {
+        guard let len = bassChannelLengthIncludingOffset(activeStream, context: "reading current duration") else {
             return nil
         }
 
-        return BASS_ChannelBytes2Seconds(activeStream.stream, len + activeStream.channelOffset)
+        return BASS_ChannelBytes2Seconds(activeStream.stream, len)
     }
 
     public var elapsed: TimeInterval? {
@@ -119,7 +117,11 @@ public class RelistenGaplessAudioPlayer {
             return nil
         }
 
-        return BASS_ChannelBytes2Seconds(activeStream.stream, elapsedBytes + activeStream.channelOffset)
+        guard let elapsedIncludingOffset = bassChannelPositionIncludingOffset(elapsedBytes, activeStream: activeStream, context: "reading elapsed time") else {
+            return nil
+        }
+
+        return BASS_ChannelBytes2Seconds(activeStream.stream, elapsedIncludingOffset)
     }
 
     public var activeTrackDownloadedBytes: UInt64? {
@@ -405,9 +407,20 @@ public class RelistenGaplessAudioPlayer {
     public func seekTo(percent: Double) {
         dispatchPrecondition(condition: .onQueue(bassQueue))
 
-        NSLog("[relisten-audio-player] seekTo percent=\(percent)")
+        guard percent.isFinite else {
+            NSLog("[relisten-audio-player] Ignoring non-finite seek percent=\(percent)")
+            return
+        }
 
-        if percent >= 1.0 {
+        let normalizedPercent = min(max(percent, 0.0), 1.0)
+
+        if normalizedPercent != percent {
+            NSLog("[relisten-audio-player] Clamped seek percent from \(percent) to \(normalizedPercent)")
+        }
+
+        NSLog("[relisten-audio-player] seekTo percent=\(normalizedPercent)")
+
+        if normalizedPercent >= 1.0 {
             delegateQueue.async {
                 self.delegate?.remoteControl(method: "nextTrack")
             }
@@ -415,7 +428,7 @@ public class RelistenGaplessAudioPlayer {
             return
         }
 
-        self.seekToPercent(percent)
+        self.seekToPercent(normalizedPercent)
     }
 
     public func _resume(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
