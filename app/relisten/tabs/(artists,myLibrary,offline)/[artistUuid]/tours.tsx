@@ -51,7 +51,7 @@ interface TourListItemProps {
 }
 
 const TourListItem = ({ tour }: TourListItemProps) => {
-  const groupSegment = useGroupSegment(true);
+  const groupSegment = useGroupSegment();
   const startDate = dayjs(tour.startDate).format('YYYY-MM-DD');
   const endDate = dayjs(tour.endDate).format('YYYY-MM-DD');
 

@@ -5,7 +5,6 @@ import { TouchableOpacity, TouchableOpacityProps, View } from 'react-native';
 import { RelistenText } from '../relisten_text';
 import { FilterControl, SortDirection } from './filters';
 import { tw } from '@/relisten/util/tw';
-import { useIsDesktopLayout } from '@/relisten/util/layout';
 
 export const FilterBarButton = <K extends string>({
   filter,
@@ -22,7 +21,6 @@ export const FilterBarButton = <K extends string>({
     color?: string;
   } & TouchableOpacityProps
 >) => {
-  const isDesktopLayout = useIsDesktopLayout();
   const filterIcon = driver({
     states: {
       isFilterActive: !filter.sortDirection && filter.active,
@@ -52,7 +50,7 @@ export const FilterBarButton = <K extends string>({
     <TouchableOpacity
       className={tw(
         'mr-3 flex flex-row items-center rounded-lg',
-        isDesktopLayout ? 'px-3 py-2' : 'p-1 px-2',
+        'p-1 px-2',
         filter.active
           ? 'border border-transparent bg-relisten-blue-600'
           : 'border border-relisten-blue-600/30',
@@ -75,7 +73,7 @@ export const FilterBarButton = <K extends string>({
           <View className="w-1" />
         </>
       )}
-      <RelistenText className={tw(isDesktopLayout ? 'text-lg' : 'text-base', 'font-bold')}>
+      <RelistenText className="text-base font-bold">
         {filter.title ? filter.title : children}
       </RelistenText>
     </TouchableOpacity>

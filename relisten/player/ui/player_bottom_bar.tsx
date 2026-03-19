@@ -18,7 +18,7 @@ import * as Progress from 'react-native-progress';
 import AirPlayButton from 'react-native-airplay-button';
 import { RelistenCastButton, useRelistenCastStatus } from '@/relisten/casting/cast_ui';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
-import { useIsDesktopLayout } from '@/relisten/util/layout';
+import { useNativeTabsBottomInset } from './native_tabs_inset';
 
 function OfflineBanner() {
   return (
@@ -99,8 +99,8 @@ function PlayerBottomBarContents() {
 
 export function PlayerBottomBar() {
   const isOnline = useShouldMakeNetworkRequests();
-  const { tabBarHeight, playerBottomBarHeight, setPlayerBottomBarHeight } =
-    useRelistenPlayerBottomBarContext();
+  const { playerBottomBarHeight, setPlayerBottomBarHeight } = useRelistenPlayerBottomBarContext();
+  const nativeTabsBottomInset = useNativeTabsBottomInset();
 
   const onLayout = useCallback(
     (e: LayoutChangeEvent) => {
@@ -119,7 +119,14 @@ export function PlayerBottomBar() {
   }
 
   return (
-    <View onLayout={onLayout} style={{ bottom: tabBarHeight, position: 'absolute', width: '100%' }}>
+    <View
+      onLayout={onLayout}
+      style={{
+        bottom: nativeTabsBottomInset,
+        position: 'absolute',
+        width: '100%',
+      }}
+    >
       <View className={'w-full flex-1 p-0'}>
         {!isOnline && <OfflineBanner />}
         <View className="rounded-t-s w-full border-t-2 border-t-relisten-blue-700 bg-relisten-blue-800 pt-2">
@@ -133,28 +140,21 @@ export function PlayerBottomBar() {
 export const useIsPlayerBottomBarVisible = () => {
   const playbackState = useRelistenPlayerPlaybackState();
   const tracks = useRelistenPlayerQueueOrderedTracks();
-  const isDesktopLayout = useIsDesktopLayout();
 
-  return !isDesktopLayout && playbackState !== undefined && tracks.length > 0;
+  return playbackState !== undefined && tracks.length > 0;
 };
 
 export interface RelistenPlayerBottomBarContextProps {
-  tabBarHeight: number;
   playerBottomBarHeight: number;
 
-  setTabBarHeight: (num: number) => void;
   setPlayerBottomBarHeight: (num: number) => void;
 }
 
-const DEFAULT_TAB_BAR_HEIGHT = 44;
 const DEFAULT_PLAYER_BOTTOM_BAR_HEIGHT = 64;
 
 const DEFAULT_CONTEXT_VALUE: RelistenPlayerBottomBarContextProps = {
-  tabBarHeight: DEFAULT_TAB_BAR_HEIGHT,
   playerBottomBarHeight: DEFAULT_PLAYER_BOTTOM_BAR_HEIGHT,
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  setTabBarHeight: (num: number) => {},
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   setPlayerBottomBarHeight: (num: number) => {},
 };
@@ -163,7 +163,6 @@ export const RelistenPlayerBottomBarContext =
   React.createContext<RelistenPlayerBottomBarContextProps>(DEFAULT_CONTEXT_VALUE);
 
 export const RelistenPlayerBottomBarProvider = ({ children }: PropsWithChildren<object>) => {
-  const [tabBarHeight, setTabBarHeight] = useState(DEFAULT_TAB_BAR_HEIGHT);
   const [playerBottomBarHeight, setPlayerBottomBarHeight] = useState(
     DEFAULT_PLAYER_BOTTOM_BAR_HEIGHT
   );
@@ -172,9 +171,7 @@ export const RelistenPlayerBottomBarProvider = ({ children }: PropsWithChildren<
   return (
     <RelistenPlayerBottomBarContext.Provider
       value={{
-        tabBarHeight,
         playerBottomBarHeight: isPlayerBottomBarVisible ? playerBottomBarHeight : 0,
-        setTabBarHeight,
         setPlayerBottomBarHeight,
       }}
     >

@@ -18,7 +18,7 @@ import { NonIdealState } from '@/relisten/components/non_ideal_state';
 import { ArtistListItem } from '@/relisten/components/artist_rows';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useArtists, useOfflineArtistMetadataMap } from '@/relisten/realm/models/artist_repo';
-import { useGroupSegment, useIsOfflineTab } from '@/relisten/util/routes';
+import { useGroupSegment } from '@/relisten/util/routes';
 import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { useEffect, useMemo, useCallback, type ReactElement } from 'react';
 import { ScrollView, TouchableOpacity, View } from 'react-native';
@@ -230,9 +230,14 @@ const OnlineArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> 
   );
 };
 
-const OfflineArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => {
+const OfflineArtistsListContent = ({
+  artists,
+  groupSegment,
+}: {
+  artists: Realm.Results<Artist>;
+  groupSegment: '(artists)' | '(offline)';
+}) => {
   const router = useRouter();
-  const groupSegment = useGroupSegment();
 
   const allArtistsRoute = `/relisten/tabs/${groupSegment}/all`;
   const sortedArtists = useMemo(() => {
@@ -270,11 +275,15 @@ const OfflineArtistsListContent = ({ artists }: { artists: Realm.Results<Artist>
   );
 };
 
-const ArtistsList = ({ artists, filterOptions }: ArtistsListProps) => {
-  const isOfflineTab = useIsOfflineTab();
+const ArtistsList = ({
+  artists,
+  filterOptions,
+  groupSegment,
+}: ArtistsListProps & { groupSegment: '(artists)' | '(offline)' }) => {
+  const isOfflineTab = groupSegment === '(offline)';
 
   if (isOfflineTab) {
-    return <OfflineArtistsListContent artists={artists} />;
+    return <OfflineArtistsListContent artists={artists} groupSegment={groupSegment} />;
   }
 
   return (
@@ -292,7 +301,6 @@ function ArtistsRootPage() {
   const groupSegment = useGroupSegment();
   const { data: artists } = results;
   const downloadsCount = useRemainingDownloadsCount();
-  const effectiveGroupSegment = groupSegment ?? '(artists)';
 
   return (
     <ScrollScreen>
@@ -301,7 +309,7 @@ function ArtistsRootPage() {
           <TouchableOpacity>
             <Link
               href={{
-                pathname: `/relisten/tabs/${effectiveGroupSegment}/downloading`,
+                pathname: `/relisten/tabs/${groupSegment}/downloading`,
               }}
               className="bg-relisten-blue-700 px-4 py-4 text-center"
             >
@@ -310,7 +318,10 @@ function ArtistsRootPage() {
           </TouchableOpacity>
         )}
 
-        <ArtistsList artists={artists} />
+        <ArtistsList
+          artists={artists}
+          groupSegment={groupSegment === '(offline)' ? '(offline)' : '(artists)'}
+        />
       </RefreshContextProvider>
       <LegacyDataMigrationModal />
     </ScrollScreen>

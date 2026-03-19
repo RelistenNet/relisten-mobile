@@ -93,7 +93,7 @@ export default function Page() {
   const player = useRelistenPlayer();
   const { showUuid, sourceUuid, playTrackUuid } = useLocalSearchParams();
   const router = useRouter();
-  const groupSegment = useGroupSegment(true);
+  const groupSegment = useGroupSegment();
 
   const [hasAutoplayed, setHasAutoplayed] = useState(false);
   const [isRemovingDownloads, setIsRemovingDownloads] = useState(false);
@@ -397,7 +397,7 @@ export const SourceHeader = ({
   const realm = useRealm();
   const router = useRouter();
   const forceUpdate = useForceUpdate();
-  const groupSegment = useGroupSegment(true);
+  const groupSegment = useGroupSegment();
   const { fontScale } = useWindowDimensions();
 
   const secondLine = R.filter(

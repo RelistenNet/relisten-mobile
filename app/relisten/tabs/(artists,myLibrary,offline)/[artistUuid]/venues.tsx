@@ -51,7 +51,7 @@ interface VenueListItemProps {
 }
 
 const VenueListItem = ({ venue }: VenueListItemProps) => {
-  const groupSegment = useGroupSegment(true);
+  const groupSegment = useGroupSegment();
 
   return (
     <Link

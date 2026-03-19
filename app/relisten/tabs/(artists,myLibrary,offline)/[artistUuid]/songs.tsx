@@ -50,7 +50,7 @@ interface SongListItemProps {
 }
 
 const SongListItem = ({ song }: SongListItemProps) => {
-  const groupSegment = useGroupSegment(true);
+  const groupSegment = useGroupSegment();
 
   return (
     <Link

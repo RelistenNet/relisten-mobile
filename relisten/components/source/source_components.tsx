@@ -58,7 +58,7 @@ function SourceDetailsLine({
 }
 
 export function SourceReviewsButton({ show, source }: { show: Show; source: Source }) {
-  const groupSegment = useGroupSegment(true);
+  const groupSegment = useGroupSegment();
 
   return (
     <Link

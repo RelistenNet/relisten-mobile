@@ -155,7 +155,7 @@ function useNavigateToCurrentTrackSheet(options?: NavigateToCurrentTrackSheetOpt
   const { showActionSheetWithOptions } = useActionSheet();
   const navigation = useNavigation();
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
-  const groupSegment = useGroupSegment(true);
+  const groupSegment = useGroupSegment();
   const { pushShow } = usePushShowRespectingUserSettings();
   const dismissOnNavigate = options?.dismissOnNavigate ?? true;
 

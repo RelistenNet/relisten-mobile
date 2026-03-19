@@ -12,7 +12,7 @@ import {
   useOfflineArtistMetadata,
 } from '@/relisten/realm/models/artist_repo';
 import { useArtistHasOfflineTracks } from '@/relisten/realm/root_services';
-import { useGroupSegment, useIsOfflineTab, useRoute } from '@/relisten/util/routes';
+import { useGroupSegment, useIsOfflineTab } from '@/relisten/util/routes';
 import { Link } from 'expo-router';
 import React from 'react';
 import { TouchableOpacity } from 'react-native';
@@ -154,38 +154,3 @@ const OfflineArtistListItem = React.forwardRef<TouchableOpacityRef, ArtistListIt
     );
   }
 );
-
-export const ArtistCompactListItem = React.forwardRef<
-  TouchableOpacityRef,
-  { artist: Artist; isTrendingSort?: boolean }
->(({ artist, isTrendingSort = false }, ref) => {
-  const nextRoute = useRoute('[artistUuid]');
-
-  return (
-    <Link
-      href={{
-        pathname: nextRoute,
-        params: {
-          artistUuid: artist.uuid,
-        },
-      }}
-      asChild
-    >
-      <SectionedListItem ref={ref}>
-        <Flex cn="items-center justify-between" full>
-          <Flex cn="flex-1 flex-col pr-3">
-            <Flex cn="items-center">
-              <Flex cn="flex-1 pr-2">
-                <RowTitle>{artist.name}</RowTitle>
-              </Flex>
-              <Flex cn="flex-shrink-0 items-center">
-                <ArtistPopularitySummary artist={artist} isTrendingSort={isTrendingSort} />
-              </Flex>
-            </Flex>
-          </Flex>
-          <ArtistRowActions artist={artist} />
-        </Flex>
-      </SectionedListItem>
-    </Link>
-  );
-});
