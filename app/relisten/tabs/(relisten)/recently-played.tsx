@@ -13,6 +13,7 @@ import TimeAgo from 'react-timeago';
 import { ShowLink } from '@/relisten/util/push_show';
 import { useArtists } from '@/relisten/realm/models/artist_repo';
 import { groupByUuid } from '@/relisten/util/group_by';
+import { usePlayerBottomScrollInset } from '@/relisten/player/ui/player_bottom_bar';
 
 enum ACTIONS {
   UPDATE_DATA,
@@ -213,6 +214,7 @@ const reducer = (state = defaultState, action: { type: ACTIONS; data?: HistoryTr
 const formatterFn = (value: number, unit: string) => value + unit.slice(0, 1);
 
 export default function Page() {
+  const bottomInset = usePlayerBottomScrollInset();
   const [state, call] = useReducer(reducer, defaultState);
   const artistsResults = useArtists();
 
@@ -259,7 +261,11 @@ export default function Page() {
 
   return (
     <ScrollScreen>
-      <ScrollView className="pt-2">
+      <ScrollView
+        className="pt-2"
+        contentContainerStyle={bottomInset > 0 ? { paddingBottom: bottomInset } : undefined}
+        scrollIndicatorInsets={bottomInset > 0 ? { bottom: bottomInset } : undefined}
+      >
         <View className="w-full">
           <RelistenText className="bg-red-950 p-2 text-center">
             <RelistenText className="font-bold">Experimental:</RelistenText>

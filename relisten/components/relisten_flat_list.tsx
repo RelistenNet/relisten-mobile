@@ -2,6 +2,7 @@ import { FlatList, ListRenderItem, RefreshControl } from 'react-native';
 import { FlatListProps } from 'react-native/Libraries/Lists/FlatList';
 import { ItemSeparator } from './item_separator';
 import { useRefreshContext } from './refresh_context';
+import { usePlayerBottomScrollInset } from '@/relisten/player/ui/player_bottom_bar';
 
 export const RelistenFlatList = <T extends { uuid: string }>({
   data,
@@ -14,6 +15,7 @@ export const RelistenFlatList = <T extends { uuid: string }>({
   pullToRefresh?: boolean;
 } & FlatListProps<T>) => {
   const { onRefresh, refreshing } = useRefreshContext(pullToRefresh || false);
+  const bottomInset = usePlayerBottomScrollInset();
   // if (refreshing) {
   //   return (
   //     <View className="w-full p-4">
@@ -27,6 +29,7 @@ export const RelistenFlatList = <T extends { uuid: string }>({
 
   return (
     <FlatList
+      {...props}
       data={data}
       keyExtractor={(item) => item.uuid}
       ItemSeparatorComponent={ItemSeparator}
@@ -36,8 +39,19 @@ export const RelistenFlatList = <T extends { uuid: string }>({
           <RefreshControl refreshing={refreshing} onRefresh={() => onRefresh(true)} />
         ) : undefined
       }
-      // contentContainerStyle={{ marginBottom: playerBottomBarHeight }}
-      {...props}
+      contentContainerStyle={
+        bottomInset > 0
+          ? [props.contentContainerStyle, { paddingBottom: bottomInset }]
+          : props.contentContainerStyle
+      }
+      scrollIndicatorInsets={
+        bottomInset > 0
+          ? {
+              ...props.scrollIndicatorInsets,
+              bottom: Math.max(props.scrollIndicatorInsets?.bottom ?? 0, bottomInset),
+            }
+          : props.scrollIndicatorInsets
+      }
     ></FlatList>
   );
 };

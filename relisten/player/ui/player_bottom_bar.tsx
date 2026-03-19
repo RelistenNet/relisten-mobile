@@ -144,6 +144,16 @@ export const useIsPlayerBottomBarVisible = () => {
   return playbackState !== undefined && tracks.length > 0;
 };
 
+export const usePlayerBottomScrollInset = () => {
+  const { playerBottomBarHeight } = useRelistenPlayerBottomBarContext();
+
+  if (playerBottomBarHeight === 0) {
+    return 0;
+  }
+
+  return playerBottomBarHeight;
+};
+
 export interface RelistenPlayerBottomBarContextProps {
   playerBottomBarHeight: number;
 

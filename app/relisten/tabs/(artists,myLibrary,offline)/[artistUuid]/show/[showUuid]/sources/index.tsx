@@ -23,6 +23,7 @@ import { ShowLink, ShowRedirect } from '@/relisten/util/push_show';
 import { Artist } from '@/relisten/realm/models/artist';
 import dayjs from 'dayjs';
 import { useSourceHasOfflineTracks } from '@/relisten/realm/root_services';
+import { usePlayerBottomScrollInset } from '@/relisten/player/ui/player_bottom_bar';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -42,7 +43,13 @@ export default function Page() {
 
   if (sources.length === 1) {
     return (
-      <ShowRedirect show={{ artist: artist!, showUuid: show.uuid, sourceUuid: sources[0].uuid }} />
+      <ShowRedirect
+        show={{
+          artist: artist!,
+          showUuid: show.uuid,
+          sourceUuid: sources[0].uuid,
+        }}
+      />
     );
   }
 
@@ -75,6 +82,7 @@ const SourcesList = ({
   sources?: Source[];
 } & ScrollViewProps) => {
   const { refreshing } = useRefreshContext();
+  const bottomInset = usePlayerBottomScrollInset();
 
   if (refreshing || !show) {
     return (
@@ -88,7 +96,23 @@ const SourcesList = ({
   }
 
   return (
-    <Animated.ScrollView style={{ flex: 1 }} {...props}>
+    <Animated.ScrollView
+      style={{ flex: 1 }}
+      {...props}
+      contentContainerStyle={
+        bottomInset > 0
+          ? [props.contentContainerStyle, { paddingBottom: bottomInset }]
+          : props.contentContainerStyle
+      }
+      scrollIndicatorInsets={
+        bottomInset > 0
+          ? {
+              ...props.scrollIndicatorInsets,
+              bottom: Math.max(props.scrollIndicatorInsets?.bottom ?? 0, bottomInset),
+            }
+          : props.scrollIndicatorInsets
+      }
+    >
       <View className="w-full">
         <RelistenText
           className="w-full py-2 text-center text-4xl font-bold text-white"

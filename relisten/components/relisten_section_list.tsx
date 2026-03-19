@@ -8,6 +8,7 @@ import { ItemSeparator } from './item_separator';
 import { useRefreshContext } from './refresh_context';
 import { SectionHeader } from './section_header';
 import { RelistenErrors } from '@/relisten/components/relisten_errors';
+import { usePlayerBottomScrollInset } from '@/relisten/player/ui/player_bottom_bar';
 
 export interface RelistenSection<T> {
   sectionTitle?: string;
@@ -50,6 +51,7 @@ export const RelistenSectionList = <T extends RelistenObject>({
   ...props
 }: RelistenSectionListProps<T>) => {
   const { onRefresh, refreshing, errors } = useRefreshContext(/* refreshRequired= */ false);
+  const bottomInset = usePlayerBottomScrollInset();
   // you might ask why we need this
   // and you'd be correct
   // ..
@@ -76,10 +78,18 @@ export const RelistenSectionList = <T extends RelistenObject>({
           if (section.sectionTitle) {
             return [
               { sectionTitle: section.sectionTitle, ...section },
-              ...section.data.map((rawItem) => ({ rawItem, keyPrefix: section.sectionTitle })),
+              ...section.data.map((rawItem) => ({
+                rawItem,
+                keyPrefix: section.sectionTitle,
+              })),
             ];
           } else {
-            return [...section.data.map((rawItem) => ({ rawItem, keyPrefix: undefined }))];
+            return [
+              ...section.data.map((rawItem) => ({
+                rawItem,
+                keyPrefix: undefined,
+              })),
+            ];
           }
         })
       );
@@ -101,6 +111,7 @@ export const RelistenSectionList = <T extends RelistenObject>({
 
   return (
     <FlashList
+      {...props}
       data={internalData}
       keyboardShouldPersistTaps="handled"
       ItemSeparatorComponent={ItemSeparator}
@@ -173,8 +184,19 @@ export const RelistenSectionList = <T extends RelistenObject>({
           <RefreshControl refreshing={refreshing} onRefresh={() => onRefresh(true)} />
         ) : undefined
       }
-      // contentContainerStyle={{ paddingBottom: playerBottomBarHeight }}
-      {...props}
+      contentContainerStyle={
+        bottomInset > 0
+          ? [props.contentContainerStyle, { paddingBottom: bottomInset }]
+          : props.contentContainerStyle
+      }
+      scrollIndicatorInsets={
+        bottomInset > 0
+          ? {
+              ...props.scrollIndicatorInsets,
+              bottom: Math.max(props.scrollIndicatorInsets?.bottom ?? 0, bottomInset),
+            }
+          : props.scrollIndicatorInsets
+      }
     />
   );
 };
