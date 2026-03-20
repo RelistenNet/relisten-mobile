@@ -7,6 +7,10 @@ import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { useEffect } from 'react';
 import { DownloadManager } from '@/relisten/offline/download_manager';
 
+export const unstable_settings = {
+  initialRouteName: 'tabs',
+};
+
 export default function TabLayout() {
   const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
 
@@ -36,6 +40,7 @@ export default function TabLayout() {
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="tabs" />
       <Stack.Screen
         name="player"
         options={{
@@ -45,7 +50,6 @@ export default function TabLayout() {
           headerStyle: { backgroundColor: RelistenBlue['900'] },
         }}
       />
-      <Stack.Screen name="tabs" />
     </Stack>
   );
 }

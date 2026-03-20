@@ -4,7 +4,13 @@ import 'react-native-reanimated';
 import 'react-native-svg';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 
-import { Slot, SplashScreen, useNavigationContainerRef, usePathname } from 'expo-router';
+import {
+  Slot,
+  SplashScreen,
+  useNavigationContainerRef,
+  usePathname,
+  useRootNavigationState,
+} from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Realm } from '@realm/react';
 
@@ -116,6 +122,7 @@ function TabLayout() {
   const realmRef = useRef<Realm | null>(null);
 
   const navigation = useNavigationContainerRef();
+  const rootNavigationState = useRootNavigationState();
   const pathname = usePathname();
   const [hasRootViewLayoutFinished, setHasRootViewLayoutFinished] = useState(false);
   const previousRouteSignatureRef = useRef<string | null>(null);
@@ -136,10 +143,10 @@ function TabLayout() {
   }, [hasRootViewLayoutFinished, setHasRootViewLayoutFinished]);
 
   useEffect(() => {
-    if (isAppReady && hasRootViewLayoutFinished) {
+    if (isAppReady && rootNavigationState?.key && hasRootViewLayoutFinished) {
       SplashScreen.hideAsync();
     }
-  }, [isAppReady, hasRootViewLayoutFinished]);
+  }, [hasRootViewLayoutFinished, isAppReady, rootNavigationState?.key]);
 
   useEffect(() => {
     if (navigation?.current) {

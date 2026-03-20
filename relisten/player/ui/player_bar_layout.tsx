@@ -185,11 +185,5 @@ export const usePlayerBarLayout = (): PlayerBarLayout => {
 };
 
 export const useNativeTabsStackContentInset = () => {
-  const placementOffset = usePlayerBarPlacementOffset();
-
-  if (Platform.OS !== 'android') {
-    return 0;
-  }
-
-  return placementOffset;
+  return 0;
 };

@@ -26,6 +26,7 @@
     "./app/**/*.ts",
     "./app/**/*.tsx",
     "./app/**/*.d.ts",
+    "asset-modules.d.ts",
     "nativewind-env.d.ts"
   ]
 }

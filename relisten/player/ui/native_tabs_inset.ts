@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // Keep these platform defaults isolated as a compatibility helper for the shared
 // player-bar layout contract rather than spreading them across screens.
 const IOS_NATIVE_TAB_BAR_HEIGHT = 49;
-const ANDROID_NATIVE_TAB_BAR_HEIGHT = 56;
+const ANDROID_NATIVE_TAB_BAR_HEIGHT = 64;
 
 export const getCompatibleNativeTabsBottomInset = ({
   platformOs,
@@ -24,7 +24,7 @@ export const getCompatibleNativeTabsBottomInset = ({
   }
 
   if (platformOs === 'android') {
-    return ANDROID_NATIVE_TAB_BAR_HEIGHT;
+    return ANDROID_NATIVE_TAB_BAR_HEIGHT + 6;
   }
 
   return 0;

@@ -1,3 +1,4 @@
+import { Tabs } from 'expo-router';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
@@ -14,10 +15,42 @@ import {
   renderPlayerBarNativeTabsAccessory,
 } from '@/relisten/player/ui/player_bar_host';
 import { usePlayerBarPlacementBackend } from '@/relisten/player/ui/player_bar_layout';
-import { View } from 'react-native';
+import { Image, Platform, View } from 'react-native';
 
 const ACTIVE_TINT = '#009DC1';
 const INACTIVE_TINT = 'gray';
+
+function renderTabIcon({
+  color,
+  focused,
+  routeName,
+  size,
+}: {
+  color: string;
+  focused: boolean;
+  routeName: string;
+  size: number;
+}) {
+  if (routeName === '(artists)') {
+    return (
+      <MaterialCommunityIcons
+        color={color}
+        name={focused ? 'account-music' : 'account-music-outline'}
+        size={size}
+      />
+    );
+  }
+
+  if (routeName === '(myLibrary)') {
+    return <MaterialIcons color={color} name="library-music" size={size} />;
+  }
+
+  if (routeName === '(offline)') {
+    return <MaterialIcons color={color} name="check-circle" size={size} />;
+  }
+
+  return <Image source={ToolbarRelisten} style={{ tintColor: color, width: size, height: size }} />;
+}
 
 export default function TabLayout() {
   const downloadsCount = useRemainingDownloadsCount();
@@ -27,6 +60,43 @@ export default function TabLayout() {
   const [showOfflineTabOnCompactMobile] = useState(() =>
     shouldShowOfflineTab(settings.showOfflineTabWithDefault(), offline)
   );
+
+  if (Platform.OS === 'android') {
+    return (
+      <View className="flex-1">
+        <Tabs
+          screenOptions={({ route }) => ({
+            freezeOnBlur: true,
+            headerShown: false,
+            tabBarActiveTintColor: ACTIVE_TINT,
+            tabBarInactiveTintColor: INACTIVE_TINT,
+            tabBarIcon: ({ color, focused, size }) =>
+              renderTabIcon({ color, focused, routeName: route.name, size }),
+          })}
+        >
+          <Tabs.Screen name="(artists)" options={{ lazy: false, title: 'Artists' }} />
+          <Tabs.Screen
+            name="(myLibrary)"
+            options={{
+              lazy: true,
+              tabBarBadge: downloadsCount === 0 ? undefined : downloadsCount,
+              title: 'My Library',
+            }}
+          />
+          <Tabs.Screen
+            name="(offline)"
+            options={{
+              lazy: true,
+              tabBarItemStyle: { display: showOfflineTabOnCompactMobile ? 'flex' : 'none' },
+              title: 'Offline',
+            }}
+          />
+          <Tabs.Screen name="(relisten)" options={{ lazy: true, title: 'Relisten' }} />
+        </Tabs>
+        <PlayerBarHost placementBackend={playerBarPlacementBackend} />
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1">
@@ -43,20 +113,9 @@ export default function TabLayout() {
         {renderPlayerBarNativeTabsAccessory(playerBarPlacementBackend)}
         <NativeTabs.Trigger name="(artists)">
           <NativeTabs.Trigger.Icon
-            src={{
-              default: (
-                <NativeTabs.Trigger.VectorIcon
-                  family={MaterialCommunityIcons}
-                  name="account-music-outline"
-                />
-              ),
-              selected: (
-                <NativeTabs.Trigger.VectorIcon
-                  family={MaterialCommunityIcons}
-                  name="account-music"
-                />
-              ),
-            }}
+            src={
+              <NativeTabs.Trigger.VectorIcon family={MaterialCommunityIcons} name="account-music" />
+            }
           />
           <NativeTabs.Trigger.Label>Artists</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
