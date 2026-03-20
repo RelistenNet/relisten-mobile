@@ -1,13 +1,12 @@
-import { useNativeTabsBottomInset } from '@/relisten/player/ui/native_tabs_inset';
+import { useNativeTabsStackContentInset } from '@/relisten/player/ui/player_bar_layout';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { RelistenNavigationProvider } from '@/relisten/util/routes';
 import { Stack } from 'expo-router/stack';
-import { Image, Platform, View } from 'react-native';
+import { Image, View } from 'react-native';
 import RelistenWhite from '@/assets/relisten_white.png';
 
 export default function ArtistsLayout() {
-  const nativeTabsBottomInset = useNativeTabsBottomInset();
-  const contentBottomInset = Platform.OS === 'android' ? nativeTabsBottomInset : 0;
+  const contentBottomInset = useNativeTabsStackContentInset();
 
   return (
     <RelistenNavigationProvider groupSegment="(artists)">

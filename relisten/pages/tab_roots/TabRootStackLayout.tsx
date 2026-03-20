@@ -1,9 +1,9 @@
 import { RelistenBlue } from '@/relisten/relisten_blue';
-import { useNativeTabsBottomInset } from '@/relisten/player/ui/native_tabs_inset';
+import { useNativeTabsStackContentInset } from '@/relisten/player/ui/player_bar_layout';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Stack } from 'expo-router/stack';
-import { Image, Platform, View } from 'react-native';
+import { Image, View } from 'react-native';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import RelistenWhite from '@/assets/relisten_white.png';
 
@@ -20,8 +20,7 @@ const TITLES = {
 export default function TabRootStackLayout() {
   const groupSegment = useGroupSegment();
   const currentTitle = TITLES[groupSegment ?? '(artists)'] ?? TITLES['(artists)'];
-  const nativeTabsBottomInset = useNativeTabsBottomInset();
-  const contentBottomInset = Platform.OS === 'android' ? nativeTabsBottomInset : 0;
+  const contentBottomInset = useNativeTabsStackContentInset();
 
   return (
     <View

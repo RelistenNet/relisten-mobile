@@ -42,7 +42,7 @@ import {
   SourceReviewsButton,
   SourceSummary,
 } from '@/relisten/components/source/source_components';
-import { usePlayerBottomScrollInset } from '@/relisten/player/ui/player_bottom_bar';
+import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
 import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
 import { OfflineModeSetting } from '@/relisten/realm/models/user_settings';
 import { Artist } from '@/relisten/realm/models/artist';
@@ -321,7 +321,10 @@ const SourceComponent = ({
 } & ScrollViewProps) => {
   const { refreshing, errors, hasData } = useRefreshContext();
   const { showContextMenu } = useSourceTrackContextMenu();
-  const bottomInset = usePlayerBottomScrollInset();
+  const playerBottomScrollViewProps = usePlayerBottomScrollViewProps({
+    contentContainerStyle: props.contentContainerStyle,
+    scrollIndicatorInsets: props.scrollIndicatorInsets,
+  });
 
   const onDotsPress = useCallback(
     (sourceTrack: SourceTrack) => {
@@ -360,23 +363,7 @@ const SourceComponent = ({
   }
 
   return (
-    <Animated.ScrollView
-      style={{ flex: 1 }}
-      {...props}
-      contentContainerStyle={
-        bottomInset > 0
-          ? [props.contentContainerStyle, { paddingBottom: bottomInset }]
-          : props.contentContainerStyle
-      }
-      scrollIndicatorInsets={
-        bottomInset > 0
-          ? {
-              ...props.scrollIndicatorInsets,
-              bottom: Math.max(props.scrollIndicatorInsets?.bottom ?? 0, bottomInset),
-            }
-          : props.scrollIndicatorInsets
-      }
-    >
+    <Animated.ScrollView style={{ flex: 1 }} {...props} {...playerBottomScrollViewProps}>
       {/*<SelectedSource sources={sortedSources} sourceIndex={selectedSourceIndex} />*/}
       <SourceHeader
         source={selectedSource}

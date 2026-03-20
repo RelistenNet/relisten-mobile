@@ -8,7 +8,7 @@ import { ItemSeparator } from './item_separator';
 import { useRefreshContext } from './refresh_context';
 import { SectionHeader } from './section_header';
 import { RelistenErrors } from '@/relisten/components/relisten_errors';
-import { usePlayerBottomScrollInset } from '@/relisten/player/ui/player_bottom_bar';
+import { usePlayerBottomScrollInset } from '@/relisten/player/ui/player_bar_layout';
 
 export interface RelistenSection<T> {
   sectionTitle?: string;

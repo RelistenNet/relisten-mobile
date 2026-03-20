@@ -24,7 +24,7 @@ import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { legacyDatabaseExists } from '@/relisten/realm/old_ios_schema';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LegacyDataMigrationModal, SEEN_MODAL_KEY } from '@/relisten/pages/legacy_migration';
-import { usePlayerBottomScrollInset } from '@/relisten/player/ui/player_bottom_bar';
+import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
 
 const sizeFormatter = new Intl.NumberFormat([], {
   style: 'unit',
@@ -226,7 +226,7 @@ function StorageUsage() {
 }
 
 export default function Page() {
-  const bottomInset = usePlayerBottomScrollInset();
+  const playerBottomScrollViewProps = usePlayerBottomScrollViewProps();
   const artists = useArtists();
   const { apiClient } = useRelistenApi();
   const { pushShow } = usePushShowRespectingUserSettings();
@@ -250,11 +250,7 @@ export default function Page() {
 
   return (
     <ScrollScreen>
-      <ScrollView
-        className=""
-        contentContainerStyle={bottomInset > 0 ? { paddingBottom: bottomInset } : undefined}
-        scrollIndicatorInsets={bottomInset > 0 ? { bottom: bottomInset } : undefined}
-      >
+      <ScrollView className="" {...playerBottomScrollViewProps}>
         <Flex column>
           <Flex column className="gap-4 p-4 pr-8">
             <RowWithAction

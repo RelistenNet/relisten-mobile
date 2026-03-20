@@ -9,7 +9,11 @@ import ToolbarRelisten from '@/assets/toolbar_relisten.png';
 import { useState } from 'react';
 import { useRemainingDownloadsCount } from '@/relisten/realm/root_services';
 import { shouldShowOfflineTab } from '@/relisten/util/offline_tab_visibility';
-import { PlayerBottomBar } from '@/relisten/player/ui/player_bottom_bar';
+import {
+  PlayerBarHost,
+  renderPlayerBarNativeTabsAccessory,
+} from '@/relisten/player/ui/player_bar_host';
+import { usePlayerBarPlacementBackend } from '@/relisten/player/ui/player_bar_layout';
 import { View } from 'react-native';
 
 const ACTIVE_TINT = '#009DC1';
@@ -19,6 +23,7 @@ export default function TabLayout() {
   const downloadsCount = useRemainingDownloadsCount();
   const settings = useUserSettings();
   const offline = !useShouldMakeNetworkRequests();
+  const playerBarPlacementBackend = usePlayerBarPlacementBackend();
   const [showOfflineTabOnCompactMobile] = useState(() =>
     shouldShowOfflineTab(settings.showOfflineTabWithDefault(), offline)
   );
@@ -35,6 +40,7 @@ export default function TabLayout() {
         }}
         tintColor={ACTIVE_TINT}
       >
+        {renderPlayerBarNativeTabsAccessory(playerBarPlacementBackend)}
         <NativeTabs.Trigger name="(artists)">
           <NativeTabs.Trigger.Icon
             src={{
@@ -81,7 +87,7 @@ export default function TabLayout() {
           <NativeTabs.Trigger.Label>Relisten</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
       </NativeTabs>
-      <PlayerBottomBar />
+      <PlayerBarHost placementBackend={playerBarPlacementBackend} />
     </View>
   );
 }

@@ -3,12 +3,34 @@ import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Expo Router native tabs do not expose a runtime tab-bar height API in the current SDK.
-// Keep these platform defaults only for compact-player anchoring until the player bar
-// is redesigned around a different native-tabs integration seam.
+// Keep these platform defaults isolated as a compatibility helper for the shared
+// player-bar layout contract rather than spreading them across screens.
 const IOS_NATIVE_TAB_BAR_HEIGHT = 49;
 const ANDROID_NATIVE_TAB_BAR_HEIGHT = 56;
 
-export function useNativeTabsBottomInset() {
+export const getCompatibleNativeTabsBottomInset = ({
+  platformOs,
+  insetBottom,
+  stableIosBottomInset,
+}: {
+  platformOs: typeof Platform.OS;
+  insetBottom: number;
+  stableIosBottomInset: number;
+}) => {
+  if (platformOs === 'ios') {
+    const effectiveIosBottomInset = insetBottom > 0 ? insetBottom : stableIosBottomInset;
+
+    return IOS_NATIVE_TAB_BAR_HEIGHT + effectiveIosBottomInset;
+  }
+
+  if (platformOs === 'android') {
+    return ANDROID_NATIVE_TAB_BAR_HEIGHT;
+  }
+
+  return 0;
+};
+
+export function useCompatibleNativeTabsBottomInset() {
   const insets = useSafeAreaInsets();
   const [stableIosBottomInset, setStableIosBottomInset] = useState(insets.bottom);
 
@@ -18,15 +40,11 @@ export function useNativeTabsBottomInset() {
     }
   }, [insets.bottom, stableIosBottomInset]);
 
-  if (Platform.OS === 'ios') {
-    const effectiveIosBottomInset = insets.bottom > 0 ? insets.bottom : stableIosBottomInset;
-
-    return IOS_NATIVE_TAB_BAR_HEIGHT + effectiveIosBottomInset;
-  }
-
-  if (Platform.OS === 'android') {
-    return ANDROID_NATIVE_TAB_BAR_HEIGHT;
-  }
-
-  return 0;
+  return getCompatibleNativeTabsBottomInset({
+    platformOs: Platform.OS,
+    insetBottom: insets.bottom,
+    stableIosBottomInset,
+  });
 }
+
+export const useNativeTabsBottomInset = useCompatibleNativeTabsBottomInset;

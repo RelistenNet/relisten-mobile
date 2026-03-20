@@ -45,7 +45,7 @@ import { sharedStates } from '@/relisten/player/shared_state';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { PlayerRepeatState, PlayerShuffleState } from '@/relisten/player/relisten_player_queue';
 
-export function ScrubberRow() {
+export function ScrubberRow({ showTimes = true }: { showTimes?: boolean }) {
   'use no memo';
 
   const progressObj = useNativePlaybackProgress();
@@ -110,40 +110,50 @@ export function ScrubberRow() {
   }, [cacheValue]);
 
   return (
-    <Slider
-      progress={progress}
-      minimumValue={min}
-      maximumValue={max}
-      cache={cache}
-      isScrubbing={isScrubbing}
-      hapticMode={HapticModeEnum.BOTH}
-      onHapticFeedback={() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }}
-      onSlidingComplete={doSeek}
-      theme={{
-        minimumTrackTintColor: RelistenBlue['400'],
-        // maximumTrackTintColor?: string;
-        cacheTrackTintColor: RelistenBlue['600'],
-        bubbleBackgroundColor: RelistenBlue['900'],
-        // bubbleTextColor: 'black',
-        // disableMinTrackTintColor?: string;
-        // heartbeatColor?: string;
-      }}
-      bubble={(value) => {
-        return trackDuration(value);
-      }}
-      bubbleTextStyle={{ fontVariant: ['tabular-nums'], textAlign: 'center' }}
+    <Flex column={true}>
+      <Slider
+        progress={progress}
+        minimumValue={min}
+        maximumValue={max}
+        cache={cache}
+        isScrubbing={isScrubbing}
+        hapticMode={HapticModeEnum.BOTH}
+        onHapticFeedback={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }}
+        onSlidingComplete={doSeek}
+        theme={{
+          minimumTrackTintColor: RelistenBlue['400'],
+          // maximumTrackTintColor?: string;
+          cacheTrackTintColor: RelistenBlue['600'],
+          bubbleBackgroundColor: RelistenBlue['900'],
+          // bubbleTextColor: 'black',
+          // disableMinTrackTintColor?: string;
+          // heartbeatColor?: string;
+        }}
+        bubble={(value) => {
+          return trackDuration(value);
+        }}
+        bubbleTextStyle={{ fontVariant: ['tabular-nums'], textAlign: 'center' }}
 
-      // scrubbedColor={RelistenBlue['100']}
-      // trackColor="white"
-      // trackBackgroundColor={RelistenBlue['700']}
-      // bufferedTrackColor={RelistenBlue['400']}
-      // bufferedValue={
-      //   downloadProgress && progress ? downloadProgress?.percent * progress?.duration : 0
-      // }
-      // displayValues={displayValues}
-    />
+        // scrubbedColor={RelistenBlue['100']}
+        // trackColor="white"
+        // trackBackgroundColor={RelistenBlue['700']}
+        // bufferedTrackColor={RelistenBlue['400']}
+        // bufferedValue={
+        //   downloadProgress && progress ? downloadProgress?.percent * progress?.duration : 0
+        // }
+        // displayValues={displayValues}
+      />
+      {showTimes && (
+        <Flex cn="justify-between mt-3">
+          <RelistenText cn="font-semibold">{trackDuration(progressObj?.elapsed ?? 0)}</RelistenText>
+          <RelistenText cn="font-semibold">
+            {trackDuration(progressObj?.duration ?? 0)}
+          </RelistenText>
+        </Flex>
+      )}
+    </Flex>
   );
 }
 
@@ -230,7 +240,6 @@ function CurrentTrackInfo({ dismissOnNavigate }: CurrentTrackInfoProps) {
     dismissOnNavigate,
   });
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
-  const progressObj = useNativePlaybackProgress();
   const { isCasting, deviceName } = useRelistenCastStatus();
 
   const artist = currentPlayerTrack?.sourceTrack?.artist;
@@ -290,10 +299,6 @@ function CurrentTrackInfo({ dismissOnNavigate }: CurrentTrackInfoProps) {
           Casting{deviceName ? ` to ${deviceName}` : ''}
         </RelistenText>
       )}
-      <Flex cn="justify-between mt-2">
-        <RelistenText cn="font-semibold">{trackDuration(progressObj?.elapsed ?? 0)}</RelistenText>
-        <RelistenText cn="font-semibold">{trackDuration(progressObj?.duration ?? 0)}</RelistenText>
-      </Flex>
     </Flex>
   );
 }
@@ -312,7 +317,7 @@ function PlayerControls() {
   }
 
   return (
-    <Flex className="w-full items-center justify-center py-6">
+    <Flex className="w-full items-center justify-center py-2">
       <TouchableOpacity
         onPress={() => {
           if (progress && (progress.elapsed > 5 || player.queue.currentIndex === 0)) {
@@ -382,7 +387,7 @@ function PlayerSecondaryControls() {
   };
 
   return (
-    <Flex className="w-full items-center justify-between py-3">
+    <Flex className="w-full items-center justify-between py-0">
       <Flex className="flex-row items-center gap-2">
         <TouchableOpacity onPress={toggleShuffle} className="p-2">
           <MaterialCommunityIcons name="shuffle" size={24} color={shuffleColor} />

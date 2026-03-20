@@ -18,7 +18,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import useCacheAssets from './useCacheAssets';
 
 import { RelistenPlayerProvider } from '@/relisten/player/relisten_player_hooks';
-import { RelistenPlayerBottomBarProvider } from '@/relisten/player/ui/player_bottom_bar';
+import { RelistenPlayerBottomBarProvider } from '@/relisten/player/ui/player_bar_layout';
 import { RelistenCastProvider } from '@/relisten/casting/cast_provider';
 import { ActionSheetProvider } from '@expo/react-native-action-sheet';
 import FlashMessage from 'react-native-flash-message';

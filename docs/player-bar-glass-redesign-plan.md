@@ -1,46 +1,21 @@
-# Feature Spec: Native-Tabs Player Bar Redesign
+# Feature Spec: Native-Tabs Player Bar Glass Redesign
 
 **Date:** 2026-03-19
-**Status:** Planning
+**Status:** Phase 6 Locally Verified, External Runtime Validation Pending
 
 ---
 
 ## Goal
 
-Redesign the compact player bar so it feels native alongside Expo Router native tabs:
+Redesign the compact player bar so it feels native alongside the Expo Router native tabs shell:
 
-- inset from screen edges instead of full-bleed
-- glass-like visual treatment that belongs with the native tab bar
-- stable placement during tab switches and lazy tab loads
-- clean scroll-under behavior on iOS
-- no dependence on ad hoc absolute-position heuristics as the long-term architecture
+- inset from the screen edges instead of full-bleed
+- glass-like on iOS, lighter and calmer than the current blue slab
+- visually tied to the native tab bar instead of stacked above it awkwardly
+- stable during tab switches and lazy tab loads
+- compatible with the current `/relisten/player` modal expansion path
 
-This is a player-bar redesign track, not a floating-sheet migration. The existing `/relisten/player` modal route stays intact for now.
-
----
-
-## Product Intent
-
-### Desired Feel
-
-The compact player bar should read as a native accessory attached to the tab system, not as a legacy overlay floating above unrelated content.
-
-It should feel:
-
-- inset
-- translucent/glassy on iOS
-- compact and calm, not visually heavy
-- clearly tappable as the entry point into the full player
-- visually aligned with the native tab bar rather than stacked awkwardly above it
-
-### UX Requirements
-
-- The bar remains visible only when playback queue state makes it relevant.
-- Tapping the main body still opens `/relisten/player`.
-- Primary transport controls remain accessible from the collapsed bar.
-- List content should still scroll naturally beneath the tab bar glass on iOS.
-- The bar must not jump vertically during lazy tab transitions.
-- The bar must not overlap the native tab bar.
+This is a collapsed-player redesign track. It is not the floating-sheet migration.
 
 ---
 
@@ -48,225 +23,205 @@ It should feel:
 
 ### In Scope
 
-- Compact player bar visual redesign.
-- Compact player bar placement redesign.
-- Native-tabs-aware mounting and layout contract cleanup.
-- iOS-first glass treatment and inset behavior.
-- Cross-platform fallback strategy for Android and older iOS.
-- Cleanup of current `playerBottomBarHeight` spacing contract where needed.
+- compact player bar visual redesign
+- compact player bar placement redesign
+- a cleaner bottom-edge layout contract for the collapsed bar
+- iOS-first glass/material treatment
+- a compatibility fallback path for older iOS and Android
+- cleanup of the current scroll/content reservation contract where needed
 
 ### Out of Scope
 
-- Replacing the `/relisten/player` modal with an interactive sheet.
-- Full player screen redesign.
-- Tab information architecture changes.
-- Web work.
-- Desktop/iPad-specific redesign work.
+- replacing `/relisten/player` with an interactive sheet
+- full player screen redesign
+- desktop/iPad mode
+- web
+- tab information architecture changes
 
 ---
 
-## Current State
+## Current Code Snapshot
 
-### Existing Mount and Layout
+### Shell Ownership
 
-- The player bar is mounted in [app/relisten/tabs/_layout.tsx](/Users/alecgorge/code/relisten/relisten-mobile/app/relisten/tabs/_layout.tsx#L84) as a sibling after `NativeTabs`.
-- The bar itself is absolutely positioned in [relisten/player/ui/player_bottom_bar.tsx](/Users/alecgorge/code/relisten/relisten-mobile/relisten/player/ui/player_bottom_bar.tsx#L119).
-- Its bottom anchoring depends on [relisten/player/ui/native_tabs_inset.ts](/Users/alecgorge/code/relisten/relisten-mobile/relisten/player/ui/native_tabs_inset.ts#L1), which currently uses platform constants plus safe-area heuristics.
+- The app now uses a native-tabs-only compact shell in [app/relisten/tabs/_layout.tsx](/Users/alecgorge/code/relisten/relisten-mobile/app/relisten/tabs/_layout.tsx#L1).
+- Supported iOS mounts the compact player through a direct `NativeTabs.BottomAccessory` child in [app/relisten/tabs/_layout.tsx](/Users/alecgorge/code/relisten/relisten-mobile/app/relisten/tabs/_layout.tsx#L26).
+- `PlayerBarHost` remains mounted after `NativeTabs` in [app/relisten/tabs/_layout.tsx](/Users/alecgorge/code/relisten/relisten-mobile/app/relisten/tabs/_layout.tsx#L87) as the compatibility overlay fallback owner.
+- `/relisten/player` is still a modal stack route in [app/relisten/_layout.tsx](/Users/alecgorge/code/relisten/relisten-mobile/app/relisten/_layout.tsx#L35).
 
-### Existing Spacing Contract
+### Player Bar Contract
 
-- Shared bar height is measured in [relisten/player/ui/player_bottom_bar.tsx](/Users/alecgorge/code/relisten/relisten-mobile/relisten/player/ui/player_bottom_bar.tsx#L147) and provided by `RelistenPlayerBottomBarProvider` in [app/_layout.tsx](/Users/alecgorge/code/relisten/relisten-mobile/app/_layout.tsx#L213).
-- Scrollable screens reserve space through [relisten/components/screens/ScrollScreen.tsx](/Users/alecgorge/code/relisten/relisten-mobile/relisten/components/screens/ScrollScreen.tsx#L5).
-- `source_details` also forwards bottom inset manually in [source_details.tsx](/Users/alecgorge/code/relisten/relisten-mobile/app/relisten/tabs/%28artists,myLibrary,offline%29/%5BartistUuid%5D/show/%5BshowUuid%5D/source/%5BsourceUuid%5D/source_details.tsx#L88).
+- Compact-bar visuals now use an inset card shell with iOS material styling and Android elevated fallback in [relisten/player/ui/player_bottom_bar.tsx](/Users/alecgorge/code/relisten/relisten-mobile/relisten/player/ui/player_bottom_bar.tsx#L131).
+- Shared collapsed-bar height is tracked in [relisten/player/ui/player_bottom_bar.tsx](/Users/alecgorge/code/relisten/relisten-mobile/relisten/player/ui/player_bottom_bar.tsx#L133).
+- That height is provided app-wide by `RelistenPlayerBottomBarProvider` in [app/_layout.tsx](/Users/alecgorge/code/relisten/relisten-mobile/app/_layout.tsx#L213).
+- Placement backend selection now lives in [relisten/player/ui/player_bar_layout.tsx](/Users/alecgorge/code/relisten/relisten-mobile/relisten/player/ui/player_bar_layout.tsx#L81) and [relisten/player/ui/player_bar_host.tsx](/Users/alecgorge/code/relisten/relisten-mobile/relisten/player/ui/player_bar_host.tsx#L4).
+- Development builds can now force `nativeTabsAccessory` or `overlay` with `EXPO_PUBLIC_PLAYER_BAR_PLACEMENT_BACKEND` in [relisten/player/ui/player_bar_layout.tsx](/Users/alecgorge/code/relisten/relisten-mobile/relisten/player/ui/player_bar_layout.tsx#L99), while production continues to ignore that override.
+- Absolute `bottom: nativeTabsBottomInset` positioning is now overlay-fallback-only in [relisten/player/ui/player_bottom_bar.tsx](/Users/alecgorge/code/relisten/relisten-mobile/relisten/player/ui/player_bottom_bar.tsx#L152).
+- Native-tab fallback geometry currently comes from [relisten/player/ui/native_tabs_inset.ts](/Users/alecgorge/code/relisten/relisten-mobile/relisten/player/ui/native_tabs_inset.ts#L1).
 
-### Existing Problems
+### Scroll and Inset Contract
 
-- The placement contract is still heuristic because Expo native tabs do not expose a stable cross-platform tab-bar-height measurement API in the current local surface.
-- The bar is structurally an overlay, so any inset mistake shows up immediately as overlap or gap.
-- `playerBottomBarHeight` currently mixes two concerns:
-  - visual accessory height
-  - content reservation height
-- Scroll-under-glass behavior on iOS and content reservation are currently coupled in a way that makes redesign awkward.
+- `ScrollScreen` is now only a `flex: 1` wrapper in [relisten/components/screens/ScrollScreen.tsx](/Users/alecgorge/code/relisten/relisten-mobile/relisten/components/screens/ScrollScreen.tsx#L1).
+- Shared list wrappers apply collapsed-player bottom reservation through `usePlayerBottomScrollInset()` in:
+  - [relisten/components/relisten_flat_list.tsx](/Users/alecgorge/code/relisten/relisten-mobile/relisten/components/relisten_flat_list.tsx#L17)
+  - [relisten/components/relisten_section_list.tsx](/Users/alecgorge/code/relisten/relisten-mobile/relisten/components/relisten_section_list.tsx#L53)
+- Shared `ScrollView` consumers can now use `usePlayerBottomScrollViewProps()` in [relisten/player/ui/player_bar_layout.tsx](/Users/alecgorge/code/relisten/relisten-mobile/relisten/player/ui/player_bar_layout.tsx#L66), which only reserves manual bottom spacing on the overlay fallback backend.
+- The explicit `ScrollView` backlog is now cleared in the current repo state, including the remaining show/source screens in:
+  - [app/relisten/tabs/(artists,myLibrary,offline)/[artistUuid]/show/[showUuid]/sources/index.tsx](/Users/alecgorge/code/relisten/relisten-mobile/app/relisten/tabs/%28artists,myLibrary,offline%29/%5BartistUuid%5D/show/%5BshowUuid%5D/sources/index.tsx#L82)
+  - [app/relisten/tabs/(artists,myLibrary,offline)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/index.tsx](/Users/alecgorge/code/relisten/relisten-mobile/app/relisten/tabs/%28artists,myLibrary,offline%29/%5BartistUuid%5D/show/%5BshowUuid%5D/source/%5BsourceUuid%5D/index.tsx#L321)
+
+### Current Inset Ownership Map
+
+| Surface type | Current owner | Current contract |
+| --- | --- | --- |
+| `FlatList` screens | `RelistenFlatList` | shared `usePlayerBottomScrollInset()` plus `scrollIndicatorInsets` |
+| `FlashList` section screens | `RelistenSectionList` | shared `usePlayerBottomScrollInset()` plus `scrollIndicatorInsets` |
+| manual `ScrollView` screens | screen-local code | per-screen `contentContainerStyle` and `scrollIndicatorInsets` |
+| generic screen wrapper | `ScrollScreen` | no inset logic, only `flex: 1` |
+| tab-stack outer layout on Android | tab-root layouts | shell padding via `useNativeTabsBottomInset()` |
+
+### Current Problems
+
+- Visual height, placement height, and content reservation are still too tightly coupled.
+- `native_tabs_inset.ts` still relies on compatibility constants because the local native-tabs surface does not expose a cross-platform tab-bar-height API.
+- The scroll-consumer contract is now centralized, but fallback verification still matters because supported iOS accessory mode reserves no manual bottom inset while overlay mode still does.
+- The main remaining migration boundary is no longer `ScrollScreen`; it is fallback hardening and compatibility validation around the shell-level placement contract.
 
 ---
 
-## Native Tabs Platform Reality
+## Platform Reality
 
-### What the Local API Supports
+### Current Local Native-Tabs Surface
 
-The installed Expo Router native-tabs implementation exposes a cleaner seam than the current overlay-only design:
-
-- `NativeTabs.BottomAccessory` exists in the local surface at [elements.d.ts](/Users/alecgorge/code/relisten/relisten-mobile/node_modules/expo-router/build/native-tabs/common/elements.d.ts#L201).
-- `NativeTabsView` forwards that accessory to `react-native-screens` at [NativeTabsView.js](/Users/alecgorge/code/relisten/relisten-mobile/node_modules/expo-router/build/native-tabs/NativeTabsView.js#L63).
+- The installed Expo Router surface exposes `NativeTabs.BottomAccessory` in the local types at [elements.d.ts](/Users/alecgorge/code/relisten/relisten-mobile/node_modules/expo-router/build/native-tabs/common/elements.d.ts#L201).
+- `NativeTabsView` forwards that accessory into `react-native-screens` in [NativeTabsView.js](/Users/alecgorge/code/relisten/relisten-mobile/node_modules/expo-router/build/native-tabs/NativeTabsView.js#L63).
 
 ### Constraint
 
-That accessory path is documented as iOS 26+ only in the local Expo Router surface.
+That accessory path is documented in the local surface as iOS 26+ only.
 
-So the design target should be:
+So the redesign must treat placement as two backends behind one player-bar API:
 
-- iOS 26+: use `NativeTabs.BottomAccessory`
-- older iOS: use a fallback overlay path
-- Android: use a fallback overlay path
+1. native accessory path on supported iOS
+2. compatibility overlay path everywhere else
 
-This means the redesign should explicitly have two render modes behind one player-bar API:
-
-1. native accessory mode
-2. compatibility overlay mode
+The spec should not pretend `BottomAccessory` is the universal answer today.
 
 ---
 
-## Design Direction
+## Product Direction
 
-### Visual Direction
+### Desired Feel
 
-The redesigned bar should be a compact inset card:
+The compact player bar should read as a native accessory attached to the tab system:
 
-- horizontal inset from screen edges
-- rounded corners
-- subtle blur/translucency on iOS
-- restrained border/highlight to match the native tab bar glass language
-- less dense chrome than the current full-width bar
+- inset from the left and right edges
+- visually lighter than the current full-width slab
+- rounded and material-like
+- clearly tappable as the entry point into the full player
+- spatially aligned with the native tab bar rather than vertically fighting it
 
-### Suggested iOS Treatment
+### iOS Visual Direction
 
-- Use a translucent material-style background.
-- Keep the bar visually separate from the tab bar, but related to it.
-- Prefer a softer edge and lower visual weight than the current blue slab.
-- Keep the scrubber integrated, but consider reducing its visual dominance in the collapsed state.
+- translucent or blurred material treatment
+- soft border/highlight and restrained shadow
+- enough separation from the tab bar to read as its own surface
+- scrubber and metadata retained, but with calmer chrome than the current implementation
 
-### Suggested Android Treatment
+### Android Visual Direction
 
-- Do not mimic iOS blur literally.
-- Use a flatter elevated surface with similar inset geometry and hierarchy.
-- Keep spacing and layout rhythm aligned with iOS so behavior remains consistent even if materials differ.
+- no fake iOS blur
+- use an inset elevated card with similar spacing and hierarchy
+- keep behavior and footprint aligned with iOS, even if the material treatment differs
 
 ---
 
 ## Architecture Direction
 
-### Principle 1: One Player Bar API, Multiple Placement Backends
+### Principle 1: One Collapsed Player UI, Multiple Placement Backends
 
-Introduce a single player-bar host abstraction with two implementations:
+Keep one collapsed-player content component and separate only the placement wrapper:
 
-- `native accessory` backend for iOS 26+
-- `overlay fallback` backend for older iOS and Android
+- native accessory backend
+- compatibility overlay backend
 
 The rest of the app should not care which backend is active.
 
-### Principle 2: Separate Visual Height From Content Reservation
+### Principle 2: Separate Visual Height From Reserved Content Inset
 
-Split the current `playerBottomBarHeight` contract into explicit concepts:
+The current contract still encourages consumers to treat the rendered bar height as the only bottom-spacing number. The redesign should make the intended values explicit:
 
-- `playerAccessoryVisualHeight`
-- `playerAccessoryReservedContentInset`
+- collapsed player visual height
+- reserved content inset for scroll surfaces
+- placement offset relative to native tabs
 
-This avoids forcing every screen to use the raw rendered height as if it were always the correct scroll reservation value.
+These should be derived in one place, not improvised per screen.
 
-### Principle 3: Centralize Bottom-Edge Geometry
+### Principle 3: One Bottom-Edge Geometry Module
 
-There should be one source of truth for:
+Centralize:
 
-- bar placement relative to native tabs
-- content bottom reservation
-- any platform-specific native-tabs fallback numbers
+- placement offset for the collapsed bar
+- reserved content inset for lists and scroll views
+- platform compatibility constants
+- supported-native-accessory detection
 
-Do not leave Android-only padding logic duplicated in both:
+Do not leave this split across:
 
-- [relisten/pages/tab_roots/TabRootStackLayout.tsx](/Users/alecgorge/code/relisten/relisten-mobile/relisten/pages/tab_roots/TabRootStackLayout.tsx#L23)
-- [app/relisten/tabs/(relisten)/_layout.tsx](/Users/alecgorge/code/relisten/relisten-mobile/app/relisten/tabs/%28relisten%29/_layout.tsx#L9)
+- [relisten/player/ui/player_bottom_bar.tsx](/Users/alecgorge/code/relisten/relisten-mobile/relisten/player/ui/player_bottom_bar.tsx)
+- [relisten/player/ui/native_tabs_inset.ts](/Users/alecgorge/code/relisten/relisten-mobile/relisten/player/ui/native_tabs_inset.ts)
+- explicit per-screen scroll consumers
 
 ### Principle 4: Preserve The Modal Player Contract
 
-Keep `/relisten/player` as the expansion path for now. The redesign should improve the collapsed bar without entangling this track with the separate floating-sheet migration.
+Keep `router.push('/relisten/player')` as the expansion path for this track. The redesign should improve the collapsed bar without mixing in the floating-sheet migration.
 
 ---
 
 ## Proposed Implementation Shape
 
-### New/Changed Components
+### Components and Modules
 
-- Keep [relisten/player/ui/player_bottom_bar.tsx](/Users/alecgorge/code/relisten/relisten-mobile/relisten/player/ui/player_bottom_bar.tsx) as the primary collapsed-bar UI module.
-- Add a dedicated placement host, for example:
-  - `relisten/player/ui/player_bar_host.tsx`
-- Add a dedicated geometry contract module, for example:
-  - `relisten/player/ui/player_bar_layout.ts`
-- Reduce [relisten/player/ui/native_tabs_inset.ts](/Users/alecgorge/code/relisten/relisten-mobile/relisten/player/ui/native_tabs_inset.ts) to a compatibility helper instead of making it the core long-term architecture.
+Keep [relisten/player/ui/player_bottom_bar.tsx](/Users/alecgorge/code/relisten/relisten-mobile/relisten/player/ui/player_bottom_bar.tsx) as the collapsed-player UI module, but split responsibilities around it.
 
-### Placement Strategy
+Add:
+
+- `relisten/player/ui/player_bar_host.tsx`
+  - chooses native accessory vs overlay fallback
+  - owns placement backend selection
+- `relisten/player/ui/player_bar_layout.ts`
+  - central source of truth for collapsed-player visual height, reserved content inset, and fallback offsets
+
+Reduce [relisten/player/ui/native_tabs_inset.ts](/Users/alecgorge/code/relisten/relisten-mobile/relisten/player/ui/native_tabs_inset.ts) to a compatibility helper used by `player_bar_layout.ts`, not the entire architecture.
+
+### Placement Backends
 
 #### Backend A: Native Accessory
 
-When supported, render the collapsed player bar through `NativeTabs.BottomAccessory` directly inside [app/relisten/tabs/_layout.tsx](/Users/alecgorge/code/relisten/relisten-mobile/app/relisten/tabs/_layout.tsx).
+When supported, mount the collapsed player through `NativeTabs.BottomAccessory` inside [app/relisten/tabs/_layout.tsx](/Users/alecgorge/code/relisten/relisten-mobile/app/relisten/tabs/_layout.tsx#L23).
 
 Benefits:
 
-- bar belongs to the native tab controller
-- better visual and spatial integration
-- less manual bottom anchoring logic
-- less susceptibility to lazy-tab overlay jank
+- the player belongs to the tab controller
+- less shell-level absolute positioning
+- better visual integration with native glass
+- lower chance of lazy-tab placement jank
 
 #### Backend B: Compatibility Overlay
 
 For older iOS and Android:
 
 - keep a shell-level mounted host
-- keep placement stable
-- use centralized fallback geometry
-- preserve iOS scroll-under-tab behavior where desired
+- keep placement stable and centralized
+- keep the same collapsed-player content component
+- treat this as compatibility infrastructure, not the long-term ideal
 
-This backend should be treated as compatibility infrastructure, not the desired end state.
+### Scroll Reservation Strategy
 
-### Content Reservation Strategy
-
-- `ScrollScreen` should consume the reserved content inset, not blindly assume the rendered bar height equals the right padding amount.
-- Special-case manual inset consumers such as `source_details` should be audited and either normalized onto the shared contract or justified as exceptions.
-
----
-
-## Execution Phases
-
-### Phase 1: Lock the layout contract
-
-- Introduce a dedicated player-bar layout contract module.
-- Split visual height from reserved content inset.
-- Centralize all bottom-edge geometry and remove duplicated Android-only layout math where possible.
-- Keep visuals unchanged in this phase.
-
-### Phase 2: Introduce the placement host
-
-- Create a `PlayerBarHost` that chooses between:
-  - native accessory backend
-  - overlay fallback backend
-- Keep `PlayerBottomBar` as the rendered collapsed content surface.
-- Keep `/relisten/player` modal behavior unchanged.
-
-### Phase 3: Adopt `NativeTabs.BottomAccessory` where supported
-
-- Wire the iOS 26+ native accessory path into [app/relisten/tabs/_layout.tsx](/Users/alecgorge/code/relisten/relisten-mobile/app/relisten/tabs/_layout.tsx).
-- Preserve the compatibility overlay for older iOS and Android.
-- Verify no tab-switch placement jank remains in the supported path.
-
-### Phase 4: Visual redesign
-
-- Apply inset geometry, rounded corners, and lighter visual chrome.
-- Add glass/material treatment for supported iOS paths.
-- Refine spacing for title, subtitle, transport controls, and scrubber.
-- Keep the result visually compatible with the native tab bar.
-
-### Phase 5: Scroll and inset cleanup
-
-- Audit `ScrollScreen`, `source_details`, and any other manual bottom-reservation consumers.
-- Ensure list-heavy screens still feel right:
-  - content can scroll under tab glass on iOS
-  - important content is not obscured by the player bar
-  - no double-spacing or clipped bottoms
-
-### Phase 6: Fallback hardening
-
-- Validate older iOS compatibility path.
-- Validate Android fallback path.
-- Keep platform constants isolated and explicitly temporary.
+- Shared list wrappers should consume the reserved content inset from `player_bar_layout.ts`.
+- Explicit `ScrollView` consumers should either move onto the shared contract or remain documented exceptions.
+- `ScrollScreen` should stay a generic wrapper and not regain hardcoded bottom padding.
+- Preferred target pattern for manual consumers: a shared hook or helper that returns the right `contentContainerStyle` and `scrollIndicatorInsets` payload, instead of repeating the same math in each screen.
 
 ---
 
@@ -277,10 +232,13 @@ Primary files expected to change:
 - [app/relisten/tabs/_layout.tsx](/Users/alecgorge/code/relisten/relisten-mobile/app/relisten/tabs/_layout.tsx)
 - [relisten/player/ui/player_bottom_bar.tsx](/Users/alecgorge/code/relisten/relisten-mobile/relisten/player/ui/player_bottom_bar.tsx)
 - [relisten/player/ui/native_tabs_inset.ts](/Users/alecgorge/code/relisten/relisten-mobile/relisten/player/ui/native_tabs_inset.ts)
+- [relisten/components/relisten_flat_list.tsx](/Users/alecgorge/code/relisten/relisten-mobile/relisten/components/relisten_flat_list.tsx)
+- [relisten/components/relisten_section_list.tsx](/Users/alecgorge/code/relisten/relisten-mobile/relisten/components/relisten_section_list.tsx)
 - [relisten/components/screens/ScrollScreen.tsx](/Users/alecgorge/code/relisten/relisten-mobile/relisten/components/screens/ScrollScreen.tsx)
-- [app/relisten/tabs/(artists,myLibrary,offline)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/source_details.tsx](/Users/alecgorge/code/relisten/relisten-mobile/app/relisten/tabs/%28artists,myLibrary,offline%29/%5BartistUuid%5D/show/%5BshowUuid%5D/source/%5BsourceUuid%5D/source_details.tsx)
-- [relisten/pages/tab_roots/TabRootStackLayout.tsx](/Users/alecgorge/code/relisten/relisten-mobile/relisten/pages/tab_roots/TabRootStackLayout.tsx)
-- [app/relisten/tabs/(relisten)/_layout.tsx](/Users/alecgorge/code/relisten/relisten-mobile/app/relisten/tabs/%28relisten%29/_layout.tsx)
+- [app/relisten/tabs/(relisten)/index.tsx](/Users/alecgorge/code/relisten/relisten-mobile/app/relisten/tabs/%28relisten%29/index.tsx)
+- [app/relisten/tabs/(relisten)/recently-played.tsx](/Users/alecgorge/code/relisten/relisten-mobile/app/relisten/tabs/%28relisten%29/recently-played.tsx)
+- [app/relisten/tabs/(artists,myLibrary,offline)/[artistUuid]/show/[showUuid]/sources/index.tsx](/Users/alecgorge/code/relisten/relisten-mobile/app/relisten/tabs/%28artists,myLibrary,offline%29/%5BartistUuid%5D/show/%5BshowUuid%5D/sources/index.tsx)
+- [app/relisten/tabs/(artists,myLibrary,offline)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/index.tsx](/Users/alecgorge/code/relisten/relisten-mobile/app/relisten/tabs/%28artists,myLibrary,offline%29/%5BartistUuid%5D/show/%5BshowUuid%5D/source/%5BsourceUuid%5D/index.tsx)
 
 Likely new files:
 
@@ -289,33 +247,76 @@ Likely new files:
 
 ---
 
-## Risks
+## Execution Plan
 
-| Risk | Impact | Probability | Mitigation |
-| --- | --- | --- | --- |
-| `NativeTabs.BottomAccessory` support is limited to iOS 26+ | High | High | Treat native accessory as preferred backend, not universal backend |
-| Fallback overlay path diverges visually from native accessory path | Medium | High | Keep one shared `PlayerBottomBar` content component and separate only placement/material wrappers |
-| Content spacing regresses on list-heavy screens | High | Medium | Make scroll-heavy QA a blocking validation step |
-| The redesign accidentally entangles with the player-sheet migration | Medium | Medium | Keep `/relisten/player` modal intact for this track |
-| Platform constants remain forever | Medium | Medium | Isolate them in one compatibility module and explicitly track removal criteria |
+### Phase 1: Lock the bottom-edge contract
+
+- Create `player_bar_layout.ts`.
+- Move collapsed-player geometry decisions there.
+- Define explicit values for:
+  - `visualHeight`
+  - `reservedContentInset`
+  - `placementOffset`
+- Keep visuals unchanged in this phase.
+- Preserve the current simulator-verified iOS content-spacing behavior while extracting the contract.
+
+### Phase 2: Introduce `PlayerBarHost`
+
+- Create `PlayerBarHost` and move shell-level mounting logic out of [app/relisten/tabs/_layout.tsx](/Users/alecgorge/code/relisten/relisten-mobile/app/relisten/tabs/_layout.tsx).
+- Keep `PlayerBottomBar` as the collapsed-player content renderer.
+- Keep `/relisten/player` modal behavior unchanged.
+
+### Phase 3: Add native accessory backend
+
+- Implement the supported-iOS `NativeTabs.BottomAccessory` path in `PlayerBarHost`.
+- Keep overlay fallback for older iOS and Android.
+- Do not redesign visuals yet; first prove placement parity and stable tab-switch behavior.
+
+### Phase 4: Redesign the collapsed bar visuals
+
+- Apply inset card geometry.
+- Add iOS material treatment.
+- Add Android-compatible elevated fallback treatment.
+- Refine typography, spacing, controls, and scrubber treatment to match the new shell.
+- Keep the interaction model unchanged: tap still opens `/relisten/player`.
+
+### Phase 5: Normalize scroll consumers
+
+- Move shared list wrappers onto the new layout contract.
+- Audit the explicit `ScrollView` consumers listed above.
+- Remove redundant one-off spacing logic where it is no longer needed.
+- Re-verify long-list screens with playback active.
+
+#### Manual-consumer backlog
+
+Cleared in the current repo state.
+
+### Phase 6: Fallback hardening
+
+- Validate older iOS compatibility behavior.
+  Local blocker: only iOS 26.x simulator runtimes are installed on this machine.
+- Validate Android fallback behavior.
+  Local blocker: a local AVD now boots, the debug APK installs, Metro connects, and the app renders on Android, but active playback validation still requires reliable in-app automation or manual emulator interaction because `adb input tap` was only dependable for native tab controls during this chunk.
+- Leave compatibility constants isolated and explicitly temporary.
 
 ---
 
 ## Validation Plan
 
-### Checks
+### Required Checks
 
 - `yarn lint`
 - `yarn ts:check`
 
 ### iOS Manual Validation
 
-- Verify collapsed player bar on compact iPhone shell.
-- Verify the bar is visually inset and aligned with native tabs.
-- Verify the bar does not overlap tabs.
-- Verify the bar does not jump during lazy tab transitions.
-- Verify list-heavy screens still scroll correctly under native tab glass.
-- Verify tapping the bar still opens `/relisten/player`.
+- compact iPhone shell with active playback
+- tab switching with playback active
+- no overlap with native tabs
+- no large dead gap above the player bar
+- list-heavy screens still scroll under tab glass where appropriate
+- bottom rows and scroll indicators clear the collapsed player bar
+- tapping the bar still opens `/relisten/player`
 
 ### Screenshot Set
 
@@ -323,27 +324,40 @@ Likely new files:
 - My Library root with active player bar
 - Offline root with active player bar
 - Relisten root with active player bar
-- One long scroll/list-heavy screen with active player bar
-- One screenshot from the native-accessory path if running on supported iOS
+- one long list-heavy artists/my-library screen with active player bar
+- one screenshot of the native accessory backend on supported iOS, if available locally
 
-### Android Manual Validation
+### Android Validation
 
-- Verify fallback path placement and content spacing.
-- Verify no overlap with tabs.
-- Verify the collapsed bar still feels inset and intentional, even without iOS glass.
+- fallback path placement
+- no overlap with tabs
+- content spacing still clears the collapsed player bar
+- visual treatment still feels intentional even without iOS glass
+
+---
+
+## Risks
+
+| Risk | Impact | Probability | Mitigation |
+| --- | --- | --- | --- |
+| `NativeTabs.BottomAccessory` support is limited to supported iOS only | High | High | Treat it as preferred backend, not universal backend |
+| Overlay fallback diverges visually from the native accessory path | Medium | High | Keep one collapsed-player content component and separate only placement/material wrappers |
+| Scroll spacing regresses on long-list screens | High | Medium | Make list-heavy simulator QA a blocking step |
+| Visual redesign accidentally changes the `/relisten/player` expansion contract | Medium | Medium | Keep route expansion behavior unchanged during this track |
+| Compatibility constants become permanent | Medium | Medium | Isolate them in `player_bar_layout.ts` and document them as fallback-only |
 
 ---
 
 ## Done Criteria
 
-- The compact player bar is inset and visually aligned with the native tab system.
-- iOS supported path uses `NativeTabs.BottomAccessory` where available.
-- Older iOS and Android use a stable fallback path.
-- The bar no longer relies on scattered per-layout bottom-edge heuristics.
-- Scrollable content uses a cleaner shared reservation contract.
-- The bar no longer visibly jumps during native tab transitions.
+- The collapsed player bar is inset and visually aligned with the native tab system.
+- Supported iOS uses `NativeTabs.BottomAccessory` where available.
+- Older iOS and Android have a stable fallback path.
+- Bottom-edge geometry is centralized in one module.
+- Scroll surfaces use a cleaner shared reservation contract.
 - `/relisten/player` modal behavior is preserved.
-- Lint and typecheck pass.
+- `yarn lint` and `yarn ts:check` pass.
+- Compact iOS simulator screenshots show correct placement and spacing with playback active.
 
 ---
 
@@ -354,9 +368,32 @@ Implement the player bar redesign described in `docs/player-bar-glass-redesign-p
 Requirements:
 
 1. Keep `/relisten/player` modal behavior intact.
-2. Treat `NativeTabs.BottomAccessory` as the preferred iOS 26+ placement path, not the universal path.
+2. Treat `NativeTabs.BottomAccessory` as the preferred supported-iOS placement path, not the universal path.
 3. Keep a compatibility overlay fallback for older iOS and Android.
-4. Separate visual player-bar height from content reservation inset.
-5. Centralize bottom-edge geometry so `PlayerBottomBar`, `ScrollScreen`, and tab-root layouts all use one contract.
-6. Redesign the compact player bar to be inset and glass-like on iOS, while keeping Android visually coherent with its own platform-appropriate material treatment.
-7. Verify with `yarn lint`, `yarn ts:check`, and simulator screenshots for the compact iOS shell.
+4. Centralize collapsed-player geometry in one module and stop spreading bottom-edge math across the shell and scroll consumers.
+5. Separate placement offset from reserved content inset.
+6. Redesign the compact player bar to be inset and glass-like on iOS, while keeping Android coherent with its own platform-appropriate material treatment.
+7. Verify with `yarn lint`, `yarn ts:check`, and compact iOS simulator screenshots with playback active.
+
+## Manual Notes 
+
+[keep this for the user to add notes. do not change between edits]
+
+## Changelog
+- 2026-03-19: Refined the supported-iOS `NativeTabs.BottomAccessory` compact bar press targets in `relisten/player/ui/player_bottom_bar.tsx` by separating the play button from the row-level `/relisten/player` pressable, so button taps no longer route through the whole-bar interaction target.
+- 2026-03-19: Refined the supported-iOS `NativeTabs.BottomAccessory` compact bar again in `relisten/player/ui/player_bottom_bar.tsx` by giving the accessory path more vertical room, insetting the thin progress line from the rounded ends, and re-centering the transport and utility buttons within the taller single-row layout.
+- 2026-03-19: Refined the supported-iOS `NativeTabs.BottomAccessory` compact bar in `relisten/player/ui/player_bottom_bar.tsx` by removing the accessory-only inner shell and replacing the clipped scrubber capsule with a thin inline progress line, so the bar no longer looks cut off or like a pill inside a pill on the iPhone simulator.
+- 2026-03-19: Advanced Phase 6 Android runtime validation again by booting `Medium_Phone_API_36.1`, installing `android/app/build/outputs/apk/debug/app-debug.apk`, launching the app, connecting Metro, and capturing Android shell screenshots. The app now reaches the Artists/My Library tabs on the emulator, but compact-bar fallback validation remains incomplete because active playback could not be reached via reliable `adb` interaction with React Native content during this chunk.
+- 2026-03-19: Advanced Phase 6 runtime validation by proving the Android path is no longer blocked by missing tooling: `Medium_Phone_API_36.1` boots locally, the default `java` 25 environment fails Gradle with `Unsupported class file major version 69`, and retrying `expo run:android` under Android Studio's bundled JDK 21 reaches deep native build execution. Android fallback runtime verification still remains incomplete because the cold debug build/install did not finish within this chunk.
+- 2026-03-19: Closed the remaining local Phase 6 audit by reconfirming that no manual scroll/inset consumers still bypass the shared player-bar contract, rerunning `yarn lint` and `yarn ts:check`, and documenting that the only remaining Phase 6 work is external runtime validation on a natural older-iOS fallback environment and an Android emulator/device.
+- 2026-03-19: Expanded Phase 6 iOS validation by rerunning the forced `overlay` fallback and restored default accessory backend on the iPhone 17 Pro simulator with playback active, confirming compact-bar placement and `/relisten/player` tap-through on both paths. Natural older-iOS fallback and Android fallback runtime validation remain blocked locally because only iOS 26.x runtimes are installed and no Android emulator/device is attached.
+- 2026-03-19: Advanced Phase 6 by adding a development-only `EXPO_PUBLIC_PLAYER_BAR_PLACEMENT_BACKEND` override in `relisten/player/ui/player_bar_layout.tsx`, then validating the forced overlay fallback path on the iPhone 17 Pro simulator with playback active, long-list spacing, and `/relisten/player` tap-through preserved. Android fallback runtime validation remains blocked locally because no emulator/device is available.
+- 2026-03-19: Started Phase 6 fallback hardening by extracting a pure compatible-native-tabs inset calculator in `relisten/player/ui/native_tabs_inset.ts`, keeping the compatibility constants isolated behind one helper before runtime fallback validation on older iOS and Android.
+- 2026-03-19: Completed Phase 5 by migrating the remaining show/source `Animated.ScrollView` consumers in `app/relisten/tabs/(artists,myLibrary,offline)/[artistUuid]/show/[showUuid]/sources/index.tsx` and `app/relisten/tabs/(artists,myLibrary,offline)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/index.tsx` onto `usePlayerBottomScrollViewProps()`, removing the last screen-local bottom inset math from the current backlog.
+- 2026-03-19: Advanced Phase 5 by migrating `app/relisten/tabs/(artists,myLibrary,offline)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/source_details.tsx` onto `usePlayerBottomScrollViewProps()`, removing one more screen-local bottom inset implementation from the manual backlog while preserving the existing `ScrollScreen` wrapper behavior.
+- 2026-03-19: Advanced Phase 5 by adding `usePlayerBottomScrollViewProps()` for shared `ScrollView` consumers, migrating the two Relisten `ScrollView` screens onto that helper, and making reserved bottom scroll inset backend-aware so supported iOS accessory screens do not add duplicate manual spacing.
+- 2026-03-19: Completed Phase 4 by redesigning `relisten/player/ui/player_bottom_bar.tsx` into an inset compact card with iOS material styling, Android elevated fallback styling, refined controls, and preserved `/relisten/player` expansion; verified with lint, typecheck, simulator playback, long-list spacing, and compact-bar tap-through to the modal player.
+- 2026-03-19: Completed Phase 3 by wiring the supported-iOS `NativeTabs.BottomAccessory` backend with a direct `NativeTabs` child in `app/relisten/tabs/_layout.tsx`, while keeping `PlayerBarHost` as the overlay fallback path and preserving `/relisten/player`.
+- 2026-03-19: Completed Phase 2 by introducing `player_bar_host.tsx` and moving shell-level compact-player mounting out of `app/relisten/tabs/_layout.tsx`; Phase 3 native accessory backend is next.
+- 2026-03-19: Completed Phase 1 bottom-edge contract extraction by introducing `player_bar_layout.tsx` as the shared geometry/provider module; Phase 2 `PlayerBarHost` is next.
+- 2026-03-19: Rewrote the spec to match the current native-tabs shell, current inset contract, and the intended native-accessory plus fallback redesign path (019d0332-81b4-7af1-b96d-bca17aed8071)
