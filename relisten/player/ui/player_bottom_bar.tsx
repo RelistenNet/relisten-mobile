@@ -59,7 +59,12 @@ function PlayerBottomBarProgress({
   if (placementBackend === 'nativeTabsAccessory') {
     return (
       <View style={styles.accessoryProgressTrack}>
-        <View style={[styles.accessoryProgressFill, { width: `${percent * 100}%` }]} />
+        <View
+          style={[
+            styles.accessoryProgressFill,
+            { width: `${percent * 100}%`, opacity: percent < 0.01 ? 0 : 1 },
+          ]}
+        />
       </View>
     );
   }
