@@ -32,12 +32,7 @@ export const useRoute = (nextRoute?: string) => {
 
 export const useGroupSegment = (): RelistenTabGroupSegment => {
   const navigation = useContext(RelistenNavigationContext);
-
-  if (!navigation) {
-    throw new Error('useGroupSegment must be used within a RelistenNavigationProvider');
-  }
-
-  return navigation.groupSegment;
+  return navigation?.groupSegment ?? '(artists)';
 };
 
 export const useIsOfflineTab = () => {
