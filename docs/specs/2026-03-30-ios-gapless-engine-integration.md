@@ -779,18 +779,19 @@ Rollout rules:
 ## Progress Tracker
 
 - Overall status: In progress
-- Active milestone: Milestone 1
+- Active milestone: Milestone 2
 - Last updated: 2026-03-30
-- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` started and compiled pods for an extended window, but was stopped without a terminal result
+- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-30
 - Native build command:
   `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build`
-- Current blocker: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` did not reach a success or failure result after an extended full pods-from-source compile, so Milestone 1 native-build verification is still pending
+- Current blocker: None
 - Next recommended action:
-  rerun the canonical native build command and let it finish; if it succeeds, mark Milestone 1 complete, and if it fails, fix only the compile blocker before moving to Milestone 2
+  implement Milestone 2 with the smallest coherent change set: add the internal `PlaybackBackend` protocol, add the native boolean backend selector, and keep `RelistenAudioPlayerModule` public contracts unchanged
+- Milestone checkbox changes: checked Milestone 1; left Milestone 2 as the active unfinished milestone
 
 Milestone status:
 
-- [ ] Milestone 1: Copy engine files and make the copied runtime build
+- [x] Milestone 1: Copy engine files and make the copied runtime build
 - [ ] Milestone 2: Introduce the internal backend protocol and boolean switch
 - [ ] Milestone 3: Shape the copied engine API for relisten integration
 - [ ] Milestone 4: Implement `GaplessMP3PlayerBackend` and adapt the module to drive either backend
@@ -860,3 +861,4 @@ Primary execution goal:
 - 2026-03-30: Added a progress tracker and reusable queued-agent implementation prompt, including the canonical iOS native build command for ongoing migration work. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Copied the GaplessMP3Player runtime into `modules/relisten-audio-player/ios/GaplessMP3Player/`, added the local SwiftPM harness, raised the iOS deployment target to `18.0`, and verified `yarn pods`, `swift run GaplessMP3PlayerHarness`, `yarn lint`, and `yarn ts:check`; the canonical Xcode build still needs a terminal result. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Updated the execution guidance so future implementation turns create a useful git commit after each round, including WIP checkpoints when needed. (019d4087-5419-77f2-b446-ce61e5cab2a9)
+- 2026-03-30: Reran the canonical iOS simulator build to completion, verified it succeeds, and marked Milestone 1 complete so Milestone 2 can begin. (019d4087-5419-77f2-b446-ce61e5cab2a9)
