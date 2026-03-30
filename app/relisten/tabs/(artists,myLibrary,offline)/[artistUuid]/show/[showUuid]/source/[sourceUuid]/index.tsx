@@ -30,7 +30,7 @@ import { SourceSets } from '@/relisten/components/source/source_sets_component';
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
 import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
 import { PlayShow, useSourceTrackContextMenu } from '@/relisten/player/ui/track_context_menu';
-import { useGroupSegment } from '@/relisten/util/routes';
+import { useGroupSegment, useIsOfflineTab } from '@/relisten/util/routes';
 import { useActionSheet } from '@expo/react-native-action-sheet';
 import { DownloadManager } from '@/relisten/offline/download_manager';
 import Flex from '@/relisten/components/flex';
@@ -53,6 +53,22 @@ import {
 } from '@/relisten/realm/models/source_track_offline_info';
 
 const logger = log.extend('source screen');
+
+function shouldQueueOfflineTracksOnly(isOfflineTab: boolean, offlineMode: OfflineModeSetting) {
+  return isOfflineTab || offlineMode === OfflineModeSetting.AlwaysOffline;
+}
+
+function getQueueableSourceTracks(
+  source: Source,
+  isOfflineTab: boolean,
+  offlineMode: OfflineModeSetting
+) {
+  const queueOfflineOnly = shouldQueueOfflineTracksOnly(isOfflineTab, offlineMode);
+
+  return source.allSourceTracks().filter((track) => {
+    return queueOfflineOnly ? track.playable(false) : true;
+  });
+}
 
 function toggleSourceFavorite(
   realm: ReturnType<typeof useRealm>,
@@ -100,6 +116,8 @@ export default function Page() {
   const [isRemovingDownloads, setIsRemovingDownloads] = useState(false);
   const isRemovingDownloadsRef = useRef(false);
   const userSettings = useUserSettings();
+  const isOfflineTab = useIsOfflineTab();
+  const offlineMode = userSettings.offlineModeWithDefault();
 
   const { results, show, artist, selectedSource } = useFullShowWithSelectedSource(
     String(showUuid),
@@ -114,13 +132,7 @@ export default function Page() {
       return;
     }
 
-    const showTracks = selectedSource.allSourceTracks().filter((t) => {
-      if (userSettings.offlineModeWithDefault() === OfflineModeSetting.AlwaysOffline) {
-        return t.playable(false);
-      }
-
-      return true;
-    });
+    const showTracks = getQueueableSourceTracks(selectedSource, isOfflineTab, offlineMode);
 
     const trackIndex = Math.max(
       showTracks.findIndex((st) => st.uuid === sourceTrack?.uuid),
@@ -211,7 +223,11 @@ export default function Page() {
           }
           case 1:
             // Play Show
-            playShow(selectedSource?.sourceSets[0].sourceTracks[0]);
+            playShow(
+              selectedSource
+                ? getQueueableSourceTracks(selectedSource, isOfflineTab, offlineMode)[0]
+                : undefined
+            );
 
             break;
           case 2:
@@ -277,7 +293,7 @@ export default function Page() {
       return;
     }
 
-    for (const track of selectedSource.allSourceTracks()) {
+    for (const track of getQueueableSourceTracks(selectedSource, isOfflineTab, offlineMode)) {
       if (track.uuid === playTrackUuid) {
         playShow(track);
 
@@ -286,7 +302,16 @@ export default function Page() {
         break;
       }
     }
-  }, [show, playTrackUuid, playShow, selectedSource, setHasAutoplayed]);
+  }, [
+    hasAutoplayed,
+    isOfflineTab,
+    offlineMode,
+    playTrackUuid,
+    playShow,
+    selectedSource,
+    setHasAutoplayed,
+    show,
+  ]);
 
   return (
     <RefreshContextProvider
@@ -321,6 +346,8 @@ const SourceComponent = ({
 } & ScrollViewProps) => {
   const { refreshing, errors, hasData } = useRefreshContext();
   const { showContextMenu } = useSourceTrackContextMenu();
+  const userSettings = useUserSettings();
+  const isOfflineTab = useIsOfflineTab();
   const playerBottomScrollViewProps = usePlayerBottomScrollViewProps({
     contentContainerStyle: props.contentContainerStyle,
     scrollIndicatorInsets: props.scrollIndicatorInsets,
@@ -362,6 +389,12 @@ const SourceComponent = ({
     );
   }
 
+  const initialTrackToPlay = getQueueableSourceTracks(
+    selectedSource,
+    isOfflineTab,
+    userSettings.offlineModeWithDefault()
+  )[0];
+
   return (
     <Animated.ScrollView style={{ flex: 1 }} {...props} {...playerBottomScrollViewProps}>
       {/*<SelectedSource sources={sortedSources} sourceIndex={selectedSourceIndex} />*/}
@@ -371,6 +404,7 @@ const SourceComponent = ({
         downloadShow={downloadShow}
         playShow={playShow}
         artist={artist}
+        initialTrackToPlay={initialTrackToPlay}
       />
       <SourceSets source={selectedSource} playShow={playShow} onDotsPress={onDotsPress} />
       <SourceFooter source={selectedSource} />
@@ -392,12 +426,14 @@ export const SourceHeader = ({
   artist,
   playShow,
   downloadShow,
+  initialTrackToPlay,
 }: {
   source: Source;
   show: Show;
   playShow: PlayShow;
   artist: Artist;
   downloadShow: () => void;
+  initialTrackToPlay?: SourceTrack;
 }) => {
   const realm = useRealm();
   const router = useRouter();
@@ -482,7 +518,13 @@ export const SourceHeader = ({
           className="shrink basis-1/4"
           textClassName="text-l"
           icon={<MaterialIcons name="play-arrow" size={20 * fontScale} color="white" />}
-          onPress={() => playShow(source.sourceSets[0].sourceTracks[0])}
+          onPress={() => {
+            if (initialTrackToPlay) {
+              playShow(initialTrackToPlay);
+            }
+          }}
+          disabled={!initialTrackToPlay}
+          disabledPopoverText="No playable offline tracks are available for this source"
         >
           Play
         </RelistenButton>

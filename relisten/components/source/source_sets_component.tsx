@@ -8,6 +8,7 @@ import { SectionHeader } from '@/relisten/components/section_header';
 import { SourceTrackComponent } from '@/relisten/components/source/source_track_component';
 import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
 import { OfflineModeSetting } from '@/relisten/realm/models/user_settings';
+import { useIsOfflineTab } from '@/relisten/util/routes';
 
 interface SourceSetsProps {
   source: Source;
@@ -48,15 +49,15 @@ export const SourceSetComponent = ({
   onDotsPress,
 }: SourceSetProps) => {
   const userSettings = useUserSettings();
+  const isOfflineTab = useIsOfflineTab();
+  const queueOfflineOnly =
+    isOfflineTab || userSettings.offlineModeWithDefault() === OfflineModeSetting.AlwaysOffline;
 
   return (
     <View>
       {source.sourceSets.length > 1 && <SectionHeader title={sourceSet.name} />}
       {sourceSet.sourceTracks.map((t, idx) => {
-        const playable =
-          userSettings.offlineModeWithDefault() === OfflineModeSetting.AlwaysOffline
-            ? t.playable(false)
-            : true; // always try network requests unles we are forcibly offline
+        const playable = queueOfflineOnly ? t.playable(false) : true;
 
         return (
           <SourceTrackComponent
