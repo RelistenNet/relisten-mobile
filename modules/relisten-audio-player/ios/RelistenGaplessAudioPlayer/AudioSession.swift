@@ -38,7 +38,7 @@ extension RelistenGaplessAudioPlayer {
 
         if !audioSessionAlreadySetUp {
             delegateQueue.async {
-                self.delegate?.audioSessionWasSetup(self)
+                self.delegate?.audioSessionWasSetup()
             }
             audioSessionAlreadySetUp = true
         }
@@ -98,7 +98,7 @@ extension RelistenGaplessAudioPlayer {
         commandCenter.skipForwardCommand.isEnabled = false
         commandCenter.skipBackwardCommand.isEnabled = false
 
-        UIApplication.shared.beginReceivingRemoteControlEvents()
+        audioSessionController.beginReceivingRemoteControlEvents()
     }
 
     internal func tearDownAudioSession() {
@@ -146,9 +146,7 @@ extension RelistenGaplessAudioPlayer {
             commandCenter.skipForwardCommand.isEnabled = false
             commandCenter.skipBackwardCommand.isEnabled = false
 
-            DispatchQueue.main.async {
-                UIApplication.shared.endReceivingRemoteControlEvents()
-            }
+            audioSessionController.endReceivingRemoteControlEvents()
 
             audioSessionObserversSetUp = false
         }

@@ -28,7 +28,7 @@ struct RelistenStreamable: Record {
 var DEBUG_state = ""
 
 public class RelistenAudioPlayerModule: Module {
-    var player: RelistenGaplessAudioPlayer?
+    var player: PlaybackBackend?
 
     // Each module class must implement the definition function. The definition consists of components
     // that describes the module's functionality and behavior.
@@ -40,16 +40,12 @@ public class RelistenAudioPlayerModule: Module {
         Name("RelistenAudioPlayer")
 
         OnCreate {
-            player = RelistenGaplessAudioPlayer()
+            player = makePlaybackBackend()
             player?.delegate = self
         }
         
         OnDestroy {
-            player?.bassQueue.sync {
-                player?.stop()
-                player?.maybeTearDownBASS()
-            }
-            
+            player?.teardown()
             player = nil
         }
 
@@ -64,27 +60,19 @@ public class RelistenAudioPlayerModule: Module {
         )
 
         Function("currentDuration") {
-            return player?.bassQueue.sync {
-                return player?.currentDuration
-            }
+            return player?.currentDurationSnapshot
         }
 
         Function("currentState") {
-            return player?.bassQueue.sync {
-                return player?.currentState ?? .Stopped
-            }
+            return player?.currentStateSnapshot ?? .Stopped
         }
 
         Function("currentStateStr") {
-            return player?.bassQueue.sync {
-                return String(describing: player?.currentState ?? .Stopped)
-            }
+            return player?.currentStateString ?? String(describing: PlaybackState.Stopped)
         }
 
         Function("elapsed") {
-            return player?.bassQueue.sync {
-                return player?.elapsed
-            }
+            return player?.elapsedSnapshot
         }
 
         Function("volume") {
@@ -96,27 +84,25 @@ public class RelistenAudioPlayerModule: Module {
         }
 
         Function("prepareAudioSession") {
-            return player?.bassQueue.sync {
-                player?.prepareAudioSession()
-            }
+            player?.enqueuePrepareAudioSession()
         }
 
         AsyncFunction("playbackProgress") { (promise: Promise) in
-            player?.bassQueue.async {
-                guard let player = self.player else {
-                    promise.resolve(["playbackProgress": nil] as [String: Any?])
-                    return
-                }
+            guard let player = self.player else {
+                promise.resolve(["playbackProgress": nil] as [String: Any?])
+                return
+            }
 
+            player.requestPlaybackProgress { snapshot in
                 promise.resolve([
                     "playbackProgress": [
-                        "elapsed": player.elapsed,
-                        "duration": player.currentDuration
+                        "elapsed": snapshot.elapsed,
+                        "duration": snapshot.duration
                     ] as [String: TimeInterval?],
                     "activeTrackDownloadProgress": [
                         "forActiveTrack": true,
-                        "downloadedBytes": player.activeTrackDownloadedBytes as Any,
-                        "totalBytes": player.activeTrackTotalBytes as Any
+                        "downloadedBytes": snapshot.activeTrackDownloadedBytes as Any,
+                        "totalBytes": snapshot.activeTrackTotalBytes as Any
                     ] as [String: Any]
                 ] as [String: Any])
             }
@@ -128,106 +114,92 @@ public class RelistenAudioPlayerModule: Module {
                 return
             }
 
-            player?.bassQueue.async {
-                self.player?.play(
-                    RelistenGaplessStreamable(
-                        url: url,
-                        identifier: identifier,
-                        title: title,
-                        artist: artist,
-                        albumTitle: albumTitle,
-                        albumArt: albumArt,
-                        downloadDestination: streamable.downloadDestination
-                    ),
-                    startingAtMs: startingAtMs
-                )
+            player?.enqueuePlay(
+                RelistenGaplessStreamable(
+                    url: url,
+                    identifier: identifier,
+                    title: title,
+                    artist: artist,
+                    albumTitle: albumTitle,
+                    albumArt: albumArt,
+                    downloadDestination: streamable.downloadDestination
+                ),
+                startingAtMs: startingAtMs
+            ) {
                 promise.resolve()
             }
         }
 
         Function("setNextStream") { (streamable: RelistenStreamable?) in
-            if streamable == nil, let player = self.player {
-                player.bassQueue.async {
-                    self.player?.setNextStream(nil)
-                }
+            if streamable == nil {
+                player?.enqueueSetNextStream(nil)
+                return
             }
 
             guard let streamable = streamable, let url = streamable.url, let identifier = streamable.identifier, let title = streamable.title, let albumTitle = streamable.albumTitle, let albumArt = streamable.albumArt, let artist = streamable.artist else {
                 return
             }
             
-            player?.bassQueue.async {
-                self.player?.setNextStream(
-                    RelistenGaplessStreamable(
-                        url: url,
-                        identifier: identifier,
-                        title: title,
-                        artist: artist,
-                        albumTitle: albumTitle,
-                        albumArt: albumArt,
-                        downloadDestination: streamable.downloadDestination
-                    )
+            player?.enqueueSetNextStream(
+                RelistenGaplessStreamable(
+                    url: url,
+                    identifier: identifier,
+                    title: title,
+                    artist: artist,
+                    albumTitle: albumTitle,
+                    albumArt: albumArt,
+                    downloadDestination: streamable.downloadDestination
                 )
-            }
+            )
         }
 
         Function("setRepeatMode") { (repeatMode: Int) in
-            player?.bassQueue.async {
-                self.player?.setRepeatMode(repeatMode)
-            }
+            player?.enqueueSetRepeatMode(repeatMode)
         }
 
         Function("setShuffleMode") { (shuffleMode: Int) in
-            player?.bassQueue.async {
-                self.player?.setShuffleMode(shuffleMode)
-            }
+            player?.enqueueSetShuffleMode(shuffleMode)
         }
 
         AsyncFunction("resume") { (promise: Promise) in
-            player?.bassQueue.async {
-                self.player?.resume()
+            player?.enqueueResume {
                 promise.resolve()
             }
         }
 
         AsyncFunction("pause") { (promise: Promise) in
-            player?.bassQueue.async {
-                self.player?.pause()
+            player?.enqueuePause {
                 promise.resolve()
             }
         }
 
         AsyncFunction("stop") { (promise: Promise) in
-            player?.bassQueue.async {
-                self.player?.stop()
+            player?.enqueueStop {
                 promise.resolve()
             }
         }
 
         AsyncFunction("next") { (promise: Promise) in
-            player?.bassQueue.async {
-                self.player?.next()
+            player?.enqueueNext {
                 promise.resolve()
             }
         }
 
         AsyncFunction("seekTo") { (pct: Double, promise: Promise) in
-            player?.bassQueue.async {
-                self.player?.seekTo(percent: pct)
+            player?.enqueueSeekTo(percent: pct) {
                 promise.resolve()
             }
         }
         
         AsyncFunction("seekToTime") { (timeMs: Int64, promise: Promise) in
-            player?.bassQueue.async {
-                self.player?.seekToTime(timeMs)
+            player?.enqueueSeekToTime(timeMs) {
                 promise.resolve()
             }
         }
     }
 }
 
-extension RelistenAudioPlayerModule: RelistenGaplessAudioPlayerDelegate {
+extension RelistenAudioPlayerModule: PlaybackBackendDelegate {
     public func sendAndLogEvent(_ eventName: String, _ body: [String: Any?] = [:]) {
         NSLog("[relisten-audio-player] sendEvent: eventName=\(eventName) body=\(body)")
         self.sendEvent(eventName, body)
@@ -240,7 +212,7 @@ extension RelistenAudioPlayerModule: RelistenGaplessAudioPlayerDelegate {
         ])
     }
     
-    public func errorStartingStream(_ player: RelistenGaplessAudioPlayer, error: NSError, forStreamable: RelistenGaplessStreamable) {
+    public func errorStartingStream(error: NSError, forStreamable: RelistenGaplessStreamable) {
         self.sendAndLogEvent("onError", [
             "error": error.code,
             "errorDescription": error.localizedDescription,
@@ -248,20 +220,20 @@ extension RelistenAudioPlayerModule: RelistenGaplessAudioPlayerDelegate {
         ])
     }
 
-    public func playbackStateChanged(_ player: RelistenGaplessAudioPlayer, newPlaybackState playbackState: PlaybackState) {
+    public func playbackStateChanged(newPlaybackState playbackState: PlaybackState) {
         self.sendAndLogEvent("onPlaybackStateChanged", [
             "newPlaybackState": String(describing: playbackState)
         ])
     }
 
-    public func playbackProgressChanged(_ player: RelistenGaplessAudioPlayer, elapsed: TimeInterval?, duration: TimeInterval?) {
+    public func playbackProgressChanged(elapsed: TimeInterval?, duration: TimeInterval?) {
         self.sendEvent("onPlaybackProgressChanged", [
             "elapsed": elapsed,
             "duration": duration
         ])
     }
 
-    public func downloadProgressChanged(_ player: RelistenGaplessAudioPlayer, forActiveTrack: Bool, downloadedBytes: UInt64, totalBytes: UInt64) {
+    public func downloadProgressChanged(forActiveTrack: Bool, downloadedBytes: UInt64, totalBytes: UInt64) {
         self.sendEvent("onDownloadProgressChanged", [
             "forActiveTrack": forActiveTrack,
             "downloadedBytes": downloadedBytes,
@@ -269,7 +241,7 @@ extension RelistenAudioPlayerModule: RelistenGaplessAudioPlayerDelegate {
         ])
     }
 
-    public func trackChanged(_ player: RelistenGaplessAudioPlayer, previousStreamable: RelistenGaplessStreamable?, currentStreamable: RelistenGaplessStreamable?) {
+    public func trackChanged(previousStreamable: RelistenGaplessStreamable?, currentStreamable: RelistenGaplessStreamable?) {
         self.sendAndLogEvent("onTrackChanged", [
             "previousIdentifier": previousStreamable?.identifier,
             "currentIdentifier": currentStreamable?.identifier
@@ -282,7 +254,7 @@ extension RelistenAudioPlayerModule: RelistenGaplessAudioPlayerDelegate {
         ])
     }
 
-    public func audioSessionWasSetup(_ player: RelistenGaplessAudioPlayer) {
+    public func audioSessionWasSetup() {
 
     }
 }

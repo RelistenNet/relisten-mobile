@@ -117,7 +117,7 @@ extension RelistenGaplessAudioPlayer {
                     buildStream(streamIntent, fileOffset: fileOffset, channelOffset: channelOffset, attempts: attempts - 1, completion: completion, isRetry: true)
                 } else {
                     self.delegateQueue.async {
-                        self.delegate?.errorStartingStream(self, error: err, forStreamable: streamable)
+                        self.delegate?.errorStartingStream(error: err, forStreamable: streamable)
                     }
 
                     self.bassQueue.async { [weak self] in
