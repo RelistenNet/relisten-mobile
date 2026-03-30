@@ -3,6 +3,7 @@ import Foundation
 
 protocol PCMOutputControlling: AnyObject, Sendable {
     var isPlaying: Bool { get }
+    var volume: Float { get set }
     func reset(timelineOffset: TimeInterval)
     func requestPlay()
     func schedule(_ chunk: PCMChunk) throws
@@ -50,6 +51,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
         var latestPreparationReport: GaplessPreparationReport?
         var lastPlaybackErrorDescription: String?
         var suppressPlaybackFinishedEvent = false
+        var volume: Float = 1.0
     }
 
     private struct PlaybackSnapshot: Sendable {
@@ -187,6 +189,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
 
             await performOnPlaybackQueue {
                 self.stopOutputGraphOnPlaybackQueue()
+                outputGraph.volume = self.stateStore.get().volume
                 self.stateStore.withValue { state in
                     state.outputGraph = outputGraph
                     state.currentSource = report.current.source
@@ -319,6 +322,21 @@ public final class GaplessMP3Player: @unchecked Sendable {
 
     public var latestPreparationReport: GaplessPreparationReport? {
         presentedSnapshot().latestPreparationReport
+    }
+
+    public var volume: Float {
+        get {
+            stateStore.get().volume
+        }
+        set {
+            playbackQueue.async { [weak self] in
+                guard let self else { return }
+                self.stateStore.withValue { state in
+                    state.volume = newValue
+                    state.outputGraph?.volume = newValue
+                }
+            }
+        }
     }
 
     public func status() async -> GaplessMP3PlayerStatus {

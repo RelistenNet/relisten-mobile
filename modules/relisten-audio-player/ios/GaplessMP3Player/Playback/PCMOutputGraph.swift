@@ -43,6 +43,17 @@ final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
         return playerNode.isPlaying
     }
 
+    var volume: Float {
+        get {
+            dispatchPrecondition(condition: .onQueue(ownerQueue))
+            return engine.mainMixerNode.outputVolume
+        }
+        set {
+            dispatchPrecondition(condition: .onQueue(ownerQueue))
+            engine.mainMixerNode.outputVolume = newValue
+        }
+    }
+
     var isFinished: Bool {
         dispatchPrecondition(condition: .onQueue(ownerQueue))
         return decodeFinished && pendingBufferCount == 0 && !playerNode.isPlaying

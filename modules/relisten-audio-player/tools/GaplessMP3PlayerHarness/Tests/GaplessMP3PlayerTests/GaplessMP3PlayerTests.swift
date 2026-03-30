@@ -226,6 +226,7 @@ private final class TestOutputGraph: PCMOutputControlling, @unchecked Sendable {
     private let lock = NSLock()
     private var timelineOffset: TimeInterval
     private var playing: Bool
+    private var outputVolume: Float = 1.0
 
     init(currentTime: TimeInterval = 0, isPlaying: Bool = false) {
         self.timelineOffset = currentTime
@@ -236,6 +237,19 @@ private final class TestOutputGraph: PCMOutputControlling, @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return playing
+    }
+
+    var volume: Float {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return outputVolume
+        }
+        set {
+            lock.lock()
+            defer { lock.unlock() }
+            outputVolume = newValue
+        }
     }
 
     func reset(timelineOffset: TimeInterval) {
