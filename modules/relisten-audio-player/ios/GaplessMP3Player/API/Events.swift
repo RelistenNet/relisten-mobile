@@ -75,6 +75,8 @@ public struct GaplessHTTPLogEvent: Sendable {
 public enum GaplessRuntimeEvent: Sendable {
     case playbackFailed(String)
     case networkRetrying(String)
+    case trackTransitioned(previous: GaplessPlaybackSource?, current: GaplessPlaybackSource?)
+    case playbackFinished(last: GaplessPlaybackSource?)
 }
 
 /// Preparation-phase events emitted while metadata/loading work is in flight.

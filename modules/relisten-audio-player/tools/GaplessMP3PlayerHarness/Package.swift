@@ -23,5 +23,12 @@ let package = Package(
             name: "GaplessMP3PlayerHarness",
             dependencies: ["GaplessMP3Player"]
         ),
+        .testTarget(
+            name: "GaplessMP3PlayerTests",
+            dependencies: ["GaplessMP3Player"],
+            resources: [
+                .copy("Fixtures"),
+            ]
+        ),
     ]
 )

@@ -129,7 +129,8 @@ actor HTTPSourceSession {
                 source: source,
                 downloadedBytes: downloadedPrefixEnd,
                 expectedBytes: responseFingerprint.contentLength ?? source.expectedContentLength,
-                errorDescription: describe(storedError)
+                errorDescription: describe(storedError),
+                resolvedFileURL: resolvedSource?.localFileURL
             )
         }
         if let retryState {
@@ -139,7 +140,8 @@ actor HTTPSourceSession {
                 expectedBytes: responseFingerprint.contentLength ?? source.expectedContentLength,
                 errorDescription: retryState.errorDescription,
                 retryAttempt: retryState.attempt,
-                retryDelay: retryState.delay
+                retryDelay: retryState.delay,
+                resolvedFileURL: resolvedSource?.localFileURL
             )
         }
         let state: SourceDownloadState = isComplete ? .completed : .downloading
@@ -147,7 +149,8 @@ actor HTTPSourceSession {
             source: source,
             downloadedBytes: downloadedPrefixEnd,
             expectedBytes: responseFingerprint.contentLength ?? source.expectedContentLength,
-            state: state
+            state: state,
+            resolvedFileURL: resolvedSource?.localFileURL
         )
     }
 

@@ -779,21 +779,21 @@ Rollout rules:
 ## Progress Tracker
 
 - Overall status: In progress
-- Active milestone: Milestone 3
+- Active milestone: Milestone 4
 - Last updated: 2026-03-30
 - Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-30
 - Native build command:
   `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build`
 - Current blocker: None
 - Next recommended action:
-  implement Milestone 3 with the smallest coherent change set: shape the copied `GaplessMP3Player` API for relisten integration by adding explicit stop/status/transition/cache hooks without wiring the module to the native backend yet
-- Milestone checkbox changes: checked Milestone 2; set Milestone 3 as the active unfinished milestone
+  implement Milestone 4 by adding `GaplessMP3PlayerBackend`, routing module commands through the backend seam, and keeping the BASS path unchanged while the native backend is still behind the flag
+- Milestone checkbox changes: checked Milestone 3; set Milestone 4 as the active unfinished milestone
 
 Milestone status:
 
 - [x] Milestone 1: Copy engine files and make the copied runtime build
 - [x] Milestone 2: Introduce the internal backend protocol and boolean switch
-- [ ] Milestone 3: Shape the copied engine API for relisten integration
+- [x] Milestone 3: Shape the copied engine API for relisten integration
 - [ ] Milestone 4: Implement `GaplessMP3PlayerBackend` and adapt the module to drive either backend
 - [ ] Milestone 5: Implement status, event, seek, and cache translation parity
 - [ ] Milestone 6: App-level validation and rollout hardening
@@ -863,3 +863,4 @@ Primary execution goal:
 - 2026-03-30: Updated the execution guidance so future implementation turns create a useful git commit after each round, including WIP checkpoints when needed. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Reran the canonical iOS simulator build to completion, verified it succeeds, and marked Milestone 1 complete so Milestone 2 can begin. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Introduced the internal `PlaybackBackend` seam, backend-selection constant, shared controller scaffolding, and module-to-BASS backend indirection, then verified `yarn pods` and the canonical iOS simulator build succeed with the flag left `false`. (019d4087-5419-77f2-b446-ce61e5cab2a9)
+- 2026-03-30: Shaped the copied engine API with explicit stop/phase/source/download status hooks, added SwiftPM harness tests for prepare/stop/finish/transition behavior using trimmed real MP3 fixtures, and verified both `swift test` and the canonical iOS simulator build succeed. (019d4087-5419-77f2-b446-ce61e5cab2a9)

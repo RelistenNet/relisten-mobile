@@ -61,7 +61,8 @@ actor MP3SourceManager {
                         source: source,
                         state: .localFile,
                         downloadedBytes: Int64(data.count),
-                        expectedBytes: Int64(data.count)
+                        expectedBytes: Int64(data.count),
+                        resolvedFileURL: source.url
                     )
                 )
             )
@@ -79,7 +80,8 @@ actor MP3SourceManager {
                         source: source,
                         state: .cached,
                         downloadedBytes: record.validatedByteLength,
-                        expectedBytes: record.fingerprint.contentLength ?? source.expectedContentLength
+                        expectedBytes: record.fingerprint.contentLength ?? source.expectedContentLength,
+                        resolvedFileURL: resolved.localFileURL
                     )
                 )
             )
@@ -109,7 +111,8 @@ actor MP3SourceManager {
                         source: source,
                         state: .localFile,
                         downloadedBytes: fingerprint.contentLength ?? 0,
-                        expectedBytes: fingerprint.contentLength
+                        expectedBytes: fingerprint.contentLength,
+                        resolvedFileURL: source.url
                     )
                 )
             )
@@ -125,7 +128,8 @@ actor MP3SourceManager {
                         source: source,
                         state: .cached,
                         downloadedBytes: record.validatedByteLength,
-                        expectedBytes: record.fingerprint.contentLength ?? source.expectedContentLength
+                        expectedBytes: record.fingerprint.contentLength ?? source.expectedContentLength,
+                        resolvedFileURL: resolved.localFileURL
                     )
                 )
             )
@@ -228,7 +232,8 @@ actor MP3SourceManager {
                 source: source,
                 state: .localFile,
                 downloadedBytes: expected ?? 0,
-                expectedBytes: expected
+                expectedBytes: expected,
+                resolvedFileURL: source.url
             )
         }
 
@@ -241,13 +246,14 @@ actor MP3SourceManager {
         }
 
         if cacheMode == .enabled,
-           (try? cacheStore.resolvedCachedSource(for: source)) != nil,
+           let resolved = try? cacheStore.resolvedCachedSource(for: source),
            let record = try? cacheStore.cachedRecord(for: source) {
             return SourceDownloadStatus(
                 source: source,
                 state: .cached,
                 downloadedBytes: record.validatedByteLength,
-                expectedBytes: record.fingerprint.contentLength ?? source.expectedContentLength
+                expectedBytes: record.fingerprint.contentLength ?? source.expectedContentLength,
+                resolvedFileURL: resolved.localFileURL
             )
         }
 

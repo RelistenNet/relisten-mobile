@@ -32,13 +32,15 @@ struct SourceEventProjector {
         source: GaplessPlaybackSource,
         downloadedBytes: Int64,
         expectedBytes: Int64?,
-        state: SourceDownloadState = .downloading
+        state: SourceDownloadState = .downloading,
+        resolvedFileURL: URL? = nil
     ) -> SourceDownloadStatus {
         SourceDownloadStatus(
             source: source,
             state: state,
             downloadedBytes: downloadedBytes,
-            expectedBytes: expectedBytes
+            expectedBytes: expectedBytes,
+            resolvedFileURL: resolvedFileURL
         )
     }
 
@@ -48,13 +50,15 @@ struct SourceEventProjector {
         expectedBytes: Int64?,
         errorDescription: String?,
         retryAttempt: Int,
-        retryDelay: TimeInterval?
+        retryDelay: TimeInterval?,
+        resolvedFileURL: URL? = nil
     ) -> SourceDownloadStatus {
         SourceDownloadStatus(
             source: source,
             state: .retrying,
             downloadedBytes: downloadedBytes,
             expectedBytes: expectedBytes,
+            resolvedFileURL: resolvedFileURL,
             errorDescription: errorDescription,
             retryAttempt: retryAttempt,
             maxRetryAttempts: retryPolicy.maxAttempts,
@@ -66,13 +70,15 @@ struct SourceEventProjector {
         source: GaplessPlaybackSource,
         downloadedBytes: Int64,
         expectedBytes: Int64?,
-        errorDescription: String?
+        errorDescription: String?,
+        resolvedFileURL: URL? = nil
     ) -> SourceDownloadStatus {
         SourceDownloadStatus(
             source: source,
             state: .failed,
             downloadedBytes: downloadedBytes,
             expectedBytes: expectedBytes,
+            resolvedFileURL: resolvedFileURL,
             errorDescription: errorDescription
         )
     }
