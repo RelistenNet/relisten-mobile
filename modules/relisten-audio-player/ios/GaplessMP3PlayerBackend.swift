@@ -461,7 +461,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         guard percent.isFinite else { return }
         let normalizedPercent = max(0, min(percent, 1))
         if normalizedPercent >= 1 {
-            nextOnQueue()
+            emitRemoteControl("nextTrack")
             return
         }
 

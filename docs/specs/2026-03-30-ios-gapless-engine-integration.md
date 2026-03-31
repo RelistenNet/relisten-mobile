@@ -781,13 +781,13 @@ Rollout rules:
 - Overall status: In progress
 - Active milestone: Milestone 4
 - Last updated: 2026-03-30
-- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-30 after making native `resume()` reactivate the shared audio session before `player.play()` and making manual `next()` emit `trackChanged(previous,current)` only after the replacement track prepares and starts successfully
+- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-30 after aligning native `seekTo(1.0)` with the existing `remoteControl("nextTrack")` contract; the same turn also completed one selector-`true` validation build before restoring the committed selector default to `false`
 - Native build command:
   `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build`
 - Current blocker: none
 - Next recommended action:
-  continue Milestone 4 by exercising the native backend command matrix with the selector enabled, focusing next on selector-true boundary semantics like idle `next()` behavior and `seekTo(1.0)` before broader Milestone 5 event/cache parity work
-- Milestone checkbox changes: none; Milestone 4 remains active after the native `resume()`/manual-`next()` command-semantics slice and successful canonical simulator build
+  continue Milestone 4 by exercising the selector-`true` native backend command matrix beyond build-only validation, focusing next on actual app-driven boundary cases like idle `next()`, `seekTo(1.0)`, and command-center initiated skips before broader Milestone 5 event/cache parity work
+- Milestone checkbox changes: none; Milestone 4 remains active after the native `seekTo(1.0)` boundary-semantic slice and successful selector-`true` plus final committed-tree simulator builds
 
 Milestone status:
 
@@ -872,3 +872,4 @@ Primary execution goal:
 - 2026-03-30: Made the native backend prepare the shared audio session from `playOnQueue(...)`, keep setup notifications single-fire while reinstalling handlers after media-services reset, preserve reset-session error handling, and re-verified the canonical iOS simulator build to `** BUILD SUCCEEDED **`. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Made native `resume()` reactivate the shared audio session before `player.play()`, then re-verified the canonical iOS simulator build to keep Milestone 4 moving on selector-enabled command semantics. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Made manual native `next()` emit `trackChanged(previous,current)` only after the replacement track prepares successfully, and re-verified the canonical iOS simulator build while keeping Milestone 4 focused on selector-enabled command semantics. (019d4087-5419-77f2-b446-ce61e5cab2a9)
+- 2026-03-30: Aligned native `seekTo(1.0)` with the existing `remoteControl("nextTrack")` contract, validated the native path with the selector enabled, then restored the committed selector default to `false` and re-verified the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
