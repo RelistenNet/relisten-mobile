@@ -417,7 +417,8 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
     }
 
     private func stopOnQueue(emitTrackChanged: Bool) {
-        let previousStreamable = snapshotStore.get().currentStreamable
+        let previous = snapshotStore.get()
+        let previousStreamable = previous.currentStreamable
         let previousState = snapshotStore.withValue { snapshot -> PlaybackState in
             let previousState = snapshot.currentState
             snapshot.generation += 1
@@ -432,8 +433,11 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             snapshot.isPreparingCurrentTrack = false
             return previousState
         }
+        let current = snapshotStore.get()
         playbackPresentationController.setPlaybackState(.Stopped)
         emitStateIfNeeded(previous: previousState, current: .Stopped)
+        emitProgressIfNeeded(previous: previous, current: current)
+        emitDownloadProgressIfNeeded(previous: previous, current: current)
         if emitTrackChanged, let previousStreamable {
             delegateQueue.async {
                 self.delegate?.trackChanged(previousStreamable: previousStreamable, currentStreamable: nil)
@@ -551,8 +555,10 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
 
         playbackPresentationController.setPlaybackState(translatedState)
         emitStateIfNeeded(previous: previous.currentState, current: translatedState)
-        emitProgressIfNeeded(previous: previous, current: snapshotStore.get())
-        emitDownloadProgressIfNeeded(previous: previous, current: snapshotStore.get())
+        let current = snapshotStore.get()
+        emitProgressIfNeeded(previous: previous, current: current)
+        emitDownloadProgressIfNeeded(previous: previous, current: current)
+        translateStreamingCacheCompletionIfNeeded(status: status, snapshot: current)
     }
 
     private func handleRuntimeEvent(_ event: GaplessRuntimeEvent) {
@@ -586,7 +592,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         case .playbackFinished(let last):
             let snapshot = snapshotStore.get()
             guard snapshot.currentStreamable?.identifier == last?.id else { return }
-            let previousStreamable = snapshotStore.get().currentStreamable
+            let previousStreamable = snapshot.currentStreamable
             let previousState = snapshotStore.withValue { snapshot -> PlaybackState in
                 let previousState = snapshot.currentState
                 snapshot.generation += 1
@@ -601,8 +607,11 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
                 snapshot.isPreparingCurrentTrack = false
                 return previousState
             }
+            let current = snapshotStore.get()
             playbackPresentationController.setPlaybackState(.Stopped)
             emitStateIfNeeded(previous: previousState, current: .Stopped)
+            emitProgressIfNeeded(previous: snapshot, current: current)
+            emitDownloadProgressIfNeeded(previous: snapshot, current: current)
             if let previousStreamable {
                 delegateQueue.async {
                     self.delegate?.trackChanged(previousStreamable: previousStreamable, currentStreamable: nil)
@@ -612,14 +621,27 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
     }
 
     private func handleHTTPLogEvent(_ event: GaplessHTTPLogEvent) {
-        guard !teardownRequested.get() else { return }
-        guard event.sourceID == snapshotStore.get().currentStreamable?.identifier else { return }
         backendQueue.async {
+            guard !self.teardownRequested.get() else { return }
+            let snapshot = self.snapshotStore.get()
+            let trackedIdentifiers = [
+                snapshot.currentStreamable?.identifier,
+                snapshot.nextStreamable?.identifier,
+                snapshot.desiredNextStreamable?.identifier,
+            ]
+            guard trackedIdentifiers.contains(where: { $0 == event.sourceID }) else { return }
+
             let previous = self.snapshotStore.get()
-            self.snapshotStore.withValue { snapshot in
-                snapshot.activeTrackDownloadedBytes = self.unsignedValue(event.cumulativeBytes)
+            if event.sourceID == snapshot.currentStreamable?.identifier {
+                self.snapshotStore.withValue { snapshot in
+                    snapshot.activeTrackDownloadedBytes = self.unsignedValue(event.cumulativeBytes)
+                }
+                self.emitDownloadProgressIfNeeded(previous: previous, current: self.snapshotStore.get())
             }
-            self.emitDownloadProgressIfNeeded(previous: previous, current: self.snapshotStore.get())
+
+            if event.requestKind == .progressive && event.kind == .requestCompleted {
+                self.refreshStatusOnQueue(for: snapshot.generation)
+            }
         }
     }
 
@@ -766,6 +788,52 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
                 forActiveTrack: true,
                 downloadedBytes: downloadedBytes,
                 totalBytes: totalBytes
+            )
+        }
+    }
+
+    private func translateStreamingCacheCompletionIfNeeded(
+        status: GaplessMP3PlayerStatus,
+        snapshot: Snapshot
+    ) {
+        maybeEmitStreamingCacheCompletion(
+            downloadStatus: status.currentSourceDownload,
+            streamable: streamableMatching(id: status.currentSourceDownload?.source.id, snapshot: snapshot)
+        )
+        maybeEmitStreamingCacheCompletion(
+            downloadStatus: status.nextSourceDownload,
+            streamable: streamableMatching(id: status.nextSourceDownload?.source.id, snapshot: snapshot)
+        )
+    }
+
+    private func maybeEmitStreamingCacheCompletion(
+        downloadStatus: SourceDownloadStatus?,
+        streamable: RelistenGaplessStreamable?
+    ) {
+        guard let downloadStatus, let streamable else { return }
+        guard downloadStatus.state == .cached || downloadStatus.state == .completed else { return }
+        guard let resolvedFileURL = downloadStatus.resolvedFileURL,
+              let downloadDestination = streamable.downloadDestination else { return }
+        guard resolvedFileURL != downloadDestination else { return }
+        guard !FileManager.default.fileExists(atPath: downloadDestination.path) else { return }
+
+        do {
+            try FileManager.default.createDirectory(
+                at: downloadDestination.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try FileManager.default.copyItem(at: resolvedFileURL, to: downloadDestination)
+            let attributes = try FileManager.default.attributesOfItem(atPath: downloadDestination.path)
+            let bytesWritten = (attributes[.size] as? NSNumber)?.intValue ?? Int(downloadStatus.downloadedBytes)
+            delegateQueue.async {
+                self.delegate?.streamingCacheCompleted(
+                    forStreamable: streamable,
+                    bytesWritten: bytesWritten
+                )
+            }
+        } catch {
+            NSLog(
+                "[relisten-audio-player][native-backend] failed to copy cached file from \(resolvedFileURL) to \(downloadDestination) for streamable=\(streamable.identifier): \(error)"
             )
         }
     }
