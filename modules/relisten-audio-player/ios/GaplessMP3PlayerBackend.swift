@@ -429,12 +429,17 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
     }
 
     private func resumeOnQueue() {
-        guard snapshotStore.get().currentState != .Stopped else { return }
-        prepareAudioSessionOnQueue(shouldActivate: true)
-        guard player.play() else { return }
-        updateSnapshotOnQueue {
-            $0.currentState = .Playing
-        }
+        ResumeCommandState(
+            isStopped: snapshotStore.get().currentState == .Stopped
+        ).perform(
+            prepareAudioSession: { self.prepareAudioSessionOnQueue(shouldActivate: true) },
+            play: { self.player.play() },
+            updateStateToPlaying: {
+                self.updateSnapshotOnQueue {
+                    $0.currentState = .Playing
+                }
+            }
+        )
     }
 
     private func pauseOnQueue() {

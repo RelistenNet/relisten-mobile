@@ -781,13 +781,13 @@ Rollout rules:
 - Overall status: In progress
 - Active milestone: Milestone 5
 - Last updated: 2026-03-31
-- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-31 after adding deterministic backend coverage for queue-end `next()` stop invalidation via the backend-support SwiftPM package/tests, rerunning `yarn pods` for the pod-visible helper changes, rerunning `swift test --package-path modules/relisten-audio-player`, and rebuilding the corrected final tree successfully
+- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-31 after routing the stopped-state `resume()` branch through the shared backend-support resume helper, rerunning `swift test --package-path modules/relisten-audio-player`, rerunning `yarn pods` for the pod-visible backend-support change, and rebuilding the corrected final tree successfully
 - Native build command:
   `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build`
-- Current blocker: the next missing deterministic relisten-native backend proof is that `resume()` after `stop()` remains a no-op; Milestone 5 remains open until that stopped-state resume behavior is covered alongside the remaining seek parity edges
+- Current blocker: the next missing deterministic relisten-native backend proof is that seeking while paused remains paused; Milestone 5 remains open until paused seek semantics are covered alongside the remaining seek parity edges
 - Next recommended action:
-  keep Milestone 5 active and add the smallest deterministic backend proof for `resume()` after `stop()`, asserting the native backend keeps the stopped-state guard as a real no-op rather than reviving playback or session state
-- Milestone checkbox changes: none; Milestone 5 remains active after landing deterministic coverage for queue-end `next()` stop invalidation, but stopped-state `resume()` no-op coverage is still outstanding
+  keep Milestone 5 active and add the smallest deterministic backend proof for seeking while paused, asserting the native backend updates position without reviving playback or breaking the paused-state guard
+- Milestone checkbox changes: none; Milestone 5 remains active after landing deterministic coverage for stopped-state `resume()` no-op behavior, but paused seek coverage is still outstanding
 
 Milestone status:
 
@@ -888,3 +888,4 @@ Primary execution goal:
 - 2026-03-31: Added deterministic backend support coverage for latest `setNextStream()` supersession during prepare with a module-local SwiftPM helper/test target, reran `yarn pods`, reran `swift test --package-path modules/relisten-audio-player`, and re-verified the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-31: Added deterministic backend support coverage for rapid `play()` supersession by routing play-generation tagging through the shared backend-support helper, reran `yarn pods`, reran `swift test --package-path modules/relisten-audio-player`, and re-verified the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-31: Added deterministic backend support coverage for queue-end `next()` stop invalidation by routing the manual-next resolution and stop-generation invalidation through the shared backend-support helper, reran `yarn pods`, reran `swift test --package-path modules/relisten-audio-player`, and re-verified the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
+- 2026-03-31: Added deterministic backend support coverage for stopped-state `resume()` no-op behavior by routing the real resume side-effect sequence through the shared backend-support helper, reran `swift test --package-path modules/relisten-audio-player`, reran `yarn pods`, and re-verified the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)

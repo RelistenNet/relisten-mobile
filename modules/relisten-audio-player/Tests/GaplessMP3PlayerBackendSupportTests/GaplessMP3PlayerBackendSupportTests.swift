@@ -2,6 +2,57 @@ import XCTest
 @testable import GaplessMP3PlayerBackendSupport
 
 final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
+    func testResumeAfterStopDoesNotTriggerAnyResumeSideEffects() {
+        let state = ResumeCommandState(isStopped: true)
+        var sideEffects: [String] = []
+
+        state.perform(
+            prepareAudioSession: { sideEffects.append("prepareAudioSession") },
+            play: {
+                sideEffects.append("play")
+                return true
+            },
+            updateStateToPlaying: { sideEffects.append("updateStateToPlaying") }
+        )
+
+        XCTAssertEqual(sideEffects, [])
+    }
+
+    func testResumeWhenPlaybackIsNotStoppedRunsResumePathInOrder() {
+        let state = ResumeCommandState(isStopped: false)
+        var sideEffects: [String] = []
+
+        state.perform(
+            prepareAudioSession: { sideEffects.append("prepareAudioSession") },
+            play: {
+                sideEffects.append("play")
+                return true
+            },
+            updateStateToPlaying: { sideEffects.append("updateStateToPlaying") }
+        )
+
+        XCTAssertEqual(
+            sideEffects,
+            ["prepareAudioSession", "play", "updateStateToPlaying"]
+        )
+    }
+
+    func testResumeDoesNotFlipStateWhenPlayFails() {
+        let state = ResumeCommandState(isStopped: false)
+        var sideEffects: [String] = []
+
+        state.perform(
+            prepareAudioSession: { sideEffects.append("prepareAudioSession") },
+            play: {
+                sideEffects.append("play")
+                return false
+            },
+            updateStateToPlaying: { sideEffects.append("updateStateToPlaying") }
+        )
+
+        XCTAssertEqual(sideEffects, ["prepareAudioSession", "play"])
+    }
+
     func testNextWithoutCurrentTrackIsNoOp() {
         var state = NextCommandState(
             hasCurrentTrack: false,
