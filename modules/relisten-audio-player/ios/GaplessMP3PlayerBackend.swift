@@ -392,6 +392,11 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
                 self.backendQueue.async {
                     guard self.shouldContinueAsyncWork(for: generation) else { return }
                     self.snapshotStore.withValue {
+                        $0.currentStreamable = nil
+                        $0.nextStreamable = nil
+                        $0.desiredNextStreamable = nil
+                        $0.activeTrackDownloadedBytes = nil
+                        $0.activeTrackTotalBytes = nil
                         $0.isPreparingCurrentTrack = false
                         $0.pendingStartTimeAfterPrepare = nil
                         $0.currentState = .Stopped
@@ -713,6 +718,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             snapshotStore.withValue {
                 $0.currentStreamable = currentStreamable
                 $0.nextStreamable = nil
+                $0.desiredNextStreamable = nil
             }
             delegateQueue.async {
                 self.delegate?.trackChanged(previousStreamable: previousStreamable, currentStreamable: currentStreamable)
@@ -1073,6 +1079,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             NSLog(
                 "[relisten-audio-player][native-backend] failed to copy cached file from \(resolvedFileURL) to \(downloadDestination) for streamable=\(streamable.identifier): \(error)"
             )
+            emitError(error, for: streamable)
         }
     }
 

@@ -226,6 +226,7 @@ final class AudioSessionController {
         clearSessionObservers()
         clearRemoteCommands()
         endReceivingRemoteControlEvents()
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     private func runOnMainThread(_ work: @escaping () -> Void) {
