@@ -2,6 +2,78 @@ import XCTest
 @testable import GaplessMP3PlayerBackendSupport
 
 final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
+    func testPausedSeekUpdatesElapsedAndAppliesPausedStatusWithoutResumePath() async {
+        let state = SeekCommandState(
+            hasCurrentTrack: true,
+            currentDuration: 120,
+            requestedTime: 50
+        )
+        var sideEffects: [String] = []
+
+        XCTAssertEqual(state.clampedTime, 50)
+
+        await state.perform(
+            seek: { sideEffects.append("seek:\($0)") },
+            status: { "paused" },
+            applyStatus: { sideEffects.append("applyStatus:\($0)") },
+            emitError: { error in
+                XCTFail("unexpected seek error: \(error)")
+            }
+        )
+
+        XCTAssertEqual(
+            sideEffects,
+            ["seek:50.0", "applyStatus:paused"]
+        )
+    }
+
+    func testSeekClampsTimeBeforeSeekRoundTrip() async {
+        let state = SeekCommandState(
+            hasCurrentTrack: true,
+            currentDuration: 30,
+            requestedTime: 45
+        )
+        var sideEffects: [String] = []
+
+        XCTAssertEqual(state.clampedTime, 30)
+
+        await state.perform(
+            seek: { sideEffects.append("seek:\($0)") },
+            status: { "paused" },
+            applyStatus: { sideEffects.append("applyStatus:\($0)") },
+            emitError: { error in
+                XCTFail("unexpected seek error: \(error)")
+            }
+        )
+
+        XCTAssertEqual(
+            sideEffects,
+            ["seek:30.0", "applyStatus:paused"]
+        )
+    }
+
+    func testSeekWithoutCurrentTrackIsNoOp() async {
+        let state = SeekCommandState(
+            hasCurrentTrack: false,
+            currentDuration: 30,
+            requestedTime: 15
+        )
+        var sideEffects: [String] = []
+
+        XCTAssertNil(state.clampedTime)
+
+        await state.perform(
+            seek: { sideEffects.append("seek:\($0)") },
+            status: { "paused" },
+            applyStatus: { sideEffects.append("applyStatus:\($0)") },
+            emitError: { error in
+                XCTFail("unexpected seek error: \(error)")
+            }
+        )
+
+        XCTAssertEqual(sideEffects, [])
+    }
+
     func testResumeAfterStopDoesNotTriggerAnyResumeSideEffects() {
         let state = ResumeCommandState(isStopped: true)
         var sideEffects: [String] = []

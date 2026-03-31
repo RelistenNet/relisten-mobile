@@ -22,6 +22,7 @@ let package = Package(
                 "GaplessMP3PlayerBackendPlaySupersession.swift",
                 "GaplessMP3PlayerBackendNextIntent.swift",
                 "GaplessMP3PlayerBackendResumeCommand.swift",
+                "GaplessMP3PlayerBackendSeekCommand.swift",
             ]
         ),
         .testTarget(

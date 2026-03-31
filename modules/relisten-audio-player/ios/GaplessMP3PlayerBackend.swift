@@ -542,32 +542,44 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
     }
 
     private func seekOnQueue(to time: TimeInterval) {
+        let state = SeekCommandState(
+            hasCurrentTrack: snapshotStore.get().currentStreamable != nil,
+            currentDuration: snapshotStore.get().currentDuration,
+            requestedTime: time
+        )
+        guard let clampedTime = state.clampedTime else { return }
+
         let generation = snapshotStore.get().generation
         let previous = snapshotStore.get()
-        let clampedTime = snapshotStore.withValue { snapshot -> TimeInterval in
-            let maxDuration = snapshot.currentDuration ?? time
-            let clampedTime = max(0, min(time, maxDuration))
+        snapshotStore.withValue { snapshot in
             snapshot.elapsed = clampedTime
-            return clampedTime
         }
         emitProgressIfNeeded(previous: previous, current: snapshotStore.get())
+
         Task { [weak self] in
             guard let self else { return }
-            do {
-                try await self.player.seek(to: clampedTime)
-                let status = await self.player.status()
-                self.backendQueue.async {
-                    guard self.snapshotStore.get().generation == generation else { return }
-                    self.applyStatus(status)
-                }
-            } catch {
-                self.backendQueue.async {
-                    guard self.snapshotStore.get().generation == generation else { return }
-                    if let currentStreamable = self.snapshotStore.get().currentStreamable {
-                        self.emitError(error, for: currentStreamable)
+            await state.perform(
+                seek: { clampedTime in
+                    try await self.player.seek(to: clampedTime)
+                },
+                status: {
+                    await self.player.status()
+                },
+                applyStatus: { status in
+                    self.backendQueue.async {
+                        guard self.snapshotStore.get().generation == generation else { return }
+                        self.applyStatus(status)
+                    }
+                },
+                emitError: { error in
+                    self.backendQueue.async {
+                        guard self.snapshotStore.get().generation == generation else { return }
+                        if let currentStreamable = self.snapshotStore.get().currentStreamable {
+                            self.emitError(error, for: currentStreamable)
+                        }
                     }
                 }
-            }
+            )
         }
     }
 
