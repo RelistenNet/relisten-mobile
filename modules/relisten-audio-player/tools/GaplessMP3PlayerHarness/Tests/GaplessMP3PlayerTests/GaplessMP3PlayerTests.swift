@@ -71,6 +71,7 @@ final class GaplessMP3PlayerTests: XCTestCase {
         let outputGraph = TestOutputGraph(currentTime: 4.9, isPlaying: true)
         let player = makePlayer(outputGraph: outputGraph)
         let current = fixtureSource(id: "current", fixtureName: "gd77-s2t07-first-5s.mp3")
+        let capturedSessionID = "session-A"
         let recorder = EventRecorder()
         let finished = expectation(description: "finished event")
 
@@ -85,8 +86,10 @@ final class GaplessMP3PlayerTests: XCTestCase {
             nextSource: nil,
             playbackPhase: .playing,
             latestPreparationReport: makePreparationReport(current: current, next: nil),
-            outputGraph: outputGraph
+            outputGraph: outputGraph,
+            activePipelineSessionID: capturedSessionID
         )
+        player.sessionID = "session-B"
 
         await player.testingHandlePlaybackFinished()
         await fulfillment(of: [finished], timeout: 1.0)
@@ -94,10 +97,11 @@ final class GaplessMP3PlayerTests: XCTestCase {
 
         let events = recorder.events
         XCTAssertEqual(events.count, 1)
-        guard case let .playbackFinished(last) = events[0] else {
+        guard case let .playbackFinished(last, sessionID) = events[0] else {
             return XCTFail("Expected playbackFinished event")
         }
         XCTAssertEqual(last, current)
+        XCTAssertEqual(sessionID, capturedSessionID)
 
         let status = await player.status()
         XCTAssertEqual(status.playbackPhase, .stopped)
@@ -109,6 +113,7 @@ final class GaplessMP3PlayerTests: XCTestCase {
         let player = makePlayer(outputGraph: outputGraph)
         let current = fixtureSource(id: "current", fixtureName: "gd77-s2t07-first-5s.mp3")
         let next = fixtureSource(id: "next", fixtureName: "gd77-s2t05-first-5s.mp3")
+        let capturedSessionID = "session-A"
         let recorder = EventRecorder()
         let transitioned = expectation(description: "transition event")
 
@@ -127,21 +132,24 @@ final class GaplessMP3PlayerTests: XCTestCase {
             latestPreparationReport: makePreparationReport(current: current, next: next),
             pendingTransitionReport: makePreparationReport(current: next, next: nil),
             pendingTransitionBoundaryTime: 5,
-            outputGraph: outputGraph
+            outputGraph: outputGraph,
+            activePipelineSessionID: capturedSessionID
         )
 
         outputGraph.setCurrentTime(5)
+        player.sessionID = "session-B"
         await player.testingHandlePlaybackFinished()
         await fulfillment(of: [transitioned], timeout: 1.0)
         try? await Task.sleep(nanoseconds: 100_000_000)
 
         let events = recorder.events
         XCTAssertEqual(events.count, 1)
-        guard case let .trackTransitioned(previous, currentAfterTransition) = events[0] else {
+        guard case let .trackTransitioned(previous, currentAfterTransition, sessionID) = events[0] else {
             return XCTFail("Expected trackTransitioned event")
         }
         XCTAssertEqual(previous, current)
         XCTAssertEqual(currentAfterTransition, next)
+        XCTAssertEqual(sessionID, capturedSessionID)
 
         let status = await player.status()
         XCTAssertEqual(status.playbackPhase, .playing)

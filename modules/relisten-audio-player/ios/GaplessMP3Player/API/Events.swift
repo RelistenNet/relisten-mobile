@@ -22,6 +22,7 @@ public enum GaplessHTTPLogEventKind: String, Codable, Sendable {
 public struct GaplessHTTPLogEvent: Sendable {
     public var kind: GaplessHTTPLogEventKind
     public var requestKind: GaplessHTTPRequestKind
+    public var sessionID: String?
     public var sourceID: String
     public var cacheKey: String
     public var method: String
@@ -39,6 +40,7 @@ public struct GaplessHTTPLogEvent: Sendable {
     public init(
         kind: GaplessHTTPLogEventKind,
         requestKind: GaplessHTTPRequestKind,
+        sessionID: String? = nil,
         sourceID: String,
         cacheKey: String,
         method: String = "GET",
@@ -55,6 +57,7 @@ public struct GaplessHTTPLogEvent: Sendable {
     ) {
         self.kind = kind
         self.requestKind = requestKind
+        self.sessionID = sessionID
         self.sourceID = sourceID
         self.cacheKey = cacheKey
         self.method = method
@@ -73,10 +76,39 @@ public struct GaplessHTTPLogEvent: Sendable {
 
 /// Runtime events emitted after playback has started.
 public enum GaplessRuntimeEvent: Sendable {
-    case playbackFailed(String)
-    case networkRetrying(String)
-    case trackTransitioned(previous: GaplessPlaybackSource?, current: GaplessPlaybackSource?)
-    case playbackFinished(last: GaplessPlaybackSource?)
+    case playbackFailed(String, sessionID: String? = nil)
+    case networkRetrying(String, sessionID: String? = nil)
+    case trackTransitioned(
+        previous: GaplessPlaybackSource?,
+        current: GaplessPlaybackSource?,
+        sessionID: String? = nil
+    )
+    case playbackFinished(last: GaplessPlaybackSource?, sessionID: String? = nil)
+}
+
+extension GaplessRuntimeEvent {
+    var sessionID: String? {
+        switch self {
+        case .playbackFailed(_, let sessionID),
+             .networkRetrying(_, let sessionID),
+             .trackTransitioned(_, _, let sessionID),
+             .playbackFinished(_, let sessionID):
+            return sessionID
+        }
+    }
+
+    func withSessionID(_ sessionID: String?) -> Self {
+        switch self {
+        case .playbackFailed(let description, _):
+            return .playbackFailed(description, sessionID: sessionID)
+        case .networkRetrying(let description, _):
+            return .networkRetrying(description, sessionID: sessionID)
+        case .trackTransitioned(let previous, let current, _):
+            return .trackTransitioned(previous: previous, current: current, sessionID: sessionID)
+        case .playbackFinished(let last, _):
+            return .playbackFinished(last: last, sessionID: sessionID)
+        }
+    }
 }
 
 /// Preparation-phase events emitted while metadata/loading work is in flight.

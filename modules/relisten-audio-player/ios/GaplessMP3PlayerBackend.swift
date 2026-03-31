@@ -315,10 +315,12 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         }
 
         let previousState = snapshot.currentState
-        let generation = snapshotStore.withValue { snapshot in
+        let (generation, sessionID) = snapshotStore.withValue { snapshot in
             var supersessionState = PlaySupersessionState(activeGeneration: snapshot.generation)
             let generation = supersessionState.beginPlayRequest()
+            let sessionID = UUID().uuidString
             snapshot.generation = generation
+            snapshot.currentSessionID = sessionID
             snapshot.desiredTransport = .playing
             snapshot.currentStreamable = streamable
             snapshot.nextStreamable = nil
@@ -336,8 +338,9 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             }
             snapshot.isPreparingCurrentTrack = true
             snapshot.progressPollingGeneration = nil
-            return generation
+            return (generation, sessionID)
         }
+        player.sessionID = sessionID
         playbackPresentationController.setPlaybackState(.Stalled)
         emitStateIfNeeded(previous: previousState, current: .Stalled)
 
@@ -479,6 +482,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             if shouldInvalidateGeneration {
                 snapshot.generation += 1
             }
+            snapshot.currentSessionID = nil
             snapshot.desiredTransport = .stopped
             snapshot.currentStreamable = nil
             snapshot.nextStreamable = nil
@@ -494,6 +498,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             return previousState
         }
         let current = snapshotStore.get()
+        player.sessionID = nil
         playbackPresentationController.setPlaybackState(.Stopped)
         emitStateIfNeeded(previous: previousState, current: .Stopped)
         emitProgressIfNeeded(previous: previous, current: current)
@@ -665,8 +670,11 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
 
     private func handleRuntimeEvent(_ event: GaplessRuntimeEvent) {
         guard !teardownRequested.get() else { return }
+        guard let eventSessionID = event.sessionID, eventSessionID == snapshotStore.get().currentSessionID else {
+            return
+        }
         switch event {
-        case .playbackFailed(let description):
+        case .playbackFailed(let description, _):
             if let currentStreamable = snapshotStore.get().currentStreamable {
                 emitError(
                     NSError(
@@ -679,7 +687,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             }
         case .networkRetrying:
             break
-        case .trackTransitioned(let previous, let current):
+        case .trackTransitioned(let previous, let current, _):
             let snapshot = snapshotStore.get()
             let previousStreamable = streamableMatching(id: previous?.id, snapshot: snapshot) ?? snapshot.currentStreamable
             let currentStreamable = streamableMatching(id: current?.id, snapshot: snapshot) ?? snapshot.nextStreamable
@@ -691,13 +699,14 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
                 self.delegate?.trackChanged(previousStreamable: previousStreamable, currentStreamable: currentStreamable)
             }
             refreshStatusOnQueue(for: snapshot.generation)
-        case .playbackFinished(let last):
+        case .playbackFinished(let last, _):
             let snapshot = snapshotStore.get()
             guard snapshot.currentStreamable?.identifier == last?.id else { return }
             let previousStreamable = snapshot.currentStreamable
             let previousState = snapshotStore.withValue { snapshot -> PlaybackState in
                 let previousState = snapshot.currentState
                 snapshot.generation += 1
+                snapshot.currentSessionID = nil
                 snapshot.currentState = .Stopped
                 snapshot.currentStreamable = nil
                 snapshot.nextStreamable = nil
@@ -712,6 +721,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
                 return previousState
             }
             let current = snapshotStore.get()
+            player.sessionID = nil
             playbackPresentationController.setPlaybackState(.Stopped)
             emitStateIfNeeded(previous: previousState, current: .Stopped)
             emitProgressIfNeeded(previous: snapshot, current: current)
@@ -727,6 +737,9 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
     private func handleHTTPLogEvent(_ event: GaplessHTTPLogEvent) {
         backendQueue.async {
             guard !self.teardownRequested.get() else { return }
+            guard let eventSessionID = event.sessionID, eventSessionID == self.snapshotStore.get().currentSessionID else {
+                return
+            }
             let snapshot = self.snapshotStore.get()
             let trackedIdentifiers = [
                 snapshot.currentStreamable?.identifier,
@@ -1116,8 +1129,10 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         let shouldResume = snapshot.currentState == .Playing || snapshot.currentState == .Stalled
         let resumeTime = snapshot.elapsed ?? 0
         let previousState = snapshot.currentState
-        let generation = snapshotStore.withValue { snapshot in
+        let (generation, sessionID) = snapshotStore.withValue { snapshot in
+            let sessionID = UUID().uuidString
             snapshot.generation += 1
+            snapshot.currentSessionID = sessionID
             snapshot.currentState = .Stalled
             snapshot.nextStreamable = nextStreamable
             snapshot.desiredNextStreamable = nextStreamable
@@ -1130,8 +1145,9 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
                 )
                 : nil
             snapshot.isPreparingCurrentTrack = true
-            return snapshot.generation
+            return (snapshot.generation, sessionID)
         }
+        player.sessionID = sessionID
         playbackPresentationController.setPlaybackState(.Stalled)
         emitStateIfNeeded(previous: previousState, current: .Stalled)
 

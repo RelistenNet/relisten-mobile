@@ -43,6 +43,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
         var outputGraph: PCMOutputControlling?
         var currentSource: GaplessPlaybackSource?
         var nextSource: GaplessPlaybackSource?
+        var activePipelineSessionID: String?
         var playbackPhase: GaplessPlaybackPhase = .stopped
         var requestedStartTime: TimeInterval = 0
         var publicTimelineOffset: TimeInterval = 0
@@ -84,6 +85,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
         var runtimeEventHandler: (@Sendable (GaplessRuntimeEvent) -> Void)?
         var httpLogHandler: (@Sendable (GaplessHTTPLogEvent) -> Void)?
         var callbackQueue: DispatchQueue?
+        var sessionID: String?
     }
 
     private enum PlaybackFinishedOutcome: Sendable {
@@ -153,6 +155,11 @@ public final class GaplessMP3Player: @unchecked Sendable {
         set { callbackConfiguration.withValue { $0.httpLogHandler = newValue } }
     }
 
+    public var sessionID: String? {
+        get { callbackConfiguration.get().sessionID }
+        set { callbackConfiguration.withValue { $0.sessionID = newValue } }
+    }
+
     public func prepare(current: GaplessPlaybackSource, next: GaplessPlaybackSource?) async throws {
         try await prepare(current: current, next: next, eventHandler: nil)
     }
@@ -167,6 +174,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
             self.stateStore.withValue { state in
                 state.currentSource = current
                 state.nextSource = next
+                state.activePipelineSessionID = nil
                 state.playbackPhase = .preparing
                 state.requestedStartTime = 0
                 state.publicTimelineOffset = 0
@@ -240,6 +248,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
             self.stateStore.withValue { state in
                 state.currentSource = nil
                 state.nextSource = nil
+                state.activePipelineSessionID = nil
                 state.playbackPhase = .stopped
                 state.requestedStartTime = 0
                 state.publicTimelineOffset = 0
@@ -376,38 +385,53 @@ public final class GaplessMP3Player: @unchecked Sendable {
     }
 
     private func startPipeline(at startTime: TimeInterval) async throws {
-        await coordinator.setRuntimeEventHandler(makeRuntimeEventBridge())
-        await coordinator.setHTTPLogHandler(makeHTTPLogBridge())
+        // Capture once so late callbacks stay tied to the playback session that started this pipeline.
+        let sessionID = self.sessionID
+        await performOnPlaybackQueue {
+            self.stateStore.withValue { $0.activePipelineSessionID = sessionID }
+        }
+        await coordinator.setRuntimeEventHandler(makeRuntimeEventBridge(sessionID: sessionID))
+        await coordinator.setHTTPLogHandler(makeHTTPLogBridge(sessionID: sessionID))
 
-        try await coordinator.startPlayback(
-            startTime: startTime,
-            playbackPolicy: playbackPolicy,
-            scheduleChunk: { [weak self] chunk in
-                guard let self else { throw CancellationError() }
-                try await self.scheduleChunkOnPlaybackQueue(chunk)
-            },
-            currentTimeProvider: { [weak self] in
-                guard let self else { return startTime }
-                return await self.currentAbsoluteTimelineTimeOnPlaybackQueue()
-            },
-            becameReady: { [weak self] in
-                guard let self else { return }
-                await self.handleBecameReady()
-            },
-            trackTransitionScheduled: { [weak self] report, boundaryTime in
-                guard let self else { return }
-                await self.recordPendingTransition(report: report, boundaryTime: boundaryTime)
-            },
-            playbackFinished: { [weak self] in
-                guard let self else { return }
-                await self.handlePlaybackFinished()
-                await self.promoteCoordinatorTransitionIfNeeded()
-            },
-            playbackFailed: { [weak self] error in
-                guard let self else { return }
-                await self.handlePlaybackFailure(error)
+        do {
+            try await coordinator.startPlayback(
+                startTime: startTime,
+                playbackPolicy: playbackPolicy,
+                scheduleChunk: { [weak self] chunk in
+                    guard let self else { throw CancellationError() }
+                    try await self.scheduleChunkOnPlaybackQueue(chunk)
+                },
+                currentTimeProvider: { [weak self] in
+                    guard let self else { return startTime }
+                    return await self.currentAbsoluteTimelineTimeOnPlaybackQueue()
+                },
+                becameReady: { [weak self] in
+                    guard let self else { return }
+                    await self.handleBecameReady()
+                },
+                trackTransitionScheduled: { [weak self] report, boundaryTime in
+                    guard let self else { return }
+                    await self.recordPendingTransition(report: report, boundaryTime: boundaryTime)
+                },
+                playbackFinished: { [weak self] in
+                    guard let self else { return }
+                    await self.handlePlaybackFinished(sessionID: sessionID)
+                    await self.promoteCoordinatorTransitionIfNeeded()
+                },
+                playbackFailed: { [weak self] error in
+                    guard let self else { return }
+                    await self.handlePlaybackFailure(error, sessionID: sessionID)
+                }
+            )
+        } catch {
+            let shouldHandleFailure = await performOnPlaybackQueue {
+                self.stateStore.get().activePipelineSessionID == sessionID
             }
-        )
+            if shouldHandleFailure {
+                await handlePlaybackFailure(error, sessionID: sessionID)
+            }
+            throw error
+        }
     }
 
     private func playOnPlaybackQueue() {
@@ -429,9 +453,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
             guard let self else { return }
             do {
                 try await self.startPipeline(at: startTime)
-            } catch {
-                await self.handlePlaybackFailure(error)
-            }
+            } catch {}
         }
     }
 
@@ -486,7 +508,13 @@ public final class GaplessMP3Player: @unchecked Sendable {
             state.requestedStartTime = max(absoluteTimelineTime - pendingTrackTransition.boundaryTime, 0)
             state.pendingTrackTransition = nil
             state.coordinatorTransitionPromotionNeeded = true
-            self.deliverRuntimeEvent(.trackTransitioned(previous: previousSource, current: state.currentSource))
+            self.deliverRuntimeEvent(
+                .trackTransitioned(
+                    previous: previousSource,
+                    current: state.currentSource,
+                    sessionID: state.activePipelineSessionID
+                )
+            )
         }
         return true
     }
@@ -604,55 +632,62 @@ public final class GaplessMP3Player: @unchecked Sendable {
         }
     }
 
-    private func handlePlaybackFinished() async {
-        let outcome = await performOnPlaybackQueue {
+    private func handlePlaybackFinished(sessionID explicitSessionID: String? = nil) async {
+        let (outcome, sessionID) = await performOnPlaybackQueue {
+            let sessionID = explicitSessionID ?? self.stateStore.get().activePipelineSessionID
             self.stateStore.withValue {
                 $0.outputGraph?.markDecodeFinished()
             }
 
             if self.stateStore.get().suppressPlaybackFinishedEvent {
                 self.refreshSnapshotOnPlaybackQueue()
-                return PlaybackFinishedOutcome.suppressed
+                return (PlaybackFinishedOutcome.suppressed, sessionID)
             }
 
             let lastSource = self.stateStore.get().currentSource
             let didTransition = self.applyPendingTrackTransitionIfNeededOnPlaybackQueue()
             if didTransition {
                 self.refreshSnapshotOnPlaybackQueue()
-                return PlaybackFinishedOutcome.transitioned
+                return (PlaybackFinishedOutcome.transitioned, sessionID)
             }
 
             self.stateStore.withValue {
                 $0.playbackPhase = .stopped
+                $0.activePipelineSessionID = nil
             }
             self.refreshSnapshotOnPlaybackQueue()
-            return PlaybackFinishedOutcome.finished(lastSource)
+            return (PlaybackFinishedOutcome.finished(lastSource), sessionID)
         }
 
         if case let .finished(lastSource) = outcome {
-            deliverRuntimeEvent(.playbackFinished(last: lastSource))
+            deliverRuntimeEvent(.playbackFinished(last: lastSource, sessionID: sessionID))
         }
     }
 
-    private func handlePlaybackFailure(_ error: Error) async {
-        await performOnPlaybackQueue {
+    private func handlePlaybackFailure(_ error: Error, sessionID explicitSessionID: String? = nil) async {
+        let sessionID = await performOnPlaybackQueue {
+            let sessionID = explicitSessionID ?? self.stateStore.get().activePipelineSessionID
             self.stateStore.withValue {
                 $0.playbackPhase = .failed
                 $0.lastPlaybackErrorDescription = String(describing: error)
+                $0.activePipelineSessionID = nil
             }
             self.refreshSnapshotOnPlaybackQueue()
+            return sessionID
         }
-        deliverRuntimeEvent(.playbackFailed(String(describing: error)))
+        deliverRuntimeEvent(.playbackFailed(String(describing: error), sessionID: sessionID))
     }
 
-    private func makeRuntimeEventBridge() -> (@Sendable (GaplessRuntimeEvent) -> Void)? {
+    private func makeRuntimeEventBridge(sessionID: String? = nil) -> (@Sendable (GaplessRuntimeEvent) -> Void)? {
         { [weak self] event in
-            self?.deliverRuntimeEvent(event)
+            self?.deliverRuntimeEvent(event.withSessionID(sessionID))
         }
     }
 
-    private func makeHTTPLogBridge() -> (@Sendable (GaplessHTTPLogEvent) -> Void)? {
+    private func makeHTTPLogBridge(sessionID: String? = nil) -> (@Sendable (GaplessHTTPLogEvent) -> Void)? {
         { [weak self] event in
+            var event = event
+            event.sessionID = sessionID
             self?.deliverHTTPLogEvent(event)
         }
     }
@@ -705,13 +740,15 @@ extension GaplessMP3Player {
         requestedStartTime: TimeInterval = 0,
         publicTimelineOffset: TimeInterval = 0,
         outputGraph: PCMOutputControlling? = nil,
-        suppressPlaybackFinishedEvent: Bool = false
+        suppressPlaybackFinishedEvent: Bool = false,
+        activePipelineSessionID: String? = nil
     ) async {
         await performOnPlaybackQueue {
             self.stateStore.withValue { state in
                 state.outputGraph = outputGraph
                 state.currentSource = currentSource
                 state.nextSource = nextSource
+                state.activePipelineSessionID = activePipelineSessionID
                 state.playbackPhase = playbackPhase
                 state.requestedStartTime = requestedStartTime
                 state.publicTimelineOffset = publicTimelineOffset
