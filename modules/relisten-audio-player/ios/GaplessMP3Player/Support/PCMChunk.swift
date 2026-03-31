@@ -1,7 +1,7 @@
 import AVFoundation
 import Foundation
 
-/// Lightweight PCM container used between decode, trim, and output scheduling.
+/// Lightweight PCM container used between decode, trim, normalization, and output scheduling.
 ///
 /// The engine keeps PCM as planar Float32 arrays because that matches the trim logic
 /// well and maps cleanly onto `AVAudioPCMBuffer` when we finally schedule audio.
@@ -57,11 +57,9 @@ struct PCMChunk: Sendable {
         return PCMChunk(sampleRate: sampleRate, channels: channels.map { Array($0.suffix(frames)) })
     }
 
-    /// Concatenates adjacent decoded PCM without reformatting.
-    ///
-    /// We require matching channel topology because all runtime transitions enforce
-    /// a stable sample rate and channel count up front during `prepare`.
+    /// Concatenates adjacent PCM chunks that already share the same format.
     func appended(with other: PCMChunk) -> PCMChunk {
+        precondition(sampleRate == other.sampleRate)
         precondition(channelCount == other.channelCount)
         let merged = zip(channels, other.channels).map { lhs, rhs in
             var combined = lhs
@@ -127,5 +125,23 @@ struct PCMChunk: Sendable {
     /// Convenience constructor used by tests and by any future underrun fill policy.
     static func silence(sampleRate: Double, channelCount: Int, frameCount: Int) -> PCMChunk {
         PCMChunk(sampleRate: sampleRate, channels: Array(repeating: Array(repeating: 0, count: frameCount), count: channelCount))
+    }
+
+    func normalizedChannelCount(_ targetChannelCount: Int) throws -> PCMChunk {
+        guard targetChannelCount > 0 else {
+            throw GaplessMP3PlayerError.unsupportedFormat("Invalid target channel count")
+        }
+
+        switch (channelCount, targetChannelCount) {
+        case (_, _) where channelCount == targetChannelCount:
+            return self
+        case (1, 2):
+            return PCMChunk(sampleRate: sampleRate, channels: [channels[0], channels[0]])
+        case (2, 1):
+            let averaged = zip(channels[0], channels[1]).map { ($0 + $1) * 0.5 }
+            return PCMChunk(sampleRate: sampleRate, channels: [averaged])
+        default:
+            throw GaplessMP3PlayerError.unsupportedFormat("Unsupported channel normalization: \(channelCount) -> \(targetChannelCount)")
+        }
     }
 }

@@ -18,17 +18,20 @@ public struct GaplessPreparationReport: Sendable {
     public var current: TrackReport
     public var next: TrackReport?
     public var sampleRate: Double
+    public var outputChannelCount: Int
     public var transitionIsContinuous: Bool
 
     public init(
         current: TrackReport,
         next: TrackReport?,
         sampleRate: Double,
+        outputChannelCount: Int,
         transitionIsContinuous: Bool
     ) {
         self.current = current
         self.next = next
         self.sampleRate = sampleRate
+        self.outputChannelCount = outputChannelCount
         self.transitionIsContinuous = transitionIsContinuous
     }
 }

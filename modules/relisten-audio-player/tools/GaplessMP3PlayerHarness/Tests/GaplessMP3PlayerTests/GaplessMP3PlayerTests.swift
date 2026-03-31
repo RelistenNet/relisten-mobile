@@ -3,6 +3,36 @@ import XCTest
 @testable import GaplessMP3Player
 
 final class GaplessMP3PlayerTests: XCTestCase {
+    func testPrepareAllowsMixedSampleRatesUsingFixedSessionOutputFormat() async throws {
+        let outputGraph = TestOutputGraph()
+        let player = makePlayer(outputGraph: outputGraph)
+        let current = fixtureSource(id: "current", fixtureName: "gd77-s2t07-first-5s.mp3")
+        let next = fixtureSource(id: "next", fixtureName: "gd77-s2t07-first-5s-44k1-stereo.mp3")
+
+        try await player.prepare(current: current, next: next)
+
+        let report = try XCTUnwrap(player.latestPreparationReport)
+        XCTAssertEqual(report.sampleRate, 44_100)
+        XCTAssertEqual(report.outputChannelCount, 2)
+        XCTAssertEqual(report.current.metadata.sampleRate, 48_000)
+        XCTAssertEqual(report.next?.metadata.sampleRate, 44_100)
+    }
+
+    func testPrepareAllowsMixedChannelCountsUsingFixedSessionOutputFormat() async throws {
+        let outputGraph = TestOutputGraph()
+        let player = makePlayer(outputGraph: outputGraph)
+        let current = fixtureSource(id: "current", fixtureName: "gd77-s2t07-first-5s.mp3")
+        let next = fixtureSource(id: "next", fixtureName: "gd77-s2t05-first-5s-48k-mono.mp3")
+
+        try await player.prepare(current: current, next: next)
+
+        let report = try XCTUnwrap(player.latestPreparationReport)
+        XCTAssertEqual(report.sampleRate, 44_100)
+        XCTAssertEqual(report.outputChannelCount, 2)
+        XCTAssertEqual(report.current.metadata.channelCount, 2)
+        XCTAssertEqual(report.next?.metadata.channelCount, 1)
+    }
+
     func testPrepareReportsPausedPhaseSourceIdentityAndResolvedFileURLs() async throws {
         let outputGraph = TestOutputGraph()
         let player = makePlayer(outputGraph: outputGraph)
@@ -242,6 +272,31 @@ final class GaplessMP3PlayerTests: XCTestCase {
         loader.finishProgressiveDownload()
     }
 
+    func testPlaybackNormalizesScheduledOutputAcrossMixedTrackFormats() async throws {
+        let outputGraph = TestOutputGraph(advanceTimeOnSchedule: true)
+        let player = makePlayer(outputGraph: outputGraph)
+        let current = fixtureSource(id: "current", fixtureName: "gd77-s2t07-first-5s.mp3")
+        let next = fixtureSource(id: "next", fixtureName: "gd77-s2t07-first-5s-44k1-stereo.mp3")
+
+        try await player.prepare(current: current, next: next)
+        let initialReport = try XCTUnwrap(player.latestPreparationReport)
+        let expectedDuration = initialReport.current.trimmedDuration + (initialReport.next?.trimmedDuration ?? 0)
+        XCTAssertTrue(player.play())
+
+        for _ in 0..<200 {
+            if outputGraph.totalScheduledDuration() >= expectedDuration - 0.1 {
+                break
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        let scheduledChunks = outputGraph.scheduledChunksSnapshot()
+        XCTAssertFalse(scheduledChunks.isEmpty)
+        XCTAssertTrue(scheduledChunks.allSatisfy { $0.sampleRate == 44_100 })
+        XCTAssertTrue(scheduledChunks.allSatisfy { $0.channelCount == 2 })
+        XCTAssertEqual(outputGraph.totalScheduledDuration(), expectedDuration, accuracy: 0.1)
+    }
+
     private func makePlayer(outputGraph: TestOutputGraph) -> GaplessMP3Player {
         let cacheDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("GaplessMP3PlayerTests-\(UUID().uuidString)", isDirectory: true)
@@ -325,7 +380,8 @@ final class GaplessMP3PlayerTests: XCTestCase {
         return GaplessPreparationReport(
             current: currentTrack,
             next: nextTrack,
-            sampleRate: 48_000,
+            sampleRate: 44_100,
+            outputChannelCount: 2,
             transitionIsContinuous: nextTrack != nil
         )
     }
@@ -455,11 +511,14 @@ private enum TestFailure: Error {
 
 private final class TestOutputGraph: PCMOutputControlling, @unchecked Sendable {
     private let lock = NSLock()
+    private let advanceTimeOnSchedule: Bool
     private var timelineOffset: TimeInterval
     private var playing: Bool
     private var outputVolume: Float = 1.0
+    private var scheduledChunks: [PCMChunk] = []
 
-    init(currentTime: TimeInterval = 0, isPlaying: Bool = false) {
+    init(currentTime: TimeInterval = 0, isPlaying: Bool = false, advanceTimeOnSchedule: Bool = false) {
+        self.advanceTimeOnSchedule = advanceTimeOnSchedule
         self.timelineOffset = currentTime
         self.playing = isPlaying
     }
@@ -487,6 +546,7 @@ private final class TestOutputGraph: PCMOutputControlling, @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         self.timelineOffset = timelineOffset
+        scheduledChunks = []
     }
 
     func setCurrentTime(_ time: TimeInterval) {
@@ -501,7 +561,14 @@ private final class TestOutputGraph: PCMOutputControlling, @unchecked Sendable {
         playing = true
     }
 
-    func schedule(_ chunk: PCMChunk) throws {}
+    func schedule(_ chunk: PCMChunk) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        scheduledChunks.append(chunk)
+        if advanceTimeOnSchedule {
+            timelineOffset += Double(chunk.frameCount) / chunk.sampleRate
+        }
+    }
 
     func pause() {
         lock.lock()
@@ -515,6 +582,18 @@ private final class TestOutputGraph: PCMOutputControlling, @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return timelineOffset
+    }
+
+    func scheduledChunksSnapshot() -> [PCMChunk] {
+        lock.lock()
+        defer { lock.unlock() }
+        return scheduledChunks
+    }
+
+    func totalScheduledDuration() -> TimeInterval {
+        lock.lock()
+        defer { lock.unlock() }
+        return scheduledChunks.reduce(0) { $0 + (Double($1.frameCount) / $1.sampleRate) }
     }
 }
 

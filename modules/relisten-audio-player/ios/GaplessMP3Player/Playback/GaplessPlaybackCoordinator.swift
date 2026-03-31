@@ -46,6 +46,7 @@ actor GaplessPlaybackCoordinator {
     }
 
     private let sourceManager: MP3SourceManager
+    private let outputFormat: PlaybackSessionOutputFormat
     private let parser = MP3GaplessMetadataParser()
     private var preparedPlayback: PreparedPlayback?
     private var pendingTransitionPlayback: PendingTrackTransition?
@@ -57,8 +58,12 @@ actor GaplessPlaybackCoordinator {
     private var activePlaybackContext: ActivePlaybackContext?
     private var nextProducerTaskState: NextProducerTaskState?
 
-    init(sourceManager: MP3SourceManager = MP3SourceManager()) {
+    init(
+        sourceManager: MP3SourceManager = MP3SourceManager(),
+        outputFormat: PlaybackSessionOutputFormat = .bassLike
+    ) {
         self.sourceManager = sourceManager
+        self.outputFormat = outputFormat
     }
 
     func setRuntimeEventHandler(_ handler: (@Sendable (GaplessRuntimeEvent) -> Void)?) async {
@@ -69,9 +74,8 @@ actor GaplessPlaybackCoordinator {
         await sourceManager.setHTTPLogHandler(handler)
     }
 
-    /// Parses metadata for the current and optional next track and validates that both
-    /// can share a single PCM output graph. We reject mismatched sample-rate/channel
-    /// pairs here so the runtime never has to reconfigure the output node mid-transition.
+    /// Parses metadata for the current and optional next track and validates that each
+    /// track can be normalized into the fixed session output format.
     func prepare(
         current: GaplessPlaybackSource,
         next: GaplessPlaybackSource?,
@@ -90,10 +94,9 @@ actor GaplessPlaybackCoordinator {
             nextTrack = nil
         }
 
-        guard nextTrack == nil
-            || (currentTrack.metadata.sampleRate == nextTrack?.metadata.sampleRate
-                && currentTrack.metadata.channelCount == nextTrack?.metadata.channelCount) else {
-            throw GaplessMP3PlayerError.incompatibleTrackFormats
+        try validateNormalizable(currentTrack)
+        if let nextTrack {
+            try validateNormalizable(nextTrack)
         }
 
         let report = makeReport(current: currentTrack, next: nextTrack)
@@ -119,10 +122,7 @@ actor GaplessPlaybackCoordinator {
         }
 
         if let nextTrack {
-            guard preparedPlayback.current.metadata.sampleRate == nextTrack.metadata.sampleRate,
-                  preparedPlayback.current.metadata.channelCount == nextTrack.metadata.channelCount else {
-                throw GaplessMP3PlayerError.incompatibleTrackFormats
-            }
+            try validateNormalizable(nextTrack)
         }
 
         preparedPlayback.next = nextTrack
@@ -247,6 +247,7 @@ actor GaplessPlaybackCoordinator {
             track: currentPlayback.current,
             sourceManager: sourceManager,
             startTime: currentStartTime,
+            outputFormat: outputFormat,
             allowsParallelRangeRequests: plan.allowsParallelSeekRangeRequests,
             finalizationModeProvider: makeFinalizationModeProvider(for: currentPlayback.current.source.id)
         )
@@ -383,6 +384,7 @@ actor GaplessPlaybackCoordinator {
                     track: nextTrack,
                     sourceManager: sourceManager,
                     startTime: 0,
+                    outputFormat: self.outputFormat,
                     allowsParallelRangeRequests: plan.allowsParallelSeekRangeRequests,
                     finalizationModeProvider: self.makeFinalizationModeProvider(for: nextTrack.source.id)
                 )
@@ -399,6 +401,7 @@ actor GaplessPlaybackCoordinator {
                         track: nextTrack,
                         sourceManager: sourceManager,
                         startTime: 0,
+                        outputFormat: self.outputFormat,
                         allowsParallelRangeRequests: plan.allowsParallelSeekRangeRequests,
                         finalizationModeProvider: self.makeFinalizationModeProvider(for: nextTrack.source.id)
                     )
@@ -453,6 +456,7 @@ actor GaplessPlaybackCoordinator {
             track: nextTrack,
             sourceManager: sourceManager,
             startTime: 0,
+            outputFormat: outputFormat,
             allowsParallelRangeRequests: plan.allowsParallelSeekRangeRequests,
             finalizationModeProvider: makeFinalizationModeProvider(for: nextTrack.source.id)
         )
@@ -554,9 +558,21 @@ actor GaplessPlaybackCoordinator {
                     trimmedDuration: trimmedDuration(for: $0.metadata)
                 )
             },
-            sampleRate: Double(current.metadata.sampleRate),
+            sampleRate: outputFormat.sampleRate,
+            outputChannelCount: outputFormat.channelCount,
             transitionIsContinuous: next != nil
         )
+    }
+
+    private func validateNormalizable(_ track: PreparedTrack) throws {
+        guard outputFormat.canNormalize(
+            sampleRate: track.metadata.sampleRate,
+            channelCount: track.metadata.channelCount
+        ) else {
+            throw GaplessMP3PlayerError.unsupportedFormat(
+                "Track format cannot be normalized into \(outputFormat.sampleRate) Hz / \(outputFormat.channelCount) ch"
+            )
+        }
     }
 }
 
@@ -574,6 +590,7 @@ private final class TrackPCMProducer: @unchecked Sendable {
     private let readSession: SourceReadSession
     private let decoder: MP3FrameDecoder
     private let trimEngine: GaplessTrimEngine
+    private let normalizer: PCMFormatNormalizer
     private let finalizationModeProvider: @Sendable () async -> FinalizationMode
 
     private var prefetchedChunks: [PCMChunk] = []
@@ -585,6 +602,7 @@ private final class TrackPCMProducer: @unchecked Sendable {
         track: GaplessPlaybackCoordinator.PreparedTrack,
         sourceManager: MP3SourceManager,
         startTime: TimeInterval,
+        outputFormat: PlaybackSessionOutputFormat,
         allowsParallelRangeRequests: Bool,
         finalizationModeProvider: @escaping @Sendable () async -> FinalizationMode
     ) async throws {
@@ -606,6 +624,11 @@ private final class TrackPCMProducer: @unchecked Sendable {
             startFrames: seekPlan.trimStartFrames,
             endFrames: track.metadata.encoderPaddingFrames
         )
+        self.normalizer = try PCMFormatNormalizer(
+            inputSampleRate: Double(track.metadata.sampleRate),
+            inputChannelCount: track.metadata.channelCount,
+            outputFormat: outputFormat
+        )
         self.finalizationModeProvider = finalizationModeProvider
     }
 
@@ -622,13 +645,15 @@ private final class TrackPCMProducer: @unchecked Sendable {
         while true {
             switch try decoder.readChunk() {
             case .chunk(let chunk):
-                if let output = trimEngine.process(chunk), !output.isEmpty {
-                    return output
+                if let output = trimEngine.process(chunk),
+                   let normalized = try normalizer.normalize(output),
+                   !normalized.isEmpty {
+                    return normalized
                 }
             case .needMoreData:
                 if reachedEndOfStream {
                     hasFinalized = true
-                    return await finalize()
+                    return try await finalize()
                 }
 
                 switch try await readSession.read(maxLength: 32 * 1024) {
@@ -643,7 +668,7 @@ private final class TrackPCMProducer: @unchecked Sendable {
                 }
             case .endOfStream:
                 hasFinalized = true
-                return await finalize()
+                return try await finalize()
             }
         }
     }
@@ -667,6 +692,7 @@ private final class TrackPCMProducer: @unchecked Sendable {
         track: GaplessPlaybackCoordinator.PreparedTrack,
         sourceManager: MP3SourceManager,
         startTime: TimeInterval,
+        outputFormat: PlaybackSessionOutputFormat,
         allowsParallelRangeRequests: Bool,
         finalizationModeProvider: @escaping @Sendable () async -> FinalizationMode
     ) async throws -> TrackPCMProducer {
@@ -674,19 +700,40 @@ private final class TrackPCMProducer: @unchecked Sendable {
             track: track,
             sourceManager: sourceManager,
             startTime: startTime,
+            outputFormat: outputFormat,
             allowsParallelRangeRequests: allowsParallelRangeRequests,
             finalizationModeProvider: finalizationModeProvider
         )
     }
 
     /// Transition boundaries drop the retained tail; final tracks drop encoder padding.
-    private func finalize() async -> PCMChunk? {
+    private func finalize() async throws -> PCMChunk? {
+        let trailingChunk: PCMChunk?
         switch await finalizationModeProvider() {
         case .transition:
             trimEngine.finishForTransition()
-            return nil
+            trailingChunk = nil
         case .finalTrack:
-            return trimEngine.finishFinalTrack(dropFinalPadding: true)
+            trailingChunk = trimEngine.finishFinalTrack(dropFinalPadding: true)
+        }
+
+        let normalizedTrailingChunk: PCMChunk?
+        if let trailingChunk {
+            normalizedTrailingChunk = try normalizer.normalize(trailingChunk)
+        } else {
+            normalizedTrailingChunk = nil
+        }
+
+        let flushedChunk = try normalizer.flush()
+        switch (normalizedTrailingChunk, flushedChunk) {
+        case let (.some(lhs), .some(rhs)):
+            return lhs.appended(with: rhs)
+        case let (.some(lhs), nil):
+            return lhs
+        case let (nil, .some(rhs)):
+            return rhs
+        case (nil, nil):
+            return nil
         }
     }
 }

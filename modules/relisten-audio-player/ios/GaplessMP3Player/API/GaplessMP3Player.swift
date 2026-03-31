@@ -184,7 +184,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
             await coordinator.setHTTPLogHandler(makeHTTPLogBridge())
             let report = try await coordinator.prepare(current: current, next: next, eventHandler: eventHandler)
             let outputGraph = try await performOnPlaybackQueue {
-                try self.outputGraphFactory(report.sampleRate, report.current.metadata.channelCount)
+                try self.outputGraphFactory(report.sampleRate, report.outputChannelCount)
             }
 
             await performOnPlaybackQueue {
