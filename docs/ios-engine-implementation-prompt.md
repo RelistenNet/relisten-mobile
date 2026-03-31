@@ -291,7 +291,7 @@ Update this section as tasks complete. Change `[ ]` to `[x]` and add the commit 
 
 ### Phase 4: Source ownership and cache
 - [x] Task 6: HTTPSourceSession/MP3SourceManager shutdown (F8, F9) — commit: `832a03d`
-- [ ] Task 7: Coordinator teardown split + scavenge (Spec 2) — commit: _pending_
+- [x] Task 7: Coordinator teardown split + scavenge (Spec 2) — commit: `fe87327`
 - [ ] Task 8: Stable cache key + session-scoped wipe (F3, Spec 3) — commit: _pending_
 
 ### Verification
