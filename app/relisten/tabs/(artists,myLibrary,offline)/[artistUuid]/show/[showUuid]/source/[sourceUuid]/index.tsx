@@ -268,6 +268,8 @@ export default function Page() {
     downloadShow,
     groupSegment,
     isRemovingDownloads,
+    isOfflineTab,
+    offlineMode,
     playShow,
     realm,
     removeDownloads,

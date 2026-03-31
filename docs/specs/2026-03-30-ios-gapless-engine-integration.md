@@ -781,13 +781,13 @@ Rollout rules:
 - Overall status: In progress
 - Active milestone: Milestone 4
 - Last updated: 2026-03-30
-- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-30 after aligning native `seekTo(1.0)` with the existing `remoteControl("nextTrack")` contract; the same turn also completed one selector-`true` validation build before restoring the committed selector default to `false`
+- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-30 after restoring the committed selector default to `false`; earlier in the same turn, the selector-`true` validation build also succeeded before app-driven smoke hit a navigation-entry blocker
 - Native build command:
   `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build`
-- Current blocker: none
+- Current blocker: selector-`true` app-driven smoke is blocked because `xcrun simctl openurl booted 'relisten://web/grateful-dead/1977/05/08/tuning?source=2605748'` and the equivalent Expo dev-client URL both leave the running app on the home feed instead of navigating into the `/web/...` route, so the source-screen playback path could not be exercised end-to-end this turn
 - Next recommended action:
-  continue Milestone 4 by exercising the selector-`true` native backend command matrix beyond build-only validation, focusing next on actual app-driven boundary cases like idle `next()`, `seekTo(1.0)`, and command-center initiated skips before broader Milestone 5 event/cache parity work
-- Milestone checkbox changes: none; Milestone 4 remains active after the native `seekTo(1.0)` boundary-semantic slice and successful selector-`true` plus final committed-tree simulator builds
+  continue Milestone 4 by establishing a reliable selector-`true` route into a concrete show/source playback screen in the running app, then resume the app-level command matrix on idle `next()`, `seekTo(1.0)`, and command-center initiated skips before broader Milestone 5 event/cache parity work
+- Milestone checkbox changes: none; Milestone 4 remains active after unblocking the source-screen React Compiler dependency mismatch, but selector-`true` app-driven smoke still needs a working navigation entry path
 
 Milestone status:
 
@@ -873,3 +873,4 @@ Primary execution goal:
 - 2026-03-30: Made native `resume()` reactivate the shared audio session before `player.play()`, then re-verified the canonical iOS simulator build to keep Milestone 4 moving on selector-enabled command semantics. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Made manual native `next()` emit `trackChanged(previous,current)` only after the replacement track prepares successfully, and re-verified the canonical iOS simulator build while keeping Milestone 4 focused on selector-enabled command semantics. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Aligned native `seekTo(1.0)` with the existing `remoteControl("nextTrack")` contract, validated the native path with the selector enabled, then restored the committed selector default to `false` and re-verified the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
+- 2026-03-30: Fixed a source-screen React Compiler dependency mismatch in `onDotsPress`, reran `yarn lint` and `yarn ts:check` successfully, and recorded that selector-`true` app-driven smoke is still blocked by dev-client deep links not entering the `/web/...` route. (019d4087-5419-77f2-b446-ce61e5cab2a9)
