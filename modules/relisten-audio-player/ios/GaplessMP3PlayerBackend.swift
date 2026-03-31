@@ -445,12 +445,14 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         }
     }
 
-    private func stopOnQueue(emitTrackChanged: Bool) {
+    private func stopOnQueue(emitTrackChanged: Bool, shouldInvalidateGeneration: Bool = true) {
         let previous = snapshotStore.get()
         let previousStreamable = previous.currentStreamable
         let previousState = snapshotStore.withValue { snapshot -> PlaybackState in
             let previousState = snapshot.currentState
-            snapshot.generation += 1
+            if shouldInvalidateGeneration {
+                snapshot.generation += 1
+            }
             snapshot.currentStreamable = nil
             snapshot.nextStreamable = nil
             snapshot.desiredNextStreamable = nil
@@ -480,13 +482,31 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
     }
 
     private func nextOnQueue() {
-        let snapshot = snapshotStore.get()
-        guard snapshot.currentStreamable != nil else { return }
-
-        guard let nextStreamable = snapshot.nextStreamable ?? snapshot.desiredNextStreamable else {
-            stopOnQueue(emitTrackChanged: true)
-            return
+        let (snapshot, nextAction) = snapshotStore.withValue { snapshot -> (Snapshot, NextCommandAction) in
+            var nextCommandState = NextCommandState(
+                hasCurrentTrack: snapshot.currentStreamable != nil,
+                preparedNextIdentifier: snapshot.nextStreamable?.identifier,
+                desiredNextIdentifier: snapshot.desiredNextStreamable?.identifier,
+                activeGeneration: snapshot.generation
+            )
+            let action = nextCommandState.resolve()
+            if case .stopCurrentTrack(let invalidatedGeneration) = action {
+                snapshot.generation = invalidatedGeneration
+            }
+            return (snapshot, action)
         }
+
+        switch nextAction {
+        case .noOp:
+            return
+        case .stopCurrentTrack:
+            stopOnQueue(emitTrackChanged: true, shouldInvalidateGeneration: false)
+            return
+        case .playQueuedNext:
+            break
+        }
+
+        guard let nextStreamable = snapshot.nextStreamable ?? snapshot.desiredNextStreamable else { return }
 
         snapshotStore.withValue {
             $0.desiredNextStreamable = nil

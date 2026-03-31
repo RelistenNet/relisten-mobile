@@ -2,6 +2,39 @@ import XCTest
 @testable import GaplessMP3PlayerBackendSupport
 
 final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
+    func testNextWithoutCurrentTrackIsNoOp() {
+        var state = NextCommandState(
+            hasCurrentTrack: false,
+            preparedNextIdentifier: nil,
+            desiredNextIdentifier: nil,
+            activeGeneration: 4
+        )
+
+        XCTAssertEqual(state.resolve(), .noOp)
+    }
+
+    func testNextWithoutQueuedTrackStopsCurrentTrackAndInvalidatesInFlightWork() {
+        var state = NextCommandState(
+            hasCurrentTrack: true,
+            preparedNextIdentifier: nil,
+            desiredNextIdentifier: nil,
+            activeGeneration: 4
+        )
+
+        XCTAssertEqual(state.resolve(), .stopCurrentTrack(invalidatedGeneration: 5))
+    }
+
+    func testNextUsesQueuedTrackWhenOneExists() {
+        var state = NextCommandState(
+            hasCurrentTrack: true,
+            preparedNextIdentifier: nil,
+            desiredNextIdentifier: "sunset-in-july",
+            activeGeneration: 4
+        )
+
+        XCTAssertEqual(state.resolve(), .playQueuedNext)
+    }
+
     func testLatestPlayRequestInvalidatesEarlierPrepareCompletion() {
         var state = PlaySupersessionState(activeGeneration: 0)
 
