@@ -781,13 +781,13 @@ Rollout rules:
 - Overall status: In progress
 - Active milestone: Milestone 5
 - Last updated: 2026-03-30
-- Last verified native build: `swift test` succeeded on 2026-03-30 in `modules/relisten-audio-player/tools/GaplessMP3PlayerHarness` after adding deterministic HTTP seek coverage for both in-prefix progressive reads and far-range-read fallback plus the existing local-file seek coverage, and `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` also succeeded on the current tree
+- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-30 after deferring same-track `play(startingAtMs)` seeks until `prepare()` completes and then generation-scoping that deferred seek so stale async work cannot consume a newer request
 - Native build command:
   `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build`
 - Current blocker: none for the current Milestone 5 slice; selector-`true` command-center initiated skip coverage is still simulator-blocked for later Milestone 6 transport validation
 - Next recommended action:
-  keep Milestone 5 active and validate the remaining backend/module seek parity slice for same-track `play(startingAtMs)` so the selector-`true` path proves seek-not-reprepare behavior before moving to Milestone 6 rollout validation
-- Milestone checkbox changes: none; Milestone 5 remains active after adding deterministic harness coverage for HTTP seeks that stay inside the buffered prefix and HTTP seeks that fall back to a far range read
+  keep Milestone 5 active and validate selector-`true` same-track `play(startingAtMs)` plus "latest queued next wins while prepare is in flight"; if those remain clean, close Milestone 5 and move to Milestone 6 rollout validation
+- Milestone checkbox changes: none; Milestone 5 remains active after fixing native same-track `play(startingAtMs)` so requests that arrive during prepare defer their seek until `prepare()` completes without letting stale async work consume a newer pending seek
 
 Milestone status:
 
@@ -883,3 +883,4 @@ Primary execution goal:
 - 2026-03-30: Replayed an already cached selector-`true` 311 track from the source screen, confirmed the local-file path by immediate full duration plus saturated cache scrubber with no new cache-completion event or offline-file creation, marked Milestone 4 complete, then restored the committed selector default to `false` and reran the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Added harness coverage for local-file seeks at `0%`, `50%`, and `99%` without resuming paused playback, then reran the canonical iOS simulator build on the current selector-`false` tree. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Added deterministic harness coverage for HTTP seeks that stay inside the buffered prefix and HTTP seeks that fall back to a far range read, then reran the canonical iOS simulator build on the current tree. (019d4087-5419-77f2-b446-ce61e5cab2a9)
+- 2026-03-30: Fixed native same-track `play(startingAtMs)` so requests that arrive during prepare defer their seek until `prepare()` completes, then generation-scoped that deferred seek to prevent stale async work from consuming newer requests before rerunning the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)

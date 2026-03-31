@@ -24,6 +24,11 @@ private final class BackendLockedValue<Value>: @unchecked Sendable {
 }
 
 final class GaplessMP3PlayerBackend: PlaybackBackend {
+    private struct PendingStartTimeAfterPrepare {
+        let generation: UInt64
+        let milliseconds: Int64
+    }
+
     private struct Snapshot {
         var currentDuration: TimeInterval?
         var elapsed: TimeInterval?
@@ -34,6 +39,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         var currentStreamable: RelistenGaplessStreamable?
         var nextStreamable: RelistenGaplessStreamable?
         var desiredNextStreamable: RelistenGaplessStreamable?
+        var pendingStartTimeAfterPrepare: PendingStartTimeAfterPrepare?
         var generation: UInt64 = 0
         var isPreparingCurrentTrack = false
     }
@@ -285,6 +291,15 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         if let currentStreamable = snapshot.currentStreamable,
            currentStreamable.identifier == streamable.identifier,
            let startingAtMs {
+            if snapshot.isPreparingCurrentTrack {
+                snapshotStore.withValue {
+                    $0.pendingStartTimeAfterPrepare = PendingStartTimeAfterPrepare(
+                        generation: $0.generation,
+                        milliseconds: max(startingAtMs, 0)
+                    )
+                }
+                return
+            }
             seekToTimeOnQueue(startingAtMs)
             return
         }
@@ -300,6 +315,12 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             snapshot.elapsed = nil
             snapshot.activeTrackDownloadedBytes = nil
             snapshot.activeTrackTotalBytes = nil
+            snapshot.pendingStartTimeAfterPrepare = startingAtMs.map {
+                PendingStartTimeAfterPrepare(
+                    generation: snapshot.generation,
+                    milliseconds: max($0, 0)
+                )
+            }
             snapshot.isPreparingCurrentTrack = true
             return snapshot.generation
         }
@@ -308,8 +329,6 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
 
         let currentSource = makePlaybackSource(from: streamable)
         let nextSource = desiredNext.map(makePlaybackSource(from:))
-        let seekTime = startingAtMs.map { max(Double($0) / 1000, 0) }
-
         Task { [weak self] in
             guard let self else { return }
             do {
@@ -317,7 +336,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
                 guard self.shouldContinueAsyncWork(for: generation) else { return }
                 try await self.player.prepare(current: currentSource, next: nextSource)
                 guard self.shouldContinueAsyncWork(for: generation) else { return }
-                if let seekTime, seekTime > 0 {
+                if let seekTime = self.consumePendingStartTimeAfterPrepareOnQueue(for: generation), seekTime > 0 {
                     try await self.player.seek(to: seekTime)
                     guard self.shouldContinueAsyncWork(for: generation) else { return }
                 }
@@ -351,6 +370,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
                     guard self.shouldContinueAsyncWork(for: generation) else { return }
                     self.snapshotStore.withValue {
                         $0.isPreparingCurrentTrack = false
+                        $0.pendingStartTimeAfterPrepare = nil
                         $0.currentState = .Stopped
                     }
                     self.playbackPresentationController.setPlaybackState(.Stopped)
@@ -429,6 +449,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             snapshot.elapsed = nil
             snapshot.activeTrackDownloadedBytes = nil
             snapshot.activeTrackTotalBytes = nil
+            snapshot.pendingStartTimeAfterPrepare = nil
             snapshot.currentState = .Stopped
             snapshot.isPreparingCurrentTrack = false
             return previousState
@@ -604,6 +625,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
                 snapshot.elapsed = nil
                 snapshot.activeTrackDownloadedBytes = nil
                 snapshot.activeTrackTotalBytes = nil
+                snapshot.pendingStartTimeAfterPrepare = nil
                 snapshot.isPreparingCurrentTrack = false
                 return previousState
             }
@@ -694,6 +716,20 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
     private func unsignedValue(_ value: Int64?) -> UInt64? {
         guard let value, value >= 0 else { return nil }
         return UInt64(value)
+    }
+
+    private func consumePendingStartTimeAfterPrepareOnQueue(for generation: UInt64) -> TimeInterval? {
+        snapshotStore.withValue { snapshot in
+            guard snapshot.generation == generation else {
+                return nil
+            }
+            guard let pendingStartTimeAfterPrepare = snapshot.pendingStartTimeAfterPrepare,
+                  pendingStartTimeAfterPrepare.generation == generation else {
+                return nil
+            }
+            snapshot.pendingStartTimeAfterPrepare = nil
+            return max(Double(pendingStartTimeAfterPrepare.milliseconds) / 1000, 0)
+        }
     }
 
     private func updateSnapshotOnQueue(_ mutate: (inout Snapshot) -> Void) {
@@ -918,6 +954,12 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             snapshot.desiredNextStreamable = nextStreamable
             snapshot.activeTrackDownloadedBytes = nil
             snapshot.activeTrackTotalBytes = nil
+            snapshot.pendingStartTimeAfterPrepare = resumeTime > 0
+                ? PendingStartTimeAfterPrepare(
+                    generation: snapshot.generation,
+                    milliseconds: Int64(resumeTime * 1000)
+                )
+                : nil
             snapshot.isPreparingCurrentTrack = true
             return snapshot.generation
         }
@@ -938,8 +980,8 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
                     next: nextStreamable.map(self.makePlaybackSource(from:))
                 )
                 guard self.shouldContinueAsyncWork(for: generation) else { return }
-                if resumeTime > 0 {
-                    try await self.player.seek(to: resumeTime)
+                if let seekTime = self.consumePendingStartTimeAfterPrepareOnQueue(for: generation), seekTime > 0 {
+                    try await self.player.seek(to: seekTime)
                     guard self.shouldContinueAsyncWork(for: generation) else { return }
                 }
                 if shouldResume {
@@ -959,6 +1001,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
                     guard self.shouldContinueAsyncWork(for: generation) else { return }
                     self.snapshotStore.withValue {
                         $0.isPreparingCurrentTrack = false
+                        $0.pendingStartTimeAfterPrepare = nil
                         $0.currentState = .Stopped
                     }
                     self.playbackPresentationController.setPlaybackState(.Stopped)
