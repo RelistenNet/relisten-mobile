@@ -781,13 +781,13 @@ Rollout rules:
 - Overall status: In progress
 - Active milestone: Milestone 4
 - Last updated: 2026-03-30
-- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-30 after restoring the committed selector default to `false`; earlier in the same turn, the selector-`true` validation build also succeeded after fixing JS queue-end `nextTrack` stop semantics and verifying that a real in-app scrub-to-end on the last queued track now stops cleanly instead of getting stuck in a stalled state
+- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-30 after restoring the committed selector default to `false`; earlier in the same turn, the selector-`true` validation build also succeeded and the established in-app fallback boundary smoke confirmed that pressing previous at `0:00` on the last queued track moved cleanly from `Hotwired` back to `Take Me Home#`
 - Native build command:
   `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build`
-- Current blocker: none
+- Current blocker: selector-`true` command-center initiated skip coverage remains blocked by simulator tooling; `simctl` exposes no documented media-remote transport commands, the iOS simulator Control Center/lock-screen media controls were not reliably addressable through the available MCP accessibility surface, and host-level media-key injection did not produce an observable remote-command effect in the simulator
 - Next recommended action:
-  continue Milestone 4 on the established selector-`true` in-app smoke path by exercising command-center initiated skip behavior and any remaining idle/manual queue-boundary cases before moving on to broader Milestone 5 event/cache parity work
-- Milestone checkbox changes: none; Milestone 4 remains active after fixing selector-`true` queue-end `nextTrack` stop semantics in JS and validating that an in-app last-track scrub-to-end now stops cleanly without leaving the player in a bogus stalled state
+  resume Milestone 4 from the existing selector-`true` app path on a setup that can emit real `MPRemoteCommandCenter` transport events, then continue broader Milestone 5 event/cache parity work once command-center initiated skip coverage is captured
+- Milestone checkbox changes: none; Milestone 4 remains active after confirming the selector-`true` manual previous-at-track-start boundary path works in-app while documenting that true command-center skip validation is still blocked by simulator tooling
 
 Milestone status:
 
@@ -877,3 +877,4 @@ Primary execution goal:
 - 2026-03-30: Validated a reliable selector-`true` in-app smoke path via `Relisten` -> `Random Show`, then confirmed native app-UI play-from-rest, track-switch, and player-bar pause/resume behavior before restoring the committed selector default to `false`. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Restored the native backend's missing initial `trackChanged(nil,current)` handoff, verified selector-`true` seek-to-end now advances from `Intro` into `Crazy Tonie`, then restored the committed selector default to `false` and re-verified the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Made JS `next()` stop at queue end so selector-`true` last-track `seekTo(1.0)` now stops cleanly, cleared the pending stalled fallback on explicit stop, and re-verified `yarn lint`, `yarn ts:check`, the selector-`true` app smoke, and the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
+- 2026-03-30: Re-verified selector-`true` with a real in-app previous-at-track-start boundary smoke from `Hotwired` back to `Take Me Home#`, then restored the committed selector default to `false`, re-ran the canonical iOS simulator build, and recorded the remaining command-center skip blocker as simulator-tooling-only. (019d4087-5419-77f2-b446-ce61e5cab2a9)
