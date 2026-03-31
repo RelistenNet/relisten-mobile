@@ -52,6 +52,9 @@ Always run `yarn lint` and `yarn ts:check` after making changes to ensure that k
 - Log sources:
   - Metro/bundler logs: the terminal running `expo start`.
   - iOS simulator system/app logs: `xcrun simctl spawn booted log stream --style compact --level debug`
+  - For long native builds, redirect `xcodebuild` output to a logfile instead of streaming it into the thread. Example:
+    `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build > /tmp/relisten-xcodebuild.log 2>&1`
+    Then inspect progress with `tail -f /tmp/relisten-xcodebuild.log` or search failures with `rg -n \"error:|\\*\\* BUILD\" /tmp/relisten-xcodebuild.log`.
   - Note: there is no iOS-simulator MCP tool for live log streaming in this environment.
 - Available iOS Simulator MCP controls:
   - Boot/open/query: `mcp__ios-simulator__open_simulator`, `mcp__ios-simulator__get_booted_sim_id`

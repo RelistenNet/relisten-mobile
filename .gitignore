@@ -97,6 +97,8 @@ fabric.properties
 
 
 modules/relisten-audio-player/android/build
+modules/relisten-audio-player/.build/
+modules/relisten-audio-player/tools/GaplessMP3PlayerHarness/.build/
 /builds
 
 .vscode/*
