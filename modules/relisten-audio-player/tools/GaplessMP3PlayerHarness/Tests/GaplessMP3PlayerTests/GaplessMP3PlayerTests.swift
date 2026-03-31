@@ -151,6 +151,41 @@ final class GaplessMP3PlayerTests: XCTestCase {
         XCTAssertNil(status.nextSource)
     }
 
+    func testSeekOnLocalFileCoversStartMiddleAndNearEndWithoutResumingPausedPlayback() async throws {
+        let outputGraph = TestOutputGraph(currentTime: 0, isPlaying: false)
+        let player = makePlayer(outputGraph: outputGraph)
+        let current = fixtureSource(id: "current", fixtureName: "gd77-s2t07-first-5s.mp3")
+
+        try await player.prepare(current: current, next: nil)
+
+        let initialStatus = await player.status()
+        guard let duration = initialStatus.duration else {
+            return XCTFail("Expected prepared duration")
+        }
+
+        try await player.seek(to: 0)
+        let startStatus = await player.status()
+        XCTAssertEqual(startStatus.currentTime, 0, accuracy: 0.05)
+        XCTAssertEqual(startStatus.playbackPhase, .paused)
+        XCTAssertFalse(outputGraph.isPlaying)
+
+        let middleTarget = duration * 0.5
+        try await player.seek(to: middleTarget)
+        let middleStatus = await player.status()
+        XCTAssertEqual(middleStatus.currentTime, middleTarget, accuracy: 0.05)
+        XCTAssertEqual(middleStatus.playbackPhase, .paused)
+        XCTAssertFalse(outputGraph.isPlaying)
+
+        let nearEndTarget = duration * 0.99
+        try await player.seek(to: nearEndTarget)
+        let nearEndStatus = await player.status()
+        XCTAssertEqual(nearEndStatus.currentTime, nearEndTarget, accuracy: 0.05)
+        XCTAssertEqual(nearEndStatus.playbackPhase, .paused)
+        XCTAssertFalse(outputGraph.isPlaying)
+        XCTAssertEqual(nearEndStatus.currentSourceDownload?.state, .localFile)
+        XCTAssertEqual(nearEndStatus.currentSourceDownload?.resolvedFileURL, current.url)
+    }
+
     private func makePlayer(outputGraph: TestOutputGraph) -> GaplessMP3Player {
         let cacheDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("GaplessMP3PlayerTests-\(UUID().uuidString)", isDirectory: true)
