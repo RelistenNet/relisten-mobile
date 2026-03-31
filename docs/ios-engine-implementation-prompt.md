@@ -287,7 +287,7 @@ Update this section as tasks complete. Change `[ ]` to `[x]` and add the commit 
 - [x] Task 4: F6 + F7 + F12 + F11 — commit: `d7ef236`
 
 ### Phase 3: Now-playing metadata
-- [ ] Task 5: Full PlaybackPresentationController (F2) — commit: _pending_
+- [x] Task 5: Full PlaybackPresentationController (F2) — commit: `e63072f`
 
 ### Phase 4: Source ownership and cache
 - [ ] Task 6: HTTPSourceSession/MP3SourceManager shutdown (F8, F9) — commit: _pending_
