@@ -781,13 +781,13 @@ Rollout rules:
 - Overall status: In progress
 - Active milestone: Milestone 5
 - Last updated: 2026-03-31
-- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-31 after generation-scoping the paused-seek execution seam, proving the synchronous elapsed update plus paused status round-trip in `swift test --package-path modules/relisten-audio-player`, rerunning `yarn pods` for the pod-visible helper file, and rebuilding the corrected final tree successfully
+- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-31 after clearing stale queued-next carryover on fresh native `play()` requests, restoring periodic native progress polling while playing, rerunning `yarn pods` for the pod-visible backend file, and rebuilding the corrected final tree successfully
 - Native build command:
   `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build`
-- Current blocker: paused-seek correctness is verified at the backend-support seam, but backend-object proof is still missing for the real `GaplessMP3PlayerBackend.seekOnQueue(...)` queue/`Task` handoff, including stale completion and stale error suppression after generation invalidation
+- Current blocker: the native fixes are landed and the canonical simulator build is green, but selector-`true` app smoke still needs to revalidate the reported incompatible-track restart path and confirm the restored progress polling updates the UI instead of sticking at `0:00`
 - Next recommended action:
-  keep Milestone 5 active and add the smallest backend-object paused-seek test seam or injectable fake-player seam, asserting the real backend path updates elapsed synchronously before async seek work, remains paused after the status round-trip, and suppresses stale completion/error callbacks after generation invalidation
-- Milestone checkbox changes: none; Milestone 5 remains active after generation-scoping the paused-seek execution seam and landing deterministic helper coverage for synchronous elapsed updates, clamp behavior, paused-status round-trips, and stale-generation gating, but backend-object paused-seek proof is still outstanding
+  keep Milestone 5 active and run selector-`true` app smoke against the reported offending track pair to confirm fresh `play()` no longer carries stale queued-next state and the UI progress ticker is live again, then return to backend-object paused-seek and progress-polling lifecycle proof
+- Milestone checkbox changes: none; Milestone 5 remains active after fixing stale queued-next carryover on fresh `play()` requests and restoring periodic native progress polling, but selector-`true` app revalidation plus backend-object paused-seek/progress-polling proof is still outstanding
 
 Milestone status:
 
@@ -891,3 +891,4 @@ Primary execution goal:
 - 2026-03-31: Added deterministic backend support coverage for stopped-state `resume()` no-op behavior by routing the real resume side-effect sequence through the shared backend-support helper, reran `swift test --package-path modules/relisten-audio-player`, reran `yarn pods`, and re-verified the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-31: Restored synchronous optimistic paused-seek progress updates in the native backend, routed the async seek/status round-trip through a shared backend-support helper with deterministic clamp/paused-status coverage, reran `swift test --package-path modules/relisten-audio-player`, reran `yarn pods`, and re-verified the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-31: Generation-scoped the paused-seek execution seam so the backend shares synchronous elapsed updates with deterministic clamp and stale-generation gating coverage, reran `swift test --package-path modules/relisten-audio-player`, reran `yarn pods`, and re-verified the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
+- 2026-03-31: Fixed fresh native `play()` to clear stale queued-next carryover into `prepare(current:next:)`, restored periodic native progress polling so playback can advance the UI again, reran `yarn pods`, and re-verified the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)

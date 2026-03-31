@@ -42,6 +42,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         var pendingStartTimeAfterPrepare: PendingStartTimeAfterPrepare?
         var generation: UInt64 = 0
         var isPreparingCurrentTrack = false
+        var progressPollingGeneration: UInt64?
     }
 
     weak var delegate: PlaybackBackendDelegate?
@@ -304,14 +305,14 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             return
         }
 
-        let desiredNext = snapshot.desiredNextStreamable?.identifier == streamable.identifier ? nil : snapshot.desiredNextStreamable
         let previousState = snapshot.currentState
         let generation = snapshotStore.withValue { snapshot in
             var supersessionState = PlaySupersessionState(activeGeneration: snapshot.generation)
             let generation = supersessionState.beginPlayRequest()
             snapshot.generation = generation
             snapshot.currentStreamable = streamable
-            snapshot.nextStreamable = desiredNext
+            snapshot.nextStreamable = nil
+            snapshot.desiredNextStreamable = nil
             snapshot.currentState = .Stalled
             snapshot.currentDuration = nil
             snapshot.elapsed = nil
@@ -324,19 +325,19 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
                 )
             }
             snapshot.isPreparingCurrentTrack = true
+            snapshot.progressPollingGeneration = nil
             return generation
         }
         playbackPresentationController.setPlaybackState(.Stalled)
         emitStateIfNeeded(previous: previousState, current: .Stalled)
 
         let currentSource = makePlaybackSource(from: streamable)
-        let nextSource = desiredNext.map(makePlaybackSource(from:))
         Task { [weak self] in
             guard let self else { return }
             do {
                 await self.player.stop()
                 guard self.shouldContinueAsyncWork(for: generation) else { return }
-                try await self.player.prepare(current: currentSource, next: nextSource)
+                try await self.player.prepare(current: currentSource, next: nil)
                 guard self.shouldContinueAsyncWork(for: generation) else { return }
                 if let seekTime = self.consumePendingStartTimeAfterPrepareOnQueue(for: generation), seekTime > 0 {
                     try await self.player.seek(to: seekTime)
@@ -438,6 +439,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
                 self.updateSnapshotOnQueue {
                     $0.currentState = .Playing
                 }
+                self.startProgressPollingIfNeededOnQueue(for: self.snapshotStore.get().generation)
             }
         )
     }
@@ -447,6 +449,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         updateSnapshotOnQueue {
             guard $0.currentState != .Stopped else { return }
             $0.currentState = .Paused
+            $0.progressPollingGeneration = nil
         }
     }
 
@@ -468,6 +471,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             snapshot.pendingStartTimeAfterPrepare = nil
             snapshot.currentState = .Stopped
             snapshot.isPreparingCurrentTrack = false
+            snapshot.progressPollingGeneration = nil
             return previousState
         }
         let current = snapshotStore.get()
@@ -624,6 +628,9 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             snapshot.activeTrackDownloadedBytes = downloadedBytes
             snapshot.activeTrackTotalBytes = totalBytes
             snapshot.isPreparingCurrentTrack = status.playbackPhase == .preparing
+            if translatedState == .Paused || translatedState == .Stopped || status.currentSource == nil {
+                snapshot.progressPollingGeneration = nil
+            }
         }
 
         playbackPresentationController.setPlaybackState(translatedState)
@@ -632,6 +639,9 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         emitProgressIfNeeded(previous: previous, current: current)
         emitDownloadProgressIfNeeded(previous: previous, current: current)
         translateStreamingCacheCompletionIfNeeded(status: status, snapshot: current)
+        if shouldKeepProgressPolling(for: current) {
+            startProgressPollingIfNeededOnQueue(for: current.generation)
+        }
     }
 
     private func handleRuntimeEvent(_ event: GaplessRuntimeEvent) {
@@ -679,6 +689,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
                 snapshot.activeTrackTotalBytes = nil
                 snapshot.pendingStartTimeAfterPrepare = nil
                 snapshot.isPreparingCurrentTrack = false
+                snapshot.progressPollingGeneration = nil
                 return previousState
             }
             let current = snapshotStore.get()
@@ -751,6 +762,17 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         )
     }
 
+    private func shouldKeepProgressPolling(for snapshot: Snapshot) -> Bool {
+        guard snapshot.currentStreamable != nil else { return false }
+
+        switch snapshot.currentState {
+        case .Playing, .Stalled:
+            return true
+        case .Paused, .Stopped:
+            return false
+        }
+    }
+
     private func streamableMatching(id: String?, snapshot: Snapshot) -> RelistenGaplessStreamable? {
         guard let id else { return nil }
         if snapshot.currentStreamable?.identifier == id {
@@ -794,6 +816,66 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         emitStateIfNeeded(previous: previous.currentState, current: current.currentState)
         emitProgressIfNeeded(previous: previous, current: current)
         emitDownloadProgressIfNeeded(previous: previous, current: current)
+    }
+
+    private func startProgressPollingIfNeededOnQueue(for generation: UInt64) {
+        guard !teardownRequested.get() else { return }
+
+        let shouldSchedule = snapshotStore.withValue { snapshot -> Bool in
+            guard snapshot.generation == generation,
+                  shouldKeepProgressPolling(for: snapshot) else {
+                return false
+            }
+            guard snapshot.progressPollingGeneration != generation else {
+                return false
+            }
+            snapshot.progressPollingGeneration = generation
+            return true
+        }
+        guard shouldSchedule else { return }
+
+        scheduleProgressPollingTickOnQueue(for: generation)
+    }
+
+    private func scheduleProgressPollingTickOnQueue(for generation: UInt64) {
+        backendQueue.asyncAfter(deadline: .now() + .milliseconds(250)) {
+            self.refreshProgressPollingTickOnQueue(for: generation)
+        }
+    }
+
+    private func refreshProgressPollingTickOnQueue(for generation: UInt64) {
+        guard !teardownRequested.get() else { return }
+
+        let snapshot = snapshotStore.get()
+        guard snapshot.generation == generation,
+              shouldKeepProgressPolling(for: snapshot),
+              snapshot.progressPollingGeneration == generation else {
+            if snapshot.progressPollingGeneration == generation {
+                snapshotStore.withValue { $0.progressPollingGeneration = nil }
+            }
+            return
+        }
+
+        Task { [weak self] in
+            guard let self else { return }
+            let status = await self.player.status()
+            self.backendQueue.async {
+                let current = self.snapshotStore.get()
+                guard current.generation == generation,
+                      self.shouldKeepProgressPolling(for: current),
+                      current.progressPollingGeneration == generation else {
+                    if current.progressPollingGeneration == generation {
+                        self.snapshotStore.withValue { $0.progressPollingGeneration = nil }
+                    }
+                    return
+                }
+
+                self.applyStatus(status)
+                if self.snapshotStore.get().progressPollingGeneration == generation {
+                    self.scheduleProgressPollingTickOnQueue(for: generation)
+                }
+            }
+        }
     }
 
     private func handleResumeRemoteCommand(_ event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
