@@ -265,7 +265,11 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         }
     }
 
-    private func playOnQueue(_ streamable: RelistenGaplessStreamable, startingAtMs: Int64?) {
+    private func playOnQueue(
+        _ streamable: RelistenGaplessStreamable,
+        startingAtMs: Int64?,
+        manualTrackChange: (previous: RelistenGaplessStreamable?, current: RelistenGaplessStreamable?)? = nil
+    ) {
         prepareAudioSessionOnQueue(shouldActivate: true)
 
         let snapshot = snapshotStore.get()
@@ -323,6 +327,14 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
                 self.backendQueue.async {
                     guard self.shouldContinueAsyncWork(for: generation) else { return }
                     self.snapshotStore.withValue { $0.isPreparingCurrentTrack = false }
+                    if let manualTrackChange {
+                        self.delegateQueue.async {
+                            self.delegate?.trackChanged(
+                                previousStreamable: manualTrackChange.previous,
+                                currentStreamable: manualTrackChange.current
+                            )
+                        }
+                    }
                     self.applyStatus(status)
                     self.applyLatestDesiredNextIfNeededOnQueue(for: generation)
                 }
@@ -381,6 +393,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
 
     private func resumeOnQueue() {
         guard snapshotStore.get().currentState != .Stopped else { return }
+        prepareAudioSessionOnQueue(shouldActivate: true)
         guard player.play() else { return }
         updateSnapshotOnQueue {
             $0.currentState = .Playing
@@ -425,7 +438,10 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
     }
 
     private func nextOnQueue() {
-        guard let nextStreamable = snapshotStore.get().nextStreamable else {
+        let snapshot = snapshotStore.get()
+        guard snapshot.currentStreamable != nil else { return }
+
+        guard let nextStreamable = snapshot.nextStreamable ?? snapshot.desiredNextStreamable else {
             stopOnQueue(emitTrackChanged: true)
             return
         }
@@ -434,7 +450,11 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             $0.desiredNextStreamable = nil
             $0.nextStreamable = nil
         }
-        playOnQueue(nextStreamable, startingAtMs: nil)
+        playOnQueue(
+            nextStreamable,
+            startingAtMs: nil,
+            manualTrackChange: (previous: snapshot.currentStreamable, current: nextStreamable)
+        )
     }
 
     private func seekToPercentOnQueue(_ percent: Double) {

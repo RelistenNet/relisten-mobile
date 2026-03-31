@@ -781,13 +781,13 @@ Rollout rules:
 - Overall status: In progress
 - Active milestone: Milestone 4
 - Last updated: 2026-03-30
-- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-30 after making `GaplessMP3PlayerBackend.playOnQueue(...)` prepare and activate the shared audio session itself, keeping command/observer installation idempotent, and reinstalling handlers during media-services reset without weakening reset-session error handling
+- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-30 after making native `resume()` reactivate the shared audio session before `player.play()` and making manual `next()` emit `trackChanged(previous,current)` only after the replacement track prepares and starts successfully
 - Native build command:
   `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build`
 - Current blocker: none
 - Next recommended action:
-  continue Milestone 4 by exercising the native backend command matrix with the selector enabled and filling any remaining backend-method gaps before starting Milestone 5 parity work
-- Milestone checkbox changes: none; Milestone 4 remains active after the backend-owned audio-session activation slice and successful canonical simulator build
+  continue Milestone 4 by exercising the native backend command matrix with the selector enabled, focusing next on selector-true boundary semantics like idle `next()` behavior and `seekTo(1.0)` before broader Milestone 5 event/cache parity work
+- Milestone checkbox changes: none; Milestone 4 remains active after the native `resume()`/manual-`next()` command-semantics slice and successful canonical simulator build
 
 Milestone status:
 
@@ -870,3 +870,5 @@ Primary execution goal:
 - 2026-03-30: Hardened the native backend teardown and recovery path by queueing teardown behind prior backend work, adding explicit interruption/media-services observer ownership, and gating async play/reset work behind generation checks; the canonical simulator build reruns were blocked by Xcode `build.db` lock and later exec-session interruptions before a new success result was obtained. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Retried the canonical simulator build as a single-owner run without clearing DerivedData, confirmed the remaining blocker is exec-environment interruption rather than a captured compiler diagnostic, and recorded `/tmp/relisten-native-build-capture.log` as the handoff evidence path. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Made the native backend prepare the shared audio session from `playOnQueue(...)`, keep setup notifications single-fire while reinstalling handlers after media-services reset, preserve reset-session error handling, and re-verified the canonical iOS simulator build to `** BUILD SUCCEEDED **`. (019d4087-5419-77f2-b446-ce61e5cab2a9)
+- 2026-03-30: Made native `resume()` reactivate the shared audio session before `player.play()`, then re-verified the canonical iOS simulator build to keep Milestone 4 moving on selector-enabled command semantics. (019d4087-5419-77f2-b446-ce61e5cab2a9)
+- 2026-03-30: Made manual native `next()` emit `trackChanged(previous,current)` only after the replacement track prepares successfully, and re-verified the canonical iOS simulator build while keeping Milestone 4 focused on selector-enabled command semantics. (019d4087-5419-77f2-b446-ce61e5cab2a9)
