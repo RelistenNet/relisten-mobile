@@ -781,13 +781,13 @@ Rollout rules:
 - Overall status: In progress
 - Active milestone: Milestone 4
 - Last updated: 2026-03-30
-- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-30 after restoring the committed selector default to `false`; earlier in the same turn, the selector-`true` validation build also succeeded after fixing the native backend's missing initial `trackChanged(nil,current)` handoff and re-validating that seek-to-end advanced from `Intro` to `Crazy Tonie`
+- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-30 after restoring the committed selector default to `false`; earlier in the same turn, the selector-`true` validation build also succeeded after fixing JS queue-end `nextTrack` stop semantics and verifying that a real in-app scrub-to-end on the last queued track now stops cleanly instead of getting stuck in a stalled state
 - Native build command:
   `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build`
 - Current blocker: none
 - Next recommended action:
-  continue Milestone 4 on the established selector-`true` in-app smoke path and use the repaired command-serialization path next to exercise last-track/end-of-queue behavior plus command-center initiated skips before broader Milestone 5 event/cache parity work
-- Milestone checkbox changes: none; Milestone 4 remains active after fixing the selector-`true` initial play-request ownership regression and validating that a seek-to-end `nextTrack` handoff now advances into the next queue item through the real app UI
+  continue Milestone 4 on the established selector-`true` in-app smoke path by exercising command-center initiated skip behavior and any remaining idle/manual queue-boundary cases before moving on to broader Milestone 5 event/cache parity work
+- Milestone checkbox changes: none; Milestone 4 remains active after fixing selector-`true` queue-end `nextTrack` stop semantics in JS and validating that an in-app last-track scrub-to-end now stops cleanly without leaving the player in a bogus stalled state
 
 Milestone status:
 
@@ -876,3 +876,4 @@ Primary execution goal:
 - 2026-03-30: Fixed a source-screen React Compiler dependency mismatch in `onDotsPress`, reran `yarn lint` and `yarn ts:check` successfully, and recorded that selector-`true` app-driven smoke is still blocked by dev-client deep links not entering the `/web/...` route. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Validated a reliable selector-`true` in-app smoke path via `Relisten` -> `Random Show`, then confirmed native app-UI play-from-rest, track-switch, and player-bar pause/resume behavior before restoring the committed selector default to `false`. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Restored the native backend's missing initial `trackChanged(nil,current)` handoff, verified selector-`true` seek-to-end now advances from `Intro` into `Crazy Tonie`, then restored the committed selector default to `false` and re-verified the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
+- 2026-03-30: Made JS `next()` stop at queue end so selector-`true` last-track `seekTo(1.0)` now stops cleanly, cleared the pending stalled fallback on explicit stop, and re-verified `yarn lint`, `yarn ts:check`, the selector-`true` app smoke, and the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)

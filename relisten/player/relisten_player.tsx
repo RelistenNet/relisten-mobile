@@ -319,6 +319,7 @@ export class RelistenPlayer {
   async stop() {
     this.addPlayerListeners();
     this.cancelPendingPlayRequests('stop');
+    this.clearStalledTimer();
 
     state.setState(RelistenPlaybackState.Stopped);
     await this.playbackDriver.stop();
@@ -336,6 +337,13 @@ export class RelistenPlayer {
     const targetIndex = Math.min(baseIndex + 1, this.queue.orderedTracks.length - 1);
 
     if (targetIndex === baseIndex) {
+      logger.debug('next requested at queue end, stopping playback', {
+        baseIndex,
+        currentIndex: this.queue.currentIndex,
+        requestedTrackIndex: this.requestedTrackIndex,
+      });
+
+      void this.stop();
       return;
     }
 
@@ -458,9 +466,7 @@ ${indentString(this.queue.debugState(true))}
   private startStalledTimer() {
     logger.debug('starting stall timer');
 
-    if (this._stalledTimer !== undefined) {
-      clearTimeout(this._stalledTimer);
-    }
+    this.clearStalledTimer();
 
     this._stalledTimer = setTimeout(() => {
       if (this.state != RelistenPlaybackState.Playing) {
@@ -472,6 +478,13 @@ ${indentString(this.queue.debugState(true))}
         logger.debug(`hit stalledTimer, but state is ${this.state}`);
       }
     }, 250) as unknown as number;
+  }
+
+  private clearStalledTimer() {
+    if (this._stalledTimer !== undefined) {
+      clearTimeout(this._stalledTimer);
+      this._stalledTimer = undefined;
+    }
   }
 
   // region Player event handling
@@ -543,9 +556,8 @@ ${indentString(this.queue.debugState(true))}
     logger.debug('onNativePlayerStateChanged', newState);
 
     // Clear the default stalled UI fallback
-    if (this._stalledTimer !== undefined && newState === RelistenPlaybackState.Playing) {
-      clearTimeout(this._stalledTimer);
-      this._stalledTimer = undefined;
+    if (newState === RelistenPlaybackState.Playing) {
+      this.clearStalledTimer();
     }
 
     if (!this.initialPlaybackStarted && newState == RelistenPlaybackState.Playing) {
