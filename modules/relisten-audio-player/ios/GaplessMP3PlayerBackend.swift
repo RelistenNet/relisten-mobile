@@ -382,16 +382,23 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
     }
 
     private func setNextOnQueue(_ streamable: RelistenGaplessStreamable?) {
-        let snapshot = snapshotStore.withValue { snapshot -> Snapshot in
+        let (snapshot, requestAction) = snapshotStore.withValue { snapshot -> (Snapshot, NextStreamSupersessionRequestAction) in
+            var supersessionState = NextStreamSupersessionState(
+                hasCurrentTrack: snapshot.currentStreamable != nil,
+                appliedNextIdentifier: snapshot.nextStreamable?.identifier,
+                desiredNextIdentifier: snapshot.desiredNextStreamable?.identifier,
+                isPreparingCurrentTrack: snapshot.isPreparingCurrentTrack
+            )
+            let requestAction = supersessionState.request(streamable?.identifier)
             snapshot.desiredNextStreamable = streamable
-            if snapshot.currentStreamable == nil {
+            if !supersessionState.hasCurrentTrack {
                 snapshot.nextStreamable = streamable
             }
-            return snapshot
+            return (snapshot, requestAction)
         }
 
         guard snapshot.currentStreamable != nil else { return }
-        guard !snapshot.isPreparingCurrentTrack else { return }
+        guard requestAction == .applyRequestedNextImmediately else { return }
 
         let generation = snapshot.generation
         Task { [weak self] in
@@ -551,7 +558,13 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
     private func applyLatestDesiredNextIfNeededOnQueue(for generation: UInt64) {
         let snapshot = snapshotStore.get()
         guard snapshot.generation == generation else { return }
-        guard snapshot.desiredNextStreamable?.identifier != snapshot.nextStreamable?.identifier else { return }
+        let supersessionState = NextStreamSupersessionState(
+            hasCurrentTrack: snapshot.currentStreamable != nil,
+            appliedNextIdentifier: snapshot.nextStreamable?.identifier,
+            desiredNextIdentifier: snapshot.desiredNextStreamable?.identifier,
+            isPreparingCurrentTrack: snapshot.isPreparingCurrentTrack
+        )
+        guard supersessionState.reconcileAfterPrepare() == .applyDesiredNext else { return }
         setNextOnQueue(snapshot.desiredNextStreamable)
     }
 

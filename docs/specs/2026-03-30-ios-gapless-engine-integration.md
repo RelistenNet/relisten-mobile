@@ -781,13 +781,13 @@ Rollout rules:
 - Overall status: In progress
 - Active milestone: Milestone 5
 - Last updated: 2026-03-31
-- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-31 after selector-`true` app validation proved that a later `Play Next` request supersedes an earlier one while the current track is still preparing, and then the final selector-`false` tree was rebuilt successfully
+- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-31 after adding deterministic backend coverage for `setNextStream()` supersession during prepare via the new backend-support SwiftPM package/tests, rerunning `yarn pods` for the new pod-visible helper, and rebuilding the final tree successfully
 - Native build command:
   `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build`
-- Current blocker: deterministic relisten-native backend coverage for `setNextStream()` supersession during prepare is still missing; selector-`true` app validation now proves the behavior live, but the spec still calls for backend-level proof before Milestone 5 can close
+- Current blocker: deterministic relisten-native backend coverage for rapid `play()` superseding stale prepare completions is still missing; this turn closed the prior `setNextStream()`-during-prepare blocker with deterministic backend support tests
 - Next recommended action:
-  keep Milestone 5 active and add the smallest deterministic backend test seam for `enqueueSetNextStream(nextA)` then `enqueueSetNextStream(nextB)` while `prepare()` is still in flight, using this turn's selector-`true` queue reorder (`Intro -> Sunset in July -> Omaha Stylee`) and direct `next` transition into `Sunset in July` as the already-verified live reference
-- Milestone checkbox changes: none; Milestone 5 remains active after selector-`true` app validation proved that the latest queued next-track request wins during prepare, but deterministic backend coverage for that supersession rule is still outstanding
+  keep Milestone 5 active and add the smallest deterministic backend proof for `play(streamA)` then `play(streamB)` while `prepare()` for `streamA` is still in flight, asserting stale completion cannot overwrite the later play request
+- Milestone checkbox changes: none; Milestone 5 remains active after landing deterministic coverage for latest-next supersession during prepare, but rapid `play()` supersession coverage is still outstanding
 
 Milestone status:
 
@@ -885,3 +885,4 @@ Primary execution goal:
 - 2026-03-30: Added deterministic harness coverage for HTTP seeks that stay inside the buffered prefix and HTTP seeks that fall back to a far range read, then reran the canonical iOS simulator build on the current tree. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Fixed native same-track `play(startingAtMs)` so requests that arrive during prepare defer their seek until `prepare()` completes, then generation-scoped that deferred seek to prevent stale async work from consuming newer requests before rerunning the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-31: Re-verified selector-`true` live supersession by queuing `Sunset in July` after `Omaha Stylee`, confirming the player queue reordered to the latest request and a direct `next` advanced into `Sunset in July`, then restored the committed selector default to `false` for the final canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
+- 2026-03-31: Added deterministic backend support coverage for latest `setNextStream()` supersession during prepare with a module-local SwiftPM helper/test target, reran `yarn pods`, reran `swift test --package-path modules/relisten-audio-player`, and re-verified the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
