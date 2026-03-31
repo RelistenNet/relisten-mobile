@@ -297,6 +297,22 @@ final class GaplessMP3PlayerTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: downloadPaths.tempFileURL.path))
     }
 
+    func testPlayerInitScavengesStaleTempFilesFromCacheDirectory() async {
+        let cacheDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GaplessMP3PlayerScavenge-\(UUID().uuidString)", isDirectory: true)
+        let tempDirectory = cacheDirectory.appendingPathComponent("temp", isDirectory: true)
+        try? FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        let staleTempFile = tempDirectory.appendingPathComponent("stale.download")
+        FileManager.default.createFile(atPath: staleTempFile.path, contents: Data("stale".utf8))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: staleTempFile.path))
+
+        let player = GaplessMP3Player(cacheDirectory: cacheDirectory)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: staleTempFile.path))
+
+        await player.teardown()
+        try? FileManager.default.removeItem(at: cacheDirectory)
+    }
+
     func testMP3SourceManagerShutdownClearsInFlightDownloadStateAndTempFiles() async throws {
         let data = try httpFixtureData(named: "gd77-s2t07-first-5s.mp3")
         let loader = StubHTTPDataLoader(data: data, initialProgressiveChunkSize: 2048)

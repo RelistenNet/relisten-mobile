@@ -110,10 +110,13 @@ public final class GaplessMP3Player: @unchecked Sendable {
         retryPolicy: GaplessHTTPRetryPolicy = .init()
     ) {
         let playbackQueue = DispatchQueue(label: "GaplessMP3Player.playback", qos: .userInitiated)
+        let resolvedCacheDirectory = cacheDirectory
+            ?? FileManager.default.temporaryDirectory.appendingPathComponent("GaplessMP3PlayerCache", isDirectory: true)
+        SourceCacheStore(cacheDirectory: resolvedCacheDirectory, fileManager: .default).scavengeTempFiles()
         self.playbackPolicy = playbackPolicy
         self.coordinator = GaplessPlaybackCoordinator(
             sourceManager: MP3SourceManager(
-                cacheDirectory: cacheDirectory ?? FileManager.default.temporaryDirectory.appendingPathComponent("GaplessMP3PlayerCache", isDirectory: true),
+                cacheDirectory: resolvedCacheDirectory,
                 cacheMode: cacheMode,
                 retryPolicy: retryPolicy
             )
@@ -244,24 +247,18 @@ public final class GaplessMP3Player: @unchecked Sendable {
 
     public func stop() async {
         await performOnPlaybackQueue {
-            self.stopOutputGraphOnPlaybackQueue()
-            self.stateStore.withValue { state in
-                state.currentSource = nil
-                state.nextSource = nil
-                state.activePipelineSessionID = nil
-                state.playbackPhase = .stopped
-                state.requestedStartTime = 0
-                state.publicTimelineOffset = 0
-                state.pendingTrackTransition = nil
-                state.coordinatorTransitionPromotionNeeded = false
-                state.latestPreparationReport = nil
-                state.lastPlaybackErrorDescription = nil
-                state.suppressPlaybackFinishedEvent = true
-            }
-            self.refreshSnapshotOnPlaybackQueue(absoluteTimelineTime: 0)
+            self.resetToStoppedOnPlaybackQueue(suppressPlaybackFinishedEvent: true)
         }
 
         await coordinator.stopPlayback()
+    }
+
+    public func teardown() async {
+        await performOnPlaybackQueue {
+            self.resetToStoppedOnPlaybackQueue(suppressPlaybackFinishedEvent: true)
+        }
+
+        await coordinator.teardown()
     }
 
     public func seek(to time: TimeInterval) async throws {
@@ -477,6 +474,25 @@ public final class GaplessMP3Player: @unchecked Sendable {
             await self.promoteCoordinatorTransitionIfNeeded()
             await self.coordinator.stopPlayback()
         }
+    }
+
+    private func resetToStoppedOnPlaybackQueue(suppressPlaybackFinishedEvent: Bool) {
+        dispatchPrecondition(condition: .onQueue(playbackQueue))
+        stopOutputGraphOnPlaybackQueue()
+        stateStore.withValue { state in
+            state.currentSource = nil
+            state.nextSource = nil
+            state.activePipelineSessionID = nil
+            state.playbackPhase = .stopped
+            state.requestedStartTime = 0
+            state.publicTimelineOffset = 0
+            state.pendingTrackTransition = nil
+            state.coordinatorTransitionPromotionNeeded = false
+            state.latestPreparationReport = nil
+            state.lastPlaybackErrorDescription = nil
+            state.suppressPlaybackFinishedEvent = suppressPlaybackFinishedEvent
+        }
+        refreshSnapshotOnPlaybackQueue(absoluteTimelineTime: 0)
     }
 
     private func stopOutputGraphOnPlaybackQueue() {

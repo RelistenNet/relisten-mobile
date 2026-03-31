@@ -189,6 +189,17 @@ actor GaplessPlaybackCoordinator {
         playbackStartTime = 0
     }
 
+    /// Full teardown keeps ordinary stop/pause/seek semantics intact by reserving
+    /// source-session shutdown for backend/engine destruction only.
+    func teardown() async {
+        let cancelledPlaybackTask = playbackTask
+        let cancelledNextProducerTask = nextProducerTaskState?.task
+        stopPlayback()
+        await sourceManager.shutdown()
+        await waitForCancelledPlaybackTask(cancelledPlaybackTask)
+        await waitForCancelledNextProducerTask(cancelledNextProducerTask)
+    }
+
     /// Returns high-level runtime state for the CLI and app bridge. The status focuses
     /// on actionable playback information rather than exposing every internal actor field.
     func status(
@@ -365,6 +376,18 @@ actor GaplessPlaybackCoordinator {
     private func cancelNextProducerTask() {
         nextProducerTaskState?.task.cancel()
         nextProducerTaskState = nil
+    }
+
+    private func waitForCancelledPlaybackTask(_ task: Task<Void, Never>?) async {
+        await task?.value
+    }
+
+    private func waitForCancelledNextProducerTask(_ task: Task<TrackPCMProducer, Error>?) async {
+        do {
+            _ = try await task?.value
+        } catch is CancellationError {
+        } catch {
+        }
     }
 
     private func makeNextProducerTask(

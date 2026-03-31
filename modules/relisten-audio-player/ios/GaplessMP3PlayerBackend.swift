@@ -209,9 +209,12 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         guard didStartTeardown else { return }
 
         backendQueue.async {
-            self.stopOnQueue(emitTrackChanged: false)
+            self.stopOnQueue(emitTrackChanged: false, stopPlayer: false)
             self.hasInstalledAudioSessionHandlers = false
             self.hasReportedAudioSessionSetup = false
+            Task { [weak self] in
+                await self?.player.teardown()
+            }
             self.audioSessionController.teardown()
             self.playbackPresentationController.teardown()
         }
@@ -482,7 +485,11 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         }
     }
 
-    private func stopOnQueue(emitTrackChanged: Bool, shouldInvalidateGeneration: Bool = true) {
+    private func stopOnQueue(
+        emitTrackChanged: Bool,
+        shouldInvalidateGeneration: Bool = true,
+        stopPlayer: Bool = true
+    ) {
         let previous = snapshotStore.get()
         let previousStreamable = previous.currentStreamable
         let previousState = snapshotStore.withValue { snapshot -> PlaybackState in
@@ -519,6 +526,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             }
         }
 
+        guard stopPlayer else { return }
         Task { [weak self] in
             await self?.player.stop()
         }

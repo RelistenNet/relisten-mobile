@@ -43,6 +43,15 @@ struct SourceCacheStore: @unchecked Sendable {
         try fileManager.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
     }
 
+    func scavengeTempFiles() {
+        guard let contents = try? fileManager.contentsOfDirectory(at: tempDirectory, includingPropertiesForKeys: nil) else {
+            return
+        }
+        for file in contents {
+            try? fileManager.removeItem(at: file)
+        }
+    }
+
     func makeDownloadPaths(for source: GaplessPlaybackSource) throws -> SourceDownloadPaths {
         try ensureDirectories()
         let finalFileURL = cacheDirectory.appendingPathComponent("\(source.cacheKey).mp3")
