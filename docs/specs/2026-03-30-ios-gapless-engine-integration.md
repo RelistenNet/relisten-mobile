@@ -781,13 +781,13 @@ Rollout rules:
 - Overall status: In progress
 - Active milestone: Milestone 5
 - Last updated: 2026-03-30
-- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-30 after restoring the committed selector default to `false`; earlier in the same turn, the selector-`true` validation build also succeeded after landing native cache-completion translation via engine `resolvedFileURL` status refresh and backend-side `downloadDestination` copy
+- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-30 after restoring the committed selector default to `false`; earlier in the same turn, the selector-`true` validation build also succeeded, and a fresh simulator-container smoke verified `onTrackStreamingCacheComplete` plus a newly created `downloadDestination` file for streamed playback
 - Native build command:
   `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build`
-- Current blocker: none for the landed code path; selector-`true` command-center initiated skip coverage is still simulator-blocked for later Milestone 6 transport validation, and the new cache-completion translation still needs first-time in-app smoke against a freshly created `downloadDestination`
+- Current blocker: none for the current Milestone 5 slice; selector-`true` command-center initiated skip coverage is still simulator-blocked for later Milestone 6 transport validation
 - Next recommended action:
-  with Milestone 5 now active, run selector-`true` smoke that verifies a track with `downloadDestination` set creates the on-disk file and emits `onTrackStreamingCacheComplete`, then finish the remaining parity matrix before returning to true `MPRemoteCommandCenter` transport validation on a capable setup
-- Milestone checkbox changes: none; Milestone 5 is now the active milestone after landing the first explicit native cache-completion translation slice while leaving parity smoke and command-center transport validation open
+  keep Milestone 5 active and use the same clean-container selector-`true` path to verify replay/progress semantics from the newly cached local file, then close the remaining translation-parity checks before broader Milestone 6 rollout validation
+- Milestone checkbox changes: none; Milestone 5 remains active after the first clean in-app proof that engine cache completion both emits `onTrackStreamingCacheComplete` and materializes the expected `downloadDestination` file
 
 Milestone status:
 
@@ -879,3 +879,4 @@ Primary execution goal:
 - 2026-03-30: Made JS `next()` stop at queue end so selector-`true` last-track `seekTo(1.0)` now stops cleanly, cleared the pending stalled fallback on explicit stop, and re-verified `yarn lint`, `yarn ts:check`, the selector-`true` app smoke, and the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Re-verified selector-`true` with a real in-app previous-at-track-start boundary smoke from `Hotwired` back to `Take Me Home#`, then restored the committed selector default to `false`, re-ran the canonical iOS simulator build, and recorded the remaining command-center skip blocker as simulator-tooling-only. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Translated native engine cache completion into backend-side `downloadDestination` copies plus `onTrackStreamingCacheComplete`, refreshed status on progressive completion, and re-verified both selector-`true` and final selector-`false` iOS simulator builds. (019d4087-5419-77f2-b446-ce61e5cab2a9)
+- 2026-03-30: Verified selector-`true` streamed-cache completion in a fresh simulator container, confirming `onTrackStreamingCacheComplete` and a newly created `downloadDestination` file before restoring the committed selector default to `false` and rerunning the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
