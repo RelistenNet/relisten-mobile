@@ -7,7 +7,8 @@ final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
             hasCurrentTrack: true,
             currentDuration: 120,
             requestedTime: 50,
-            activeGeneration: 4
+            activeGeneration: 4,
+            seekSequence: 1
         )
         var sideEffects: [String] = []
 
@@ -17,6 +18,7 @@ final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
 
         XCTAssertEqual(execution?.clampedTime, 50)
         XCTAssertEqual(execution?.generation, 4)
+        XCTAssertEqual(execution?.seekSequence, 1)
 
         await execution?.perform(
             seek: { sideEffects.append("seek:\($0)") },
@@ -38,7 +40,8 @@ final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
             hasCurrentTrack: true,
             currentDuration: 30,
             requestedTime: 45,
-            activeGeneration: 4
+            activeGeneration: 4,
+            seekSequence: 1
         )
         var sideEffects: [String] = []
 
@@ -68,13 +71,29 @@ final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
             hasCurrentTrack: true,
             currentDuration: 120,
             requestedTime: 50,
-            activeGeneration: 4
+            activeGeneration: 4,
+            seekSequence: 1
         )
 
         let execution = state.begin { _ in }
 
-        XCTAssertEqual(execution?.shouldApplyResult(activeGeneration: 4), true)
-        XCTAssertEqual(execution?.shouldApplyResult(activeGeneration: 5), false)
+        XCTAssertEqual(execution?.shouldApplyResult(activeGeneration: 4, currentSeekSequence: 1), true)
+        XCTAssertEqual(execution?.shouldApplyResult(activeGeneration: 5, currentSeekSequence: 1), false)
+    }
+
+    func testSeekExecutionDropsStaleResultsAfterNewerSeekInSameGeneration() {
+        let state = SeekCommandState(
+            hasCurrentTrack: true,
+            currentDuration: 120,
+            requestedTime: 50,
+            activeGeneration: 4,
+            seekSequence: 1
+        )
+
+        let execution = state.begin { _ in }
+
+        XCTAssertEqual(execution?.shouldApplyResult(activeGeneration: 4, currentSeekSequence: 2), false)
+        XCTAssertEqual(execution?.shouldApplyResult(activeGeneration: 4, currentSeekSequence: 1), true)
     }
 
     func testSeekWithoutCurrentTrackIsNoOp() {
@@ -82,7 +101,8 @@ final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
             hasCurrentTrack: false,
             currentDuration: 30,
             requestedTime: 15,
-            activeGeneration: 4
+            activeGeneration: 4,
+            seekSequence: 1
         )
 
         XCTAssertNil(state.begin { _ in XCTFail("elapsed should not update without a current track") })

@@ -3,9 +3,10 @@ import Foundation
 struct SeekCommandExecution {
     let clampedTime: TimeInterval
     let generation: UInt64
+    let seekSequence: UInt64
 
-    func shouldApplyResult(activeGeneration: UInt64) -> Bool {
-        activeGeneration == generation
+    func shouldApplyResult(activeGeneration: UInt64, currentSeekSequence: UInt64) -> Bool {
+        activeGeneration == generation && currentSeekSequence == seekSequence
     }
 
     func perform<Status>(
@@ -28,6 +29,7 @@ struct SeekCommandState {
     let currentDuration: TimeInterval?
     let requestedTime: TimeInterval
     let activeGeneration: UInt64
+    let seekSequence: UInt64
 
     var clampedTime: TimeInterval? {
         guard hasCurrentTrack else { return nil }
@@ -40,7 +42,8 @@ struct SeekCommandState {
         updateElapsed(clampedTime)
         return SeekCommandExecution(
             clampedTime: clampedTime,
-            generation: activeGeneration
+            generation: activeGeneration,
+            seekSequence: seekSequence
         )
     }
 }

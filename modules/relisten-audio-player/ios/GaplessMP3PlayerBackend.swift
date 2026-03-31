@@ -320,6 +320,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             let generation = supersessionState.beginPlayRequest()
             let sessionID = UUID().uuidString
             snapshot.generation = generation
+            snapshot.seekSequence = 0
             snapshot.currentSessionID = sessionID
             snapshot.desiredTransport = .playing
             snapshot.currentStreamable = streamable
@@ -426,6 +427,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         Task { [weak self] in
             guard let self else { return }
             do {
+                guard self.snapshotStore.get().generation == generation else { return }
                 try await self.player.setNext(streamable.map(self.makePlaybackSource(from:)))
                 let status = await self.player.status()
                 self.backendQueue.async {
@@ -481,6 +483,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             let previousState = snapshot.currentState
             if shouldInvalidateGeneration {
                 snapshot.generation += 1
+                snapshot.seekSequence = 0
             }
             snapshot.currentSessionID = nil
             snapshot.desiredTransport = .stopped
@@ -525,6 +528,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             let action = nextCommandState.resolve()
             if case .stopCurrentTrack(let invalidatedGeneration) = action {
                 snapshot.generation = invalidatedGeneration
+                snapshot.seekSequence = 0
             }
             return (snapshot, action)
         }
@@ -570,12 +574,19 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
     }
 
     private func seekOnQueue(to time: TimeInterval) {
-        let state = SeekCommandState(
-            hasCurrentTrack: snapshotStore.get().currentStreamable != nil,
-            currentDuration: snapshotStore.get().currentDuration,
-            requestedTime: time,
-            activeGeneration: snapshotStore.get().generation
-        )
+        let state = snapshotStore.withValue { snapshot in
+            let hasCurrentTrack = snapshot.currentStreamable != nil
+            if hasCurrentTrack {
+                snapshot.seekSequence += 1
+            }
+            return SeekCommandState(
+                hasCurrentTrack: hasCurrentTrack,
+                currentDuration: snapshot.currentDuration,
+                requestedTime: time,
+                activeGeneration: snapshot.generation,
+                seekSequence: snapshot.seekSequence
+            )
+        }
         guard let execution = state.begin(updateElapsed: { clampedTime in
             let previous = self.snapshotStore.get()
             self.snapshotStore.withValue { snapshot in
@@ -595,13 +606,21 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
                 },
                 complete: { status in
                     self.backendQueue.async {
-                        guard execution.shouldApplyResult(activeGeneration: self.snapshotStore.get().generation) else { return }
+                        let snapshot = self.snapshotStore.get()
+                        guard execution.shouldApplyResult(
+                            activeGeneration: snapshot.generation,
+                            currentSeekSequence: snapshot.seekSequence
+                        ) else { return }
                         self.applyStatus(status)
                     }
                 },
                 emitError: { error in
                     self.backendQueue.async {
-                        guard execution.shouldApplyResult(activeGeneration: self.snapshotStore.get().generation) else { return }
+                        let snapshot = self.snapshotStore.get()
+                        guard execution.shouldApplyResult(
+                            activeGeneration: snapshot.generation,
+                            currentSeekSequence: snapshot.seekSequence
+                        ) else { return }
                         if let currentStreamable = self.snapshotStore.get().currentStreamable {
                             self.emitError(error, for: currentStreamable)
                         }
@@ -706,6 +725,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             let previousState = snapshotStore.withValue { snapshot -> PlaybackState in
                 let previousState = snapshot.currentState
                 snapshot.generation += 1
+                snapshot.seekSequence = 0
                 snapshot.currentSessionID = nil
                 snapshot.currentState = .Stopped
                 snapshot.currentStreamable = nil
@@ -1132,6 +1152,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         let (generation, sessionID) = snapshotStore.withValue { snapshot in
             let sessionID = UUID().uuidString
             snapshot.generation += 1
+            snapshot.seekSequence = 0
             snapshot.currentSessionID = sessionID
             snapshot.currentState = .Stalled
             snapshot.nextStreamable = nextStreamable
