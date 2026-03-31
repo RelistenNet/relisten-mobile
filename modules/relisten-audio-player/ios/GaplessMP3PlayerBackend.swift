@@ -346,6 +346,10 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
 
                 guard self.shouldContinueAsyncWork(for: generation) else { return }
                 _ = self.player.play()
+                self.backendQueue.async {
+                    guard self.shouldContinueAsyncWork(for: generation) else { return }
+                    self.startProgressPollingIfNeededOnQueue(for: generation)
+                }
                 let status = await self.player.status()
                 self.backendQueue.async {
                     guard self.shouldContinueAsyncWork(for: generation) else { return }
@@ -720,6 +724,9 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             if event.sourceID == snapshot.currentStreamable?.identifier {
                 self.snapshotStore.withValue { snapshot in
                     snapshot.activeTrackDownloadedBytes = self.unsignedValue(event.cumulativeBytes)
+                    if let expectedBytes = self.expectedContentLength(from: event.responseHeaders) {
+                        snapshot.activeTrackTotalBytes = UInt64(expectedBytes)
+                    }
                 }
                 self.emitDownloadProgressIfNeeded(previous: previous, current: self.snapshotStore.get())
             }
@@ -790,6 +797,19 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
     private func unsignedValue(_ value: Int64?) -> UInt64? {
         guard let value, value >= 0 else { return nil }
         return UInt64(value)
+    }
+
+    private func expectedContentLength(from responseHeaders: [String: String]) -> Int64? {
+        let contentRangeHeader = responseHeaders.first { $0.key.caseInsensitiveCompare("Content-Range") == .orderedSame }?.value
+        if let contentRangeHeader,
+           let totalRangeComponent = contentRangeHeader.split(separator: "/").last,
+           totalRangeComponent != "*",
+           let totalBytes = Int64(totalRangeComponent) {
+            return totalBytes
+        }
+
+        let contentLengthHeader = responseHeaders.first { $0.key.caseInsensitiveCompare("Content-Length") == .orderedSame }?.value
+        return contentLengthHeader.flatMap(Int64.init)
     }
 
     private func consumePendingStartTimeAfterPrepareOnQueue(for generation: UInt64) -> TimeInterval? {

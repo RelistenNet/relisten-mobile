@@ -39,12 +39,13 @@ Always run `yarn lint` and `yarn ts:check` after making changes to ensure that k
 
 ## Environment & Setup Tips
 - Use Node 22+ (see `.nvmrc`) and Yarn (`yarn` to install dependencies).
-- For iOS development, install Xcode and run `yarn pods` after dependency changes.
+- For iOS development, install Xcode and run `yarn pods` only after native dependency or pod-visible file changes.
 
 ## iOS Simulator + MCP Workflow
 - Native iOS changes (`ios/`, native modules, pods, app config) require a rebuild/install:
   - `npx expo run:ios -d 'iPhone 17 Pro'` (or `yarn ios`).
   - This also starts Metro; that is expected for native rebuild runs.
+  - Run `yarn pods` only when native dependencies or pod-visible files changed; ordinary Swift/Obj-C edits do not require it.
 - JS/TS-only changes usually do not require a native rebuild:
   1. Start Metro for the dev client: `npx expo start --dev-client` (add `--clear` if needed).
   2. Boot/open Simulator (`open -a Simulator` or `mcp__ios-simulator__open_simulator`).

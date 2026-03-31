@@ -781,13 +781,13 @@ Rollout rules:
 - Overall status: In progress
 - Active milestone: Milestone 5
 - Last updated: 2026-03-31
-- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-31 after clearing stale queued-next carryover on fresh native `play()` requests, restoring periodic native progress polling while playing, rerunning `yarn pods` for the pod-visible backend file, and rebuilding the corrected final tree successfully
+- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-31 after starting native progress polling only after the new generation issues `play()`, seeding active-track HTTP totals from progressive response headers so download progress can emit before a later status refresh, and rebuilding the corrected final tree successfully
 - Native build command:
   `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build`
-- Current blocker: the native fixes are landed and the canonical simulator build is green, but selector-`true` app smoke still needs to revalidate the reported incompatible-track restart path and confirm the restored progress polling updates the UI instead of sticking at `0:00`
+- Current blocker: canonical native build is green with the progress/download lifecycle fix landed, but selector-`true` app smoke still needs to confirm elapsed time and HTTP streaming progress now move in the UI instead of sticking visually
 - Next recommended action:
-  keep Milestone 5 active and run selector-`true` app smoke against the reported offending track pair to confirm fresh `play()` no longer carries stale queued-next state and the UI progress ticker is live again, then return to backend-object paused-seek and progress-polling lifecycle proof
-- Milestone checkbox changes: none; Milestone 5 remains active after fixing stale queued-next carryover on fresh `play()` requests and restoring periodic native progress polling, but selector-`true` app revalidation plus backend-object paused-seek/progress-polling proof is still outstanding
+  keep Milestone 5 active and rerun selector-`true` app smoke against real HTTP tracks to confirm elapsed time and download progress advance visually again, then return to backend-object progress-polling lifecycle proof and mixed-sample-rate normalization work
+- Milestone checkbox changes: none; Milestone 5 remains active after moving native polling startup to the post-`play()` path and seeding active-track HTTP totals from progressive response headers, but selector-`true` app revalidation plus backend-object progress-polling proof is still outstanding
 
 Milestone status:
 
@@ -892,3 +892,4 @@ Primary execution goal:
 - 2026-03-31: Restored synchronous optimistic paused-seek progress updates in the native backend, routed the async seek/status round-trip through a shared backend-support helper with deterministic clamp/paused-status coverage, reran `swift test --package-path modules/relisten-audio-player`, reran `yarn pods`, and re-verified the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-31: Generation-scoped the paused-seek execution seam so the backend shares synchronous elapsed updates with deterministic clamp and stale-generation gating coverage, reran `swift test --package-path modules/relisten-audio-player`, reran `yarn pods`, and re-verified the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-31: Fixed fresh native `play()` to clear stale queued-next carryover into `prepare(current:next:)`, restored periodic native progress polling so playback can advance the UI again, reran `yarn pods`, and re-verified the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
+- 2026-03-31: Moved native progress polling startup to the post-`play()` path, seeded active-track HTTP totals from progressive response headers so download progress can emit earlier, and re-verified the canonical iOS simulator build before relaunching the updated app for manual retest. (019d4087-5419-77f2-b446-ce61e5cab2a9)
