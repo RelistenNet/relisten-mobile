@@ -781,13 +781,13 @@ Rollout rules:
 - Overall status: In progress
 - Active milestone: Milestone 4
 - Last updated: 2026-03-30
-- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-30 after restoring the committed selector default to `false`; earlier in the same turn, the selector-`true` validation build also succeeded before app-driven smoke validated the in-app `Relisten` -> `Random Show` route
+- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-30 after restoring the committed selector default to `false`; earlier in the same turn, the selector-`true` validation build also succeeded after fixing the native backend's missing initial `trackChanged(nil,current)` handoff and re-validating that seek-to-end advanced from `Intro` to `Crazy Tonie`
 - Native build command:
   `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build`
 - Current blocker: none
 - Next recommended action:
-  continue Milestone 4 on the established selector-`true` in-app smoke path (`Relisten` tab -> `Random Show` -> source screen -> player bar) and use it next to exercise idle `next()`, stop/end-of-queue behavior, and command-center initiated skips before broader Milestone 5 event/cache parity work
-- Milestone checkbox changes: none; Milestone 4 remains active after validating selector-`true` app-driven play-from-rest, track-switch, and pause/resume behavior through the real app UI
+  continue Milestone 4 on the established selector-`true` in-app smoke path and use the repaired command-serialization path next to exercise last-track/end-of-queue behavior plus command-center initiated skips before broader Milestone 5 event/cache parity work
+- Milestone checkbox changes: none; Milestone 4 remains active after fixing the selector-`true` initial play-request ownership regression and validating that a seek-to-end `nextTrack` handoff now advances into the next queue item through the real app UI
 
 Milestone status:
 
@@ -875,3 +875,4 @@ Primary execution goal:
 - 2026-03-30: Aligned native `seekTo(1.0)` with the existing `remoteControl("nextTrack")` contract, validated the native path with the selector enabled, then restored the committed selector default to `false` and re-verified the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Fixed a source-screen React Compiler dependency mismatch in `onDotsPress`, reran `yarn lint` and `yarn ts:check` successfully, and recorded that selector-`true` app-driven smoke is still blocked by dev-client deep links not entering the `/web/...` route. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Validated a reliable selector-`true` in-app smoke path via `Relisten` -> `Random Show`, then confirmed native app-UI play-from-rest, track-switch, and player-bar pause/resume behavior before restoring the committed selector default to `false`. (019d4087-5419-77f2-b446-ce61e5cab2a9)
+- 2026-03-30: Restored the native backend's missing initial `trackChanged(nil,current)` handoff, verified selector-`true` seek-to-end now advances from `Intro` into `Crazy Tonie`, then restored the committed selector default to `false` and re-verified the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)

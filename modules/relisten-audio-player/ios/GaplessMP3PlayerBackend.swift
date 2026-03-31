@@ -273,6 +273,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         prepareAudioSessionOnQueue(shouldActivate: true)
 
         let snapshot = snapshotStore.get()
+        let previousStreamable = snapshot.currentStreamable
 
         if let nextStreamable = snapshot.nextStreamable,
            nextStreamable.identifier == streamable.identifier,
@@ -332,6 +333,13 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
                             self.delegate?.trackChanged(
                                 previousStreamable: manualTrackChange.previous,
                                 currentStreamable: manualTrackChange.current
+                            )
+                        }
+                    } else if previousStreamable?.identifier != streamable.identifier {
+                        self.delegateQueue.async {
+                            self.delegate?.trackChanged(
+                                previousStreamable: previousStreamable,
+                                currentStreamable: streamable
                             )
                         }
                     }
