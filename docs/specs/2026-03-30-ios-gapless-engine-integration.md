@@ -781,7 +781,7 @@ Rollout rules:
 - Overall status: In progress
 - Active milestone: Milestone 4
 - Last updated: 2026-03-30
-- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-30 after making `GaplessMP3PlayerBackend.playOnQueue(...)` prepare and activate the shared audio session itself while keeping command/observer installation idempotent
+- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-30 after making `GaplessMP3PlayerBackend.playOnQueue(...)` prepare and activate the shared audio session itself, keeping command/observer installation idempotent, and routing media-services reset back through the same setup path
 - Native build command:
   `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build`
 - Current blocker: none
@@ -869,3 +869,4 @@ Primary execution goal:
 - 2026-03-30: Tightened the first native backend slice by invalidating stale finished-status completions, making pause/resume/seek/playbackProgress honor the cached backend snapshot immediately, routing native command-center setup through `AudioSessionController`, and re-verifying the canonical iOS simulator build with the committed flag still `false`. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Hardened the native backend teardown and recovery path by queueing teardown behind prior backend work, adding explicit interruption/media-services observer ownership, and gating async play/reset work behind generation checks; the canonical simulator build reruns were blocked by Xcode `build.db` lock and later exec-session interruptions before a new success result was obtained. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Retried the canonical simulator build as a single-owner run without clearing DerivedData, confirmed the remaining blocker is exec-environment interruption rather than a captured compiler diagnostic, and recorded `/tmp/relisten-native-build-capture.log` as the handoff evidence path. (019d4087-5419-77f2-b446-ce61e5cab2a9)
+- 2026-03-30: Made the native backend prepare the shared audio session from `playOnQueue(...)`, keep setup notifications single-fire while reinstalling handlers after media-services reset, and re-verified the canonical iOS simulator build to `** BUILD SUCCEEDED **`. (019d4087-5419-77f2-b446-ce61e5cab2a9)

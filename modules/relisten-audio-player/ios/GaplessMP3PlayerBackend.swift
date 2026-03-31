@@ -75,6 +75,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
     private let playbackPresentationController = PlaybackPresentationController()
     private var wasPlayingWhenInterrupted = false
     private var hasInstalledAudioSessionHandlers = false
+    private var hasReportedAudioSessionSetup = false
 
     init(player: GaplessMP3Player = GaplessMP3Player()) {
         self.player = player
@@ -194,6 +195,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         backendQueue.async {
             self.stopOnQueue(emitTrackChanged: false)
             self.hasInstalledAudioSessionHandlers = false
+            self.hasReportedAudioSessionSetup = false
             self.audioSessionController.teardown()
             self.playbackPresentationController.teardown()
         }
@@ -208,51 +210,58 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
 
         do {
             try audioSessionController.configurePlaybackSession(shouldActivate: shouldActivate)
-            guard !teardownRequested.get() else { return }
-            guard !hasInstalledAudioSessionHandlers else { return }
-            audioSessionController.configureRemoteCommands(
-                onPlay: self.handleResumeRemoteCommand,
-                onPause: self.handlePauseRemoteCommand,
-                onTogglePlayPause: self.handleTogglePlayPauseRemoteCommand,
-                onSeek: self.handleSeekRemoteCommand,
-                onNextTrack: self.handleNextTrackRemoteCommand,
-                onPreviousTrack: self.handlePreviousTrackRemoteCommand
-            )
-            audioSessionController.configureSessionObservers(
-                onOldDeviceUnavailable: { [weak self] in
-                    self?.backendQueue.async {
-                        self?.handleOldDeviceUnavailableOnQueue()
-                    }
-                },
-                onInterruptionBegan: { [weak self] in
-                    self?.backendQueue.async {
-                        self?.handleInterruptionBeganOnQueue()
-                    }
-                },
-                onInterruptionEndedShouldResume: { [weak self] in
-                    self?.backendQueue.async {
-                        self?.handleInterruptionEndedShouldResumeOnQueue()
-                    }
-                },
-                onMediaServicesReset: { [weak self] in
-                    self?.backendQueue.async {
-                        self?.handleMediaServicesResetOnQueue()
-                    }
-                },
-                onMediaServicesLost: { [weak self] in
-                    self?.backendQueue.async {
-                        self?.handleMediaServicesResetOnQueue()
-                    }
-                }
-            )
-            guard !teardownRequested.get() else { return }
-            audioSessionController.beginReceivingRemoteControlEvents()
-            hasInstalledAudioSessionHandlers = true
-            delegateQueue.async {
-                self.delegate?.audioSessionWasSetup()
-            }
+            installAudioSessionHandlersIfNeededOnQueue()
         } catch {
             NSLog("[relisten-audio-player][native-backend] failed to prepare audio session: \(error)")
+        }
+    }
+
+    private func installAudioSessionHandlersIfNeededOnQueue() {
+        guard !teardownRequested.get() else { return }
+        guard !hasInstalledAudioSessionHandlers else { return }
+
+        audioSessionController.configureRemoteCommands(
+            onPlay: self.handleResumeRemoteCommand,
+            onPause: self.handlePauseRemoteCommand,
+            onTogglePlayPause: self.handleTogglePlayPauseRemoteCommand,
+            onSeek: self.handleSeekRemoteCommand,
+            onNextTrack: self.handleNextTrackRemoteCommand,
+            onPreviousTrack: self.handlePreviousTrackRemoteCommand
+        )
+        audioSessionController.configureSessionObservers(
+            onOldDeviceUnavailable: { [weak self] in
+                self?.backendQueue.async {
+                    self?.handleOldDeviceUnavailableOnQueue()
+                }
+            },
+            onInterruptionBegan: { [weak self] in
+                self?.backendQueue.async {
+                    self?.handleInterruptionBeganOnQueue()
+                }
+            },
+            onInterruptionEndedShouldResume: { [weak self] in
+                self?.backendQueue.async {
+                    self?.handleInterruptionEndedShouldResumeOnQueue()
+                }
+            },
+            onMediaServicesReset: { [weak self] in
+                self?.backendQueue.async {
+                    self?.handleMediaServicesResetOnQueue()
+                }
+            },
+            onMediaServicesLost: { [weak self] in
+                self?.backendQueue.async {
+                    self?.handleMediaServicesResetOnQueue()
+                }
+            }
+        )
+        guard !teardownRequested.get() else { return }
+        audioSessionController.beginReceivingRemoteControlEvents()
+        hasInstalledAudioSessionHandlers = true
+        guard !hasReportedAudioSessionSetup else { return }
+        hasReportedAudioSessionSetup = true
+        delegateQueue.async {
+            self.delegate?.audioSessionWasSetup()
         }
     }
 
@@ -798,6 +807,9 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         let snapshot = snapshotStore.get()
         guard !teardownRequested.get() else { return }
         guard let currentStreamable = snapshot.currentStreamable else { return }
+
+        hasInstalledAudioSessionHandlers = false
+        installAudioSessionHandlersIfNeededOnQueue()
 
         let nextStreamable = snapshot.desiredNextStreamable ?? snapshot.nextStreamable
         let shouldResume = snapshot.currentState == .Playing || snapshot.currentState == .Stalled
