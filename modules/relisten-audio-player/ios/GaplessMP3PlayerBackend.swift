@@ -307,7 +307,9 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         let desiredNext = snapshot.desiredNextStreamable?.identifier == streamable.identifier ? nil : snapshot.desiredNextStreamable
         let previousState = snapshot.currentState
         let generation = snapshotStore.withValue { snapshot in
-            snapshot.generation += 1
+            var supersessionState = PlaySupersessionState(activeGeneration: snapshot.generation)
+            let generation = supersessionState.beginPlayRequest()
+            snapshot.generation = generation
             snapshot.currentStreamable = streamable
             snapshot.nextStreamable = desiredNext
             snapshot.currentState = .Stalled
@@ -317,12 +319,12 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             snapshot.activeTrackTotalBytes = nil
             snapshot.pendingStartTimeAfterPrepare = startingAtMs.map {
                 PendingStartTimeAfterPrepare(
-                    generation: snapshot.generation,
+                    generation: generation,
                     milliseconds: max($0, 0)
                 )
             }
             snapshot.isPreparingCurrentTrack = true
-            return snapshot.generation
+            return generation
         }
         playbackPresentationController.setPlaybackState(.Stalled)
         emitStateIfNeeded(previous: previousState, current: .Stalled)
@@ -1044,6 +1046,8 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
     }
 
     private func shouldContinueAsyncWork(for generation: UInt64) -> Bool {
-        !teardownRequested.get() && snapshotStore.get().generation == generation
+        guard !teardownRequested.get() else { return false }
+        let supersessionState = PlaySupersessionState(activeGeneration: snapshotStore.get().generation)
+        return supersessionState.prepareCompletionAction(for: generation) == .applyPreparedTrack
     }
 }

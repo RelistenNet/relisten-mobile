@@ -2,6 +2,24 @@ import XCTest
 @testable import GaplessMP3PlayerBackendSupport
 
 final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
+    func testLatestPlayRequestInvalidatesEarlierPrepareCompletion() {
+        var state = PlaySupersessionState(activeGeneration: 0)
+
+        let generationA = state.beginPlayRequest()
+        let generationB = state.beginPlayRequest()
+
+        XCTAssertEqual(generationA, 1)
+        XCTAssertEqual(generationB, 2)
+        XCTAssertEqual(
+            state.prepareCompletionAction(for: generationA),
+            .discardStalePrepareCompletion
+        )
+        XCTAssertEqual(
+            state.prepareCompletionAction(for: generationB),
+            .applyPreparedTrack
+        )
+    }
+
     func testLatestQueuedNextWinsWhilePrepareIsInFlight() {
         var state = NextStreamSupersessionState(
             hasCurrentTrack: true,
