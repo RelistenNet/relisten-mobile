@@ -780,14 +780,14 @@ Rollout rules:
 
 - Overall status: In progress
 - Active milestone: Milestone 5
-- Last updated: 2026-03-30
-- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-30 after deferring same-track `play(startingAtMs)` seeks until `prepare()` completes and then generation-scoping that deferred seek so stale async work cannot consume a newer request
+- Last updated: 2026-03-31
+- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-31 after selector-`true` app validation proved that a later `Play Next` request supersedes an earlier one while the current track is still preparing, and then the final selector-`false` tree was rebuilt successfully
 - Native build command:
   `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build`
-- Current blocker: none for the current Milestone 5 slice; selector-`true` command-center initiated skip coverage is still simulator-blocked for later Milestone 6 transport validation
+- Current blocker: deterministic relisten-native backend coverage for `setNextStream()` supersession during prepare is still missing; selector-`true` app validation now proves the behavior live, but the spec still calls for backend-level proof before Milestone 5 can close
 - Next recommended action:
-  keep Milestone 5 active and validate selector-`true` same-track `play(startingAtMs)` plus "latest queued next wins while prepare is in flight"; if those remain clean, close Milestone 5 and move to Milestone 6 rollout validation
-- Milestone checkbox changes: none; Milestone 5 remains active after fixing native same-track `play(startingAtMs)` so requests that arrive during prepare defer their seek until `prepare()` completes without letting stale async work consume a newer pending seek
+  keep Milestone 5 active and add the smallest deterministic backend test seam for `enqueueSetNextStream(nextA)` then `enqueueSetNextStream(nextB)` while `prepare()` is still in flight, using this turn's selector-`true` queue reorder (`Intro -> Sunset in July -> Omaha Stylee`) and direct `next` transition into `Sunset in July` as the already-verified live reference
+- Milestone checkbox changes: none; Milestone 5 remains active after selector-`true` app validation proved that the latest queued next-track request wins during prepare, but deterministic backend coverage for that supersession rule is still outstanding
 
 Milestone status:
 
@@ -884,3 +884,4 @@ Primary execution goal:
 - 2026-03-30: Added harness coverage for local-file seeks at `0%`, `50%`, and `99%` without resuming paused playback, then reran the canonical iOS simulator build on the current selector-`false` tree. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Added deterministic harness coverage for HTTP seeks that stay inside the buffered prefix and HTTP seeks that fall back to a far range read, then reran the canonical iOS simulator build on the current tree. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Fixed native same-track `play(startingAtMs)` so requests that arrive during prepare defer their seek until `prepare()` completes, then generation-scoped that deferred seek to prevent stale async work from consuming newer requests before rerunning the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
+- 2026-03-31: Re-verified selector-`true` live supersession by queuing `Sunset in July` after `Omaha Stylee`, confirming the player queue reordered to the latest request and a direct `next` advanced into `Sunset in July`, then restored the committed selector default to `false` for the final canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
