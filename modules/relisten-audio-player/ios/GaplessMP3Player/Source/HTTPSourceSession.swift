@@ -66,6 +66,17 @@ actor HTTPSourceSession {
         }
     }
 
+    func shutdown() {
+        streamTask?.cancel()
+        streamTask = nil
+        storedError = CancellationError()
+        retryState = nil
+        resumeAllWaiters(with: CancellationError())
+        if !isComplete {
+            try? cacheStore.fileManager.removeItem(at: downloadPaths.tempFileURL)
+        }
+    }
+
     func setEventHandler(_ handler: (@Sendable (GaplessPreparationEvent) -> Void)?) {
         if let handler {
             preparationEventHandler = handler

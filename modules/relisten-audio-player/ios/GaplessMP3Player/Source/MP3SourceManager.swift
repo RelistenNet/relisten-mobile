@@ -16,6 +16,7 @@ actor MP3SourceManager {
     private var transientStatuses: [String: SourceDownloadStatus] = [:]
     private var runtimeEventHandler: (@Sendable (GaplessRuntimeEvent) -> Void)?
     private var httpLogHandler: (@Sendable (GaplessHTTPLogEvent) -> Void)?
+    private var isShutdown = false
 
     init(
         cacheDirectory: URL = FileManager.default.temporaryDirectory.appendingPathComponent("GaplessMP3PlayerCache", isDirectory: true),
@@ -263,6 +264,16 @@ actor MP3SourceManager {
             downloadedBytes: 0,
             expectedBytes: source.expectedContentLength
         )
+    }
+
+    func shutdown() async {
+        isShutdown = true
+        let sessions = Array(activeDownloads.values)
+        activeDownloads.removeAll()
+        transientStatuses.removeAll()
+        for session in sessions {
+            await session.shutdown()
+        }
     }
 
     private func openSession(
@@ -568,6 +579,7 @@ actor MP3SourceManager {
     }
 
     private func downloadFinished(cacheKey: String, terminalStatus: SourceDownloadStatus) {
+        guard !isShutdown else { return }
         activeDownloads.removeValue(forKey: cacheKey)
         if terminalStatus.state == .failed || cacheMode == .disabled {
             transientStatuses[cacheKey] = terminalStatus

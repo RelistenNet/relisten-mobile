@@ -252,6 +252,83 @@ final class GaplessMP3PlayerTests: XCTestCase {
         loader.finishProgressiveDownload()
     }
 
+    func testHTTPSourceSessionShutdownCancelsPendingReadAndRemovesIncompleteTempFile() async throws {
+        let data = try httpFixtureData(named: "gd77-s2t07-first-5s.mp3")
+        let loader = StubHTTPDataLoader(data: data, initialProgressiveChunkSize: 2048)
+        let cacheDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("HTTPSourceSessionShutdown-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: cacheDirectory) }
+
+        let source = httpFixtureSource(id: "current", path: "gd77-s2t07-first-5s.mp3", byteCount: data.count)
+        let cacheStore = SourceCacheStore(cacheDirectory: cacheDirectory, fileManager: .default)
+        let downloadPaths = try cacheStore.makeDownloadPaths(for: source)
+        var request = URLRequest(url: source.url)
+        source.headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }
+
+        let session = HTTPSourceSession(
+            source: source,
+            requestKind: .progressive,
+            loader: loader,
+            request: request,
+            retryPolicy: .init(),
+            cacheMode: .enabled,
+            cacheStore: cacheStore,
+            downloadPaths: downloadPaths,
+            projector: SourceEventProjector(retryPolicy: .init())
+        )
+
+        await session.start()
+        try await waitForDownloadedPrefix(session: session, minimum: 2048)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: downloadPaths.tempFileURL.path))
+
+        let pendingRead = Task {
+            try await session.read(offset: 4096, maxLength: 512)
+        }
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        await session.shutdown()
+
+        do {
+            _ = try await pendingRead.value
+            XCTFail("Expected pending read to be cancelled")
+        } catch {
+            XCTAssertTrue(error is CancellationError)
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: downloadPaths.tempFileURL.path))
+    }
+
+    func testMP3SourceManagerShutdownClearsInFlightDownloadStateAndTempFiles() async throws {
+        let data = try httpFixtureData(named: "gd77-s2t07-first-5s.mp3")
+        let loader = StubHTTPDataLoader(data: data, initialProgressiveChunkSize: 2048)
+        let (sourceManager, cacheDirectory) = makeHTTPSourceManagerWithCacheDirectory(loader: loader)
+        defer { try? FileManager.default.removeItem(at: cacheDirectory) }
+
+        let source = httpFixtureSource(id: "current", path: "gd77-s2t07-first-5s.mp3", byteCount: data.count)
+        try await sourceManager.preload(source)
+        try await waitForDownloadedBytes(sourceManager: sourceManager, source: source, minimum: 2048)
+
+        let tempDirectory = cacheDirectory.appendingPathComponent("temp", isDirectory: true)
+        let tempFilesBeforeShutdown = (try? FileManager.default.contentsOfDirectory(
+            at: tempDirectory,
+            includingPropertiesForKeys: nil
+        )) ?? []
+        XCTAssertEqual(tempFilesBeforeShutdown.count, 1)
+
+        await sourceManager.shutdown()
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        let status = await sourceManager.downloadStatus(for: source)
+        XCTAssertEqual(status?.state, .idle)
+        XCTAssertEqual(status?.downloadedBytes, 0)
+        XCTAssertEqual(status?.expectedBytes, Int64(data.count))
+
+        let tempFilesAfterShutdown = (try? FileManager.default.contentsOfDirectory(
+            at: tempDirectory,
+            includingPropertiesForKeys: nil
+        )) ?? []
+        XCTAssertTrue(tempFilesAfterShutdown.isEmpty)
+    }
+
     func testHTTPReadSessionUsesRangeRequestWhenSeekJumpsBeyondBufferedPrefix() async throws {
         let data = try httpFixtureData(named: "gd77-s2t07-first-5s.mp3")
         let loader = StubHTTPDataLoader(data: data, initialProgressiveChunkSize: 2048)
@@ -328,9 +405,16 @@ final class GaplessMP3PlayerTests: XCTestCase {
     }
 
     private func makeHTTPSourceManager(loader: some HTTPDataLoading) -> MP3SourceManager {
+        makeHTTPSourceManagerWithCacheDirectory(loader: loader).manager
+    }
+
+    private func makeHTTPSourceManagerWithCacheDirectory(loader: some HTTPDataLoading) -> (manager: MP3SourceManager, cacheDirectory: URL) {
         let cacheDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("GaplessMP3PlayerHTTPTests-\(UUID().uuidString)", isDirectory: true)
-        return MP3SourceManager(cacheDirectory: cacheDirectory, loader: loader)
+        return (
+            MP3SourceManager(cacheDirectory: cacheDirectory, loader: loader),
+            cacheDirectory
+        )
     }
 
     private func httpFixtureSource(id: String, path: String, byteCount: Int) -> GaplessPlaybackSource {
@@ -357,6 +441,19 @@ final class GaplessMP3PlayerTests: XCTestCase {
         for _ in 0..<100 {
             if let status = await sourceManager.downloadStatus(for: source),
                status.downloadedBytes >= minimum {
+                return
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTFail("Timed out waiting for \(minimum) downloaded bytes")
+    }
+
+    private func waitForDownloadedPrefix(
+        session: HTTPSourceSession,
+        minimum: Int64
+    ) async throws {
+        for _ in 0..<100 {
+            if await session.contiguousPrefixEnd() >= minimum {
                 return
             }
             try await Task.sleep(nanoseconds: 10_000_000)
