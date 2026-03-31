@@ -781,13 +781,13 @@ Rollout rules:
 - Overall status: In progress
 - Active milestone: Milestone 4
 - Last updated: 2026-03-30
-- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` last succeeded earlier on 2026-03-30 before this blocker-fix slice; this turn's reruns did not produce a new successful verification result
+- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-30 after making `GaplessMP3PlayerBackend.playOnQueue(...)` prepare and activate the shared audio session itself while keeping command/observer installation idempotent
 - Native build command:
   `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build`
-- Current blocker: a single-owner canonical build rerun was left alive without manual interruption or DerivedData cleanup, but the captured log at `/tmp/relisten-native-build-capture.log` still ended in `** BUILD INTERRUPTED **` with no compiler diagnostic, so this exec environment is still blocking a fresh post-fix native verification result
+- Current blocker: none
 - Next recommended action:
-  rerun the canonical native build in a terminal/session that can keep the long Hermes rebuild alive to completion while reusing the existing DerivedData, then use that result to either resume Milestone 4 flag-true command-matrix work or record the concrete native build failure
-- Milestone checkbox changes: none; Milestone 4 remains active while the post-fix canonical simulator build is being re-verified before the next code slice
+  continue Milestone 4 by exercising the native backend command matrix with the selector enabled and filling any remaining backend-method gaps before starting Milestone 5 parity work
+- Milestone checkbox changes: none; Milestone 4 remains active after the backend-owned audio-session activation slice and successful canonical simulator build
 
 Milestone status:
 
@@ -858,6 +858,7 @@ Primary execution goal:
 - 2026-03-30: Created implementation-ready migration spec for replacing the iOS BASS playback core with the native gapless MP3 engine, including file-copy plan, backend switch, milestones, validation, and cutover criteria. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Revised the migration spec to adopt the `PlaybackBackend` protocol seam, reflect the engine's DispatchQueue-based threading model, and explicitly require small copied-engine API changes for stop/status/transition/cache integration. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Hardened the migration spec with explicit command supersession rules, shared-controller ownership, edge-case behavior contracts, error mapping, deterministic harness packaging, stronger verification, and soak criteria. (019d4087-5419-77f2-b446-ce61e5cab2a9)
+- 2026-03-30: Made the native backend activate the shared audio session from `play()` while installing remote-command/session observers once, then re-verified the canonical iOS simulator build.
 - 2026-03-30: Added a progress tracker and reusable queued-agent implementation prompt, including the canonical iOS native build command for ongoing migration work. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Copied the GaplessMP3Player runtime into `modules/relisten-audio-player/ios/GaplessMP3Player/`, added the local SwiftPM harness, raised the iOS deployment target to `18.0`, and verified `yarn pods`, `swift run GaplessMP3PlayerHarness`, `yarn lint`, and `yarn ts:check`; the canonical Xcode build still needs a terminal result. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Updated the execution guidance so future implementation turns create a useful git commit after each round, including WIP checkpoints when needed. (019d4087-5419-77f2-b446-ce61e5cab2a9)

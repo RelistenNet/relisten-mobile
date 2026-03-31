@@ -74,6 +74,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
     private let audioSessionController = AudioSessionController()
     private let playbackPresentationController = PlaybackPresentationController()
     private var wasPlayingWhenInterrupted = false
+    private var hasInstalledAudioSessionHandlers = false
 
     init(player: GaplessMP3Player = GaplessMP3Player()) {
         self.player = player
@@ -192,18 +193,23 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
 
         backendQueue.async {
             self.stopOnQueue(emitTrackChanged: false)
+            self.hasInstalledAudioSessionHandlers = false
             self.audioSessionController.teardown()
             self.playbackPresentationController.teardown()
         }
     }
 
     private func prepareAudioSessionOnQueue() {
+        prepareAudioSessionOnQueue(shouldActivate: !AVAudioSession.sharedInstance().secondaryAudioShouldBeSilencedHint)
+    }
+
+    private func prepareAudioSessionOnQueue(shouldActivate: Bool) {
         guard !teardownRequested.get() else { return }
-        let shouldActivate = !AVAudioSession.sharedInstance().secondaryAudioShouldBeSilencedHint
 
         do {
             try audioSessionController.configurePlaybackSession(shouldActivate: shouldActivate)
             guard !teardownRequested.get() else { return }
+            guard !hasInstalledAudioSessionHandlers else { return }
             audioSessionController.configureRemoteCommands(
                 onPlay: self.handleResumeRemoteCommand,
                 onPause: self.handlePauseRemoteCommand,
@@ -241,6 +247,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             )
             guard !teardownRequested.get() else { return }
             audioSessionController.beginReceivingRemoteControlEvents()
+            hasInstalledAudioSessionHandlers = true
             delegateQueue.async {
                 self.delegate?.audioSessionWasSetup()
             }
@@ -250,6 +257,8 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
     }
 
     private func playOnQueue(_ streamable: RelistenGaplessStreamable, startingAtMs: Int64?) {
+        prepareAudioSessionOnQueue(shouldActivate: true)
+
         let snapshot = snapshotStore.get()
 
         if let nextStreamable = snapshot.nextStreamable,
