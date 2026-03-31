@@ -401,6 +401,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
                         $0.pendingStartTimeAfterPrepare = nil
                         $0.currentState = .Stopped
                     }
+                    self.playbackPresentationController.clearNowPlaying()
                     self.playbackPresentationController.setPlaybackState(.Stopped)
                     self.emitStateIfNeeded(previous: .Stalled, current: .Stopped)
                     self.emitError(error, for: streamable)
@@ -507,6 +508,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         }
         let current = snapshotStore.get()
         player.sessionID = nil
+        playbackPresentationController.clearNowPlaying()
         playbackPresentationController.setPlaybackState(.Stopped)
         emitStateIfNeeded(previous: previousState, current: .Stopped)
         emitProgressIfNeeded(previous: previous, current: current)
@@ -681,9 +683,10 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             }
         }
 
+        let current = snapshotStore.get()
+        syncNowPlaying(with: current)
         playbackPresentationController.setPlaybackState(translatedState)
         emitStateIfNeeded(previous: previous.currentState, current: translatedState)
-        let current = snapshotStore.get()
         emitProgressIfNeeded(previous: previous, current: current)
         emitDownloadProgressIfNeeded(previous: previous, current: current)
         translateStreamingCacheCompletionIfNeeded(status: status, snapshot: current)
@@ -748,6 +751,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             }
             let current = snapshotStore.get()
             player.sessionID = nil
+            playbackPresentationController.clearNowPlaying()
             playbackPresentationController.setPlaybackState(.Stopped)
             emitStateIfNeeded(previous: previousState, current: .Stopped)
             emitProgressIfNeeded(previous: snapshot, current: current)
@@ -886,6 +890,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             mutate(&snapshot)
         }
         let current = snapshotStore.get()
+        syncNowPlaying(with: current)
         playbackPresentationController.setPlaybackState(current.currentState)
         emitStateIfNeeded(previous: previous.currentState, current: current.currentState)
         emitProgressIfNeeded(previous: previous, current: current)
@@ -1217,12 +1222,34 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
                         $0.pendingStartTimeAfterPrepare = nil
                         $0.currentState = .Stopped
                     }
+                    self.playbackPresentationController.clearNowPlaying()
                     self.playbackPresentationController.setPlaybackState(.Stopped)
                     self.emitStateIfNeeded(previous: .Stalled, current: .Stopped)
                     self.emitError(error, for: currentStreamable)
                 }
             }
         }
+    }
+
+    private func syncNowPlaying(with snapshot: Snapshot) {
+        guard let streamable = snapshot.currentStreamable, snapshot.currentState != .Stopped else {
+            playbackPresentationController.clearNowPlaying()
+            return
+        }
+
+        playbackPresentationController.updateNowPlaying(
+            title: streamable.title,
+            artist: streamable.artist,
+            album: streamable.albumTitle,
+            duration: snapshot.currentDuration,
+            elapsed: snapshot.elapsed,
+            rate: playbackRate(for: snapshot.currentState),
+            artworkURL: URL(string: streamable.albumArt)
+        )
+    }
+
+    private func playbackRate(for playbackState: PlaybackState) -> Float {
+        playbackState == .Playing ? 1.0 : 0.0
     }
 
     private func numericCode(for error: PlaybackStreamError) -> Int {
