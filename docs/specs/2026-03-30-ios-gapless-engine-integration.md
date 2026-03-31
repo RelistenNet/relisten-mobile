@@ -781,20 +781,20 @@ Rollout rules:
 - Overall status: In progress
 - Active milestone: Milestone 5
 - Last updated: 2026-03-30
-- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-30 after restoring the committed selector default to `false`; earlier in the same turn, the selector-`true` validation build also succeeded, and a fresh simulator-container smoke verified `onTrackStreamingCacheComplete` plus a newly created `downloadDestination` file for streamed playback
+- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-30 after restoring the committed selector default to `false`; earlier in the same turn, the selector-`true` validation build also succeeded, and selector-`true` replay of an already cached `-intro-` track from the 2024-07-21 311 source screen immediately showed full `1:47` duration plus a saturated cache scrubber with no new `onTrackStreamingCacheComplete` event or offline-file creation
 - Native build command:
   `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build`
 - Current blocker: none for the current Milestone 5 slice; selector-`true` command-center initiated skip coverage is still simulator-blocked for later Milestone 6 transport validation
 - Next recommended action:
-  keep Milestone 5 active and use the same clean-container selector-`true` path to verify replay/progress semantics from the newly cached local file, then close the remaining translation-parity checks before broader Milestone 6 rollout validation
-- Milestone checkbox changes: none; Milestone 5 remains active after the first clean in-app proof that engine cache completion both emits `onTrackStreamingCacheComplete` and materializes the expected `downloadDestination` file
+  keep Milestone 5 active and use the same selector-`true` 311 source-screen path to finish the explicit seek matrix at start, middle, and near end; if those checks stay clean, mark Milestone 5 complete and move to Milestone 6 rollout validation
+- Milestone checkbox changes: marked Milestone 4 complete now that both selector-`false` and selector-`true` command-path validation have been exercised; Milestone 5 remains active after local-file replay confirmed the cached-track progress path without a fresh cache-completion event
 
 Milestone status:
 
 - [x] Milestone 1: Copy engine files and make the copied runtime build
 - [x] Milestone 2: Introduce the internal backend protocol and boolean switch
 - [x] Milestone 3: Shape the copied engine API for relisten integration
-- [ ] Milestone 4: Implement `GaplessMP3PlayerBackend` and adapt the module to drive either backend
+- [x] Milestone 4: Implement `GaplessMP3PlayerBackend` and adapt the module to drive either backend
 - [ ] Milestone 5: Implement status, event, seek, and cache translation parity
 - [ ] Milestone 6: App-level validation and rollout hardening
 - [ ] Milestone 7: BASS cleanup and final cutover
@@ -880,3 +880,4 @@ Primary execution goal:
 - 2026-03-30: Re-verified selector-`true` with a real in-app previous-at-track-start boundary smoke from `Hotwired` back to `Take Me Home#`, then restored the committed selector default to `false`, re-ran the canonical iOS simulator build, and recorded the remaining command-center skip blocker as simulator-tooling-only. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Translated native engine cache completion into backend-side `downloadDestination` copies plus `onTrackStreamingCacheComplete`, refreshed status on progressive completion, and re-verified both selector-`true` and final selector-`false` iOS simulator builds. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Verified selector-`true` streamed-cache completion in a fresh simulator container, confirming `onTrackStreamingCacheComplete` and a newly created `downloadDestination` file before restoring the committed selector default to `false` and rerunning the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
+- 2026-03-30: Replayed an already cached selector-`true` 311 track from the source screen, confirmed the local-file path by immediate full duration plus saturated cache scrubber with no new cache-completion event or offline-file creation, marked Milestone 4 complete, then restored the committed selector default to `false` and reran the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
