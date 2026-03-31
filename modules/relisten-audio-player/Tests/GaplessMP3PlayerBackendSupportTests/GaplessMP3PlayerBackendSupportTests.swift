@@ -6,16 +6,22 @@ final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
         let state = SeekCommandState(
             hasCurrentTrack: true,
             currentDuration: 120,
-            requestedTime: 50
+            requestedTime: 50,
+            activeGeneration: 4
         )
         var sideEffects: [String] = []
 
-        XCTAssertEqual(state.clampedTime, 50)
+        let execution = state.begin { clampedTime in
+            sideEffects.append("updateElapsed:\(clampedTime)")
+        }
 
-        await state.perform(
+        XCTAssertEqual(execution?.clampedTime, 50)
+        XCTAssertEqual(execution?.generation, 4)
+
+        await execution?.perform(
             seek: { sideEffects.append("seek:\($0)") },
             status: { "paused" },
-            applyStatus: { sideEffects.append("applyStatus:\($0)") },
+            complete: { sideEffects.append("applyStatus:\($0)") },
             emitError: { error in
                 XCTFail("unexpected seek error: \(error)")
             }
@@ -23,7 +29,7 @@ final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
 
         XCTAssertEqual(
             sideEffects,
-            ["seek:50.0", "applyStatus:paused"]
+            ["updateElapsed:50.0", "seek:50.0", "applyStatus:paused"]
         )
     }
 
@@ -31,16 +37,21 @@ final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
         let state = SeekCommandState(
             hasCurrentTrack: true,
             currentDuration: 30,
-            requestedTime: 45
+            requestedTime: 45,
+            activeGeneration: 4
         )
         var sideEffects: [String] = []
 
-        XCTAssertEqual(state.clampedTime, 30)
+        let execution = state.begin { clampedTime in
+            sideEffects.append("updateElapsed:\(clampedTime)")
+        }
 
-        await state.perform(
+        XCTAssertEqual(execution?.clampedTime, 30)
+
+        await execution?.perform(
             seek: { sideEffects.append("seek:\($0)") },
             status: { "paused" },
-            applyStatus: { sideEffects.append("applyStatus:\($0)") },
+            complete: { sideEffects.append("applyStatus:\($0)") },
             emitError: { error in
                 XCTFail("unexpected seek error: \(error)")
             }
@@ -48,30 +59,33 @@ final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
 
         XCTAssertEqual(
             sideEffects,
-            ["seek:30.0", "applyStatus:paused"]
+            ["updateElapsed:30.0", "seek:30.0", "applyStatus:paused"]
         )
     }
 
-    func testSeekWithoutCurrentTrackIsNoOp() async {
+    func testSeekExecutionDropsStaleResultsAfterGenerationInvalidation() {
+        let state = SeekCommandState(
+            hasCurrentTrack: true,
+            currentDuration: 120,
+            requestedTime: 50,
+            activeGeneration: 4
+        )
+
+        let execution = state.begin { _ in }
+
+        XCTAssertEqual(execution?.shouldApplyResult(activeGeneration: 4), true)
+        XCTAssertEqual(execution?.shouldApplyResult(activeGeneration: 5), false)
+    }
+
+    func testSeekWithoutCurrentTrackIsNoOp() {
         let state = SeekCommandState(
             hasCurrentTrack: false,
             currentDuration: 30,
-            requestedTime: 15
-        )
-        var sideEffects: [String] = []
-
-        XCTAssertNil(state.clampedTime)
-
-        await state.perform(
-            seek: { sideEffects.append("seek:\($0)") },
-            status: { "paused" },
-            applyStatus: { sideEffects.append("applyStatus:\($0)") },
-            emitError: { error in
-                XCTFail("unexpected seek error: \(error)")
-            }
+            requestedTime: 15,
+            activeGeneration: 4
         )
 
-        XCTAssertEqual(sideEffects, [])
+        XCTAssertNil(state.begin { _ in XCTFail("elapsed should not update without a current track") })
     }
 
     func testResumeAfterStopDoesNotTriggerAnyResumeSideEffects() {
