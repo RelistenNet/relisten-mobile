@@ -280,7 +280,7 @@ Update this section as tasks complete. Change `[ ]` to `[x]` and add the commit 
 
 ### Phase 1: Command supersession
 - [x] Task 1: desiredTransport field + F1 fix — commit: `586cb90`
-- [ ] Task 2: Engine sessionID for stale event filtering (F4) — commit: _pending_
+- [x] Task 2: Engine sessionID for stale event filtering (F4) — commit: `ae489aa`
 - [ ] Task 3: Seek sequence + setNext gate (F5, F10) — commit: _pending_
 
 ### Phase 2: Localized state-cleanup fixes
