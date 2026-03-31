@@ -20,6 +20,7 @@ const emitter = new EventEmitter<{
 export interface RelistenStreamable {
   url: string;
   identifier: string;
+  cacheKey: string;
   title: string;
   artist: string;
   albumTitle: string;

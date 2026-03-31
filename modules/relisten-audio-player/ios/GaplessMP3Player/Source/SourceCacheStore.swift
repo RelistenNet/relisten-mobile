@@ -43,13 +43,11 @@ struct SourceCacheStore: @unchecked Sendable {
         try fileManager.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
     }
 
-    func scavengeTempFiles() {
-        guard let contents = try? fileManager.contentsOfDirectory(at: tempDirectory, includingPropertiesForKeys: nil) else {
+    func wipeCacheDirectory() {
+        guard fileManager.fileExists(atPath: cacheDirectory.path) else {
             return
         }
-        for file in contents {
-            try? fileManager.removeItem(at: file)
-        }
+        try? fileManager.removeItem(at: cacheDirectory)
     }
 
     func makeDownloadPaths(for source: GaplessPlaybackSource) throws -> SourceDownloadPaths {

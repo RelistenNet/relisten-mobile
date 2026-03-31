@@ -22,6 +22,9 @@ class RelistenStreamable : Record {
     var identifier: String? = null
 
     @Field
+    var cacheKey: String? = null
+
+    @Field
     var title: String? = null
 
     @Field
@@ -37,8 +40,8 @@ class RelistenStreamable : Record {
     var downloadDestination: URL? = null
 
     fun toGaplessStreamable(): RelistenGaplessStreamable? {
-        if (url != null && identifier != null && title != null && albumTitle != null && albumArt != null && artist != null) {
-            return RelistenGaplessStreamable(url!!, identifier!!, title!!, artist!!, albumTitle!!, albumArt!!, downloadDestination)
+        if (url != null && identifier != null && cacheKey != null && title != null && albumTitle != null && albumArt != null && artist != null) {
+            return RelistenGaplessStreamable(url!!, identifier!!, cacheKey!!, title!!, artist!!, albumTitle!!, albumArt!!, downloadDestination)
         }
 
         return null

@@ -107,6 +107,7 @@ export class PlayerQueueTrack {
     return {
       identifier: this.identifier,
       url,
+      cacheKey: this.sourceTrack.uuid,
       title: this.title,
       artist: this.artist,
       albumTitle: this.albumTitle,

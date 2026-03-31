@@ -807,7 +807,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         GaplessPlaybackSource(
             id: streamable.identifier,
             url: streamable.url,
-            cacheKey: streamable.identifier,
+            cacheKey: streamable.cacheKey,
             headers: [:],
             expectedContentLength: nil
         )

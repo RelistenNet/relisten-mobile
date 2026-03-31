@@ -112,7 +112,8 @@ public final class GaplessMP3Player: @unchecked Sendable {
         let playbackQueue = DispatchQueue(label: "GaplessMP3Player.playback", qos: .userInitiated)
         let resolvedCacheDirectory = cacheDirectory
             ?? FileManager.default.temporaryDirectory.appendingPathComponent("GaplessMP3PlayerCache", isDirectory: true)
-        SourceCacheStore(cacheDirectory: resolvedCacheDirectory, fileManager: .default).scavengeTempFiles()
+        let cacheStore = SourceCacheStore(cacheDirectory: resolvedCacheDirectory, fileManager: .default)
+        cacheStore.wipeCacheDirectory()
         self.playbackPolicy = playbackPolicy
         self.coordinator = GaplessPlaybackCoordinator(
             sourceManager: MP3SourceManager(

@@ -297,16 +297,26 @@ final class GaplessMP3PlayerTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: downloadPaths.tempFileURL.path))
     }
 
-    func testPlayerInitScavengesStaleTempFilesFromCacheDirectory() async {
+    func testPlayerInitWipesPreviousSessionCacheDirectory() async {
         let cacheDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("GaplessMP3PlayerScavenge-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("GaplessMP3PlayerCacheWipe-\(UUID().uuidString)", isDirectory: true)
+        let indexDirectory = cacheDirectory.appendingPathComponent("index", isDirectory: true)
         let tempDirectory = cacheDirectory.appendingPathComponent("temp", isDirectory: true)
+        try? FileManager.default.createDirectory(at: indexDirectory, withIntermediateDirectories: true)
         try? FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        let cachedFile = cacheDirectory.appendingPathComponent("stable.mp3")
+        let cachedIndex = indexDirectory.appendingPathComponent("stable.json")
         let staleTempFile = tempDirectory.appendingPathComponent("stale.download")
+        FileManager.default.createFile(atPath: cachedFile.path, contents: Data("cached".utf8))
+        FileManager.default.createFile(atPath: cachedIndex.path, contents: Data("index".utf8))
         FileManager.default.createFile(atPath: staleTempFile.path, contents: Data("stale".utf8))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: cachedFile.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: cachedIndex.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: staleTempFile.path))
 
         let player = GaplessMP3Player(cacheDirectory: cacheDirectory)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: cachedFile.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: cachedIndex.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: staleTempFile.path))
 
         await player.teardown()

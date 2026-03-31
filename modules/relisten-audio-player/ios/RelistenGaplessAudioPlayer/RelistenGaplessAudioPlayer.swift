@@ -13,6 +13,7 @@ import MediaPlayer
 public struct RelistenGaplessStreamable {
     let url: URL
     let identifier: String
+    let cacheKey: String
     let title: String
     let artist: String
     let albumTitle: String
