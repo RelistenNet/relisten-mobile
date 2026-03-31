@@ -781,13 +781,13 @@ Rollout rules:
 - Overall status: In progress
 - Active milestone: Milestone 4
 - Last updated: 2026-03-30
-- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-03-30 after the native backend snapshot/session fixes landed with the committed flag still `false`
+- Last verified native build: `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` last succeeded earlier on 2026-03-30 before this blocker-fix slice; this turn's reruns did not produce a new successful verification result
 - Native build command:
   `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build`
-- Current blocker: None
+- Current blocker: the canonical native build command is still blocked in this session after the blocker-fix patch landed; one rerun exited `65` because Xcode's `build.db` was locked by overlapping `xcodebuild` attempts, and the cleanup rerun exited `137` before any compile diagnostics were emitted, so this turn does not have a fresh successful native build result for the updated backend
 - Next recommended action:
-  continue Milestone 4 by flipping `PlaybackBackendSelection.USE_NATIVE_GAPLESS_MP3_BACKEND = true` locally, exercising the native backend command matrix in-app, and closing any remaining flag-true play/setNext/pause/resume/seek/stop/next gaps while the committed default stays on BASS
-- Milestone checkbox changes: none; Milestone 4 remains the active unfinished milestone after the first backend adapter slice, stale-finish supersession fix, immediate cached snapshot updates, and shared command-center wiring landed
+  rerun `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` from a clean single-build environment until it completes, then resume Milestone 4 flag-true command-matrix validation if the simulator build succeeds
+- Milestone checkbox changes: none; Milestone 4 remains the active unfinished milestone after the native backend teardown deadlock fix, shared session-observer ownership, and additional async supersession guards landed, but the updated slice still needs a fresh canonical simulator build
 
 Milestone status:
 
@@ -866,3 +866,4 @@ Primary execution goal:
 - 2026-03-30: Shaped the copied engine API with explicit stop/phase/source/download status hooks, added SwiftPM harness tests for prepare/stop/finish/transition behavior using trimmed real MP3 fixtures, and verified both `swift test` and the canonical iOS simulator build succeed. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Added the first `GaplessMP3PlayerBackend` slice with backend-queue command routing, cached sync snapshots, and selector wiring to the new backend type, then verified `yarn pods` and the canonical iOS simulator build still succeed with the committed flag left `false`. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Tightened the first native backend slice by invalidating stale finished-status completions, making pause/resume/seek/playbackProgress honor the cached backend snapshot immediately, routing native command-center setup through `AudioSessionController`, and re-verifying the canonical iOS simulator build with the committed flag still `false`. (019d4087-5419-77f2-b446-ce61e5cab2a9)
+- 2026-03-30: Hardened the native backend teardown and recovery path by removing backendQueue-to-main-thread blocking in `AudioSessionController`, adding explicit interruption/media-services observer ownership, and gating async play/reset work behind generation checks; `swift test` passed in the harness, but the canonical simulator build reruns were blocked by Xcode `build.db` lock / exit `137` before a new success result was obtained. (019d4087-5419-77f2-b446-ce61e5cab2a9)

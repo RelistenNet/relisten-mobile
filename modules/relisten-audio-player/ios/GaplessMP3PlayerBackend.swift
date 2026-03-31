@@ -69,9 +69,11 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
     private let backendQueue = DispatchQueue(label: "net.relisten.ios.native-backend-queue", qos: .userInteractive)
     private let delegateQueue = DispatchQueue(label: "net.relisten.ios.native-backend-delegate-queue", qos: .userInteractive)
     private let snapshotStore = BackendLockedValue(Snapshot())
+    private let teardownRequested = BackendLockedValue(false)
     private let player: GaplessMP3Player
     private let audioSessionController = AudioSessionController()
     private let playbackPresentationController = PlaybackPresentationController()
+    private var wasPlayingWhenInterrupted = false
 
     init(player: GaplessMP3Player = GaplessMP3Player()) {
         self.player = player
@@ -179,39 +181,65 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
     }
 
     func teardown() {
-        let teardownGroup = DispatchGroup()
-        teardownGroup.enter()
+        let didStartTeardown = teardownRequested.withValue { teardownRequested -> Bool in
+            if teardownRequested {
+                return false
+            }
+            teardownRequested = true
+            return true
+        }
+        guard didStartTeardown else { return }
 
         backendQueue.async {
             self.stopOnQueue(emitTrackChanged: false)
-            Task { [weak self] in
-                guard let self else {
-                    teardownGroup.leave()
-                    return
-                }
-                await self.player.stop()
-                self.audioSessionController.teardown()
-                self.playbackPresentationController.teardown()
-                teardownGroup.leave()
-            }
+            self.audioSessionController.teardown()
+            self.playbackPresentationController.teardown()
         }
-
-        teardownGroup.wait()
     }
 
     private func prepareAudioSessionOnQueue() {
+        guard !teardownRequested.get() else { return }
         let shouldActivate = !AVAudioSession.sharedInstance().secondaryAudioShouldBeSilencedHint
 
         do {
             try audioSessionController.configurePlaybackSession(shouldActivate: shouldActivate)
+            guard !teardownRequested.get() else { return }
             audioSessionController.configureRemoteCommands(
-                onPlay: handleResumeRemoteCommand,
-                onPause: handlePauseRemoteCommand,
-                onTogglePlayPause: handleTogglePlayPauseRemoteCommand,
-                onSeek: handleSeekRemoteCommand,
-                onNextTrack: handleNextTrackRemoteCommand,
-                onPreviousTrack: handlePreviousTrackRemoteCommand
+                onPlay: self.handleResumeRemoteCommand,
+                onPause: self.handlePauseRemoteCommand,
+                onTogglePlayPause: self.handleTogglePlayPauseRemoteCommand,
+                onSeek: self.handleSeekRemoteCommand,
+                onNextTrack: self.handleNextTrackRemoteCommand,
+                onPreviousTrack: self.handlePreviousTrackRemoteCommand
             )
+            audioSessionController.configureSessionObservers(
+                onOldDeviceUnavailable: { [weak self] in
+                    self?.backendQueue.async {
+                        self?.handleOldDeviceUnavailableOnQueue()
+                    }
+                },
+                onInterruptionBegan: { [weak self] in
+                    self?.backendQueue.async {
+                        self?.handleInterruptionBeganOnQueue()
+                    }
+                },
+                onInterruptionEndedShouldResume: { [weak self] in
+                    self?.backendQueue.async {
+                        self?.handleInterruptionEndedShouldResumeOnQueue()
+                    }
+                },
+                onMediaServicesReset: { [weak self] in
+                    self?.backendQueue.async {
+                        self?.handleMediaServicesResetOnQueue()
+                    }
+                },
+                onMediaServicesLost: { [weak self] in
+                    self?.backendQueue.async {
+                        self?.handleMediaServicesResetOnQueue()
+                    }
+                }
+            )
+            guard !teardownRequested.get() else { return }
             audioSessionController.beginReceivingRemoteControlEvents()
             delegateQueue.async {
                 self.delegate?.audioSessionWasSetup()
@@ -262,23 +290,27 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         Task { [weak self] in
             guard let self else { return }
             do {
+                await self.player.stop()
+                guard self.shouldContinueAsyncWork(for: generation) else { return }
                 try await self.player.prepare(current: currentSource, next: nextSource)
+                guard self.shouldContinueAsyncWork(for: generation) else { return }
                 if let seekTime, seekTime > 0 {
                     try await self.player.seek(to: seekTime)
+                    guard self.shouldContinueAsyncWork(for: generation) else { return }
                 }
 
-                guard self.snapshotStore.get().generation == generation else { return }
+                guard self.shouldContinueAsyncWork(for: generation) else { return }
                 _ = self.player.play()
                 let status = await self.player.status()
                 self.backendQueue.async {
-                    guard self.snapshotStore.get().generation == generation else { return }
+                    guard self.shouldContinueAsyncWork(for: generation) else { return }
                     self.snapshotStore.withValue { $0.isPreparingCurrentTrack = false }
                     self.applyStatus(status)
                     self.applyLatestDesiredNextIfNeededOnQueue(for: generation)
                 }
             } catch {
                 self.backendQueue.async {
-                    guard self.snapshotStore.get().generation == generation else { return }
+                    guard self.shouldContinueAsyncWork(for: generation) else { return }
                     self.snapshotStore.withValue {
                         $0.isPreparingCurrentTrack = false
                         $0.currentState = .Stopped
@@ -400,6 +432,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
     }
 
     private func seekToTimeOnQueue(_ timeMs: Int64) {
+        guard snapshotStore.get().currentStreamable != nil else { return }
         seekOnQueue(to: max(Double(timeMs) / 1000, 0))
     }
 
@@ -477,6 +510,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
     }
 
     private func handleRuntimeEvent(_ event: GaplessRuntimeEvent) {
+        guard !teardownRequested.get() else { return }
         switch event {
         case .playbackFailed(let description):
             if let currentStreamable = snapshotStore.get().currentStreamable {
@@ -503,7 +537,9 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
                 self.delegate?.trackChanged(previousStreamable: previousStreamable, currentStreamable: currentStreamable)
             }
             refreshStatusOnQueue(for: snapshot.generation)
-        case .playbackFinished:
+        case .playbackFinished(let last):
+            let snapshot = snapshotStore.get()
+            guard snapshot.currentStreamable?.identifier == last?.id else { return }
             let previousStreamable = snapshotStore.get().currentStreamable
             let previousState = snapshotStore.withValue { snapshot -> PlaybackState in
                 let previousState = snapshot.currentState
@@ -530,6 +566,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
     }
 
     private func handleHTTPLogEvent(_ event: GaplessHTTPLogEvent) {
+        guard !teardownRequested.get() else { return }
         guard event.sourceID == snapshotStore.get().currentStreamable?.identifier else { return }
         backendQueue.async {
             let previous = self.snapshotStore.get()
@@ -730,6 +767,91 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         return .Unknown
     }
 
+    private func handleOldDeviceUnavailableOnQueue() {
+        let state = snapshotStore.get().currentState
+        guard state == .Playing || state == .Stalled else { return }
+        pauseOnQueue()
+    }
+
+    private func handleInterruptionBeganOnQueue() {
+        let state = snapshotStore.get().currentState
+        wasPlayingWhenInterrupted = state == .Playing || state == .Stalled
+        pauseOnQueue()
+    }
+
+    private func handleInterruptionEndedShouldResumeOnQueue() {
+        guard wasPlayingWhenInterrupted else { return }
+        wasPlayingWhenInterrupted = false
+        resumeOnQueue()
+    }
+
+    private func handleMediaServicesResetOnQueue() {
+        let snapshot = snapshotStore.get()
+        guard !teardownRequested.get() else { return }
+        guard let currentStreamable = snapshot.currentStreamable else { return }
+
+        let nextStreamable = snapshot.desiredNextStreamable ?? snapshot.nextStreamable
+        let shouldResume = snapshot.currentState == .Playing || snapshot.currentState == .Stalled
+        let resumeTime = snapshot.elapsed ?? 0
+        let previousState = snapshot.currentState
+        let generation = snapshotStore.withValue { snapshot in
+            snapshot.generation += 1
+            snapshot.currentState = .Stalled
+            snapshot.nextStreamable = nextStreamable
+            snapshot.desiredNextStreamable = nextStreamable
+            snapshot.activeTrackDownloadedBytes = nil
+            snapshot.activeTrackTotalBytes = nil
+            snapshot.isPreparingCurrentTrack = true
+            return snapshot.generation
+        }
+        playbackPresentationController.setPlaybackState(.Stalled)
+        emitStateIfNeeded(previous: previousState, current: .Stalled)
+
+        Task { [weak self] in
+            guard let self else { return }
+
+            do {
+                guard self.shouldContinueAsyncWork(for: generation) else { return }
+                try self.audioSessionController.configurePlaybackSession(shouldActivate: true)
+                guard self.shouldContinueAsyncWork(for: generation) else { return }
+                try await self.player.stop()
+                guard self.shouldContinueAsyncWork(for: generation) else { return }
+                try await self.player.prepare(
+                    current: self.makePlaybackSource(from: currentStreamable),
+                    next: nextStreamable.map(self.makePlaybackSource(from:))
+                )
+                guard self.shouldContinueAsyncWork(for: generation) else { return }
+                if resumeTime > 0 {
+                    try await self.player.seek(to: resumeTime)
+                    guard self.shouldContinueAsyncWork(for: generation) else { return }
+                }
+                if shouldResume {
+                    guard self.shouldContinueAsyncWork(for: generation) else { return }
+                    _ = self.player.play()
+                }
+
+                let status = await self.player.status()
+                self.backendQueue.async {
+                    guard self.shouldContinueAsyncWork(for: generation) else { return }
+                    self.snapshotStore.withValue { $0.isPreparingCurrentTrack = false }
+                    self.applyStatus(status)
+                    self.applyLatestDesiredNextIfNeededOnQueue(for: generation)
+                }
+            } catch {
+                self.backendQueue.async {
+                    guard self.shouldContinueAsyncWork(for: generation) else { return }
+                    self.snapshotStore.withValue {
+                        $0.isPreparingCurrentTrack = false
+                        $0.currentState = .Stopped
+                    }
+                    self.playbackPresentationController.setPlaybackState(.Stopped)
+                    self.emitStateIfNeeded(previous: .Stalled, current: .Stopped)
+                    self.emitError(error, for: currentStreamable)
+                }
+            }
+        }
+    }
+
     private func numericCode(for error: PlaybackStreamError) -> Int {
         switch error {
         case .Init: return 0
@@ -746,5 +868,9 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         case .No3D: return 11
         case .Unknown: return 12
         }
+    }
+
+    private func shouldContinueAsyncWork(for generation: UInt64) -> Bool {
+        !teardownRequested.get() && snapshotStore.get().generation == generation
     }
 }

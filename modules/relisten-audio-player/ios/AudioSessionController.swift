@@ -10,6 +10,10 @@ final class AudioSessionController {
     private var changePlaybackPositionCommandTarget: Any?
     private var nextTrackCommandTarget: Any?
     private var previousTrackCommandTarget: Any?
+    private var routeChangeObserver: NSObjectProtocol?
+    private var interruptionObserver: NSObjectProtocol?
+    private var mediaServicesResetObserver: NSObjectProtocol?
+    private var mediaServicesLostObserver: NSObjectProtocol?
 
     func configurePlaybackSession(shouldActivate: Bool) throws {
         let session = AVAudioSession.sharedInstance()
@@ -70,6 +74,75 @@ final class AudioSessionController {
         }
     }
 
+    func configureSessionObservers(
+        onOldDeviceUnavailable: @escaping @Sendable () -> Void,
+        onInterruptionBegan: @escaping @Sendable () -> Void,
+        onInterruptionEndedShouldResume: @escaping @Sendable () -> Void,
+        onMediaServicesReset: @escaping @Sendable () -> Void,
+        onMediaServicesLost: @escaping @Sendable () -> Void
+    ) {
+        clearSessionObservers()
+
+        let center = NotificationCenter.default
+        let session = AVAudioSession.sharedInstance()
+
+        routeChangeObserver = center.addObserver(
+            forName: AVAudioSession.routeChangeNotification,
+            object: session,
+            queue: nil
+        ) { notification in
+            guard let userInfo = notification.userInfo,
+                  let reasonValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
+                  let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue),
+                  reason == .oldDeviceUnavailable else {
+                return
+            }
+
+            onOldDeviceUnavailable()
+        }
+
+        interruptionObserver = center.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: session,
+            queue: nil
+        ) { notification in
+            guard let userInfo = notification.userInfo,
+                  let interruptionValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  let interruptionType = AVAudioSession.InterruptionType(rawValue: interruptionValue) else {
+                return
+            }
+
+            switch interruptionType {
+            case .began:
+                onInterruptionBegan()
+            case .ended:
+                let interruptionOptionValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+                let options = AVAudioSession.InterruptionOptions(rawValue: interruptionOptionValue)
+                if options.contains(.shouldResume) {
+                    onInterruptionEndedShouldResume()
+                }
+            @unknown default:
+                break
+            }
+        }
+
+        mediaServicesResetObserver = center.addObserver(
+            forName: AVAudioSession.mediaServicesWereResetNotification,
+            object: session,
+            queue: nil
+        ) { _ in
+            onMediaServicesReset()
+        }
+
+        mediaServicesLostObserver = center.addObserver(
+            forName: AVAudioSession.mediaServicesWereLostNotification,
+            object: session,
+            queue: nil
+        ) { _ in
+            onMediaServicesLost()
+        }
+    }
+
     func clearRemoteCommands() {
         runOnMainThread {
             self.commandCenter.playCommand.isEnabled = false
@@ -116,6 +189,27 @@ final class AudioSessionController {
         }
     }
 
+    func clearSessionObservers() {
+        let center = NotificationCenter.default
+
+        if let routeChangeObserver {
+            center.removeObserver(routeChangeObserver)
+            self.routeChangeObserver = nil
+        }
+        if let interruptionObserver {
+            center.removeObserver(interruptionObserver)
+            self.interruptionObserver = nil
+        }
+        if let mediaServicesResetObserver {
+            center.removeObserver(mediaServicesResetObserver)
+            self.mediaServicesResetObserver = nil
+        }
+        if let mediaServicesLostObserver {
+            center.removeObserver(mediaServicesLostObserver)
+            self.mediaServicesLostObserver = nil
+        }
+    }
+
     func beginReceivingRemoteControlEvents() {
         runOnMainThread {
             UIApplication.shared.beginReceivingRemoteControlEvents()
@@ -129,6 +223,7 @@ final class AudioSessionController {
     }
 
     func teardown() {
+        clearSessionObservers()
         clearRemoteCommands()
         endReceivingRemoteControlEvents()
     }
