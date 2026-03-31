@@ -279,7 +279,7 @@ Files to modify: `relisten/player/relisten_player_queue.tsx`, `modules/relisten-
 Update this section as tasks complete. Change `[ ]` to `[x]` and add the commit hash.
 
 ### Phase 1: Command supersession
-- [ ] Task 1: desiredTransport field + F1 fix — commit: _pending_
+- [x] Task 1: desiredTransport field + F1 fix — commit: `586cb90`
 - [ ] Task 2: Engine sessionID for stale event filtering (F4) — commit: _pending_
 - [ ] Task 3: Seek sequence + setNext gate (F5, F10) — commit: _pending_
 
