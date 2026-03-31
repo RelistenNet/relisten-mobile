@@ -781,13 +781,13 @@ Rollout rules:
 - Overall status: In progress
 - Active milestone: Milestone 5
 - Last updated: 2026-03-30
-- Last verified native build: `swift test` succeeded on 2026-03-30 in `modules/relisten-audio-player/tools/GaplessMP3PlayerHarness` after adding local-file seek coverage for `0%`, `50%`, and `99%` without resuming paused playback, and `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` also succeeded on the current selector-`false` tree
+- Last verified native build: `swift test` succeeded on 2026-03-30 in `modules/relisten-audio-player/tools/GaplessMP3PlayerHarness` after adding deterministic HTTP seek coverage for both in-prefix progressive reads and far-range-read fallback plus the existing local-file seek coverage, and `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` also succeeded on the current tree
 - Native build command:
   `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build`
 - Current blocker: none for the current Milestone 5 slice; selector-`true` command-center initiated skip coverage is still simulator-blocked for later Milestone 6 transport validation
 - Next recommended action:
-  keep Milestone 5 active and use the selector-`true` HTTP path to validate seek-before-buffered and far-range-read behavior; if those checks stay clean, mark Milestone 5 complete and move to Milestone 6 rollout validation
-- Milestone checkbox changes: none; Milestone 5 remains active after adding harness coverage for local-file seeks at `0%`, `50%`, and `99%` without resuming paused playback
+  keep Milestone 5 active and validate the remaining backend/module seek parity slice for same-track `play(startingAtMs)` so the selector-`true` path proves seek-not-reprepare behavior before moving to Milestone 6 rollout validation
+- Milestone checkbox changes: none; Milestone 5 remains active after adding deterministic harness coverage for HTTP seeks that stay inside the buffered prefix and HTTP seeks that fall back to a far range read
 
 Milestone status:
 
@@ -882,3 +882,4 @@ Primary execution goal:
 - 2026-03-30: Verified selector-`true` streamed-cache completion in a fresh simulator container, confirming `onTrackStreamingCacheComplete` and a newly created `downloadDestination` file before restoring the committed selector default to `false` and rerunning the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Replayed an already cached selector-`true` 311 track from the source screen, confirmed the local-file path by immediate full duration plus saturated cache scrubber with no new cache-completion event or offline-file creation, marked Milestone 4 complete, then restored the committed selector default to `false` and reran the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Added harness coverage for local-file seeks at `0%`, `50%`, and `99%` without resuming paused playback, then reran the canonical iOS simulator build on the current selector-`false` tree. (019d4087-5419-77f2-b446-ce61e5cab2a9)
+- 2026-03-30: Added deterministic harness coverage for HTTP seeks that stay inside the buffered prefix and HTTP seeks that fall back to a far range read, then reran the canonical iOS simulator build on the current tree. (019d4087-5419-77f2-b446-ce61e5cab2a9)

@@ -186,6 +186,62 @@ final class GaplessMP3PlayerTests: XCTestCase {
         XCTAssertEqual(nearEndStatus.currentSourceDownload?.resolvedFileURL, current.url)
     }
 
+    func testHTTPReadSessionUsesProgressiveBytesWhenSeekStaysInsideBufferedPrefix() async throws {
+        let data = try httpFixtureData(named: "gd77-s2t07-first-5s.mp3")
+        let loader = StubHTTPDataLoader(data: data, initialProgressiveChunkSize: 4096)
+        let sourceManager = makeHTTPSourceManager(loader: loader)
+        let source = httpFixtureSource(id: "current", path: "gd77-s2t07-first-5s.mp3", byteCount: data.count)
+
+        try await sourceManager.preload(source)
+        try await waitForDownloadedBytes(sourceManager: sourceManager, source: source, minimum: 4096)
+
+        let readSession = try await sourceManager.makeReadSession(
+            for: source,
+            startingOffset: 1024,
+            contentLength: Int64(data.count),
+            allowsParallelRangeRequests: true
+        )
+        let availability = try await readSession.read(maxLength: 512)
+
+        guard case .available(let chunk) = availability else {
+            return XCTFail("Expected progressive data for in-prefix seek")
+        }
+
+        XCTAssertEqual(chunk, data.subdata(in: 1024..<1536))
+        let rangeHeaders = loader.recordedRangeHeaders()
+        XCTAssertTrue(rangeHeaders.isEmpty)
+
+        loader.finishProgressiveDownload()
+    }
+
+    func testHTTPReadSessionUsesRangeRequestWhenSeekJumpsBeyondBufferedPrefix() async throws {
+        let data = try httpFixtureData(named: "gd77-s2t07-first-5s.mp3")
+        let loader = StubHTTPDataLoader(data: data, initialProgressiveChunkSize: 2048)
+        let sourceManager = makeHTTPSourceManager(loader: loader)
+        let source = httpFixtureSource(id: "current", path: "gd77-s2t07-first-5s.mp3", byteCount: data.count)
+
+        try await sourceManager.preload(source)
+        try await waitForDownloadedBytes(sourceManager: sourceManager, source: source, minimum: 2048)
+
+        let readSession = try await sourceManager.makeReadSession(
+            for: source,
+            startingOffset: 4096,
+            contentLength: Int64(data.count),
+            allowsParallelRangeRequests: true
+        )
+        let availability = try await readSession.read(maxLength: 512)
+
+        guard case .available(let chunk) = availability else {
+            return XCTFail("Expected ranged data for far seek")
+        }
+
+        XCTAssertEqual(chunk, data.subdata(in: 4096..<4608))
+        let rangeHeaders = loader.recordedRangeHeaders()
+        XCTAssertEqual(rangeHeaders, ["bytes=4096-4607"])
+
+        loader.finishProgressiveDownload()
+    }
+
     private func makePlayer(outputGraph: TestOutputGraph) -> GaplessMP3Player {
         let cacheDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("GaplessMP3PlayerTests-\(UUID().uuidString)", isDirectory: true)
@@ -206,6 +262,43 @@ final class GaplessMP3PlayerTests: XCTestCase {
             cacheKey: fixtureName,
             expectedContentLength: fileSize(at: url)
         )
+    }
+
+    private func makeHTTPSourceManager(loader: some HTTPDataLoading) -> MP3SourceManager {
+        let cacheDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GaplessMP3PlayerHTTPTests-\(UUID().uuidString)", isDirectory: true)
+        return MP3SourceManager(cacheDirectory: cacheDirectory, loader: loader)
+    }
+
+    private func httpFixtureSource(id: String, path: String, byteCount: Int) -> GaplessPlaybackSource {
+        GaplessPlaybackSource(
+            id: id,
+            url: URL(string: "https://example.test/\(path)")!,
+            cacheKey: path,
+            expectedContentLength: Int64(byteCount)
+        )
+    }
+
+    private func httpFixtureData(named fixtureName: String) throws -> Data {
+        let url = Bundle.module.bundleURL
+            .appendingPathComponent("Fixtures")
+            .appendingPathComponent(fixtureName)
+        return try Data(contentsOf: url)
+    }
+
+    private func waitForDownloadedBytes(
+        sourceManager: MP3SourceManager,
+        source: GaplessPlaybackSource,
+        minimum: Int64
+    ) async throws {
+        for _ in 0..<100 {
+            if let status = await sourceManager.downloadStatus(for: source),
+               status.downloadedBytes >= minimum {
+                return
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTFail("Timed out waiting for \(minimum) downloaded bytes")
     }
 
     private func fileSize(at url: URL) -> Int64? {
@@ -255,6 +348,109 @@ final class GaplessMP3PlayerTests: XCTestCase {
             encoderPaddingFrames: 0
         )
     }
+}
+
+private final class StubHTTPDataLoader: HTTPDataLoading, @unchecked Sendable {
+    private let data: Data
+    private let initialProgressiveChunkSize: Int
+    private let stateQueue = DispatchQueue(label: "StubHTTPDataLoader.state")
+    private var progressiveContinuation: AsyncThrowingStream<HTTPDownloadEvent, Error>.Continuation?
+    private var progressiveDidFinish = false
+    private var rangeHeaders: [String] = []
+
+    init(data: Data, initialProgressiveChunkSize: Int) {
+        self.data = data
+        self.initialProgressiveChunkSize = min(max(initialProgressiveChunkSize, 0), data.count)
+    }
+
+    func progressiveDownload(
+        for request: URLRequest,
+        retryPolicy _: GaplessHTTPRetryPolicy,
+        eventHandler _: (@Sendable (HTTPTransportLogEvent) -> Void)?
+    ) -> AsyncThrowingStream<HTTPDownloadEvent, Error> {
+        AsyncThrowingStream { continuation in
+            let response = self.makeResponse(for: request, range: nil, contentLength: Int64(self.data.count))
+            let initialChunk = self.data.prefix(self.initialProgressiveChunkSize)
+            self.stateQueue.sync {
+                self.progressiveContinuation = continuation
+            }
+            continuation.yield(.response(response, restartFromZero: false))
+            if !initialChunk.isEmpty {
+                continuation.yield(.bytes(Data(initialChunk)))
+            }
+        }
+    }
+
+    func rangeRequest(
+        for request: URLRequest,
+        retryPolicy _: GaplessHTTPRetryPolicy,
+        eventHandler _: (@Sendable (HTTPTransportLogEvent) -> Void)?
+    ) async throws -> RangeReadResult {
+        let header = request.value(forHTTPHeaderField: "Range") ?? ""
+        stateQueue.sync {
+            rangeHeaders.append(header)
+        }
+        let (start, end) = try parseRangeHeader(header, totalBytes: data.count)
+        return RangeReadResult(
+            data: data.subdata(in: start..<(end + 1)),
+            fingerprint: CacheFingerprint(contentLength: Int64(data.count))
+        )
+    }
+
+    func finishProgressiveDownload() {
+        let continuation: AsyncThrowingStream<HTTPDownloadEvent, Error>.Continuation? = stateQueue.sync {
+            guard !progressiveDidFinish else {
+                return nil
+            }
+            progressiveDidFinish = true
+            return progressiveContinuation
+        }
+        guard let continuation else {
+            return
+        }
+        if initialProgressiveChunkSize < data.count {
+            continuation.yield(.bytes(Data(data.dropFirst(initialProgressiveChunkSize))))
+        }
+        continuation.yield(.completed)
+        continuation.finish()
+    }
+
+    func recordedRangeHeaders() -> [String] {
+        stateQueue.sync { rangeHeaders }
+    }
+
+    private func makeResponse(for request: URLRequest, range: ClosedRange<Int>?, contentLength: Int64) -> HTTPURLResponse {
+        var headers = ["Content-Type": "audio/mpeg", "Content-Length": "\(contentLength)"]
+        let statusCode: Int
+        if let range {
+            headers["Content-Range"] = "bytes \(range.lowerBound)-\(range.upperBound)/\(data.count)"
+            statusCode = 206
+        } else {
+            statusCode = 200
+        }
+        return HTTPURLResponse(url: request.url!, statusCode: statusCode, httpVersion: "HTTP/1.1", headerFields: headers)!
+    }
+
+    private func parseRangeHeader(_ header: String, totalBytes: Int) throws -> (Int, Int) {
+        guard header.hasPrefix("bytes=") else {
+            throw TestFailure.invalidRangeHeader(header)
+        }
+        let rawRange = header.dropFirst("bytes=".count)
+        let parts = rawRange.split(separator: "-", omittingEmptySubsequences: false)
+        guard parts.count == 2,
+              let start = Int(parts[0]),
+              let end = Int(parts[1]),
+              start >= 0,
+              end >= start,
+              end < totalBytes else {
+            throw TestFailure.invalidRangeHeader(header)
+        }
+        return (start, end)
+    }
+}
+
+private enum TestFailure: Error {
+    case invalidRangeHeader(String)
 }
 
 private final class TestOutputGraph: PCMOutputControlling, @unchecked Sendable {
