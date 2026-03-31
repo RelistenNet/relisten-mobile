@@ -24,6 +24,12 @@ private final class BackendLockedValue<Value>: @unchecked Sendable {
 }
 
 final class GaplessMP3PlayerBackend: PlaybackBackend {
+    private enum DesiredTransport {
+        case playing
+        case paused
+        case stopped
+    }
+
     private struct PendingStartTimeAfterPrepare {
         let generation: UInt64
         let milliseconds: Int64
@@ -41,6 +47,9 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         var desiredNextStreamable: RelistenGaplessStreamable?
         var pendingStartTimeAfterPrepare: PendingStartTimeAfterPrepare?
         var generation: UInt64 = 0
+        var seekSequence: UInt64 = 0
+        var desiredTransport: DesiredTransport = .stopped
+        var currentSessionID: String?
         var isPreparingCurrentTrack = false
         var progressPollingGeneration: UInt64?
     }
@@ -310,6 +319,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             var supersessionState = PlaySupersessionState(activeGeneration: snapshot.generation)
             let generation = supersessionState.beginPlayRequest()
             snapshot.generation = generation
+            snapshot.desiredTransport = .playing
             snapshot.currentStreamable = streamable
             snapshot.nextStreamable = nil
             snapshot.desiredNextStreamable = nil
@@ -345,10 +355,12 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
                 }
 
                 guard self.shouldContinueAsyncWork(for: generation) else { return }
-                _ = self.player.play()
-                self.backendQueue.async {
-                    guard self.shouldContinueAsyncWork(for: generation) else { return }
-                    self.startProgressPollingIfNeededOnQueue(for: generation)
+                if self.snapshotStore.get().desiredTransport == .playing {
+                    _ = self.player.play()
+                    self.backendQueue.async {
+                        guard self.shouldContinueAsyncWork(for: generation) else { return }
+                        self.startProgressPollingIfNeededOnQueue(for: generation)
+                    }
                 }
                 let status = await self.player.status()
                 self.backendQueue.async {
@@ -434,6 +446,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
     }
 
     private func resumeOnQueue() {
+        snapshotStore.withValue { $0.desiredTransport = .playing }
         ResumeCommandState(
             isStopped: snapshotStore.get().currentState == .Stopped
         ).perform(
@@ -451,6 +464,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
     private func pauseOnQueue() {
         player.pause()
         updateSnapshotOnQueue {
+            $0.desiredTransport = .paused
             guard $0.currentState != .Stopped else { return }
             $0.currentState = .Paused
             $0.progressPollingGeneration = nil
@@ -465,6 +479,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
             if shouldInvalidateGeneration {
                 snapshot.generation += 1
             }
+            snapshot.desiredTransport = .stopped
             snapshot.currentStreamable = nil
             snapshot.nextStreamable = nil
             snapshot.desiredNextStreamable = nil
@@ -1138,7 +1153,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
                     try await self.player.seek(to: seekTime)
                     guard self.shouldContinueAsyncWork(for: generation) else { return }
                 }
-                if shouldResume {
+                if shouldResume && self.snapshotStore.get().desiredTransport == .playing {
                     guard self.shouldContinueAsyncWork(for: generation) else { return }
                     _ = self.player.play()
                 }

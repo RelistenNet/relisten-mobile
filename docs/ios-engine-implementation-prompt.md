@@ -39,7 +39,7 @@ The implementation tracker in `docs/ios-engine-implementation-prompt.md` is the 
 8. **Comments must be useful.** Add brief, high-signal comments only for non-obvious invariants, ownership rules, session/generation behavior, or cleanup logic. Do not add tutorial comments or comments that just restate code.
 9. **Tests must be high signal.** Add or update tests when the behavior can be meaningfully verified. Prefer targeted tests that lock the bug or invariant being fixed. Do not add shallow tests that only mirror implementation shape. If a meaningful automated test is not practical, say why and provide exact manual verification instead.
 10. **Review your own work before declaring done.** Do a fresh pass focused on correctness, regressions, lifecycle/resource cleanup, race conditions, unnecessary complexity, comment quality, and test quality.
-11. **Build verification.** After making changes, run: `cd modules/relisten-audio-player && xcodebuild -scheme RelistenAudioPlayer -destination 'generic/platform=iOS Simulator' build 2>&1 | tail -20` to verify compilation. If it fails, fix the issue before proceeding.
+11. **Build verification.** After making changes, run: `cd modules/relisten-audio-player && xcodebuild -scheme RelistenAudioPlayerBackendSupport -destination 'generic/platform=iOS Simulator' build 2>&1 | tail -20` to verify the package-local support target still compiles for iOS Simulator. If it fails, fix the issue before proceeding.
 12. **Commit.** Stage only the files you changed. Write a commit message in this format:
    ```
    audio-player: {short description}

@@ -5,6 +5,7 @@ import PackageDescription
 let package = Package(
     name: "RelistenAudioPlayerBackendSupport",
     platforms: [
+        .iOS(.v18),
         .macOS(.v13),
     ],
     products: [
