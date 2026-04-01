@@ -183,12 +183,22 @@ actor MP3SourceManager {
         rangePrefetchLowWatermarkBytes: Int64 = SourceReadSizing.defaultSeekRangePrefetchLowWatermarkBytes
     ) async throws -> SourceReadSession {
         if source.url.isFileURL {
-            return try SourceReadSession.local(url: source.url, startingOffset: startingOffset)
+            return try SourceReadSession.local(
+                url: source.url,
+                startingOffset: startingOffset,
+                sourceID: source.id,
+                kind: .file
+            )
         }
 
         if cacheMode == .enabled,
            let resolved = try cacheStore.resolvedCachedSource(for: source) {
-            return try SourceReadSession.local(url: resolved.localFileURL, startingOffset: startingOffset)
+            return try SourceReadSession.local(
+                url: resolved.localFileURL,
+                startingOffset: startingOffset,
+                sourceID: source.id,
+                kind: .cached
+            )
         }
 
         let session = try await openSession(for: source, requestKind: .progressive, eventHandler: eventHandler)
@@ -198,6 +208,7 @@ actor MP3SourceManager {
             let knownContentLength = contentLength ?? source.expectedContentLength
             let manager = self
             return SourceReadSession.bridged(
+                sourceID: source.id,
                 startingOffset: startingOffset,
                 contentLength: knownContentLength,
                 requestSizeBytes: rangeRequestSizeBytes,
@@ -217,7 +228,11 @@ actor MP3SourceManager {
             )
         }
 
-        return SourceReadSession.progressive(session: session, startingOffset: startingOffset)
+        return SourceReadSession.progressive(
+            session: session,
+            startingOffset: startingOffset,
+            sourceID: source.id
+        )
     }
 
     func preload(
@@ -333,14 +348,14 @@ actor MP3SourceManager {
             runtimeEventHandler: runtimeEventHandler,
             httpLogHandler: httpLogHandler
         )
-        await session.start()
         activeDownloads[source.cacheKey] = session
+        await session.start()
         Task {
             do {
                 _ = try await session.awaitCompletion()
             } catch {}
             let terminalStatus = await session.status()
-            self.downloadFinished(cacheKey: source.cacheKey, terminalStatus: terminalStatus)
+            self.downloadFinished(cacheKey: source.cacheKey, session: session, terminalStatus: terminalStatus)
         }
         return session
     }
@@ -639,9 +654,15 @@ actor MP3SourceManager {
         httpLogHandler?(projector.httpLogEvent(source: source, requestKind: requestKind, transportEvent: transportEvent))
     }
 
-    private func downloadFinished(cacheKey: String, terminalStatus: SourceDownloadStatus) {
+    private func downloadFinished(
+        cacheKey: String,
+        session: HTTPSourceSession,
+        terminalStatus: SourceDownloadStatus
+    ) {
         guard !isShutdown else { return }
-        activeDownloads.removeValue(forKey: cacheKey)
+        if let activeSession = activeDownloads[cacheKey], activeSession === session {
+            activeDownloads.removeValue(forKey: cacheKey)
+        }
         let shouldLogPreloadCompletion = preloadRequests.remove(cacheKey) != nil
         if shouldLogPreloadCompletion,
            terminalStatus.state == .cached || terminalStatus.state == .completed {

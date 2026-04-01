@@ -1,4 +1,7 @@
 import ExpoModulesCore
+import Foundation
+
+private let moduleLifecycleLog = RelistenPlaybackLogger(layer: .backend, category: .lifecycle)
 
 // import bass
 
@@ -32,6 +35,7 @@ var DEBUG_state = ""
 
 public class RelistenAudioPlayerModule: Module {
     var player: PlaybackBackend?
+    private let moduleInstanceID = UUID().uuidString
 
     // Each module class must implement the definition function. The definition consists of components
     // that describes the module's functionality and behavior.
@@ -43,11 +47,21 @@ public class RelistenAudioPlayerModule: Module {
         Name("RelistenAudioPlayer")
 
         OnCreate {
+            moduleLifecycleLog.info(
+                "created",
+                "module instance",
+                playbackLogField("id", moduleInstanceID)
+            )
             player = makePlaybackBackend()
             player?.delegate = self
         }
         
         OnDestroy {
+            moduleLifecycleLog.info(
+                "destroyed",
+                "module instance",
+                playbackLogField("id", moduleInstanceID)
+            )
             player?.teardown()
             player = nil
         }

@@ -387,6 +387,24 @@ final class GaplessMP3PlayerTests: XCTestCase {
         XCTAssertTrue(tempFilesAfterShutdown.isEmpty)
     }
 
+    func testMP3SourceManagerDeduplicatesConcurrentPreloadOpens() async throws {
+        let data = makeHTTPTestData(byteCount: 512 * 1_024)
+        let loader = StubHTTPDataLoader(data: data, initialProgressiveChunkSize: 2_048)
+        let (sourceManager, cacheDirectory) = makeHTTPSourceManagerWithCacheDirectory(loader: loader)
+        defer { try? FileManager.default.removeItem(at: cacheDirectory) }
+
+        let source = httpFixtureSource(id: "current", path: "concurrent-open.mp3", byteCount: data.count)
+
+        async let first: Void = sourceManager.preload(source)
+        async let second: Void = sourceManager.preload(source)
+        async let third: Void = sourceManager.preload(source)
+        _ = try await (first, second, third)
+
+        XCTAssertEqual(loader.progressiveDownloadInvocationCount(), 1)
+
+        await sourceManager.shutdown()
+    }
+
     func testHTTPReadSessionUsesSingleBridgeWindowForFarSeek() async throws {
         let data = makeHTTPTestData(byteCount: 3 * 1_024 * 1_024)
         let loader = StubHTTPDataLoader(data: data, initialProgressiveChunkSize: 2_048)
@@ -1008,6 +1026,7 @@ private final class StubHTTPDataLoader: HTTPDataLoading, @unchecked Sendable {
     private var blockRangeRequests = false
     private var activeRangeRequestCount = 0
     private var progressiveCursor = 0
+    private var progressiveDownloadCallCount = 0
 
     init(
         data: Data,
@@ -1031,6 +1050,7 @@ private final class StubHTTPDataLoader: HTTPDataLoading, @unchecked Sendable {
             let response = self.makeResponse(for: request, range: nil, contentLength: Int64(self.data.count))
             let initialChunk = self.data.prefix(self.initialProgressiveChunkSize)
             self.stateQueue.sync {
+                self.progressiveDownloadCallCount += 1
                 self.progressiveContinuation = continuation
                 self.progressiveCursor = initialChunk.count
             }
@@ -1150,6 +1170,10 @@ private final class StubHTTPDataLoader: HTTPDataLoading, @unchecked Sendable {
 
     func recordedRangeHeaders() -> [String] {
         stateQueue.sync { rangeHeaders }
+    }
+
+    func progressiveDownloadInvocationCount() -> Int {
+        stateQueue.sync { progressiveDownloadCallCount }
     }
 
     func completedRangeHeaders() -> [String] {

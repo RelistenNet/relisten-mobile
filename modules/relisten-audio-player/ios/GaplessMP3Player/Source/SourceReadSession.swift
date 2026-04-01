@@ -1,5 +1,7 @@
 import Foundation
 
+private let sourceReadLifecycleLog = RelistenPlaybackLogger(layer: .source, category: .lifecycle)
+
 enum SourceReadIntent: Sendable {
     case normalStart
     case seekStart
@@ -45,6 +47,11 @@ struct SourceReadBridgeWindow: Sendable {
 /// Linear byte reader used by the decoder regardless of whether bytes come from a file,
 /// the progressive download, or an ephemeral range read.
 actor SourceReadSession {
+    enum LocalBackendKind: String {
+        case file = "local-file"
+        case cached = "cached-file"
+    }
+
     struct BridgedReadState {
         var contentLength: Int64?
         var requestSizeBytes: Int64
@@ -59,30 +66,55 @@ actor SourceReadSession {
     }
 
     enum Backend {
-        case local(FileHandle)
+        case local(FileHandle, kind: LocalBackendKind)
         case progressive(HTTPSourceSession)
         case bridged(BridgedReadState)
     }
 
     private var backend: Backend
     private var offset: Int64
+    private let sourceID: String
 
-    private init(backend: Backend, startingOffset: Int64) {
+    private init(backend: Backend, startingOffset: Int64, sourceID: String, initialBackend: String) {
         self.backend = backend
         self.offset = startingOffset
+        self.sourceID = sourceID
+        sourceReadLifecycleLog.info(
+            "selected",
+            "read backend",
+            playbackLogField("src", sourceID),
+            playbackLogField("backend", initialBackend),
+            playbackLogIntegerField("offset", startingOffset)
+        )
     }
 
-    static func local(url: URL, startingOffset: Int64) throws -> SourceReadSession {
+    static func local(
+        url: URL,
+        startingOffset: Int64,
+        sourceID: String,
+        kind: LocalBackendKind
+    ) throws -> SourceReadSession {
         let handle = try FileHandle(forReadingFrom: url)
         try handle.seek(toOffset: UInt64(startingOffset))
-        return SourceReadSession(backend: .local(handle), startingOffset: startingOffset)
+        return SourceReadSession(
+            backend: .local(handle, kind: kind),
+            startingOffset: startingOffset,
+            sourceID: sourceID,
+            initialBackend: kind.rawValue
+        )
     }
 
-    static func progressive(session: HTTPSourceSession, startingOffset: Int64) -> SourceReadSession {
-        SourceReadSession(backend: .progressive(session), startingOffset: startingOffset)
+    static func progressive(session: HTTPSourceSession, startingOffset: Int64, sourceID: String) -> SourceReadSession {
+        SourceReadSession(
+            backend: .progressive(session),
+            startingOffset: startingOffset,
+            sourceID: sourceID,
+            initialBackend: "progressive"
+        )
     }
 
     static func bridged(
+        sourceID: String,
         startingOffset: Int64,
         contentLength: Int64?,
         requestSizeBytes: Int64,
@@ -100,13 +132,15 @@ actor SourceReadSession {
                     upgradeResolver: upgradeResolver
                 )
             ),
-            startingOffset: startingOffset
+            startingOffset: startingOffset,
+            sourceID: sourceID,
+            initialBackend: "range-bridge"
         )
     }
 
     deinit {
         switch backend {
-        case .local(let handle):
+        case .local(let handle, _):
             try? handle.close()
         case .bridged(let state):
             state.activeWindowTask?.cancel()
@@ -118,7 +152,7 @@ actor SourceReadSession {
 
     func read(maxLength: Int) async throws -> SourceDataAvailability {
         switch backend {
-        case .local(let handle):
+        case .local(let handle, _):
             let data = try handle.read(upToCount: maxLength) ?? Data()
             offset += Int64(data.count)
             return data.isEmpty ? .endOfStream : .available(data)
@@ -140,7 +174,7 @@ actor SourceReadSession {
     func seek(to offset: Int64) async throws {
         self.offset = offset
         switch backend {
-        case .local(let handle):
+        case .local(let handle, _):
             try handle.seek(toOffset: UInt64(offset))
         case .bridged(var state):
             state.activeWindow = nil
@@ -241,6 +275,7 @@ actor SourceReadSession {
             try validateUpgradeFingerprint(fingerprint, state: state, backend: "progressive")
             cancelActiveWindowTask(state: &state)
             cancelPrefetchedWindowTask(state: &state)
+            logBackendSwitch(from: "range-bridge", to: "progressive", offset: requiredOffset)
             backend = .progressive(session)
             return true
         case .local(let resolvedSource):
@@ -249,7 +284,9 @@ actor SourceReadSession {
             try validateUpgradeFingerprint(resolvedSource.fingerprint, state: state, backend: "local")
             let handle = try FileHandle(forReadingFrom: resolvedSource.localFileURL)
             try handle.seek(toOffset: UInt64(requiredOffset))
-            backend = .local(handle)
+            let localBackendKind: LocalBackendKind = resolvedSource.isCached ? .cached : .file
+            logBackendSwitch(from: "range-bridge", to: localBackendKind.rawValue, offset: requiredOffset)
+            backend = .local(handle, kind: localBackendKind)
             return true
         }
     }
@@ -342,5 +379,16 @@ actor SourceReadSession {
     private func cancelPrefetchedWindowTask(state: inout BridgedReadState) {
         state.prefetchedWindowTask?.cancel()
         state.prefetchedWindowTask = nil
+    }
+
+    private func logBackendSwitch(from previous: String, to next: String, offset: Int64) {
+        sourceReadLifecycleLog.info(
+            "switched",
+            "read backend",
+            playbackLogField("src", sourceID),
+            playbackLogField("from", previous),
+            playbackLogField("to", next),
+            playbackLogIntegerField("offset", offset)
+        )
     }
 }

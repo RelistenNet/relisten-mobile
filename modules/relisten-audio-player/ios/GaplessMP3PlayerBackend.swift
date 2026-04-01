@@ -98,6 +98,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
     private let delegateQueue = DispatchQueue(label: "net.relisten.ios.native-backend-delegate-queue", qos: .userInteractive)
     private let snapshotStore = BackendLockedValue(Snapshot())
     private let teardownRequested = BackendLockedValue(false)
+    private let backendInstanceID = UUID().uuidString
     private let player: GaplessMP3Player
     private let audioSessionController = AudioSessionController()
     private let playbackPresentationController = PlaybackPresentationController()
@@ -107,6 +108,11 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
 
     init(player: GaplessMP3Player = GaplessMP3Player()) {
         self.player = player
+        backendLifecycleLog.info(
+            "created",
+            "backend instance",
+            playbackLogField("id", backendInstanceID)
+        )
 
         backendQueue.async {
             self.player.callbackQueue = self.backendQueue
@@ -118,6 +124,14 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             }
             self.player.volume = self.snapshotStore.get().volume
         }
+    }
+
+    deinit {
+        backendLifecycleLog.info(
+            "destroyed",
+            "backend instance",
+            playbackLogField("id", backendInstanceID)
+        )
     }
 
     func enqueuePrepareAudioSession() {
