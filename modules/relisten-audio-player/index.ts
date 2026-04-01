@@ -35,45 +35,38 @@ export enum RelistenPlaybackState {
   Stalled = 'Stalled',
 }
 
-export enum RelistenPlaybackError {
-  Init,
-  NotAvail,
-  NoInternet,
-  InvalidUrl,
-  SslUnsupported,
-  ServerTimeout,
-  CouldNotOpenFile,
-  FileInvalidFormat,
-  SupportedCodec,
-  UnsupportedSampleFormat,
-  InsufficientMemory,
-  No3D,
-  Unknown,
-  Timeout = 40,
+export enum RelistenPlaybackErrorKind {
+  InvalidSource = 'invalidSource',
+  NetworkUnavailable = 'networkUnavailable',
+  NetworkTimeout = 'networkTimeout',
+  SslFailure = 'sslFailure',
+  HttpStatus = 'httpStatus',
+  SourceNotFound = 'sourceNotFound',
+  InvalidMedia = 'invalidMedia',
+  InsufficientData = 'insufficientData',
+  UnsupportedFormat = 'unsupportedFormat',
+  IncompatibleTracks = 'incompatibleTracks',
+  SourceIdentityMismatch = 'sourceIdentityMismatch',
+  InvalidState = 'invalidState',
+  AudioPipeline = 'audioPipeline',
+  Unknown = 'unknown',
 }
 
-export const RelistenPlaybackErrorToName = {
-  // These are iOS specific right now
-  [RelistenPlaybackError.Init]: 'Init',
-  [RelistenPlaybackError.NotAvail]: 'NotAvail',
-  [RelistenPlaybackError.NoInternet]: 'NoInternet',
-  [RelistenPlaybackError.InvalidUrl]: 'InvalidUrl',
-  [RelistenPlaybackError.SslUnsupported]: 'SslUnsupported',
-  [RelistenPlaybackError.ServerTimeout]: 'ServerTimeout',
-  [RelistenPlaybackError.CouldNotOpenFile]: 'CouldNotOpenFile',
-  [RelistenPlaybackError.FileInvalidFormat]: 'FileInvalidFormat',
-  [RelistenPlaybackError.SupportedCodec]: 'SupportedCodec',
-  [RelistenPlaybackError.UnsupportedSampleFormat]: 'UnsupportedSampleFormat',
-  [RelistenPlaybackError.InsufficientMemory]: 'InsufficientMemory',
-  [RelistenPlaybackError.No3D]: 'No3D',
-  [RelistenPlaybackError.Unknown]: 'Unknown',
-  [RelistenPlaybackError.Timeout]: 'Server Timeout',
-};
+export type RelistenPlaybackErrorPlatform = 'ios' | 'android';
+
+export interface RelistenPlaybackError {
+  kind: RelistenPlaybackErrorKind;
+  message: string;
+  description?: string;
+  isRetryable: boolean;
+  platform: RelistenPlaybackErrorPlatform;
+  platformCode?: number;
+  platformName?: string;
+  httpStatus?: number;
+}
 
 export interface RelistenErrorEvent {
   error: RelistenPlaybackError;
-  errorMessage: string;
-  errorDescription: string;
   identifier: string | undefined;
 }
 

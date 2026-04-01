@@ -20,24 +20,8 @@ public enum PlaybackState: String, Enumerable {
     case Stalled
 }
 
-public enum PlaybackStreamError: String, Enumerable {
-    case Init
-    case NotAvail
-    case NoInternet
-    case InvalidUrl
-    case SslUnsupported
-    case ServerTimeout
-    case CouldNotOpenFile
-    case FileInvalidFormat
-    case SupportedCodec
-    case UnsupportedSampleFormat
-    case InsufficientMemory
-    case No3D
-    case Unknown
-}
-
 protocol PlaybackBackendDelegate: AnyObject {
-    func errorStartingStream(error: NSError, forStreamable: RelistenGaplessStreamable)
+    func errorStartingStream(error: PlaybackStreamError, forStreamable: RelistenGaplessStreamable)
     func playbackStateChanged(newPlaybackState: PlaybackState)
     func playbackProgressChanged(elapsed: TimeInterval?, duration: TimeInterval?)
     func downloadProgressChanged(forActiveTrack: Bool, downloadedBytes: UInt64, totalBytes: UInt64)

@@ -52,7 +52,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
         var pendingTrackTransition: PendingTrackTransition?
         var coordinatorTransitionPromotionNeeded = false
         var latestPreparationReport: GaplessPreparationReport?
-        var lastPlaybackErrorDescription: String?
+        var lastPlaybackFailure: GaplessPlaybackFailure?
         var suppressPlaybackFinishedEvent = false
         var volume: Float = 1.0
     }
@@ -69,7 +69,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
         var publicTimelineOffset: TimeInterval = 0
         var pendingTrackTransition: PendingTrackTransition?
         var requestedStartTime: TimeInterval = 0
-        var errorDescription: String?
+        var playbackFailure: GaplessPlaybackFailure?
     }
 
     private struct PresentedSnapshot {
@@ -80,7 +80,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
         var latestPreparationReport: GaplessPreparationReport?
         var currentSource: GaplessPlaybackSource?
         var nextSource: GaplessPlaybackSource?
-        var errorDescription: String?
+        var playbackFailure: GaplessPlaybackFailure?
     }
 
     private struct CallbackConfiguration {
@@ -187,7 +187,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
                 state.pendingTrackTransition = nil
                 state.coordinatorTransitionPromotionNeeded = false
                 state.latestPreparationReport = nil
-                state.lastPlaybackErrorDescription = nil
+                state.lastPlaybackFailure = nil
                 state.suppressPlaybackFinishedEvent = false
             }
             self.refreshSnapshotOnPlaybackQueue(absoluteTimelineTime: 0)
@@ -214,15 +214,18 @@ public final class GaplessMP3Player: @unchecked Sendable {
                     state.pendingTrackTransition = nil
                     state.coordinatorTransitionPromotionNeeded = false
                     state.latestPreparationReport = report
-                    state.lastPlaybackErrorDescription = nil
+                    state.lastPlaybackFailure = nil
                 }
                 self.refreshSnapshotOnPlaybackQueue(absoluteTimelineTime: 0)
             }
         } catch {
+            let failure = GaplessPlaybackFailure.make(from: error)
             await performOnPlaybackQueue {
                 self.stateStore.withValue { state in
-                    state.playbackPhase = .failed
-                    state.lastPlaybackErrorDescription = String(describing: error)
+                    if let failure {
+                        state.playbackPhase = .failed
+                        state.lastPlaybackFailure = failure
+                    }
                 }
                 self.refreshSnapshotOnPlaybackQueue(absoluteTimelineTime: 0)
             }
@@ -307,7 +310,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
                 state.currentSource = report.current.source
                 state.nextSource = report.next?.source
                 state.latestPreparationReport = report
-                state.lastPlaybackErrorDescription = nil
+                state.lastPlaybackFailure = nil
             }
             self.refreshSnapshotOnPlaybackQueue()
         }
@@ -380,7 +383,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
             nextSource: snapshot.nextSource,
             currentSourceDownload: runtimeStatus.currentSourceDownload,
             nextSourceDownload: runtimeStatus.nextSourceDownload,
-            errorDescription: runtimeStatus.errorDescription ?? snapshot.errorDescription
+            playbackFailure: runtimeStatus.playbackFailure ?? snapshot.playbackFailure
         )
     }
 
@@ -443,7 +446,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
         stateStore.withValue { state in
             state.playbackPhase = .playing
             state.publicTimelineOffset = 0
-            state.lastPlaybackErrorDescription = nil
+            state.lastPlaybackFailure = nil
             state.outputGraph?.reset(timelineOffset: startTime)
             state.outputGraph?.requestPlay()
         }
@@ -492,7 +495,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
             state.pendingTrackTransition = nil
             state.coordinatorTransitionPromotionNeeded = false
             state.latestPreparationReport = nil
-            state.lastPlaybackErrorDescription = nil
+            state.lastPlaybackFailure = nil
             state.suppressPlaybackFinishedEvent = suppressPlaybackFinishedEvent
         }
         refreshSnapshotOnPlaybackQueue(absoluteTimelineTime: 0)
@@ -556,7 +559,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
             snapshot.publicTimelineOffset = state.publicTimelineOffset
             snapshot.pendingTrackTransition = state.pendingTrackTransition
             snapshot.requestedStartTime = state.requestedStartTime
-            snapshot.errorDescription = state.lastPlaybackErrorDescription
+            snapshot.playbackFailure = state.lastPlaybackFailure
         }
     }
 
@@ -597,7 +600,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
             latestPreparationReport: latestPreparationReport,
             currentSource: currentSource,
             nextSource: nextSource,
-            errorDescription: rawSnapshot.errorDescription
+            playbackFailure: rawSnapshot.playbackFailure
         )
     }
 
@@ -696,11 +699,12 @@ public final class GaplessMP3Player: @unchecked Sendable {
     }
 
     private func handlePlaybackFailure(_ error: Error, sessionID explicitSessionID: String? = nil) async {
+        guard let failure = GaplessPlaybackFailure.make(from: error) else { return }
         let sessionID = await performOnPlaybackQueue {
             let sessionID = explicitSessionID ?? self.stateStore.get().activePipelineSessionID
             self.stateStore.withValue {
                 $0.playbackPhase = .failed
-                $0.lastPlaybackErrorDescription = String(describing: error)
+                $0.lastPlaybackFailure = failure
                 $0.activePipelineSessionID = nil
             }
             self.refreshSnapshotOnPlaybackQueue()
@@ -710,9 +714,9 @@ public final class GaplessMP3Player: @unchecked Sendable {
             "dispatched",
             "playback failure",
             playbackLogField("sess", sessionID),
-            playbackLogErrorField(String(describing: error))
+            playbackLogErrorField(failure.errorDescription ?? failure.message)
         )
-        deliverRuntimeEvent(.playbackFailed(String(describing: error), sessionID: sessionID))
+        deliverRuntimeEvent(.playbackFailed(failure, sessionID: sessionID))
     }
 
     private func makeRuntimeEventBridge(sessionID: String? = nil) -> (@Sendable (GaplessRuntimeEvent) -> Void)? {
@@ -794,7 +798,7 @@ extension GaplessMP3Player {
                 }
                 state.coordinatorTransitionPromotionNeeded = false
                 state.latestPreparationReport = latestPreparationReport
-                state.lastPlaybackErrorDescription = nil
+                state.lastPlaybackFailure = nil
                 state.suppressPlaybackFinishedEvent = suppressPlaybackFinishedEvent
             }
             let absoluteTimelineTime = outputGraph?.currentTime() ?? requestedStartTime
@@ -804,5 +808,9 @@ extension GaplessMP3Player {
 
     func testingHandlePlaybackFinished() async {
         await handlePlaybackFinished()
+    }
+
+    func testingHandlePlaybackFailure(_ error: Error) async {
+        await handlePlaybackFailure(error)
     }
 }

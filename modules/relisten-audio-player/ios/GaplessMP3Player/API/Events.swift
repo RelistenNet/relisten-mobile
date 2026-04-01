@@ -80,7 +80,7 @@ public struct GaplessHTTPLogEvent: Sendable {
 
 /// Runtime events emitted after playback has started.
 public enum GaplessRuntimeEvent: Sendable {
-    case playbackFailed(String, sessionID: String? = nil)
+    case playbackFailed(GaplessPlaybackFailure, sessionID: String? = nil)
     case networkRetrying(String, sessionID: String? = nil)
     case trackTransitioned(
         previous: GaplessPlaybackSource?,
@@ -103,8 +103,8 @@ extension GaplessRuntimeEvent {
 
     func withSessionID(_ sessionID: String?) -> Self {
         switch self {
-        case .playbackFailed(let description, _):
-            return .playbackFailed(description, sessionID: sessionID)
+        case .playbackFailed(let failure, _):
+            return .playbackFailed(failure, sessionID: sessionID)
         case .networkRetrying(let description, _):
             return .networkRetrying(description, sessionID: sessionID)
         case .trackTransitioned(let previous, let current, _):

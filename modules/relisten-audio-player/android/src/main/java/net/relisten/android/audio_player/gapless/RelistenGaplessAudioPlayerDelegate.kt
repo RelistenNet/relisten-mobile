@@ -1,11 +1,11 @@
 package net.relisten.android.audio_player.gapless
 
-import net.relisten.android.audio_player.gapless.internal.RelistenPlaybackException
+import net.relisten.android.audio_player.gapless.internal.RelistenPlaybackError
 
 interface RelistenGaplessAudioPlayerDelegate {
     fun errorStartingStream(
             player: RelistenGaplessAudioPlayer,
-            error: RelistenPlaybackException,
+            error: RelistenPlaybackError,
             forStreamable: RelistenGaplessStreamable
     )
 

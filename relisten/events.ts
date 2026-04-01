@@ -2,6 +2,7 @@ import { StatsigEvent } from '@statsig/client-core/src/StatsigEvent';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { LogLevel, StatsigClientExpo } from '@statsig/expo-bindings';
 import { SourceTrackOfflineInfo } from '@/relisten/realm/models/source_track_offline_info';
+import { RelistenPlaybackError } from '@/modules/relisten-audio-player';
 
 export const STATSIG_CLIENT_KEY = 'client-b2bL7VM28cjEBr7aVFNv8wOqa1STKtLyXD5MoCxA94f';
 
@@ -40,13 +41,19 @@ export function trackPlaybackEvent(sourceTrack: SourceTrack): StatsigEvent {
   };
 }
 
-export function trackPlaybackErrorEvent(sourceTrack?: SourceTrack): StatsigEvent {
+export function trackPlaybackErrorEvent(
+  sourceTrack?: SourceTrack,
+  error?: RelistenPlaybackError
+): StatsigEvent {
   return {
     eventName: Events.TrackPlaybackError,
     value: sourceTrack?.uuid,
     metadata: {
       showUuid: sourceTrack?.showUuid,
       artistUuid: sourceTrack?.artistUuid,
+      errorKind: error?.kind,
+      errorPlatform: error?.platform,
+      httpStatus: error?.httpStatus?.toString(),
     },
   };
 }

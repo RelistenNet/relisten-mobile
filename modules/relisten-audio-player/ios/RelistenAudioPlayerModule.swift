@@ -242,10 +242,9 @@ extension RelistenAudioPlayerModule: PlaybackBackendDelegate {
         ])
     }
     
-    public func errorStartingStream(error: NSError, forStreamable: RelistenGaplessStreamable) {
+    public func errorStartingStream(error: PlaybackStreamError, forStreamable: RelistenGaplessStreamable) {
         self.sendAndLogEvent("onError", [
-            "error": error.code,
-            "errorDescription": error.localizedDescription,
+            "error": error.eventPayload,
             "identifier": forStreamable.identifier
         ])
     }

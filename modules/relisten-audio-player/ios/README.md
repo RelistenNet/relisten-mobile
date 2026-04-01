@@ -25,6 +25,7 @@ At the Expo bridge boundary, the module exposes:
 - playback progress polling
 - download progress reporting for the active track
 - track-change and remote-control events
+- structured playback errors with a shared cross-platform kind plus raw native diagnostics
 - audio session setup and presentation updates
 
 On iOS, the native layer is responsible for:

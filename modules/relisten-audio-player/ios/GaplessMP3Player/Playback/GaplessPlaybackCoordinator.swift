@@ -14,7 +14,7 @@ actor GaplessPlaybackCoordinator {
         var scheduledThroughTime: TimeInterval
         var currentSourceDownload: SourceDownloadStatus?
         var nextSourceDownload: SourceDownloadStatus?
-        var errorDescription: String?
+        var playbackFailure: GaplessPlaybackFailure?
     }
 
     fileprivate struct PreparedTrack: Sendable {
@@ -57,7 +57,7 @@ actor GaplessPlaybackCoordinator {
     private var isReadyToPlay = false
     private var scheduledThroughTime: TimeInterval = 0
     private var playbackStartTime: TimeInterval = 0
-    private var lastPlaybackErrorDescription: String?
+    private var lastPlaybackFailure: GaplessPlaybackFailure?
     private var activePlaybackContext: ActivePlaybackContext?
     private var nextProducerTaskState: NextProducerTaskState?
 
@@ -115,7 +115,7 @@ actor GaplessPlaybackCoordinator {
             isReadyToPlay = false
             scheduledThroughTime = 0
             playbackStartTime = 0
-            lastPlaybackErrorDescription = nil
+            lastPlaybackFailure = nil
             eventHandler?(.prepared(report))
             coordinatorLifecycleLog.info(
                 "succeeded",
@@ -178,7 +178,7 @@ actor GaplessPlaybackCoordinator {
         isReadyToPlay = false
         scheduledThroughTime = startTime
         playbackStartTime = startTime
-        lastPlaybackErrorDescription = nil
+        lastPlaybackFailure = nil
 
         playbackTask = Task {
             do {
@@ -241,12 +241,12 @@ actor GaplessPlaybackCoordinator {
             scheduledThroughTime: max(scheduledThroughTime - currentTime, 0),
             currentSourceDownload: currentStatus,
             nextSourceDownload: nextStatus,
-            errorDescription: lastPlaybackErrorDescription
+            playbackFailure: lastPlaybackFailure
         )
     }
 
     private func recordPlaybackFailure(_ error: Error) {
-        lastPlaybackErrorDescription = String(describing: error)
+        lastPlaybackFailure = GaplessPlaybackFailure.make(from: error)
         isReadyToPlay = false
         scheduledThroughTime = 0
     }

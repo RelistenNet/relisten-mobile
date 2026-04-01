@@ -189,6 +189,111 @@ final class GaplessMP3PlayerTests: XCTestCase {
         XCTAssertNil(status.nextSource)
     }
 
+    func testPlaybackFailureEmitsTypedRuntimeFailureAndStatus() async {
+        let outputGraph = TestOutputGraph(currentTime: 1.25, isPlaying: true)
+        let player = makePlayer(outputGraph: outputGraph)
+        let current = fixtureSource(id: "current", fixtureName: "gd77-s2t07-first-5s.mp3")
+        let recorder = EventRecorder()
+        let failed = expectation(description: "playback failure")
+
+        player.callbackQueue = DispatchQueue(label: "GaplessMP3PlayerTests.failure")
+        player.runtimeEventHandler = { event in
+            recorder.append(event)
+            failed.fulfill()
+        }
+
+        await player.testingSeedState(
+            currentSource: current,
+            nextSource: nil,
+            playbackPhase: .playing,
+            latestPreparationReport: makePreparationReport(current: current, next: nil),
+            outputGraph: outputGraph,
+            activePipelineSessionID: "session-A"
+        )
+
+        await player.testingHandlePlaybackFailure(GaplessMP3PlayerError.invalidMP3("Missing MPEG sync"))
+        await fulfillment(of: [failed], timeout: 1.0)
+        try? await Task.sleep(nanoseconds: 100_000_000)
+
+        let events = recorder.events
+        XCTAssertEqual(events.count, 1)
+        guard case let .playbackFailed(failure, sessionID) = events[0] else {
+            return XCTFail("Expected playbackFailed event")
+        }
+        XCTAssertEqual(failure.kind, .invalidMedia)
+        XCTAssertEqual(failure.message, "Invalid media file")
+        XCTAssertEqual(sessionID, "session-A")
+
+        let status = await player.status()
+        XCTAssertEqual(status.playbackPhase, .failed)
+        XCTAssertEqual(status.playbackFailure?.kind, .invalidMedia)
+        XCTAssertEqual(status.playbackFailure?.message, "Invalid media file")
+    }
+
+    func testPlaybackFailureSuppressesCancellationError() async {
+        let outputGraph = TestOutputGraph(currentTime: 1.0, isPlaying: true)
+        let player = makePlayer(outputGraph: outputGraph)
+        let current = fixtureSource(id: "current", fixtureName: "gd77-s2t07-first-5s.mp3")
+        let cancelled = expectation(description: "no cancellation event")
+        cancelled.isInverted = true
+
+        player.callbackQueue = DispatchQueue(label: "GaplessMP3PlayerTests.cancelled")
+        player.runtimeEventHandler = { event in
+            if case .playbackFailed = event {
+                cancelled.fulfill()
+            }
+        }
+
+        await player.testingSeedState(
+            currentSource: current,
+            nextSource: nil,
+            playbackPhase: .playing,
+            latestPreparationReport: makePreparationReport(current: current, next: nil),
+            outputGraph: outputGraph,
+            activePipelineSessionID: "session-A"
+        )
+
+        await player.testingHandlePlaybackFailure(CancellationError())
+        await fulfillment(of: [cancelled], timeout: 0.2)
+
+        let status = await player.status()
+        XCTAssertEqual(status.playbackPhase, .playing)
+        XCTAssertNil(status.playbackFailure)
+    }
+
+    func testPlaybackFailureTranslationCoversGaplessTransportUrlAndFileErrors() {
+        XCTAssertEqual(
+            GaplessPlaybackFailure.make(from: GaplessMP3PlayerError.unsupportedSourceScheme("ftp"))?.kind,
+            .invalidSource
+        )
+        XCTAssertEqual(
+            GaplessPlaybackFailure.make(from: URLError(.notConnectedToInternet))?.kind,
+            .networkUnavailable
+        )
+        XCTAssertEqual(
+            GaplessPlaybackFailure.make(from: URLError(.secureConnectionFailed))?.kind,
+            .sslFailure
+        )
+        XCTAssertEqual(
+            GaplessPlaybackFailure.make(from: HTTPTransportError.unexpectedStatus(503))?.kind,
+            .httpStatus
+        )
+        XCTAssertEqual(
+            GaplessPlaybackFailure.make(from: HTTPTransportError.unexpectedStatus(503))?.httpStatus,
+            503
+        )
+        XCTAssertEqual(
+            GaplessPlaybackFailure.make(
+                from: NSError(
+                    domain: NSCocoaErrorDomain,
+                    code: NSFileNoSuchFileError,
+                    userInfo: [NSLocalizedDescriptionKey: "missing file"]
+                )
+            )?.kind,
+            .sourceNotFound
+        )
+    }
+
     func testSeekOnLocalFileCoversStartMiddleAndNearEndWithoutResumingPausedPlayback() async throws {
         let outputGraph = TestOutputGraph(currentTime: 0, isPlaying: false)
         let player = makePlayer(outputGraph: outputGraph)

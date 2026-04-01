@@ -19,6 +19,7 @@ let package = Package(
             name: "GaplessMP3PlayerBackendSupport",
             path: "ios/BackendSupport",
             sources: [
+                "PlaybackErrorModel.swift",
                 "GaplessMP3PlayerBackendNextCommand.swift",
                 "GaplessMP3PlayerBackendPlaySupersession.swift",
                 "GaplessMP3PlayerBackendNextIntent.swift",

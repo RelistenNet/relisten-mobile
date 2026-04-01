@@ -109,7 +109,7 @@ public struct GaplessMP3PlayerStatus: Sendable {
     public var nextSource: GaplessPlaybackSource?
     public var currentSourceDownload: SourceDownloadStatus?
     public var nextSourceDownload: SourceDownloadStatus?
-    public var errorDescription: String?
+    public var playbackFailure: GaplessPlaybackFailure?
 
     public init(
         currentTime: TimeInterval,
@@ -123,7 +123,7 @@ public struct GaplessMP3PlayerStatus: Sendable {
         nextSource: GaplessPlaybackSource?,
         currentSourceDownload: SourceDownloadStatus?,
         nextSourceDownload: SourceDownloadStatus?,
-        errorDescription: String? = nil
+        playbackFailure: GaplessPlaybackFailure? = nil
     ) {
         self.currentTime = currentTime
         self.duration = duration
@@ -136,6 +136,6 @@ public struct GaplessMP3PlayerStatus: Sendable {
         self.nextSource = nextSource
         self.currentSourceDownload = currentSourceDownload
         self.nextSourceDownload = nextSourceDownload
-        self.errorDescription = errorDescription
+        self.playbackFailure = playbackFailure
     }
 }

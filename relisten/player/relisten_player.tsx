@@ -1,7 +1,6 @@
 import {
   nativePlayer,
   RelistenErrorEvent,
-  RelistenPlaybackErrorToName,
   RelistenPlaybackState,
   RelistenRemoteControlEvent,
   RelistenTrackStreamingCacheCompleteEvent,
@@ -626,11 +625,13 @@ ${indentString(this.queue.debugState(true))}
       this.maybeStartNextPlayRequest();
     }
 
-    sharedStatsigClient().logEvent(trackPlaybackErrorEvent(this.queue.currentTrack?.sourceTrack));
+    sharedStatsigClient().logEvent(
+      trackPlaybackErrorEvent(this.queue.currentTrack?.sourceTrack, error.error)
+    );
 
     showMessage({
-      message: 'Error: ' + (error.errorMessage ?? RelistenPlaybackErrorToName[error.error]),
-      description: error.errorDescription,
+      message: 'Error: ' + error.error.message,
+      description: error.error.description,
       type: 'danger',
       duration: 10_000,
     });

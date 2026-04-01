@@ -1,6 +1,6 @@
 import Foundation
 
-private enum HTTPTransportError: Error, LocalizedError, Sendable {
+enum HTTPTransportError: Error, LocalizedError, Sendable {
     case nonHTTPResponse
     case unexpectedStatus(Int)
     case ignoredRangeRequest(Int)

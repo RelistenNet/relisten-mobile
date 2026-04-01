@@ -79,7 +79,9 @@ class ExoPlayerLifecycle internal constructor(private val player: RelistenGaples
 
         player.delegate?.errorStartingStream(
             player,
-            RelistenPlaybackException(error.errorCode, error.errorCodeName, message),
+            relistenPlaybackErrorFromPlaybackException(
+                PlaybackException(message, error.cause, error.errorCode)
+            ),
             forStreamable = player.activeStream!!.streamable
         )
     }
@@ -126,6 +128,3 @@ class ExoPlayerLifecycle internal constructor(private val player: RelistenGaples
         }
     }
 }
-
-class RelistenPlaybackException(val code: Int, message: String, val description: String) :
-    Exception(message)

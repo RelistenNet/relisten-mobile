@@ -840,16 +840,9 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             return
         }
         switch event {
-        case .playbackFailed(let description, _):
+        case .playbackFailed(let failure, _):
             if let currentStreamable = snapshotStore.get().currentStreamable {
-                emitError(
-                    NSError(
-                        domain: "net.relisten.ios.relisten-audio-player",
-                        code: numericCode(for: .Unknown),
-                        userInfo: [NSLocalizedDescriptionKey: description]
-                    ),
-                    for: currentStreamable
-                )
+                emitError(failure, for: currentStreamable)
             }
         case .networkRetrying:
             break
@@ -1318,58 +1311,32 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
     }
 
     private func emitError(_ error: Error, for streamable: RelistenGaplessStreamable) {
+        guard let translated = translateError(error) else { return }
         backendErrorLog.error(
             "failed",
             "playback",
             playbackLogField("src", streamable.identifier),
             playbackLogField("sess", snapshotStore.get().currentSessionID),
             playbackLogIntegerField("gen", snapshotStore.get().generation),
-            playbackLogErrorField((error as NSError).localizedDescription)
-        )
-        let nsError = error as NSError
-        let translated = translateErrorCode(error)
-        let wrapped = NSError(
-            domain: "net.relisten.ios.relisten-audio-player",
-            code: numericCode(for: translated),
-            userInfo: [NSLocalizedDescriptionKey: nsError.localizedDescription]
+            playbackLogErrorField(translated.description ?? translated.message)
         )
         delegateQueue.async {
-            self.delegate?.errorStartingStream(error: wrapped, forStreamable: streamable)
+            self.delegate?.errorStartingStream(error: translated, forStreamable: streamable)
         }
     }
 
-    private func translateErrorCode(_ error: Error) -> PlaybackStreamError {
-        if let error = error as? GaplessMP3PlayerError {
-            switch error {
-            case .unsupportedSourceScheme:
-                return .InvalidUrl
-            case .invalidMP3:
-                return .FileInvalidFormat
-            case .unsupportedFormat:
-                return .UnsupportedSampleFormat
-            case .sourceIdentityMismatch,
-                 .sourceNotPrepared,
-                 .missingCurrentSource,
-                 .incompatibleTrackFormats,
-                 .insufficientData:
-                return .Unknown
-            }
-        }
-
-        if let urlError = error as? URLError {
-            switch urlError.code {
-            case .notConnectedToInternet:
-                return .NoInternet
-            case .timedOut:
-                return .ServerTimeout
-            case .fileDoesNotExist, .cannotOpenFile:
-                return .CouldNotOpenFile
-            default:
-                return .Unknown
-            }
-        }
-
-        return .Unknown
+    private func translateError(_ error: Error) -> PlaybackStreamError? {
+        guard let failure = GaplessPlaybackFailure.make(from: error) else { return nil }
+        return PlaybackStreamError(
+            kind: PlaybackErrorKind(rawValue: failure.kind.rawValue) ?? .unknown,
+            message: failure.message,
+            description: failure.description,
+            isRetryable: failure.isRetryable,
+            platform: "ios",
+            platformCode: failure.platformCode,
+            platformName: failure.platformName,
+            httpStatus: failure.httpStatus
+        )
     }
 
     private func handleOldDeviceUnavailableOnQueue() {
@@ -1491,24 +1458,6 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
 
     private func playbackRate(for playbackState: PlaybackState) -> Float {
         playbackState == .Playing ? 1.0 : 0.0
-    }
-
-    private func numericCode(for error: PlaybackStreamError) -> Int {
-        switch error {
-        case .Init: return 0
-        case .NotAvail: return 1
-        case .NoInternet: return 2
-        case .InvalidUrl: return 3
-        case .SslUnsupported: return 4
-        case .ServerTimeout: return 5
-        case .CouldNotOpenFile: return 6
-        case .FileInvalidFormat: return 7
-        case .SupportedCodec: return 8
-        case .UnsupportedSampleFormat: return 9
-        case .InsufficientMemory: return 10
-        case .No3D: return 11
-        case .Unknown: return 12
-        }
     }
 
     private func shouldContinueAsyncWork(for generation: UInt64) -> Bool {

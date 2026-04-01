@@ -11,7 +11,7 @@ import net.relisten.android.audio_player.gapless.RelistenGaplessAudioPlayer
 import net.relisten.android.audio_player.gapless.RelistenGaplessAudioPlayerDelegate
 import net.relisten.android.audio_player.gapless.RelistenGaplessStreamable
 import net.relisten.android.audio_player.gapless.RelistenPlaybackState
-import net.relisten.android.audio_player.gapless.internal.RelistenPlaybackException
+import net.relisten.android.audio_player.gapless.internal.RelistenPlaybackError
 import java.net.URL
 
 class RelistenStreamable : Record {
@@ -215,7 +215,7 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
 
     override fun errorStartingStream(
             player: RelistenGaplessAudioPlayer,
-            error: RelistenPlaybackException,
+            error: RelistenPlaybackError,
             forStreamable: RelistenGaplessStreamable
     ) {
         if (this.player == null) {
@@ -224,9 +224,7 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
 
         sendEvent(
             "onError", hashMapOf(
-                "error" to error.code,
-                "errorMessage" to error.message,
-                "errorDescription" to error.description,
+                "error" to error.toEventPayload(),
                 "identifier" to forStreamable.identifier,
             )
         )

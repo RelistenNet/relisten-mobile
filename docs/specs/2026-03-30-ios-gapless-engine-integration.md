@@ -5,18 +5,18 @@
 
 ## Summary
 
-Replace the current un4seen BASS-based iOS playback core in `modules/relisten-audio-player/ios/RelistenGaplessAudioPlayer` with the native Swift gapless MP3 engine from `/Users/alecgorge/code/relisten/relisten-ios-audio-player-codex`, while preserving the public Expo/native contract in `modules/relisten-audio-player/ios/RelistenAudioPlayerModule.swift`. The recommended implementation is: keep `RelistenAudioPlayerModule` externally unchanged, introduce one native-internal `PlaybackBackend` protocol, make the existing `RelistenGaplessAudioPlayer` the BASS implementation of that protocol, add a new `GaplessMP3PlayerBackend` implementation backed by copied engine code, and choose between them using one boolean constant named `USE_NATIVE_GAPLESS_MP3_BACKEND`.
+Replace the current un4seen BASS-based iOS playback core in `modules/relisten-audio-player/ios/RelistenGaplessAudioPlayer` with the native Swift gapless MP3 engine from `/Users/alecgorge/code/relisten/relisten-ios-audio-player-codex`, while preserving the public Expo/native contract in `modules/relisten-audio-player/ios/RelistenAudioPlayerModule.swift` except for the intentional `onError` payload migration from legacy numeric codes to a structured cross-platform error object. The recommended implementation is: keep `RelistenAudioPlayerModule` method names and event names externally unchanged, introduce one native-internal `PlaybackBackend` protocol, make the existing `RelistenGaplessAudioPlayer` the BASS implementation of that protocol, add a new `GaplessMP3PlayerBackend` implementation backed by copied engine code, and choose between them using one boolean constant named `USE_NATIVE_GAPLESS_MP3_BACKEND`.
 
 ## Goal and Scope
 
 ### Goal
 
-Swap the playback engine underneath the existing app contracts without changing the JS/native module API, and keep rollback to BASS as a one-constant rebuild during rollout.
+Swap the playback engine underneath the existing app contracts while intentionally upgrading `onError` to a structured shared error payload, and keep rollback to BASS as a one-constant rebuild during rollout.
 
 ### In Scope
 
 - Copy the selected runtime sources from `/Users/alecgorge/code/relisten/relisten-ios-audio-player-codex/Sources/GaplessMP3Player` into `relisten-mobile`.
-- Keep `RelistenAudioPlayerModule` method names, event names, and payload shapes unchanged.
+- Keep `RelistenAudioPlayerModule` method names and event names unchanged, with `onError` as the only intentionally migrated payload shape.
 - Introduce one internal backend protocol and one internal boolean backend selector.
 - Preserve current app semantics for play, pause, resume, stop, next, set-next, seek, elapsed, duration, state, track changes, remote commands, and streaming-cache completion.
 - Raise the iOS deployment target to `18.0`.
@@ -24,8 +24,6 @@ Swap the playback engine underneath the existing app contracts without changing 
 
 ### Out of Scope
 
-- Android playback changes.
-- TypeScript API changes in `modules/relisten-audio-player/index.ts`.
 - Queue/product behavior changes for repeat, shuffle, or optimistic UI state.
 - Crossfade, EQ, non-MP3 support, or playlist architecture rewrites.
 
@@ -236,10 +234,10 @@ These stay unchanged:
 
 - Module name: `RelistenAudioPlayer`
 - All public method names and argument shapes
-- All event names and payload shapes
+- All event names
 - Sync getter semantics
 
-No TypeScript or JS contract changes are part of this migration.
+The only intentional JS-visible contract change in this migration is the `onError` payload. It now emits a nested structured cross-platform error object instead of the legacy flat numeric error fields.
 
 ### New Internal Protocols
 
@@ -362,9 +360,10 @@ Required translation layers:
    - Engine status drives sync `currentDuration`, `elapsed`, `currentState`, `activeTrackDownloadedBytes`, and `activeTrackTotalBytes`.
    - Backend snapshot remains the source of truth for module sync getters.
 
-3. Engine errors/runtime failures -> existing native error payload
-   - Preserve the current numeric error field where practical.
-   - Preserve useful textual `errorDescription`.
+3. Engine errors/runtime failures -> structured shared error payload
+   - Emit one stable shared `kind` string plus raw platform diagnostics.
+   - Preserve useful textual `message` / `description`.
+   - Preserve platform-specific raw code/name/status as secondary diagnostics only.
 
 4. Engine cache resolution -> `downloadDestination`
    - When the engine marks the current source cached/completed and exposes a resolved local file URL, copy that file to `streamable.downloadDestination` and emit `onTrackStreamingCacheComplete`.
@@ -375,17 +374,24 @@ Required translation layers:
    - Each backend supplies a backend-neutral snapshot struct instead of duplicating the presentation logic.
 
 6. Error code mapping
-   - Use one explicit translation table from `GaplessMP3PlayerError` and transport/runtime failures into `PlaybackStreamError`.
+   - Use one explicit translation table from `GaplessMP3PlayerError` and transport/runtime failures into the shared structured `PlaybackStreamError` / `RelistenPlaybackError` payload.
 
-   | Native error / condition | Existing relisten error |
+   | Native error / condition | Shared error kind |
    | --- | --- |
-   | `unsupportedSourceScheme` | `InvalidUrl` |
-   | `invalidMP3` | `FileInvalidFormat` |
-   | `unsupportedFormat` | `UnsupportedSampleFormat` |
-   | file-open failure | `CouldNotOpenFile` |
-   | network offline / cannot connect | `NoInternet` |
-   | request timeout | `ServerTimeout` |
-   | anything else | `Unknown` |
+   | `unsupportedSourceScheme` | `invalidSource` |
+   | `invalidMP3` | `invalidMedia` |
+   | `insufficientData` | `insufficientData` |
+   | `unsupportedFormat` | `unsupportedFormat` |
+   | `incompatibleTrackFormats` | `incompatibleTracks` |
+   | `sourceIdentityMismatch` | `sourceIdentityMismatch` |
+   | `sourceNotPrepared`, `missingCurrentSource` | `invalidState` |
+   | file-open failure / missing file | `sourceNotFound` |
+   | network offline / cannot connect | `networkUnavailable` |
+   | request timeout | `networkTimeout` |
+   | TLS / certificate failures | `sslFailure` |
+   | unexpected / ignored HTTP status | `httpStatus` |
+   | decoder / audio pipeline failures | `audioPipeline` |
+   | anything else | `unknown` |
 
 ### Current Mismatches and Chosen Resolution
 
@@ -553,7 +559,7 @@ Rollout rules:
   `RelistenAudioPlayerModule` owns a `PlaybackBackend`, instantiates BASS or native backend via one boolean constant, no longer reaches into `bassQueue`, and both backends can depend on the same shared audio-session/presentation controllers.
 - Verification required:
   - BASS backend still builds and runs with the flag `false`
-  - module API surface remains unchanged
+  - module API surface remains unchanged except for the intentional structured `onError` payload migration
   - `OnDestroy` uses `player?.teardown()` rather than backend-specific cleanup
 - Intentionally deferred:
   Native backend implementation and parity behavior.
@@ -780,14 +786,14 @@ Rollout rules:
 
 - Overall status: In progress
 - Active milestone: Milestone 5
-- Last updated: 2026-03-31
-- Last verified native build: the prior `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` success from 2026-03-31 remains the last verified green build; this turn reran the canonical command after `yarn pods` but the attempt failed in DerivedData with `No space left on device (28)` and `build.db: database or disk is full` before a new verification result could be recorded
+- Last updated: 2026-04-01
+- Last verified native build: `yarn pods` followed by `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build` succeeded on 2026-04-01 after regenerating Pods to pick up the new `PlaybackErrorModel.swift`; this turn also verified `swift test` in `modules/relisten-audio-player`, focused `GaplessMP3PlayerHarness` playback-failure filters, `JAVA_HOME=\"$ANDROID_JAVA_HOME\" ./gradlew :relisten-audio-player:testDebugUnitTest`, `yarn lint`, and `yarn ts:check`
 - Native build command:
   `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build`
-- Current blocker: the engine-local fixed `44,100 Hz` stereo normalization slice is implemented and harness-tested, but the required canonical native build rerun is currently blocked by environment capacity: `/System/Volumes/Data` has only `375Mi` free, `xcodebuild` hit `No space left on device (28)` while writing `RNReanimated` intermediates, and `XCBuildData/build.db` then failed because the disk/database was full; the logfile also shows repeated passcode-protected physical-device `DTDeviceKit` noise, but the actionable blocker is disk exhaustion
+- Current blocker: the structured cross-platform error contract is implemented across iOS, Android, and TypeScript, but Milestone 5 still lacks selector-`true` app-smoke revalidation and backend-object proof for the native backend event/status path
 - Next recommended action:
-  free space in DerivedData or the broader data volume, rerun the canonical native build, then return to selector-`true` app-smoke revalidation plus the remaining backend-object proof for Milestone 5
-- Milestone checkbox changes: none; Milestone 5 remains active after adding engine-local session-format normalization and harness proof for mixed sample rates/channel counts, but selector-`true` app revalidation, backend-object proof, and a fresh green canonical native build are still outstanding
+  run selector-`true` app-smoke revalidation, then return to the remaining backend-object proof for Milestone 5
+- Milestone checkbox changes: none; Milestone 5 remains active after landing the structured playback-error contract across iOS, Android, and TS and re-verifying the canonical native build, but selector-`true` app revalidation and backend-object proof are still outstanding
 
 Milestone status:
 
@@ -823,7 +829,7 @@ Required workflow:
 1. Read the spec first, especially Progress Tracker, Implementation Milestones, Command Serialization and Supersession, Shared Controller Ownership, and Verification Plan.
 2. Update the Progress Tracker at the start of the turn to reflect the milestone you are working on.
 3. Execute the next unfinished milestone with the smallest coherent code change set. Do not redesign the architecture away from the spec.
-4. Keep all public `RelistenAudioPlayerModule` contracts unchanged.
+4. Keep all public `RelistenAudioPlayerModule` method names and event names unchanged, except for the intentional structured `onError` payload migration.
 5. When native dependencies or pod-visible files change, run `yarn pods`.
 6. After native changes, run this native build command to verify the app still compiles:
    `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build`
@@ -873,6 +879,7 @@ Primary execution goal:
 - 2026-03-30: Made native `resume()` reactivate the shared audio session before `player.play()`, then re-verified the canonical iOS simulator build to keep Milestone 4 moving on selector-enabled command semantics. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Made manual native `next()` emit `trackChanged(previous,current)` only after the replacement track prepares successfully, and re-verified the canonical iOS simulator build while keeping Milestone 4 focused on selector-enabled command semantics. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Aligned native `seekTo(1.0)` with the existing `remoteControl("nextTrack")` contract, validated the native path with the selector enabled, then restored the committed selector default to `false` and re-verified the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)
+- 2026-04-01: Replaced the legacy numeric playback error contract with a structured shared error model across iOS, Android, and TypeScript, added native mapping tests for typed playback failures, regenerated Pods for the new iOS support file, and re-verified `swift test`, focused harness error cases, Android unit tests, `yarn lint`, `yarn ts:check`, and the canonical iOS simulator build.
 - 2026-03-30: Fixed a source-screen React Compiler dependency mismatch in `onDotsPress`, reran `yarn lint` and `yarn ts:check` successfully, and recorded that selector-`true` app-driven smoke is still blocked by dev-client deep links not entering the `/web/...` route. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Validated a reliable selector-`true` in-app smoke path via `Relisten` -> `Random Show`, then confirmed native app-UI play-from-rest, track-switch, and player-bar pause/resume behavior before restoring the committed selector default to `false`. (019d4087-5419-77f2-b446-ce61e5cab2a9)
 - 2026-03-30: Restored the native backend's missing initial `trackChanged(nil,current)` handoff, verified selector-`true` seek-to-end now advances from `Intro` into `Crazy Tonie`, then restored the committed selector default to `false` and re-verified the canonical iOS simulator build. (019d4087-5419-77f2-b446-ce61e5cab2a9)

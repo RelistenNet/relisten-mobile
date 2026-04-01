@@ -97,4 +97,5 @@ dependencies {
   //implementation "com.facebook.react:react-native:+"
 
   implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:${getKotlinVersion()}"
+  testImplementation "junit:junit:4.13.2"
 }
