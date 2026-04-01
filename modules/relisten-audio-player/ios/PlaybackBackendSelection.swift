@@ -1,7 +1,7 @@
 import Foundation
 
 enum PlaybackBackendSelection {
-    static let USE_NATIVE_GAPLESS_MP3_BACKEND = false
+    static let USE_NATIVE_GAPLESS_MP3_BACKEND = true
 }
 
 func makePlaybackBackend() -> PlaybackBackend {
