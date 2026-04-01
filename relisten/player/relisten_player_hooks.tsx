@@ -5,6 +5,9 @@ import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
 import { AutocacheStreamedMusicSetting } from '@/relisten/realm/models/user_settings';
 import { PlaybackSource, sharedStates } from '@/relisten/player/shared_state';
 import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
+import { log } from '@/relisten/util/logging';
+
+const logger = log.extend('player-hooks');
 
 export interface RelistenPlayerProps {
   player: RelistenPlayer;
@@ -27,7 +30,9 @@ export const RelistenPlayerProvider = ({ children }: PropsWithChildren<object>) 
         player.initialPlaybackStarted;
 
       if (!hasActivePlayback) {
-        player.queue.restorePlayerState(realm).then(() => {});
+        player.queue.restorePlayerState(realm).catch((error) => {
+          logger.warn('Failed to restore player state during startup', error);
+        });
       }
     }
   }, [player, realm]);

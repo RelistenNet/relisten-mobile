@@ -72,6 +72,18 @@ export class PlayerState extends Realm.Object<PlayerState> implements PlayerStat
     });
   }
 
+  static clear(realm: Realm) {
+    const obj = this.defaultObject(realm);
+
+    if (!obj) {
+      return;
+    }
+
+    realm.write(() => {
+      realm.delete(obj);
+    });
+  }
+
   debugState() {
     return `
 RelistenPlayerState
