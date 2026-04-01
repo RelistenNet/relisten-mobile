@@ -49,8 +49,9 @@ actor MP3SourceManager {
         }
     }
 
-    /// Metadata reads are head-of-file reads only. They intentionally do not require a
-    /// full download so the next track can be prepared before the current one finishes.
+    /// Metadata reads still return only the required prefix, but remote cache misses now
+    /// flow through the shared byte-0 session so later preload/play work reuses the
+    /// same request instead of starting a second download.
     func metadataData(
         for source: GaplessPlaybackSource,
         limit: Int = 256 * 1024,
@@ -92,13 +93,10 @@ actor MP3SourceManager {
             return (Data(data.prefix(requiredLength)), record.fingerprint)
         }
 
-        if let session = activeDownloads[source.cacheKey] {
-            let initialPrefix = try await session.readPrefix(limit: 10)
-            let requiredLength = MP3GaplessMetadataParser.requiredPrefixLength(for: initialPrefix, defaultLimit: limit)
-            return try await (session.readPrefix(limit: requiredLength), session.fingerprint())
-        }
-
-        return try await streamMetadataPrefix(for: source, limit: limit, eventHandler: eventHandler)
+        let session = try await openSession(for: source, requestKind: .metadata, eventHandler: eventHandler)
+        let initialPrefix = try await session.readPrefix(limit: 10)
+        let requiredLength = MP3GaplessMetadataParser.requiredPrefixLength(for: initialPrefix, defaultLimit: limit)
+        return try await (session.readPrefix(limit: requiredLength), session.fingerprint())
     }
 
     /// Resolves a source into a complete local file, using the durable cache when valid
@@ -351,10 +349,7 @@ actor MP3SourceManager {
         activeDownloads[source.cacheKey] = session
         await session.start()
         Task {
-            do {
-                _ = try await session.awaitCompletion()
-            } catch {}
-            let terminalStatus = await session.status()
+            let terminalStatus = await session.waitForTerminalStatus()
             self.downloadFinished(cacheKey: source.cacheKey, session: session, terminalStatus: terminalStatus)
         }
         return session
@@ -467,140 +462,6 @@ actor MP3SourceManager {
         return .none(progressiveResetEpoch: snapshot.resetEpoch)
     }
 
-    private func streamMetadataPrefix(
-        for source: GaplessPlaybackSource,
-        limit: Int,
-        eventHandler: (@Sendable (GaplessPreparationEvent) -> Void)?
-    ) async throws -> (Data, CacheFingerprint) {
-        transientStatuses[source.cacheKey] = projector.downloadingStatus(
-            source: source,
-            downloadedBytes: 0,
-            expectedBytes: source.expectedContentLength
-        )
-        eventHandler?(.download(transientStatuses[source.cacheKey]!))
-
-        var request = URLRequest(url: source.url)
-        source.headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }
-
-        var fingerprint = CacheFingerprint()
-        var prefix = Data()
-        var requiredLength = limit
-        let manager = self
-        let shouldEmitHTTPLog = httpLogHandler != nil
-        let handler: (@Sendable (HTTPTransportLogEvent) -> Void)? = {
-            guard shouldEmitHTTPLog || eventHandler != nil else { return nil }
-            return { transportEvent in
-                Task {
-                    await manager.handleMetadataTransportEvent(
-                        transportEvent,
-                        source: source,
-                        eventHandler: eventHandler
-                    )
-                }
-            }
-        }()
-
-        do {
-            let stream = loader.progressiveDownload(for: request, retryPolicy: retryPolicy, eventHandler: handler)
-            for try await responseEvent in stream {
-                switch responseEvent {
-                case .response(let response, let restartFromZero):
-                    if restartFromZero {
-                        prefix.removeAll(keepingCapacity: true)
-                    }
-                    fingerprint = URLSessionHTTPDataLoader.fingerprint(from: response)
-                    transientStatuses[source.cacheKey] = projector.downloadingStatus(
-                        source: source,
-                        downloadedBytes: Int64(prefix.count),
-                        expectedBytes: fingerprint.contentLength ?? source.expectedContentLength
-                    )
-                    if let status = transientStatuses[source.cacheKey] {
-                        eventHandler?(.download(status))
-                    }
-                case .bytes(let bytes):
-                    prefix.append(bytes)
-                    if prefix.count >= 10 {
-                        requiredLength = MP3GaplessMetadataParser.requiredPrefixLength(
-                            for: Data(prefix.prefix(10)),
-                            defaultLimit: limit
-                        )
-                    }
-                    transientStatuses[source.cacheKey] = projector.downloadingStatus(
-                        source: source,
-                        downloadedBytes: Int64(prefix.count),
-                        expectedBytes: fingerprint.contentLength ?? source.expectedContentLength
-                    )
-                    if let status = transientStatuses[source.cacheKey] {
-                        eventHandler?(.download(status))
-                    }
-                    if prefix.count >= requiredLength {
-                        transientStatuses.removeValue(forKey: source.cacheKey)
-                        return (Data(prefix.prefix(requiredLength)), fingerprint)
-                    }
-                case .completed:
-                    break
-                }
-            }
-
-            transientStatuses.removeValue(forKey: source.cacheKey)
-            return (prefix, fingerprint)
-        } catch {
-            transientStatuses[source.cacheKey] = projector.failedStatus(
-                source: source,
-                downloadedBytes: Int64(prefix.count),
-                expectedBytes: fingerprint.contentLength ?? source.expectedContentLength,
-                errorDescription: describe(error)
-            )
-            throw error
-        }
-    }
-
-    private func handleMetadataTransportEvent(
-        _ transportEvent: HTTPTransportLogEvent,
-        source: GaplessPlaybackSource,
-        eventHandler: (@Sendable (GaplessPreparationEvent) -> Void)?
-    ) {
-        emitHTTPLog(for: source, requestKind: .metadata, transportEvent: transportEvent)
-        let downloadedBytes = transportEvent.cumulativeBytes ?? 0
-
-        switch transportEvent.kind {
-        case .retryScheduled:
-            let retryAttempt = min(transportEvent.attempt + 1, retryPolicy.maxAttempts)
-            let status = projector.retryingStatus(
-                source: source,
-                downloadedBytes: downloadedBytes,
-                expectedBytes: source.expectedContentLength,
-                errorDescription: transportEvent.errorDescription,
-                retryAttempt: retryAttempt,
-                retryDelay: transportEvent.retryDelay
-            )
-            transientStatuses[source.cacheKey] = status
-            eventHandler?(.download(status))
-            runtimeEventHandler?(
-                .networkRetrying(
-                    projector.retryMessage(
-                        sourceID: source.id,
-                        retryAttempt: retryAttempt,
-                        errorDescription: transportEvent.errorDescription
-                    )
-                )
-            )
-        case .requestFailed:
-            if transportEvent.retryDelay == nil {
-                let status = projector.failedStatus(
-                    source: source,
-                    downloadedBytes: downloadedBytes,
-                    expectedBytes: source.expectedContentLength,
-                    errorDescription: transportEvent.errorDescription
-                )
-                transientStatuses[source.cacheKey] = status
-                eventHandler?(.download(status))
-            }
-        default:
-            break
-        }
-    }
-
     private func handleRangeTransportEvent(
         _ transportEvent: HTTPTransportLogEvent,
         source: GaplessPlaybackSource,
@@ -625,7 +486,7 @@ actor MP3SourceManager {
             )
             transientStatuses[source.cacheKey] = status
             runtimeEventHandler?(.networkRetrying(projector.retryMessage(sourceID: source.id, retryAttempt: retryAttempt, errorDescription: transportEvent.errorDescription)))
-        case .requestStarted, .responseReceived, .bytesReceived, .requestCompleted, .resumeAttempt:
+        case .requestStarted, .requestPromoted, .responseReceived, .bytesReceived, .requestCompleted, .resumeAttempt:
             transientStatuses[source.cacheKey] = projector.downloadingStatus(
                 source: source,
                 downloadedBytes: offset + (transportEvent.cumulativeBytes ?? 0),

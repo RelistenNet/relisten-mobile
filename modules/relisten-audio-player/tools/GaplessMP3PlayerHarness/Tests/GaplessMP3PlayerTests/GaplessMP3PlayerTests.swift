@@ -405,6 +405,43 @@ final class GaplessMP3PlayerTests: XCTestCase {
         await sourceManager.shutdown()
     }
 
+    func testMetadataLoadPromotesSharedSessionInsteadOfStartingSecondProgressiveDownload() async throws {
+        let data = try httpFixtureData(named: "gd77-s2t07-first-5s.mp3")
+        let loader = StubHTTPDataLoader(data: data, initialProgressiveChunkSize: data.count)
+        let (sourceManager, cacheDirectory) = makeHTTPSourceManagerWithCacheDirectory(loader: loader)
+        defer { try? FileManager.default.removeItem(at: cacheDirectory) }
+
+        let source = httpFixtureSource(id: "next", path: "shared-session.mp3", byteCount: data.count)
+        let logRecorder = HTTPLogRecorder()
+        await sourceManager.setHTTPLogHandler { event in
+            logRecorder.record(event)
+        }
+
+        _ = try await sourceManager.metadataData(for: source)
+        XCTAssertEqual(loader.progressiveDownloadInvocationCount(), 1)
+
+        try await sourceManager.preload(source)
+        XCTAssertEqual(loader.progressiveDownloadInvocationCount(), 1)
+
+        let events = logRecorder.events()
+        XCTAssertTrue(
+            events.contains(where: {
+                $0.kind == .requestPromoted &&
+                    $0.sourceID == source.id &&
+                    $0.previousRequestKind == .metadata &&
+                    $0.requestKind == .progressive
+            })
+        )
+
+        loader.finishProgressiveDownload()
+        _ = try await waitForDownloadState(
+            sourceManager: sourceManager,
+            source: source,
+            matcher: { $0.state == .completed || $0.state == .cached }
+        )
+        await sourceManager.shutdown()
+    }
+
     func testHTTPReadSessionUsesSingleBridgeWindowForFarSeek() async throws {
         let data = makeHTTPTestData(byteCount: 3 * 1_024 * 1_024)
         let loader = StubHTTPDataLoader(data: data, initialProgressiveChunkSize: 2_048)
@@ -1226,6 +1263,23 @@ private final class StubHTTPDataLoader: HTTPDataLoading, @unchecked Sendable {
 
 private enum TestFailure: Error {
     case invalidRangeHeader(String)
+}
+
+private final class HTTPLogRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recordedEvents: [GaplessHTTPLogEvent] = []
+
+    func record(_ event: GaplessHTTPLogEvent) {
+        lock.lock()
+        defer { lock.unlock() }
+        recordedEvents.append(event)
+    }
+
+    func events() -> [GaplessHTTPLogEvent] {
+        lock.lock()
+        defer { lock.unlock() }
+        return recordedEvents
+    }
 }
 
 private final class TestOutputGraph: PCMOutputControlling, @unchecked Sendable {

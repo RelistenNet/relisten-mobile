@@ -10,6 +10,7 @@ public enum GaplessHTTPRequestKind: String, Codable, Sendable {
 /// Structured lifecycle event emitted by the HTTP transport layer.
 public enum GaplessHTTPLogEventKind: String, Codable, Sendable {
     case requestStarted
+    case requestPromoted
     case responseReceived
     case bytesReceived
     case requestCompleted
@@ -22,6 +23,7 @@ public enum GaplessHTTPLogEventKind: String, Codable, Sendable {
 public struct GaplessHTTPLogEvent: Sendable {
     public var kind: GaplessHTTPLogEventKind
     public var requestKind: GaplessHTTPRequestKind
+    public var previousRequestKind: GaplessHTTPRequestKind?
     public var sessionID: String?
     public var sourceID: String
     public var cacheKey: String
@@ -40,6 +42,7 @@ public struct GaplessHTTPLogEvent: Sendable {
     public init(
         kind: GaplessHTTPLogEventKind,
         requestKind: GaplessHTTPRequestKind,
+        previousRequestKind: GaplessHTTPRequestKind? = nil,
         sessionID: String? = nil,
         sourceID: String,
         cacheKey: String,
@@ -57,6 +60,7 @@ public struct GaplessHTTPLogEvent: Sendable {
     ) {
         self.kind = kind
         self.requestKind = requestKind
+        self.previousRequestKind = previousRequestKind
         self.sessionID = sessionID
         self.sourceID = sourceID
         self.cacheKey = cacheKey

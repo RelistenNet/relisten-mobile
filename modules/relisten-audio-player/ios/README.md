@@ -153,6 +153,16 @@ This prevents the old behavior where startup could accidentally issue repeated
 small range requests just because the MP3 audio frames began after ID3/header
 data.
 
+### Metadata Preparation
+
+When metadata is requested for a remote cache miss:
+
+- the source layer still returns only the prefix bytes needed for parsing
+- that prefix now comes from the same shared byte-0 session the later preload or
+  playback path will use
+- logs should show that session being upgraded from `metadata` to
+  `progressive`, rather than a second byte-0 request for the same source
+
 ### True Mid-File Seek
 
 When playback starts at a positive time:

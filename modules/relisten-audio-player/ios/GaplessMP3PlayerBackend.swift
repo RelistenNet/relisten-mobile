@@ -962,6 +962,18 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
                     playbackLogField("bytes", event.cumulativeBytes.map { String($0) }),
                     playbackLogIntegerField("gen", generation)
                 )
+            case .requestPromoted:
+                backendNetworkLog.info(
+                    "upgraded",
+                    "HTTP request",
+                    playbackLogField("src", event.sourceID),
+                    playbackLogField("from", event.previousRequestKind?.rawValue),
+                    playbackLogField("to", event.requestKind.rawValue),
+                    playbackLogField("url", requestURL),
+                    playbackLogField("range", requestedRange),
+                    playbackLogField("bytes", event.cumulativeBytes.map { String($0) }),
+                    playbackLogIntegerField("gen", generation)
+                )
             case .retryScheduled:
                 let retryAttempt = min(event.attempt + 1, event.maxAttempts)
                 backendNetworkLog.info(

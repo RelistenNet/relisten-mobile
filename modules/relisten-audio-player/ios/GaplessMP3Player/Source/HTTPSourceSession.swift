@@ -36,6 +36,7 @@ actor HTTPSourceSession {
     private var isComplete = false
     private var responseFingerprint = CacheFingerprint()
     private var continuationWaiters: [(Int64, CheckedContinuation<Void, Error>)] = []
+    private var terminalWaiters: [CheckedContinuation<SourceDownloadStatus, Never>] = []
     private var streamTask: Task<Void, Error>?
     private var storedError: Error?
     private var retryState: RetryState?
@@ -70,7 +71,7 @@ actor HTTPSourceSession {
     }
 
     func start() {
-        guard streamTask == nil else { return }
+        guard streamTask == nil, !isComplete, storedError == nil else { return }
         sourceLifecycleLog.debug(
             "started",
             "download session",
@@ -95,6 +96,7 @@ actor HTTPSourceSession {
         storedError = CancellationError()
         retryState = nil
         resumeAllWaiters(with: CancellationError())
+        resumeTerminalWaiters()
         if !isComplete {
             try? cacheStore.fileManager.removeItem(at: downloadPaths.tempFileURL)
         }
@@ -116,14 +118,33 @@ actor HTTPSourceSession {
 
     func promoteRequestKind(to kind: GaplessHTTPRequestKind) {
         if requestKind == .metadata, kind != .metadata {
+            let previousKind = requestKind
             sourceLifecycleLog.debug(
                 "promoted",
                 "request kind",
                 playbackLogField("src", source.id),
                 playbackLogField("from", requestKind.rawValue),
-                playbackLogField("to", kind.rawValue)
+                playbackLogField("to", kind.rawValue),
+                playbackLogIntegerField("bytes", downloadedPrefixEnd)
             )
             requestKind = kind
+            httpLogHandler?(
+                GaplessHTTPLogEvent(
+                    kind: .requestPromoted,
+                    requestKind: kind,
+                    previousRequestKind: previousKind,
+                    sourceID: source.id,
+                    cacheKey: source.cacheKey,
+                    method: request.httpMethod ?? "GET",
+                    url: request.url ?? source.url,
+                    requestHeaders: request.allHTTPHeaderFields ?? [:],
+                    responseHeaders: [:],
+                    statusCode: nil,
+                    attempt: 1,
+                    maxAttempts: retryPolicy.maxAttempts,
+                    cumulativeBytes: downloadedPrefixEnd
+                )
+            )
         }
     }
 
@@ -247,6 +268,9 @@ actor HTTPSourceSession {
     }
 
     private func consumeStream() async throws {
+        defer {
+            streamTask = nil
+        }
         let handle = try FileHandle(forWritingTo: downloadPaths.tempFileURL)
         defer { try? handle.close() }
 
@@ -289,6 +313,7 @@ actor HTTPSourceSession {
             storedError = error
             emitStatus()
             resumeAllWaiters(with: error)
+            resumeTerminalWaiters()
             throw error
         }
     }
@@ -313,6 +338,7 @@ actor HTTPSourceSession {
         )
         emitStatus()
         resumeSatisfiedWaiters()
+        resumeTerminalWaiters()
     }
 
     private func handleTransportEvent(_ transportEvent: HTTPTransportLogEvent) {
@@ -336,7 +362,7 @@ actor HTTPSourceSession {
                     )
                 )
             )
-        case .requestStarted, .responseReceived, .bytesReceived, .requestCompleted, .resumeAttempt:
+        case .requestStarted, .requestPromoted, .responseReceived, .bytesReceived, .requestCompleted, .resumeAttempt:
             if retryState != nil {
                 retryState = nil
                 emitStatus()
@@ -348,6 +374,16 @@ actor HTTPSourceSession {
 
     private func emitStatus() {
         preparationEventHandler?(.download(status()))
+    }
+
+    func waitForTerminalStatus() async -> SourceDownloadStatus {
+        if isComplete || storedError != nil {
+            return status()
+        }
+
+        return await withCheckedContinuation { continuation in
+            terminalWaiters.append(continuation)
+        }
     }
 
     private func resumeSatisfiedWaiters() {
@@ -370,6 +406,13 @@ actor HTTPSourceSession {
         let waiters = continuationWaiters
         continuationWaiters.removeAll()
         waiters.forEach { $0.1.resume(throwing: error) }
+    }
+
+    private func resumeTerminalWaiters() {
+        let terminalStatus = status()
+        let waiters = terminalWaiters
+        terminalWaiters.removeAll()
+        waiters.forEach { $0.resume(returning: terminalStatus) }
     }
 
     private func describe(_ error: Error) -> String {
