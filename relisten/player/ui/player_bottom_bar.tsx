@@ -176,10 +176,18 @@ interface PlayerBottomBarProps {
   placementBackend?: PlayerBarPlacementBackend;
 }
 
+const OFFLINE_OVERLAY_MIN_HEIGHT = 104;
+const OFFLINE_ACCESSORY_MIN_HEIGHT = 96;
+
 export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBarProps) {
   const isOnline = useShouldMakeNetworkRequests();
   const { playerBottomBarHeight, setPlayerBottomBarHeight } = useRelistenPlayerBottomBarContext();
   const placementOffset = usePlayerBarPlacementOffset();
+  const offlineMinHeight = !isOnline
+    ? placementBackend === 'overlay'
+      ? OFFLINE_OVERLAY_MIN_HEIGHT
+      : OFFLINE_ACCESSORY_MIN_HEIGHT
+    : undefined;
 
   const onLayout = useCallback(
     (e: LayoutChangeEvent) => {
@@ -200,11 +208,13 @@ export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBa
   const containerStyle =
     placementBackend === 'overlay'
       ? {
+          minHeight: offlineMinHeight,
           bottom: placementOffset,
           position: 'absolute' as const,
           width: '100%' as const,
         }
       : {
+          minHeight: offlineMinHeight,
           width: '100%' as const,
         };
   const contentContainerStyle =

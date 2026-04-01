@@ -1,5 +1,6 @@
 import { useRelistenPlayerPlaybackState } from '@/relisten/player/relisten_player_hooks';
 import { useRelistenPlayerQueueOrderedTracks } from '@/relisten/player/relisten_player_queue_hooks';
+import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import React, { PropsWithChildren, useContext, useState } from 'react';
 import { Platform, type Insets, type StyleProp, type ViewStyle } from 'react-native';
 import { useCompatibleNativeTabsBottomInset } from './native_tabs_inset';
@@ -161,8 +162,17 @@ export const supportsNativeTabsBottomAccessory = () => {
 };
 
 export const usePlayerBarPlacementBackend = (): PlayerBarPlacementBackend => {
+  const placementBackendOverride = getPlayerBarPlacementBackendOverride();
+  const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
+
+  // NativeTabs.BottomAccessory does not expose a reliable JS height control for the
+  // stacked offline banner + mini-player layout, so offline falls back to overlay.
+  if (!placementBackendOverride && !shouldMakeNetworkRequests) {
+    return 'overlay';
+  }
+
   return resolvePlayerBarPlacementBackend({
-    placementBackendOverride: getPlayerBarPlacementBackendOverride(),
+    placementBackendOverride,
     platformOs: Platform.OS,
     platformVersion: Platform.Version,
   });
