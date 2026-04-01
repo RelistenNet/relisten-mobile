@@ -1,5 +1,8 @@
 import Foundation
 
+private let coordinatorLifecycleLog = RelistenPlaybackLogger(layer: .coordinator, category: .lifecycle)
+private let coordinatorPreloadLog = RelistenPlaybackLogger(layer: .coordinator, category: .preload)
+
 /// Coordinates metadata loading, source opening, decode pacing, and track handoff.
 ///
 /// The coordinator intentionally sits above low-level IO/decode primitives and below
@@ -81,32 +84,55 @@ actor GaplessPlaybackCoordinator {
         next: GaplessPlaybackSource?,
         eventHandler: (@Sendable (GaplessPreparationEvent) -> Void)? = nil
     ) async throws -> GaplessPreparationReport {
+        let prepareStartedAt = Date()
+        coordinatorLifecycleLog.debug(
+            "started",
+            "prepare",
+            playbackLogField("src", current.id),
+            playbackLogField("next", next?.id)
+        )
         self.stopPlayback()
 
-        eventHandler?(.phase("Loading current track metadata"))
-        let currentTrack = try await loadTrackMetadata(current, eventHandler: eventHandler)
-        let nextTrack: PreparedTrack?
+        do {
+            eventHandler?(.phase("Loading current track metadata"))
+            let currentTrack = try await loadTrackMetadata(current, eventHandler: eventHandler)
+            let nextTrack: PreparedTrack?
 
-        if let next {
-            eventHandler?(.phase("Loading next track metadata"))
-            nextTrack = try await loadTrackMetadata(next, eventHandler: eventHandler)
-        } else {
-            nextTrack = nil
+            if let next {
+                eventHandler?(.phase("Loading next track metadata"))
+                nextTrack = try await loadTrackMetadata(next, eventHandler: eventHandler)
+            } else {
+                nextTrack = nil
+            }
+
+            try validateNormalizable(currentTrack)
+            if let nextTrack {
+                try validateNormalizable(nextTrack)
+            }
+
+            let report = makeReport(current: currentTrack, next: nextTrack)
+            preparedPlayback = PreparedPlayback(current: currentTrack, next: nextTrack, report: report)
+            isReadyToPlay = false
+            scheduledThroughTime = 0
+            playbackStartTime = 0
+            lastPlaybackErrorDescription = nil
+            eventHandler?(.prepared(report))
+            coordinatorLifecycleLog.info(
+                "succeeded",
+                "prepare",
+                playbackLogField("src", current.id),
+                playbackLogDurationField("dur", Date().timeIntervalSince(prepareStartedAt))
+            )
+            return report
+        } catch {
+            coordinatorLifecycleLog.error(
+                "failed",
+                "prepare",
+                playbackLogField("src", current.id),
+                playbackLogErrorField(String(describing: error))
+            )
+            throw error
         }
-
-        try validateNormalizable(currentTrack)
-        if let nextTrack {
-            try validateNormalizable(nextTrack)
-        }
-
-        let report = makeReport(current: currentTrack, next: nextTrack)
-        preparedPlayback = PreparedPlayback(current: currentTrack, next: nextTrack, report: report)
-        isReadyToPlay = false
-        scheduledThroughTime = 0
-        playbackStartTime = 0
-        lastPlaybackErrorDescription = nil
-        eventHandler?(.prepared(report))
-        return report
     }
 
     func setNext(_ source: GaplessPlaybackSource?) async throws -> GaplessPreparationReport {
@@ -354,6 +380,17 @@ actor GaplessPlaybackCoordinator {
 
         if let nextProducerTaskState,
            nextProducerTaskState.currentSourceID == activePlaybackContext.currentSourceID,
+           nextProducerTaskState.nextSourceID != nextTrack.source.id {
+            coordinatorPreloadLog.info(
+                "superseded",
+                "preload",
+                playbackLogField("src", nextProducerTaskState.nextSourceID),
+                playbackLogField("next", nextTrack.source.id)
+            )
+        }
+
+        if let nextProducerTaskState,
+           nextProducerTaskState.currentSourceID == activePlaybackContext.currentSourceID,
            nextProducerTaskState.nextSourceID == nextTrack.source.id {
             return
         }
@@ -370,6 +407,11 @@ actor GaplessPlaybackCoordinator {
                 plan: activePlaybackContext.plan,
                 currentTimeProvider: activePlaybackContext.currentTimeProvider
             )
+        )
+        coordinatorPreloadLog.info(
+            "scheduled",
+            "next producer",
+            playbackLogField("src", nextTrack.source.id)
         )
     }
 
@@ -402,6 +444,11 @@ actor GaplessPlaybackCoordinator {
         let preloadImmediately = currentStartTime >= max(currentTrackDuration - plan.nextTrackPreloadLeadTime, 0)
         return Task {
             if preloadImmediately {
+                coordinatorPreloadLog.debug(
+                    "started",
+                    "immediate preload",
+                    playbackLogField("src", nextTrack.source.id)
+                )
                 try await sourceManager.preload(nextTrack.source)
                 let producer = try await TrackPCMProducer.make(
                     track: nextTrack,
@@ -419,6 +466,11 @@ actor GaplessPlaybackCoordinator {
                 try Task.checkCancellation()
                 let currentTrackTime = max((await currentTimeProvider()) - currentTrackTimelineOrigin, 0)
                 if plan.shouldBeginNextTrackPreload(currentTime: currentTrackTime, transitionTime: currentTrackDuration) {
+                    coordinatorPreloadLog.debug(
+                        "started",
+                        "delayed preload",
+                        playbackLogField("src", nextTrack.source.id)
+                    )
                     try await sourceManager.preload(nextTrack.source)
                     let producer = try await TrackPCMProducer.make(
                         track: nextTrack,
@@ -463,6 +515,12 @@ actor GaplessPlaybackCoordinator {
                     }
                     return producer
                 }
+                coordinatorPreloadLog.warn(
+                    "abandoned",
+                    "preload",
+                    playbackLogField("src", nextProducerTaskState.nextSourceID),
+                    playbackLogField("current", playbackSnapshot(for: currentSourceID)?.current.source.id)
+                )
             } catch is CancellationError {
                 if Task.isCancelled {
                     throw CancellationError()
@@ -564,6 +622,11 @@ actor GaplessPlaybackCoordinator {
             boundaryTime: boundaryTime
         )
         pendingTransitionPlayback = pendingTransition
+        coordinatorPreloadLog.info(
+            "committed",
+            "next producer",
+            playbackLogField("src", nextTrack.source.id)
+        )
         return pendingTransition
     }
 

@@ -2,6 +2,12 @@ import AVFAudio
 import Foundation
 import MediaPlayer
 
+private let backendCommandLog = RelistenPlaybackLogger(layer: .backend, category: .command)
+private let backendLifecycleLog = RelistenPlaybackLogger(layer: .backend, category: .lifecycle)
+private let backendNetworkLog = RelistenPlaybackLogger(layer: .backend, category: .network)
+private let backendStateLog = RelistenPlaybackLogger(layer: .backend, category: .state)
+private let backendErrorLog = RelistenPlaybackLogger(layer: .backend, category: .error)
+
 private final class BackendLockedValue<Value>: @unchecked Sendable {
     private let lock = NSLock()
     private var value: Value
@@ -232,12 +238,24 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
 
     private func prepareAudioSessionOnQueue(shouldActivate: Bool) {
         guard !teardownRequested.get() else { return }
+        let generation = snapshotStore.get().generation
+        backendCommandLog.debug(
+            "entered",
+            "prepareAudioSession command",
+            playbackLogBoolField("shouldActivate", shouldActivate),
+            playbackLogIntegerField("gen", generation)
+        )
 
         do {
             try audioSessionController.configurePlaybackSession(shouldActivate: shouldActivate)
             installAudioSessionHandlersIfNeededOnQueue()
         } catch {
-            NSLog("[relisten-audio-player][native-backend] failed to prepare audio session: \(error)")
+            backendErrorLog.error(
+                "failed",
+                "audio session setup",
+                playbackLogIntegerField("gen", generation),
+                playbackLogErrorField(String(describing: error))
+            )
         }
     }
 
@@ -285,6 +303,11 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
         hasInstalledAudioSessionHandlers = true
         guard !hasReportedAudioSessionSetup else { return }
         hasReportedAudioSessionSetup = true
+        backendStateLog.info(
+            "succeeded",
+            "audio session setup",
+            playbackLogIntegerField("gen", snapshotStore.get().generation)
+        )
         delegateQueue.async {
             self.delegate?.audioSessionWasSetup()
         }
@@ -295,6 +318,14 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
         startingAtMs: Int64?,
         manualTrackChange: ManualTrackChange? = nil
     ) {
+        let entryGeneration = snapshotStore.get().generation
+        backendCommandLog.debug(
+            "entered",
+            "play command",
+            playbackLogField("src", streamable.identifier),
+            playbackLogField("startMs", startingAtMs.map { String($0) }),
+            playbackLogIntegerField("gen", entryGeneration)
+        )
         prepareAudioSessionOnQueue(shouldActivate: true)
 
         let snapshot = snapshotStore.get()
@@ -317,6 +348,12 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
                         milliseconds: max(startingAtMs, 0)
                     )
                 }
+                backendLifecycleLog.debug(
+                    "accepted",
+                    "post-prepare seek",
+                    playbackLogIntegerField("timeMs", startingAtMs),
+                    playbackLogIntegerField("gen", snapshot.generation)
+                )
                 return
             }
             seekToTimeOnQueue(startingAtMs)
@@ -353,17 +390,34 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
         player.sessionID = sessionID
         playbackPresentationController.setPlaybackState(.Stalled)
         emitStateIfNeeded(previous: previousState, current: .Stalled)
+        backendCommandLog.info(
+            "accepted",
+            "playback request",
+            playbackLogField("src", streamable.identifier),
+            playbackLogIntegerField("gen", generation)
+        )
 
         let currentSource = makePlaybackSource(from: streamable)
         Task { [weak self] in
             guard let self else { return }
             do {
+                backendLifecycleLog.debug(
+                    "stopping",
+                    "old session before prepare",
+                    playbackLogIntegerField("gen", generation)
+                )
                 await self.player.stop()
                 guard self.shouldContinueAsyncWork(for: generation) else { return }
                 try await self.player.prepare(current: currentSource, next: nil)
                 guard self.shouldContinueAsyncWork(for: generation) else { return }
                 if let seekTime = self.consumePendingStartTimeAfterPrepareOnQueue(for: generation), seekTime > 0 {
                     try await self.player.seek(to: seekTime)
+                    backendLifecycleLog.debug(
+                        "applied",
+                        "post-prepare seek",
+                        playbackLogIntegerField("timeMs", Int64(seekTime * 1000)),
+                        playbackLogIntegerField("gen", generation)
+                    )
                     guard self.shouldContinueAsyncWork(for: generation) else { return }
                 }
 
@@ -420,6 +474,12 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
     }
 
     private func setNextOnQueue(_ streamable: RelistenGaplessStreamable?) {
+        backendCommandLog.debug(
+            "entered",
+            "setNext command",
+            playbackLogField("next", streamable?.identifier),
+            playbackLogIntegerField("gen", snapshotStore.get().generation)
+        )
         let (snapshot, requestAction) = snapshotStore.withValue { snapshot -> (Snapshot, NextStreamSupersessionRequestAction) in
             var supersessionState = NextStreamSupersessionState(
                 hasCurrentTrack: snapshot.currentStreamable != nil,
@@ -466,6 +526,11 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
     }
 
     private func resumeOnQueue() {
+        backendCommandLog.debug(
+            "entered",
+            "resume command",
+            playbackLogIntegerField("gen", snapshotStore.get().generation)
+        )
         snapshotStore.withValue { $0.desiredTransport = .playing }
         ResumeCommandState(
             isStopped: snapshotStore.get().currentState == .Stopped
@@ -482,6 +547,11 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
     }
 
     private func pauseOnQueue() {
+        backendCommandLog.debug(
+            "entered",
+            "pause command",
+            playbackLogIntegerField("gen", snapshotStore.get().generation)
+        )
         player.pause()
         updateSnapshotOnQueue {
             $0.desiredTransport = .paused
@@ -496,6 +566,11 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
         shouldInvalidateGeneration: Bool = true,
         stopPlayer: Bool = true
     ) {
+        backendCommandLog.debug(
+            "entered",
+            "stop command",
+            playbackLogIntegerField("gen", snapshotStore.get().generation)
+        )
         let previous = snapshotStore.get()
         let previousStreamable = previous.currentStreamable
         let previousState = snapshotStore.withValue { snapshot -> PlaybackState in
@@ -539,6 +614,11 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
     }
 
     private func nextOnQueue() {
+        backendCommandLog.debug(
+            "entered",
+            "next command",
+            playbackLogIntegerField("gen", snapshotStore.get().generation)
+        )
         let (snapshot, nextAction) = snapshotStore.withValue { snapshot -> (Snapshot, NextCommandAction) in
             var nextCommandState = NextCommandState(
                 hasCurrentTrack: snapshot.currentStreamable != nil,
@@ -556,6 +636,11 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
 
         switch nextAction {
         case .noOp:
+            backendCommandLog.warn(
+                "ignored",
+                "next command, no next track queued",
+                playbackLogIntegerField("gen", snapshot.generation)
+            )
             return
         case .stopCurrentTrack:
             stopOnQueue(emitTrackChanged: true, shouldInvalidateGeneration: false)
@@ -578,6 +663,12 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
     }
 
     private func seekToPercentOnQueue(_ percent: Double) {
+        backendCommandLog.debug(
+            "entered",
+            "seekTo command",
+            playbackLogDoubleField("pct", percent),
+            playbackLogIntegerField("gen", snapshotStore.get().generation)
+        )
         guard percent.isFinite else { return }
         let normalizedPercent = max(0, min(percent, 1))
         if normalizedPercent >= 1 {
@@ -585,12 +676,32 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             return
         }
 
-        guard let duration = snapshotStore.get().currentDuration else { return }
+        guard let duration = snapshotStore.get().currentDuration else {
+            backendCommandLog.warn(
+                "ignored",
+                "seek command, no active track",
+                playbackLogIntegerField("gen", snapshotStore.get().generation)
+            )
+            return
+        }
         seekOnQueue(to: duration * normalizedPercent)
     }
 
     private func seekToTimeOnQueue(_ timeMs: Int64) {
-        guard snapshotStore.get().currentStreamable != nil else { return }
+        backendCommandLog.debug(
+            "entered",
+            "seekToTime command",
+            playbackLogIntegerField("timeMs", timeMs),
+            playbackLogIntegerField("gen", snapshotStore.get().generation)
+        )
+        guard snapshotStore.get().currentStreamable != nil else {
+            backendCommandLog.warn(
+                "ignored",
+                "seek command, no active track",
+                playbackLogIntegerField("gen", snapshotStore.get().generation)
+            )
+            return
+        }
         seekOnQueue(to: max(Double(timeMs) / 1000, 0))
     }
 
@@ -732,6 +843,14 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             let snapshot = snapshotStore.get()
             let previousStreamable = streamableMatching(id: previous?.id, snapshot: snapshot) ?? snapshot.currentStreamable
             let currentStreamable = streamableMatching(id: current?.id, snapshot: snapshot) ?? snapshot.nextStreamable
+            backendStateLog.info(
+                "committed",
+                "track transition",
+                playbackLogField("prev", previousStreamable?.identifier),
+                playbackLogField("next", currentStreamable?.identifier),
+                playbackLogField("sess", eventSessionID),
+                playbackLogIntegerField("gen", snapshot.generation)
+            )
             snapshotStore.withValue {
                 $0.currentStreamable = currentStreamable
                 $0.nextStreamable = nil
@@ -744,6 +863,13 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
         case .playbackFinished(let last, _):
             let snapshot = snapshotStore.get()
             guard snapshot.currentStreamable?.identifier == last?.id else { return }
+            backendStateLog.info(
+                "finished",
+                "playback",
+                playbackLogField("last", last?.id),
+                playbackLogField("sess", eventSessionID),
+                playbackLogIntegerField("gen", snapshot.generation)
+            )
             let previousStreamable = snapshot.currentStreamable
             let previousState = snapshotStore.withValue { snapshot -> PlaybackState in
                 let previousState = snapshot.currentState
@@ -791,6 +917,64 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
                 snapshot.desiredNextStreamable?.identifier,
             ]
             guard trackedIdentifiers.contains(where: { $0 == event.sourceID }) else { return }
+
+            let generation = snapshot.generation
+            switch event.kind {
+            case .requestStarted:
+                backendNetworkLog.info(
+                    "started",
+                    "HTTP request",
+                    playbackLogField("kind", event.requestKind.rawValue),
+                    playbackLogField("src", event.sourceID),
+                    playbackLogIntegerField("attempt", event.attempt),
+                    playbackLogIntegerField("gen", generation)
+                )
+            case .requestCompleted:
+                backendNetworkLog.info(
+                    "completed",
+                    "HTTP request",
+                    playbackLogField("kind", event.requestKind.rawValue),
+                    playbackLogField("src", event.sourceID),
+                    playbackLogField("status", event.statusCode.map { String($0) }),
+                    playbackLogIntegerField("attempt", event.attempt),
+                    playbackLogField("bytes", event.cumulativeBytes.map { String($0) }),
+                    playbackLogIntegerField("gen", generation)
+                )
+            case .retryScheduled:
+                let retryAttempt = min(event.attempt + 1, event.maxAttempts)
+                backendNetworkLog.info(
+                    "scheduled",
+                    "retry",
+                    playbackLogField("src", event.sourceID),
+                    playbackLogField("attempt", "\(retryAttempt)/\(event.maxAttempts)"),
+                    playbackLogDelayField(event.retryDelay),
+                    playbackLogIntegerField("gen", generation)
+                )
+            case .resumeAttempt:
+                backendNetworkLog.info(
+                    "started",
+                    "resume attempt",
+                    playbackLogField("kind", event.requestKind.rawValue),
+                    playbackLogField("src", event.sourceID),
+                    playbackLogIntegerField("attempt", event.attempt),
+                    playbackLogIntegerField("gen", generation)
+                )
+            case .requestFailed:
+                if event.retryDelay == nil {
+                    backendErrorLog.error(
+                        "failed",
+                        "HTTP request",
+                        playbackLogField("kind", event.requestKind.rawValue),
+                        playbackLogField("src", event.sourceID),
+                        playbackLogField("status", event.statusCode.map { String($0) }),
+                        playbackLogIntegerField("attempt", event.attempt),
+                        playbackLogIntegerField("gen", generation),
+                        playbackLogErrorField(event.errorDescription ?? "unknown")
+                    )
+                }
+            case .responseReceived, .bytesReceived:
+                break
+            }
 
             if event.requestKind == .progressive && event.kind == .requestCompleted {
                 self.refreshStatusOnQueue(for: snapshot.generation)
@@ -903,6 +1087,11 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
         }
         guard shouldSchedule else { return }
 
+        backendLifecycleLog.debug(
+            "started",
+            "progress polling",
+            playbackLogIntegerField("gen", generation)
+        )
         scheduleProgressPollingTickOnQueue(for: generation)
     }
 
@@ -921,6 +1110,11 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
               snapshot.progressPollingGeneration == generation else {
             if snapshot.progressPollingGeneration == generation {
                 snapshotStore.withValue { $0.progressPollingGeneration = nil }
+                backendLifecycleLog.debug(
+                    "stopped",
+                    "progress polling",
+                    playbackLogIntegerField("gen", generation)
+                )
             }
             return
         }
@@ -1071,14 +1265,28 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
                 )
             }
         } catch {
-            NSLog(
-                "[relisten-audio-player][native-backend] failed to copy cached file from \(resolvedFileURL) to \(downloadDestination) for streamable=\(streamable.identifier): \(error)"
+            backendErrorLog.error(
+                "failed",
+                "streaming cache copy",
+                playbackLogField("src", streamable.identifier),
+                playbackLogPathField("fromPath", resolvedFileURL),
+                playbackLogPathField("toPath", downloadDestination),
+                playbackLogIntegerField("gen", snapshotStore.get().generation),
+                playbackLogErrorField(String(describing: error))
             )
             emitError(error, for: streamable)
         }
     }
 
     private func emitError(_ error: Error, for streamable: RelistenGaplessStreamable) {
+        backendErrorLog.error(
+            "failed",
+            "playback",
+            playbackLogField("src", streamable.identifier),
+            playbackLogField("sess", snapshotStore.get().currentSessionID),
+            playbackLogIntegerField("gen", snapshotStore.get().generation),
+            playbackLogErrorField((error as NSError).localizedDescription)
+        )
         let nsError = error as NSError
         let translated = translateErrorCode(error)
         let wrapped = NSError(
@@ -1262,7 +1470,17 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
 
     private func shouldContinueAsyncWork(for generation: UInt64) -> Bool {
         guard !teardownRequested.get() else { return false }
-        let supersessionState = PlaySupersessionState(activeGeneration: snapshotStore.get().generation)
-        return supersessionState.prepareCompletionAction(for: generation) == .applyPreparedTrack
+        let currentGeneration = snapshotStore.get().generation
+        let supersessionState = PlaySupersessionState(activeGeneration: currentGeneration)
+        let shouldApply = supersessionState.prepareCompletionAction(for: generation) == .applyPreparedTrack
+        if !shouldApply {
+            backendLifecycleLog.debug(
+                "discarding",
+                "stale async result",
+                playbackLogIntegerField("gen", generation),
+                playbackLogIntegerField("currentGen", currentGeneration)
+            )
+        }
+        return shouldApply
     }
 }

@@ -1,5 +1,7 @@
 import Foundation
 
+private let sourceLifecycleLog = RelistenPlaybackLogger(layer: .source, category: .lifecycle)
+
 /// Progressive byte-0 download session shared by metadata, playback, and cache fill.
 actor HTTPSourceSession {
     private struct RetryState: Sendable {
@@ -61,12 +63,25 @@ actor HTTPSourceSession {
 
     func start() {
         guard streamTask == nil else { return }
+        sourceLifecycleLog.debug(
+            "started",
+            "download session",
+            playbackLogField("src", source.id),
+            playbackLogField("kind", requestKind.rawValue)
+        )
         streamTask = Task {
             try await consumeStream()
         }
     }
 
     func shutdown() {
+        sourceLifecycleLog.debug(
+            "stopped",
+            "download session",
+            playbackLogField("src", source.id),
+            playbackLogField("kind", requestKind.rawValue),
+            playbackLogIntegerField("bytes", downloadedPrefixEnd)
+        )
         streamTask?.cancel()
         streamTask = nil
         storedError = CancellationError()
@@ -93,6 +108,13 @@ actor HTTPSourceSession {
 
     func promoteRequestKind(to kind: GaplessHTTPRequestKind) {
         if requestKind == .metadata, kind != .metadata {
+            sourceLifecycleLog.debug(
+                "promoted",
+                "request kind",
+                playbackLogField("src", source.id),
+                playbackLogField("from", requestKind.rawValue),
+                playbackLogField("to", kind.rawValue)
+            )
             requestKind = kind
         }
     }
@@ -263,6 +285,14 @@ actor HTTPSourceSession {
         )
         retryState = nil
         isComplete = true
+        sourceLifecycleLog.info(
+            "completed",
+            "download session",
+            playbackLogField("src", source.id),
+            playbackLogField("kind", requestKind.rawValue),
+            playbackLogIntegerField("bytes", downloadedPrefixEnd),
+            playbackLogPathField("path", resolvedSource?.localFileURL)
+        )
         emitStatus()
         resumeSatisfiedWaiters()
     }

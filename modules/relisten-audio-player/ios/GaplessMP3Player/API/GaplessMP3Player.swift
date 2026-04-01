@@ -1,6 +1,8 @@
 import Dispatch
 import Foundation
 
+private let playerLifecycleLog = RelistenPlaybackLogger(layer: .player, category: .lifecycle)
+
 protocol PCMOutputControlling: AnyObject, Sendable {
     var isPlaying: Bool { get }
     var volume: Float { get set }
@@ -645,6 +647,12 @@ public final class GaplessMP3Player: @unchecked Sendable {
             self.stateStore.withValue {
                 $0.pendingTrackTransition = PendingTrackTransition(report: report, boundaryTime: boundaryTime)
             }
+            playerLifecycleLog.debug(
+                "scheduled",
+                "pending transition",
+                playbackLogField("src", report.current.source.id),
+                playbackLogDurationField("boundary", boundaryTime)
+            )
             self.refreshSnapshotOnPlaybackQueue()
         }
     }
@@ -677,6 +685,12 @@ public final class GaplessMP3Player: @unchecked Sendable {
         }
 
         if case let .finished(lastSource) = outcome {
+            playerLifecycleLog.debug(
+                "dispatched",
+                "playback finished",
+                playbackLogField("src", lastSource?.id),
+                playbackLogField("sess", sessionID)
+            )
             deliverRuntimeEvent(.playbackFinished(last: lastSource, sessionID: sessionID))
         }
     }
@@ -692,6 +706,12 @@ public final class GaplessMP3Player: @unchecked Sendable {
             self.refreshSnapshotOnPlaybackQueue()
             return sessionID
         }
+        playerLifecycleLog.debug(
+            "dispatched",
+            "playback failure",
+            playbackLogField("sess", sessionID),
+            playbackLogErrorField(String(describing: error))
+        )
         deliverRuntimeEvent(.playbackFailed(String(describing: error), sessionID: sessionID))
     }
 

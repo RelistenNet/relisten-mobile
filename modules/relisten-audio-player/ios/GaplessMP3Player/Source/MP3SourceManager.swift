@@ -1,5 +1,7 @@
 import Foundation
 
+private let sourcePreloadLog = RelistenPlaybackLogger(layer: .source, category: .preload)
+
 /// Owns local-file, cached-file, progressive-download, and ephemeral range reads for
 /// the playback engine.
 ///
@@ -17,6 +19,7 @@ actor MP3SourceManager {
     private var runtimeEventHandler: (@Sendable (GaplessRuntimeEvent) -> Void)?
     private var httpLogHandler: (@Sendable (GaplessHTTPLogEvent) -> Void)?
     private var isShutdown = false
+    private var preloadRequests: Set<String> = []
 
     init(
         cacheDirectory: URL = FileManager.default.temporaryDirectory.appendingPathComponent("GaplessMP3PlayerCache", isDirectory: true),
@@ -221,7 +224,20 @@ actor MP3SourceManager {
             return
         }
 
-        _ = try await openSession(for: source, requestKind: .progressive, eventHandler: eventHandler)
+        let shouldLogStart = preloadRequests.insert(source.cacheKey).inserted
+        if shouldLogStart {
+            sourcePreloadLog.info(
+                "started",
+                "preload",
+                playbackLogField("src", source.id)
+            )
+        }
+        do {
+            _ = try await openSession(for: source, requestKind: .progressive, eventHandler: eventHandler)
+        } catch {
+            preloadRequests.remove(source.cacheKey)
+            throw error
+        }
     }
 
     func downloadStatus(for source: GaplessPlaybackSource?) async -> SourceDownloadStatus? {
@@ -271,6 +287,7 @@ actor MP3SourceManager {
         let sessions = Array(activeDownloads.values)
         activeDownloads.removeAll()
         transientStatuses.removeAll()
+        preloadRequests.removeAll()
         for session in sessions {
             await session.shutdown()
         }
@@ -581,6 +598,17 @@ actor MP3SourceManager {
     private func downloadFinished(cacheKey: String, terminalStatus: SourceDownloadStatus) {
         guard !isShutdown else { return }
         activeDownloads.removeValue(forKey: cacheKey)
+        let shouldLogPreloadCompletion = preloadRequests.remove(cacheKey) != nil
+        if shouldLogPreloadCompletion,
+           terminalStatus.state == .cached || terminalStatus.state == .completed {
+            sourcePreloadLog.info(
+                "completed",
+                "preload",
+                playbackLogField("src", terminalStatus.source.id),
+                playbackLogIntegerField("bytes", terminalStatus.downloadedBytes),
+                playbackLogPathField("path", terminalStatus.resolvedFileURL)
+            )
+        }
         if terminalStatus.state == .failed || cacheMode == .disabled {
             transientStatuses[cacheKey] = terminalStatus
         } else {
