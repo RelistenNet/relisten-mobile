@@ -531,6 +531,27 @@ ${indentString(tracks)}
       }
     }
   }
+
+  private restoreTrackIndexesBySourceTrackUuid(sourceTrackUuid: string) {
+    this.clearCurrentTrack();
+
+    // Queue item identifiers are regenerated on cold start, so restore has to re-anchor by
+    // stable SourceTrack UUID and then recover both original/shuffled indexes from that identity.
+    this.originalTracksCurrentIndex = this.originalTracks.findIndex(
+      (track) => track.sourceTrack.uuid === sourceTrackUuid
+    );
+    this.shuffledTracksCurrentIndex = this.shuffledTracks.findIndex(
+      (track) => track.sourceTrack.uuid === sourceTrackUuid
+    );
+
+    if (this.originalTracksCurrentIndex < 0) {
+      this.originalTracksCurrentIndex = undefined;
+    }
+
+    if (this.shuffledTracksCurrentIndex < 0) {
+      this.shuffledTracksCurrentIndex = undefined;
+    }
+  }
   // endregion
 
   // region Player state serialization
@@ -612,7 +633,38 @@ ${indentString(tracks)}
     this.shuffledTracks = shuffledQueue;
     this.onOrderedTracksChanged.dispatch(this.orderedTracks);
 
-    this.originalTracksCurrentIndex = playerState.activeSourceTrackIndex ?? 0;
+    const restoreTrackUuidFromIndex = (
+      tracks: PlayerQueueTrack[],
+      maybeIndex: number | null | undefined
+    ) => {
+      if (maybeIndex == null || maybeIndex < 0 || maybeIndex >= tracks.length) {
+        return undefined;
+      }
+
+      return tracks[maybeIndex]?.sourceTrack.uuid;
+    };
+
+    const preferredRestoredTrackUuid =
+      this.shuffleState === PlayerShuffleState.SHUFFLE_ON
+        ? restoreTrackUuidFromIndex(this.shuffledTracks, playerState.activeSourceTrackShuffledIndex)
+        : restoreTrackUuidFromIndex(this.originalTracks, playerState.activeSourceTrackIndex);
+    const fallbackRestoredTrackUuid =
+      this.shuffleState === PlayerShuffleState.SHUFFLE_ON
+        ? restoreTrackUuidFromIndex(this.originalTracks, playerState.activeSourceTrackIndex)
+        : restoreTrackUuidFromIndex(
+            this.shuffledTracks,
+            playerState.activeSourceTrackShuffledIndex
+          );
+    const restoredTrackUuid =
+      preferredRestoredTrackUuid ??
+      fallbackRestoredTrackUuid ??
+      this.originalTracks[0]?.sourceTrack.uuid;
+
+    // Prefer the index for the active queue mode, but fall back to the other ordering so an
+    // older/malformed PlayerState record still restores a coherent current track.
+    if (restoredTrackUuid) {
+      this.restoreTrackIndexesBySourceTrackUuid(restoredTrackUuid);
+    }
 
     if (this.currentTrack) {
       this.onCurrentTrackChanged.dispatch(this.currentTrack);
@@ -622,18 +674,18 @@ ${indentString(tracks)}
     this._nextTrack = undefined;
     this._nextTrackIndex = undefined;
 
-    if (playerState.elapsed && playerState.progress && playerState.duration) {
-      // very early seeks into a song are buggy
-      const elapsed = playerState.elapsed <= 15 ? 0 : playerState.elapsed;
-
-      this.player.seekToTime(elapsed).then(() => {});
-
-      // forcibly update the UI
-      sharedStateProgress.setState({
-        elapsed: elapsed,
+    if (playerState.elapsed != null && playerState.duration != null) {
+      const restoredProgress = {
+        elapsed: playerState.elapsed,
         duration: playerState.duration,
-        percent: elapsed / playerState.duration,
-      });
+        percent: playerState.duration > 0 ? playerState.elapsed / playerState.duration : 0,
+      };
+
+      this.player.seekToTime(restoredProgress.elapsed).then(() => {});
+      // savePlayerState() serializes from player.progress, not the shared UI state, so seed both
+      // before the first native progress event to avoid clobbering the restored position.
+      this.player.progress = restoredProgress;
+      sharedStateProgress.setState(restoredProgress);
     }
 
     this.savePlayerState();

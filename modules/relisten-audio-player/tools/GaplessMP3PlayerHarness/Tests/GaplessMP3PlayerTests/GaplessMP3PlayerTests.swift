@@ -383,6 +383,45 @@ final class GaplessMP3PlayerTests: XCTestCase {
         loader.finishProgressiveDownload()
     }
 
+    func testDownloadStatusBecomesCachedAfterProgressiveDownloadCompletes() async throws {
+        let data = try httpFixtureData(named: "gd77-s2t07-first-5s.mp3")
+        let loader = StubHTTPDataLoader(data: data, initialProgressiveChunkSize: 2048)
+        let sourceManager = makeHTTPSourceManager(loader: loader)
+        let source = httpFixtureSource(id: "current", path: "gd77-s2t07-first-5s.mp3", byteCount: data.count)
+
+        try await sourceManager.preload(source)
+        try await waitForDownloadedBytes(sourceManager: sourceManager, source: source, minimum: 2048)
+
+        loader.finishProgressiveDownload()
+        let status = try await waitForDownloadState(sourceManager: sourceManager, source: source) { status in
+            status.state == .cached
+        }
+
+        XCTAssertEqual(status.downloadedBytes, Int64(data.count))
+        XCTAssertEqual(status.expectedBytes, Int64(data.count))
+        XCTAssertEqual(status.state, .cached)
+        XCTAssertNotNil(status.resolvedFileURL)
+    }
+
+    func testDownloadStatusBecomesCompletedWhenCachingIsDisabled() async throws {
+        let data = try httpFixtureData(named: "gd77-s2t07-first-5s.mp3")
+        let loader = StubHTTPDataLoader(data: data, initialProgressiveChunkSize: 2048)
+        let sourceManager = makeHTTPSourceManager(loader: loader, cacheMode: .disabled)
+        let source = httpFixtureSource(id: "current", path: "gd77-s2t07-first-5s.mp3", byteCount: data.count)
+
+        try await sourceManager.preload(source)
+        try await waitForDownloadedBytes(sourceManager: sourceManager, source: source, minimum: 2048)
+
+        loader.finishProgressiveDownload()
+        let status = try await waitForDownloadState(sourceManager: sourceManager, source: source) { status in
+            status.state == .completed
+        }
+
+        XCTAssertEqual(status.downloadedBytes, Int64(data.count))
+        XCTAssertEqual(status.expectedBytes, Int64(data.count))
+        XCTAssertEqual(status.state, .completed)
+    }
+
     func testPlaybackNormalizesScheduledOutputAcrossMixedTrackFormats() async throws {
         let outputGraph = TestOutputGraph(advanceTimeOnSchedule: true)
         let player = makePlayer(outputGraph: outputGraph)
@@ -430,15 +469,21 @@ final class GaplessMP3PlayerTests: XCTestCase {
         )
     }
 
-    private func makeHTTPSourceManager(loader: some HTTPDataLoading) -> MP3SourceManager {
-        makeHTTPSourceManagerWithCacheDirectory(loader: loader).manager
+    private func makeHTTPSourceManager(
+        loader: some HTTPDataLoading,
+        cacheMode: GaplessCacheMode = .enabled
+    ) -> MP3SourceManager {
+        makeHTTPSourceManagerWithCacheDirectory(loader: loader, cacheMode: cacheMode).manager
     }
 
-    private func makeHTTPSourceManagerWithCacheDirectory(loader: some HTTPDataLoading) -> (manager: MP3SourceManager, cacheDirectory: URL) {
+    private func makeHTTPSourceManagerWithCacheDirectory(
+        loader: some HTTPDataLoading,
+        cacheMode: GaplessCacheMode = .enabled
+    ) -> (manager: MP3SourceManager, cacheDirectory: URL) {
         let cacheDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("GaplessMP3PlayerHTTPTests-\(UUID().uuidString)", isDirectory: true)
         return (
-            MP3SourceManager(cacheDirectory: cacheDirectory, loader: loader),
+            MP3SourceManager(cacheDirectory: cacheDirectory, cacheMode: cacheMode, loader: loader),
             cacheDirectory
         )
     }
@@ -472,6 +517,21 @@ final class GaplessMP3PlayerTests: XCTestCase {
             try await Task.sleep(nanoseconds: 10_000_000)
         }
         XCTFail("Timed out waiting for \(minimum) downloaded bytes")
+    }
+
+    private func waitForDownloadState(
+        sourceManager: MP3SourceManager,
+        source: GaplessPlaybackSource,
+        matcher: @escaping (SourceDownloadStatus) -> Bool
+    ) async throws -> SourceDownloadStatus {
+        for _ in 0..<100 {
+            if let status = await sourceManager.downloadStatus(for: source), matcher(status) {
+                return status
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTFail("Timed out waiting for terminal download state")
+        throw CancellationError()
     }
 
     private func waitForDownloadedPrefix(

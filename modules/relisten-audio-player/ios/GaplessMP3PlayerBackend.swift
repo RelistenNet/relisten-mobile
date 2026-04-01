@@ -792,17 +792,6 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             ]
             guard trackedIdentifiers.contains(where: { $0 == event.sourceID }) else { return }
 
-            let previous = self.snapshotStore.get()
-            if event.sourceID == snapshot.currentStreamable?.identifier {
-                self.snapshotStore.withValue { snapshot in
-                    snapshot.activeTrackDownloadedBytes = self.unsignedValue(event.cumulativeBytes)
-                    if let expectedBytes = self.expectedContentLength(from: event.responseHeaders) {
-                        snapshot.activeTrackTotalBytes = UInt64(expectedBytes)
-                    }
-                }
-                self.emitDownloadProgressIfNeeded(previous: previous, current: self.snapshotStore.get())
-            }
-
             if event.requestKind == .progressive && event.kind == .requestCompleted {
                 self.refreshStatusOnQueue(for: snapshot.generation)
             }
@@ -869,19 +858,6 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
     private func unsignedValue(_ value: Int64?) -> UInt64? {
         guard let value, value >= 0 else { return nil }
         return UInt64(value)
-    }
-
-    private func expectedContentLength(from responseHeaders: [String: String]) -> Int64? {
-        let contentRangeHeader = responseHeaders.first { $0.key.caseInsensitiveCompare("Content-Range") == .orderedSame }?.value
-        if let contentRangeHeader,
-           let totalRangeComponent = contentRangeHeader.split(separator: "/").last,
-           totalRangeComponent != "*",
-           let totalBytes = Int64(totalRangeComponent) {
-            return totalBytes
-        }
-
-        let contentLengthHeader = responseHeaders.first { $0.key.caseInsensitiveCompare("Content-Length") == .orderedSame }?.value
-        return contentLengthHeader.flatMap(Int64.init)
     }
 
     private func consumePendingStartTimeAfterPrepareOnQueue(for generation: UInt64) -> TimeInterval? {

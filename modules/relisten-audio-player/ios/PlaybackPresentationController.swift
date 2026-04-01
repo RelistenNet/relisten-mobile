@@ -2,16 +2,64 @@ import Foundation
 import MediaPlayer
 import UIKit
 
+private final class ArtworkURLCache<Value> {
+    private let capacity: Int
+    private var values: [URL: Value] = [:]
+    private var orderedKeys: [URL] = []
+
+    init(capacity: Int) {
+        self.capacity = max(0, capacity)
+    }
+
+    func value(forKey key: URL) -> Value? {
+        guard let value = values[key] else {
+            return nil
+        }
+
+        touch(key)
+        return value
+    }
+
+    func setValue(_ value: Value, forKey key: URL) {
+        guard capacity > 0 else {
+            values.removeAll()
+            orderedKeys.removeAll()
+            return
+        }
+
+        values[key] = value
+        touch(key)
+
+        while orderedKeys.count > capacity {
+            let evictedKey = orderedKeys.removeFirst()
+            values.removeValue(forKey: evictedKey)
+        }
+    }
+
+    private func touch(_ key: URL) {
+        orderedKeys.removeAll { $0 == key }
+        orderedKeys.append(key)
+    }
+}
+
 final class PlaybackPresentationController {
     private struct State {
         var latestNowPlayingInfo: [String: Any] = [:]
         var artworkURL: URL?
         var artwork: MPMediaItemArtwork?
         var artworkRequestID: UInt64 = 0
+        var inFlightArtworkURLs: Set<URL> = []
     }
 
     private let lock = NSLock()
+    private let artworkCache: ArtworkURLCache<MPMediaItemArtwork>
+    private let urlSession: URLSession
     private var state = State()
+
+    init(artworkCacheCapacity: Int = 2, urlSession: URLSession = .shared) {
+        self.artworkCache = ArtworkURLCache(capacity: artworkCacheCapacity)
+        self.urlSession = urlSession
+    }
 
     func setPlaybackState(_ state: PlaybackState) {
         DispatchQueue.main.async {
@@ -61,12 +109,24 @@ final class PlaybackPresentationController {
 
         lock.lock()
         if artworkURL == state.artworkURL {
-            cachedArtwork = state.artwork
+            if let currentArtwork = state.artwork {
+                cachedArtwork = currentArtwork
+            } else if let artworkURL, let cached = artworkCache.value(forKey: artworkURL) {
+                state.artwork = cached
+                cachedArtwork = cached
+            } else if let artworkURL, !state.inFlightArtworkURLs.contains(artworkURL) {
+                state.inFlightArtworkURLs.insert(artworkURL)
+                artworkRequest = (artworkURL, state.artworkRequestID)
+            }
         } else {
             state.artworkURL = artworkURL
             state.artwork = nil
             state.artworkRequestID &+= 1
-            if let artworkURL {
+            if let artworkURL, let cached = artworkCache.value(forKey: artworkURL) {
+                state.artwork = cached
+                cachedArtwork = cached
+            } else if let artworkURL, !state.inFlightArtworkURLs.contains(artworkURL) {
+                state.inFlightArtworkURLs.insert(artworkURL)
                 artworkRequest = (artworkURL, state.artworkRequestID)
             }
         }
@@ -102,13 +162,23 @@ final class PlaybackPresentationController {
     }
 
     private func fetchArtwork(from url: URL, requestID: UInt64) {
-        URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
-            guard let self, let data, let image = UIImage(data: data) else { return }
+        urlSession.dataTask(with: url) { [weak self] data, _, _ in
+            guard let self else { return }
 
-            let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+            let artwork = data
+                .flatMap(UIImage.init(data:))
+                .map { image in
+                    MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+                }
             var nowPlayingInfo: [String: Any]?
 
             self.lock.lock()
+            self.state.inFlightArtworkURLs.remove(url)
+            guard let artwork else {
+                self.lock.unlock()
+                return
+            }
+            self.artworkCache.setValue(artwork, forKey: url)
             // Ignore late artwork fetches once a newer track has replaced this request.
             if self.state.artworkRequestID == requestID, self.state.artworkURL == url {
                 self.state.artwork = artwork

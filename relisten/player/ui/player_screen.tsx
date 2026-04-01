@@ -53,7 +53,8 @@ export function ScrubberRow({ showTimes = true }: { showTimes?: boolean }) {
   const player = useRelistenPlayer();
   const { isCasting } = useRelistenCastStatus();
 
-  const cacheValue = (downloadProgress?.percent ?? 0) * (progressObj?.duration ?? 0);
+  const cacheValue =
+    Math.max(0, Math.min(1, downloadProgress?.percent ?? 0)) * (progressObj?.duration ?? 0);
 
   const progress = useSharedValue(progressObj?.elapsed ?? 0);
   const min = useSharedValue(0);

@@ -14,6 +14,16 @@ import { useEffect, useState } from 'react';
 
 let listenersRegisters = false;
 
+// Native download totals can briefly disagree during terminal HTTP/cache transitions.
+// Clamp before the UI derives buffered width so the scrubber never renders past-full or zeroes on bad data.
+function clampPercent(numerator: number, denominator: number) {
+  if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator <= 0) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(1, numerator / denominator));
+}
+
 export function addPlayerListeners() {
   if (listenersRegisters) {
     return;
@@ -35,7 +45,7 @@ export function addPlayerListeners() {
         sharedStates.activeTrackDownloadProgress.setState({
           downloadedBytes: download.downloadedBytes,
           totalBytes: download.totalBytes,
-          percent: download.downloadedBytes / download.totalBytes,
+          percent: clampPercent(download.downloadedBytes, download.totalBytes),
         });
       }
     }
