@@ -23,7 +23,8 @@ private final class BackendLockedValue<Value>: @unchecked Sendable {
     }
 }
 
-final class GaplessMP3PlayerBackend: PlaybackBackend {
+// Mutable backend state is either confined to backendQueue/delegateQueue or protected by BackendLockedValue.
+final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
     private enum DesiredTransport {
         case playing
         case paused
@@ -33,6 +34,11 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
     private struct PendingStartTimeAfterPrepare {
         let generation: UInt64
         let milliseconds: Int64
+    }
+
+    private struct ManualTrackChange: Sendable {
+        let previous: RelistenGaplessStreamable?
+        let current: RelistenGaplessStreamable?
     }
 
     private struct Snapshot {
@@ -287,7 +293,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
     private func playOnQueue(
         _ streamable: RelistenGaplessStreamable,
         startingAtMs: Int64?,
-        manualTrackChange: (previous: RelistenGaplessStreamable?, current: RelistenGaplessStreamable?)? = nil
+        manualTrackChange: ManualTrackChange? = nil
     ) {
         prepareAudioSessionOnQueue(shouldActivate: true)
 
@@ -567,7 +573,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
         playOnQueue(
             nextStreamable,
             startingAtMs: nil,
-            manualTrackChange: (previous: snapshot.currentStreamable, current: nextStreamable)
+            manualTrackChange: ManualTrackChange(previous: snapshot.currentStreamable, current: nextStreamable)
         )
     }
 
@@ -1199,7 +1205,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend {
                 guard self.shouldContinueAsyncWork(for: generation) else { return }
                 try self.audioSessionController.configurePlaybackSession(shouldActivate: true)
                 guard self.shouldContinueAsyncWork(for: generation) else { return }
-                try await self.player.stop()
+                await self.player.stop()
                 guard self.shouldContinueAsyncWork(for: generation) else { return }
                 try await self.player.prepare(
                     current: self.makePlaybackSource(from: currentStreamable),

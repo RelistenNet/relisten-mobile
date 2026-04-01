@@ -10,7 +10,7 @@ import Foundation
 import AVFAudio
 import MediaPlayer
 
-public struct RelistenGaplessStreamable {
+public struct RelistenGaplessStreamable: Sendable {
     let url: URL
     let identifier: String
     let cacheKey: String
