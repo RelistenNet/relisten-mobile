@@ -29,7 +29,7 @@ let package = Package(
         .testTarget(
             name: "GaplessMP3PlayerBackendSupportTests",
             dependencies: ["GaplessMP3PlayerBackendSupport"],
-            path: "Tests/GaplessMP3PlayerBackendSupportTests"
+            path: "ios/Tests/GaplessMP3PlayerBackendSupportTests"
         ),
     ]
 )

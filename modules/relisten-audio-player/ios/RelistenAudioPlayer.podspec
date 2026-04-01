@@ -1,8 +1,8 @@
 Pod::Spec.new do |s|
   s.name           = 'RelistenAudioPlayer'
   s.version        = '2.4.0'
-  s.summary        = 'An Expo module wrapping un4seen''s BASS audio player'
-  s.description    = 'An Expo module wrapping un4seen''s BASS audio player.'
+  s.summary        = 'An Expo module wrapping a custom gapless audio player on iOS and ExoPlayer on Android'
+  s.description    = 'An Expo module wrapping a custom gapless audio player on iOS and ExoPlayer on Android.'
   s.author         = 'Alec Gorge <alecgorge@gmail.com>'
   s.homepage       = 'https://github.com/relistennet/relisten-mobile'
   s.platform       = :ios, '18.0'
@@ -10,30 +10,13 @@ Pod::Spec.new do |s|
   s.static_framework = true
 
   s.dependency 'ExpoModulesCore'
-  s.frameworks = "AVFoundation", "Accelerate", "CFNetwork", "SystemConfiguration", "AudioToolbox"
-  s.library = ['c++']
-
-  s.exclude_files = ["vendor/*.xcframework/**/*.h"]
-  s.ios.vendored_frameworks = [
-    'vendor/bass.xcframework',
-    'vendor/bassflac.xcframework',
-    'vendor/bassmix.xcframework',
-    'vendor/bass_fx.xcframework',
-  ]
-  s.preserve_paths = [
-    "vendor/*.xcframework",
-    "**/*.h",
-    "vendor/*.xcframework/**/*.h",
-#     'bass.modulemap',
-  ]
-#   s.module_map = 'bass.modulemap'
+  s.frameworks = "AVFoundation", "AudioToolbox", "AVFAudio", "MediaPlayer"
 
   # Swift/Objective-C compatibility
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
-    'SWIFT_COMPILATION_MODE' => 'wholemodule',
-    'ENABLE_BITCODE' => 'NO'
   }
 
-  s.source_files = "**/*.{h,m,mm,swift,hpp,cpp}"
+  s.source_files = "**/*.swift"
+  s.exclude_files = "Tests/**/*.swift"
 end

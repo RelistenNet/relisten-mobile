@@ -9,5 +9,5 @@ func makePlaybackBackend() -> PlaybackBackend {
         return GaplessMP3PlayerBackend()
     }
 
-    return RelistenGaplessAudioPlayer()
+    fatalError("Only the GaplessMP3PlayerBackend is available")
 }

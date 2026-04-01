@@ -3,8 +3,6 @@ import Foundation
 
 private let moduleLifecycleLog = RelistenPlaybackLogger(layer: .backend, category: .lifecycle)
 
-// import bass
-
 struct RelistenStreamable: Record {
     @Field
     var url: URL?

@@ -1,4 +1,40 @@
 import Foundation
+import ExpoModulesCore
+
+public struct RelistenGaplessStreamable: Sendable {
+    let url: URL
+    let identifier: String
+    let cacheKey: String
+    let title: String
+    let artist: String
+    let albumTitle: String
+    let albumArt: String
+
+    let downloadDestination: URL?
+}
+
+public enum PlaybackState: String, Enumerable {
+    case Stopped
+    case Playing
+    case Paused
+    case Stalled
+}
+
+public enum PlaybackStreamError: String, Enumerable {
+    case Init
+    case NotAvail
+    case NoInternet
+    case InvalidUrl
+    case SslUnsupported
+    case ServerTimeout
+    case CouldNotOpenFile
+    case FileInvalidFormat
+    case SupportedCodec
+    case UnsupportedSampleFormat
+    case InsufficientMemory
+    case No3D
+    case Unknown
+}
 
 protocol PlaybackBackendDelegate: AnyObject {
     func errorStartingStream(error: NSError, forStreamable: RelistenGaplessStreamable)
@@ -39,127 +75,4 @@ protocol PlaybackBackend: AnyObject {
     func enqueueSeekTo(percent: Double, completion: @escaping () -> Void)
     func enqueueSeekToTime(_ timeMs: Int64, completion: @escaping () -> Void)
     func teardown()
-}
-
-extension RelistenGaplessAudioPlayer: PlaybackBackend {
-    var currentDurationSnapshot: TimeInterval? {
-        bassQueue.sync {
-            currentDuration
-        }
-    }
-
-    var currentStateSnapshot: PlaybackState {
-        bassQueue.sync {
-            currentState
-        }
-    }
-
-    var currentStateString: String {
-        bassQueue.sync {
-            String(describing: currentState)
-        }
-    }
-
-    var elapsedSnapshot: TimeInterval? {
-        bassQueue.sync {
-            elapsed
-        }
-    }
-
-    func enqueuePrepareAudioSession() {
-        bassQueue.async {
-            self.prepareAudioSession()
-        }
-    }
-
-    func requestPlaybackProgress(_ completion: @escaping (PlaybackBackendProgressSnapshot) -> Void) {
-        bassQueue.async {
-            completion(
-                PlaybackBackendProgressSnapshot(
-                    elapsed: self.elapsed,
-                    duration: self.currentDuration,
-                    activeTrackDownloadedBytes: self.activeTrackDownloadedBytes,
-                    activeTrackTotalBytes: self.activeTrackTotalBytes
-                )
-            )
-        }
-    }
-
-    func enqueuePlay(_ streamable: RelistenGaplessStreamable, startingAtMs: Int64?, completion: @escaping () -> Void) {
-        bassQueue.async {
-            self.play(streamable, startingAtMs: startingAtMs)
-            completion()
-        }
-    }
-
-    func enqueueSetNextStream(_ streamable: RelistenGaplessStreamable?) {
-        bassQueue.async {
-            self.setNextStream(streamable)
-        }
-    }
-
-    func enqueueSetRepeatMode(_ repeatMode: Int) {
-        bassQueue.async {
-            self.setRepeatMode(repeatMode)
-        }
-    }
-
-    func enqueueSetShuffleMode(_ shuffleMode: Int) {
-        bassQueue.async {
-            self.setShuffleMode(shuffleMode)
-        }
-    }
-
-    func enqueueResume(_ completion: @escaping () -> Void) {
-        bassQueue.async {
-            self.resume()
-            completion()
-        }
-    }
-
-    func enqueuePause(_ completion: @escaping () -> Void) {
-        bassQueue.async {
-            self.pause()
-            completion()
-        }
-    }
-
-    func enqueueStop(_ completion: @escaping () -> Void) {
-        bassQueue.async {
-            self.stop()
-            completion()
-        }
-    }
-
-    func enqueueNext(_ completion: @escaping () -> Void) {
-        bassQueue.async {
-            self.next()
-            completion()
-        }
-    }
-
-    func enqueueSeekTo(percent: Double, completion: @escaping () -> Void) {
-        bassQueue.async {
-            self.seekTo(percent: percent)
-            completion()
-        }
-    }
-
-    func enqueueSeekToTime(_ timeMs: Int64, completion: @escaping () -> Void) {
-        bassQueue.async {
-            self.seekToTime(timeMs)
-            completion()
-        }
-    }
-
-    func teardown() {
-        bassQueue.sync {
-            self.stop()
-            self.maybeTearDownBASS()
-            self.tearDownAudioSession()
-        }
-
-        audioSessionController.teardown()
-        playbackPresentationController.teardown()
-    }
 }

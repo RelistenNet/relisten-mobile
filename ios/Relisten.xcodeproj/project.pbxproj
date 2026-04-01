@@ -361,18 +361,10 @@
 			);
 			inputPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Relisten/Pods-Relisten-frameworks.sh",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/RelistenAudioPlayer/bass.framework/bass",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/RelistenAudioPlayer/bassflac.framework/bassflac",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/RelistenAudioPlayer/bassmix.framework/bassmix",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/RelistenAudioPlayer/bass_fx.framework/bass_fx",
 				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermesvm.framework/hermesvm",
 			);
 			name = "[CP] Embed Pods Frameworks";
 			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/bass.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/bassflac.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/bassmix.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/bass_fx.framework",
 				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermesvm.framework",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
