@@ -153,7 +153,7 @@ extension RelistenGaplessAudioPlayer {
                 bass_assert(BASS_ChannelPlay(mixerMainStream, 1))
 
                 delegateQueue.async {
-                    self.delegate?.trackChanged(self, previousStreamable: nil, currentStreamable: newIntent.streamable)
+                    self.delegate?.trackChanged(previousStreamable: nil, currentStreamable: newIntent.streamable)
                 }
 
                 currentState = .Playing
@@ -166,7 +166,7 @@ extension RelistenGaplessAudioPlayer {
                     streamDownloadComplete(activeStream.stream)
                     // also trigger downloadProgress update since it won't be triggered or accurate for a local file
                     delegateQueue.async {
-                        self.delegate?.downloadProgressChanged(self, forActiveTrack: true, downloadedBytes: newIntent.streamable.url.fileSize, totalBytes: newIntent.streamable.url.fileSize);
+                        self.delegate?.downloadProgressChanged(forActiveTrack: true, downloadedBytes: newIntent.streamable.url.fileSize, totalBytes: newIntent.streamable.url.fileSize);
                     }
                 }
             

@@ -10,7 +10,7 @@ ENV['RCT_NEW_ARCH_ENABLED'] = '0' if podfile_properties['newArchEnabled'] == 'fa
 ENV['EX_DEV_CLIENT_NETWORK_INSPECTOR'] = podfile_properties['EX_DEV_CLIENT_NETWORK_INSPECTOR']
 ENV['RCT_HERMES_V1_ENABLED'] = '1' if podfile_properties['expo.useHermesV1'] == 'true'
 
-platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'
+platform :ios, podfile_properties['ios.deploymentTarget'] || '18.0'
 install! 'cocoapods',
   :deterministic_uuids => false
 

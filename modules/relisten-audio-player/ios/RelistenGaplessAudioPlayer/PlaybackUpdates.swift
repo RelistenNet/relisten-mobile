@@ -160,21 +160,21 @@ extension RelistenGaplessAudioPlayer {
             if sendPlaybackChanged {
 //                NSLog("[relisten-audio-player][playback updates] sendPlaybackChanged elapsed=\(String(describing: thisElapsed)) duration=\(String(describing: thisDuration))")
                 delegateQueue.async {
-                    self.delegate?.playbackProgressChanged(self, elapsed: thisElapsed, duration: thisDuration)
+                    self.delegate?.playbackProgressChanged(elapsed: thisElapsed, duration: thisDuration)
                 }
             }
 
             if sendDownloadChanged {
 //                NSLog("[relisten-audio-player][playback updates] sendDownloadChanged downloadedBytes=\(downloadedBytes) totalBytes=\(totalFileBytes)")
                 delegateQueue.async {
-                    self.delegate?.downloadProgressChanged(self, forActiveTrack: true, downloadedBytes: downloadedBytes, totalBytes: totalFileBytes)
+                    self.delegate?.downloadProgressChanged(forActiveTrack: true, downloadedBytes: downloadedBytes, totalBytes: totalFileBytes)
                 }
             }
 
             if sendStateChanged {
                 NSLog("[relisten-audio-player][playback updates] sendStateChanged newPlaybackState=\(thisState)")
                 delegateQueue.async {
-                    self.delegate?.playbackStateChanged(self, newPlaybackState: thisState)
+                    self.delegate?.playbackStateChanged(newPlaybackState: thisState)
                 }
             }
 

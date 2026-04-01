@@ -174,35 +174,47 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
         }
       }
 
-      const { createdModels: createdSources } = sourceRepo.upsertMultiple(
+      // These child objects have global primary keys, but the local lists here are only scoped to
+      // the current parent. Enable global lookup so a missing parent link does not get mistaken
+      // for a missing Realm object and trigger a duplicate-PK create.
+      const { allModels: sourceModels } = sourceRepo.upsertMultiple(
         this.realm,
         apiData.sources,
-        localData.sources
+        localData.sources,
+        true,
+        true
       );
 
-      for (const source of createdSources) {
+      for (const source of sourceModels) {
         source.artist = artist!;
-      }
 
-      for (const source of localData.sources) {
-        const { createdModels: createdSourceSets } = sourceSetRepo.upsertMultiple(
+        const { allModels: sourceSets } = sourceSetRepo.upsertMultiple(
           this.realm,
           apiSourceSetsBySource[source.uuid] || [],
-          source.sourceSets
+          source.sourceSets,
+          true,
+          true
         );
 
-        source.sourceSets.push(...createdSourceSets);
+        // Rebuild the parent list from allModels rather than only appending createdModels. When
+        // queryForModel finds an existing row elsewhere in Realm, it must still be reattached to
+        // this parent list and stale children must be removed.
+        source.sourceSets.splice(0, source.sourceSets.length, ...sourceSets);
 
-        for (const sourceSet of source.sourceSets) {
-          const { createdModels: createdSourceTracks } = sourceTrackRepo.upsertMultiple(
+        for (const sourceSet of sourceSets) {
+          const { allModels: sourceTracks } = sourceTrackRepo.upsertMultiple(
             this.realm,
-            apiSourceTracksBySet[sourceSet.uuid],
-            sourceSet.sourceTracks
+            apiSourceTracksBySet[sourceSet.uuid] || [],
+            sourceSet.sourceTracks,
+            true,
+            true
           );
 
-          sourceSet.sourceTracks.push(...createdSourceTracks);
+          // Same reconciliation rule for tracks: the payload is authoritative for membership and
+          // order, even when some rows were found by global lookup instead of being newly created.
+          sourceSet.sourceTracks.splice(0, sourceSet.sourceTracks.length, ...sourceTracks);
 
-          createdSourceTracks.forEach((st) => {
+          sourceTracks.forEach((st) => {
             st.artist = artist!;
             st.year = year!;
             st.show = localData.show!;

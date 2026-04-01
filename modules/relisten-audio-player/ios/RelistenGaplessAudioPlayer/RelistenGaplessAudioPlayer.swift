@@ -10,22 +10,10 @@ import Foundation
 import AVFAudio
 import MediaPlayer
 
-public protocol RelistenGaplessAudioPlayerDelegate {
-    func errorStartingStream(_ player: RelistenGaplessAudioPlayer, error: NSError, forStreamable: RelistenGaplessStreamable)
-
-    func playbackStateChanged(_ player: RelistenGaplessAudioPlayer, newPlaybackState playbackState: PlaybackState)
-    func playbackProgressChanged(_ player: RelistenGaplessAudioPlayer, elapsed: TimeInterval?, duration: TimeInterval?)
-    func downloadProgressChanged(_ player: RelistenGaplessAudioPlayer, forActiveTrack: Bool, downloadedBytes: UInt64, totalBytes: UInt64)
-    func trackChanged(_ player: RelistenGaplessAudioPlayer, previousStreamable: RelistenGaplessStreamable?, currentStreamable: RelistenGaplessStreamable?)
-    func remoteControl(method: String)
-    func streamingCacheCompleted(forStreamable streamable: RelistenGaplessStreamable, bytesWritten: Int)
-
-    func audioSessionWasSetup(_ player: RelistenGaplessAudioPlayer)
-}
-
-public struct RelistenGaplessStreamable {
+public struct RelistenGaplessStreamable: Sendable {
     let url: URL
     let identifier: String
+    let cacheKey: String
     let title: String
     let artist: String
     let albumTitle: String
@@ -37,7 +25,7 @@ public struct RelistenGaplessStreamable {
 public class RelistenGaplessAudioPlayer {
     // MARK: - Public API
 
-    public var delegate: RelistenGaplessAudioPlayerDelegate?
+    var delegate: PlaybackBackendDelegate?
 
     // Values from https://github.com/einsteinx2/iSubMusicStreamer/blob/master/Classes/Audio%20Engine/Bass.swift
 
@@ -92,7 +80,12 @@ public class RelistenGaplessAudioPlayer {
         }
     }
 
-    public let commandCenter = MPRemoteCommandCenter.shared()
+    let audioSessionController = AudioSessionController()
+    let playbackPresentationController = PlaybackPresentationController()
+
+    var commandCenter: MPRemoteCommandCenter {
+        audioSessionController.commandCenter
+    }
 
     public var currentDuration: TimeInterval? {
         guard isSetup, let activeStream else {
@@ -176,20 +169,10 @@ public class RelistenGaplessAudioPlayer {
 
             _currentState = newValue
 
-            DispatchQueue.main.async {
-                if newValue == .Playing {
-                    MPNowPlayingInfoCenter.default().playbackState = .playing
-                } else if newValue == .Paused {
-                    MPNowPlayingInfoCenter.default().playbackState = .paused
-                } else if newValue == .Stalled {
-                    MPNowPlayingInfoCenter.default().playbackState = .interrupted
-                } else {
-                    MPNowPlayingInfoCenter.default().playbackState = .stopped
-                }
-            }
+            playbackPresentationController.setPlaybackState(newValue)
 
             delegateQueue.async { [self] in
-                delegate?.playbackStateChanged(self, newPlaybackState: _currentState)
+                delegate?.playbackStateChanged(newPlaybackState: _currentState)
             }
         }
     }
@@ -340,7 +323,7 @@ public class RelistenGaplessAudioPlayer {
             let activeStreamIntent = activeStreamIntent
             
             delegateQueue.async {
-                self.delegate?.trackChanged(self, previousStreamable: activeStreamIntent?.streamable, currentStreamable: nil)
+                self.delegate?.trackChanged(previousStreamable: activeStreamIntent?.streamable, currentStreamable: nil)
             }
             
             self.currentState = .Stopped
@@ -372,8 +355,7 @@ public class RelistenGaplessAudioPlayer {
                 self.requestFullTeardownWhenIdle(reason: "manual next at end of queue")
 
                 delegateQueue.async {
-                    self.delegate?.trackChanged(self,
-                                                previousStreamable: previousStreamIntent?.streamable,
+                    self.delegate?.trackChanged(previousStreamable: previousStreamIntent?.streamable,
                                                 currentStreamable: nil)
                 }
             }
@@ -535,5 +517,8 @@ public class RelistenGaplessAudioPlayer {
             maybeTearDownBASS()
             tearDownAudioSession()
         }
+
+        audioSessionController.teardown()
+        playbackPresentationController.teardown()
     }
 }

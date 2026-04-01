@@ -1,0 +1,35 @@
+// swift-tools-version: 6.2
+
+import PackageDescription
+
+let package = Package(
+    name: "RelistenAudioPlayerBackendSupport",
+    platforms: [
+        .iOS(.v18),
+        .macOS(.v13),
+    ],
+    products: [
+        .library(
+            name: "GaplessMP3PlayerBackendSupport",
+            targets: ["GaplessMP3PlayerBackendSupport"]
+        ),
+    ],
+    targets: [
+        .target(
+            name: "GaplessMP3PlayerBackendSupport",
+            path: "ios/BackendSupport",
+            sources: [
+                "GaplessMP3PlayerBackendNextCommand.swift",
+                "GaplessMP3PlayerBackendPlaySupersession.swift",
+                "GaplessMP3PlayerBackendNextIntent.swift",
+                "GaplessMP3PlayerBackendResumeCommand.swift",
+                "GaplessMP3PlayerBackendSeekCommand.swift",
+            ]
+        ),
+        .testTarget(
+            name: "GaplessMP3PlayerBackendSupportTests",
+            dependencies: ["GaplessMP3PlayerBackendSupport"],
+            path: "Tests/GaplessMP3PlayerBackendSupportTests"
+        ),
+    ]
+)

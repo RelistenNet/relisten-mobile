@@ -7,6 +7,7 @@ import java.net.URL
 data class RelistenGaplessStreamable(
         val url: URL,
         val identifier: String,
+        val cacheKey: String,
         val title: String,
         val artist: String,
         val albumTitle: String,

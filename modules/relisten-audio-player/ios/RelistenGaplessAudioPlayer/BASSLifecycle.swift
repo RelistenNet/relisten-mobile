@@ -256,8 +256,7 @@ extension RelistenGaplessAudioPlayer {
         }
 
         delegateQueue.async {
-            self.delegate?.trackChanged(self,
-                                        previousStreamable: previousStreamIntent?.streamable,
+            self.delegate?.trackChanged(previousStreamable: previousStreamIntent?.streamable,
                                         currentStreamable: nextStreamIntent.streamable)
         }
 
@@ -297,7 +296,7 @@ extension RelistenGaplessAudioPlayer {
             requestFullTeardownWhenIdle(reason: "natural end of queue")
             
             delegateQueue.async {
-                self.delegate?.trackChanged(self, previousStreamable: previousStreamIntent?.streamable, currentStreamable: nil)
+                self.delegate?.trackChanged(previousStreamable: previousStreamIntent?.streamable, currentStreamable: nil)
             }
         }
     }

@@ -62,7 +62,7 @@ public class RelistenStreamCacher {
                 let downloadedBytes = if let bytes { UInt64(bytes) } else { totalFileBytes }
 
                 player.delegateQueue.async {
-                    player.delegate?.downloadProgressChanged(player, forActiveTrack: isActiveTrack, downloadedBytes: downloadedBytes, totalBytes: totalFileBytes)
+                    player.delegate?.downloadProgressChanged(forActiveTrack: isActiveTrack, downloadedBytes: downloadedBytes, totalBytes: totalFileBytes)
                 }
             }
         }
