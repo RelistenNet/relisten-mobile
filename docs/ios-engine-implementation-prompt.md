@@ -295,7 +295,7 @@ Update this section as tasks complete. Change `[ ]` to `[x]` and add the commit 
 - [x] Task 8: Stable cache key + session-scoped wipe (F3, Spec 3) — commit: `e3df273`
 
 ### Verification
-- [ ] Run full verification matrix (Spec 5) on device — notes: _pending_
+- [ ] Run full verification matrix (Spec 5) on device — notes: blocker: Spec 5 in `ios-playback-engine-review-2026-03-31.md` is explicitly manual on-device, but `xcrun xctrace list devices` currently shows only offline physical iPhones in this environment, so the required lock-screen, interruption, Bluetooth, CarPlay, offline/cache, and long-session scenarios cannot be executed or truthfully marked complete from simulator-only access.
 
 ### Phase 2 follow-up (after stabilization verified)
 - [ ] Backend decomposition: remote commands → AudioSessionController delegate
