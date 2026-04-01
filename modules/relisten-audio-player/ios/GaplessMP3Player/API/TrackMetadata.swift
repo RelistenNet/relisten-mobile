@@ -16,6 +16,32 @@ public struct CacheFingerprint: Codable, Equatable, Sendable {
     }
 }
 
+extension CacheFingerprint {
+    var hasIdentityEvidence: Bool {
+        etag != nil || lastModified != nil || contentLength != nil
+    }
+
+    func isCompatibleForSequentialPlayback(with other: CacheFingerprint) -> Bool {
+        if let etag, let otherEtag = other.etag, etag != otherEtag {
+            return false
+        }
+
+        if let lastModified, let otherLastModified = other.lastModified, lastModified != otherLastModified {
+            return false
+        }
+
+        if let contentLength, let otherContentLength = other.contentLength, contentLength != otherContentLength {
+            return false
+        }
+
+        let sharedIdentityField =
+            (etag != nil && other.etag != nil) ||
+            (lastModified != nil && other.lastModified != nil) ||
+            (contentLength != nil && other.contentLength != nil)
+        return sharedIdentityField
+    }
+}
+
 /// Parsed MP3 metadata required for seek resolution, trim calculation, and decode setup.
 public struct MP3TrackMetadata: Codable, Equatable, Sendable {
     public struct VBRISeekTable: Codable, Equatable, Sendable {

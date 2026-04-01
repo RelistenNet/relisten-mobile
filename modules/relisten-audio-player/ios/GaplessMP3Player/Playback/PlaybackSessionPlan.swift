@@ -10,6 +10,8 @@ struct PlaybackSessionPlan: Sendable {
     var nextTrackPreloadLeadTime: TimeInterval
     var allowsParallelCurrentAndNextDownloads: Bool
     var allowsParallelSeekRangeRequests: Bool
+    var seekRangeRequestSizeBytes: Int64
+    var seekRangePrefetchLowWatermarkBytes: Int64
 
     init(policy: GaplessPlaybackPolicy) {
         self.currentStartupBufferDuration = max(policy.currentTrack.minimumBufferedDuration, 0)
@@ -17,6 +19,11 @@ struct PlaybackSessionPlan: Sendable {
         self.nextTrackPreloadLeadTime = max(policy.nextTrackPreloadLeadTime, 0)
         self.allowsParallelCurrentAndNextDownloads = policy.allowsParallelCurrentAndNextDownloads
         self.allowsParallelSeekRangeRequests = policy.allowsParallelSeekRangeRequests
+        self.seekRangeRequestSizeBytes = max(policy.seekRangeRequestSizeBytes, 1)
+        self.seekRangePrefetchLowWatermarkBytes = max(
+            min(policy.seekRangePrefetchLowWatermarkBytes, self.seekRangeRequestSizeBytes),
+            1
+        )
     }
 
     func shouldBeginNextTrackPreload(currentTime: TimeInterval, transitionTime: TimeInterval) -> Bool {

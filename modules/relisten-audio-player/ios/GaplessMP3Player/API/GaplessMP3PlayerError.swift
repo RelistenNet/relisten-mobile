@@ -6,6 +6,7 @@ public enum GaplessMP3PlayerError: Error, LocalizedError, Sendable {
     case insufficientData(String)
     case invalidMP3(String)
     case unsupportedFormat(String)
+    case sourceIdentityMismatch(String)
     case sourceNotPrepared
     case missingCurrentSource
     case incompatibleTrackFormats
@@ -20,6 +21,8 @@ public enum GaplessMP3PlayerError: Error, LocalizedError, Sendable {
             "Invalid MP3: \(message)"
         case .unsupportedFormat(let message):
             "Unsupported format: \(message)"
+        case .sourceIdentityMismatch(let message):
+            "Source identity mismatch: \(message)"
         case .sourceNotPrepared:
             "Source has not been prepared"
         case .missingCurrentSource:

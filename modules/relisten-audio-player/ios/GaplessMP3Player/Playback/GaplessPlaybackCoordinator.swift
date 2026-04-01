@@ -286,6 +286,8 @@ actor GaplessPlaybackCoordinator {
             startTime: currentStartTime,
             outputFormat: outputFormat,
             allowsParallelRangeRequests: plan.allowsParallelSeekRangeRequests,
+            rangeRequestSizeBytes: plan.seekRangeRequestSizeBytes,
+            rangePrefetchLowWatermarkBytes: plan.seekRangePrefetchLowWatermarkBytes,
             finalizationModeProvider: makeFinalizationModeProvider(for: currentPlayback.current.source.id)
         )
 
@@ -456,6 +458,8 @@ actor GaplessPlaybackCoordinator {
                     startTime: 0,
                     outputFormat: self.outputFormat,
                     allowsParallelRangeRequests: plan.allowsParallelSeekRangeRequests,
+                    rangeRequestSizeBytes: plan.seekRangeRequestSizeBytes,
+                    rangePrefetchLowWatermarkBytes: plan.seekRangePrefetchLowWatermarkBytes,
                     finalizationModeProvider: self.makeFinalizationModeProvider(for: nextTrack.source.id)
                 )
                 try await producer.prefetch(minimumDuration: plan.nextTrackWarmupDuration)
@@ -478,6 +482,8 @@ actor GaplessPlaybackCoordinator {
                         startTime: 0,
                         outputFormat: self.outputFormat,
                         allowsParallelRangeRequests: plan.allowsParallelSeekRangeRequests,
+                        rangeRequestSizeBytes: plan.seekRangeRequestSizeBytes,
+                        rangePrefetchLowWatermarkBytes: plan.seekRangePrefetchLowWatermarkBytes,
                         finalizationModeProvider: self.makeFinalizationModeProvider(for: nextTrack.source.id)
                     )
                     try await producer.prefetch(minimumDuration: plan.nextTrackWarmupDuration)
@@ -539,6 +545,8 @@ actor GaplessPlaybackCoordinator {
             startTime: 0,
             outputFormat: outputFormat,
             allowsParallelRangeRequests: plan.allowsParallelSeekRangeRequests,
+            rangeRequestSizeBytes: plan.seekRangeRequestSizeBytes,
+            rangePrefetchLowWatermarkBytes: plan.seekRangePrefetchLowWatermarkBytes,
             finalizationModeProvider: makeFinalizationModeProvider(for: nextTrack.source.id)
         )
         try await producer.prefetch(minimumDuration: plan.nextTrackWarmupDuration)
@@ -690,6 +698,8 @@ private final class TrackPCMProducer: @unchecked Sendable {
         startTime: TimeInterval,
         outputFormat: PlaybackSessionOutputFormat,
         allowsParallelRangeRequests: Bool,
+        rangeRequestSizeBytes: Int64,
+        rangePrefetchLowWatermarkBytes: Int64,
         finalizationModeProvider: @escaping @Sendable () async -> FinalizationMode
     ) async throws {
         self.track = track
@@ -701,7 +711,10 @@ private final class TrackPCMProducer: @unchecked Sendable {
             for: track.source,
             startingOffset: seekPlan.byteOffset,
             contentLength: track.metadata.fingerprint.contentLength,
-            allowsParallelRangeRequests: allowsParallelRangeRequests
+            allowsParallelRangeRequests: allowsParallelRangeRequests,
+            readIntent: startTime > 0 ? .seekStart : .normalStart,
+            rangeRequestSizeBytes: rangeRequestSizeBytes,
+            rangePrefetchLowWatermarkBytes: rangePrefetchLowWatermarkBytes
         )
         self.decoder = try MP3FrameDecoder(metadata: track.metadata)
         self.trimEngine = GaplessTrimEngine(
@@ -742,7 +755,7 @@ private final class TrackPCMProducer: @unchecked Sendable {
                     return try await finalize()
                 }
 
-                switch try await readSession.read(maxLength: 32 * 1024) {
+                switch try await readSession.read(maxLength: SourceReadSizing.decoderReadSize) {
                 case .available(let data):
                     try decoder.feed(data, isDiscontinuous: !hasFedData)
                     hasFedData = true
@@ -780,6 +793,8 @@ private final class TrackPCMProducer: @unchecked Sendable {
         startTime: TimeInterval,
         outputFormat: PlaybackSessionOutputFormat,
         allowsParallelRangeRequests: Bool,
+        rangeRequestSizeBytes: Int64,
+        rangePrefetchLowWatermarkBytes: Int64,
         finalizationModeProvider: @escaping @Sendable () async -> FinalizationMode
     ) async throws -> TrackPCMProducer {
         try await TrackPCMProducer(
@@ -788,6 +803,8 @@ private final class TrackPCMProducer: @unchecked Sendable {
             startTime: startTime,
             outputFormat: outputFormat,
             allowsParallelRangeRequests: allowsParallelRangeRequests,
+            rangeRequestSizeBytes: rangeRequestSizeBytes,
+            rangePrefetchLowWatermarkBytes: rangePrefetchLowWatermarkBytes,
             finalizationModeProvider: finalizationModeProvider
         )
     }

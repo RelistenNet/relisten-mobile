@@ -919,6 +919,9 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             guard trackedIdentifiers.contains(where: { $0 == event.sourceID }) else { return }
 
             let generation = snapshot.generation
+            let requestURL = event.url.absoluteString
+            let requestedRange = event.requestHeaders["Range"] ?? event.requestHeaders["range"]
+            let contentRange = event.responseHeaders["Content-Range"] ?? event.responseHeaders["content-range"]
             switch event.kind {
             case .requestStarted:
                 backendNetworkLog.info(
@@ -926,6 +929,8 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
                     "HTTP request",
                     playbackLogField("kind", event.requestKind.rawValue),
                     playbackLogField("src", event.sourceID),
+                    playbackLogField("url", requestURL),
+                    playbackLogField("range", requestedRange),
                     playbackLogIntegerField("attempt", event.attempt),
                     playbackLogIntegerField("gen", generation)
                 )
@@ -935,6 +940,9 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
                     "HTTP request",
                     playbackLogField("kind", event.requestKind.rawValue),
                     playbackLogField("src", event.sourceID),
+                    playbackLogField("url", requestURL),
+                    playbackLogField("range", requestedRange),
+                    playbackLogField("contentRange", contentRange),
                     playbackLogField("status", event.statusCode.map { String($0) }),
                     playbackLogIntegerField("attempt", event.attempt),
                     playbackLogField("bytes", event.cumulativeBytes.map { String($0) }),
@@ -956,6 +964,8 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
                     "resume attempt",
                     playbackLogField("kind", event.requestKind.rawValue),
                     playbackLogField("src", event.sourceID),
+                    playbackLogField("url", requestURL),
+                    playbackLogField("range", requestedRange),
                     playbackLogIntegerField("attempt", event.attempt),
                     playbackLogIntegerField("gen", generation)
                 )
@@ -966,6 +976,9 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
                         "HTTP request",
                         playbackLogField("kind", event.requestKind.rawValue),
                         playbackLogField("src", event.sourceID),
+                        playbackLogField("url", requestURL),
+                        playbackLogField("range", requestedRange),
+                        playbackLogField("contentRange", contentRange),
                         playbackLogField("status", event.statusCode.map { String($0) }),
                         playbackLogIntegerField("attempt", event.attempt),
                         playbackLogIntegerField("gen", generation),
@@ -1308,7 +1321,11 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
                 return .FileInvalidFormat
             case .unsupportedFormat:
                 return .UnsupportedSampleFormat
-            case .sourceNotPrepared, .missingCurrentSource, .incompatibleTrackFormats, .insufficientData:
+            case .sourceIdentityMismatch,
+                 .sourceNotPrepared,
+                 .missingCurrentSource,
+                 .incompatibleTrackFormats,
+                 .insufficientData:
                 return .Unknown
             }
         }

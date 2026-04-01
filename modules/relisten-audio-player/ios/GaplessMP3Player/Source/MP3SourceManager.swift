@@ -177,7 +177,10 @@ actor MP3SourceManager {
         startingOffset: Int64 = 0,
         contentLength: Int64? = nil,
         eventHandler: (@Sendable (GaplessPreparationEvent) -> Void)? = nil,
-        allowsParallelRangeRequests: Bool = true
+        allowsParallelRangeRequests: Bool = true,
+        readIntent: SourceReadIntent = .normalStart,
+        rangeRequestSizeBytes: Int64 = SourceReadSizing.defaultSeekRangeRequestSizeBytes,
+        rangePrefetchLowWatermarkBytes: Int64 = SourceReadSizing.defaultSeekRangePrefetchLowWatermarkBytes
     ) async throws -> SourceReadSession {
         if source.url.isFileURL {
             return try SourceReadSession.local(url: source.url, startingOffset: startingOffset)
@@ -190,20 +193,26 @@ actor MP3SourceManager {
 
         let session = try await openSession(for: source, requestKind: .progressive, eventHandler: eventHandler)
         let currentPrefixEnd = await session.contiguousPrefixEnd()
-        if startingOffset > currentPrefixEnd, allowsParallelRangeRequests {
+        let shouldBridgeSeek = readIntent == .seekStart && allowsParallelRangeRequests && startingOffset >= currentPrefixEnd
+        if shouldBridgeSeek {
             let knownContentLength = contentLength ?? source.expectedContentLength
             let manager = self
-            return SourceReadSession.ranged(
+            return SourceReadSession.bridged(
                 startingOffset: startingOffset,
                 contentLength: knownContentLength,
-                reader: { offset, maxLength in
+                requestSizeBytes: rangeRequestSizeBytes,
+                prefetchLowWatermarkBytes: rangePrefetchLowWatermarkBytes,
+                rangeReader: { offset, length in
                     try await manager.performRangeRequest(
                         source: source,
                         offset: offset,
-                        length: Int64(maxLength),
+                        length: length,
                         contentLength: knownContentLength,
                         trackStatus: true
                     )
+                },
+                upgradeResolver: { offset in
+                    try await manager.upgradeTargetForBridgeRead(source: source, requiredOffset: offset)
                 }
             )
         }
@@ -406,6 +415,41 @@ actor MP3SourceManager {
             }
             throw error
         }
+    }
+
+    private func upgradeTargetForBridgeRead(
+        source: GaplessPlaybackSource,
+        requiredOffset: Int64
+    ) async throws -> SourceReadSessionUpgradeTarget {
+        if source.url.isFileURL {
+            return .local(
+                ResolvedSource(
+                    localFileURL: source.url,
+                    fingerprint: cacheStore.fingerprintForLocalFile(url: source.url),
+                    isCached: false
+                )
+            )
+        }
+
+        if cacheMode == .enabled,
+           let resolved = try cacheStore.resolvedCachedSource(for: source) {
+            return .local(resolved)
+        }
+
+        guard let session = activeDownloads[source.cacheKey] else {
+            return .none(progressiveResetEpoch: 0)
+        }
+
+        let snapshot = await session.bridgeSnapshot()
+        if let resolvedSource = snapshot.resolvedSource {
+            return .local(resolvedSource)
+        }
+
+        if snapshot.contiguousPrefixEnd > requiredOffset {
+            return .progressive(session, fingerprint: snapshot.fingerprint, resetEpoch: snapshot.resetEpoch)
+        }
+
+        return .none(progressiveResetEpoch: snapshot.resetEpoch)
     }
 
     private func streamMetadataPrefix(

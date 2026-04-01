@@ -2,6 +2,13 @@ import Foundation
 
 private let sourceLifecycleLog = RelistenPlaybackLogger(layer: .source, category: .lifecycle)
 
+struct HTTPSourceSessionBridgeSnapshot: Sendable {
+    var contiguousPrefixEnd: Int64
+    var resetEpoch: UInt64
+    var fingerprint: CacheFingerprint
+    var resolvedSource: ResolvedSource?
+}
+
 /// Progressive byte-0 download session shared by metadata, playback, and cache fill.
 actor HTTPSourceSession {
     private struct RetryState: Sendable {
@@ -25,6 +32,7 @@ actor HTTPSourceSession {
     private var httpLogHandler: (@Sendable (GaplessHTTPLogEvent) -> Void)?
 
     private var downloadedPrefixEnd: Int64 = 0
+    private var resetEpoch: UInt64 = 0
     private var isComplete = false
     private var responseFingerprint = CacheFingerprint()
     private var continuationWaiters: [(Int64, CheckedContinuation<Void, Error>)] = []
@@ -125,6 +133,15 @@ actor HTTPSourceSession {
 
     func contiguousPrefixEnd() -> Int64 {
         downloadedPrefixEnd
+    }
+
+    func bridgeSnapshot() -> HTTPSourceSessionBridgeSnapshot {
+        HTTPSourceSessionBridgeSnapshot(
+            contiguousPrefixEnd: downloadedPrefixEnd,
+            resetEpoch: resetEpoch,
+            fingerprint: responseFingerprint,
+            resolvedSource: resolvedSource
+        )
     }
 
     func readPrefix(limit: Int) async throws -> Data {
@@ -253,6 +270,7 @@ actor HTTPSourceSession {
                         try handle.truncate(atOffset: 0)
                         try handle.seek(toOffset: 0)
                         downloadedPrefixEnd = 0
+                        resetEpoch += 1
                         emitStatus()
                     }
                     responseFingerprint = URLSessionHTTPDataLoader.fingerprint(from: response)

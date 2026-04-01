@@ -237,7 +237,8 @@ final class GaplessMP3PlayerTests: XCTestCase {
             for: source,
             startingOffset: 1024,
             contentLength: Int64(data.count),
-            allowsParallelRangeRequests: true
+            allowsParallelRangeRequests: true,
+            readIntent: .seekStart
         )
         let availability = try await readSession.read(maxLength: 512)
 
@@ -250,6 +251,37 @@ final class GaplessMP3PlayerTests: XCTestCase {
         XCTAssertTrue(rangeHeaders.isEmpty)
 
         loader.finishProgressiveDownload()
+    }
+
+    func testHTTPReadSessionUsesProgressiveBytesForNormalStartBeyondBufferedPrefix() async throws {
+        let data = makeHTTPTestData(byteCount: 2 * 1_024 * 1_024)
+        let loader = StubHTTPDataLoader(data: data, initialProgressiveChunkSize: 2_048)
+        let sourceManager = makeHTTPSourceManager(loader: loader)
+        let source = httpFixtureSource(id: "current", path: "normal-start.mp3", byteCount: data.count)
+
+        try await sourceManager.preload(source)
+        try await waitForDownloadedBytes(sourceManager: sourceManager, source: source, minimum: 2_048)
+
+        let readSession = try await sourceManager.makeReadSession(
+            for: source,
+            startingOffset: 4_096,
+            contentLength: Int64(data.count),
+            allowsParallelRangeRequests: true,
+            readIntent: .normalStart
+        )
+
+        Task {
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            loader.appendProgressiveBytes(upTo: 8_192)
+        }
+
+        let availability = try await readSession.read(maxLength: 512)
+        guard case .available(let chunk) = availability else {
+            return XCTFail("Expected progressive data for normal startup")
+        }
+
+        XCTAssertEqual(chunk, data.subdata(in: 4_096..<4_608))
+        XCTAssertTrue(loader.recordedRangeHeaders().isEmpty)
     }
 
     func testHTTPSourceSessionShutdownCancelsPendingReadAndRemovesIncompleteTempFile() async throws {
@@ -355,32 +387,367 @@ final class GaplessMP3PlayerTests: XCTestCase {
         XCTAssertTrue(tempFilesAfterShutdown.isEmpty)
     }
 
-    func testHTTPReadSessionUsesRangeRequestWhenSeekJumpsBeyondBufferedPrefix() async throws {
-        let data = try httpFixtureData(named: "gd77-s2t07-first-5s.mp3")
-        let loader = StubHTTPDataLoader(data: data, initialProgressiveChunkSize: 2048)
+    func testHTTPReadSessionUsesSingleBridgeWindowForFarSeek() async throws {
+        let data = makeHTTPTestData(byteCount: 3 * 1_024 * 1_024)
+        let loader = StubHTTPDataLoader(data: data, initialProgressiveChunkSize: 2_048)
         let sourceManager = makeHTTPSourceManager(loader: loader)
-        let source = httpFixtureSource(id: "current", path: "gd77-s2t07-first-5s.mp3", byteCount: data.count)
+        let source = httpFixtureSource(id: "current", path: "far-seek.mp3", byteCount: data.count)
 
         try await sourceManager.preload(source)
-        try await waitForDownloadedBytes(sourceManager: sourceManager, source: source, minimum: 2048)
+        try await waitForDownloadedBytes(sourceManager: sourceManager, source: source, minimum: 2_048)
 
         let readSession = try await sourceManager.makeReadSession(
             for: source,
-            startingOffset: 4096,
+            startingOffset: 1_024 * 1_024,
             contentLength: Int64(data.count),
-            allowsParallelRangeRequests: true
+            allowsParallelRangeRequests: true,
+            readIntent: .seekStart,
+            rangeRequestSizeBytes: 1_024 * 1_024,
+            rangePrefetchLowWatermarkBytes: 512 * 1_024
         )
         let availability = try await readSession.read(maxLength: 512)
 
         guard case .available(let chunk) = availability else {
-            return XCTFail("Expected ranged data for far seek")
+            return XCTFail("Expected bridge data for far seek")
         }
 
-        XCTAssertEqual(chunk, data.subdata(in: 4096..<4608))
+        XCTAssertEqual(chunk, data.subdata(in: 1_024 * 1_024..<(1_024 * 1_024 + 512)))
+        for _ in 0..<10 {
+            _ = try await readSession.read(maxLength: SourceReadSizing.decoderReadSize)
+        }
         let rangeHeaders = loader.recordedRangeHeaders()
-        XCTAssertEqual(rangeHeaders, ["bytes=4096-4607"])
+        XCTAssertEqual(rangeHeaders, ["bytes=1048576-2097151"])
+    }
 
-        loader.finishProgressiveDownload()
+    func testHTTPReadSessionFarSeekWithoutParallelRangeRequestsWaitsForProgressiveBytes() async throws {
+        let data = makeHTTPTestData(byteCount: 3 * 1_024 * 1_024)
+        let loader = StubHTTPDataLoader(data: data, initialProgressiveChunkSize: 2_048)
+        let sourceManager = makeHTTPSourceManager(loader: loader)
+        let source = httpFixtureSource(id: "current", path: "no-parallel-bridge.mp3", byteCount: data.count)
+
+        try await sourceManager.preload(source)
+        try await waitForDownloadedBytes(sourceManager: sourceManager, source: source, minimum: 2_048)
+
+        let readSession = try await sourceManager.makeReadSession(
+            for: source,
+            startingOffset: 1_024 * 1_024,
+            contentLength: Int64(data.count),
+            allowsParallelRangeRequests: false,
+            readIntent: .seekStart
+        )
+
+        Task {
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            loader.appendProgressiveBytes(upTo: 1_024 * 1_024 + 8_192)
+        }
+
+        let availability = try await readSession.read(maxLength: 512)
+        guard case .available(let chunk) = availability else {
+            return XCTFail("Expected progressive data when parallel range requests are disabled")
+        }
+
+        XCTAssertEqual(chunk, data.subdata(in: 1_024 * 1_024..<(1_024 * 1_024 + 512)))
+        XCTAssertTrue(loader.recordedRangeHeaders().isEmpty)
+    }
+
+    func testHTTPReadSessionPrefetchesNextBridgeWindowAtLowWatermark() async throws {
+        let data = makeHTTPTestData(byteCount: 4 * 1_024 * 1_024)
+        let loader = StubHTTPDataLoader(data: data, initialProgressiveChunkSize: 2_048)
+        let sourceManager = makeHTTPSourceManager(loader: loader)
+        let source = httpFixtureSource(id: "current", path: "prefetch.mp3", byteCount: data.count)
+
+        try await sourceManager.preload(source)
+        try await waitForDownloadedBytes(sourceManager: sourceManager, source: source, minimum: 2_048)
+
+        let readSession = try await sourceManager.makeReadSession(
+            for: source,
+            startingOffset: 1_024 * 1_024,
+            contentLength: Int64(data.count),
+            allowsParallelRangeRequests: true,
+            readIntent: .seekStart,
+            rangeRequestSizeBytes: 1_024 * 1_024,
+            rangePrefetchLowWatermarkBytes: 512 * 1_024
+        )
+
+        _ = try await readSession.read(maxLength: SourceReadSizing.decoderReadSize)
+        loader.setRangeRequestsBlocked(true)
+
+        for _ in 0..<16 {
+            _ = try await readSession.read(maxLength: SourceReadSizing.decoderReadSize)
+        }
+
+        try await waitUntil("second bridge request starts") {
+            loader.recordedRangeHeaders().count == 2 && loader.inFlightRangeRequestCount() == 1
+        }
+
+        XCTAssertEqual(
+            loader.recordedRangeHeaders(),
+            ["bytes=1048576-2097151", "bytes=2097152-3145727"]
+        )
+        XCTAssertEqual(loader.inFlightRangeRequestCount(), 1)
+
+        for _ in 0..<4 {
+            _ = try await readSession.read(maxLength: SourceReadSizing.decoderReadSize)
+        }
+        XCTAssertEqual(loader.recordedRangeHeaders().count, 2)
+
+        loader.setRangeRequestsBlocked(false)
+    }
+
+    func testHTTPReadSessionStopsOpeningNewBridgeWindowsAtBoundaryAfterProgressiveCatchUp() async throws {
+        let data = makeHTTPTestData(byteCount: 4 * 1_024 * 1_024)
+        let loader = StubHTTPDataLoader(data: data, initialProgressiveChunkSize: 2_048)
+        let sourceManager = makeHTTPSourceManager(loader: loader)
+        let source = httpFixtureSource(id: "current", path: "catch-up.mp3", byteCount: data.count)
+
+        try await sourceManager.preload(source)
+        try await waitForDownloadedBytes(sourceManager: sourceManager, source: source, minimum: 2_048)
+
+        let readSession = try await sourceManager.makeReadSession(
+            for: source,
+            startingOffset: 1_024 * 1_024,
+            contentLength: Int64(data.count),
+            allowsParallelRangeRequests: true,
+            readIntent: .seekStart,
+            rangeRequestSizeBytes: 1_024 * 1_024,
+            rangePrefetchLowWatermarkBytes: 512 * 1_024
+        )
+
+        _ = try await readSession.read(maxLength: SourceReadSizing.decoderReadSize)
+        loader.appendProgressiveBytes(upTo: 2_300_000)
+        try await waitForDownloadedBytes(sourceManager: sourceManager, source: source, minimum: 2_300_000)
+
+        let bytesRemainingInWindow = 1_024 * 1_024 - SourceReadSizing.decoderReadSize
+        let readsToBoundary = bytesRemainingInWindow / SourceReadSizing.decoderReadSize
+        for _ in 0..<readsToBoundary {
+            _ = try await readSession.read(maxLength: SourceReadSizing.decoderReadSize)
+        }
+
+        _ = try await readSession.read(maxLength: SourceReadSizing.decoderReadSize)
+        XCTAssertEqual(
+            loader.recordedRangeHeaders(),
+            ["bytes=1048576-2097151", "bytes=2097152-3145727"]
+        )
+
+        loader.appendProgressiveBytes(upTo: 2_300_000)
+        for _ in 0..<4 {
+            _ = try await readSession.read(maxLength: SourceReadSizing.decoderReadSize)
+        }
+        XCTAssertEqual(loader.recordedRangeHeaders().count, 2)
+    }
+
+    func testHTTPReadSessionSwitchesToProgressiveAtBoundaryWithoutConsumingSecondBridgeWindow() async throws {
+        let data = makeHTTPTestData(byteCount: 4 * 1_024 * 1_024)
+        let loader = StubHTTPDataLoader(data: data, initialProgressiveChunkSize: 2_048)
+        let sourceManager = makeHTTPSourceManager(loader: loader)
+        let source = httpFixtureSource(id: "current", path: "boundary-handoff.mp3", byteCount: data.count)
+
+        try await sourceManager.preload(source)
+        try await waitForDownloadedBytes(sourceManager: sourceManager, source: source, minimum: 2_048)
+
+        let readSession = try await sourceManager.makeReadSession(
+            for: source,
+            startingOffset: 1_024 * 1_024,
+            contentLength: Int64(data.count),
+            allowsParallelRangeRequests: true,
+            readIntent: .seekStart,
+            rangeRequestSizeBytes: 1_024 * 1_024,
+            rangePrefetchLowWatermarkBytes: 512 * 1_024
+        )
+
+        _ = try await readSession.read(maxLength: SourceReadSizing.decoderReadSize)
+        loader.appendProgressiveBytes(upTo: 2_300_000)
+        try await waitForDownloadedBytes(sourceManager: sourceManager, source: source, minimum: 2_300_000)
+        loader.setRangeRequestsBlocked(true)
+
+        for _ in 0..<16 {
+            _ = try await readSession.read(maxLength: SourceReadSizing.decoderReadSize)
+        }
+
+        try await waitUntil("blocked prefetch starts") {
+            loader.recordedRangeHeaders().count == 2 && loader.inFlightRangeRequestCount() == 1
+        }
+
+        for _ in 0..<15 {
+            _ = try await readSession.read(maxLength: SourceReadSizing.decoderReadSize)
+        }
+
+        let boundaryChunk = try await readSession.read(maxLength: SourceReadSizing.decoderReadSize)
+        guard case .available(let dataChunk) = boundaryChunk else {
+            return XCTFail("Expected progressive bytes at window boundary")
+        }
+        XCTAssertFalse(dataChunk.isEmpty)
+
+        try await waitUntil("prefetch cancels after progressive handoff") {
+            loader.cancelledRangeHeaders().count == 1 && loader.inFlightRangeRequestCount() == 0
+        }
+
+        for _ in 0..<4 {
+            _ = try await readSession.read(maxLength: SourceReadSizing.decoderReadSize)
+        }
+
+        XCTAssertEqual(
+            loader.recordedRangeHeaders(),
+            ["bytes=1048576-2097151", "bytes=2097152-3145727"]
+        )
+    }
+
+    func testHTTPReadSessionDoesNotSwitchToProgressiveAfterResetUntilBoundaryCatchUpRebuilds() async throws {
+        let data = makeHTTPTestData(byteCount: 4 * 1_024 * 1_024)
+        let loader = StubHTTPDataLoader(data: data, initialProgressiveChunkSize: 2_048)
+        let sourceManager = makeHTTPSourceManager(loader: loader)
+        let source = httpFixtureSource(id: "current", path: "reset.mp3", byteCount: data.count)
+
+        try await sourceManager.preload(source)
+        try await waitForDownloadedBytes(sourceManager: sourceManager, source: source, minimum: 2_048)
+
+        let readSession = try await sourceManager.makeReadSession(
+            for: source,
+            startingOffset: 1_024 * 1_024,
+            contentLength: Int64(data.count),
+            allowsParallelRangeRequests: true,
+            readIntent: .seekStart,
+            rangeRequestSizeBytes: 1_024 * 1_024,
+            rangePrefetchLowWatermarkBytes: 512 * 1_024
+        )
+
+        _ = try await readSession.read(maxLength: SourceReadSizing.decoderReadSize)
+        loader.appendProgressiveBytes(upTo: 2_097_153)
+        try await waitForDownloadedBytes(sourceManager: sourceManager, source: source, minimum: 2_097_153)
+        loader.restartProgressiveFromZero(deliveringByteCount: 4_096)
+
+        let bytesRemainingInWindow = 1_024 * 1_024 - SourceReadSizing.decoderReadSize
+        let readsToBoundary = bytesRemainingInWindow / SourceReadSizing.decoderReadSize
+        for _ in 0..<readsToBoundary {
+            _ = try await readSession.read(maxLength: SourceReadSizing.decoderReadSize)
+        }
+
+        _ = try await readSession.read(maxLength: SourceReadSizing.decoderReadSize)
+        XCTAssertEqual(
+            loader.recordedRangeHeaders(),
+            ["bytes=1048576-2097151", "bytes=2097152-3145727"]
+        )
+    }
+
+    func testHTTPReadSessionCancelsInFlightBridgePrefetchOnTeardown() async throws {
+        let data = makeHTTPTestData(byteCount: 4 * 1_024 * 1_024)
+        let loader = StubHTTPDataLoader(data: data, initialProgressiveChunkSize: 2_048)
+        let sourceManager = makeHTTPSourceManager(loader: loader)
+        let source = httpFixtureSource(id: "current", path: "cancel.mp3", byteCount: data.count)
+
+        try await sourceManager.preload(source)
+        try await waitForDownloadedBytes(sourceManager: sourceManager, source: source, minimum: 2_048)
+
+        var readSession: SourceReadSession? = try await sourceManager.makeReadSession(
+            for: source,
+            startingOffset: 1_024 * 1_024,
+            contentLength: Int64(data.count),
+            allowsParallelRangeRequests: true,
+            readIntent: .seekStart,
+            rangeRequestSizeBytes: 1_024 * 1_024,
+            rangePrefetchLowWatermarkBytes: 512 * 1_024
+        )
+
+        _ = try await readSession?.read(maxLength: SourceReadSizing.decoderReadSize)
+        loader.setRangeRequestsBlocked(true)
+
+        for _ in 0..<16 {
+            _ = try await readSession?.read(maxLength: SourceReadSizing.decoderReadSize)
+        }
+
+        try await waitUntil("prefetch starts") {
+            loader.recordedRangeHeaders().count == 2 && loader.inFlightRangeRequestCount() == 1
+        }
+
+        readSession = nil
+
+        try await waitUntil("prefetch cancels") {
+            loader.cancelledRangeHeaders().count == 1 && loader.inFlightRangeRequestCount() == 0
+        }
+    }
+
+    func testHTTPReadSessionCancelsInFlightActiveBridgeFetchOnReadCancellation() async throws {
+        let data = makeHTTPTestData(byteCount: 4 * 1_024 * 1_024)
+        let loader = StubHTTPDataLoader(data: data, initialProgressiveChunkSize: 2_048)
+        let sourceManager = makeHTTPSourceManager(loader: loader)
+        let source = httpFixtureSource(id: "current", path: "cancel-active.mp3", byteCount: data.count)
+
+        try await sourceManager.preload(source)
+        try await waitForDownloadedBytes(sourceManager: sourceManager, source: source, minimum: 2_048)
+
+        let readSession = try await sourceManager.makeReadSession(
+            for: source,
+            startingOffset: 1_024 * 1_024,
+            contentLength: Int64(data.count),
+            allowsParallelRangeRequests: true,
+            readIntent: .seekStart,
+            rangeRequestSizeBytes: 1_024 * 1_024,
+            rangePrefetchLowWatermarkBytes: 512 * 1_024
+        )
+
+        loader.setRangeRequestsBlocked(true)
+
+        let pendingRead = Task {
+            try await readSession.read(maxLength: SourceReadSizing.decoderReadSize)
+        }
+
+        try await waitUntil("active bridge fetch starts") {
+            loader.recordedRangeHeaders().count == 1 && loader.inFlightRangeRequestCount() == 1
+        }
+
+        pendingRead.cancel()
+
+        do {
+            _ = try await pendingRead.value
+            XCTFail("Expected active bridge fetch to be cancelled")
+        } catch {
+            XCTAssertTrue(error is CancellationError)
+        }
+
+        try await waitUntil("active bridge fetch cancels") {
+            loader.cancelledRangeHeaders().count == 1 && loader.inFlightRangeRequestCount() == 0
+        }
+    }
+
+    func testHTTPReadSessionRejectsProgressiveUpgradeWhenFingerprintChanges() async throws {
+        let data = makeHTTPTestData(byteCount: 4 * 1_024 * 1_024)
+        let loader = StubHTTPDataLoader(
+            data: data,
+            initialProgressiveChunkSize: 2_048,
+            progressiveFingerprint: CacheFingerprint(contentLength: Int64(data.count), etag: "progressive"),
+            rangeFingerprint: CacheFingerprint(contentLength: Int64(data.count), etag: "bridge")
+        )
+        let sourceManager = makeHTTPSourceManager(loader: loader)
+        let source = httpFixtureSource(id: "current", path: "fingerprint-mismatch.mp3", byteCount: data.count)
+
+        try await sourceManager.preload(source)
+        try await waitForDownloadedBytes(sourceManager: sourceManager, source: source, minimum: 2_048)
+
+        let readSession = try await sourceManager.makeReadSession(
+            for: source,
+            startingOffset: 1_024 * 1_024,
+            contentLength: Int64(data.count),
+            allowsParallelRangeRequests: true,
+            readIntent: .seekStart,
+            rangeRequestSizeBytes: 1_024 * 1_024,
+            rangePrefetchLowWatermarkBytes: 1
+        )
+
+        _ = try await readSession.read(maxLength: SourceReadSizing.decoderReadSize)
+        loader.appendProgressiveBytes(upTo: 2_097_153)
+        try await waitForDownloadedBytes(sourceManager: sourceManager, source: source, minimum: 2_097_153)
+
+        let bytesRemainingInWindow = 1_024 * 1_024 - SourceReadSizing.decoderReadSize
+        let readsToBoundary = bytesRemainingInWindow / SourceReadSizing.decoderReadSize
+        for _ in 0..<readsToBoundary {
+            _ = try await readSession.read(maxLength: SourceReadSizing.decoderReadSize)
+        }
+
+        await XCTAssertThrowsErrorAsync(try await readSession.read(maxLength: SourceReadSizing.decoderReadSize)) { error in
+            guard case GaplessMP3PlayerError.sourceIdentityMismatch = error else {
+                return XCTFail("Expected source identity mismatch, got \(error)")
+            }
+        }
     }
 
     func testDownloadStatusBecomesCachedAfterProgressiveDownloadCompletes() async throws {
@@ -534,6 +901,32 @@ final class GaplessMP3PlayerTests: XCTestCase {
         throw CancellationError()
     }
 
+    private func waitUntil(
+        _ description: String,
+        timeoutIterations: Int = 100,
+        condition: @escaping () -> Bool
+    ) async throws {
+        for _ in 0..<timeoutIterations {
+            if condition() {
+                return
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTFail("Timed out waiting for \(description)")
+    }
+
+    private func XCTAssertThrowsErrorAsync(
+        _ expression: @autoclosure () async throws -> some Sendable,
+        _ errorHandler: (Error) -> Void
+    ) async {
+        do {
+            _ = try await expression()
+            XCTFail("Expected error to be thrown")
+        } catch {
+            errorHandler(error)
+        }
+    }
+
     private func waitForDownloadedPrefix(
         session: HTTPSourceSession,
         minimum: Int64
@@ -550,6 +943,10 @@ final class GaplessMP3PlayerTests: XCTestCase {
     private func fileSize(at url: URL) -> Int64? {
         let values = try? url.resourceValues(forKeys: [.fileSizeKey])
         return values?.fileSize.map(Int64.init)
+    }
+
+    private func makeHTTPTestData(byteCount: Int) -> Data {
+        Data((0..<byteCount).map { UInt8($0 % 251) })
     }
 
     private func makePreparationReport(
@@ -600,14 +997,29 @@ final class GaplessMP3PlayerTests: XCTestCase {
 private final class StubHTTPDataLoader: HTTPDataLoading, @unchecked Sendable {
     private let data: Data
     private let initialProgressiveChunkSize: Int
+    private let progressiveFingerprint: CacheFingerprint
+    private let rangeFingerprint: CacheFingerprint
     private let stateQueue = DispatchQueue(label: "StubHTTPDataLoader.state")
     private var progressiveContinuation: AsyncThrowingStream<HTTPDownloadEvent, Error>.Continuation?
     private var progressiveDidFinish = false
     private var rangeHeaders: [String] = []
+    private var completedRangeHeaderValues: [String] = []
+    private var cancelledRangeHeaderValues: [String] = []
+    private var blockRangeRequests = false
+    private var activeRangeRequestCount = 0
+    private var progressiveCursor = 0
 
-    init(data: Data, initialProgressiveChunkSize: Int) {
+    init(
+        data: Data,
+        initialProgressiveChunkSize: Int,
+        progressiveFingerprint: CacheFingerprint? = nil,
+        rangeFingerprint: CacheFingerprint? = nil
+    ) {
         self.data = data
         self.initialProgressiveChunkSize = min(max(initialProgressiveChunkSize, 0), data.count)
+        let defaultFingerprint = CacheFingerprint(contentLength: Int64(data.count))
+        self.progressiveFingerprint = progressiveFingerprint ?? defaultFingerprint
+        self.rangeFingerprint = rangeFingerprint ?? self.progressiveFingerprint
     }
 
     func progressiveDownload(
@@ -620,6 +1032,7 @@ private final class StubHTTPDataLoader: HTTPDataLoading, @unchecked Sendable {
             let initialChunk = self.data.prefix(self.initialProgressiveChunkSize)
             self.stateQueue.sync {
                 self.progressiveContinuation = continuation
+                self.progressiveCursor = initialChunk.count
             }
             continuation.yield(.response(response, restartFromZero: false))
             if !initialChunk.isEmpty {
@@ -636,12 +1049,73 @@ private final class StubHTTPDataLoader: HTTPDataLoading, @unchecked Sendable {
         let header = request.value(forHTTPHeaderField: "Range") ?? ""
         stateQueue.sync {
             rangeHeaders.append(header)
+            activeRangeRequestCount += 1
         }
-        let (start, end) = try parseRangeHeader(header, totalBytes: data.count)
-        return RangeReadResult(
-            data: data.subdata(in: start..<(end + 1)),
-            fingerprint: CacheFingerprint(contentLength: Int64(data.count))
-        )
+        do {
+            while stateQueue.sync(execute: { blockRangeRequests }) {
+                try Task.checkCancellation()
+                try await Task.sleep(nanoseconds: 10_000_000)
+            }
+
+            let (start, end) = try parseRangeHeader(header, totalBytes: data.count)
+            let result = RangeReadResult(
+                data: data.subdata(in: start..<(end + 1)),
+                fingerprint: rangeFingerprint
+            )
+            stateQueue.sync {
+                completedRangeHeaderValues.append(header)
+                activeRangeRequestCount -= 1
+            }
+            return result
+        } catch is CancellationError {
+            stateQueue.sync {
+                cancelledRangeHeaderValues.append(header)
+                activeRangeRequestCount -= 1
+            }
+            throw CancellationError()
+        } catch {
+            stateQueue.sync {
+                activeRangeRequestCount -= 1
+            }
+            throw error
+        }
+    }
+
+    func appendProgressiveBytes(upTo byteCount: Int) {
+        let progress: (AsyncThrowingStream<HTTPDownloadEvent, Error>.Continuation?, Data) = stateQueue.sync {
+            let target = min(max(byteCount, progressiveCursor), data.count)
+            let nextData = target > progressiveCursor ? Data(data[progressiveCursor..<target]) : Data()
+            progressiveCursor = target
+            return (progressiveContinuation, nextData)
+        }
+        guard let continuation = progress.0, !progress.1.isEmpty else {
+            return
+        }
+        continuation.yield(.bytes(progress.1))
+    }
+
+    func restartProgressiveFromZero(deliveringByteCount: Int) {
+        let progress: (AsyncThrowingStream<HTTPDownloadEvent, Error>.Continuation?, HTTPURLResponse?, Data) = stateQueue.sync {
+            guard let continuation = progressiveContinuation else {
+                return (nil, nil, Data())
+            }
+            let target = min(max(deliveringByteCount, 0), data.count)
+            progressiveCursor = target
+            let response = makeResponse(
+                for: URLRequest(url: URL(string: "https://example.test/restart.mp3")!),
+                range: nil,
+                contentLength: Int64(data.count)
+            )
+            let initialBytes = target > 0 ? Data(data[..<target]) : Data()
+            return (continuation, response, initialBytes)
+        }
+        guard let continuation = progress.0, let response = progress.1 else {
+            return
+        }
+        continuation.yield(.response(response, restartFromZero: true))
+        if !progress.2.isEmpty {
+            continuation.yield(.bytes(progress.2))
+        }
     }
 
     func finishProgressiveDownload() {
@@ -655,19 +1129,49 @@ private final class StubHTTPDataLoader: HTTPDataLoading, @unchecked Sendable {
         guard let continuation else {
             return
         }
-        if initialProgressiveChunkSize < data.count {
-            continuation.yield(.bytes(Data(data.dropFirst(initialProgressiveChunkSize))))
+        let remainingBytes: Data = stateQueue.sync {
+            guard progressiveCursor < data.count else { return Data() }
+            let bytes = Data(data[progressiveCursor...])
+            progressiveCursor = data.count
+            return bytes
+        }
+        if !remainingBytes.isEmpty {
+            continuation.yield(.bytes(remainingBytes))
         }
         continuation.yield(.completed)
         continuation.finish()
+    }
+
+    func setRangeRequestsBlocked(_ blocked: Bool) {
+        stateQueue.sync {
+            blockRangeRequests = blocked
+        }
     }
 
     func recordedRangeHeaders() -> [String] {
         stateQueue.sync { rangeHeaders }
     }
 
+    func completedRangeHeaders() -> [String] {
+        stateQueue.sync { completedRangeHeaderValues }
+    }
+
+    func cancelledRangeHeaders() -> [String] {
+        stateQueue.sync { cancelledRangeHeaderValues }
+    }
+
+    func inFlightRangeRequestCount() -> Int {
+        stateQueue.sync { activeRangeRequestCount }
+    }
+
     private func makeResponse(for request: URLRequest, range: ClosedRange<Int>?, contentLength: Int64) -> HTTPURLResponse {
         var headers = ["Content-Type": "audio/mpeg", "Content-Length": "\(contentLength)"]
+        if let etag = progressiveFingerprint.etag {
+            headers["ETag"] = etag
+        }
+        if let lastModified = progressiveFingerprint.lastModified {
+            headers["Last-Modified"] = lastModified
+        }
         let statusCode: Int
         if let range {
             headers["Content-Range"] = "bytes \(range.lowerBound)-\(range.upperBound)/\(data.count)"

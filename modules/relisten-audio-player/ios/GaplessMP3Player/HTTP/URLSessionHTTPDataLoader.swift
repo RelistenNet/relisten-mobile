@@ -107,12 +107,12 @@ struct URLSessionHTTPDataLoader: HTTPDataLoading {
 
                             var iterator = bytes.makeAsyncIterator()
                             var buffer = Data()
-                            buffer.reserveCapacity(32 * 1024)
+                            buffer.reserveCapacity(SourceReadSizing.progressiveYieldSize)
 
                             do {
                                 while let byte = try await iterator.next() {
                                     buffer.append(byte)
-                                    if buffer.count >= 32 * 1024 {
+                                    if buffer.count >= SourceReadSizing.progressiveYieldSize {
                                         cumulativeBytes += Int64(buffer.count)
                                         eventHandler?(
                                             HTTPTransportLogEvent(
