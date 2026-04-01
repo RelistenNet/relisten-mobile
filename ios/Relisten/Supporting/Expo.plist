@@ -38,10 +38,10 @@ DkwMR+jRkQ==&#xD;
     <key>EXUpdatesRequestHeaders</key>
     <dict>
       <key>expo-channel-name</key>
-      <string>production</string>
+      <string>testflight</string>
     </dict>
     <key>EXUpdatesRuntimeVersion</key>
-    <string>6.1.0+ios.6032</string>
+    <string>6.1.0+ios.6033</string>
     <key>EXUpdatesURL</key>
     <string>https://ota.relisten.net/manifest</string>
   </dict>
