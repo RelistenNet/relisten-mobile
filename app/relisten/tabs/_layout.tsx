@@ -4,10 +4,14 @@ import { RelistenBlue } from '@/relisten/relisten_blue';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import 'react-native-gesture-handler';
 import 'react-native-reanimated';
-import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
+import {
+  DEFAULT_SETTINGS_SENTINEL,
+  ShowOfflineTabSetting,
+  UserSettings,
+} from '@/relisten/realm/models/user_settings';
+import { useObject } from '@/relisten/realm/schema';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import ToolbarRelisten from '@/assets/toolbar_relisten.png';
-import { useState } from 'react';
 import { useRemainingDownloadsCount } from '@/relisten/realm/root_services';
 import { shouldShowOfflineTab } from '@/relisten/util/offline_tab_visibility';
 import {
@@ -54,17 +58,21 @@ function renderTabIcon({
 
 export default function TabLayout() {
   const downloadsCount = useRemainingDownloadsCount();
-  const settings = useUserSettings();
+  const liveSettings = useObject(UserSettings, DEFAULT_SETTINGS_SENTINEL, ['showOfflineTab']);
   const offline = !useShouldMakeNetworkRequests();
   const playerBarPlacementBackend = usePlayerBarPlacementBackend();
-  const [showOfflineTabOnCompactMobile] = useState(() =>
-    shouldShowOfflineTab(settings.showOfflineTabWithDefault(), offline)
-  );
+  const showOfflineTabSetting =
+    liveSettings?.showOfflineTabWithDefault() ?? ShowOfflineTabSetting.Always;
+  const showOfflineTabOnCompactMobile = shouldShowOfflineTab(showOfflineTabSetting, offline);
+  const offlineTabVisibilityKey = showOfflineTabOnCompactMobile
+    ? 'offline-tab-visible'
+    : 'offline-tab-hidden';
 
   if (Platform.OS === 'android') {
     return (
       <View className="flex-1">
         <Tabs
+          key={offlineTabVisibilityKey}
           screenOptions={({ route }) => ({
             freezeOnBlur: true,
             headerShown: false,
@@ -101,6 +109,7 @@ export default function TabLayout() {
   return (
     <View className="flex-1">
       <NativeTabs
+        key={offlineTabVisibilityKey}
         backgroundColor={RelistenBlue['950']}
         badgeBackgroundColor={ACTIVE_TINT}
         iconColor={{ default: INACTIVE_TINT, selected: ACTIVE_TINT }}
@@ -130,12 +139,14 @@ export default function TabLayout() {
           )}
         </NativeTabs.Trigger>
 
-        <NativeTabs.Trigger name="(offline)" hidden={!showOfflineTabOnCompactMobile}>
-          <NativeTabs.Trigger.Icon
-            src={<NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="check-circle" />}
-          />
-          <NativeTabs.Trigger.Label>Offline</NativeTabs.Trigger.Label>
-        </NativeTabs.Trigger>
+        {showOfflineTabOnCompactMobile ? (
+          <NativeTabs.Trigger name="(offline)">
+            <NativeTabs.Trigger.Icon
+              src={<NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="check-circle" />}
+            />
+            <NativeTabs.Trigger.Label>Offline</NativeTabs.Trigger.Label>
+          </NativeTabs.Trigger>
+        ) : null}
 
         <NativeTabs.Trigger name="(relisten)">
           <NativeTabs.Trigger.Icon

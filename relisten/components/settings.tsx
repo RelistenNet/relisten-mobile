@@ -6,17 +6,17 @@ import {
   AutocacheStreamedMusicSetting,
   AutoplayDeepLinkToTrackSetting,
   AutoselectPrimarySource,
+  DEFAULT_SETTINGS_SENTINEL,
   OfflineModeSetting,
   ShowOfflineTabSetting,
   TrackListeningHistorySetting,
   UserSettings,
   UserSettingsProps,
 } from '@/relisten/realm/models/user_settings';
-import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
-import { useRealm } from '@/relisten/realm/schema';
+import { useRealm, useObject } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useActionSheet } from '@expo/react-native-action-sheet';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Switch, SwitchProps, TextInput, TextInputProps } from 'react-native';
 import { LastFmAuth } from '@/relisten/lastfm/lastfm_auth';
 import { LastFmClient } from '@/relisten/lastfm/lastfm_client';
@@ -210,29 +210,23 @@ const SETTINGS: Array<Settings> = [
 ] as const;
 
 function InternalSwitch(props: SwitchProps) {
-  const [internalValue, setInternalValue] = useState<boolean | undefined>(undefined);
-
-  const onValueChange = (nextValue: boolean) => {
-    setInternalValue(nextValue);
-    props.onValueChange?.(nextValue);
-  };
-
-  const value = internalValue ?? props.value;
-
   return (
     <Switch
       trackColor={{ false: RelistenBlue[500], true: RelistenBlue[500] }}
-      thumbColor={value ? 'white' : '#f4f3f4'}
+      thumbColor={props.value ? 'white' : '#f4f3f4'}
       ios_backgroundColor="#3e3e3e"
-      value={value}
+      value={props.value}
       {...props}
-      onValueChange={onValueChange}
     />
   );
 }
 
 function InternalTextInput(props: TextInputProps) {
   const [internalValue, setInternalValue] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    setInternalValue(undefined);
+  }, [props.value]);
 
   const onChangeText = (nextValue: string) => {
     setInternalValue(nextValue);
@@ -369,7 +363,29 @@ function LastFmSettingsSection() {
 
 export function RelistenSettings() {
   const realm = useRealm();
-  const settings = useUserSettings();
+  const settings = useObject(UserSettings, DEFAULT_SETTINGS_SENTINEL, [
+    'trackListeningHistory',
+    'downloadViaCellularData',
+    'offlineMode',
+    'showOfflineTab',
+    'autocacheStreamedMusic',
+    'autocacheMinAvailableStorageMB',
+    'autocacheDeleteFirst',
+    'autoplayDeepLinkToTrack',
+    'autoselectPrimarySource',
+  ]);
+
+  useEffect(() => {
+    if (settings) {
+      return;
+    }
+
+    UserSettings.defaultObject(realm);
+  }, [settings, realm]);
+
+  if (!settings) {
+    return null;
+  }
 
   const onBoolValueChange = (setting: BoolSettingsEntry) => (nextValue: boolean) => {
     realm.write(() => {
