@@ -576,6 +576,15 @@ ${indentString(tracks)}
           duration: this.player.progress?.duration,
           elapsed: this.player.progress?.elapsed,
         };
+        logger.debug('writing player state progress', {
+          activeSourceTrackIndex: state.activeSourceTrackIndex,
+          activeSourceTrackShuffledIndex: state.activeSourceTrackShuffledIndex,
+          currentTrackUuid: this.currentTrack?.sourceTrack.uuid,
+          duration: state.duration,
+          elapsed: state.elapsed,
+          progress: state.progress,
+          shuffleState: state.queueShuffleState,
+        });
         PlayerState.upsert(realm, state);
         logger.debug('wrote player state');
       } else {
@@ -591,6 +600,16 @@ ${indentString(tracks)}
       logger.debug('No player state found to restore');
       return;
     }
+
+    logger.debug('read player state for restore', {
+      activeSourceTrackIndex: playerState.activeSourceTrackIndex,
+      activeSourceTrackShuffledIndex: playerState.activeSourceTrackShuffledIndex,
+      duration: playerState.duration,
+      elapsed: playerState.elapsed,
+      progress: playerState.progress,
+      queueLength: playerState.queueSourceTrackUuids.length,
+      queueShuffleState: playerState.queueShuffleState,
+    });
 
     // allow the player to be fully set up
     // await this.player.stop();
@@ -670,6 +689,14 @@ ${indentString(tracks)}
       this.onCurrentTrackChanged.dispatch(this.currentTrack);
     }
 
+    logger.debug('resolved player state restore target', {
+      currentTrackUuid: this.currentTrack?.sourceTrack.uuid,
+      originalTracksCurrentIndex: this.originalTracksCurrentIndex,
+      restoredTrackUuid,
+      shuffledTracksCurrentIndex: this.shuffledTracksCurrentIndex,
+      shuffleState: this.shuffleState,
+    });
+
     // reset this so that when we start playing, it can properly call setNextStream
     this._nextTrack = undefined;
     this._nextTrackIndex = undefined;
@@ -681,11 +708,25 @@ ${indentString(tracks)}
         percent: playerState.duration > 0 ? playerState.elapsed / playerState.duration : 0,
       };
 
+      logger.debug('restoring player progress', {
+        currentTrackUuid: this.currentTrack?.sourceTrack.uuid,
+        duration: restoredProgress.duration,
+        elapsed: restoredProgress.elapsed,
+        percent: restoredProgress.percent,
+      });
+
       this.player.seekToTime(restoredProgress.elapsed).then(() => {});
       // savePlayerState() serializes from player.progress, not the shared UI state, so seed both
       // before the first native progress event to avoid clobbering the restored position.
       this.player.progress = restoredProgress;
       sharedStateProgress.setState(restoredProgress);
+    } else {
+      logger.debug('player state restore did not contain persisted progress', {
+        currentTrackUuid: this.currentTrack?.sourceTrack.uuid,
+        duration: playerState.duration,
+        elapsed: playerState.elapsed,
+        progress: playerState.progress,
+      });
     }
 
     this.savePlayerState();
