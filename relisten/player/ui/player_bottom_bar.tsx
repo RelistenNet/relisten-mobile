@@ -21,7 +21,11 @@ import {
 import { ScrubberRow } from './player_screen';
 import * as Progress from 'react-native-progress';
 import AirPlayButton from 'react-native-airplay-button';
-import { RelistenCastButton, useRelistenCastStatus } from '@/relisten/casting/cast_ui';
+import {
+  RelistenCastButton,
+  useIsCastAvailable,
+  useRelistenCastStatus,
+} from '@/relisten/casting/cast_ui';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import {
   useIsPlayerBottomBarVisible,
@@ -82,7 +86,7 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
   const player = useRelistenPlayer();
   const router = useRouter();
   const { isCasting, deviceName } = useRelistenCastStatus();
-  const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
+  const isCastAvailable = useIsCastAvailable();
 
   if (!currentTrack) {
     return <></>;
@@ -157,7 +161,7 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
               />
             </View>
           )}
-          {shouldMakeNetworkRequests && (
+          {isCastAvailable && (
             <View style={utilityButtonShellStyle}>
               <RelistenCastButton
                 tintColor="rgba(226, 232, 240, 0.78)"

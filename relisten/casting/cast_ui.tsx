@@ -12,14 +12,21 @@ export function useRelistenCastStatus() {
   return { isCasting, deviceName };
 }
 
+export function useIsCastAvailable() {
+  const castState = useCastState();
+  const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
+
+  return shouldMakeNetworkRequests && castState !== CastState.NO_DEVICES_AVAILABLE;
+}
+
 export type RelistenCastButtonProps = ComponentProps<typeof CastButton> & {
   className?: string;
 };
 
 export function RelistenCastButton({ className, ...props }: RelistenCastButtonProps) {
-  const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
+  const isCastAvailable = useIsCastAvailable();
 
-  if (!shouldMakeNetworkRequests) {
+  if (!isCastAvailable) {
     return null;
   }
 

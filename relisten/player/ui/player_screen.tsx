@@ -40,9 +40,12 @@ import * as Progress from 'react-native-progress';
 import ReorderableList, { useReorderableDrag } from 'react-native-reorderable-list';
 import { ReorderableListReorderEvent } from 'react-native-reorderable-list/src/types/props';
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
-import { RelistenCastButton, useRelistenCastStatus } from '@/relisten/casting/cast_ui';
+import {
+  RelistenCastButton,
+  useIsCastAvailable,
+  useRelistenCastStatus,
+} from '@/relisten/casting/cast_ui';
 import { sharedStates } from '@/relisten/player/shared_state';
-import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { PlayerRepeatState, PlayerShuffleState } from '@/relisten/player/relisten_player_queue';
 
 export function ScrubberRow({ showTimes = true }: { showTimes?: boolean }) {
@@ -358,7 +361,7 @@ function PlayerSecondaryControls() {
   const queue = useRelistenPlayerQueue();
   const [shuffleState] = useRelistenPlayerShuffleState();
   const [repeatState] = useRelistenPlayerRepeatState();
-  const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
+  const isCastAvailable = useIsCastAvailable();
 
   const isShuffleOn = shuffleState === PlayerShuffleState.SHUFFLE_ON;
   const isRepeatTrack = repeatState === PlayerRepeatState.REPEAT_TRACK;
@@ -402,10 +405,8 @@ function PlayerSecondaryControls() {
         </TouchableOpacity>
       </Flex>
       <Flex className="flex-row items-center gap-2">
-        {shouldMakeNetworkRequests ? (
+        {isCastAvailable && (
           <RelistenCastButton tintColor="rgba(255, 255, 255, 0.7)" className="h-[42] w-[42]" />
-        ) : (
-          <View className="w-[42px]" />
         )}
         {Platform.OS === 'ios' && (
           <AirPlayButton
