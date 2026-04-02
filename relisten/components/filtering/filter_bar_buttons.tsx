@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import driver from '@switz/driver';
 import { PropsWithChildren } from 'react';
-import { TouchableOpacity, TouchableOpacityProps, View } from 'react-native';
+import { Pressable, PressableProps, View } from 'react-native';
 import { RelistenText } from '../relisten_text';
 import { FilterControl, SortDirection } from './filters';
 import { tw } from '@/relisten/util/tw';
@@ -19,7 +19,7 @@ export const FilterBarButton = <K extends string>({
     filter: FilterControl<K>;
     size?: number;
     color?: string;
-  } & TouchableOpacityProps
+  } & PressableProps
 >) => {
   const filterIcon = driver({
     states: {
@@ -47,15 +47,13 @@ export const FilterBarButton = <K extends string>({
   });
 
   return (
-    <TouchableOpacity
+    <Pressable
       className={tw(
-        'mr-3 flex flex-row items-center rounded-lg',
-        'p-1 px-2',
-        filter.active
-          ? 'border border-transparent bg-relisten-blue-600'
-          : 'border border-relisten-blue-600/30',
+        'mr-3 flex flex-row items-center rounded-lg border p-1 px-2',
+        filter.active ? 'border-transparent bg-relisten-blue-600' : 'border-relisten-blue-600/30',
         className
       )}
+      style={({ pressed }) => (pressed ? { opacity: 0.85 } : undefined)}
       onPress={(e) => {
         if (onPress) {
           onPress(e);
@@ -76,7 +74,7 @@ export const FilterBarButton = <K extends string>({
       <RelistenText className="text-base font-bold">
         {filter.title ? filter.title : children}
       </RelistenText>
-    </TouchableOpacity>
+    </Pressable>
   );
 };
 
