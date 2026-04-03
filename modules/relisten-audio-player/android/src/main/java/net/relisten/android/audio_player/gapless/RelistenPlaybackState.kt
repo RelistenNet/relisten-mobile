@@ -15,3 +15,12 @@ internal fun relistenPlaybackStateFromPlaybackState(playbackState: @Player.State
         RelistenPlaybackState.Stopped
     }
 }
+
+internal fun relistenPlaybackStateFromPlayer(player: Player) = when {
+    player.playbackState == Player.STATE_ENDED -> RelistenPlaybackState.Stopped
+    player.playbackState == Player.STATE_BUFFERING -> RelistenPlaybackState.Stalled
+    player.playbackState == Player.STATE_READY && player.playWhenReady -> RelistenPlaybackState.Playing
+    player.playbackState == Player.STATE_READY -> RelistenPlaybackState.Paused
+    player.mediaItemCount == 0 -> RelistenPlaybackState.Stopped
+    else -> RelistenPlaybackState.Paused
+}

@@ -3,6 +3,7 @@
 package net.relisten.android.audio_player
 
 import android.content.Intent
+import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.FlagSet
 import androidx.media3.common.ForwardingPlayer
@@ -24,10 +25,16 @@ class RelistenPlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
 
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(C.USAGE_MEDIA)
+            .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+            .build()
+
         val player = ExoPlayer.Builder(this)
             .setLoadControl(RelistenLoadControl())
             .setHandleAudioBecomingNoisy(true)
             .build()
+        player.setAudioAttributes(audioAttributes, true)
         player.addAnalyticsListener(EventLogger())
 
         val uiStatePlayer = RelistenUiStatePlayer(player)
@@ -112,6 +119,12 @@ class RelistenUiStatePlayer(player: Player) : ForwardingPlayer(player) {
 
     override fun getShuffleModeEnabled(): Boolean {
         return shuffleModeEnabledState
+    }
+
+    override fun seekToPrevious() {
+        if (!RelistenRemoteControlEvents.emit("prevTrack")) {
+            super.seekToPrevious()
+        }
     }
 }
 

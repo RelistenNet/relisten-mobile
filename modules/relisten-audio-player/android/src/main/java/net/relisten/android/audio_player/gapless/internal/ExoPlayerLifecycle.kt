@@ -14,7 +14,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import net.relisten.android.audio_player.RelistenPlaybackService
 import net.relisten.android.audio_player.gapless.RelistenGaplessAudioPlayer
-import net.relisten.android.audio_player.gapless.relistenPlaybackStateFromPlaybackState
+import net.relisten.android.audio_player.gapless.relistenPlaybackStateFromPlayer
 
 
 class ExoPlayerLifecycle internal constructor(private val player: RelistenGaplessAudioPlayer) :
@@ -62,10 +62,24 @@ class ExoPlayerLifecycle internal constructor(private val player: RelistenGaples
         player.exoPlayer = null
     }
 
+    private fun updatePlaybackState() {
+        val exoPlayer = player.exoPlayer ?: return
+        player.currentState = relistenPlaybackStateFromPlayer(exoPlayer)
+    }
+
     override fun onPlaybackStateChanged(playbackState: @Player.State Int) {
         Log.i("relisten-audio-player", "exoplayer.onPlaybackStateChanged: $playbackState")
 
-        player.currentState = relistenPlaybackStateFromPlaybackState(playbackState)
+        updatePlaybackState()
+    }
+
+    override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+        Log.i(
+            "relisten-audio-player",
+            "exoplayer.onPlayWhenReadyChanged: playWhenReady=$playWhenReady reason=$reason"
+        )
+
+        updatePlaybackState()
     }
 
     override fun onPlayerError(error: PlaybackException) {

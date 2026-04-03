@@ -387,6 +387,17 @@ export class RelistenPlayer {
     this.playTrackAtIndex(targetIndex);
   }
 
+  back() {
+    this.addPlayerListeners();
+
+    if (this.progress && (this.progress.elapsed > 5 || this.queue.currentIndex === 0)) {
+      this.seekTo(0).then(() => {});
+      return;
+    }
+
+    this.previous();
+  }
+
   prepareAudioSession() {
     this.addPlayerListeners();
 
@@ -595,7 +606,7 @@ ${indentString(this.queue.debugState(true))}
     } else if (event.method === 'resume' || event.method === 'play') {
       this.resume();
     } else if (event.method === 'prevTrack') {
-      this.previous();
+      this.back();
     } else if (event.method === 'nextTrack') {
       this.next();
     }

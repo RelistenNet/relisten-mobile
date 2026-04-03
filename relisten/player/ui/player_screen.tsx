@@ -310,7 +310,6 @@ function CurrentTrackInfo({ dismissOnNavigate }: CurrentTrackInfoProps) {
 function PlayerControls() {
   const player = useRelistenPlayer();
   const playbackState = useRelistenPlayerPlaybackState();
-  const progress = useNativePlaybackProgress();
 
   let playbackStateIcon = <MaterialIcons name="play-arrow" size={80} color="white" />;
 
@@ -324,11 +323,7 @@ function PlayerControls() {
     <Flex className="w-full items-center justify-center py-2">
       <TouchableOpacity
         onPress={() => {
-          if (progress && (progress.elapsed > 5 || player.queue.currentIndex === 0)) {
-            player.seekTo(0).then(() => {});
-          } else {
-            player.previous();
-          }
+          player.back();
         }}
         className="p-2"
       >

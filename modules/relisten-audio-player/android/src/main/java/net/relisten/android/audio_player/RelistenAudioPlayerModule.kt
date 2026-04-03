@@ -50,6 +50,17 @@ class RelistenStreamable : Record {
 
 class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
     var player: RelistenGaplessAudioPlayer? = null
+    private val remoteControlListener = RelistenRemoteControlListener { method ->
+        if (player == null) {
+            return@RelistenRemoteControlListener
+        }
+
+        sendEvent(
+            "onRemoteControl", hashMapOf(
+                "method" to method,
+            )
+        )
+    }
 
     // Each module class must implement the definition function. The definition consists of components
     // that describes the module's functionality and behavior.
@@ -63,10 +74,12 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
         OnCreate {
             player = RelistenGaplessAudioPlayer(appContext)
             player?.delegate = this@RelistenAudioPlayerModule
+            RelistenRemoteControlEvents.addListener(remoteControlListener)
         }
 
         OnDestroy {
             val thisPlayer = player
+            RelistenRemoteControlEvents.removeListener(remoteControlListener)
 
             if (thisPlayer != null) {
                 thisPlayer.stop()
@@ -76,7 +89,7 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
             player = null
         }
 
-        Events("onError", "onPlaybackStateChanged", "onPlaybackProgressChanged", "onDownloadProgressChanged", "onTrackChanged")
+        Events("onError", "onPlaybackStateChanged", "onPlaybackProgressChanged", "onDownloadProgressChanged", "onTrackChanged", "onRemoteControl")
 
         Function("currentDuration") {
             return@Function player?.currentDuration
