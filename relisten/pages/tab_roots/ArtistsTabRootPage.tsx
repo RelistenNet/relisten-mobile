@@ -68,11 +68,11 @@ const FavoritesSectionHeader = ({ favorites }: { favorites: Artist[] }) => {
 
 type ArtistsListProps = {
   artists: Realm.Results<Artist>;
-  filterOptions?: FilteringOptions<ArtistSortKey>;
 };
 
 const FEATURED_ARTISTS_FILTER_OPTIONS: FilteringOptions<ArtistSortKey> = {
-  persistence: { key: 'artists/featured' },
+  // v2 -> reset to Popular so that the long list of artists don't get overridden confusing alphabetical
+  persistence: { key: 'artists/featured-v2' },
   default: {
     persistenceKey: ArtistSortKey.Popular,
     sortDirection: SortDirection.Descending,
@@ -277,7 +277,6 @@ const OfflineArtistsListContent = ({
 
 const ArtistsList = ({
   artists,
-  filterOptions,
   groupSegment,
 }: ArtistsListProps & { groupSegment: '(artists)' | '(offline)' }) => {
   const isOfflineTab = groupSegment === '(offline)';
@@ -287,10 +286,7 @@ const ArtistsList = ({
   }
 
   return (
-    <FilteringProvider
-      filters={ARTIST_SORT_FILTERS}
-      options={filterOptions ?? FEATURED_ARTISTS_FILTER_OPTIONS}
-    >
+    <FilteringProvider filters={ARTIST_SORT_FILTERS} options={FEATURED_ARTISTS_FILTER_OPTIONS}>
       <OnlineArtistsListContent artists={artists} />
     </FilteringProvider>
   );
