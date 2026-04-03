@@ -73,10 +73,12 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
   const globalPersistedFilters = globalFilterConfig ? globalFilterConfig.filters() : undefined;
 
   const preparedFilters = useMemo(() => {
-    if (!routePersistedFilters) return [...filters];
-
     const internalFilters = filters.map((f) => {
-      if (defaultFilter && defaultFilter.persistenceKey === f.persistenceKey) {
+      if (!defaultFilter) {
+        return { ...f };
+      }
+
+      if (defaultFilter.persistenceKey === f.persistenceKey) {
         return {
           ...f,
           active: defaultFilter.active,
@@ -97,12 +99,10 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
         const persistedFilter =
           internalFilter.isGlobal && globalPersistedFilters
             ? globalPersistedFilters[key]
-            : routePersistedFilters[key];
+            : routePersistedFilters?.[key];
         if (persistedFilter) {
           internalFilter.active = persistedFilter.active;
           internalFilter.sortDirection = persistedFilter.sortDirection;
-        } else {
-          internalFilter.active = false;
         }
       }
     }
