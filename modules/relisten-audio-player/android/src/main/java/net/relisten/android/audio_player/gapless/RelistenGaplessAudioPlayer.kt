@@ -1,10 +1,11 @@
 package net.relisten.android.audio_player.gapless
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
 import expo.modules.kotlin.AppContext
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
@@ -12,6 +13,7 @@ import net.relisten.android.audio_player.gapless.internal.ExoPlayerLifecycle
 import net.relisten.android.audio_player.gapless.internal.PlaybackUpdates
 import net.relisten.android.audio_player.gapless.internal.StreamManagement
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.FutureTask
 
 class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
     var delegate: RelistenGaplessAudioPlayerDelegate? = null
@@ -38,58 +40,87 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
         exoplayerLifecycle.setupExoPlayer()
     }
 
+    private val controllerHandler by lazy { Handler(reactContext.mainLooper) }
+
+    private fun isOnControllerThread(): Boolean = Looper.myLooper() == controllerHandler.looper
+
+    private fun runOnControllerThread(block: (Player) -> Unit) {
+        if (isOnControllerThread()) {
+            exoPlayer?.let(block)
+            return
+        }
+
+        controllerHandler.post {
+            exoPlayer?.let(block)
+        }
+    }
+
+    private fun <T> callOnControllerThread(block: (Player) -> T): T? {
+        if (isOnControllerThread()) {
+            return exoPlayer?.let(block)
+        }
+
+        val task = FutureTask<T?> {
+            exoPlayer?.let(block)
+        }
+        controllerHandler.post(task)
+        return task.get()
+    }
+
     val currentDuration: Double?
         get() {
-            return exoPlayer?.let {
+            return callOnControllerThread {
                 it.duration / 1000.0
             }
         }
 
     val elapsed: Double?
         get() {
-            return exoPlayer?.let {
+            return callOnControllerThread {
                 it.currentPosition / 1000.0
             }
         }
 
     val activeTrackDownloadedBytes: Long?
         get() {
-            return exoPlayer?.bufferedPercentage?.toLong()
+            return callOnControllerThread {
+                it.bufferedPercentage.toLong()
+            }
         }
 
     val activeTrackTotalBytes: Long?
         get() {
-            return exoPlayer?.let {
+            return callOnControllerThread {
                 100L
             }
         }
 
     var volume: Float
         get() {
-            val mediaController = exoPlayer ?: return 0.0f
-
-            return mediaController.deviceVolume / 100.0f
+            return callOnControllerThread {
+                it.deviceVolume / 100.0f
+            } ?: 0.0f
         }
         set(newValue) {
-            val mediaController = exoPlayer ?: return
-
-            return mediaController.setDeviceVolume((newValue * 100).toInt(), 0)
+            runOnControllerThread {
+                it.setDeviceVolume((newValue * 100).toInt(), 0)
+            }
         }
 
     fun setRepeatMode(repeatMode: Int) {
-        val mediaController = exoPlayer ?: return
-
-        mediaController.repeatMode = when (repeatMode) {
-            2 -> Player.REPEAT_MODE_ONE
-            3 -> Player.REPEAT_MODE_ALL
-            else -> Player.REPEAT_MODE_OFF
+        runOnControllerThread {
+            it.repeatMode = when (repeatMode) {
+                2 -> Player.REPEAT_MODE_ONE
+                3 -> Player.REPEAT_MODE_ALL
+                else -> Player.REPEAT_MODE_OFF
+            }
         }
     }
 
     fun setShuffleMode(shuffleMode: Int) {
-        val mediaController = exoPlayer ?: return
-
-        mediaController.shuffleModeEnabled = shuffleMode == 2
+        runOnControllerThread {
+            it.shuffleModeEnabled = shuffleMode == 2
+        }
     }
 
     internal var _currentState: RelistenPlaybackState? = null
