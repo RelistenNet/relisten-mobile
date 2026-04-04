@@ -167,6 +167,62 @@ final class GaplessMP3PlayerTests: XCTestCase {
         XCTAssertEqual(status.currentTime, 0, accuracy: 0.01)
     }
 
+    func testSetNextAfterPlayStillTransitionsAtTrackBoundary() async throws {
+        let outputGraph = TestOutputGraph(advanceTimeOnSchedule: true)
+        let player = makePlayer(outputGraph: outputGraph)
+        let current = fixtureSource(id: "current", fixtureName: "gd77-s2t07-first-5s.mp3")
+        let next = fixtureSource(id: "next", fixtureName: "gd77-s2t05-first-5s.mp3")
+        let recorder = EventRecorder()
+        let transitioned = expectation(description: "late setNext transition event")
+
+        player.callbackQueue = DispatchQueue(label: "GaplessMP3PlayerTests.setNextAfterPlay")
+        player.runtimeEventHandler = { event in
+            let count = recorder.append(event)
+            if case .trackTransitioned = event, count >= 1 {
+                transitioned.fulfill()
+            }
+        }
+
+        try await player.prepare(current: current, next: nil)
+        XCTAssertTrue(player.play())
+        try await waitUntil("current playback scheduling") {
+            outputGraph.totalScheduledDuration() > 0
+        }
+        try await player.setNext(next)
+
+        var boundaryCallbackID: UUID?
+        for _ in 0..<100 {
+            if let callbackID = await player.testingScheduledTrackBoundaryCallbackID(sourceID: current.id) {
+                boundaryCallbackID = callbackID
+                break
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        let resolvedBoundaryCallbackID = try XCTUnwrap(
+            boundaryCallbackID,
+            "Expected current-track boundary callback"
+        )
+        await player.testingHandleTrackBoundaryPlayedBack(
+            callbackID: resolvedBoundaryCallbackID,
+            sourceID: current.id
+        )
+        await fulfillment(of: [transitioned], timeout: 1.0)
+        try? await Task.sleep(nanoseconds: 100_000_000)
+
+        let events = recorder.events
+        XCTAssertFalse(events.isEmpty)
+        guard case let .trackTransitioned(previous, currentAfterTransition, _) = events[0] else {
+            return XCTFail("Expected trackTransitioned event after setNext during playback")
+        }
+        XCTAssertEqual(previous, current)
+        XCTAssertEqual(currentAfterTransition, next)
+
+        let status = await player.status()
+        XCTAssertEqual(status.playbackPhase, .playing)
+        XCTAssertEqual(status.currentSource, next)
+        XCTAssertNil(status.nextSource)
+    }
+
     func testStopSuppressesLatePlaybackFinishedEvent() async {
         let outputGraph = TestOutputGraph(currentTime: 5, isPlaying: true)
         let player = makePlayer(outputGraph: outputGraph)
@@ -1535,6 +1591,25 @@ private final class TestOutputGraph: PCMOutputControlling, @unchecked Sendable {
         lock.unlock()
 
         callbacks.forEach { $0() }
+    }
+
+    func fireNextPlayedBackCallback() {
+        let callback: (@Sendable () -> Void)?
+        lock.lock()
+        if playedBackCallbacks.isEmpty {
+            callback = nil
+        } else {
+            callback = playedBackCallbacks.removeFirst()
+        }
+        lock.unlock()
+
+        callback?()
+    }
+
+    func playedBackCallbackCount() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return playedBackCallbacks.count
     }
 }
 

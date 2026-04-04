@@ -319,8 +319,9 @@ actor GaplessPlaybackCoordinator {
             guard let nextProducer else { break }
 
             let transitionBoundaryTime = currentTrackTimelineOrigin + currentPlayback.report.current.trimmedDuration
+            let playbackForTransition = playbackSnapshot(for: currentPlayback.current.source.id) ?? currentPlayback
             if let pendingTransition = schedulePendingTransition(
-                from: currentPlayback,
+                from: playbackForTransition,
                 boundaryTime: transitionBoundaryTime
             ) {
                 await trackTransitionScheduled(

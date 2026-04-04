@@ -997,6 +997,12 @@ extension GaplessMP3Player {
         }
     }
 
+    func testingScheduledTrackBoundaryCallbackID(sourceID: String) async -> UUID? {
+        await performOnPlaybackQueue {
+            self.stateStore.get().scheduledTrackBoundaries.first(where: { $0.sourceID == sourceID })?.callbackID
+        }
+    }
+
     func testingHandleTrackBoundaryPlayedBack(
         callbackID: UUID,
         sourceID: String,
