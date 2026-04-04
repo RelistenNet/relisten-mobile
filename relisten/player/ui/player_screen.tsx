@@ -42,7 +42,7 @@ import { ReorderableListReorderEvent } from 'react-native-reorderable-list/src/t
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import {
   RelistenCastButton,
-  useIsCastAvailable,
+  useShouldRenderCastButton,
   useRelistenCastStatus,
 } from '@/relisten/casting/cast_ui';
 import { sharedStates } from '@/relisten/player/shared_state';
@@ -356,7 +356,7 @@ function PlayerSecondaryControls() {
   const queue = useRelistenPlayerQueue();
   const [shuffleState] = useRelistenPlayerShuffleState();
   const [repeatState] = useRelistenPlayerRepeatState();
-  const isCastAvailable = useIsCastAvailable();
+  const shouldRenderCastButton = useShouldRenderCastButton();
 
   const isShuffleOn = shuffleState === PlayerShuffleState.SHUFFLE_ON;
   const isRepeatTrack = repeatState === PlayerRepeatState.REPEAT_TRACK;
@@ -400,7 +400,7 @@ function PlayerSecondaryControls() {
         </TouchableOpacity>
       </Flex>
       <Flex className="flex-row items-center gap-2">
-        {isCastAvailable && (
+        {shouldRenderCastButton && (
           <RelistenCastButton tintColor="rgba(255, 255, 255, 0.7)" className="h-[42] w-[42]" />
         )}
         {Platform.OS === 'ios' && (

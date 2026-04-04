@@ -1,4 +1,5 @@
 import type { ComponentProps } from 'react';
+import { useNetInfo } from '@react-native-community/netinfo';
 import { CastButton, CastState, useCastDevice, useCastState } from 'react-native-google-cast';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 
@@ -12,11 +13,13 @@ export function useRelistenCastStatus() {
   return { isCasting, deviceName };
 }
 
-export function useIsCastAvailable() {
-  const castState = useCastState();
+export function useShouldRenderCastButton() {
+  const { type } = useNetInfo();
   const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
 
-  return shouldMakeNetworkRequests && castState !== CastState.NO_DEVICES_AVAILABLE;
+  // Discovery may intentionally start only after the first Cast-button tap on iOS,
+  // so discovered-device state is the wrong signal for whether the button should exist.
+  return shouldMakeNetworkRequests && (type === 'wifi' || type === 'ethernet');
 }
 
 export type RelistenCastButtonProps = ComponentProps<typeof CastButton> & {
@@ -24,9 +27,9 @@ export type RelistenCastButtonProps = ComponentProps<typeof CastButton> & {
 };
 
 export function RelistenCastButton({ className, ...props }: RelistenCastButtonProps) {
-  const isCastAvailable = useIsCastAvailable();
+  const shouldRenderCastButton = useShouldRenderCastButton();
 
-  if (!isCastAvailable) {
+  if (!shouldRenderCastButton) {
     return null;
   }
 
