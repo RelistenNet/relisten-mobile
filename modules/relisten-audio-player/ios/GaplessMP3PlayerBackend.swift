@@ -571,8 +571,8 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             $0.desiredTransport = .paused
             guard $0.currentState != .Stopped else { return }
             $0.currentState = .Paused
-            $0.progressPollingGeneration = nil
         }
+        refreshStatusOnQueue(for: snapshotStore.get().generation)
     }
 
     private func stopOnQueue(
@@ -817,7 +817,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             snapshot.activeTrackDownloadedBytes = downloadedBytes
             snapshot.activeTrackTotalBytes = totalBytes
             snapshot.isPreparingCurrentTrack = status.playbackPhase == .preparing
-            if translatedState == .Paused || translatedState == .Stopped || status.currentSource == nil {
+            if translatedState == .Stopped || status.currentSource == nil {
                 snapshot.progressPollingGeneration = nil
             }
         }
@@ -1050,9 +1050,9 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
         guard snapshot.currentStreamable != nil else { return false }
 
         switch snapshot.currentState {
-        case .Playing, .Stalled:
+        case .Playing, .Paused, .Stalled:
             return true
-        case .Paused, .Stopped:
+        case .Stopped:
             return false
         }
     }
