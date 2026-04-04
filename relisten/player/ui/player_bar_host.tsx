@@ -10,8 +10,13 @@ function PlayerBarOverlayHost() {
   return <PlayerBottomBar placementBackend="overlay" />;
 }
 
-export function renderPlayerBarNativeTabsAccessory(placementBackend: PlayerBarPlacementBackend) {
-  if (placementBackend !== 'nativeTabsAccessory') {
+// Expo Router looks for a direct NativeTabs.BottomAccessory child when it builds
+// the native tabs host, so this stays a render helper instead of a wrapper component.
+export function renderPlayerBarNativeTabsAccessory(
+  placementBackend: PlayerBarPlacementBackend,
+  isVisible: boolean
+) {
+  if (placementBackend !== 'nativeTabsAccessory' || !isVisible) {
     return null;
   }
 
