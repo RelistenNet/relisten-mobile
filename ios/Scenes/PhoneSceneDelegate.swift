@@ -18,15 +18,30 @@ class PhoneSceneDelegate: UIResponder, UIWindowSceneDelegate {
     if session.role != .windowApplication {
       return
     }
-    
+
     guard
       let appDelegate = (UIApplication.shared.delegate as? AppDelegate),
       let windowScene = (scene as? UIWindowScene)
     else { return }
 
-    let window = UIWindow(windowScene: windowScene)
-    
-    appDelegate.attachReactNative(to: window)
+    let window: UIWindow
+
+    if let bootstrapWindow = appDelegate.reactNativeBootstrapWindow {
+      // RN was already started for CarPlay in a scene-less bootstrap window.
+      // Move that window into this phone scene instead of transferring the root VC,
+      // which avoids a didMoveToWindow(nil) gap that breaks Fabric surface rendering.
+      bootstrapWindow.windowScene = windowScene
+      bootstrapWindow.frame = windowScene.coordinateSpace.bounds
+      bootstrapWindow.makeKeyAndVisible()
+      bootstrapWindow.rootViewController?.view.setNeedsLayout()
+      bootstrapWindow.rootViewController?.view.layoutIfNeeded()
+      appDelegate.reactNativeBootstrapWindow = nil
+      appDelegate.window = bootstrapWindow
+      window = bootstrapWindow
+    } else {
+      window = UIWindow(windowScene: windowScene)
+      appDelegate.attachReactNative(to: window)
+    }
 
     self.window = window
 
