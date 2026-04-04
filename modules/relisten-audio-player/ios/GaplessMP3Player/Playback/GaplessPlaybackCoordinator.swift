@@ -3,6 +3,12 @@ import Foundation
 private let coordinatorLifecycleLog = RelistenPlaybackLogger(layer: .coordinator, category: .lifecycle)
 private let coordinatorPreloadLog = RelistenPlaybackLogger(layer: .coordinator, category: .preload)
 
+struct ScheduledProducerChunk: Sendable {
+    var sourceID: String
+    var chunk: PCMChunk
+    var isTerminalChunk: Bool
+}
+
 /// Coordinates metadata loading, source opening, decode pacing, and track handoff.
 ///
 /// The coordinator intentionally sits above low-level IO/decode primitives and below
@@ -163,7 +169,7 @@ actor GaplessPlaybackCoordinator {
     func startPlayback(
         startTime: TimeInterval,
         playbackPolicy: GaplessPlaybackPolicy,
-        scheduleChunk: @escaping @Sendable (PCMChunk) async throws -> Void,
+        scheduleChunk: @escaping @Sendable (ScheduledProducerChunk) async throws -> Void,
         currentTimeProvider: @escaping @Sendable () async -> TimeInterval,
         becameReady: @escaping @Sendable () async -> Void,
         trackTransitionScheduled: @escaping @Sendable (GaplessPreparationReport, TimeInterval) async -> Void,
@@ -269,7 +275,7 @@ actor GaplessPlaybackCoordinator {
         preparedPlayback: PreparedPlayback,
         startTime: TimeInterval,
         plan: PlaybackSessionPlan,
-        scheduleChunk: @escaping @Sendable (PCMChunk) async throws -> Void,
+        scheduleChunk: @escaping @Sendable (ScheduledProducerChunk) async throws -> Void,
         currentTimeProvider: @escaping @Sendable () async -> TimeInterval,
         becameReady: @escaping @Sendable () async -> Void,
         trackTransitionScheduled: @escaping @Sendable (GaplessPreparationReport, TimeInterval) async -> Void,
@@ -557,11 +563,11 @@ actor GaplessPlaybackCoordinator {
         _ producer: TrackPCMProducer,
         startupBufferTarget: TimeInterval,
         maxBufferedAhead: TimeInterval,
-        scheduleChunk: @escaping @Sendable (PCMChunk) async throws -> Void,
+        scheduleChunk: @escaping @Sendable (ScheduledProducerChunk) async throws -> Void,
         currentTimeProvider: @escaping @Sendable () async -> TimeInterval,
         becameReady: @escaping @Sendable () async -> Void
     ) async throws {
-        while let chunk = try await producer.nextChunk() {
+        while let scheduledChunk = try await producer.nextChunk() {
             try Task.checkCancellation()
 
             // Backpressure is based on scheduled-ahead time instead of raw bytes because
@@ -571,8 +577,8 @@ actor GaplessPlaybackCoordinator {
                 try await Task.sleep(for: .milliseconds(50))
             }
 
-            try await scheduleChunk(chunk)
-            scheduledThroughTime += producer.duration(for: chunk)
+            try await scheduleChunk(scheduledChunk)
+            scheduledThroughTime += producer.duration(for: scheduledChunk.chunk)
 
             if !isReadyToPlay && (scheduledThroughTime - playbackStartTime) >= startupBufferTarget {
                 isReadyToPlay = true
@@ -687,7 +693,8 @@ private final class TrackPCMProducer: @unchecked Sendable {
     private let normalizer: PCMFormatNormalizer
     private let finalizationModeProvider: @Sendable () async -> FinalizationMode
 
-    private var prefetchedChunks: [PCMChunk] = []
+    private var prefetchedChunks: [ScheduledProducerChunk] = []
+    private var lookaheadChunk: PCMChunk?
     private var hasFedData = false
     private var reachedEndOfStream = false
     private var hasFinalized = false
@@ -732,13 +739,35 @@ private final class TrackPCMProducer: @unchecked Sendable {
     }
 
     /// Pulls decoded PCM until either a trimmed chunk is ready or the track is finalized.
-    func nextChunk() async throws -> PCMChunk? {
-        if hasFinalized {
+    func nextChunk() async throws -> ScheduledProducerChunk? {
+        if !prefetchedChunks.isEmpty {
+            return prefetchedChunks.removeFirst()
+        }
+
+        guard let currentChunk = try await dequeueNextRawChunk() else {
             return nil
         }
 
-        if !prefetchedChunks.isEmpty {
-            return prefetchedChunks.removeFirst()
+        let nextChunk = try await dequeueNextRawChunk()
+        if let nextChunk {
+            lookaheadChunk = nextChunk
+        }
+
+        return ScheduledProducerChunk(
+            sourceID: track.source.id,
+            chunk: currentChunk,
+            isTerminalChunk: nextChunk == nil
+        )
+    }
+
+    private func dequeueNextRawChunk() async throws -> PCMChunk? {
+        if let lookaheadChunk {
+            self.lookaheadChunk = nil
+            return lookaheadChunk
+        }
+
+        if hasFinalized {
+            return nil
         }
 
         while true {
@@ -779,11 +808,11 @@ private final class TrackPCMProducer: @unchecked Sendable {
     func prefetch(minimumDuration: TimeInterval) async throws {
         guard minimumDuration > 0 else { return }
 
-        var bufferedDuration = prefetchedChunks.reduce(0) { $0 + duration(for: $1) }
+        var bufferedDuration = prefetchedChunks.reduce(0) { $0 + duration(for: $1.chunk) }
         while bufferedDuration < minimumDuration {
             guard let chunk = try await nextChunk() else { return }
             prefetchedChunks.append(chunk)
-            bufferedDuration += duration(for: chunk)
+            bufferedDuration += duration(for: chunk.chunk)
         }
     }
 

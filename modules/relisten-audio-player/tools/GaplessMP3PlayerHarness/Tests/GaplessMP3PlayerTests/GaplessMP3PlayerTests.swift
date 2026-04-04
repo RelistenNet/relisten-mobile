@@ -67,7 +67,7 @@ final class GaplessMP3PlayerTests: XCTestCase {
         XCTAssertNil(status.nextSource)
     }
 
-    func testPlaybackFinishedEmitsExactlyOneFinishedEventForEndOfQueue() async {
+    func testTrackBoundaryCallbackEmitsExactlyOneFinishedEventForEndOfQueue() async {
         let outputGraph = TestOutputGraph(currentTime: 4.9, isPlaying: true)
         let player = makePlayer(outputGraph: outputGraph)
         let current = fixtureSource(id: "current", fixtureName: "gd77-s2t07-first-5s.mp3")
@@ -89,9 +89,14 @@ final class GaplessMP3PlayerTests: XCTestCase {
             outputGraph: outputGraph,
             activePipelineSessionID: capturedSessionID
         )
+        let boundaryCallbackID = await player.testingRegisterScheduledTrackBoundary(sourceID: current.id)
         player.sessionID = "session-B"
 
-        await player.testingHandlePlaybackFinished()
+        await player.testingHandleTrackBoundaryPlayedBack(
+            callbackID: boundaryCallbackID,
+            sourceID: current.id,
+            sessionID: capturedSessionID
+        )
         await fulfillment(of: [finished], timeout: 1.0)
         try? await Task.sleep(nanoseconds: 100_000_000)
 
@@ -106,9 +111,10 @@ final class GaplessMP3PlayerTests: XCTestCase {
         let status = await player.status()
         XCTAssertEqual(status.playbackPhase, .stopped)
         XCTAssertEqual(status.currentSource, current)
+        XCTAssertFalse(status.isPlaying)
     }
 
-    func testPlaybackFinishedWithPendingTransitionEmitsOnlyTrackTransition() async {
+    func testTrackBoundaryCallbackWithPendingTransitionEmitsOnlyTrackTransition() async {
         let outputGraph = TestOutputGraph(currentTime: 4.9, isPlaying: true)
         let player = makePlayer(outputGraph: outputGraph)
         let current = fixtureSource(id: "current", fixtureName: "gd77-s2t07-first-5s.mp3")
@@ -135,10 +141,13 @@ final class GaplessMP3PlayerTests: XCTestCase {
             outputGraph: outputGraph,
             activePipelineSessionID: capturedSessionID
         )
-
-        outputGraph.setCurrentTime(5)
+        let boundaryCallbackID = await player.testingRegisterScheduledTrackBoundary(sourceID: current.id)
         player.sessionID = "session-B"
-        await player.testingHandlePlaybackFinished()
+        await player.testingHandleTrackBoundaryPlayedBack(
+            callbackID: boundaryCallbackID,
+            sourceID: current.id,
+            sessionID: capturedSessionID
+        )
         await fulfillment(of: [transitioned], timeout: 1.0)
         try? await Task.sleep(nanoseconds: 100_000_000)
 
@@ -155,6 +164,7 @@ final class GaplessMP3PlayerTests: XCTestCase {
         XCTAssertEqual(status.playbackPhase, .playing)
         XCTAssertEqual(status.currentSource, next)
         XCTAssertNil(status.nextSource)
+        XCTAssertEqual(status.currentTime, 0, accuracy: 0.01)
     }
 
     func testStopSuppressesLatePlaybackFinishedEvent() async {
@@ -181,6 +191,44 @@ final class GaplessMP3PlayerTests: XCTestCase {
 
         await player.stop()
         await player.testingHandlePlaybackFinished()
+        await fulfillment(of: [lateFinished], timeout: 0.2)
+
+        let status = await player.status()
+        XCTAssertEqual(status.playbackPhase, .stopped)
+        XCTAssertNil(status.currentSource)
+        XCTAssertNil(status.nextSource)
+    }
+
+    func testStopSuppressesLateTrackBoundaryCallback() async {
+        let outputGraph = TestOutputGraph(currentTime: 5, isPlaying: true)
+        let player = makePlayer(outputGraph: outputGraph)
+        let current = fixtureSource(id: "current", fixtureName: "gd77-s2t07-first-5s.mp3")
+        let lateFinished = expectation(description: "no late boundary finished event")
+        lateFinished.isInverted = true
+
+        player.callbackQueue = DispatchQueue(label: "GaplessMP3PlayerTests.stopBoundary")
+        player.runtimeEventHandler = { event in
+            if case .playbackFinished = event {
+                lateFinished.fulfill()
+            }
+        }
+
+        await player.testingSeedState(
+            currentSource: current,
+            nextSource: nil,
+            playbackPhase: .playing,
+            latestPreparationReport: makePreparationReport(current: current, next: nil),
+            outputGraph: outputGraph,
+            activePipelineSessionID: "session-A"
+        )
+        let boundaryCallbackID = await player.testingRegisterScheduledTrackBoundary(sourceID: current.id)
+
+        await player.stop()
+        await player.testingHandleTrackBoundaryPlayedBack(
+            callbackID: boundaryCallbackID,
+            sourceID: current.id,
+            sessionID: "session-A"
+        )
         await fulfillment(of: [lateFinished], timeout: 0.2)
 
         let status = await player.status()
@@ -1394,6 +1442,7 @@ private final class TestOutputGraph: PCMOutputControlling, @unchecked Sendable {
     private var playing: Bool
     private var outputVolume: Float = 1.0
     private var scheduledChunks: [PCMChunk] = []
+    private var playedBackCallbacks: [@Sendable () -> Void] = []
 
     init(currentTime: TimeInterval = 0, isPlaying: Bool = false, advanceTimeOnSchedule: Bool = false) {
         self.advanceTimeOnSchedule = advanceTimeOnSchedule
@@ -1425,6 +1474,7 @@ private final class TestOutputGraph: PCMOutputControlling, @unchecked Sendable {
         defer { lock.unlock() }
         self.timelineOffset = timelineOffset
         scheduledChunks = []
+        playedBackCallbacks = []
     }
 
     func setCurrentTime(_ time: TimeInterval) {
@@ -1439,10 +1489,13 @@ private final class TestOutputGraph: PCMOutputControlling, @unchecked Sendable {
         playing = true
     }
 
-    func schedule(_ chunk: PCMChunk) throws {
+    func schedule(_ chunk: PCMChunk, playedBack: (@Sendable () -> Void)?) throws {
         lock.lock()
         defer { lock.unlock() }
         scheduledChunks.append(chunk)
+        if let playedBack {
+            playedBackCallbacks.append(playedBack)
+        }
         if advanceTimeOnSchedule {
             timelineOffset += Double(chunk.frameCount) / chunk.sampleRate
         }
@@ -1472,6 +1525,16 @@ private final class TestOutputGraph: PCMOutputControlling, @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return scheduledChunks.reduce(0) { $0 + (Double($1.frameCount) / $1.sampleRate) }
+    }
+
+    func fireAllPlayedBackCallbacks() {
+        let callbacks: [@Sendable () -> Void]
+        lock.lock()
+        callbacks = playedBackCallbacks
+        playedBackCallbacks.removeAll()
+        lock.unlock()
+
+        callbacks.forEach { $0() }
     }
 }
 

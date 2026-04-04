@@ -81,13 +81,13 @@ final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
     ///
     /// The graph is intentionally agnostic about tracks. By the time audio reaches this
     /// layer it is just one continuous PCM timeline.
-    func schedule(_ chunk: PCMChunk) throws {
+    func schedule(_ chunk: PCMChunk, playedBack: (@Sendable () -> Void)?) throws {
         dispatchPrecondition(condition: .onQueue(ownerQueue))
         let buffer = try chunk.toAVAudioPCMBuffer(interleaved: false)
         pendingBufferCount += 1
-        playerNode.scheduleBuffer(buffer) { [weak self, ownerQueue] in
+        playerNode.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self, ownerQueue] _ in
             ownerQueue.async { [weak self] in
-                self?.handleScheduledBufferDrain()
+                self?.handleScheduledBufferDrain(playedBack: playedBack)
             }
         }
         if wantsPlayback && !playerNode.isPlaying {
@@ -138,8 +138,9 @@ final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
         _ = currentTime()
     }
 
-    private func handleScheduledBufferDrain() {
+    private func handleScheduledBufferDrain(playedBack: (@Sendable () -> Void)?) {
         dispatchPrecondition(condition: .onQueue(ownerQueue))
         pendingBufferCount = max(pendingBufferCount - 1, 0)
+        playedBack?()
     }
 }

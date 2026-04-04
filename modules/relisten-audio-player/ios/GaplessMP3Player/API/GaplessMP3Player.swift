@@ -8,7 +8,7 @@ protocol PCMOutputControlling: AnyObject, Sendable {
     var volume: Float { get set }
     func reset(timelineOffset: TimeInterval)
     func requestPlay()
-    func schedule(_ chunk: PCMChunk) throws
+    func schedule(_ chunk: PCMChunk, playedBack: (@Sendable () -> Void)?) throws
     func pause()
     func markDecodeFinished()
     func currentTime() -> TimeInterval
@@ -41,6 +41,11 @@ public final class GaplessMP3Player: @unchecked Sendable {
         var boundaryTime: TimeInterval
     }
 
+    private struct ScheduledTrackBoundary: Sendable {
+        var callbackID: UUID
+        var sourceID: String
+    }
+
     private struct PlaybackState {
         var outputGraph: PCMOutputControlling?
         var currentSource: GaplessPlaybackSource?
@@ -54,6 +59,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
         var latestPreparationReport: GaplessPreparationReport?
         var lastPlaybackFailure: GaplessPlaybackFailure?
         var suppressPlaybackFinishedEvent = false
+        var scheduledTrackBoundaries: [ScheduledTrackBoundary] = []
         var volume: Float = 1.0
     }
 
@@ -90,10 +96,17 @@ public final class GaplessMP3Player: @unchecked Sendable {
         var sessionID: String?
     }
 
-    private enum PlaybackFinishedOutcome: Sendable {
-        case suppressed
+    private enum TrackBoundaryOutcome: Sendable {
+        case ignored
         case transitioned
-        case finished(GaplessPlaybackSource?)
+        case finished(GaplessPlaybackSource?, String?)
+    }
+
+    private enum DecodeCompletionOutcome: Sendable {
+        case suppressed
+        case awaitingBoundary
+        case transitioned
+        case finished(GaplessPlaybackSource?, String?)
     }
 
     private let playbackPolicy: GaplessPlaybackPolicy
@@ -189,6 +202,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
                 state.latestPreparationReport = nil
                 state.lastPlaybackFailure = nil
                 state.suppressPlaybackFinishedEvent = false
+                state.scheduledTrackBoundaries = []
             }
             self.refreshSnapshotOnPlaybackQueue(absoluteTimelineTime: 0)
         }
@@ -215,6 +229,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
                     state.coordinatorTransitionPromotionNeeded = false
                     state.latestPreparationReport = report
                     state.lastPlaybackFailure = nil
+                    state.scheduledTrackBoundaries = []
                 }
                 self.refreshSnapshotOnPlaybackQueue(absoluteTimelineTime: 0)
             }
@@ -282,6 +297,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
                 state.requestedStartTime = clampedTime
                 state.publicTimelineOffset = 0
                 state.pendingTrackTransition = nil
+                state.scheduledTrackBoundaries = []
                 state.outputGraph?.reset(timelineOffset: clampedTime)
             }
             self.refreshSnapshotOnPlaybackQueue(absoluteTimelineTime: clampedTime)
@@ -400,9 +416,9 @@ public final class GaplessMP3Player: @unchecked Sendable {
             try await coordinator.startPlayback(
                 startTime: startTime,
                 playbackPolicy: playbackPolicy,
-                scheduleChunk: { [weak self] chunk in
+                scheduleChunk: { [weak self] scheduledChunk in
                     guard let self else { throw CancellationError() }
-                    try await self.scheduleChunkOnPlaybackQueue(chunk)
+                    try await self.scheduleChunkOnPlaybackQueue(scheduledChunk, sessionID: sessionID)
                 },
                 currentTimeProvider: { [weak self] in
                     guard let self else { return startTime }
@@ -419,7 +435,6 @@ public final class GaplessMP3Player: @unchecked Sendable {
                 playbackFinished: { [weak self] in
                     guard let self else { return }
                     await self.handlePlaybackFinished(sessionID: sessionID)
-                    await self.promoteCoordinatorTransitionIfNeeded()
                 },
                 playbackFailed: { [weak self] error in
                     guard let self else { return }
@@ -447,6 +462,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
             state.playbackPhase = .playing
             state.publicTimelineOffset = 0
             state.lastPlaybackFailure = nil
+            state.scheduledTrackBoundaries = []
             state.outputGraph?.reset(timelineOffset: startTime)
             state.outputGraph?.requestPlay()
         }
@@ -472,6 +488,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
             state.requestedStartTime = pausedTime
             state.publicTimelineOffset = 0
             state.pendingTrackTransition = nil
+            state.scheduledTrackBoundaries = []
         }
         refreshSnapshotOnPlaybackQueue(absoluteTimelineTime: pausedTime)
 
@@ -497,6 +514,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
             state.latestPreparationReport = nil
             state.lastPlaybackFailure = nil
             state.suppressPlaybackFinishedEvent = suppressPlaybackFinishedEvent
+            state.scheduledTrackBoundaries = []
         }
         refreshSnapshotOnPlaybackQueue(absoluteTimelineTime: 0)
     }
@@ -522,6 +540,10 @@ public final class GaplessMP3Player: @unchecked Sendable {
 
         stateStore.withValue { state in
             let previousSource = state.currentSource
+            if let firstBoundary = state.scheduledTrackBoundaries.first,
+               firstBoundary.sourceID == previousSource?.id {
+                state.scheduledTrackBoundaries.removeFirst()
+            }
             state.publicTimelineOffset = pendingTrackTransition.boundaryTime
             state.currentSource = pendingTrackTransition.report.current.source
             state.nextSource = pendingTrackTransition.report.next?.source
@@ -617,12 +639,56 @@ public final class GaplessMP3Player: @unchecked Sendable {
         await coordinator.promotePendingTransition()
     }
 
-    private func scheduleChunkOnPlaybackQueue(_ chunk: PCMChunk) async throws {
+    private func scheduleChunkOnPlaybackQueue(
+        _ scheduledChunk: ScheduledProducerChunk,
+        sessionID explicitSessionID: String?
+    ) async throws {
         try await performOnPlaybackQueue {
             guard let outputGraph = self.stateStore.get().outputGraph else {
                 throw GaplessMP3PlayerError.sourceNotPrepared
             }
-            try outputGraph.schedule(chunk)
+            let boundary: ScheduledTrackBoundary?
+            let playedBackCallback: (@Sendable () -> Void)?
+            if scheduledChunk.isTerminalChunk {
+                let scheduledBoundary = ScheduledTrackBoundary(callbackID: UUID(), sourceID: scheduledChunk.sourceID)
+                self.stateStore.withValue { state in
+                    state.scheduledTrackBoundaries.append(scheduledBoundary)
+                }
+                playerLifecycleLog.debug(
+                    "scheduled",
+                    "track boundary callback",
+                    playbackLogField("src", scheduledChunk.sourceID),
+                    playbackLogField("sess", explicitSessionID)
+                )
+                boundary = scheduledBoundary
+                playedBackCallback = { [weak self] in
+                    guard let self else { return }
+                    let outcome = self.handleTrackBoundaryPlayedBackOnPlaybackQueue(
+                        callbackID: scheduledBoundary.callbackID,
+                        sourceID: scheduledChunk.sourceID,
+                        sessionID: explicitSessionID
+                    )
+                    if case .transitioned = outcome {
+                        Task { [weak self] in
+                            await self?.promoteCoordinatorTransitionIfNeeded()
+                        }
+                    }
+                }
+            } else {
+                boundary = nil
+                playedBackCallback = nil
+            }
+
+            do {
+                try outputGraph.schedule(scheduledChunk.chunk, playedBack: playedBackCallback)
+            } catch {
+                if let boundary {
+                    self.stateStore.withValue { state in
+                        state.scheduledTrackBoundaries.removeAll { $0.callbackID == boundary.callbackID }
+                    }
+                }
+                throw error
+            }
             self.refreshSnapshotOnPlaybackQueue()
         }
     }
@@ -661,33 +727,55 @@ public final class GaplessMP3Player: @unchecked Sendable {
     }
 
     private func handlePlaybackFinished(sessionID explicitSessionID: String? = nil) async {
-        let (outcome, sessionID) = await performOnPlaybackQueue {
+        let outcome = await performOnPlaybackQueue {
             let sessionID = explicitSessionID ?? self.stateStore.get().activePipelineSessionID
+            let currentSourceID = self.stateStore.get().currentSource?.id
             self.stateStore.withValue {
                 $0.outputGraph?.markDecodeFinished()
             }
+            playerLifecycleLog.debug(
+                "completed",
+                "decode",
+                playbackLogField("src", currentSourceID),
+                playbackLogField("sess", sessionID)
+            )
 
             if self.stateStore.get().suppressPlaybackFinishedEvent {
                 self.refreshSnapshotOnPlaybackQueue()
-                return (PlaybackFinishedOutcome.suppressed, sessionID)
+                return DecodeCompletionOutcome.suppressed
+            }
+
+            if self.stateStore.get().scheduledTrackBoundaries.first?.sourceID == currentSourceID {
+                self.refreshSnapshotOnPlaybackQueue()
+                return DecodeCompletionOutcome.awaitingBoundary
+            }
+
+            if let boundaryTime = self.stateStore.get().pendingTrackTransition?.boundaryTime,
+               self.applyPendingTrackTransitionIfNeededOnPlaybackQueue(absoluteTimelineTime: boundaryTime) {
+                playerLifecycleLog.warn(
+                    "fallback",
+                    "decode completion forced transition",
+                    playbackLogField("src", currentSourceID),
+                    playbackLogField("sess", sessionID)
+                )
+                self.refreshSnapshotOnPlaybackQueue(absoluteTimelineTime: boundaryTime)
+                return DecodeCompletionOutcome.transitioned
             }
 
             let lastSource = self.stateStore.get().currentSource
-            let didTransition = self.applyPendingTrackTransitionIfNeededOnPlaybackQueue()
-            if didTransition {
-                self.refreshSnapshotOnPlaybackQueue()
-                return (PlaybackFinishedOutcome.transitioned, sessionID)
-            }
-
             self.stateStore.withValue {
+                $0.outputGraph?.pause()
                 $0.playbackPhase = .stopped
                 $0.activePipelineSessionID = nil
             }
             self.refreshSnapshotOnPlaybackQueue()
-            return (PlaybackFinishedOutcome.finished(lastSource), sessionID)
+            return DecodeCompletionOutcome.finished(lastSource, sessionID)
         }
 
-        if case let .finished(lastSource) = outcome {
+        switch outcome {
+        case .transitioned:
+            await promoteCoordinatorTransitionIfNeeded()
+        case let .finished(lastSource, sessionID):
             playerLifecycleLog.debug(
                 "dispatched",
                 "playback finished",
@@ -695,6 +783,8 @@ public final class GaplessMP3Player: @unchecked Sendable {
                 playbackLogField("sess", sessionID)
             )
             deliverRuntimeEvent(.playbackFinished(last: lastSource, sessionID: sessionID))
+        case .suppressed, .awaitingBoundary:
+            break
         }
     }
 
@@ -706,6 +796,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
                 $0.playbackPhase = .failed
                 $0.lastPlaybackFailure = failure
                 $0.activePipelineSessionID = nil
+                $0.scheduledTrackBoundaries = []
             }
             self.refreshSnapshotOnPlaybackQueue()
             return sessionID
@@ -717,6 +808,90 @@ public final class GaplessMP3Player: @unchecked Sendable {
             playbackLogErrorField(failure.errorDescription ?? failure.message)
         )
         deliverRuntimeEvent(.playbackFailed(failure, sessionID: sessionID))
+    }
+
+    private func handleTrackBoundaryPlayedBackOnPlaybackQueue(
+        callbackID: UUID,
+        sourceID: String,
+        sessionID explicitSessionID: String?
+    ) -> TrackBoundaryOutcome {
+        dispatchPrecondition(condition: .onQueue(playbackQueue))
+        let sessionID = explicitSessionID ?? stateStore.get().activePipelineSessionID
+
+        guard let boundaryIndex = stateStore.get().scheduledTrackBoundaries.firstIndex(where: { $0.callbackID == callbackID }) else {
+            playerLifecycleLog.debug(
+                "ignored",
+                "stale track boundary callback",
+                playbackLogField("src", sourceID),
+                playbackLogField("sess", sessionID)
+            )
+            return .ignored
+        }
+
+        if boundaryIndex != 0 {
+            _ = stateStore.withValue { state in
+                state.scheduledTrackBoundaries.remove(at: boundaryIndex)
+            }
+            playerLifecycleLog.warn(
+                "ignored",
+                "out-of-order track boundary callback",
+                playbackLogField("src", sourceID),
+                playbackLogField("sess", sessionID)
+            )
+            return .ignored
+        }
+
+        guard stateStore.get().activePipelineSessionID == sessionID,
+              stateStore.get().currentSource?.id == sourceID else {
+            _ = stateStore.withValue { state in
+                state.scheduledTrackBoundaries.removeFirst()
+            }
+            playerLifecycleLog.debug(
+                "ignored",
+                "invalidated track boundary callback",
+                playbackLogField("src", sourceID),
+                playbackLogField("sess", sessionID)
+            )
+            return .ignored
+        }
+
+        _ = stateStore.withValue { state in
+            state.scheduledTrackBoundaries.removeFirst()
+        }
+        playerLifecycleLog.debug(
+            "fired",
+            "track boundary callback",
+            playbackLogField("src", sourceID),
+            playbackLogField("sess", sessionID)
+        )
+
+        if let boundaryTime = stateStore.get().pendingTrackTransition?.boundaryTime,
+           applyPendingTrackTransitionIfNeededOnPlaybackQueue(absoluteTimelineTime: boundaryTime) {
+            playerLifecycleLog.debug(
+                "applied",
+                "track boundary transition",
+                playbackLogField("src", sourceID),
+                playbackLogField("sess", sessionID)
+            )
+            refreshSnapshotOnPlaybackQueue(absoluteTimelineTime: boundaryTime)
+            return .transitioned
+        }
+
+        let lastSource = stateStore.get().currentSource
+        stateStore.withValue {
+            $0.outputGraph?.pause()
+            $0.playbackPhase = .stopped
+            $0.activePipelineSessionID = nil
+        }
+        refreshSnapshotOnPlaybackQueue()
+        playerLifecycleLog.debug(
+            "dispatched",
+            "track boundary finished playback",
+            playbackLogField("src", sourceID),
+            playbackLogField("sess", sessionID)
+        )
+        deliverRuntimeEvent(.playbackFinished(last: lastSource, sessionID: sessionID))
+        return .finished(lastSource, sessionID)
     }
 
     private func makeRuntimeEventBridge(sessionID: String? = nil) -> (@Sendable (GaplessRuntimeEvent) -> Void)? {
@@ -800,6 +975,7 @@ extension GaplessMP3Player {
                 state.latestPreparationReport = latestPreparationReport
                 state.lastPlaybackFailure = nil
                 state.suppressPlaybackFinishedEvent = suppressPlaybackFinishedEvent
+                state.scheduledTrackBoundaries = []
             }
             let absoluteTimelineTime = outputGraph?.currentTime() ?? requestedStartTime
             self.refreshSnapshotOnPlaybackQueue(absoluteTimelineTime: absoluteTimelineTime)
@@ -808,6 +984,39 @@ extension GaplessMP3Player {
 
     func testingHandlePlaybackFinished() async {
         await handlePlaybackFinished()
+    }
+
+    @discardableResult
+    func testingRegisterScheduledTrackBoundary(sourceID: String) async -> UUID {
+        await performOnPlaybackQueue {
+            let boundary = ScheduledTrackBoundary(callbackID: UUID(), sourceID: sourceID)
+            self.stateStore.withValue { state in
+                state.scheduledTrackBoundaries.append(boundary)
+            }
+            return boundary.callbackID
+        }
+    }
+
+    func testingHandleTrackBoundaryPlayedBack(
+        callbackID: UUID,
+        sourceID: String,
+        sessionID: String? = nil
+    ) async {
+        let shouldPromote = await performOnPlaybackQueue {
+            let outcome = self.handleTrackBoundaryPlayedBackOnPlaybackQueue(
+                callbackID: callbackID,
+                sourceID: sourceID,
+                sessionID: sessionID
+            )
+            if case .transitioned = outcome {
+                return true
+            }
+            return false
+        }
+
+        if shouldPromote {
+            await promoteCoordinatorTransitionIfNeeded()
+        }
     }
 
     func testingHandlePlaybackFailure(_ error: Error) async {
