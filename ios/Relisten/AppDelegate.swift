@@ -32,7 +32,7 @@ class AppDelegate: ExpoAppDelegate {
     let options = GCKCastOptions(discoveryCriteria: criteria)
     options.disableDiscoveryAutostart = false
     options.startDiscoveryAfterFirstTapOnCastButton = true
-    options.suspendSessionsWhenBackgrounded = true
+    options.suspendSessionsWhenBackgrounded = false
     GCKCastContext.setSharedInstanceWith(options)
     GCKCastContext.sharedInstance().useDefaultExpandedMediaControls = true
 #endif
