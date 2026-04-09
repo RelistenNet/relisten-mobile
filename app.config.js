@@ -2,17 +2,24 @@ export default ({ config }) => {
   const appVersion = config.version ?? '0.0.0';
   const iosBuildNumber = String(config.ios?.buildNumber ?? '0');
   const androidVersionCode = String(config.android?.versionCode ?? '0');
+  const defaultIosRuntimeVersion = `${appVersion}+ios.${iosBuildNumber}`;
+  const defaultAndroidRuntimeVersion = `${appVersion}+android.${androidVersionCode}`;
+
+  const runtimeVersionOverride = (envName, fallback) => {
+    const value = process.env[envName];
+    return value && value.trim().length > 0 ? value : fallback;
+  };
 
   return {
     ...config,
     // Bare workflow doesn't support runtimeVersion policies, so set explicit runtime strings.
     ios: {
       ...config.ios,
-      runtimeVersion: `${appVersion}+ios.${iosBuildNumber}`,
+      runtimeVersion: runtimeVersionOverride('RELISTEN_IOS_RUNTIME_VERSION', defaultIosRuntimeVersion),
     },
     android: {
       ...config.android,
-      runtimeVersion: `${appVersion}+android.${androidVersionCode}`,
+      runtimeVersion: runtimeVersionOverride('RELISTEN_ANDROID_RUNTIME_VERSION', defaultAndroidRuntimeVersion),
     },
     updates: {
       url: 'https://ota.relisten.net/manifest',

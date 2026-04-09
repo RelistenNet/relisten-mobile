@@ -7,9 +7,35 @@ SENTRY_AUTH_TOKEN=""
 EXPO_TOKEN="${EXPO_TOKEN:-}"
 ANDROID_JAVA_HOME="${ANDROID_JAVA_HOME:-}"
 ANDROID_JAVA_HOME_LOGGED=0
+EOAS_BIN="${EOAS_BIN:-}"
+OTA_RUNTIME_BUILD=""
+OTA_IOS_RUNTIME_VERSION="${RELISTEN_IOS_RUNTIME_VERSION:-}"
+OTA_ANDROID_RUNTIME_VERSION="${RELISTEN_ANDROID_RUNTIME_VERSION:-}"
+OTA_RUNTIME_BUILD_REQUESTED=0
+OTA_RUNTIME_EXACT_REQUESTED=0
+OTA_RUNTIME_OVERRIDE_REQUESTED=0
 
 usage() {
-  echo "Usage: $0 [testflight|appstore|ota-testflight|ota-production] [--platform ios|android|all]"
+  cat <<USAGE
+Usage: $0 [testflight|appstore|ota-testflight|ota-production] [options]
+
+Options:
+  --platform ios|android|all
+  --runtime-build BUILD_NUMBER
+      OTA only. Publish to runtime versions VERSION+ios.BUILD_NUMBER and VERSION+android.BUILD_NUMBER.
+  --ios-runtime-version RUNTIME_VERSION
+      OTA only. Override the iOS runtime version exactly.
+  --android-runtime-version RUNTIME_VERSION
+      OTA only. Override the Android runtime version exactly.
+
+Environment:
+  EOAS_BIN
+      Optional eoas executable override. Set to /bin/echo for an OTA command dry run.
+
+Examples:
+  $0 ota-testflight --runtime-build 6036
+  $0 ota-testflight --ios-runtime-version 6.1.0+ios.6036 --android-runtime-version 6.1.0+android.6036
+USAGE
   exit 1
 }
 
@@ -27,6 +53,57 @@ while [[ $# -gt 0 ]]; do
       usage
     fi
     ;;
+  --runtime-build)
+    shift
+    OTA_RUNTIME_BUILD="${1:-}"
+    OTA_RUNTIME_BUILD_REQUESTED=1
+    OTA_RUNTIME_OVERRIDE_REQUESTED=1
+    if [[ -z "$OTA_RUNTIME_BUILD" ]]; then
+      usage
+    fi
+    ;;
+  --runtime-build=*)
+    OTA_RUNTIME_BUILD="${1#*=}"
+    OTA_RUNTIME_BUILD_REQUESTED=1
+    OTA_RUNTIME_OVERRIDE_REQUESTED=1
+    if [[ -z "$OTA_RUNTIME_BUILD" ]]; then
+      usage
+    fi
+    ;;
+  --ios-runtime-version)
+    shift
+    OTA_IOS_RUNTIME_VERSION="${1:-}"
+    OTA_RUNTIME_EXACT_REQUESTED=1
+    OTA_RUNTIME_OVERRIDE_REQUESTED=1
+    if [[ -z "$OTA_IOS_RUNTIME_VERSION" ]]; then
+      usage
+    fi
+    ;;
+  --ios-runtime-version=*)
+    OTA_IOS_RUNTIME_VERSION="${1#*=}"
+    OTA_RUNTIME_EXACT_REQUESTED=1
+    OTA_RUNTIME_OVERRIDE_REQUESTED=1
+    if [[ -z "$OTA_IOS_RUNTIME_VERSION" ]]; then
+      usage
+    fi
+    ;;
+  --android-runtime-version)
+    shift
+    OTA_ANDROID_RUNTIME_VERSION="${1:-}"
+    OTA_RUNTIME_EXACT_REQUESTED=1
+    OTA_RUNTIME_OVERRIDE_REQUESTED=1
+    if [[ -z "$OTA_ANDROID_RUNTIME_VERSION" ]]; then
+      usage
+    fi
+    ;;
+  --android-runtime-version=*)
+    OTA_ANDROID_RUNTIME_VERSION="${1#*=}"
+    OTA_RUNTIME_EXACT_REQUESTED=1
+    OTA_RUNTIME_OVERRIDE_REQUESTED=1
+    if [[ -z "$OTA_ANDROID_RUNTIME_VERSION" ]]; then
+      usage
+    fi
+    ;;
   ios|android|all)
     PLATFORM="$1"
     ;;
@@ -36,6 +113,21 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
+
+if [[ "$OTA_RUNTIME_BUILD_REQUESTED" -eq 1 && "$OTA_RUNTIME_EXACT_REQUESTED" -eq 1 ]]; then
+  echo "Use either --runtime-build or exact per-platform runtime versions, not both."
+  exit 1
+fi
+
+if [[ "$OTA_RUNTIME_OVERRIDE_REQUESTED" -eq 1 ]]; then
+  case "$TARGET" in
+  ota-testflight|ota-production) ;;
+  *)
+    echo "Runtime version options are only supported by ota-testflight and ota-production."
+    exit 1
+    ;;
+  esac
+fi
 
 # Xcode export uses /usr/bin/rsync and expects Apple rsync semantics.
 # If Homebrew rsync is first in PATH, export can fail with:
@@ -123,6 +215,44 @@ ensure_android_java_home() {
   fi
 }
 
+app_version() {
+  node -e 'const app = require("./app.json").expo; process.stdout.write(String(app.version ?? "0.0.0"));'
+}
+
+configure_ota_runtime_versions() {
+  local version=""
+
+  if [[ "$OTA_RUNTIME_BUILD_REQUESTED" -eq 1 ]]; then
+    if [[ ! "$OTA_RUNTIME_BUILD" =~ ^[0-9]+$ ]]; then
+      echo "--runtime-build must be an integer build number."
+      exit 1
+    fi
+
+    version="$(app_version)"
+    OTA_IOS_RUNTIME_VERSION="${version}+ios.${OTA_RUNTIME_BUILD}"
+    OTA_ANDROID_RUNTIME_VERSION="${version}+android.${OTA_RUNTIME_BUILD}"
+  fi
+
+  if [[ -n "$OTA_IOS_RUNTIME_VERSION" || -n "$OTA_ANDROID_RUNTIME_VERSION" ]]; then
+    if [[ -z "$OTA_IOS_RUNTIME_VERSION" || -z "$OTA_ANDROID_RUNTIME_VERSION" ]]; then
+      echo "Provide both --ios-runtime-version and --android-runtime-version, or use --runtime-build."
+      exit 1
+    fi
+
+    echo "OTA runtime versions:"
+    echo "  iOS: $OTA_IOS_RUNTIME_VERSION"
+    echo "  Android: $OTA_ANDROID_RUNTIME_VERSION"
+  fi
+}
+
+run_eoas() {
+  if [[ -n "$EOAS_BIN" ]]; then
+    "$EOAS_BIN" "$@"
+  else
+    npx eoas "$@"
+  fi
+}
+
 build_ios() {
   local profile="$1"
   ensure_sentry_token
@@ -165,10 +295,16 @@ publish_ota() {
     exit 1
   fi
 
+  configure_ota_runtime_versions
   ensure_expo_token
 
   echo "Publishing OTA to branch '$branch' (ios+android)..."
-  env EXPO_TOKEN="$EXPO_TOKEN" RELEASE_CHANNEL="$branch" npx eoas publish --branch "$branch" --platform all
+  export EXPO_TOKEN
+  export RELEASE_CHANNEL="$branch"
+  export RELISTEN_IOS_RUNTIME_VERSION="$OTA_IOS_RUNTIME_VERSION"
+  export RELISTEN_ANDROID_RUNTIME_VERSION="$OTA_ANDROID_RUNTIME_VERSION"
+
+  run_eoas publish --branch "$branch" --platform all
 }
 
 case "$TARGET" in
