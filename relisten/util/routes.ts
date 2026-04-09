@@ -1,5 +1,4 @@
 import React, { PropsWithChildren, useContext, useMemo } from 'react';
-import { useSegments } from 'expo-router';
 
 export type RelistenTabGroupSegment = '(artists)' | '(myLibrary)' | '(offline)';
 
@@ -19,16 +18,6 @@ export function RelistenNavigationProvider({
 
   return React.createElement(RelistenNavigationContext.Provider, { value }, children);
 }
-
-export const useRoute = (nextRoute?: string) => {
-  const segments = useSegments();
-
-  if (nextRoute) {
-    return '/' + segments.concat(nextRoute).join('/');
-  }
-
-  return segments.length > 0 ? '/' + segments.join('/') : '/';
-};
 
 export const useGroupSegment = (): RelistenTabGroupSegment => {
   const navigation = useContext(RelistenNavigationContext);

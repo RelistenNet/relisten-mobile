@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useRelistenApi } from '@/relisten/api/context';
-import { useIsOfflineTab, useRoute } from '@/relisten/util/routes';
+import { useGroupSegment, useIsOfflineTab } from '@/relisten/util/routes';
 import {
   ArtistMetadataSummary,
   useOfflineArtistMetadata,
@@ -16,7 +16,7 @@ import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 
 export const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => {
   const { apiClient } = useRelistenApi();
-  const currentRoute = useRoute();
+  const groupSegment = useGroupSegment();
   const isOfflineTab = useIsOfflineTab();
   const { pushShow } = usePushShowRespectingUserSettings();
 
@@ -31,7 +31,7 @@ export const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => 
   return (
     <OnlineYearsHeader
       artist={artist}
-      currentRoute={currentRoute}
+      currentRoute={`/relisten/tabs/${groupSegment}/[artistUuid]`}
       goToRandomShow={async () => {
         const randomShow = await apiClient.randomShow(artist.uuid);
 

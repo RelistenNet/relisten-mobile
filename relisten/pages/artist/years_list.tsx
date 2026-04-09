@@ -11,7 +11,7 @@ import {
   FilterableList,
   FilterableListProps,
 } from '@/relisten/components/filtering/filterable_list';
-import { useIsOfflineTab, useRoute } from '@/relisten/util/routes';
+import { useGroupSegment, useIsOfflineTab } from '@/relisten/util/routes';
 import { useOfflineYearMetadata } from '@/relisten/realm/models/year_repo';
 import { useYearHasOfflineTracks } from '@/relisten/realm/root_services';
 import { Link } from 'expo-router';
@@ -144,7 +144,8 @@ export const YearsListContainer = (props: YearsListProps) => {
 
 const YearsList = ({ artist, years, ...props }: YearsListProps) => {
   const isOfflineTab = useIsOfflineTab();
-  const nextRoute = useRoute('year/[yearUuid]');
+  const groupSegment = useGroupSegment();
+  const nextRoute = `/relisten/tabs/${groupSegment}/[artistUuid]/year/[yearUuid]/`;
   const { filters } = useFilters<YearFilterKey, Year>();
   const isTrendingSort = filters.some(
     (filter) => filter.active && filter.persistenceKey === YearFilterKey.Trending
