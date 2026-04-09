@@ -60,6 +60,12 @@ export default function TabRootStackLayout() {
           />
 
           <Stack.Screen
+            name="downloading"
+            options={{
+              title: 'Downloading',
+            }}
+          />
+          <Stack.Screen
             name="[artistUuid]/index"
             options={{
               title: '',

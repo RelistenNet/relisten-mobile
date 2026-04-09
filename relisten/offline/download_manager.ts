@@ -40,10 +40,19 @@ export class DownloadManager {
   static SHARED_INSTANCE = new DownloadManager();
   static MAX_CONCURRENT_DOWNLOADS = 3;
 
+  private remainingDownloadsListeners: Set<() => void> = new Set();
   private runningDownloadTasks: DownloadTask[] = [];
   private pendingDownloadTasks: Set<string> = new Set<string>();
   private removingDownloadTasks: Set<string> = new Set<string>();
   private statsig: StatsigClientExpo = sharedStatsigClient();
+
+  subscribeRemainingDownloads = (listener: () => void) => {
+    this.remainingDownloadsListeners.add(listener);
+
+    return () => {
+      this.remainingDownloadsListeners.delete(listener);
+    };
+  };
 
   async downloadTrack(sourceTrack: SourceTrack) {
     if (!realm) {
@@ -80,7 +89,11 @@ export class DownloadManager {
         sourceTrack.offlineInfo = offlineInfo;
       });
 
+      this.emitRemainingDownloadsChanged();
+
       // this.statsig.logEvent(trackDownloadQueuedEvent(sourceTrack));
+    } else if (offlineInfo.status !== SourceTrackOfflineInfoStatus.Succeeded) {
+      this.emitRemainingDownloadsChanged();
     }
 
     await this.maybeCreateDownloadTask(sourceTrack, offlineInfo!);
@@ -119,6 +132,8 @@ export class DownloadManager {
         offlineInfo.completedAt = d;
       }
     });
+
+    this.emitRemainingDownloadsChanged();
   }
 
   private maybeCreateDownloadTask(sourceTrack: SourceTrack, offlineInfo: SourceTrackOfflineInfo) {
@@ -198,6 +213,7 @@ export class DownloadManager {
       `creating DownloadTask; sourceTrack.uuid=${sourceTrack.uuid}: mp3Url=${sourceTrack.streamingUrl()}`
     );
 
+    this.emitRemainingDownloadsChanged();
     this.pendingDownloadTasks.add(sourceTrack.uuid);
     const destination = sourceTrack.downloadedFileLocation();
 
@@ -357,6 +373,7 @@ export class DownloadManager {
         });
       }
     } finally {
+      this.emitRemainingDownloadsChanged();
       this.removingDownloadTasks.delete(sourceTrack.uuid);
     }
   }
@@ -397,6 +414,12 @@ export class DownloadManager {
       if (task.id === id) {
         return task;
       }
+    }
+  }
+
+  private emitRemainingDownloadsChanged() {
+    for (const listener of this.remainingDownloadsListeners) {
+      listener();
     }
   }
 
@@ -526,6 +549,8 @@ export class DownloadManager {
           oi.percent = 1.0;
           oi.errorInfo = undefined;
         });
+
+        this.emitRemainingDownloadsChanged();
 
         this.statsig.logEvent(trackDownloadCompletedEvent(sourceTrack));
         this.logTrackDownloadIntegrityAsync(sourceTrack, dest, validationResult);

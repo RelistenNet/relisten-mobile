@@ -9,6 +9,7 @@ import {
 import { useRealm } from '@/relisten/realm/schema';
 import { LibraryIndex } from '@/relisten/realm/library_index';
 import { UserSettingsStore } from '@/relisten/realm/user_settings_store';
+import { DownloadManager } from '@/relisten/offline/download_manager';
 
 export interface RootServices {
   libraryIndex: LibraryIndex;
@@ -100,12 +101,16 @@ export function useRemainingDownloadsCount() {
   const { libraryIndex } = useRootServices();
 
   useSyncExternalStore(
-    libraryIndex.subscribeRemainingDownloads,
+    DownloadManager.SHARED_INSTANCE.subscribeRemainingDownloads,
     libraryIndex.getRemainingDownloadsSnapshot,
     libraryIndex.getRemainingDownloadsSnapshot
   );
 
-  return libraryIndex.remainingDownloadsCount();
+  return useSyncExternalStore(
+    libraryIndex.subscribeRemainingDownloads,
+    libraryIndex.getRemainingDownloadsSnapshot,
+    libraryIndex.getRemainingDownloadsSnapshot
+  );
 }
 
 export function useHasRemainingDownloads() {

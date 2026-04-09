@@ -138,7 +138,7 @@ export class LibraryIndex {
   private readonly favoriteShows: Realm.Results<Show>;
   private readonly offlineInfos: Realm.Results<SourceTrackOfflineInfo>;
   private readonly remainingDownloads: Realm.Results<SourceTrackOfflineInfo>;
-  private remainingDownloadsCountValue = 0;
+  private lastNotifiedRemainingDownloadsCount = 0;
 
   constructor(private readonly realm: Realm.Realm) {
     this.favoriteArtists = this.realm.objects(Artist).filtered('isFavorite == true');
@@ -149,6 +149,7 @@ export class LibraryIndex {
     this.remainingDownloads = this.realm
       .objects(SourceTrackOfflineInfo)
       .filtered('status != $0', SourceTrackOfflineInfoStatus.Succeeded);
+    this.lastNotifiedRemainingDownloadsCount = this.remainingDownloads.length;
 
     this.favoriteArtists.addListener(this.handleFavoriteArtistsChanged);
     this.favoriteShows.addListener(this.handleFavoriteShowsChanged);
@@ -158,7 +159,6 @@ export class LibraryIndex {
     this.rebuildFavoriteArtists();
     this.rebuildFavoriteShows();
     this.rebuildOfflineAvailability();
-    this.rebuildRemainingDownloads();
   }
 
   tearDown() {
@@ -211,7 +211,7 @@ export class LibraryIndex {
   };
 
   getRemainingDownloadsSnapshot = () => {
-    return this.sliceVersions['remaining-downloads'];
+    return this.remainingDownloadsCount();
   };
 
   subscribeArtistLibrary = (artistUuid: string, listener: Listener) => {
@@ -317,11 +317,11 @@ export class LibraryIndex {
   }
 
   remainingDownloadsCount() {
-    return this.remainingDownloadsCountValue;
+    return this.remainingDownloads.length;
   }
 
   hasRemainingDownloads() {
-    return this.remainingDownloadsCountValue > 0;
+    return this.remainingDownloadsCount() > 0;
   }
 
   private readonly handleFavoriteArtistsChanged = () => {
@@ -337,7 +337,19 @@ export class LibraryIndex {
   };
 
   private readonly handleRemainingDownloadsChanged = () => {
-    this.rebuildRemainingDownloads();
+    const remainingDownloadsCount = this.remainingDownloadsCount();
+
+    if (remainingDownloadsCount === this.lastNotifiedRemainingDownloadsCount) {
+      return;
+    }
+
+    logLibraryIndexDebug(
+      `remaining-downloads ${this.lastNotifiedRemainingDownloadsCount} -> ${remainingDownloadsCount}`
+    );
+    this.lastNotifiedRemainingDownloadsCount = remainingDownloadsCount;
+
+    this.queueSliceNotification('remaining-downloads');
+    this.scheduleEmit();
   };
 
   private rebuildFavoriteArtists() {
@@ -533,22 +545,6 @@ export class LibraryIndex {
       }
     }
 
-    this.scheduleEmit();
-  }
-
-  private rebuildRemainingDownloads() {
-    const previousRemainingDownloadsCount = this.remainingDownloadsCountValue;
-    this.remainingDownloadsCountValue = this.remainingDownloads.length;
-
-    if (previousRemainingDownloadsCount === this.remainingDownloadsCountValue) {
-      return;
-    }
-
-    logLibraryIndexDebug(
-      `remaining-downloads ${previousRemainingDownloadsCount} -> ${this.remainingDownloadsCountValue}`
-    );
-
-    this.queueSliceNotification('remaining-downloads');
     this.scheduleEmit();
   }
 
