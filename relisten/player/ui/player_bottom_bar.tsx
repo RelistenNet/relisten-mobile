@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   shellSurfaceIos: {
-    backgroundColor: 'rgba(8, 18, 31, 0.76)',
+    backgroundColor: 'rgba(8, 18, 31, 0.95)',
     borderColor: 'rgba(255, 255, 255, 0.16)',
     borderWidth: 1,
   },
