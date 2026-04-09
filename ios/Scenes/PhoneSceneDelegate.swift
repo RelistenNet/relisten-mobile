@@ -45,6 +45,13 @@ class PhoneSceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     self.window = window
 
+    // Pin the phone UI to dark mode. We deliberately do NOT set
+    // UIUserInterfaceStyle in Info.plist because that would also force the
+    // CarPlay UIWindow into a dark trait collection, which causes
+    // dynamic colors in CarPlay templates to resolve to their dark-mode
+    // variants over CarPlay's vehicle-managed (often light) backgrounds.
+    window.overrideUserInterfaceStyle = .dark
+
     // Forward universal links received on cold start
     for userActivity in connectionOptions.userActivities {
       RCTLinkingManager.application(

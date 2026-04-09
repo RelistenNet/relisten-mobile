@@ -10,7 +10,7 @@
     "version": "6.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "automatic",
     "scheme": "relisten",
     "splash": {
       "image": "./assets/splash.png",
