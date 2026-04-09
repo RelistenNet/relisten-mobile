@@ -1,0 +1,63 @@
+{
+  "inputDir": "~/Downloads/relisten-store-shots",
+  "outputDir": "dist/store-screenshots",
+  "fontPath": "~/Library/Fonts/Stay Retro.otf",
+  "fontNames": ["Stay Retro", "StayRetro-Regular", "StayRetro"],
+  "gradientTop": "#008AB0",
+  "gradientBottom": "#00ACDB",
+  "platforms": [
+    {
+      "name": "ios",
+      "inputSubdir": "ios",
+      "outputSubdir": "ios",
+      "canvasWidth": 1290,
+      "canvasHeight": 2796,
+      "deviceFrame": "iphone17Pro",
+      "deviceWidthRatio": 0.86,
+      "deviceBottomMarginRatio": -0.06,
+      "textVerticalOffsetRatio": -0.004,
+      "textHeightRatio": 0.145,
+      "headlineFontScale": 0.15
+    },
+    {
+      "name": "android",
+      "inputSubdir": "android",
+      "outputSubdir": "android",
+      "canvasWidth": 1080,
+      "canvasHeight": 2400,
+      "deviceFrame": "pixel7a",
+      "deviceWidthRatio": 0.88,
+      "deviceBottomMarginRatio": -0.06,
+      "textVerticalOffsetRatio": 0.001,
+      "textHeightRatio": 0.145,
+      "headlineFontScale": 0.15
+    }
+  ],
+  "screens": [
+    {
+      "id": "01-all-live-music",
+      "input": "01",
+      "title": ["All live music", "All the time"]
+    },
+    {
+      "id": "02-archive-scale",
+      "input": "02",
+      "title": ["210k+ Shows", "4,000+ artists"]
+    },
+    {
+      "id": "03-offline",
+      "input": "03",
+      "title": ["Download and", "listen offline"]
+    },
+    {
+      "id": "04-browse-more",
+      "input": "04",
+      "title": ["Venues, songs,", "random + More"]
+    },
+    {
+      "id": "05-popular-trending",
+      "input": "05",
+      "title": ["Find Popular &", "Trending Shows"]
+    }
+  ]
+}
