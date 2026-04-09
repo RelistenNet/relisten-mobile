@@ -136,7 +136,7 @@ const OnlineArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> 
     const favoritesSorted = allSorted
       .filter((a) => a.isFavorite)
       .sort((a, b) => a.sortName.localeCompare(b.sortName));
-    const featuredAll = allSorted.filter((a) => !a.isAutomaticallyCreated());
+    const featuredAll = allSorted.filter((a) => !a.isAutomaticallyCreated() && !a.isFavorite);
     const hasPopularity = featuredAll.some(
       (artist) => artist.popularity?.windows?.days30d?.plays !== undefined
     );
