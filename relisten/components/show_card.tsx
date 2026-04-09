@@ -169,7 +169,7 @@ export function ShowCard({
               footer={
                 <View className="flex-row items-center pt-1">
                   <View className="flex-1 flex-row items-center pr-2">
-                    <ShowCardMetaChip className={show.hasSoundboardSource ? 'mr-1' : undefined}>
+                    <ShowCardMetaChip>
                       <RelistenText
                         numberOfLines={1}
                         selectable={false}
@@ -179,15 +179,18 @@ export function ShowCard({
                       </RelistenText>
                     </ShowCardMetaChip>
                     {show.hasSoundboardSource ? (
-                      <ShowCardMetaChip>
-                        <RelistenText
-                          numberOfLines={1}
-                          selectable={false}
-                          className="text-xs font-semibold text-gray-100"
-                        >
-                          SBD
-                        </RelistenText>
-                      </ShowCardMetaChip>
+                      <>
+                        <View className="w-1" />
+                        <ShowCardMetaChip>
+                          <RelistenText
+                            numberOfLines={1}
+                            selectable={false}
+                            className="text-xs font-semibold text-gray-100"
+                          >
+                            SBD
+                          </RelistenText>
+                        </ShowCardMetaChip>
+                      </>
                     ) : null}
                   </View>
                   <View className="ml-auto items-end">
@@ -269,6 +272,7 @@ export function ShowCardLoader({
                   99 tapes
                 </RelistenText>
               </ShowCardMetaChip>
+              <View className="w-1" />
               <ShowCardMetaChip>
                 <RelistenText
                   numberOfLines={1}
