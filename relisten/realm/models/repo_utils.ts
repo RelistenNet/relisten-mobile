@@ -5,11 +5,11 @@ import { showRepo } from '@/relisten/realm/models/show_repo';
 import { venueRepo } from '@/relisten/realm/models/venue_repo';
 import { tourRepo } from '@/relisten/realm/models/tour_repo';
 import { groupByUuid } from '@/relisten/util/group_by';
-import { artistRepo } from '@/relisten/realm/models/artist_repo';
 import { RelistenApiUpdatableObject, Repository } from '@/relisten/realm/repository';
 import { RelistenObjectRequiredProperties } from '@/relisten/realm/relisten_object';
 import { log } from '@/relisten/util/logging';
 import { Song } from '@/relisten/realm/models/song';
+import { attachShowArtists } from '@/relisten/realm/models/show_artist_relationships';
 
 const logger = log.extend('repo-utils');
 
@@ -72,16 +72,7 @@ export function upsertShowList(
     queryForModel
   );
 
-  const showsThatNeedsArtists = allShows.filter((s) => !s.artist);
-
-  if (showsThatNeedsArtists.length > 0) {
-    const showArtistUuids = new Set(showsThatNeedsArtists.map((s) => s.artistUuid));
-    const artistsByUuid = groupByUuid([...artistRepo.forUuids(realm, [...showArtistUuids])]);
-
-    for (const show of showsThatNeedsArtists) {
-      show.artist = artistsByUuid[show.artistUuid];
-    }
-  }
+  attachShowArtists(realm, allShows);
 
   if (upsertModels.tours) {
     upsertShowRelationship(

@@ -9,7 +9,7 @@ import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
 import { NetworkBackedResults } from '../network_backed_results';
 import { Repository } from '../repository';
 import { useQuery, useRealm } from '../schema';
-import { Artist, ArtistFeaturedFlags } from './artist';
+import { Artist, ArtistFeaturedFlags, ArtistRequiredProperties } from './artist';
 import { ArtistWithCounts } from '@/relisten/api/models/artist';
 
 import { useIsOfflineTab } from '@/relisten/util/routes';
@@ -19,8 +19,24 @@ import { Source } from './source';
 import { NetworkBackedModelArrayBehavior } from '@/relisten/realm/network_backed_model_array_behavior';
 import { RealmQueryValueStream, ValueStream } from '@/relisten/realm/value_streams';
 import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_network_backed_behavior';
+import { attachArtistsToExistingShows } from '@/relisten/realm/models/show_artist_relationships';
 
 export const artistRepo = new Repository(Artist);
+
+class ArtistsNetworkBackedBehavior extends NetworkBackedModelArrayBehavior<
+  Artist,
+  ArtistWithCounts,
+  ArtistRequiredProperties,
+  object
+> {
+  override upsert(localData: Realm.Results<Artist>, apiData: ArtistWithCounts[]): void {
+    this.realm.write(() => {
+      const { allModels } = artistRepo.upsertMultiple(this.realm, apiData, localData, true, true);
+
+      attachArtistsToExistingShows(this.realm, allModels);
+    });
+  }
+}
 
 export interface ArtistMetadataSummary {
   shows: number | undefined;
@@ -33,7 +49,7 @@ export function artistsNetworkBackedBehavior(
   includeAutomaticallyCreated: boolean,
   options?: NetworkBackedBehaviorOptions
 ) {
-  return new NetworkBackedModelArrayBehavior(
+  return new ArtistsNetworkBackedBehavior(
     realm,
     artistRepo,
     (realm) => {
@@ -134,7 +150,11 @@ class ArtistBootstrapNetworkBackedBehavior extends ThrottledNetworkBackedBehavio
       return;
     }
 
-    artistRepo.upsertMultiple(this.realm, apiData, [], false, true);
+    this.realm.write(() => {
+      const { allModels } = artistRepo.upsertMultiple(this.realm, apiData, [], false, true);
+
+      attachArtistsToExistingShows(this.realm, allModels);
+    });
   }
 }
 

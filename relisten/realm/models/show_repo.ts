@@ -26,6 +26,7 @@ import {
 import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_network_backed_behavior';
 import { LibraryIndex } from '@/relisten/realm/library_index';
 import { useOfflineAvailabilityIndex } from '@/relisten/realm/root_services';
+import { attachShowArtists } from '@/relisten/realm/models/show_artist_relationships';
 
 export const showRepo = new Repository(Show);
 
@@ -149,6 +150,10 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
 
       if (!localData.show) {
         localData.show = updatedShow || createdShow;
+      }
+
+      if (localData.show) {
+        attachShowArtists(this.realm, [localData.show]);
       }
 
       if (localData.show && apiData.venue) {
