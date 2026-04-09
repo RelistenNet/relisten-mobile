@@ -17,6 +17,32 @@ import { RelistenButton } from '@/relisten/components/relisten_button';
 import { View } from 'react-native';
 import { DownloadManager } from '@/relisten/offline/download_manager';
 
+function failedDownloadMessage(errorInfo?: string) {
+  if (!errorInfo) {
+    return 'Download failed. Tap Retry Failed to try again.';
+  }
+
+  try {
+    const parsed = JSON.parse(errorInfo) as { reason?: string; httpStatus?: number };
+
+    switch (parsed.reason) {
+      case 'httpStatus':
+        return `Download failed: server returned HTTP ${parsed.httpStatus ?? 'error'}.`;
+      case 'partialContent':
+      case 'contentLengthMismatch':
+      case 'emptyFile':
+      case 'tooSmall':
+        return 'Download failed because the audio file was incomplete.';
+      case 'invalidMp3Prefix':
+        return 'Download failed because the file did not look like an MP3.';
+    }
+  } catch {
+    /* empty */
+  }
+
+  return 'Download failed. Tap Retry Failed to try again.';
+}
+
 export default function Page() {
   const navigation = useNavigation();
 
@@ -66,12 +92,11 @@ const DownloadStatusTime = ({ item }: { item: SourceTrackOfflineInfo }) => {
     );
   }
 
-  return (
-    <SubtitleText>
-      Queued {dayjs(item.queuedAt).fromNow()}
-      {item.errorInfo ? `\n${item.errorInfo}` : ''}
-    </SubtitleText>
-  );
+  if (item.status === SourceTrackOfflineInfoStatus.Failed) {
+    return <SubtitleText>{failedDownloadMessage(item.errorInfo)}</SubtitleText>;
+  }
+
+  return <SubtitleText>Queued {dayjs(item.queuedAt).fromNow()}</SubtitleText>;
 };
 
 const OfflineHeader = ({ downloads }: { downloads: Realm.Results<SourceTrackOfflineInfo> }) => {

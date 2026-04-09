@@ -19,8 +19,15 @@ import {
   sharedStatsigClient,
   trackDownloadCompletedEvent,
   trackDownloadFailureEvent,
-  trackDownloadQueuedEvent,
+  trackDownloadIntegrityEvent,
+  // trackDownloadQueuedEvent,
 } from '@/relisten/events';
+import {
+  checkExpectedDownloadMd5,
+  DownloadValidationResult,
+  stringifyDownloadError,
+  validateCompletedDownloadResponse,
+} from '@/relisten/offline/download_validation';
 
 const logger = log.extend('offline');
 
@@ -73,7 +80,7 @@ export class DownloadManager {
         sourceTrack.offlineInfo = offlineInfo;
       });
 
-      this.statsig.logEvent(trackDownloadQueuedEvent(sourceTrack));
+      // this.statsig.logEvent(trackDownloadQueuedEvent(sourceTrack));
     }
 
     await this.maybeCreateDownloadTask(sourceTrack, offlineInfo!);
@@ -412,6 +419,33 @@ export class DownloadManager {
     }
   }
 
+  private logTrackDownloadIntegrityAsync(
+    sourceTrack: SourceTrack,
+    path: string,
+    validationResult: DownloadValidationResult
+  ) {
+    const eventBase = trackDownloadIntegrityEvent(sourceTrack, {
+      ...validationResult,
+      md5Status: 'pending',
+    });
+    const expectedMd5 = sourceTrack.mp3Md5;
+    const sourceTrackUuid = sourceTrack.uuid;
+
+    checkExpectedDownloadMd5(expectedMd5, path, sourceTrackUuid)
+      .then((md5Status) => {
+        this.statsig.logEvent({
+          ...eventBase,
+          metadata: {
+            ...eventBase.metadata,
+            md5Status,
+          },
+        });
+      })
+      .catch((error) => {
+        logger.warn(`Could not log download integrity; sourceTrack.uuid=${sourceTrackUuid}`, error);
+      });
+  }
+
   private attachDownloadHandlers(
     realm: Realm,
     sourceTrack: SourceTrack,
@@ -457,10 +491,13 @@ export class DownloadManager {
       .then(async (res) => {
         const dest = sourceTrack.downloadedFileLocation().replace('file://', '');
         const path = res.path().replace('file://', '');
-
-        log.info(`${downloadTask.id}: copying ${path} to ${dest}`);
+        let validationResult: DownloadValidationResult;
 
         try {
+          validationResult = await validateCompletedDownloadResponse(res, path);
+
+          log.info(`${downloadTask.id}: copying ${path} to ${dest}`);
+
           if (await ReactNativeBlobUtil.fs.exists(dest)) {
             await ReactNativeBlobUtil.fs.unlink(dest);
           }
@@ -484,12 +521,14 @@ export class DownloadManager {
           logger.debug(`${downloadTask.id}: done`);
           oi.status = SourceTrackOfflineInfoStatus.Succeeded;
           oi.completedAt = new Date();
-          oi.downloadedBytes = oi.totalBytes;
+          oi.totalBytes = validationResult.contentLength ?? validationResult.downloadedBytes;
+          oi.downloadedBytes = validationResult.downloadedBytes;
           oi.percent = 1.0;
           oi.errorInfo = undefined;
         });
 
         this.statsig.logEvent(trackDownloadCompletedEvent(sourceTrack));
+        this.logTrackDownloadIntegrityAsync(sourceTrack, dest, validationResult);
 
         this.runningDownloadTasks.splice(this.runningDownloadTasks.indexOf(downloadTask), 1);
         this.maybeStartQueuedDownloads().then(() => {});
@@ -504,9 +543,11 @@ export class DownloadManager {
         }
 
         realm.write(() => {
-          logger.debug(`${downloadTask.id}: error; ${JSON.stringify(error)}`);
+          const errorInfo = stringifyDownloadError(error);
 
-          oi.errorInfo = JSON.stringify(error);
+          logger.debug(`${downloadTask.id}: error; ${errorInfo}`);
+
+          oi.errorInfo = errorInfo;
 
           if (!oi.errorInfo) {
             // first failure, let it try again

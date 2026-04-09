@@ -27,6 +27,7 @@ export enum Events {
   TrackDownloadQueued = 'track_download_queued',
   TrackDownloadCompleted = 'track_download_completed',
   TrackDownloadFailure = 'track_download_failure',
+  TrackDownloadIntegrity = 'track_download_integrity',
   DownloadsResumed = 'downloads_resumed',
 }
 
@@ -78,6 +79,36 @@ export function trackDownloadCompletedEvent(sourceTrack: SourceTrack): StatsigEv
       showUuid: sourceTrack.showUuid,
       artistUuid: sourceTrack.artistUuid,
       url: sourceTrack.streamingUrl(),
+    },
+  };
+}
+
+export interface TrackDownloadIntegrityDetails {
+  httpStatus?: number;
+  contentLength?: number;
+  contentType?: string;
+  downloadedBytes: number;
+  prefixProbe: string;
+  md5Status: 'pending' | 'missing' | 'matched' | 'mismatched' | 'hashError';
+}
+
+export function trackDownloadIntegrityEvent(
+  sourceTrack: SourceTrack,
+  details: TrackDownloadIntegrityDetails
+): StatsigEvent {
+  return {
+    eventName: Events.TrackDownloadIntegrity,
+    value: sourceTrack.uuid,
+    metadata: {
+      showUuid: sourceTrack.showUuid,
+      artistUuid: sourceTrack.artistUuid,
+      url: sourceTrack.streamingUrl(),
+      httpStatus: details.httpStatus?.toString(),
+      contentLength: details.contentLength?.toString(),
+      contentType: details.contentType,
+      downloadedBytes: details.downloadedBytes.toString(),
+      prefixProbe: details.prefixProbe,
+      md5Status: details.md5Status,
     },
   };
 }
