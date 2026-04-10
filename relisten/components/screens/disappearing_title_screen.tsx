@@ -2,6 +2,7 @@ import { useNavigation } from '@react-navigation/native';
 import React, { PropsWithChildren, useEffect, useMemo } from 'react';
 import {
   Animated,
+  Platform,
   ScrollViewProps,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -13,6 +14,8 @@ import { useHeaderHeight } from '@react-navigation/elements';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type InjectedScrollProps = Pick<ScrollViewProps, 'onScroll' | 'scrollEventThrottle'>;
+const DEFAULT_HEADER_TITLE_REVEAL_DISTANCE = Platform.OS === 'ios' ? 44 : 56;
+
 type DisappearingHeaderScreenProps<TProps extends InjectedScrollProps> = PropsWithChildren<
   {
     ScrollableComponent: React.ComponentType<TProps>;
@@ -28,12 +31,21 @@ export const DisappearingHeaderScreen = <TProps extends InjectedScrollProps>({
   const safeAreaInsets = useSafeAreaInsets();
 
   const scrolling = useMemo(() => new Animated.Value(0), []);
+  const measuredHeaderRevealDistance = headerHeight - safeAreaInsets.top;
+  const headerRevealDistance =
+    measuredHeaderRevealDistance > 0
+      ? measuredHeaderRevealDistance
+      : DEFAULT_HEADER_TITLE_REVEAL_DISTANCE;
 
-  const headerOpacity = scrolling.interpolate({
-    inputRange: [0, headerHeight - safeAreaInsets.top],
-    outputRange: [0, 1],
-    extrapolate: 'clamp',
-  });
+  const headerOpacity = useMemo(
+    () =>
+      scrolling.interpolate({
+        inputRange: [0, headerRevealDistance],
+        outputRange: [0, 1],
+        extrapolate: 'clamp',
+      }),
+    [headerRevealDistance, scrolling]
+  );
 
   useEffect(() => {
     navigation.setOptions({
