@@ -2,143 +2,95 @@
 
 package net.relisten.android.audio_player
 
+import android.app.PendingIntent
 import android.content.Intent
+import android.util.Log
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
-import androidx.media3.common.FlagSet
-import androidx.media3.common.ForwardingPlayer
-import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.upstream.DefaultAllocator
 import androidx.media3.exoplayer.util.EventLogger
+import androidx.media3.session.MediaLibraryService
+import androidx.media3.session.MediaLibraryService.MediaLibrarySession
 import androidx.media3.session.MediaSession
-import androidx.media3.session.MediaSessionService
 
-
-class RelistenPlaybackService : MediaSessionService() {
-    private var mediaSession: MediaSession? = null
+// Keep this service as wiring only; Android Auto browse behavior lives in RelistenMediaLibrary.
+class RelistenPlaybackService : MediaLibraryService() {
+    private var mediaSession: MediaLibrarySession? = null
     var exoPlayer: ExoPlayer? = null
 
-    // Create your Player and MediaSession in the onCreate lifecycle event
     override fun onCreate() {
         super.onCreate()
-
-        val audioAttributes = AudioAttributes.Builder()
-            .setUsage(C.USAGE_MEDIA)
-            .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-            .build()
 
         val player = ExoPlayer.Builder(this)
             .setLoadControl(RelistenLoadControl())
             .setHandleAudioBecomingNoisy(true)
             .build()
-        player.setAudioAttributes(audioAttributes, true)
+        player.setAudioAttributes(relistenAudioAttributes(), true)
         player.addAnalyticsListener(EventLogger())
 
-        val uiStatePlayer = RelistenUiStatePlayer(player)
-        mediaSession = MediaSession.Builder(this, uiStatePlayer).build()
+        val mediaLibrary = RelistenMediaLibrary { mediaSession }
+        val sessionPlayer = RelistenSessionPlayer(
+            player,
+            appPackageName = packageName,
+            currentControllerProvider = { mediaSession?.getControllerForCurrentRequest() },
+            isNotificationController = { controller ->
+                mediaSession?.isMediaNotificationController(controller) == true
+            }
+        )
+        sessionPlayer.addListener(mediaLibrary.playerListener)
 
+        val sessionBuilder = MediaLibrarySession.Builder(
+            this,
+            sessionPlayer,
+            RelistenMediaLibraryCallback(mediaLibrary)
+        )
+        sessionActivityPendingIntent()?.let { sessionActivity ->
+            sessionBuilder.setSessionActivity(sessionActivity)
+        }
+
+        mediaSession = sessionBuilder.build()
         exoPlayer = player
     }
 
-    // The user dismissed the app from the recent tasks
     override fun onTaskRemoved(rootIntent: Intent?) {
-        val player = mediaSession?.player!!
+        val player = mediaSession?.player ?: return
         if (!player.playWhenReady || player.mediaItemCount == 0) {
-            // Stop the service if not playing, continue playing in the background
-            // otherwise.
             stopSelf()
         }
     }
 
-    // Remember to release the player and media session in onDestroy
     override fun onDestroy() {
         mediaSession?.run {
             player.release()
             release()
-            mediaSession = null
         }
+        mediaSession = null
+        exoPlayer = null
         super.onDestroy()
     }
 
-    // This example always accepts the connection request
     override fun onGetSession(
-            controllerInfo: MediaSession.ControllerInfo
-    ): MediaSession? {
+        controllerInfo: MediaSession.ControllerInfo
+    ): MediaLibrarySession? {
+        Log.i(RELISTEN_AUDIO_PLAYER_LOG_TAG, "media session requested package=${controllerInfo.packageName}")
         return mediaSession
     }
-}
 
-class RelistenUiStatePlayer(player: Player) : ForwardingPlayer(player) {
-    private var repeatModeState = player.repeatMode
-    private var shuffleModeEnabledState = player.shuffleModeEnabled
-    private val listeners = mutableSetOf<Player.Listener>()
-
-    override fun addListener(listener: Player.Listener) {
-        super.addListener(listener)
-        listeners.add(listener)
+    private fun relistenAudioAttributes(): AudioAttributes {
+        return AudioAttributes.Builder()
+            .setUsage(C.USAGE_MEDIA)
+            .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+            .build()
     }
 
-    override fun removeListener(listener: Player.Listener) {
-        super.removeListener(listener)
-        listeners.remove(listener)
+    private fun sessionActivityPendingIntent(): PendingIntent? {
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName) ?: return null
+        return PendingIntent.getActivity(
+            this,
+            0,
+            launchIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
     }
-
-    override fun setRepeatMode(repeatMode: Int) {
-        if (repeatModeState == repeatMode) {
-            return
-        }
-
-        repeatModeState = repeatMode
-        val events = Player.Events(FlagSet.Builder().add(Player.EVENT_REPEAT_MODE_CHANGED).build())
-        listeners.forEach { listener ->
-            listener.onRepeatModeChanged(repeatMode)
-            listener.onEvents(this, events)
-        }
-    }
-
-    override fun getRepeatMode(): Int {
-        return repeatModeState
-    }
-
-    override fun setShuffleModeEnabled(shuffleModeEnabled: Boolean) {
-        if (shuffleModeEnabledState == shuffleModeEnabled) {
-            return
-        }
-
-        shuffleModeEnabledState = shuffleModeEnabled
-        val events =
-            Player.Events(FlagSet.Builder().add(Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED).build())
-        listeners.forEach { listener ->
-            listener.onShuffleModeEnabledChanged(shuffleModeEnabled)
-            listener.onEvents(this, events)
-        }
-    }
-
-    override fun getShuffleModeEnabled(): Boolean {
-        return shuffleModeEnabledState
-    }
-
-    override fun seekToPrevious() {
-        if (!RelistenRemoteControlEvents.emit("prevTrack")) {
-            super.seekToPrevious()
-        }
-    }
-}
-
-
-class RelistenLoadControl : DefaultLoadControl(DefaultAllocator(true, C.DEFAULT_BUFFER_SEGMENT_SIZE),
-        // this behavior replicates iOS. probably not the most optimal but required for good hits on
-        // full song caching
-        1_000 * 60 * 60 * 2 /* 2 hour, default 50 seconds */,
-        1_000 * 60 * 60 * 2 /* 2 hour, default 50 seconds */,
-        DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
-        DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS,
-        DefaultLoadControl.DEFAULT_TARGET_BUFFER_BYTES,
-        true,
-        DefaultLoadControl.DEFAULT_BACK_BUFFER_DURATION_MS,
-        DefaultLoadControl.DEFAULT_RETAIN_BACK_BUFFER_FROM_KEYFRAME) {
-
 }

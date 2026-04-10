@@ -21,6 +21,8 @@ class StreamManagement internal constructor(private val player: RelistenGaplessA
                                         .setAlbumArtist(streamable.artist)
                                         .setAlbumTitle(streamable.albumTitle)
                                         .setArtworkUri(streamable.albumArtUri())
+                                        .setSubtitle(streamable.artist)
+                                        .setDescription(streamable.albumTitle)
                                         .setTitle(streamable.title)
                                         .build()
                         )
