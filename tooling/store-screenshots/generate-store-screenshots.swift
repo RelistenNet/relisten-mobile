@@ -24,11 +24,22 @@ struct PlatformConfig: Decodable {
   var canvasWidth: Int
   var canvasHeight: Int
   var deviceFrame: String
+  var frameImagePath: String?
+  var frameScreenRect: FrameScreenRect?
+  var frameScreenCornerRatio: CGFloat?
   var deviceWidthRatio: CGFloat
+  var deviceBorderRatio: CGFloat?
   var deviceBottomMarginRatio: CGFloat
   var textVerticalOffsetRatio: CGFloat?
   var textHeightRatio: CGFloat
   var headlineFontScale: CGFloat?
+}
+
+struct FrameScreenRect: Decodable {
+  var x: CGFloat
+  var y: CGFloat
+  var width: CGFloat
+  var height: CGFloat
 }
 
 struct ScreenConfig: Decodable {
@@ -74,6 +85,7 @@ func parseArguments() -> Arguments {
       Usage:
         yarn store:screenshots
         yarn store:screenshots -- --platform ios
+        yarn store:screenshots -- --platform ipados
         yarn store:screenshots -- --input ~/Downloads/relisten-store-shots --output dist/store-screenshots
       """)
       exit(0)
@@ -289,8 +301,10 @@ func drawScreenImage(_ image: NSImage, in screenRect: NSRect, radius: CGFloat) {
 func drawIPhoneFrame(image: NSImage, canvas: NSSize, screenRect: NSRect, outerRect: NSRect) {
   let outerRadius = outerRect.width * 0.095
   let screenRadius = screenRect.width * 0.079
-  let metal = NSColor(calibratedRed: 0.77, green: 0.75, blue: 0.70, alpha: 1)
-  let metalDark = NSColor(calibratedRed: 0.31, green: 0.30, blue: 0.28, alpha: 1)
+  let metal = NSColor(calibratedWhite: 0.12, alpha: 1)
+  let metalDark = NSColor(calibratedWhite: 0.035, alpha: 1)
+  let metalHighlight = NSColor(calibratedWhite: 0.26, alpha: 1)
+  let buttonColor = NSColor(calibratedWhite: 0.20, alpha: 1)
 
   drawSideButton(
     x: outerRect.minX - outerRect.width * 0.018,
@@ -298,7 +312,7 @@ func drawIPhoneFrame(image: NSImage, canvas: NSSize, screenRect: NSRect, outerRe
     width: outerRect.width * 0.018,
     height: outerRect.height * 0.052,
     radius: outerRect.width * 0.008,
-    color: metalDark
+    color: buttonColor
   )
   drawSideButton(
     x: outerRect.minX - outerRect.width * 0.018,
@@ -306,7 +320,7 @@ func drawIPhoneFrame(image: NSImage, canvas: NSSize, screenRect: NSRect, outerRe
     width: outerRect.width * 0.018,
     height: outerRect.height * 0.075,
     radius: outerRect.width * 0.008,
-    color: metalDark
+    color: buttonColor
   )
   drawSideButton(
     x: outerRect.minX - outerRect.width * 0.018,
@@ -314,7 +328,7 @@ func drawIPhoneFrame(image: NSImage, canvas: NSSize, screenRect: NSRect, outerRe
     width: outerRect.width * 0.018,
     height: outerRect.height * 0.075,
     radius: outerRect.width * 0.008,
-    color: metalDark
+    color: buttonColor
   )
   drawSideButton(
     x: outerRect.maxX,
@@ -322,7 +336,7 @@ func drawIPhoneFrame(image: NSImage, canvas: NSSize, screenRect: NSRect, outerRe
     width: outerRect.width * 0.016,
     height: outerRect.height * 0.12,
     radius: outerRect.width * 0.008,
-    color: metalDark
+    color: buttonColor
   )
 
   drawDeviceShadow(outerRect, canvas: canvas, radius: outerRadius)
@@ -331,9 +345,10 @@ func drawIPhoneFrame(image: NSImage, canvas: NSSize, screenRect: NSRect, outerRe
   roundedPath(outerRect, radius: outerRadius).fill()
 
   if let rim = NSGradient(colors: [
-    NSColor.white.withAlphaComponent(0.50),
+    NSColor.white.withAlphaComponent(0.16),
+    metalHighlight,
     metal,
-    metalDark.withAlphaComponent(0.95)
+    metalDark
   ]) {
     rim.draw(in: roundedPath(outerRect.insetBy(dx: 3, dy: 3), radius: outerRadius * 0.94), angle: 90)
   }
@@ -415,20 +430,156 @@ func drawPixelFrame(image: NSImage, canvas: NSSize, screenRect: NSRect, outerRec
   highlight.stroke()
 }
 
+func drawIPadFrame(image: NSImage, canvas: NSSize, screenRect: NSRect, outerRect: NSRect) {
+  let outerRadius = outerRect.width * 0.055
+  let screenRadius = screenRect.width * 0.030
+  let body = NSColor(calibratedWhite: 0.005, alpha: 1)
+  let edge = NSColor(calibratedWhite: 0.24, alpha: 1)
+  let edgeDark = NSColor(calibratedWhite: 0.09, alpha: 1)
+
+  drawSideButton(
+    x: outerRect.maxX,
+    y: outerRect.minY + outerRect.height * 0.805,
+    width: outerRect.width * 0.0045,
+    height: outerRect.height * 0.038,
+    radius: outerRect.width * 0.0025,
+    color: edgeDark
+  )
+  drawSideButton(
+    x: outerRect.maxX,
+    y: outerRect.minY + outerRect.height * 0.745,
+    width: outerRect.width * 0.0045,
+    height: outerRect.height * 0.038,
+    radius: outerRect.width * 0.0025,
+    color: edgeDark
+  )
+  let topButtonHeight = outerRect.width * 0.004
+  drawSideButton(
+    x: outerRect.maxX - outerRect.width * 0.080,
+    y: outerRect.maxY - topButtonHeight,
+    width: outerRect.width * 0.045,
+    height: topButtonHeight,
+    radius: outerRect.width * 0.0025,
+    color: edgeDark
+  )
+
+  drawDeviceShadow(outerRect, canvas: canvas, radius: outerRadius)
+
+  body.setFill()
+  roundedPath(outerRect, radius: outerRadius).fill()
+
+  edge.withAlphaComponent(0.80).setStroke()
+  let outerStroke = roundedPath(outerRect.insetBy(dx: 3, dy: 3), radius: outerRadius * 0.95)
+  outerStroke.lineWidth = 4
+  outerStroke.stroke()
+
+  NSColor.white.withAlphaComponent(0.10).setStroke()
+  let bevel = roundedPath(outerRect.insetBy(dx: outerRect.width * 0.010, dy: outerRect.width * 0.010), radius: outerRadius * 0.78)
+  bevel.lineWidth = 2
+  bevel.stroke()
+
+  NSColor.black.setFill()
+  roundedPath(outerRect.insetBy(dx: outerRect.width * 0.018, dy: outerRect.width * 0.018), radius: outerRadius * 0.72).fill()
+
+  drawScreenImage(image, in: screenRect, radius: screenRadius)
+
+  let cameraDiameter = outerRect.width * 0.010
+  let cameraRect = NSRect(
+    x: outerRect.midX - cameraDiameter / 2,
+    y: outerRect.maxY - ((outerRect.maxY - screenRect.maxY) / 2) - cameraDiameter / 2,
+    width: cameraDiameter,
+    height: cameraDiameter
+  )
+  NSColor(calibratedWhite: 0.025, alpha: 1).setFill()
+  NSBezierPath(ovalIn: cameraRect).fill()
+  NSColor.white.withAlphaComponent(0.10).setStroke()
+  let lens = NSBezierPath(ovalIn: cameraRect)
+  lens.lineWidth = 1.5
+  lens.stroke()
+
+  NSColor.white.withAlphaComponent(0.12).setStroke()
+  let highlight = roundedPath(screenRect.insetBy(dx: 2, dy: 2), radius: screenRadius)
+  highlight.lineWidth = 2
+  highlight.stroke()
+}
+
 struct DeviceLayout {
   var screenRect: NSRect
   var outerRect: NSRect
 }
 
-func deviceLayout(image: NSImage, canvas: NSSize, platform: PlatformConfig) -> DeviceLayout {
+struct FrameTemplate {
+  var image: NSImage
+  var screenRect: NSRect
+  var screenCornerRatio: CGFloat
+}
+
+func loadFrameTemplate(platform: PlatformConfig) throws -> FrameTemplate? {
+  guard let frameImagePath = platform.frameImagePath else {
+    return nil
+  }
+  guard let frameScreenRect = platform.frameScreenRect else {
+    throw GeneratorError.message("Missing frameScreenRect for \(platform.name)")
+  }
+
+  let frameImage = try loadImage(expandPath(frameImagePath))
+  let frameImageHeight = frameImage.size.height
+  let screenRect = NSRect(
+    x: frameScreenRect.x,
+    y: frameImageHeight - frameScreenRect.y - frameScreenRect.height,
+    width: frameScreenRect.width,
+    height: frameScreenRect.height
+  )
+
+  return FrameTemplate(
+    image: frameImage,
+    screenRect: screenRect,
+    screenCornerRatio: platform.frameScreenCornerRatio ?? 0.04
+  )
+}
+
+func deviceLayout(image: NSImage, canvas: NSSize, platform: PlatformConfig, frameTemplate: FrameTemplate?) -> DeviceLayout {
   let canvasWidth = canvas.width
   let canvasHeight = canvas.height
-  let border = max(18, canvasWidth * 0.022)
   var screenWidth = canvasWidth * platform.deviceWidthRatio
   var screenHeight = screenWidth * image.size.height / image.size.width
-  var outerWidth = screenWidth + border * 2
-  var outerHeight = screenHeight + border * 2
+  var outerWidth: CGFloat
+  var outerHeight: CGFloat
+  let border = max(18, canvasWidth * (platform.deviceBorderRatio ?? 0.022))
   let maxOuterHeight = canvasHeight * 0.88
+
+  if let frameTemplate {
+    var scale = screenWidth / frameTemplate.screenRect.width
+    outerWidth = frameTemplate.image.size.width * scale
+    outerHeight = frameTemplate.image.size.height * scale
+
+    if outerHeight > maxOuterHeight {
+      scale = maxOuterHeight / frameTemplate.image.size.height
+      outerWidth = frameTemplate.image.size.width * scale
+      outerHeight = frameTemplate.image.size.height * scale
+      screenWidth = frameTemplate.screenRect.width * scale
+      screenHeight = frameTemplate.screenRect.height * scale
+    }
+
+    let outerBottom = canvasHeight * platform.deviceBottomMarginRatio
+    let alignedOuterRect = NSRect(
+      x: (canvasWidth - outerWidth) / 2,
+      y: outerBottom,
+      width: outerWidth,
+      height: outerHeight
+    )
+    let alignedScreenRect = NSRect(
+      x: alignedOuterRect.minX + frameTemplate.screenRect.minX * scale,
+      y: alignedOuterRect.minY + frameTemplate.screenRect.minY * scale,
+      width: frameTemplate.screenRect.width * scale,
+      height: frameTemplate.screenRect.height * scale
+    )
+
+    return DeviceLayout(screenRect: alignedScreenRect, outerRect: alignedOuterRect)
+  }
+
+  outerWidth = screenWidth + border * 2
+  outerHeight = screenHeight + border * 2
 
   if outerHeight > maxOuterHeight {
     outerHeight = maxOuterHeight
@@ -465,8 +616,31 @@ func titleRect(canvas: NSSize, platform: PlatformConfig, deviceOuterRect: NSRect
   )
 }
 
-func drawDevice(image: NSImage, canvas: NSSize, platform: PlatformConfig, layout: DeviceLayout) {
+func drawTemplateFrame(image: NSImage, canvas: NSSize, layout: DeviceLayout, frameTemplate: FrameTemplate) {
+  drawScreenImage(
+    image,
+    in: layout.screenRect,
+    radius: layout.screenRect.width * frameTemplate.screenCornerRatio
+  )
+  frameTemplate.image.draw(
+    in: layout.outerRect,
+    from: NSRect(origin: .zero, size: frameTemplate.image.size),
+    operation: .sourceOver,
+    fraction: 1,
+    respectFlipped: false,
+    hints: [.interpolation: NSImageInterpolation.high]
+  )
+}
+
+func drawDevice(image: NSImage, canvas: NSSize, platform: PlatformConfig, layout: DeviceLayout, frameTemplate: FrameTemplate?) {
+  if let frameTemplate {
+    drawTemplateFrame(image: image, canvas: canvas, layout: layout, frameTemplate: frameTemplate)
+    return
+  }
+
   switch platform.deviceFrame {
+  case "ipad13":
+    drawIPadFrame(image: image, canvas: canvas, screenRect: layout.screenRect, outerRect: layout.outerRect)
   case "pixel7a":
     drawPixelFrame(image: image, canvas: canvas, screenRect: layout.screenRect, outerRect: layout.outerRect)
   default:
@@ -477,6 +651,7 @@ func drawDevice(image: NSImage, canvas: NSSize, platform: PlatformConfig, layout
 func render(screen: ScreenConfig, platform: PlatformConfig, inputURL: URL, outputURL: URL, config: Config) throws {
   let canvas = NSSize(width: platform.canvasWidth, height: platform.canvasHeight)
   let screenshot = try loadImage(inputURL)
+  let frameTemplate = try loadFrameTemplate(platform: platform)
   let top = try color(fromHex: config.gradientTop)
   let bottom = try color(fromHex: config.gradientBottom)
 
@@ -508,10 +683,21 @@ func render(screen: ScreenConfig, platform: PlatformConfig, inputURL: URL, outpu
 
   drawGradient(in: NSRect(origin: .zero, size: canvas), top: top, bottom: bottom)
 
-  let layout = deviceLayout(image: screenshot, canvas: canvas, platform: platform)
+  let layout = deviceLayout(
+    image: screenshot,
+    canvas: canvas,
+    platform: platform,
+    frameTemplate: frameTemplate
+  )
   let titleRect = titleRect(canvas: canvas, platform: platform, deviceOuterRect: layout.outerRect)
 
-  drawDevice(image: screenshot, canvas: canvas, platform: platform, layout: layout)
+  drawDevice(
+    image: screenshot,
+    canvas: canvas,
+    platform: platform,
+    layout: layout,
+    frameTemplate: frameTemplate
+  )
   drawTitle(
     lines: screen.title,
     in: titleRect,

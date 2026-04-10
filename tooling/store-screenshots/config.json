@@ -13,11 +13,41 @@
       "canvasWidth": 1290,
       "canvasHeight": 2796,
       "deviceFrame": "iphone17Pro",
+      "frameImagePath": "tooling/store-screenshots/assets/iphone-17-pro-deep-blue-portrait.png",
+      "frameScreenRect": {
+        "x": 72,
+        "y": 69,
+        "width": 1206,
+        "height": 2622
+      },
+      "frameScreenCornerRatio": 0.082,
       "deviceWidthRatio": 0.86,
       "deviceBottomMarginRatio": -0.06,
       "textVerticalOffsetRatio": -0.004,
       "textHeightRatio": 0.145,
       "headlineFontScale": 0.15
+    },
+    {
+      "name": "ipados",
+      "inputSubdir": "ipados",
+      "outputSubdir": "ipados",
+      "canvasWidth": 2064,
+      "canvasHeight": 2752,
+      "deviceFrame": "ipad13",
+      "frameImagePath": "tooling/store-screenshots/assets/ipad-pro-13-m4-space-gray-portrait.png",
+      "frameScreenRect": {
+        "x": 118,
+        "y": 124,
+        "width": 2064,
+        "height": 2752
+      },
+      "frameScreenCornerRatio": 0.030,
+      "deviceWidthRatio": 0.84,
+      "deviceBorderRatio": 0.035,
+      "deviceBottomMarginRatio": -0.085,
+      "textVerticalOffsetRatio": -0.006,
+      "textHeightRatio": 0.17,
+      "headlineFontScale": 0.105
     },
     {
       "name": "android",
