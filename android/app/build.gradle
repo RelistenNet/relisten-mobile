@@ -99,8 +99,8 @@ android {
         applicationId 'net.relisten.android'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 6038
-        versionName "6.1.0"
+        versionCode 6040
+        versionName "6.1.1"
     }
     signingConfigs {
         debug {
