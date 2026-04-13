@@ -22,6 +22,35 @@ export function useTotalListeningTime(): number {
   return totalSeconds;
 }
 
+export interface ArtistListeningTime {
+  artistUuid: string;
+  artistName: string;
+  totalSeconds: number;
+}
+
+export function useListeningTimeByArtist(): ArtistListeningTime[] {
+  const allEntries = useQuery(
+    {
+      type: PlaybackHistoryEntry,
+    },
+    []
+  );
+
+  return useMemo(() => {
+    const byArtist: Record<string, ArtistListeningTime> = {};
+
+    for (const entry of allEntries) {
+      const uuid = entry.artist.uuid;
+      if (!byArtist[uuid]) {
+        byArtist[uuid] = { artistUuid: uuid, artistName: entry.artist.name, totalSeconds: 0 };
+      }
+      byArtist[uuid].totalSeconds += entry.sourceTrack.duration ?? 0;
+    }
+
+    return Object.values(byArtist).sort((a, b) => b.totalSeconds - a.totalSeconds);
+  }, [allEntries]);
+}
+
 export function useHistoryRecentlyPlayedShows(
   limit: number = 6
 ): ReadonlyArray<PlaybackHistoryEntry> {
