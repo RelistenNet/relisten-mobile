@@ -3,6 +3,25 @@ import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_h
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { InteractionManager } from 'react-native';
 
+export function useTotalListeningTime(): number {
+  const allEntries = useQuery(
+    {
+      type: PlaybackHistoryEntry,
+    },
+    []
+  );
+
+  const totalSeconds = useMemo(() => {
+    let total = 0;
+    for (const entry of allEntries) {
+      total += entry.sourceTrack.duration ?? 0;
+    }
+    return total;
+  }, [allEntries]);
+
+  return totalSeconds;
+}
+
 export function useHistoryRecentlyPlayedShows(
   limit: number = 6
 ): ReadonlyArray<PlaybackHistoryEntry> {
