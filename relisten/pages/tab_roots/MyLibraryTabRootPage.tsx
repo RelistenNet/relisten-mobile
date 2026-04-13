@@ -211,6 +211,16 @@ export default function MyLibraryTabRootPage() {
           <>
             <ActiveDownloads />
             <RecentlyPlayedShows />
+            <Link
+              href={{
+                pathname: '/relisten/tabs/(myLibrary)/history/statistics',
+              }}
+              asChild
+            >
+              <TouchableOpacity>
+                <MyLibrarySectionHeader>My Listening Statistics&nbsp;›</MyLibrarySectionHeader>
+              </TouchableOpacity>
+            </Link>
           </>
         }
       />
