@@ -5,10 +5,7 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
 import { ShowCard } from '@/relisten/components/show_card';
 import { ShowFilterKey, ShowListContainer, useShowFilters } from '@/relisten/components/shows_list';
-import {
-  useHistoryRecentlyPlayedShows,
-  useTotalListeningTime,
-} from '@/relisten/realm/models/history/playback_history_entry_repo';
+import { useHistoryRecentlyPlayedShows } from '@/relisten/realm/models/history/playback_history_entry_repo';
 import { Show } from '@/relisten/realm/models/show';
 import { useQuery } from '@/relisten/realm/schema';
 import { aggregateBy } from '@/relisten/util/group_by';
@@ -186,22 +183,14 @@ export default function MyLibraryTabRootPage() {
     };
   }, []);
 
-  const totalListeningTimeSeconds = useTotalListeningTime();
-
   useFocusEffect(
     useCallback(() => {
       logTabRootDebug('myLibrary.page focus');
-      console.log(
-        '[Stats] Total listening time:',
-        totalListeningTimeSeconds,
-        'seconds',
-        `(${(totalListeningTimeSeconds / 3600).toFixed(2)} hours)`
-      );
 
       return () => {
         logTabRootDebug('myLibrary.page blur');
       };
-    }, [totalListeningTimeSeconds])
+    }, [])
   );
 
   return (
