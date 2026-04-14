@@ -22,10 +22,16 @@ export function useTotalListeningTime(): number {
   return totalSeconds;
 }
 
+export interface ArtistYearListeningTime {
+  year: number;
+  totalSeconds: number;
+}
+
 export interface ArtistListeningTime {
   artistUuid: string;
   artistName: string;
   totalSeconds: number;
+  byYear: ArtistYearListeningTime[];
 }
 
 export function useListeningTimeByArtist(): ArtistListeningTime[] {
@@ -37,17 +43,40 @@ export function useListeningTimeByArtist(): ArtistListeningTime[] {
   );
 
   return useMemo(() => {
-    const byArtist: Record<string, ArtistListeningTime> = {};
+    const byArtist: Record<
+      string,
+      {
+        artistUuid: string;
+        artistName: string;
+        totalSeconds: number;
+        byYear: Record<number, number>;
+      }
+    > = {};
 
     for (const entry of allEntries) {
       const uuid = entry.artist.uuid;
       if (!byArtist[uuid]) {
-        byArtist[uuid] = { artistUuid: uuid, artistName: entry.artist.name, totalSeconds: 0 };
+        byArtist[uuid] = {
+          artistUuid: uuid,
+          artistName: entry.artist.name,
+          totalSeconds: 0,
+          byYear: {},
+        };
       }
-      byArtist[uuid].totalSeconds += entry.sourceTrack.duration ?? 0;
+      const duration = entry.sourceTrack.duration ?? 0;
+      byArtist[uuid].totalSeconds += duration;
+      const year = entry.playbackStartedAt.getFullYear();
+      byArtist[uuid].byYear[year] = (byArtist[uuid].byYear[year] ?? 0) + duration;
     }
 
-    return Object.values(byArtist).sort((a, b) => b.totalSeconds - a.totalSeconds);
+    return Object.values(byArtist)
+      .sort((a, b) => b.totalSeconds - a.totalSeconds)
+      .map(({ byYear, ...rest }) => ({
+        ...rest,
+        byYear: Object.entries(byYear)
+          .map(([year, totalSeconds]) => ({ year: Number(year), totalSeconds }))
+          .sort((a, b) => b.year - a.year),
+      }));
   }, [allEntries]);
 }
 
