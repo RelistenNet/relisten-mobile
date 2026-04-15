@@ -167,6 +167,36 @@ final class GaplessMP3PlayerTests: XCTestCase {
         XCTAssertEqual(status.currentTime, 0, accuracy: 0.01)
     }
 
+    func testPausedStatusDoesNotAdvanceToOutputGraphBoundary() async throws {
+        let outputGraph = TestOutputGraph(currentTime: 2.25, isPlaying: true)
+        let player = makePlayer(outputGraph: outputGraph)
+        let current = fixtureSource(id: "current", fixtureName: "gd77-s2t07-first-5s.mp3")
+        let next = fixtureSource(id: "next", fixtureName: "gd77-s2t05-first-5s.mp3")
+
+        await player.testingSeedState(
+            currentSource: current,
+            nextSource: next,
+            playbackPhase: .playing,
+            latestPreparationReport: makePreparationReport(current: current, next: next),
+            pendingTransitionReport: makePreparationReport(current: next, next: nil),
+            pendingTransitionBoundaryTime: 5,
+            outputGraph: outputGraph
+        )
+
+        player.pause()
+        try await waitUntil("pause command") {
+            !outputGraph.isPlaying
+        }
+
+        outputGraph.setCurrentTime(5)
+        let status = await player.status()
+
+        XCTAssertEqual(status.playbackPhase, .paused)
+        XCTAssertEqual(status.currentSource, current)
+        XCTAssertEqual(status.nextSource, next)
+        XCTAssertEqual(status.currentTime, 2.25, accuracy: 0.01)
+    }
+
     func testSetNextAfterPlayStillTransitionsAtTrackBoundary() async throws {
         let outputGraph = TestOutputGraph(advanceTimeOnSchedule: true)
         let player = makePlayer(outputGraph: outputGraph)

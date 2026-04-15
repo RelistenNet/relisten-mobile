@@ -529,7 +529,13 @@ public final class GaplessMP3Player: @unchecked Sendable {
 
     private func absoluteTimelineTimeOnPlaybackQueue() -> TimeInterval {
         dispatchPrecondition(condition: .onQueue(playbackQueue))
-        return stateStore.get().outputGraph?.currentTime() ?? stateStore.get().requestedStartTime
+        let state = stateStore.get()
+        // Once paused, requestedStartTime is the clock authority. AVAudioPlayerNode can
+        // later report queued boundary time, which makes Media Center think the track ended.
+        guard state.playbackPhase == .playing else {
+            return state.publicTimelineOffset + state.requestedStartTime
+        }
+        return state.outputGraph?.currentTime() ?? (state.publicTimelineOffset + state.requestedStartTime)
     }
 
     private func applyPendingTrackTransitionIfNeededOnPlaybackQueue(absoluteTimelineTime: TimeInterval? = nil) -> Bool {
