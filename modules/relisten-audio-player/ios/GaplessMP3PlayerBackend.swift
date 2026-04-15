@@ -1224,6 +1224,12 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
     }
 
     private func emitRemoteControl(_ method: String) {
+        // Keep the policy centralized: next/prev still go to JS, but native-owned
+        // play/pause commands stop here after the MPRemoteCommandCenter handler
+        // has already updated the player.
+        guard NativeRemoteControlForwardingPolicy.shouldForwardToJavaScript(method) else {
+            return
+        }
         delegateQueue.async {
             self.delegate?.remoteControl(method: method)
         }

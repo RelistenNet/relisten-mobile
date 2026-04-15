@@ -159,6 +159,24 @@ final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
         XCTAssertEqual(sideEffects, ["prepareAudioSession", "play"])
     }
 
+    func testPresentationRevisionRejectsOlderWritesAfterNewerUpdate() {
+        var gate = PlaybackPresentationRevisionGate()
+
+        let staleRevision = gate.advance()
+        let currentRevision = gate.advance()
+
+        XCTAssertFalse(gate.shouldApply(staleRevision))
+        XCTAssertTrue(gate.shouldApply(currentRevision))
+    }
+
+    func testNativeHandledPlayPauseRemoteCommandsAreNotForwardedToJavaScript() {
+        XCTAssertFalse(NativeRemoteControlForwardingPolicy.shouldForwardToJavaScript("pause"))
+        XCTAssertFalse(NativeRemoteControlForwardingPolicy.shouldForwardToJavaScript("resume"))
+        XCTAssertFalse(NativeRemoteControlForwardingPolicy.shouldForwardToJavaScript("play"))
+        XCTAssertTrue(NativeRemoteControlForwardingPolicy.shouldForwardToJavaScript("nextTrack"))
+        XCTAssertTrue(NativeRemoteControlForwardingPolicy.shouldForwardToJavaScript("prevTrack"))
+    }
+
     func testNextWithoutCurrentTrackIsNoOp() {
         var state = NextCommandState(
             hasCurrentTrack: false,

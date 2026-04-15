@@ -457,6 +457,18 @@ public final class GaplessMP3Player: @unchecked Sendable {
         _ = applyPendingTrackTransitionIfNeededOnPlaybackQueue()
 
         guard stateStore.get().latestPreparationReport != nil else { return }
+        // Lock-screen resume can arrive after Media Center drifted to "paused"
+        // while the graph is still playing. In that case play() must be
+        // idempotent; resetting the graph would jump back to requestedStartTime,
+        // which may be an old seek target rather than the live audio position.
+        if stateStore.get().playbackPhase == .playing {
+            stateStore.withValue { state in
+                state.outputGraph?.requestPlay()
+            }
+            refreshSnapshotOnPlaybackQueue()
+            return
+        }
+
         let startTime = stateStore.get().requestedStartTime
         stateStore.withValue { state in
             state.playbackPhase = .playing

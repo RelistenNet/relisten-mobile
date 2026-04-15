@@ -197,6 +197,29 @@ final class GaplessMP3PlayerTests: XCTestCase {
         XCTAssertEqual(status.currentTime, 2.25, accuracy: 0.01)
     }
 
+    func testPlayWhileAlreadyPlayingDoesNotResetToRequestedStartTime() async throws {
+        let outputGraph = TestOutputGraph(currentTime: 4, isPlaying: true)
+        let player = makePlayer(outputGraph: outputGraph)
+        let current = fixtureSource(id: "current", fixtureName: "gd77-s2t07-first-5s.mp3")
+
+        await player.testingSeedState(
+            currentSource: current,
+            nextSource: nil,
+            playbackPhase: .playing,
+            latestPreparationReport: makePreparationReport(current: current, next: nil),
+            requestedStartTime: 2.25,
+            outputGraph: outputGraph
+        )
+
+        XCTAssertTrue(player.play())
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        let status = await player.status()
+        XCTAssertEqual(status.playbackPhase, .playing)
+        XCTAssertEqual(status.currentSource, current)
+        XCTAssertEqual(status.currentTime, 4, accuracy: 0.05)
+    }
+
     func testSetNextAfterPlayStillTransitionsAtTrackBoundary() async throws {
         let outputGraph = TestOutputGraph(advanceTimeOnSchedule: true)
         let player = makePlayer(outputGraph: outputGraph)

@@ -25,6 +25,8 @@ let package = Package(
                 "GaplessMP3PlayerBackendNextIntent.swift",
                 "GaplessMP3PlayerBackendResumeCommand.swift",
                 "GaplessMP3PlayerBackendSeekCommand.swift",
+                "NativeRemoteControlForwardingPolicy.swift",
+                "PlaybackPresentationRevisionGate.swift",
             ]
         ),
         .testTarget(
