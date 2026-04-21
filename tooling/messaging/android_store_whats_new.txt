@@ -1,0 +1,9 @@
+New: basic Android Auto Support
+
+- Popular and trending artists and shows
+- Google TV Casting
+- Last.fm scrobbling
+- more artists
+- bug fixes
+- less loading, faster interface
+- new playback bar design

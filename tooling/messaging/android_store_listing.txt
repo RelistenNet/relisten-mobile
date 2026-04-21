@@ -1,0 +1,29 @@
+---
+App name: Relisten — all live music
+Short description: 2.8M+ Live music recordings!
+---
+
+Relisten is the easiest way to carry 210,000+ live concert recordings in your pocket. Thousands of Grateful Dead shows, every Phish show on phish.in, and tens of thousands more from archive.org's Live Music Archive. Every recording comes from the tapers' tradition: fan-recorded with the artists' blessing and free to stream.
+
+Every night of every tour, in your pocket.
+
+Whether you're chasing a run, digging into a new band, or just hunting for a great random show, Relisten makes the entire archive easy to browse, play, and take with you.
+
+What you get:
+
+• Gapless playback between tracks — segues stay intact, the way the band played them
+• Download any show for offline listening, anywhere
+• Cast to Google Cast devices at home
+• Scrobble every play to Last.fm
+• Shuffle or repeat, one song or a full show
+• Browse by artist, year, venue, song, and source (SBD, AUD, and more)
+• Sort by ratings, popularity, and what's trending right now
+• Taper notes on every recording
+• "Surprise me" random show when you can't decide what to play next
+• Free, ad-free, and open source
+
+Deep catalogs from the Grateful Dead, Phish, Widespread Panic, Billy Strings, Tedeschi Trucks Band, Dead & Company, Joe Russo's Almost Dead, Goose, Phil Lesh & Friends, King Gizzard & the Lizard Wizard, The Disco Biscuits, String Cheese Incident, Ween, moe., Yonder Mountain String Band, and Umphrey's McGee — plus thousands more artists from the Live Music Archive.
+
+Built by live music fans, for live music fans.
+
+Follow @relistenapp or join the Relisten Discord for updates, feedback, and what's coming next.

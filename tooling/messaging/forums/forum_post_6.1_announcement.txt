@@ -1,0 +1,34 @@
+Relisten v6.1: CarPlay, Google Cast, Last.fm scrobbling, 4000+ artists
+
+---
+
+Hey everyone, we just released Relisten v6.1. It is rolling out now on [iOS](https://apps.apple.com/app/relisten-all-live-music/id715886886) and [Android](https://play.google.com/store/apps/details?id=com.relisten.android) with a bunch of stuff that was either missing or requested after the v6 rebuild.
+
+**All 4000+ artists on archive.org's Live Music Archive are now available in the app.**
+
+Here's what's new:
+
+**Both platforms:**
+* Google Cast: cast to Chromecast, Google TV, etc.
+* Last.fm scrobbling: one of the most requested features after v6, it's back
+* Shuffle and repeat: single track or full show
+* Popular and trending: see what other people are listening to right now, discover shows and artists by popularity
+* Refreshed player UI and tab bar
+
+**iOS:**
+* CarPlay: this was one of the most requested things that got dropped for the v6 launch. Full CarPlay integration: browse artists, years, shows, your library and play directly from your car
+* Rebuilt audio engine: smoother gapless playback, better handling of seeks and skips, more reliable background audio and lock screen controls
+
+**Android:**
+* Basic Android Auto support: play/pause, skip, and lock screen controls from your car. Not as full-featured as CarPlay yet, but it's a start
+* A ton of bug fixes and quality of life improvements: audio focus handling (Relisten now properly stops when another app like Spotify starts playing), crash fixes, faster interface, less unnecessary loading, and a new playback bar design
+
+Plus general bug fixes across both platforms: source loading issues, artist navigation, and playback edge cases. We've also made some technical improvements that will let us ship updates quicker.
+
+Things that are we looking at doing next (no particular order):
+* Support for archive.org's Aadam Jacobs + taperssection collections support to cover additional artists and sources
+* Playlists support and syncing favorites
+* Relisten "radio"
+* Search + cross artist song and venue tracking
+
+As always, the app is free, ad-free, and open source. If you run into anything or have feedback/suggestions, drop it here or on the Relisten Discord https://discord.gg/TSaj6vU or Instagram @relistenapp

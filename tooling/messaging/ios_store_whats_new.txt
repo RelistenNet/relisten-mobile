@@ -1,0 +1,13 @@
+Relisten 6.1 is huge:
+
+• CarPlay is here
+• Google Cast support
+• Last.fm scrobbling
+• Shuffle and repeat
+• Popular + trending discovery across 210,000+ shows
+• A cleaner player and native tab bar
+• A rebuilt iOS audio engine for smoother live-show playback
+• Better offline downloads, background audio, lock-screen info, and playback recovery
+• Lots of fixes for crashes, skips, seeks, source loading, artist navigation, and CarPlay cold starts
+
+Thanks for listening. See you at the show.
