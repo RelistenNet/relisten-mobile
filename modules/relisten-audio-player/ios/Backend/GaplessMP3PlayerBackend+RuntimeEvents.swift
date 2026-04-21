@@ -10,9 +10,7 @@ extension GaplessMP3PlayerBackend {
         case .playbackFailed(let failure, _):
             let previous = snapshotStore.get()
             snapshotStore.withValue {
-                $0.renderStatus = .failed
-                $0.renderIsPlaying = false
-                $0.resumeStartedAtUptime = nil
+                $0.presentation.failRender()
             }
             applyPresentationAndEmit(previous: previous)
             if let currentStreamable = previous.currentStreamable {
@@ -91,12 +89,7 @@ extension GaplessMP3PlayerBackend {
                 snapshot.generation += 1
                 snapshot.seekSequence = 0
                 snapshot.currentSessionID = nil
-                snapshot.desiredTransport = .stopped
-                snapshot.systemSuspension = .none
-                snapshot.mediaCenterWriteMode = .active
-                snapshot.resumeStartedAtUptime = nil
-                snapshot.renderStatus = .stopped
-                snapshot.renderIsPlaying = false
+                snapshot.presentation.stop()
                 snapshot.currentState = .Stopped
                 snapshot.currentStreamable = nil
                 snapshot.nextStreamable = nil

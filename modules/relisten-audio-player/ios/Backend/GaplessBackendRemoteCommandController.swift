@@ -2,8 +2,11 @@ import Foundation
 import MediaPlayer
 
 final class GaplessBackendRemoteCommandController {
+    private static let backendQueueSpecificKey = DispatchSpecificKey<String>()
+
     private let snapshotStore: BackendLockedValue<GaplessBackendSnapshot>
     private let backendQueue: DispatchQueue
+    private let backendQueueSpecificValue = UUID().uuidString
     private let emitRemoteControl: (String) -> Void
     private let resumeOnQueue: () -> Void
     private let pauseOnQueue: () -> Void
@@ -23,6 +26,7 @@ final class GaplessBackendRemoteCommandController {
         self.resumeOnQueue = resumeOnQueue
         self.pauseOnQueue = pauseOnQueue
         self.seekToTimeOnQueue = seekToTimeOnQueue
+        self.backendQueue.setSpecific(key: Self.backendQueueSpecificKey, value: backendQueueSpecificValue)
     }
 
     func configureRemoteCommands(on audioSessionController: AudioSessionController) {
@@ -43,8 +47,8 @@ final class GaplessBackendRemoteCommandController {
             return .commandFailed
         }
         emitRemoteControl("resume")
-        backendQueue.async {
-            self.resumeOnQueue()
+        performNativeCommandSynchronously {
+            resumeOnQueue()
         }
         return .success
     }
@@ -52,8 +56,8 @@ final class GaplessBackendRemoteCommandController {
     private func handlePauseRemoteCommand(_ event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
         logRemoteCommand("pause", result: .success, snapshot: snapshotStore.get())
         emitRemoteControl("pause")
-        backendQueue.async {
-            self.pauseOnQueue()
+        performNativeCommandSynchronously {
+            pauseOnQueue()
         }
         return .success
     }
@@ -64,13 +68,13 @@ final class GaplessBackendRemoteCommandController {
         guard snapshot.currentStreamable != nil else {
             return .commandFailed
         }
-        backendQueue.async {
-            let shouldPause = self.shouldRemoteTogglePause(snapshot: self.snapshotStore.get())
-            self.emitRemoteControl(shouldPause ? "pause" : "resume")
+        performNativeCommandSynchronously {
+            let shouldPause = shouldRemoteTogglePause(snapshot: snapshotStore.get())
+            emitRemoteControl(shouldPause ? "pause" : "resume")
             if shouldPause {
-                self.pauseOnQueue()
+                pauseOnQueue()
             } else {
-                self.resumeOnQueue()
+                resumeOnQueue()
             }
         }
         return .success
@@ -91,8 +95,8 @@ final class GaplessBackendRemoteCommandController {
         }
 
         logRemoteCommand("changePlaybackPosition", result: .success, snapshot: snapshot)
-        backendQueue.async {
-            self.seekToTimeOnQueue(Int64(acceptedTime * 1000))
+        performNativeCommandSynchronously {
+            seekToTimeOnQueue(Int64(acceptedTime * 1000))
         }
         return .success
     }
@@ -111,6 +115,26 @@ final class GaplessBackendRemoteCommandController {
 
     private func shouldRemoteTogglePause(snapshot: GaplessBackendSnapshot) -> Bool {
         snapshot.desiredTransport == .playing && snapshot.systemSuspension == .none
+    }
+
+    private func performNativeCommandSynchronously(_ command: () -> Void) {
+        // MediaRemote decides the immediate Control Center state from the
+        // command response plus the latest Now Playing snapshot. For native-owned
+        // commands, enqueue our snapshot before returning success so pause/play
+        // cannot acknowledge against stale rate=1 metadata.
+        if DispatchQueue.getSpecific(key: Self.backendQueueSpecificKey) == backendQueueSpecificValue {
+            command()
+            return
+        } else {
+            backendQueue.sync(execute: command)
+        }
+
+        // Presentation writes are marshalled to main. When the remote command
+        // arrives off-main, wait for the enqueued Now Playing write to drain
+        // before returning the command status to MediaRemote. If the handler is
+        // already on main, returning lets the queued write run on the next turn.
+        guard !Thread.isMainThread else { return }
+        DispatchQueue.main.sync {}
     }
 
     private func logRemoteCommand(

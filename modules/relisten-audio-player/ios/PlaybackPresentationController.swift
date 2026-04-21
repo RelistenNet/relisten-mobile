@@ -56,9 +56,32 @@ final class PlaybackPresentationController {
         var mediaCenterPlaybackState: MPNowPlayingPlaybackState
     }
 
+    private struct SnapshotIdentity: Equatable {
+        let title: String
+        let artist: String
+        let album: String
+        let duration: TimeInterval?
+        let elapsed: TimeInterval?
+        let rate: Float
+        let artworkURL: URL?
+        let mediaCenterPlaybackStateRawValue: UInt
+
+        init(_ snapshot: Snapshot) {
+            title = snapshot.title
+            artist = snapshot.artist
+            album = snapshot.album
+            duration = snapshot.duration
+            elapsed = snapshot.elapsed
+            rate = snapshot.rate
+            artworkURL = snapshot.artworkURL
+            mediaCenterPlaybackStateRawValue = snapshot.mediaCenterPlaybackState.rawValue
+        }
+    }
+
     private struct State {
         var latestNowPlayingInfo: [String: Any] = [:]
         var latestPlaybackState: MPNowPlayingPlaybackState = .stopped
+        var latestSnapshotIdentity: SnapshotIdentity?
         var artworkURL: URL?
         var artwork: MPMediaItemArtwork?
         var artworkRequestID: UInt64 = 0
@@ -97,6 +120,8 @@ final class PlaybackPresentationController {
     }
 
     private func applySnapshot(_ snapshot: Snapshot, freezeAfterApply: Bool) {
+        let snapshotIdentity = SnapshotIdentity(snapshot)
+
         // Keep playback state, rate, elapsed anchor, and metadata in one
         // dictionary/revision. Splitting these writes is what made the lock
         // screen show stale play/pause/rate combinations.
@@ -117,6 +142,11 @@ final class PlaybackPresentationController {
         var artworkRequest: (url: URL, requestID: UInt64)?
 
         lock.lock()
+        if !freezeAfterApply, !state.isFrozen, state.latestSnapshotIdentity == snapshotIdentity {
+            lock.unlock()
+            return
+        }
+
         state.isFrozen = false
         if snapshot.artworkURL == state.artworkURL {
             if let currentArtwork = state.artwork {
@@ -147,6 +177,7 @@ final class PlaybackPresentationController {
         let revision = state.presentationRevisionGate.advance()
         state.latestNowPlayingInfo = nowPlayingInfo
         state.latestPlaybackState = snapshot.mediaCenterPlaybackState
+        state.latestSnapshotIdentity = snapshotIdentity
         state.isFrozen = freezeAfterApply
         if freezeAfterApply {
             // A frozen final interruption snapshot should not start a fresh
@@ -193,6 +224,7 @@ final class PlaybackPresentationController {
         state.isFrozen = false
         state.latestNowPlayingInfo = [:]
         state.latestPlaybackState = .stopped
+        state.latestSnapshotIdentity = nil
         state.artworkURL = nil
         state.artwork = nil
         state.artworkRequestID &+= 1

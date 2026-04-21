@@ -221,7 +221,7 @@ final class GaplessMP3PlayerTests: XCTestCase {
     }
 
     func testSetNextAfterPlayStillTransitionsAtTrackBoundary() async throws {
-        let outputGraph = TestOutputGraph(advanceTimeOnSchedule: true)
+        let outputGraph = TestOutputGraph()
         let player = makePlayer(outputGraph: outputGraph)
         let current = fixtureSource(id: "current", fixtureName: "gd77-s2t07-first-5s.mp3")
         let next = fixtureSource(id: "next", fixtureName: "gd77-s2t05-first-5s.mp3")
@@ -242,6 +242,7 @@ final class GaplessMP3PlayerTests: XCTestCase {
             outputGraph.totalScheduledDuration() > 0
         }
         try await player.setNext(next)
+        outputGraph.setCurrentTime(4.9)
 
         var boundaryCallbackID: UUID?
         for _ in 0..<100 {
@@ -484,6 +485,31 @@ final class GaplessMP3PlayerTests: XCTestCase {
         XCTAssertFalse(outputGraph.isPlaying)
         XCTAssertEqual(nearEndStatus.currentSourceDownload?.state, .localFile)
         XCTAssertEqual(nearEndStatus.currentSourceDownload?.resolvedFileURL, current.url)
+    }
+
+    func testSeekWhilePlayingRestartsPipelineAfterGraphReset() async throws {
+        let outputGraph = TestOutputGraph(advanceTimeOnSchedule: true)
+        let player = makePlayer(outputGraph: outputGraph)
+        let current = fixtureSource(id: "current", fixtureName: "gd77-s2t07-first-5s.mp3")
+
+        try await player.prepare(current: current, next: nil)
+        let preparedStatus = await player.status()
+        let duration = try XCTUnwrap(preparedStatus.duration)
+        XCTAssertTrue(player.play())
+
+        try await waitUntil("initial playback schedules audio") {
+            outputGraph.totalScheduledDuration() > 0
+        }
+
+        try await player.seek(to: duration * 0.5)
+
+        try await waitUntil("seek restarts audio scheduling") {
+            outputGraph.totalScheduledDuration() > 0
+        }
+
+        let status = await player.status()
+        XCTAssertEqual(status.playbackPhase, .playing)
+        XCTAssertTrue(status.isPlaying)
     }
 
     func testHTTPReadSessionUsesProgressiveBytesWhenSeekStaysInsideBufferedPrefix() async throws {

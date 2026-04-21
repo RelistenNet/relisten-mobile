@@ -203,7 +203,7 @@ final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
             writeMode: .active,
             renderStatus: .playing,
             renderIsPlaying: true,
-            isWithinResumeGraceWindow: false
+            isWithinPresentationGraceWindow: false
         ).resolve()
 
         XCTAssertEqual(decision, .clear(reason: .missingMetadata))
@@ -217,7 +217,7 @@ final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
             writeMode: .active,
             renderStatus: .preparing,
             renderIsPlaying: false,
-            isWithinResumeGraceWindow: false
+            isWithinPresentationGraceWindow: false
         ).resolve()
 
         XCTAssertEqual(decision, .update(MediaCenterPresentationUpdate(
@@ -236,7 +236,7 @@ final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
             writeMode: .active,
             renderStatus: .playing,
             renderIsPlaying: false,
-            isWithinResumeGraceWindow: false
+            isWithinPresentationGraceWindow: false
         ).resolve()
 
         XCTAssertEqual(decision, .update(MediaCenterPresentationUpdate(
@@ -255,7 +255,26 @@ final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
             writeMode: .active,
             renderStatus: .preparing,
             renderIsPlaying: false,
-            isWithinResumeGraceWindow: true
+            isWithinPresentationGraceWindow: true
+        ).resolve()
+
+        XCTAssertEqual(decision, .update(MediaCenterPresentationUpdate(
+            reason: .awaitingRender,
+            appState: .playing,
+            mediaCenterPlaybackState: .playing,
+            playbackRate: 1.0
+        )))
+    }
+
+    func testPresentationDecisionKeepsSeekRenderRestartAsPlayingDuringGrace() {
+        let decision = MediaCenterPresentationInput(
+            hasCurrentMetadata: true,
+            desiredTransport: .playing,
+            systemSuspension: .none,
+            writeMode: .active,
+            renderStatus: .playing,
+            renderIsPlaying: false,
+            isWithinPresentationGraceWindow: true
         ).resolve()
 
         XCTAssertEqual(decision, .update(MediaCenterPresentationUpdate(
@@ -274,7 +293,7 @@ final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
             writeMode: .frozen,
             renderStatus: .paused,
             renderIsPlaying: false,
-            isWithinResumeGraceWindow: false
+            isWithinPresentationGraceWindow: false
         ).resolve()
 
         XCTAssertEqual(decision, .freeze(reason: .temporaryInterruption))
@@ -288,7 +307,7 @@ final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
             writeMode: .active,
             renderStatus: .paused,
             renderIsPlaying: false,
-            isWithinResumeGraceWindow: false
+            isWithinPresentationGraceWindow: false
         ).resolve()
 
         XCTAssertEqual(decision, .update(MediaCenterPresentationUpdate(
@@ -307,7 +326,7 @@ final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
             writeMode: .suppressed,
             renderStatus: .paused,
             renderIsPlaying: false,
-            isWithinResumeGraceWindow: false
+            isWithinPresentationGraceWindow: false
         ).resolve()
 
         XCTAssertEqual(decision, .clear(reason: .externalMedia))
@@ -321,7 +340,7 @@ final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
             writeMode: .active,
             renderStatus: .stopped,
             renderIsPlaying: false,
-            isWithinResumeGraceWindow: false
+            isWithinPresentationGraceWindow: false
         ).resolve()
 
         XCTAssertEqual(decision, .update(MediaCenterPresentationUpdate(
@@ -330,6 +349,49 @@ final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
             mediaCenterPlaybackState: .interrupted,
             playbackRate: 0.0
         )))
+    }
+
+    func testPresentationStateSeekRestartGraceClearsOnConfirmedRender() {
+        var state = MediaCenterPresentationState()
+        state.beginPlayback(now: 10)
+        state.applyRenderStatus(renderStatus: .playing, renderIsPlaying: true, hasCurrentSource: true)
+        state.beginSeekRestart(now: 20, seekSequence: 3)
+
+        XCTAssertTrue(state.hasSeekRestartGrace(seekSequence: 3))
+        XCTAssertTrue(state.isWithinGraceWindow(now: 20.2, interval: 0.75))
+
+        state.applyRenderStatus(renderStatus: .playing, renderIsPlaying: true, hasCurrentSource: true)
+
+        XCTAssertFalse(state.grace.isActive)
+    }
+
+    func testPresentationStatePauseClearsSeekRestartGrace() {
+        var state = MediaCenterPresentationState()
+        state.beginPlayback(now: 10)
+        state.beginSeekRestart(now: 11, seekSequence: 1)
+
+        state.pause()
+
+        XCTAssertEqual(state.desiredTransport, .paused)
+        XCTAssertEqual(state.renderStatus, .paused)
+        XCTAssertFalse(state.grace.isActive)
+    }
+
+    func testPresentationStateTemporaryInterruptionPreservesUserIntent() {
+        var state = MediaCenterPresentationState()
+        state.beginPlayback(now: 10)
+
+        state.beginTemporaryInterruption()
+
+        XCTAssertEqual(state.desiredTransport, .playing)
+        XCTAssertEqual(state.systemSuspension, .temporaryInterruption)
+        XCTAssertEqual(state.writeMode, .active)
+        XCTAssertEqual(state.renderStatus, .paused)
+        XCTAssertFalse(state.grace.isActive)
+
+        state.freezeWritesForInterruption()
+
+        XCTAssertEqual(state.writeMode, .frozen)
     }
 
     func testNextWithoutCurrentTrackIsNoOp() {

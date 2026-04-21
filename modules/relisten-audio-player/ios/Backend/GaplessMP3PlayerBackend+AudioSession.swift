@@ -97,12 +97,7 @@ extension GaplessMP3PlayerBackend {
 
         player.pause()
         updateSnapshotOnQueue {
-            $0.desiredTransport = .paused
-            $0.systemSuspension = .none
-            $0.mediaCenterWriteMode = .active
-            $0.resumeStartedAtUptime = nil
-            $0.renderStatus = .paused
-            $0.renderIsPlaying = false
+            $0.presentation.pause()
             $0.currentState = .Paused
         }
         refreshStatusOnQueue(for: snapshotStore.get().generation)
@@ -145,11 +140,7 @@ extension GaplessMP3PlayerBackend {
             // Do not turn a system interruption into user intent. Desired
             // transport stays as-is so an ended interruption can resume only
             // when iOS grants .shouldResume and the user has not paused.
-            $0.systemSuspension = .temporaryInterruption
-            $0.mediaCenterWriteMode = .active
-            $0.resumeStartedAtUptime = nil
-            $0.renderStatus = .paused
-            $0.renderIsPlaying = false
+            $0.presentation.beginTemporaryInterruption()
         }
         let current = applyPresentationAndEmit(previous: previous, freezeAfterUpdate: true)
         snapshotStore.withValue {
@@ -161,7 +152,7 @@ extension GaplessMP3PlayerBackend {
                   $0.mediaCenterWriteMode == .active else {
                 return
             }
-            $0.mediaCenterWriteMode = .frozen
+            $0.presentation.freezeWritesForInterruption()
         }
     }
 
@@ -181,8 +172,7 @@ extension GaplessMP3PlayerBackend {
             // iOS explicitly allowed resume and the user still wants playback,
             // so unfreeze writes before going through the normal resume path.
             snapshotStore.withValue {
-                $0.systemSuspension = .none
-                $0.mediaCenterWriteMode = .active
+                $0.presentation.clearSuspension()
             }
             resumeOnQueue()
             return
@@ -202,12 +192,7 @@ extension GaplessMP3PlayerBackend {
 
         player.pause()
         updateSnapshotOnQueue {
-            $0.desiredTransport = .paused
-            $0.systemSuspension = .none
-            $0.mediaCenterWriteMode = .active
-            $0.resumeStartedAtUptime = nil
-            $0.renderStatus = .paused
-            $0.renderIsPlaying = false
+            $0.presentation.pause()
             $0.currentState = .Paused
         }
     }
@@ -255,12 +240,7 @@ extension GaplessMP3PlayerBackend {
             // Keep current metadata in memory for an explicit Relisten resume,
             // but suppress all Media Center writes so another app can own the
             // lock screen without polling/artwork resurrecting us.
-            $0.desiredTransport = .paused
-            $0.systemSuspension = .externalMedia
-            $0.mediaCenterWriteMode = .suppressed
-            $0.resumeStartedAtUptime = nil
-            $0.renderStatus = .paused
-            $0.renderIsPlaying = false
+            $0.presentation.suppressForExternalMedia()
             if $0.currentState != .Stopped {
                 $0.currentState = .Paused
             }
@@ -295,12 +275,7 @@ extension GaplessMP3PlayerBackend {
         }
         guard previous.currentStreamable != nil else {
             updateSnapshotOnQueue {
-                $0.desiredTransport = .stopped
-                $0.systemSuspension = .none
-                $0.mediaCenterWriteMode = .active
-                $0.resumeStartedAtUptime = nil
-                $0.renderStatus = .stopped
-                $0.renderIsPlaying = false
+                $0.presentation.stop()
                 $0.currentState = .Stopped
             }
             return
@@ -310,11 +285,7 @@ extension GaplessMP3PlayerBackend {
         snapshotStore.withValue {
             // Media services loss invalidates the renderer underneath us. Keep
             // Relisten visible as interrupted only when we still own playback.
-            $0.systemSuspension = .temporaryInterruption
-            $0.mediaCenterWriteMode = .active
-            $0.resumeStartedAtUptime = nil
-            $0.renderStatus = .failed
-            $0.renderIsPlaying = false
+            $0.presentation.beginTemporaryInterruption(renderStatus: .failed)
         }
         applyPresentationAndEmit(previous: previous)
     }
@@ -332,12 +303,7 @@ extension GaplessMP3PlayerBackend {
         }
         guard let currentStreamable = snapshot.currentStreamable else {
             updateSnapshotOnQueue {
-                $0.desiredTransport = .stopped
-                $0.systemSuspension = .none
-                $0.mediaCenterWriteMode = .active
-                $0.resumeStartedAtUptime = nil
-                $0.renderStatus = .stopped
-                $0.renderIsPlaying = false
+                $0.presentation.stop()
                 $0.currentState = .Stopped
             }
             return
@@ -358,11 +324,7 @@ extension GaplessMP3PlayerBackend {
             snapshot.generation += 1
             snapshot.seekSequence = 0
             snapshot.currentSessionID = sessionID
-            snapshot.systemSuspension = .temporaryInterruption
-            snapshot.mediaCenterWriteMode = .active
-            snapshot.resumeStartedAtUptime = nil
-            snapshot.renderStatus = .preparing
-            snapshot.renderIsPlaying = false
+            snapshot.presentation.beginTemporaryInterruption(renderStatus: .preparing)
             snapshot.nextStreamable = nextStreamable
             snapshot.desiredNextStreamable = nextStreamable
             snapshot.activeTrackDownloadedBytes = nil
@@ -413,13 +375,12 @@ extension GaplessMP3PlayerBackend {
                             // Re-enter normal startup semantics only after the
                             // graph is prepared again; otherwise reset would
                             // pretend playback resumed before it can.
-                            $0.systemSuspension = .none
-                            $0.mediaCenterWriteMode = .active
-                            $0.resumeStartedAtUptime = ProcessInfo.processInfo.systemUptime
+                            $0.presentation.beginPlayback(
+                                now: ProcessInfo.processInfo.systemUptime,
+                                renderStatus: .preparing
+                            )
                         } else if $0.systemSuspension == .temporaryInterruption {
-                            $0.systemSuspension = .none
-                            $0.mediaCenterWriteMode = .active
-                            $0.resumeStartedAtUptime = nil
+                            $0.presentation.clearSuspension()
                         }
                     }
                     self.applyStatus(status)
@@ -433,12 +394,7 @@ extension GaplessMP3PlayerBackend {
                     guard self.shouldContinueAsyncWork(for: generation) else { return }
                     let previous = self.snapshotStore.get()
                     self.snapshotStore.withValue {
-                        $0.desiredTransport = .stopped
-                        $0.systemSuspension = .none
-                        $0.mediaCenterWriteMode = .active
-                        $0.resumeStartedAtUptime = nil
-                        $0.renderStatus = .failed
-                        $0.renderIsPlaying = false
+                        $0.presentation.stop(renderStatus: .failed)
                         $0.isPreparingCurrentTrack = false
                         $0.pendingStartTimeAfterPrepare = nil
                         $0.currentState = .Stopped

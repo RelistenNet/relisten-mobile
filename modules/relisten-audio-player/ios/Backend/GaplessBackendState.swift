@@ -45,21 +45,16 @@ struct GaplessBackendSnapshot {
     var generation: UInt64 = 0
     var seekSequence: UInt64 = 0
 
-    // These four fields are the presentation state machine.
-    //
-    // - desiredTransport: what the user or app is trying to do.
-    // - renderStatus/renderIsPlaying: what the native engine is actually doing.
-    // - systemSuspension: temporary system ownership such as calls or resets.
-    // - mediaCenterWriteMode: whether Relisten may write the lock screen.
-    //
-    // Keeping those axes explicit prevents common iOS mistakes, especially
-    // treating buffering as paused or stealing Media Center back from Spotify.
-    var desiredTransport: MediaCenterDesiredTransport = .stopped
-    var systemSuspension: MediaCenterSystemSuspension = .none
-    var mediaCenterWriteMode: MediaCenterWriteMode = .active
-    var resumeStartedAtUptime: TimeInterval?
-    var renderStatus: MediaCenterRenderStatus = .stopped
-    var renderIsPlaying = false
+    // Presentation owns the app/Media Center state machine. Keep mutations on
+    // MediaCenterPresentationState so grace windows, interruptions, and yielded
+    // lock-screen ownership stay consistent across backend events.
+    var presentation = MediaCenterPresentationState()
+
+    var desiredTransport: MediaCenterDesiredTransport { presentation.desiredTransport }
+    var systemSuspension: MediaCenterSystemSuspension { presentation.systemSuspension }
+    var mediaCenterWriteMode: MediaCenterWriteMode { presentation.writeMode }
+    var renderStatus: MediaCenterRenderStatus { presentation.renderStatus }
+    var renderIsPlaying: Bool { presentation.renderIsPlaying }
 
     var currentSessionID: String?
     var isPreparingCurrentTrack = false

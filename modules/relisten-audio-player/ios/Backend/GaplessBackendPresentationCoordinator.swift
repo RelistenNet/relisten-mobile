@@ -80,23 +80,12 @@ final class GaplessBackendPresentationCoordinator {
     ) -> MediaCenterPresentationDecision {
         MediaCenterPresentationInput(
             hasCurrentMetadata: snapshot.currentStreamable != nil,
-            desiredTransport: snapshot.desiredTransport,
-            systemSuspension: snapshot.systemSuspension,
-            writeMode: snapshot.mediaCenterWriteMode,
-            renderStatus: snapshot.renderStatus,
-            renderIsPlaying: snapshot.renderIsPlaying,
-            isWithinResumeGraceWindow: isWithinResumeGraceWindow(snapshot: snapshot, now: now)
+            presentation: snapshot.presentation,
+            isWithinPresentationGraceWindow: snapshot.presentation.isWithinGraceWindow(
+                now: now,
+                interval: resumePresentationGraceInterval
+            )
         ).resolve()
-    }
-
-    private func isWithinResumeGraceWindow(snapshot: GaplessBackendSnapshot, now: TimeInterval) -> Bool {
-        guard let resumeStartedAtUptime = snapshot.resumeStartedAtUptime else {
-            return false
-        }
-        // The grace window is deliberately short and presentation-only: it
-        // prevents startup flicker, but it does not keep JS .Playing once the
-        // renderer remains unconfirmed past the window.
-        return now - resumeStartedAtUptime <= resumePresentationGraceInterval
     }
 
     private func appState(

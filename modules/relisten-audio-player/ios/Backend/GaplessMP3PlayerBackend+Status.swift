@@ -68,16 +68,16 @@ extension GaplessMP3PlayerBackend {
         snapshotStore.withValue { snapshot in
             snapshot.currentDuration = status.duration
             snapshot.elapsed = status.currentTime
-            snapshot.renderStatus = MediaCenterRenderStatus(playbackPhase: status.playbackPhase)
-            snapshot.renderIsPlaying = status.isPlaying
+            snapshot.presentation.applyRenderStatus(
+                renderStatus: MediaCenterRenderStatus(playbackPhase: status.playbackPhase),
+                renderIsPlaying: status.isPlaying,
+                hasCurrentSource: status.currentSource != nil
+            )
             snapshot.currentStreamable = status.currentSource == nil ? nil : currentStreamable
             snapshot.nextStreamable = status.nextSource == nil ? nil : nextStreamable
             snapshot.activeTrackDownloadedBytes = downloadedBytes
             snapshot.activeTrackTotalBytes = totalBytes
             snapshot.isPreparingCurrentTrack = status.playbackPhase == .preparing
-            if status.isPlaying, status.playbackPhase == .playing {
-                snapshot.resumeStartedAtUptime = nil
-            }
             if status.playbackPhase == .stopped || status.currentSource == nil {
                 snapshot.progressPollingGeneration = nil
             }
@@ -128,7 +128,7 @@ extension GaplessMP3PlayerBackend {
         // External-media suppression is stronger than renderer truth. The
         // player can still report a prepared source, but Relisten has yielded
         // lock-screen ownership until the user explicitly resumes Relisten.
-        snapshot.mediaCenterWriteMode == .suppressed || snapshot.systemSuspension == .externalMedia
+        snapshot.presentation.isSuppressed
     }
 
     func consumePendingStartTimeAfterPrepareOnQueue(for generation: UInt64) -> TimeInterval? {
@@ -158,7 +158,7 @@ extension GaplessMP3PlayerBackend {
             guard let self else { return }
             let previous = self.snapshotStore.get()
             guard previous.generation == generation,
-                  previous.resumeStartedAtUptime != nil,
+                  previous.presentation.hasStartupGrace(),
                   previous.desiredTransport == .playing,
                   previous.systemSuspension == .none else {
                 return
@@ -166,6 +166,25 @@ extension GaplessMP3PlayerBackend {
             // No renderer event may arrive exactly when grace expires. Reapply
             // the decision so app state can move from startup .Playing to
             // stalled/buffering while Media Center keeps desired-play semantics.
+            self.applyPresentationAndEmit(previous: previous)
+        }
+    }
+
+    func scheduleSeekGraceExpirationIfNeededOnQueue(for generation: UInt64, seekSequence: UInt64) {
+        backendQueue.asyncAfter(deadline: .now() + resumePresentationGraceInterval) { [weak self] in
+            guard let self else { return }
+            let previous = self.snapshotStore.get()
+            guard previous.generation == generation,
+                  previous.seekSequence == seekSequence,
+                  previous.presentation.hasSeekRestartGrace(seekSequence: seekSequence),
+                  previous.desiredTransport == .playing,
+                  previous.systemSuspension == .none else {
+                return
+            }
+            // Seeking restarts render output even though user intent remains
+            // play. If the graph still has not confirmed audio after the grace
+            // window, re-run the presentation decision so JS may show stalled
+            // while Media Center remains in desired-play.
             self.applyPresentationAndEmit(previous: previous)
         }
     }

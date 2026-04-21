@@ -292,7 +292,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
             }
 
             let clampedTime = max(0, min(time, duration))
-            let shouldResumePlayback = self.stateStore.get().outputGraph?.isPlaying ?? false
+            let shouldResumePlayback = self.stateStore.get().playbackPhase == .playing
             self.stateStore.withValue { state in
                 state.requestedStartTime = clampedTime
                 state.publicTimelineOffset = 0
@@ -308,7 +308,13 @@ public final class GaplessMP3Player: @unchecked Sendable {
         await coordinator.stopPlayback()
 
         if shouldResumePlayback {
-            _ = play()
+            // A seek during playback is not a pause: user intent is still
+            // playing, but reset/stopPlayback cleared the decode pipeline.
+            // Force the startup path so audio is scheduled at the new target.
+            playbackQueue.async { [weak self] in
+                guard let self else { return }
+                self.playOnPlaybackQueue(restartPipelineIfPlaying: true)
+            }
         }
     }
 
@@ -452,7 +458,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
         }
     }
 
-    private func playOnPlaybackQueue() {
+    private func playOnPlaybackQueue(restartPipelineIfPlaying: Bool = false) {
         dispatchPrecondition(condition: .onQueue(playbackQueue))
         _ = applyPendingTrackTransitionIfNeededOnPlaybackQueue()
 
@@ -461,7 +467,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
         // while the graph is still playing. In that case play() must be
         // idempotent; resetting the graph would jump back to requestedStartTime,
         // which may be an old seek target rather than the live audio position.
-        if stateStore.get().playbackPhase == .playing {
+        if stateStore.get().playbackPhase == .playing && !restartPipelineIfPlaying {
             stateStore.withValue { state in
                 state.outputGraph?.requestPlay()
             }

@@ -268,12 +268,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             snapshot.generation = generation
             snapshot.seekSequence = 0
             snapshot.currentSessionID = sessionID
-            snapshot.desiredTransport = .playing
-            snapshot.systemSuspension = .none
-            snapshot.mediaCenterWriteMode = .active
-            snapshot.resumeStartedAtUptime = ProcessInfo.processInfo.systemUptime
-            snapshot.renderStatus = .preparing
-            snapshot.renderIsPlaying = false
+            snapshot.presentation.beginPlayback(now: ProcessInfo.processInfo.systemUptime)
             snapshot.currentStreamable = streamable
             snapshot.nextStreamable = nil
             snapshot.desiredNextStreamable = nil
@@ -364,12 +359,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
                     guard self.shouldContinueAsyncWork(for: generation) else { return }
                     let previous = self.snapshotStore.get()
                     self.snapshotStore.withValue {
-                        $0.desiredTransport = .stopped
-                        $0.systemSuspension = .none
-                        $0.mediaCenterWriteMode = .active
-                        $0.resumeStartedAtUptime = nil
-                        $0.renderStatus = .failed
-                        $0.renderIsPlaying = false
+                        $0.presentation.stop(renderStatus: .failed)
                         $0.currentStreamable = nil
                         $0.nextStreamable = nil
                         $0.desiredNextStreamable = nil
@@ -452,12 +442,10 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             play: { self.player.play() },
             updateStateToPlaying: {
                 self.updateSnapshotOnQueue {
-                    $0.desiredTransport = .playing
-                    $0.systemSuspension = .none
-                    $0.mediaCenterWriteMode = .active
-                    $0.resumeStartedAtUptime = ProcessInfo.processInfo.systemUptime
-                    $0.renderStatus = .paused
-                    $0.renderIsPlaying = false
+                    $0.presentation.beginPlayback(
+                        now: ProcessInfo.processInfo.systemUptime,
+                        renderStatus: .paused
+                    )
                 }
                 self.scheduleResumeGraceExpirationIfNeededOnQueue(for: self.snapshotStore.get().generation)
                 self.startProgressPollingIfNeededOnQueue(for: self.snapshotStore.get().generation)
@@ -473,12 +461,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
         )
         player.pause()
         updateSnapshotOnQueue {
-            $0.desiredTransport = .paused
-            $0.systemSuspension = .none
-            $0.mediaCenterWriteMode = .active
-            $0.resumeStartedAtUptime = nil
-            $0.renderStatus = .paused
-            $0.renderIsPlaying = false
+            $0.presentation.pause()
             guard $0.currentState != .Stopped else { return }
             $0.currentState = .Paused
         }
@@ -503,12 +486,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
                 snapshot.seekSequence = 0
             }
             snapshot.currentSessionID = nil
-            snapshot.desiredTransport = .stopped
-            snapshot.systemSuspension = .none
-            snapshot.mediaCenterWriteMode = .active
-            snapshot.resumeStartedAtUptime = nil
-            snapshot.renderStatus = .stopped
-            snapshot.renderIsPlaying = false
+            snapshot.presentation.stop()
             snapshot.currentStreamable = nil
             snapshot.nextStreamable = nil
             snapshot.desiredNextStreamable = nil
@@ -645,9 +623,19 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             let previous = self.snapshotStore.get()
             self.snapshotStore.withValue { snapshot in
                 snapshot.elapsed = clampedTime
+                if snapshot.desiredTransport == .playing {
+                    snapshot.presentation.beginSeekRestart(
+                        now: ProcessInfo.processInfo.systemUptime,
+                        seekSequence: snapshot.seekSequence
+                    )
+                }
             }
             self.applyPresentationAndEmit(previous: previous)
         }) else { return }
+        scheduleSeekGraceExpirationIfNeededOnQueue(
+            for: execution.generation,
+            seekSequence: execution.seekSequence
+        )
 
         Task { [weak self] in
             guard let self else { return }

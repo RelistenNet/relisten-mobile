@@ -57,6 +57,190 @@ enum MediaCenterPresentationReason: String {
     case playing
 }
 
+enum MediaCenterPresentationGrace: Equatable {
+    case none
+    case startup(startedAtUptime: TimeInterval)
+    case seekRestart(startedAtUptime: TimeInterval, seekSequence: UInt64)
+
+    var isActive: Bool {
+        if case .none = self {
+            return false
+        }
+        return true
+    }
+
+    func isStartupActive() -> Bool {
+        if case .startup = self {
+            return true
+        }
+        return false
+    }
+
+    func isSeekRestartActive(seekSequence: UInt64) -> Bool {
+        if case .seekRestart(_, let activeSequence) = self {
+            return activeSequence == seekSequence
+        }
+        return false
+    }
+
+    func isWithinWindow(now: TimeInterval, interval: TimeInterval) -> Bool {
+        guard let startedAtUptime else { return false }
+        return now - startedAtUptime <= interval
+    }
+
+    private var startedAtUptime: TimeInterval? {
+        switch self {
+        case .none:
+            return nil
+        case .startup(let startedAtUptime):
+            return startedAtUptime
+        case .seekRestart(let startedAtUptime, _):
+            return startedAtUptime
+        }
+    }
+}
+
+struct MediaCenterPresentationState: Equatable {
+    /*
+     Presentation lifecycle FSM
+
+              beginPlayback/resume
+       +--------------------------------+
+       |                                v
+     [Stopped]                   [Playing Intent + Grace]
+       ^                                |
+       | stop/finish                    | renderConfirmed
+       |                                v
+     [Paused] <--- pause/routeLoss --- [Playing]
+       ^                                |
+       |                                | seekWhilePlaying
+       |                                v
+       |                         [Seek Restart Grace]
+       |                                |
+       |                                | graceExpired && !renderConfirmed
+       |                                v
+       |                         [Buffering Intent]
+       |                                |
+       +----------- failure/stop -------+
+
+     From any visible state:
+       interruptionBegan -> [Temporary Interruption] -> freeze writes
+       interruptionEnded + shouldResume + userIntentPlaying -> [Playing Intent + Grace]
+       interruptionEnded without resume/external audio -> [External Media Suppressed]
+       externalMediaSuppressed + explicit Relisten resume -> [Playing Intent + Grace]
+
+     The FSM owns desired transport, system suspension, write ownership,
+     render status, and presentation grace. Callers still own the engine
+     operation and queue decisions.
+     */
+    var desiredTransport: MediaCenterDesiredTransport = .stopped
+    var systemSuspension: MediaCenterSystemSuspension = .none
+    var writeMode: MediaCenterWriteMode = .active
+    var renderStatus: MediaCenterRenderStatus = .stopped
+    var renderIsPlaying = false
+    var grace: MediaCenterPresentationGrace = .none
+
+    var isSuppressed: Bool {
+        writeMode == .suppressed || systemSuspension == .externalMedia
+    }
+
+    func isWithinGraceWindow(now: TimeInterval, interval: TimeInterval) -> Bool {
+        grace.isWithinWindow(now: now, interval: interval)
+    }
+
+    func hasStartupGrace() -> Bool {
+        grace.isStartupActive()
+    }
+
+    func hasSeekRestartGrace(seekSequence: UInt64) -> Bool {
+        grace.isSeekRestartActive(seekSequence: seekSequence)
+    }
+
+    mutating func beginPlayback(now: TimeInterval, renderStatus: MediaCenterRenderStatus = .preparing) {
+        desiredTransport = .playing
+        systemSuspension = .none
+        writeMode = .active
+        self.renderStatus = renderStatus
+        renderIsPlaying = false
+        grace = .startup(startedAtUptime: now)
+    }
+
+    mutating func pause() {
+        desiredTransport = .paused
+        systemSuspension = .none
+        writeMode = .active
+        renderStatus = .paused
+        renderIsPlaying = false
+        grace = .none
+    }
+
+    mutating func stop(renderStatus: MediaCenterRenderStatus = .stopped) {
+        desiredTransport = .stopped
+        systemSuspension = .none
+        writeMode = .active
+        self.renderStatus = renderStatus
+        renderIsPlaying = false
+        grace = .none
+    }
+
+    mutating func failRender() {
+        renderStatus = .failed
+        renderIsPlaying = false
+        grace = .none
+    }
+
+    mutating func beginSeekRestart(now: TimeInterval, seekSequence: UInt64) {
+        guard desiredTransport == .playing else { return }
+        grace = .seekRestart(startedAtUptime: now, seekSequence: seekSequence)
+    }
+
+    mutating func beginTemporaryInterruption(renderStatus: MediaCenterRenderStatus = .paused) {
+        // Do not change desiredTransport. A phone-call-style interruption can
+        // later resume only if iOS says shouldResume and the user still wants
+        // playback.
+        systemSuspension = .temporaryInterruption
+        writeMode = .active
+        self.renderStatus = renderStatus
+        renderIsPlaying = false
+        grace = .none
+    }
+
+    mutating func freezeWritesForInterruption() {
+        guard systemSuspension == .temporaryInterruption, writeMode == .active else { return }
+        writeMode = .frozen
+    }
+
+    mutating func clearSuspension() {
+        systemSuspension = .none
+        writeMode = .active
+        grace = .none
+    }
+
+    mutating func suppressForExternalMedia() {
+        desiredTransport = .paused
+        systemSuspension = .externalMedia
+        writeMode = .suppressed
+        renderStatus = .paused
+        renderIsPlaying = false
+        grace = .none
+    }
+
+    mutating func applyRenderStatus(
+        renderStatus: MediaCenterRenderStatus,
+        renderIsPlaying: Bool,
+        hasCurrentSource: Bool
+    ) {
+        self.renderStatus = renderStatus
+        self.renderIsPlaying = renderIsPlaying
+
+        if renderIsPlaying, renderStatus == .playing {
+            grace = .none
+        } else if desiredTransport != .playing || renderStatus == .stopped || !hasCurrentSource {
+            grace = .none
+        }
+    }
+}
+
 struct MediaCenterPresentationUpdate: Equatable {
     let reason: MediaCenterPresentationReason
     let appState: MediaCenterAppState
@@ -81,18 +265,44 @@ enum MediaCenterPresentationDecision: Equatable {
 
 struct MediaCenterPresentationInput {
     let hasCurrentMetadata: Bool
-    let desiredTransport: MediaCenterDesiredTransport
-    let systemSuspension: MediaCenterSystemSuspension
-    let writeMode: MediaCenterWriteMode
-    let renderStatus: MediaCenterRenderStatus
-    let renderIsPlaying: Bool
-    let isWithinResumeGraceWindow: Bool
+    let presentation: MediaCenterPresentationState
+    let isWithinPresentationGraceWindow: Bool
+
+    init(
+        hasCurrentMetadata: Bool,
+        presentation: MediaCenterPresentationState,
+        isWithinPresentationGraceWindow: Bool
+    ) {
+        self.hasCurrentMetadata = hasCurrentMetadata
+        self.presentation = presentation
+        self.isWithinPresentationGraceWindow = isWithinPresentationGraceWindow
+    }
+
+    init(
+        hasCurrentMetadata: Bool,
+        desiredTransport: MediaCenterDesiredTransport,
+        systemSuspension: MediaCenterSystemSuspension,
+        writeMode: MediaCenterWriteMode,
+        renderStatus: MediaCenterRenderStatus,
+        renderIsPlaying: Bool,
+        isWithinPresentationGraceWindow: Bool
+    ) {
+        self.hasCurrentMetadata = hasCurrentMetadata
+        self.presentation = MediaCenterPresentationState(
+            desiredTransport: desiredTransport,
+            systemSuspension: systemSuspension,
+            writeMode: writeMode,
+            renderStatus: renderStatus,
+            renderIsPlaying: renderIsPlaying
+        )
+        self.isWithinPresentationGraceWindow = isWithinPresentationGraceWindow
+    }
 
     func resolve() -> MediaCenterPresentationDecision {
         // Write mode is resolved first because it is about ownership, not
         // transport. Suppression must win even if stale renderer status still
         // says a Relisten source is prepared or playing.
-        switch writeMode {
+        switch presentation.writeMode {
         case .suppressed:
             return .clear(reason: .externalMedia)
         case .frozen:
@@ -101,17 +311,17 @@ struct MediaCenterPresentationInput {
             break
         }
 
-        switch desiredTransport {
+        switch presentation.desiredTransport {
         case .stopped:
             return .clear(reason: .stopped)
         case .paused:
             guard hasCurrentMetadata else {
                 return .clear(reason: .missingMetadata)
             }
-            if systemSuspension == .externalMedia {
+            if presentation.systemSuspension == .externalMedia {
                 return .clear(reason: .externalMedia)
             }
-            if systemSuspension == .temporaryInterruption {
+            if presentation.systemSuspension == .temporaryInterruption {
                 return .update(
                     MediaCenterPresentationUpdate(
                         reason: .temporaryInterruption,
@@ -133,10 +343,10 @@ struct MediaCenterPresentationInput {
             guard hasCurrentMetadata else {
                 return .clear(reason: .missingMetadata)
             }
-            if systemSuspension == .externalMedia {
+            if presentation.systemSuspension == .externalMedia {
                 return .clear(reason: .externalMedia)
             }
-            if systemSuspension == .temporaryInterruption {
+            if presentation.systemSuspension == .temporaryInterruption {
                 return .update(
                     MediaCenterPresentationUpdate(
                         reason: .temporaryInterruption,
@@ -151,7 +361,7 @@ struct MediaCenterPresentationInput {
     }
 
     private var freezeReason: MediaCenterPresentationReason {
-        switch systemSuspension {
+        switch presentation.systemSuspension {
         case .externalMedia:
             return .externalMedia
         case .temporaryInterruption:
@@ -166,7 +376,7 @@ struct MediaCenterPresentationInput {
         // its playback phase. The output graph can still be silent while startup
         // buffering catches up, so renderIsPlaying is the only render-confirmed
         // signal for JS-visible .Playing.
-        if renderIsPlaying {
+        if presentation.renderIsPlaying {
             return .update(
                 MediaCenterPresentationUpdate(
                     reason: .playing,
@@ -177,11 +387,12 @@ struct MediaCenterPresentationInput {
             )
         }
 
-        if isWithinResumeGraceWindow {
-            // A short startup grace window avoids flashing "stalled" while an
-            // intentional play/resume is still crossing the native graph. After
-            // the window expires, JS can show stalled while Media Center stays
-            // playing because the user's transport intent is still playback.
+        if isWithinPresentationGraceWindow {
+            // A short presentation-only grace window avoids flashing "stalled"
+            // while an intentional play/resume/seek is still crossing the
+            // native graph. After the window expires, JS can show stalled while
+            // Media Center stays playing because the user's transport intent is
+            // still playback.
             return .update(
                 MediaCenterPresentationUpdate(
                     reason: .awaitingRender,
@@ -192,7 +403,7 @@ struct MediaCenterPresentationInput {
             )
         }
 
-        switch renderStatus {
+        switch presentation.renderStatus {
         case .preparing, .paused, .playing:
             // This is active desired-play buffering. The app can expose a
             // stalled state, but the lock screen should behave like a music app
