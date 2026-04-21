@@ -1647,7 +1647,7 @@ private final class TestOutputGraph: PCMOutputControlling, @unchecked Sendable {
         }
     }
 
-    func reset(timelineOffset: TimeInterval) throws {
+    func reset(timelineOffset: TimeInterval, startEngine: Bool) throws {
         if let resetError {
             throw resetError
         }

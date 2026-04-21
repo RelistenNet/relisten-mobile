@@ -653,7 +653,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
                             activeGeneration: snapshot.generation,
                             currentSeekSequence: snapshot.seekSequence
                         ) else { return }
-                        self.applyStatus(status)
+                        self.applyStatus(status, seekCompletion: execution)
                     }
                 },
                 emitError: { error in

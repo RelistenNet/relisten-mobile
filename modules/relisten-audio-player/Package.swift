@@ -25,6 +25,7 @@ let package = Package(
                 "GaplessMP3PlayerBackendNextIntent.swift",
                 "GaplessMP3PlayerBackendResumeCommand.swift",
                 "GaplessMP3PlayerBackendSeekCommand.swift",
+                "GaplessMP3PlayerBackendSeekCompletion.swift",
                 "MediaCenterPresentationDecision.swift",
                 "NativeRemoteControlForwardingPolicy.swift",
                 "RemoteCommandSeekPolicy.swift",

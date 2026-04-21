@@ -108,6 +108,34 @@ final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
         XCTAssertNil(state.begin { _ in XCTFail("elapsed should not update without a current track") })
     }
 
+    func testPausedSeekCompletionKeepsPausedPublicProjection() {
+        let projection = SeekCompletionStatusProjection(
+            desiredTransport: .paused,
+            clampedSeekTime: 199.732,
+            reportedElapsed: 429.174,
+            reportedRenderStatus: .playing,
+            reportedRenderIsPlaying: true
+        )
+
+        XCTAssertEqual(projection.elapsed, 199.732)
+        XCTAssertEqual(projection.renderStatus, .paused)
+        XCTAssertFalse(projection.renderIsPlaying)
+    }
+
+    func testPlayingSeekCompletionPreservesReportedProjection() {
+        let projection = SeekCompletionStatusProjection(
+            desiredTransport: .playing,
+            clampedSeekTime: 199.732,
+            reportedElapsed: 200.5,
+            reportedRenderStatus: .playing,
+            reportedRenderIsPlaying: true
+        )
+
+        XCTAssertEqual(projection.elapsed, 200.5)
+        XCTAssertEqual(projection.renderStatus, .playing)
+        XCTAssertTrue(projection.renderIsPlaying)
+    }
+
     func testResumeAfterStopDoesNotTriggerAnyResumeSideEffects() {
         let state = ResumeCommandState(isStopped: true)
         var sideEffects: [String] = []

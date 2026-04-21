@@ -29,6 +29,7 @@ import {
   PlaybackDriver,
   PlaybackQueueContext,
 } from '@/relisten/player/playback_driver';
+import { shouldStartStalledTimerForSeek } from '@/relisten/player/seek_stall_policy';
 
 const logger = log.extend('player');
 
@@ -126,6 +127,7 @@ export class RelistenPlayer {
   pause() {
     this.addPlayerListeners();
 
+    this.clearStalledTimer();
     state.setState(RelistenPlaybackState.Paused);
     this.playbackDriver.pause().then(() => {});
   }
@@ -405,8 +407,10 @@ export class RelistenPlayer {
   seekTo(pct: number): Promise<void> {
     this.addPlayerListeners();
 
+    const playbackState = this.state;
+
     // We cannot seek if we aren't playing. Save this for when attempt to play.
-    if (this.state == RelistenPlaybackState.Stopped) {
+    if (playbackState == RelistenPlaybackState.Stopped) {
       return Promise.resolve();
     }
 
@@ -423,7 +427,9 @@ export class RelistenPlayer {
       });
     }
 
-    this.startStalledTimer();
+    if (shouldStartStalledTimerForSeek(playbackState)) {
+      this.startStalledTimer();
+    }
 
     return this.playbackDriver.seekTo(pct);
   }

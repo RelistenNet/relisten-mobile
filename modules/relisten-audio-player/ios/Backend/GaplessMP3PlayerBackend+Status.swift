@@ -34,7 +34,7 @@ extension GaplessMP3PlayerBackend {
         setNextOnQueue(snapshot.desiredNextStreamable)
     }
 
-    func applyStatus(_ status: GaplessMP3PlayerStatus) {
+    func applyStatus(_ status: GaplessMP3PlayerStatus, seekCompletion: SeekCommandExecution? = nil) {
         let previous = snapshotStore.get()
         guard !shouldIgnoreStatus(for: previous) else {
             // The native player may still have a source prepared after Spotify
@@ -47,6 +47,16 @@ extension GaplessMP3PlayerBackend {
         let nextStreamable = streamableMatching(id: status.nextSource?.id, snapshot: previous)
         let downloadedBytes = unsignedValue(status.currentSourceDownload?.downloadedBytes)
         let totalBytes = unsignedValue(status.currentSourceDownload?.expectedBytes)
+        let renderStatus = MediaCenterRenderStatus(playbackPhase: status.playbackPhase)
+        let seekProjection = seekCompletion.map {
+            SeekCompletionStatusProjection(
+                desiredTransport: previous.desiredTransport,
+                clampedSeekTime: $0.clampedTime,
+                reportedElapsed: status.currentTime,
+                reportedRenderStatus: renderStatus,
+                reportedRenderIsPlaying: status.isPlaying
+            )
+        }
 
         if let currentSource = status.currentSource, currentStreamable == nil {
             // Active playback without a Relisten streamable would publish blank
@@ -67,17 +77,17 @@ extension GaplessMP3PlayerBackend {
 
         snapshotStore.withValue { snapshot in
             snapshot.currentDuration = status.duration
-            snapshot.elapsed = status.currentTime
+            snapshot.elapsed = seekProjection?.elapsed ?? status.currentTime
             snapshot.presentation.applyRenderStatus(
-                renderStatus: MediaCenterRenderStatus(playbackPhase: status.playbackPhase),
-                renderIsPlaying: status.isPlaying,
+                renderStatus: seekProjection?.renderStatus ?? renderStatus,
+                renderIsPlaying: seekProjection?.renderIsPlaying ?? status.isPlaying,
                 hasCurrentSource: status.currentSource != nil
             )
             snapshot.currentStreamable = status.currentSource == nil ? nil : currentStreamable
             snapshot.nextStreamable = status.nextSource == nil ? nil : nextStreamable
             snapshot.activeTrackDownloadedBytes = downloadedBytes
             snapshot.activeTrackTotalBytes = totalBytes
-            snapshot.isPreparingCurrentTrack = status.playbackPhase == .preparing
+            snapshot.isPreparingCurrentTrack = (seekProjection?.renderStatus ?? renderStatus) == .preparing
             if status.playbackPhase == .stopped || status.currentSource == nil {
                 snapshot.progressPollingGeneration = nil
             }

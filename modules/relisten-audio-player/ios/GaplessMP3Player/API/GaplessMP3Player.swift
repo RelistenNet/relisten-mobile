@@ -6,7 +6,7 @@ private let playerLifecycleLog = RelistenPlaybackLogger(layer: .player, category
 protocol PCMOutputControlling: AnyObject, Sendable {
     var isPlaying: Bool { get }
     var volume: Float { get set }
-    func reset(timelineOffset: TimeInterval) throws
+    func reset(timelineOffset: TimeInterval, startEngine: Bool) throws
     func requestPlay() throws
     func schedule(_ chunk: PCMChunk, playedBack: (@Sendable () -> Void)?) throws
     func pause()
@@ -298,7 +298,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
                 state.publicTimelineOffset = 0
                 state.pendingTrackTransition = nil
                 state.scheduledTrackBoundaries = []
-                try state.outputGraph?.reset(timelineOffset: clampedTime)
+                try state.outputGraph?.reset(timelineOffset: clampedTime, startEngine: shouldResumePlayback)
             }
             self.refreshSnapshotOnPlaybackQueue(absoluteTimelineTime: clampedTime)
             return shouldResumePlayback
@@ -487,7 +487,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
                 state.publicTimelineOffset = 0
                 state.lastPlaybackFailure = nil
                 state.scheduledTrackBoundaries = []
-                try state.outputGraph?.reset(timelineOffset: startTime)
+                try state.outputGraph?.reset(timelineOffset: startTime, startEngine: true)
                 try state.outputGraph?.requestPlay()
             }
         } catch {

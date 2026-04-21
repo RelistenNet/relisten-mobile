@@ -67,9 +67,9 @@ final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
     }
 
     /// Resets graph state for a new logical playback session while preserving the
-    /// underlying engine. Restarting the engine only when needed keeps startup latency
-    /// lower than rebuilding the graph on every play/seek.
-    func reset(timelineOffset: TimeInterval) throws {
+    /// underlying engine object. Paused seeks can keep the engine paused, while
+    /// play/restart paths can explicitly warm it before scheduling resumes.
+    func reset(timelineOffset: TimeInterval, startEngine: Bool) throws {
         dispatchPrecondition(condition: .onQueue(ownerQueue))
         updateLastKnownTime()
         self.timelineOffset = timelineOffset
@@ -79,7 +79,9 @@ final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
         self.wantsPlayback = false
         playerNode.stop()
         playerNode.reset()
-        try startEngineIfNeeded(context: "reset")
+        if startEngine {
+            try startEngineIfNeeded(context: "reset")
+        }
     }
 
     /// Schedules already-trimmed PCM onto the single output node.
