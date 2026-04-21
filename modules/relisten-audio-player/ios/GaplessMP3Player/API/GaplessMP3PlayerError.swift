@@ -10,6 +10,7 @@ public enum GaplessMP3PlayerError: Error, LocalizedError, Sendable {
     case sourceNotPrepared
     case missingCurrentSource
     case incompatibleTrackFormats
+    case audioPipeline(String)
 
     public var errorDescription: String? {
         switch self {
@@ -29,6 +30,8 @@ public enum GaplessMP3PlayerError: Error, LocalizedError, Sendable {
             "No current source is available"
         case .incompatibleTrackFormats:
             "Tracks must share the same sample rate and channel count"
+        case .audioPipeline(let message):
+            "Audio pipeline failure: \(message)"
         }
     }
 }
@@ -157,6 +160,14 @@ extension GaplessPlaybackFailure {
                     description: error.errorDescription,
                     isRetryable: false,
                     platformName: "incompatibleTrackFormats"
+                )
+            case .audioPipeline:
+                return GaplessPlaybackFailure(
+                    kind: .audioPipeline,
+                    message: "Audio output failed",
+                    description: error.errorDescription,
+                    isRetryable: true,
+                    platformName: "audioPipeline"
                 )
             }
         }

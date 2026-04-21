@@ -28,6 +28,7 @@ let package = Package(
                 "MediaCenterPresentationDecision.swift",
                 "NativeRemoteControlForwardingPolicy.swift",
                 "RemoteCommandSeekPolicy.swift",
+                "NowPlayingElapsedWritePolicy.swift",
                 "PlaybackPresentationRevisionGate.swift",
             ]
         ),

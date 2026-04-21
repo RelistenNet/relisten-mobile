@@ -2,6 +2,8 @@ import AVFoundation
 import Dispatch
 import Foundation
 
+private let outputGraphLifecycleLog = RelistenPlaybackLogger(layer: .player, category: .lifecycle)
+
 /// Owns the single continuous output timeline for playback.
 ///
 /// The design docs explicitly call for "one persistent output graph and swap PCM
@@ -43,6 +45,11 @@ final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
         return playerNode.isPlaying
     }
 
+    var isEngineRunning: Bool {
+        dispatchPrecondition(condition: .onQueue(ownerQueue))
+        return engine.isRunning
+    }
+
     var volume: Float {
         get {
             dispatchPrecondition(condition: .onQueue(ownerQueue))
@@ -62,7 +69,7 @@ final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
     /// Resets graph state for a new logical playback session while preserving the
     /// underlying engine. Restarting the engine only when needed keeps startup latency
     /// lower than rebuilding the graph on every play/seek.
-    func reset(timelineOffset: TimeInterval) {
+    func reset(timelineOffset: TimeInterval) throws {
         dispatchPrecondition(condition: .onQueue(ownerQueue))
         updateLastKnownTime()
         self.timelineOffset = timelineOffset
@@ -72,9 +79,7 @@ final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
         self.wantsPlayback = false
         playerNode.stop()
         playerNode.reset()
-        if !engine.isRunning {
-            try? engine.start()
-        }
+        try startEngineIfNeeded(context: "reset")
     }
 
     /// Schedules already-trimmed PCM onto the single output node.
@@ -91,16 +96,18 @@ final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
             }
         }
         if wantsPlayback && !playerNode.isPlaying {
+            try startEngineIfNeeded(context: "schedule")
             playerNode.play()
         }
     }
 
     /// Defers `play()` until at least one buffer is queued so "ready to play" can mean
     /// actual buffered audio, not just an empty node in the playing state.
-    func requestPlay() {
+    func requestPlay() throws {
         dispatchPrecondition(condition: .onQueue(ownerQueue))
         wantsPlayback = true
         if pendingBufferCount > 0 && !playerNode.isPlaying {
+            try startEngineIfNeeded(context: "requestPlay")
             playerNode.play()
         }
     }
@@ -110,6 +117,15 @@ final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
         updateLastKnownTime()
         wantsPlayback = false
         playerNode.pause()
+        if engine.isRunning {
+            engine.pause()
+            outputGraphLifecycleLog.info(
+                "paused",
+                "output engine",
+                playbackLogIntegerField("pending", pendingBufferCount),
+                playbackLogDurationField("time", lastKnownTime)
+            )
+        }
     }
 
     /// Signals that decode has no more chunks to schedule. `isFinished` still waits for
@@ -136,6 +152,22 @@ final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
 
     private func updateLastKnownTime() {
         _ = currentTime()
+    }
+
+    private func startEngineIfNeeded(context: String) throws {
+        guard !engine.isRunning else { return }
+        do {
+            try engine.start()
+        } catch {
+            throw GaplessMP3PlayerError.audioPipeline("Could not start output engine during \(context): \(error)")
+        }
+        outputGraphLifecycleLog.info(
+            "started",
+            "output engine",
+            playbackLogField("ctx", context),
+            playbackLogIntegerField("pending", pendingBufferCount),
+            playbackLogBoolField("wants", wantsPlayback)
+        )
     }
 
     private func handleScheduledBufferDrain(playedBack: (@Sendable () -> Void)?) {

@@ -197,6 +197,39 @@ final class GaplessMP3PlayerTests: XCTestCase {
         XCTAssertEqual(status.currentTime, 2.25, accuracy: 0.01)
     }
 
+    func testPlayReportsFailureWhenOutputGraphCannotResume() async throws {
+        let outputGraph = TestOutputGraph(
+            requestPlayError: GaplessMP3PlayerError.audioPipeline("Could not restart output engine")
+        )
+        let player = makePlayer(outputGraph: outputGraph)
+        let current = fixtureSource(id: "current", fixtureName: "gd77-s2t07-first-5s.mp3")
+        let recorder = EventRecorder()
+        let failed = expectation(description: "playback failure event")
+
+        player.callbackQueue = DispatchQueue(label: "GaplessMP3PlayerTests.outputGraphFailure")
+        player.runtimeEventHandler = { event in
+            if case .playbackFailed = event {
+                failed.fulfill()
+            }
+            recorder.append(event)
+        }
+
+        try await player.prepare(current: current, next: nil)
+        XCTAssertTrue(player.play())
+
+        await fulfillment(of: [failed], timeout: 1.0)
+        let status = await player.status()
+        XCTAssertEqual(status.playbackPhase, .failed)
+        XCTAssertEqual(status.playbackFailure?.kind, .audioPipeline)
+
+        let events = recorder.events
+        XCTAssertEqual(events.count, 1)
+        guard case let .playbackFailed(failure, _) = events[0] else {
+            return XCTFail("Expected playbackFailed event")
+        }
+        XCTAssertEqual(failure.kind, .audioPipeline)
+    }
+
     func testPlayWhileAlreadyPlayingDoesNotResetToRequestedStartTime() async throws {
         let outputGraph = TestOutputGraph(currentTime: 4, isPlaying: true)
         let player = makePlayer(outputGraph: outputGraph)
@@ -1573,14 +1606,24 @@ private final class HTTPLogRecorder: @unchecked Sendable {
 private final class TestOutputGraph: PCMOutputControlling, @unchecked Sendable {
     private let lock = NSLock()
     private let advanceTimeOnSchedule: Bool
+    private let requestPlayError: Error?
+    private let resetError: Error?
     private var timelineOffset: TimeInterval
     private var playing: Bool
     private var outputVolume: Float = 1.0
     private var scheduledChunks: [PCMChunk] = []
     private var playedBackCallbacks: [@Sendable () -> Void] = []
 
-    init(currentTime: TimeInterval = 0, isPlaying: Bool = false, advanceTimeOnSchedule: Bool = false) {
+    init(
+        currentTime: TimeInterval = 0,
+        isPlaying: Bool = false,
+        advanceTimeOnSchedule: Bool = false,
+        requestPlayError: Error? = nil,
+        resetError: Error? = nil
+    ) {
         self.advanceTimeOnSchedule = advanceTimeOnSchedule
+        self.requestPlayError = requestPlayError
+        self.resetError = resetError
         self.timelineOffset = currentTime
         self.playing = isPlaying
     }
@@ -1604,7 +1647,10 @@ private final class TestOutputGraph: PCMOutputControlling, @unchecked Sendable {
         }
     }
 
-    func reset(timelineOffset: TimeInterval) {
+    func reset(timelineOffset: TimeInterval) throws {
+        if let resetError {
+            throw resetError
+        }
         lock.lock()
         defer { lock.unlock() }
         self.timelineOffset = timelineOffset
@@ -1618,7 +1664,10 @@ private final class TestOutputGraph: PCMOutputControlling, @unchecked Sendable {
         timelineOffset = time
     }
 
-    func requestPlay() {
+    func requestPlay() throws {
+        if let requestPlayError {
+            throw requestPlayError
+        }
         lock.lock()
         defer { lock.unlock() }
         playing = true

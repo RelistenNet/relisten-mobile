@@ -1,5 +1,4 @@
 import Foundation
-import MediaPlayer
 
 final class GaplessBackendPresentationCoordinator {
     private let playbackPresentationController: PlaybackPresentationController
@@ -134,24 +133,8 @@ final class GaplessBackendPresentationCoordinator {
             duration: snapshot.currentDuration,
             elapsed: snapshot.elapsed,
             rate: update.playbackRate,
-            artworkURL: URL(string: streamable.albumArt),
-            mediaCenterPlaybackState: mediaCenterPlaybackState(from: update.mediaCenterPlaybackState)
+            artworkURL: URL(string: streamable.albumArt)
         )
-    }
-
-    private func mediaCenterPlaybackState(
-        from state: MediaCenterPlaybackState
-    ) -> MPNowPlayingPlaybackState {
-        switch state {
-        case .stopped:
-            return .stopped
-        case .playing:
-            return .playing
-        case .paused:
-            return .paused
-        case .interrupted:
-            return .interrupted
-        }
     }
 
     private func logPresentationDecision(

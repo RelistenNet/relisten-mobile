@@ -169,6 +169,25 @@ final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
         XCTAssertTrue(gate.shouldApply(currentRevision))
     }
 
+    func testNowPlayingElapsedWritePolicyThrottlesSteadyPlayingElapsedUpdates() {
+        let policy = NowPlayingElapsedWritePolicy(interval: 5, discontinuityThreshold: 1)
+        let anchor = NowPlayingElapsedWriteAnchor(elapsed: 10, uptime: 100, rate: 1)
+
+        XCTAssertFalse(policy.shouldWrite(elapsed: 14.9, rate: 1, latestAnchor: anchor, now: 104.9))
+        XCTAssertTrue(policy.shouldWrite(elapsed: 15, rate: 1, latestAnchor: anchor, now: 105))
+    }
+
+    func testNowPlayingElapsedWritePolicyWritesStateChangesAndDiscontinuitiesImmediately() {
+        let policy = NowPlayingElapsedWritePolicy(interval: 5, discontinuityThreshold: 1)
+        let playingAnchor = NowPlayingElapsedWriteAnchor(elapsed: 10, uptime: 100, rate: 1)
+        let pausedAnchor = NowPlayingElapsedWriteAnchor(elapsed: 10, uptime: 100, rate: 0)
+
+        XCTAssertTrue(policy.shouldWrite(elapsed: 12, rate: 0, latestAnchor: playingAnchor, now: 102))
+        XCTAssertTrue(policy.shouldWrite(elapsed: 30, rate: 1, latestAnchor: playingAnchor, now: 101))
+        XCTAssertFalse(policy.shouldWrite(elapsed: 10.02, rate: 0, latestAnchor: pausedAnchor, now: 102))
+        XCTAssertTrue(policy.shouldWrite(elapsed: 11, rate: 0, latestAnchor: pausedAnchor, now: 102))
+    }
+
     func testNativeHandledPlayPauseRemoteCommandsAreNotForwardedToJavaScript() {
         XCTAssertFalse(NativeRemoteControlForwardingPolicy.shouldForwardToJavaScript("pause"))
         XCTAssertFalse(NativeRemoteControlForwardingPolicy.shouldForwardToJavaScript("resume"))

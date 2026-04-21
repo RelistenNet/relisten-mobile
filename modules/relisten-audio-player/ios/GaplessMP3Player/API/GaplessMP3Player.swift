@@ -6,8 +6,8 @@ private let playerLifecycleLog = RelistenPlaybackLogger(layer: .player, category
 protocol PCMOutputControlling: AnyObject, Sendable {
     var isPlaying: Bool { get }
     var volume: Float { get set }
-    func reset(timelineOffset: TimeInterval)
-    func requestPlay()
+    func reset(timelineOffset: TimeInterval) throws
+    func requestPlay() throws
     func schedule(_ chunk: PCMChunk, playedBack: (@Sendable () -> Void)?) throws
     func pause()
     func markDecodeFinished()
@@ -28,10 +28,10 @@ private final class LockedValue<Value>: @unchecked Sendable {
         return value
     }
 
-    func withValue<T>(_ body: (inout Value) -> T) -> T {
+    func withValue<T>(_ body: (inout Value) throws -> T) rethrows -> T {
         lock.lock()
         defer { lock.unlock() }
-        return body(&value)
+        return try body(&value)
     }
 }
 
@@ -293,12 +293,12 @@ public final class GaplessMP3Player: @unchecked Sendable {
 
             let clampedTime = max(0, min(time, duration))
             let shouldResumePlayback = self.stateStore.get().playbackPhase == .playing
-            self.stateStore.withValue { state in
+            try self.stateStore.withValue { state in
                 state.requestedStartTime = clampedTime
                 state.publicTimelineOffset = 0
                 state.pendingTrackTransition = nil
                 state.scheduledTrackBoundaries = []
-                state.outputGraph?.reset(timelineOffset: clampedTime)
+                try state.outputGraph?.reset(timelineOffset: clampedTime)
             }
             self.refreshSnapshotOnPlaybackQueue(absoluteTimelineTime: clampedTime)
             return shouldResumePlayback
@@ -468,21 +468,31 @@ public final class GaplessMP3Player: @unchecked Sendable {
         // idempotent; resetting the graph would jump back to requestedStartTime,
         // which may be an old seek target rather than the live audio position.
         if stateStore.get().playbackPhase == .playing && !restartPipelineIfPlaying {
-            stateStore.withValue { state in
-                state.outputGraph?.requestPlay()
+            do {
+                try stateStore.withValue { state in
+                    try state.outputGraph?.requestPlay()
+                }
+            } catch {
+                handlePlaybackFailureOnPlaybackQueue(error)
+                return
             }
             refreshSnapshotOnPlaybackQueue()
             return
         }
 
         let startTime = stateStore.get().requestedStartTime
-        stateStore.withValue { state in
-            state.playbackPhase = .playing
-            state.publicTimelineOffset = 0
-            state.lastPlaybackFailure = nil
-            state.scheduledTrackBoundaries = []
-            state.outputGraph?.reset(timelineOffset: startTime)
-            state.outputGraph?.requestPlay()
+        do {
+            try stateStore.withValue { state in
+                state.playbackPhase = .playing
+                state.publicTimelineOffset = 0
+                state.lastPlaybackFailure = nil
+                state.scheduledTrackBoundaries = []
+                try state.outputGraph?.reset(timelineOffset: startTime)
+                try state.outputGraph?.requestPlay()
+            }
+        } catch {
+            handlePlaybackFailureOnPlaybackQueue(error)
+            return
         }
         refreshSnapshotOnPlaybackQueue(absoluteTimelineTime: startTime)
 
@@ -727,11 +737,15 @@ public final class GaplessMP3Player: @unchecked Sendable {
 
     private func handleBecameReady() async {
         await performOnPlaybackQueue {
-            self.stateStore.withValue {
-                $0.outputGraph?.requestPlay()
-                $0.playbackPhase = .playing
+            do {
+                try self.stateStore.withValue {
+                    try $0.outputGraph?.requestPlay()
+                    $0.playbackPhase = .playing
+                }
+                self.refreshSnapshotOnPlaybackQueue()
+            } catch {
+                self.handlePlaybackFailureOnPlaybackQueue(error)
             }
-            self.refreshSnapshotOnPlaybackQueue()
         }
     }
 
@@ -813,19 +827,38 @@ public final class GaplessMP3Player: @unchecked Sendable {
     }
 
     private func handlePlaybackFailure(_ error: Error, sessionID explicitSessionID: String? = nil) async {
-        guard let failure = GaplessPlaybackFailure.make(from: error) else { return }
-        let sessionID = await performOnPlaybackQueue {
-            let sessionID = explicitSessionID ?? self.stateStore.get().activePipelineSessionID
-            self.stateStore.withValue {
-                $0.playbackPhase = .failed
-                $0.lastPlaybackFailure = failure
-                $0.activePipelineSessionID = nil
-                $0.scheduledTrackBoundaries = []
-            }
-            self.refreshSnapshotOnPlaybackQueue()
-            return sessionID
+        let appliedFailure = await performOnPlaybackQueue {
+            self.applyPlaybackFailureOnPlaybackQueue(error, sessionID: explicitSessionID)
         }
-        playerLifecycleLog.debug(
+        guard let appliedFailure else { return }
+        dispatchPlaybackFailure(appliedFailure.failure, sessionID: appliedFailure.sessionID)
+    }
+
+    private func handlePlaybackFailureOnPlaybackQueue(_ error: Error, sessionID explicitSessionID: String? = nil) {
+        dispatchPrecondition(condition: .onQueue(playbackQueue))
+        guard let appliedFailure = applyPlaybackFailureOnPlaybackQueue(error, sessionID: explicitSessionID) else { return }
+        dispatchPlaybackFailure(appliedFailure.failure, sessionID: appliedFailure.sessionID)
+    }
+
+    private func applyPlaybackFailureOnPlaybackQueue(
+        _ error: Error,
+        sessionID explicitSessionID: String?
+    ) -> (failure: GaplessPlaybackFailure, sessionID: String?)? {
+        dispatchPrecondition(condition: .onQueue(playbackQueue))
+        guard let failure = GaplessPlaybackFailure.make(from: error) else { return nil }
+        let sessionID = explicitSessionID ?? stateStore.get().activePipelineSessionID
+        stateStore.withValue {
+            $0.playbackPhase = .failed
+            $0.lastPlaybackFailure = failure
+            $0.activePipelineSessionID = nil
+            $0.scheduledTrackBoundaries = []
+        }
+        refreshSnapshotOnPlaybackQueue()
+        return (failure, sessionID)
+    }
+
+    private func dispatchPlaybackFailure(_ failure: GaplessPlaybackFailure, sessionID: String?) {
+        playerLifecycleLog.error(
             "dispatched",
             "playback failure",
             playbackLogField("sess", sessionID),

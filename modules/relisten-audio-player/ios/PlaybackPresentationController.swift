@@ -3,6 +3,21 @@ import MediaPlayer
 import UIKit
 
 private let presentationLog = RelistenPlaybackLogger(layer: .backend, category: .state)
+private let nowPlayingElapsedWritePolicy = NowPlayingElapsedWritePolicy(interval: 5)
+
+private func nowPlayingRateDescription(_ nowPlayingInfo: [String: Any]) -> String {
+    if let rate = nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] as? Float {
+        return String(format: "%.2f", rate)
+    }
+    return "-"
+}
+
+private func nowPlayingElapsedDescription(_ nowPlayingInfo: [String: Any]) -> String {
+    if let elapsed = nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? TimeInterval {
+        return String(format: "%.3f", elapsed)
+    }
+    return "-"
+}
 
 private final class ArtworkURLCache<Value> {
     private let capacity: Int
@@ -55,7 +70,6 @@ final class PlaybackPresentationController {
         var elapsed: TimeInterval?
         var rate: Float
         var artworkURL: URL?
-        var mediaCenterPlaybackState: MPNowPlayingPlaybackState
     }
 
     private struct SnapshotIdentity: Equatable {
@@ -63,26 +77,25 @@ final class PlaybackPresentationController {
         let artist: String
         let album: String
         let duration: TimeInterval?
-        let elapsed: TimeInterval?
+        let hasElapsed: Bool
         let rate: Float
         let artworkURL: URL?
-        let mediaCenterPlaybackStateRawValue: UInt
 
         init(_ snapshot: Snapshot) {
             title = snapshot.title
             artist = snapshot.artist
             album = snapshot.album
             duration = snapshot.duration
-            elapsed = snapshot.elapsed
+            hasElapsed = snapshot.elapsed != nil
             rate = snapshot.rate
             artworkURL = snapshot.artworkURL
-            mediaCenterPlaybackStateRawValue = snapshot.mediaCenterPlaybackState.rawValue
         }
     }
 
     private struct State {
         var latestNowPlayingInfo: [String: Any] = [:]
         var latestSnapshotIdentity: SnapshotIdentity?
+        var latestElapsedWriteAnchor: NowPlayingElapsedWriteAnchor?
         var artworkURL: URL?
         var artwork: MPMediaItemArtwork?
         var artworkRequestID: UInt64 = 0
@@ -126,6 +139,7 @@ final class PlaybackPresentationController {
     }
 
     private func applySnapshot(_ snapshot: Snapshot, freezeAfterApply: Bool) {
+        let now = ProcessInfo.processInfo.systemUptime
         let snapshotIdentity = SnapshotIdentity(snapshot)
 
         // Keep playback state, rate, elapsed anchor, and metadata in one
@@ -148,11 +162,7 @@ final class PlaybackPresentationController {
         var artworkRequest: (url: URL, requestID: UInt64)?
 
         lock.lock()
-        if !freezeAfterApply, !state.isFrozen, state.latestSnapshotIdentity == snapshotIdentity {
-            lock.unlock()
-            return
-        }
-
+        let wasFrozen = state.isFrozen
         state.isFrozen = false
         if snapshot.artworkURL == state.artworkURL {
             if let currentArtwork = state.artwork {
@@ -180,9 +190,35 @@ final class PlaybackPresentationController {
         if let cachedArtwork {
             nowPlayingInfo[MPMediaItemPropertyArtwork] = cachedArtwork
         }
+
+        let shouldWrite = freezeAfterApply
+            || wasFrozen
+            || state.latestSnapshotIdentity != snapshotIdentity
+            || nowPlayingElapsedWritePolicy.shouldWrite(
+                elapsed: snapshot.elapsed,
+                rate: snapshot.rate,
+                latestAnchor: state.latestElapsedWriteAnchor,
+                now: now
+            )
+
+        if !shouldWrite {
+            state.latestNowPlayingInfo = nowPlayingInfo
+            lock.unlock()
+
+            if let artworkRequest {
+                fetchArtwork(from: artworkRequest.url, requestID: artworkRequest.requestID)
+            }
+            return
+        }
+
         let revision = state.presentationRevisionGate.advance()
         state.latestNowPlayingInfo = nowPlayingInfo
         state.latestSnapshotIdentity = snapshotIdentity
+        state.latestElapsedWriteAnchor = nowPlayingElapsedWritePolicy.anchor(
+            elapsed: snapshot.elapsed,
+            rate: snapshot.rate,
+            now: now
+        )
         state.isFrozen = freezeAfterApply
         if freezeAfterApply {
             // A frozen final interruption snapshot should not start a fresh
@@ -194,10 +230,7 @@ final class PlaybackPresentationController {
         }
         lock.unlock()
 
-        writeNowPlayingInfo(
-            nowPlayingInfo: nowPlayingInfo,
-            revision: revision
-        )
+        writeNowPlayingInfo(nowPlayingInfo: nowPlayingInfo, revision: revision)
 
         if let artworkRequest {
             fetchArtwork(from: artworkRequest.url, requestID: artworkRequest.requestID)
@@ -228,6 +261,7 @@ final class PlaybackPresentationController {
         state.isFrozen = false
         state.latestNowPlayingInfo = [:]
         state.latestSnapshotIdentity = nil
+        state.latestElapsedWriteAnchor = nil
         state.artworkURL = nil
         state.artwork = nil
         state.artworkRequestID &+= 1
@@ -236,6 +270,11 @@ final class PlaybackPresentationController {
 
         performPresentationWrite(revision: revision) {
             MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+            presentationLog.info(
+                "cleared",
+                "now playing info",
+                playbackLogIntegerField("rev", revision)
+            )
         }
     }
 
@@ -247,7 +286,7 @@ final class PlaybackPresentationController {
                 .flatMap(UIImage.init(data:))
                 .map { image in
                     MPMediaItemArtwork(boundsSize: image.size) { _ in image }
-                }
+            }
             var nowPlayingInfo: [String: Any]?
             var revision: UInt64?
 
@@ -275,6 +314,11 @@ final class PlaybackPresentationController {
                 var updatedInfo = self.state.latestNowPlayingInfo
                 updatedInfo[MPMediaItemPropertyArtwork] = artwork
                 self.state.latestNowPlayingInfo = updatedInfo
+                self.state.latestElapsedWriteAnchor = nowPlayingElapsedWritePolicy.anchor(
+                    elapsed: updatedInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? TimeInterval,
+                    rate: updatedInfo[MPNowPlayingInfoPropertyPlaybackRate] as? Float ?? 0,
+                    now: ProcessInfo.processInfo.systemUptime
+                )
                 nowPlayingInfo = updatedInfo
                 revision = self.state.presentationRevisionGate.advance()
             }
@@ -297,10 +341,7 @@ final class PlaybackPresentationController {
                 playbackLogIntegerField("req", requestID),
                 playbackLogIntegerField("rev", revision)
             )
-            self.writeNowPlayingInfo(
-                nowPlayingInfo: nowPlayingInfo,
-                revision: revision
-            )
+            self.writeNowPlayingInfo(nowPlayingInfo: nowPlayingInfo, revision: revision)
         }.resume()
     }
 
@@ -309,18 +350,27 @@ final class PlaybackPresentationController {
         revision: UInt64
     ) {
         performPresentationWrite(revision: revision) {
-            // `MPNowPlayingInfoCenter.playbackState` is a public property, but on
-            // device MediaRemote rejects third-party writes without
-            // `com.apple.mediaremote.set-playback-state`. The supported control
-            // signal for Relisten is therefore this dictionary, especially
-            // `MPNowPlayingInfoPropertyPlaybackRate`.
             MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+            presentationLog.info(
+                "wrote",
+                "now playing info",
+                playbackLogIntegerField("rev", revision),
+                playbackLogField("rate", nowPlayingRateDescription(nowPlayingInfo)),
+                playbackLogField("elapsed", nowPlayingElapsedDescription(nowPlayingInfo))
+            )
         }
     }
 
     private func performPresentationWrite(revision: UInt64, _ write: @escaping () -> Void) {
         let applyIfCurrent = {
-            guard self.isCurrentPresentationRevision(revision) else { return }
+            guard self.isCurrentPresentationRevision(revision) else {
+                presentationLog.info(
+                    "skipped",
+                    "stale presentation write",
+                    playbackLogIntegerField("rev", revision)
+                )
+                return
+            }
             write()
         }
 
