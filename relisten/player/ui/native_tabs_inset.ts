@@ -11,10 +11,12 @@ const ANDROID_NATIVE_TAB_BAR_HEIGHT = 64;
 export const getCompatibleNativeTabsBottomInset = ({
   platformOs,
   insetBottom,
+  measuredAndroidBottomInset,
   stableIosBottomInset,
 }: {
   platformOs: typeof Platform.OS;
   insetBottom: number;
+  measuredAndroidBottomInset?: number;
   stableIosBottomInset: number;
 }) => {
   if (platformOs === 'ios') {
@@ -24,13 +26,20 @@ export const getCompatibleNativeTabsBottomInset = ({
   }
 
   if (platformOs === 'android') {
+    // React Navigation's measured tab bar height already includes its bottom inset.
+    if (measuredAndroidBottomInset !== undefined && measuredAndroidBottomInset > 0) {
+      return measuredAndroidBottomInset;
+    }
+
     return ANDROID_NATIVE_TAB_BAR_HEIGHT + 6;
   }
 
   return 0;
 };
 
-export function useCompatibleNativeTabsBottomInset() {
+export function useCompatibleNativeTabsBottomInset({
+  measuredAndroidBottomInset,
+}: { measuredAndroidBottomInset?: number } = {}) {
   const insets = useSafeAreaInsets();
   const [stableIosBottomInset, setStableIosBottomInset] = useState(insets.bottom);
 
@@ -43,6 +52,7 @@ export function useCompatibleNativeTabsBottomInset() {
   return getCompatibleNativeTabsBottomInset({
     platformOs: Platform.OS,
     insetBottom: insets.bottom,
+    measuredAndroidBottomInset,
     stableIosBottomInset,
   });
 }

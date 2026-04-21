@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { BottomTabBar, type BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import 'react-native-gesture-handler';
@@ -21,8 +22,10 @@ import {
 import {
   useIsPlayerBottomBarVisible,
   usePlayerBarPlacementBackend,
+  useRelistenPlayerBottomBarContext,
 } from '@/relisten/player/ui/player_bar_layout';
-import { Image, Platform, View } from 'react-native';
+import { useCallback } from 'react';
+import { Image, type LayoutChangeEvent, Platform, View } from 'react-native';
 
 const ACTIVE_TINT = '#009DC1';
 const INACTIVE_TINT = 'gray';
@@ -59,6 +62,27 @@ function renderTabIcon({
   return <Image source={ToolbarRelisten} style={{ tintColor: color, width: size, height: size }} />;
 }
 
+function MeasuredAndroidTabBar(props: BottomTabBarProps) {
+  const { bottomTabBarHeight, setBottomTabBarHeight } = useRelistenPlayerBottomBarContext();
+
+  const onLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      const measuredHeight = Math.round(event.nativeEvent.layout.height);
+
+      if (measuredHeight > 0 && measuredHeight !== bottomTabBarHeight) {
+        setBottomTabBarHeight(measuredHeight);
+      }
+    },
+    [bottomTabBarHeight, setBottomTabBarHeight]
+  );
+
+  return (
+    <View collapsable={false} onLayout={onLayout}>
+      <BottomTabBar {...props} />
+    </View>
+  );
+}
+
 export default function TabLayout() {
   const downloadsCount = useRemainingDownloadsCount();
   const liveSettings = useObject(UserSettings, DEFAULT_SETTINGS_SENTINEL, ['showOfflineTab']);
@@ -77,6 +101,7 @@ export default function TabLayout() {
       <View className="flex-1">
         <Tabs
           key={offlineTabVisibilityKey}
+          tabBar={(props) => <MeasuredAndroidTabBar {...props} />}
           screenOptions={({ route }) => ({
             freezeOnBlur: true,
             headerShown: false,

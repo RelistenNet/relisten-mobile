@@ -14,7 +14,9 @@ export interface PlayerBarLayout {
 }
 
 export interface RelistenPlayerBottomBarContextProps {
+  bottomTabBarHeight?: number;
   playerBottomBarHeight: number;
+  setBottomTabBarHeight: (num: number) => void;
   setPlayerBottomBarHeight: (num: number) => void;
 }
 
@@ -25,6 +27,7 @@ export const RelistenPlayerBottomBarContext = React.createContext<
 >(undefined);
 
 export const RelistenPlayerBottomBarProvider = ({ children }: PropsWithChildren<object>) => {
+  const [bottomTabBarHeight, setBottomTabBarHeight] = useState<number | undefined>(undefined);
   const [playerBottomBarHeight, setPlayerBottomBarHeight] = useState(
     DEFAULT_PLAYER_BOTTOM_BAR_VISUAL_HEIGHT
   );
@@ -32,7 +35,9 @@ export const RelistenPlayerBottomBarProvider = ({ children }: PropsWithChildren<
   return (
     <RelistenPlayerBottomBarContext.Provider
       value={{
+        bottomTabBarHeight,
         playerBottomBarHeight,
+        setBottomTabBarHeight,
         setPlayerBottomBarHeight,
       }}
     >
@@ -179,7 +184,11 @@ export const usePlayerBarPlacementBackend = (): PlayerBarPlacementBackend => {
 };
 
 export const usePlayerBarPlacementOffset = () => {
-  return useCompatibleNativeTabsBottomInset();
+  const { bottomTabBarHeight } = useRelistenPlayerBottomBarContext();
+
+  return useCompatibleNativeTabsBottomInset({
+    measuredAndroidBottomInset: bottomTabBarHeight,
+  });
 };
 
 export const usePlayerBarLayout = (): PlayerBarLayout => {
