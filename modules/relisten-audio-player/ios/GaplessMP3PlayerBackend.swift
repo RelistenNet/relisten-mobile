@@ -7,6 +7,7 @@ private let backendLifecycleLog = RelistenPlaybackLogger(layer: .backend, catego
 private let backendNetworkLog = RelistenPlaybackLogger(layer: .backend, category: .network)
 private let backendStateLog = RelistenPlaybackLogger(layer: .backend, category: .state)
 private let backendErrorLog = RelistenPlaybackLogger(layer: .backend, category: .error)
+private let resumePresentationGraceInterval: TimeInterval = 1.0
 
 private final class BackendLockedValue<Value>: @unchecked Sendable {
     private let lock = NSLock()
@@ -31,12 +32,6 @@ private final class BackendLockedValue<Value>: @unchecked Sendable {
 
 // Mutable backend state is either confined to backendQueue/delegateQueue or protected by BackendLockedValue.
 final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
-    private enum DesiredTransport {
-        case playing
-        case paused
-        case stopped
-    }
-
     private struct PendingStartTimeAfterPrepare {
         let generation: UInt64
         let milliseconds: Int64
@@ -60,7 +55,26 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
         var pendingStartTimeAfterPrepare: PendingStartTimeAfterPrepare?
         var generation: UInt64 = 0
         var seekSequence: UInt64 = 0
-        var desiredTransport: DesiredTransport = .stopped
+        // Transport intent is separate from renderer state. During buffering,
+        // the user still wants playback even if the output graph is not yet
+        // producing audio.
+        var desiredTransport: MediaCenterDesiredTransport = .stopped
+        // System suspension is not a user pause. It preserves whether a later
+        // interruption-ended event may resume playback.
+        var systemSuspension: MediaCenterSystemSuspension = .none
+        // Write mode models Media Center ownership. Suppressed/frozen state is
+        // what prevents stale status polling or artwork callbacks from stealing
+        // the lock screen back from another app.
+        var mediaCenterWriteMode: MediaCenterWriteMode = .active
+        // Short-lived grace anchor for startup/resume presentation. After it
+        // expires, JS can show stalled while Media Center still reflects
+        // desired playback.
+        var resumeStartedAtUptime: TimeInterval?
+        // Raw render observations. Presentation decides how these map to JS and
+        // Media Center because those two surfaces intentionally differ during
+        // buffering.
+        var renderStatus: MediaCenterRenderStatus = .stopped
+        var renderIsPlaying = false
         var currentSessionID: String?
         var isPreparingCurrentTrack = false
         var progressPollingGeneration: UInt64?
@@ -103,6 +117,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
     private let audioSessionController = AudioSessionController()
     private let playbackPresentationController = PlaybackPresentationController()
     private var wasPlayingWhenInterrupted = false
+    private var secondaryAudioSilenceHintActive = AVAudioSession.sharedInstance().secondaryAudioShouldBeSilencedHint
     private var hasInstalledAudioSessionHandlers = false
     private var hasReportedAudioSessionSetup = false
 
@@ -286,29 +301,24 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             onPreviousTrack: self.handlePreviousTrackRemoteCommand
         )
         audioSessionController.configureSessionObservers(
-            onOldDeviceUnavailable: { [weak self] in
+            onRouteChange: { [weak self] event in
                 self?.backendQueue.async {
-                    self?.handleOldDeviceUnavailableOnQueue()
+                    self?.handleRouteChangeOnQueue(event)
                 }
             },
-            onInterruptionBegan: { [weak self] in
+            onInterruption: { [weak self] event in
                 self?.backendQueue.async {
-                    self?.handleInterruptionBeganOnQueue()
+                    self?.handleInterruptionOnQueue(event)
                 }
             },
-            onInterruptionEndedShouldResume: { [weak self] in
+            onSilenceSecondaryAudioHint: { [weak self] event in
                 self?.backendQueue.async {
-                    self?.handleInterruptionEndedShouldResumeOnQueue()
+                    self?.handleSilenceSecondaryAudioHintOnQueue(event)
                 }
             },
-            onMediaServicesReset: { [weak self] in
+            onMediaServices: { [weak self] kind in
                 self?.backendQueue.async {
-                    self?.handleMediaServicesResetOnQueue()
-                }
-            },
-            onMediaServicesLost: { [weak self] in
-                self?.backendQueue.async {
-                    self?.handleMediaServicesResetOnQueue()
+                    self?.handleMediaServicesOnQueue(kind)
                 }
             }
         )
@@ -356,6 +366,9 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
            currentStreamable.identifier == streamable.identifier,
            let startingAtMs {
             if snapshot.isPreparingCurrentTrack {
+                // JS can request a start offset while the native prepare is
+                // still loading metadata. Store the seek with the current
+                // generation so a superseded prepare cannot consume it later.
                 snapshotStore.withValue {
                     $0.pendingStartTimeAfterPrepare = PendingStartTimeAfterPrepare(
                         generation: $0.generation,
@@ -374,8 +387,12 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             return
         }
 
-        let previousState = snapshot.currentState
+        let previous = snapshot
         let (generation, sessionID) = snapshotStore.withValue { snapshot in
+            // A new generation is the backend's boundary for stale async status,
+            // progress, and presentation work. It does not cancel the lower
+            // level player operation by itself; every await below re-checks this
+            // token before publishing back into app/Media Center state.
             var supersessionState = PlaySupersessionState(activeGeneration: snapshot.generation)
             let generation = supersessionState.beginPlayRequest()
             let sessionID = UUID().uuidString
@@ -383,10 +400,14 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             snapshot.seekSequence = 0
             snapshot.currentSessionID = sessionID
             snapshot.desiredTransport = .playing
+            snapshot.systemSuspension = .none
+            snapshot.mediaCenterWriteMode = .active
+            snapshot.resumeStartedAtUptime = ProcessInfo.processInfo.systemUptime
+            snapshot.renderStatus = .preparing
+            snapshot.renderIsPlaying = false
             snapshot.currentStreamable = streamable
             snapshot.nextStreamable = nil
             snapshot.desiredNextStreamable = nil
-            snapshot.currentState = .Stalled
             snapshot.currentDuration = nil
             snapshot.elapsed = nil
             snapshot.activeTrackDownloadedBytes = nil
@@ -402,8 +423,8 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             return (generation, sessionID)
         }
         player.sessionID = sessionID
-        playbackPresentationController.setPlaybackState(.Stalled)
-        emitStateIfNeeded(previous: previousState, current: .Stalled)
+        applyPresentationAndEmit(previous: previous)
+        scheduleResumeGraceExpirationIfNeededOnQueue(for: generation)
         backendCommandLog.info(
             "accepted",
             "playback request",
@@ -420,6 +441,10 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
                     "old session before prepare",
                     playbackLogIntegerField("gen", generation)
                 )
+                // Reset the old output graph before preparing the new source so
+                // audible old audio cannot continue behind the next lock-screen
+                // item. The generation checks that follow keep stale results
+                // from being presented if the user already chose another track.
                 await self.player.stop()
                 guard self.shouldContinueAsyncWork(for: generation) else { return }
                 try await self.player.prepare(current: currentSource, next: nil)
@@ -468,7 +493,14 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             } catch {
                 self.backendQueue.async {
                     guard self.shouldContinueAsyncWork(for: generation) else { return }
+                    let previous = self.snapshotStore.get()
                     self.snapshotStore.withValue {
+                        $0.desiredTransport = .stopped
+                        $0.systemSuspension = .none
+                        $0.mediaCenterWriteMode = .active
+                        $0.resumeStartedAtUptime = nil
+                        $0.renderStatus = .failed
+                        $0.renderIsPlaying = false
                         $0.currentStreamable = nil
                         $0.nextStreamable = nil
                         $0.desiredNextStreamable = nil
@@ -478,9 +510,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
                         $0.pendingStartTimeAfterPrepare = nil
                         $0.currentState = .Stopped
                     }
-                    self.playbackPresentationController.clearNowPlaying()
-                    self.playbackPresentationController.setPlaybackState(.Stopped)
-                    self.emitStateIfNeeded(previous: .Stalled, current: .Stopped)
+                    self.applyPresentationAndEmit(previous: previous)
                     self.emitError(error, for: streamable)
                 }
             }
@@ -545,16 +575,22 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             "resume command",
             playbackLogIntegerField("gen", snapshotStore.get().generation)
         )
-        snapshotStore.withValue { $0.desiredTransport = .playing }
+        let entrySnapshot = snapshotStore.get()
         ResumeCommandState(
-            isStopped: snapshotStore.get().currentState == .Stopped
+            isStopped: entrySnapshot.currentState == .Stopped || entrySnapshot.currentStreamable == nil
         ).perform(
             prepareAudioSession: { self.prepareAudioSessionOnQueue(shouldActivate: true) },
             play: { self.player.play() },
             updateStateToPlaying: {
                 self.updateSnapshotOnQueue {
-                    $0.currentState = .Playing
+                    $0.desiredTransport = .playing
+                    $0.systemSuspension = .none
+                    $0.mediaCenterWriteMode = .active
+                    $0.resumeStartedAtUptime = ProcessInfo.processInfo.systemUptime
+                    $0.renderStatus = .paused
+                    $0.renderIsPlaying = false
                 }
+                self.scheduleResumeGraceExpirationIfNeededOnQueue(for: self.snapshotStore.get().generation)
                 self.startProgressPollingIfNeededOnQueue(for: self.snapshotStore.get().generation)
             }
         )
@@ -569,6 +605,11 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
         player.pause()
         updateSnapshotOnQueue {
             $0.desiredTransport = .paused
+            $0.systemSuspension = .none
+            $0.mediaCenterWriteMode = .active
+            $0.resumeStartedAtUptime = nil
+            $0.renderStatus = .paused
+            $0.renderIsPlaying = false
             guard $0.currentState != .Stopped else { return }
             $0.currentState = .Paused
         }
@@ -587,14 +628,18 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
         )
         let previous = snapshotStore.get()
         let previousStreamable = previous.currentStreamable
-        let previousState = snapshotStore.withValue { snapshot -> PlaybackState in
-            let previousState = snapshot.currentState
+        snapshotStore.withValue { snapshot in
             if shouldInvalidateGeneration {
                 snapshot.generation += 1
                 snapshot.seekSequence = 0
             }
             snapshot.currentSessionID = nil
             snapshot.desiredTransport = .stopped
+            snapshot.systemSuspension = .none
+            snapshot.mediaCenterWriteMode = .active
+            snapshot.resumeStartedAtUptime = nil
+            snapshot.renderStatus = .stopped
+            snapshot.renderIsPlaying = false
             snapshot.currentStreamable = nil
             snapshot.nextStreamable = nil
             snapshot.desiredNextStreamable = nil
@@ -606,15 +651,9 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             snapshot.currentState = .Stopped
             snapshot.isPreparingCurrentTrack = false
             snapshot.progressPollingGeneration = nil
-            return previousState
         }
-        let current = snapshotStore.get()
         player.sessionID = nil
-        playbackPresentationController.clearNowPlaying()
-        playbackPresentationController.setPlaybackState(.Stopped)
-        emitStateIfNeeded(previous: previousState, current: .Stopped)
-        emitProgressIfNeeded(previous: previous, current: current)
-        emitDownloadProgressIfNeeded(previous: previous, current: current)
+        applyPresentationAndEmit(previous: previous)
         if emitTrackChanged, let previousStreamable {
             delegateQueue.async {
                 self.delegate?.trackChanged(previousStreamable: previousStreamable, currentStreamable: nil)
@@ -738,7 +777,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             self.snapshotStore.withValue { snapshot in
                 snapshot.elapsed = clampedTime
             }
-            self.emitProgressIfNeeded(previous: previous, current: self.snapshotStore.get())
+            self.applyPresentationAndEmit(previous: previous)
         }) else { return }
 
         Task { [weak self] in
@@ -781,7 +820,16 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             guard let self else { return }
             let status = await self.player.status()
             self.backendQueue.async {
-                guard self.snapshotStore.get().generation == generation else { return }
+                let snapshot = self.snapshotStore.get()
+                guard snapshot.generation == generation else { return }
+                guard !self.shouldIgnoreStatus(for: snapshot) else {
+                    // Suppression is about Media Center ownership. Even harmless
+                    // looking status refreshes can restart polling or rewrite
+                    // presentation, so they are ignored until explicit Relisten
+                    // resume makes writes active again.
+                    self.logIgnoredStatusDuringSuppression(snapshot: snapshot)
+                    return
+                }
                 self.applyStatus(status)
             }
         }
@@ -802,32 +850,55 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
 
     private func applyStatus(_ status: GaplessMP3PlayerStatus) {
         let previous = snapshotStore.get()
-        let currentStreamable = streamableMatching(id: status.currentSource?.id, snapshot: previous) ?? previous.currentStreamable
-        let nextStreamable = streamableMatching(id: status.nextSource?.id, snapshot: previous) ?? previous.nextStreamable
-        let translatedState = playbackState(for: status.playbackPhase)
+        guard !shouldIgnoreStatus(for: previous) else {
+            // The native player may still have a source prepared after Spotify
+            // or another app takes over. Do not let that prepared status
+            // recreate a Relisten lock-screen item.
+            logIgnoredStatusDuringSuppression(snapshot: previous)
+            return
+        }
+        let currentStreamable = streamableMatching(id: status.currentSource?.id, snapshot: previous)
+        let nextStreamable = streamableMatching(id: status.nextSource?.id, snapshot: previous)
         let downloadedBytes = unsignedValue(status.currentSourceDownload?.downloadedBytes)
         let totalBytes = unsignedValue(status.currentSourceDownload?.expectedBytes)
+
+        if let currentSource = status.currentSource, currentStreamable == nil {
+            // Active playback without a Relisten streamable would publish blank
+            // or mismatched lock-screen metadata. Treat it as an invariant
+            // failure and clear instead.
+            backendErrorLog.error(
+                "failed",
+                "status current source metadata resolution",
+                playbackLogField("nativeSrc", currentSource.id),
+                playbackLogField("current", previous.currentStreamable?.identifier),
+                playbackLogField("next", previous.nextStreamable?.identifier),
+                playbackLogField("desiredNext", previous.desiredNextStreamable?.identifier),
+                playbackLogIntegerField("gen", previous.generation)
+            )
+            stopOnQueue(emitTrackChanged: true)
+            return
+        }
 
         snapshotStore.withValue { snapshot in
             snapshot.currentDuration = status.duration
             snapshot.elapsed = status.currentTime
-            snapshot.currentState = translatedState
+            snapshot.renderStatus = renderStatus(for: status.playbackPhase)
+            snapshot.renderIsPlaying = status.isPlaying
             snapshot.currentStreamable = status.currentSource == nil ? nil : currentStreamable
             snapshot.nextStreamable = status.nextSource == nil ? nil : nextStreamable
             snapshot.activeTrackDownloadedBytes = downloadedBytes
             snapshot.activeTrackTotalBytes = totalBytes
             snapshot.isPreparingCurrentTrack = status.playbackPhase == .preparing
-            if translatedState == .Stopped || status.currentSource == nil {
+            if status.isPlaying, status.playbackPhase == .playing {
+                snapshot.resumeStartedAtUptime = nil
+            }
+            if status.playbackPhase == .stopped || status.currentSource == nil {
                 snapshot.progressPollingGeneration = nil
             }
         }
 
-        let current = snapshotStore.get()
-        syncNowPlaying(with: current)
-        playbackPresentationController.setPlaybackState(translatedState)
-        emitStateIfNeeded(previous: previous.currentState, current: translatedState)
-        emitProgressIfNeeded(previous: previous, current: current)
-        emitDownloadProgressIfNeeded(previous: previous, current: current)
+        let current = applyPresentationAndEmit(previous: previous)
+        logStatusApplication(status: status, snapshot: current)
         translateStreamingCacheCompletionIfNeeded(status: status, snapshot: current)
         if shouldKeepProgressPolling(for: current) {
             startProgressPollingIfNeededOnQueue(for: current.generation)
@@ -841,28 +912,70 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
         }
         switch event {
         case .playbackFailed(let failure, _):
-            if let currentStreamable = snapshotStore.get().currentStreamable {
+            let previous = snapshotStore.get()
+            snapshotStore.withValue {
+                $0.renderStatus = .failed
+                $0.renderIsPlaying = false
+                $0.resumeStartedAtUptime = nil
+            }
+            applyPresentationAndEmit(previous: previous)
+            if let currentStreamable = previous.currentStreamable {
                 emitError(failure, for: currentStreamable)
             }
         case .networkRetrying:
-            break
+            backendStateLog.debug(
+                "retrying",
+                "network playback",
+                playbackLogIntegerField("gen", snapshotStore.get().generation)
+            )
         case .trackTransitioned(let previous, let current, _):
             let snapshot = snapshotStore.get()
             let previousStreamable = streamableMatching(id: previous?.id, snapshot: snapshot) ?? snapshot.currentStreamable
-            let currentStreamable = streamableMatching(id: current?.id, snapshot: snapshot) ?? snapshot.nextStreamable
+            let currentStreamable = streamableMatching(id: current?.id, snapshot: snapshot)
+            guard current == nil || currentStreamable != nil else {
+                // Do not publish the new native current source until it maps
+                // back to Relisten metadata. That avoids an active tile with nil
+                // title/artwork during gapless handoff races.
+                backendErrorLog.error(
+                    "failed",
+                    "track transition metadata resolution",
+                    playbackLogField("nativePrev", previous?.id),
+                    playbackLogField("nativeCurrent", current?.id),
+                    playbackLogField("current", snapshot.currentStreamable?.identifier),
+                    playbackLogField("next", snapshot.nextStreamable?.identifier),
+                    playbackLogField("desiredNext", snapshot.desiredNextStreamable?.identifier),
+                    playbackLogIntegerField("gen", snapshot.generation)
+                )
+                stopOnQueue(emitTrackChanged: true)
+                return
+            }
+            guard let currentStreamable else {
+                stopOnQueue(emitTrackChanged: true)
+                return
+            }
             backendStateLog.info(
                 "committed",
                 "track transition",
+                playbackLogField("nativePrev", previous?.id),
+                playbackLogField("nativeCurrent", current?.id),
                 playbackLogField("prev", previousStreamable?.identifier),
-                playbackLogField("next", currentStreamable?.identifier),
+                playbackLogField("current", currentStreamable.identifier),
+                playbackLogField("oldNext", snapshot.nextStreamable?.identifier),
+                playbackLogField("oldDesiredNext", snapshot.desiredNextStreamable?.identifier),
                 playbackLogField("sess", eventSessionID),
                 playbackLogIntegerField("gen", snapshot.generation)
             )
+            let previousSnapshot = snapshot
             snapshotStore.withValue {
                 $0.currentStreamable = currentStreamable
                 $0.nextStreamable = nil
                 $0.desiredNextStreamable = nil
+                $0.currentDuration = nil
+                $0.elapsed = nil
             }
+            // Apply immediately so the old track does not remain visible at
+            // 100% while the status round trip fetches the new duration/elapsed.
+            applyPresentationAndEmit(previous: previousSnapshot)
             delegateQueue.async {
                 self.delegate?.trackChanged(previousStreamable: previousStreamable, currentStreamable: currentStreamable)
             }
@@ -878,11 +991,16 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
                 playbackLogIntegerField("gen", snapshot.generation)
             )
             let previousStreamable = snapshot.currentStreamable
-            let previousState = snapshotStore.withValue { snapshot -> PlaybackState in
-                let previousState = snapshot.currentState
+            snapshotStore.withValue { snapshot in
                 snapshot.generation += 1
                 snapshot.seekSequence = 0
                 snapshot.currentSessionID = nil
+                snapshot.desiredTransport = .stopped
+                snapshot.systemSuspension = .none
+                snapshot.mediaCenterWriteMode = .active
+                snapshot.resumeStartedAtUptime = nil
+                snapshot.renderStatus = .stopped
+                snapshot.renderIsPlaying = false
                 snapshot.currentState = .Stopped
                 snapshot.currentStreamable = nil
                 snapshot.nextStreamable = nil
@@ -894,15 +1012,9 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
                 snapshot.pendingStartTimeAfterPrepare = nil
                 snapshot.isPreparingCurrentTrack = false
                 snapshot.progressPollingGeneration = nil
-                return previousState
             }
-            let current = snapshotStore.get()
             player.sessionID = nil
-            playbackPresentationController.clearNowPlaying()
-            playbackPresentationController.setPlaybackState(.Stopped)
-            emitStateIfNeeded(previous: previousState, current: .Stopped)
-            emitProgressIfNeeded(previous: snapshot, current: current)
-            emitDownloadProgressIfNeeded(previous: snapshot, current: current)
+            applyPresentationAndEmit(previous: snapshot)
             if let previousStreamable {
                 delegateQueue.async {
                     self.delegate?.trackChanged(previousStreamable: previousStreamable, currentStreamable: nil)
@@ -1024,19 +1136,6 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
         )
     }
 
-    private func playbackState(for phase: GaplessPlaybackPhase) -> PlaybackState {
-        switch phase {
-        case .playing:
-            return .Playing
-        case .paused:
-            return .Paused
-        case .preparing:
-            return .Stalled
-        case .stopped, .failed:
-            return .Stopped
-        }
-    }
-
     private func makeProgressSnapshot(from snapshot: Snapshot) -> PlaybackBackendProgressSnapshot {
         PlaybackBackendProgressSnapshot(
             elapsed: snapshot.elapsed,
@@ -1048,6 +1147,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
 
     private func shouldKeepProgressPolling(for snapshot: Snapshot) -> Bool {
         guard snapshot.currentStreamable != nil else { return false }
+        guard !shouldIgnoreStatus(for: snapshot) else { return false }
 
         switch snapshot.currentState {
         case .Playing, .Paused, .Stalled:
@@ -1071,9 +1171,245 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
         return nil
     }
 
+    private func shouldIgnoreStatus(for snapshot: Snapshot) -> Bool {
+        // External-media suppression is stronger than renderer truth. The
+        // player can still report a prepared source, but Relisten has yielded
+        // lock-screen ownership until the user explicitly resumes Relisten.
+        snapshot.mediaCenterWriteMode == .suppressed || snapshot.systemSuspension == .externalMedia
+    }
+
+    private func logIgnoredStatusDuringSuppression(snapshot: Snapshot) {
+        backendStateLog.debug(
+            "ignored",
+            "status during media center suppression",
+            playbackLogField("write", snapshot.mediaCenterWriteMode.rawValue),
+            playbackLogField("susp", snapshot.systemSuspension.rawValue),
+            playbackLogField("src", snapshot.currentStreamable?.identifier),
+            playbackLogIntegerField("gen", snapshot.generation)
+        )
+    }
+
+    @discardableResult
+    private func applyPresentationAndEmit(previous: Snapshot, freezeAfterUpdate: Bool = false) -> Snapshot {
+        // Presentation is the only place that translates native renderer facts
+        // into both JS state and Media Center state. Keeping delegate emission
+        // adjacent to that write makes the two surfaces easier to reason about.
+        let current = applyPresentationOnQueue(freezeAfterUpdate: freezeAfterUpdate)
+        emitStateIfNeeded(previous: previous.currentState, current: current.currentState)
+        emitProgressIfNeeded(previous: previous, current: current)
+        emitDownloadProgressIfNeeded(previous: previous, current: current)
+        return current
+    }
+
+    @discardableResult
+    private func applyPresentationOnQueue(freezeAfterUpdate: Bool = false) -> Snapshot {
+        let now = ProcessInfo.processInfo.systemUptime
+        let (snapshot, decision) = snapshotStore.withValue { snapshot -> (Snapshot, MediaCenterPresentationDecision) in
+            let decision = resolvePresentationDecision(for: snapshot, now: now)
+            if let appState = appState(for: decision) {
+                snapshot.currentState = playbackState(from: appState)
+            }
+            return (snapshot, decision)
+        }
+
+        logPresentationDecision(decision, snapshot: snapshot)
+
+        switch decision {
+        case .clear:
+            playbackPresentationController.apply(nil)
+        case .freeze:
+            playbackPresentationController.freeze()
+        case .update(let update):
+            if let presentationSnapshot = makePresentationSnapshot(from: snapshot, update: update) {
+                if freezeAfterUpdate {
+                    playbackPresentationController.applyAndFreeze(presentationSnapshot)
+                } else {
+                    playbackPresentationController.apply(presentationSnapshot)
+                }
+            } else {
+                playbackPresentationController.apply(nil)
+            }
+        }
+
+        return snapshot
+    }
+
+    private func resolvePresentationDecision(
+        for snapshot: Snapshot,
+        now: TimeInterval
+    ) -> MediaCenterPresentationDecision {
+        MediaCenterPresentationInput(
+            hasCurrentMetadata: snapshot.currentStreamable != nil,
+            desiredTransport: snapshot.desiredTransport,
+            systemSuspension: snapshot.systemSuspension,
+            writeMode: snapshot.mediaCenterWriteMode,
+            renderStatus: snapshot.renderStatus,
+            renderIsPlaying: snapshot.renderIsPlaying,
+            isWithinResumeGraceWindow: isWithinResumeGraceWindow(snapshot: snapshot, now: now)
+        ).resolve()
+    }
+
+    private func isWithinResumeGraceWindow(snapshot: Snapshot, now: TimeInterval) -> Bool {
+        guard let resumeStartedAtUptime = snapshot.resumeStartedAtUptime else {
+            return false
+        }
+        // The grace window is deliberately short and presentation-only: it
+        // prevents startup flicker, but it does not keep JS .Playing once the
+        // renderer remains unconfirmed past the window.
+        return now - resumeStartedAtUptime <= resumePresentationGraceInterval
+    }
+
+    private func appState(
+        for decision: MediaCenterPresentationDecision
+    ) -> MediaCenterAppState? {
+        switch decision {
+        case .update(let update):
+            return update.appState
+        case .clear(let reason):
+            switch reason {
+            case .stopped, .missingMetadata:
+                return .stopped
+            case .externalMedia, .temporaryInterruption, .userPaused, .awaitingRender, .buffering, .renderStoppedUnexpectedly, .playing:
+                return nil
+            }
+        case .freeze:
+            return nil
+        }
+    }
+
+    private func playbackState(from appState: MediaCenterAppState) -> PlaybackState {
+        switch appState {
+        case .stopped:
+            return .Stopped
+        case .playing:
+            return .Playing
+        case .paused:
+            return .Paused
+        case .stalled:
+            return .Stalled
+        }
+    }
+
+    private func makePresentationSnapshot(
+        from snapshot: Snapshot,
+        update: MediaCenterPresentationUpdate
+    ) -> PlaybackPresentationController.Snapshot? {
+        guard let streamable = snapshot.currentStreamable else {
+            return nil
+        }
+
+        return PlaybackPresentationController.Snapshot(
+            title: streamable.title,
+            artist: streamable.artist,
+            album: streamable.albumTitle,
+            duration: snapshot.currentDuration,
+            elapsed: snapshot.elapsed,
+            rate: update.playbackRate,
+            artworkURL: URL(string: streamable.albumArt),
+            mediaCenterPlaybackState: mediaCenterPlaybackState(from: update.mediaCenterPlaybackState)
+        )
+    }
+
+    private func mediaCenterPlaybackState(
+        from state: MediaCenterPlaybackState
+    ) -> MPNowPlayingPlaybackState {
+        switch state {
+        case .stopped:
+            return .stopped
+        case .playing:
+            return .playing
+        case .paused:
+            return .paused
+        case .interrupted:
+            return .interrupted
+        }
+    }
+
+    private func logPresentationDecision(
+        _ decision: MediaCenterPresentationDecision,
+        snapshot: Snapshot
+    ) {
+        var intent = "update"
+        var appState = playbackLogField("app", nil)
+        var mediaCenterState = playbackLogField("mc", nil)
+        var rate = playbackLogField("rate", nil)
+
+        switch decision {
+        case .clear:
+            intent = "clear"
+        case .freeze:
+            intent = "freeze"
+        case .update(let update):
+            appState = playbackLogField("app", update.appState.rawValue)
+            mediaCenterState = playbackLogField("mc", update.mediaCenterPlaybackState.rawValue)
+            rate = playbackLogField("rate", String(update.playbackRate))
+        }
+
+        backendStateLog.debug(
+            "resolved",
+            "presentation decision",
+            playbackLogField("intent", intent),
+            playbackLogField("reason", decision.reason.rawValue),
+            appState,
+            mediaCenterState,
+            rate,
+            playbackLogField("write", snapshot.mediaCenterWriteMode.rawValue),
+            playbackLogField("susp", snapshot.systemSuspension.rawValue),
+            playbackLogField("desired", snapshot.desiredTransport.rawValue),
+            playbackLogField("render", snapshot.renderStatus.rawValue),
+            playbackLogBoolField("isPlaying", snapshot.renderIsPlaying),
+            playbackLogField("src", snapshot.currentStreamable?.identifier),
+            playbackLogField("elapsed", snapshot.elapsed.map { String($0) }),
+            playbackLogField("duration", snapshot.currentDuration.map { String($0) }),
+            playbackLogField("sess", snapshot.currentSessionID),
+            playbackLogIntegerField("gen", snapshot.generation)
+        )
+    }
+
     private func unsignedValue(_ value: Int64?) -> UInt64? {
         guard let value, value >= 0 else { return nil }
         return UInt64(value)
+    }
+
+    private func renderStatus(for phase: GaplessPlaybackPhase) -> MediaCenterRenderStatus {
+        switch phase {
+        case .stopped:
+            return .stopped
+        case .preparing:
+            return .preparing
+        case .paused:
+            return .paused
+        case .playing:
+            return .playing
+        case .failed:
+            return .failed
+        }
+    }
+
+    private func logStatusApplication(status: GaplessMP3PlayerStatus, snapshot: Snapshot) {
+        let decision = resolvePresentationDecision(
+            for: snapshot,
+            now: ProcessInfo.processInfo.systemUptime
+        )
+        var mediaCenterState = playbackLogField("mc", nil)
+        var rate = playbackLogField("rate", nil)
+        if case .update(let update) = decision {
+            mediaCenterState = playbackLogField("mc", update.mediaCenterPlaybackState.rawValue)
+            rate = playbackLogField("rate", String(update.playbackRate))
+        }
+
+        backendStateLog.debug(
+            "applied",
+            "status",
+            playbackLogField("phase", status.playbackPhase.rawValue),
+            playbackLogBoolField("statusPlaying", status.isPlaying),
+            playbackLogField("nativeSrc", status.currentSource?.id),
+            playbackLogField("src", snapshot.currentStreamable?.identifier),
+            playbackLogField("app", String(describing: snapshot.currentState)),
+            mediaCenterState,
+            rate,
+            playbackLogIntegerField("gen", snapshot.generation)
+        )
     }
 
     private func consumePendingStartTimeAfterPrepareOnQueue(for generation: UInt64) -> TimeInterval? {
@@ -1095,12 +1431,24 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
         snapshotStore.withValue { snapshot in
             mutate(&snapshot)
         }
-        let current = snapshotStore.get()
-        syncNowPlaying(with: current)
-        playbackPresentationController.setPlaybackState(current.currentState)
-        emitStateIfNeeded(previous: previous.currentState, current: current.currentState)
-        emitProgressIfNeeded(previous: previous, current: current)
-        emitDownloadProgressIfNeeded(previous: previous, current: current)
+        applyPresentationAndEmit(previous: previous)
+    }
+
+    private func scheduleResumeGraceExpirationIfNeededOnQueue(for generation: UInt64) {
+        backendQueue.asyncAfter(deadline: .now() + resumePresentationGraceInterval) { [weak self] in
+            guard let self else { return }
+            let previous = self.snapshotStore.get()
+            guard previous.generation == generation,
+                  previous.resumeStartedAtUptime != nil,
+                  previous.desiredTransport == .playing,
+                  previous.systemSuspension == .none else {
+                return
+            }
+            // No renderer event may arrive exactly when grace expires. Reapply
+            // the decision so app state can move from startup .Playing to
+            // stalled/buffering while Media Center keeps desired-play semantics.
+            self.applyPresentationAndEmit(previous: previous)
+        }
     }
 
     private func startProgressPollingIfNeededOnQueue(for generation: UInt64) {
@@ -1174,6 +1522,11 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
     }
 
     private func handleResumeRemoteCommand(_ event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
+        let snapshot = snapshotStore.get()
+        logRemoteCommand("resume", result: snapshot.currentStreamable == nil ? .commandFailed : .success, snapshot: snapshot)
+        guard snapshot.currentStreamable != nil else {
+            return .commandFailed
+        }
         emitRemoteControl("resume")
         backendQueue.async {
             self.resumeOnQueue()
@@ -1182,6 +1535,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
     }
 
     private func handlePauseRemoteCommand(_ event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
+        logRemoteCommand("pause", result: .success, snapshot: snapshotStore.get())
         emitRemoteControl("pause")
         backendQueue.async {
             self.pauseOnQueue()
@@ -1190,8 +1544,13 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
     }
 
     private func handleTogglePlayPauseRemoteCommand(_ event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
+        let snapshot = snapshotStore.get()
+        logRemoteCommand("togglePlayPause", result: snapshot.currentStreamable == nil ? .commandFailed : .success, snapshot: snapshot)
+        guard snapshot.currentStreamable != nil else {
+            return .commandFailed
+        }
         backendQueue.async {
-            let shouldPause = self.snapshotStore.get().currentState == .Playing
+            let shouldPause = self.shouldRemoteTogglePause(snapshot: self.snapshotStore.get())
             self.emitRemoteControl(shouldPause ? "pause" : "resume")
             if shouldPause {
                 self.pauseOnQueue()
@@ -1206,21 +1565,71 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
         guard let event = event as? MPChangePlaybackPositionCommandEvent, event.positionTime >= 0 else {
             return .commandFailed
         }
+        let snapshot = snapshotStore.get()
+        guard let acceptedTime = RemoteCommandSeekPolicy(
+            hasCurrentTrack: snapshot.currentStreamable != nil,
+            currentDuration: snapshot.currentDuration,
+            requestedTime: event.positionTime
+        ).acceptedTime else {
+            logRemoteCommand("changePlaybackPosition", result: .commandFailed, snapshot: snapshot)
+            return .commandFailed
+        }
 
+        logRemoteCommand("changePlaybackPosition", result: .success, snapshot: snapshot)
         backendQueue.async {
-            self.seekToTimeOnQueue(Int64(event.positionTime * 1000))
+            self.seekToTimeOnQueue(Int64(acceptedTime * 1000))
         }
         return .success
     }
 
     private func handleNextTrackRemoteCommand(_ event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
+        logRemoteCommand("nextTrack", result: .success, snapshot: snapshotStore.get())
         emitRemoteControl("nextTrack")
         return .success
     }
 
     private func handlePreviousTrackRemoteCommand(_ event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
+        logRemoteCommand("prevTrack", result: .success, snapshot: snapshotStore.get())
         emitRemoteControl("prevTrack")
         return .success
+    }
+
+    private func shouldRemoteTogglePause(snapshot: Snapshot) -> Bool {
+        snapshot.desiredTransport == .playing && snapshot.systemSuspension == .none
+    }
+
+    private func logRemoteCommand(
+        _ method: String,
+        result: MPRemoteCommandHandlerStatus,
+        snapshot: Snapshot
+    ) {
+        backendCommandLog.info(
+            "handled",
+            "remote command",
+            playbackLogField("method", method),
+            playbackLogField("result", remoteCommandResultDescription(result)),
+            playbackLogField("app", String(describing: snapshot.currentState)),
+            playbackLogField("desired", snapshot.desiredTransport.rawValue),
+            playbackLogField("susp", snapshot.systemSuspension.rawValue),
+            playbackLogIntegerField("gen", snapshot.generation)
+        )
+    }
+
+    private func remoteCommandResultDescription(_ result: MPRemoteCommandHandlerStatus) -> String {
+        switch result {
+        case .success:
+            return "success"
+        case .noSuchContent:
+            return "noSuchContent"
+        case .noActionableNowPlayingItem:
+            return "noActionableNowPlayingItem"
+        case .deviceNotFound:
+            return "deviceNotFound"
+        case .commandFailed:
+            return "commandFailed"
+        @unknown default:
+            return "unknown"
+        }
     }
 
     private func emitRemoteControl(_ method: String) {
@@ -1345,42 +1754,298 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
         )
     }
 
-    private func handleOldDeviceUnavailableOnQueue() {
-        let state = snapshotStore.get().currentState
-        guard state == .Playing || state == .Stalled else { return }
-        pauseOnQueue()
+    private func handleRouteChangeOnQueue(_ event: RouteChangeEvent) {
+        let snapshot = snapshotStore.get()
+        backendStateLog.info(
+            "received",
+            "route change",
+            playbackLogField("reason", routeChangeReasonDescription(event.reason)),
+            playbackLogField("prevOutputs", routeOutputsDescription(event.previousOutputs)),
+            playbackLogField("currentOutputs", routeOutputsDescription(event.currentOutputs)),
+            playbackLogField("app", String(describing: snapshot.currentState)),
+            playbackLogField("desired", snapshot.desiredTransport.rawValue),
+            playbackLogIntegerField("gen", snapshot.generation)
+        )
+
+        guard event.reason == .oldDeviceUnavailable else {
+            refreshStatusOnQueue(for: snapshot.generation)
+            return
+        }
+
+        guard snapshot.currentState == .Playing ||
+                snapshot.currentState == .Stalled ||
+                snapshot.desiredTransport == .playing else {
+            return
+        }
+
+        player.pause()
+        updateSnapshotOnQueue {
+            $0.desiredTransport = .paused
+            $0.systemSuspension = .none
+            $0.mediaCenterWriteMode = .active
+            $0.resumeStartedAtUptime = nil
+            $0.renderStatus = .paused
+            $0.renderIsPlaying = false
+            $0.currentState = .Paused
+        }
+        refreshStatusOnQueue(for: snapshotStore.get().generation)
     }
 
-    private func handleInterruptionBeganOnQueue() {
-        let state = snapshotStore.get().currentState
-        wasPlayingWhenInterrupted = state == .Playing || state == .Stalled
-        pauseOnQueue()
+    private func handleInterruptionOnQueue(_ event: AudioInterruptionEvent) {
+        let snapshot = snapshotStore.get()
+        secondaryAudioSilenceHintActive = event.secondaryAudioShouldBeSilenced
+        backendStateLog.info(
+            "received",
+            "audio interruption",
+            playbackLogField("type", interruptionTypeDescription(event.type)),
+            playbackLogField("options", interruptionOptionsDescription(event.options)),
+            playbackLogField("reason", event.reason.map(interruptionReasonDescription)),
+            playbackLogBoolField("shouldResume", event.options.contains(.shouldResume)),
+            playbackLogBoolField("secondarySilenced", event.secondaryAudioShouldBeSilenced),
+            playbackLogField("app", String(describing: snapshot.currentState)),
+            playbackLogField("desired", snapshot.desiredTransport.rawValue),
+            playbackLogField("write", snapshot.mediaCenterWriteMode.rawValue),
+            playbackLogIntegerField("gen", snapshot.generation)
+        )
+
+        switch event.type {
+        case .began:
+            handleInterruptionBeganOnQueue(event)
+        case .ended:
+            handleInterruptionEndedOnQueue(event)
+        @unknown default:
+            break
+        }
     }
 
-    private func handleInterruptionEndedShouldResumeOnQueue() {
-        guard wasPlayingWhenInterrupted else { return }
+    private func handleInterruptionBeganOnQueue(_ event: AudioInterruptionEvent) {
+        let previous = snapshotStore.get()
+        wasPlayingWhenInterrupted = previous.desiredTransport == .playing ||
+            previous.currentState == .Playing ||
+            previous.currentState == .Stalled
+        player.pause()
+        snapshotStore.withValue {
+            // Do not turn a system interruption into user intent. Desired
+            // transport stays as-is so an ended interruption can resume only
+            // when iOS grants .shouldResume and the user has not paused.
+            $0.systemSuspension = .temporaryInterruption
+            $0.mediaCenterWriteMode = .active
+            $0.resumeStartedAtUptime = nil
+            $0.renderStatus = .paused
+            $0.renderIsPlaying = false
+        }
+        let current = applyPresentationAndEmit(previous: previous, freezeAfterUpdate: true)
+        snapshotStore.withValue {
+            // After the final interrupted snapshot, freeze subsequent writes
+            // while classification is ambiguous. A phone call can later resume;
+            // Spotify/external media can later suppress and clear.
+            guard $0.generation == current.generation,
+                  $0.systemSuspension == .temporaryInterruption,
+                  $0.mediaCenterWriteMode == .active else {
+                return
+            }
+            $0.mediaCenterWriteMode = .frozen
+        }
+    }
+
+    private func handleInterruptionEndedOnQueue(_ event: AudioInterruptionEvent) {
+        let snapshot = snapshotStore.get()
+        let shouldResume = event.options.contains(.shouldResume)
+        let wasInterruptedPlaying = wasPlayingWhenInterrupted
+        let shouldAutoResume = shouldResume &&
+            wasInterruptedPlaying &&
+            snapshot.desiredTransport == .playing &&
+            snapshot.systemSuspension != .externalMedia &&
+            !event.secondaryAudioShouldBeSilenced &&
+            !secondaryAudioSilenceHintActive
         wasPlayingWhenInterrupted = false
-        resumeOnQueue()
+
+        if shouldAutoResume {
+            // iOS explicitly allowed resume and the user still wants playback,
+            // so unfreeze writes before going through the normal resume path.
+            snapshotStore.withValue {
+                $0.systemSuspension = .none
+                $0.mediaCenterWriteMode = .active
+            }
+            resumeOnQueue()
+            return
+        }
+
+        if snapshot.systemSuspension == .externalMedia ||
+            snapshot.mediaCenterWriteMode == .suppressed ||
+            event.secondaryAudioShouldBeSilenced ||
+            secondaryAudioSilenceHintActive ||
+            (!shouldResume && wasInterruptedPlaying && snapshot.desiredTransport == .playing) {
+            // No-resume for a previously playing session is treated as yielding
+            // rather than user pause. That lets Spotify or another primary app
+            // replace Relisten on the lock screen.
+            suppressForExternalMediaOnQueue(reason: "interruptionEnded")
+            return
+        }
+
+        player.pause()
+        updateSnapshotOnQueue {
+            $0.desiredTransport = .paused
+            $0.systemSuspension = .none
+            $0.mediaCenterWriteMode = .active
+            $0.resumeStartedAtUptime = nil
+            $0.renderStatus = .paused
+            $0.renderIsPlaying = false
+            $0.currentState = .Paused
+        }
+    }
+
+    private func handleSilenceSecondaryAudioHintOnQueue(_ event: SilenceSecondaryAudioHintEvent) {
+        secondaryAudioSilenceHintActive = event.secondaryAudioShouldBeSilenced
+        let snapshot = snapshotStore.get()
+        backendStateLog.info(
+            "received",
+            "silence secondary audio hint",
+            playbackLogField("type", silenceHintTypeDescription(event.type)),
+            playbackLogBoolField("secondarySilenced", event.secondaryAudioShouldBeSilenced),
+            playbackLogField("write", snapshot.mediaCenterWriteMode.rawValue),
+            playbackLogField("desired", snapshot.desiredTransport.rawValue),
+            playbackLogIntegerField("gen", snapshot.generation)
+        )
+
+        switch event.type {
+        case .begin:
+            if snapshot.systemSuspension == .temporaryInterruption ||
+                snapshot.currentState != .Playing ||
+                !snapshot.renderIsPlaying {
+                // A silence hint while interrupted or not actively rendering is
+                // strong evidence another primary app has taken over.
+                suppressForExternalMediaOnQueue(reason: "silenceHintBegin")
+            }
+        case .end:
+            break
+        @unknown default:
+            break
+        }
+    }
+
+    private func suppressForExternalMediaOnQueue(reason: String) {
+        let previous = snapshotStore.get()
+        backendStateLog.info(
+            "suppressed",
+            "external media presentation",
+            playbackLogField("reason", reason),
+            playbackLogField("src", previous.currentStreamable?.identifier),
+            playbackLogIntegerField("gen", previous.generation)
+        )
+        player.pause()
+        snapshotStore.withValue {
+            // Keep current metadata in memory for an explicit Relisten resume,
+            // but suppress all Media Center writes so another app can own the
+            // lock screen without polling/artwork resurrecting us.
+            $0.desiredTransport = .paused
+            $0.systemSuspension = .externalMedia
+            $0.mediaCenterWriteMode = .suppressed
+            $0.resumeStartedAtUptime = nil
+            $0.renderStatus = .paused
+            $0.renderIsPlaying = false
+            if $0.currentState != .Stopped {
+                $0.currentState = .Paused
+            }
+            $0.progressPollingGeneration = nil
+        }
+        applyPresentationAndEmit(previous: previous)
+    }
+
+    private func handleMediaServicesOnQueue(_ kind: AudioMediaServicesEventKind) {
+        backendStateLog.warn(
+            "received",
+            "media services notification",
+            playbackLogField("kind", kind.rawValue),
+            playbackLogIntegerField("gen", snapshotStore.get().generation)
+        )
+
+        switch kind {
+        case .lost:
+            handleMediaServicesLostOnQueue()
+        case .reset:
+            handleMediaServicesResetOnQueue()
+        }
+    }
+
+    private func handleMediaServicesLostOnQueue() {
+        let previous = snapshotStore.get()
+        guard !shouldIgnoreStatus(for: previous) else {
+            // If another app already owns Media Center, a system reset/loss must
+            // not make Relisten visible again just because we reinstall handlers.
+            applyPresentationAndEmit(previous: previous)
+            return
+        }
+        guard previous.currentStreamable != nil else {
+            updateSnapshotOnQueue {
+                $0.desiredTransport = .stopped
+                $0.systemSuspension = .none
+                $0.mediaCenterWriteMode = .active
+                $0.resumeStartedAtUptime = nil
+                $0.renderStatus = .stopped
+                $0.renderIsPlaying = false
+                $0.currentState = .Stopped
+            }
+            return
+        }
+
+        player.pause()
+        snapshotStore.withValue {
+            // Media services loss invalidates the renderer underneath us. Keep
+            // Relisten visible as interrupted only when we still own playback.
+            $0.systemSuspension = .temporaryInterruption
+            $0.mediaCenterWriteMode = .active
+            $0.resumeStartedAtUptime = nil
+            $0.renderStatus = .failed
+            $0.renderIsPlaying = false
+        }
+        applyPresentationAndEmit(previous: previous)
     }
 
     private func handleMediaServicesResetOnQueue() {
         let snapshot = snapshotStore.get()
         guard !teardownRequested.get() else { return }
-        guard let currentStreamable = snapshot.currentStreamable else { return }
+        guard !shouldIgnoreStatus(for: snapshot) else {
+            // Reinstall observers after reset, but preserve yielded ownership.
+            // Explicit Relisten play/resume is the only path back to active.
+            hasInstalledAudioSessionHandlers = false
+            installAudioSessionHandlersIfNeededOnQueue()
+            applyPresentationAndEmit(previous: snapshot)
+            return
+        }
+        guard let currentStreamable = snapshot.currentStreamable else {
+            updateSnapshotOnQueue {
+                $0.desiredTransport = .stopped
+                $0.systemSuspension = .none
+                $0.mediaCenterWriteMode = .active
+                $0.resumeStartedAtUptime = nil
+                $0.renderStatus = .stopped
+                $0.renderIsPlaying = false
+                $0.currentState = .Stopped
+            }
+            return
+        }
 
         hasInstalledAudioSessionHandlers = false
         installAudioSessionHandlersIfNeededOnQueue()
 
         let nextStreamable = snapshot.desiredNextStreamable ?? snapshot.nextStreamable
-        let shouldResume = snapshot.currentState == .Playing || snapshot.currentState == .Stalled
+        let shouldResume = snapshot.desiredTransport == .playing && snapshot.systemSuspension != .externalMedia
         let resumeTime = snapshot.elapsed ?? 0
-        let previousState = snapshot.currentState
+        let previous = snapshot
         let (generation, sessionID) = snapshotStore.withValue { snapshot in
+            // Reset rebuilds the native graph around the current metadata. The
+            // first presentation remains interrupted/stalled; only after prepare
+            // succeeds do we clear suspension and possibly resume.
             let sessionID = UUID().uuidString
             snapshot.generation += 1
             snapshot.seekSequence = 0
             snapshot.currentSessionID = sessionID
-            snapshot.currentState = .Stalled
+            snapshot.systemSuspension = .temporaryInterruption
+            snapshot.mediaCenterWriteMode = .active
+            snapshot.resumeStartedAtUptime = nil
+            snapshot.renderStatus = .preparing
+            snapshot.renderIsPlaying = false
             snapshot.nextStreamable = nextStreamable
             snapshot.desiredNextStreamable = nextStreamable
             snapshot.activeTrackDownloadedBytes = nil
@@ -1395,8 +2060,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             return (snapshot.generation, sessionID)
         }
         player.sessionID = sessionID
-        playbackPresentationController.setPlaybackState(.Stalled)
-        emitStateIfNeeded(previous: previousState, current: .Stalled)
+        applyPresentationAndEmit(previous: previous)
 
         Task { [weak self] in
             guard let self else { return }
@@ -1424,46 +2088,132 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
                 let status = await self.player.status()
                 self.backendQueue.async {
                     guard self.shouldContinueAsyncWork(for: generation) else { return }
-                    self.snapshotStore.withValue { $0.isPreparingCurrentTrack = false }
+                    self.snapshotStore.withValue {
+                        $0.isPreparingCurrentTrack = false
+                        if shouldResume,
+                           $0.desiredTransport == .playing,
+                           $0.systemSuspension != .externalMedia {
+                            // Re-enter normal startup semantics only after the
+                            // graph is prepared again; otherwise reset would
+                            // pretend playback resumed before it can.
+                            $0.systemSuspension = .none
+                            $0.mediaCenterWriteMode = .active
+                            $0.resumeStartedAtUptime = ProcessInfo.processInfo.systemUptime
+                        } else if $0.systemSuspension == .temporaryInterruption {
+                            $0.systemSuspension = .none
+                            $0.mediaCenterWriteMode = .active
+                            $0.resumeStartedAtUptime = nil
+                        }
+                    }
                     self.applyStatus(status)
+                    if shouldResume {
+                        self.scheduleResumeGraceExpirationIfNeededOnQueue(for: generation)
+                    }
                     self.applyLatestDesiredNextIfNeededOnQueue(for: generation)
                 }
             } catch {
                 self.backendQueue.async {
                     guard self.shouldContinueAsyncWork(for: generation) else { return }
+                    let previous = self.snapshotStore.get()
                     self.snapshotStore.withValue {
+                        $0.desiredTransport = .stopped
+                        $0.systemSuspension = .none
+                        $0.mediaCenterWriteMode = .active
+                        $0.resumeStartedAtUptime = nil
+                        $0.renderStatus = .failed
+                        $0.renderIsPlaying = false
                         $0.isPreparingCurrentTrack = false
                         $0.pendingStartTimeAfterPrepare = nil
                         $0.currentState = .Stopped
+                        $0.currentStreamable = nil
+                        $0.nextStreamable = nil
+                        $0.desiredNextStreamable = nil
+                        $0.currentDuration = nil
+                        $0.elapsed = nil
+                        $0.activeTrackDownloadedBytes = nil
+                        $0.activeTrackTotalBytes = nil
+                        $0.progressPollingGeneration = nil
                     }
-                    self.playbackPresentationController.clearNowPlaying()
-                    self.playbackPresentationController.setPlaybackState(.Stopped)
-                    self.emitStateIfNeeded(previous: .Stalled, current: .Stopped)
+                    self.applyPresentationAndEmit(previous: previous)
                     self.emitError(error, for: currentStreamable)
                 }
             }
         }
     }
 
-    private func syncNowPlaying(with snapshot: Snapshot) {
-        guard let streamable = snapshot.currentStreamable, snapshot.currentState != .Stopped else {
-            playbackPresentationController.clearNowPlaying()
-            return
-        }
-
-        playbackPresentationController.updateNowPlaying(
-            title: streamable.title,
-            artist: streamable.artist,
-            album: streamable.albumTitle,
-            duration: snapshot.currentDuration,
-            elapsed: snapshot.elapsed,
-            rate: playbackRate(for: snapshot.currentState),
-            artworkURL: URL(string: streamable.albumArt)
-        )
+    private func routeOutputsDescription(_ outputs: [AudioRouteOutput]) -> String {
+        guard !outputs.isEmpty else { return "none" }
+        return outputs
+            .map { "\($0.portType):\($0.portName):\($0.uid)" }
+            .joined(separator: ",")
     }
 
-    private func playbackRate(for playbackState: PlaybackState) -> Float {
-        playbackState == .Playing ? 1.0 : 0.0
+    private func routeChangeReasonDescription(_ reason: AVAudioSession.RouteChangeReason) -> String {
+        switch reason {
+        case .unknown:
+            return "unknown"
+        case .newDeviceAvailable:
+            return "newDeviceAvailable"
+        case .oldDeviceUnavailable:
+            return "oldDeviceUnavailable"
+        case .categoryChange:
+            return "categoryChange"
+        case .override:
+            return "override"
+        case .wakeFromSleep:
+            return "wakeFromSleep"
+        case .noSuitableRouteForCategory:
+            return "noSuitableRouteForCategory"
+        case .routeConfigurationChange:
+            return "routeConfigurationChange"
+        @unknown default:
+            return "unknownDefault"
+        }
+    }
+
+    private func interruptionTypeDescription(_ type: AVAudioSession.InterruptionType) -> String {
+        switch type {
+        case .began:
+            return "began"
+        case .ended:
+            return "ended"
+        @unknown default:
+            return "unknownDefault"
+        }
+    }
+
+    private func interruptionOptionsDescription(_ options: AVAudioSession.InterruptionOptions) -> String {
+        var values: [String] = []
+        if options.contains(.shouldResume) {
+            values.append("shouldResume")
+        }
+        return values.isEmpty ? "none" : values.joined(separator: ",")
+    }
+
+    private func interruptionReasonDescription(_ reason: AVAudioSession.InterruptionReason) -> String {
+        switch reason {
+        case .default:
+            return "default"
+        case .appWasSuspended:
+            return "appWasSuspended"
+        case .builtInMicMuted:
+            return "builtInMicMuted"
+        case .routeDisconnected:
+            return "routeDisconnected"
+        @unknown default:
+            return "unknownDefault"
+        }
+    }
+
+    private func silenceHintTypeDescription(_ type: AVAudioSession.SilenceSecondaryAudioHintType) -> String {
+        switch type {
+        case .begin:
+            return "begin"
+        case .end:
+            return "end"
+        @unknown default:
+            return "unknownDefault"
+        }
     }
 
     private func shouldContinueAsyncWork(for generation: UInt64) -> Bool {

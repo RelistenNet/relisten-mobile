@@ -177,6 +177,161 @@ final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
         XCTAssertTrue(NativeRemoteControlForwardingPolicy.shouldForwardToJavaScript("prevTrack"))
     }
 
+    func testRemoteSeekRequiresCurrentTrackAndDuration() {
+        XCTAssertNil(RemoteCommandSeekPolicy(
+            hasCurrentTrack: false,
+            currentDuration: 120,
+            requestedTime: 10
+        ).acceptedTime)
+        XCTAssertNil(RemoteCommandSeekPolicy(
+            hasCurrentTrack: true,
+            currentDuration: nil,
+            requestedTime: 10
+        ).acceptedTime)
+        XCTAssertEqual(RemoteCommandSeekPolicy(
+            hasCurrentTrack: true,
+            currentDuration: 120,
+            requestedTime: 130
+        ).acceptedTime, 120)
+    }
+
+    func testPresentationDecisionClearsMissingMetadata() {
+        let decision = MediaCenterPresentationInput(
+            hasCurrentMetadata: false,
+            desiredTransport: .playing,
+            systemSuspension: .none,
+            writeMode: .active,
+            renderStatus: .playing,
+            renderIsPlaying: true,
+            isWithinResumeGraceWindow: false
+        ).resolve()
+
+        XCTAssertEqual(decision, .clear(reason: .missingMetadata))
+    }
+
+    func testPresentationDecisionKeepsBufferingAsMediaCenterPlaying() {
+        let decision = MediaCenterPresentationInput(
+            hasCurrentMetadata: true,
+            desiredTransport: .playing,
+            systemSuspension: .none,
+            writeMode: .active,
+            renderStatus: .preparing,
+            renderIsPlaying: false,
+            isWithinResumeGraceWindow: false
+        ).resolve()
+
+        XCTAssertEqual(decision, .update(MediaCenterPresentationUpdate(
+            reason: .buffering,
+            appState: .stalled,
+            mediaCenterPlaybackState: .playing,
+            playbackRate: 1.0
+        )))
+    }
+
+    func testPresentationDecisionTreatsUnconfirmedPlayingPhaseAsBuffering() {
+        let decision = MediaCenterPresentationInput(
+            hasCurrentMetadata: true,
+            desiredTransport: .playing,
+            systemSuspension: .none,
+            writeMode: .active,
+            renderStatus: .playing,
+            renderIsPlaying: false,
+            isWithinResumeGraceWindow: false
+        ).resolve()
+
+        XCTAssertEqual(decision, .update(MediaCenterPresentationUpdate(
+            reason: .buffering,
+            appState: .stalled,
+            mediaCenterPlaybackState: .playing,
+            playbackRate: 1.0
+        )))
+    }
+
+    func testPresentationDecisionUsesGraceWindowAsPlaying() {
+        let decision = MediaCenterPresentationInput(
+            hasCurrentMetadata: true,
+            desiredTransport: .playing,
+            systemSuspension: .none,
+            writeMode: .active,
+            renderStatus: .preparing,
+            renderIsPlaying: false,
+            isWithinResumeGraceWindow: true
+        ).resolve()
+
+        XCTAssertEqual(decision, .update(MediaCenterPresentationUpdate(
+            reason: .awaitingRender,
+            appState: .playing,
+            mediaCenterPlaybackState: .playing,
+            playbackRate: 1.0
+        )))
+    }
+
+    func testPresentationDecisionFreezesFrozenWriteMode() {
+        let decision = MediaCenterPresentationInput(
+            hasCurrentMetadata: true,
+            desiredTransport: .playing,
+            systemSuspension: .temporaryInterruption,
+            writeMode: .frozen,
+            renderStatus: .paused,
+            renderIsPlaying: false,
+            isWithinResumeGraceWindow: false
+        ).resolve()
+
+        XCTAssertEqual(decision, .freeze(reason: .temporaryInterruption))
+    }
+
+    func testPresentationDecisionInterruptsTemporarySuspension() {
+        let decision = MediaCenterPresentationInput(
+            hasCurrentMetadata: true,
+            desiredTransport: .playing,
+            systemSuspension: .temporaryInterruption,
+            writeMode: .active,
+            renderStatus: .paused,
+            renderIsPlaying: false,
+            isWithinResumeGraceWindow: false
+        ).resolve()
+
+        XCTAssertEqual(decision, .update(MediaCenterPresentationUpdate(
+            reason: .temporaryInterruption,
+            appState: .stalled,
+            mediaCenterPlaybackState: .interrupted,
+            playbackRate: 0.0
+        )))
+    }
+
+    func testPresentationDecisionSuppressesExternalMedia() {
+        let decision = MediaCenterPresentationInput(
+            hasCurrentMetadata: true,
+            desiredTransport: .playing,
+            systemSuspension: .externalMedia,
+            writeMode: .suppressed,
+            renderStatus: .paused,
+            renderIsPlaying: false,
+            isWithinResumeGraceWindow: false
+        ).resolve()
+
+        XCTAssertEqual(decision, .clear(reason: .externalMedia))
+    }
+
+    func testPresentationDecisionDoesNotPretendStoppedRenderIsPlaying() {
+        let decision = MediaCenterPresentationInput(
+            hasCurrentMetadata: true,
+            desiredTransport: .playing,
+            systemSuspension: .none,
+            writeMode: .active,
+            renderStatus: .stopped,
+            renderIsPlaying: false,
+            isWithinResumeGraceWindow: false
+        ).resolve()
+
+        XCTAssertEqual(decision, .update(MediaCenterPresentationUpdate(
+            reason: .renderStoppedUnexpectedly,
+            appState: .stalled,
+            mediaCenterPlaybackState: .interrupted,
+            playbackRate: 0.0
+        )))
+    }
+
     func testNextWithoutCurrentTrackIsNoOp() {
         var state = NextCommandState(
             hasCurrentTrack: false,

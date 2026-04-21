@@ -2,6 +2,35 @@ import AVFAudio
 import MediaPlayer
 import UIKit
 
+struct AudioRouteOutput {
+    let portType: String
+    let portName: String
+    let uid: String
+}
+
+struct AudioInterruptionEvent {
+    let type: AVAudioSession.InterruptionType
+    let options: AVAudioSession.InterruptionOptions
+    let reason: AVAudioSession.InterruptionReason?
+    let secondaryAudioShouldBeSilenced: Bool
+}
+
+struct RouteChangeEvent {
+    let reason: AVAudioSession.RouteChangeReason
+    let previousOutputs: [AudioRouteOutput]
+    let currentOutputs: [AudioRouteOutput]
+}
+
+struct SilenceSecondaryAudioHintEvent {
+    let type: AVAudioSession.SilenceSecondaryAudioHintType
+    let secondaryAudioShouldBeSilenced: Bool
+}
+
+enum AudioMediaServicesEventKind: String {
+    case lost
+    case reset
+}
+
 final class AudioSessionController {
     let commandCenter = MPRemoteCommandCenter.shared()
     private var playCommandTarget: Any?
@@ -12,6 +41,7 @@ final class AudioSessionController {
     private var previousTrackCommandTarget: Any?
     private var routeChangeObserver: NSObjectProtocol?
     private var interruptionObserver: NSObjectProtocol?
+    private var silenceSecondaryAudioHintObserver: NSObjectProtocol?
     private var mediaServicesResetObserver: NSObjectProtocol?
     private var mediaServicesLostObserver: NSObjectProtocol?
 
@@ -69,17 +99,21 @@ final class AudioSessionController {
             self.commandCenter.changePlaybackRateCommand.isEnabled = false
             self.commandCenter.changeRepeatModeCommand.isEnabled = false
             self.commandCenter.changeShuffleModeCommand.isEnabled = false
+            self.commandCenter.stopCommand.isEnabled = false
             self.commandCenter.skipForwardCommand.isEnabled = false
             self.commandCenter.skipBackwardCommand.isEnabled = false
+            self.commandCenter.ratingCommand.isEnabled = false
+            self.commandCenter.likeCommand.isEnabled = false
+            self.commandCenter.dislikeCommand.isEnabled = false
+            self.commandCenter.bookmarkCommand.isEnabled = false
         }
     }
 
     func configureSessionObservers(
-        onOldDeviceUnavailable: @escaping @Sendable () -> Void,
-        onInterruptionBegan: @escaping @Sendable () -> Void,
-        onInterruptionEndedShouldResume: @escaping @Sendable () -> Void,
-        onMediaServicesReset: @escaping @Sendable () -> Void,
-        onMediaServicesLost: @escaping @Sendable () -> Void
+        onRouteChange: @escaping (RouteChangeEvent) -> Void,
+        onInterruption: @escaping (AudioInterruptionEvent) -> Void,
+        onSilenceSecondaryAudioHint: @escaping (SilenceSecondaryAudioHintEvent) -> Void,
+        onMediaServices: @escaping (AudioMediaServicesEventKind) -> Void
     ) {
         clearSessionObservers()
 
@@ -93,12 +127,18 @@ final class AudioSessionController {
         ) { notification in
             guard let userInfo = notification.userInfo,
                   let reasonValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
-                  let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue),
-                  reason == .oldDeviceUnavailable else {
+                  let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else {
                 return
             }
 
-            onOldDeviceUnavailable()
+            let previousRoute = userInfo[AVAudioSessionRouteChangePreviousRouteKey] as? AVAudioSessionRouteDescription
+            onRouteChange(
+                RouteChangeEvent(
+                    reason: reason,
+                    previousOutputs: Self.outputs(from: previousRoute),
+                    currentOutputs: Self.outputs(from: session.currentRoute)
+                )
+            )
         }
 
         interruptionObserver = center.addObserver(
@@ -112,18 +152,37 @@ final class AudioSessionController {
                 return
             }
 
-            switch interruptionType {
-            case .began:
-                onInterruptionBegan()
-            case .ended:
-                let interruptionOptionValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
-                let options = AVAudioSession.InterruptionOptions(rawValue: interruptionOptionValue)
-                if options.contains(.shouldResume) {
-                    onInterruptionEndedShouldResume()
-                }
-            @unknown default:
-                break
+            let interruptionOptionValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+            let options = AVAudioSession.InterruptionOptions(rawValue: interruptionOptionValue)
+            let reasonValue = userInfo[AVAudioSessionInterruptionReasonKey] as? UInt
+            let reason = reasonValue.flatMap(AVAudioSession.InterruptionReason.init(rawValue:))
+            onInterruption(
+                AudioInterruptionEvent(
+                    type: interruptionType,
+                    options: options,
+                    reason: reason,
+                    secondaryAudioShouldBeSilenced: session.secondaryAudioShouldBeSilencedHint
+                )
+            )
+        }
+
+        silenceSecondaryAudioHintObserver = center.addObserver(
+            forName: AVAudioSession.silenceSecondaryAudioHintNotification,
+            object: session,
+            queue: nil
+        ) { notification in
+            guard let userInfo = notification.userInfo,
+                  let typeValue = userInfo[AVAudioSessionSilenceSecondaryAudioHintTypeKey] as? UInt,
+                  let type = AVAudioSession.SilenceSecondaryAudioHintType(rawValue: typeValue) else {
+                return
             }
+
+            onSilenceSecondaryAudioHint(
+                SilenceSecondaryAudioHintEvent(
+                    type: type,
+                    secondaryAudioShouldBeSilenced: session.secondaryAudioShouldBeSilencedHint
+                )
+            )
         }
 
         mediaServicesResetObserver = center.addObserver(
@@ -131,7 +190,7 @@ final class AudioSessionController {
             object: session,
             queue: nil
         ) { _ in
-            onMediaServicesReset()
+            onMediaServices(.reset)
         }
 
         mediaServicesLostObserver = center.addObserver(
@@ -139,7 +198,7 @@ final class AudioSessionController {
             object: session,
             queue: nil
         ) { _ in
-            onMediaServicesLost()
+            onMediaServices(.lost)
         }
     }
 
@@ -184,8 +243,13 @@ final class AudioSessionController {
             self.commandCenter.changePlaybackRateCommand.isEnabled = false
             self.commandCenter.changeRepeatModeCommand.isEnabled = false
             self.commandCenter.changeShuffleModeCommand.isEnabled = false
+            self.commandCenter.stopCommand.isEnabled = false
             self.commandCenter.skipForwardCommand.isEnabled = false
             self.commandCenter.skipBackwardCommand.isEnabled = false
+            self.commandCenter.ratingCommand.isEnabled = false
+            self.commandCenter.likeCommand.isEnabled = false
+            self.commandCenter.dislikeCommand.isEnabled = false
+            self.commandCenter.bookmarkCommand.isEnabled = false
         }
     }
 
@@ -199,6 +263,10 @@ final class AudioSessionController {
         if let interruptionObserver {
             center.removeObserver(interruptionObserver)
             self.interruptionObserver = nil
+        }
+        if let silenceSecondaryAudioHintObserver {
+            center.removeObserver(silenceSecondaryAudioHintObserver)
+            self.silenceSecondaryAudioHintObserver = nil
         }
         if let mediaServicesResetObserver {
             center.removeObserver(mediaServicesResetObserver)
@@ -236,5 +304,15 @@ final class AudioSessionController {
         }
 
         DispatchQueue.main.async(execute: work)
+    }
+
+    private static func outputs(from route: AVAudioSessionRouteDescription?) -> [AudioRouteOutput] {
+        route?.outputs.map { output in
+            AudioRouteOutput(
+                portType: output.portType.rawValue,
+                portName: output.portName,
+                uid: output.uid
+            )
+        } ?? []
     }
 }
