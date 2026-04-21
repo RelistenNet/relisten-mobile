@@ -336,13 +336,11 @@ export class RelistenPlayer {
     const targetIndex = Math.min(baseIndex + 1, this.queue.orderedTracks.length - 1);
 
     if (targetIndex === baseIndex) {
-      logger.debug('next requested at queue end, stopping playback', {
+      logger.debug('next requested at queue end, ignoring', {
         baseIndex,
         currentIndex: this.queue.currentIndex,
         requestedTrackIndex: this.requestedTrackIndex,
       });
-
-      void this.stop();
       return;
     }
 

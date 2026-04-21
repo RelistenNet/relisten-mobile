@@ -120,21 +120,15 @@ final class GaplessBackendRemoteCommandController {
     private func performNativeCommandSynchronously(_ command: () -> Void) {
         // MediaRemote decides the immediate Control Center state from the
         // command response plus the latest Now Playing snapshot. For native-owned
-        // commands, enqueue our snapshot before returning success so pause/play
-        // cannot acknowledge against stale rate=1 metadata.
+        // commands, mutate the player and write the Now Playing dictionary before
+        // returning success so pause/play cannot acknowledge against stale
+        // rate=1 metadata.
         if DispatchQueue.getSpecific(key: Self.backendQueueSpecificKey) == backendQueueSpecificValue {
             command()
             return
         } else {
             backendQueue.sync(execute: command)
         }
-
-        // Presentation writes are marshalled to main. When the remote command
-        // arrives off-main, wait for the enqueued Now Playing write to drain
-        // before returning the command status to MediaRemote. If the handler is
-        // already on main, returning lets the queued write run on the next turn.
-        guard !Thread.isMainThread else { return }
-        DispatchQueue.main.sync {}
     }
 
     private func logRemoteCommand(
@@ -150,6 +144,7 @@ final class GaplessBackendRemoteCommandController {
             playbackLogField("app", String(describing: snapshot.currentState)),
             playbackLogField("desired", snapshot.desiredTransport.rawValue),
             playbackLogField("susp", snapshot.systemSuspension.rawValue),
+            playbackLogBoolField("main", Thread.isMainThread),
             playbackLogIntegerField("gen", snapshot.generation)
         )
     }

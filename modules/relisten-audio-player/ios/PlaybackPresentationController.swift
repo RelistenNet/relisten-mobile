@@ -45,6 +45,8 @@ private final class ArtworkURLCache<Value> {
 }
 
 final class PlaybackPresentationController {
+    private static let writeQueueSpecificKey = DispatchSpecificKey<String>()
+
     struct Snapshot {
         var title: String
         var artist: String
@@ -80,14 +82,12 @@ final class PlaybackPresentationController {
 
     private struct State {
         var latestNowPlayingInfo: [String: Any] = [:]
-        var latestPlaybackState: MPNowPlayingPlaybackState = .stopped
         var latestSnapshotIdentity: SnapshotIdentity?
         var artworkURL: URL?
         var artwork: MPMediaItemArtwork?
         var artworkRequestID: UInt64 = 0
-        // MPNowPlayingInfoCenter writes are always dispatched to the main thread.
-        // One revision gates the paired metadata + playback-state write so a
-        // stale queued block cannot mix old rate/artwork with new transport state.
+        // One revision gates the whole Now Playing dictionary so a stale queued
+        // artwork completion cannot mix old artwork with a newer transport rate.
         var presentationRevisionGate = PlaybackPresentationRevisionGate()
         var inFlightArtworkURLs: Set<URL> = []
         var isFrozen = false
@@ -96,11 +96,17 @@ final class PlaybackPresentationController {
     private let lock = NSLock()
     private let artworkCache: ArtworkURLCache<MPMediaItemArtwork>
     private let urlSession: URLSession
+    private let writeQueue = DispatchQueue(label: "net.relisten.ios.media-center-presentation")
+    private let writeQueueSpecificValue = UUID().uuidString
     private var state = State()
 
     init(artworkCacheCapacity: Int = 2, urlSession: URLSession = .shared) {
         self.artworkCache = ArtworkURLCache(capacity: artworkCacheCapacity)
         self.urlSession = urlSession
+        writeQueue.setSpecific(
+            key: Self.writeQueueSpecificKey,
+            value: writeQueueSpecificValue
+        )
     }
 
     func apply(_ snapshot: Snapshot?) {
@@ -176,7 +182,6 @@ final class PlaybackPresentationController {
         }
         let revision = state.presentationRevisionGate.advance()
         state.latestNowPlayingInfo = nowPlayingInfo
-        state.latestPlaybackState = snapshot.mediaCenterPlaybackState
         state.latestSnapshotIdentity = snapshotIdentity
         state.isFrozen = freezeAfterApply
         if freezeAfterApply {
@@ -189,9 +194,8 @@ final class PlaybackPresentationController {
         }
         lock.unlock()
 
-        updatePresentationOnMain(
+        writeNowPlayingInfo(
             nowPlayingInfo: nowPlayingInfo,
-            playbackState: snapshot.mediaCenterPlaybackState,
             revision: revision
         )
 
@@ -223,7 +227,6 @@ final class PlaybackPresentationController {
         lock.lock()
         state.isFrozen = false
         state.latestNowPlayingInfo = [:]
-        state.latestPlaybackState = .stopped
         state.latestSnapshotIdentity = nil
         state.artworkURL = nil
         state.artwork = nil
@@ -231,9 +234,7 @@ final class PlaybackPresentationController {
         let revision = state.presentationRevisionGate.advance()
         lock.unlock()
 
-        DispatchQueue.main.async {
-            guard self.isCurrentPresentationRevision(revision) else { return }
-            MPNowPlayingInfoCenter.default().playbackState = .stopped
+        performPresentationWrite(revision: revision) {
             MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         }
     }
@@ -296,30 +297,44 @@ final class PlaybackPresentationController {
                 playbackLogIntegerField("req", requestID),
                 playbackLogIntegerField("rev", revision)
             )
-            self.updatePresentationOnMain(
+            self.writeNowPlayingInfo(
                 nowPlayingInfo: nowPlayingInfo,
-                playbackState: self.currentPlaybackState(),
                 revision: revision
             )
         }.resume()
     }
 
-    private func updatePresentationOnMain(
+    private func writeNowPlayingInfo(
         nowPlayingInfo: [String: Any],
-        playbackState: MPNowPlayingPlaybackState,
         revision: UInt64
     ) {
-        DispatchQueue.main.async {
-            guard self.isCurrentPresentationRevision(revision) else { return }
-            MPNowPlayingInfoCenter.default().playbackState = playbackState
+        performPresentationWrite(revision: revision) {
+            // `MPNowPlayingInfoCenter.playbackState` is a public property, but on
+            // device MediaRemote rejects third-party writes without
+            // `com.apple.mediaremote.set-playback-state`. The supported control
+            // signal for Relisten is therefore this dictionary, especially
+            // `MPNowPlayingInfoPropertyPlaybackRate`.
             MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
         }
     }
 
-    private func currentPlaybackState() -> MPNowPlayingPlaybackState {
-        lock.lock()
-        defer { lock.unlock() }
-        return state.latestPlaybackState
+    private func performPresentationWrite(revision: UInt64, _ write: @escaping () -> Void) {
+        let applyIfCurrent = {
+            guard self.isCurrentPresentationRevision(revision) else { return }
+            write()
+        }
+
+        // Remote command handlers can run on the main thread while the backend
+        // mutation happens on `backendQueue`. The write must still finish before
+        // returning Success to MediaRemote, so this queue is synchronous and
+        // serial instead of a main-queue async hop. Serializing also preserves
+        // the revision gate: old artwork/status writes cannot land after newer
+        // transport-rate snapshots.
+        if DispatchQueue.getSpecific(key: Self.writeQueueSpecificKey) == writeQueueSpecificValue {
+            applyIfCurrent()
+        } else {
+            writeQueue.sync(execute: applyIfCurrent)
+        }
     }
 
     private func isCurrentPresentationRevision(_ revision: UInt64) -> Bool {
