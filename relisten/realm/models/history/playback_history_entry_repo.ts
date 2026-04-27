@@ -3,6 +3,83 @@ import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_h
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { InteractionManager } from 'react-native';
 
+export function useTotalListeningTime(): number {
+  const allEntries = useQuery(
+    {
+      type: PlaybackHistoryEntry,
+    },
+    []
+  );
+
+  const totalSeconds = useMemo(() => {
+    let total = 0;
+    for (const entry of allEntries) {
+      total += entry.sourceTrack.duration ?? 0;
+    }
+    return total;
+  }, [allEntries]);
+
+  return totalSeconds;
+}
+
+export interface ArtistYearListeningTime {
+  year: number;
+  totalSeconds: number;
+}
+
+export interface ArtistListeningTime {
+  uuid: string;
+  artistName: string;
+  totalSeconds: number;
+  years: ArtistYearListeningTime[];
+}
+
+export function useListeningTimeByArtist(): ArtistListeningTime[] {
+  const allEntries = useQuery(
+    {
+      type: PlaybackHistoryEntry,
+    },
+    []
+  );
+
+  return useMemo(() => {
+    const artist: Record<
+      string,
+      {
+        uuid: string;
+        artistName: string;
+        totalSeconds: number;
+        years: Record<number, number>;
+      }
+    > = {};
+
+    for (const entry of allEntries) {
+      const uuid = entry.artist.uuid;
+      if (!artist[uuid]) {
+        artist[uuid] = {
+          uuid: uuid,
+          artistName: entry.artist.name,
+          totalSeconds: 0,
+          years: {},
+        };
+      }
+      const duration = entry.sourceTrack.duration ?? 0;
+      artist[uuid].totalSeconds += duration;
+      const year = entry.playbackStartedAt.getFullYear();
+      artist[uuid].years[year] = (artist[uuid].years[year] ?? 0) + duration;
+    }
+
+    return Object.values(artist)
+      .sort((a, b) => b.totalSeconds - a.totalSeconds)
+      .map(({ years, ...rest }) => ({
+        ...rest,
+        years: Object.entries(years)
+          .map(([year, totalSeconds]) => ({ year: Number(year), totalSeconds }))
+          .sort((a, b) => b.year - a.year),
+      }));
+  }, [allEntries]);
+}
+
 export function useHistoryRecentlyPlayedShows(
   limit: number = 6
 ): ReadonlyArray<PlaybackHistoryEntry> {
