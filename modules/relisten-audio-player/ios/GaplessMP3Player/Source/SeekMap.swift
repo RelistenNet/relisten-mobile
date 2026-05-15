@@ -40,8 +40,7 @@ struct SeekMap {
             dataStartOffset: Int64,
             dataSize: Int64?,
             samplesPerFrame: Int,
-            sampleRate: Int,
-            frameByteLength: Int
+            sampleRate: Int
         )
         case unavailable
     }
@@ -49,6 +48,10 @@ struct SeekMap {
     let mode: Mode
 
     init(metadata: MP3TrackMetadata, bitrate: Int? = nil) {
+        // Prefer seek tables because they describe the file's actual byte layout.
+        // Only fall back to bitrate math when the parser explicitly marked the
+        // stream as constant-bitrate; duration plus first-frame bitrate alone is
+        // common in VBR metadata and would seek to the wrong region.
         if let toc = metadata.xingToc,
            let durationUs = metadata.durationUs,
            let dataEndOffset = metadata.dataEndOffset {
@@ -68,15 +71,16 @@ struct SeekMap {
                 dataSize: max(dataEndOffset - metadata.dataStartOffset + 1, 0),
                 table: vbriSeekTable
             )
-        } else if let durationUs = metadata.durationUs, let bitrate {
+        } else if metadata.approximateSeekStrategy == .constantBitrate,
+                  let durationUs = metadata.durationUs,
+                  let bitrate {
             self.mode = .cbr(
                 durationUs: durationUs,
                 bitrate: bitrate,
                 dataStartOffset: metadata.dataStartOffset,
                 dataSize: metadata.dataEndOffset.map { max($0 - metadata.dataStartOffset + 1, 0) },
                 samplesPerFrame: metadata.samplesPerFrame,
-                sampleRate: metadata.sampleRate,
-                frameByteLength: max(metadata.firstFrameByteLength, 1)
+                sampleRate: metadata.sampleRate
             )
         } else {
             self.mode = .unavailable
@@ -124,17 +128,26 @@ struct SeekMap {
                 confidence: .exact,
                 anchorTimeUs: clampedTimeUs
             )
-        case .cbr(let durationUs, _, let dataStartOffset, let dataSize, let samplesPerFrame, let sampleRate, let frameByteLength):
+        case .cbr(let durationUs, let bitrate, let dataStartOffset, let dataSize, let samplesPerFrame, let sampleRate):
             guard durationUs > 0 else {
                 return SeekResolution(byteOffset: dataStartOffset, confidence: .unavailable, anchorTimeUs: 0)
             }
 
             let clampedTimeUs = max(0, min(timeUs, durationUs))
+
+            // Seek to the frame before the requested one. Decoders need to start on
+            // compressed-frame boundaries, and the trim layer removes the extra PCM
+            // after decode so the public timeline still lands on the requested time.
             let targetRawFrames = (clampedTimeUs * Int64(sampleRate)) / 1_000_000
             let targetFrameIndex = max(targetRawFrames / Int64(max(samplesPerFrame, 1)), 0)
             let anchorFrameIndex = max(targetFrameIndex - 1, 0)
             let anchorRawFrames = anchorFrameIndex * Int64(samplesPerFrame)
-            let byteOffsetWithinData = anchorFrameIndex * Int64(frameByteLength)
+
+            // Use bitrate/time for CBR byte position rather than first-frame length.
+            // CBR MP3s can still use one-byte padding, so multiplying by the first
+            // frame size drifts over long seeks.
+            let byteOffsetWithinData = (anchorRawFrames * Int64(max(bitrate, 1))) /
+                (Int64(max(sampleRate, 1)) * 8)
             let clampedByteOffset = if let dataSize {
                 max(0, min(byteOffsetWithinData, max(dataSize - 1, 0)))
             } else {
@@ -162,6 +175,10 @@ enum TrackSeekPlanner {
         let rawStartFrames = logicalStartFrames + Int64(metadata.encoderDelayFrames)
         let rawStartTimeUs = (rawStartFrames * 1_000_000) / Int64(metadata.sampleRate)
         let resolution = SeekMap(metadata: metadata, bitrate: metadata.estimatedBitrate).resolve(timeUs: rawStartTimeUs)
+
+        // The seek map anchors in raw decoded samples. Subtracting that anchor from
+        // the desired raw start gives the PCM frames to discard after the decoder
+        // starts producing audio.
         let anchorRawFrames = (resolution.anchorTimeUs * Int64(metadata.sampleRate)) / 1_000_000
         let trimStartFrames = Int(max(rawStartFrames - anchorRawFrames, 0))
 

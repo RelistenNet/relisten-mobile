@@ -33,6 +33,160 @@ final class GaplessMP3PlayerTests: XCTestCase {
         XCTAssertEqual(report.next?.metadata.channelCount, 1)
     }
 
+    func testParserEstimatesDurationAndSeekOffsetForCBRTrackWithoutSeekHeader() throws {
+        let data = makeCBRMP3Data(frameCount: 512, bitrateKbps: 192)
+        let source = httpFixtureSource(id: "current", path: "cbr-without-seek-header.mp3", byteCount: data.count)
+
+        let metadata = try MP3GaplessMetadataParser().parse(
+            source: source,
+            data: data,
+            fingerprint: CacheFingerprint(contentLength: Int64(data.count))
+        )
+
+        XCTAssertEqual(metadata.seekHeaderKind, .none)
+        XCTAssertEqual(metadata.approximateSeekStrategy, .constantBitrate)
+        XCTAssertEqual(metadata.durationUs, (Int64(data.count) * 8 * 1_000_000) / 192_000)
+        XCTAssertEqual(metadata.dataEndOffset, Int64(data.count - 1))
+        let duration = try XCTUnwrap(metadata.durationUs).secondsFromMicroseconds
+
+        let seekPlan = TrackSeekPlanner.plan(metadata: metadata, startTime: duration * 0.5)
+        let expectedMidpointOffset = try XCTUnwrap(expectedCBRSeekByteOffset(metadata: metadata, startTime: duration * 0.5))
+        XCTAssertLessThanOrEqual(abs(seekPlan.byteOffset - expectedMidpointOffset), 8)
+    }
+
+    func testParserDoesNotEstimateDurationForNonCBRTrackWithoutSeekHeader() throws {
+        var data = try httpFixtureData(named: "gd77-s2t07-first-5s-44k1-stereo.mp3")
+        try replaceFirstASCII("Info", with: "Junk", in: &data)
+        let source = httpFixtureSource(id: "current", path: "vbr-without-seek-header.mp3", byteCount: data.count)
+
+        let metadata = try MP3GaplessMetadataParser().parse(
+            source: source,
+            data: data,
+            fingerprint: CacheFingerprint(contentLength: Int64(data.count))
+        )
+
+        XCTAssertEqual(metadata.seekHeaderKind, .none)
+        XCTAssertEqual(metadata.approximateSeekStrategy, .unavailable)
+        XCTAssertNil(metadata.durationUs)
+    }
+
+    func testParserDoesNotEstimateDurationWhenNoHeaderTrackChangesBitrateAfterIntro() throws {
+        let introBitrates = Array(repeating: 192, count: 40)
+        let laterBitrates = Array(repeating: 128, count: 32)
+        let data = makeMP3Data(frameBitratesKbps: introBitrates + laterBitrates)
+        let source = httpFixtureSource(id: "current", path: "delayed-vbr-without-seek-header.mp3", byteCount: data.count)
+
+        let metadata = try MP3GaplessMetadataParser().parse(
+            source: source,
+            data: data,
+            fingerprint: CacheFingerprint(contentLength: Int64(data.count))
+        )
+
+        XCTAssertEqual(metadata.seekHeaderKind, .none)
+        XCTAssertEqual(metadata.approximateSeekStrategy, .unavailable)
+        XCTAssertNil(metadata.durationUs)
+    }
+
+    func testParserDoesNotEstimateDurationFromXingHeaderWithoutFrameCount() throws {
+        let data = makeCBRMP3Data(frameCount: 512, bitrateKbps: 192, xingDataSizeOnly: true)
+        let source = httpFixtureSource(id: "current", path: "xing-without-frame-count.mp3", byteCount: data.count)
+
+        let metadata = try MP3GaplessMetadataParser().parse(
+            source: source,
+            data: data,
+            fingerprint: CacheFingerprint(contentLength: Int64(data.count))
+        )
+
+        XCTAssertEqual(metadata.seekHeaderKind, .xing)
+        XCTAssertEqual(metadata.approximateSeekStrategy, .unavailable)
+        XCTAssertNil(metadata.durationUs)
+        XCTAssertEqual(metadata.dataEndOffset, Int64(data.count - 1))
+    }
+
+    func testCBRSeekPlannerUsesBitrateForPaddedFrames() throws {
+        let source = phishSimple19961118Source()
+        let metadata = MP3TrackMetadata(
+            sourceID: source.id,
+            sourceURL: source.url,
+            cacheKey: source.cacheKey,
+            fingerprint: CacheFingerprint(contentLength: source.expectedContentLength),
+            firstAudioFrameOffset: 205_375,
+            dataStartOffset: 205_375,
+            dataEndOffset: 24_481_198,
+            seekHeaderKind: .none,
+            sampleRate: 44_100,
+            channelCount: 2,
+            samplesPerFrame: 1_152,
+            firstFrameByteLength: 626,
+            estimatedBitrate: 192_000,
+            approximateSeekStrategy: .constantBitrate,
+            durationUs: 1_011_492_666,
+            encoderDelayFrames: 0,
+            encoderPaddingFrames: 0
+        )
+
+        let seekPlan = TrackSeekPlanner.plan(metadata: metadata, startTime: 657)
+
+        XCTAssertLessThanOrEqual(abs(seekPlan.byteOffset - 15_972_258), 8)
+    }
+
+    func testSeekPlannerDoesNotUseCBRForXingDurationWithoutToc() {
+        let source = httpFixtureSource(id: "current", path: "xing-without-toc.mp3", byteCount: 250_000)
+        let metadata = MP3TrackMetadata(
+            sourceID: source.id,
+            sourceURL: source.url,
+            cacheKey: source.cacheKey,
+            fingerprint: CacheFingerprint(contentLength: source.expectedContentLength),
+            firstAudioFrameOffset: 1_000,
+            dataStartOffset: 1_000,
+            dataEndOffset: 249_999,
+            seekHeaderKind: .xing,
+            sampleRate: 44_100,
+            channelCount: 2,
+            samplesPerFrame: 1_152,
+            firstFrameByteLength: 626,
+            estimatedBitrate: 192_000,
+            durationUs: 10_000_000,
+            encoderDelayFrames: 0,
+            encoderPaddingFrames: 0,
+            xingToc: nil
+        )
+
+        let seekPlan = TrackSeekPlanner.plan(metadata: metadata, startTime: 5)
+
+        XCTAssertEqual(seekPlan.byteOffset, metadata.dataStartOffset)
+    }
+
+    func testE2EPhishSimple19961118FarSeekDoesNotClampToBeginning() async throws {
+        try requireLiveAudioE2E()
+        let outputGraph = TestOutputGraph()
+        let httpLogRecorder = HTTPLogRecorder()
+        let player = makeHTTPPlayer(outputGraph: outputGraph, cacheMode: .disabled)
+        player.httpLogHandler = { event in
+            httpLogRecorder.record(event)
+        }
+        let source = phishSimple19961118Source()
+        let targetTime: TimeInterval = (10 * 60) + 57
+
+        try await player.prepare(current: source, next: nil)
+
+        let report = try XCTUnwrap(player.latestPreparationReport)
+        XCTAssertEqual(report.current.metadata.seekHeaderKind, .none)
+        XCTAssertGreaterThan(report.current.trimmedDuration, targetTime)
+
+        try await player.seek(to: targetTime)
+
+        let seekedStatus = await player.status()
+        XCTAssertEqual(seekedStatus.currentTime, targetTime, accuracy: 1)
+
+        XCTAssertTrue(player.play())
+        try await waitUntil("far-seek audio schedules from live Phish Simple file", timeoutIterations: 300) {
+            outputGraph.totalScheduledDuration() > 1
+        }
+        let rangeStart = try XCTUnwrap(firstRangeRequestStart(in: httpLogRecorder.events()))
+        XCTAssertLessThanOrEqual(abs(rangeStart - 15_972_258), 2_048)
+    }
+
     func testPrepareReportsPausedPhaseSourceIdentityAndResolvedFileURLs() async throws {
         let outputGraph = TestOutputGraph()
         let player = makePlayer(outputGraph: outputGraph)
@@ -1200,6 +1354,19 @@ final class GaplessMP3PlayerTests: XCTestCase {
         )
     }
 
+    private func makeHTTPPlayer(
+        outputGraph: TestOutputGraph,
+        cacheMode: GaplessCacheMode = .enabled
+    ) -> GaplessMP3Player {
+        let cacheDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GaplessMP3PlayerHTTPPlayerTests-\(UUID().uuidString)", isDirectory: true)
+        let sourceManager = MP3SourceManager(cacheDirectory: cacheDirectory, cacheMode: cacheMode)
+        return GaplessMP3Player(
+            sourceManager: sourceManager,
+            outputGraphFactory: { _, _ in outputGraph }
+        )
+    }
+
     private func fixtureSource(id: String, fixtureName: String) -> GaplessPlaybackSource {
         let url = Bundle.module.bundleURL
             .appendingPathComponent("Fixtures")
@@ -1238,6 +1405,59 @@ final class GaplessMP3PlayerTests: XCTestCase {
             cacheKey: path,
             expectedContentLength: Int64(byteCount)
         )
+    }
+
+    private func phishSimple19961118Source() -> GaplessPlaybackSource {
+        let localFixtureURL = phishSimple19961118LocalFixtureURL()
+        let sourceURL = FileManager.default.fileExists(atPath: localFixtureURL.path)
+            ? localFixtureURL
+            : phishSimple19961118RemoteURL()
+        return GaplessPlaybackSource(
+            id: "phish-simple-1996-11-18",
+            url: sourceURL,
+            cacheKey: "phish-simple-1996-11-18-cz9b6pep6c45kajmuop522kj169k",
+            expectedContentLength: 24_481_199
+        )
+    }
+
+    private func phishSimple19961118RemoteURL() -> URL {
+        URL(string: "https://audio.relisten.net/phish.in/blob/cz9b6pep6c45kajmuop522kj169k.mp3")!
+    }
+
+    private func phishSimple19961118LocalFixtureURL() -> URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("E2EFixtures", isDirectory: true)
+            .appendingPathComponent("phish-simple-1996-11-18-cz9b6pep6c45kajmuop522kj169k.mp3")
+    }
+
+    private func expectedCBRSeekByteOffset(metadata: MP3TrackMetadata, startTime: TimeInterval) -> Int64? {
+        guard let bitrate = metadata.estimatedBitrate else {
+            return nil
+        }
+        let logicalStartFrames = Int64(startTime * Double(metadata.sampleRate))
+        let rawStartFrames = logicalStartFrames + Int64(metadata.encoderDelayFrames)
+        let targetFrameIndex = max(rawStartFrames / Int64(max(metadata.samplesPerFrame, 1)), 0)
+        let anchorFrameIndex = max(targetFrameIndex - 1, 0)
+        let anchorRawFrames = anchorFrameIndex * Int64(metadata.samplesPerFrame)
+        let anchorTimeUs = (anchorRawFrames * 1_000_000) / Int64(metadata.sampleRate)
+        return metadata.dataStartOffset + (anchorTimeUs * Int64(bitrate)) / 8_000_000
+    }
+
+    private func firstRangeRequestStart(in events: [GaplessHTTPLogEvent]) -> Int64? {
+        for event in events where event.requestKind == .range && event.kind == .requestStarted {
+            guard let header = event.requestHeaders["Range"], header.hasPrefix("bytes=") else {
+                continue
+            }
+            let rawRange = header.dropFirst("bytes=".count)
+            guard let start = rawRange.split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false).first else {
+                continue
+            }
+            return Int64(start)
+        }
+        return nil
     }
 
     private func httpFixtureData(named fixtureName: String) throws -> Data {
@@ -1291,6 +1511,22 @@ final class GaplessMP3PlayerTests: XCTestCase {
         XCTFail("Timed out waiting for \(description)")
     }
 
+    private func requireLiveAudioE2E() throws {
+        guard ProcessInfo.processInfo.environment["RELISTEN_AUDIO_E2E"] == "1" else {
+            let remoteURL = phishSimple19961118RemoteURL().absoluteString
+            let localPath = phishSimple19961118LocalFixtureURL().path
+            throw XCTSkip(
+                """
+                Set RELISTEN_AUDIO_E2E=1 to run live audio regression tests. \
+                This test uses Phish - Simple, 1996-11-18, \(remoteURL) \
+                (24,481,199 bytes). By default it streams that URL. For an \
+                offline local fixture, download the MP3 and place it at \(localPath). \
+                The E2EFixtures directory is gitignored.
+                """
+            )
+        }
+    }
+
     private func XCTAssertThrowsErrorAsync(
         _ expression: @autoclosure () async throws -> some Sendable,
         _ errorHandler: (Error) -> Void
@@ -1323,6 +1559,87 @@ final class GaplessMP3PlayerTests: XCTestCase {
 
     private func makeHTTPTestData(byteCount: Int) -> Data {
         Data((0..<byteCount).map { UInt8($0 % 251) })
+    }
+
+    private func makeCBRMP3Data(
+        frameCount: Int,
+        bitrateKbps: Int,
+        xingDataSizeOnly: Bool = false
+    ) -> Data {
+        makeMP3Data(
+            frameBitratesKbps: Array(repeating: bitrateKbps, count: frameCount),
+            xingDataSizeOnly: xingDataSizeOnly
+        )
+    }
+
+    private func makeMP3Data(
+        frameBitratesKbps: [Int],
+        xingDataSizeOnly: Bool = false
+    ) -> Data {
+        var data = Data()
+        for (frameIndex, bitrateKbps) in frameBitratesKbps.enumerated() {
+            let padded = frameIndex % 16 != 0
+            let frameSize = mpeg1Layer3FrameSize(bitrateKbps: bitrateKbps, padded: padded)
+            var frame = Data(repeating: 0, count: frameSize)
+            writeUInt32BE(mpeg1Layer3Header(bitrateKbps: bitrateKbps, padded: padded), to: &frame, at: 0)
+            data.append(frame)
+        }
+
+        if xingDataSizeOnly {
+            writeASCII("Xing", to: &data, at: 36)
+            writeUInt32BE(0x2, to: &data, at: 40)
+            writeUInt32BE(UInt32(data.count), to: &data, at: 44)
+        }
+
+        return data
+    }
+
+    private func mpeg1Layer3FrameSize(bitrateKbps: Int, padded: Bool) -> Int {
+        ((144 * bitrateKbps * 1_000) / 44_100) + (padded ? 1 : 0)
+    }
+
+    private func mpeg1Layer3Header(bitrateKbps: Int, padded: Bool) -> UInt32 {
+        let bitrates = [32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320]
+        guard let bitrateIndex = bitrates.firstIndex(of: bitrateKbps).map({ UInt32($0 + 1) }) else {
+            preconditionFailure("Unsupported test bitrate")
+        }
+        let versionBits: UInt32 = 0b11
+        let layerBits: UInt32 = 0b01
+        let protectionAbsent: UInt32 = 1
+        let sampleRateIndex: UInt32 = 0
+        let paddingBit: UInt32 = padded ? 1 : 0
+        let channelModeBits: UInt32 = 0b00
+        return 0xFFE0_0000 |
+            (versionBits << 19) |
+            (layerBits << 17) |
+            (protectionAbsent << 16) |
+            (bitrateIndex << 12) |
+            (sampleRateIndex << 10) |
+            (paddingBit << 9) |
+            (channelModeBits << 6)
+    }
+
+    private func writeASCII(_ value: String, to data: inout Data, at offset: Int) {
+        for (index, byte) in value.utf8.enumerated() {
+            data[offset + index] = byte
+        }
+    }
+
+    private func writeUInt32BE(_ value: UInt32, to data: inout Data, at offset: Int) {
+        data[offset] = UInt8((value >> 24) & 0xFF)
+        data[offset + 1] = UInt8((value >> 16) & 0xFF)
+        data[offset + 2] = UInt8((value >> 8) & 0xFF)
+        data[offset + 3] = UInt8(value & 0xFF)
+    }
+
+    private func replaceFirstASCII(_ needle: String, with replacement: String, in data: inout Data) throws {
+        let needleBytes = Array(needle.utf8)
+        let replacementBytes = Array(replacement.utf8)
+        XCTAssertEqual(needleBytes.count, replacementBytes.count)
+        guard let range = data.range(of: Data(needleBytes)) else {
+            throw TestFailure.missingBytes(needle)
+        }
+        data.replaceSubrange(range, with: replacementBytes)
     }
 
     private func makePreparationReport(
@@ -1584,6 +1901,13 @@ private final class StubHTTPDataLoader: HTTPDataLoading, @unchecked Sendable {
 
 private enum TestFailure: Error {
     case invalidRangeHeader(String)
+    case missingBytes(String)
+}
+
+private extension Int64 {
+    var secondsFromMicroseconds: TimeInterval {
+        TimeInterval(self) / 1_000_000
+    }
 }
 
 private final class HTTPLogRecorder: @unchecked Sendable {

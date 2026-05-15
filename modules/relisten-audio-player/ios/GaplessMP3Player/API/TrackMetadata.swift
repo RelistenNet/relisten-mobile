@@ -77,6 +77,17 @@ public struct MP3TrackMetadata: Codable, Equatable, Sendable {
         case vbri
     }
 
+    /// Indicates whether approximate byte seeking is safe when no seek table is usable.
+    ///
+    /// A duration plus a first-frame bitrate is not enough evidence on its own: many
+    /// VBR files still expose those fields, but their byte positions do not scale
+    /// linearly with time. The parser sets this only after it has enough frame-level
+    /// evidence that bitrate-derived byte positions are defensible.
+    public enum ApproximateSeekStrategy: String, Codable, Sendable {
+        case unavailable
+        case constantBitrate
+    }
+
     public var sourceID: String
     public var sourceURL: URL
     public var cacheKey: String
@@ -90,6 +101,7 @@ public struct MP3TrackMetadata: Codable, Equatable, Sendable {
     public var samplesPerFrame: Int
     public var firstFrameByteLength: Int
     public var estimatedBitrate: Int?
+    public var approximateSeekStrategy: ApproximateSeekStrategy
     public var durationUs: Int64?
     public var encoderDelayFrames: Int
     public var encoderPaddingFrames: Int
@@ -110,6 +122,7 @@ public struct MP3TrackMetadata: Codable, Equatable, Sendable {
         samplesPerFrame: Int,
         firstFrameByteLength: Int = 0,
         estimatedBitrate: Int? = nil,
+        approximateSeekStrategy: ApproximateSeekStrategy = .unavailable,
         durationUs: Int64?,
         encoderDelayFrames: Int,
         encoderPaddingFrames: Int,
@@ -129,6 +142,7 @@ public struct MP3TrackMetadata: Codable, Equatable, Sendable {
         self.samplesPerFrame = samplesPerFrame
         self.firstFrameByteLength = firstFrameByteLength
         self.estimatedBitrate = estimatedBitrate
+        self.approximateSeekStrategy = approximateSeekStrategy
         self.durationUs = durationUs
         self.encoderDelayFrames = encoderDelayFrames
         self.encoderPaddingFrames = encoderPaddingFrames
