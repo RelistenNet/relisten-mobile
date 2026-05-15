@@ -3,6 +3,11 @@ import Foundation
 struct MP3GaplessMetadataParser {
     private static let maxSyncSearchBytes = 131_072
     private static let headerMatchMask: UInt32 = 0xFFFE0C00
+    // 64 MPEG-1 Layer III frames are about 1.7 seconds of audio and under 100 KB
+    // even at high MP3 bitrates. That is enough to catch common VBR intros that
+    // hold one bitrate briefly, while staying inside the metadata prefix we already
+    // fetched and avoiding a whole-file scan during preparation.
+    private static let cbrConfidenceFrameSampleCount = 64
 
     struct ParsedID3Info {
         var encoderDelay: Int?
@@ -54,11 +59,39 @@ struct MP3GaplessMetadataParser {
 
         let delay = id3Info.encoderDelay ?? seekHeader.encoderDelay ?? 0
         let padding = id3Info.encoderPadding ?? seekHeader.encoderPadding ?? 0
+
+        // Xing/Info/VBRI headers may report the audio payload size. If they do not,
+        // a trusted HTTP/file content length still lets us bound CBR tracks without
+        // reading the whole file during metadata preparation.
+        let seekHeaderDataSize = seekHeader.dataSize
+            .map(Int64.init)
+            .flatMap { $0 > 0 ? $0 : nil }
+        let fallbackDataSize = fingerprint.contentLength
+            .map { max($0 - Int64(firstFrameOffset), 0) }
+            .flatMap { $0 > 0 ? $0 : nil }
+        let dataSize = seekHeaderDataSize ?? fallbackDataSize
+
+        // For true CBR, duration is linear: bytes * 8 / bitrate. That shortcut is
+        // wrong for VBR files, including Xing/VBRI files whose seek tables are absent
+        // or unusable, so parser-verified CBR is the only path that enables it.
+        let allowsCBRDurationFallback =
+            (seekHeader.kind == .info || seekHeader.kind == .none) &&
+            isLikelyCBR(
+                data: data,
+                firstFrameOffset: firstFrameOffset,
+                firstHeader: header,
+                knownContentLength: fingerprint.contentLength
+            )
+        let approximateSeekStrategy: MP3TrackMetadata.ApproximateSeekStrategy =
+            allowsCBRDurationFallback ? .constantBitrate : .unavailable
+        let fallbackDurationUs = allowsCBRDurationFallback ? dataSize.map {
+            ($0 * 8 * 1_000_000) / Int64(header.bitrate)
+        } : nil
         let durationUs = seekHeader.frameCount.map {
             let totalSamples = max(Int64($0 * header.samplesPerFrame) - 1, 0)
             return (totalSamples * 1_000_000) / Int64(header.sampleRate)
-        }
-        let dataEndOffset = seekHeader.dataSize.map { Int64(firstFrameOffset + $0 - 1) }
+        } ?? fallbackDurationUs
+        let dataEndOffset = dataSize.map { Int64(firstFrameOffset) + $0 - 1 }
 
         return MP3TrackMetadata(
             sourceID: source.id,
@@ -74,6 +107,7 @@ struct MP3GaplessMetadataParser {
             samplesPerFrame: header.samplesPerFrame,
             firstFrameByteLength: header.frameSize,
             estimatedBitrate: header.bitrate,
+            approximateSeekStrategy: approximateSeekStrategy,
             durationUs: durationUs,
             encoderDelayFrames: delay,
             encoderPaddingFrames: padding,
@@ -177,6 +211,9 @@ struct MP3GaplessMetadataParser {
                 continue
             }
 
+            // MPEG sync words are short enough to appear inside ID3/artwork bytes.
+            // Require several structurally compatible frames in a row before treating
+            // an offset as the start of audio.
             if validateConsecutiveFrames(data: data, startOffset: offset, firstHeader: header) {
                 return offset
             }
@@ -192,6 +229,8 @@ struct MP3GaplessMetadataParser {
         let targetMask = firstHeader.rawValue & Self.headerMatchMask
         for index in 0 ..< 4 {
             guard let header = try? parseHeader(at: offset, in: data) else { return false }
+            // This validates the stream shape, not constant bitrate. Bitrate and
+            // padding may legitimately vary; CBR confidence is established later.
             if (header.rawValue & Self.headerMatchMask) != targetMask {
                 return false
             }
@@ -251,6 +290,9 @@ struct MP3GaplessMetadataParser {
             throw GaplessMP3PlayerError.invalidMP3("Unsupported bitrate or sample rate")
         }
 
+        // Layer III stores a fixed number of decoded samples per frame. The byte
+        // length is derived from bitrate/sample-rate plus an optional one-byte
+        // padding bit, which is why CBR frames can alternate between two sizes.
         let samplesPerFrame = versionBits == 0b11 ? 1_152 : 576
         let bitrate = bitrateKbps * 1_000
         let frameSize = versionBits == 0b11
@@ -272,6 +314,45 @@ struct MP3GaplessMetadataParser {
             frameSize: frameSize,
             channelModeBits: channelModeBits
         )
+    }
+
+    private func isLikelyCBR(
+        data: Data,
+        firstFrameOffset: Int,
+        firstHeader: MPEGAudioHeader,
+        knownContentLength: Int64?,
+        sampleLimit: Int = Self.cbrConfidenceFrameSampleCount
+    ) -> Bool {
+        // Metadata reads usually see only an initial prefix. To avoid calling a VBR
+        // intro "CBR", require many consecutive frames with matching bitrate unless
+        // the prefix actually reaches the known end of the file.
+        var offset = firstFrameOffset
+        var inspectedFrameCount = 0
+
+        while inspectedFrameCount < sampleLimit, offset + 4 <= data.count {
+            guard let header = try? parseHeader(at: offset, in: data) else {
+                break
+            }
+            guard header.versionBits == firstHeader.versionBits,
+                  header.layerBits == firstHeader.layerBits,
+                  header.bitrate == firstHeader.bitrate,
+                  header.sampleRate == firstHeader.sampleRate,
+                  header.channelModeBits == firstHeader.channelModeBits,
+                  header.samplesPerFrame == firstHeader.samplesPerFrame else {
+                return false
+            }
+
+            inspectedFrameCount += 1
+            offset += header.frameSize
+        }
+
+        if inspectedFrameCount >= sampleLimit {
+            return true
+        }
+        if let knownContentLength, Int64(offset) >= knownContentLength {
+            return inspectedFrameCount >= 4
+        }
+        return false
     }
 
     private func parseSeekHeader(data: Data, frameOffset: Int, header: MPEGAudioHeader) throws -> SeekHeaderInfo {
@@ -310,6 +391,10 @@ struct MP3GaplessMetadataParser {
         guard let flags = reader.readUInt32BE(at: frameOffset + 4) else {
             throw GaplessMP3PlayerError.insufficientData("Missing Xing/Info flags")
         }
+
+        // Xing/Info headers are optional metadata frames embedded in the first MPEG
+        // frame. The flags choose which fields are present; a Xing header with frame
+        // count but no TOC can give duration but still cannot support byte seeking.
         var cursor = frameOffset + 8
         var frameCount: Int?
         var dataSize: Int?
