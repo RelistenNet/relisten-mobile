@@ -44,7 +44,7 @@ export function queueTracksFromSelection({
     playIndex,
     source: sourceUuid,
   });
-  ctx.player.queue.replaceQueue(queueTracks, playIndex);
+  ctx.player.queue.replaceQueue(queueTracks, playIndex, { resetShuffle: true });
   ctx.showNowPlaying?.();
 
   return true;

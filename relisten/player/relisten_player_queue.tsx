@@ -206,7 +206,11 @@ export class RelistenPlayerQueue {
     this.savePlayerState();
   }
 
-  replaceQueue(newQueue: PlayerQueueTrack[], playingTrackAtIndex: number | undefined) {
+  replaceQueue(
+    newQueue: PlayerQueueTrack[],
+    playingTrackAtIndex: number | undefined,
+    options?: { resetShuffle?: boolean }
+  ) {
     this.player.cancelPendingPlayRequests('replaceQueue');
     this.originalTracks = [...newQueue];
     this.originalTracksCurrentIndex = undefined;
@@ -214,6 +218,12 @@ export class RelistenPlayerQueue {
     this.shuffledTracksCurrentIndex = undefined;
     this.prevNextTrackIndexIntentOffset = 0;
     this.reshuffleTracks();
+
+    if (options?.resetShuffle && this._shuffleState !== PlayerShuffleState.SHUFFLE_OFF) {
+      this._shuffleState = PlayerShuffleState.SHUFFLE_OFF;
+      this.onShuffleStateChanged.dispatch(this._shuffleState);
+      nativePlayer.setShuffleMode(this._shuffleState);
+    }
 
     if (playingTrackAtIndex !== undefined) {
       this.player.playTrackAtIndex(playingTrackAtIndex);
