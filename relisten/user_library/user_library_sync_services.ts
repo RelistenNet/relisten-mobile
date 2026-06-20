@@ -5,12 +5,15 @@ import {
   UserLibraryRefreshTokenStore,
 } from '@/relisten/user_library/auth_session';
 import { SecureStoreUserLibraryRefreshTokenStore } from '@/relisten/user_library/auth_token_store';
+import { SecureStoreMobileAccessGrantSecretStore } from '@/relisten/user_library/mobile_access_grant_secret_store';
+import { MobileAccessGrantSecretStore } from '@/relisten/user_library/share_token_exchange';
 import { UserLibrarySyncRunner } from '@/relisten/user_library/user_library_sync_runner';
 
 export interface UserLibrarySyncServices {
   authClient: RelistenUserLibraryApiClient;
   client: RelistenUserLibraryApiClient;
   authSession: UserLibraryAuthSessionService;
+  mobileAccessGrantSecretStore: MobileAccessGrantSecretStore;
   runner: UserLibrarySyncRunner;
 }
 
@@ -18,6 +21,7 @@ export interface CreateUserLibrarySyncServicesOptions {
   authClient?: RelistenUserLibraryApiClient;
   client?: RelistenUserLibraryApiClient;
   refreshTokenStore?: UserLibraryRefreshTokenStore;
+  mobileAccessGrantSecretStore?: MobileAccessGrantSecretStore;
 }
 
 export function createUserLibrarySyncServices(
@@ -28,12 +32,15 @@ export function createUserLibrarySyncServices(
   const client = options.client ?? new RelistenUserLibraryApiClient();
   const refreshTokenStore =
     options.refreshTokenStore ?? new SecureStoreUserLibraryRefreshTokenStore();
+  const mobileAccessGrantSecretStore =
+    options.mobileAccessGrantSecretStore ?? new SecureStoreMobileAccessGrantSecretStore();
   const authSession = new UserLibraryAuthSessionService(authClient, refreshTokenStore);
 
   return {
     authClient,
     client,
     authSession,
+    mobileAccessGrantSecretStore,
     runner: new UserLibrarySyncRunner(realm, client, authSession),
   };
 }

@@ -33,12 +33,12 @@ Pure tests for exchange payload/header construction.
 
 ## Dependencies or Blockers
 
-Depends on `deep-link-sanitizer`, `auth-session-user-service-client`, local API config, and server share-token exchange endpoint availability.
+The pure mobile foundation depends on `deep-link-sanitizer`, `auth-session-user-service-client`, and local API config; those are now available. Live validation still depends on server share-token exchange endpoint availability.
 
 ## Current Hypothesis
 
-Keep original URL tokens out of storage. Store grant secrets only in secure storage and grant metadata in scoped local data.
+Keep original URL tokens transient and out of storage/loggable metadata. Store only grant selector/device/platform metadata in scoped Realm and grant secrets in SecureStore. Tokenless playlist reads should present `X-Relisten-Mobile-Grant` and `X-Relisten-Device-Id` once a mobile playlist read client/UI exists.
 
 ## Next Scoped Step
 
-Promote after sanitizer and user-library client can call local `RelistenUserApi`.
+Run live Universal Link/exchange smoke when `RelistenUserApi` is listening with the share-token endpoint. Defer Follow/Clone/editor choices to the playlist mobile UX workstream.
