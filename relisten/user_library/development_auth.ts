@@ -8,7 +8,10 @@ import {
   DevelopmentSessionRequest,
   UserLibraryAuthTokenResponse,
 } from '@/relisten/user_library/auth_session';
-import { UserLibraryAuthSessionRealmService } from '@/relisten/user_library/auth_session_realm_service';
+import {
+  latestActiveUserLibrarySessionMetadata,
+  UserLibraryAuthSessionRealmService,
+} from '@/relisten/user_library/auth_session_realm_service';
 import {
   DEFAULT_ANONYMOUS_DEVICE_ID,
   UserDataScopeKind,
@@ -117,16 +120,7 @@ export function currentUserLibrarySessionMetadata(realm: Realm): UserAuthSession
     return null;
   }
 
-  return (
-    [...realm.objects(UserAuthSessionMetadata)]
-      .filter(
-        (metadata) =>
-          metadata.scopeId === activeScope.scopeId &&
-          !!metadata.sessionUuid &&
-          !metadata.signedOutAt
-      )
-      .sort(compareSessionMetadataNewest)[0] ?? null
-  );
+  return latestActiveUserLibrarySessionMetadata(realm, activeScope.scopeId);
 }
 
 export function defaultDevelopmentSessionRequest(username: string): DevelopmentSessionRequest {
@@ -147,17 +141,6 @@ function developmentSessionRequest(
     device_name: options.deviceName?.trim() || defaultDevelopmentDeviceName(),
     platform,
   };
-}
-
-function compareSessionMetadataNewest(
-  left: UserAuthSessionMetadata,
-  right: UserAuthSessionMetadata
-) {
-  return latestSessionTimestamp(right) - latestSessionTimestamp(left);
-}
-
-function latestSessionTimestamp(metadata: UserAuthSessionMetadata) {
-  return (metadata.lastRefreshAt ?? metadata.lastAuthenticatedAt).getTime();
 }
 
 function platformForDevelopmentSession(): 'ios' | 'android' | 'web' {

@@ -4,9 +4,9 @@ import {
   QueueV2HistoryAttribution,
   QueueV2Item,
 } from '@/relisten/player/queue_v2';
-import { UserAuthSessionMetadata } from '@/relisten/realm/models/user_library/auth';
 import { ScopedPlaybackHistoryEntry } from '@/relisten/realm/models/user_library/history';
 import { getActiveUserDataScope } from '@/relisten/user_library/active_user_data_scope_service';
+import { latestActiveUserLibrarySessionDeviceId } from '@/relisten/user_library/auth_session_realm_service';
 import { UserDataScopeKind } from '@/relisten/user_library/user_data_scope';
 import {
   PlaybackHistoryJournalInput,
@@ -37,7 +37,7 @@ export function recordAuthenticatedPlaybackHistoryEvent(
     return undefined;
   }
 
-  const deviceId = activeSessionDeviceId(realm, activeScope.scopeId);
+  const deviceId = latestActiveUserLibrarySessionDeviceId(realm, activeScope.scopeId);
 
   if (!deviceId) {
     return undefined;
@@ -66,25 +66,4 @@ export function recordAuthenticatedPlaybackHistoryEvent(
   return new UserLibraryPlaybackHistoryRepository(realm).record(activeScope.scopeId, journalInput, {
     historyEnabled: input.historyEnabled,
   });
-}
-
-function activeSessionDeviceId(realm: Realm, scopeId: string) {
-  const metadata = [...realm.objects(UserAuthSessionMetadata)]
-    .filter(
-      (session) => session.scopeId === scopeId && !session.signedOutAt && !!session.deviceId?.trim()
-    )
-    .sort(compareSessionMetadataNewest)[0];
-
-  return metadata?.deviceId?.trim();
-}
-
-function compareSessionMetadataNewest(
-  left: UserAuthSessionMetadata,
-  right: UserAuthSessionMetadata
-) {
-  return latestSessionTimestamp(right) - latestSessionTimestamp(left);
-}
-
-function latestSessionTimestamp(metadata: UserAuthSessionMetadata) {
-  return (metadata.lastRefreshAt ?? metadata.lastAuthenticatedAt).getTime();
 }

@@ -36,6 +36,16 @@ export interface QueueV2ShuffleUnit {
   items: QueueV2Item[];
 }
 
+export interface QueueV2TrackLike {
+  identifier: string;
+  queueV2Item: QueueV2Item;
+}
+
+export interface QueueV2TrackShuffleUnit<TTrack extends QueueV2TrackLike> {
+  key: string;
+  tracks: TTrack[];
+}
+
 export interface QueueV2PlaylistEntryInput {
   uuid: string;
   playlistUuid: string;
@@ -211,6 +221,37 @@ export function queueV2ShuffleUnits(items: QueueV2Item[]): QueueV2ShuffleUnit[] 
 
 export function flattenQueueV2ShuffleUnits(units: QueueV2ShuffleUnit[]): QueueV2Item[] {
   return units.flatMap((unit) => unit.items);
+}
+
+export function queueV2TrackShuffleUnits<TTrack extends QueueV2TrackLike>(
+  tracks: TTrack[]
+): QueueV2TrackShuffleUnit<TTrack>[] {
+  const tracksByQueueItemId = tracks.reduce<Map<string, TTrack[]>>((map, track) => {
+    const existingTracks = map.get(track.queueV2Item.queueItemId);
+
+    if (existingTracks) {
+      existingTracks.push(track);
+    } else {
+      map.set(track.queueV2Item.queueItemId, [track]);
+    }
+
+    return map;
+  }, new Map());
+
+  return queueV2ShuffleUnits(tracks.map((track) => track.queueV2Item))
+    .map((unit) => ({
+      key: unit.key,
+      tracks: unit.items
+        .map((item) => tracksByQueueItemId.get(item.queueItemId)?.shift())
+        .filter((track): track is TTrack => !!track),
+    }))
+    .filter((unit) => unit.tracks.length > 0);
+}
+
+export function flattenQueueV2TrackShuffleUnits<TTrack extends QueueV2TrackLike>(
+  units: QueueV2TrackShuffleUnit<TTrack>[]
+): TTrack[] {
+  return units.flatMap((unit) => unit.tracks);
 }
 
 export function migrateLegacyCatalogQueueStateToQueueV2(

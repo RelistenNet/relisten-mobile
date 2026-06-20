@@ -25,6 +25,14 @@ export class UserLibraryApiError extends Error {
   }
 }
 
+export function safeUserLibraryErrorMessage(error: unknown): string {
+  if (error instanceof UserLibraryApiError) {
+    return `User-library API request failed with status ${error.status}`;
+  }
+
+  return error instanceof Error ? error.message : String(error);
+}
+
 export class RelistenUserLibraryApiClient {
   static API_BASE = getRelistenUserLibraryApiBaseUrl();
 
@@ -103,12 +111,11 @@ export class RelistenUserLibraryApiClient {
     });
 
     if (!response.ok) {
-      const errorBody = await response.text().catch(() => '');
       throw new UserLibraryApiError(
         response.status,
         method,
         requestPath,
-        errorBody || `User-library API request failed with status ${response.status}`
+        `User-library API request failed with status ${response.status}`
       );
     }
 

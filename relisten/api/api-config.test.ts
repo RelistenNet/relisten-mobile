@@ -104,6 +104,23 @@ describe('RelistenUserLibraryApiClient', () => {
     expect(headers.get('Authorization')).toBe('Bearer access-token');
     expect(headers.get('Content-Type')).toBe('application/json');
   });
+
+  it('does not expose server response bodies through API error messages', async () => {
+    const fetchFn = vi.fn(async () => {
+      return new Response('sensitive server body', { status: 500 });
+    });
+    const client = new RelistenUserLibraryApiClient({
+      baseUrl: LOCAL_IOS_SIMULATOR_USER_LIBRARY_API_BASE_URL,
+      fetchFn: fetchFn as typeof fetch,
+    });
+
+    await expect(client.getJson('/users/me')).rejects.toMatchObject({
+      message: 'User-library API request failed with status 500',
+      method: 'GET',
+      path: '/api/v3/library/users/me',
+      status: 500,
+    });
+  });
 });
 
 describe('runLocalApiBaseUrlProbe', () => {

@@ -1,6 +1,7 @@
 import Realm from 'realm';
 import {
   RelistenUserLibraryApiClient,
+  safeUserLibraryErrorMessage,
   UserLibraryApiError,
   UserLibraryRequestOptions,
 } from '@/relisten/api/user_library_client';
@@ -306,7 +307,7 @@ export class UserLibraryPlaybackHistoryUploadService {
         this.markMissingBatchResultsFailed(entries, response);
         addUploadResult(result, uploadResultFromResponse(entries.length, response));
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage = safeUserLibraryErrorMessage(error);
         this.repository.markFailed(entries, errorMessage);
 
         if (options.throwAuthenticationErrors && isUnauthorizedApiError(error)) {

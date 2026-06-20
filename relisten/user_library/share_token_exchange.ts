@@ -1,9 +1,9 @@
+import { Buffer } from 'buffer';
 import Realm from 'realm';
 import {
   RelistenUserLibraryApiClient,
   UserLibraryRequestOptions,
 } from '@/relisten/api/user_library_client';
-import { UserAuthSessionMetadata } from '@/relisten/realm/models/user_library/auth';
 import { ActiveUserDataScope } from '@/relisten/realm/models/user_library/scope';
 import {
   UserMobileAccessGrant,
@@ -13,6 +13,7 @@ import {
   ensureAnonymousUserDataScope,
   getActiveUserDataScope,
 } from '@/relisten/user_library/active_user_data_scope_service';
+import { latestActiveUserLibrarySessionDeviceId } from '@/relisten/user_library/auth_session_realm_service';
 import {
   UserLibraryPlaylistResponse,
   UserLibraryPlaylistViewerStateResponse,
@@ -376,31 +377,13 @@ function deviceIdForOpenedShareToken(realm: Realm, activeScope: ActiveUserDataSc
   }
 
   if (activeScope.scopeKind === UserDataScopeKind.Authenticated) {
-    return activeSessionDeviceId(realm, activeScope.scopeId) ?? DEFAULT_ANONYMOUS_DEVICE_ID;
+    return (
+      latestActiveUserLibrarySessionDeviceId(realm, activeScope.scopeId) ??
+      DEFAULT_ANONYMOUS_DEVICE_ID
+    );
   }
 
   return DEFAULT_ANONYMOUS_DEVICE_ID;
-}
-
-function activeSessionDeviceId(realm: Realm, scopeId: string): string | undefined {
-  return [...realm.objects(UserAuthSessionMetadata)]
-    .filter(
-      (metadata) => metadata.scopeId === scopeId && !!metadata.sessionUuid && !metadata.signedOutAt
-    )
-    .sort(compareSessionMetadataNewest)
-    .map((metadata) => metadata.deviceId?.trim())
-    .find((deviceId) => !!deviceId);
-}
-
-function compareSessionMetadataNewest(
-  left: UserAuthSessionMetadata,
-  right: UserAuthSessionMetadata
-) {
-  return latestSessionTimestamp(right) - latestSessionTimestamp(left);
-}
-
-function latestSessionTimestamp(metadata: UserAuthSessionMetadata) {
-  return (metadata.lastRefreshAt ?? metadata.lastAuthenticatedAt).getTime();
 }
 
 function validatedPlatform(platform: string): MobileShareTokenPlatform {
@@ -455,49 +438,9 @@ function writeRealm<T>(realm: Realm, callback: () => T): T {
 }
 
 function secureStoreKeyPart(value: string): string {
-  return base64UrlEncodeUtf8(value);
-}
-
-function base64UrlEncodeUtf8(value: string): string {
-  const bytes = utf8Bytes(value);
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-  let output = '';
-
-  for (let index = 0; index < bytes.length; index += 3) {
-    const first = bytes[index];
-    const second = bytes[index + 1];
-    const third = bytes[index + 2];
-    const chunk = (first << 16) | ((second ?? 0) << 8) | (third ?? 0);
-
-    output += alphabet[(chunk >> 18) & 63];
-    output += alphabet[(chunk >> 12) & 63];
-
-    if (second !== undefined) {
-      output += alphabet[(chunk >> 6) & 63];
-    }
-
-    if (third !== undefined) {
-      output += alphabet[chunk & 63];
-    }
-  }
-
-  return output;
-}
-
-function utf8Bytes(value: string): number[] {
-  const encoded = encodeURIComponent(value);
-  const bytes: number[] = [];
-
-  for (let index = 0; index < encoded.length; index += 1) {
-    const char = encoded[index];
-
-    if (char === '%') {
-      bytes.push(Number.parseInt(encoded.slice(index + 1, index + 3), 16));
-      index += 2;
-    } else {
-      bytes.push(char.charCodeAt(0));
-    }
-  }
-
-  return bytes;
+  return Buffer.from(value, 'utf8')
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
 }

@@ -1,6 +1,7 @@
 import Realm from 'realm';
 import {
   RelistenUserLibraryApiClient,
+  safeUserLibraryErrorMessage,
   UserLibraryApiError,
   UserLibraryRequestOptions,
 } from '@/relisten/api/user_library_client';
@@ -321,7 +322,7 @@ export class UserLibraryPlaylistOperationReplayService {
         });
       } catch (error) {
         const failedAt = options.now ?? new Date();
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage = safeUserLibraryErrorMessage(error);
         if (isTerminalPlaylistOperationError(error)) {
           this.repository.markBlocked(operation, errorMessage, failedAt);
         } else {
@@ -433,11 +434,11 @@ function isTerminalPlaylistOperationError(error: unknown) {
   return (
     error instanceof UserLibraryPlaylistOperationOutboxError ||
     (error instanceof UserLibraryApiError &&
-      error.status >= 400 &&
-      error.status < 500 &&
-      error.status !== 401)
+      TERMINAL_PLAYLIST_OPERATION_API_STATUSES.has(error.status))
   );
 }
+
+const TERMINAL_PLAYLIST_OPERATION_API_STATUSES = new Set([400, 403, 404, 422]);
 
 function isUnauthorizedApiError(error: unknown) {
   return error instanceof UserLibraryApiError && error.status === 401;

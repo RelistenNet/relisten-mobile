@@ -73,6 +73,7 @@ export function sanitizeUrlForLogging(url: string): string {
       parsedUrl.searchParams.set(name, REDACTED_QUERY_VALUE);
     }
   }
+  parsedUrl.hash = '';
 
   if (url.startsWith('/')) {
     return `${parsedUrl.pathname}${parsedUrl.search}`;

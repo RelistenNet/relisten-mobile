@@ -11,6 +11,7 @@ import {
 import { scopedUserDataPrimaryKey } from '@/relisten/user_library/user_data_scope';
 
 export const CATALOG_FAVORITES_MIGRATION_MARKER = 'catalog-favorites-to-scoped-v1';
+const CATALOG_FAVORITES_MIGRATION_MARKER_SCOPE_ID = 'local-catalog-favorites';
 
 export interface UserLibraryFavoriteResponse {
   entity_type: string;
@@ -154,7 +155,10 @@ export function migrateCatalogFavoritesToScopedRows(
   options: CatalogFavoriteMigrationOptions = {}
 ): CatalogFavoriteMigrationResult {
   const migratedAt = options.migratedAt ?? new Date();
-  const markerScopedId = scopedUserDataPrimaryKey(scopeId, CATALOG_FAVORITES_MIGRATION_MARKER);
+  const markerScopedId = scopedUserDataPrimaryKey(
+    CATALOG_FAVORITES_MIGRATION_MARKER_SCOPE_ID,
+    CATALOG_FAVORITES_MIGRATION_MARKER
+  );
 
   return write(realm, () => {
     if (realm.objectForPrimaryKey(UserDataMigrationMarker, markerScopedId)) {
@@ -185,10 +189,10 @@ export function migrateCatalogFavoritesToScopedRows(
     const total = Object.values(countsByEntityType).reduce((sum, count) => sum + count, 0);
     realm.create(UserDataMigrationMarker, {
       scopedId: markerScopedId,
-      scopeId,
+      scopeId: CATALOG_FAVORITES_MIGRATION_MARKER_SCOPE_ID,
       marker: CATALOG_FAVORITES_MIGRATION_MARKER,
       completedAt: migratedAt,
-      detailsJson: JSON.stringify({ countsByEntityType, total }),
+      detailsJson: JSON.stringify({ countsByEntityType, importedToScopeId: scopeId, total }),
     });
 
     return { migrated: true, total, countsByEntityType };

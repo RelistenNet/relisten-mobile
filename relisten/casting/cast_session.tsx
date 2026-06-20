@@ -19,6 +19,7 @@ import {
 } from '@/relisten/casting/cast_driver';
 import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import { PlayerRepeatState, PlayerShuffleState } from '@/relisten/player/relisten_player_queue';
+import { castStatusRuntimeIdentifierForLocalQueue } from '@/relisten/casting/cast_queue_v2';
 
 const logger = log.extend('cast-session');
 
@@ -265,10 +266,10 @@ export function useRelistenCastSession(player: RelistenPlayer) {
     if (hasActiveCastQueue) {
       isAdoptingCastSessionRef.current = true;
       shouldLoadFromLocalRef.current = false;
-      expectedIdentifierRef.current = (
-        existingQueueItems.find((item) => item.itemId === mediaStatus?.currentItemId)?.mediaInfo
-          ?.customData as { identifier?: string } | undefined
-      )?.identifier;
+      expectedIdentifierRef.current = castStatusRuntimeIdentifierForLocalQueue(
+        existingQueueItems.find((item) => item.itemId === mediaStatus?.currentItemId),
+        player.queue.orderedTracks
+      );
       expectedElapsedRef.current = streamPosition ?? 0;
       hasReconciledRef.current = true;
       clearCastLoadTimeout();
@@ -354,7 +355,10 @@ export function useRelistenCastSession(player: RelistenPlayer) {
     const currentItem =
       queueItems.find((item) => item.itemId === mediaStatus.currentItemId) ??
       queueItems.find((item) => item.mediaInfo?.customData);
-    const identifier = (currentItem?.mediaInfo?.customData as { identifier?: string })?.identifier;
+    const identifier = castStatusRuntimeIdentifierForLocalQueue(
+      currentItem,
+      player.queue.orderedTracks
+    );
 
     if (identifier) {
       sharedStates.currentTrackIdentifier.setState(identifier);

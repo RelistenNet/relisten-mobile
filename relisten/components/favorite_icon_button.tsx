@@ -73,60 +73,58 @@ export const FavoriteObjectButton = <T extends FavoritableObject & { uuid: strin
     'scopeKind',
   ]);
   const favoriteDescriptor = useMemo(() => catalogFavoriteDescriptorForObject(object), [object]);
+  const favoriteEntityType = favoriteDescriptor?.entityType;
+  const favoriteEntityUuid = favoriteDescriptor?.entityUuid;
+  const scopedFavoriteScopeId =
+    activeScope?.scopeKind === UserDataScopeKind.Authenticated &&
+    favoriteEntityType &&
+    favoriteEntityUuid
+      ? activeScope.scopeId
+      : undefined;
   const activeScopedFavorites = useQuery(
     UserFavorite,
     (query) =>
-      activeScope?.scopeKind === UserDataScopeKind.Authenticated && favoriteDescriptor
+      scopedFavoriteScopeId && favoriteEntityType && favoriteEntityUuid
         ? query.filtered(
             'scopeId == $0 && entityType == $1 && entityUuid == $2',
-            activeScope.scopeId,
-            favoriteDescriptor.entityType,
-            favoriteDescriptor.entityUuid
+            scopedFavoriteScopeId,
+            favoriteEntityType,
+            favoriteEntityUuid
           )
         : query.filtered('scopeId == $0', '__no_active_scope__'),
-    [
-      activeScope?.scopeId,
-      activeScope?.scopeKind,
-      favoriteDescriptor?.entityType,
-      favoriteDescriptor?.entityUuid,
-    ]
+    [favoriteEntityType, favoriteEntityUuid, scopedFavoriteScopeId]
   );
   const mutationService = useMemo(
     () => getSharedUserLibraryFavoriteMutationService(realm),
     [realm]
   );
-  const signedInScopedFavorite =
-    activeScope?.scopeKind === UserDataScopeKind.Authenticated && favoriteDescriptor;
-  const isFavorited = signedInScopedFavorite
+  const isUsingScopedFavorite =
+    !!scopedFavoriteScopeId && !!favoriteEntityType && !!favoriteEntityUuid;
+  const isFavorited = isUsingScopedFavorite
     ? isActiveFavoriteRow(activeScopedFavorites[0])
     : object.isFavorite;
 
   const favoriteOnPress = useCallback(() => {
-    if (!signedInScopedFavorite) {
+    if (!scopedFavoriteScopeId || !favoriteEntityType || !favoriteEntityUuid) {
       toggleFavoriteObject(realm, object, forceUpdate);
       return;
     }
 
     LayoutAnimation.configureNext(DefaultLayoutAnimationConfig);
     void mutationService
-      .setFavorite(
-        activeScope.scopeId,
-        favoriteDescriptor.entityType,
-        favoriteDescriptor.entityUuid,
-        !isFavorited
-      )
+      .setFavorite(scopedFavoriteScopeId, favoriteEntityType, favoriteEntityUuid, !isFavorited)
       .catch((error) => {
         logger.warn(`favorite mutation failed: ${errorCode(error)}`);
       });
   }, [
-    activeScope?.scopeId,
-    favoriteDescriptor,
+    favoriteEntityType,
+    favoriteEntityUuid,
     forceUpdate,
     isFavorited,
     mutationService,
     object,
     realm,
-    signedInScopedFavorite,
+    scopedFavoriteScopeId,
   ]);
 
   return <FavoriteIconButton isFavorited={isFavorited} onPressOut={favoriteOnPress} {...props} />;

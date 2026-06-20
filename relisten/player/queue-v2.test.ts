@@ -6,6 +6,7 @@ import {
   createPlaylistQueueV2ItemsFromEntries,
   createPlaylistQueueV2Item,
   flattenQueueV2ShuffleUnits,
+  flattenQueueV2TrackShuffleUnits,
   isPlaylistEntryPlayable,
   migrateLegacyCatalogQueueStateToQueueV2,
   normalizeQueueV2ItemsForPersistence,
@@ -13,6 +14,7 @@ import {
   queueV2HistoryAttribution,
   queueV2PlaybackCursor,
   queueV2ShuffleUnits,
+  queueV2TrackShuffleUnits,
   resolveQueueV2RestorePlan,
 } from '@/relisten/player/queue_v2';
 
@@ -138,6 +140,53 @@ describe('Queue V2 identity', () => {
       standaloneA.queueItemId,
       standaloneB.queueItemId,
       catalogItem.queueItemId,
+    ]);
+  });
+
+  it('groups runtime tracks by Queue V2 block shuffle units', () => {
+    const blockedFirst = createPlaylistQueueV2Item({
+      playlistUuid: 'playlist-1',
+      playlistEntryUuid: 'entry-1',
+      sourceTrackUuid: 'track-a',
+      blockUuid: 'block-a',
+      blockPosition: 1,
+    });
+    const blockedSecond = createPlaylistQueueV2Item({
+      playlistUuid: 'playlist-1',
+      playlistEntryUuid: 'entry-2',
+      sourceTrackUuid: 'track-b',
+      blockUuid: 'block-a',
+      blockPosition: 0,
+    });
+    const standalone = createPlaylistQueueV2Item({
+      playlistUuid: 'playlist-1',
+      playlistEntryUuid: 'entry-3',
+      sourceTrackUuid: 'track-c',
+    });
+
+    const units = queueV2TrackShuffleUnits([
+      { identifier: 'runtime-1', queueV2Item: blockedFirst },
+      { identifier: 'runtime-2', queueV2Item: standalone },
+      { identifier: 'runtime-3', queueV2Item: blockedSecond },
+    ]);
+
+    expect(units.map((unit) => unit.key)).toEqual([
+      'playlist:playlist-1:block:block-a',
+      'item:playlist:playlist-1:entry:entry-3',
+    ]);
+    expect(units[0].tracks.map((track) => track.identifier)).toEqual(['runtime-3', 'runtime-1']);
+  });
+
+  it('preserves duplicate runtime tracks that share a Queue V2 item id', () => {
+    const duplicateCatalogItem = createCatalogQueueV2Items(['track-a'])[0];
+    const units = queueV2TrackShuffleUnits([
+      { identifier: 'runtime-1', queueV2Item: duplicateCatalogItem },
+      { identifier: 'runtime-2', queueV2Item: duplicateCatalogItem },
+    ]);
+
+    expect(flattenQueueV2TrackShuffleUnits(units).map((track) => track.identifier)).toEqual([
+      'runtime-1',
+      'runtime-2',
     ]);
   });
 

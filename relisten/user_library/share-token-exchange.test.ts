@@ -174,6 +174,12 @@ describe('mobile access grant token parsing', () => {
     expect(key).not.toContain(':');
     expect(key).not.toContain('%');
   });
+
+  it('uses stable UTF-8 base64url storage key parts', () => {
+    expect(mobileAccessGrantSecretStorageKey('user:alec@example.com', 'séléctor')).toBe(
+      'relisten_user_library_mobile_access_grant_v1.dXNlcjphbGVjQGV4YW1wbGUuY29t.c8OpbMOpY3Rvcg'
+    );
+  });
 });
 
 describe('exchangeOpenedPlaylistShareToken', () => {

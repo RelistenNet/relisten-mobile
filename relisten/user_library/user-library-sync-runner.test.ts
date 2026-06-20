@@ -531,6 +531,57 @@ describe('UserLibrarySyncRunner', () => {
     ).toEqual(expect.objectContaining({ cursor: 'cursor-2' }));
   });
 
+  it('queues same-scope manual runs so pending operations created mid-sync are not stranded', async () => {
+    setAuthenticatedScope(realm);
+    let resolveFirstPull: (response: UserLibrarySyncResponse) => void;
+    const firstPull = new Promise<UserLibrarySyncResponse>((resolve) => {
+      resolveFirstPull = resolve;
+    });
+    const getJson = vi
+      .fn()
+      .mockImplementationOnce(() => firstPull)
+      .mockResolvedValueOnce(syncResponse({ next_cursor: 'cursor-after-operation' }));
+    const postJson = vi.fn(async () => operationResponse());
+    const client = { postJson, getJson } as unknown as RelistenUserLibraryApiClient;
+    const runner = new UserLibrarySyncRunner(
+      realm,
+      client,
+      new FakeAuthSession({ accessToken: 'access-1', scopeId: SCOPE_ID })
+    );
+
+    const first = runner.runOnce('mount');
+    await vi.waitFor(() => expect(getJson).toHaveBeenCalledTimes(1));
+    new UserLibraryPendingPlaylistOperationRepository(realm).enqueue(
+      SCOPE_ID,
+      PLAYLIST_UUID,
+      playlistOperation()
+    );
+
+    await expect(runner.runOnce('manual')).resolves.toEqual({
+      status: 'already_running',
+      reason: 'manual',
+    });
+
+    resolveFirstPull!(syncResponse({ next_cursor: 'cursor-before-operation' }));
+    await expect(first).resolves.toEqual(
+      expect.objectContaining({
+        status: 'completed',
+        cursorAfter: 'cursor-before-operation',
+      })
+    );
+    await vi.waitFor(() => expect(postJson).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(getJson).toHaveBeenCalledTimes(2));
+    expect(
+      realm.objectForPrimaryKey(
+        PendingUserOperation,
+        pendingPlaylistOperationScopedId(SCOPE_ID, OPERATION_UUID)
+      )
+    ).toEqual(expect.objectContaining({ syncStatus: UserDataSyncStatus.Synced }));
+    expect(
+      realm.objectForPrimaryKey(UserSyncCursor, userLibrarySyncCursorScopedId(SCOPE_ID))
+    ).toEqual(expect.objectContaining({ cursor: 'cursor-after-operation' }));
+  });
+
   it('does not apply pull results after the active scope signs out mid-run', async () => {
     setAuthenticatedScope(realm);
     let resolvePull: (response: UserLibrarySyncResponse) => void;

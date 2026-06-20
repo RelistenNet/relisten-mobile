@@ -192,6 +192,39 @@ describe('user-library favorite sync', () => {
     expect(artist.isFavorite).toBe(true);
     expect(realm.objects(UserDataMigrationMarker).length).toBe(1);
   });
+
+  it('does not import the same unscoped catalog favorites into a second user scope', () => {
+    realm.write(() => {
+      realm.create('Artist', { uuid: 'artist-1', isFavorite: true });
+    });
+
+    const migratedAt = new Date('2026-06-20T04:45:00.000Z');
+    expect(migrateCatalogFavoritesToScopedRows(realm, 'user:user-1', { migratedAt })).toMatchObject(
+      {
+        migrated: true,
+        total: 1,
+      }
+    );
+    expect(migrateCatalogFavoritesToScopedRows(realm, 'user:user-2', { migratedAt })).toEqual({
+      migrated: false,
+      total: 0,
+      countsByEntityType: {},
+    });
+
+    expect(
+      realm.objectForPrimaryKey(
+        UserFavorite,
+        userFavoriteScopedId('user:user-1', UserFavoriteEntityType.Artist, 'artist-1')
+      )
+    ).not.toBeNull();
+    expect(
+      realm.objectForPrimaryKey(
+        UserFavorite,
+        userFavoriteScopedId('user:user-2', UserFavoriteEntityType.Artist, 'artist-1')
+      )
+    ).toBeNull();
+    expect(realm.objects(UserDataMigrationMarker).length).toBe(1);
+  });
 });
 
 describe('catalogFavoriteDescriptorForObject', () => {

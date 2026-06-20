@@ -6,7 +6,10 @@ import {
   ACTIVE_USER_DATA_SCOPE_KEY,
 } from '@/relisten/realm/models/user_library/scope';
 import { ScopedPlaybackHistoryEntry } from '@/relisten/realm/models/user_library/history';
-import { UserDataSyncStatus } from '@/relisten/realm/models/user_library/sync';
+import {
+  PendingUserOperation,
+  UserDataSyncStatus,
+} from '@/relisten/realm/models/user_library/sync';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { createUserLibrarySyncServices } from '@/relisten/user_library/user_library_sync_services';
 import { UserLibrarySyncRunReason } from '@/relisten/user_library/user_library_sync_runner';
@@ -22,6 +25,18 @@ export function UserLibrarySyncBootstrap() {
   const networkRef = useLatestRef(shouldMakeNetworkRequests);
   const pendingHistoryEntries = useQuery(
     ScopedPlaybackHistoryEntry,
+    (query) =>
+      activeScope
+        ? query.filtered(
+            'scopeId == $0 && syncStatus == $1',
+            activeScope.scopeId,
+            UserDataSyncStatus.Pending
+          )
+        : query.filtered('scopeId == $0', '__no_active_scope__'),
+    [activeScope?.scopeId]
+  );
+  const pendingOperations = useQuery(
+    PendingUserOperation,
     (query) =>
       activeScope
         ? query.filtered(
@@ -57,6 +72,12 @@ export function UserLibrarySyncBootstrap() {
       triggerSync('history');
     }
   }, [pendingHistoryEntries.length, triggerSync]);
+
+  useEffect(() => {
+    if (pendingOperations.length > 0) {
+      triggerSync('manual');
+    }
+  }, [pendingOperations.length, triggerSync]);
 
   useEffect(() => {
     let previousState: AppStateStatus = AppState.currentState;

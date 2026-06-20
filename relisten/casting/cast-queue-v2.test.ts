@@ -3,6 +3,7 @@ import {
   buildQueueV2CastCustomDataPayloads,
   buildQueueV2CastMediaInfoData,
   buildQueueV2CastQueueItemData,
+  castStatusRuntimeIdentifierForLocalQueue,
 } from '@/relisten/casting/cast_queue_v2';
 import { createCatalogQueueV2Item, createPlaylistQueueV2Item } from '@/relisten/player/queue_v2';
 
@@ -94,5 +95,63 @@ describe('Cast Queue V2 custom data', () => {
       playlistEntryUuid: 'entry-2',
       blockPosition: 1,
     });
+  });
+
+  it('reconciles Cast status by Queue V2 item id before stale runtime identifiers', () => {
+    const queueV2Item = createPlaylistQueueV2Item({
+      playlistUuid: 'playlist-1',
+      playlistEntryUuid: 'entry-1',
+      sourceTrackUuid: 'source-track-1',
+    });
+
+    expect(
+      castStatusRuntimeIdentifierForLocalQueue(
+        {
+          customData: {
+            queueV2ItemId: queueV2Item.queueItemId,
+          },
+          mediaInfo: {
+            customData: {
+              identifier: 'stale-runtime-id',
+            },
+          },
+        },
+        [
+          {
+            identifier: 'local-runtime-id',
+            queueV2Item,
+          },
+        ]
+      )
+    ).toBe('local-runtime-id');
+  });
+
+  it('prefers an exact local runtime identifier when duplicate Queue V2 item ids exist', () => {
+    const queueV2Item = createCatalogQueueV2Item('source-track-1');
+
+    expect(
+      castStatusRuntimeIdentifierForLocalQueue(
+        {
+          customData: {
+            queueV2ItemId: queueV2Item.queueItemId,
+          },
+          mediaInfo: {
+            customData: {
+              identifier: 'runtime-2',
+            },
+          },
+        },
+        [
+          {
+            identifier: 'runtime-1',
+            queueV2Item,
+          },
+          {
+            identifier: 'runtime-2',
+            queueV2Item,
+          },
+        ]
+      )
+    ).toBe('runtime-2');
   });
 });

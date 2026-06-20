@@ -32,6 +32,33 @@ export function userLibrarySessionMetadataScopedId(scopeId: string, sessionUuid:
   return scopedUserDataPrimaryKey(scopeId, `session:${sessionUuid}`);
 }
 
+export function latestActiveUserLibrarySessionMetadata(
+  realm: Realm,
+  scopeId: string,
+  options: { requireDeviceId?: boolean } = {}
+): UserAuthSessionMetadata | null {
+  return (
+    [...realm.objects(UserAuthSessionMetadata)]
+      .filter(
+        (metadata) =>
+          metadata.scopeId === scopeId &&
+          !!metadata.sessionUuid &&
+          !metadata.signedOutAt &&
+          (!options.requireDeviceId || !!metadata.deviceId?.trim())
+      )
+      .sort(compareSessionMetadataNewest)[0] ?? null
+  );
+}
+
+export function latestActiveUserLibrarySessionDeviceId(
+  realm: Realm,
+  scopeId: string
+): string | undefined {
+  return latestActiveUserLibrarySessionMetadata(realm, scopeId, {
+    requireDeviceId: true,
+  })?.deviceId?.trim();
+}
+
 export class UserLibraryAuthSessionRealmService {
   constructor(private readonly realm: Realm) {}
 
@@ -174,4 +201,15 @@ function parseServerDate(value: string, label: string) {
   }
 
   return date;
+}
+
+function compareSessionMetadataNewest(
+  left: UserAuthSessionMetadata,
+  right: UserAuthSessionMetadata
+) {
+  return latestSessionTimestamp(right) - latestSessionTimestamp(left);
+}
+
+function latestSessionTimestamp(metadata: UserAuthSessionMetadata) {
+  return (metadata.lastRefreshAt ?? metadata.lastAuthenticatedAt).getTime();
 }

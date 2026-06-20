@@ -1,5 +1,8 @@
 import Realm from 'realm';
-import { RelistenUserLibraryApiClient } from '@/relisten/api/user_library_client';
+import {
+  RelistenUserLibraryApiClient,
+  safeUserLibraryErrorMessage,
+} from '@/relisten/api/user_library_client';
 import { getActiveUserDataScope } from '@/relisten/user_library/active_user_data_scope_service';
 import { UserDataScopeKind } from '@/relisten/user_library/user_data_scope';
 import {
@@ -157,7 +160,7 @@ export class UserLibrarySyncRunner {
         status: 'failed',
         reason,
         scopeId,
-        error: error instanceof Error ? error.message : String(error),
+        error: safeUserLibraryErrorMessage(error),
       };
     }
   }
@@ -244,7 +247,7 @@ export class UserLibrarySyncRunner {
   }
 
   private shouldQueuePendingRun(reason: UserLibrarySyncRunReason) {
-    if (reason === 'scope-change') {
+    if (reason === 'scope-change' || reason === 'history' || reason === 'manual') {
       return true;
     }
 

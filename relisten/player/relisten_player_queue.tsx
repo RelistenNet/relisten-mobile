@@ -18,10 +18,12 @@ import {
   createCatalogQueueV2Item,
   createCatalogQueueV2Items,
   createPlayablePlaylistQueueV2ItemsFromEntries,
+  flattenQueueV2TrackShuffleUnits,
   normalizeQueueV2ItemsForPersistence,
   QUEUE_V2_STATE_VERSION,
   QueueV2Item,
   QueueV2PlaylistEntryInput,
+  queueV2TrackShuffleUnits,
   resolveQueueV2RestorePlan,
 } from '@/relisten/player/queue_v2';
 
@@ -440,13 +442,33 @@ ${indentString(tracks)}
   // region Shuffling
   private reshuffleTracks() {
     if (this.originalTracksCurrentIndex !== undefined) {
-      const originalTracksCopy = [...this.originalTracks];
-      const [currentlyPlayingItem] = originalTracksCopy.splice(this.originalTracksCurrentIndex, 1);
+      const currentlyPlayingItem = this.originalTracks[this.originalTracksCurrentIndex];
+      const units = queueV2TrackShuffleUnits(this.originalTracks);
+      const currentUnitIndex = units.findIndex((unit) =>
+        unit.tracks.some((track) => track.identifier === currentlyPlayingItem.identifier)
+      );
+      const currentUnit = currentUnitIndex >= 0 ? units.splice(currentUnitIndex, 1)[0] : undefined;
+      const remainingUnits =
+        currentUnitIndex >= 0
+          ? units
+          : queueV2TrackShuffleUnits(
+              this.originalTracks.filter(
+                (track) => track.identifier !== currentlyPlayingItem.identifier
+              )
+            );
 
-      this.shuffledTracks = [currentlyPlayingItem].concat(shuffleArray(originalTracksCopy));
-      this.shuffledTracksCurrentIndex = 0;
+      this.shuffledTracks = currentUnit
+        ? currentUnit.tracks.concat(flattenQueueV2TrackShuffleUnits(shuffleArray(remainingUnits)))
+        : [currentlyPlayingItem].concat(
+            flattenQueueV2TrackShuffleUnits(shuffleArray(remainingUnits))
+          );
+      this.shuffledTracksCurrentIndex = this.shuffledTracks.findIndex(
+        (track) => track.identifier === currentlyPlayingItem.identifier
+      );
     } else {
-      this.shuffledTracks = shuffleArray([...this.originalTracks]);
+      this.shuffledTracks = flattenQueueV2TrackShuffleUnits(
+        shuffleArray(queueV2TrackShuffleUnits(this.originalTracks))
+      );
     }
   }
 
@@ -596,26 +618,6 @@ ${indentString(tracks)}
     }
   }
 
-  private restoreTrackIndexesBySourceTrackUuid(sourceTrackUuid: string) {
-    this.clearCurrentTrack();
-
-    // Queue item identifiers are regenerated on cold start, so restore has to re-anchor by
-    // stable SourceTrack UUID and then recover both original/shuffled indexes from that identity.
-    this.originalTracksCurrentIndex = this.originalTracks.findIndex(
-      (track) => track.sourceTrack.uuid === sourceTrackUuid
-    );
-    this.shuffledTracksCurrentIndex = this.shuffledTracks.findIndex(
-      (track) => track.sourceTrack.uuid === sourceTrackUuid
-    );
-
-    if (this.originalTracksCurrentIndex < 0) {
-      this.originalTracksCurrentIndex = undefined;
-    }
-
-    if (this.shuffledTracksCurrentIndex < 0) {
-      this.shuffledTracksCurrentIndex = undefined;
-    }
-  }
   // endregion
 
   // region Player state serialization

@@ -254,6 +254,16 @@ This ledger records root-level coordination for `docs/autoplan-user-library-mobi
 - Next Action: continue
 - Next move: Claim the next favorites slice for source/show/library selection paths unless live local API servers are available first.
 
+### Iteration 26
+
+- Timestamp: 2026-06-20T17:52:24Z
+- Hypothesis: A branch-wide review after the usage-limit reset will find the highest-risk issues faster than continuing into another feature slice immediately.
+- Action: Ran four focused reviewer passes across API/auth/link/share, Realm/sync/history/favorites, Queue/Cast/CarPlay, and tests/simplification. Accepted and fixed issues around secret/error hygiene, duplicate session metadata lookup, one-time catalog favorite import scoping, pending operation sync wakeups, playlist operation 409 retryability, Cast status reconciliation by Queue V2 item ID, runtime block-aware shuffle, and stale dead queue restore code. A post-fix reviewer pass then found same-scope in-flight sync rerun loss and duplicate Queue V2 runtime row loss; both were fixed with targeted tests before commit.
+- Evidence: Focused review-cleanup tests passed with `yarn test -- api-config sanitizer share-token-exchange favorite-sync playlist-operation-outbox user-library-sync-runner playback-history-batch playback-history-recording auth-session-realm development-auth queue-v2 cast-queue-v2` covering 13 files / 106 tests before the final reviewer pass. Post-fix focused tests passed with `yarn test -- user-library-sync-runner queue-v2 cast-queue-v2` covering 4 files / 34 tests. Full `yarn test` passed with 19 files / 154 tests; `yarn ts:check`, `yarn lint`, and `git diff --check` passed. iOS Simulator bundle/render smoke passed on `DEC49863-5AF8-4832-8BA2-C5E7C41A029D` with local API env vars. Both local API ports were listening during the final check, but live response smoke remains deferred because catalog `/api/v3/artists` returned 500 and simple user-library probe paths returned 404.
+- Verdict: pass
+- Next Action: continue
+- Next move: Commit `MOB-REVIEW-001`, then claim `MOB-FAV-003` for source/show/library selection favorite consumers unless local API servers are available for live auth/sync/history/share-link smoke.
+
 ## Root Coordination Notes
 
 - The active set intentionally starts with foundations: local API config, deterministic test harness, deep-link sanitizer, and Queue V2 playback foundation.

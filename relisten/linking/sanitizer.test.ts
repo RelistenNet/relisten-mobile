@@ -64,4 +64,12 @@ describe('deep-link sanitizer', () => {
       `/playlist/example?t=${encodeURIComponent(REDACTED_QUERY_VALUE)}&source=web`
     );
   });
+
+  it('strips fragments from URLs before log or crash reporting', () => {
+    expect(
+      sanitizeUrlForLogging(
+        'relisten://auth/callback?next=tabs#access_token=access-secret&state=oauth-state'
+      )
+    ).toBe('relisten://auth/callback?next=tabs');
+  });
 });

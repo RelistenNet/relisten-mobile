@@ -26,6 +26,7 @@
     "@statsig/expo-bindings": "^3.31.0",
     "@switz/driver": "^0.10.0",
     "babel-plugin-module-resolver": "^5.0.2",
+    "buffer": "^5.7.1",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
     "dayjs": "^1.11.19",

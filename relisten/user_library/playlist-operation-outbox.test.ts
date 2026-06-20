@@ -543,7 +543,7 @@ describe('UserLibraryPlaylistOperationReplayService', () => {
       expect.objectContaining({
         syncStatus: UserDataSyncStatus.Blocked,
         attemptCount: 1,
-        lastError: '{"error":"idempotency_key_conflict"}',
+        lastError: 'User-library API request failed with status 400',
       })
     );
     expect(
@@ -592,7 +592,43 @@ describe('UserLibraryPlaylistOperationReplayService', () => {
       expect.objectContaining({
         syncStatus: UserDataSyncStatus.Failed,
         attemptCount: 1,
-        lastError: '{"error":"unauthorized"}',
+        lastError: 'User-library API request failed with status 401',
+      })
+    );
+    expect(repository.listReplayable(SCOPE_ID).map((operation) => operation.uuid)).toEqual([
+      OPERATION_1_UUID,
+    ]);
+  });
+
+  it('keeps conflict responses retryable for later sync reconciliation', async () => {
+    repository.enqueue(SCOPE_ID, PLAYLIST_1_UUID, playlistOperation(), {
+      now: new Date('2026-06-20T04:55:00.000Z'),
+    });
+    const postJson = vi.fn(async () => {
+      throw new UserLibraryApiError(
+        409,
+        'POST',
+        `/playlists/${PLAYLIST_1_UUID}/operations`,
+        '{"error":"revision_conflict"}'
+      );
+    });
+    const service = new UserLibraryPlaylistOperationReplayService(
+      realm,
+      { postJson } as unknown as RelistenUserLibraryApiClient,
+      repository
+    );
+
+    await service.replayPending(SCOPE_ID, { now: new Date('2026-06-20T04:58:00.000Z') });
+
+    expect(
+      realm.objectForPrimaryKey(
+        PendingUserOperation,
+        pendingPlaylistOperationScopedId(SCOPE_ID, OPERATION_1_UUID)
+      )
+    ).toEqual(
+      expect.objectContaining({
+        syncStatus: UserDataSyncStatus.Failed,
+        lastError: 'User-library API request failed with status 409',
       })
     );
     expect(repository.listReplayable(SCOPE_ID).map((operation) => operation.uuid)).toEqual([
