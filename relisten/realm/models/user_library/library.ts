@@ -4,7 +4,7 @@ export enum UserFavoriteEntityType {
   Artist = 'artist',
   Show = 'show',
   Source = 'source',
-  SourceTrack = 'source_track',
+  Track = 'track',
   Tour = 'tour',
   Song = 'song',
 }

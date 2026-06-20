@@ -9,7 +9,8 @@ import {
   UserPlaylistEntry,
   UserPlaylistVisibility,
 } from '@/relisten/realm/models/user_library/playlists';
-import { UserSyncCursor } from '@/relisten/realm/models/user_library/sync';
+import { UserFavorite, UserFavoriteEntityType } from '@/relisten/realm/models/user_library/library';
+import { UserDataMigrationMarker, UserSyncCursor } from '@/relisten/realm/models/user_library/sync';
 import { RelistenUserLibraryApiClient } from '@/relisten/api/user_library_client';
 import {
   pullUserLibrarySync,
@@ -20,7 +21,27 @@ import {
 import { scopedUserDataPrimaryKey } from '@/relisten/user_library/user_data_scope';
 import { migrateUserLibraryRealm } from '@/relisten/realm/models/user_library/migrations';
 
-const schema = [UserPlaylist, UserPlaylistEntry, UserSyncCursor];
+const schema = [
+  UserPlaylist,
+  UserPlaylistEntry,
+  UserFavorite,
+  UserSyncCursor,
+  UserDataMigrationMarker,
+  favoriteCatalogSchema('Artist'),
+  favoriteCatalogSchema('SourceTrack'),
+  favoriteCatalogSchema('Song'),
+];
+
+function favoriteCatalogSchema(name: string): Realm.ObjectSchema {
+  return {
+    name,
+    primaryKey: 'uuid',
+    properties: {
+      uuid: 'string',
+      isFavorite: { type: 'bool', default: false },
+    },
+  };
+}
 
 function objectWithoutKeys<T extends Record<string, unknown>>(object: T, keys: string[]) {
   const copy = { ...object };
@@ -280,12 +301,116 @@ describe('UserLibraryPlaylistSyncApplier', () => {
     expect(applier.getCursor('user:user-1')?.cursor).toBe('14');
   });
 
+  it('applies mixed playlist and favorite changes before advancing the cursor', () => {
+    applier.applyPullResponse(
+      'user:user-1',
+      syncResponse({
+        changes: [
+          syncResponse().changes[0],
+          {
+            resource_type: 'favorite',
+            updated_at: '2026-06-20T04:31:30.000Z',
+            favorite: {
+              entity_type: 'track',
+              entity_uuid: 'track-1',
+              created_at: '2026-06-20T04:31:20.000Z',
+              updated_at: '2026-06-20T04:31:30.000Z',
+            },
+          },
+        ],
+        next_cursor: '15',
+      })
+    );
+
+    expect(
+      realm.objectForPrimaryKey(
+        UserFavorite,
+        scopedUserDataPrimaryKey('user:user-1', 'favorite:track:track-1')
+      )
+    ).toEqual(
+      expect.objectContaining({
+        entityType: UserFavoriteEntityType.Track,
+        entityUuid: 'track-1',
+        deletedAt: null,
+      })
+    );
+    expect(applier.getCursor('user:user-1')?.cursor).toBe('15');
+  });
+
+  it('runs one-time local catalog favorite migration before the first pull cursor advances', () => {
+    realm.write(() => {
+      realm.create('Artist', { uuid: 'artist-1', isFavorite: true });
+      realm.create('SourceTrack', { uuid: 'track-local-1', isFavorite: true });
+      realm.create('Song', { uuid: 'song-1', isFavorite: true });
+    });
+
+    applier.applyPullResponse('user:user-1', syncResponse({ changes: [], next_cursor: '15' }));
+    applier.applyPullResponse('user:user-1', syncResponse({ changes: [], next_cursor: '16' }));
+
+    expect(realm.objects(UserFavorite).length).toBe(3);
+    expect(
+      realm.objectForPrimaryKey(
+        UserFavorite,
+        scopedUserDataPrimaryKey('user:user-1', 'favorite:track:track-local-1')
+      )
+    ).toEqual(
+      expect.objectContaining({
+        entityType: UserFavoriteEntityType.Track,
+        entityUuid: 'track-local-1',
+        deletedAt: null,
+      })
+    );
+    expect(applier.getCursor('user:user-1')?.cursor).toBe('16');
+  });
+
+  it('applies favorite tombstones through the pull-sync applier', () => {
+    applier.applyPullResponse(
+      'user:user-1',
+      syncResponse({
+        changes: [
+          {
+            resource_type: 'favorite',
+            updated_at: '2026-06-20T04:31:30.000Z',
+            favorite: {
+              entity_type: 'source',
+              entity_uuid: 'source-1',
+              created_at: '2026-06-20T04:31:20.000Z',
+              updated_at: '2026-06-20T04:31:30.000Z',
+            },
+          },
+        ],
+        next_cursor: '15',
+      })
+    );
+
+    applier.applyPullResponse('user:user-1', {
+      changes: [],
+      tombstones: [
+        {
+          resource_type: 'favorite',
+          entity_type: 'source',
+          entity_uuid: 'source-1',
+          deleted_at: '2026-06-20T04:32:00.000Z',
+        },
+      ],
+      next_cursor: '16',
+    });
+
+    expect(
+      realm.objectForPrimaryKey(
+        UserFavorite,
+        scopedUserDataPrimaryKey('user:user-1', 'favorite:source:source-1')
+      )?.deletedAt
+    ).toEqual(new Date('2026-06-20T04:32:00.000Z'));
+    expect(applier.getCursor('user:user-1')?.cursor).toBe('16');
+  });
+
   it('rejects unsupported resources before advancing the global sync cursor', () => {
     expect(() =>
       applier.applyPullResponse('user:user-1', {
         changes: [
           {
-            resource_type: 'favorite',
+            resource_type: 'settings',
             updated_at: '2026-06-20T04:31:00.000Z',
           },
         ],
@@ -296,6 +421,103 @@ describe('UserLibraryPlaylistSyncApplier', () => {
 
     expect(applier.getCursor('user:user-1')).toBeNull();
     expect(realm.objects(UserPlaylist).length).toBe(0);
+  });
+
+  it('rejects unsupported favorite entity types without advancing the cursor', () => {
+    expect(() =>
+      applier.applyPullResponse('user:user-1', {
+        changes: [
+          {
+            resource_type: 'favorite',
+            updated_at: '2026-06-20T04:31:00.000Z',
+            favorite: {
+              entity_type: 'venue',
+              entity_uuid: 'venue-1',
+              created_at: '2026-06-20T04:31:00.000Z',
+              updated_at: '2026-06-20T04:31:00.000Z',
+            },
+          },
+        ],
+        tombstones: [],
+        next_cursor: '99',
+      })
+    ).toThrowError('unsupported_favorite_entity_type');
+
+    expect(applier.getCursor('user:user-1')).toBeNull();
+    expect(realm.objects(UserFavorite).length).toBe(0);
+  });
+
+  it('rolls back mixed sync changes when favorite validation fails inside the transaction', () => {
+    expect(() =>
+      applier.applyPullResponse(
+        'user:user-1',
+        syncResponse({
+          changes: [
+            syncResponse().changes[0],
+            {
+              resource_type: 'favorite',
+              updated_at: '2026-06-20T04:31:30.000Z',
+              favorite: {
+                entity_type: 'venue',
+                entity_uuid: 'venue-1',
+                created_at: '2026-06-20T04:31:20.000Z',
+                updated_at: '2026-06-20T04:31:30.000Z',
+              },
+            },
+          ],
+          next_cursor: '99',
+        })
+      )
+    ).toThrowError('unsupported_favorite_entity_type');
+
+    expect(applier.getCursor('user:user-1')).toBeNull();
+    expect(realm.objects(UserPlaylist).length).toBe(0);
+    expect(realm.objects(UserFavorite).length).toBe(0);
+  });
+
+  it('rejects unsupported favorite tombstone entity types without advancing the cursor', () => {
+    applier.applyPullResponse(
+      'user:user-1',
+      syncResponse({
+        changes: [
+          {
+            resource_type: 'favorite',
+            updated_at: '2026-06-20T04:31:30.000Z',
+            favorite: {
+              entity_type: 'source',
+              entity_uuid: 'source-1',
+              created_at: '2026-06-20T04:31:20.000Z',
+              updated_at: '2026-06-20T04:31:30.000Z',
+            },
+          },
+        ],
+        next_cursor: '15',
+      })
+    );
+
+    expect(() =>
+      applier.applyPullResponse('user:user-1', {
+        changes: [],
+        tombstones: [
+          {
+            resource_type: 'favorite',
+            entity_type: 'venue',
+            entity_uuid: 'venue-1',
+            deleted_at: '2026-06-20T04:32:00.000Z',
+          },
+        ],
+        next_cursor: '99',
+      })
+    ).toThrowError('unsupported_favorite_entity_type');
+
+    expect(applier.getCursor('user:user-1')?.cursor).toBe('15');
+    expect(
+      realm.objectForPrimaryKey(
+        UserFavorite,
+        scopedUserDataPrimaryKey('user:user-1', 'favorite:source:source-1')
+      )?.deletedAt
+    ).toBeNull();
+    expect(realm.objects(UserFavorite).length).toBe(1);
   });
 
   it('preflights mixed unsupported resources before mutating rows or advancing cursors', () => {
@@ -318,7 +540,7 @@ describe('UserLibraryPlaylistSyncApplier', () => {
               },
             },
             {
-              resource_type: 'favorite',
+              resource_type: 'settings',
               updated_at: '2026-06-20T04:31:00.000Z',
             },
           ],

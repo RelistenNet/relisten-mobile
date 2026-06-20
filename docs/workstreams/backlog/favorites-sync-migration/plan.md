@@ -37,8 +37,8 @@ Depends on scoped Realm user data, auth/session, and favorites server endpoints.
 
 ## Current Hypothesis
 
-Keep old flags during rollout. On first authenticated sync, copy current favorites into scoped rows and write a migration marker so they are not repeatedly enqueued.
+Keep old flags during rollout. The first supported authenticated pull sync now copies current favorites into scoped rows and writes a migration marker so they are not repeatedly copied.
 
 ## Next Scoped Step
 
-Promote after scoped Realm user data and auth are working.
+Wire signed-in favorite reads/writes to scoped rows and server mutations after the app bootstrap sync lifecycle is in place. Keep signed-out catalog `isFavorite` behavior until the rollout explicitly removes it.

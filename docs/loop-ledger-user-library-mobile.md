@@ -224,6 +224,16 @@ This ledger records root-level coordination for `docs/autoplan-user-library-mobi
 - Next Action: continue
 - Next move: Commit `MOB-SYNC-001`, then choose between playlist operation replay and favorites migration based on the narrowest next acceptance gap.
 
+### Iteration 23
+
+- Timestamp: 2026-06-20T04:50:49Z
+- Hypothesis: Favorites can join pull sync now if mobile preserves signed-out catalog flags, maps mobile `SourceTrack` favorites to the server `track` entity, and migrates existing catalog flags into scoped rows only once per authenticated scope.
+- Action: Added favorite API helpers, scoped favorite change/tombstone application, one-time catalog flag migration with a marker, pull-sync integration, and focused tests for source/track normalization, rollback, tombstones, and idempotency.
+- Evidence: `yarn test -- favorite-sync playlist-sync` passed with 19 tests before final docs-gate validation. First review found the migration helper was not invoked from pull sync; the applier now runs it before changes/tombstones and cursor persistence. Follow-up review found no defects and suggested rollback/tombstone tests, which were added.
+- Verdict: pass
+- Next Action: continue
+- Next move: Commit `MOB-FAV-001`, then continue `playlist-sync-outbox` with operation serialization and replay.
+
 ## Root Coordination Notes
 
 - The active set intentionally starts with foundations: local API config, deterministic test harness, deep-link sanitizer, and Queue V2 playback foundation.

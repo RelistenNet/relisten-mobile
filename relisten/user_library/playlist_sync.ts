@@ -8,6 +8,12 @@ import {
 import { UserSyncCursor } from '@/relisten/realm/models/user_library/sync';
 import { scopedUserDataPrimaryKey } from '@/relisten/user_library/user_data_scope';
 import { RelistenUserLibraryApiClient } from '@/relisten/api/user_library_client';
+import {
+  applyUserFavoriteChange,
+  applyUserFavoriteTombstone,
+  migrateCatalogFavoritesToScopedRows,
+  UserLibraryFavoriteResponse,
+} from '@/relisten/user_library/favorite_sync';
 
 export const USER_LIBRARY_SYNC_CURSOR_NAME = 'user-library-sync';
 
@@ -19,6 +25,7 @@ export interface UserLibrarySyncResponse {
 
 export interface UserLibrarySyncChangeResponse {
   resource_type: string;
+  favorite?: UserLibraryFavoriteResponse;
   playlist?: UserLibraryPlaylistResponse;
   playlist_viewer_state?: UserLibraryPlaylistViewerStateResponse;
   updated_at: string;
@@ -54,6 +61,8 @@ export interface UserLibraryPlaylistViewerStateResponse {
 
 export interface UserLibrarySyncTombstoneResponse {
   resource_type: string;
+  entity_type?: string | null;
+  entity_uuid?: string | null;
   playlist_uuid?: string | null;
   deleted_at: string;
 }
@@ -84,6 +93,8 @@ export class UserLibraryPlaylistSyncApplier {
     assertSupportedResponse(response);
 
     this.write(() => {
+      migrateCatalogFavoritesToScopedRows(this.realm, scopeId);
+
       for (const change of response.changes) {
         this.applyChange(scopeId, change);
       }
@@ -101,11 +112,17 @@ export class UserLibraryPlaylistSyncApplier {
   }
 
   private applyChange(scopeId: string, change: UserLibrarySyncChangeResponse) {
-    if (change.resource_type !== 'playlist' || !change.playlist) {
-      throw new UserLibraryPlaylistSyncError('unsupported_sync_change');
+    if (change.resource_type === 'favorite' && change.favorite) {
+      applyUserFavoriteChange(this.realm, scopeId, change.favorite);
+      return;
     }
 
-    this.applyPlaylistChange(scopeId, change);
+    if (change.resource_type === 'playlist' && change.playlist) {
+      this.applyPlaylistChange(scopeId, change);
+      return;
+    }
+
+    throw new UserLibraryPlaylistSyncError('unsupported_sync_change');
   }
 
   private applyPlaylistChange(scopeId: string, change: UserLibrarySyncChangeResponse) {
@@ -188,6 +205,11 @@ export class UserLibraryPlaylistSyncApplier {
   }
 
   private applyTombstone(scopeId: string, tombstone: UserLibrarySyncTombstoneResponse) {
+    if (tombstone.resource_type === 'favorite') {
+      applyUserFavoriteTombstone(this.realm, scopeId, tombstone);
+      return;
+    }
+
     if (!isPlaylistTombstone(tombstone) || !tombstone.playlist_uuid) {
       throw new UserLibraryPlaylistSyncError('unsupported_sync_tombstone');
     }
@@ -232,7 +254,11 @@ export class UserLibraryPlaylistSyncApplier {
 
 function assertSupportedResponse(response: UserLibrarySyncResponse) {
   const unsupportedChange = response.changes.find(
-    (change) => change.resource_type !== 'playlist' || !change.playlist
+    (change) =>
+      !(
+        (change.resource_type === 'playlist' && change.playlist) ||
+        (change.resource_type === 'favorite' && change.favorite)
+      )
   );
 
   if (unsupportedChange) {
@@ -240,7 +266,10 @@ function assertSupportedResponse(response: UserLibrarySyncResponse) {
   }
 
   const unsupportedTombstone = response.tombstones.find((tombstone) => {
-    return !isPlaylistTombstone(tombstone) || !tombstone.playlist_uuid;
+    return !(
+      (isPlaylistTombstone(tombstone) && tombstone.playlist_uuid) ||
+      (tombstone.resource_type === 'favorite' && tombstone.entity_type && tombstone.entity_uuid)
+    );
   });
 
   if (unsupportedTombstone) {
