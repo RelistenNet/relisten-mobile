@@ -64,6 +64,26 @@ This ledger records root-level coordination for `docs/autoplan-user-library-mobi
 - Next Action: done
 - Next move: Commit the local API config/test harness slice, then continue with `deep-link-sanitizer`.
 
+### Iteration 7
+
+- Timestamp: 2026-06-20T00:56:32Z
+- Hypothesis: The deep-link security slice can proceed now that Vitest exists and local API config is committed.
+- Action: Claimed `MOB-LINK-001` in `deep-link-sanitizer` on branch `codex/scoped-realm-user-data`.
+- Evidence: The workstream ledger now has a preregistered entry with mutable surface and validators before route/sanitizer edits.
+- Verdict: pass
+- Next Action: continue
+- Next move: Add pure sanitizer tests, remove raw fallback param logging, and add first-class placeholder routes for playlist share/auth callback links.
+
+### Iteration 8
+
+- Timestamp: 2026-06-20T01:07:02Z
+- Hypothesis: A pure sanitizer plus first-class placeholder routes can prevent playlist share/auth secrets from reaching fallback logs, navigation serialization, and visible error/loading UI.
+- Action: Added the sanitizer, focused tests, scrubbed `+not-found`, playlist/auth placeholder routes, iOS deep-link smoke, and two-pass subagent review.
+- Evidence: `yarn test -- sanitizer`, `yarn test`, `yarn ts:check`, `yarn lint`, and `git diff --check` passed. Simulator smoke on `DEC49863-5AF8-4832-8BA2-C5E7C41A029D` opened playlist, auth callback, and HTTPS playlist links with marker secrets; app-process log predicates returned no marker values and HTTPS UI omitted the query token.
+- Verdict: pass
+- Next Action: done
+- Next move: Commit `MOB-LINK-001`, then claim `queue-v2-playback-foundation` experiment `MOB-QUEUE-001`.
+
 ## Root Coordination Notes
 
 - The active set intentionally starts with foundations: local API config, deterministic test harness, deep-link sanitizer, and Queue V2 playback foundation.

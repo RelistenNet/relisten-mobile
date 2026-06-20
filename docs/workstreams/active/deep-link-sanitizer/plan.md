@@ -29,11 +29,9 @@ Out of scope:
 
 Run from `/Users/alecgorge/code/relisten/relisten-mobile`:
 
-    yarn test -- link
+    yarn test -- sanitizer
     yarn lint
     yarn ts:check
-
-If the harness does not exist yet, run `yarn lint` and `yarn ts:check` and record that sanitizer tests are pending.
 
 Manual iOS Simulator validation should later cover opening:
 
@@ -45,15 +43,13 @@ and observing that logs/navigation/error UI do not include the secret values.
 
 ## Fastest Useful Current Check
 
-After the test harness exists:
+Done for `MOB-LINK-001`:
 
     yarn test -- sanitizer
 
-The exact command may change; update this plan after `test-harness-foundation` lands.
-
 ## Dependencies or Blockers
 
-The sanitizer can start before auth and playlist UI. A test harness is preferred before implementation so the dangerous cases are locked down mechanically.
+The sanitizer landed before auth and playlist UI. The Vitest harness is available for future link-safety regressions.
 
 ## Current Hypothesis
 
@@ -61,7 +57,7 @@ Extract a pure sanitizer that takes a URL or pathname/query object and returns a
 
 ## Next Scoped Step
 
-Claim experiment `MOB-LINK-001` in this ledger before editing code. Add sanitizer tests first if the harness exists; otherwise add the sanitizer with `ts:check`/lint and immediately backfill tests when the harness lands.
+Done for `MOB-LINK-001`. Future work should exchange playlist share tokens in `mobile-share-token-exchange` or consume auth callback codes in `auth-session-user-service-client`; those slices should continue to use the sanitizer before logging or navigation serialization.
 
 ## Code Quality Rules
 
