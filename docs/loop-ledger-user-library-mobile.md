@@ -164,6 +164,26 @@ This ledger records root-level coordination for `docs/autoplan-user-library-mobi
 - Next Action: continue
 - Next move: Commit `MOB-QUEUE-004`, then promote CarPlay/Cast playlist identity or auth/session depending on server dev-auth readiness.
 
+### Iteration 17
+
+- Timestamp: 2026-06-20T02:08:41Z
+- Hypothesis: Cast queue payloads can carry Queue V2 item identity through `customData` without native module changes.
+- Action: Claimed `MOB-CAST-001` in `carplay-cast-playlist-identity` on branch `codex/scoped-realm-user-data`.
+- Evidence: The workstream ledger now has a preregistered entry with Cast adapter mutable surface and test validators before code edits.
+- Verdict: pass
+- Next Action: continue
+- Next move: Add a pure Queue V2 Cast custom-data adapter, use it from Cast queue item construction, and test catalog plus playlist payloads.
+
+### Iteration 18
+
+- Timestamp: 2026-06-20T04:10:27Z
+- Hypothesis: Cast queue-item custom data can carry Queue V2 identity while media-info custom data preserves the legacy runtime identifier used by existing Cast reconciliation.
+- Action: Added native-free Cast Queue V2 payload helpers, wired top-level `MediaQueueItem.customData` in `cast_driver.ts`, kept legacy `mediaInfo.customData`, and added focused custom-data tests.
+- Evidence: `yarn test -- cast-queue-v2 queue-v2`, `yarn test`, `yarn ts:check`, `yarn lint`, and `git diff --check` passed. Subagent review found and then validated the fix for queue-item versus media-info custom-data placement. Live Cast receiver validation remains deferred because no Cast device/session is available here.
+- Verdict: pass
+- Next Action: continue
+- Next move: Commit `MOB-CAST-001`, then continue with auth/session if server dev-auth readiness can be confirmed or defer remaining CarPlay identity until playlist playback UI exists.
+
 ## Root Coordination Notes
 
 - The active set intentionally starts with foundations: local API config, deterministic test harness, deep-link sanitizer, and Queue V2 playback foundation.

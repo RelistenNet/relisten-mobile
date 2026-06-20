@@ -15,6 +15,7 @@ import {
 } from '@/relisten/player/relisten_player_queue';
 import { PlaybackDriver, PlaybackQueueContext } from '@/relisten/player/playback_driver';
 import { log } from '@/relisten/util/logging';
+import { buildQueueV2CastCustomDataPayloads } from '@/relisten/casting/cast_queue_v2';
 
 const logger = log.extend('cast-driver');
 
@@ -53,10 +54,16 @@ function buildStreamable(track: PlayerQueueTrack) {
 function buildQueueItems(tracks: PlayerQueueTrack[]): MediaQueueItem[] {
   return tracks.map((track) => {
     const streamable = buildStreamable(track);
+    const castCustomData = buildQueueV2CastCustomDataPayloads({
+      runtimeIdentifier: streamable.identifier,
+      sourceTrackUuid: track.sourceTrack.uuid,
+      queueV2Item: track.queueV2Item,
+    });
 
     return {
       autoplay: true,
       preloadTime: 20,
+      customData: castCustomData.queueItemCustomData,
       mediaInfo: {
         contentUrl: streamable.url,
         contentType: DEFAULT_CONTENT_TYPE,
@@ -67,10 +74,7 @@ function buildQueueItems(tracks: PlayerQueueTrack[]): MediaQueueItem[] {
           albumTitle: streamable.albumTitle,
           images: streamable.albumArt ? [{ url: streamable.albumArt }] : [],
         },
-        customData: {
-          identifier: streamable.identifier,
-          sourceTrackUuid: track.sourceTrack.uuid,
-        },
+        customData: castCustomData.mediaInfoCustomData,
       },
     };
   });
