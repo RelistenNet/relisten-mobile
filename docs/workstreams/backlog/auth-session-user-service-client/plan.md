@@ -24,6 +24,7 @@ Out of scope:
 - Production Apple/Google provider UI until local Development auth works.
 - Full playlist UX.
 - Server implementation.
+- Downloaded Google OAuth client config files; consume them through deliberate local configuration in a future provider-wiring slice rather than committing them to the repository.
 
 ## Main Validator
 
@@ -39,8 +40,8 @@ Depends on `local-api-dev-config`, `test-harness-foundation`, and a Development-
 
 ## Current Hypothesis
 
-Use a small class/service that wraps the user-library client, stores refresh tokens in SecureStore, keeps access tokens in memory when possible, and performs one bounded refresh retry on 401 before forcing sign-in.
+The local auth session foundation now exists as a small service that wraps the user-library client, stores refresh tokens in SecureStore, keeps access tokens in memory only after durable refresh-token writes, and performs one bounded retry after protected-request 401s.
 
 ## Next Scoped Step
 
-Promote this workstream after `MOB-API-001` and the API dev-auth endpoint are ready. Claim a ledger experiment before editing.
+Wire session metadata into app bootstrap and active user scope selection, then run the local Development auth smoke when `RelistenUserApi` is listening on `http://localhost:5119`.

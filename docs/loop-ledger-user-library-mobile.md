@@ -184,6 +184,26 @@ This ledger records root-level coordination for `docs/autoplan-user-library-mobi
 - Next Action: continue
 - Next move: Commit `MOB-CAST-001`, then continue with auth/session if server dev-auth readiness can be confirmed or defer remaining CarPlay identity until playlist playback UI exists.
 
+### Iteration 19
+
+- Timestamp: 2026-06-20T04:12:24Z
+- Hypothesis: Mobile auth/session can now be promoted because the local API repo contains the Development/Test-only token endpoint at `/api/v3/library/auth/development/session`.
+- Action: Claimed `MOB-AUTH-001` in `auth-session-user-service-client` on branch `codex/scoped-realm-user-data`.
+- Evidence: Local API source and tests show `AuthController.DevelopmentSession` and `DevelopmentSession_ShouldIssueRealTokensInDevelopment`; the mobile ledger now has a preregistered entry before auth service edits.
+- Verdict: pass
+- Next Action: continue
+- Next move: Add secure refresh-token storage, typed auth DTOs, dev-session sign-in, refresh/logout calls, access-token provider, and bounded 401 retry tests.
+
+### Iteration 20
+
+- Timestamp: 2026-06-20T04:24:17Z
+- Hypothesis: `MOB-AUTH-001` can land as the local auth-session foundation if token persistence, refresh retry, sign-out, and dev-gate edge cases are covered by focused tests and fresh review.
+- Action: Added the auth session service, SecureStore refresh-token store, and auth tests; fixed reviewer-identified race and retry bugs before closing the slice.
+- Evidence: `yarn test -- auth-session api-config`, `yarn test`, `yarn lint`, `yarn ts:check`, and `git diff --check` passed. Initial review found sign-out/refresh race, refresh-token 401 retry, token persistence atomicity, and dev-gate issues; follow-up review found no actionable code findings. `lsof -nP -iTCP:5119 -sTCP:LISTEN` produced no listener, so live local API auth smoke remains deferred.
+- Verdict: pass
+- Next Action: continue
+- Next move: Commit `MOB-AUTH-001`, then continue with auth bootstrap/active-scope wiring or the next scoped user-data sync slice. Use the out-of-band Google OAuth client configs only through deliberate local configuration; do not commit downloaded config files.
+
 ## Root Coordination Notes
 
 - The active set intentionally starts with foundations: local API config, deterministic test harness, deep-link sanitizer, and Queue V2 playback foundation.
