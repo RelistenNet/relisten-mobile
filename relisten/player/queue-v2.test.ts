@@ -8,6 +8,7 @@ import {
   queueV2HistoryAttribution,
   queueV2PlaybackCursor,
   queueV2ShuffleUnits,
+  resolveQueueV2RestorePlan,
 } from '@/relisten/player/queue_v2';
 
 describe('Queue V2 identity', () => {
@@ -129,5 +130,63 @@ describe('Queue V2 identity', () => {
       standaloneB.queueItemId,
       catalogItem.queueItemId,
     ]);
+  });
+
+  it('restores duplicate catalog occurrences by Queue V2 current item key', () => {
+    const items = createCatalogQueueV2Items(['track-a', 'track-b', 'track-a']);
+    const plan = resolveQueueV2RestorePlan(
+      {
+        queueV2Items: items,
+        queueV2ShuffledQueueItemIds: [
+          items[2].queueItemId,
+          items[0].queueItemId,
+          items[1].queueItemId,
+        ],
+        queueV2CurrentItemKey: items[2].queueItemId,
+        legacySourceTrackUuids: ['track-a', 'track-b', 'track-a'],
+        legacyShuffledSourceTrackUuids: ['track-a', 'track-a', 'track-b'],
+        legacyCurrentIndex: 0,
+        legacyShuffledCurrentIndex: 1,
+        useShuffledOrder: true,
+      },
+      (sourceTrackUuid, queueItemId) =>
+        queueItemId ? { sourceTrackUuid, queueItemId } : undefined,
+      (track) => track.sourceTrackUuid
+    );
+
+    expect(plan.usedQueueV2State).toBe(true);
+    expect(plan.orderedTracks.map((track) => track.queueItemId)).toEqual([
+      items[0].queueItemId,
+      items[1].queueItemId,
+      items[2].queueItemId,
+    ]);
+    expect(plan.shuffledTracks.map((track) => track.queueItemId)).toEqual([
+      items[2].queueItemId,
+      items[0].queueItemId,
+      items[1].queueItemId,
+    ]);
+    expect(plan.currentTrack?.queueItemId).toBe(items[2].queueItemId);
+  });
+
+  it('falls back to legacy restore indexes when Queue V2 state is unavailable', () => {
+    const plan = resolveQueueV2RestorePlan(
+      {
+        legacySourceTrackUuids: ['track-a', 'track-b', 'track-a'],
+        legacyShuffledSourceTrackUuids: ['track-a', 'track-a', 'track-b'],
+        legacyCurrentIndex: 0,
+        legacyShuffledCurrentIndex: 1,
+        useShuffledOrder: true,
+      },
+      (sourceTrackUuid) => ({ sourceTrackUuid }),
+      (track) => track.sourceTrackUuid
+    );
+
+    expect(plan.usedQueueV2State).toBe(false);
+    expect(plan.orderedTracks.map((track) => track.sourceTrackUuid)).toEqual([
+      'track-a',
+      'track-b',
+      'track-a',
+    ]);
+    expect(plan.currentTrack?.sourceTrackUuid).toBe('track-a');
   });
 });

@@ -104,6 +104,26 @@ This ledger records root-level coordination for `docs/autoplan-user-library-mobi
 - Next Action: continue
 - Next move: Commit `MOB-QUEUE-001`, then continue Queue V2 by integrating the pure model with persisted `PlayerState` and catalog queue construction.
 
+### Iteration 11
+
+- Timestamp: 2026-06-20T01:20:18Z
+- Hypothesis: Queue V2 can be persisted additively beside legacy source-track state and used for catalog restore identity without changing catalog playback behavior.
+- Action: Claimed `MOB-QUEUE-002` in `queue-v2-playback-foundation` on branch `codex/scoped-realm-user-data`.
+- Evidence: The workstream ledger now has a preregistered entry with Realm/player mutable surface and simulator smoke validator before runtime edits.
+- Verdict: pass
+- Next Action: continue
+- Next move: Add Queue V2 fields to `PlayerState`, write catalog Queue V2 state from the current queue, prefer Queue V2 current key during restore, and smoke app startup.
+
+### Iteration 12
+
+- Timestamp: 2026-06-20T01:32:26Z
+- Hypothesis: Additive Queue V2 persistence can be wired through catalog save/restore without changing catalog playback behavior or breaking legacy queue fields.
+- Action: Added Queue V2 `PlayerState` fields, schema version 14, catalog Queue V2 save/restore integration, pure restore-plan tests, and player-state persistence tests.
+- Evidence: `yarn test -- queue-v2 player_state`, `yarn test`, `yarn ts:check`, `yarn lint`, and `git diff --check` passed. Simulator smoke on `DEC49863-5AF8-4832-8BA2-C5E7C41A029D` launched after schema bump, started catalog playback, wrote Queue V2 state, and relaunched with restore logs showing `queueV2CurrentItemKey` and Queue V2 schema version 2.
+- Verdict: pass
+- Next Action: continue
+- Next move: Commit `MOB-QUEUE-002`, then continue Queue V2 toward playlist queue construction or promote auth/session if the API dev-auth endpoint is ready.
+
 ## Root Coordination Notes
 
 - The active set intentionally starts with foundations: local API config, deterministic test harness, deep-link sanitizer, and Queue V2 playback foundation.

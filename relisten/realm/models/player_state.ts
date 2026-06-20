@@ -7,6 +7,10 @@ export interface PlayerStateProps {
   queueRepeatState: number;
   queueSourceTrackUuids: string[];
   queueSourceTrackShuffledUuids: string[];
+  queueV2SchemaVersion?: number;
+  queueV2ItemsJson?: string;
+  queueV2ShuffledQueueItemIds?: string[];
+  queueV2CurrentItemKey?: string;
   activeSourceTrackIndex?: number;
   activeSourceTrackShuffledIndex?: number;
   lastUpdatedAt: Date;
@@ -25,6 +29,10 @@ export class PlayerState extends Realm.Object<PlayerState> implements PlayerStat
       queueRepeatState: 'int',
       queueSourceTrackUuids: 'string[]',
       queueSourceTrackShuffledUuids: 'string[]',
+      queueV2SchemaVersion: 'int?',
+      queueV2ItemsJson: 'string?',
+      queueV2ShuffledQueueItemIds: 'string[]',
+      queueV2CurrentItemKey: 'string?',
       activeSourceTrackIndex: 'int?',
       activeSourceTrackShuffledIndex: 'int?',
       lastUpdatedAt: 'date',
@@ -39,6 +47,10 @@ export class PlayerState extends Realm.Object<PlayerState> implements PlayerStat
   queueRepeatState!: number;
   queueSourceTrackUuids!: string[];
   queueSourceTrackShuffledUuids!: string[];
+  queueV2SchemaVersion?: number;
+  queueV2ItemsJson?: string;
+  queueV2ShuffledQueueItemIds!: string[];
+  queueV2CurrentItemKey?: string;
   activeSourceTrackIndex?: number;
   activeSourceTrackShuffledIndex?: number;
   lastUpdatedAt!: Date;
@@ -59,6 +71,10 @@ export class PlayerState extends Realm.Object<PlayerState> implements PlayerStat
         obj.queueRepeatState = props.queueRepeatState;
         obj.queueSourceTrackUuids = props.queueSourceTrackUuids;
         obj.queueSourceTrackShuffledUuids = props.queueSourceTrackShuffledUuids;
+        obj.queueV2SchemaVersion = props.queueV2SchemaVersion;
+        obj.queueV2ItemsJson = props.queueV2ItemsJson;
+        obj.queueV2ShuffledQueueItemIds = props.queueV2ShuffledQueueItemIds ?? [];
+        obj.queueV2CurrentItemKey = props.queueV2CurrentItemKey;
         obj.activeSourceTrackIndex = props.activeSourceTrackIndex;
         obj.activeSourceTrackShuffledIndex = props.activeSourceTrackShuffledIndex;
         obj.lastUpdatedAt = props.lastUpdatedAt;
@@ -67,7 +83,11 @@ export class PlayerState extends Realm.Object<PlayerState> implements PlayerStat
         obj.elapsed = props.elapsed;
         return obj;
       } else {
-        return realm.create(PlayerState, { id: PLAYER_STATE_SENTINEL, ...props });
+        return realm.create(PlayerState, {
+          id: PLAYER_STATE_SENTINEL,
+          ...props,
+          queueV2ShuffledQueueItemIds: props.queueV2ShuffledQueueItemIds ?? [],
+        });
       }
     });
   }
@@ -91,6 +111,10 @@ RelistenPlayerState
   queueRepeatState=${this.queueRepeatState}
   queueSourceTrackUuids=${this.queueSourceTrackUuids.length}
   queueSourceTrackShuffledUuids=${this.queueSourceTrackShuffledUuids.length}
+  queueV2SchemaVersion=${this.queueV2SchemaVersion}
+  queueV2ItemsJson=${this.queueV2ItemsJson?.length ?? 0}
+  queueV2ShuffledQueueItemIds=${this.queueV2ShuffledQueueItemIds.length}
+  queueV2CurrentItemKey=${this.queueV2CurrentItemKey}
   activeSourceTrackIndex=${this.activeSourceTrackIndex}
   activeSourceTrackShuffledIndex=${this.activeSourceTrackShuffledIndex}
   lastUpdatedAt=${this.lastUpdatedAt}

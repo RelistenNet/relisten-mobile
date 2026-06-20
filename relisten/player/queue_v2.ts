@@ -49,6 +49,13 @@ export interface QueueV2PersistedState {
   currentItemKey?: string;
 }
 
+export interface QueueV2RestorePlan<TQueueTrack> {
+  orderedTracks: TQueueTrack[];
+  shuffledTracks: TQueueTrack[];
+  currentTrack?: TQueueTrack;
+  usedQueueV2State: boolean;
+}
+
 export function createCatalogQueueV2Item(
   sourceTrackUuid: string,
   occurrenceIndex: number = 0
@@ -186,6 +193,71 @@ export function migrateLegacyCatalogQueueStateToQueueV2(
   };
 }
 
+export function resolveQueueV2RestorePlan<TQueueTrack>(
+  state: {
+    queueV2Items?: QueueV2Item[];
+    queueV2ShuffledQueueItemIds?: string[];
+    queueV2CurrentItemKey?: string | null;
+    legacySourceTrackUuids: string[];
+    legacyShuffledSourceTrackUuids: string[];
+    legacyCurrentIndex?: number | null;
+    legacyShuffledCurrentIndex?: number | null;
+    useShuffledOrder: boolean;
+  },
+  makeTrack: (sourceTrackUuid: string, queueItemId?: string) => TQueueTrack | undefined,
+  sourceTrackUuidForTrack: (track: TQueueTrack) => string
+): QueueV2RestorePlan<TQueueTrack> {
+  if (state.queueV2Items?.length) {
+    const trackByItemId = new Map<string, TQueueTrack>();
+    const orderedTracks = state.queueV2Items
+      .map((item) => {
+        const track = makeTrack(item.sourceTrackUuid, item.queueItemId);
+
+        if (track) {
+          trackByItemId.set(item.queueItemId, track);
+        }
+
+        return track;
+      })
+      .filter((track): track is TQueueTrack => !!track);
+    const shuffledTracks =
+      state.queueV2ShuffledQueueItemIds
+        ?.map((queueItemId) => trackByItemId.get(queueItemId))
+        .filter((track): track is TQueueTrack => !!track) ?? [];
+
+    return {
+      orderedTracks,
+      shuffledTracks: shuffledTracks.length > 0 ? shuffledTracks : orderedTracks,
+      currentTrack: state.queueV2CurrentItemKey
+        ? trackByItemId.get(state.queueV2CurrentItemKey)
+        : undefined,
+      usedQueueV2State: true,
+    };
+  }
+
+  const orderedTracks = state.legacySourceTrackUuids
+    .map((sourceTrackUuid) => makeTrack(sourceTrackUuid))
+    .filter((track): track is TQueueTrack => !!track);
+  const shuffledTracks = legacyShuffledTracksFromSourceTrackUuids(
+    orderedTracks,
+    state.legacyShuffledSourceTrackUuids,
+    sourceTrackUuidForTrack
+  );
+  const preferredCurrentTrack = state.useShuffledOrder
+    ? itemAt(shuffledTracks, state.legacyShuffledCurrentIndex)
+    : itemAt(orderedTracks, state.legacyCurrentIndex);
+  const fallbackCurrentTrack = state.useShuffledOrder
+    ? itemAt(orderedTracks, state.legacyCurrentIndex)
+    : itemAt(shuffledTracks, state.legacyShuffledCurrentIndex);
+
+  return {
+    orderedTracks,
+    shuffledTracks,
+    currentTrack: preferredCurrentTrack ?? fallbackCurrentTrack ?? orderedTracks[0],
+    usedQueueV2State: false,
+  };
+}
+
 function playlistQueueItemId(playlistUuid: string, playlistEntryUuid: string): string {
   return `playlist:${encodeQueueV2IdPart(playlistUuid)}:entry:${encodeQueueV2IdPart(
     playlistEntryUuid
@@ -247,6 +319,27 @@ function itemIdAt(items: QueueV2Item[], maybeIndex: number | null | undefined): 
   }
 
   return items[maybeIndex]?.queueItemId;
+}
+
+function itemAt<T>(items: T[], maybeIndex: number | null | undefined): T | undefined {
+  if (maybeIndex == null || maybeIndex < 0 || maybeIndex >= items.length) {
+    return undefined;
+  }
+
+  return items[maybeIndex];
+}
+
+function legacyShuffledTracksFromSourceTrackUuids<TQueueTrack>(
+  orderedTracks: TQueueTrack[],
+  shuffledSourceTrackUuids: string[],
+  sourceTrackUuidForTrack: (track: TQueueTrack) => string
+): TQueueTrack[] {
+  return [...orderedTracks].sort((a, b) => {
+    const aOrder = shuffledSourceTrackUuids.indexOf(sourceTrackUuidForTrack(a));
+    const bOrder = shuffledSourceTrackUuids.indexOf(sourceTrackUuidForTrack(b));
+
+    return aOrder - bOrder;
+  });
 }
 
 function encodeQueueV2IdPart(part: string): string {
