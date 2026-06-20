@@ -47,6 +47,15 @@ export interface UserLibraryAuthSessionServiceOptions {
   developmentAuthEnabled?: boolean;
 }
 
+export interface UserLibraryAuthenticatedRequestSession {
+  accessToken: string;
+  scopeId: string;
+}
+
+export interface UserLibraryAuthenticatedRetryOptions {
+  expectedScopeId?: string;
+}
+
 export class UserLibraryAuthSessionError extends Error {
   constructor(public readonly code: string) {
     super(code);
@@ -56,6 +65,7 @@ export class UserLibraryAuthSessionError extends Error {
 
 export class UserLibraryAuthSessionService {
   private accessToken: string | undefined;
+  private accessTokenScopeId: string | undefined;
   private refreshInFlight:
     | { generation: number; promise: Promise<UserLibraryAuthTokenResponse> }
     | undefined;
@@ -87,8 +97,22 @@ export class UserLibraryAuthSessionService {
   }
 
   async getAccessToken(): Promise<string | undefined> {
-    if (this.accessToken) {
-      return this.accessToken;
+    return (await this.getAuthenticatedRequestSession())?.accessToken;
+  }
+
+  async getAuthenticatedRequestSession(
+    expectedScopeId?: string
+  ): Promise<UserLibraryAuthenticatedRequestSession | undefined> {
+    if (this.accessToken && this.accessTokenScopeId) {
+      if (!expectedScopeId || this.accessTokenScopeId === expectedScopeId) {
+        return {
+          accessToken: this.accessToken,
+          scopeId: this.accessTokenScopeId,
+        };
+      }
+
+      this.accessToken = undefined;
+      this.accessTokenScopeId = undefined;
     }
 
     const refreshToken = await this.refreshTokenStore.getRefreshToken();
@@ -97,7 +121,10 @@ export class UserLibraryAuthSessionService {
       return undefined;
     }
 
-    return (await this.refreshSession()).access_token;
+    return this.sessionForExpectedScope(
+      authenticatedRequestSessionFromTokenResponse(await this.refreshSession()),
+      expectedScopeId
+    );
   }
 
   async refreshSession(): Promise<UserLibraryAuthTokenResponse> {
@@ -120,6 +147,7 @@ export class UserLibraryAuthSessionService {
     this.sessionGeneration += 1;
     this.refreshInFlight = undefined;
     this.accessToken = undefined;
+    this.accessTokenScopeId = undefined;
 
     try {
       if (refreshToken) {
@@ -147,6 +175,27 @@ export class UserLibraryAuthSessionService {
     return request(refreshed.access_token);
   }
 
+  async withAuthenticatedSessionRetry<T>(
+    request: (session: UserLibraryAuthenticatedRequestSession | undefined) => Promise<T>,
+    options: UserLibraryAuthenticatedRetryOptions = {}
+  ): Promise<T> {
+    const session = await this.getAuthenticatedRequestSession(options.expectedScopeId);
+
+    try {
+      return await request(session);
+    } catch (error) {
+      if (!isUnauthorizedApiError(error) || !(await this.refreshTokenStore.getRefreshToken())) {
+        throw error;
+      }
+    }
+
+    const refreshed = this.sessionForExpectedScope(
+      authenticatedRequestSessionFromTokenResponse(await this.refreshSession()),
+      options.expectedScopeId
+    );
+    return request(refreshed);
+  }
+
   private async refreshSessionOnce(generation: number): Promise<UserLibraryAuthTokenResponse> {
     const refreshToken = await this.refreshTokenStore.getRefreshToken();
 
@@ -166,6 +215,7 @@ export class UserLibraryAuthSessionService {
         this.sessionGeneration += 1;
         this.refreshInFlight = undefined;
         this.accessToken = undefined;
+        this.accessTokenScopeId = undefined;
         await this.refreshTokenStore.clearRefreshToken();
       }
 
@@ -186,6 +236,7 @@ export class UserLibraryAuthSessionService {
     } catch (error) {
       if (generation === this.sessionGeneration) {
         this.accessToken = undefined;
+        this.accessTokenScopeId = undefined;
       }
 
       throw error;
@@ -197,11 +248,34 @@ export class UserLibraryAuthSessionService {
     }
 
     this.accessToken = response.access_token;
+    this.accessTokenScopeId = response.user.scope_id;
+  }
+
+  private sessionForExpectedScope(
+    session: UserLibraryAuthenticatedRequestSession,
+    expectedScopeId: string | undefined
+  ): UserLibraryAuthenticatedRequestSession | undefined {
+    if (!expectedScopeId || session.scopeId === expectedScopeId) {
+      return session;
+    }
+
+    this.accessToken = undefined;
+    this.accessTokenScopeId = undefined;
+    return undefined;
   }
 }
 
 function isUnauthorizedApiError(error: unknown) {
   return error instanceof UserLibraryApiError && error.status === 401;
+}
+
+function authenticatedRequestSessionFromTokenResponse(
+  response: UserLibraryAuthTokenResponse
+): UserLibraryAuthenticatedRequestSession {
+  return {
+    accessToken: response.access_token,
+    scopeId: response.user.scope_id,
+  };
 }
 
 function isDevelopmentBuild() {

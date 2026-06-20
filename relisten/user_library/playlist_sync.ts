@@ -7,7 +7,10 @@ import {
 } from '@/relisten/realm/models/user_library/playlists';
 import { UserSyncCursor } from '@/relisten/realm/models/user_library/sync';
 import { scopedUserDataPrimaryKey } from '@/relisten/user_library/user_data_scope';
-import { RelistenUserLibraryApiClient } from '@/relisten/api/user_library_client';
+import {
+  RelistenUserLibraryApiClient,
+  UserLibraryRequestOptions,
+} from '@/relisten/api/user_library_client';
 import {
   applyUserFavoriteChange,
   applyUserFavoriteTombstone,
@@ -82,10 +85,14 @@ export class UserLibraryPlaylistSyncError extends Error {
 
 export function pullUserLibrarySync(
   client: RelistenUserLibraryApiClient,
-  cursor?: string
+  cursor?: string,
+  options?: UserLibraryRequestOptions
 ): Promise<UserLibrarySyncResponse> {
   const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
-  return client.getJson<UserLibrarySyncResponse>(`/sync${query}`);
+  const path = `/sync${query}`;
+  return options
+    ? client.getJson<UserLibrarySyncResponse>(path, options)
+    : client.getJson<UserLibrarySyncResponse>(path);
 }
 
 export function userLibrarySyncCursorScopedId(scopeId: string) {

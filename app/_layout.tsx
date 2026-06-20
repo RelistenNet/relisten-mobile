@@ -50,6 +50,7 @@ import {
   isVerboseProfileLoggingEnabled,
   logRouteDebug,
 } from '@/relisten/util/profile_logging';
+import { UserLibrarySyncBootstrap } from '@/relisten/user_library/user_library_sync_bootstrap';
 
 // c.f. https://github.com/meliorence/react-native-render-html/issues/661#issuecomment-2453476566
 LogBox.ignoreLogs([/Support for defaultProps will be removed/]);
@@ -204,6 +205,7 @@ function TabLayout() {
               <LastFmReporterComponent />
               <LastFmAuthListener />
               <RealmBridge />
+              <UserLibrarySyncBootstrap />
               <CarPlayBootstrap />
               <ThemeProvider
                 value={{

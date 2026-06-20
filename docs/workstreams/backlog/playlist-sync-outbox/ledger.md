@@ -57,3 +57,26 @@ This ledger is the write-ahead log for `docs/workstreams/backlog/playlist-sync-o
 - Outcome: pass
 - next_action: continue
 - Next move: Wire this React-independent replay service into the authenticated app lifecycle and foreground/reconnect hooks after choosing the sync runner boundary.
+
+### MOB-SYNC-003 - Authenticated sync lifecycle runner
+
+- Status: completed
+- Timestamp: 2026-06-20T05:11:09Z
+- Intention / hypothesis: Mobile can mount a thin lifecycle component that runs pull sync plus operation replay only for the active authenticated scope, using the auth session service for refresh-on-401 and respecting network/foreground triggers.
+- Responsible agent: root Codex agent
+- Start commit: `18b80cc`
+- End commit: this commit (`feat(sync): add authenticated sync lifecycle runner`)
+- Worktree or branch: `codex/scoped-realm-user-data`
+- Mutable surface: focused user-library sync runner/provider/component files under `relisten/user_library/`, `app/_layout.tsx` only to mount the bootstrap component, focused tests, AutoPlan docs, and this ledger.
+- Validator: `yarn test -- user-library-sync-runner auth-session playlist-operation-outbox playlist-sync`, `yarn test`, `yarn lint`, `yarn ts:check`, and `git diff --check`.
+- Expected deliverable: auth-aware user-library client bundle, React-independent sync runner, lifecycle trigger component, tests for signed-out skip, refresh retry, outbox-before-pull ordering, and in-flight coalescing.
+- Expected artifacts: code diff, focused tests, validation transcript, and review notes.
+- Linked ExecPlan: none.
+- Evidence: Added a React-independent `UserLibrarySyncRunner` that gates work on the active authenticated Realm scope, obtains expected-scope access tokens through `UserLibraryAuthSessionService.withAuthenticatedSessionRetry`, replays pending playlist operations before pulling `/sync`, persists the sync cursor through the existing applier, and coalesces overlapping runs while queueing a follow-up scope-change run.
+- Lifecycle evidence: Mounted `UserLibrarySyncBootstrap` in the root app layout. It creates separate auth and user-library API clients, uses SecureStore-backed refresh token storage, triggers sync on mount/scope/network changes and foreground transitions, and stays non-visual.
+- Safety evidence: Runner skips signed-out scopes, missing scopes, authenticated scopes without token material, stale scopes after sign-out/scope switches, and protected auth sessions whose server `scope_id` does not match the active Realm scope. Outbox replay now accepts explicit access tokens and cooperatively avoids applying a server operation response after the active scope changes.
+- Validators: `yarn test -- auth-session user-library-sync-runner playlist-operation-outbox playlist-sync` passed with 56 focused tests; `yarn test` passed with 14 files / 100 tests; `yarn lint`; `yarn ts:check`; `git diff --check`.
+- Review: First reviewer found stale-scope writes and dropped scope-change triggers during in-flight work. Fixes added active-scope rechecks, queued scope-change reruns, stale-scope outbox protection, and focused regression tests. Final reviewer found cached auth sessions could outlive the active user scope; fix added server-scope-aware protected sessions and mismatch skip coverage.
+- Outcome: pass
+- next_action: continue
+- Next move: Trigger replay after future local playlist mutations and/or continue with scoped playback history batching; live local auth/sync smoke still depends on `RelistenUserApi` listening on `http://localhost:5119`.

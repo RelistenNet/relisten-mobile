@@ -165,6 +165,73 @@ describe('UserLibraryAuthSessionService', () => {
     expect(postJson).toHaveBeenCalledTimes(1);
   });
 
+  it('exposes the authenticated server scope for protected session requests', async () => {
+    const store = new MemoryRefreshTokenStore();
+    const postJson = vi.fn(async () => authResponse('access-1', 'refresh-1'));
+    const { service } = serviceWithPostJson(postJson, store);
+    const request = vi.fn(async () => ({ ok: true }));
+
+    await service.signInDevelopmentSession(developmentSessionRequest());
+    await expect(
+      service.withAuthenticatedSessionRetry(request, { expectedScopeId: 'user:user-1' })
+    ).resolves.toEqual({ ok: true });
+
+    expect(request).toHaveBeenCalledWith({
+      accessToken: 'access-1',
+      scopeId: 'user:user-1',
+    });
+  });
+
+  it('refreshes cached access when a protected session expects a different scope', async () => {
+    const store = new MemoryRefreshTokenStore();
+    const postJson = vi
+      .fn()
+      .mockResolvedValueOnce(authResponse('access-1', 'refresh-1'))
+      .mockResolvedValueOnce(
+        authResponse('access-2', 'refresh-2', {
+          user: {
+            user_uuid: 'user-2',
+            username: 'ios_simulator_2',
+            display_name: 'iOS Simulator 2',
+            scope_id: 'user:user-2',
+          },
+        })
+      );
+    const { service } = serviceWithPostJson(postJson, store);
+    const request = vi.fn(async () => ({ ok: true }));
+
+    await service.signInDevelopmentSession(developmentSessionRequest());
+    await store.setRefreshToken('refresh-2');
+    await expect(
+      service.withAuthenticatedSessionRetry(request, { expectedScopeId: 'user:user-2' })
+    ).resolves.toEqual({ ok: true });
+
+    expect(postJson).toHaveBeenLastCalledWith('/auth/refresh', {
+      refresh_token: 'refresh-2',
+    });
+    expect(request).toHaveBeenCalledWith({
+      accessToken: 'access-2',
+      scopeId: 'user:user-2',
+    });
+  });
+
+  it('does not hand callers a refreshed session for the wrong expected scope', async () => {
+    const store = new MemoryRefreshTokenStore();
+    const postJson = vi
+      .fn()
+      .mockResolvedValueOnce(authResponse('access-1', 'refresh-1'))
+      .mockResolvedValueOnce(authResponse('access-2', 'refresh-2'));
+    const { service } = serviceWithPostJson(postJson, store);
+    const request = vi.fn(async () => ({ ok: true }));
+
+    await service.signInDevelopmentSession(developmentSessionRequest());
+    await expect(
+      service.withAuthenticatedSessionRetry(request, { expectedScopeId: 'user:user-2' })
+    ).resolves.toEqual({ ok: true });
+
+    expect(request).toHaveBeenCalledWith(undefined);
+  });
+
   it('does not treat a refresh-token 401 as a protected-request 401', async () => {
     const store = new MemoryRefreshTokenStore();
     await store.setRefreshToken('refresh-1');

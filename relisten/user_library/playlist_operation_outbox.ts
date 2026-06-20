@@ -2,6 +2,7 @@ import Realm from 'realm';
 import {
   RelistenUserLibraryApiClient,
   UserLibraryApiError,
+  UserLibraryRequestOptions,
 } from '@/relisten/api/user_library_client';
 import {
   PendingUserOperation,
@@ -62,6 +63,9 @@ export interface PendingPlaylistOperationOptions {
 export interface ReplayPlaylistOperationsOptions {
   now?: Date;
   maxOperations?: number;
+  accessToken?: string;
+  throwAuthenticationErrors?: boolean;
+  shouldContinue?: () => boolean;
 }
 
 export interface ReplayPlaylistOperationResult {
@@ -91,13 +95,14 @@ export class UserLibraryPlaylistOperationOutboxError extends Error {
 export function postUserLibraryPlaylistOperation(
   client: RelistenUserLibraryApiClient,
   playlistUuid: string,
-  operation: UserLibraryPlaylistOperationRequest
+  operation: UserLibraryPlaylistOperationRequest,
+  options?: UserLibraryRequestOptions
 ): Promise<UserLibraryPlaylistOperationResponse> {
   assertPlaylistOperationEnvelope(playlistUuid, operation);
-  return client.postJson<UserLibraryPlaylistOperationResponse>(
-    `/playlists/${encodeURIComponent(playlistUuid)}/operations`,
-    operation
-  );
+  const path = `/playlists/${encodeURIComponent(playlistUuid)}/operations`;
+  return options
+    ? client.postJson<UserLibraryPlaylistOperationResponse>(path, operation, options)
+    : client.postJson<UserLibraryPlaylistOperationResponse>(path, operation);
 }
 
 export function pendingPlaylistOperationScopedId(scopeId: string, idempotencyKey: string) {
@@ -270,14 +275,35 @@ export class UserLibraryPlaylistOperationReplayService {
         continue;
       }
 
+      if (!shouldContinue(options)) {
+        break;
+      }
+
       attempted += 1;
       const attemptedAt = options.now ?? new Date();
       this.repository.markSyncing(operation, attemptedAt);
 
       try {
         const request = parsePendingPlaylistOperation(operation);
-        const response = await postUserLibraryPlaylistOperation(this.client, playlistUuid, request);
+        const response = await postUserLibraryPlaylistOperation(
+          this.client,
+          playlistUuid,
+          request,
+          options.accessToken ? { accessToken: options.accessToken } : undefined
+        );
         const reconciledAt = options.now ?? new Date();
+
+        if (!shouldContinue(options)) {
+          this.repository.markFailed(operation, 'stale_scope', reconciledAt);
+          blockedPlaylistUuids.add(playlistUuid);
+          results.push({
+            operationUuid: operation.uuid,
+            playlistUuid,
+            status: 'failed',
+            error: 'stale_scope',
+          });
+          break;
+        }
 
         this.write(() => {
           applyUserLibraryPlaylistSnapshot(this.realm, scopeId, {
@@ -308,6 +334,10 @@ export class UserLibraryPlaylistOperationReplayService {
           status: 'failed',
           error: errorMessage,
         });
+
+        if (options.throwAuthenticationErrors && isUnauthorizedApiError(error)) {
+          throw error;
+        }
       }
     }
 
@@ -407,6 +437,14 @@ function isTerminalPlaylistOperationError(error: unknown) {
       error.status < 500 &&
       error.status !== 401)
   );
+}
+
+function isUnauthorizedApiError(error: unknown) {
+  return error instanceof UserLibraryApiError && error.status === 401;
+}
+
+function shouldContinue(options: ReplayPlaylistOperationsOptions) {
+  return options.shouldContinue ? options.shouldContinue() : true;
 }
 
 function emptyReplayResult(
