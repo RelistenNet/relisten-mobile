@@ -62,7 +62,7 @@ export const realmConfig: Realm.Configuration = {
     PopularityWindows,
     ...USER_LIBRARY_REALM_MODELS,
   ],
-  schemaVersion: 15,
+  schemaVersion: 16,
   onMigration: migrateUserLibraryRealm,
   // As to not conflict with the prior versions default.realm that isn't readable with this version of the SDK
   path: './relisten.realm',

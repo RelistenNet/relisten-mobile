@@ -1,0 +1,263 @@
+import Realm from 'realm';
+import {
+  UserPlaylist,
+  UserPlaylistAccessRole,
+  UserPlaylistEntry,
+  UserPlaylistVisibility,
+} from '@/relisten/realm/models/user_library/playlists';
+import { UserSyncCursor } from '@/relisten/realm/models/user_library/sync';
+import { scopedUserDataPrimaryKey } from '@/relisten/user_library/user_data_scope';
+import { RelistenUserLibraryApiClient } from '@/relisten/api/user_library_client';
+
+export const USER_LIBRARY_SYNC_CURSOR_NAME = 'user-library-sync';
+
+export interface UserLibrarySyncResponse {
+  changes: UserLibrarySyncChangeResponse[];
+  tombstones: UserLibrarySyncTombstoneResponse[];
+  next_cursor: string;
+}
+
+export interface UserLibrarySyncChangeResponse {
+  resource_type: string;
+  playlist?: UserLibraryPlaylistResponse;
+  playlist_viewer_state?: UserLibraryPlaylistViewerStateResponse;
+  updated_at: string;
+}
+
+export interface UserLibraryPlaylistResponse {
+  playlist_uuid: string;
+  short_id: string;
+  owner_user_uuid: string;
+  name: string;
+  description?: string | null;
+  visibility: UserPlaylistVisibility;
+  current_revision: number;
+  entries: UserLibraryPlaylistEntryResponse[];
+}
+
+export interface UserLibraryPlaylistEntryResponse {
+  playlist_entry_uuid: string;
+  source_track_uuid: string;
+  block_uuid?: string | null;
+  block_position?: number | null;
+  position: string;
+  added_by_user_uuid: string;
+}
+
+export interface UserLibraryPlaylistViewerStateResponse {
+  is_owner: boolean;
+  is_following: boolean;
+  is_collaborator: boolean;
+  can_edit: boolean;
+  access_role: UserPlaylistAccessRole;
+}
+
+export interface UserLibrarySyncTombstoneResponse {
+  resource_type: string;
+  playlist_uuid?: string | null;
+  deleted_at: string;
+}
+
+export class UserLibraryPlaylistSyncError extends Error {
+  constructor(public readonly code: string) {
+    super(code);
+    this.name = 'UserLibraryPlaylistSyncError';
+  }
+}
+
+export function pullUserLibrarySync(
+  client: RelistenUserLibraryApiClient,
+  cursor?: string
+): Promise<UserLibrarySyncResponse> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+  return client.getJson<UserLibrarySyncResponse>(`/sync${query}`);
+}
+
+export function userLibrarySyncCursorScopedId(scopeId: string) {
+  return scopedUserDataPrimaryKey(scopeId, `cursor:${USER_LIBRARY_SYNC_CURSOR_NAME}`);
+}
+
+export class UserLibraryPlaylistSyncApplier {
+  constructor(private readonly realm: Realm) {}
+
+  applyPullResponse(scopeId: string, response: UserLibrarySyncResponse): void {
+    assertSupportedResponse(response);
+
+    this.write(() => {
+      for (const change of response.changes) {
+        this.applyChange(scopeId, change);
+      }
+
+      for (const tombstone of response.tombstones) {
+        this.applyTombstone(scopeId, tombstone);
+      }
+
+      this.persistCursor(scopeId, response.next_cursor);
+    });
+  }
+
+  getCursor(scopeId: string): UserSyncCursor | null {
+    return this.realm.objectForPrimaryKey(UserSyncCursor, userLibrarySyncCursorScopedId(scopeId));
+  }
+
+  private applyChange(scopeId: string, change: UserLibrarySyncChangeResponse) {
+    if (change.resource_type !== 'playlist' || !change.playlist) {
+      throw new UserLibraryPlaylistSyncError('unsupported_sync_change');
+    }
+
+    this.applyPlaylistChange(scopeId, change);
+  }
+
+  private applyPlaylistChange(scopeId: string, change: UserLibrarySyncChangeResponse) {
+    const playlist = change.playlist;
+
+    if (!playlist) {
+      throw new UserLibraryPlaylistSyncError('missing_playlist_change');
+    }
+
+    const updatedAt = parseServerDate(change.updated_at, 'change.updated_at');
+    const playlistScopedId = scopedUserDataPrimaryKey(scopeId, playlist.playlist_uuid);
+    const existing = this.realm.objectForPrimaryKey(UserPlaylist, playlistScopedId);
+
+    this.realm.create(
+      UserPlaylist.schema.name,
+      {
+        scopedId: playlistScopedId,
+        scopeId,
+        uuid: playlist.playlist_uuid,
+        shortId: playlist.short_id,
+        name: playlist.name,
+        description: playlist.description ?? null,
+        visibility: playlist.visibility,
+        ownerUserUuid: playlist.owner_user_uuid,
+        accessRole: change.playlist_viewer_state?.access_role,
+        isOwner: change.playlist_viewer_state?.is_owner,
+        isFollowing: change.playlist_viewer_state?.is_following,
+        isCollaborator: change.playlist_viewer_state?.is_collaborator,
+        canEdit: change.playlist_viewer_state?.can_edit,
+        currentRevision: playlist.current_revision,
+        createdAt: existing?.createdAt ?? updatedAt,
+        updatedAt,
+        deletedAt: null,
+      },
+      Realm.UpdateMode.Modified
+    );
+
+    this.replacePlaylistEntries(scopeId, playlist, updatedAt);
+  }
+
+  private replacePlaylistEntries(
+    scopeId: string,
+    playlist: UserLibraryPlaylistResponse,
+    updatedAt: Date
+  ) {
+    const receivedEntryUuids = new Set(playlist.entries.map((entry) => entry.playlist_entry_uuid));
+    const existingEntries = this.realm
+      .objects(UserPlaylistEntry)
+      .filtered('scopeId == $0 AND playlistUuid == $1', scopeId, playlist.playlist_uuid);
+
+    for (const existingEntry of existingEntries) {
+      if (!receivedEntryUuids.has(existingEntry.uuid)) {
+        existingEntry.deletedAt = updatedAt;
+      }
+    }
+
+    for (const entry of playlist.entries) {
+      const scopedId = scopedUserDataPrimaryKey(scopeId, entry.playlist_entry_uuid);
+      const existing = this.realm.objectForPrimaryKey(UserPlaylistEntry, scopedId);
+
+      this.realm.create(
+        UserPlaylistEntry.schema.name,
+        {
+          scopedId,
+          scopeId,
+          uuid: entry.playlist_entry_uuid,
+          playlistUuid: playlist.playlist_uuid,
+          sourceTrackUuid: entry.source_track_uuid,
+          addedByUserUuid: entry.added_by_user_uuid,
+          blockUuid: entry.block_uuid ?? null,
+          blockPosition: entry.block_position ?? null,
+          position: entry.position,
+          createdAt: existing?.createdAt ?? updatedAt,
+          updatedAt,
+          deletedAt: null,
+        },
+        Realm.UpdateMode.Modified
+      );
+    }
+  }
+
+  private applyTombstone(scopeId: string, tombstone: UserLibrarySyncTombstoneResponse) {
+    if (!isPlaylistTombstone(tombstone) || !tombstone.playlist_uuid) {
+      throw new UserLibraryPlaylistSyncError('unsupported_sync_tombstone');
+    }
+
+    const deletedAt = parseServerDate(tombstone.deleted_at, 'tombstone.deleted_at');
+    const playlist = this.realm.objectForPrimaryKey(
+      UserPlaylist,
+      scopedUserDataPrimaryKey(scopeId, tombstone.playlist_uuid)
+    );
+
+    if (playlist) {
+      playlist.deletedAt = deletedAt;
+    }
+
+    const entries = this.realm
+      .objects(UserPlaylistEntry)
+      .filtered('scopeId == $0 AND playlistUuid == $1', scopeId, tombstone.playlist_uuid);
+
+    for (const entry of entries) {
+      entry.deletedAt = deletedAt;
+    }
+  }
+
+  private persistCursor(scopeId: string, cursor: string) {
+    this.realm.create(
+      UserSyncCursor,
+      {
+        scopedId: userLibrarySyncCursorScopedId(scopeId),
+        scopeId,
+        cursorName: USER_LIBRARY_SYNC_CURSOR_NAME,
+        cursor,
+        updatedAt: new Date(),
+      },
+      Realm.UpdateMode.Modified
+    );
+  }
+
+  private write<T>(callback: () => T): T {
+    return this.realm.isInTransaction ? callback() : this.realm.write(callback);
+  }
+}
+
+function assertSupportedResponse(response: UserLibrarySyncResponse) {
+  const unsupportedChange = response.changes.find(
+    (change) => change.resource_type !== 'playlist' || !change.playlist
+  );
+
+  if (unsupportedChange) {
+    throw new UserLibraryPlaylistSyncError('unsupported_sync_change');
+  }
+
+  const unsupportedTombstone = response.tombstones.find((tombstone) => {
+    return !isPlaylistTombstone(tombstone) || !tombstone.playlist_uuid;
+  });
+
+  if (unsupportedTombstone) {
+    throw new UserLibraryPlaylistSyncError('unsupported_sync_tombstone');
+  }
+}
+
+function isPlaylistTombstone(tombstone: UserLibrarySyncTombstoneResponse) {
+  return tombstone.resource_type === 'playlist' || tombstone.resource_type === 'playlist_access';
+}
+
+function parseServerDate(value: string, label: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    throw new UserLibraryPlaylistSyncError(`invalid_${label}`);
+  }
+
+  return date;
+}

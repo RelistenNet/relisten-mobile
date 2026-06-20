@@ -214,6 +214,16 @@ This ledger records root-level coordination for `docs/autoplan-user-library-mobi
 - Next Action: continue
 - Next move: Commit `MOB-AUTH-002`, then promote a scoped sync slice, starting with playlist sync/outbox unless API contract inspection shows favorites migration is the narrower next step.
 
+### Iteration 22
+
+- Timestamp: 2026-06-20T04:38:55Z
+- Hypothesis: Playlist pull-sync can land before operation replay if it applies only fully supported resources and refuses to advance the global cursor when unsupported favorite/settings/collaborator resources are present.
+- Action: Added typed sync DTOs, playlist snapshot/tombstone Realm application, guarded cursor persistence, schema version 16 optional playlist sync fields, and focused tests.
+- Evidence: `yarn test -- playlist-sync`, `yarn test`, `yarn lint`, `yarn ts:check`, and `git diff --check` passed. Subagent review found no defects; suggested mixed-response, direct tombstone, and v15-to-v16 migration tests were added.
+- Verdict: pass
+- Next Action: continue
+- Next move: Commit `MOB-SYNC-001`, then choose between playlist operation replay and favorites migration based on the narrowest next acceptance gap.
+
 ## Root Coordination Notes
 
 - The active set intentionally starts with foundations: local API config, deterministic test harness, deep-link sanitizer, and Queue V2 playback foundation.

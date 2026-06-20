@@ -20,10 +20,16 @@ export class UserPlaylist extends Realm.Object<UserPlaylist> {
       scopedId: 'string',
       scopeId: { type: 'string', indexed: true },
       uuid: { type: 'string', indexed: true },
+      shortId: { type: 'string', indexed: true, optional: true },
       name: 'string',
       description: 'string?',
       visibility: 'string',
       ownerUserUuid: 'string?',
+      accessRole: 'string?',
+      isOwner: 'bool?',
+      isFollowing: 'bool?',
+      isCollaborator: 'bool?',
+      canEdit: 'bool?',
       currentRevision: { type: 'int', default: 0 },
       createdAt: 'date',
       updatedAt: 'date',
@@ -34,10 +40,16 @@ export class UserPlaylist extends Realm.Object<UserPlaylist> {
   scopedId!: string;
   scopeId!: string;
   uuid!: string;
+  shortId?: string;
   name!: string;
   description?: string;
   visibility!: UserPlaylistVisibility;
   ownerUserUuid?: string;
+  accessRole?: UserPlaylistAccessRole;
+  isOwner?: boolean;
+  isFollowing?: boolean;
+  isCollaborator?: boolean;
+  canEdit?: boolean;
   currentRevision!: number;
   createdAt!: Date;
   updatedAt!: Date;
@@ -54,6 +66,7 @@ export class UserPlaylistEntry extends Realm.Object<UserPlaylistEntry> {
       uuid: { type: 'string', indexed: true },
       playlistUuid: { type: 'string', indexed: true },
       sourceTrackUuid: { type: 'string', indexed: true },
+      addedByUserUuid: 'string?',
       blockUuid: { type: 'string', indexed: true, optional: true },
       blockPosition: 'int?',
       position: 'string',
@@ -70,6 +83,7 @@ export class UserPlaylistEntry extends Realm.Object<UserPlaylistEntry> {
   uuid!: string;
   playlistUuid!: string;
   sourceTrackUuid!: string;
+  addedByUserUuid?: string;
   blockUuid?: string;
   blockPosition?: number;
   position!: string;
