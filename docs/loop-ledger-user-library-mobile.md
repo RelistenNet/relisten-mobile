@@ -244,6 +244,16 @@ This ledger records root-level coordination for `docs/autoplan-user-library-mobi
 - Next Action: continue
 - Next move: Commit `MOB-SYNC-002`, then choose the authenticated sync runner/lifecycle boundary or promote scoped playback history.
 
+### Iteration 25
+
+- Timestamp: 2026-06-20T17:25:09Z
+- Hypothesis: The favorites workstream can advance another concrete source-of-truth slice by moving reusable signed-in favorite buttons to scoped rows and authenticated mutations while keeping signed-out catalog flags intact.
+- Action: Completed `MOB-FAV-002`, updated the favorites workstream plan/ledger, and refreshed the root AutoPlan board to show the remaining source/show/library-index favorite-read gap. Attempted the requested subagent review, but the reviewer failed before returning findings because the Codex account usage limit was reached; root performed a local correctness pass and added missing-session rollback coverage.
+- Evidence: `yarn test -- favorite-sync` passed with 9 tests; `yarn test` passed with 19 files and 144 tests; `yarn ts:check`, `yarn lint`, and `git diff --check` passed.
+- Verdict: pass
+- Next Action: continue
+- Next move: Claim the next favorites slice for source/show/library selection paths unless live local API servers are available first.
+
 ## Root Coordination Notes
 
 - The active set intentionally starts with foundations: local API config, deterministic test harness, deep-link sanitizer, and Queue V2 playback foundation.

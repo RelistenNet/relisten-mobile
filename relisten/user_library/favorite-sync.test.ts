@@ -20,6 +20,12 @@ import {
   userFavoriteScopedId,
   UserLibraryFavoriteSyncError,
 } from '@/relisten/user_library/favorite_sync';
+import {
+  catalogFavoriteDescriptorForObject,
+  isActiveScopedFavorite,
+  setScopedFavoriteState,
+  UserLibraryFavoriteMutationService,
+} from '@/relisten/user_library/favorite_state';
 
 const catalogFavoriteSchemas: Realm.ObjectSchema[] = [
   favoriteCatalogSchema('Artist'),
@@ -30,6 +36,7 @@ const catalogFavoriteSchemas: Realm.ObjectSchema[] = [
   favoriteCatalogSchema('Song'),
 ];
 const schema = [UserFavorite, UserDataMigrationMarker, ...catalogFavoriteSchemas];
+const SCOPE_ID = 'user:user-1';
 
 function favoriteCatalogSchema(name: string): Realm.ObjectSchema {
   return {
@@ -184,5 +191,158 @@ describe('user-library favorite sync', () => {
     };
     expect(artist.isFavorite).toBe(true);
     expect(realm.objects(UserDataMigrationMarker).length).toBe(1);
+  });
+});
+
+describe('catalogFavoriteDescriptorForObject', () => {
+  it('maps catalog model names to server favorite entity types', () => {
+    expect(
+      catalogFavoriteDescriptorForObject({
+        uuid: 'track-1',
+        constructor: { schema: { name: 'SourceTrack' } },
+      })
+    ).toEqual({
+      entityType: UserFavoriteEntityType.Track,
+      entityUuid: 'track-1',
+    });
+    expect(
+      catalogFavoriteDescriptorForObject({
+        uuid: 'venue-1',
+        constructor: { schema: { name: 'Venue' } },
+      })
+    ).toBeUndefined();
+  });
+});
+
+describe('UserLibraryFavoriteMutationService', () => {
+  let realm: Realm;
+  let tempDir: string;
+  let putJson: ReturnType<typeof vi.fn>;
+  let deleteJson: ReturnType<typeof vi.fn>;
+  let service: UserLibraryFavoriteMutationService;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), 'relisten-favorite-mutation-'));
+    realm = new Realm({
+      path: join(tempDir, 'test.realm'),
+      schema,
+      schemaVersion: 1,
+    });
+    putJson = vi.fn(async () => favoriteResponse('artist'));
+    deleteJson = vi.fn(async () => undefined);
+    service = new UserLibraryFavoriteMutationService(
+      realm,
+      {
+        putJson,
+        deleteJson,
+      } as unknown as RelistenUserLibraryApiClient,
+      {
+        withAuthenticatedSessionRetry: vi.fn(async (request, options) => {
+          expect(options).toEqual({ expectedScopeId: SCOPE_ID });
+          return request({ accessToken: 'access-1', scopeId: SCOPE_ID });
+        }),
+      }
+    );
+  });
+
+  afterEach(() => {
+    realm.close();
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it('sets signed-in favorites through scoped rows and authenticated API calls', async () => {
+    await service.setFavorite(SCOPE_ID, UserFavoriteEntityType.Artist, 'artist-1', true, {
+      now: new Date('2026-06-20T06:40:00.000Z'),
+    });
+
+    expect(putJson).toHaveBeenCalledWith(
+      '/favorites/artist/artist-1',
+      {},
+      {
+        accessToken: 'access-1',
+      }
+    );
+    expect(isActiveScopedFavorite(realm, SCOPE_ID, UserFavoriteEntityType.Artist, 'artist-1')).toBe(
+      true
+    );
+    expect(
+      realm.objectForPrimaryKey(
+        UserFavorite,
+        userFavoriteScopedId(SCOPE_ID, UserFavoriteEntityType.Artist, 'artist-1')
+      )
+    ).toEqual(
+      expect.objectContaining({
+        createdAt: new Date('2026-06-20T04:40:00.000Z'),
+        updatedAt: new Date('2026-06-20T04:41:00.000Z'),
+        deletedAt: null,
+      })
+    );
+  });
+
+  it('rolls back a newly created optimistic favorite when the server mutation fails', async () => {
+    putJson.mockRejectedValueOnce(new Error('network failed'));
+
+    await expect(
+      service.setFavorite(SCOPE_ID, UserFavoriteEntityType.Artist, 'artist-1', true, {
+        now: new Date('2026-06-20T06:40:00.000Z'),
+      })
+    ).rejects.toThrow('network failed');
+
+    expect(
+      realm.objectForPrimaryKey(
+        UserFavorite,
+        userFavoriteScopedId(SCOPE_ID, UserFavoriteEntityType.Artist, 'artist-1')
+      )
+    ).toBeNull();
+  });
+
+  it('rolls back optimistic state when no authenticated session is available', async () => {
+    service = new UserLibraryFavoriteMutationService(
+      realm,
+      {
+        putJson,
+        deleteJson,
+      } as unknown as RelistenUserLibraryApiClient,
+      {
+        withAuthenticatedSessionRetry: vi.fn(async (request) => request(undefined)),
+      }
+    );
+
+    await expect(
+      service.setFavorite(SCOPE_ID, UserFavoriteEntityType.Artist, 'artist-1', true, {
+        now: new Date('2026-06-20T06:40:00.000Z'),
+      })
+    ).rejects.toMatchObject({
+      code: 'missing_auth_session',
+      name: 'UserLibraryFavoriteMutationError',
+    });
+
+    expect(putJson).not.toHaveBeenCalled();
+    expect(
+      realm.objectForPrimaryKey(
+        UserFavorite,
+        userFavoriteScopedId(SCOPE_ID, UserFavoriteEntityType.Artist, 'artist-1')
+      )
+    ).toBeNull();
+  });
+
+  it('rolls failed deletes back to the previous scoped favorite state', async () => {
+    setScopedFavoriteState(realm, SCOPE_ID, UserFavoriteEntityType.Artist, 'artist-1', true, {
+      now: new Date('2026-06-20T06:40:00.000Z'),
+    });
+    deleteJson.mockRejectedValueOnce(new Error('delete failed'));
+
+    await expect(
+      service.setFavorite(SCOPE_ID, UserFavoriteEntityType.Artist, 'artist-1', false, {
+        now: new Date('2026-06-20T06:41:00.000Z'),
+      })
+    ).rejects.toThrow('delete failed');
+
+    expect(deleteJson).toHaveBeenCalledWith('/favorites/artist/artist-1', {
+      accessToken: 'access-1',
+    });
+    expect(isActiveScopedFavorite(realm, SCOPE_ID, UserFavoriteEntityType.Artist, 'artist-1')).toBe(
+      true
+    );
   });
 });

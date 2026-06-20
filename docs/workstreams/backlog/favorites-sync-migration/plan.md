@@ -37,8 +37,8 @@ Depends on scoped Realm user data, auth/session, and favorites server endpoints.
 
 ## Current Hypothesis
 
-Keep old flags during rollout. The first supported authenticated pull sync now copies current favorites into scoped rows and writes a migration marker so they are not repeatedly copied.
+Keep old flags during rollout. The first supported authenticated pull sync now copies current favorites into scoped rows and writes a migration marker so they are not repeatedly copied. Reusable heart buttons can read/write scoped rows for signed-in supported catalog objects while signed-out users keep the old catalog flag behavior.
 
 ## Next Scoped Step
 
-Wire signed-in favorite reads/writes to scoped rows and server mutations after the app bootstrap sync lifecycle is in place. Keep signed-out catalog `isFavorite` behavior until the rollout explicitly removes it.
+Extend scoped favorite reads beyond the reusable artist heart button into source/show/library selection paths where the existing UI still filters or prioritizes catalog `isFavorite` flags. Keep signed-out catalog `isFavorite` behavior until the rollout explicitly removes it.

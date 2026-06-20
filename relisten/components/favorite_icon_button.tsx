@@ -1,10 +1,24 @@
 import { LayoutAnimation, StyleSheet, TouchableOpacity, TouchableOpacityProps } from 'react-native';
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { FavoritableObject } from '../realm/favoritable_object';
 import { DefaultLayoutAnimationConfig } from '../layout_animation_config';
-import { useRealm } from '../realm/schema';
+import { useObject, useQuery, useRealm } from '../realm/schema';
 import { useForceUpdate } from '../util/forced_update';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import {
+  ActiveUserDataScope,
+  ACTIVE_USER_DATA_SCOPE_KEY,
+} from '@/relisten/realm/models/user_library/scope';
+import { UserFavorite } from '@/relisten/realm/models/user_library';
+import {
+  catalogFavoriteDescriptorForObject,
+  isActiveFavoriteRow,
+} from '@/relisten/user_library/favorite_state';
+import { getSharedUserLibraryFavoriteMutationService } from '@/relisten/user_library/favorite_state_services';
+import { UserDataScopeKind } from '@/relisten/user_library/user_data_scope';
+import { log } from '@/relisten/util/logging';
+
+const logger = log.extend('favorite');
 
 const styles = StyleSheet.create({
   container: {
@@ -48,18 +62,76 @@ export const FavoriteIconButton: React.FC<{ isFavorited: boolean } & TouchableOp
   );
 };
 
-export const FavoriteObjectButton = <T extends FavoritableObject>({
+export const FavoriteObjectButton = <T extends FavoritableObject & { uuid: string }>({
   object,
   ...props
 }: { object: T } & TouchableOpacityProps) => {
   const realm = useRealm();
   const forceUpdate = useForceUpdate();
+  const activeScope = useObject(ActiveUserDataScope, ACTIVE_USER_DATA_SCOPE_KEY, [
+    'scopeId',
+    'scopeKind',
+  ]);
+  const favoriteDescriptor = useMemo(() => catalogFavoriteDescriptorForObject(object), [object]);
+  const activeScopedFavorites = useQuery(
+    UserFavorite,
+    (query) =>
+      activeScope?.scopeKind === UserDataScopeKind.Authenticated && favoriteDescriptor
+        ? query.filtered(
+            'scopeId == $0 && entityType == $1 && entityUuid == $2',
+            activeScope.scopeId,
+            favoriteDescriptor.entityType,
+            favoriteDescriptor.entityUuid
+          )
+        : query.filtered('scopeId == $0', '__no_active_scope__'),
+    [
+      activeScope?.scopeId,
+      activeScope?.scopeKind,
+      favoriteDescriptor?.entityType,
+      favoriteDescriptor?.entityUuid,
+    ]
+  );
+  const mutationService = useMemo(
+    () => getSharedUserLibraryFavoriteMutationService(realm),
+    [realm]
+  );
+  const signedInScopedFavorite =
+    activeScope?.scopeKind === UserDataScopeKind.Authenticated && favoriteDescriptor;
+  const isFavorited = signedInScopedFavorite
+    ? isActiveFavoriteRow(activeScopedFavorites[0])
+    : object.isFavorite;
 
   const favoriteOnPress = useCallback(() => {
-    toggleFavoriteObject(realm, object, forceUpdate);
-  }, [forceUpdate, object, realm]);
+    if (!signedInScopedFavorite) {
+      toggleFavoriteObject(realm, object, forceUpdate);
+      return;
+    }
 
-  return (
-    <FavoriteIconButton isFavorited={object.isFavorite} onPressOut={favoriteOnPress} {...props} />
-  );
+    LayoutAnimation.configureNext(DefaultLayoutAnimationConfig);
+    void mutationService
+      .setFavorite(
+        activeScope.scopeId,
+        favoriteDescriptor.entityType,
+        favoriteDescriptor.entityUuid,
+        !isFavorited
+      )
+      .catch((error) => {
+        logger.warn(`favorite mutation failed: ${errorCode(error)}`);
+      });
+  }, [
+    activeScope?.scopeId,
+    favoriteDescriptor,
+    forceUpdate,
+    isFavorited,
+    mutationService,
+    object,
+    realm,
+    signedInScopedFavorite,
+  ]);
+
+  return <FavoriteIconButton isFavorited={isFavorited} onPressOut={favoriteOnPress} {...props} />;
 };
+
+function errorCode(error: unknown) {
+  return error instanceof Error ? error.name : 'unknown_error';
+}

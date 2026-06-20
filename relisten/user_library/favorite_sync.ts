@@ -4,7 +4,10 @@ import {
   UserFavorite,
   UserFavoriteEntityType,
 } from '@/relisten/realm/models/user_library';
-import { RelistenUserLibraryApiClient } from '@/relisten/api/user_library_client';
+import {
+  RelistenUserLibraryApiClient,
+  UserLibraryRequestOptions,
+} from '@/relisten/api/user_library_client';
 import { scopedUserDataPrimaryKey } from '@/relisten/user_library/user_data_scope';
 
 export const CATALOG_FAVORITES_MIGRATION_MARKER = 'catalog-favorites-to-scoped-v1';
@@ -63,20 +66,23 @@ export function listUserLibraryFavorites(
 export function putUserLibraryFavorite(
   client: RelistenUserLibraryApiClient,
   entityType: UserFavoriteEntityType,
-  entityUuid: string
+  entityUuid: string,
+  options?: UserLibraryRequestOptions
 ): Promise<UserLibraryFavoriteResponse> {
-  return client.putJson<UserLibraryFavoriteResponse>(
-    `/favorites/${entityType}/${encodeURIComponent(entityUuid)}`,
-    {}
-  );
+  const path = `/favorites/${entityType}/${encodeURIComponent(entityUuid)}`;
+  return options
+    ? client.putJson<UserLibraryFavoriteResponse>(path, {}, options)
+    : client.putJson<UserLibraryFavoriteResponse>(path, {});
 }
 
 export function deleteUserLibraryFavorite(
   client: RelistenUserLibraryApiClient,
   entityType: UserFavoriteEntityType,
-  entityUuid: string
+  entityUuid: string,
+  options?: UserLibraryRequestOptions
 ): Promise<void> {
-  return client.deleteJson<void>(`/favorites/${entityType}/${encodeURIComponent(entityUuid)}`);
+  const path = `/favorites/${entityType}/${encodeURIComponent(entityUuid)}`;
+  return options ? client.deleteJson<void>(path, options) : client.deleteJson<void>(path);
 }
 
 export function userFavoriteScopedId(
