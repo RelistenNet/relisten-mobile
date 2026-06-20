@@ -204,6 +204,16 @@ This ledger records root-level coordination for `docs/autoplan-user-library-mobi
 - Next Action: continue
 - Next move: Commit `MOB-AUTH-001`, then continue with auth bootstrap/active-scope wiring or the next scoped user-data sync slice. Use the out-of-band Google OAuth client configs only through deliberate local configuration; do not commit downloaded config files.
 
+### Iteration 21
+
+- Timestamp: 2026-06-20T04:29:39Z
+- Hypothesis: Auth token responses can drive non-secret Realm session metadata and active scope switching without coupling token storage to Realm or deleting signed-in scoped rows.
+- Action: Added `UserLibraryAuthSessionRealmService`, focused Realm tests, and closed `MOB-AUTH-002`.
+- Evidence: `yarn test -- auth-session scope`, `yarn test`, `yarn lint`, `yarn ts:check`, and `git diff --check` passed. Subagent review reported no findings; suggested cold-refresh and stale-refresh tests were added.
+- Verdict: pass
+- Next Action: continue
+- Next move: Commit `MOB-AUTH-002`, then promote a scoped sync slice, starting with playlist sync/outbox unless API contract inspection shows favorites migration is the narrower next step.
+
 ## Root Coordination Notes
 
 - The active set intentionally starts with foundations: local API config, deterministic test harness, deep-link sanitizer, and Queue V2 playback foundation.

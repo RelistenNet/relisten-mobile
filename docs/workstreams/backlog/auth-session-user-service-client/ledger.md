@@ -34,3 +34,34 @@ This ledger is the write-ahead log for `docs/workstreams/backlog/auth-session-us
 - Outcome: pass
 - next_action: continue
 - Next move: Wire auth session metadata and active-scope/bootstrap behavior, then run the local Development auth smoke when `RelistenUserApi` is listening on `http://localhost:5119`.
+
+### MOB-AUTH-002 - Session metadata and active scope bridge
+
+- Status: completed
+- Timestamp: 2026-06-20T04:24:23Z
+- Intention / hypothesis: Auth token responses can be persisted as non-secret Realm session metadata and used to switch the active user-data scope without coupling token storage to Realm or deleting signed-out rows.
+- Responsible agent: root Codex agent
+- Start commit: `9abc929`
+- Worktree or branch: `codex/scoped-realm-user-data`
+- Mutable surface: new focused auth/session Realm bridge files under `relisten/user_library/`, focused tests, AutoPlan docs, and this ledger.
+- Validator: `yarn test -- auth-session scope`, `yarn test`, `yarn lint`, `yarn ts:check`, and `git diff --check`.
+- Expected deliverable: a React-independent service that applies sign-in/refresh token responses to `UserAuthSessionMetadata`, validates the server `scope_id` invariant, switches `ActiveUserDataScope`, and marks session metadata signed out while preserving scoped rows.
+- Expected artifacts: code diff, focused tests, validation transcript, and review notes.
+- Linked ExecPlan: none.
+- End commit: this commit (`feat(auth): persist session metadata scope`)
+- Artifacts: `relisten/user_library/auth_session_realm_service.ts`, `relisten/user_library/auth-session-realm.test.ts`.
+- Evidence:
+  - Added a React-independent Realm bridge that applies auth token responses to non-secret `UserAuthSessionMetadata` rows and switches `ActiveUserDataScope` to the authenticated `user:{user_uuid}` scope.
+  - Validates the server `scope_id` invariant against the mobile authenticated scope helper before writing metadata or switching active scope.
+  - Supports refresh-response bootstrap, preserves original authentication timestamps on refresh, marks sessions signed out, switches back to anonymous scope, and leaves signed-in scoped rows intact.
+  - Rejects stale refresh responses for sessions already marked signed out.
+- Validators:
+  - `yarn test -- auth-session scope`
+  - `yarn test`
+  - `yarn lint`
+  - `yarn ts:check`
+  - `git diff --check`
+- Review: Subagent review reported no findings. Suggested signal tests for cold refresh bootstrap and stale refresh after sign-out; both were added.
+- Outcome: pass
+- next_action: continue
+- Next move: Promote playlist/favorites sync outbox work now that auth metadata and active scope switching are available.

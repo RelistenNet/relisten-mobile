@@ -142,6 +142,8 @@ Milestone 7 designs and implements playlist UX. It refines `playlist-mobile-ux` 
 - [x] 2026-06-20T04:10:27Z Completed `carplay-cast-playlist-identity` experiment `MOB-CAST-001`: Queue V2 Cast queue-item custom data, duplicate playlist entry payload tests, full test/lint/type gates, and subagent review; live Cast hardware validation remains deferred.
 - [x] 2026-06-20T04:12:24Z Claimed `auth-session-user-service-client` experiment `MOB-AUTH-001` after verifying the server dev-auth endpoint exists locally.
 - [x] 2026-06-20T04:24:17Z Completed `auth-session-user-service-client` experiment `MOB-AUTH-001`: SecureStore refresh-token storage, Development-only session sign-in, refresh/logout calls, in-memory access token handling, bounded protected-request 401 retry, focused edge-case tests, and subagent review. Live local API auth smoke remains deferred because port `5119` was not listening.
+- [x] 2026-06-20T04:24:23Z Claimed `auth-session-user-service-client` experiment `MOB-AUTH-002` for non-secret session metadata and active-scope bridging.
+- [x] 2026-06-20T04:29:39Z Completed `auth-session-user-service-client` experiment `MOB-AUTH-002`: auth token responses now persist non-secret session metadata, validate server `scope_id`, switch active authenticated scope, preserve scoped rows on sign-out, reject stale refreshes after sign-out, and have focused Realm tests plus subagent review.
 - [x] 2026-06-20T00:34:01Z Completed `scoped-realm-user-data` experiment `MOB-SCOPE-001`: additive scoped Realm rows, active scope service, deterministic scope tests, and iOS Simulator smoke on `DEC49863-5AF8-4832-8BA2-C5E7C41A029D`.
 - [x] Promote auth/session after local API config and Development-only auth basics are in place.
 - [ ] Revisit playlist UX workstream only after auth and basic user-data foundations are working.
@@ -154,7 +156,7 @@ Milestone 7 designs and implements playlist UX. It refines `playlist-mobile-ux` 
 | test-harness-foundation | done | root Codex agent | none | `docs/workstreams/active/test-harness-foundation/plan.md` | `docs/workstreams/active/test-harness-foundation/ledger.md` | branch `codex/scoped-realm-user-data` | Reuse Vitest for sanitizer, Queue V2, auth retry, and sync reducer tests. | `done` |
 | deep-link-sanitizer | done | root Codex agent | none | `docs/workstreams/active/deep-link-sanitizer/plan.md` | `docs/workstreams/active/deep-link-sanitizer/ledger.md` | branch `codex/scoped-realm-user-data` | Reuse sanitizer in share-token exchange and auth callback implementation. | `done` |
 | queue-v2-playback-foundation | active | root Codex agent | remaining playlist identity surfaces depend on playlist UX and history/sync slices | `docs/workstreams/active/queue-v2-playback-foundation/plan.md` | `docs/workstreams/active/queue-v2-playback-foundation/ledger.md` | branch `codex/scoped-realm-user-data` | Reuse Queue V2 helpers in history, sync, CarPlay, and playlist playback UI slices. | `continue` |
-| auth-session-user-service-client | active | root Codex agent | live smoke depends on local `RelistenUserApi` listening on port 5119 | `docs/workstreams/backlog/auth-session-user-service-client/plan.md` | `docs/workstreams/backlog/auth-session-user-service-client/ledger.md` | branch `codex/scoped-realm-user-data` | Wire auth session metadata and active-scope/bootstrap behavior; run local API auth smoke when port 5119 is listening. | `continue` |
+| auth-session-user-service-client | active | root Codex agent | live smoke depends on local `RelistenUserApi` listening on port 5119 | `docs/workstreams/backlog/auth-session-user-service-client/plan.md` | `docs/workstreams/backlog/auth-session-user-service-client/ledger.md` | branch `codex/scoped-realm-user-data` | Wire service into app bootstrap/UI after sync slices define the calling lifecycle; run live auth smoke when port 5119 is listening. | `continue` |
 | scoped-realm-user-data | done | root Codex agent | full auth wiring deferred to `auth-session-user-service-client` | `docs/workstreams/active/scoped-realm-user-data/plan.md` | `docs/workstreams/active/scoped-realm-user-data/ledger.md` | branch `codex/scoped-realm-user-data` | Commit completed scoped Realm foundation. | `done` |
 | mobile-share-token-exchange | backlog | unassigned | deep-link sanitizer and user-library client | `docs/workstreams/backlog/mobile-share-token-exchange/plan.md` | `docs/workstreams/backlog/mobile-share-token-exchange/ledger.md` | none | Exchange playlist share tokens for signed-out grants or signed-in relationships. | `continue` |
 | playlist-sync-outbox | backlog | unassigned | scoped Realm user data and playlist endpoints | `docs/workstreams/backlog/playlist-sync-outbox/plan.md` | `docs/workstreams/backlog/playlist-sync-outbox/ledger.md` | none | Implement user-data pull sync and pending operation replay. | `continue` |
@@ -165,11 +167,11 @@ Milestone 7 designs and implements playlist UX. It refines `playlist-mobile-ux` 
 
 ## Current Hypothesis
 
-Queue V2 and the auth-session foundation now have enough pure behavior in place to support scoped user-data sync work. The next risk is connecting authenticated session metadata to active user scopes and sync repositories without turning catalog Realm rows into signed-in user data.
+Queue V2, scoped Realm rows, token/session handling, and active authenticated scope switching now have enough pure behavior in place to support scoped user-data sync work. The next risk is applying server playlist/favorite state and local pending operations without mutating shared catalog cache identity.
 
 ## Next Iteration
 
-Commit `MOB-AUTH-001`, then choose the next scoped slice: auth bootstrap/active-scope wiring if session metadata is the bottleneck, or playlist/favorites sync outbox if the API contract is ready enough for local model work. Run the live Development auth smoke once `RelistenUserApi` is listening on `http://localhost:5119`.
+Commit `MOB-AUTH-002`, then promote a sync-oriented slice (`playlist-sync-outbox` first unless API contract inspection shows favorites is narrower). Run the live Development auth smoke once `RelistenUserApi` is listening on `http://localhost:5119`.
 
 ## Workstream Notes
 
@@ -232,6 +234,8 @@ The playlist UX workstream is intentionally light for now. The user confirmed UX
 2026-06-20: `MOB-SCOPE-001` completed on branch `codex/scoped-realm-user-data`. The branch adds the test harness, scoped Realm user-library models, active scope helpers, schema version 13, and focused tests. Validation passed with `yarn test -- scope`, `yarn test`, `yarn ts:check`, `yarn lint`, `git diff --check`, and an iOS Simulator launch on `DEC49863-5AF8-4832-8BA2-C5E7C41A029D`.
 
 2026-06-20: `MOB-AUTH-001` completed on branch `codex/scoped-realm-user-data`. The branch adds the user-library auth session service, SecureStore refresh-token store, Development-only sign-in gate, refresh/logout handling, bounded protected-request retry, and focused auth tests. Validation passed with `yarn test -- auth-session api-config`, `yarn test`, `yarn ts:check`, `yarn lint`, and `git diff --check`; live local API auth smoke is deferred until port `5119` is listening.
+
+2026-06-20: `MOB-AUTH-002` completed on branch `codex/scoped-realm-user-data`. The branch adds the auth-session Realm bridge that validates server scope IDs, persists non-secret session metadata, switches active authenticated scopes, handles refresh bootstrap, and marks sessions signed out without deleting scoped rows. Validation passed with `yarn test -- auth-session scope`, `yarn test`, `yarn ts:check`, `yarn lint`, `git diff --check`, and subagent review.
 
 2026-06-20: `MOB-API-001` and `MOB-TEST-001` continuation completed on branch `codex/scoped-realm-user-data`. The branch adds explicit catalog/user-library API config, a separate no-store user-library client, a non-UI local API probe helper, local dev docs, and API config tests. Validation passed with `yarn test -- api-config`, `yarn test`, `yarn ts:check`, `yarn lint`, `git diff --check`, and an iOS Simulator bundle launch with local API env vars set.
 
