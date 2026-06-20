@@ -44,6 +44,26 @@ This ledger records root-level coordination for `docs/autoplan-user-library-mobi
 - Next Action: done
 - Next move: Commit the scoped Realm branch, then resume local API config/test harness/auth-session workstreams.
 
+### Iteration 5
+
+- Timestamp: 2026-06-20T00:44:27Z
+- Hypothesis: The next useful slice is local API dev config plus API config tests, because scoped Realm is done and auth/session depends on clean base URL/client separation.
+- Action: Claimed `MOB-API-001` in `local-api-dev-config` and `MOB-TEST-001` continuation in `test-harness-foundation` on branch `codex/scoped-realm-user-data`.
+- Evidence: Both workstream ledgers had preregistered entries with mutable surfaces and validators before API config edits.
+- Verdict: pass
+- Next Action: continue
+- Next move: Implement explicit catalog/user-library base URL config, separate user-library client skeleton, and targeted API config tests.
+
+### Iteration 6
+
+- Timestamp: 2026-06-20T00:54:51Z
+- Hypothesis: Local API dev config and the test-harness continuation are complete when static Expo env refs select separate bases, the catalog client keeps its caching path, the user-library client is separate/no-store, and targeted tests prove the route construction.
+- Action: Added explicit API config, `RelistenUserLibraryApiClient`, `runLocalApiBaseUrlProbe`, API config tests, and local API docs. Re-ran validators and simulator smoke with local env vars. Addressed subagent findings about Expo env inlining and weak live-smoke evidence.
+- Evidence: `yarn test -- api-config`, `yarn test`, `yarn ts:check`, `yarn lint`, and `git diff --check` passed. The iOS Simulator loaded the app with local env vars set. No local API servers were listening on ports `3823` or `5119`, so live response probing is deferred until those processes are running.
+- Verdict: pass
+- Next Action: done
+- Next move: Commit the local API config/test harness slice, then continue with `deep-link-sanitizer`.
+
 ## Root Coordination Notes
 
 - The active set intentionally starts with foundations: local API config, deterministic test harness, deep-link sanitizer, and Queue V2 playback foundation.

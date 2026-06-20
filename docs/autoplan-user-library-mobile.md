@@ -125,8 +125,9 @@ Milestone 7 designs and implements playlist UX. It refines `playlist-mobile-ux` 
 - [x] 2026-06-19T23:43:40Z Created this root AutoPlan package after user confirmed separate base URLs/clients, dev-only local auth, foundation-first active workstreams, deterministic JS/TS tests, and iOS Simulator as the first smoke target.
 - [x] 2026-06-19T23:43:40Z Sent API-thread steering to Codex thread `019ee12c-f057-7601-8e0b-9d77e22670a4` requesting a Development-only local auth path in `RelistenUserApi`.
 - [x] 2026-06-20T00:18:16Z Promoted `scoped-realm-user-data` after direct user steering, claimed branch `codex/scoped-realm-user-data`, and made this branch responsible for the minimal test harness needed by the scope validators.
-- [ ] Claim and run `local-api-dev-config` experiment `MOB-API-001`.
-- [ ] Claim and run `test-harness-foundation` experiment `MOB-TEST-001`.
+- [x] 2026-06-20T00:44:27Z Claimed `local-api-dev-config` experiment `MOB-API-001` and `test-harness-foundation` continuation `MOB-TEST-001`.
+- [x] 2026-06-20T00:54:51Z Completed `local-api-dev-config` experiment `MOB-API-001`: separate catalog/user-library base URL config, user-library client skeleton, non-UI local API probe, docs, tests, and simulator bundle smoke with local env vars.
+- [x] 2026-06-20T00:54:51Z Completed `test-harness-foundation` continuation `MOB-TEST-001`: targeted API config tests using the existing Vitest harness.
 - [ ] Claim and run `deep-link-sanitizer` experiment `MOB-LINK-001`.
 - [ ] Claim and run `queue-v2-playback-foundation` experiment `MOB-QUEUE-001`.
 - [x] 2026-06-20T00:34:01Z Completed `scoped-realm-user-data` experiment `MOB-SCOPE-001`: additive scoped Realm rows, active scope service, deterministic scope tests, and iOS Simulator smoke on `DEC49863-5AF8-4832-8BA2-C5E7C41A029D`.
@@ -137,8 +138,8 @@ Milestone 7 designs and implements playlist UX. It refines `playlist-mobile-ux` 
 
 | Workstream | Status | Responsible agent | Blocker | Plan | Ledger | Worktree | Next step | Latest next_action |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| local-api-dev-config | active | root or worker | depends on API server dev-auth endpoint for full smoke, but base config can start now | `docs/workstreams/active/local-api-dev-config/plan.md` | `docs/workstreams/active/local-api-dev-config/ledger.md` | none | Add separate catalog/user-library base config and local iOS smoke recipe. | `continue` |
-| test-harness-foundation | active | root or worker | none | `docs/workstreams/active/test-harness-foundation/plan.md` | `docs/workstreams/active/test-harness-foundation/ledger.md` | none | Add the smallest deterministic JS/TS test runner and first config/sanitizer tests. | `continue` |
+| local-api-dev-config | done | root Codex agent | live server response smoke waits on local catalog/user API processes; ports 3823/5119 were not listening during this slice | `docs/workstreams/active/local-api-dev-config/plan.md` | `docs/workstreams/active/local-api-dev-config/ledger.md` | branch `codex/scoped-realm-user-data` | Use the documented env vars and `runLocalApiBaseUrlProbe` when local servers are running. | `done` |
+| test-harness-foundation | done | root Codex agent | none | `docs/workstreams/active/test-harness-foundation/plan.md` | `docs/workstreams/active/test-harness-foundation/ledger.md` | branch `codex/scoped-realm-user-data` | Reuse Vitest for sanitizer, Queue V2, auth retry, and sync reducer tests. | `done` |
 | deep-link-sanitizer | active | root or worker | test harness preferred before implementation | `docs/workstreams/active/deep-link-sanitizer/plan.md` | `docs/workstreams/active/deep-link-sanitizer/ledger.md` | none | Extract a sanitizer and route handling path for playlist/share/auth secrets. | `continue` |
 | queue-v2-playback-foundation | active | root or worker | test harness preferred before implementation | `docs/workstreams/active/queue-v2-playback-foundation/plan.md` | `docs/workstreams/active/queue-v2-playback-foundation/ledger.md` | none | Model Queue V2 identity and pure block-shuffle behavior before playback integration. | `continue` |
 | auth-session-user-service-client | backlog | unassigned | local API config plus Development-only server auth path | `docs/workstreams/backlog/auth-session-user-service-client/plan.md` | `docs/workstreams/backlog/auth-session-user-service-client/ledger.md` | none | Implement secure token storage, refresh-on-401, sign-out/revoke, and account release gates. | `continue` |
@@ -156,7 +157,7 @@ Scoped Realm foundations are safe to build on now: user-owned data has scoped pr
 
 ## Next Iteration
 
-Return to `local-api-dev-config` and `test-harness-foundation`, then promote `auth-session-user-service-client` once the Development-only local auth endpoint is available from `RelistenUserApi`.
+Run `deep-link-sanitizer` next, then Queue V2 pure logic. Promote `auth-session-user-service-client` once the Development-only local auth endpoint is available from `RelistenUserApi`.
 
 ## Workstream Notes
 
@@ -178,6 +179,10 @@ The playlist UX workstream is intentionally light for now. The user confirmed UX
   Evidence: `relisten/playback_history_reporter.ts` calls `RelistenApiClient.recordPlayback`, which posts to `/v2/live/play`.
 - Observation: Vitest cannot import the full app Realm config in Node without pulling React Native Flow source through unrelated app imports.
   Evidence: `scoped_user_library_models.test.ts` opens a temp Realm with `USER_LIBRARY_REALM_MODELS` directly, while the iOS Simulator smoke verifies the full app bundle loads.
+- Observation: Expo requires static dot-notation references for `EXPO_PUBLIC_*` values to be inlined into the app bundle.
+  Evidence: Subagent review caught the issue; `relisten/api/config.ts` now builds its default env snapshot with `process.env.EXPO_PUBLIC_RELISTEN_CATALOG_API_BASE_URL` and `process.env.EXPO_PUBLIC_RELISTEN_USER_API_BASE_URL`.
+- Observation: No local API servers were listening on ports `3823` or `5119` during `MOB-API-001`.
+  Evidence: `lsof -nP -iTCP:5119 -sTCP:LISTEN` and `lsof -nP -iTCP:3823 -sTCP:LISTEN` produced no listeners, so live local request evidence is deferred.
 
 ## Decision Log
 
@@ -211,3 +216,5 @@ The playlist UX workstream is intentionally light for now. The user confirmed UX
 2026-06-19: Initial mobile AutoPlan package created. No implementation work has started in this repo as part of this AutoPlan yet. The API thread has been notified that mobile needs a Development-only auth path for local token-based sign-in.
 
 2026-06-20: `MOB-SCOPE-001` completed on branch `codex/scoped-realm-user-data`. The branch adds the test harness, scoped Realm user-library models, active scope helpers, schema version 13, and focused tests. Validation passed with `yarn test -- scope`, `yarn test`, `yarn ts:check`, `yarn lint`, `git diff --check`, and an iOS Simulator launch on `DEC49863-5AF8-4832-8BA2-C5E7C41A029D`.
+
+2026-06-20: `MOB-API-001` and `MOB-TEST-001` continuation completed on branch `codex/scoped-realm-user-data`. The branch adds explicit catalog/user-library API config, a separate no-store user-library client, a non-UI local API probe helper, local dev docs, and API config tests. Validation passed with `yarn test -- api-config`, `yarn test`, `yarn ts:check`, `yarn lint`, `git diff --check`, and an iOS Simulator bundle launch with local API env vars set.

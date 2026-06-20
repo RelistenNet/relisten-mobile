@@ -38,9 +38,7 @@ The first harness slice should include at least one real test that fails if the 
 
 After the runner exists:
 
-    yarn test -- <target-pattern>
-
-The exact pattern depends on the runner. Record it here after implementation.
+    yarn test -- api-config
 
 ## Dependencies or Blockers
 
@@ -52,7 +50,7 @@ Vitest or Node's built-in test runner with TypeScript support can provide enough
 
 ## Next Scoped Step
 
-Claim experiment `MOB-TEST-001` in this ledger before editing code. Add the runner, a script, and a first pure test around API config or URL sanitization, then validate with `yarn test`, `yarn lint`, and `yarn ts:check`.
+Done for `MOB-TEST-001`. Reuse the Vitest harness for deep-link sanitizer, Queue V2, user-library auth retry, and sync reducer tests as those workstreams land.
 
 ## Code Quality Rules
 

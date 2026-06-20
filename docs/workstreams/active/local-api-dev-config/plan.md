@@ -39,15 +39,7 @@ For local smoke, after `RelistenUserApi` is running on `http://localhost:5119`, 
 
 ## Fastest Useful Current Check
 
-Before the test harness exists:
-
-    yarn ts:check
-
-After the test harness exists:
-
     yarn test -- api-config
-
-The exact targeted test command may change when `test-harness-foundation` chooses the runner; update this plan when it lands.
 
 ## Dependencies or Blockers
 
@@ -59,7 +51,7 @@ The smallest durable slice is to introduce explicit catalog and user-library bas
 
 ## Next Scoped Step
 
-Claim experiment `MOB-API-001` in this ledger before editing code. Implement API base selection and a separate user-library client skeleton, then validate with `yarn ts:check`, `yarn lint`, and targeted tests if available.
+Done for `MOB-API-001`. When local catalog and user-library servers are running, use `runLocalApiBaseUrlProbe` to verify live routing from a development-only caller.
 
 ## Code Quality Rules
 
