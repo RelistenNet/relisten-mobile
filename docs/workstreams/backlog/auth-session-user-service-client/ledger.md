@@ -65,3 +65,27 @@ This ledger is the write-ahead log for `docs/workstreams/backlog/auth-session-us
 - Outcome: pass
 - next_action: continue
 - Next move: Promote playlist/favorites sync outbox work now that auth metadata and active scope switching are available.
+
+### MOB-AUTH-003 - Development sign-in surface
+
+- Status: completed
+- Timestamp: 2026-06-20T06:07:13Z
+- Intention / hypothesis: A Development-only Settings panel can call the real local user-library development session endpoint, persist non-secret session metadata, switch the active authenticated scope, and sign out without adding production provider UX or fake local auth state.
+- Responsible agent: root Codex agent
+- Start commit: `bb7de5d`
+- End commit: this commit (`feat(auth): add development sign-in panel`)
+- Worktree or branch: `codex/scoped-realm-user-data`
+- Mutable surface: focused development auth UI/service files under `relisten/user_library/`, `relisten/components/settings.tsx` only to mount the panel, focused auth tests, AutoPlan docs, and this ledger.
+- Validator: `yarn test -- auth-session development-auth`, `yarn test`, `yarn lint`, `yarn ts:check`, `git diff --check`, and live local API smoke only if `RelistenUserApi` is listening on `http://localhost:5119`.
+- Expected deliverable: a dev-only sign-in/sign-out panel that uses `UserLibraryAuthSessionService.signInDevelopmentSession()`, applies `UserLibraryAuthSessionRealmService`, shows current session metadata, and keeps Google/OAuth client files out of the repo.
+- Expected artifacts: code diff, focused tests, validation transcript, review notes, and no-listener or live-smoke evidence.
+- Linked ExecPlan: none.
+- Evidence: Added a React-independent development auth controller that calls `signInDevelopmentSession()`, applies non-secret session metadata through the Realm bridge, switches active scope, and signs out while preserving scoped rows.
+- UI evidence: Settings now mounts a `__DEV__`-only account panel with a development username field, real local user-library sign-in, current session display, and sign-out. The production guard returns before Realm hooks or service creation.
+- Safety evidence: If Realm metadata application fails after token response, the controller signs out to clear token state before rethrowing. If remote logout/revoke fails, local Realm session metadata is still marked signed out and the active scope switches back to anonymous before the error is surfaced.
+- Validators: `yarn test -- development-auth auth-session` passed with 3 files / 26 tests; `yarn test` passed with 18 files / 126 tests; `yarn lint`; `yarn ts:check`; `git diff --check`.
+- Live smoke: `lsof -nP -iTCP:5119 -sTCP:LISTEN` produced no listener, so live local API auth smoke remains deferred.
+- Review: Reviewer found remote-revoke local desync, metadata-apply cleanup, and production dev-panel hook-surface issues. Fixes added local sign-out-before-rethrow, sign-in cleanup, production outer guard, and focused tests. Re-review reported no findings.
+- Outcome: pass
+- next_action: continue
+- Next move: Run live Development auth/sync/history smoke once `RelistenUserApi` is listening on `http://localhost:5119`; production provider UI remains out of scope until local token flow is proven live.

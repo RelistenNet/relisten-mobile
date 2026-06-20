@@ -25,6 +25,7 @@ import {
   LastFmSettings,
 } from '@/relisten/realm/models/lastfm_settings';
 import { useLastFmSettings } from '@/relisten/realm/models/lastfm_settings_repo';
+import { DevelopmentUserLibraryAuthPanel } from '@/relisten/user_library/development_auth_panel';
 
 interface BaseSettings {
   label: string;
@@ -447,6 +448,7 @@ export function RelistenSettings() {
         ))}
       </Flex>
 
+      <DevelopmentUserLibraryAuthPanel />
       <LastFmSettingsSection />
     </Flex>
   );
