@@ -72,6 +72,15 @@ describe('scoped user library Realm models', () => {
     expect(UserPlaylistEntry.schema.properties.position).toBe('string');
   });
 
+  it('stores optional playback history block attribution fields', () => {
+    expect(ScopedPlaybackHistoryEntry.schema.properties.blockUuid).toEqual({
+      type: 'string',
+      indexed: true,
+      optional: true,
+    });
+    expect(ScopedPlaybackHistoryEntry.schema.properties.blockPosition).toBe('int?');
+  });
+
   it('migrates legacy numeric playlist entry positions to strings', () => {
     const tempDir = mkdtempSync(join(tmpdir(), 'relisten-user-library-migration-'));
     const realmPath = join(tempDir, 'test.realm');

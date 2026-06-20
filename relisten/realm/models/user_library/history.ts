@@ -15,6 +15,8 @@ export class ScopedPlaybackHistoryEntry extends Realm.Object<ScopedPlaybackHisto
       artistUuid: { type: 'string', indexed: true, optional: true },
       playlistUuid: { type: 'string', indexed: true, optional: true },
       playlistEntryUuid: { type: 'string', indexed: true, optional: true },
+      blockUuid: { type: 'string', indexed: true, optional: true },
+      blockPosition: 'int?',
       playedAt: 'date',
       playbackFlags: 'int',
       platform: 'string?',
@@ -35,6 +37,8 @@ export class ScopedPlaybackHistoryEntry extends Realm.Object<ScopedPlaybackHisto
   artistUuid?: string;
   playlistUuid?: string;
   playlistEntryUuid?: string;
+  blockUuid?: string;
+  blockPosition?: number;
   playedAt!: Date;
   playbackFlags!: number;
   platform?: string;

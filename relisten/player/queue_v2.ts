@@ -27,6 +27,8 @@ export interface QueueV2HistoryAttribution {
   sourceTrackUuid: string;
   playlistUuid?: string;
   playlistEntryUuid?: string;
+  blockUuid?: string;
+  blockPosition?: number;
 }
 
 export interface QueueV2ShuffleUnit {
@@ -170,6 +172,8 @@ export function queueV2HistoryAttribution(item: QueueV2Item): QueueV2HistoryAttr
       sourceTrackUuid: item.sourceTrackUuid,
       playlistUuid: item.playlistUuid,
       playlistEntryUuid: item.playlistEntryUuid,
+      blockUuid: item.blockUuid ?? undefined,
+      blockPosition: item.blockPosition ?? undefined,
     };
   }
 

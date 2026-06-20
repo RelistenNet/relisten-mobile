@@ -70,6 +70,8 @@ describe('Queue V2 identity', () => {
       playlistUuid: 'playlist-1',
       playlistEntryUuid: 'entry-2',
       sourceTrackUuid: 'track-a',
+      blockUuid: 'block-1',
+      blockPosition: 1,
     });
 
     expect(firstEntry.queueItemId).toBe('playlist:playlist-1:entry:entry-1');
@@ -80,6 +82,8 @@ describe('Queue V2 identity', () => {
       sourceTrackUuid: 'track-a',
       playlistUuid: 'playlist-1',
       playlistEntryUuid: 'entry-2',
+      blockUuid: 'block-1',
+      blockPosition: 1,
     });
   });
 
