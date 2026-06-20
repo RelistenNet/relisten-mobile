@@ -38,11 +38,9 @@ Manual validation after integration should prove existing catalog playback still
 
 ## Fastest Useful Current Check
 
-After the test harness exists:
+Done for `MOB-QUEUE-001`:
 
     yarn test -- queue-v2
-
-The exact command may change; update this plan after `test-harness-foundation` lands.
 
 ## Dependencies or Blockers
 
@@ -54,7 +52,7 @@ The first slice should avoid broad playback rewrites. Add a pure Queue V2 item m
 
 ## Next Scoped Step
 
-Claim experiment `MOB-QUEUE-001` in this ledger before editing code. Implement pure Queue V2 types/helpers and tests for block shuffle and catalog migration, then integrate with persisted `PlayerState` only after those tests pass.
+Done for `MOB-QUEUE-001`. Next queue work should integrate the pure Queue V2 model with persisted `PlayerState` and existing catalog queue construction, then prove current catalog playback and legacy source-track restore still work.
 
 ## Code Quality Rules
 

@@ -84,6 +84,26 @@ This ledger records root-level coordination for `docs/autoplan-user-library-mobi
 - Next Action: done
 - Next move: Commit `MOB-LINK-001`, then claim `queue-v2-playback-foundation` experiment `MOB-QUEUE-001`.
 
+### Iteration 9
+
+- Timestamp: 2026-06-20T01:09:59Z
+- Hypothesis: Queue V2 should start as pure identity, serialization, and block-shuffle helpers before touching the runtime player queue.
+- Action: Claimed `MOB-QUEUE-001` in `queue-v2-playback-foundation` on branch `codex/scoped-realm-user-data`.
+- Evidence: The workstream ledger now has a preregistered entry with mutable surface and validators before queue model edits.
+- Verdict: pass
+- Next Action: continue
+- Next move: Add pure Queue V2 item types/helpers and tests for catalog migration, duplicate playlist entry identity, history attribution, and block shuffle grouping.
+
+### Iteration 10
+
+- Timestamp: 2026-06-20T01:17:21Z
+- Hypothesis: A pure Queue V2 model can lock item identity, catalog migration, cursor/history attribution, and block shuffle semantics without touching runtime playback code.
+- Action: Added Queue V2 helpers and focused tests. Addressed reviewer findings by using one `currentItemKey`, adding duplicate legacy migration coverage, and removing numeric playlist position from the queue item shape.
+- Evidence: `yarn test -- queue-v2`, `yarn test`, `yarn ts:check`, `yarn lint`, and `git diff --check` passed. First-pass review findings were fixed; second-pass review found no actionable issues.
+- Verdict: pass
+- Next Action: continue
+- Next move: Commit `MOB-QUEUE-001`, then continue Queue V2 by integrating the pure model with persisted `PlayerState` and catalog queue construction.
+
 ## Root Coordination Notes
 
 - The active set intentionally starts with foundations: local API config, deterministic test harness, deep-link sanitizer, and Queue V2 playback foundation.
