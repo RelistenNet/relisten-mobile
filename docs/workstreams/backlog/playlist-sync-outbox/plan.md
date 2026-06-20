@@ -36,8 +36,8 @@ Depends on scoped Realm user data, user-library client, playlist server endpoint
 
 ## Current Hypothesis
 
-Implement sync as plain TypeScript services with Realm repositories at the boundary. Keep operation payloads explicit and UUID-first.
+Implement sync as plain TypeScript services with Realm repositories at the boundary. Pull sync and operation replay now share canonical playlist snapshot application; operation payloads stay explicit and GUID-first.
 
 ## Next Scoped Step
 
-Promote after scoped Realm and auth basics are in place.
+Wire pull sync and operation replay into authenticated app lifecycle triggers such as launch, foreground, reconnect, and post-local-write flush. Keep that runner React-independent and gate it on an active authenticated scope.

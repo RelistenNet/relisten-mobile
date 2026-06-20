@@ -59,6 +59,12 @@ export interface UserLibraryPlaylistViewerStateResponse {
   access_role: UserPlaylistAccessRole;
 }
 
+export interface UserLibraryPlaylistSnapshotChange {
+  playlist: UserLibraryPlaylistResponse;
+  playlist_viewer_state?: UserLibraryPlaylistViewerStateResponse;
+  updated_at: string;
+}
+
 export interface UserLibrarySyncTombstoneResponse {
   resource_type: string;
   entity_type?: string | null;
@@ -132,76 +138,11 @@ export class UserLibraryPlaylistSyncApplier {
       throw new UserLibraryPlaylistSyncError('missing_playlist_change');
     }
 
-    const updatedAt = parseServerDate(change.updated_at, 'change.updated_at');
-    const playlistScopedId = scopedUserDataPrimaryKey(scopeId, playlist.playlist_uuid);
-    const existing = this.realm.objectForPrimaryKey(UserPlaylist, playlistScopedId);
-
-    this.realm.create(
-      UserPlaylist.schema.name,
-      {
-        scopedId: playlistScopedId,
-        scopeId,
-        uuid: playlist.playlist_uuid,
-        shortId: playlist.short_id,
-        name: playlist.name,
-        description: playlist.description ?? null,
-        visibility: playlist.visibility,
-        ownerUserUuid: playlist.owner_user_uuid,
-        accessRole: change.playlist_viewer_state?.access_role,
-        isOwner: change.playlist_viewer_state?.is_owner,
-        isFollowing: change.playlist_viewer_state?.is_following,
-        isCollaborator: change.playlist_viewer_state?.is_collaborator,
-        canEdit: change.playlist_viewer_state?.can_edit,
-        currentRevision: playlist.current_revision,
-        createdAt: existing?.createdAt ?? updatedAt,
-        updatedAt,
-        deletedAt: null,
-      },
-      Realm.UpdateMode.Modified
-    );
-
-    this.replacePlaylistEntries(scopeId, playlist, updatedAt);
-  }
-
-  private replacePlaylistEntries(
-    scopeId: string,
-    playlist: UserLibraryPlaylistResponse,
-    updatedAt: Date
-  ) {
-    const receivedEntryUuids = new Set(playlist.entries.map((entry) => entry.playlist_entry_uuid));
-    const existingEntries = this.realm
-      .objects(UserPlaylistEntry)
-      .filtered('scopeId == $0 AND playlistUuid == $1', scopeId, playlist.playlist_uuid);
-
-    for (const existingEntry of existingEntries) {
-      if (!receivedEntryUuids.has(existingEntry.uuid)) {
-        existingEntry.deletedAt = updatedAt;
-      }
-    }
-
-    for (const entry of playlist.entries) {
-      const scopedId = scopedUserDataPrimaryKey(scopeId, entry.playlist_entry_uuid);
-      const existing = this.realm.objectForPrimaryKey(UserPlaylistEntry, scopedId);
-
-      this.realm.create(
-        UserPlaylistEntry.schema.name,
-        {
-          scopedId,
-          scopeId,
-          uuid: entry.playlist_entry_uuid,
-          playlistUuid: playlist.playlist_uuid,
-          sourceTrackUuid: entry.source_track_uuid,
-          addedByUserUuid: entry.added_by_user_uuid,
-          blockUuid: entry.block_uuid ?? null,
-          blockPosition: entry.block_position ?? null,
-          position: entry.position,
-          createdAt: existing?.createdAt ?? updatedAt,
-          updatedAt,
-          deletedAt: null,
-        },
-        Realm.UpdateMode.Modified
-      );
-    }
+    applyUserLibraryPlaylistSnapshot(this.realm, scopeId, {
+      playlist,
+      playlist_viewer_state: change.playlist_viewer_state,
+      updated_at: change.updated_at,
+    });
   }
 
   private applyTombstone(scopeId: string, tombstone: UserLibrarySyncTombstoneResponse) {
@@ -249,6 +190,88 @@ export class UserLibraryPlaylistSyncApplier {
 
   private write<T>(callback: () => T): T {
     return this.realm.isInTransaction ? callback() : this.realm.write(callback);
+  }
+}
+
+export function applyUserLibraryPlaylistSnapshot(
+  realm: Realm,
+  scopeId: string,
+  change: UserLibraryPlaylistSnapshotChange
+) {
+  const playlist = change.playlist;
+  const viewerState = change.playlist_viewer_state;
+  const updatedAt = parseServerDate(change.updated_at, 'change.updated_at');
+  const playlistScopedId = scopedUserDataPrimaryKey(scopeId, playlist.playlist_uuid);
+  const existing = realm.objectForPrimaryKey(UserPlaylist, playlistScopedId);
+
+  realm.create(
+    UserPlaylist.schema.name,
+    {
+      scopedId: playlistScopedId,
+      scopeId,
+      uuid: playlist.playlist_uuid,
+      shortId: playlist.short_id,
+      name: playlist.name,
+      description: playlist.description ?? null,
+      visibility: playlist.visibility,
+      ownerUserUuid: playlist.owner_user_uuid,
+      accessRole: viewerState ? viewerState.access_role : (existing?.accessRole ?? null),
+      isOwner: viewerState ? viewerState.is_owner : (existing?.isOwner ?? null),
+      isFollowing: viewerState ? viewerState.is_following : (existing?.isFollowing ?? null),
+      isCollaborator: viewerState
+        ? viewerState.is_collaborator
+        : (existing?.isCollaborator ?? null),
+      canEdit: viewerState ? viewerState.can_edit : (existing?.canEdit ?? null),
+      currentRevision: playlist.current_revision,
+      createdAt: existing?.createdAt ?? updatedAt,
+      updatedAt,
+      deletedAt: null,
+    },
+    Realm.UpdateMode.Modified
+  );
+
+  replaceUserLibraryPlaylistEntries(realm, scopeId, playlist, updatedAt);
+}
+
+function replaceUserLibraryPlaylistEntries(
+  realm: Realm,
+  scopeId: string,
+  playlist: UserLibraryPlaylistResponse,
+  updatedAt: Date
+) {
+  const receivedEntryUuids = new Set(playlist.entries.map((entry) => entry.playlist_entry_uuid));
+  const existingEntries = realm
+    .objects(UserPlaylistEntry)
+    .filtered('scopeId == $0 AND playlistUuid == $1', scopeId, playlist.playlist_uuid);
+
+  for (const existingEntry of existingEntries) {
+    if (!receivedEntryUuids.has(existingEntry.uuid)) {
+      existingEntry.deletedAt = updatedAt;
+    }
+  }
+
+  for (const entry of playlist.entries) {
+    const scopedId = scopedUserDataPrimaryKey(scopeId, entry.playlist_entry_uuid);
+    const existing = realm.objectForPrimaryKey(UserPlaylistEntry, scopedId);
+
+    realm.create(
+      UserPlaylistEntry.schema.name,
+      {
+        scopedId,
+        scopeId,
+        uuid: entry.playlist_entry_uuid,
+        playlistUuid: playlist.playlist_uuid,
+        sourceTrackUuid: entry.source_track_uuid,
+        addedByUserUuid: entry.added_by_user_uuid,
+        blockUuid: entry.block_uuid ?? null,
+        blockPosition: entry.block_position ?? null,
+        position: entry.position,
+        createdAt: existing?.createdAt ?? updatedAt,
+        updatedAt,
+        deletedAt: null,
+      },
+      Realm.UpdateMode.Modified
+    );
   }
 }
 

@@ -234,6 +234,16 @@ This ledger records root-level coordination for `docs/autoplan-user-library-mobi
 - Next Action: continue
 - Next move: Commit `MOB-FAV-001`, then continue `playlist-sync-outbox` with operation serialization and replay.
 
+### Iteration 24
+
+- Timestamp: 2026-06-20T05:08:55Z
+- Hypothesis: Playlist operation replay can land as a React-independent service if pending rows keep stable idempotency keys and the replay path applies only canonical server playlist snapshots back into Realm.
+- Action: Added the playlist operation outbox DTOs, endpoint helper, pending-operation repository, replay service, shared playlist snapshot applier, `blocked` terminal sync status, and focused outbox tests.
+- Evidence: `yarn test -- playlist-operation-outbox playlist-sync` passed with 27 focused tests before final docs-gate validation. First review found deterministic 4xx starvation, non-GUID test/payload acceptance, and overlapping replay risks; fixes added GUID validation, real GUID fixtures, terminal `blocked` state, fetch-level serialization coverage, and same-scope replay guarding. Re-review found 401s were incorrectly terminal; the final fix keeps auth failures retryable and covers corrupt local JSON separately from malformed server responses.
+- Verdict: pass
+- Next Action: continue
+- Next move: Commit `MOB-SYNC-002`, then choose the authenticated sync runner/lifecycle boundary or promote scoped playback history.
+
 ## Root Coordination Notes
 
 - The active set intentionally starts with foundations: local API config, deterministic test harness, deep-link sanitizer, and Queue V2 playback foundation.

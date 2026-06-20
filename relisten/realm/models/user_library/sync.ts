@@ -5,6 +5,7 @@ export enum UserDataSyncStatus {
   Syncing = 'syncing',
   Synced = 'synced',
   Failed = 'failed',
+  Blocked = 'blocked',
 }
 
 export class PendingUserOperation extends Realm.Object<PendingUserOperation> {
