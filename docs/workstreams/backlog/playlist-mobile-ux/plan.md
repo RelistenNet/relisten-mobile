@@ -31,6 +31,7 @@ Available:
 - Playlist Queue V2 construction from scoped playlist entries.
 - Cast custom data and CarPlay row identity.
 - Mobile share-token exchange, SecureStore grant secrets, scoped grant metadata, and tokenless grant headers.
+- Non-UI playlist read service, mobile grant header selection, shared snapshot application, and missing source-track hydration planning.
 
 Blocked or deferred:
 
@@ -159,6 +160,8 @@ Invitation inbox:
 ### MOB-UX-001: Read-Only Playlist Library Surfaces
 
 Goal: Add My Library playlist sections, recent playlist activity, and a read-only playlist detail screen backed by scoped Realm playlist rows.
+
+Prerequisite service work complete in `MOB-UX-001A`: use `getUserLibraryPlaylist()`, `mobileAccessGrantHeadersForPlaylistRead()`, `applyReadUserLibraryPlaylistSnapshot()`, and `playlistCatalogHydrationPlan()` rather than adding new request or persistence helpers in UI components.
 
 Mutable surface:
 

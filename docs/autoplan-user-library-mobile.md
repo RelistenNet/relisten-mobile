@@ -167,6 +167,7 @@ Milestone 7 designs and implements playlist UX. It refines `playlist-mobile-ux` 
 - [x] 2026-06-20T18:02:25Z Completed `local-api-dev-config` live smoke correction `MOB-API-002`: `runLocalApiBaseUrlProbe` now checks user-library `/health`, direct catalog/user auth endpoints returned healthy responses, and an iOS Simulator Metro smoke proved the app bundle used both local API base URLs.
 - [x] 2026-06-20T18:23:01Z Completed `favorites-sync-migration` experiment `MOB-FAV-003`: library membership, artist/show/source/song/tour favorite badges/filters, source detail controls, source selection priority, and CarPlay library source resolution now use active scoped favorite rows for signed-in users while anonymous users keep legacy catalog flags and user-initiated download behavior.
 - [x] 2026-06-20T18:47:01Z Completed live local API smokes for favorites, history batch upload, pull sync, playlist operation replay payloads, and mobile share-token exchange while the API servers were reachable on ports `3823` and `5119`.
+- [x] 2026-06-20T18:54:00Z Completed `playlist-mobile-ux` prerequisite `MOB-UX-001A`: non-UI playlist read service, mobile-grant header selection, shared snapshot application, and missing source-track hydration planning with focused tests.
 - [x] 2026-06-20T00:34:01Z Completed `scoped-realm-user-data` experiment `MOB-SCOPE-001`: additive scoped Realm rows, active scope service, deterministic scope tests, and iOS Simulator smoke on `DEC49863-5AF8-4832-8BA2-C5E7C41A029D`.
 - [x] Promote auth/session after local API config and Development-only auth basics are in place.
 - [x] Revisit playlist UX workstream only after auth and basic user-data foundations are working.
@@ -186,7 +187,7 @@ Milestone 7 designs and implements playlist UX. It refines `playlist-mobile-ux` 
 | favorites-sync-migration | done | root Codex agent | none; venue favorites remain legacy-only because venues are outside the M1 server favorite contract | `docs/workstreams/backlog/favorites-sync-migration/plan.md` | `docs/workstreams/backlog/favorites-sync-migration/ledger.md` | branch `codex/scoped-realm-user-data` | Reuse `LibraryIndex` and `useCatalogFavoriteState` for any future favorite consumers; server favorite endpoints are live-smoked locally. | `done` |
 | history-batch-upload-migration | done | root Codex agent | old local history bulk-upload remains a deferred product decision outside this foundation | `docs/workstreams/backlog/history-batch-upload-migration/plan.md` | `docs/workstreams/backlog/history-batch-upload-migration/ledger.md` | branch `codex/scoped-realm-user-data` | Treat authenticated new-play history foundation as complete; defer old-history upload opt-in. | `done` |
 | carplay-cast-playlist-identity | active | root Codex agent | live Cast/CarPlay hardware validation deferred unless available | `docs/workstreams/backlog/carplay-cast-playlist-identity/plan.md` | `docs/workstreams/backlog/carplay-cast-playlist-identity/ledger.md` | branch `codex/scoped-realm-user-data` | Cast status now reconciles through Queue V2 item IDs and CarPlay Queue V2 row identity is complete; revisit only when playlist UI creates deeper CarPlay browse flows. | `continue` |
-| playlist-mobile-ux | active | root Codex agent | product answers needed for block label, create flow, add-range interaction, signed-out/editor-token prompts, follow/clone hierarchy, invites, conflicts, partial-offline copy, and share-link management | `docs/workstreams/backlog/playlist-mobile-ux/plan.md` | `docs/workstreams/backlog/playlist-mobile-ux/ledger.md` | branch `codex/scoped-realm-user-data` | Ask the open UX questions in `MOB-UX-CLAR-001`, then implement `MOB-UX-001` if read-only playlist/library surfaces are unblocked. | `ask_user` |
+| playlist-mobile-ux | active | root Codex agent | product answers needed for block label, create flow, add-range interaction, signed-out/editor-token prompts, follow/clone hierarchy, invites, conflicts, partial-offline copy, and share-link management | `docs/workstreams/backlog/playlist-mobile-ux/plan.md` | `docs/workstreams/backlog/playlist-mobile-ux/ledger.md` | branch `codex/scoped-realm-user-data` | Non-UI read/grant/hydration service is ready; ask the open UX questions in `MOB-UX-CLAR-001`, then implement `MOB-UX-001`. | `ask_user` |
 
 ## Current Hypothesis
 
@@ -194,7 +195,7 @@ Queue V2, scoped Realm rows, token/session handling, active authenticated scope 
 
 ## Next Iteration
 
-Commit the live-smoke documentation, then resolve the playlist UX open questions before implementing `MOB-UX-001` read-only playlist/library surfaces. If product choices remain deferred, the remaining unblocked technical work is limited to playlist read/hydration client scaffolding behind conservative copy.
+Commit `MOB-UX-001A`, then resolve the playlist UX open questions before implementing `MOB-UX-001` read-only playlist/library surfaces. If product choices remain deferred, keep remaining work to conservative service seams rather than user-facing copy or flows.
 
 ## Workstream Notes
 

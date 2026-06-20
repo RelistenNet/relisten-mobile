@@ -294,6 +294,16 @@ This ledger records root-level coordination for `docs/autoplan-user-library-mobi
 - Next Action: continue
 - Next move: Commit the live-smoke docs, then resolve playlist UX open questions before implementing `MOB-UX-001`.
 
+### Iteration 30
+
+- Timestamp: 2026-06-20T18:54:00Z
+- Hypothesis: A small non-UI playlist read service can unblock future read-only playlist screens without answering the remaining product copy and flow questions.
+- Action: Added a direct playlist read helper using the existing no-store user-library client, deterministic mobile-grant header selection, a snapshot-apply wrapper around the shared sync applier, and a pure hydration planner that reports missing active source-track UUIDs without creating partial catalog rows.
+- Evidence: Explorer subagent `019ee65d-a09e-70b2-9946-dc71b2a8040f` confirmed the service should reuse `applyUserLibraryPlaylistSnapshot` and `buildMobileAccessGrantHeaders`; reviewer subagent `019ee661-4da1-74b1-b80d-5be7259b518f` found missing scope filtering and a misleading Realm write contract, both fixed; `yarn test -- playlist-read` passed with 8 tests, full `yarn test` passed with 22 files / 168 tests, `yarn ts:check` passed, `yarn lint` passed, and `git diff --check` passed.
+- Verdict: pass
+- Next Action: ask_user
+- Next move: Commit `MOB-UX-001A`, then answer the playlist UX open questions before implementing `MOB-UX-001` screens.
+
 ## Root Coordination Notes
 
 - The active set intentionally starts with foundations: local API config, deterministic test harness, deep-link sanitizer, and Queue V2 playback foundation.
