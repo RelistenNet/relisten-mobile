@@ -6,10 +6,14 @@ import {
 } from '@/relisten/realm/models/history/playback_history_entry';
 import { log } from '@/relisten/util/logging';
 import { randomUUID } from 'expo-crypto';
+import * as Application from 'expo-application';
+import { Platform } from 'react-native';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { Artist } from '@/relisten/realm/models/artist';
 import { Show } from '@/relisten/realm/models/show';
 import { Source } from '@/relisten/realm/models/source';
+import { QueueV2Item } from '@/relisten/player/queue_v2';
+import { recordAuthenticatedPlaybackHistoryEvent } from '@/relisten/user_library/playback_history_recording';
 
 const logger = log.extend('playback-history-reporter');
 
@@ -17,6 +21,7 @@ export interface PlaybackHistoryReportable {
   playbackFlags: PlaybackFlags;
   playbackStartedAt: Date;
   sourceTrack: SourceTrack;
+  queueV2Item?: QueueV2Item;
 }
 
 export class PlaybackHistoryReporter {
@@ -94,7 +99,34 @@ export class PlaybackHistoryReporter {
       this.attemptReport(entry).then(() => {});
     }
 
+    this.recordAuthenticatedPlayback(entry, playback);
     return entry;
+  }
+
+  private recordAuthenticatedPlayback(
+    entry: PlaybackHistoryEntry,
+    playback: PlaybackHistoryReportable
+  ) {
+    try {
+      recordAuthenticatedPlaybackHistoryEvent(this.realm, {
+        clientEventUuid: entry.uuid,
+        sourceTrackUuid: playback.sourceTrack.uuid,
+        sourceUuid: playback.sourceTrack.sourceUuid,
+        showUuid: playback.sourceTrack.showUuid,
+        artistUuid: playback.sourceTrack.artistUuid,
+        queueV2Item: playback.queueV2Item,
+        playedAt: playback.playbackStartedAt,
+        playbackFlags: entry.playbackFlags,
+        platform: Platform.OS,
+        appVersion: currentAppVersion(),
+      });
+    } catch (error) {
+      logger.warn(
+        `Unable to record scoped playback history ${entry.uuid}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
   }
 
   private async attemptReport(entry: PlaybackHistoryEntry): Promise<RelistenApiResponse<unknown>> {
@@ -145,4 +177,12 @@ export class PlaybackHistoryReporter {
 
     logger.info(`Successfully reported ${entriesToPublish.length} playback history entries`);
   }
+}
+
+function currentAppVersion() {
+  return (
+    [Application.nativeApplicationVersion, Application.nativeBuildVersion]
+      .filter((part) => !!part)
+      .join(' ') || 'unknown'
+  );
 }

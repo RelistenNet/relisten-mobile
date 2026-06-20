@@ -9,11 +9,13 @@ import { ScopedPlaybackHistoryEntry } from '@/relisten/realm/models/user_library
 import { UserDataSyncStatus } from '@/relisten/realm/models/user_library/sync';
 import {
   buildPlaybackHistoryBatchRequest,
+  PlaybackHistoryBatchRequest,
   PlaybackHistoryJournalInput,
   postUserLibraryPlaybackHistoryBatch,
   scopedPlaybackHistoryEntryId,
   UserLibraryPlaybackHistoryError,
   UserLibraryPlaybackHistoryRepository,
+  UserLibraryPlaybackHistoryUploadService,
 } from '@/relisten/user_library/playback_history_batch';
 
 const SCOPE_1_ID = 'user:11111111-1111-4111-8111-111111111111';
@@ -285,3 +287,157 @@ describe('UserLibraryPlaybackHistoryRepository', () => {
     ).toThrowError(new UserLibraryPlaybackHistoryError('invalid_playlist_attribution'));
   });
 });
+
+describe('UserLibraryPlaybackHistoryUploadService', () => {
+  let realm: Realm;
+  let repository: UserLibraryPlaybackHistoryRepository;
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), 'relisten-history-upload-'));
+    realm = new Realm({
+      path: join(tempDir, 'test.realm'),
+      schema: [ScopedPlaybackHistoryEntry],
+      schemaVersion: 1,
+    });
+    repository = new UserLibraryPlaybackHistoryRepository(realm);
+  });
+
+  afterEach(() => {
+    realm.close();
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it('flushes batchable rows with explicit auth and applies server results', async () => {
+    const entry = repository.record(SCOPE_1_ID, historyInput())!;
+    const postJson = vi.fn(async () => ({
+      history_enabled: true,
+      accepted_count: 1,
+      duplicate_count: 0,
+      results: [{ client_event_uuid: EVENT_1_UUID, status: 'accepted' }],
+    }));
+    const client = { postJson } as unknown as RelistenUserLibraryApiClient;
+    const service = new UserLibraryPlaybackHistoryUploadService(realm, client, repository);
+
+    await expect(
+      service.flushPending(SCOPE_1_ID, {
+        accessToken: 'access-1',
+        now: new Date('2026-06-20T05:46:00.000Z'),
+      })
+    ).resolves.toEqual({
+      attempted: 1,
+      synced: 1,
+      failed: 0,
+      blocked: 0,
+      alreadyRunning: false,
+    });
+
+    expect(postJson).toHaveBeenCalledWith(
+      '/history/batch',
+      buildPlaybackHistoryBatchRequest([entry]),
+      { accessToken: 'access-1' }
+    );
+    expect(entry).toEqual(
+      expect.objectContaining({
+        syncStatus: UserDataSyncStatus.Synced,
+        syncedAt: new Date('2026-06-20T05:46:00.000Z'),
+      })
+    );
+  });
+
+  it('drains more than one server batch in a single flush', async () => {
+    for (let index = 0; index < 501; index += 1) {
+      const playedAtMinute = String(40 + (index % 10)).padStart(2, '0');
+
+      repository.record(
+        SCOPE_1_ID,
+        historyInput({
+          clientEventUuid: eventUuid(index),
+          playedAt: new Date(`2026-06-20T05:${playedAtMinute}:00.000Z`),
+        })
+      );
+    }
+    const postJson = vi.fn(async (_path: string, request: PlaybackHistoryBatchRequest) => ({
+      history_enabled: true,
+      accepted_count: request.events.length,
+      duplicate_count: 0,
+      results: request.events.map((event) => ({
+        client_event_uuid: event.client_event_uuid,
+        status: 'accepted',
+      })),
+    }));
+    const client = { postJson } as unknown as RelistenUserLibraryApiClient;
+    const service = new UserLibraryPlaybackHistoryUploadService(realm, client, repository);
+
+    await expect(service.flushPending(SCOPE_1_ID, { accessToken: 'access-1' })).resolves.toEqual({
+      attempted: 501,
+      synced: 501,
+      failed: 0,
+      blocked: 0,
+      alreadyRunning: false,
+    });
+
+    expect(postJson).toHaveBeenCalledTimes(2);
+    expect(postJson.mock.calls.map(([, request]) => request.events.length)).toEqual([500, 1]);
+    expect(
+      [...realm.objects(ScopedPlaybackHistoryEntry)].filter(
+        (entry) => entry.syncStatus === UserDataSyncStatus.Synced
+      ).length
+    ).toBe(501);
+  });
+
+  it('marks rows failed when upload fails without losing retryability', async () => {
+    const entry = repository.record(SCOPE_1_ID, historyInput())!;
+    const postJson = vi.fn(async () => {
+      throw new Error('network');
+    });
+    const client = { postJson } as unknown as RelistenUserLibraryApiClient;
+    const service = new UserLibraryPlaybackHistoryUploadService(realm, client, repository);
+
+    await expect(service.flushPending(SCOPE_1_ID, { accessToken: 'access-1' })).resolves.toEqual({
+      attempted: 1,
+      synced: 0,
+      failed: 1,
+      blocked: 0,
+      alreadyRunning: false,
+      error: 'network',
+    });
+
+    expect(entry).toEqual(
+      expect.objectContaining({
+        syncStatus: UserDataSyncStatus.Failed,
+        lastError: 'network',
+      })
+    );
+  });
+
+  it('marks rows with missing server results failed instead of leaving them syncing', async () => {
+    const entry = repository.record(SCOPE_1_ID, historyInput())!;
+    const postJson = vi.fn(async () => ({
+      history_enabled: true,
+      accepted_count: 0,
+      duplicate_count: 0,
+      results: [],
+    }));
+    const client = { postJson } as unknown as RelistenUserLibraryApiClient;
+    const service = new UserLibraryPlaybackHistoryUploadService(realm, client, repository);
+
+    await expect(service.flushPending(SCOPE_1_ID, { accessToken: 'access-1' })).resolves.toEqual({
+      attempted: 1,
+      synced: 0,
+      failed: 1,
+      blocked: 0,
+      alreadyRunning: false,
+    });
+    expect(entry).toEqual(
+      expect.objectContaining({
+        syncStatus: UserDataSyncStatus.Failed,
+        lastError: 'missing_history_batch_result',
+      })
+    );
+  });
+});
+
+function eventUuid(index: number) {
+  return `aaaaaaaa-aaaa-4aaa-8aaa-${index.toString(16).padStart(12, '0')}`;
+}

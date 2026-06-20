@@ -21,6 +21,7 @@ import {
   UserDataSyncStatus,
   UserSyncCursor,
 } from '@/relisten/realm/models/user_library/sync';
+import { ScopedPlaybackHistoryEntry } from '@/relisten/realm/models/user_library/history';
 import { setActiveUserDataScope } from '@/relisten/user_library/active_user_data_scope_service';
 import { UserDataScopeKind } from '@/relisten/user_library/user_data_scope';
 import {
@@ -38,6 +39,7 @@ import {
   UserLibrarySyncRunner,
   UserLibrarySyncRunnerAuthSession,
 } from '@/relisten/user_library/user_library_sync_runner';
+import { UserLibraryPlaybackHistoryRepository } from '@/relisten/user_library/playback_history_batch';
 
 const schema = [
   ActiveUserDataScope,
@@ -47,6 +49,7 @@ const schema = [
   PendingUserOperation,
   UserSyncCursor,
   UserDataMigrationMarker,
+  ScopedPlaybackHistoryEntry,
 ];
 
 const SCOPE_ID = 'user:33333333-3333-4333-8333-333333333333';
@@ -56,6 +59,8 @@ const USER_2_UUID = '44444444-4444-4444-8444-444444444444';
 const PLAYLIST_UUID = '11111111-1111-4111-8111-111111111111';
 const ENTRY_UUID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const TRACK_UUID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const SOURCE_UUID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const HISTORY_EVENT_UUID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const OPERATION_UUID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
 class FakeAuthSession implements UserLibrarySyncRunnerAuthSession {
@@ -182,6 +187,19 @@ function setAuthenticatedScope(realm: Realm) {
   });
 }
 
+function recordHistoryEntry(realm: Realm, eventUuid: string = HISTORY_EVENT_UUID) {
+  return new UserLibraryPlaybackHistoryRepository(realm).record(SCOPE_ID, {
+    clientEventUuid: eventUuid,
+    deviceId: 'device-1',
+    sourceTrackUuid: TRACK_UUID,
+    sourceUuid: SOURCE_UUID,
+    playedAt: new Date('2026-06-20T05:50:00.000Z'),
+    playbackFlags: 5,
+    platform: 'ios',
+    appVersion: '4.2.1',
+  })!;
+}
+
 describe('UserLibrarySyncRunner', () => {
   let realm: Realm;
   let tempDir: string;
@@ -266,6 +284,64 @@ describe('UserLibrarySyncRunner', () => {
         pendingPlaylistOperationScopedId(SCOPE_ID, OPERATION_UUID)
       )
     ).toEqual(expect.objectContaining({ syncStatus: UserDataSyncStatus.Synced }));
+  });
+
+  it('uploads pending playback history after operation replay and before pulling sync', async () => {
+    setAuthenticatedScope(realm);
+    recordHistoryEntry(realm);
+    const calls: string[] = [];
+    const postJson = vi.fn(async (path: string) => {
+      calls.push(path);
+      return {
+        history_enabled: true,
+        accepted_count: 1,
+        duplicate_count: 0,
+        results: [{ client_event_uuid: HISTORY_EVENT_UUID, status: 'accepted' }],
+      };
+    });
+    const getJson = vi.fn(async () => {
+      calls.push('get:/sync');
+      return syncResponse();
+    });
+    const client = { postJson, getJson } as unknown as RelistenUserLibraryApiClient;
+    const runner = new UserLibrarySyncRunner(
+      realm,
+      client,
+      new FakeAuthSession({ accessToken: 'access-1', scopeId: SCOPE_ID })
+    );
+
+    await expect(runner.runOnce('history')).resolves.toEqual(
+      expect.objectContaining({
+        status: 'completed',
+        reason: 'history',
+        scopeId: SCOPE_ID,
+        historyUpload: {
+          attempted: 1,
+          synced: 1,
+          failed: 0,
+          blocked: 0,
+          alreadyRunning: false,
+        },
+      })
+    );
+
+    expect(calls).toEqual(['/history/batch', 'get:/sync']);
+    expect(postJson).toHaveBeenCalledWith(
+      '/history/batch',
+      expect.objectContaining({
+        events: [
+          expect.objectContaining({
+            client_event_uuid: HISTORY_EVENT_UUID,
+            source_track_uuid: TRACK_UUID,
+            source_uuid: SOURCE_UUID,
+          }),
+        ],
+      }),
+      { accessToken: 'access-1' }
+    );
+    expect(realm.objects(ScopedPlaybackHistoryEntry)[0]).toEqual(
+      expect.objectContaining({ syncStatus: UserDataSyncStatus.Synced })
+    );
   });
 
   it('uses the auth session retry path when pull sync rejects an expired access token', async () => {
@@ -385,6 +461,43 @@ describe('UserLibrarySyncRunner', () => {
     ).toEqual(expect.objectContaining({ attemptCount: 2, syncStatus: UserDataSyncStatus.Synced }));
   });
 
+  it('retries pending playback history upload after an expired access token', async () => {
+    setAuthenticatedScope(realm);
+    const entry = recordHistoryEntry(realm);
+    const postJson = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new UserLibraryApiError(401, 'POST', '/api/v3/library/history/batch', 'expired')
+      )
+      .mockResolvedValueOnce({
+        history_enabled: true,
+        accepted_count: 1,
+        duplicate_count: 0,
+        results: [{ client_event_uuid: HISTORY_EVENT_UUID, status: 'accepted' }],
+      });
+    const getJson = vi.fn(async () => syncResponse());
+    const client = {
+      postJson,
+      getJson,
+    } as unknown as RelistenUserLibraryApiClient;
+    const runner = new UserLibrarySyncRunner(realm, client, new RefreshingAuthSession());
+
+    await expect(runner.runOnce('foreground')).resolves.toEqual(
+      expect.objectContaining({
+        status: 'completed',
+        historyUpload: expect.objectContaining({ attempted: 1, synced: 1 }),
+      })
+    );
+
+    expect(postJson).toHaveBeenNthCalledWith(1, '/history/batch', expect.any(Object), {
+      accessToken: 'expired-access',
+    });
+    expect(postJson).toHaveBeenNthCalledWith(2, '/history/batch', expect.any(Object), {
+      accessToken: 'fresh-access',
+    });
+    expect(entry.syncStatus).toBe(UserDataSyncStatus.Synced);
+  });
+
   it('coalesces overlapping runs for the same runner instance', async () => {
     setAuthenticatedScope(realm);
     let resolvePull: (response: UserLibrarySyncResponse) => void;
@@ -450,6 +563,50 @@ describe('UserLibrarySyncRunner', () => {
       null
     );
     expect(realm.objects(UserPlaylist).length).toBe(0);
+  });
+
+  it('does not pull sync after the active scope changes during history upload', async () => {
+    setAuthenticatedScope(realm);
+    const entry = recordHistoryEntry(realm);
+    let resolveHistoryUpload: (response: unknown) => void;
+    const historyUpload = new Promise((resolve) => {
+      resolveHistoryUpload = resolve;
+    });
+    const postJson = vi.fn(() => historyUpload);
+    const getJson = vi.fn(async () => syncResponse());
+    const client = {
+      postJson,
+      getJson,
+    } as unknown as RelistenUserLibraryApiClient;
+    const runner = new UserLibrarySyncRunner(realm, client, new FakeAuthSession());
+
+    const run = runner.runOnce('history');
+    await vi.waitFor(() => expect(postJson).toHaveBeenCalledTimes(1));
+
+    setActiveUserDataScope(realm, {
+      kind: UserDataScopeKind.Anonymous,
+      deviceId: 'device-1',
+    });
+    resolveHistoryUpload!({
+      history_enabled: true,
+      accepted_count: 1,
+      duplicate_count: 0,
+      results: [{ client_event_uuid: HISTORY_EVENT_UUID, status: 'accepted' }],
+    });
+
+    await expect(run).resolves.toEqual({
+      status: 'skipped',
+      reason: 'history',
+      scopeId: SCOPE_ID,
+      skipReason: 'stale_scope',
+    });
+    expect(getJson).not.toHaveBeenCalled();
+    expect(entry).toEqual(
+      expect.objectContaining({
+        syncStatus: UserDataSyncStatus.Failed,
+        lastError: 'stale_scope',
+      })
+    );
   });
 
   it('runs a queued scope-change sync after the current run finishes', async () => {

@@ -1,6 +1,7 @@
 import Realm from 'realm';
 import {
   RelistenUserLibraryApiClient,
+  UserLibraryApiError,
   UserLibraryRequestOptions,
 } from '@/relisten/api/user_library_client';
 import { ScopedPlaybackHistoryEntry } from '@/relisten/realm/models/user_library/history';
@@ -10,6 +11,7 @@ import { scopedUserDataPrimaryKey } from '@/relisten/user_library/user_data_scop
 const EMPTY_UUID = '00000000-0000-0000-0000-000000000000';
 const GUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_HISTORY_BATCH_SIZE = 500;
+const activeHistoryUploadScopes = new Set<string>();
 
 export interface PlaybackHistoryJournalInput {
   clientEventUuid: string;
@@ -30,6 +32,10 @@ export interface PlaybackHistoryJournalInput {
 
 export interface RecordPlaybackHistoryOptions {
   historyEnabled?: boolean;
+}
+
+export interface ListPlaybackHistoryBatchableOptions {
+  excludingScopedIds?: ReadonlySet<string>;
 }
 
 export interface PlaybackHistoryEventRequest {
@@ -60,6 +66,23 @@ export interface PlaybackHistoryBatchResponse {
   accepted_count: number;
   duplicate_count: number;
   results: PlaybackHistoryEventResultResponse[];
+}
+
+export interface UploadPlaybackHistoryOptions {
+  accessToken?: string;
+  limit?: number;
+  now?: Date;
+  throwAuthenticationErrors?: boolean;
+  shouldContinue?: () => boolean;
+}
+
+export interface UploadPlaybackHistoryResult {
+  attempted: number;
+  synced: number;
+  failed: number;
+  blocked: number;
+  alreadyRunning: boolean;
+  error?: string;
 }
 
 export class UserLibraryPlaybackHistoryError extends Error {
@@ -133,7 +156,8 @@ export class UserLibraryPlaybackHistoryRepository {
 
   listBatchable(
     scopeId: string,
-    limit: number = MAX_HISTORY_BATCH_SIZE
+    limit: number = MAX_HISTORY_BATCH_SIZE,
+    options: ListPlaybackHistoryBatchableOptions = {}
   ): ScopedPlaybackHistoryEntry[] {
     if (limit <= 0 || limit > MAX_HISTORY_BATCH_SIZE || !Number.isInteger(limit)) {
       throw new UserLibraryPlaybackHistoryError('invalid_history_batch_limit');
@@ -143,6 +167,7 @@ export class UserLibraryPlaybackHistoryRepository {
       .filter(
         (entry) =>
           entry.scopeId === scopeId &&
+          !options.excludingScopedIds?.has(entry.scopedId) &&
           (entry.syncStatus === UserDataSyncStatus.Pending ||
             entry.syncStatus === UserDataSyncStatus.Syncing ||
             entry.syncStatus === UserDataSyncStatus.Failed)
@@ -208,6 +233,112 @@ export class UserLibraryPlaybackHistoryRepository {
 
   private write<T>(callback: () => T): T {
     return this.realm.isInTransaction ? callback() : this.realm.write(callback);
+  }
+}
+
+export class UserLibraryPlaybackHistoryUploadService {
+  private readonly repository: UserLibraryPlaybackHistoryRepository;
+
+  constructor(
+    private readonly realm: Realm,
+    private readonly client: RelistenUserLibraryApiClient,
+    repository?: UserLibraryPlaybackHistoryRepository
+  ) {
+    this.repository = repository ?? new UserLibraryPlaybackHistoryRepository(realm);
+  }
+
+  async flushPending(
+    scopeId: string,
+    options: UploadPlaybackHistoryOptions = {}
+  ): Promise<UploadPlaybackHistoryResult> {
+    if (activeHistoryUploadScopes.has(scopeId)) {
+      return emptyUploadResult({ alreadyRunning: true });
+    }
+
+    activeHistoryUploadScopes.add(scopeId);
+    try {
+      return await this.flushPendingUnlocked(scopeId, options);
+    } finally {
+      activeHistoryUploadScopes.delete(scopeId);
+    }
+  }
+
+  private async flushPendingUnlocked(
+    scopeId: string,
+    options: UploadPlaybackHistoryOptions
+  ): Promise<UploadPlaybackHistoryResult> {
+    const result = emptyUploadResult();
+    const attemptedScopedIds = new Set<string>();
+
+    while (shouldContinue(options)) {
+      const entries = this.repository.listBatchable(scopeId, options.limit, {
+        excludingScopedIds: attemptedScopedIds,
+      });
+
+      if (entries.length === 0) {
+        return result;
+      }
+
+      for (const entry of entries) {
+        attemptedScopedIds.add(entry.scopedId);
+      }
+
+      this.repository.markSyncing(entries);
+
+      try {
+        const response = await postUserLibraryPlaybackHistoryBatch(
+          this.client,
+          buildPlaybackHistoryBatchRequest(entries),
+          options.accessToken ? { accessToken: options.accessToken } : undefined
+        );
+
+        if (!shouldContinue(options)) {
+          this.repository.markFailed(entries, 'stale_scope');
+          addUploadResult(result, {
+            attempted: entries.length,
+            failed: entries.length,
+            error: 'stale_scope',
+          });
+          return result;
+        }
+
+        this.repository.applyBatchResponse(scopeId, response, { syncedAt: options.now });
+        this.markMissingBatchResultsFailed(entries, response);
+        addUploadResult(result, uploadResultFromResponse(entries.length, response));
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.repository.markFailed(entries, errorMessage);
+
+        if (options.throwAuthenticationErrors && isUnauthorizedApiError(error)) {
+          throw error;
+        }
+
+        addUploadResult(result, {
+          attempted: entries.length,
+          failed: entries.length,
+          error: errorMessage,
+        });
+        return result;
+      }
+    }
+
+    return result;
+  }
+
+  private markMissingBatchResultsFailed(
+    entries: ScopedPlaybackHistoryEntry[],
+    response: PlaybackHistoryBatchResponse
+  ) {
+    const resultEventUuids = new Set(
+      response.results.map((result) => result.client_event_uuid.toLowerCase())
+    );
+    const missingEntries = entries.filter(
+      (entry) => !resultEventUuids.has(entry.clientEventUuid.toLowerCase())
+    );
+
+    if (missingEntries.length > 0) {
+      this.repository.markFailed(missingEntries, 'missing_history_batch_result');
+    }
   }
 }
 
@@ -351,4 +482,57 @@ function compareHistoryEntries(
   return playedAtDiff === 0
     ? left.clientEventUuid.localeCompare(right.clientEventUuid)
     : playedAtDiff;
+}
+
+function shouldContinue(options: UploadPlaybackHistoryOptions) {
+  return options.shouldContinue ? options.shouldContinue() : true;
+}
+
+function isUnauthorizedApiError(error: unknown) {
+  return error instanceof UserLibraryApiError && error.status === 401;
+}
+
+function uploadResultFromResponse(
+  attempted: number,
+  response: PlaybackHistoryBatchResponse
+): UploadPlaybackHistoryResult {
+  const synced = response.results.filter(
+    (result) => result.status === 'accepted' || result.status === 'duplicate'
+  ).length;
+  const blocked = response.results.filter(
+    (result) => result.status === 'rejected_history_disabled'
+  ).length;
+
+  return {
+    attempted,
+    synced,
+    blocked,
+    failed: attempted - synced - blocked,
+    alreadyRunning: false,
+  };
+}
+
+function addUploadResult(
+  result: UploadPlaybackHistoryResult,
+  next: Partial<UploadPlaybackHistoryResult>
+) {
+  result.attempted += next.attempted ?? 0;
+  result.synced += next.synced ?? 0;
+  result.failed += next.failed ?? 0;
+  result.blocked += next.blocked ?? 0;
+  result.alreadyRunning = result.alreadyRunning || next.alreadyRunning === true;
+  result.error = next.error ?? result.error;
+}
+
+function emptyUploadResult(
+  overrides: Partial<UploadPlaybackHistoryResult> = {}
+): UploadPlaybackHistoryResult {
+  return {
+    attempted: 0,
+    synced: 0,
+    failed: 0,
+    blocked: 0,
+    alreadyRunning: false,
+    ...overrides,
+  };
 }

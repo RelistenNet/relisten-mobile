@@ -10,12 +10,17 @@ import {
   ReplayPlaylistOperationsResult,
   UserLibraryPlaylistOperationReplayService,
 } from '@/relisten/user_library/playlist_operation_outbox';
+import {
+  UploadPlaybackHistoryResult,
+  UserLibraryPlaybackHistoryUploadService,
+} from '@/relisten/user_library/playback_history_batch';
 
 export type UserLibrarySyncRunReason =
   | 'mount'
   | 'scope-change'
   | 'network'
   | 'foreground'
+  | 'history'
   | 'manual';
 
 export type UserLibrarySyncRunStatus = 'completed' | 'skipped' | 'already_running' | 'failed';
@@ -37,6 +42,7 @@ export interface UserLibrarySyncRunResult {
   scopeId?: string;
   skipReason?: UserLibrarySyncSkipReason;
   replay?: ReplayPlaylistOperationsResult;
+  historyUpload?: UploadPlaybackHistoryResult;
   cursorBefore?: string;
   cursorAfter?: string;
   error?: string;
@@ -164,6 +170,10 @@ export class UserLibrarySyncRunner {
   ): Promise<UserLibrarySyncRunResult> {
     const applier = new UserLibraryPlaylistSyncApplier(this.realm);
     const replayService = new UserLibraryPlaylistOperationReplayService(this.realm, this.client);
+    const historyUploadService = new UserLibraryPlaybackHistoryUploadService(
+      this.realm,
+      this.client
+    );
 
     if (!this.isActiveAuthenticatedScope(scopeId)) {
       return this.staleScopeResult(reason, scopeId);
@@ -200,6 +210,17 @@ export class UserLibrarySyncRunner {
       return this.staleScopeResult(reason, scopeId);
     }
 
+    const historyUpload = await historyUploadService.flushPending(scopeId, {
+      accessToken: session.accessToken,
+      throwAuthenticationErrors: true,
+      shouldContinue: () => this.isActiveAuthenticatedScope(scopeId),
+      now: options.now,
+    });
+
+    if (!this.isActiveAuthenticatedScope(scopeId)) {
+      return this.staleScopeResult(reason, scopeId);
+    }
+
     const cursorBefore = applier.getCursor(scopeId)?.cursor;
     const response = await pullUserLibrarySync(this.client, cursorBefore, {
       accessToken: session.accessToken,
@@ -216,6 +237,7 @@ export class UserLibrarySyncRunner {
       reason,
       scopeId,
       replay,
+      historyUpload,
       cursorBefore,
       cursorAfter: applier.getCursor(scopeId)?.cursor,
     };

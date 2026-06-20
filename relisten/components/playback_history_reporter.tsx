@@ -33,6 +33,7 @@ export function PlaybackHistoryReporterComponent() {
               : PlaybackFlags.Online,
           playbackStartedAt: reportTrackEvent.playbackStartedAt,
           sourceTrack: reportTrackEvent.playerQueueTrack.sourceTrack,
+          queueV2Item: reportTrackEvent.playerQueueTrack.queueV2Item,
         });
       }
     }
