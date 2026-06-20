@@ -25,7 +25,7 @@ import {
 } from '@/relisten/realm/value_streams';
 import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_network_backed_behavior';
 import { LibraryIndex } from '@/relisten/realm/library_index';
-import { useOfflineAvailabilityIndex } from '@/relisten/realm/root_services';
+import { useLibraryMembershipIndex } from '@/relisten/realm/root_services';
 import { attachShowArtists } from '@/relisten/realm/models/show_artist_relationships';
 
 export const showRepo = new Repository(Show);
@@ -48,13 +48,15 @@ export interface ShowWithSources {
 // https://github.com/RelistenNet/relisten-web/blob/69e05607c0a0699b5ccb0b3711a3ec17faf3a855/src/redux/modules/tapes.js#L63
 export const sortSources = (
   sources: Realm.Results<Source>,
-  libraryIndex?: Pick<LibraryIndex, 'sourceHasOfflineTracks'>
+  libraryIndex?: Pick<LibraryIndex, 'sourceHasOfflineTracks' | 'sourceIsFavorite'>
 ) => {
   const sortedSources = sources
     ? Array.from(sources).sort(
         firstBy(
           // sort first if favorited or downloaded
-          (t: Source) => t.isFavorite || t.hasOfflineTracks(libraryIndex),
+          (t: Source) =>
+            (libraryIndex ? libraryIndex.sourceIsFavorite(t.uuid) : t.isFavorite) ||
+            t.hasOfflineTracks(libraryIndex),
           'desc'
         )
           .thenBy((t: Source) => t.isSoundboard, 'desc')
@@ -250,7 +252,7 @@ export function useFullShowWithSelectedSource(showUuid: string, selectedSourceUu
     Artist,
     show?.artistUuid ?? sources?.[0]?.artistUuid ?? '__missing__'
   );
-  const libraryIndex = useOfflineAvailabilityIndex();
+  const libraryIndex = useLibraryMembershipIndex();
 
   const sortedSources = useMemo(() => {
     if (!sources) return [];
@@ -264,7 +266,7 @@ export function useFullShowWithSelectedSource(showUuid: string, selectedSourceUu
       (source) =>
         source.uuid === selectedSourceUuid ||
         // Prioritize favorited sources by default
-        (selectedSourceUuid === 'initial' && source.isFavorite)
+        (selectedSourceUuid === 'initial' && libraryIndex.sourceIsFavorite(source.uuid))
     ) ?? sortedSources[0];
 
   return {

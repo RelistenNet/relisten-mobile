@@ -40,7 +40,9 @@ const ShowListItemView = ({
   isTrendingSort,
   venueLineCount,
 }: ShowListItemViewProps) => {
+  const libraryIndex = useLibraryMembershipIndex();
   const hasOfflineTracks = useShowHasOfflineTracks(show.uuid);
+  const isFavorite = libraryIndex.showIsFavorite(show.uuid);
 
   return (
     <ShowLink
@@ -60,7 +62,7 @@ const ShowListItemView = ({
                   SBD
                 </RelistenText>
               )}
-              {show?.isFavorite && (
+              {isFavorite && (
                 <MaterialCommunityIcons name="cards-heart" color={colors.blue['200']} />
               )}
               {hasOfflineTracks && <SourceTrackSucceededIndicator />}

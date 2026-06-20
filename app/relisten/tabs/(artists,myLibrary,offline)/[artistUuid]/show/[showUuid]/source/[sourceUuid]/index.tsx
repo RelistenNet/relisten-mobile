@@ -8,9 +8,7 @@ import { Show } from '@/relisten/realm/models/show';
 import { useFullShowWithSelectedSource } from '@/relisten/realm/models/show_repo';
 import { Source } from '@/relisten/realm/models/source';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
-import { useRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
-import { useForceUpdate } from '@/relisten/util/forced_update';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Link, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { PropsWithChildren, useCallback, useEffect, useRef, useState } from 'react';
@@ -51,6 +49,7 @@ import {
   SourceTrackOfflineInfoStatus,
   SourceTrackOfflineInfoType,
 } from '@/relisten/realm/models/source_track_offline_info';
+import { useCatalogFavoriteState } from '@/relisten/user_library/favorite_state_hooks';
 
 const logger = log.extend('source screen');
 
@@ -70,26 +69,6 @@ function getQueueableSourceTracks(
   });
 }
 
-function toggleSourceFavorite(
-  realm: ReturnType<typeof useRealm>,
-  source: Source,
-  show: Show,
-  forceUpdate: () => void
-) {
-  realm.write(() => {
-    const nextFavorite = !(source.isFavorite || show.isFavorite);
-    source.isFavorite = nextFavorite;
-    show.isFavorite = nextFavorite;
-    forceUpdate();
-  });
-}
-
-function toggleSelectedSourceFavorite(realm: ReturnType<typeof useRealm>, source: Source) {
-  realm.write(() => {
-    source.isFavorite = !source.isFavorite;
-  });
-}
-
 export const SourceList = ({ sources }: { sources: Source[] }) => {
   return (
     <RelistenFlatList
@@ -105,7 +84,6 @@ export const SourceList = ({ sources }: { sources: Source[] }) => {
 export default function Page() {
   const { showActionSheetWithOptions } = useActionSheet();
 
-  const realm = useRealm();
   const navigation = useNavigation();
   const player = useRelistenPlayer();
   const { showUuid, sourceUuid, playTrackUuid } = useLocalSearchParams();
@@ -123,6 +101,7 @@ export default function Page() {
     String(showUuid),
     String(sourceUuid)
   );
+  const selectedSourceFavorite = useCatalogFavoriteState(selectedSource);
 
   const playShow = ((sourceTrack?: SourceTrack) => {
     if (!sourceTrack || !sourceTrack.streamingUrl() || !sourceTrack.uuid || !selectedSource) {
@@ -253,7 +232,7 @@ export default function Page() {
             break;
           case 5:
             // Toggle Favorite
-            toggleSelectedSourceFavorite(realm, selectedSource);
+            selectedSourceFavorite.toggleFavorite();
 
             break;
           case cancelButtonIndex:
@@ -270,10 +249,10 @@ export default function Page() {
     isOfflineTab,
     offlineMode,
     playShow,
-    realm,
     removeDownloads,
     router,
     selectedSource,
+    selectedSourceFavorite,
     show,
     showActionSheetWithOptions,
   ]);
@@ -436,11 +415,12 @@ export const SourceHeader = ({
   downloadShow: () => void;
   initialTrackToPlay?: SourceTrack;
 }) => {
-  const realm = useRealm();
   const router = useRouter();
-  const forceUpdate = useForceUpdate();
   const groupSegment = useGroupSegment();
   const { fontScale } = useWindowDimensions();
+  const sourceFavorite = useCatalogFavoriteState(source);
+  const showFavorite = useCatalogFavoriteState(show);
+  const isFavorited = sourceFavorite.isFavorited || showFavorite.isFavorited;
 
   const secondLine = R.filter(
     [
@@ -542,13 +522,15 @@ export const SourceHeader = ({
           className="shrink basis-1/4"
           textClassName="text-l"
           onPress={() => {
-            toggleSourceFavorite(realm, source, show, forceUpdate);
+            const nextFavorite = !isFavorited;
+            sourceFavorite.setFavorite(nextFavorite);
+            showFavorite.setFavorite(nextFavorite);
           }}
         >
           <MaterialIcons
-            name={source.isFavorite || show.isFavorite ? 'favorite' : 'favorite-outline'}
+            name={isFavorited ? 'favorite' : 'favorite-outline'}
             size={20 * fontScale}
-            color={source.isFavorite || show.isFavorite ? 'red' : 'white'}
+            color={isFavorited ? 'red' : 'white'}
           />
         </RelistenButton>
         <RelistenButton

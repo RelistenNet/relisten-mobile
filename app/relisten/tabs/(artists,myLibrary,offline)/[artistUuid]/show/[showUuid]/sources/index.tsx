@@ -22,7 +22,10 @@ import { SourceTrackSucceededIndicator } from '@/relisten/components/source/sour
 import { ShowLink, ShowRedirect } from '@/relisten/util/push_show';
 import { Artist } from '@/relisten/realm/models/artist';
 import dayjs from 'dayjs';
-import { useSourceHasOfflineTracks } from '@/relisten/realm/root_services';
+import {
+  useLibraryMembershipIndex,
+  useSourceHasOfflineTracks,
+} from '@/relisten/realm/root_services';
 import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
 
 export default function Page() {
@@ -129,7 +132,9 @@ export const SourceDetail: FC<{
   idx: number;
   artist: Artist;
 }> = memo(({ show, source, artist, idx }) => {
+  const libraryIndex = useLibraryMembershipIndex();
   const hasOfflineTracks = useSourceHasOfflineTracks(source.uuid);
+  const isFavorite = libraryIndex.sourceIsFavorite(source.uuid);
   return (
     <View>
       <View className="w-full">
@@ -138,7 +143,7 @@ export const SourceDetail: FC<{
           {source.isSoundboard && (
             <RelistenText cn="ml-1 text-xs font-bold text-relisten-blue-600">SBD</RelistenText>
           )}
-          {source.isFavorite && (
+          {isFavorite && (
             <View className="ml-1">
               <MaterialCommunityIcons name="cards-heart" color={colors.blue['200']} />
             </View>

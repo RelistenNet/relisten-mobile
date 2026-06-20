@@ -32,7 +32,10 @@ import { LegacyDataMigrationModal } from '@/relisten/pages/legacy_migration';
 import { ARTIST_SORT_FILTERS, ArtistSortKey } from '@/relisten/components/artist_filters';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
 import { useTopPlayedArtistUuidsOnce } from '@/relisten/realm/models/history/playback_history_entry_repo';
-import { useRemainingDownloadsCount } from '@/relisten/realm/root_services';
+import {
+  useLibraryMembershipIndex,
+  useRemainingDownloadsCount,
+} from '@/relisten/realm/root_services';
 import { logTabRootDebug } from '@/relisten/util/profile_logging';
 
 const FavoritesSectionHeader = ({ favorites }: { favorites: Artist[] }) => {
@@ -128,15 +131,18 @@ const OnlineArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> 
   const router = useRouter();
   const groupSegment = useGroupSegment();
   const { filter } = useFilters<ArtistSortKey, Artist>();
+  const libraryIndex = useLibraryMembershipIndex();
 
   const allArtistsRoute = `/relisten/tabs/${groupSegment}/all`;
 
   const { all, favorites, featured } = useMemo(() => {
     const allSorted = [...artists].sort((a, b) => a.sortName.localeCompare(b.sortName));
     const favoritesSorted = allSorted
-      .filter((a) => a.isFavorite)
+      .filter((a) => libraryIndex.artistIsFavorite(a.uuid))
       .sort((a, b) => a.sortName.localeCompare(b.sortName));
-    const featuredAll = allSorted.filter((a) => !a.isAutomaticallyCreated() && !a.isFavorite);
+    const featuredAll = allSorted.filter(
+      (a) => !a.isAutomaticallyCreated() && !libraryIndex.artistIsFavorite(a.uuid)
+    );
     const hasPopularity = featuredAll.some(
       (artist) => artist.popularity?.windows?.days30d?.plays !== undefined
     );
@@ -156,7 +162,7 @@ const OnlineArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> 
       favorites: favoritesSorted,
       featured: featuredSorted,
     };
-  }, [artists, filter]);
+  }, [artists, filter, libraryIndex]);
 
   const shouldSuggestFavorites = favorites.length < 3;
   const topPlayedArtistUuids = useTopPlayedArtistUuidsOnce(6, shouldSuggestFavorites);

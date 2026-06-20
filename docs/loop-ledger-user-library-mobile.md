@@ -274,6 +274,16 @@ This ledger records root-level coordination for `docs/autoplan-user-library-mobi
 - Next Action: continue
 - Next move: Commit `MOB-API-002`, then resume `MOB-FAV-003` for source/show/library selection favorite consumers.
 
+### Iteration 28
+
+- Timestamp: 2026-06-20T18:23:01Z
+- Hypothesis: The cleanest way to move read-side favorite consumers off catalog booleans is to make `LibraryIndex` choose the effective favorite source once, then have screens and CarPlay consume direct favorite and library-membership predicates from that index.
+- Action: Added active-scope-aware favorite sets to `LibraryIndex`, kept anonymous scopes on legacy catalog flags, split user-initiated download membership from general offline availability, updated artist/My Library/show/source/song/tour/CarPlay consumers to use the index, extracted a shared scoped favorite hook for both the reusable favorite button and source detail controls, and added focused index plus CarPlay source-selection tests.
+- Evidence: `yarn test -- library-index` passed with 4 tests; `yarn test -- library-index favorite-sync source_selection` passed with 16 tests; full `yarn test` passed with 21 files / 160 tests; `yarn ts:check`, `yarn lint`, and `git diff --check` passed. Subagent reviewer `019ee642-a01c-7aa1-850b-2714a3b8c393` found the source detail control gap and missing CarPlay source-selection coverage; both were fixed. iOS Simulator bundle/render smoke passed on `DEC49863-5AF8-4832-8BA2-C5E7C41A029D` with screenshot `/tmp/relisten-mob-fav-003-final-smoke.png`. After the API thread restarted local servers, live smoke passed for user-library `/health`, catalog `/api/v3/artists?include_autocreated=false`, Development session issue, bearer `/users/me`, favorite PUT/list/delete for artist `77a58ff9-2e01-c59c-b8eb-cff106049b72`, and logout.
+- Verdict: pass
+- Next Action: continue
+- Next move: Commit `MOB-FAV-003`, then choose the next local API live-smoke slice while servers are reachable.
+
 ## Root Coordination Notes
 
 - The active set intentionally starts with foundations: local API config, deterministic test harness, deep-link sanitizer, and Queue V2 playback foundation.

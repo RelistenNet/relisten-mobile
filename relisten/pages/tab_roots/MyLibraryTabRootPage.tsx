@@ -15,10 +15,9 @@ import { Link, useFocusEffect } from 'expo-router';
 import { PropsWithChildren, ReactNode, useCallback, useEffect, useMemo } from 'react';
 import { TouchableOpacity, View, ViewProps } from 'react-native';
 import {
-  SourceTrackOfflineInfoStatus,
-  SourceTrackOfflineInfoType,
-} from '@/relisten/realm/models/source_track_offline_info';
-import { useRemainingDownloadsCount } from '@/relisten/realm/root_services';
+  useLibraryMembershipIndex,
+  useRemainingDownloadsCount,
+} from '@/relisten/realm/root_services';
 import { logTabRootDebug } from '@/relisten/util/profile_logging';
 
 function MyLibrarySectionHeader({ children, className, ...props }: PropsWithChildren<ViewProps>) {
@@ -73,21 +72,12 @@ function RecentlyPlayedShows() {
 
 function FavoriteShows({ topContent }: { topContent?: ReactNode }) {
   const showFilters = useShowFilters();
-  const favoriteShowsQuery = useQuery(
-    {
-      type: Show,
-      query: (query) =>
-        query.filtered(
-          'isFavorite == true OR SUBQUERY(sourceTracks, $item, $item.offlineInfo.status == $0 AND $item.offlineInfo.type == $1).@count > 0',
-          SourceTrackOfflineInfoStatus.Succeeded,
-          SourceTrackOfflineInfoType.UserInitiated
-        ),
-    },
-    []
-  );
+  const libraryIndex = useLibraryMembershipIndex();
+  const showsQuery = useQuery(Show);
+  const libraryShows = [...showsQuery].filter((show) => libraryIndex.showIsInLibrary(show.uuid));
 
   const favoriteShowsByArtist: RelistenSectionData<Show> = useMemo(() => {
-    const showsByArtistUuid = aggregateBy([...favoriteShowsQuery], (s) => s.artistUuid);
+    const showsByArtistUuid = aggregateBy(libraryShows, (s) => s.artistUuid);
 
     return Object.keys(showsByArtistUuid)
       .sort((a, b) => {
@@ -103,7 +93,7 @@ function FavoriteShows({ topContent }: { topContent?: ReactNode }) {
           data: shows,
         };
       });
-  }, [favoriteShowsQuery]);
+  }, [libraryShows]);
 
   const nonIdealState = {
     noData: {
@@ -130,7 +120,7 @@ function FavoriteShows({ topContent }: { topContent?: ReactNode }) {
           <View className="pt-4">
             {topContent}
             <MyLibrarySectionHeader>
-              <Plur word="Show" count={favoriteShowsQuery.length} /> in My Library
+              <Plur word="Show" count={libraryShows.length} /> in My Library
             </MyLibrarySectionHeader>
           </View>
         }

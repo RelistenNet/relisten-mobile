@@ -20,7 +20,8 @@ import {
 } from '@/relisten/components/filtering/filters';
 import { Song } from '@/relisten/realm/models/song';
 import { useGroupSegment } from '@/relisten/util/routes';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
+import { useLibraryMembershipIndex } from '@/relisten/realm/root_services';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -105,41 +106,6 @@ export enum SongFilterPersistenceKey {
   Search = 'search',
 }
 
-const SONG_FILTERS: Filter<SongFilterPersistenceKey, Song>[] = [
-  {
-    persistenceKey: SongFilterPersistenceKey.Library,
-    title: 'My Library',
-    active: false,
-    filter: (y) => y.isFavorite,
-  },
-  {
-    persistenceKey: SongFilterPersistenceKey.Name,
-    title: 'Name',
-    sortDirection: SortDirection.Ascending,
-    active: true,
-    isNumeric: false,
-    sort: (songs) => songs.sort((a, b) => a.name.localeCompare(b.name)),
-  },
-  {
-    persistenceKey: SongFilterPersistenceKey.Plays,
-    title: '# of Plays',
-    sortDirection: SortDirection.Descending,
-    active: false,
-    isNumeric: true,
-    sort: (songs) => songs.sort((a, b) => a.showsPlayedAt - b.showsPlayedAt),
-  },
-  {
-    persistenceKey: SongFilterPersistenceKey.Search,
-    title: 'Search',
-    active: false,
-    searchFilter: (song, searchText) => {
-      const search = searchText.toLowerCase();
-
-      return song.name.toLowerCase().indexOf(search) !== -1;
-    },
-  },
-];
-
 interface SongListProps {
   songs: Song[];
   filterOptions: FilteringOptions<SongFilterPersistenceKey>;
@@ -149,8 +115,47 @@ const SongList = ({
   songs,
   filterOptions,
 }: SongListProps & Omit<FilterableListProps<Song>, 'data' | 'renderItem'>) => {
+  const libraryIndex = useLibraryMembershipIndex();
+  const songFilters = useMemo<Filter<SongFilterPersistenceKey, Song>[]>(
+    () => [
+      {
+        persistenceKey: SongFilterPersistenceKey.Library,
+        title: 'My Library',
+        active: false,
+        filter: (song) => libraryIndex.songIsFavorite(song.uuid),
+      },
+      {
+        persistenceKey: SongFilterPersistenceKey.Name,
+        title: 'Name',
+        sortDirection: SortDirection.Ascending,
+        active: true,
+        isNumeric: false,
+        sort: (items) => items.sort((a, b) => a.name.localeCompare(b.name)),
+      },
+      {
+        persistenceKey: SongFilterPersistenceKey.Plays,
+        title: '# of Plays',
+        sortDirection: SortDirection.Descending,
+        active: false,
+        isNumeric: true,
+        sort: (items) => items.sort((a, b) => a.showsPlayedAt - b.showsPlayedAt),
+      },
+      {
+        persistenceKey: SongFilterPersistenceKey.Search,
+        title: 'Search',
+        active: false,
+        searchFilter: (song, searchText) => {
+          const search = searchText.toLowerCase();
+
+          return song.name.toLowerCase().indexOf(search) !== -1;
+        },
+      },
+    ],
+    [libraryIndex]
+  );
+
   return (
-    <FilteringProvider filters={SONG_FILTERS} options={filterOptions}>
+    <FilteringProvider filters={songFilters} options={filterOptions}>
       <FilterableList
         ListHeaderComponent={<SongHeader songs={songs} />}
         data={[{ data: songs }]}

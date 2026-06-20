@@ -135,7 +135,7 @@ export function createArtistsListTemplate(
       return;
     }
 
-    const favorites = sorted.filter((a) => a.isFavorite);
+    const favorites = sorted.filter((a) => ctx.libraryIndex.artistIsFavorite(a.uuid));
     const offline = sorted.filter((a) => ctx.libraryIndex.artistHasOfflineTracks(a.uuid));
     favoriteArtists = favorites;
 
@@ -322,8 +322,8 @@ function createYearsListTemplate(
     ]);
 
     const userFilters = {
-      isPlayableOffline: scope === 'offline' || scope === 'library' ? true : null,
-      isFavorite: scope === 'library' ? true : null,
+      isPlayableOffline: scope === 'offline' ? true : null,
+      isFavorite: null,
       operator: 'OR' as const,
     };
 

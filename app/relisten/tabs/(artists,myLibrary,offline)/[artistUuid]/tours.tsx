@@ -20,8 +20,9 @@ import {
 } from '@/relisten/components/filtering/filters';
 import { Tour } from '@/relisten/realm/models/tour';
 import dayjs from 'dayjs';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useGroupSegment } from '@/relisten/util/routes';
+import { useLibraryMembershipIndex } from '@/relisten/realm/root_services';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -105,23 +106,6 @@ export enum TourFilterKey {
   Name = 'name',
 }
 
-const TOUR_FILTERS: Filter<TourFilterKey, Tour>[] = [
-  {
-    persistenceKey: TourFilterKey.Library,
-    title: 'My Library',
-    active: false,
-    filter: (y) => y.isFavorite,
-  },
-  {
-    persistenceKey: TourFilterKey.Name,
-    title: 'Name',
-    sortDirection: SortDirection.Ascending,
-    active: true,
-    isNumeric: false,
-    sort: (tours) => tours.sort((a, b) => a.name.localeCompare(b.name)),
-  },
-];
-
 interface TourListProps {
   tours: Tour[];
   filterOptions: FilteringOptions<TourFilterKey>;
@@ -131,8 +115,29 @@ const TourList = ({
   tours,
   filterOptions,
 }: TourListProps & Omit<FilterableListProps<Tour>, 'data' | 'renderItem'>) => {
+  const libraryIndex = useLibraryMembershipIndex();
+  const tourFilters = useMemo<Filter<TourFilterKey, Tour>[]>(
+    () => [
+      {
+        persistenceKey: TourFilterKey.Library,
+        title: 'My Library',
+        active: false,
+        filter: (tour) => libraryIndex.tourIsFavorite(tour.uuid),
+      },
+      {
+        persistenceKey: TourFilterKey.Name,
+        title: 'Name',
+        sortDirection: SortDirection.Ascending,
+        active: true,
+        isNumeric: false,
+        sort: (items) => items.sort((a, b) => a.name.localeCompare(b.name)),
+      },
+    ],
+    [libraryIndex]
+  );
+
   return (
-    <FilteringProvider filters={TOUR_FILTERS} options={filterOptions}>
+    <FilteringProvider filters={tourFilters} options={filterOptions}>
       <FilterableList
         ListHeaderComponent={<TourHeader tours={tours} />}
         data={[{ data: tours }]}

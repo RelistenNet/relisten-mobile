@@ -1,13 +1,32 @@
 import Realm from 'realm';
-import { Artist } from '@/relisten/realm/models/artist';
-import { Show } from '@/relisten/realm/models/show';
+import type { Artist } from '@/relisten/realm/models/artist';
+import type { Show } from '@/relisten/realm/models/show';
+import type { Song } from '@/relisten/realm/models/song';
+import type { Source } from '@/relisten/realm/models/source';
 import {
-  SourceTrackOfflineInfo,
   SourceTrackOfflineInfoStatus,
+  SourceTrackOfflineInfoType,
 } from '@/relisten/realm/models/source_track_offline_info';
+import type { SourceTrackOfflineInfo } from '@/relisten/realm/models/source_track_offline_info';
+import type { Tour } from '@/relisten/realm/models/tour';
+import {
+  ACTIVE_USER_DATA_SCOPE_KEY,
+  UserFavoriteEntityType,
+} from '@/relisten/realm/models/user_library';
+import type { ActiveUserDataScope, UserFavorite } from '@/relisten/realm/models/user_library';
+import { UserDataScopeKind } from '@/relisten/user_library/user_data_scope';
 import { logLibraryIndexDebug } from '@/relisten/util/profile_logging';
 
 type Listener = () => void;
+
+const ARTIST_MODEL_NAME = 'Artist';
+const SHOW_MODEL_NAME = 'Show';
+const SONG_MODEL_NAME = 'Song';
+const SOURCE_MODEL_NAME = 'Source';
+const TOUR_MODEL_NAME = 'Tour';
+const SOURCE_TRACK_OFFLINE_INFO_MODEL_NAME = 'SourceTrackOfflineInfo';
+const ACTIVE_USER_DATA_SCOPE_MODEL_NAME = 'ActiveUserDataScope';
+const USER_FAVORITE_MODEL_NAME = 'UserFavorite';
 
 const SLICE_SCOPES = ['library-membership', 'offline-availability', 'remaining-downloads'] as const;
 type SliceScope = (typeof SLICE_SCOPES)[number];
@@ -128,43 +147,85 @@ export class LibraryIndex {
   private readonly yearOfflineCounts = new Map<string, number>();
   private readonly showOfflineCounts = new Map<string, number>();
   private readonly sourceOfflineCounts = new Map<string, number>();
+  private readonly artistLibraryOfflineCounts = new Map<string, number>();
+  private readonly yearLibraryOfflineCounts = new Map<string, number>();
+  private readonly showLibraryOfflineCounts = new Map<string, number>();
 
   private readonly favoriteArtistUuids = new Set<string>();
   private readonly favoriteShowUuids = new Set<string>();
+  private readonly favoriteSongUuids = new Set<string>();
+  private readonly favoriteSourceUuids = new Set<string>();
+  private readonly favoriteTourUuids = new Set<string>();
+  private readonly favoriteLibraryShowUuids = new Set<string>();
   private readonly favoriteShowArtistCounts = new Map<string, number>();
   private readonly favoriteShowYearCounts = new Map<string, number>();
 
   private readonly favoriteArtists: Realm.Results<Artist>;
   private readonly favoriteShows: Realm.Results<Show>;
+  private readonly favoriteSongs: Realm.Results<Song>;
+  private readonly favoriteSources: Realm.Results<Source>;
+  private readonly favoriteTours: Realm.Results<Tour>;
+  private readonly catalogShows: Realm.Results<Show>;
+  private readonly catalogSources: Realm.Results<Source>;
+  private readonly activeScopes: Realm.Results<ActiveUserDataScope>;
+  private readonly activeScopedFavorites: Realm.Results<UserFavorite>;
   private readonly offlineInfos: Realm.Results<SourceTrackOfflineInfo>;
   private readonly remainingDownloads: Realm.Results<SourceTrackOfflineInfo>;
+  private activeScopeId: string | undefined;
+  private activeScopeKind: string | undefined;
   private lastNotifiedRemainingDownloadsCount = 0;
 
   constructor(private readonly realm: Realm.Realm) {
-    this.favoriteArtists = this.realm.objects(Artist).filtered('isFavorite == true');
-    this.favoriteShows = this.realm.objects(Show).filtered('isFavorite == true');
+    this.favoriteArtists = this.realm
+      .objects<Artist>(ARTIST_MODEL_NAME)
+      .filtered('isFavorite == true');
+    this.favoriteShows = this.realm.objects<Show>(SHOW_MODEL_NAME).filtered('isFavorite == true');
+    this.favoriteSongs = this.realm.objects<Song>(SONG_MODEL_NAME).filtered('isFavorite == true');
+    this.favoriteSources = this.realm
+      .objects<Source>(SOURCE_MODEL_NAME)
+      .filtered('isFavorite == true');
+    this.favoriteTours = this.realm.objects<Tour>(TOUR_MODEL_NAME).filtered('isFavorite == true');
+    this.catalogShows = this.realm.objects<Show>(SHOW_MODEL_NAME);
+    this.catalogSources = this.realm.objects<Source>(SOURCE_MODEL_NAME);
+    this.activeScopes = this.realm.objects<ActiveUserDataScope>(ACTIVE_USER_DATA_SCOPE_MODEL_NAME);
+    this.activeScopedFavorites = this.realm
+      .objects<UserFavorite>(USER_FAVORITE_MODEL_NAME)
+      .filtered('deletedAt == null');
     this.offlineInfos = this.realm
-      .objects(SourceTrackOfflineInfo)
+      .objects<SourceTrackOfflineInfo>(SOURCE_TRACK_OFFLINE_INFO_MODEL_NAME)
       .filtered('status == $0', SourceTrackOfflineInfoStatus.Succeeded);
     this.remainingDownloads = this.realm
-      .objects(SourceTrackOfflineInfo)
+      .objects<SourceTrackOfflineInfo>(SOURCE_TRACK_OFFLINE_INFO_MODEL_NAME)
       .filtered('status != $0', SourceTrackOfflineInfoStatus.Succeeded);
     this.lastNotifiedRemainingDownloadsCount = this.remainingDownloads.length;
 
-    this.favoriteArtists.addListener(this.handleFavoriteArtistsChanged);
-    this.favoriteShows.addListener(this.handleFavoriteShowsChanged);
+    this.favoriteArtists.addListener(this.handleFavoriteMembershipChanged);
+    this.favoriteShows.addListener(this.handleFavoriteMembershipChanged);
+    this.favoriteSongs.addListener(this.handleFavoriteMembershipChanged);
+    this.favoriteSources.addListener(this.handleFavoriteMembershipChanged);
+    this.favoriteTours.addListener(this.handleFavoriteMembershipChanged);
+    this.catalogShows.addListener(this.handleScopedFavoriteCatalogRelationshipsChanged);
+    this.catalogSources.addListener(this.handleScopedFavoriteCatalogRelationshipsChanged);
+    this.activeScopes.addListener(this.handleFavoriteMembershipChanged);
+    this.activeScopedFavorites.addListener(this.handleFavoriteMembershipChanged);
     this.offlineInfos.addListener(this.handleOfflineInfosChanged);
     this.remainingDownloads.addListener(this.handleRemainingDownloadsChanged);
 
-    this.rebuildFavoriteArtists();
-    this.rebuildFavoriteShows();
+    this.rebuildFavoriteMembership();
     this.rebuildOfflineAvailability();
   }
 
   tearDown() {
     if (!this.realm.isClosed) {
-      this.favoriteArtists.removeListener(this.handleFavoriteArtistsChanged);
-      this.favoriteShows.removeListener(this.handleFavoriteShowsChanged);
+      this.favoriteArtists.removeListener(this.handleFavoriteMembershipChanged);
+      this.favoriteShows.removeListener(this.handleFavoriteMembershipChanged);
+      this.favoriteSongs.removeListener(this.handleFavoriteMembershipChanged);
+      this.favoriteSources.removeListener(this.handleFavoriteMembershipChanged);
+      this.favoriteTours.removeListener(this.handleFavoriteMembershipChanged);
+      this.catalogShows.removeListener(this.handleScopedFavoriteCatalogRelationshipsChanged);
+      this.catalogSources.removeListener(this.handleScopedFavoriteCatalogRelationshipsChanged);
+      this.activeScopes.removeListener(this.handleFavoriteMembershipChanged);
+      this.activeScopedFavorites.removeListener(this.handleFavoriteMembershipChanged);
       this.offlineInfos.removeListener(this.handleOfflineInfosChanged);
       this.remainingDownloads.removeListener(this.handleRemainingDownloadsChanged);
     }
@@ -286,6 +347,46 @@ export class LibraryIndex {
     return this.hasEntries(this.sourceOfflineCounts, sourceUuid);
   }
 
+  artistIsFavorite(artistUuid?: string | null) {
+    if (!artistUuid) {
+      return false;
+    }
+
+    return this.favoriteArtistUuids.has(artistUuid);
+  }
+
+  showIsFavorite(showUuid?: string | null) {
+    if (!showUuid) {
+      return false;
+    }
+
+    return this.favoriteShowUuids.has(showUuid);
+  }
+
+  sourceIsFavorite(sourceUuid?: string | null) {
+    if (!sourceUuid) {
+      return false;
+    }
+
+    return this.favoriteSourceUuids.has(sourceUuid);
+  }
+
+  songIsFavorite(songUuid?: string | null) {
+    if (!songUuid) {
+      return false;
+    }
+
+    return this.favoriteSongUuids.has(songUuid);
+  }
+
+  tourIsFavorite(tourUuid?: string | null) {
+    if (!tourUuid) {
+      return false;
+    }
+
+    return this.favoriteTourUuids.has(tourUuid);
+  }
+
   artistIsInLibrary(artistUuid?: string | null) {
     if (!artistUuid) {
       return false;
@@ -293,7 +394,7 @@ export class LibraryIndex {
 
     return (
       this.favoriteArtistUuids.has(artistUuid) ||
-      this.artistHasOfflineTracks(artistUuid) ||
+      this.hasEntries(this.artistLibraryOfflineCounts, artistUuid) ||
       this.hasEntries(this.favoriteShowArtistCounts, artistUuid)
     );
   }
@@ -304,7 +405,8 @@ export class LibraryIndex {
     }
 
     return (
-      this.yearHasOfflineTracks(yearUuid) || this.hasEntries(this.favoriteShowYearCounts, yearUuid)
+      this.hasEntries(this.yearLibraryOfflineCounts, yearUuid) ||
+      this.hasEntries(this.favoriteShowYearCounts, yearUuid)
     );
   }
 
@@ -313,7 +415,10 @@ export class LibraryIndex {
       return false;
     }
 
-    return this.favoriteShowUuids.has(showUuid) || this.showHasOfflineTracks(showUuid);
+    return (
+      this.favoriteLibraryShowUuids.has(showUuid) ||
+      this.hasEntries(this.showLibraryOfflineCounts, showUuid)
+    );
   }
 
   remainingDownloadsCount() {
@@ -324,12 +429,14 @@ export class LibraryIndex {
     return this.remainingDownloadsCount() > 0;
   }
 
-  private readonly handleFavoriteArtistsChanged = () => {
-    this.rebuildFavoriteArtists();
+  private readonly handleFavoriteMembershipChanged = () => {
+    this.rebuildFavoriteMembership();
   };
 
-  private readonly handleFavoriteShowsChanged = () => {
-    this.rebuildFavoriteShows();
+  private readonly handleScopedFavoriteCatalogRelationshipsChanged = () => {
+    if (this.usesScopedFavorites()) {
+      this.rebuildFavoriteMembership();
+    }
   };
 
   private readonly handleOfflineInfosChanged = () => {
@@ -352,61 +459,60 @@ export class LibraryIndex {
     this.scheduleEmit();
   };
 
-  private rebuildFavoriteArtists() {
+  private rebuildFavoriteMembership() {
     const previousFavoriteArtistUuids = cloneStringSet(this.favoriteArtistUuids);
+    const previousFavoriteLibraryShowUuids = cloneStringSet(this.favoriteLibraryShowUuids);
+    const previousFavoriteShowArtistCounts = cloneCountMap(this.favoriteShowArtistCounts);
+    const previousFavoriteShowYearCounts = cloneCountMap(this.favoriteShowYearCounts);
 
+    this.updateActiveScopeSnapshot();
+    this.favoriteShowUuids.clear();
     this.favoriteArtistUuids.clear();
+    this.favoriteSongUuids.clear();
+    this.favoriteSourceUuids.clear();
+    this.favoriteTourUuids.clear();
+    this.favoriteLibraryShowUuids.clear();
+    this.favoriteShowArtistCounts.clear();
+    this.favoriteShowYearCounts.clear();
 
-    for (const artist of this.favoriteArtists) {
-      this.favoriteArtistUuids.add(artist.uuid);
+    if (this.usesScopedFavorites()) {
+      this.rebuildScopedFavoriteMembership();
+    } else {
+      this.rebuildCatalogFavoriteMembership();
     }
 
     this.queueSliceNotification('library-membership');
+
+    for (const showUuid of unionSetValues(
+      previousFavoriteLibraryShowUuids,
+      this.favoriteLibraryShowUuids
+    )) {
+      const wasInLibrary = this.showLibraryMembershipFromState(
+        previousFavoriteLibraryShowUuids,
+        this.showLibraryOfflineCounts,
+        showUuid
+      );
+      const isInLibrary = this.showIsInLibrary(showUuid);
+
+      if (wasInLibrary !== isInLibrary) {
+        this.queueKeyNotification('show-library', showUuid);
+      }
+    }
 
     for (const artistUuid of unionSetValues(
       previousFavoriteArtistUuids,
       this.favoriteArtistUuids
     )) {
-      const wasInLibrary =
-        previousFavoriteArtistUuids.has(artistUuid) ||
-        this.hasEntries(this.artistOfflineCounts, artistUuid) ||
-        this.hasEntries(this.favoriteShowArtistCounts, artistUuid);
+      const wasInLibrary = this.artistLibraryMembershipFromState(
+        previousFavoriteShowArtistCounts,
+        previousFavoriteArtistUuids,
+        this.artistLibraryOfflineCounts,
+        artistUuid
+      );
       const isInLibrary = this.artistIsInLibrary(artistUuid);
 
       if (wasInLibrary !== isInLibrary) {
         this.queueKeyNotification('artist-library', artistUuid);
-      }
-    }
-
-    this.scheduleEmit();
-  }
-
-  private rebuildFavoriteShows() {
-    const previousFavoriteArtistUuids = cloneStringSet(this.favoriteArtistUuids);
-    const previousFavoriteShowUuids = cloneStringSet(this.favoriteShowUuids);
-    const previousFavoriteShowArtistCounts = cloneCountMap(this.favoriteShowArtistCounts);
-    const previousFavoriteShowYearCounts = cloneCountMap(this.favoriteShowYearCounts);
-
-    this.favoriteShowUuids.clear();
-    this.favoriteShowArtistCounts.clear();
-    this.favoriteShowYearCounts.clear();
-
-    for (const show of this.favoriteShows) {
-      this.favoriteShowUuids.add(show.uuid);
-      this.incrementCount(this.favoriteShowArtistCounts, show.artistUuid);
-      this.incrementCount(this.favoriteShowYearCounts, show.yearUuid);
-    }
-
-    this.queueSliceNotification('library-membership');
-
-    for (const showUuid of unionSetValues(previousFavoriteShowUuids, this.favoriteShowUuids)) {
-      const wasInLibrary =
-        previousFavoriteShowUuids.has(showUuid) ||
-        this.hasEntries(this.showOfflineCounts, showUuid);
-      const isInLibrary = this.showIsInLibrary(showUuid);
-
-      if (wasInLibrary !== isInLibrary) {
-        this.queueKeyNotification('show-library', showUuid);
       }
     }
 
@@ -417,7 +523,7 @@ export class LibraryIndex {
       const wasInLibrary = this.artistLibraryMembershipFromState(
         previousFavoriteShowArtistCounts,
         previousFavoriteArtistUuids,
-        this.artistOfflineCounts,
+        this.artistLibraryOfflineCounts,
         artistUuid
       );
       const isInLibrary = this.artistIsInLibrary(artistUuid);
@@ -433,7 +539,7 @@ export class LibraryIndex {
     )) {
       const wasInLibrary = this.yearLibraryMembershipFromState(
         previousFavoriteShowYearCounts,
-        this.yearOfflineCounts,
+        this.yearLibraryOfflineCounts,
         yearUuid
       );
       const isInLibrary = this.yearIsInLibrary(yearUuid);
@@ -446,19 +552,113 @@ export class LibraryIndex {
     this.scheduleEmit();
   }
 
+  private rebuildCatalogFavoriteMembership() {
+    for (const artist of this.favoriteArtists) {
+      this.favoriteArtistUuids.add(artist.uuid);
+    }
+
+    for (const show of this.favoriteShows) {
+      this.addDirectShowFavorite(show.uuid);
+    }
+
+    for (const song of this.favoriteSongs) {
+      this.favoriteSongUuids.add(song.uuid);
+    }
+
+    for (const source of this.favoriteSources) {
+      this.addDirectSourceFavorite(source);
+    }
+
+    for (const tour of this.favoriteTours) {
+      this.favoriteTourUuids.add(tour.uuid);
+    }
+  }
+
+  private rebuildScopedFavoriteMembership() {
+    const scopeId = this.activeScopeId;
+    if (!scopeId) {
+      return;
+    }
+
+    for (const favorite of this.activeScopedFavorites) {
+      if (favorite.scopeId !== scopeId) {
+        continue;
+      }
+
+      switch (favorite.entityType) {
+        case UserFavoriteEntityType.Artist:
+          this.favoriteArtistUuids.add(favorite.entityUuid);
+          break;
+        case UserFavoriteEntityType.Show:
+          this.addDirectShowFavorite(favorite.entityUuid);
+          break;
+        case UserFavoriteEntityType.Song:
+          this.favoriteSongUuids.add(favorite.entityUuid);
+          break;
+        case UserFavoriteEntityType.Source: {
+          const source = this.realm.objectForPrimaryKey<Source>(
+            SOURCE_MODEL_NAME,
+            favorite.entityUuid
+          );
+          if (source) {
+            this.addDirectSourceFavorite(source);
+          } else {
+            this.favoriteSourceUuids.add(favorite.entityUuid);
+          }
+          break;
+        }
+        case UserFavoriteEntityType.Tour:
+          this.favoriteTourUuids.add(favorite.entityUuid);
+          break;
+      }
+    }
+  }
+
+  private addDirectShowFavorite(showUuid: string) {
+    this.favoriteShowUuids.add(showUuid);
+    this.addFavoriteShowMembership(showUuid);
+  }
+
+  private addFavoriteShowMembership(showUuid: string) {
+    this.favoriteLibraryShowUuids.add(showUuid);
+
+    const show = this.realm.objectForPrimaryKey<Show>(SHOW_MODEL_NAME, showUuid);
+    if (!show) {
+      return;
+    }
+
+    this.incrementCount(this.favoriteShowArtistCounts, show.artistUuid);
+    this.incrementCount(this.favoriteShowYearCounts, show.yearUuid);
+  }
+
+  private addDirectSourceFavorite(source: Source) {
+    this.favoriteSourceUuids.add(source.uuid);
+    this.addFavoriteShowMembership(source.showUuid);
+
+    if (!this.hasEntries(this.favoriteShowArtistCounts, source.artistUuid)) {
+      this.incrementCount(this.favoriteShowArtistCounts, source.artistUuid);
+    }
+  }
+
   private rebuildOfflineAvailability() {
     const previousArtistOfflineCounts = cloneCountMap(this.artistOfflineCounts);
     const previousYearOfflineCounts = cloneCountMap(this.yearOfflineCounts);
     const previousShowOfflineCounts = cloneCountMap(this.showOfflineCounts);
     const previousSourceOfflineCounts = cloneCountMap(this.sourceOfflineCounts);
+    const previousArtistLibraryOfflineCounts = cloneCountMap(this.artistLibraryOfflineCounts);
+    const previousYearLibraryOfflineCounts = cloneCountMap(this.yearLibraryOfflineCounts);
+    const previousShowLibraryOfflineCounts = cloneCountMap(this.showLibraryOfflineCounts);
 
     this.artistOfflineCounts.clear();
     this.yearOfflineCounts.clear();
     this.showOfflineCounts.clear();
     this.sourceOfflineCounts.clear();
+    this.artistLibraryOfflineCounts.clear();
+    this.yearLibraryOfflineCounts.clear();
+    this.showLibraryOfflineCounts.clear();
 
     for (const offlineInfo of this.offlineInfos) {
-      const track = offlineInfo.sourceTrack;
+      const track = offlineInfo.sourceTracks[0];
       if (!track) {
         continue;
       }
@@ -470,8 +670,14 @@ export class LibraryIndex {
       const yearUuid =
         track.year?.uuid ??
         track.show?.yearUuid ??
-        this.realm.objectForPrimaryKey(Show, track.showUuid)?.yearUuid;
+        this.realm.objectForPrimaryKey<Show>(SHOW_MODEL_NAME, track.showUuid)?.yearUuid;
       this.incrementCount(this.yearOfflineCounts, yearUuid);
+
+      if (offlineInfo.type === SourceTrackOfflineInfoType.UserInitiated) {
+        this.incrementCount(this.artistLibraryOfflineCounts, track.artistUuid);
+        this.incrementCount(this.showLibraryOfflineCounts, track.showUuid);
+        this.incrementCount(this.yearLibraryOfflineCounts, yearUuid);
+      }
     }
 
     this.queueSliceNotification('offline-availability');
@@ -488,7 +694,7 @@ export class LibraryIndex {
       const wasInLibrary = this.artistLibraryMembershipFromState(
         this.favoriteShowArtistCounts,
         this.favoriteArtistUuids,
-        previousArtistOfflineCounts,
+        previousArtistLibraryOfflineCounts,
         artistUuid
       );
       const isInLibrary = this.artistIsInLibrary(artistUuid);
@@ -508,7 +714,7 @@ export class LibraryIndex {
 
       const wasInLibrary = this.yearLibraryMembershipFromState(
         this.favoriteShowYearCounts,
-        previousYearOfflineCounts,
+        previousYearLibraryOfflineCounts,
         yearUuid
       );
       const isInLibrary = this.yearIsInLibrary(yearUuid);
@@ -526,9 +732,11 @@ export class LibraryIndex {
         this.queueKeyNotification('show-offline', showUuid);
       }
 
-      const wasInLibrary =
-        this.favoriteShowUuids.has(showUuid) ||
-        this.hasEntries(previousShowOfflineCounts, showUuid);
+      const wasInLibrary = this.showLibraryMembershipFromState(
+        this.favoriteLibraryShowUuids,
+        previousShowLibraryOfflineCounts,
+        showUuid
+      );
       const isInLibrary = this.showIsInLibrary(showUuid);
 
       if (wasInLibrary !== isInLibrary) {
@@ -679,6 +887,30 @@ export class LibraryIndex {
     return (
       this.hasEntries(yearOfflineCounts, yearUuid) ||
       this.hasEntries(favoriteShowYearCounts, yearUuid)
+    );
+  }
+
+  private showLibraryMembershipFromState(
+    favoriteLibraryShowUuids: ReadonlySet<string>,
+    showOfflineCounts: ReadonlyMap<string, number>,
+    showUuid: string
+  ) {
+    return favoriteLibraryShowUuids.has(showUuid) || this.hasEntries(showOfflineCounts, showUuid);
+  }
+
+  private updateActiveScopeSnapshot() {
+    const activeScope = this.realm.objectForPrimaryKey<ActiveUserDataScope>(
+      ACTIVE_USER_DATA_SCOPE_MODEL_NAME,
+      ACTIVE_USER_DATA_SCOPE_KEY
+    );
+
+    this.activeScopeId = activeScope?.scopeId;
+    this.activeScopeKind = activeScope?.scopeKind;
+  }
+
+  private usesScopedFavorites() {
+    return (
+      this.activeScopeKind === UserDataScopeKind.Authenticated && this.activeScopeId !== undefined
     );
   }
 
