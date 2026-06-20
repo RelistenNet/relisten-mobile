@@ -14,6 +14,9 @@ import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { createUserLibrarySyncServices } from '@/relisten/user_library/user_library_sync_services';
 import { UserLibrarySyncRunReason } from '@/relisten/user_library/user_library_sync_runner';
 
+// Mount once near the app root. It translates React/Realm lifecycle signals into
+// sync-run reasons while UserLibrarySyncRunner owns serialization and scope
+// safety.
 export function UserLibrarySyncBootstrap() {
   const realm = useRealm();
   const activeScope = useObject(ActiveUserDataScope, ACTIVE_USER_DATA_SCOPE_KEY, [

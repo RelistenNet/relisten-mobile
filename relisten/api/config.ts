@@ -1,3 +1,6 @@
+// Keep catalog and user-library bases separate. The catalog API is read-heavy
+// and cacheable; the user-library API is auth/mutation-heavy and uses a
+// different request policy in RelistenUserLibraryApiClient.
 export const PRODUCTION_CATALOG_API_BASE_URL = 'https://api.relisten.net/api';
 export const PRODUCTION_USER_LIBRARY_API_BASE_URL = 'https://api.relisten.net';
 

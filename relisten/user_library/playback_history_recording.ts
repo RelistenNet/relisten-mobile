@@ -43,6 +43,8 @@ export function recordAuthenticatedPlaybackHistoryEvent(
     return undefined;
   }
 
+  // Queue V2 carries playlist attribution when playback came from a playlist;
+  // catalog playback falls back to source-track-only history.
   const attribution: QueueV2HistoryAttribution = input.queueV2Item
     ? queueV2HistoryAttribution(input.queueV2Item)
     : { sourceTrackUuid: input.sourceTrackUuid };

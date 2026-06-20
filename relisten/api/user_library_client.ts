@@ -70,6 +70,9 @@ export class RelistenUserLibraryApiClient {
     return `${this.baseUrl}${this.libraryPath(path)}`;
   }
 
+  // User-library callers pass logical library paths. Keeping the prefix here
+  // prevents feature code from mixing catalog `/api/v3` paths with
+  // user-owned `/api/v3/library` endpoints.
   private libraryPath(path: string): string {
     if (path.startsWith('/api/v3/library')) {
       return path;
@@ -91,6 +94,8 @@ export class RelistenUserLibraryApiClient {
     const requestPath = this.libraryPath(path);
     const headers = new Headers(options.headers);
     headers.set('Accept', 'application/json');
+    // User-library responses reflect private, frequently-mutated account data.
+    // Do not inherit the catalog client's ETag/rate-limit caching behavior.
     headers.set('Cache-Control', 'no-store');
     headers.set('Pragma', 'no-cache');
 

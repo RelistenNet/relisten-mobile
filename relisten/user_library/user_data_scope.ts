@@ -1,5 +1,8 @@
 export const DEFAULT_ANONYMOUS_DEVICE_ID = 'local-device';
 
+// A scope is the boundary for user-owned rows in Realm. Catalog rows are shared
+// cache data; user-library rows must include a scope id so anonymous, signed-in,
+// and future external/grant data cannot overwrite each other.
 export enum UserDataScopeKind {
   Anonymous = 'anonymous',
   Authenticated = 'user',

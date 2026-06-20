@@ -2,6 +2,9 @@ import Realm from 'realm';
 
 export const ACTIVE_USER_DATA_SCOPE_KEY = '__ACTIVE_USER_DATA_SCOPE__';
 
+// Singleton row that points the app at the currently active user-data scope.
+// Historical scoped rows remain in their own tables; this record just selects
+// which scope the UI and sync runner should read.
 export interface ActiveUserDataScopeProps {
   key: string;
   scopeId: string;

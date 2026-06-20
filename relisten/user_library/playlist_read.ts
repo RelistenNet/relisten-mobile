@@ -63,6 +63,8 @@ export async function mobileAccessGrantHeadersForPlaylistRead(
     )
     .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime());
 
+  // Grants are stored per selector. Try the newest matching metadata row first
+  // because older share links may have been revoked or rotated.
   for (const grant of candidates) {
     const headers = await buildMobileAccessGrantHeaders(secretStore, grant, options);
 
@@ -101,6 +103,9 @@ export function playlistCatalogHydrationPlan<TEntry extends QueueV2PlaylistEntry
   const missingSourceTrackUuids: string[] = [];
   const seenMissingSourceTrackUuids = new Set<string>();
 
+  // Playlist sync can know about tracks that the local catalog cache has not
+  // hydrated yet. Keep that distinction separate from server-declared
+  // unavailable entries so the future UI can show the right recovery path.
   for (const entry of activePlaylistEntriesInQueueOrder(entries)) {
     if (entry.unavailableReason) {
       unavailableEntries.push(entry);

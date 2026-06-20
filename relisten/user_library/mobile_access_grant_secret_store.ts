@@ -5,6 +5,8 @@ const MOBILE_ACCESS_GRANT_STORAGE_OPTIONS = {
   keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
 } as const;
 
+// Mobile access grant secrets are bearer-like credentials. Realm keeps the
+// playlist relationship and selector metadata; SecureStore keeps the secret.
 export class SecureStoreMobileAccessGrantSecretStore implements MobileAccessGrantSecretStore {
   async getGrantSecret(storageKey: string): Promise<string | null> {
     return SecureStore.getItemAsync(storageKey, MOBILE_ACCESS_GRANT_STORAGE_OPTIONS);

@@ -59,6 +59,9 @@ export function castStatusRuntimeIdentifierForLocalQueue(
 ): string | undefined {
   const legacyIdentifier = legacyRuntimeIdentifierFromCastStatusItem(item);
 
+  // Runtime identifier is the most precise match when Cast echoes it back. If
+  // that is missing/stale, Queue V2 item id can still disambiguate duplicate
+  // source tracks in the local queue.
   if (legacyIdentifier && localTracks.some((track) => track.identifier === legacyIdentifier)) {
     return legacyIdentifier;
   }

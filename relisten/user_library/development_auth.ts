@@ -37,6 +37,9 @@ export interface SignOutUserLibraryOptions {
   signedOutAt?: Date;
 }
 
+// Development auth still goes through the real user-library API. The controller
+// only joins the server token response to local Realm scope/session metadata so
+// simulator testing exercises the same token plumbing production auth will use.
 export class UserLibraryDevelopmentAuthController {
   private readonly realmSession: UserLibraryAuthSessionRealmService;
 

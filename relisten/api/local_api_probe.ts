@@ -24,6 +24,8 @@ function withoutTrailingSlash(value: string): string {
   return value.replace(/\/+$/, '');
 }
 
+// Development smoke only: prove both configured bases are reachable without
+// constructing either full client or mutating local user-library state.
 export async function runLocalApiBaseUrlProbe(
   options: LocalApiBaseUrlProbeOptions = {}
 ): Promise<LocalApiBaseUrlProbeResult> {

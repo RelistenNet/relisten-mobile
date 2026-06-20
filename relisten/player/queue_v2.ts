@@ -1,5 +1,8 @@
 export const QUEUE_V2_STATE_VERSION = 2;
 
+// Queue V2 separates stable logical queue identity from the runtime identifier
+// used by the native player. This is required for duplicate source tracks,
+// playlist entry attribution, restore, Cast, and CarPlay.
 export type QueueV2ItemKind = 'catalog' | 'playlist';
 
 export interface QueueV2BaseItem {
@@ -100,6 +103,8 @@ export function createCatalogQueueV2Item(
 export function createCatalogQueueV2Items(sourceTrackUuids: string[]): QueueV2CatalogItem[] {
   const occurrenceCounts = new Map<string, number>();
 
+  // A catalog queue can contain the same source track more than once. The
+  // occurrence index makes those rows distinct without inventing playlist data.
   return sourceTrackUuids.map((sourceTrackUuid) => {
     const occurrenceIndex = occurrenceCounts.get(sourceTrackUuid) ?? 0;
     occurrenceCounts.set(sourceTrackUuid, occurrenceIndex + 1);
@@ -194,6 +199,8 @@ export function queueV2ShuffleUnits(items: QueueV2Item[]): QueueV2ShuffleUnit[] 
   const units: QueueV2ShuffleUnit[] = [];
   const blockUnitByKey = new Map<string, QueueV2ShuffleUnit>();
 
+  // Playlist blocks should shuffle as a unit, while catalog items and unblocked
+  // playlist entries remain one-item units.
   for (const item of items) {
     const blockKey = queueV2BlockShuffleUnitKey(item);
 
@@ -277,6 +284,8 @@ export function migrateLegacyCatalogQueueStateToQueueV2(
       (sourceTrackUuid) => queueItemsBySourceTrackUuid.get(sourceTrackUuid)?.shift()?.queueItemId
     )
     .filter((queueItemId): queueItemId is string => !!queueItemId);
+  // Legacy persisted state only knew source-track UUIDs and indexes. Resolve
+  // those to Queue V2 item ids so duplicate tracks restore to the intended row.
   const currentItemKey =
     legacyState.activeQueueOrder === 'shuffled'
       ? shuffledQueueItemIds[legacyState.activeSourceTrackShuffledIndex ?? -1]
@@ -304,6 +313,8 @@ export function normalizeQueueV2ItemsForPersistence<TQueueTrack>(
       return queueV2Item;
     }
 
+    // Rebuild catalog ids from the current queue order so manually duplicated
+    // catalog tracks persist with stable occurrence indexes.
     const sourceTrackUuid = sourceTrackUuidForTrack(track);
     const occurrenceIndex = catalogOccurrenceCounts.get(sourceTrackUuid) ?? 0;
     catalogOccurrenceCounts.set(sourceTrackUuid, occurrenceIndex + 1);
@@ -353,6 +364,9 @@ export function resolveQueueV2RestorePlan<TQueueTrack>(
     };
   }
 
+  // No valid Queue V2 state means this is an old persisted queue. Migrate it
+  // into catalog items in memory and keep the old source-track arrays as the
+  // compatibility fallback.
   const legacyQueueV2State = migrateLegacyCatalogQueueStateToQueueV2({
     queueSourceTrackUuids: state.legacySourceTrackUuids,
     queueSourceTrackShuffledUuids: state.legacyShuffledSourceTrackUuids,

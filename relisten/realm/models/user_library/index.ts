@@ -5,6 +5,8 @@ import { UserMobileAccessGrant, UserPlaylist, UserPlaylistEntry } from './playli
 import { ActiveUserDataScope } from './scope';
 import { PendingUserOperation, UserDataMigrationMarker, UserSyncCursor } from './sync';
 
+// Register user-owned Realm models together so schema/migration changes stay
+// visibly scoped away from the shared catalog cache models.
 export const USER_LIBRARY_REALM_MODELS = [
   ActiveUserDataScope,
   UserAuthSessionMetadata,

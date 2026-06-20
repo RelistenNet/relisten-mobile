@@ -6,6 +6,7 @@ const REFRESH_TOKEN_STORAGE_OPTIONS = {
   keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
 } as const;
 
+// Refresh tokens are credentials. Realm stores only non-secret session metadata.
 export class SecureStoreUserLibraryRefreshTokenStore implements UserLibraryRefreshTokenStore {
   async getRefreshToken(): Promise<string | null> {
     return SecureStore.getItemAsync(REFRESH_TOKEN_STORAGE_KEY, REFRESH_TOKEN_STORAGE_OPTIONS);

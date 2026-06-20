@@ -99,6 +99,9 @@ export function userLibrarySyncCursorScopedId(scopeId: string) {
   return scopedUserDataPrimaryKey(scopeId, `cursor:${USER_LIBRARY_SYNC_CURSOR_NAME}`);
 }
 
+// Applies server sync payloads into scoped Realm rows. It does not fetch data or
+// decide authorization; callers provide an already-authorized sync response and
+// the target scope id.
 export class UserLibraryPlaylistSyncApplier {
   constructor(private readonly realm: Realm) {}
 
@@ -106,6 +109,8 @@ export class UserLibraryPlaylistSyncApplier {
     assertSupportedResponse(response);
 
     this.write(() => {
+      // First successful pull for an authenticated scope claims legacy catalog
+      // favorites into scoped rows before server changes/tombstones are applied.
       migrateCatalogFavoritesToScopedRows(this.realm, scopeId);
 
       for (const change of response.changes) {
@@ -237,6 +242,9 @@ export function applyUserLibraryPlaylistSnapshot(
     Realm.UpdateMode.Modified
   );
 
+  // Server playlist snapshots are authoritative for the active entry set. Keep
+  // missing entries as soft-deleted rows so playback/history attribution can
+  // still resolve older local references.
   replaceUserLibraryPlaylistEntries(realm, scopeId, playlist, updatedAt);
 }
 

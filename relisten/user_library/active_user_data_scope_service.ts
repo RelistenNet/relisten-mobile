@@ -17,6 +17,9 @@ export interface SetActiveUserDataScopeOptions {
   displayName?: string;
 }
 
+// ActiveUserDataScope is a singleton pointer, not the data itself. Switching it
+// changes which scoped rows the app reads while leaving prior scoped rows in
+// Realm for future sign-in/sign-out transitions.
 function propsForDescriptor(
   descriptor: UserDataScopeDescriptor,
   options: SetActiveUserDataScopeOptions = {}

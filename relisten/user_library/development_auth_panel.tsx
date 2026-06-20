@@ -25,6 +25,8 @@ export function DevelopmentUserLibraryAuthPanel() {
     return null;
   }
 
+  // Kept out of production builds; this is a simulator control surface for the
+  // local API development-session endpoint, not a real account UX.
   return <DevelopmentUserLibraryAuthPanelContent />;
 }
 

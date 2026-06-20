@@ -65,6 +65,10 @@ export interface UserLibrarySyncRunnerAuthSession {
   ): Promise<T>;
 }
 
+// Serializes sync-loop network work for the active authenticated scope.
+// Local outbox/history writes are pushed before pull sync so the stored cursor
+// only advances after this device's pending mutations have had a chance to
+// reconcile with the server.
 export class UserLibrarySyncRunner {
   private inFlight: Promise<UserLibrarySyncRunResult> | undefined;
   private inFlightScopeId: string | undefined;
@@ -86,6 +90,9 @@ export class UserLibrarySyncRunner {
     options: UserLibrarySyncRunOptions = {}
   ): Promise<UserLibrarySyncRunResult> {
     if (this.inFlight) {
+      // Scope-changing and user-initiated work should not be dropped. Collapse
+      // repeated triggers into one pending run so React/Realm notifier bursts do
+      // not start overlapping sync loops.
       if (this.shouldQueuePendingRun(reason)) {
         this.pendingRun = { reason, options };
       }
@@ -200,7 +207,6 @@ export class UserLibrarySyncRunner {
       };
     }
 
-    // Replay local writes before pulling so the cursor advances only after pending mutations settle.
     const replay = await replayService.replayPending(scopeId, {
       accessToken: session.accessToken,
       throwAuthenticationErrors: true,
@@ -261,6 +267,9 @@ export class UserLibrarySyncRunner {
   private isActiveAuthenticatedScope(scopeId: string) {
     const activeScope = getActiveUserDataScope(this.realm);
 
+    // Network calls can outlive sign-out/scope switches. Every phase checks this
+    // before applying server data so a stale async response cannot write into
+    // the wrong active account.
     return (
       activeScope?.scopeKind === UserDataScopeKind.Authenticated && activeScope.scopeId === scopeId
     );

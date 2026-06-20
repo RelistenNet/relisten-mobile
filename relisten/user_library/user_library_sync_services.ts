@@ -24,6 +24,9 @@ export interface CreateUserLibrarySyncServicesOptions {
   mobileAccessGrantSecretStore?: MobileAccessGrantSecretStore;
 }
 
+// Lightweight composition root for user-library services. The auth client is
+// separate from the general client so refresh/sign-in flows can be overridden or
+// tested independently from ordinary library reads/mutations.
 export function createUserLibrarySyncServices(
   realm: Realm,
   options: CreateUserLibrarySyncServicesOptions = {}

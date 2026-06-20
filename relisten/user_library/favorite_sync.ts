@@ -161,6 +161,9 @@ export function migrateCatalogFavoritesToScopedRows(
   );
 
   return write(realm, () => {
+    // Legacy catalog favorites are device-local data. Import them once into the
+    // first authenticated scope that syncs, then let server/scoped favorites own
+    // account state from that point forward.
     if (realm.objectForPrimaryKey(UserDataMigrationMarker, markerScopedId)) {
       return { migrated: false, total: 0, countsByEntityType: {} };
     }

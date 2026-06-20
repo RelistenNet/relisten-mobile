@@ -69,6 +69,8 @@ function nextQueueTrackId() {
 export class PlayerQueueTrack {
   public readonly identifier: string;
 
+  // `identifier` is a runtime row id for native playback. `queueV2Item` is the
+  // stable logical identity used for persistence and playlist attribution.
   constructor(
     public readonly sourceTrack: SourceTrack,
     public readonly title: string,
@@ -130,6 +132,8 @@ export class PlayerQueueTrack {
   }
 
   cloneForQueueInsert() {
+    // Queue insert duplicates the logical item but needs a fresh runtime id so
+    // native player callbacks can distinguish the inserted row.
     return new PlayerQueueTrack(
       this.sourceTrack,
       this.title,
@@ -457,6 +461,9 @@ ${indentString(tracks)}
               )
             );
 
+      // Keep the currently-playing Queue V2 unit at the front when shuffle is
+      // enabled mid-playback. For playlist blocks, the whole block remains
+      // together rather than isolating the single current track.
       this.shuffledTracks = currentUnit
         ? currentUnit.tracks.concat(flattenQueueV2TrackShuffleUnits(shuffleArray(remainingUnits)))
         : [currentlyPlayingItem].concat(
@@ -672,6 +679,8 @@ ${indentString(tracks)}
       (track) => track.queueV2Item
     );
     const itemIdsByOriginalIndex = items.map((item) => item.queueItemId);
+    // The runtime queue can contain cloned tracks with fresh identifiers. Map
+    // the shuffled runtime order back to logical Queue V2 ids before persisting.
     const shuffledQueueItemIds = this.queueV2ItemIdsForRuntimeOrder(
       this.shuffledTracks,
       itemIdsByOriginalIndex
@@ -745,6 +754,8 @@ ${indentString(tracks)}
 
       const queueV2Items = this.parsePersistedQueueV2Items(playerState);
 
+      // Hydrate from both legacy and Queue V2 ids. Queue V2 may reference
+      // playlist entries whose source tracks were not in the legacy arrays.
       const sourceTrackUuidsToHydrate = [
         ...new Set([
           ...playerState.queueSourceTrackUuids,

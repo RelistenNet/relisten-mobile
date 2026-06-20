@@ -94,7 +94,9 @@ export class PlaybackHistoryReporter {
       });
     });
 
-    // fire and forget report -- async job will pick it up if it doesn't succeed
+    // Legacy catalog history stays in place during the user-library rollout; the
+    // scoped journal below is the authenticated upload path. Keep both writes so
+    // existing recently-played behavior does not depend on account sync.
     if (this.networkAvailable) {
       this.attemptReport(entry).then(() => {});
     }

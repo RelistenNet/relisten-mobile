@@ -16,6 +16,14 @@
 - `yarn ts:check`: run TypeScript type checking.
 - `./build_releases.sh`: build production releases with EAS (requires `npx eas-cli@latest`).
 
+Run long-running development commands in `tmux` so the user and assistant can
+share the same logs and control the process. This applies to Expo/Metro,
+`expo run:ios`, `yarn ios`, native builds, simulator log streams, and any watch
+mode. Prefer a named session such as `tmux new-session -s relisten-expo` from
+the repo root, then run the command inside that session. Reattach with
+`tmux attach -t relisten-expo`; inspect logs non-interactively with
+`tmux capture-pane -pt relisten-expo -S -200`.
+
 Always run `yarn lint` and `yarn ts:check` after making changes to ensure that keep the code clean.
 
 ## Coding Style & Naming Conventions
@@ -43,7 +51,9 @@ Always run `yarn lint` and `yarn ts:check` after making changes to ensure that k
 
 ## iOS Simulator + MCP Workflow
 - Native iOS changes (`ios/`, native modules, pods, app config) require a rebuild/install:
-  - `npx expo run:ios -d 'iPhone 17 Pro'` (or `yarn ios`).
+  - Default to this thread's shared simulator with
+    `npx expo run:ios -d DEC49863-5AF8-4832-8BA2-C5E7C41A029D` (or `yarn ios`);
+    on another machine, substitute any available simulator name or UDID.
   - This also starts Metro; that is expected for native rebuild runs.
   - Run `yarn pods` only when native dependencies or pod-visible files changed; ordinary Swift/Obj-C edits do not require it.
 - JS/TS-only changes usually do not require a native rebuild:

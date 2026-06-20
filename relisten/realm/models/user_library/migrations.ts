@@ -9,6 +9,8 @@ export function migrateUserLibraryRealm(oldRealm: Realm, newRealm: Realm) {
 }
 
 function migratePlaylistEntryPositionsToStrings(oldRealm: Realm, newRealm: Realm) {
+  // Some pre-user-library Realms will cross this schema version before the
+  // playlist entry model exists locally, so the migration must no-op safely.
   if (!oldRealm.schema.some((schema) => schema.name === USER_PLAYLIST_ENTRY_SCHEMA_NAME)) {
     return;
   }
@@ -23,6 +25,8 @@ function migratePlaylistEntryPositionsToStrings(oldRealm: Realm, newRealm: Realm
       continue;
     }
 
+    // Playlist positions are server ordering tokens, not numeric indexes. Store
+    // them as strings so future fractional/lexicographic positions round-trip.
     newEntries[index].position = String(oldPosition);
   }
 }

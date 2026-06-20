@@ -12,6 +12,8 @@ import { scopedUserDataPrimaryKey } from '@/relisten/user_library/user_data_scop
 const EMPTY_UUID = '00000000-0000-0000-0000-000000000000';
 const GUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_HISTORY_BATCH_SIZE = 500;
+// Module-level guard prevents two bootstraps/services from uploading the same
+// scoped journal rows concurrently.
 const activeHistoryUploadScopes = new Set<string>();
 
 export interface PlaybackHistoryJournalInput {
@@ -127,6 +129,8 @@ export class UserLibraryPlaybackHistoryRepository {
       const existing = this.realm.objectForPrimaryKey(ScopedPlaybackHistoryEntry, scopedId);
 
       if (existing) {
+        // clientEventUuid is the idempotency key. A duplicate record call is
+        // allowed only when it is the same playback event.
         assertSameHistoryEntry(existing, input);
         return existing;
       }
@@ -338,6 +342,8 @@ export class UserLibraryPlaybackHistoryUploadService {
     );
 
     if (missingEntries.length > 0) {
+      // A partial response is not silently accepted. Mark missing rows failed so
+      // the next sync has explicit state to retry or surface.
       this.repository.markFailed(missingEntries, 'missing_history_batch_result');
     }
   }

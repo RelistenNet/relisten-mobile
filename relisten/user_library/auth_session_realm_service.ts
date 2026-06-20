@@ -32,6 +32,9 @@ export function userLibrarySessionMetadataScopedId(scopeId: string, sessionUuid:
   return scopedUserDataPrimaryKey(scopeId, `session:${sessionUuid}`);
 }
 
+// Session metadata is deliberately non-secret. It lets the UI and sync runner
+// know which authenticated scope/device is active; access and refresh tokens
+// stay in memory/SecureStore.
 export function latestActiveUserLibrarySessionMetadata(
   realm: Realm,
   scopeId: string,

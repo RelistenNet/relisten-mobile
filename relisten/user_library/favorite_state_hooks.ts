@@ -78,6 +78,9 @@ export function useCatalogFavoriteState<T extends FavoritableObject & { uuid: st
   );
   const isUsingScopedFavorite =
     !!scopedFavoriteScopeId && !!favoriteEntityType && !!favoriteEntityUuid;
+  // During rollout, signed-out users keep using catalog `isFavorite` booleans.
+  // Signed-in users read/write scoped UserFavorite rows so account state does
+  // not mutate the shared catalog cache.
   const isFavorited =
     object && isUsingScopedFavorite
       ? isActiveFavoriteRow(activeScopedFavorites[0])

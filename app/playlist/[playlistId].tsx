@@ -35,6 +35,9 @@ export default function PlaylistShareLinkRoute() {
 
     let mounted = true;
 
+    // This route is a transient link handler, not a playlist detail screen. It
+    // kicks off share-token exchange in the background; the render path redirects
+    // immediately back into the normal tab UI.
     void exchangeOpenedPlaylistShareToken(
       {
         playlistUuidOrShortId: safePlaylistId,

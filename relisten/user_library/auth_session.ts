@@ -64,6 +64,8 @@ export class UserLibraryAuthSessionError extends Error {
 }
 
 export class UserLibraryAuthSessionService {
+  // Access tokens stay in memory. The refresh token store is injected so the
+  // production path can use SecureStore and tests can use deterministic fakes.
   private accessToken: string | undefined;
   private accessTokenScopeId: string | undefined;
   private refreshInFlight:
@@ -130,6 +132,9 @@ export class UserLibraryAuthSessionService {
   async refreshSession(): Promise<UserLibraryAuthTokenResponse> {
     const generation = this.sessionGeneration;
 
+    // Coalesce concurrent 401 refreshes, but only within the current session
+    // generation. Sign-out increments the generation so stale refresh results
+    // cannot repopulate tokens after the user leaves the scope.
     if (!this.refreshInFlight || this.refreshInFlight.generation !== generation) {
       const promise = this.refreshSessionOnce(generation).finally(() => {
         if (this.refreshInFlight?.promise === promise) {
@@ -242,6 +247,8 @@ export class UserLibraryAuthSessionService {
       throw error;
     }
 
+    // Re-check after the async SecureStore write. A sign-out during that write
+    // must win even if the server already returned a valid token response.
     if (generation !== this.sessionGeneration) {
       await this.refreshTokenStore.clearRefreshToken();
       throw new UserLibraryAuthSessionError('session_changed');

@@ -177,6 +177,9 @@ export async function exchangeOpenedPlaylistShareToken(
       throw new PlaylistShareTokenExchangeError('scope_changed');
     }
 
+    // Persist the grant only if the user stayed in the same scope that opened
+    // the link. Otherwise an anonymous/share grant could be attached to the
+    // wrong account after an async sign-in/sign-out race.
     const grant = await persistMobileAccessGrantFromExchange(options.realm, options.secretStore, {
       scopeId: activeScope.scopeId,
       deviceId: activeScope.deviceId,
@@ -264,6 +267,8 @@ export async function persistMobileAccessGrantFromExchange(
     receivedAt: receivedAt.toISOString(),
   };
 
+  // Store the secret before Realm metadata so a committed metadata row never
+  // points at a missing credential. If the Realm write fails, clear the secret.
   await secretStore.setGrantSecret(storageKey, secret);
 
   try {
@@ -438,6 +443,8 @@ function writeRealm<T>(realm: Realm, callback: () => T): T {
 }
 
 function secureStoreKeyPart(value: string): string {
+  // SecureStore keys have platform-specific character limits. Base64url keeps
+  // scoped ids reversible enough for debugging without embedding raw separators.
   return Buffer.from(value, 'utf8')
     .toString('base64')
     .replace(/\+/g, '-')

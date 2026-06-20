@@ -21,6 +21,8 @@ export default function Page() {
   if (!rootNavigationState?.key) return null;
 
   const [, artistSlug] = pathname.split('/');
+  // Generic web-link fallback can see auth/share query params before their
+  // feature routes do. Scrub before logging or re-routing.
   const safeRouteForLogging = formatSafeRouteForLogging(pathname, globalSearchParams);
   const safeSearchParams = sanitizeSearchParamsForNavigation(globalSearchParams);
 

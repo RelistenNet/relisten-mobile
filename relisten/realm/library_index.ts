@@ -132,6 +132,9 @@ function unionMapKeys(...sources: Array<ReadonlyMap<string, number>>) {
   return union;
 }
 
+// Derived index for library/offline membership queries. It centralizes the
+// rollout rule that authenticated scopes read scoped UserFavorite rows, while
+// signed-out/anonymous users keep seeing legacy catalog `isFavorite` booleans.
 export class LibraryIndex {
   private readonly listeners = new Set<Listener>();
   private version = 0;
@@ -475,6 +478,9 @@ export class LibraryIndex {
     this.favoriteShowArtistCounts.clear();
     this.favoriteShowYearCounts.clear();
 
+    // Signed-in users read favorites from UserFavorite rows keyed by the active
+    // scope id. Signed-out users still read the old catalog `isFavorite` flags
+    // until the signed-out library UX moves to scoped rows too.
     if (this.usesScopedFavorites()) {
       this.rebuildScopedFavoriteMembership();
     } else {
@@ -657,6 +663,8 @@ export class LibraryIndex {
     this.yearLibraryOfflineCounts.clear();
     this.showLibraryOfflineCounts.clear();
 
+    // User-initiated downloads count as library membership; automatic cache
+    // entries only count as offline availability.
     for (const offlineInfo of this.offlineInfos) {
       const track = offlineInfo.sourceTracks[0];
       if (!track) {

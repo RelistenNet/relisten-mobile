@@ -7,6 +7,8 @@ export interface PlayerStateProps {
   queueRepeatState: number;
   queueSourceTrackUuids: string[];
   queueSourceTrackShuffledUuids: string[];
+  // Queue V2 fields preserve logical queue identity across restore. The legacy
+  // source-track arrays stay for compatibility and fallback migration.
   queueV2SchemaVersion?: number;
   queueV2ItemsJson?: string;
   queueV2ShuffledQueueItemIds?: string[];

@@ -18,6 +18,7 @@ import { scopedUserDataPrimaryKey } from '@/relisten/user_library/user_data_scop
 export const USER_LIBRARY_PLAYLIST_ENTITY_TYPE = 'playlist';
 const EMPTY_UUID = '00000000-0000-0000-0000-000000000000';
 const GUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Prevent duplicate replay loops from sending the same idempotency keys twice.
 const activeReplayScopes = new Set<string>();
 
 export enum UserLibraryPlaylistOperationType {
@@ -150,6 +151,8 @@ export class UserLibraryPendingPlaylistOperationRepository {
       const existing = this.realm.objectForPrimaryKey(PendingUserOperation, scopedId);
 
       if (existing) {
+        // Re-enqueueing the same idempotency key is valid only for the exact
+        // same operation payload.
         assertSamePendingOperation(existing, playlistUuid, operationJson);
         return existing;
       }
@@ -255,6 +258,9 @@ export class UserLibraryPlaylistOperationReplayService {
     options: ReplayPlaylistOperationsOptions
   ): Promise<ReplayPlaylistOperationsResult> {
     const results: ReplayPlaylistOperationResult[] = [];
+    // Operations for one playlist are revision-dependent. Once an operation for
+    // a playlist fails, later operations for that playlist should wait for a
+    // later replay after local/server state is reconciled.
     const blockedPlaylistUuids = new Set<string>();
     const operations = this.repository.listReplayable(scopeId);
     const maxOperations = options.maxOperations ?? operations.length;
@@ -475,6 +481,8 @@ function normalizeJsonValue(value: unknown): unknown {
     return value.map(normalizeJsonValue);
   }
 
+  // Operation JSON is compared on idempotency-key conflict. Sort object keys
+  // and drop undefined values so equivalent requests serialize identically.
   return Object.fromEntries(
     Object.entries(value as Record<string, unknown>)
       .filter(([, entryValue]) => entryValue !== undefined)

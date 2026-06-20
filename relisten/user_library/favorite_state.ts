@@ -67,6 +67,9 @@ export class UserLibraryFavoriteMutationError extends Error {
   }
 }
 
+// Mutation layer for the existing heart UI when an authenticated scope is
+// active. The UI updates Realm optimistically, then rolls back to the exact
+// previous scoped row if the server mutation fails.
 export class UserLibraryFavoriteMutationService {
   constructor(
     private readonly realm: Realm,

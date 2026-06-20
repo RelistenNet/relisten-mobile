@@ -6,6 +6,9 @@ export type LinkSearchParams = Record<string, LinkSearchParamValue>;
 const EXACT_SENSITIVE_PARAM_NAMES = new Set(['t', 'auth_code', 'code', 'state']);
 const TOKEN_LIKE_PARAM_PATTERN = /(token|secret|grant|credential|session)/i;
 
+// Deep links can arrive before feature-specific routes run. Generic routing,
+// logging, Sentry, and not-found redirects must never see share tokens or auth
+// codes in clear text.
 export function isSensitiveLinkParamName(name: string): boolean {
   const normalized = name.trim().toLowerCase();
 

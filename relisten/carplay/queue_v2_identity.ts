@@ -34,6 +34,8 @@ export function findCarPlayQueueTrackIndex(
   orderedTracks: PlayerQueueTrack[],
   carPlayItemId: string
 ) {
+  // Prefer Queue V2-aware ids for duplicate source tracks, but fall back to the
+  // old runtime identifier so existing CarPlay callbacks keep working.
   const queueV2Index = orderedTracks.findIndex(
     (track) => carPlayQueueItemIdForTrack(track) === carPlayItemId
   );
