@@ -140,11 +140,9 @@ export default function Page() {
     );
 
     if (showTracks.length > 0) {
-      player.queue.replaceQueue(
-        showTracks.map((t) => PlayerQueueTrack.fromSourceTrack(t)),
-        trackIndex,
-        { resetShuffle: true }
-      );
+      player.queue.replaceQueue(PlayerQueueTrack.fromSourceTracks(showTracks), trackIndex, {
+        resetShuffle: true,
+      });
     }
   }) satisfies PlayShow;
 

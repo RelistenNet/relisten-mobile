@@ -26,7 +26,7 @@ export function queueTracksFromSelection({
     isTrackPlayableInScope(scope, offlineMode, track)
   );
 
-  const queueTracks = playableTracks.map((track) => PlayerQueueTrack.fromSourceTrack(track));
+  const queueTracks = PlayerQueueTrack.fromSourceTracks(playableTracks);
   const playIndex = playableTracks.findIndex((track) => track.uuid === selectedTrackUuid);
 
   if (queueTracks.length === 0) {

@@ -4,6 +4,7 @@ import {
   createPlaylistQueueV2Item,
   flattenQueueV2ShuffleUnits,
   migrateLegacyCatalogQueueStateToQueueV2,
+  normalizeQueueV2ItemsForPersistence,
   QUEUE_V2_STATE_VERSION,
   queueV2HistoryAttribution,
   queueV2PlaybackCursor,
@@ -149,9 +150,8 @@ describe('Queue V2 identity', () => {
         legacyShuffledCurrentIndex: 1,
         useShuffledOrder: true,
       },
-      (sourceTrackUuid, queueItemId) =>
-        queueItemId ? { sourceTrackUuid, queueItemId } : undefined,
-      (track) => track.sourceTrackUuid
+      (sourceTrackUuid, queueItem) =>
+        queueItem ? { sourceTrackUuid, queueItemId: queueItem.queueItemId } : undefined
     );
 
     expect(plan.usedQueueV2State).toBe(true);
@@ -177,8 +177,10 @@ describe('Queue V2 identity', () => {
         legacyShuffledCurrentIndex: 1,
         useShuffledOrder: true,
       },
-      (sourceTrackUuid) => ({ sourceTrackUuid }),
-      (track) => track.sourceTrackUuid
+      (sourceTrackUuid, queueItem) => ({
+        sourceTrackUuid,
+        queueItemId: queueItem?.queueItemId,
+      })
     );
 
     expect(plan.usedQueueV2State).toBe(false);
@@ -187,6 +189,85 @@ describe('Queue V2 identity', () => {
       'track-b',
       'track-a',
     ]);
+    expect(plan.orderedTracks.map((track) => track.queueItemId)).toEqual([
+      'catalog:track-a:0',
+      'catalog:track-b:0',
+      'catalog:track-a:1',
+    ]);
+    expect(plan.shuffledTracks.map((track) => track.queueItemId)).toEqual([
+      'catalog:track-a:0',
+      'catalog:track-a:1',
+      'catalog:track-b:0',
+    ]);
     expect(plan.currentTrack?.sourceTrackUuid).toBe('track-a');
+    expect(plan.currentTrack?.queueItemId).toBe('catalog:track-a:1');
+  });
+
+  it('uses the opposite legacy index when the active-order legacy index is unavailable', () => {
+    const plan = resolveQueueV2RestorePlan(
+      {
+        legacySourceTrackUuids: ['track-a', 'track-b', 'track-c'],
+        legacyShuffledSourceTrackUuids: ['track-b', 'track-c', 'track-a'],
+        legacyCurrentIndex: 2,
+        legacyShuffledCurrentIndex: undefined,
+        useShuffledOrder: true,
+      },
+      (sourceTrackUuid, queueItem) => ({
+        sourceTrackUuid,
+        queueItemId: queueItem?.queueItemId,
+      })
+    );
+
+    expect(plan.usedQueueV2State).toBe(false);
+    expect(plan.currentTrack).toEqual({
+      sourceTrackUuid: 'track-c',
+      queueItemId: 'catalog:track-c:0',
+    });
+  });
+
+  it('normalizes duplicate catalog queue item ids during persistence', () => {
+    const duplicateDefaultItem = createCatalogQueueV2Items(['track-a'])[0];
+    const playlistItem = createPlaylistQueueV2Item({
+      playlistUuid: 'playlist-1',
+      playlistEntryUuid: 'entry-1',
+      sourceTrackUuid: 'track-a',
+    });
+
+    const items = normalizeQueueV2ItemsForPersistence(
+      [
+        { sourceTrackUuid: 'track-a', queueV2Item: duplicateDefaultItem },
+        { sourceTrackUuid: 'track-b', queueV2Item: createCatalogQueueV2Items(['track-b'])[0] },
+        { sourceTrackUuid: 'track-a', queueV2Item: duplicateDefaultItem },
+        { sourceTrackUuid: 'track-a', queueV2Item: playlistItem },
+      ],
+      (track) => track.sourceTrackUuid,
+      (track) => track.queueV2Item
+    );
+
+    expect(items.map((item) => item.queueItemId)).toEqual([
+      'catalog:track-a:0',
+      'catalog:track-b:0',
+      'catalog:track-a:1',
+      'playlist:playlist-1:entry:entry-1',
+    ]);
+  });
+
+  it('normalizes repeated runtime track aliases without mutating their carried metadata', () => {
+    const aliasedTrack = {
+      sourceTrackUuid: 'track-a',
+      queueV2Item: createCatalogQueueV2Items(['track-a'])[0],
+    };
+
+    const items = normalizeQueueV2ItemsForPersistence(
+      [aliasedTrack, aliasedTrack],
+      (track) => track.sourceTrackUuid,
+      (track) => track.queueV2Item
+    );
+
+    expect(items.map((item) => item.queueItemId)).toEqual([
+      'catalog:track-a:0',
+      'catalog:track-a:1',
+    ]);
+    expect(aliasedTrack.queueV2Item.queueItemId).toBe('catalog:track-a:0');
   });
 });

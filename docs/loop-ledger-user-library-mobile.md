@@ -124,6 +124,26 @@ This ledger records root-level coordination for `docs/autoplan-user-library-mobi
 - Next Action: continue
 - Next move: Commit `MOB-QUEUE-002`, then continue Queue V2 toward playlist queue construction or promote auth/session if the API dev-auth endpoint is ready.
 
+### Iteration 13
+
+- Timestamp: 2026-06-20T01:36:45Z
+- Hypothesis: Runtime queue tracks can carry Queue V2 item metadata through existing catalog playback APIs without changing current playback behavior.
+- Action: Claimed `MOB-QUEUE-003` in `queue-v2-playback-foundation` on branch `codex/scoped-realm-user-data`.
+- Evidence: The workstream ledger now has a preregistered entry with queue construction mutable surface and simulator smoke validator before runtime metadata edits.
+- Verdict: pass
+- Next Action: continue
+- Next move: Add Queue V2 item metadata to `PlayerQueueTrack`, update catalog queue construction call sites, and smoke catalog playback.
+
+### Iteration 14
+
+- Timestamp: 2026-06-20T01:54:34Z
+- Hypothesis: Runtime Queue V2 metadata can be carried by catalog queue tracks while persistence remains duplicate-safe for legacy restore, source-screen playback, CarPlay, incremental inserts, and re-queued rows.
+- Action: Added Queue V2 item metadata to `PlayerQueueTrack`, batched catalog queue construction for source-screen and CarPlay paths, save-time Queue V2 normalization, cloned queue inserts, migrated legacy restore items, and stale legacy fallback coverage.
+- Evidence: `yarn test -- queue-v2 player_state`, `yarn test`, `yarn ts:check`, `yarn lint`, and `git diff --check` passed. Simulator smoke on `DEC49863-5AF8-4832-8BA2-C5E7C41A029D` started source-page catalog playback from the current Metro bundle; screenshot artifact `/tmp/relisten-queue-v2-runtime-metadata-final-smoke.png`. Three reviewer passes found and then validated fixes for duplicate catalog ids, runtime track aliasing, and stale legacy active-index fallback.
+- Verdict: pass
+- Next Action: continue
+- Next move: Commit `MOB-QUEUE-003`, then continue Queue V2 with playlist queue construction or promote auth/session if the local dev-auth endpoint is ready.
+
 ## Root Coordination Notes
 
 - The active set intentionally starts with foundations: local API config, deterministic test harness, deep-link sanitizer, and Queue V2 playback foundation.

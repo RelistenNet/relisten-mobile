@@ -15,7 +15,9 @@ import { groupByUuid } from '@/relisten/util/group_by';
 import { Realm } from '@realm/react';
 import { indentString } from '@/relisten/util/string_indent';
 import {
+  createCatalogQueueV2Item,
   createCatalogQueueV2Items,
+  normalizeQueueV2ItemsForPersistence,
   QUEUE_V2_STATE_VERSION,
   QueueV2Item,
   resolveQueueV2RestorePlan,
@@ -69,12 +71,13 @@ export class PlayerQueueTrack {
     public readonly artist: string,
     public readonly subtitle: string,
     public readonly albumTitle: string,
-    public readonly albumArt: string
+    public readonly albumArt: string,
+    public readonly queueV2Item: QueueV2Item = createCatalogQueueV2Item(sourceTrack.uuid)
   ) {
     this.identifier = nextQueueTrackId();
   }
 
-  static fromSourceTrack(sourceTrack: SourceTrack) {
+  static fromSourceTrack(sourceTrack: SourceTrack, queueV2Item?: QueueV2Item) {
     const artist = sourceTrack.artist;
     const source = sourceTrack.source;
     const venue = sourceTrack.show.venue;
@@ -91,7 +94,28 @@ export class PlayerQueueTrack {
         .filter((part) => !!part)
         .join(' • ') || '',
       [source.displayDate, venue?.name].filter((part) => !!part).join(' • ') || '',
-      albumArtUrl
+      albumArtUrl,
+      queueV2Item
+    );
+  }
+
+  static fromSourceTracks(sourceTracks: SourceTrack[]) {
+    const queueV2Items = createCatalogQueueV2Items(sourceTracks.map((track) => track.uuid));
+
+    return sourceTracks.map((sourceTrack, index) =>
+      PlayerQueueTrack.fromSourceTrack(sourceTrack, queueV2Items[index])
+    );
+  }
+
+  cloneForQueueInsert() {
+    return new PlayerQueueTrack(
+      this.sourceTrack,
+      this.title,
+      this.artist,
+      this.subtitle,
+      this.albumTitle,
+      this.albumArt,
+      this.queueV2Item
     );
   }
 
@@ -154,11 +178,13 @@ export class RelistenPlayerQueue {
   public prevNextTrackIndexIntentOffset = 0;
 
   queueNextTrack(queueTracks: PlayerQueueTrack[]) {
+    const insertedQueueTracks = queueTracks.map((track) => track.cloneForQueueInsert());
+
     function insertNext(arr: PlayerQueueTrack[], currentIndex: number | undefined) {
       const targetIndex = currentIndex !== undefined ? currentIndex + 1 : 0;
       const arrCopy = [...arr];
 
-      arrCopy.splice(targetIndex, 0, ...queueTracks);
+      arrCopy.splice(targetIndex, 0, ...insertedQueueTracks);
 
       return arrCopy;
     }
@@ -172,8 +198,10 @@ export class RelistenPlayerQueue {
   }
 
   addTrackToEndOfQueue(queueTracks: PlayerQueueTrack[]) {
-    this.originalTracks = [...this.originalTracks, ...queueTracks];
-    this.shuffledTracks = [...this.shuffledTracks, ...queueTracks];
+    const insertedQueueTracks = queueTracks.map((track) => track.cloneForQueueInsert());
+
+    this.originalTracks = [...this.originalTracks, ...insertedQueueTracks];
+    this.shuffledTracks = [...this.shuffledTracks, ...insertedQueueTracks];
 
     this.recalculateNextTrack();
     this.onOrderedTracksChanged.dispatch(this.orderedTracks);
@@ -616,21 +644,60 @@ ${indentString(tracks)}
   }
 
   private catalogQueueV2PersistedState() {
-    const items = createCatalogQueueV2Items(this.originalTracks.map((t) => t.sourceTrack.uuid));
-    const itemIdByRuntimeIdentifier = new Map(
-      this.originalTracks.map((track, index) => [track.identifier, items[index].queueItemId])
+    const items = normalizeQueueV2ItemsForPersistence(
+      this.originalTracks,
+      (track) => track.sourceTrack.uuid,
+      (track) => track.queueV2Item
+    );
+    const itemIdsByOriginalIndex = items.map((item) => item.queueItemId);
+    const shuffledQueueItemIds = this.queueV2ItemIdsForRuntimeOrder(
+      this.shuffledTracks,
+      itemIdsByOriginalIndex
     );
 
     return {
       schemaVersion: QUEUE_V2_STATE_VERSION,
       items,
-      shuffledQueueItemIds: this.shuffledTracks
-        .map((track) => itemIdByRuntimeIdentifier.get(track.identifier))
-        .filter((queueItemId): queueItemId is string => !!queueItemId),
-      currentItemKey: this.currentTrack
-        ? itemIdByRuntimeIdentifier.get(this.currentTrack.identifier)
-        : undefined,
+      shuffledQueueItemIds,
+      currentItemKey: this.currentQueueV2ItemKey(itemIdsByOriginalIndex, shuffledQueueItemIds),
     };
+  }
+
+  private queueV2ItemIdsForRuntimeOrder(
+    tracks: PlayerQueueTrack[],
+    itemIdsByOriginalIndex: string[]
+  ) {
+    const originalIndexesByRuntimeIdentifier = new Map<string, number[]>();
+
+    this.originalTracks.forEach((track, index) => {
+      const indexes = originalIndexesByRuntimeIdentifier.get(track.identifier);
+
+      if (indexes) {
+        indexes.push(index);
+      } else {
+        originalIndexesByRuntimeIdentifier.set(track.identifier, [index]);
+      }
+    });
+
+    return tracks
+      .map((track) => {
+        const originalIndex = originalIndexesByRuntimeIdentifier.get(track.identifier)?.shift();
+        return originalIndex === undefined ? undefined : itemIdsByOriginalIndex[originalIndex];
+      })
+      .filter((queueItemId): queueItemId is string => !!queueItemId);
+  }
+
+  private currentQueueV2ItemKey(itemIdsByOriginalIndex: string[], shuffledQueueItemIds: string[]) {
+    if (
+      this.shuffleState === PlayerShuffleState.SHUFFLE_ON &&
+      this.shuffledTracksCurrentIndex !== undefined
+    ) {
+      return shuffledQueueItemIds[this.shuffledTracksCurrentIndex];
+    }
+
+    return this.originalTracksCurrentIndex === undefined
+      ? undefined
+      : itemIdsByOriginalIndex[this.originalTracksCurrentIndex];
   }
 
   public async restorePlayerState(realm: Realm) {
@@ -667,7 +734,7 @@ ${indentString(tracks)}
       ]);
       let droppedInvalidTrack = false;
 
-      const makeQueueTrack = (sourceTrackUuid: string, queueItemId?: string) => {
+      const makeQueueTrack = (sourceTrackUuid: string, queueV2Item?: QueueV2Item) => {
         const sourceTrack = sourceTracksByUuid[sourceTrackUuid];
 
         if (!sourceTrack) {
@@ -676,12 +743,12 @@ ${indentString(tracks)}
         }
 
         try {
-          return PlayerQueueTrack.fromSourceTrack(sourceTrack);
+          return PlayerQueueTrack.fromSourceTrack(sourceTrack, queueV2Item);
         } catch (error) {
           droppedInvalidTrack = true;
           logger.warn('Skipping invalid persisted queue track during restore', {
             error,
-            queueItemId,
+            queueItemId: queueV2Item?.queueItemId,
             sourceTrackUuid,
           });
           return;
@@ -702,8 +769,7 @@ ${indentString(tracks)}
           legacyShuffledCurrentIndex: playerState.activeSourceTrackShuffledIndex,
           useShuffledOrder: this.shuffleState === PlayerShuffleState.SHUFFLE_ON,
         },
-        makeQueueTrack,
-        (track) => track.sourceTrack.uuid
+        makeQueueTrack
       );
 
       this.replaceQueue(restorePlan.orderedTracks, undefined);

@@ -134,6 +134,8 @@ Milestone 7 designs and implements playlist UX. It refines `playlist-mobile-ux` 
 - [x] 2026-06-20T01:17:21Z Completed `queue-v2-playback-foundation` experiment `MOB-QUEUE-001`: pure Queue V2 identity, catalog migration helpers, duplicate playlist entry keying, history/cursor attribution, block shuffle grouping, tests, and subagent review.
 - [x] 2026-06-20T01:20:18Z Claimed `queue-v2-playback-foundation` experiment `MOB-QUEUE-002`.
 - [x] 2026-06-20T01:32:26Z Completed `queue-v2-playback-foundation` experiment `MOB-QUEUE-002`: additive Queue V2 PlayerState fields, catalog queue save/restore integration, restore-plan tests, simulator playback/restore smoke, and subagent review.
+- [x] 2026-06-20T01:36:45Z Claimed `queue-v2-playback-foundation` experiment `MOB-QUEUE-003`.
+- [x] 2026-06-20T01:54:34Z Completed `queue-v2-playback-foundation` experiment `MOB-QUEUE-003`: Queue V2 metadata on runtime queue tracks, batched catalog queue construction, duplicate-safe persistence normalization, cloned queue inserts, legacy fallback coverage, simulator playback smoke, and subagent review.
 - [x] 2026-06-20T00:34:01Z Completed `scoped-realm-user-data` experiment `MOB-SCOPE-001`: additive scoped Realm rows, active scope service, deterministic scope tests, and iOS Simulator smoke on `DEC49863-5AF8-4832-8BA2-C5E7C41A029D`.
 - [ ] Promote auth/session after local API config and Development-only auth basics are in place.
 - [ ] Revisit playlist UX workstream only after auth and basic user-data foundations are working.
@@ -145,7 +147,7 @@ Milestone 7 designs and implements playlist UX. It refines `playlist-mobile-ux` 
 | local-api-dev-config | done | root Codex agent | live server response smoke waits on local catalog/user API processes; ports 3823/5119 were not listening during this slice | `docs/workstreams/active/local-api-dev-config/plan.md` | `docs/workstreams/active/local-api-dev-config/ledger.md` | branch `codex/scoped-realm-user-data` | Use the documented env vars and `runLocalApiBaseUrlProbe` when local servers are running. | `done` |
 | test-harness-foundation | done | root Codex agent | none | `docs/workstreams/active/test-harness-foundation/plan.md` | `docs/workstreams/active/test-harness-foundation/ledger.md` | branch `codex/scoped-realm-user-data` | Reuse Vitest for sanitizer, Queue V2, auth retry, and sync reducer tests. | `done` |
 | deep-link-sanitizer | done | root Codex agent | none | `docs/workstreams/active/deep-link-sanitizer/plan.md` | `docs/workstreams/active/deep-link-sanitizer/ledger.md` | branch `codex/scoped-realm-user-data` | Reuse sanitizer in share-token exchange and auth callback implementation. | `done` |
-| queue-v2-playback-foundation | active | root Codex agent | runtime integration not started yet | `docs/workstreams/active/queue-v2-playback-foundation/plan.md` | `docs/workstreams/active/queue-v2-playback-foundation/ledger.md` | branch `codex/scoped-realm-user-data` | Integrate Queue V2 with persisted `PlayerState` and existing catalog queue construction. | `continue` |
+| queue-v2-playback-foundation | active | root Codex agent | playlist queue construction not started yet | `docs/workstreams/active/queue-v2-playback-foundation/plan.md` | `docs/workstreams/active/queue-v2-playback-foundation/ledger.md` | branch `codex/scoped-realm-user-data` | Add playlist queue construction with playlist entry identity and block metadata. | `continue` |
 | auth-session-user-service-client | backlog | unassigned | local API config plus Development-only server auth path | `docs/workstreams/backlog/auth-session-user-service-client/plan.md` | `docs/workstreams/backlog/auth-session-user-service-client/ledger.md` | none | Implement secure token storage, refresh-on-401, sign-out/revoke, and account release gates. | `continue` |
 | scoped-realm-user-data | done | root Codex agent | full auth wiring deferred to `auth-session-user-service-client` | `docs/workstreams/active/scoped-realm-user-data/plan.md` | `docs/workstreams/active/scoped-realm-user-data/ledger.md` | branch `codex/scoped-realm-user-data` | Commit completed scoped Realm foundation. | `done` |
 | mobile-share-token-exchange | backlog | unassigned | deep-link sanitizer and user-library client | `docs/workstreams/backlog/mobile-share-token-exchange/plan.md` | `docs/workstreams/backlog/mobile-share-token-exchange/ledger.md` | none | Exchange playlist share tokens for signed-out grants or signed-in relationships. | `continue` |
@@ -157,11 +159,11 @@ Milestone 7 designs and implements playlist UX. It refines `playlist-mobile-ux` 
 
 ## Current Hypothesis
 
-Scoped Realm foundations are safe to build on now: user-owned data has scoped primary keys, the active scope row can switch between anonymous/authenticated identities, and Realm stores session/grant metadata without token material. Full auth, sync replay, favorites migration, and history migration should use these rows instead of adding account booleans to catalog models.
+Queue V2 catalog playback can now carry item metadata without changing playback behavior. The next Queue V2 risk is playlist queue construction: playlist entries need to preserve `playlistEntryUuid`, optional block metadata, duplicate source-track identity, and the same save/restore/current-item behavior before Cast or CarPlay playlist identity work is useful.
 
 ## Next Iteration
 
-Run `deep-link-sanitizer` next, then Queue V2 pure logic. Promote `auth-session-user-service-client` once the Development-only local auth endpoint is available from `RelistenUserApi`.
+Commit `MOB-QUEUE-003`, then either continue Queue V2 with playlist queue construction or promote `auth-session-user-service-client` if the Development-only local auth endpoint is ready from `RelistenUserApi`.
 
 ## Workstream Notes
 
@@ -228,3 +230,5 @@ The playlist UX workstream is intentionally light for now. The user confirmed UX
 2026-06-20: `MOB-QUEUE-001` completed on branch `codex/scoped-realm-user-data`. The branch adds pure Queue V2 item identity, catalog migration helpers, duplicate playlist-entry keying, playback cursor/history attribution, and block shuffle grouping tests. Validation passed with `yarn test -- queue-v2`, `yarn test`, `yarn ts:check`, `yarn lint`, `git diff --check`, and two-pass subagent review. Simulator smoke was skipped because no runtime playback code changed.
 
 2026-06-20: `MOB-QUEUE-002` completed on branch `codex/scoped-realm-user-data`. The branch adds additive Queue V2 fields to `PlayerState`, writes catalog Queue V2 state alongside legacy queue fields, and restores catalog queues by Queue V2 current key when available. Validation passed with `yarn test -- queue-v2 player_state`, `yarn test`, `yarn ts:check`, `yarn lint`, `git diff --check`, iOS Simulator playback/restore smoke on `DEC49863-5AF8-4832-8BA2-C5E7C41A029D`, and follow-up subagent review.
+
+2026-06-20: `MOB-QUEUE-003` completed on branch `codex/scoped-realm-user-data`. The branch carries Queue V2 item metadata on runtime queue tracks, assigns batched catalog items for source-screen and CarPlay queue construction, normalizes catalog item ids at persistence time, clones inserted queue rows to avoid runtime aliasing, and preserves stale legacy restore fallback behavior. Validation passed with `yarn test -- queue-v2 player_state`, `yarn test`, `yarn ts:check`, `yarn lint`, `git diff --check`, iOS Simulator source-page playback smoke on `DEC49863-5AF8-4832-8BA2-C5E7C41A029D`, and three reviewer passes that drove duplicate-id and fallback fixes.

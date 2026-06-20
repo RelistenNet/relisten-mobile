@@ -71,6 +71,41 @@ This ledger is the write-ahead log for `docs/workstreams/active/queue-v2-playbac
 - Outcome: pass
 - next_action: continue
 
+### MOB-QUEUE-003 - Runtime queue item metadata
+
+- Status: completed
+- Timestamp: 2026-06-20T01:36:45Z
+- Intention / hypothesis: `PlayerQueueTrack` can carry Queue V2 item metadata through existing catalog queue APIs, preparing playlist queue construction without changing playback behavior.
+- Responsible agent: root Codex agent
+- Start commit: `c3b5c2e`
+- Worktree or branch: `codex/scoped-realm-user-data`
+- Mutable surface: `relisten/player/relisten_player_queue.tsx`, source-screen and CarPlay catalog queue construction call sites, Queue V2 tests if needed, and AutoPlan docs.
+- Validator: `yarn test -- queue-v2 player_state`, `yarn test`, `yarn lint`, `yarn ts:check`, `git diff --check`, and iOS Simulator catalog playback smoke on `DEC49863-5AF8-4832-8BA2-C5E7C41A029D`.
+- Expected deliverable: runtime queue tracks expose stable Queue V2 item metadata; catalog queue construction assigns catalog Queue V2 items before playback; restore recreates queue tracks with persisted Queue V2 items.
+- Expected artifacts: code diff, validation transcript, simulator smoke notes, and review notes.
+- Linked ExecPlan: none.
+- End timestamp: 2026-06-20T01:54:34Z
+- Evidence:
+  - `PlayerQueueTrack` now carries a Queue V2 item, catalog queue construction can assign deterministic occurrence-aware catalog items, and restore rebuilds runtime tracks with persisted Queue V2 items.
+  - Source-screen playback and CarPlay catalog queue helpers now use the batched catalog queue constructor so duplicate source-track UUIDs receive distinct catalog queue item ids.
+  - Queue V2 persistence normalizes catalog item ids by ordered queue position, keeps playlist item ids intact, maps shuffled/current ids from runtime order, and clones queue inserts so re-queuing an existing runtime row does not alias identifiers.
+  - Legacy source-track restore now migrates through Queue V2 catalog items while preserving the previous cross-index fallback for stale rows with incomplete active indexes.
+- Validators:
+  - `yarn test -- queue-v2 player_state`: pass, 2 files / 11 tests.
+  - `yarn test`: pass, 7 files / 31 tests.
+  - `yarn ts:check`: pass.
+  - `yarn lint`: pass.
+  - `git diff --check`: pass.
+  - iOS Simulator smoke: pass on `DEC49863-5AF8-4832-8BA2-C5E7C41A029D`; source-page Play started catalog playback from the current Metro bundle. Screenshot artifact: `/tmp/relisten-queue-v2-runtime-metadata-final-smoke.png`.
+- Review:
+  - First-pass review found duplicate Queue V2 ids for legacy restore and single-track incremental inserts.
+  - Second-pass review found runtime track aliasing when re-queuing an existing queue row.
+  - Final review found a stale legacy-row fallback regression.
+  - Addressed all findings with migrated legacy Queue V2 items, save-time normalization, cloned queue inserts, and cross-index legacy fallback coverage.
+- Outcome: pass
+- next_action: continue
+- Next move: Commit `MOB-QUEUE-003`, then continue Queue V2 with playlist queue construction or promote auth/session if the local dev-auth endpoint is ready.
+
 ### Next Experiment Template: MOB-QUEUE-001
 
 - Timestamp: fill in before edits

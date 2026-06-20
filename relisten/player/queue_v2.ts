@@ -193,6 +193,28 @@ export function migrateLegacyCatalogQueueStateToQueueV2(
   };
 }
 
+export function normalizeQueueV2ItemsForPersistence<TQueueTrack>(
+  queueTracks: TQueueTrack[],
+  sourceTrackUuidForTrack: (track: TQueueTrack) => string,
+  queueV2ItemForTrack: (track: TQueueTrack) => QueueV2Item
+): QueueV2Item[] {
+  const catalogOccurrenceCounts = new Map<string, number>();
+
+  return queueTracks.map((track) => {
+    const queueV2Item = queueV2ItemForTrack(track);
+
+    if (queueV2Item.kind === 'playlist') {
+      return queueV2Item;
+    }
+
+    const sourceTrackUuid = sourceTrackUuidForTrack(track);
+    const occurrenceIndex = catalogOccurrenceCounts.get(sourceTrackUuid) ?? 0;
+    catalogOccurrenceCounts.set(sourceTrackUuid, occurrenceIndex + 1);
+
+    return createCatalogQueueV2Item(sourceTrackUuid, occurrenceIndex);
+  });
+}
+
 export function resolveQueueV2RestorePlan<TQueueTrack>(
   state: {
     queueV2Items?: QueueV2Item[];
@@ -204,14 +226,13 @@ export function resolveQueueV2RestorePlan<TQueueTrack>(
     legacyShuffledCurrentIndex?: number | null;
     useShuffledOrder: boolean;
   },
-  makeTrack: (sourceTrackUuid: string, queueItemId?: string) => TQueueTrack | undefined,
-  sourceTrackUuidForTrack: (track: TQueueTrack) => string
+  makeTrack: (sourceTrackUuid: string, queueItem?: QueueV2Item) => TQueueTrack | undefined
 ): QueueV2RestorePlan<TQueueTrack> {
   if (state.queueV2Items?.length) {
     const trackByItemId = new Map<string, TQueueTrack>();
     const orderedTracks = state.queueV2Items
       .map((item) => {
-        const track = makeTrack(item.sourceTrackUuid, item.queueItemId);
+        const track = makeTrack(item.sourceTrackUuid, item);
 
         if (track) {
           trackByItemId.set(item.queueItemId, track);
@@ -235,25 +256,44 @@ export function resolveQueueV2RestorePlan<TQueueTrack>(
     };
   }
 
-  const orderedTracks = state.legacySourceTrackUuids
-    .map((sourceTrackUuid) => makeTrack(sourceTrackUuid))
+  const legacyQueueV2State = migrateLegacyCatalogQueueStateToQueueV2({
+    queueSourceTrackUuids: state.legacySourceTrackUuids,
+    queueSourceTrackShuffledUuids: state.legacyShuffledSourceTrackUuids,
+    activeSourceTrackIndex: state.legacyCurrentIndex,
+    activeSourceTrackShuffledIndex: state.legacyShuffledCurrentIndex,
+    activeQueueOrder: state.useShuffledOrder ? 'shuffled' : 'original',
+  });
+  const trackByItemId = new Map<string, TQueueTrack>();
+  const orderedTracks = legacyQueueV2State.items
+    .map((item) => {
+      const track = makeTrack(item.sourceTrackUuid, item);
+
+      if (track) {
+        trackByItemId.set(item.queueItemId, track);
+      }
+
+      return track;
+    })
     .filter((track): track is TQueueTrack => !!track);
-  const shuffledTracks = legacyShuffledTracksFromSourceTrackUuids(
-    orderedTracks,
-    state.legacyShuffledSourceTrackUuids,
-    sourceTrackUuidForTrack
-  );
-  const preferredCurrentTrack = state.useShuffledOrder
-    ? itemAt(shuffledTracks, state.legacyShuffledCurrentIndex)
-    : itemAt(orderedTracks, state.legacyCurrentIndex);
-  const fallbackCurrentTrack = state.useShuffledOrder
-    ? itemAt(orderedTracks, state.legacyCurrentIndex)
-    : itemAt(shuffledTracks, state.legacyShuffledCurrentIndex);
+  const shuffledTracks = legacyQueueV2State.shuffledQueueItemIds
+    .map((queueItemId) => trackByItemId.get(queueItemId))
+    .filter((track): track is TQueueTrack => !!track);
+  const currentTrackFromMigratedLegacyState = legacyQueueV2State.currentItemKey
+    ? trackByItemId.get(legacyQueueV2State.currentItemKey)
+    : undefined;
 
   return {
     orderedTracks,
-    shuffledTracks,
-    currentTrack: preferredCurrentTrack ?? fallbackCurrentTrack ?? orderedTracks[0],
+    shuffledTracks: shuffledTracks.length > 0 ? shuffledTracks : orderedTracks,
+    currentTrack:
+      currentTrackFromMigratedLegacyState ??
+      legacyFallbackCurrentTrack(
+        orderedTracks,
+        shuffledTracks,
+        state.legacyCurrentIndex,
+        state.legacyShuffledCurrentIndex,
+        state.useShuffledOrder
+      ),
     usedQueueV2State: false,
   };
 }
@@ -321,25 +361,29 @@ function itemIdAt(items: QueueV2Item[], maybeIndex: number | null | undefined): 
   return items[maybeIndex]?.queueItemId;
 }
 
+function legacyFallbackCurrentTrack<TQueueTrack>(
+  orderedTracks: TQueueTrack[],
+  shuffledTracks: TQueueTrack[],
+  legacyCurrentIndex: number | null | undefined,
+  legacyShuffledCurrentIndex: number | null | undefined,
+  useShuffledOrder: boolean
+): TQueueTrack | undefined {
+  const preferredCurrentTrack = useShuffledOrder
+    ? itemAt(shuffledTracks, legacyShuffledCurrentIndex)
+    : itemAt(orderedTracks, legacyCurrentIndex);
+  const fallbackCurrentTrack = useShuffledOrder
+    ? itemAt(orderedTracks, legacyCurrentIndex)
+    : itemAt(shuffledTracks, legacyShuffledCurrentIndex);
+
+  return preferredCurrentTrack ?? fallbackCurrentTrack ?? orderedTracks[0];
+}
+
 function itemAt<T>(items: T[], maybeIndex: number | null | undefined): T | undefined {
   if (maybeIndex == null || maybeIndex < 0 || maybeIndex >= items.length) {
     return undefined;
   }
 
   return items[maybeIndex];
-}
-
-function legacyShuffledTracksFromSourceTrackUuids<TQueueTrack>(
-  orderedTracks: TQueueTrack[],
-  shuffledSourceTrackUuids: string[],
-  sourceTrackUuidForTrack: (track: TQueueTrack) => string
-): TQueueTrack[] {
-  return [...orderedTracks].sort((a, b) => {
-    const aOrder = shuffledSourceTrackUuids.indexOf(sourceTrackUuidForTrack(a));
-    const bOrder = shuffledSourceTrackUuids.indexOf(sourceTrackUuidForTrack(b));
-
-    return aOrder - bOrder;
-  });
 }
 
 function encodeQueueV2IdPart(part: string): string {
