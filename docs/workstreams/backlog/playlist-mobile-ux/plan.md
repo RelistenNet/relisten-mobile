@@ -34,7 +34,7 @@ Available:
 
 Blocked or deferred:
 
-- Live local API smoke remains blocked while `RelistenUserApi` is not listening on `http://localhost:5119`.
+- Live local API smokes now pass for auth/profile, favorites, history batch upload, pull sync, playlist operation, and share-token exchange against `http://localhost:5119`.
 - Playlist mutation adapters exist only at the operation/outbox layer; no UI has been wired to create operations.
 - Mobile playlist read/hydration client needs the server's final default read shape, especially `show_uuid`/`source_uuid` availability for catalog hydration.
 - Follow, Clone, share-token management, invite acceptance, and conflict presentation need product decisions before user-facing implementation.

@@ -284,6 +284,16 @@ This ledger records root-level coordination for `docs/autoplan-user-library-mobi
 - Next Action: continue
 - Next move: Commit `MOB-FAV-003`, then choose the next local API live-smoke slice while servers are reachable.
 
+### Iteration 29
+
+- Timestamp: 2026-06-20T18:47:01Z
+- Hypothesis: Once the API servers are reachable, live endpoint smokes should validate the user-library payload contracts before starting playlist UX work.
+- Action: Ran direct local HTTP smokes for history batch upload, pull sync, playlist operation replay payloads, and mobile share-token exchange using Development sessions and real catalog UUIDs from the local catalog API.
+- Evidence: `POST /history/batch` returned 200/no-store with one accepted synthetic playback event; `GET /sync` returned 200/no-store with `changes`, `tombstones`, and `next_cursor`; `POST /playlists/{playlistUuid}/operations` returned 200/no-store with `result_status: applied` and the new entry present; share-token smoke created a disposable playlist, created a viewer token, exchanged it anonymously for a mobile grant, read the playlist tokenlessly, revoked the token, verified the tokenless grant then returned 404, and logged out all smoke sessions.
+- Verdict: pass
+- Next Action: continue
+- Next move: Commit the live-smoke docs, then resolve playlist UX open questions before implementing `MOB-UX-001`.
+
 ## Root Coordination Notes
 
 - The active set intentionally starts with foundations: local API config, deterministic test harness, deep-link sanitizer, and Queue V2 playback foundation.

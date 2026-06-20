@@ -49,3 +49,20 @@
 - Outcome: pass
 - next_action: continue
 - Next move: Keep old local history bulk-upload as a product decision; continue remaining mobile foundation workstreams before playlist UX.
+
+### MOB-HIST-003 - Live local history batch smoke
+
+- Status: completed
+- Timestamp: 2026-06-20T18:47:01Z
+- Intention / hypothesis: With the local `RelistenUserApi` running, the mobile history batch payload shape should be accepted by the real `/api/v3/library/history/batch` endpoint using a Development session bearer token.
+- Responsible agent: root Codex agent
+- Start commit: `a8b8fe3`
+- End commit: this docs commit
+- Worktree or branch: `codex/scoped-realm-user-data`
+- Mutable surface: docs only.
+- Validator: direct local HTTP smoke against `http://localhost:5119`.
+- Evidence: Issued a Development session for `relisten_mobile_smoke`, selected real catalog source/source-track UUIDs from `http://localhost:3823/api/v2/artists/77a58ff9-2e01-c59c-b8eb-cff106049b72/shows/random`, posted one synthetic event to `/api/v3/library/history/batch`, and logged out the session.
+- Result: `POST /history/batch` returned 200 with `Cache-Control: no-store`, `history_enabled: true`, `accepted_count: 1`, `duplicate_count: 0`, and result status `accepted` for client event `15484210-61f9-4d3e-b0e8-f9d2f7def073`. Logout returned 204.
+- Outcome: pass
+- next_action: done
+- Next move: Keep old local history bulk-upload as a product decision outside this M1 foundation.

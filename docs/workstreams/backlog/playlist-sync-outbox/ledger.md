@@ -80,3 +80,20 @@ This ledger is the write-ahead log for `docs/workstreams/backlog/playlist-sync-o
 - Outcome: pass
 - next_action: continue
 - Next move: Trigger replay after future local playlist mutations and/or continue with scoped playback history batching; live local auth/sync smoke still depends on `RelistenUserApi` listening on `http://localhost:5119`.
+
+### MOB-SYNC-004 - Live local sync and operation smoke
+
+- Status: completed
+- Timestamp: 2026-06-20T18:47:01Z
+- Intention / hypothesis: The running local `RelistenUserApi` should accept the mobile sync read and playlist operation payload shapes used by the sync/outbox services.
+- Responsible agent: root Codex agent
+- Start commit: `a8b8fe3`
+- End commit: this docs commit
+- Worktree or branch: `codex/scoped-realm-user-data`
+- Mutable surface: docs only.
+- Validator: direct local HTTP smoke against `http://localhost:5119`.
+- Evidence: Issued a Development session for `relisten_mobile_smoke`; `GET /api/v3/library/sync` returned 200 with `Cache-Control: no-store`, `changes`, `tombstones`, and `next_cursor`. Then posted an `add_track` operation to disposable playlist `78b3cf6f-5709-4222-852a-233a2d7d6782` using real source track `3449118a-14c7-57b2-dedd-ddc236e03506`.
+- Result: `POST /api/v3/library/playlists/{playlistUuid}/operations` returned 200 with `Cache-Control: no-store`, `result_status: applied`, `result_revision: 2`, a canonical playlist snapshot, and the requested entry UUID present. Logout returned 204.
+- Outcome: pass
+- next_action: continue
+- Next move: Wire future playlist UI mutation adapters to the existing outbox/runner; the endpoint contract is live-smoked.

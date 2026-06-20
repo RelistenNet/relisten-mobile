@@ -45,3 +45,31 @@ Validation:
 Follow-up:
 
 Run live Universal Link/exchange smoke when local `RelistenUserApi` exposes the share-token endpoint. Wire `buildMobileAccessGrantHeaders` into tokenless playlist reads when the playlist read UI/client exists. Follow/Clone/editor UX remains deferred to the playlist mobile UX workstream.
+
+## MOB-SHARE-002 - live local share-token exchange smoke
+
+Status: completed 2026-06-20T18:47:01Z by root Codex agent on branch `codex/scoped-realm-user-data`.
+
+Start commit: `a8b8fe3`.
+
+Mutable surface:
+
+- docs only
+
+Validator:
+
+- direct local HTTP smoke against `http://localhost:5119`
+
+Result:
+
+- Issued a Development session for `relisten_mobile_smoke`.
+- Created disposable playlist `78b3cf6f-5709-4222-852a-233a2d7d6782`, which returned 201/no-store.
+- Created a viewer share token, which returned 201/no-store and a token value that was not printed.
+- Exchanged the token anonymously through `/api/v3/library/playlists/{shortId}/share-tokens/exchange`, which returned 200/no-store with `result_status: mobile_grant_issued`, `access_role: viewer`, and a device-bound mobile grant.
+- Read the playlist tokenlessly with `X-Relisten-Mobile-Grant` and `X-Relisten-Device-Id`, which returned 200/no-store and the expected playlist UUID.
+- Revoked the share token, which returned 204/no-store; the same tokenless read then returned 404.
+- Logged out the Development session, which returned 204.
+
+Next action:
+
+done. Reuse `buildMobileAccessGrantHeaders` in the future playlist read UI/client; Follow/Clone/editor choices remain in the playlist UX workstream.
