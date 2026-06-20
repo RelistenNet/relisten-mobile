@@ -22,6 +22,7 @@ export const USER_LIBRARY_REALM_MODELS = [
 export * from './auth';
 export * from './history';
 export * from './library';
+export * from './migrations';
 export * from './playlists';
 export * from './scope';
 export * from './sync';

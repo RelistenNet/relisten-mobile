@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  activePlaylistEntriesInQueueOrder,
   createCatalogQueueV2Items,
+  createPlayablePlaylistQueueV2ItemsFromEntries,
+  createPlaylistQueueV2ItemsFromEntries,
   createPlaylistQueueV2Item,
   flattenQueueV2ShuffleUnits,
+  isPlaylistEntryPlayable,
   migrateLegacyCatalogQueueStateToQueueV2,
   normalizeQueueV2ItemsForPersistence,
   QUEUE_V2_STATE_VERSION,
@@ -131,6 +135,128 @@ describe('Queue V2 identity', () => {
       standaloneB.queueItemId,
       catalogItem.queueItemId,
     ]);
+  });
+
+  it('builds playlist queue items in fractional playlist order', () => {
+    const items = createPlaylistQueueV2ItemsFromEntries([
+      {
+        uuid: 'entry-b',
+        playlistUuid: 'playlist-1',
+        sourceTrackUuid: 'track-a',
+        position: 'b',
+        title: 'Second A',
+      },
+      {
+        uuid: 'entry-a',
+        playlistUuid: 'playlist-1',
+        sourceTrackUuid: 'track-a',
+        position: 'a',
+        blockUuid: 'block-1',
+        blockPosition: 1,
+        title: 'First A',
+      },
+      {
+        uuid: 'entry-a0',
+        playlistUuid: 'playlist-1',
+        sourceTrackUuid: 'track-b',
+        position: 'a0',
+        blockUuid: 'block-1',
+        blockPosition: 0,
+      },
+    ]);
+
+    expect(items.map((item) => item.queueItemId)).toEqual([
+      'playlist:playlist-1:entry:entry-a',
+      'playlist:playlist-1:entry:entry-a0',
+      'playlist:playlist-1:entry:entry-b',
+    ]);
+    expect(items[0]).toEqual({
+      kind: 'playlist',
+      queueItemId: 'playlist:playlist-1:entry:entry-a',
+      playlistUuid: 'playlist-1',
+      playlistEntryUuid: 'entry-a',
+      sourceTrackUuid: 'track-a',
+      blockUuid: 'block-1',
+      blockPosition: 1,
+      title: 'First A',
+    });
+  });
+
+  it('excludes deleted playlist entries but preserves unavailable item identity', () => {
+    const activeUnavailableEntry = {
+      uuid: 'entry-unavailable',
+      playlistUuid: 'playlist-1',
+      sourceTrackUuid: 'track-a',
+      position: '2',
+      unavailableReason: 'missing_source_track',
+    };
+
+    const orderedEntries = activePlaylistEntriesInQueueOrder([
+      {
+        uuid: 'entry-deleted',
+        playlistUuid: 'playlist-1',
+        sourceTrackUuid: 'track-a',
+        position: '1',
+        deletedAt: new Date('2026-06-20T00:00:00.000Z'),
+      },
+      activeUnavailableEntry,
+      {
+        uuid: 'entry-available',
+        playlistUuid: 'playlist-1',
+        sourceTrackUuid: 'track-b',
+        position: '10',
+      },
+    ]);
+    const items = createPlaylistQueueV2ItemsFromEntries(orderedEntries);
+
+    expect(orderedEntries.map((entry) => entry.uuid)).toEqual([
+      'entry-unavailable',
+      'entry-available',
+    ]);
+    expect(items.map((item) => item.playlistEntryUuid)).toEqual([
+      'entry-unavailable',
+      'entry-available',
+    ]);
+    expect(isPlaylistEntryPlayable(activeUnavailableEntry)).toBe(false);
+  });
+
+  it('builds only playable hydrated playlist queue items', () => {
+    const items = createPlayablePlaylistQueueV2ItemsFromEntries(
+      [
+        {
+          uuid: 'entry-a',
+          playlistUuid: 'playlist-1',
+          sourceTrackUuid: 'track-a',
+          position: 'a',
+        },
+        {
+          uuid: 'entry-missing-track',
+          playlistUuid: 'playlist-1',
+          sourceTrackUuid: 'track-missing',
+          position: 'b',
+        },
+        {
+          uuid: 'entry-unavailable',
+          playlistUuid: 'playlist-1',
+          sourceTrackUuid: 'track-a',
+          position: 'c',
+          unavailableReason: 'missing_source_track',
+        },
+        {
+          uuid: 'entry-a-duplicate',
+          playlistUuid: 'playlist-1',
+          sourceTrackUuid: 'track-a',
+          position: 'd',
+        },
+      ],
+      (sourceTrackUuid) => sourceTrackUuid === 'track-a'
+    );
+
+    expect(items.map((item) => item.queueItemId)).toEqual([
+      'playlist:playlist-1:entry:entry-a',
+      'playlist:playlist-1:entry:entry-a-duplicate',
+    ]);
+    expect(items.map((item) => item.sourceTrackUuid)).toEqual(['track-a', 'track-a']);
   });
 
   it('restores duplicate catalog occurrences by Queue V2 current item key', () => {

@@ -22,7 +22,10 @@ import {
   PopularityWindow,
   PopularityWindows,
 } from '@/relisten/realm/models/popularity';
-import { USER_LIBRARY_REALM_MODELS } from '@/relisten/realm/models/user_library';
+import {
+  migrateUserLibraryRealm,
+  USER_LIBRARY_REALM_MODELS,
+} from '@/relisten/realm/models/user_library';
 import { isVerboseProfileLoggingEnabled } from '@/relisten/util/profile_logging';
 
 if (isVerboseProfileLoggingEnabled()) {
@@ -59,7 +62,8 @@ export const realmConfig: Realm.Configuration = {
     PopularityWindows,
     ...USER_LIBRARY_REALM_MODELS,
   ],
-  schemaVersion: 14,
+  schemaVersion: 15,
+  onMigration: migrateUserLibraryRealm,
   // As to not conflict with the prior versions default.realm that isn't readable with this version of the SDK
   path: './relisten.realm',
 };

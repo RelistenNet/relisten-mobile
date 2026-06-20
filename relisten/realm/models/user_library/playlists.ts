@@ -56,7 +56,7 @@ export class UserPlaylistEntry extends Realm.Object<UserPlaylistEntry> {
       sourceTrackUuid: { type: 'string', indexed: true },
       blockUuid: { type: 'string', indexed: true, optional: true },
       blockPosition: 'int?',
-      position: 'int',
+      position: 'string',
       title: 'string?',
       unavailableReason: 'string?',
       createdAt: 'date',
@@ -72,7 +72,7 @@ export class UserPlaylistEntry extends Realm.Object<UserPlaylistEntry> {
   sourceTrackUuid!: string;
   blockUuid?: string;
   blockPosition?: number;
-  position!: number;
+  position!: string;
   title?: string;
   unavailableReason?: string;
   createdAt!: Date;

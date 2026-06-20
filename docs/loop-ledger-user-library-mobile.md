@@ -144,6 +144,26 @@ This ledger records root-level coordination for `docs/autoplan-user-library-mobi
 - Next Action: continue
 - Next move: Commit `MOB-QUEUE-003`, then continue Queue V2 with playlist queue construction or promote auth/session if the local dev-auth endpoint is ready.
 
+### Iteration 15
+
+- Timestamp: 2026-06-20T01:57:39Z
+- Hypothesis: Playlist queue construction can be added without playlist UI by mapping scoped playlist entries into Queue V2 playlist items and hydrated runtime queue tracks.
+- Action: Claimed `MOB-QUEUE-004` in `queue-v2-playback-foundation` on branch `codex/scoped-realm-user-data`.
+- Evidence: The workstream ledger now has a preregistered entry with playlist entry position, Queue V2 construction, focused tests, review, and simulator smoke validators before edits.
+- Verdict: pass
+- Next Action: continue
+- Next move: Correct playlist entry position to the fractional string contract, add pure playlist Queue V2 construction helpers, and expose hydrated runtime queue construction for future playlist UI/sync callers.
+
+### Iteration 16
+
+- Timestamp: 2026-06-20T02:07:18Z
+- Hypothesis: Playlist Queue V2 construction can land without playlist UI by keeping ordering and playable filtering pure, while preserving existing catalog playback after the Realm schema bump.
+- Action: Changed playlist entry position storage to strings, added schema version 15 migration coverage, added pure playlist Queue V2 construction and playable hydrated item filtering, and exposed `PlayerQueueTrack.fromPlaylistEntries` for future playlist callers.
+- Evidence: `yarn test -- queue-v2 scoped_user_library_models`, `yarn test`, `yarn ts:check`, `yarn lint`, and `git diff --check` passed. Simulator smoke on `DEC49863-5AF8-4832-8BA2-C5E7C41A029D` loaded schema version 15 and started source-page catalog playback; screenshot artifact `/tmp/relisten-queue-v2-playlist-construction-smoke.png`. Subagent review found and validated the migration guard for old catalog-only Realms.
+- Verdict: pass
+- Next Action: continue
+- Next move: Commit `MOB-QUEUE-004`, then promote CarPlay/Cast playlist identity or auth/session depending on server dev-auth readiness.
+
 ## Root Coordination Notes
 
 - The active set intentionally starts with foundations: local API config, deterministic test harness, deep-link sanitizer, and Queue V2 playback foundation.

@@ -34,6 +34,18 @@ export interface QueueV2ShuffleUnit {
   items: QueueV2Item[];
 }
 
+export interface QueueV2PlaylistEntryInput {
+  uuid: string;
+  playlistUuid: string;
+  sourceTrackUuid: string;
+  position: string;
+  blockUuid?: string | null;
+  blockPosition?: number | null;
+  title?: string | null;
+  unavailableReason?: string | null;
+  deletedAt?: Date | null;
+}
+
 export interface LegacyCatalogQueueState {
   queueSourceTrackUuids: string[];
   queueSourceTrackShuffledUuids: string[];
@@ -106,6 +118,46 @@ export function createPlaylistQueueV2Item(input: {
     blockPosition: input.blockPosition ?? null,
     title: input.title,
   };
+}
+
+export function createPlaylistQueueV2ItemsFromEntries(
+  entries: QueueV2PlaylistEntryInput[]
+): QueueV2PlaylistItem[] {
+  return activePlaylistEntriesInQueueOrder(entries).map((entry) =>
+    createPlaylistQueueV2Item({
+      playlistUuid: entry.playlistUuid,
+      playlistEntryUuid: entry.uuid,
+      sourceTrackUuid: entry.sourceTrackUuid,
+      blockUuid: entry.blockUuid,
+      blockPosition: entry.blockPosition,
+      title: entry.title ?? undefined,
+    })
+  );
+}
+
+export function createPlayablePlaylistQueueV2ItemsFromEntries(
+  entries: QueueV2PlaylistEntryInput[],
+  hasPlayableSourceTrack: (sourceTrackUuid: string) => boolean
+): QueueV2PlaylistItem[] {
+  const entriesByUuid = new Map(entries.map((entry) => [entry.uuid, entry]));
+
+  return createPlaylistQueueV2ItemsFromEntries(entries).filter((item) => {
+    const entry = entriesByUuid.get(item.playlistEntryUuid);
+
+    return (
+      !!entry && isPlaylistEntryPlayable(entry) && hasPlayableSourceTrack(item.sourceTrackUuid)
+    );
+  });
+}
+
+export function activePlaylistEntriesInQueueOrder<TEntry extends QueueV2PlaylistEntryInput>(
+  entries: TEntry[]
+): TEntry[] {
+  return entries.filter((entry) => !entry.deletedAt).sort(comparePlaylistEntryQueuePosition);
+}
+
+export function isPlaylistEntryPlayable(entry: QueueV2PlaylistEntryInput): boolean {
+  return !entry.deletedAt && !entry.unavailableReason;
 }
 
 export function queueV2PlaybackCursor(item: QueueV2Item): string {
@@ -351,6 +403,35 @@ function compareNullableNumber(a: number | null, b: number | null): number {
   }
 
   return a - b;
+}
+
+function comparePlaylistEntryQueuePosition(
+  a: QueueV2PlaylistEntryInput,
+  b: QueueV2PlaylistEntryInput
+): number {
+  const numericComparison = compareNumericPositionStrings(a.position, b.position);
+
+  if (numericComparison !== undefined) {
+    return numericComparison;
+  }
+
+  if (a.position === b.position) {
+    return a.uuid.localeCompare(b.uuid);
+  }
+
+  return a.position < b.position ? -1 : 1;
+}
+
+function compareNumericPositionStrings(a: string, b: string): number | undefined {
+  if (!isIntegerPositionString(a) || !isIntegerPositionString(b)) {
+    return undefined;
+  }
+
+  return Number(a) - Number(b);
+}
+
+function isIntegerPositionString(value: string): boolean {
+  return /^-?\d+$/.test(value);
 }
 
 function itemIdAt(items: QueueV2Item[], maybeIndex: number | null | undefined): string | undefined {

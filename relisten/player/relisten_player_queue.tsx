@@ -17,9 +17,11 @@ import { indentString } from '@/relisten/util/string_indent';
 import {
   createCatalogQueueV2Item,
   createCatalogQueueV2Items,
+  createPlayablePlaylistQueueV2ItemsFromEntries,
   normalizeQueueV2ItemsForPersistence,
   QUEUE_V2_STATE_VERSION,
   QueueV2Item,
+  QueueV2PlaylistEntryInput,
   resolveQueueV2RestorePlan,
 } from '@/relisten/player/queue_v2';
 
@@ -105,6 +107,24 @@ export class PlayerQueueTrack {
     return sourceTracks.map((sourceTrack, index) =>
       PlayerQueueTrack.fromSourceTrack(sourceTrack, queueV2Items[index])
     );
+  }
+
+  static fromPlaylistEntries(
+    playlistEntries: QueueV2PlaylistEntryInput[],
+    sourceTracksByUuid: Record<string, SourceTrack | undefined>
+  ) {
+    return createPlayablePlaylistQueueV2ItemsFromEntries(
+      playlistEntries,
+      (sourceTrackUuid) => !!sourceTracksByUuid[sourceTrackUuid]
+    ).flatMap((queueV2Item) => {
+      const sourceTrack = sourceTracksByUuid[queueV2Item.sourceTrackUuid];
+
+      if (!sourceTrack) {
+        return [];
+      }
+
+      return [PlayerQueueTrack.fromSourceTrack(sourceTrack, queueV2Item)];
+    });
   }
 
   cloneForQueueInsert() {

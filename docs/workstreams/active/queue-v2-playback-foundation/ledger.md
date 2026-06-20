@@ -106,6 +106,41 @@ This ledger is the write-ahead log for `docs/workstreams/active/queue-v2-playbac
 - next_action: continue
 - Next move: Commit `MOB-QUEUE-003`, then continue Queue V2 with playlist queue construction or promote auth/session if the local dev-auth endpoint is ready.
 
+### MOB-QUEUE-004 - Playlist queue construction foundation
+
+- Status: completed
+- Timestamp: 2026-06-20T01:57:39Z
+- Intention / hypothesis: Playlist queue construction can be added as a tested mobile foundation without adding playlist UI by mapping scoped playlist entries into Queue V2 playlist items and hydrated runtime queue tracks.
+- Responsible agent: root Codex agent
+- Start commit: `e7d448c`
+- Worktree or branch: `codex/scoped-realm-user-data`
+- Mutable surface: `relisten/player/queue_v2.ts`, `relisten/player/relisten_player_queue.tsx`, `relisten/realm/models/user_library/playlists.ts`, `relisten/realm/schema.ts`, focused Queue V2/user-library model tests, and AutoPlan docs.
+- Validator: `yarn test -- queue-v2 scoped_user_library_models`, `yarn test`, `yarn lint`, `yarn ts:check`, `git diff --check`, and iOS Simulator catalog playback smoke if runtime queue code changes.
+- Expected deliverable: fractional string playlist entry positions in Realm, pure Queue V2 playlist item construction ordered by playlist position, duplicate playlist entries keyed by `playlistEntryUuid`, deleted entries excluded, unavailable entries represented at the Queue V2 item layer but skipped when building hydrated runtime playback tracks.
+- Expected artifacts: code diff, validation transcript, review notes, and simulator smoke notes if the runtime queue constructor changes.
+- Linked ExecPlan: none.
+- End timestamp: 2026-06-20T02:07:18Z
+- Evidence:
+  - Changed `UserPlaylistEntry.position` to a string to match the fractional-indexing API contract and bumped Realm schema version from 14 to 15.
+  - Added a user-library Realm migration that converts legacy numeric playlist entry positions to strings and safely no-ops for older catalog-only Realms where `UserPlaylistEntry` did not exist.
+  - Added pure playlist Queue V2 construction helpers that order active entries by playlist position, exclude deleted entries, preserve unavailable entries at the item layer, and key duplicate source tracks by `playlistEntryUuid`.
+  - Added playable playlist item construction for hydrated runtime playback, skipping unavailable entries and source tracks missing from Realm while preserving entry-specific Queue V2 ids for available duplicates.
+  - Added `PlayerQueueTrack.fromPlaylistEntries` as the future playlist UI/sync entry point for hydrated playback construction.
+- Validators:
+  - `yarn test -- queue-v2 scoped_user_library_models`: pass, 2 files / 19 tests.
+  - `yarn test`: pass, 7 files / 37 tests.
+  - `yarn ts:check`: pass.
+  - `yarn lint`: pass.
+  - `git diff --check`: pass.
+  - iOS Simulator smoke: pass on `DEC49863-5AF8-4832-8BA2-C5E7C41A029D`; schema version 15 bundle loaded and source-page catalog playback still started. Screenshot artifact: `/tmp/relisten-queue-v2-playlist-construction-smoke.png`.
+- Review:
+  - First-pass review found a migration crash for upgrades from schemas before `UserPlaylistEntry` existed and requested runtime playable-construction coverage.
+  - Addressed with an old-schema guard, schema-12 migration test, pure playable item helper, and missing/unavailable source-track coverage.
+  - Follow-up review found no remaining functional blocker; it noted the new migration file must be included in the commit and that direct `PlayerQueueTrack.fromPlaylistEntries` coverage remains a residual test gap because the wrapper imports native playback modules.
+- Outcome: pass
+- next_action: continue
+- Next move: Commit `MOB-QUEUE-004`, then promote CarPlay/Cast playlist identity or auth/session depending on server dev-auth readiness.
+
 ### Next Experiment Template: MOB-QUEUE-001
 
 - Timestamp: fill in before edits
