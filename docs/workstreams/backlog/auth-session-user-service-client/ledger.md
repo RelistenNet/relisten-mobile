@@ -89,3 +89,27 @@ This ledger is the write-ahead log for `docs/workstreams/backlog/auth-session-us
 - Outcome: pass
 - next_action: continue
 - Next move: Run live Development auth/sync/history smoke once `RelistenUserApi` is listening on `http://localhost:5119`; production provider UI remains out of scope until local token flow is proven live.
+
+### MOB-AUTH-LIVE-001 - Live Development auth smoke
+
+- Status: completed
+- Timestamp: 2026-06-20T18:02:25Z
+- Intention / hypothesis: The existing Development-only auth session endpoint can issue real local access/refresh tokens that mobile can use against authenticated user-library routes, closing the deferred live auth smoke from `MOB-AUTH-001` and `MOB-AUTH-003`.
+- Responsible agent: root Codex agent
+- Start commit: `baf71ec`
+- End commit: this commit (`fix(api): validate local user api health probe`)
+- Worktree or branch: `codex/scoped-realm-user-data`
+- Mutable surface: no auth implementation changes; this entry records live validation alongside the local API probe correction.
+- Validator: direct local HTTP smoke against `http://localhost:5119`, iOS Simulator Metro smoke with `EXPO_PUBLIC_RELISTEN_USER_API_BASE_URL=http://localhost:5119`, and the API config test/type gates from `MOB-API-002`.
+- Expected deliverable: evidence that unauthenticated protected routes reject, Development session issue succeeds, authenticated `/users/me` succeeds, and responses remain no-store.
+- Expected artifacts: validation transcript and root AutoPlan ledger update.
+- Linked ExecPlan: none.
+- Evidence:
+  - Unauthenticated `GET /api/v3/library/users/me` returned 401 with `Cache-Control: no-store`.
+  - `POST /api/v3/library/auth/development/session` returned 200 and issued token metadata for development user `ios_simulator_smoke`; token values were redacted from notes.
+  - Authenticated `GET /api/v3/library/users/me` returned 200 with scope id `user:4a4ca7f8-47d2-4217-ad0f-aeb3ef2fcfd2` and `Cache-Control: no-store`.
+  - The iOS Simulator bundle/render smoke launched with `EXPO_PUBLIC_RELISTEN_USER_API_BASE_URL=http://localhost:5119`.
+- Review: No auth code changed in this slice. The result validates the existing auth service assumptions and leaves production provider UI, sync endpoint smoke, history upload smoke, and share-token exchange smoke to their owning workstreams.
+- Outcome: pass
+- next_action: continue
+- Next move: Use the dev Settings panel for manual UX smoke as needed; continue live sync/history/share-token validation in their own slices.

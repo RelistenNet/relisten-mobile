@@ -17,4 +17,4 @@ The catalog client still owns catalog ETag and rate-limit behavior. The user-lib
 The non-UI probe helper `runLocalApiBaseUrlProbe` in `relisten/api/local_api_probe.ts` can be used from a development-only caller once both local servers are running. It checks:
 
 - catalog: `GET /v3/artists?include_autocreated=false`
-- user-library: `GET /api/v3/library/users/check-username/relisten_probe`
+- user-library: `GET /health`

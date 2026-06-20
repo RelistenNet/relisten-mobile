@@ -2,10 +2,10 @@ import {
   getRelistenCatalogApiBaseUrl,
   getRelistenUserLibraryApiBaseUrl,
 } from '@/relisten/api/config';
-import { RelistenUserLibraryApiClient, UserLibraryFetch } from '@/relisten/api/user_library_client';
+import { UserLibraryFetch } from '@/relisten/api/user_library_client';
 
 export const CATALOG_LOCAL_API_PROBE_PATH = '/v3/artists?include_autocreated=false';
-export const USER_LIBRARY_LOCAL_API_PROBE_PATH = '/users/check-username/relisten_probe';
+export const USER_LIBRARY_LOCAL_API_PROBE_PATH = '/health';
 
 export interface LocalApiBaseUrlProbeOptions {
   catalogApiBaseUrl?: string;
@@ -31,12 +31,11 @@ export async function runLocalApiBaseUrlProbe(
   const catalogBaseUrl = withoutTrailingSlash(
     options.catalogApiBaseUrl ?? getRelistenCatalogApiBaseUrl()
   );
-  const userLibraryClient = new RelistenUserLibraryApiClient({
-    baseUrl: options.userLibraryApiBaseUrl ?? getRelistenUserLibraryApiBaseUrl(),
-    fetchFn,
-  });
+  const userLibraryBaseUrl = withoutTrailingSlash(
+    options.userLibraryApiBaseUrl ?? getRelistenUserLibraryApiBaseUrl()
+  );
   const catalogRequestUrl = `${catalogBaseUrl}${CATALOG_LOCAL_API_PROBE_PATH}`;
-  const userLibraryRequestUrl = userLibraryClient.urlForPath(USER_LIBRARY_LOCAL_API_PROBE_PATH);
+  const userLibraryRequestUrl = `${userLibraryBaseUrl}${USER_LIBRARY_LOCAL_API_PROBE_PATH}`;
 
   const [catalogResponse, userLibraryResponse] = await Promise.allSettled([
     fetchFn(catalogRequestUrl, {
@@ -45,13 +44,18 @@ export async function runLocalApiBaseUrlProbe(
         Accept: 'application/json',
       },
     }),
-    userLibraryClient.getJson<unknown>(USER_LIBRARY_LOCAL_API_PROBE_PATH),
+    fetchFn(userLibraryRequestUrl, {
+      method: 'GET',
+      headers: {
+        Accept: 'text/plain',
+      },
+    }),
   ]);
 
   return {
     catalogRequestUrl,
     userLibraryRequestUrl,
     catalogOk: catalogResponse.status === 'fulfilled' && catalogResponse.value.ok,
-    userLibraryOk: userLibraryResponse.status === 'fulfilled',
+    userLibraryOk: userLibraryResponse.status === 'fulfilled' && userLibraryResponse.value.ok,
   };
 }

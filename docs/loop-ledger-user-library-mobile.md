@@ -264,6 +264,16 @@ This ledger records root-level coordination for `docs/autoplan-user-library-mobi
 - Next Action: continue
 - Next move: Commit `MOB-REVIEW-001`, then claim `MOB-FAV-003` for source/show/library selection favorite consumers unless local API servers are available for live auth/sync/history/share-link smoke.
 
+### Iteration 27
+
+- Timestamp: 2026-06-20T18:02:25Z
+- Hypothesis: Healthy local API servers can close the deferred live base-routing smoke, and any remaining failure will identify a mobile probe-contract mismatch rather than a broader networking issue.
+- Action: Corrected `runLocalApiBaseUrlProbe` so the catalog probe still uses `/api/v3/artists?include_autocreated=false` while the user-library probe checks service `GET /health` directly. Ran direct local catalog/user health/auth checks, then launched the iOS Simulator app bundle with both local API base URLs through Metro.
+- Evidence: `yarn test -- api-config`, `yarn test`, `yarn ts:check`, `yarn lint`, and `git diff --check` passed. Direct smokes returned 200 for `http://localhost:3823/api/v3/artists?include_autocreated=false`, `http://localhost:3823/api/v2/shows/today?month=6&day=20`, `http://localhost:5119/health`, `POST http://localhost:5119/api/v3/library/auth/development/session`, and authenticated `GET http://localhost:5119/api/v3/library/users/me`; unauthenticated `/users/me` returned the expected 401 with `Cache-Control: no-store`. Metro on simulator `DEC49863-5AF8-4832-8BA2-C5E7C41A029D` served successful catalog requests against `localhost:3823`; screenshot artifact `/tmp/relisten-local-api-live-smoke.png`.
+- Verdict: pass
+- Next Action: continue
+- Next move: Commit `MOB-API-002`, then resume `MOB-FAV-003` for source/show/library selection favorite consumers.
+
 ## Root Coordination Notes
 
 - The active set intentionally starts with foundations: local API config, deterministic test harness, deep-link sanitizer, and Queue V2 playback foundation.

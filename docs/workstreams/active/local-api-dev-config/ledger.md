@@ -37,6 +37,37 @@ This ledger is the write-ahead log for `docs/workstreams/active/local-api-dev-co
 - Outcome: pass
 - next_action: done
 
+### MOB-API-002 - Live local API smoke and health probe correction
+
+- Status: completed
+- Timestamp: 2026-06-20T18:02:25Z
+- Intention / hypothesis: Once the local API servers are healthy, the mobile local API probe should verify the real catalog and user-library base URLs without relying on a user-library route that is not present in the running API contract.
+- Responsible agent: root Codex agent
+- Start commit: `baf71ec`
+- End commit: this commit (`fix(api): validate local user api health probe`)
+- Worktree or branch: `codex/scoped-realm-user-data`
+- Mutable surface: `relisten/api/local_api_probe.ts`, `relisten/api/api-config.test.ts`, `docs/local-api-dev-config.md`, root AutoPlan docs, and this ledger.
+- Validator: `yarn test -- api-config`, `yarn test`, `yarn lint`, `yarn ts:check`, `git diff --check`, direct local API smoke, and iOS Simulator Metro smoke on `DEC49863-5AF8-4832-8BA2-C5E7C41A029D`.
+- Expected deliverable: `runLocalApiBaseUrlProbe` uses the real user-library health endpoint and local docs no longer point developers at a 404ing username-check route.
+- Expected artifacts: code diff, validation transcript, direct local API smoke notes, and iOS Simulator screenshot artifact.
+- Linked ExecPlan: none.
+- Evidence:
+  - Changed the user-library side of `runLocalApiBaseUrlProbe` to call `GET /health` directly with `Accept: text/plain`, while keeping the catalog probe on `/v3/artists?include_autocreated=false`.
+  - Updated the API config test and local API docs to match the running user API contract.
+  - Direct local smokes returned 200 for catalog `/api/v3/artists?include_autocreated=false`, catalog `/api/v2/shows/today?month=6&day=20`, user-library `/health`, Development session issue, and authenticated `/api/v3/library/users/me`; unauthenticated `/users/me` returned the expected 401 with `Cache-Control: no-store`.
+  - iOS Simulator Metro smoke used `EXPO_PUBLIC_RELISTEN_CATALOG_API_BASE_URL=http://localhost:3823/api` and `EXPO_PUBLIC_RELISTEN_USER_API_BASE_URL=http://localhost:5119`, bundled successfully, and served successful catalog requests from the running app.
+- Validators:
+  - `yarn test -- api-config`: pass, 1 file / 7 tests.
+  - `yarn test`: pass, 19 files / 154 tests.
+  - `yarn ts:check`: pass.
+  - `yarn lint`: pass.
+  - `git diff --check`: pass.
+  - iOS Simulator smoke: pass on `DEC49863-5AF8-4832-8BA2-C5E7C41A029D`; screenshot artifact `/tmp/relisten-local-api-live-smoke.png`.
+- Review: Root reviewed this as a narrow probe-contract correction. No additional abstraction is needed because the user-library client should remain library-prefix aware, while service `/health` is intentionally outside `/api/v3/library`.
+- Outcome: pass
+- next_action: done
+- Next move: Resume `MOB-FAV-003` for scoped favorite consumers after this correction is committed.
+
 ### Next Experiment Template: MOB-API-001
 
 - Timestamp: fill in before edits

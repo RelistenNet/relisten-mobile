@@ -137,7 +137,7 @@ describe('runLocalApiBaseUrlProbe', () => {
 
     expect(result).toEqual({
       catalogRequestUrl: `${LOCAL_IOS_SIMULATOR_CATALOG_API_BASE_URL}${CATALOG_LOCAL_API_PROBE_PATH}`,
-      userLibraryRequestUrl: `${LOCAL_IOS_SIMULATOR_USER_LIBRARY_API_BASE_URL}/api/v3/library/users/check-username/relisten_probe`,
+      userLibraryRequestUrl: `${LOCAL_IOS_SIMULATOR_USER_LIBRARY_API_BASE_URL}/health`,
       catalogOk: true,
       userLibraryOk: true,
     });
@@ -146,8 +146,11 @@ describe('runLocalApiBaseUrlProbe', () => {
       expect.objectContaining({ method: 'GET' })
     );
     expect(fetchFn).toHaveBeenCalledWith(
-      `${LOCAL_IOS_SIMULATOR_USER_LIBRARY_API_BASE_URL}/api/v3/library/users/check-username/relisten_probe`,
-      expect.objectContaining({ method: 'GET' })
+      `${LOCAL_IOS_SIMULATOR_USER_LIBRARY_API_BASE_URL}/health`,
+      expect.objectContaining({
+        headers: { Accept: 'text/plain' },
+        method: 'GET',
+      })
     );
   });
 });
