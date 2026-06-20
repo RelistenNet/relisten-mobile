@@ -22,6 +22,7 @@ import {
   PopularityWindow,
   PopularityWindows,
 } from '@/relisten/realm/models/popularity';
+import { USER_LIBRARY_REALM_MODELS } from '@/relisten/realm/models/user_library';
 import { isVerboseProfileLoggingEnabled } from '@/relisten/util/profile_logging';
 
 if (isVerboseProfileLoggingEnabled()) {
@@ -34,7 +35,7 @@ if (isVerboseProfileLoggingEnabled()) {
   Realm.setLogLevel('debug', 'Realm.Storage.Notification');
 }
 
-const realmConfig: Realm.Configuration = {
+export const realmConfig: Realm.Configuration = {
   schema: [
     Artist,
     Year,
@@ -56,8 +57,9 @@ const realmConfig: Realm.Configuration = {
     Popularity,
     PopularityWindow,
     PopularityWindows,
+    ...USER_LIBRARY_REALM_MODELS,
   ],
-  schemaVersion: 12,
+  schemaVersion: 13,
   // As to not conflict with the prior versions default.realm that isn't readable with this version of the SDK
   path: './relisten.realm',
 };

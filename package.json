@@ -5,6 +5,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios -d",
     "web": "expo start --web",
+    "test": "vitest run",
     "ts:check": "tsc",
     "lint": "eslint app relisten",
     "pods": "npx pod-install",
@@ -96,7 +97,8 @@
     "eslint-plugin-react-compiler": "^19.1.0-rc.2",
     "patch-package": "^8.0.1",
     "tailwindcss": "3.3.2",
-    "typescript": "~5.9.3"
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.9"
   },
   "resolutions": {
     "hermes-compiler": "250829098.0.4"
