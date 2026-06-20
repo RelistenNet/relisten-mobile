@@ -13,6 +13,10 @@ import {
 import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import plur from 'plur';
 import { carplay_logger } from '@/relisten/carplay/carplay_logger';
+import {
+  carPlayQueueV2IdentityForTrack,
+  findCarPlayQueueTrackIndex,
+} from '@/relisten/carplay/queue_v2_identity';
 
 const ACTION_CLEAR = 'action-clear';
 const ACTION_NOW_PLAYING = 'action-open-now-playing';
@@ -62,7 +66,7 @@ export function createQueueListTemplate(
         return;
       }
 
-      const trackIndex = queue.orderedTracks.findIndex((t) => t.identifier === id);
+      const trackIndex = findCarPlayQueueTrackIndex(queue.orderedTracks, id);
 
       if (trackIndex >= 0) {
         carplay_logger.info('Queue select track', { trackIndex, id });
@@ -151,9 +155,10 @@ function buildSections(ctx: RelistenCarPlayContext): ListSection[] {
   const trackItems = orderedTracks.map((track: PlayerQueueTrack) => {
     const isCurrent = current?.identifier === track.identifier;
     const isPlaying = isCurrent && playbackStatus === RelistenPlaybackState.Playing;
+    const queueV2Identity = carPlayQueueV2IdentityForTrack(track);
 
     return {
-      id: track.identifier,
+      id: queueV2Identity.carPlayItemId,
       text: track.title,
       detailText: track.artist || track.albumTitle,
       isPlaying,

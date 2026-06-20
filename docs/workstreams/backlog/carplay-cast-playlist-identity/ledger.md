@@ -37,3 +37,25 @@ This ledger is the write-ahead log for `docs/workstreams/backlog/carplay-cast-pl
 - Outcome: pass
 - next_action: continue
 - Next move: Continue this workstream with CarPlay playlist identity display/selection or promote auth/session if server dev-auth readiness is confirmed.
+
+### MOB-CAST-002 - CarPlay Queue V2 row identity
+
+- Status: completed
+- Timestamp: 2026-06-20T06:00:38Z
+- Intention / hypothesis: CarPlay queue rows can use deterministic Queue V2-backed item identifiers while preserving runtime-identifier fallback selection, so duplicate source tracks and playlist entries remain distinguishable outside React screens without native module changes.
+- Responsible agent: root Codex agent
+- Start commit: `461b59d`
+- End commit: this commit (`feat(carplay): add Queue V2 row identity`)
+- Worktree or branch: `codex/scoped-realm-user-data`
+- Mutable surface: `relisten/carplay/queue.ts`, new pure CarPlay queue identity helper/tests under `relisten/carplay/`, AutoPlan docs, and this ledger.
+- Validator: `yarn test -- carplay-queue-v2 queue-v2`, `yarn test`, `yarn lint`, `yarn ts:check`, and `git diff --check`; live CarPlay UI validation remains simulator/hardware dependent.
+- Expected deliverable: tested helper that emits CarPlay row IDs and metadata from `PlayerQueueTrack.queueV2Item`, queue template row IDs wired through the helper, and selection fallback for pre-existing runtime identifier IDs.
+- Expected artifacts: code diff, focused tests, validation transcript, and review notes.
+- Linked ExecPlan: none.
+- Evidence: Added a pure CarPlay Queue V2 identity helper that builds row IDs from encoded Queue V2 item IDs plus runtime queue identifiers, exposes playlist/source/block metadata for future adapters, and resolves selection by Queue V2 row ID before falling back to legacy runtime identifiers.
+- Queue evidence: `createQueueListTemplate` now emits Queue V2-backed row IDs while keeping current-track state tied to runtime identifiers, so duplicate playlist entries and cloned runtime rows remain selectable independently.
+- Validators: `yarn test -- carplay-queue-v2 queue-v2` passed with 3 files / 17 tests; `yarn test` passed with 17 files / 120 tests; `yarn lint`; `yarn ts:check`; `git diff --check`.
+- Review: Reviewer found a low test gap for selecting cloned rows by the new CarPlay row ID. Added the assertion and re-review reported no findings.
+- Outcome: pass
+- next_action: continue
+- Next move: Treat native-free Cast and CarPlay Queue V2 identity as complete until playlist playback UI creates deeper CarPlay playlist browsing requirements; live CarPlay UI validation remains deferred.
