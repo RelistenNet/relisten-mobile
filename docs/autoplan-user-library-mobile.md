@@ -161,9 +161,10 @@ Milestone 7 designs and implements playlist UX. It refines `playlist-mobile-ux` 
 - [x] 2026-06-20T06:07:13Z Claimed `auth-session-user-service-client` experiment `MOB-AUTH-003` for a Development-only sign-in surface.
 - [x] 2026-06-20T06:15:40Z Completed `auth-session-user-service-client` experiment `MOB-AUTH-003`: Settings now has a `__DEV__`-only local sign-in/sign-out panel backed by the real auth service, session metadata bridge, active scope switch, failure-path cleanup tests, and no committed Google/OAuth client files.
 - [x] 2026-06-20T06:31:53Z Completed `mobile-share-token-exchange` experiment `MOB-SHARE-001`: `/playlist/{shortId}?t=...` route exchange handling, typed user-library exchange helper, SecureStore grant-secret boundary, scoped Realm grant metadata, tokenless read header construction, SecureStore key and scope-race regressions, and subagent review/re-review.
+- [x] 2026-06-20T06:34:56Z Completed `playlist-mobile-ux` clarification experiment `MOB-UX-CLAR-001`: concrete UX rubric, screen map, implementation slices, validators, and open grill-me prompts for playlist library/detail/add/share/collaboration/conflict decisions.
 - [x] 2026-06-20T00:34:01Z Completed `scoped-realm-user-data` experiment `MOB-SCOPE-001`: additive scoped Realm rows, active scope service, deterministic scope tests, and iOS Simulator smoke on `DEC49863-5AF8-4832-8BA2-C5E7C41A029D`.
 - [x] Promote auth/session after local API config and Development-only auth basics are in place.
-- [ ] Revisit playlist UX workstream only after auth and basic user-data foundations are working.
+- [x] Revisit playlist UX workstream only after auth and basic user-data foundations are working.
 
 ## Workstream Board
 
@@ -180,15 +181,15 @@ Milestone 7 designs and implements playlist UX. It refines `playlist-mobile-ux` 
 | favorites-sync-migration | active | root Codex agent | signed-in UI source-of-truth switch deferred | `docs/workstreams/backlog/favorites-sync-migration/plan.md` | `docs/workstreams/backlog/favorites-sync-migration/ledger.md` | branch `codex/scoped-realm-user-data` | Use scoped favorite rows in signed-in UI/repository reads after the app bootstrap sync lifecycle is wired. | `continue` |
 | history-batch-upload-migration | active | root Codex agent | live upload smoke waits on local `RelistenUserApi`; old local history bulk-upload needs product decision | `docs/workstreams/backlog/history-batch-upload-migration/plan.md` | `docs/workstreams/backlog/history-batch-upload-migration/ledger.md` | branch `codex/scoped-realm-user-data` | Treat authenticated new-play history foundation as complete; defer old-history upload opt-in. | `continue` |
 | carplay-cast-playlist-identity | active | root Codex agent | live Cast/CarPlay hardware validation deferred unless available | `docs/workstreams/backlog/carplay-cast-playlist-identity/plan.md` | `docs/workstreams/backlog/carplay-cast-playlist-identity/ledger.md` | branch `codex/scoped-realm-user-data` | Native-free Cast custom data and CarPlay Queue V2 row identity are complete; revisit only when playlist UI creates deeper CarPlay browse flows. | `continue` |
-| playlist-mobile-ux | backlog | unassigned | auth and basic user-data paths; needs clarification before implementation | `docs/workstreams/backlog/playlist-mobile-ux/plan.md` | `docs/workstreams/backlog/playlist-mobile-ux/ledger.md` | none | Re-run grill-me on UX flows once foundations work. | `ask_user` |
+| playlist-mobile-ux | active | root Codex agent | product answers needed for block label, create flow, add-range interaction, signed-out/editor-token prompts, follow/clone hierarchy, invites, conflicts, partial-offline copy, and share-link management | `docs/workstreams/backlog/playlist-mobile-ux/plan.md` | `docs/workstreams/backlog/playlist-mobile-ux/ledger.md` | branch `codex/scoped-realm-user-data` | Ask the open UX questions in `MOB-UX-CLAR-001`, then implement `MOB-UX-001` if read-only playlist/library surfaces are unblocked. | `ask_user` |
 
 ## Current Hypothesis
 
-Queue V2, scoped Realm rows, token/session handling, active authenticated scope switching, Development-only sign-in UI, playlist pull-sync application, scoped favorite migration, playlist operation replay, authenticated lifecycle sync, signed-in playback history journaling/batch upload, Cast custom data, CarPlay queue row identity, and mobile share-token exchange/storage now have enough pure behavior in place for local user-data workflows. The remaining foundation risks are live local API smoke and playlist mutation/UI adapters that need product clarification.
+Queue V2, scoped Realm rows, token/session handling, active authenticated scope switching, Development-only sign-in UI, playlist pull-sync application, scoped favorite migration, playlist operation replay, authenticated lifecycle sync, signed-in playback history journaling/batch upload, Cast custom data, CarPlay queue row identity, and mobile share-token exchange/storage now have enough pure behavior in place for local user-data workflows. Playlist UX now has a concrete implementation map, but polished UI implementation needs product answers before mutation/edit/share/collaboration surfaces are built.
 
 ## Next Iteration
 
-`MOB-SHARE-001` is committed. Local API ports `3823` and `5119` are still not listening, so live Development auth/sync/history/share-link smoke remains blocked. Promote playlist UX clarification before adding user-facing playlist edit/follow/clone surfaces.
+Local API ports `3823` and `5119` are still not listening, so live Development auth/sync/history/share-link smoke remains blocked. Ask the playlist UX open questions, then start `MOB-UX-001` if read-only playlist/library surfaces can proceed without waiting on mutation copy.
 
 ## Workstream Notes
 
@@ -196,7 +197,7 @@ New steering requests must be classified before changing this board. Ready works
 
 Use worktrees for parallel implementation once branches are claimed and write surfaces are disjoint. The likely first split is local API config/test harness versus Queue V2 pure logic.
 
-The playlist UX workstream is intentionally light for now. The user confirmed UX probably needs significant clarification and should be filled out after auth and basic data paths work.
+The playlist UX workstream now has a concrete execution map. Do not implement mutation/edit/share/collaboration UI until the open questions in `MOB-UX-CLAR-001` are answered or explicitly deferred.
 
 ## Surprises & Discoveries
 
