@@ -29,6 +29,7 @@ export const RelistenFlatList = <T extends { uuid: string }>({
 
   return (
     <FlatList
+      contentInsetAdjustmentBehavior="automatic"
       {...props}
       data={data}
       keyExtractor={(item) => item.uuid}
