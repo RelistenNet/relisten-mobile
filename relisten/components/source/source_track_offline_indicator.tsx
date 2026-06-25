@@ -7,6 +7,7 @@ import { useWindowDimensions, View, ViewProps } from 'react-native';
 import colors from 'tailwindcss/colors';
 
 import * as Progress from 'react-native-progress';
+import { accessibleControlScale } from '@/relisten/util/accessible_control_scale';
 
 const SIZE = 18;
 
@@ -23,6 +24,7 @@ export function SourceTrackOfflineIndicator({
   offlineInfo: SourceTrackOfflineInfo | undefined;
 }) {
   const { fontScale } = useWindowDimensions();
+  const controlSize = SIZE * accessibleControlScale(fontScale);
 
   if (!offlineInfo) {
     return <></>;
@@ -34,27 +36,21 @@ export function SourceTrackOfflineIndicator({
 
   switch (offlineInfo.status) {
     case SourceTrackOfflineInfoStatus.UNKNOWN:
-      contents = (
-        <MaterialCommunityIcons name="download-off" size={SIZE * fontScale} color={color} />
-      );
+      contents = <MaterialCommunityIcons name="download-off" size={controlSize} color={color} />;
       break;
     case SourceTrackOfflineInfoStatus.Queued:
       contents = (
-        <MaterialCommunityIcons name="progress-download" size={SIZE * fontScale} color={color} />
+        <MaterialCommunityIcons name="progress-download" size={controlSize} color={color} />
       );
       break;
     case SourceTrackOfflineInfoStatus.Downloading:
-      contents = (
-        <Progress.Pie size={SIZE * fontScale} color={color} progress={offlineInfo.percent} />
-      );
+      contents = <Progress.Pie size={controlSize} color={color} progress={offlineInfo.percent} />;
       break;
     case SourceTrackOfflineInfoStatus.Failed:
-      contents = (
-        <MaterialCommunityIcons name="download-off" size={SIZE * fontScale} color={color} />
-      );
+      contents = <MaterialCommunityIcons name="download-off" size={controlSize} color={color} />;
       break;
     case SourceTrackOfflineInfoStatus.Succeeded:
-      contents = <SourceTrackSucceededIndicator size={SIZE * fontScale} />;
+      contents = <SourceTrackSucceededIndicator size={controlSize} />;
       break;
   }
 

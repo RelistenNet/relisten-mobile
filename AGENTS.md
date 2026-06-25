@@ -21,8 +21,8 @@ Always run `yarn lint` and `yarn ts:check` after making changes to ensure that k
 ## Coding Style & Naming Conventions
 - TypeScript + React Native; keep files ASCII and prefer functional components.
 - Indentation: 2 spaces (match existing files).
-- Component files use `PascalCase` when appropriate; utilities use `camelCase`.
-- Expo Router filenames follow its conventions (`_layout.tsx`, `+not-found.tsx`, `index.tsx`).
+- New component files use `snake_case` (for example, `source_track_component.tsx`); keep existing filenames unchanged unless a rename is required by the task.
+- Expo Router filenames follow Router conventions (`_layout.tsx`, `+not-found.tsx`, `index.tsx`); route URL segments may use hyphens.
 - Path aliases: `@/relisten/*`, `@/app/*`, `@/modules/*`, `@/assets/*`.
 - Linting is enforced by `eslint.config.mjs`; run `yarn lint` before PRs.
 

@@ -1,5 +1,6 @@
 import Flex from '@/relisten/components/flex';
 import { RelistenButton } from '@/relisten/components/relisten_button';
+import { SettingsEnumMenu } from '@/relisten/components/menus/settings_enum_menu';
 import { RowWithAction } from '@/relisten/components/row_with_action';
 import { SectionHeader } from '@/relisten/components/section_header';
 import {
@@ -15,7 +16,6 @@ import {
 } from '@/relisten/realm/models/user_settings';
 import { useRealm, useObject } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
-import { useActionSheet } from '@expo/react-native-action-sheet';
 import { useEffect, useState } from 'react';
 import { Switch, SwitchProps, TextInput, TextInputProps } from 'react-native';
 import { LastFmAuth } from '@/relisten/lastfm/lastfm_auth';
@@ -245,43 +245,6 @@ function InternalTextInput(props: TextInputProps) {
   );
 }
 
-function EnumPicker({
-  setting,
-  settings,
-  onValueChange,
-}: {
-  setting: EnumSettingsEntry;
-  settings: UserSettings;
-  onValueChange: (newValue: EnumSettingsEntryOption) => void;
-}) {
-  const { showActionSheetWithOptions } = useActionSheet();
-
-  const currentValue = setting.currentSetting(settings);
-  let currentLabel = currentValue;
-
-  for (const option of setting.options) {
-    if (option.value === currentValue) {
-      currentLabel = option.label;
-    }
-  }
-
-  const showOptions = () => {
-    showActionSheetWithOptions(
-      {
-        options: [...setting.options.map((o) => o.label), 'Cancel'],
-        cancelButtonIndex: setting.options.length,
-      },
-      (selectedIdx?: number) => {
-        if (selectedIdx !== undefined && selectedIdx < setting.options.length) {
-          onValueChange(setting.options[selectedIdx]);
-        }
-      }
-    );
-  };
-
-  return <RelistenButton onPress={showOptions}>{currentLabel}</RelistenButton>;
-}
-
 function LastFmSettingsSection() {
   const realm = useRealm();
   const lastFmSettings = useLastFmSettings();
@@ -437,9 +400,9 @@ export function RelistenSettings() {
               />
             )}
             {setting.type === 'enum' && (
-              <EnumPicker
-                setting={setting}
-                settings={settings}
+              <SettingsEnumMenu
+                currentValue={setting.currentSetting(settings)}
+                options={setting.options}
                 onValueChange={onEnumValueChange(setting)}
               />
             )}

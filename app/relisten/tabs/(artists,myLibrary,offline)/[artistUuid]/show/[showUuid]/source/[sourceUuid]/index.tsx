@@ -1,4 +1,5 @@
 import { ItemSeparator } from '@/relisten/components/item_separator';
+import { confirmDestructiveAction } from '@/relisten/components/menus/confirm_destructive_action';
 import { RefreshContextProvider, useRefreshContext } from '@/relisten/components/refresh_context';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RelistenFlatList } from '@/relisten/components/relisten_flat_list';
@@ -12,8 +13,8 @@ import { useRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useForceUpdate } from '@/relisten/util/forced_update';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Link, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import React, { PropsWithChildren, useCallback, useEffect, useRef, useState } from 'react';
+import { Link, Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import React, { PropsWithChildren, useEffect, useRef, useState } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import {
   Animated,
@@ -27,11 +28,11 @@ import {
 import * as R from 'remeda';
 
 import { SourceSets } from '@/relisten/components/source/source_sets_component';
+import { SourceActionsToolbar } from '@/relisten/components/source/source_actions_toolbar';
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
 import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
-import { PlayShow, useSourceTrackContextMenu } from '@/relisten/player/ui/track_context_menu';
+import type { PlayShow } from '@/relisten/player/ui/source_track_actions_menu';
 import { useGroupSegment, useIsOfflineTab } from '@/relisten/util/routes';
-import { useActionSheet } from '@expo/react-native-action-sheet';
 import { DownloadManager } from '@/relisten/offline/download_manager';
 import Flex from '@/relisten/components/flex';
 import { log } from '@/relisten/util/logging';
@@ -103,10 +104,7 @@ export const SourceList = ({ sources }: { sources: Source[] }) => {
 };
 
 export default function Page() {
-  const { showActionSheetWithOptions } = useActionSheet();
-
   const realm = useRealm();
-  const navigation = useNavigation();
   const player = useRelistenPlayer();
   const { showUuid, sourceUuid, playTrackUuid } = useLocalSearchParams();
   const router = useRouter();
@@ -188,108 +186,51 @@ export default function Page() {
     setIsRemovingDownloads(false);
   };
 
-  const onDotsPress = useCallback(() => {
+  const shareShow = () => {
+    if (!show || !selectedSource) {
+      return;
+    }
+
+    const [year, month, day] = selectedSource.displayDate.split('-');
+    const url = `https://relisten.net/${artist?.slug}/${year}/${month}/${day}?source=${selectedSource.uuid}`;
+
+    void Share.share({
+      message: `Check out ${show.displayDate} (${show.venue?.name ?? ''}) by ${artist?.name} on @relistenapp${Platform.OS === 'ios' ? '' : `: ${url}`}`,
+      url,
+    });
+  };
+
+  const playEntireShow = () => {
+    playShow(
+      selectedSource
+        ? getQueueableSourceTracks(selectedSource, isOfflineTab, offlineMode)[0]
+        : undefined
+    );
+  };
+
+  const switchSource = () => {
     if (!show) {
       return;
     }
 
-    const options = [
-      'Share Show',
-      'Play Show',
-      'Download Entire Show',
-      isRemovingDownloads ? 'Removing Downloads...' : 'Remove All Downloads for Show',
-      'Switch Source',
-      'Toggle Favorite',
-      'Cancel',
-    ];
-    const cancelButtonIndex = options.length - 1;
-
-    showActionSheetWithOptions(
-      {
-        options,
-        cancelButtonIndex,
+    router.push({
+      pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/sources/` as const,
+      params: {
+        artistUuid: show.artistUuid,
+        showUuid: show.uuid,
       },
-      async (selectedIndex?: number) => {
-        switch (selectedIndex) {
-          case 0: {
-            // Share Show
-            const [year, month, day] = selectedSource.displayDate.split('-');
-            const url = `https://relisten.net/${artist?.slug}/${year}/${month}/${day}?source=${selectedSource.uuid}`;
-            Share.share({
-              message: `Check out ${show.displayDate} (${show.venue?.name ?? ''}) by ${artist?.name} on @relistenapp${Platform.OS === 'ios' ? '' : `: ${url}`}`,
-              url: url,
-            }).then(() => {});
-
-            break;
-          }
-          case 1:
-            // Play Show
-            playShow(
-              selectedSource
-                ? getQueueableSourceTracks(selectedSource, isOfflineTab, offlineMode)[0]
-                : undefined
-            );
-
-            break;
-          case 2:
-            // Download Entire Show
-            downloadShow();
-            break;
-
-          case 3:
-            // Remove All Downloads for Show
-            await removeDownloads();
-            break;
-
-          case 4:
-            // Switch Source
-            router.push({
-              pathname:
-                `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/sources/` as const,
-              params: {
-                artistUuid: show.artistUuid,
-                showUuid: show.uuid,
-              },
-            });
-
-            break;
-          case 5:
-            // Toggle Favorite
-            toggleSelectedSourceFavorite(realm, selectedSource);
-
-            break;
-          case cancelButtonIndex:
-            // Cancel
-            break;
-        }
-      }
-    );
-  }, [
-    artist,
-    downloadShow,
-    groupSegment,
-    isRemovingDownloads,
-    isOfflineTab,
-    offlineMode,
-    playShow,
-    realm,
-    removeDownloads,
-    router,
-    selectedSource,
-    show,
-    showActionSheetWithOptions,
-  ]);
-
-  useEffect(() => {
-    navigation.setOptions({
-      title: show?.displayDate,
-      headerRight: () => (
-        <TouchableOpacity onPressOut={onDotsPress} className="p-2">
-          <MaterialIcons name="more-horiz" color="white" size={22} />
-        </TouchableOpacity>
-      ),
     });
-  }, [navigation, onDotsPress, show?.displayDate]);
+  };
+
+  const confirmRemoveDownloads = () => {
+    confirmDestructiveAction({
+      confirmLabel: 'Remove Downloads',
+      message:
+        'Downloaded tracks for this show will be removed. You will need an internet connection to play them again.',
+      onConfirm: removeDownloads,
+      title: 'Remove All Downloads?',
+    });
+  };
 
   useEffect(() => {
     if (!selectedSource || hasAutoplayed) {
@@ -317,19 +258,34 @@ export default function Page() {
   ]);
 
   return (
-    <RefreshContextProvider
-      networkBackedResults={results}
-      extraRefreshingConsideration={() => !selectedSource}
-    >
-      <DisappearingHeaderScreen
-        ScrollableComponent={SourceComponent}
-        show={show}
-        artist={artist}
-        selectedSource={selectedSource}
-        playShow={playShow}
-        downloadShow={downloadShow}
-      />
-    </RefreshContextProvider>
+    <>
+      <Stack.Screen options={{ title: show?.displayDate ?? '' }} />
+      {show && selectedSource && (
+        <SourceActionsToolbar
+          isFavorite={selectedSource.isFavorite}
+          isRemovingDownloads={isRemovingDownloads}
+          onDownload={downloadShow}
+          onFavorite={() => toggleSelectedSourceFavorite(realm, selectedSource)}
+          onPlay={playEntireShow}
+          onRemoveDownloads={confirmRemoveDownloads}
+          onShare={shareShow}
+          onSwitchSource={switchSource}
+        />
+      )}
+      <RefreshContextProvider
+        networkBackedResults={results}
+        extraRefreshingConsideration={() => !selectedSource}
+      >
+        <DisappearingHeaderScreen
+          ScrollableComponent={SourceComponent}
+          show={show}
+          artist={artist}
+          selectedSource={selectedSource}
+          playShow={playShow}
+          downloadShow={downloadShow}
+        />
+      </RefreshContextProvider>
+    </>
   );
 }
 
@@ -348,22 +304,12 @@ const SourceComponent = ({
   downloadShow: () => void;
 } & ScrollViewProps) => {
   const { refreshing, errors, hasData } = useRefreshContext();
-  const { showContextMenu } = useSourceTrackContextMenu();
   const userSettings = useUserSettings();
   const isOfflineTab = useIsOfflineTab();
   const playerBottomScrollViewProps = usePlayerBottomScrollViewProps({
     contentContainerStyle: props.contentContainerStyle,
     scrollIndicatorInsets: props.scrollIndicatorInsets,
   });
-
-  const onDotsPress = useCallback(
-    (sourceTrack: SourceTrack) => {
-      const queueTrack = PlayerQueueTrack.fromSourceTrack(sourceTrack);
-
-      showContextMenu(queueTrack, playShow);
-    },
-    [playShow, showContextMenu]
-  );
 
   if (errors && !hasData) {
     return (
@@ -409,7 +355,7 @@ const SourceComponent = ({
         artist={artist}
         initialTrackToPlay={initialTrackToPlay}
       />
-      <SourceSets source={selectedSource} playShow={playShow} onDotsPress={onDotsPress} />
+      <SourceSets source={selectedSource} playShow={playShow} />
       <SourceFooter source={selectedSource} />
     </Animated.ScrollView>
   );

@@ -1,7 +1,9 @@
 import { useQuery, useRealm } from '@/relisten/realm/schema';
+import { confirmDestructiveAction } from '@/relisten/components/menus/confirm_destructive_action';
+import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { aggregateBy } from '@/relisten/util/group_by';
 import dayjs from 'dayjs';
@@ -9,15 +11,13 @@ import {
   RelistenSectionData,
   RelistenSectionList,
 } from '@/relisten/components/relisten_section_list';
-import { TouchableOpacity, View } from 'react-native';
+import { View } from 'react-native';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import Plur from '@/relisten/components/plur';
 import { SubtitleText } from '@/relisten/components/row_subtitle';
 import { ListRenderItem } from '@shopify/flash-list';
 import { TrackWithArtist } from '@/relisten/components/source/source_track_with_artist';
-import { useNavigation } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useActionSheet } from '@expo/react-native-action-sheet';
+import { Stack } from 'expo-router';
 
 function HistoryHeader({ totalPlayed }: { totalPlayed: number }) {
   return (
@@ -34,9 +34,29 @@ function HistoryHeader({ totalPlayed }: { totalPlayed: number }) {
   );
 }
 
+function HistoryToolbar({ disabled, onClear }: { disabled: boolean; onClear: () => void }) {
+  return (
+    <Stack.Toolbar placement="right">
+      <Stack.Toolbar.Menu
+        accessibilityLabel="Listening history actions"
+        disabled={disabled}
+        icon={nativeMenuIcons.more}
+      >
+        <Stack.Toolbar.MenuAction
+          destructive
+          disabled={disabled}
+          icon={nativeMenuIcons.clearHistory}
+          onPress={onClear}
+        >
+          Clear Listening History…
+        </Stack.Toolbar.MenuAction>
+      </Stack.Toolbar.Menu>
+    </Stack.Toolbar>
+  );
+}
+
 export default function Page() {
   const realm = useRealm();
-  const { showActionSheetWithOptions } = useActionSheet();
   const recentlyPlayed = useQuery(
     {
       type: PlaybackHistoryEntry,
@@ -45,41 +65,22 @@ export default function Page() {
     []
   );
 
-  const navigation = useNavigation();
+  const confirmClearHistory = () => {
+    confirmDestructiveAction({
+      confirmLabel: 'Clear History',
+      message: 'This will permanently delete your listening history.',
+      onConfirm: () => {
+        const history = realm.objects(PlaybackHistoryEntry);
 
-  useEffect(() => {
-    navigation.setOptions({
-      headerRight: () => {
-        const onDotsPress = () => {
-          showActionSheetWithOptions(
-            {
-              options: ['Clear listening history', 'Cancel'],
-              cancelButtonIndex: 1,
-              destructiveButtonIndex: 0,
-              message: 'This will permanently delete your listening history.',
-            },
-            (selectedIdx?: number) => {
-              if (selectedIdx === 0) {
-                const history = realm.objects(PlaybackHistoryEntry);
-
-                realm.write(() => {
-                  for (const entry of history) {
-                    realm.delete(entry);
-                  }
-                });
-              }
-            }
-          );
-        };
-
-        return (
-          <TouchableOpacity onPressOut={onDotsPress} className="px-2 py-2">
-            <MaterialCommunityIcons name="dots-horizontal" size={22} color="white" />
-          </TouchableOpacity>
-        );
+        realm.write(() => {
+          for (const entry of history) {
+            realm.delete(entry);
+          }
+        });
       },
+      title: 'Clear Listening History?',
     });
-  }, [navigation, showActionSheetWithOptions, realm]);
+  };
 
   // TODO: make it not just 300 but dynamically loading more
   const historyEntriesByDate: RelistenSectionData<PlaybackHistoryEntry> = useMemo(() => {
@@ -108,15 +109,18 @@ export default function Page() {
   };
 
   return (
-    <RefreshContextProvider>
-      <DisappearingHeaderScreen
-        ScrollableComponent={
-          RelistenSectionList as typeof RelistenSectionList<PlaybackHistoryEntry>
-        }
-        ListHeaderComponent={<HistoryHeader totalPlayed={recentlyPlayed.length} />}
-        data={historyEntriesByDate}
-        renderItem={renderItem}
-      />
-    </RefreshContextProvider>
+    <>
+      <HistoryToolbar disabled={recentlyPlayed.length === 0} onClear={confirmClearHistory} />
+      <RefreshContextProvider>
+        <DisappearingHeaderScreen
+          ScrollableComponent={
+            RelistenSectionList as typeof RelistenSectionList<PlaybackHistoryEntry>
+          }
+          ListHeaderComponent={<HistoryHeader totalPlayed={recentlyPlayed.length} />}
+          data={historyEntriesByDate}
+          renderItem={renderItem}
+        />
+      </RefreshContextProvider>
+    </>
   );
 }

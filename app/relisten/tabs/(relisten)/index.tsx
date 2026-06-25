@@ -1,7 +1,8 @@
 import { Directory, File, Paths } from 'expo-file-system';
 import { getFreeDiskStorageAsync, getTotalDiskCapacityAsync } from 'expo-file-system/legacy';
+import { StorageDeleteMenu } from '@/relisten/components/menus/storage_delete_menu';
 import { RelistenButton } from '@/relisten/components/relisten_button';
-import { ActivityIndicator, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { useCallback, useEffect, useReducer, useState } from 'react';
 import Flex from '@/relisten/components/flex';
 import {
@@ -12,9 +13,6 @@ import { Link, useFocusEffect } from 'expo-router';
 import { RelistenSettings } from '@/relisten/components/settings';
 import { SectionHeader } from '@/relisten/components/section_header';
 import { RowWithAction } from '@/relisten/components/row_with_action';
-import { useActionSheet } from '@expo/react-native-action-sheet';
-import { DownloadManager } from '@/relisten/offline/download_manager';
-import { log } from '@/relisten/util/logging';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
 import { RelistenAbout } from '@/relisten/components/about';
 import { UpdatesStatusSection } from '@/relisten/components/updates_status_section';
@@ -106,12 +104,8 @@ export const useFileSystemInfo = () => {
   return [state, refresh] as const;
 };
 
-const logger = log.extend('storage-usage');
-
 function StorageUsage() {
   const [fileSystemInfo, refresh] = useFileSystemInfo();
-  const { showActionSheetWithOptions } = useActionSheet();
-  const [deleting, setDeleting] = useState(false);
   const [hasLegacyData, setHasLegacyData] = useState<boolean>(false);
   const [showMigrationModal, setShowMigrationModal] = useState(false);
 
@@ -126,66 +120,6 @@ function StorageUsage() {
       refresh();
     }, [refresh])
   );
-
-  const deleteOffline = () => {
-    const options = ['Delete all downloaded tracks'];
-    const canDeleteLegacy = fileSystemInfo.totalSizeOfLegacyRelistenDirectory > 0;
-
-    if (canDeleteLegacy) {
-      options.push('Delete legacy data', 'Delete all');
-    }
-
-    options.push('Cancel');
-
-    const legacy = canDeleteLegacy
-      ? '\n\nDeleting legacy data will clear space from previous version of Relisten but cannot be recovered.'
-      : '';
-
-    showActionSheetWithOptions(
-      {
-        options,
-        cancelButtonIndex: options.length - 1,
-        destructiveButtonIndex: options.length - 2,
-        title: 'Are you sure you want to delete your downloaded tracks?',
-        message: `Deleting all downloaded tracks will free up storage space, but you will not be able to play any songs without access to the Internet.${legacy}`,
-      },
-      (selectedIdx?: number) => {
-        if (selectedIdx === undefined || selectedIdx === options.length - 1) {
-          return;
-        }
-
-        setDeleting(true);
-
-        const deletionPromises: Array<Promise<unknown>> = [];
-        if (selectedIdx === 0 || (canDeleteLegacy && selectedIdx === 2) /* delete all */) {
-          const p = DownloadManager.SHARED_INSTANCE.removeAllDownloads()
-            .then(() => {
-              logger.info('Deleted all downloads');
-            })
-            .catch((reason) => {
-              logger.error(`Error deleting downloads: ${JSON.stringify(reason)}`);
-            });
-
-          deletionPromises.push(p);
-        } else if (canDeleteLegacy && (selectedIdx === 1 || selectedIdx === 2) /* delete all */) {
-          const p = DownloadManager.SHARED_INSTANCE.removeAllLegacyDownloads()
-            .then(() => {
-              logger.info('Deleted all legacy data');
-            })
-            .catch((reason) => {
-              logger.error(`Error deleting legacy downloads: ${JSON.stringify(reason)}`);
-            });
-
-          deletionPromises.push(p);
-        }
-
-        Promise.all(deletionPromises).finally(() => {
-          setDeleting(false);
-          refresh();
-        });
-      }
-    );
-  };
 
   return (
     <View>
@@ -217,18 +151,11 @@ function StorageUsage() {
               : '')
           }
         >
-          <RelistenButton
-            icon={deleting && <ActivityIndicator size={8} className="mr-2" />}
-            onPress={deleteOffline}
-            disabled={
-              deleting ||
-              fileSystemInfo.totalSizeOfLegacyRelistenDirectory +
-                fileSystemInfo.totalSizeOfRelistenDirectory ===
-                0
-            }
-          >
-            Delete
-          </RelistenButton>
+          <StorageDeleteMenu
+            canDeleteDownloads={fileSystemInfo.totalSizeOfRelistenDirectory > 0}
+            canDeleteLegacy={fileSystemInfo.totalSizeOfLegacyRelistenDirectory > 0}
+            onDeleted={refresh}
+          />
         </RowWithAction>
         <RowWithAction
           title={'Total Free Storage'}
