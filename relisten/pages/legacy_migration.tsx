@@ -155,7 +155,7 @@ export class LegacyDataMigrator {
           if (destinationFile.exists) {
             destinationFile.delete();
           }
-          legacyFile.move(destinationFile);
+          await legacyFile.move(destinationFile);
 
           this.realm.write(() => {
             const newOfflineInfo = new SourceTrackOfflineInfo(realm!, {

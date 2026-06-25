@@ -15,8 +15,7 @@ import Plur from '@/relisten/components/plur';
 import { SubtitleText } from '@/relisten/components/row_subtitle';
 import { ListRenderItem } from '@shopify/flash-list';
 import { TrackWithArtist } from '@/relisten/components/source/source_track_with_artist';
-import { type ParamListBase, useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useNavigation } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useActionSheet } from '@expo/react-native-action-sheet';
 
@@ -46,7 +45,7 @@ export default function Page() {
     []
   );
 
-  const navigation = useNavigation<NativeStackNavigationProp<ParamListBase>>();
+  const navigation = useNavigation();
 
   useEffect(() => {
     navigation.setOptions({

@@ -12,11 +12,6 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "scheme": "relisten",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#004251"
-    },
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -32,7 +27,7 @@
           "audio"
         ]
       },
-      "buildNumber": "6043"
+      "buildNumber": "6044"
     },
     "android": {
       "playStoreUrl": "https://play.google.com/store/apps/details?id=net.relisten.android",
@@ -65,7 +60,7 @@
       },
       "icon": "./assets/ic_playstore.png",
       "package": "net.relisten.android",
-      "versionCode": 6043
+      "versionCode": 6044
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -80,15 +75,12 @@
         "expo-build-properties",
         {
           "android": {
-            "buildReactNativeFromSource": true,
             "compileSdkVersion": 36,
             "minSdkVersion": 30,
-            "targetSdkVersion": 36,
-            "useHermesV1": true
+            "targetSdkVersion": 36
           },
           "ios": {
-            "buildReactNativeFromSource": true,
-            "useHermesV1": true,
+            "deploymentTarget": "18.0",
             "useFrameworks": "static"
           }
         }
@@ -115,7 +107,16 @@
       ],
       "@sentry/react-native",
       "react-native-google-cast",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#004251"
+        }
+      ],
+      "expo-status-bar"
     ],
     "extra": {
       "router": {

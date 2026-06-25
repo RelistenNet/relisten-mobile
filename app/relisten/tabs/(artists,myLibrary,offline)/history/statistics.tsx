@@ -5,9 +5,7 @@ import {
 } from '@/relisten/realm/models/history/playback_history_entry_repo';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
-import { useNavigation } from '@react-navigation/native';
-import { type ParamListBase } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useNavigation } from 'expo-router';
 import { useEffect } from 'react';
 import { View } from 'react-native';
 import {
@@ -160,7 +158,7 @@ const ArtistBreakdownList = ({
 };
 
 export default function StatisticsPage() {
-  const navigation = useNavigation<NativeStackNavigationProp<ParamListBase>>();
+  const navigation = useNavigation();
   const totalListeningTimeSeconds = useTotalListeningTime();
   const artistBreakdown = useListeningTimeByArtist();
   const artists = artistBreakdown.map((item) => ({ ...item, uuid: item.uuid }));

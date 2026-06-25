@@ -15,7 +15,7 @@ export default function TabLayout() {
   const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
 
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout | undefined;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     if (shouldMakeNetworkRequests) {
       timeoutId = setTimeout(() => {
         // wait a few seconds before resume downloads to prevent doing too much right at app launch

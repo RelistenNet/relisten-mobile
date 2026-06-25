@@ -25,9 +25,9 @@ export class PlaybackHistoryReporter {
     private realm: Realm
   ) {}
 
-  private retryTimer: NodeJS.Timeout | undefined = undefined;
+  private retryTimer: ReturnType<typeof setTimeout> | undefined = undefined;
 
-  private reportTimer: NodeJS.Timeout | undefined = undefined;
+  private reportTimer: ReturnType<typeof setTimeout> | undefined = undefined;
 
   private networkAvailable = false;
 

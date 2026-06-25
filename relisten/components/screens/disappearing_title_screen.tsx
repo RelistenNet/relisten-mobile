@@ -1,4 +1,5 @@
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation } from 'expo-router';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 import React, { PropsWithChildren, useEffect, useMemo } from 'react';
 import {
   Animated,
@@ -10,7 +11,6 @@ import {
 import { RelistenBlue } from '../../relisten_blue';
 import { RelistenText } from '../relisten_text';
 import { ScrollScreen } from './ScrollScreen';
-import { useHeaderHeight } from '@react-navigation/elements';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type InjectedScrollProps = Pick<ScrollViewProps, 'onScroll' | 'scrollEventThrottle'>;

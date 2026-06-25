@@ -1,0 +1,44 @@
+diff --git a/node_modules/@g4rb4g3/react-native-carplay/ios/RNCarPlayApp.swift b/node_modules/@g4rb4g3/react-native-carplay/ios/RNCarPlayApp.swift
+index 3e2b04c..9db9504 100644
+--- a/node_modules/@g4rb4g3/react-native-carplay/ios/RNCarPlayApp.swift
++++ b/node_modules/@g4rb4g3/react-native-carplay/ios/RNCarPlayApp.swift
+@@ -91,10 +91,6 @@ public class RNCarPlayApp: NSObject, CPInterfaceControllerDelegate {
+     }
+ 
+     @objc public func disconnect() {
+-        if let contentView = self.rootView?.contentView as? RCTRootContentView {
+-            contentView.invalidate()
+-        }
+-
+         self.rootView?.removeFromSuperview()
+ 
+         self.rootView = nil
+diff --git a/node_modules/@g4rb4g3/react-native-carplay/ios/RNCarPlayCluster.swift b/node_modules/@g4rb4g3/react-native-carplay/ios/RNCarPlayCluster.swift
+index 9753b4c..964d037 100644
+--- a/node_modules/@g4rb4g3/react-native-carplay/ios/RNCarPlayCluster.swift
++++ b/node_modules/@g4rb4g3/react-native-carplay/ios/RNCarPlayCluster.swift
+@@ -118,9 +118,6 @@ public class RNCarPlayCluster: NSObject, CPInstrumentClusterControllerDelegate {
+     }
+ 
+     @objc public func disconnect() {
+-        if let contentView = self.rootView?.contentView as? RCTRootContentView {
+-            contentView.invalidate()
+-        }
+         self.rootView?.removeFromSuperview()
+ 
+         self.rootView = nil
+diff --git a/node_modules/@g4rb4g3/react-native-carplay/ios/RNCarPlayDashboard.swift b/node_modules/@g4rb4g3/react-native-carplay/ios/RNCarPlayDashboard.swift
+index d2fba5d..768ef92 100644
+--- a/node_modules/@g4rb4g3/react-native-carplay/ios/RNCarPlayDashboard.swift
++++ b/node_modules/@g4rb4g3/react-native-carplay/ios/RNCarPlayDashboard.swift
+@@ -88,10 +88,6 @@ public class RNCarPlayDashboard: NSObject {
+     }
+ 
+     @objc func disconnect() {
+-        if let contentView = self.rootView?.contentView as? RCTRootContentView {
+-            contentView.invalidate()
+-        }
+-
+         self.rootView?.removeFromSuperview()
+         self.rootView = nil
+         self.dashboardController = nil

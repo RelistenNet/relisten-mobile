@@ -2,11 +2,12 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-get-random-values';
 import 'react-native-reanimated';
 import 'react-native-svg';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-
 import {
+  DarkTheme,
+  DefaultTheme,
   Slot,
   SplashScreen,
+  ThemeProvider,
   useNavigationContainerRef,
   usePathname,
   useRootNavigationState,
@@ -222,7 +223,7 @@ function TabLayout() {
                     <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
                       <SafeAreaProvider>
                         {/* */}
-                        <StatusBar style="light" translucent={true} />
+                        <StatusBar style="light" />
                         <Slot />
                         <FlashMessage position="top" />
                       </SafeAreaProvider>

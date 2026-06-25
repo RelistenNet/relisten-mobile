@@ -1,4 +1,12 @@
-import type { NavigationState, PartialState } from '@react-navigation/native';
+type NavigationRouteLike = {
+  name: string;
+  state?: NavigationStateLike;
+};
+
+type NavigationStateLike = {
+  index?: number;
+  routes: readonly NavigationRouteLike[];
+};
 
 export const ENABLE_VERBOSE_PROFILE_LOGGING = false;
 
@@ -48,27 +56,19 @@ export function createRouteDebugSignature(pathname: string, stack: string) {
   return `${pathname}::${stack}`;
 }
 
-export function describeNavigationStack(
-  state?: NavigationState | PartialState<NavigationState> | undefined
-): string {
+export function describeNavigationStack(state?: NavigationStateLike): string {
   if (!state || !state.routes.length) {
     return '<empty>';
   }
 
   const routes: string[] = [];
-  let currentState: NavigationState | PartialState<NavigationState> | undefined = state;
+  let currentState: NavigationStateLike | undefined = state;
 
   while (currentState && currentState.routes.length > 0) {
     const index = currentState.index ?? currentState.routes.length - 1;
-    const route = currentState.routes[index] as {
-      name: string;
-      state?: NavigationState | PartialState<NavigationState>;
-    };
+    const route: NavigationRouteLike = currentState.routes[index];
     routes.push(route.name);
-    currentState =
-      route.state && 'routes' in route.state
-        ? (route.state as NavigationState | PartialState<NavigationState>)
-        : undefined;
+    currentState = route.state;
   }
 
   return routes.join(' > ');

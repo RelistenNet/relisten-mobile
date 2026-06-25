@@ -26,10 +26,8 @@ import { useGroupSegment } from '@/relisten/util/routes';
 import { tw } from '@/relisten/util/tw';
 import { useActionSheet } from '@expo/react-native-action-sheet';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
-import { type ParamListBase, useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
-import { router } from 'expo-router';
+import { router, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useRef } from 'react';
 import { Platform, Share, TouchableOpacity, View } from 'react-native';
 import AirPlayButton from 'react-native-airplay-button';
@@ -530,7 +528,7 @@ function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; 
 function PlayerQueue() {
   const player = useRelistenPlayer();
   const orderedQueueTracks = useRelistenPlayerQueueOrderedTracks();
-  const navigation = useNavigation<NativeStackNavigationProp<ParamListBase>>();
+  const navigation = useNavigation();
 
   useEffect(() => {
     navigation.setOptions({ title: `${orderedQueueTracks.length} Tracks` });
@@ -575,7 +573,7 @@ type PlayerScreenProps = {
 };
 
 export function PlayerScreen({ variant = 'modal' }: PlayerScreenProps) {
-  const navigation = useNavigation<NativeStackNavigationProp<ParamListBase>>();
+  const navigation = useNavigation();
   const { showNavigateToCurrentTrackActionSheet } = useNavigateToCurrentTrackSheet();
   const isEmbedded = variant === 'embedded';
 

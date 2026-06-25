@@ -1,6 +1,5 @@
-import { Tabs } from 'expo-router';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
-import { BottomTabBar, type BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { BottomTabBar, Tabs, type BottomTabBarProps } from 'expo-router/js-tabs';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import 'react-native-gesture-handler';
@@ -25,7 +24,7 @@ import {
   useRelistenPlayerBottomBarContext,
 } from '@/relisten/player/ui/player_bar_layout';
 import { useCallback } from 'react';
-import { Image, type LayoutChangeEvent, Platform, View } from 'react-native';
+import { type ColorValue, Image, type LayoutChangeEvent, Platform, View } from 'react-native';
 
 const ACTIVE_TINT = '#009DC1';
 const INACTIVE_TINT = 'gray';
@@ -36,7 +35,7 @@ function renderTabIcon({
   routeName,
   size,
 }: {
-  color: string;
+  color: ColorValue;
   focused: boolean;
   routeName: string;
   size: number;

@@ -42,19 +42,21 @@ Always run `yarn lint` and `yarn ts:check` after making changes to ensure that k
 - For iOS development, install Xcode and run `yarn pods` only after native dependency or pod-visible file changes.
 
 ## iOS Simulator + MCP Workflow
+- Target simulator: `iPhone 17` on iOS 26.5 (`0EB273F5-B941-4086-ADFD-DD43DDF0B88B`).
 - Native iOS changes (`ios/`, native modules, pods, app config) require a rebuild/install:
-  - `npx expo run:ios -d 'iPhone 17 Pro'` (or `yarn ios`).
+  - `npx expo run:ios --device '0EB273F5-B941-4086-ADFD-DD43DDF0B88B'` (or `yarn ios --device '0EB273F5-B941-4086-ADFD-DD43DDF0B88B'`).
+  - After an Expo SDK upgrade or a switch between source-built and prebuilt React Native, add `--no-build-cache` to the first rebuild to discard incompatible DerivedData.
   - This also starts Metro; that is expected for native rebuild runs.
   - Run `yarn pods` only when native dependencies or pod-visible files changed; ordinary Swift/Obj-C edits do not require it.
 - JS/TS-only changes usually do not require a native rebuild:
   1. Start Metro for the dev client: `npx expo start --dev-client` (add `--clear` if needed).
-  2. Boot/open Simulator (`open -a Simulator` or `mcp__ios-simulator__open_simulator`).
+  2. Boot `0EB273F5-B941-4086-ADFD-DD43DDF0B88B` with `xcrun simctl boot` when needed, then open Simulator (`open -a Simulator` or `mcp__ios-simulator__open_simulator`).
   3. Launch the already-installed app from Simulator. Re-run `expo run:ios` only if the app is missing or native bits changed.
 - Log sources:
   - Metro/bundler logs: the terminal running `expo start`.
   - iOS simulator system/app logs: `xcrun simctl spawn booted log stream --style compact --level debug`
   - For long native builds, redirect `xcodebuild` output to a logfile instead of streaming it into the thread. Example:
-    `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'generic/platform=iOS Simulator' build > /tmp/relisten-xcodebuild.log 2>&1`
+    `xcodebuild -workspace ios/Relisten.xcworkspace -scheme Relisten -configuration Debug -destination 'platform=iOS Simulator,id=0EB273F5-B941-4086-ADFD-DD43DDF0B88B' build > /tmp/relisten-xcodebuild.log 2>&1`
     Then inspect progress with `tail -f /tmp/relisten-xcodebuild.log` or search failures with `rg -n \"error:|\\*\\* BUILD\" /tmp/relisten-xcodebuild.log`.
   - Note: there is no iOS-simulator MCP tool for live log streaming in this environment.
 - Available iOS Simulator MCP controls:

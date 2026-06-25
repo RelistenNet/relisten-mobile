@@ -1,11 +1,11 @@
 {
   "expo.jsEngine": "hermes",
   "EX_DEV_CLIENT_NETWORK_INSPECTOR": "true",
-  "newArchEnabled": "true",
+  "expo.inlineModules.watchedDirectories": "[]",
+  "expo.inlineModules.xcodeProjectTargets": "{\"mainTarget\":\"Relisten\",\"targets\":[]}",
   "ios.deploymentTarget": "18.0",
-  "ios.buildReactNativeFromSource": "true",
   "ios.useFrameworks": "static",
-  "expo.useHermesV1": "true",
+  "ios.forceStaticLinking": "[]",
   "apple.privacyManifestAggregationEnabled": "true",
-  "ios.forceStaticLinking": "[]"
+  "EXPO_USE_PRECOMPILED_MODULES": "true"
 }

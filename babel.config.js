@@ -17,7 +17,6 @@ module.exports = function (api) {
         'module-resolver',
         {
           extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
-          root: ['.'],
           alias: {
             '@/relisten': './relisten',
             '@/app': './app',
