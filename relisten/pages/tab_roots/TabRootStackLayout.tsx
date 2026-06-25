@@ -1,7 +1,6 @@
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useNativeTabsStackContentInset } from '@/relisten/player/ui/player_bar_layout';
 import { useGroupSegment } from '@/relisten/util/routes';
-import { MaterialIcons } from '@expo/vector-icons';
 import { Stack } from 'expo-router/stack';
 import { Image, View } from 'react-native';
 import { RelistenText } from '@/relisten/components/relisten_text';
@@ -93,7 +92,6 @@ export default function TabRootStackLayout() {
             name="[artistUuid]/show/[showUuid]/source/[sourceUuid]/index"
             options={{
               title: '',
-              headerRight: () => <MaterialIcons name="more-horiz" color="white" size={24} />,
             }}
           />
           <Stack.Screen

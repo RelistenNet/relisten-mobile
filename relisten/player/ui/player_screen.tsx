@@ -20,16 +20,20 @@ import {
   useRelistenPlayerRepeatState,
   useRelistenPlayerShuffleState,
 } from '@/relisten/player/relisten_player_queue_hooks';
+import {
+  CurrentTrackNavigationMenu,
+  PlayerHeaderToolbar,
+} from '@/relisten/player/ui/current_track_navigation_menu';
+import { PlayerQueueActionsMenu } from '@/relisten/player/ui/player_queue_actions_menu';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { trackDuration } from '@/relisten/util/duration';
-import { useGroupSegment } from '@/relisten/util/routes';
 import { tw } from '@/relisten/util/tw';
-import { useActionSheet } from '@expo/react-native-action-sheet';
+import { accessibleControlScale } from '@/relisten/util/accessible_control_scale';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { router, useNavigation } from 'expo-router';
+import { useNavigation } from 'expo-router';
 import { useCallback, useEffect, useRef } from 'react';
-import { Platform, Share, TouchableOpacity, View } from 'react-native';
+import { Platform, Share, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import AirPlayButton from 'react-native-airplay-button';
 import { HapticModeEnum, Slider } from 'react-native-awesome-slider';
 import { runOnJS, useSharedValue } from 'react-native-reanimated';
@@ -37,7 +41,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Progress from 'react-native-progress';
 import ReorderableList, { useReorderableDrag } from 'react-native-reorderable-list';
 import { ReorderableListReorderEvent } from 'react-native-reorderable-list/src/types/props';
-import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import {
   RelistenCastButton,
   useShouldRenderCastButton,
@@ -159,88 +162,11 @@ export function ScrubberRow({ showTimes = true }: { showTimes?: boolean }) {
   );
 }
 
-type NavigateToCurrentTrackSheetOptions = {
-  dismissOnNavigate?: boolean;
-};
-
-function useNavigateToCurrentTrackSheet(options?: NavigateToCurrentTrackSheetOptions) {
-  const { showActionSheetWithOptions } = useActionSheet();
-  const navigation = useNavigation();
-  const currentPlayerTrack = useRelistenPlayerCurrentTrack();
-  const groupSegment = useGroupSegment();
-  const { pushShow } = usePushShowRespectingUserSettings();
-  const dismissOnNavigate = options?.dismissOnNavigate ?? true;
-
-  const artist = currentPlayerTrack?.sourceTrack?.artist;
-  const show = currentPlayerTrack?.sourceTrack?.show;
-  const source = currentPlayerTrack?.sourceTrack?.source;
-
-  const showNavigateToCurrentTrackActionSheet = useCallback(() => {
-    if (!artist || !show) {
-      return;
-    }
-
-    const options = [`Go to ${artist.name}`, `Go to ${show.displayDate}`, 'Cancel'];
-    const cancelButtonIndex = options.length - 1;
-
-    showActionSheetWithOptions(
-      {
-        options,
-        cancelButtonIndex,
-      },
-      (selectedIndex?: number) => {
-        switch (selectedIndex) {
-          case 0:
-            if (dismissOnNavigate) {
-              navigation.goBack();
-            }
-            router.push({
-              pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/`,
-              params: {
-                artistUuid: artist.uuid,
-              },
-            });
-            break;
-          case 1:
-            if (dismissOnNavigate) {
-              navigation.goBack();
-            }
-            pushShow({
-              artist,
-              showUuid: show.uuid,
-              sourceUuid: source?.uuid,
-              overrideGroupSegment: '(artists)',
-            });
-            break;
-          case cancelButtonIndex:
-            break;
-          // Canceled
-        }
-      }
-    );
-  }, [
-    artist,
-    dismissOnNavigate,
-    groupSegment,
-    navigation,
-    pushShow,
-    router,
-    show,
-    showActionSheetWithOptions,
-    source,
-  ]);
-
-  return { showNavigateToCurrentTrackActionSheet };
-}
-
 type CurrentTrackInfoProps = {
   dismissOnNavigate?: boolean;
 };
 
 function CurrentTrackInfo({ dismissOnNavigate }: CurrentTrackInfoProps) {
-  const { showNavigateToCurrentTrackActionSheet } = useNavigateToCurrentTrackSheet({
-    dismissOnNavigate,
-  });
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
   const { isCasting, deviceName } = useRelistenCastStatus();
 
@@ -273,11 +199,18 @@ function CurrentTrackInfo({ dismissOnNavigate }: CurrentTrackInfoProps) {
   return (
     <Flex column className="mb-4">
       <Flex className="items-stretch justify-between">
-        <TouchableOpacity onPress={showNavigateToCurrentTrackActionSheet} className="flex-shrink">
-          <RelistenText className="pb-1 pr-3 pt-3 text-3xl font-bold">
-            {currentTrack.title}
-          </RelistenText>
-        </TouchableOpacity>
+        <CurrentTrackNavigationMenu dismissOnNavigate={dismissOnNavigate}>
+          <View
+            accessible
+            accessibilityLabel="Navigate to the current artist or show"
+            accessibilityRole="button"
+            className="flex-shrink"
+          >
+            <RelistenText className="pb-1 pr-3 pt-3 text-3xl font-bold">
+              {currentTrack.title}
+            </RelistenText>
+          </View>
+        </CurrentTrackNavigationMenu>
         <TouchableOpacity onPress={onShare}>
           <Flex className="flex-1 items-center pb-1 pl-4 pt-3">
             <MaterialIcons
@@ -415,53 +348,17 @@ function PlayerSecondaryControls() {
 }
 
 function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; index: number }) {
-  const { showActionSheetWithOptions } = useActionSheet();
   const player = useRelistenPlayer();
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
   const isPlayingThisTrack = currentPlayerTrack?.identifier == queueTrack.identifier;
   const playbackState = useRelistenPlayerPlaybackState();
   const drag = useReorderableDrag();
+  const { fontScale } = useWindowDimensions();
+  const controlScale = accessibleControlScale(fontScale);
   const sourceTrack = queueTrack.sourceTrack;
 
   const artist = sourceTrack.artist;
   const show = sourceTrack.show;
-
-  const onDotsPress = () => {
-    const options = ['Play now', 'Play next', 'Add to end of queue', 'Remove from queue', 'Cancel'];
-    const destructiveButtonIndex = 3;
-    const cancelButtonIndex = options.length - 1;
-
-    showActionSheetWithOptions(
-      {
-        options,
-        cancelButtonIndex,
-        destructiveButtonIndex,
-      },
-      (selectedIndex?: number) => {
-        switch (selectedIndex) {
-          case 0:
-            // Play now
-            player.playTrackAtIndex(index);
-            break;
-          case 1:
-            // Play next
-            player.queue.queueNextTrack([queueTrack]);
-            break;
-          case 2:
-            // Add to end of queue
-            player.queue.addTrackToEndOfQueue([queueTrack]);
-            break;
-          case destructiveButtonIndex:
-            // Remove from queue
-            player.queue.removeTrackAtIndex(index);
-            break;
-          case cancelButtonIndex:
-            break;
-          // Canceled
-        }
-      }
-    );
-  };
 
   const onPress = () => {
     player.playTrackAtIndex(index);
@@ -472,19 +369,19 @@ function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; 
     .join('\u00A0·\u00A0');
 
   return (
-    <TouchableOpacity
-      className="flex flex-row items-start pl-4"
-      onPress={onPress}
-      onLongPress={drag}
-    >
-      <View className="shrink flex-col">
-        <View className="w-full grow flex-row items-stretch justify-between">
+    <View className="pl-4">
+      <View className="flex-row items-center">
+        <TouchableOpacity
+          className="min-w-0 flex-1 flex-row items-stretch"
+          onPress={onPress}
+          onLongPress={drag}
+        >
           <Flex column className="shrink py-3 pr-2">
             <Flex className="items-center">
               {isPlayingThisTrack && (
                 <View className="pr-1">
                   <SoundIndicator
-                    size={18}
+                    size={18 * controlScale}
                     playing={playbackState === RelistenPlaybackState.Playing}
                   />
                 </View>
@@ -510,18 +407,18 @@ function PlayerQueueItem({ queueTrack, index }: { queueTrack: PlayerQueueTrack; 
               {sourceTrack.humanizedDuration}
             </RelistenText>
           </Flex>
-          <TouchableOpacity className="shrink-0 grow-0" onPress={onDotsPress}>
-            <Flex className="flex-1 items-center px-4">
-              <MaterialCommunityIcons name="dots-horizontal" size={16} color="white" />
-            </Flex>
-          </TouchableOpacity>
-          <View className="flex shrink-0 grow-0 flex-row items-center py-3 pr-4">
-            <MaterialIcons name="drag-handle" size={24} color="white" />
-          </View>
-        </View>
-        <ItemSeparator />
+        </TouchableOpacity>
+        <PlayerQueueActionsMenu index={index} queueTrack={queueTrack} />
+        <TouchableOpacity
+          className="flex shrink-0 grow-0 flex-row items-center py-3 pr-4"
+          onPress={onPress}
+          onLongPress={drag}
+        >
+          <MaterialIcons name="drag-handle" size={24 * controlScale} color="white" />
+        </TouchableOpacity>
       </View>
-    </TouchableOpacity>
+      <ItemSeparator />
+    </View>
   );
 }
 
@@ -574,49 +471,24 @@ type PlayerScreenProps = {
 
 export function PlayerScreen({ variant = 'modal' }: PlayerScreenProps) {
   const navigation = useNavigation();
-  const { showNavigateToCurrentTrackActionSheet } = useNavigateToCurrentTrackSheet();
   const isEmbedded = variant === 'embedded';
 
-  useEffect(() => {
-    if (isEmbedded) {
-      return;
-    }
-    navigation.setOptions({
-      headerLeft: () => {
-        return (
-          <TouchableOpacity
-            onPressOut={() => {
-              navigation.goBack();
-            }}
-            className="p-2"
-          >
-            <MaterialCommunityIcons name="close" size={22} color="white" />
-          </TouchableOpacity>
-        );
-      },
-      headerRight: () => {
-        return (
-          <TouchableOpacity onPressOut={showNavigateToCurrentTrackActionSheet} className="p-2">
-            <MaterialCommunityIcons name="dots-horizontal" size={22} color="white" />
-          </TouchableOpacity>
-        );
-      },
-    });
-  }, [isEmbedded, navigation, showNavigateToCurrentTrackActionSheet]);
-
   return (
-    <SafeAreaView className="flex-1 bg-relisten-blue-800" edges={['bottom']}>
-      <Flex column className="flex-1">
-        <View className="flex-1 flex-grow bg-relisten-blue-900">
-          <PlayerQueue />
-        </View>
-        <Flex column className="flex-shrink border-t border-relisten-blue-700 px-8 pt-4">
-          <CurrentTrackInfo dismissOnNavigate={!isEmbedded} />
-          <ScrubberRow />
-          <PlayerControls />
-          <PlayerSecondaryControls />
+    <>
+      {!isEmbedded && <PlayerHeaderToolbar onClose={() => navigation.goBack()} />}
+      <SafeAreaView className="flex-1 bg-relisten-blue-800" edges={['bottom']}>
+        <Flex column className="flex-1">
+          <View className="flex-1 flex-grow bg-relisten-blue-900">
+            <PlayerQueue />
+          </View>
+          <Flex column className="flex-shrink border-t border-relisten-blue-700 px-8 pt-4">
+            <CurrentTrackInfo dismissOnNavigate={!isEmbedded} />
+            <ScrubberRow />
+            <PlayerControls />
+            <PlayerSecondaryControls />
+          </Flex>
         </Flex>
-      </Flex>
-    </SafeAreaView>
+      </SafeAreaView>
+    </>
   );
 }

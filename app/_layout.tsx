@@ -27,7 +27,6 @@ import useCacheAssets from './useCacheAssets';
 import { RelistenPlayerProvider } from '@/relisten/player/relisten_player_hooks';
 import { RelistenPlayerBottomBarProvider } from '@/relisten/player/ui/player_bar_layout';
 import { RelistenCastProvider } from '@/relisten/casting/cast_provider';
-import { ActionSheetProvider } from '@expo/react-native-action-sheet';
 import FlashMessage from 'react-native-flash-message';
 import { PlaybackHistoryReporterComponent } from '@/relisten/components/playback_history_reporter';
 import { LastFmReporterComponent } from '@/relisten/lastfm/lastfm_reporter_component';
@@ -219,16 +218,14 @@ function TabLayout() {
                 }}
               >
                 <RelistenPlayerBottomBarProvider>
-                  <ActionSheetProvider>
-                    <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
-                      <SafeAreaProvider>
-                        {/* */}
-                        <StatusBar style="light" />
-                        <Slot />
-                        <FlashMessage position="top" />
-                      </SafeAreaProvider>
-                    </GestureHandlerRootView>
-                  </ActionSheetProvider>
+                  <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
+                    <SafeAreaProvider>
+                      {/* */}
+                      <StatusBar style="light" />
+                      <Slot />
+                      <FlashMessage position="top" />
+                    </SafeAreaProvider>
+                  </GestureHandlerRootView>
                 </RelistenPlayerBottomBarProvider>
               </ThemeProvider>
             </RelistenCastProvider>

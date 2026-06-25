@@ -12,8 +12,9 @@
     "store:screenshots": "swift tooling/store-screenshots/generate-store-screenshots.swift"
   },
   "dependencies": {
+    "@expo/material-symbols": "^0.1.1",
     "@expo/metro-runtime": "~56.0.15",
-    "@expo/react-native-action-sheet": "^4.0.1",
+    "@expo/ui": "~56.0.18",
     "@expo/vector-icons": "^15.0.2",
     "@g4rb4g3/react-native-carplay": "github:RelistenNet/react-native-carplay#1151a8e",
     "@gorhom/bottom-sheet": "^5.2.8",

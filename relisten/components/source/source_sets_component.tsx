@@ -1,8 +1,10 @@
 import { View } from 'react-native';
 import { ItemSeparator } from '@/relisten/components/item_separator';
 import { Source } from '@/relisten/realm/models/source';
-import { PlayShow } from '@/relisten/player/ui/track_context_menu';
-import { SourceTrack } from '@/relisten/realm/models/source_track';
+import {
+  type PlayShow,
+  SourceTrackActionsMenu,
+} from '@/relisten/player/ui/source_track_actions_menu';
 import { SourceSet } from '@/relisten/realm/models/source_set';
 import { SectionHeader } from '@/relisten/components/section_header';
 import { SourceTrackComponent } from '@/relisten/components/source/source_track_component';
@@ -13,20 +15,13 @@ import { useIsOfflineTab } from '@/relisten/util/routes';
 interface SourceSetsProps {
   source: Source;
   playShow: PlayShow;
-  onDotsPress: (sourceTrack: SourceTrack) => void;
 }
 
-export const SourceSets = ({ source, playShow, onDotsPress }: SourceSetsProps) => {
+export const SourceSets = ({ source, playShow }: SourceSetsProps) => {
   return (
     <View>
       {source.sourceSets.map((s) => (
-        <SourceSetComponent
-          key={s.uuid}
-          sourceSet={s}
-          source={source}
-          playShow={playShow}
-          onDotsPress={onDotsPress}
-        />
+        <SourceSetComponent key={s.uuid} sourceSet={s} source={source} playShow={playShow} />
       ))}
       <View className="px-4">
         <ItemSeparator />
@@ -39,15 +34,9 @@ interface SourceSetProps {
   source: Source;
   sourceSet: SourceSet;
   playShow: PlayShow;
-  onDotsPress: (sourceTrack: SourceTrack) => void;
 }
 
-export const SourceSetComponent = ({
-  source,
-  sourceSet,
-  playShow,
-  onDotsPress,
-}: SourceSetProps) => {
+export const SourceSetComponent = ({ source, sourceSet, playShow }: SourceSetProps) => {
   const userSettings = useUserSettings();
   const isOfflineTab = useIsOfflineTab();
   const queueOfflineOnly =
@@ -65,7 +54,9 @@ export const SourceSetComponent = ({
             sourceTrack={t}
             isLastTrackInSet={idx == sourceSet.sourceTracks.length - 1}
             onPress={playable ? playShow : undefined}
-            onDotsPress={playable ? () => onDotsPress(t) : undefined}
+            actions={
+              playable ? <SourceTrackActionsMenu sourceTrack={t} playShow={playShow} /> : null
+            }
             disabled={!playable}
           />
         );
