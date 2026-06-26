@@ -1,25 +1,29 @@
 import { PlayerHeaderToolbar } from '@/relisten/player/ui/current_track_navigation_menu';
 import { PlayerBackground } from '@/relisten/player/ui/player_background';
+import { PlayerOverlayHeader } from '@/relisten/player/ui/player_overlay_header';
 import { PlayerQueueSheet } from '@/relisten/player/ui/player_queue_sheet';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { Stack, useNavigation } from 'expo-router';
 import { Platform, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-export type PlayerScreenVariant = 'modal' | 'embedded';
+export type PlayerScreenVariant = 'modal' | 'embedded' | 'overlay';
 
 type PlayerScreenProps = {
+  onClose?: () => void;
   variant?: PlayerScreenVariant;
 };
 
-export function PlayerScreen({ variant = 'modal' }: PlayerScreenProps) {
+export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) {
   const navigation = useNavigation();
   const isEmbedded = variant === 'embedded';
-  const usesTransparentHeader = !isEmbedded && Platform.OS === 'ios';
+  const isOverlay = variant === 'overlay';
+  const usesTransparentHeader = variant === 'modal' && Platform.OS === 'ios';
+  const closePlayer = onClose ?? (() => navigation.goBack());
 
   return (
     <>
-      {!isEmbedded && (
+      {variant === 'modal' && (
         <>
           <Stack.Screen
             options={{
@@ -34,17 +38,21 @@ export function PlayerScreen({ variant = 'modal' }: PlayerScreenProps) {
               headerTransparent: usesTransparentHeader,
             }}
           />
-          <PlayerHeaderToolbar onClose={() => navigation.goBack()} />
+          <PlayerHeaderToolbar onClose={closePlayer} />
         </>
       )}
       <View className="flex-1 bg-relisten-blue-950">
         <PlayerBackground />
         <SafeAreaView
           className="flex-1"
-          edges={isEmbedded ? ['top', 'bottom'] : ['bottom']}
+          edges={isEmbedded || isOverlay ? ['top', 'bottom'] : ['bottom']}
           style={{ zIndex: 1 }}
         >
-          <PlayerQueueSheet usesTransparentHeader={usesTransparentHeader} />
+          {isOverlay && <PlayerOverlayHeader onClose={closePlayer} />}
+          <PlayerQueueSheet
+            allowsInteractiveDismiss={isOverlay}
+            usesTransparentHeader={usesTransparentHeader}
+          />
         </SafeAreaView>
       </View>
     </>
