@@ -71,7 +71,10 @@ export function PlayerQueueActionsMenu({ index, queueTrack }: PlayerQueueActions
       actions={ACTIONS}
       onPressAction={({ nativeEvent }) => handleAction(nativeEvent.event as PlayerQueueActionId)}
     >
-      <OverflowMenuTrigger accessibilityLabel={`Actions for ${queueTrack.sourceTrack.title}`} />
+      <OverflowMenuTrigger
+        accessibilityLabel={`Actions for ${queueTrack.sourceTrack.title}`}
+        iconAlignment="trailing"
+      />
     </MenuView>
   );
 }

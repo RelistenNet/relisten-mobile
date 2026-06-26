@@ -14,11 +14,13 @@ type OverflowMenuTriggerTone = keyof typeof ICON_COLORS;
 
 type OverflowMenuTriggerProps = {
   accessibilityLabel: string;
+  iconAlignment?: 'center' | 'trailing';
   tone?: OverflowMenuTriggerTone;
 };
 
 export function OverflowMenuTrigger({
   accessibilityLabel,
+  iconAlignment = 'center',
   tone = 'default',
 }: OverflowMenuTriggerProps) {
   const { fontScale } = useWindowDimensions();
@@ -33,10 +35,11 @@ export function OverflowMenuTrigger({
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
       style={{
-        alignItems: 'center',
+        alignItems: iconAlignment === 'trailing' ? 'flex-end' : 'center',
         justifyContent: 'center',
         minHeight: minimumTouchTargetSize,
         minWidth: minimumTouchTargetSize,
+        paddingRight: iconAlignment === 'trailing' ? 4 * controlScale : 0,
       }}
     >
       {Platform.OS === 'ios' ? (

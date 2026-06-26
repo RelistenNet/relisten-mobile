@@ -116,7 +116,7 @@ export function PlayerHistoryItem({ entry, isFirst, isLast }: PlayerHistoryItemP
 
   return (
     <PlayerPanelRow isFirst={isFirst} isLast={isLast}>
-      <View className="px-3 py-3">
+      <View className="px-2 py-3">
         <View className="flex-row items-center">
           <View
             accessibilityElementsHidden
