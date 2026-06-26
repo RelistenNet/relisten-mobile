@@ -21,6 +21,37 @@ final class SpectrumBandAnalyzerTests: XCTestCase {
         XCTAssertGreaterThan(peak, 38)
     }
 
+    func testBandRangesUseUniqueContiguousBins() throws {
+        let analyzer = try XCTUnwrap(SpectrumBandAnalyzer())
+        let ranges = analyzer.binRanges(sampleRate: 48_000)
+
+        XCTAssertEqual(ranges.count, SpectrumBandAnalyzer.bandCount)
+        XCTAssertEqual(ranges.first?.lowerBound, 3)
+        XCTAssertEqual(ranges.last?.upperBound, 512)
+        for (lower, upper) in zip(ranges, ranges.dropFirst()) {
+            XCTAssertEqual(lower.upperBound, upper.lowerBound)
+        }
+    }
+
+    func testBalancedTonesRemainVisibleAcrossSpectrum() throws {
+        let sampleRate = 48_000.0
+        let frequencies = [93.75, 1_007.8125, 7_992.1875]
+        let samples = (0..<SpectrumBandAnalyzer.fftSize).map { frame in
+            frequencies.reduce(Float.zero) { sample, frequency in
+                sample + Float(0.25 * sin(2 * Double.pi * frequency * Double(frame) / sampleRate))
+            }
+        }
+        let bands = try XCTUnwrap(SpectrumBandAnalyzer()).analyze(
+            samples: samples,
+            sampleRate: sampleRate,
+            deltaTime: 1.0 / 30.0
+        )
+
+        XCTAssertGreaterThan(bands[0..<12].max() ?? 0, 0.75)
+        XCTAssertGreaterThan(bands[18..<34].max() ?? 0, 0.75)
+        XCTAssertGreaterThan(bands[38..<48].max() ?? 0, 0.75)
+    }
+
     func testSilenceReturnsFlatBands() throws {
         let analyzer = try XCTUnwrap(SpectrumBandAnalyzer())
 
