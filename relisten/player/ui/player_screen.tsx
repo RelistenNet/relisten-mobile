@@ -45,7 +45,7 @@ export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) 
         <PlayerBackground />
         <SafeAreaView
           className="flex-1"
-          edges={isEmbedded || isOverlay ? ['top', 'bottom'] : ['bottom']}
+          edges={isEmbedded || isOverlay ? ['top'] : []}
           style={{ zIndex: 1 }}
         >
           {isOverlay && <PlayerOverlayHeader onClose={closePlayer} />}
