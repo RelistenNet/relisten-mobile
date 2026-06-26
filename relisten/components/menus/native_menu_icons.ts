@@ -13,6 +13,10 @@ export const nativeMenuIcons = {
     ios: 'xmark.circle',
     android: import('@expo/material-symbols/cancel.xml'),
   }),
+  collapse: Icon.select({
+    ios: 'chevron.down',
+    android: import('@expo/material-symbols/keyboard_arrow_down.xml'),
+  }),
   clearHistory: Icon.select({
     ios: 'trash',
     android: import('@expo/material-symbols/delete_sweep.xml'),
@@ -72,5 +76,9 @@ export const nativeMenuIcons = {
   switchSource: Icon.select({
     ios: 'rectangle.on.rectangle',
     android: import('@expo/material-symbols/swap_horiz.xml'),
+  }),
+  toolbarMore: Icon.select({
+    ios: 'ellipsis',
+    android: import('@expo/material-symbols/more_vert.xml'),
   }),
 } as const;
