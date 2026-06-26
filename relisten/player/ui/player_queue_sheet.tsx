@@ -128,7 +128,13 @@ function PlayerQueueItem({ entry }: { entry: QueueEntry }) {
   if (isAccessibilityLayout) {
     return (
       <PlayerPanelRow isFirst={isFirst} isLast={isLast}>
-        <View className="px-2" style={{ paddingVertical: 8 * controlScale }}>
+        <View
+          style={{
+            paddingLeft: 16 * controlScale,
+            paddingRight: 8 * controlScale,
+            paddingVertical: 8 * controlScale,
+          }}
+        >
           {titleAndMetadata}
           <View className="flex-row items-center justify-end" style={{ marginTop: 8 }}>
             <RelistenText className="pr-2 text-gray-300" selectable={false}>
@@ -144,7 +150,10 @@ function PlayerQueueItem({ entry }: { entry: QueueEntry }) {
 
   return (
     <PlayerPanelRow isFirst={isFirst} isLast={isLast}>
-      <View className="flex-row items-center pl-2" style={{ paddingVertical: 6 * controlScale }}>
+      <View
+        className="flex-row items-center"
+        style={{ paddingLeft: 16 * controlScale, paddingVertical: 6 * controlScale }}
+      >
         {titleAndMetadata}
         <RelistenText
           className="pl-2 text-gray-300"
