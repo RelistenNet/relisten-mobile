@@ -41,7 +41,6 @@ import Animated, {
 
 type QueueEntry = {
   kind: 'queue';
-  displayPosition: number;
   isFirst: boolean;
   isLast: boolean;
   queueIndex: number;
@@ -91,7 +90,7 @@ function PlayerQueueItem({ entry }: { entry: QueueEntry }) {
   const drag = useReorderableDrag();
   const { fontScale } = useWindowDimensions();
   const controlScale = accessibleControlScale(fontScale);
-  const { displayPosition, isFirst, isLast, queueIndex, queueTrack } = entry;
+  const { isFirst, isLast, queueIndex, queueTrack } = entry;
   const sourceTrack = queueTrack.sourceTrack;
   const isAccessibilityLayout = fontScale >= 1.4;
   const displayTitle = playerDisplayTitle(sourceTrack.title);
@@ -130,18 +129,8 @@ function PlayerQueueItem({ entry }: { entry: QueueEntry }) {
     return (
       <PlayerPanelRow isFirst={isFirst} isLast={isLast}>
         <View className="px-2" style={{ paddingVertical: 8 * controlScale }}>
-          <View className="flex-row items-start gap-2">
-            <View className="items-center pt-1" style={{ minWidth: 30 * controlScale }}>
-              <RelistenText className="text-gray-400" selectable={false}>
-                {displayPosition}
-              </RelistenText>
-            </View>
-            {titleAndMetadata}
-          </View>
-          <View
-            className="flex-row items-center"
-            style={{ marginLeft: 30 * controlScale + 8, marginTop: 8 }}
-          >
+          {titleAndMetadata}
+          <View className="flex-row items-center justify-end" style={{ marginTop: 8 }}>
             <RelistenText className="pr-2 text-gray-300" selectable={false}>
               {sourceTrack.humanizedDuration}
             </RelistenText>
@@ -156,11 +145,6 @@ function PlayerQueueItem({ entry }: { entry: QueueEntry }) {
   return (
     <PlayerPanelRow isFirst={isFirst} isLast={isLast}>
       <View className="flex-row items-center pl-2" style={{ paddingVertical: 6 * controlScale }}>
-        <View className="items-center justify-center" style={{ minWidth: 30 * controlScale }}>
-          <RelistenText className="text-gray-400" selectable={false}>
-            {displayPosition}
-          </RelistenText>
-        </View>
         {titleAndMetadata}
         <RelistenText
           className="pl-2 text-gray-300"
@@ -213,7 +197,6 @@ export function PlayerQueueSheet({
 
     return visibleTracks.map((queueTrack, offset) => ({
       kind: 'queue',
-      displayPosition: offset + 1,
       isFirst: offset === 0,
       isLast: offset === visibleTracks.length - 1,
       queueIndex: firstVisibleIndex + offset,
