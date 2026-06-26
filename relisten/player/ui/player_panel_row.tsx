@@ -9,9 +9,10 @@ export const PLAYER_PANEL_ROW_BACKGROUND = RelistenBlue['900'];
 type PlayerPanelRowProps = {
   children: ReactNode;
   isFirst: boolean;
+  isLast: boolean;
 };
 
-export function PlayerPanelRow({ children, isFirst }: PlayerPanelRowProps) {
+export function PlayerPanelRow({ children, isFirst, isLast }: PlayerPanelRowProps) {
   return (
     <View
       style={{
@@ -27,6 +28,8 @@ export function PlayerPanelRow({ children, isFirst }: PlayerPanelRowProps) {
       <View
         style={{
           backgroundColor: PLAYER_PANEL_ROW_BACKGROUND,
+          borderBottomLeftRadius: isLast ? 16 : 0,
+          borderBottomRightRadius: isLast ? 16 : 0,
           borderBottomWidth: 1,
           borderColor: 'rgba(60, 219, 255, 0.16)',
           borderCurve: 'continuous',
