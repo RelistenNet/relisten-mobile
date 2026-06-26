@@ -29,9 +29,10 @@ const compactTimeAgo: Formatter = (value, unit, suffix) =>
 type PlayerHistoryItemProps = {
   entry: PlaybackHistoryEntry;
   isFirst: boolean;
+  isLast: boolean;
 };
 
-export function PlayerHistoryItem({ entry, isFirst }: PlayerHistoryItemProps) {
+export function PlayerHistoryItem({ entry, isFirst, isLast }: PlayerHistoryItemProps) {
   const player = useRelistenPlayer();
   const { fontScale } = useWindowDimensions();
   const controlScale = accessibleControlScale(fontScale);
@@ -114,7 +115,7 @@ export function PlayerHistoryItem({ entry, isFirst }: PlayerHistoryItemProps) {
   );
 
   return (
-    <PlayerPanelRow isFirst={isFirst}>
+    <PlayerPanelRow isFirst={isFirst} isLast={isLast}>
       <View
         className="px-2"
         style={{ paddingVertical: (isAccessibilityLayout ? 8 : 6) * controlScale }}
