@@ -130,7 +130,7 @@ function PlayerQueueItem({ entry }: { entry: QueueEntry }) {
       <PlayerPanelRow isFirst={isFirst} isLast={isLast}>
         <View
           style={{
-            paddingLeft: 16 * controlScale,
+            paddingLeft: 12 * controlScale,
             paddingRight: 8 * controlScale,
             paddingVertical: 8 * controlScale,
           }}
@@ -152,7 +152,7 @@ function PlayerQueueItem({ entry }: { entry: QueueEntry }) {
     <PlayerPanelRow isFirst={isFirst} isLast={isLast}>
       <View
         className="flex-row items-center"
-        style={{ paddingLeft: 16 * controlScale, paddingVertical: 6 * controlScale }}
+        style={{ paddingLeft: 12 * controlScale, paddingVertical: 6 * controlScale }}
       >
         {titleAndMetadata}
         <RelistenText
