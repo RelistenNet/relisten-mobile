@@ -130,7 +130,7 @@ function PlayerQueueItem({ entry }: { entry: QueueEntry }) {
   if (isAccessibilityLayout) {
     return (
       <PlayerPanelRow isFirst={isFirst} isLast={isLast}>
-        <View className="px-2 py-3">
+        <View className="px-2" style={{ paddingVertical: 8 * controlScale }}>
           <View className="flex-row items-start gap-2">
             <View className="items-center pt-1" style={{ minWidth: 30 * controlScale }}>
               <RelistenText className="text-gray-400" selectable={false}>
@@ -156,7 +156,7 @@ function PlayerQueueItem({ entry }: { entry: QueueEntry }) {
 
   return (
     <PlayerPanelRow isFirst={isFirst} isLast={isLast}>
-      <View className="flex-row items-center px-2 py-3">
+      <View className="flex-row items-center pl-2" style={{ paddingVertical: 6 * controlScale }}>
         <View className="items-center justify-center" style={{ minWidth: 30 * controlScale }}>
           <RelistenText className="text-gray-400" selectable={false}>
             {displayPosition}

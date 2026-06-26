@@ -39,7 +39,7 @@ export function OverflowMenuTrigger({
         justifyContent: 'center',
         minHeight: minimumTouchTargetSize,
         minWidth: minimumTouchTargetSize,
-        paddingRight: iconAlignment === 'trailing' ? 4 * controlScale : 0,
+        paddingRight: iconAlignment === 'trailing' ? 2 * controlScale : 0,
       }}
     >
       {Platform.OS === 'ios' ? (
