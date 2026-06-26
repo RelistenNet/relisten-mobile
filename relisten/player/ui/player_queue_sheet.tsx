@@ -11,6 +11,10 @@ import { PlayerHistoryItem } from '@/relisten/player/ui/player_history_item';
 import { PlayerNowPlaying } from '@/relisten/player/ui/player_now_playing';
 import { PlayerPanelHeader, type PlayerPanelMode } from '@/relisten/player/ui/player_panel_header';
 import { PlayerPanelRow } from '@/relisten/player/ui/player_panel_row';
+import {
+  playerPresentationProgress,
+  usePlayerPresentation,
+} from '@/relisten/player/ui/player_presentation';
 import { PlayerQueueActionsMenu } from '@/relisten/player/ui/player_queue_actions_menu';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { useQuery } from '@/relisten/realm/schema';
@@ -18,10 +22,17 @@ import { accessibleControlScale } from '@/relisten/util/accessible_control_scale
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useCallback, useMemo, useState } from 'react';
-import { TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import {
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import ReorderableList, { useReorderableDrag } from 'react-native-reorderable-list';
 import { ReorderableListReorderEvent } from 'react-native-reorderable-list/src/types/props';
 import Animated, {
+  cancelAnimation,
   runOnJS,
   useAnimatedScrollHandler,
   useAnimatedStyle,
@@ -160,16 +171,24 @@ function PlayerQueueItem({ entry }: { entry: QueueEntry }) {
 }
 
 type PlayerQueueSheetProps = {
+  allowsInteractiveDismiss?: boolean;
   usesTransparentHeader: boolean;
 };
 
-export function PlayerQueueSheet({ usesTransparentHeader }: PlayerQueueSheetProps) {
+export function PlayerQueueSheet({
+  allowsInteractiveDismiss = false,
+  usesTransparentHeader,
+}: PlayerQueueSheetProps) {
+  'use no memo';
+
   const player = useRelistenPlayer();
   const { height } = useWindowDimensions();
+  const { closePlayer, openPlayer } = usePlayerPresentation();
   const orderedQueueTracks = useRelistenPlayerQueueOrderedTracks();
   const currentTrack = useRelistenPlayerCurrentTrack();
   const [mode, setMode] = useState<PlayerPanelMode>('queue');
   const scrollOffset = useSharedValue(0);
+  const isScrollDragging = useSharedValue(false);
   const recentlyPlayed = useQuery(
     {
       type: PlaybackHistoryEntry,
@@ -210,9 +229,44 @@ export function PlayerQueueSheet({ usesTransparentHeader }: PlayerQueueSheetProp
 
   const handleScroll = useAnimatedScrollHandler({
     onScroll: (event) => {
-      scrollOffset.value = Math.max(event.contentOffset.y, 0);
+      const rawOffset = event.contentOffset.y;
+      const nextOffset = Math.max(rawOffset, 0);
+      scrollOffset.value = nextOffset;
+
+      if (allowsInteractiveDismiss && isScrollDragging.value && rawOffset < 0) {
+        cancelAnimation(playerPresentationProgress);
+        playerPresentationProgress.value = Math.max(
+          0,
+          Math.min(1, 1 + rawOffset / (height * 0.38))
+        );
+      }
     },
   });
+
+  const handleScrollBeginDrag = () => {
+    if (!allowsInteractiveDismiss) {
+      return;
+    }
+
+    isScrollDragging.value = true;
+  };
+
+  const handleScrollEndDrag = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (!allowsInteractiveDismiss) {
+      return;
+    }
+
+    isScrollDragging.value = false;
+
+    const offset = event.nativeEvent.contentOffset.y;
+    const velocity = event.nativeEvent.velocity?.y ?? 0;
+
+    if (offset < -56 || velocity < -0.55) {
+      closePlayer();
+    } else if (offset < 0) {
+      openPlayer();
+    }
+  };
 
   const nowPlayingStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: Math.min(scrollOffset.value * 0.78, height * 0.16) }],
@@ -237,6 +291,7 @@ export function PlayerQueueSheet({ usesTransparentHeader }: PlayerQueueSheetProp
 
   return (
     <ReorderableList
+      alwaysBounceVertical={allowsInteractiveDismiss}
       contentContainerStyle={{ paddingBottom: 24 }}
       contentInsetAdjustmentBehavior={usesTransparentHeader ? 'automatic' : 'never'}
       data={panelEntries}
@@ -273,6 +328,8 @@ export function PlayerQueueSheet({ usesTransparentHeader }: PlayerQueueSheetProp
       onIndexChange={triggerHaptics}
       onReorder={onReorder}
       onScroll={handleScroll}
+      onScrollBeginDrag={handleScrollBeginDrag}
+      onScrollEndDrag={handleScrollEndDrag}
       renderItem={({ item }) =>
         item.kind === 'queue' ? (
           <PlayerQueueItem entry={item} />

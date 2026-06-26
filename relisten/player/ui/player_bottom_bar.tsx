@@ -7,8 +7,11 @@ import {
 } from '@/relisten/player/relisten_player_hooks';
 import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player_queue_hooks';
 import { useNativePlaybackProgress } from '@/relisten/player/native_playback_state_hooks';
+import {
+  playerPresentationProgress,
+  usePlayerPresentation,
+} from '@/relisten/player/ui/player_presentation';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import { useCallback } from 'react';
 import {
   LayoutChangeEvent,
@@ -16,6 +19,7 @@ import {
   Pressable,
   StyleSheet,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { ScrubberRow } from './player_scrubber';
@@ -33,6 +37,17 @@ import {
   usePlayerBarPlacementOffset,
   useRelistenPlayerBottomBarContext,
 } from './player_bar_layout';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  Extrapolation,
+  interpolate,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
+
+const EXPANSION_ACTIVATION_DISTANCE = 10;
+const EXPANSION_PROJECTION_SECONDS = 0.18;
 
 function OfflineBanner() {
   return (
@@ -84,7 +99,7 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
   const currentTrack = useRelistenPlayerCurrentTrack();
   const playbackState = useRelistenPlayerPlaybackState();
   const player = useRelistenPlayer();
-  const router = useRouter();
+  const { openPlayer } = usePlayerPresentation();
   const { isCasting, deviceName } = useRelistenCastStatus();
   const shouldRenderCastButton = useShouldRenderCastButton();
 
@@ -132,7 +147,9 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
           {playbackStateIcon}
         </TouchableOpacity>
         <Pressable
-          onPress={() => router.push({ pathname: '/relisten/player' })}
+          accessibilityLabel={`Open player for ${track.title}`}
+          accessibilityRole="button"
+          onPress={openPlayer}
           className={isAccessory ? 'ml-2 flex-1' : 'ml-3 flex-1'}
           style={styles.metadataPressable}
         >
@@ -184,9 +201,19 @@ const OFFLINE_OVERLAY_MIN_HEIGHT = 104;
 const OFFLINE_ACCESSORY_MIN_HEIGHT = 96;
 
 export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBarProps) {
+  'use no memo';
+
   const isOnline = useShouldMakeNetworkRequests();
+  const { height } = useWindowDimensions();
   const { playerBottomBarHeight, setPlayerBottomBarHeight } = useRelistenPlayerBottomBarContext();
   const placementOffset = usePlayerBarPlacementOffset();
+  const { beginInteractivePresentation, closePlayer, isPresentationActive, openPlayer } =
+    usePlayerPresentation();
+  const touchStartX = useSharedValue(0);
+  const touchStartY = useSharedValue(0);
+  const gestureStartProgress = useSharedValue(0);
+  const gestureStartTranslationY = useSharedValue(0);
+  const gestureDistance = Math.max(height * 0.72, 1);
   const offlineMinHeight = !isOnline
     ? placementBackend === 'overlay'
       ? OFFLINE_OVERLAY_MIN_HEIGHT
@@ -202,6 +229,33 @@ export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBa
     },
     [playerBottomBarHeight, setPlayerBottomBarHeight]
   );
+
+  const barStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(
+      playerPresentationProgress.value,
+      [0, 0.12, 0.32],
+      [1, 0.82, 0],
+      Extrapolation.CLAMP
+    ),
+    transform: [
+      {
+        translateY: interpolate(
+          playerPresentationProgress.value,
+          [0, 1],
+          [0, Math.min(playerBottomBarHeight * 0.38, 24)],
+          Extrapolation.CLAMP
+        ),
+      },
+      {
+        scale: interpolate(
+          playerPresentationProgress.value,
+          [0, 1],
+          [1, 0.96],
+          Extrapolation.CLAMP
+        ),
+      },
+    ],
+  }));
 
   const isVisible = useIsPlayerBottomBarVisible();
 
@@ -240,18 +294,71 @@ export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBa
     </>
   );
 
+  const expandGesture = Gesture.Pan()
+    .manualActivation(true)
+    .onTouchesDown((event) => {
+      const touch = event.allTouches[0];
+      touchStartX.value = touch?.absoluteX ?? 0;
+      touchStartY.value = touch?.absoluteY ?? 0;
+    })
+    .onTouchesMove((event, stateManager) => {
+      const touch = event.allTouches[0];
+
+      if (!touch) {
+        return;
+      }
+
+      const translationX = touch.absoluteX - touchStartX.value;
+      const translationY = touch.absoluteY - touchStartY.value;
+
+      if (translationY > EXPANSION_ACTIVATION_DISTANCE || Math.abs(translationX) > 24) {
+        stateManager.fail();
+      } else if (translationY < -EXPANSION_ACTIVATION_DISTANCE) {
+        stateManager.activate();
+      }
+    })
+    .onStart((event) => {
+      gestureStartProgress.value = playerPresentationProgress.value;
+      gestureStartTranslationY.value = event.translationY;
+      runOnJS(beginInteractivePresentation)();
+    })
+    .onUpdate((event) => {
+      const translationY = event.translationY - gestureStartTranslationY.value;
+      playerPresentationProgress.value = Math.max(
+        0,
+        Math.min(1, gestureStartProgress.value - translationY / gestureDistance)
+      );
+    })
+    .onEnd((event) => {
+      const projectedProgress =
+        playerPresentationProgress.value -
+        (event.velocityY * EXPANSION_PROJECTION_SECONDS) / gestureDistance;
+
+      if (projectedProgress > 0.32) {
+        runOnJS(openPlayer)();
+      } else {
+        runOnJS(closePlayer)();
+      }
+    });
+
   return (
-    <View onLayout={onLayout} style={containerStyle}>
-      <View style={contentContainerStyle}>
-        {placementBackend === 'overlay' ? (
-          <View style={shellChromeStyle}>
-            <View style={[styles.shellSurface, shellSurfaceStyle]}>{body}</View>
-          </View>
-        ) : (
-          body
-        )}
-      </View>
-    </View>
+    <GestureDetector gesture={expandGesture}>
+      <Animated.View
+        onLayout={onLayout}
+        pointerEvents={isPresentationActive ? 'none' : 'auto'}
+        style={[containerStyle, barStyle]}
+      >
+        <View style={contentContainerStyle}>
+          {placementBackend === 'overlay' ? (
+            <View style={shellChromeStyle}>
+              <View style={[styles.shellSurface, shellSurfaceStyle]}>{body}</View>
+            </View>
+          ) : (
+            body
+          )}
+        </View>
+      </Animated.View>
+    </GestureDetector>
   );
 }
 

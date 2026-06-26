@@ -2,9 +2,9 @@ import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
 import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player_queue_hooks';
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { useGroupSegment } from '@/relisten/util/routes';
-import { type MenuAction } from '@expo/ui/community/menu';
-import { Stack, router, useNavigation } from 'expo-router';
-import { useCallback, useMemo } from 'react';
+import { MenuView, type MenuAction } from '@expo/ui/community/menu';
+import { Stack, router } from 'expo-router';
+import { useCallback, useMemo, type ReactNode } from 'react';
 
 const ACTION_IDS = {
   artist: 'artist',
@@ -14,8 +14,7 @@ const ACTION_IDS = {
 type CurrentTrackNavigationActionId = (typeof ACTION_IDS)[keyof typeof ACTION_IDS];
 type CurrentTrackNavigationAction = MenuAction & { id: CurrentTrackNavigationActionId };
 
-function useCurrentTrackNavigation(dismissOnNavigate: boolean) {
-  const navigation = useNavigation();
+function useCurrentTrackNavigation(onBeforeNavigate?: () => void) {
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
   const groupSegment = useGroupSegment();
   const { pushShow } = usePushShowRespectingUserSettings();
@@ -49,9 +48,7 @@ function useCurrentTrackNavigation(dismissOnNavigate: boolean) {
         return;
       }
 
-      if (dismissOnNavigate) {
-        navigation.goBack();
-      }
+      onBeforeNavigate?.();
 
       if (actionId === ACTION_IDS.artist) {
         router.push({
@@ -67,10 +64,37 @@ function useCurrentTrackNavigation(dismissOnNavigate: boolean) {
         });
       }
     },
-    [artist, dismissOnNavigate, groupSegment, navigation, pushShow, show, source]
+    [artist, groupSegment, onBeforeNavigate, pushShow, show, source]
   );
 
   return { actions, handleAction, hasActions: actions.length > 0 };
+}
+
+type CurrentTrackNavigationMenuProps = {
+  children: ReactNode;
+  onBeforeNavigate?: () => void;
+};
+
+export function CurrentTrackNavigationMenu({
+  children,
+  onBeforeNavigate,
+}: CurrentTrackNavigationMenuProps) {
+  const { actions, handleAction, hasActions } = useCurrentTrackNavigation(onBeforeNavigate);
+
+  if (!hasActions) {
+    return children;
+  }
+
+  return (
+    <MenuView
+      actions={actions}
+      onPressAction={({ nativeEvent }) =>
+        handleAction(nativeEvent.event as CurrentTrackNavigationActionId)
+      }
+    >
+      {children}
+    </MenuView>
+  );
 }
 
 type PlayerHeaderToolbarProps = {
@@ -78,7 +102,7 @@ type PlayerHeaderToolbarProps = {
 };
 
 export function PlayerHeaderToolbar({ onClose }: PlayerHeaderToolbarProps) {
-  const { actions, handleAction, hasActions } = useCurrentTrackNavigation(true);
+  const { actions, handleAction, hasActions } = useCurrentTrackNavigation(onClose);
 
   return (
     <>
