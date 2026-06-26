@@ -1,5 +1,6 @@
 import ExpoModulesCore
 import Foundation
+import UIKit
 
 private let moduleLifecycleLog = RelistenPlaybackLogger(layer: .backend, category: .lifecycle)
 
@@ -73,6 +74,15 @@ public class RelistenAudioPlayerModule: Module {
             "onRemoteControl",
             "onTrackStreamingCacheComplete"
         )
+
+        View(RelistenAudioSpectrumView.self) {
+            Prop("active") { (view: RelistenAudioSpectrumView, active: Bool) in
+                view.isActive = active
+            }
+            Prop("color") { (view: RelistenAudioSpectrumView, color: UIColor) in
+                view.spectrumColor = color
+            }
+        }
 
         Function("currentDuration") {
             return player?.currentDurationSnapshot
