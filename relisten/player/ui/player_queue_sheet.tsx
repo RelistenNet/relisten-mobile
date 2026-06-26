@@ -31,6 +31,7 @@ import {
 } from 'react-native';
 import ReorderableList, { useReorderableDrag } from 'react-native-reorderable-list';
 import { ReorderableListReorderEvent } from 'react-native-reorderable-list/src/types/props';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   cancelAnimation,
   runOnJS,
@@ -181,6 +182,7 @@ export function PlayerQueueSheet({
   'use no memo';
 
   const player = useRelistenPlayer();
+  const { bottom: bottomSafeAreaInset } = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const { closePlayer, openPlayer } = usePlayerPresentation();
   const orderedQueueTracks = useRelistenPlayerQueueOrderedTracks();
@@ -303,7 +305,7 @@ export function PlayerQueueSheet({
   return (
     <ReorderableList
       alwaysBounceVertical={allowsInteractiveDismiss}
-      contentContainerStyle={{ paddingBottom: 24 }}
+      contentContainerStyle={{ paddingBottom: bottomSafeAreaInset + 24 }}
       contentInsetAdjustmentBehavior={usesTransparentHeader ? 'automatic' : 'never'}
       data={panelEntries}
       dragEnabled={mode === 'queue'}
