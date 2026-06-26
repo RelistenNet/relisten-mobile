@@ -46,7 +46,7 @@ import Animated, {
   useSharedValue,
 } from 'react-native-reanimated';
 
-const EXPANSION_ACTIVATION_DISTANCE = 10;
+const EXPANSION_ACTIVATION_DISTANCE = 2;
 const EXPANSION_PROJECTION_SECONDS = 0.18;
 
 function OfflineBanner() {
@@ -207,12 +207,17 @@ export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBa
   const { height } = useWindowDimensions();
   const { playerBottomBarHeight, setPlayerBottomBarHeight } = useRelistenPlayerBottomBarContext();
   const placementOffset = usePlayerBarPlacementOffset();
-  const { beginInteractivePresentation, closePlayer, isPresentationActive, openPlayer } =
-    usePlayerPresentation();
+  const {
+    beginInteractivePresentation,
+    cancelPreparedPresentation,
+    closePlayer,
+    isPresentationActive,
+    openPlayer,
+    preparePlayerPresentation,
+  } = usePlayerPresentation();
   const touchStartX = useSharedValue(0);
   const touchStartY = useSharedValue(0);
   const gestureStartProgress = useSharedValue(0);
-  const gestureStartTranslationY = useSharedValue(0);
   const gestureDistance = Math.max(height * 0.72, 1);
   const offlineMinHeight = !isOnline
     ? placementBackend === 'overlay'
@@ -233,8 +238,8 @@ export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBa
   const barStyle = useAnimatedStyle(() => ({
     opacity: interpolate(
       playerPresentationProgress.value,
-      [0, 0.12, 0.32],
-      [1, 0.82, 0],
+      [0, 0.025, 0.14],
+      [1, 0.6, 0],
       Extrapolation.CLAMP
     ),
     transform: [
@@ -300,6 +305,7 @@ export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBa
       const touch = event.allTouches[0];
       touchStartX.value = touch?.absoluteX ?? 0;
       touchStartY.value = touch?.absoluteY ?? 0;
+      runOnJS(preparePlayerPresentation)();
     })
     .onTouchesMove((event, stateManager) => {
       const touch = event.allTouches[0];
@@ -317,16 +323,14 @@ export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBa
         stateManager.activate();
       }
     })
-    .onStart((event) => {
+    .onStart(() => {
       gestureStartProgress.value = playerPresentationProgress.value;
-      gestureStartTranslationY.value = event.translationY;
       runOnJS(beginInteractivePresentation)();
     })
     .onUpdate((event) => {
-      const translationY = event.translationY - gestureStartTranslationY.value;
       playerPresentationProgress.value = Math.max(
         0,
-        Math.min(1, gestureStartProgress.value - translationY / gestureDistance)
+        Math.min(1, gestureStartProgress.value - event.translationY / gestureDistance)
       );
     })
     .onEnd((event) => {
@@ -338,6 +342,11 @@ export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBa
         runOnJS(openPlayer)();
       } else {
         runOnJS(closePlayer)();
+      }
+    })
+    .onFinalize((_event, success) => {
+      if (!success && playerPresentationProgress.value <= 0) {
+        runOnJS(cancelPreparedPresentation)();
       }
     });
 

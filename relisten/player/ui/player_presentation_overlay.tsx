@@ -18,7 +18,8 @@ export function PlayerPresentationOverlay() {
   const { playerBottomBarHeight } = useRelistenPlayerBottomBarContext();
   const placementOffset = usePlayerBarPlacementOffset();
   const isPlayerVisible = useIsPlayerBottomBarVisible();
-  const { closePlayer, isPresentationActive, resetPlayerPresentation } = usePlayerPresentation();
+  const { closePlayer, isPresentationActive, isPresentationMounted, resetPlayerPresentation } =
+    usePlayerPresentation();
   const collapsedTop = Math.max(height - playerBottomBarHeight - placementOffset, 0);
 
   useEffect(() => {
@@ -49,8 +50,8 @@ export function PlayerPresentationOverlay() {
     ),
     opacity: interpolate(
       playerPresentationProgress.value,
-      [0, 0.04, 0.2],
-      [0, 0.65, 1],
+      [0, 0.008, 0.08],
+      [0, 0.9, 1],
       Extrapolation.CLAMP
     ),
     transform: [
@@ -73,15 +74,18 @@ export function PlayerPresentationOverlay() {
     ],
   }));
 
-  if (!isPlayerVisible || !isPresentationActive) {
+  if (!isPlayerVisible) {
     return null;
   }
 
   return (
     <Animated.View
-      accessibilityViewIsModal
+      accessibilityElementsHidden={!isPresentationActive}
+      accessibilityViewIsModal={isPresentationActive}
+      pointerEvents={isPresentationActive ? 'auto' : 'none'}
       style={[
         {
+          backgroundColor: '#001b21',
           bottom: 0,
           boxShadow: '0 -12px 36px rgba(0, 0, 0, 0.34)',
           left: 0,
@@ -95,9 +99,11 @@ export function PlayerPresentationOverlay() {
         overlayStyle,
       ]}
     >
-      <RelistenNavigationProvider groupSegment="(artists)">
-        <PlayerScreen onClose={closePlayer} variant="overlay" />
-      </RelistenNavigationProvider>
+      {isPresentationMounted && (
+        <RelistenNavigationProvider groupSegment="(artists)">
+          <PlayerScreen onClose={closePlayer} variant="overlay" />
+        </RelistenNavigationProvider>
+      )}
     </Animated.View>
   );
 }
