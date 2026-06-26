@@ -50,8 +50,8 @@ export function PlayerPresentationOverlay() {
     ),
     opacity: interpolate(
       playerPresentationProgress.value,
-      [0, 0.008, 0.08],
-      [0, 0.9, 1],
+      [0, 0.1, 0.28],
+      [0, 0.7, 1],
       Extrapolation.CLAMP
     ),
     transform: [
