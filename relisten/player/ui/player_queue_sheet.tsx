@@ -47,6 +47,7 @@ import Animated, {
 type QueueEntry = {
   kind: 'queue';
   isFirst: boolean;
+  isLast: boolean;
   queueIndex: number;
   queueTrack: PlayerQueueTrack;
 };
@@ -55,6 +56,7 @@ type HistoryEntry = {
   kind: 'history';
   historyEntry: PlaybackHistoryEntry;
   isFirst: boolean;
+  isLast: boolean;
 };
 
 type PlayerPanelEntry = QueueEntry | HistoryEntry;
@@ -93,7 +95,7 @@ function PlayerQueueItem({ entry }: { entry: QueueEntry }) {
   const drag = useReorderableDrag();
   const { fontScale } = useWindowDimensions();
   const controlScale = accessibleControlScale(fontScale);
-  const { isFirst, queueIndex, queueTrack } = entry;
+  const { isFirst, isLast, queueIndex, queueTrack } = entry;
   const sourceTrack = queueTrack.sourceTrack;
   const isAccessibilityLayout = fontScale >= 1.4;
   const displayTitle = playerDisplayTitle(sourceTrack.title);
@@ -130,7 +132,7 @@ function PlayerQueueItem({ entry }: { entry: QueueEntry }) {
 
   if (isAccessibilityLayout) {
     return (
-      <PlayerPanelRow isFirst={isFirst}>
+      <PlayerPanelRow isFirst={isFirst} isLast={isLast}>
         <View
           style={{
             paddingLeft: 12 * controlScale,
@@ -152,7 +154,7 @@ function PlayerQueueItem({ entry }: { entry: QueueEntry }) {
   }
 
   return (
-    <PlayerPanelRow isFirst={isFirst}>
+    <PlayerPanelRow isFirst={isFirst} isLast={isLast}>
       <View
         className="flex-row items-center"
         style={{ paddingLeft: 12 * controlScale, paddingVertical: 6 * controlScale }}
@@ -211,6 +213,7 @@ export function PlayerQueueSheet({
     return visibleTracks.map((queueTrack, offset) => ({
       kind: 'queue',
       isFirst: offset === 0,
+      isLast: offset === visibleTracks.length - 1,
       queueIndex: firstVisibleIndex + offset,
       queueTrack,
     }));
@@ -223,6 +226,7 @@ export function PlayerQueueSheet({
       kind: 'history',
       historyEntry,
       isFirst: index === 0,
+      isLast: index === entries.length - 1,
     }));
   }, [historyLimit, recentlyPlayed]);
 
@@ -327,7 +331,7 @@ export function PlayerQueueSheet({
         </View>
       }
       ListEmptyComponent={
-        <PlayerPanelRow isFirst>
+        <PlayerPanelRow isFirst isLast>
           <View className="p-6">
             <RelistenText className="text-center text-gray-300" selectable={false}>
               {mode === 'queue' ? 'Nothing else is queued' : 'No listening history yet'}
@@ -336,15 +340,22 @@ export function PlayerQueueSheet({
         </PlayerPanelRow>
       }
       ListFooterComponent={
-        <View
-          style={{
-            backgroundColor: PLAYER_PANEL_BACKGROUND,
-            borderColor: PLAYER_PANEL_BORDER_COLOR,
-            borderLeftWidth: 1,
-            borderRightWidth: 1,
-            height: bottomSafeAreaInset + 24,
-          }}
-        />
+        <View style={{ height: bottomSafeAreaInset + 24, overflow: 'visible' }}>
+          <View
+            pointerEvents="none"
+            style={{
+              backgroundColor: PLAYER_PANEL_BACKGROUND,
+              borderColor: PLAYER_PANEL_BORDER_COLOR,
+              borderLeftWidth: 1,
+              borderRightWidth: 1,
+              height: bottomSafeAreaInset + 24 + height,
+              left: 0,
+              position: 'absolute',
+              right: 0,
+              top: 0,
+            }}
+          />
+        </View>
       }
       onDragEnd={triggerHaptics}
       onDragStart={triggerHaptics}
@@ -359,7 +370,11 @@ export function PlayerQueueSheet({
         item.kind === 'queue' ? (
           <PlayerQueueItem entry={item} />
         ) : (
-          <PlayerHistoryItem entry={item.historyEntry} isFirst={item.isFirst} />
+          <PlayerHistoryItem
+            entry={item.historyEntry}
+            isFirst={item.isFirst}
+            isLast={item.isLast}
+          />
         )
       }
       showsVerticalScrollIndicator={false}
