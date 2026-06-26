@@ -18,7 +18,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { ScrubberRow } from './player_screen';
+import { ScrubberRow } from './player_scrubber';
 import * as Progress from 'react-native-progress';
 import AirPlayButton from 'react-native-airplay-button';
 import {
