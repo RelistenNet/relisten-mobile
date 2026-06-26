@@ -10,7 +10,7 @@ Pod::Spec.new do |s|
   s.static_framework = true
 
   s.dependency 'ExpoModulesCore'
-  s.frameworks = "AVFoundation", "AudioToolbox", "AVFAudio", "MediaPlayer"
+  s.frameworks = "Accelerate", "AVFoundation", "AudioToolbox", "AVFAudio", "MediaPlayer"
 
   # Swift/Objective-C compatibility
   s.pod_target_xcconfig = {
