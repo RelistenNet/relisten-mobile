@@ -41,7 +41,7 @@ export function PlayerPanelRow({ children, isFirst, isLast }: PlayerPanelRowProp
           borderTopLeftRadius: isFirst ? 16 : 0,
           borderTopRightRadius: isFirst ? 16 : 0,
           borderTopWidth: isFirst ? 1 : 0,
-          marginHorizontal: 14,
+          marginHorizontal: 8,
         }}
       >
         {children}

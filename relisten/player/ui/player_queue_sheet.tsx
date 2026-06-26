@@ -66,10 +66,15 @@ function QueueDragHandle({ drag, title }: { drag: () => void; title: string }) {
       accessibilityHint="Double tap and hold, then drag to reorder."
       accessibilityLabel={`Reorder ${title}`}
       accessibilityRole="button"
-      className="items-center justify-center"
+      className="justify-center"
       delayLongPress={250}
       onLongPress={drag}
-      style={{ minHeight: 44 * controlScale, minWidth: 44 * controlScale }}
+      style={{
+        alignItems: 'flex-start',
+        minHeight: 44 * controlScale,
+        minWidth: 44 * controlScale,
+        paddingLeft: 4 * controlScale,
+      }}
     >
       <MaterialIcons
         color="rgba(255, 255, 255, 0.62)"
@@ -123,7 +128,7 @@ function PlayerQueueItem({ entry }: { entry: QueueEntry }) {
   if (isAccessibilityLayout) {
     return (
       <PlayerPanelRow isFirst={isFirst} isLast={isLast}>
-        <View className="px-3 py-3">
+        <View className="px-2 py-3">
           <View className="flex-row items-start gap-2">
             <View className="items-center pt-1" style={{ minWidth: 30 * controlScale }}>
               <RelistenText className="text-gray-400" selectable={false}>
@@ -149,8 +154,8 @@ function PlayerQueueItem({ entry }: { entry: QueueEntry }) {
 
   return (
     <PlayerPanelRow isFirst={isFirst} isLast={isLast}>
-      <View className="flex-row items-center px-3 py-3">
-        <View className="items-center justify-center" style={{ minWidth: 34 * controlScale }}>
+      <View className="flex-row items-center px-2 py-3">
+        <View className="items-center justify-center" style={{ minWidth: 30 * controlScale }}>
           <RelistenText className="text-gray-400" selectable={false}>
             {displayPosition}
           </RelistenText>
@@ -159,7 +164,7 @@ function PlayerQueueItem({ entry }: { entry: QueueEntry }) {
         <RelistenText
           className="pl-2 text-gray-300"
           selectable={false}
-          style={{ minWidth: 48 * controlScale, textAlign: 'right' }}
+          style={{ minWidth: 44 * controlScale, textAlign: 'right' }}
         >
           {sourceTrack.humanizedDuration}
         </RelistenText>

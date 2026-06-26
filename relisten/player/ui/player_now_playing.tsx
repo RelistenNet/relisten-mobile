@@ -192,7 +192,7 @@ function ShowIdentity() {
             </RelistenText>
           </View>
         )}
-        <View className="w-full px-3" style={{ marginTop: 10 }}>
+        <View className="w-full px-3" style={{ marginBottom: 8, marginTop: 18 }}>
           <WaveformPlaceholder />
         </View>
       </View>
@@ -479,7 +479,7 @@ export function PlayerNowPlaying() {
   }
 
   return (
-    <View style={{ paddingBottom: 12, paddingTop: showDecorativeIdentity ? 4 : 24 }}>
+    <View style={{ paddingBottom: 24, paddingTop: showDecorativeIdentity ? 4 : 24 }}>
       {showDecorativeIdentity && <ShowIdentity />}
       <View style={{ marginTop: showDecorativeIdentity ? 14 : 0 }}>
         <CurrentTrackInfo />
@@ -490,7 +490,7 @@ export function PlayerNowPlaying() {
       <View style={{ marginTop: 4 }}>
         <PlayerControls />
       </View>
-      <View style={{ marginTop: 8 }}>
+      <View style={{ marginTop: 16 }}>
         <PlayerSecondaryControls />
       </View>
     </View>
