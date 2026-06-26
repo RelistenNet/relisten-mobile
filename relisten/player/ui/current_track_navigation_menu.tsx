@@ -2,9 +2,9 @@ import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
 import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player_queue_hooks';
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { useGroupSegment } from '@/relisten/util/routes';
-import { MenuView, type MenuAction } from '@expo/ui/community/menu';
+import { type MenuAction } from '@expo/ui/community/menu';
 import { Stack, router, useNavigation } from 'expo-router';
-import { type ReactNode, useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
 const ACTION_IDS = {
   artist: 'artist',
@@ -73,33 +73,6 @@ function useCurrentTrackNavigation(dismissOnNavigate: boolean) {
   return { actions, handleAction, hasActions: actions.length > 0 };
 }
 
-type CurrentTrackNavigationMenuProps = {
-  children: ReactNode;
-  dismissOnNavigate?: boolean;
-};
-
-export function CurrentTrackNavigationMenu({
-  children,
-  dismissOnNavigate = true,
-}: CurrentTrackNavigationMenuProps) {
-  const { actions, handleAction, hasActions } = useCurrentTrackNavigation(dismissOnNavigate);
-
-  if (!hasActions) {
-    return children;
-  }
-
-  return (
-    <MenuView
-      actions={actions}
-      onPressAction={({ nativeEvent }) =>
-        handleAction(nativeEvent.event as CurrentTrackNavigationActionId)
-      }
-    >
-      {children}
-    </MenuView>
-  );
-}
-
 type PlayerHeaderToolbarProps = {
   onClose: () => void;
 };
@@ -112,7 +85,7 @@ export function PlayerHeaderToolbar({ onClose }: PlayerHeaderToolbarProps) {
       <Stack.Toolbar placement="left">
         <Stack.Toolbar.Button
           accessibilityLabel="Close player"
-          icon={nativeMenuIcons.close}
+          icon={nativeMenuIcons.collapse}
           onPress={onClose}
         />
       </Stack.Toolbar>
@@ -120,7 +93,7 @@ export function PlayerHeaderToolbar({ onClose }: PlayerHeaderToolbarProps) {
         <Stack.Toolbar.Menu
           accessibilityLabel="Current track navigation"
           hidden={!hasActions}
-          icon={nativeMenuIcons.more}
+          icon={nativeMenuIcons.toolbarMore}
         >
           {actions.map((action) => (
             <Stack.Toolbar.MenuAction
