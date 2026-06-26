@@ -12,31 +12,44 @@ const PRESENTATION_SPRING = {
 
 type PlayerPresentationContextValue = {
   beginInteractivePresentation: () => void;
+  cancelPreparedPresentation: () => void;
   closePlayer: () => void;
   isPresentationActive: boolean;
+  isPresentationMounted: boolean;
   openPlayer: () => void;
+  preparePlayerPresentation: () => void;
   resetPlayerPresentation: () => void;
 };
+
+type PlayerPresentationState = 'active' | 'idle' | 'prepared';
 
 const PlayerPresentationContext = createContext<PlayerPresentationContextValue | undefined>(
   undefined
 );
 
 export function PlayerPresentationProvider({ children }: PropsWithChildren) {
-  const [isPresentationActive, setIsPresentationActive] = useState(false);
+  const [presentationState, setPresentationState] = useState<PlayerPresentationState>('idle');
 
   const finishClosing = useCallback(() => {
-    setIsPresentationActive(false);
+    setPresentationState('idle');
+  }, []);
+
+  const preparePlayerPresentation = useCallback(() => {
+    setPresentationState((state) => (state === 'idle' ? 'prepared' : state));
+  }, []);
+
+  const cancelPreparedPresentation = useCallback(() => {
+    setPresentationState((state) => (state === 'prepared' ? 'idle' : state));
   }, []);
 
   const beginInteractivePresentation = useCallback(() => {
     cancelAnimation(playerPresentationProgress);
-    setIsPresentationActive(true);
+    setPresentationState('active');
   }, []);
 
   const openPlayer = useCallback(() => {
     cancelAnimation(playerPresentationProgress);
-    setIsPresentationActive(true);
+    setPresentationState('active');
     playerPresentationProgress.set(withSpring(1, PRESENTATION_SPRING));
   }, []);
 
@@ -54,16 +67,19 @@ export function PlayerPresentationProvider({ children }: PropsWithChildren) {
   const resetPlayerPresentation = useCallback(() => {
     cancelAnimation(playerPresentationProgress);
     playerPresentationProgress.set(0);
-    setIsPresentationActive(false);
+    setPresentationState('idle');
   }, []);
 
   return (
     <PlayerPresentationContext.Provider
       value={{
         beginInteractivePresentation,
+        cancelPreparedPresentation,
         closePlayer,
-        isPresentationActive,
+        isPresentationActive: presentationState === 'active',
+        isPresentationMounted: presentationState !== 'idle',
         openPlayer,
+        preparePlayerPresentation,
         resetPlayerPresentation,
       }}
     >
