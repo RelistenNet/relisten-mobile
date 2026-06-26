@@ -10,7 +10,11 @@ import { playerDisplayTitle, playerQueueDate } from '@/relisten/player/ui/player
 import { PlayerHistoryItem } from '@/relisten/player/ui/player_history_item';
 import { PlayerNowPlaying } from '@/relisten/player/ui/player_now_playing';
 import { PlayerPanelHeader, type PlayerPanelMode } from '@/relisten/player/ui/player_panel_header';
-import { PlayerPanelRow } from '@/relisten/player/ui/player_panel_row';
+import {
+  PLAYER_PANEL_BACKGROUND,
+  PLAYER_PANEL_BORDER_COLOR,
+  PlayerPanelRow,
+} from '@/relisten/player/ui/player_panel_row';
 import {
   playerPresentationProgress,
   usePlayerPresentation,
@@ -43,7 +47,6 @@ import Animated, {
 type QueueEntry = {
   kind: 'queue';
   isFirst: boolean;
-  isLast: boolean;
   queueIndex: number;
   queueTrack: PlayerQueueTrack;
 };
@@ -52,7 +55,6 @@ type HistoryEntry = {
   kind: 'history';
   historyEntry: PlaybackHistoryEntry;
   isFirst: boolean;
-  isLast: boolean;
 };
 
 type PlayerPanelEntry = QueueEntry | HistoryEntry;
@@ -91,7 +93,7 @@ function PlayerQueueItem({ entry }: { entry: QueueEntry }) {
   const drag = useReorderableDrag();
   const { fontScale } = useWindowDimensions();
   const controlScale = accessibleControlScale(fontScale);
-  const { isFirst, isLast, queueIndex, queueTrack } = entry;
+  const { isFirst, queueIndex, queueTrack } = entry;
   const sourceTrack = queueTrack.sourceTrack;
   const isAccessibilityLayout = fontScale >= 1.4;
   const displayTitle = playerDisplayTitle(sourceTrack.title);
@@ -128,7 +130,7 @@ function PlayerQueueItem({ entry }: { entry: QueueEntry }) {
 
   if (isAccessibilityLayout) {
     return (
-      <PlayerPanelRow isFirst={isFirst} isLast={isLast}>
+      <PlayerPanelRow isFirst={isFirst}>
         <View
           style={{
             paddingLeft: 12 * controlScale,
@@ -150,7 +152,7 @@ function PlayerQueueItem({ entry }: { entry: QueueEntry }) {
   }
 
   return (
-    <PlayerPanelRow isFirst={isFirst} isLast={isLast}>
+    <PlayerPanelRow isFirst={isFirst}>
       <View
         className="flex-row items-center"
         style={{ paddingLeft: 12 * controlScale, paddingVertical: 6 * controlScale }}
@@ -209,7 +211,6 @@ export function PlayerQueueSheet({
     return visibleTracks.map((queueTrack, offset) => ({
       kind: 'queue',
       isFirst: offset === 0,
-      isLast: offset === visibleTracks.length - 1,
       queueIndex: firstVisibleIndex + offset,
       queueTrack,
     }));
@@ -222,7 +223,6 @@ export function PlayerQueueSheet({
       kind: 'history',
       historyEntry,
       isFirst: index === 0,
-      isLast: index === entries.length - 1,
     }));
   }, [historyLimit, recentlyPlayed]);
 
@@ -305,7 +305,6 @@ export function PlayerQueueSheet({
   return (
     <ReorderableList
       alwaysBounceVertical={allowsInteractiveDismiss}
-      contentContainerStyle={{ paddingBottom: bottomSafeAreaInset + 24 }}
       contentInsetAdjustmentBehavior={usesTransparentHeader ? 'automatic' : 'never'}
       data={panelEntries}
       dragEnabled={mode === 'queue'}
@@ -328,13 +327,24 @@ export function PlayerQueueSheet({
         </View>
       }
       ListEmptyComponent={
-        <PlayerPanelRow isFirst isLast>
+        <PlayerPanelRow isFirst>
           <View className="p-6">
             <RelistenText className="text-center text-gray-300" selectable={false}>
               {mode === 'queue' ? 'Nothing else is queued' : 'No listening history yet'}
             </RelistenText>
           </View>
         </PlayerPanelRow>
+      }
+      ListFooterComponent={
+        <View
+          style={{
+            backgroundColor: PLAYER_PANEL_BACKGROUND,
+            borderColor: PLAYER_PANEL_BORDER_COLOR,
+            borderLeftWidth: 1,
+            borderRightWidth: 1,
+            height: bottomSafeAreaInset + 24,
+          }}
+        />
       }
       onDragEnd={triggerHaptics}
       onDragStart={triggerHaptics}
@@ -349,11 +359,7 @@ export function PlayerQueueSheet({
         item.kind === 'queue' ? (
           <PlayerQueueItem entry={item} />
         ) : (
-          <PlayerHistoryItem
-            entry={item.historyEntry}
-            isFirst={item.isFirst}
-            isLast={item.isLast}
-          />
+          <PlayerHistoryItem entry={item.historyEntry} isFirst={item.isFirst} />
         )
       }
       showsVerticalScrollIndicator={false}
