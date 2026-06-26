@@ -14,6 +14,7 @@ final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
     private let ownerQueue: DispatchQueue
     private let engine = AVAudioEngine()
     private let playerNode = AVAudioPlayerNode()
+    private let spectrumTap = AudioSpectrumTap()
     private let format: AVAudioFormat
     private var pendingBufferCount = 0
     private var decodeFinished = false
@@ -37,9 +38,14 @@ final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
         self.format = format
         engine.attach(playerNode)
         engine.connect(playerNode, to: engine.mainMixerNode, format: format)
+        spectrumTap.attach(to: engine.mainMixerNode)
         // Preparing a source (including after media-services reset) does not
         // grant session ownership. Start only from the activated play path.
         engine.prepare()
+    }
+
+    deinit {
+        spectrumTap.detach()
     }
 
     var isPlaying: Bool {
