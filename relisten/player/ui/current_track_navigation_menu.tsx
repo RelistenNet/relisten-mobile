@@ -4,7 +4,7 @@ import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { Stack, router, useNavigation } from 'expo-router';
-import { type ReactNode, useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
 const ACTION_IDS = {
   artist: 'artist',
@@ -112,7 +112,7 @@ export function PlayerHeaderToolbar({ onClose }: PlayerHeaderToolbarProps) {
       <Stack.Toolbar placement="left">
         <Stack.Toolbar.Button
           accessibilityLabel="Close player"
-          icon={nativeMenuIcons.close}
+          icon={nativeMenuIcons.collapse}
           onPress={onClose}
         />
       </Stack.Toolbar>
@@ -120,7 +120,7 @@ export function PlayerHeaderToolbar({ onClose }: PlayerHeaderToolbarProps) {
         <Stack.Toolbar.Menu
           accessibilityLabel="Current track navigation"
           hidden={!hasActions}
-          icon={nativeMenuIcons.more}
+          icon={nativeMenuIcons.toolbarMore}
         >
           {actions.map((action) => (
             <Stack.Toolbar.MenuAction

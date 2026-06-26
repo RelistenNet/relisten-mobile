@@ -46,6 +46,7 @@ export default function TabLayout() {
         options={{
           presentation: 'modal',
           animation: 'slide_from_bottom',
+          gestureEnabled: true,
           headerShown: true,
           headerStyle: { backgroundColor: RelistenBlue['900'] },
         }}
