@@ -5,8 +5,11 @@ final class SpectrumBandAnalyzer {
     static let bandCount = 48
     static let fftSize = 2_048
 
-    private static let minimumFrequency = 50.0
-    private static let maximumFrequency = 16_000.0
+    private static let minimumFrequency = 60.0
+    private static let maximumFrequency = 12_000.0
+    private static let compensationReferenceFrequency = 250.0
+    private static let compensationDBPerOctave = 3.0
+    private static let maximumCompensationDB = 12.0
     private static let dynamicRangeDB: Float = 48
     private static let noiseFloorDB: Float = -80
     private static let peakReleaseDBPerSecond: Float = 12
@@ -18,6 +21,13 @@ final class SpectrumBandAnalyzer {
     private var imaginary = [Float](repeating: 0, count: fftSize / 2)
     private var power = [Float](repeating: 0, count: fftSize / 2)
     private var rollingPeakDB = -Float.infinity
+    private var bandSampleRate = 0.0
+    private var bandDefinitions: [BandDefinition] = []
+
+    private struct BandDefinition {
+        let bins: Range<Int>
+        let powerScale: Float
+    }
 
     init?() {
         guard let fftSetup = vDSP_create_fftsetup(
@@ -142,25 +152,80 @@ final class SpectrumBandAnalyzer {
     }
 
     private func aggregateBands(sampleRate: Double) -> [Float] {
-        let upperFrequency = min(Self.maximumFrequency, sampleRate / 2)
-        guard upperFrequency > Self.minimumFrequency else {
+        updateBandDefinitions(for: sampleRate)
+        guard bandDefinitions.count == Self.bandCount else {
             return Self.flatBands
         }
 
+        return power.withUnsafeBufferPointer { buffer in
+            bandDefinitions.map { definition in
+                var meanPower: Float = 0
+                vDSP_meanv(
+                    buffer.baseAddress!.advanced(by: definition.bins.lowerBound),
+                    1,
+                    &meanPower,
+                    vDSP_Length(definition.bins.count)
+                )
+                return meanPower * definition.powerScale
+            }
+        }
+    }
+
+    func binRanges(sampleRate: Double) -> [Range<Int>] {
+        updateBandDefinitions(for: sampleRate)
+        return bandDefinitions.map(\.bins)
+    }
+
+    private func updateBandDefinitions(for sampleRate: Double) {
+        guard sampleRate != bandSampleRate else { return }
+        bandSampleRate = sampleRate
+
+        let upperFrequency = min(Self.maximumFrequency, sampleRate / 2)
+        let minimumBin = max(
+            1,
+            Int(ceil(Self.minimumFrequency * Double(Self.fftSize) / sampleRate))
+        )
+        let maximumBin = min(
+            power.count,
+            Int(floor(upperFrequency * Double(Self.fftSize) / sampleRate))
+        )
+        guard maximumBin - minimumBin >= Self.bandCount else {
+            bandDefinitions = []
+            return
+        }
+
         let frequencyRatio = upperFrequency / Self.minimumFrequency
-        return (0..<Self.bandCount).map { band in
-            let lowerFraction = Double(band) / Double(Self.bandCount)
-            let upperFraction = Double(band + 1) / Double(Self.bandCount)
-            let lowerFrequency = Self.minimumFrequency * pow(frequencyRatio, lowerFraction)
-            let upperFrequency = Self.minimumFrequency * pow(frequencyRatio, upperFraction)
-            let lowerBin = max(1, Int(floor(lowerFrequency * Double(Self.fftSize) / sampleRate)))
-            let upperBin = min(
-                power.count,
-                max(lowerBin + 1, Int(ceil(upperFrequency * Double(Self.fftSize) / sampleRate)))
+        var edges = [minimumBin]
+        edges.reserveCapacity(Self.bandCount + 1)
+
+        for boundary in 1...Self.bandCount {
+            let fraction = Double(boundary) / Double(Self.bandCount)
+            let frequency = Self.minimumFrequency * pow(frequencyRatio, fraction)
+            let targetBin = Int(round(frequency * Double(Self.fftSize) / sampleRate))
+            let minimumAllowedBin = edges[boundary - 1] + 1
+            let remainingBands = Self.bandCount - boundary
+            let maximumAllowedBin = maximumBin - remainingBands
+            edges.append(min(max(targetBin, minimumAllowedBin), maximumAllowedBin))
+        }
+
+        let binFrequency = sampleRate / Double(Self.fftSize)
+        bandDefinitions = (0..<Self.bandCount).map { band in
+            let bins = edges[band]..<edges[band + 1]
+            let centerBin = (Double(bins.lowerBound) + Double(bins.upperBound - 1)) / 2
+            let centerFrequency = centerBin * binFrequency
+            let compensationDB = min(
+                max(
+                    Self.compensationDBPerOctave
+                        * log2(centerFrequency / Self.compensationReferenceFrequency),
+                    0
+                ),
+                Self.maximumCompensationDB
             )
 
-            guard lowerBin < upperBin else { return 0 }
-            return power[lowerBin..<upperBin].max() ?? 0
+            return BandDefinition(
+                bins: bins,
+                powerScale: Float(pow(10, compensationDB / 10))
+            )
         }
     }
 
