@@ -39,7 +39,7 @@ export function PlayerPanelHeader({
         borderTopWidth: 1,
         boxShadow: '0 -10px 24px rgba(0, 0, 0, 0.38)',
         paddingBottom: 8 * controlScale,
-        paddingHorizontal: 20,
+        paddingHorizontal: 12,
         paddingTop: 16,
         zIndex: 2,
       }}
