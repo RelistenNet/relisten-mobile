@@ -116,7 +116,10 @@ export function PlayerHistoryItem({ entry, isFirst, isLast }: PlayerHistoryItemP
 
   return (
     <PlayerPanelRow isFirst={isFirst} isLast={isLast}>
-      <View className="px-2 py-3">
+      <View
+        className="px-2"
+        style={{ paddingVertical: (isAccessibilityLayout ? 8 : 6) * controlScale }}
+      >
         <View className="flex-row items-center">
           <View
             accessibilityElementsHidden
