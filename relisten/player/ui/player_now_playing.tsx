@@ -111,8 +111,12 @@ function ShowIdentity() {
         <View className="w-full flex-row items-center gap-4 px-7">
           <View className="h-px flex-1 bg-relisten-blue-700/60" />
           <RelistenText
+            adjustsFontSizeToFit
             allowFontScaling={false}
-            className="font-semibold uppercase text-relisten-blue-200/75"
+            className="min-w-0 shrink font-semibold uppercase text-relisten-blue-200/75"
+            minimumFontScale={0.6}
+            numberOfLines={1}
+            selectable={false}
             style={{ fontSize: 13 * posterScale, letterSpacing: 5 * posterScale }}
           >
             {currentTrack.artist.name}
@@ -124,6 +128,7 @@ function ShowIdentity() {
           <RelistenText
             allowFontScaling={false}
             className="font-semibold text-relisten-blue-200/75"
+            selectable={false}
             style={{ fontSize: 22 * posterScale, letterSpacing: 3 * posterScale }}
           >
             {month}
@@ -132,6 +137,7 @@ function ShowIdentity() {
           <RelistenText
             allowFontScaling={false}
             className="font-light leading-none text-relisten-blue-100/80"
+            selectable={false}
             style={{ fontSize: 72 * posterScale }}
           >
             {day}
@@ -140,6 +146,7 @@ function ShowIdentity() {
           <RelistenText
             allowFontScaling={false}
             className="font-semibold text-relisten-blue-200/75"
+            selectable={false}
             style={{ fontSize: 22 * posterScale, letterSpacing: 2 * posterScale }}
           >
             {year}
@@ -151,17 +158,30 @@ function ShowIdentity() {
             <View className="w-full flex-row items-center gap-4 px-7">
               <View className="h-px flex-1 bg-relisten-blue-700/60" />
               <RelistenText
+                adjustsFontSizeToFit
                 allowFontScaling={false}
-                className="font-semibold uppercase text-relisten-blue-200/70"
-                style={{ fontSize: 14 * posterScale, letterSpacing: 4 * posterScale }}
+                className="min-w-0 shrink font-semibold uppercase text-relisten-blue-200/70"
+                minimumFontScale={0.72}
+                numberOfLines={2}
+                selectable={false}
+                style={{
+                  fontSize: 13 * posterScale,
+                  letterSpacing: 3 * posterScale,
+                  lineHeight: 18 * posterScale,
+                  textAlign: 'center',
+                }}
               >
                 {venue.name}
               </RelistenText>
               <View className="h-px flex-1 bg-relisten-blue-700/60" />
             </View>
             <RelistenText
+              adjustsFontSizeToFit
               allowFontScaling={false}
-              className="uppercase text-relisten-blue-300/65"
+              className="w-full px-7 text-center uppercase text-relisten-blue-300/65"
+              minimumFontScale={0.6}
+              numberOfLines={1}
+              selectable={false}
               style={{
                 fontSize: 12 * posterScale,
                 letterSpacing: 3 * posterScale,
