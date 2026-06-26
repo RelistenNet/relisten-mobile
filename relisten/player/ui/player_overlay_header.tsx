@@ -80,7 +80,7 @@ export function PlayerOverlayHeader({ onClose }: PlayerOverlayHeaderProps) {
         <TouchableOpacity
           accessibilityLabel="Collapse player"
           accessibilityRole="button"
-          className="items-center justify-center rounded-full border border-relisten-blue-700/45 bg-relisten-blue-900/70"
+          className="items-center justify-center rounded-full bg-white/5"
           onPress={onClose}
           style={{ height: touchSize, width: touchSize }}
         >
@@ -95,7 +95,7 @@ export function PlayerOverlayHeader({ onClose }: PlayerOverlayHeaderProps) {
           Now Playing
         </RelistenText>
         <CurrentTrackNavigationMenu onBeforeNavigate={onClose}>
-          <View className="rounded-full border border-relisten-blue-700/45 bg-relisten-blue-900/70">
+          <View className="rounded-full bg-white/5" collapsable={false}>
             <OverflowMenuTrigger accessibilityLabel="Current track navigation" />
           </View>
         </CurrentTrackNavigationMenu>
