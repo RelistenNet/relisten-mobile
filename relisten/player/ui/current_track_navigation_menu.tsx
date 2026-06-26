@@ -14,8 +14,7 @@ const ACTION_IDS = {
 type CurrentTrackNavigationActionId = (typeof ACTION_IDS)[keyof typeof ACTION_IDS];
 type CurrentTrackNavigationAction = MenuAction & { id: CurrentTrackNavigationActionId };
 
-function useCurrentTrackNavigation(dismissOnNavigate: boolean) {
-  const navigation = useNavigation();
+function useCurrentTrackNavigation(onBeforeNavigate?: () => void) {
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
   const groupSegment = useGroupSegment();
   const { pushShow } = usePushShowRespectingUserSettings();
@@ -49,9 +48,7 @@ function useCurrentTrackNavigation(dismissOnNavigate: boolean) {
         return;
       }
 
-      if (dismissOnNavigate) {
-        navigation.goBack();
-      }
+      onBeforeNavigate?.();
 
       if (actionId === ACTION_IDS.artist) {
         router.push({
@@ -67,7 +64,7 @@ function useCurrentTrackNavigation(dismissOnNavigate: boolean) {
         });
       }
     },
-    [artist, dismissOnNavigate, groupSegment, navigation, pushShow, show, source]
+    [artist, groupSegment, onBeforeNavigate, pushShow, show, source]
   );
 
   return { actions, handleAction, hasActions: actions.length > 0 };
@@ -105,7 +102,7 @@ type PlayerHeaderToolbarProps = {
 };
 
 export function PlayerHeaderToolbar({ onClose }: PlayerHeaderToolbarProps) {
-  const { actions, handleAction, hasActions } = useCurrentTrackNavigation(true);
+  const { actions, handleAction, hasActions } = useCurrentTrackNavigation(onClose);
 
   return (
     <>
