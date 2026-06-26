@@ -72,10 +72,9 @@ function QueueDragHandle({ drag, title }: { drag: () => void; title: string }) {
       delayLongPress={250}
       onLongPress={drag}
       style={{
-        alignItems: 'flex-end',
+        alignItems: 'center',
         minHeight: 44 * controlScale,
         minWidth: 44 * controlScale,
-        paddingRight: 2 * controlScale,
       }}
     >
       <MaterialIcons
