@@ -57,6 +57,8 @@ type HistoryEntry = {
 
 type PlayerPanelEntry = QueueEntry | HistoryEntry;
 
+const HISTORY_PAGE_SIZE = 100;
+
 function QueueDragHandle({ drag, title }: { drag: () => void; title: string }) {
   const { fontScale } = useWindowDimensions();
   const controlScale = accessibleControlScale(fontScale);
@@ -70,10 +72,10 @@ function QueueDragHandle({ drag, title }: { drag: () => void; title: string }) {
       delayLongPress={250}
       onLongPress={drag}
       style={{
-        alignItems: 'flex-start',
+        alignItems: 'flex-end',
         minHeight: 44 * controlScale,
         minWidth: 44 * controlScale,
-        paddingLeft: 4 * controlScale,
+        paddingRight: 2 * controlScale,
       }}
     >
       <MaterialIcons
@@ -192,8 +194,9 @@ export function PlayerQueueSheet({
   const orderedQueueTracks = useRelistenPlayerQueueOrderedTracks();
   const currentTrack = useRelistenPlayerCurrentTrack();
   const [mode, setMode] = useState<PlayerPanelMode>('queue');
+  const [historyLimit, setHistoryLimit] = useState(HISTORY_PAGE_SIZE);
   const scrollOffset = useSharedValue(0);
-  const isScrollDragging = useSharedValue(false);
+  const isDismissalDragArmed = useSharedValue(false);
   const recentlyPlayed = useQuery(
     {
       type: PlaybackHistoryEntry,
@@ -220,7 +223,7 @@ export function PlayerQueueSheet({
   }, [currentTrack, orderedQueueTracks]);
 
   const historyEntries = useMemo<HistoryEntry[]>(() => {
-    const entries = recentlyPlayed.slice(0, 300);
+    const entries = recentlyPlayed.slice(0, historyLimit);
 
     return entries.map((historyEntry, index) => ({
       kind: 'history',
@@ -228,7 +231,7 @@ export function PlayerQueueSheet({
       isFirst: index === 0,
       isLast: index === entries.length - 1,
     }));
-  }, [recentlyPlayed]);
+  }, [historyLimit, recentlyPlayed]);
 
   const panelEntries: PlayerPanelEntry[] = mode === 'queue' ? queueEntries : historyEntries;
 
@@ -238,22 +241,26 @@ export function PlayerQueueSheet({
       const nextOffset = Math.max(rawOffset, 0);
       scrollOffset.value = nextOffset;
 
-      if (allowsInteractiveDismiss && isScrollDragging.value && rawOffset < 0) {
-        cancelAnimation(playerPresentationProgress);
-        playerPresentationProgress.value = Math.max(
-          0,
-          Math.min(1, 1 + rawOffset / (height * 0.38))
-        );
+      if (allowsInteractiveDismiss && isDismissalDragArmed.value) {
+        if (rawOffset < 0) {
+          cancelAnimation(playerPresentationProgress);
+          playerPresentationProgress.value = Math.max(
+            0,
+            Math.min(1, 1 + rawOffset / (height * 0.38))
+          );
+        } else if (playerPresentationProgress.value < 1) {
+          playerPresentationProgress.value = 1;
+        }
       }
     },
   });
 
-  const handleScrollBeginDrag = () => {
+  const handleScrollBeginDrag = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (!allowsInteractiveDismiss) {
       return;
     }
 
-    isScrollDragging.value = true;
+    isDismissalDragArmed.value = event.nativeEvent.contentOffset.y <= 1;
   };
 
   const handleScrollEndDrag = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -261,17 +268,25 @@ export function PlayerQueueSheet({
       return;
     }
 
-    isScrollDragging.value = false;
-
     const offset = event.nativeEvent.contentOffset.y;
     const velocity = event.nativeEvent.velocity?.y ?? 0;
+    const canDismiss = isDismissalDragArmed.value && offset < 0;
+    isDismissalDragArmed.value = false;
 
-    if (offset < -56 || velocity < -0.55) {
+    if (canDismiss && (offset < -56 || velocity < -0.55)) {
       closePlayer();
-    } else if (offset < 0) {
+    } else if (playerPresentationProgress.value < 1) {
       openPlayer();
     }
   };
+
+  const loadMoreHistory = useCallback(() => {
+    if (mode !== 'history') {
+      return;
+    }
+
+    setHistoryLimit((limit) => Math.min(limit + HISTORY_PAGE_SIZE, recentlyPlayed.length));
+  }, [mode, recentlyPlayed.length]);
 
   const nowPlayingStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: Math.min(scrollOffset.value * 0.78, height * 0.16) }],
@@ -312,7 +327,7 @@ export function PlayerQueueSheet({
             <PlayerNowPlaying />
           </Animated.View>
           <PlayerPanelHeader
-            historyCount={historyEntries.length}
+            historyCount={recentlyPlayed.length}
             mode={mode}
             onModeChange={setMode}
             queueCount={queueEntries.length}
@@ -331,6 +346,8 @@ export function PlayerQueueSheet({
       onDragEnd={triggerHaptics}
       onDragStart={triggerHaptics}
       onIndexChange={triggerHaptics}
+      onEndReached={loadMoreHistory}
+      onEndReachedThreshold={0.4}
       onReorder={onReorder}
       onScroll={handleScroll}
       onScrollBeginDrag={handleScrollBeginDrag}
