@@ -82,6 +82,9 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
                 self?.handleHTTPLogEvent(event)
             }
             self.player.volume = self.snapshotStore.get().volume
+            self.player.setAudioAdjustmentConfiguration(
+                self.snapshotStore.get().audioAdjustmentConfiguration
+            )
         }
     }
 
@@ -145,6 +148,13 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
         let shuffleType: MPShuffleType = shuffleMode == 2 ? .items : .off
         DispatchQueue.main.async {
             self.audioSessionController.commandCenter.changeShuffleModeCommand.currentShuffleType = shuffleType
+        }
+    }
+
+    func enqueueSetAudioAdjustmentConfiguration(_ configuration: AudioAdjustmentConfiguration) {
+        snapshotStore.withValue { $0.audioAdjustmentConfiguration = configuration }
+        backendQueue.async {
+            self.player.setAudioAdjustmentConfiguration(configuration)
         }
     }
 

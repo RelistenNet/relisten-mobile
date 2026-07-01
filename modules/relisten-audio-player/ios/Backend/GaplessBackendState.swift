@@ -36,6 +36,7 @@ struct GaplessBackendSnapshot {
     var elapsed: TimeInterval?
     var currentState: PlaybackState = .Stopped
     var volume: Float = 1.0
+    var audioAdjustmentConfiguration: AudioAdjustmentConfiguration = .disabled
     var activeTrackDownloadedBytes: UInt64?
     var activeTrackTotalBytes: UInt64?
     var currentStreamable: RelistenGaplessStreamable?
