@@ -3,6 +3,24 @@ import XCTest
 @testable import GaplessMP3Player
 
 final class GaplessMP3PlayerTests: XCTestCase {
+    func testAudioAdjustmentConfigurationSurvivesPrepare() async throws {
+        let outputGraph = TestOutputGraph()
+        let player = makePlayer(outputGraph: outputGraph)
+        let source = fixtureSource(id: "current", fixtureName: "gd77-s2t07-first-5s.mp3")
+        let configuration = try AudioAdjustmentConfiguration.validated(
+            specVersion: 1,
+            enabled: true,
+            bandGainsDb: [-4, -3, -1, 0, 1, 2, 6, 1, 0, -1],
+            extraVolumeReductionDb: -12
+        )
+
+        player.setAudioAdjustmentConfiguration(configuration)
+        try await player.prepare(current: source, next: nil)
+
+        XCTAssertEqual(outputGraph.audioAdjustmentConfigurationSnapshot(), configuration)
+        XCTAssertEqual(player.audioAdjustmentConfiguration, configuration)
+    }
+
     func testPrepareAllowsMixedSampleRatesUsingFixedSessionOutputFormat() async throws {
         let outputGraph = TestOutputGraph()
         let player = makePlayer(outputGraph: outputGraph)
@@ -1935,6 +1953,7 @@ private final class TestOutputGraph: PCMOutputControlling, @unchecked Sendable {
     private var timelineOffset: TimeInterval
     private var playing: Bool
     private var outputVolume: Float = 1.0
+    private var audioAdjustmentConfiguration: AudioAdjustmentConfiguration = .disabled
     private var scheduledChunks: [PCMChunk] = []
     private var playedBackCallbacks: [@Sendable () -> Void] = []
 
@@ -1969,6 +1988,21 @@ private final class TestOutputGraph: PCMOutputControlling, @unchecked Sendable {
             defer { lock.unlock() }
             outputVolume = newValue
         }
+    }
+
+    func applyAudioAdjustmentConfiguration(
+        _ configuration: AudioAdjustmentConfiguration,
+        animated: Bool
+    ) {
+        lock.lock()
+        defer { lock.unlock() }
+        audioAdjustmentConfiguration = configuration
+    }
+
+    func audioAdjustmentConfigurationSnapshot() -> AudioAdjustmentConfiguration {
+        lock.lock()
+        defer { lock.unlock() }
+        return audioAdjustmentConfiguration
     }
 
     func reset(timelineOffset: TimeInterval, startEngine: Bool) throws {

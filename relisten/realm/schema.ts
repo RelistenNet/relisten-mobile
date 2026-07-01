@@ -18,6 +18,10 @@ import { UserSettings } from '@/relisten/realm/models/user_settings';
 import { LastFmSettings } from '@/relisten/realm/models/lastfm_settings';
 import { LastFmScrobbleEntry } from '@/relisten/realm/models/lastfm_scrobble_entry';
 import {
+  AudioAdjustmentPresetModel,
+  AudioAdjustmentSettings,
+} from '@/relisten/realm/models/audio_adjustment_settings';
+import {
   Popularity,
   PopularityWindow,
   PopularityWindows,
@@ -53,11 +57,13 @@ const realmConfig: Realm.Configuration = {
     UserSettings,
     LastFmSettings,
     LastFmScrobbleEntry,
+    AudioAdjustmentSettings,
+    AudioAdjustmentPresetModel,
     Popularity,
     PopularityWindow,
     PopularityWindows,
   ],
-  schemaVersion: 12,
+  schemaVersion: 13,
   // As to not conflict with the prior versions default.realm that isn't readable with this version of the SDK
   path: './relisten.realm',
 };

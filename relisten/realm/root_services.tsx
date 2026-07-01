@@ -10,10 +10,12 @@ import { useRealm } from '@/relisten/realm/schema';
 import { LibraryIndex } from '@/relisten/realm/library_index';
 import { UserSettingsStore } from '@/relisten/realm/user_settings_store';
 import { DownloadManager } from '@/relisten/offline/download_manager';
+import { AudioAdjustmentStore } from '@/relisten/player/audio_adjustments/audio_adjustment_store';
 
 export interface RootServices {
   libraryIndex: LibraryIndex;
   userSettingsStore: UserSettingsStore;
+  audioAdjustmentStore: AudioAdjustmentStore;
 }
 
 const RootServicesContext = createContext<RootServices | undefined>(undefined);
@@ -25,6 +27,7 @@ export function RootServicesProvider({ children }: PropsWithChildren) {
     return {
       libraryIndex: new LibraryIndex(realm),
       userSettingsStore: new UserSettingsStore(realm),
+      audioAdjustmentStore: new AudioAdjustmentStore(realm),
     };
   }, [realm]);
 
@@ -211,4 +214,8 @@ export function useRootLibraryIndex() {
 
 export function useRootUserSettingsStore() {
   return useRootServices().userSettingsStore;
+}
+
+export function useAudioAdjustmentStore() {
+  return useRootServices().audioAdjustmentStore;
 }

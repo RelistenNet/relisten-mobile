@@ -28,6 +28,7 @@ import { RelistenPlayerProvider } from '@/relisten/player/relisten_player_hooks'
 import { RelistenPlayerBottomBarProvider } from '@/relisten/player/ui/player_bar_layout';
 import { PlayerPresentationProvider } from '@/relisten/player/ui/player_presentation';
 import { PlayerPresentationOverlay } from '@/relisten/player/ui/player_presentation_overlay';
+import { AudioAdjustmentCoordinator } from '@/relisten/player/audio_adjustments/audio_adjustment_coordinator';
 import { RelistenCastProvider } from '@/relisten/casting/cast_provider';
 import FlashMessage from 'react-native-flash-message';
 import { PlaybackHistoryReporterComponent } from '@/relisten/components/playback_history_reporter';
@@ -206,6 +207,7 @@ function TabLayout() {
               <LastFmReporterComponent />
               <LastFmAuthListener />
               <RealmBridge />
+              <AudioAdjustmentCoordinator />
               <CarPlayBootstrap />
               <ThemeProvider
                 value={{

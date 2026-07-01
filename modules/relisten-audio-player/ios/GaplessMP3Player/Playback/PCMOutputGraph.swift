@@ -14,6 +14,7 @@ final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
     private let ownerQueue: DispatchQueue
     private let engine = AVAudioEngine()
     private let playerNode = AVAudioPlayerNode()
+    private let equalizer = AVAudioUnitEQ(numberOfBands: AudioAdjustmentConfiguration.frequenciesHz.count)
     private let spectrumTap = AudioSpectrumTap()
     private let format: AVAudioFormat
     private var pendingBufferCount = 0
@@ -21,6 +22,9 @@ final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
     private var wantsPlayback = false
     private var lastKnownTime: TimeInterval = 0
     private var timelineOffset: TimeInterval = 0
+    private var appliedAudioAdjustmentConfiguration: AudioAdjustmentConfiguration = .disabled
+    private var targetAudioAdjustmentConfiguration: AudioAdjustmentConfiguration = .disabled
+    private var rampGeneration = 0
 
     init(sampleRate: Double, channelCount: Int, ownerQueue: DispatchQueue) throws {
         self.ownerQueue = ownerQueue
@@ -37,7 +41,11 @@ final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
 
         self.format = format
         engine.attach(playerNode)
-        engine.connect(playerNode, to: engine.mainMixerNode, format: format)
+        engine.attach(equalizer)
+        engine.connect(playerNode, to: equalizer, format: format)
+        engine.connect(equalizer, to: engine.mainMixerNode, format: format)
+        configureEqualizerBands()
+        applyEqualizerValues(.disabled)
         spectrumTap.attach(to: engine.mainMixerNode)
         try engine.start()
     }
@@ -56,6 +64,21 @@ final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
         return engine.isRunning
     }
 
+    var audioAdjustmentConfigurationSnapshot: AudioAdjustmentConfiguration {
+        dispatchPrecondition(condition: .onQueue(ownerQueue))
+        return appliedAudioAdjustmentConfiguration
+    }
+
+    var isEqualizerBypassed: Bool {
+        dispatchPrecondition(condition: .onQueue(ownerQueue))
+        return equalizer.bypass
+    }
+
+    var equalizerGlobalGainDb: Float {
+        dispatchPrecondition(condition: .onQueue(ownerQueue))
+        return equalizer.globalGain
+    }
+
     var volume: Float {
         get {
             dispatchPrecondition(condition: .onQueue(ownerQueue))
@@ -70,6 +93,45 @@ final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
     var isFinished: Bool {
         dispatchPrecondition(condition: .onQueue(ownerQueue))
         return decodeFinished && pendingBufferCount == 0 && !playerNode.isPlaying
+    }
+
+    func applyAudioAdjustmentConfiguration(
+        _ configuration: AudioAdjustmentConfiguration,
+        animated: Bool
+    ) {
+        dispatchPrecondition(condition: .onQueue(ownerQueue))
+        guard configuration != targetAudioAdjustmentConfiguration else { return }
+
+        targetAudioAdjustmentConfiguration = configuration
+        rampGeneration += 1
+        let generation = rampGeneration
+
+        guard animated, appliedAudioAdjustmentConfiguration.enabled || configuration.enabled else {
+            appliedAudioAdjustmentConfiguration = configuration
+            applyEqualizerValues(configuration)
+            return
+        }
+
+        let startingConfiguration = appliedAudioAdjustmentConfiguration
+        let stepCount = 5
+        for step in 1 ... stepCount {
+            ownerQueue.asyncAfter(deadline: .now() + .milliseconds(step * 10)) { [weak self] in
+                guard let self, generation == self.rampGeneration else { return }
+                let progress = Float(step) / Float(stepCount)
+                let interpolated = self.interpolateAudioAdjustmentConfiguration(
+                    from: startingConfiguration,
+                    to: configuration,
+                    progress: progress
+                )
+                if step == stepCount {
+                    self.applyEqualizerValues(configuration)
+                    self.appliedAudioAdjustmentConfiguration = configuration
+                } else {
+                    self.applyEqualizerValues(interpolated)
+                    self.appliedAudioAdjustmentConfiguration = interpolated
+                }
+            }
+        }
     }
 
     /// Resets graph state for a new logical playback session while preserving the
@@ -160,6 +222,43 @@ final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
 
     private func updateLastKnownTime() {
         _ = currentTime()
+    }
+
+    private func configureEqualizerBands() {
+        for (index, parameters) in equalizer.bands.enumerated() {
+            let frequency = AudioAdjustmentConfiguration.frequenciesHz[index]
+            parameters.filterType = .parametric
+            parameters.bandwidth = 1
+            parameters.frequency = min(frequency, Float(format.sampleRate / 2) - 1)
+            parameters.bypass = frequency >= Float(format.sampleRate / 2)
+        }
+    }
+
+    private func applyEqualizerValues(_ configuration: AudioAdjustmentConfiguration) {
+        for (index, parameters) in equalizer.bands.enumerated() {
+            parameters.gain = configuration.bandGainsDb[index]
+        }
+        equalizer.globalGain = configuration.effectiveGlobalGainDb
+        equalizer.bypass = !configuration.enabled
+    }
+
+    private func interpolateAudioAdjustmentConfiguration(
+        from start: AudioAdjustmentConfiguration,
+        to target: AudioAdjustmentConfiguration,
+        progress: Float
+    ) -> AudioAdjustmentConfiguration {
+        let startGains = start.enabled ? start.bandGainsDb : Array(repeating: 0, count: start.bandGainsDb.count)
+        let targetGains = target.enabled ? target.bandGainsDb : Array(repeating: 0, count: target.bandGainsDb.count)
+        let startReduction = start.enabled ? start.extraVolumeReductionDb : 0
+        let targetReduction = target.enabled ? target.extraVolumeReductionDb : 0
+
+        return AudioAdjustmentConfiguration(
+            enabled: true,
+            bandGainsDb: zip(startGains, targetGains).map { startGain, targetGain in
+                startGain + (targetGain - startGain) * progress
+            },
+            extraVolumeReductionDb: startReduction + (targetReduction - startReduction) * progress
+        )
     }
 
     private func startEngineIfNeeded(context: String) throws {
