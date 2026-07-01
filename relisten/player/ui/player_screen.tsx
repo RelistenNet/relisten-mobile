@@ -1,4 +1,4 @@
-import { PlayerHeaderToolbar } from '@/relisten/player/ui/current_track_navigation_menu';
+import { PlayerHeaderToolbar } from '@/relisten/player/ui/player_actions_menu';
 import { PlayerBackground } from '@/relisten/player/ui/player_background';
 import { PlayerOverlayHeader } from '@/relisten/player/ui/player_overlay_header';
 import { PlayerQueueSheet } from '@/relisten/player/ui/player_queue_sheet';

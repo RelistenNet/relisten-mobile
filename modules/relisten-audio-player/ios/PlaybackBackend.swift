@@ -52,6 +52,7 @@ protocol PlaybackBackend: AnyObject {
     func enqueueSetNextStream(_ streamable: RelistenGaplessStreamable?)
     func enqueueSetRepeatMode(_ repeatMode: Int)
     func enqueueSetShuffleMode(_ shuffleMode: Int)
+    func enqueueSetAudioAdjustmentConfiguration(_ configuration: AudioAdjustmentConfiguration)
     func enqueueResume(_ completion: @escaping () -> Void)
     func enqueuePause(_ completion: @escaping () -> Void)
     func enqueueStop(_ completion: @escaping () -> Void)
