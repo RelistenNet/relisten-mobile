@@ -54,7 +54,7 @@ public class RelistenAudioPlayerModule: Module {
             player = makePlaybackBackend()
             player?.delegate = self
         }
-        
+
         OnDestroy {
             moduleLifecycleLog.info(
                 "destroyed",
@@ -109,6 +109,16 @@ public class RelistenAudioPlayerModule: Module {
 
         Function("setVolume") { (newVolume: Float) in
             return player?.volume = newVolume
+        }
+
+        Function("audioAdjustmentCapabilities") {
+            AudioAdjustmentConfiguration.capabilitiesDictionary
+        }
+
+        Function("setAudioAdjustmentConfiguration") {
+            (record: RelistenAudioAdjustmentConfiguration) throws in
+            let configuration = try record.validatedConfiguration()
+            player?.enqueueSetAudioAdjustmentConfiguration(configuration)
         }
 
         Function("prepareAudioSession") {
@@ -181,7 +191,7 @@ public class RelistenAudioPlayerModule: Module {
                   let artist = streamable.artist else {
                 return
             }
-            
+
             player?.enqueueSetNextStream(
                 RelistenGaplessStreamable(
                     url: url,
@@ -233,7 +243,7 @@ public class RelistenAudioPlayerModule: Module {
                 promise.resolve()
             }
         }
-        
+
         AsyncFunction("seekToTime") { (timeMs: Int64, promise: Promise) in
             player?.enqueueSeekToTime(timeMs) {
                 promise.resolve()
@@ -247,14 +257,14 @@ extension RelistenAudioPlayerModule: PlaybackBackendDelegate {
         NSLog("[relisten-audio-player] sendEvent: eventName=\(eventName) body=\(body)")
         self.sendEvent(eventName, body)
     }
-    
+
     public func streamingCacheCompleted(forStreamable streamable: RelistenGaplessStreamable, bytesWritten: Int) {
         self.sendAndLogEvent("onTrackStreamingCacheComplete", [
             "identifier": streamable.identifier,
             "totalBytes": bytesWritten
         ])
     }
-    
+
     public func errorStartingStream(error: PlaybackStreamError, forStreamable: RelistenGaplessStreamable) {
         self.sendAndLogEvent("onError", [
             "error": error.eventPayload,

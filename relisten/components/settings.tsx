@@ -25,6 +25,7 @@ import {
   LastFmSettings,
 } from '@/relisten/realm/models/lastfm_settings';
 import { useLastFmSettings } from '@/relisten/realm/models/lastfm_settings_repo';
+import { AudioAdjustmentsSettingsSection } from '@/relisten/player/audio_adjustments/audio_adjustments_settings_section';
 
 interface BaseSettings {
   label: string;
@@ -410,6 +411,7 @@ export function RelistenSettings() {
         ))}
       </Flex>
 
+      <AudioAdjustmentsSettingsSection />
       <LastFmSettingsSection />
     </Flex>
   );
