@@ -113,7 +113,12 @@
         {
           "image": "./assets/splash.png",
           "resizeMode": "contain",
-          "backgroundColor": "#004251"
+          "backgroundColor": "#004251",
+          "imageWidth": 200,
+          "android": {
+            "image": "./assets/splash-android.png",
+            "imageWidth": 240
+          }
         }
       ],
       "expo-status-bar"

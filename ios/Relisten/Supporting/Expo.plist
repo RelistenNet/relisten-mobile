@@ -31,15 +31,14 @@ DkwMR+jRkQ==&#xD;
       <key>alg</key>
       <string>rsa-v1_5-sha256</string>
     </dict>
+    <key>EXUpdatesEnableBsdiffPatchSupport</key>
+    <true/>
     <key>EXUpdatesEnabled</key>
     <true/>
     <key>EXUpdatesLaunchWaitMs</key>
     <integer>0</integer>
     <key>EXUpdatesRequestHeaders</key>
-    <dict>
-      <key>expo-channel-name</key>
-      <string>production</string>
-    </dict>
+    <dict/>
     <key>EXUpdatesRuntimeVersion</key>
     <string>6.1.2+ios.6044</string>
     <key>EXUpdatesURL</key>

@@ -3,7 +3,7 @@ set -euo pipefail
 
 TARGET="${1:-}"
 PLATFORM="all"
-SENTRY_AUTH_TOKEN=""
+SENTRY_AUTH_TOKEN="${SENTRY_AUTH_TOKEN:-}"
 EXPO_TOKEN="${EXPO_TOKEN:-}"
 ANDROID_JAVA_HOME="${ANDROID_JAVA_HOME:-}"
 ANDROID_JAVA_HOME_LOGGED=0
@@ -17,7 +17,9 @@ OTA_RUNTIME_OVERRIDE_REQUESTED=0
 
 usage() {
   cat <<USAGE
-Usage: $0 [testflight|appstore|ota-testflight|ota-production] [options]
+Usage:
+  $0 [testflight|appstore|ota-testflight|ota-production] [options]
+  $0 android-env -- COMMAND [ARGS...]
 
 Options:
   --platform ios|android|all
@@ -29,12 +31,15 @@ Options:
       OTA only. Override the Android runtime version exactly.
 
 Environment:
+  ANDROID_JAVA_HOME
+      Optional Android JDK override. Must point to JDK 21 or 17.
   EOAS_BIN
       Optional eoas executable override. Set to /bin/echo for an OTA command dry run.
 
 Examples:
   $0 ota-testflight --runtime-build 6036
   $0 ota-testflight --ios-runtime-version 6.1.0+ios.6036 --android-runtime-version 6.1.0+android.6036
+  $0 android-env -- npx expo run:android --device
 USAGE
   exit 1
 }
@@ -43,6 +48,21 @@ if [[ -z "$TARGET" ]]; then
   usage
 fi
 shift
+
+ANDROID_ENV_COMMAND=()
+if [[ "$TARGET" == "android-env" ]]; then
+  if [[ "${1:-}" == "--" ]]; then
+    shift
+  fi
+
+  if [[ $# -eq 0 ]]; then
+    echo "android-env requires a command after --."
+    usage
+  fi
+
+  ANDROID_ENV_COMMAND=("$@")
+  set --
+fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -215,6 +235,15 @@ ensure_android_java_home() {
   fi
 }
 
+run_with_android_env() {
+  ensure_android_java_home
+
+  local android_home="$HOME/Library/Android/sdk"
+  local android_path="$ANDROID_JAVA_HOME/bin:$android_home/platform-tools:$android_home/emulator:$android_home/cmdline-tools/latest/bin:$PATH"
+
+  env ANDROID_JAVA_HOME="$ANDROID_JAVA_HOME" JAVA_HOME="$ANDROID_JAVA_HOME" ANDROID_HOME="$android_home" ANDROID_SDK_ROOT="$android_home" PATH="$android_path" "$@"
+}
+
 app_version() {
   node -e 'const app = require("./app.json").expo; process.stdout.write(String(app.version ?? "0.0.0"));'
 }
@@ -263,9 +292,8 @@ build_ios() {
 build_android() {
   local profile="$1"
   ensure_sentry_token
-  ensure_android_java_home
   echo "Building Android ($profile)..."
-  env JAVA_HOME="$ANDROID_JAVA_HOME" PATH="$ANDROID_JAVA_HOME/bin:$PATH" ANDROID_HOME="$HOME/Library/Android/sdk" SENTRY_AUTH_TOKEN="$SENTRY_AUTH_TOKEN" npx eas-cli@latest build -p android --profile "$profile" --local
+  SENTRY_AUTH_TOKEN="$SENTRY_AUTH_TOKEN" run_with_android_env npx eas-cli@latest build -p android --profile "$profile" --local
 }
 
 build_target() {
@@ -308,6 +336,9 @@ publish_ota() {
 }
 
 case "$TARGET" in
+android-env)
+  run_with_android_env "${ANDROID_ENV_COMMAND[@]}"
+  ;;
 testflight)
   build_target testflight
   ;;
