@@ -1,6 +1,6 @@
 import { OverflowMenuTrigger } from '@/relisten/components/menus/overflow_menu_trigger';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { CurrentTrackNavigationMenu } from '@/relisten/player/ui/current_track_navigation_menu';
+import { PlayerActionsMenu } from '@/relisten/player/ui/player_actions_menu';
 import {
   playerPresentationProgress,
   usePlayerPresentation,
@@ -94,11 +94,11 @@ export function PlayerOverlayHeader({ onClose }: PlayerOverlayHeaderProps) {
         >
           Now Playing
         </RelistenText>
-        <CurrentTrackNavigationMenu onBeforeNavigate={onClose}>
+        <PlayerActionsMenu onBeforeNavigate={onClose}>
           <View className="rounded-full bg-white/5" collapsable={false}>
-            <OverflowMenuTrigger accessibilityLabel="Current track navigation" />
+            <OverflowMenuTrigger accessibilityLabel="Player actions" />
           </View>
-        </CurrentTrackNavigationMenu>
+        </PlayerActionsMenu>
       </Animated.View>
     </GestureDetector>
   );

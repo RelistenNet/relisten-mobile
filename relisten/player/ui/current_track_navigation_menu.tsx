@@ -3,7 +3,7 @@ import { NativeMenuView, type MenuAction } from '@/relisten/components/menus/nat
 import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player_queue_hooks';
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { useGroupSegment } from '@/relisten/util/routes';
-import { Stack, router, useNavigation } from 'expo-router';
+import { router, useNavigation } from 'expo-router';
 import { type ReactNode, useCallback, useMemo } from 'react';
 
 const ACTION_IDS = {
@@ -11,10 +11,10 @@ const ACTION_IDS = {
   show: 'show',
 } as const;
 
-type CurrentTrackNavigationActionId = (typeof ACTION_IDS)[keyof typeof ACTION_IDS];
+export type CurrentTrackNavigationActionId = (typeof ACTION_IDS)[keyof typeof ACTION_IDS];
 type CurrentTrackNavigationAction = MenuAction & { id: CurrentTrackNavigationActionId };
 
-function useCurrentTrackNavigation(onBeforeNavigate?: () => void) {
+export function useCurrentTrackNavigation(onBeforeNavigate?: () => void) {
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
   const groupSegment = useGroupSegment();
   const { pushShow } = usePushShowRespectingUserSettings();
@@ -107,42 +107,5 @@ export function CurrentTrackNavigationMenu({
     >
       {children}
     </NativeMenuView>
-  );
-}
-
-type PlayerHeaderToolbarProps = {
-  onClose: () => void;
-};
-
-export function PlayerHeaderToolbar({ onClose }: PlayerHeaderToolbarProps) {
-  const { actions, handleAction, hasActions } = useCurrentTrackNavigation(onClose);
-
-  return (
-    <>
-      <Stack.Toolbar placement="left">
-        <Stack.Toolbar.Button
-          accessibilityLabel="Close player"
-          icon={nativeMenuIcons.collapse}
-          onPress={onClose}
-        />
-      </Stack.Toolbar>
-      <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Menu
-          accessibilityLabel="Current track navigation"
-          hidden={!hasActions}
-          icon={nativeMenuIcons.toolbarMore}
-        >
-          {actions.map((action) => (
-            <Stack.Toolbar.MenuAction
-              icon={action.image}
-              key={action.id}
-              onPress={() => handleAction(action.id)}
-            >
-              {action.title}
-            </Stack.Toolbar.MenuAction>
-          ))}
-        </Stack.Toolbar.Menu>
-      </Stack.Toolbar>
-    </>
   );
 }
