@@ -14,7 +14,7 @@
 - `yarn pods`: install or update CocoaPods for iOS.
 - `yarn lint`: run ESLint on `app/` and `relisten/`.
 - `yarn ts:check`: run TypeScript type checking.
-- `./build_releases.sh`: build production releases with EAS (requires `npx eas-cli@latest`).
+- `./build_releases.sh`: source of truth for TestFlight/App Store/OTA release builds. It wraps EAS, loads required tokens, uses an Xcode-safe PATH, and chooses a compatible Android JDK.
 
 Always run `yarn lint` and `yarn ts:check` after making changes to ensure that keep the code clean.
 
@@ -40,6 +40,9 @@ Always run `yarn lint` and `yarn ts:check` after making changes to ensure that k
 ## Environment & Setup Tips
 - Use Node 22+ (see `.nvmrc`) and Yarn (`yarn` to install dependencies).
 - For iOS development, install Xcode and run `yarn pods` only after native dependency or pod-visible file changes.
+- Before release builds or Android native build validation, read `build_releases.sh` first. Do not assume the ambient shell Java is valid.
+- Android builds for this repo require JDK 21 or 17. `build_releases.sh` prefers Android Studio's bundled JBR, then system JDK 21/17, and rejects JDK 25. If you must run Gradle directly, set `JAVA_HOME`/`PATH` from the same compatible JDK selection logic and set `ANDROID_HOME="$HOME/Library/Android/sdk"`.
+- For TestFlight/App Store builds, use `./build_releases.sh testflight|appstore [--platform ios|android|all]` instead of raw `eas build` or raw Gradle commands so Sentry tokens, Expo/EAS behavior, Xcode PATH, and Android Java selection match the project workflow.
 
 ## iOS Simulator + MCP Workflow
 - Target simulator: `iPhone 17` on iOS 26.5 (`0EB273F5-B941-4086-ADFD-DD43DDF0B88B`).
