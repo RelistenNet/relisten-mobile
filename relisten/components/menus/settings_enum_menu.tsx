@@ -1,5 +1,5 @@
 import { RelistenButton } from '@/relisten/components/relisten_button';
-import { MenuView, type MenuAction } from '@expo/ui/community/menu';
+import { NativeMenuView, type MenuAction } from '@/relisten/components/menus/native_menu_view';
 import { useMemo } from 'react';
 
 type SettingsEnumOption = {
@@ -31,7 +31,7 @@ export function SettingsEnumMenu<T extends SettingsEnumOption>({
   );
 
   return (
-    <MenuView
+    <NativeMenuView
       actions={actions}
       onPressAction={({ nativeEvent }) => {
         const selectedOption = options.find((option) => option.value === nativeEvent.event);
@@ -42,6 +42,6 @@ export function SettingsEnumMenu<T extends SettingsEnumOption>({
       }}
     >
       <RelistenButton accessibilityLabel={`Select ${currentLabel}`}>{currentLabel}</RelistenButton>
-    </MenuView>
+    </NativeMenuView>
   );
 }

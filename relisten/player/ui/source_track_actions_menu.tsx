@@ -1,4 +1,5 @@
 import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
+import { NativeMenuView, type MenuAction } from '@/relisten/components/menus/native_menu_view';
 import { OverflowMenuTrigger } from '@/relisten/components/menus/overflow_menu_trigger';
 import { DownloadManager } from '@/relisten/offline/download_manager';
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
@@ -8,7 +9,6 @@ import {
   SourceTrackOfflineInfoType,
 } from '@/relisten/realm/models/source_track_offline_info';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
-import { MenuView, type MenuAction } from '@expo/ui/community/menu';
 import { useCallback, useMemo } from 'react';
 import { Platform, Share } from 'react-native';
 
@@ -133,13 +133,13 @@ export function SourceTrackActionsMenu({ playShow, sourceTrack }: SourceTrackAct
   );
 
   return (
-    <MenuView
+    <NativeMenuView
       actions={actions}
       onPressAction={({ nativeEvent }) => {
         void handleAction(nativeEvent.event as SourceTrackActionId);
       }}
     >
       <OverflowMenuTrigger accessibilityLabel={`Actions for ${sourceTrack.title}`} tone="muted" />
-    </MenuView>
+    </NativeMenuView>
   );
 }

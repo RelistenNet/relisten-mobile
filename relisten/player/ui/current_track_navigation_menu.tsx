@@ -1,8 +1,8 @@
 import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
+import { NativeMenuView, type MenuAction } from '@/relisten/components/menus/native_menu_view';
 import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player_queue_hooks';
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { useGroupSegment } from '@/relisten/util/routes';
-import { MenuView, type MenuAction } from '@expo/ui/community/menu';
 import { Stack, router, useNavigation } from 'expo-router';
 import { type ReactNode, useCallback, useMemo } from 'react';
 
@@ -89,14 +89,14 @@ export function CurrentTrackNavigationMenu({
   }
 
   return (
-    <MenuView
+    <NativeMenuView
       actions={actions}
       onPressAction={({ nativeEvent }) =>
         handleAction(nativeEvent.event as CurrentTrackNavigationActionId)
       }
     >
       {children}
-    </MenuView>
+    </NativeMenuView>
   );
 }
 

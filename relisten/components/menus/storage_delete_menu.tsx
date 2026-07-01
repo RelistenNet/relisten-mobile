@@ -1,9 +1,9 @@
 import { confirmDestructiveAction } from '@/relisten/components/menus/confirm_destructive_action';
+import { NativeMenuView, type MenuAction } from '@/relisten/components/menus/native_menu_view';
 import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import { DownloadManager } from '@/relisten/offline/download_manager';
 import { log } from '@/relisten/util/logging';
-import { MenuView, type MenuAction } from '@expo/ui/community/menu';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator } from 'react-native';
 
@@ -140,11 +140,11 @@ export function StorageDeleteMenu({
   }
 
   return (
-    <MenuView
+    <NativeMenuView
       actions={actions}
       onPressAction={({ nativeEvent }) => confirmDelete(nativeEvent.event as StorageDeleteActionId)}
     >
       {button}
-    </MenuView>
+    </NativeMenuView>
   );
 }

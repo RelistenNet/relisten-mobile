@@ -1,8 +1,8 @@
 import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
+import { NativeMenuView, type MenuAction } from '@/relisten/components/menus/native_menu_view';
 import { OverflowMenuTrigger } from '@/relisten/components/menus/overflow_menu_trigger';
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
 import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
-import { MenuView, type MenuAction } from '@expo/ui/community/menu';
 import { useCallback } from 'react';
 
 const ACTION_IDS = {
@@ -67,11 +67,11 @@ export function PlayerQueueActionsMenu({ index, queueTrack }: PlayerQueueActions
   );
 
   return (
-    <MenuView
+    <NativeMenuView
       actions={ACTIONS}
       onPressAction={({ nativeEvent }) => handleAction(nativeEvent.event as PlayerQueueActionId)}
     >
       <OverflowMenuTrigger accessibilityLabel={`Actions for ${queueTrack.sourceTrack.title}`} />
-    </MenuView>
+    </NativeMenuView>
   );
 }
