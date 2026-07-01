@@ -6,6 +6,10 @@ private let playerLifecycleLog = RelistenPlaybackLogger(layer: .player, category
 protocol PCMOutputControlling: AnyObject, Sendable {
     var isPlaying: Bool { get }
     var volume: Float { get set }
+    func applyAudioAdjustmentConfiguration(
+        _ configuration: AudioAdjustmentConfiguration,
+        animated: Bool
+    )
     func reset(timelineOffset: TimeInterval, startEngine: Bool) throws
     func requestPlay() throws
     func schedule(_ chunk: PCMChunk, playedBack: (@Sendable () -> Void)?) throws
@@ -61,6 +65,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
         var suppressPlaybackFinishedEvent = false
         var scheduledTrackBoundaries: [ScheduledTrackBoundary] = []
         var volume: Float = 1.0
+        var audioAdjustmentConfiguration: AudioAdjustmentConfiguration = .disabled
     }
 
     private struct PlaybackSnapshot: Sendable {
@@ -218,6 +223,10 @@ public final class GaplessMP3Player: @unchecked Sendable {
             await performOnPlaybackQueue {
                 self.stopOutputGraphOnPlaybackQueue()
                 outputGraph.volume = self.stateStore.get().volume
+                outputGraph.applyAudioAdjustmentConfiguration(
+                    self.stateStore.get().audioAdjustmentConfiguration,
+                    animated: false
+                )
                 self.stateStore.withValue { state in
                     state.outputGraph = outputGraph
                     state.currentSource = report.current.source
@@ -370,6 +379,21 @@ public final class GaplessMP3Player: @unchecked Sendable {
                     state.outputGraph?.volume = newValue
                 }
             }
+        }
+    }
+
+    var audioAdjustmentConfiguration: AudioAdjustmentConfiguration {
+        stateStore.get().audioAdjustmentConfiguration
+    }
+
+    func setAudioAdjustmentConfiguration(_ configuration: AudioAdjustmentConfiguration) {
+        playbackQueue.async { [weak self] in
+            guard let self else { return }
+            let outputGraph = self.stateStore.withValue { state in
+                state.audioAdjustmentConfiguration = configuration
+                return state.outputGraph
+            }
+            outputGraph?.applyAudioAdjustmentConfiguration(configuration, animated: true)
         }
     }
 

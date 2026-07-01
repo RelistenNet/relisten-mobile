@@ -51,6 +51,17 @@ export default function TabLayout() {
           headerStyle: { backgroundColor: RelistenBlue['900'] },
         }}
       />
+      <Stack.Screen
+        name="audio-adjustments"
+        options={{
+          contentStyle: { backgroundColor: RelistenBlue['950'] },
+          gestureEnabled: false,
+          headerShown: false,
+          presentation: 'formSheet',
+          sheetAllowedDetents: [0.92, 1],
+          sheetGrabberVisible: false,
+        }}
+      />
     </Stack>
   );
 }

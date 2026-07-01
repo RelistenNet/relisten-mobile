@@ -1,6 +1,10 @@
 import { Icon } from '@expo/ui';
 
 export const nativeMenuIcons = {
+  audioAdjustments: Icon.select({
+    ios: 'slider.horizontal.3',
+    android: import('@expo/material-symbols/tune.xml'),
+  }),
   addToQueue: Icon.select({
     ios: 'text.append',
     android: import('@expo/material-symbols/playlist_add.xml'),
