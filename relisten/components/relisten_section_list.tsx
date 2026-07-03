@@ -52,6 +52,7 @@ export const RelistenSectionList = <T extends RelistenObject>({
 }: RelistenSectionListProps<T>) => {
   const { onRefresh, refreshing, errors } = useRefreshContext(/* refreshRequired= */ false);
   const playerBottomScrollViewProps = usePlayerBottomScrollViewProps({
+    contentInsetAdjustmentBehavior: props.contentInsetAdjustmentBehavior,
     contentContainerStyle: props.contentContainerStyle,
     scrollIndicatorInsets: props.scrollIndicatorInsets,
   });
@@ -187,6 +188,7 @@ export const RelistenSectionList = <T extends RelistenObject>({
           <RefreshControl refreshing={refreshing} onRefresh={() => onRefresh(true)} />
         ) : undefined
       }
+      contentInsetAdjustmentBehavior={playerBottomScrollViewProps.contentInsetAdjustmentBehavior}
       contentContainerStyle={playerBottomScrollViewProps.contentContainerStyle}
       scrollIndicatorInsets={playerBottomScrollViewProps.scrollIndicatorInsets}
     />

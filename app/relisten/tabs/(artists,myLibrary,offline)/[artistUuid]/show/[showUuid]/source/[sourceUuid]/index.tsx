@@ -307,6 +307,7 @@ const SourceComponent = ({
   const userSettings = useUserSettings();
   const isOfflineTab = useIsOfflineTab();
   const playerBottomScrollViewProps = usePlayerBottomScrollViewProps({
+    contentInsetAdjustmentBehavior: props.contentInsetAdjustmentBehavior,
     contentContainerStyle: props.contentContainerStyle,
     scrollIndicatorInsets: props.scrollIndicatorInsets,
   });

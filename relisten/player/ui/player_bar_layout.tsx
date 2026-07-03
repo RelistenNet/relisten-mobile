@@ -2,7 +2,14 @@ import { useRelistenPlayerPlaybackState } from '@/relisten/player/relisten_playe
 import { useRelistenPlayerQueueOrderedTracks } from '@/relisten/player/relisten_player_queue_hooks';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import React, { PropsWithChildren, useContext, useState } from 'react';
-import { Platform, StyleSheet, type Insets, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  Platform,
+  StyleSheet,
+  type Insets,
+  type ScrollViewProps,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { useCompatibleNativeTabsBottomInset } from './native_tabs_inset';
 
 export type PlayerBarPlacementBackend = 'nativeTabsAccessory' | 'overlay';
@@ -69,7 +76,6 @@ export const usePlayerBarVisualHeight = () => {
 const usePlayerBottomObstructionInsets = () => {
   const visualHeight = usePlayerBarVisualHeight();
   const placementBackend = usePlayerBarPlacementBackend();
-  const placementOffset = usePlayerBarPlacementOffset();
 
   if (placementBackend === 'nativeTabsAccessory' || visualHeight <= 0) {
     return {
@@ -79,10 +85,9 @@ const usePlayerBottomObstructionInsets = () => {
   }
 
   return {
-    // Overlay mode renders the player as an absolute sibling. On iOS NativeTabs,
-    // that sibling is offset above the tab bar, so the scroll content needs room
-    // for the full player frame, while the indicator only needs the player height.
-    contentBottomPadding: Platform.OS === 'ios' ? visualHeight + placementOffset : visualHeight,
+    // Native inset adjustment owns safe-area/tab geometry. Overlay mode only
+    // needs to reserve the custom player frame that native tabs cannot see.
+    contentBottomPadding: visualHeight,
     scrollIndicatorBottomInset: visualHeight,
   };
 };
@@ -105,11 +110,13 @@ const withAdditionalBottomPadding = (
 };
 
 export interface PlayerBottomScrollViewProps {
+  contentInsetAdjustmentBehavior?: ScrollViewProps['contentInsetAdjustmentBehavior'];
   contentContainerStyle?: StyleProp<ViewStyle>;
   scrollIndicatorInsets?: Insets;
 }
 
 export const usePlayerBottomScrollViewProps = ({
+  contentInsetAdjustmentBehavior = 'automatic',
   contentContainerStyle,
   scrollIndicatorInsets,
 }: PlayerBottomScrollViewProps = {}) => {
@@ -117,12 +124,14 @@ export const usePlayerBottomScrollViewProps = ({
 
   if (contentBottomPadding <= 0 && scrollIndicatorBottomInset <= 0) {
     return {
+      contentInsetAdjustmentBehavior,
       contentContainerStyle,
       scrollIndicatorInsets,
     };
   }
 
   return {
+    contentInsetAdjustmentBehavior,
     contentContainerStyle:
       contentBottomPadding > 0
         ? withAdditionalBottomPadding(contentContainerStyle, contentBottomPadding)

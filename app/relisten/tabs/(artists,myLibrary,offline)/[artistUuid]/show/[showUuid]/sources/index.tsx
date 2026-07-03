@@ -83,6 +83,7 @@ const SourcesList = ({
 } & ScrollViewProps) => {
   const { refreshing } = useRefreshContext();
   const playerBottomScrollViewProps = usePlayerBottomScrollViewProps({
+    contentInsetAdjustmentBehavior: props.contentInsetAdjustmentBehavior,
     contentContainerStyle: props.contentContainerStyle,
     scrollIndicatorInsets: props.scrollIndicatorInsets,
   });

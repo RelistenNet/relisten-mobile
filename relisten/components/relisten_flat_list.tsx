@@ -16,6 +16,7 @@ export const RelistenFlatList = <T extends { uuid: string }>({
 } & FlatListProps<T>) => {
   const { onRefresh, refreshing } = useRefreshContext(pullToRefresh || false);
   const playerBottomScrollViewProps = usePlayerBottomScrollViewProps({
+    contentInsetAdjustmentBehavior: props.contentInsetAdjustmentBehavior,
     contentContainerStyle: props.contentContainerStyle,
     scrollIndicatorInsets: props.scrollIndicatorInsets,
   });
@@ -32,7 +33,6 @@ export const RelistenFlatList = <T extends { uuid: string }>({
 
   return (
     <FlatList
-      contentInsetAdjustmentBehavior="automatic"
       {...props}
       data={data}
       keyExtractor={(item) => item.uuid}
@@ -43,6 +43,7 @@ export const RelistenFlatList = <T extends { uuid: string }>({
           <RefreshControl refreshing={refreshing} onRefresh={() => onRefresh(true)} />
         ) : undefined
       }
+      contentInsetAdjustmentBehavior={playerBottomScrollViewProps.contentInsetAdjustmentBehavior}
       contentContainerStyle={playerBottomScrollViewProps.contentContainerStyle}
       scrollIndicatorInsets={playerBottomScrollViewProps.scrollIndicatorInsets}
     ></FlatList>
