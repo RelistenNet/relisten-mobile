@@ -8,7 +8,7 @@ import { ItemSeparator } from './item_separator';
 import { useRefreshContext } from './refresh_context';
 import { SectionHeader } from './section_header';
 import { RelistenErrors } from '@/relisten/components/relisten_errors';
-import { usePlayerBottomScrollInset } from '@/relisten/player/ui/player_bar_layout';
+import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
 
 export interface RelistenSection<T> {
   sectionTitle?: string;
@@ -51,7 +51,10 @@ export const RelistenSectionList = <T extends RelistenObject>({
   ...props
 }: RelistenSectionListProps<T>) => {
   const { onRefresh, refreshing, errors } = useRefreshContext(/* refreshRequired= */ false);
-  const bottomInset = usePlayerBottomScrollInset();
+  const playerBottomScrollViewProps = usePlayerBottomScrollViewProps({
+    contentContainerStyle: props.contentContainerStyle,
+    scrollIndicatorInsets: props.scrollIndicatorInsets,
+  });
   // you might ask why we need this
   // and you'd be correct
   // ..
@@ -184,19 +187,8 @@ export const RelistenSectionList = <T extends RelistenObject>({
           <RefreshControl refreshing={refreshing} onRefresh={() => onRefresh(true)} />
         ) : undefined
       }
-      contentContainerStyle={
-        bottomInset > 0
-          ? [props.contentContainerStyle, { paddingBottom: bottomInset }]
-          : props.contentContainerStyle
-      }
-      scrollIndicatorInsets={
-        bottomInset > 0
-          ? {
-              ...props.scrollIndicatorInsets,
-              bottom: Math.max(props.scrollIndicatorInsets?.bottom ?? 0, bottomInset),
-            }
-          : props.scrollIndicatorInsets
-      }
+      contentContainerStyle={playerBottomScrollViewProps.contentContainerStyle}
+      scrollIndicatorInsets={playerBottomScrollViewProps.scrollIndicatorInsets}
     />
   );
 };

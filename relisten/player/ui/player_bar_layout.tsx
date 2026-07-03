@@ -2,16 +2,10 @@ import { useRelistenPlayerPlaybackState } from '@/relisten/player/relisten_playe
 import { useRelistenPlayerQueueOrderedTracks } from '@/relisten/player/relisten_player_queue_hooks';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import React, { PropsWithChildren, useContext, useState } from 'react';
-import { Platform, type Insets, type StyleProp, type ViewStyle } from 'react-native';
+import { Platform, StyleSheet, type Insets, type StyleProp, type ViewStyle } from 'react-native';
 import { useCompatibleNativeTabsBottomInset } from './native_tabs_inset';
 
 export type PlayerBarPlacementBackend = 'nativeTabsAccessory' | 'overlay';
-
-export interface PlayerBarLayout {
-  visualHeight: number;
-  reservedContentInset: number;
-  placementOffset: number;
-}
 
 export interface RelistenPlayerBottomBarContextProps {
   bottomTabBarHeight?: number;
@@ -72,19 +66,42 @@ export const usePlayerBarVisualHeight = () => {
   return isVisible ? playerBottomBarHeight : 0;
 };
 
-export const usePlayerBarReservedContentInset = () => {
+const usePlayerBottomObstructionInsets = () => {
   const visualHeight = usePlayerBarVisualHeight();
   const placementBackend = usePlayerBarPlacementBackend();
+  const placementOffset = usePlayerBarPlacementOffset();
 
-  if (placementBackend === 'nativeTabsAccessory') {
-    return 0;
+  if (placementBackend === 'nativeTabsAccessory' || visualHeight <= 0) {
+    return {
+      contentBottomPadding: 0,
+      scrollIndicatorBottomInset: 0,
+    };
   }
 
-  return visualHeight;
+  return {
+    // Overlay mode renders the player as an absolute sibling. On iOS NativeTabs,
+    // that sibling is offset above the tab bar, so the scroll content needs room
+    // for the full player frame, while the indicator only needs the player height.
+    contentBottomPadding: Platform.OS === 'ios' ? visualHeight + placementOffset : visualHeight,
+    scrollIndicatorBottomInset: visualHeight,
+  };
 };
 
-export const usePlayerBottomScrollInset = () => {
-  return usePlayerBarReservedContentInset();
+const getNumericBottomPadding = (contentContainerStyle?: StyleProp<ViewStyle>) => {
+  const flattenedStyle = StyleSheet.flatten(contentContainerStyle);
+  const bottomPadding =
+    flattenedStyle?.paddingBottom ?? flattenedStyle?.paddingVertical ?? flattenedStyle?.padding;
+
+  return typeof bottomPadding === 'number' ? bottomPadding : 0;
+};
+
+const withAdditionalBottomPadding = (
+  contentContainerStyle: StyleProp<ViewStyle> | undefined,
+  bottomInset: number
+) => {
+  const paddingBottom = getNumericBottomPadding(contentContainerStyle) + bottomInset;
+
+  return [contentContainerStyle, { paddingBottom }];
 };
 
 export interface PlayerBottomScrollViewProps {
@@ -96,9 +113,9 @@ export const usePlayerBottomScrollViewProps = ({
   contentContainerStyle,
   scrollIndicatorInsets,
 }: PlayerBottomScrollViewProps = {}) => {
-  const bottomInset = usePlayerBottomScrollInset();
+  const { contentBottomPadding, scrollIndicatorBottomInset } = usePlayerBottomObstructionInsets();
 
-  if (bottomInset <= 0) {
+  if (contentBottomPadding <= 0 && scrollIndicatorBottomInset <= 0) {
     return {
       contentContainerStyle,
       scrollIndicatorInsets,
@@ -106,10 +123,13 @@ export const usePlayerBottomScrollViewProps = ({
   }
 
   return {
-    contentContainerStyle: [contentContainerStyle, { paddingBottom: bottomInset }],
+    contentContainerStyle:
+      contentBottomPadding > 0
+        ? withAdditionalBottomPadding(contentContainerStyle, contentBottomPadding)
+        : contentContainerStyle,
     scrollIndicatorInsets: {
       ...scrollIndicatorInsets,
-      bottom: Math.max(scrollIndicatorInsets?.bottom ?? 0, bottomInset),
+      bottom: Math.max(scrollIndicatorInsets?.bottom ?? 0, scrollIndicatorBottomInset),
     },
   };
 };
@@ -156,16 +176,6 @@ export const resolvePlayerBarPlacementBackend = ({
   return 'overlay';
 };
 
-export const supportsNativeTabsBottomAccessory = () => {
-  return (
-    resolvePlayerBarPlacementBackend({
-      placementBackendOverride: getPlayerBarPlacementBackendOverride(),
-      platformOs: Platform.OS,
-      platformVersion: Platform.Version,
-    }) === 'nativeTabsAccessory'
-  );
-};
-
 export const usePlayerBarPlacementBackend = (): PlayerBarPlacementBackend => {
   const placementBackendOverride = getPlayerBarPlacementBackendOverride();
   const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
@@ -189,20 +199,4 @@ export const usePlayerBarPlacementOffset = () => {
   return useCompatibleNativeTabsBottomInset({
     measuredAndroidBottomInset: bottomTabBarHeight,
   });
-};
-
-export const usePlayerBarLayout = (): PlayerBarLayout => {
-  const visualHeight = usePlayerBarVisualHeight();
-  const reservedContentInset = usePlayerBarReservedContentInset();
-  const placementOffset = usePlayerBarPlacementOffset();
-
-  return {
-    visualHeight,
-    reservedContentInset,
-    placementOffset,
-  };
-};
-
-export const useNativeTabsStackContentInset = () => {
-  return 0;
 };
