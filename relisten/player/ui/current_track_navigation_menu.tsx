@@ -4,7 +4,7 @@ import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { Stack, router, useNavigation } from 'expo-router';
-import { useCallback, useMemo } from 'react';
+import { type ReactNode, useCallback, useMemo } from 'react';
 
 const ACTION_IDS = {
   artist: 'artist',
@@ -73,13 +73,26 @@ function useCurrentTrackNavigation(onBeforeNavigate?: () => void) {
 type CurrentTrackNavigationMenuProps = {
   children: ReactNode;
   dismissOnNavigate?: boolean;
+  onBeforeNavigate?: () => void;
 };
 
 export function CurrentTrackNavigationMenu({
   children,
   dismissOnNavigate = true,
+  onBeforeNavigate,
 }: CurrentTrackNavigationMenuProps) {
-  const { actions, handleAction, hasActions } = useCurrentTrackNavigation(dismissOnNavigate);
+  const navigation = useNavigation();
+  const handleBeforeNavigate = useCallback(() => {
+    if (onBeforeNavigate) {
+      onBeforeNavigate();
+      return;
+    }
+
+    if (dismissOnNavigate) {
+      navigation.goBack();
+    }
+  }, [dismissOnNavigate, navigation, onBeforeNavigate]);
+  const { actions, handleAction, hasActions } = useCurrentTrackNavigation(handleBeforeNavigate);
 
   if (!hasActions) {
     return children;
