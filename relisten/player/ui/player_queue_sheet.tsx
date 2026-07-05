@@ -18,6 +18,7 @@ import { PlayerTimelineBoundary } from '@/relisten/player/ui/player_timeline_bou
 import { ReturnToNowPlayingButton } from '@/relisten/player/ui/return_to_now_playing_button';
 import { UpNextHeader } from '@/relisten/player/ui/up_next_header';
 import { playerPresentationProgress } from '@/relisten/player/ui/player_presentation';
+import { usePlayerListDismissal } from '@/relisten/player/ui/use_player_list_dismissal';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { useQuery } from '@/relisten/realm/schema';
 import * as Haptics from 'expo-haptics';
@@ -39,6 +40,7 @@ import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  type SharedValue,
 } from 'react-native-reanimated';
 
 const HISTORY_PREVIEW_LIMIT = 10;
@@ -64,6 +66,7 @@ type PlayerQueueSheetProps = {
   onOpenHistory: () => void;
   onQueueHeaderActiveChange: (active: boolean) => void;
   onViewHistoryShow: (entry: PlaybackHistoryEntry) => void;
+  queueSurfaceProgress: SharedValue<number>;
   usesTransparentHeader: boolean;
   visualizerActive: boolean;
 };
@@ -90,6 +93,7 @@ export function PlayerQueueSheet({
   onOpenHistory,
   onQueueHeaderActiveChange,
   onViewHistoryShow,
+  queueSurfaceProgress,
   usesTransparentHeader,
   visualizerActive,
 }: PlayerQueueSheetProps) {
@@ -111,6 +115,7 @@ export function PlayerQueueSheet({
   const [isPivotOffscreen, setIsPivotOffscreen] = useState(false);
   const scrollOffset = useSharedValue(0);
   const pivotOffset = useSharedValue(0);
+  const nowPlayingHeight = useSharedValue(0);
   const anchorReady = useSharedValue(false);
   const anchorAwaitingInitialScroll = useSharedValue(false);
   const hasUserInteracted = useSharedValue(false);
@@ -121,6 +126,7 @@ export function PlayerQueueSheet({
     },
     []
   );
+  const listDismissal = usePlayerListDismissal(isPresentedOverlay);
 
   const currentIndex = useMemo(
     () =>
@@ -301,6 +307,18 @@ export function PlayerQueueSheet({
     onScroll: (event) => {
       const nextOffset = event.contentOffset.y;
       scrollOffset.value = nextOffset;
+      listDismissal.updateDismissalProgress(nextOffset);
+
+      const relativeOffset = nextOffset - pivotOffset.value;
+      const earlierProgress = Math.min(Math.max(-relativeOffset / 72, 0), 1);
+      const queueTransitionDistance = 112;
+      const queueTransitionStart = Math.max(nowPlayingHeight.value - queueTransitionDistance, 0);
+      const upNextProgress = Math.min(
+        Math.max((relativeOffset - queueTransitionStart) / queueTransitionDistance, 0),
+        1
+      );
+      queueSurfaceProgress.value = Math.max(earlierProgress, upNextProgress);
+
       if (
         anchorAwaitingInitialScroll.value &&
         anchorReady.value &&
@@ -322,9 +340,14 @@ export function PlayerQueueSheet({
     []
   );
 
-  useEffect(() => {
-    onQueueHeaderActiveChange(isPivotOffscreen);
-  }, [isPivotOffscreen, onQueueHeaderActiveChange]);
+  useAnimatedReaction(
+    () => queueSurfaceProgress.value >= 0.65,
+    (isQueueSurfaceActive, wasQueueSurfaceActive) => {
+      if (isQueueSurfaceActive !== wasQueueSurfaceActive) {
+        runOnJS(onQueueHeaderActiveChange)(isQueueSurfaceActive);
+      }
+    }
+  );
 
   const nowPlayingStyle = useAnimatedStyle(() => {
     if (!anchorReady.value || reduceMotion) {
@@ -393,7 +416,8 @@ export function PlayerQueueSheet({
             <View
               collapsable={false}
               ref={nowPlayingRef}
-              onLayout={() => {
+              onLayout={(event) => {
+                nowPlayingHeight.value = event.nativeEvent.layout.height;
                 reconcilePivot(!hasAnchored.current);
               }}
             >
@@ -427,6 +451,7 @@ export function PlayerQueueSheet({
       onOpenHistory,
       onViewHistoryShow,
       reconcilePivot,
+      nowPlayingHeight,
       visualizerActive,
     ]
   );
@@ -465,11 +490,13 @@ export function PlayerQueueSheet({
         onScrollToIndexFailed={handleInitialScrollFailure}
         onReorder={onReorder}
         onScroll={handleScroll}
-        onScrollBeginDrag={() => {
+        onScrollBeginDrag={(event) => {
+          listDismissal.onScrollBeginDrag(event);
           anchorAwaitingInitialScroll.value = false;
           hasUserInteracted.value = true;
           setIsDragging(false);
         }}
+        onScrollEndDrag={listDismissal.onScrollEndDrag}
         onViewableItemsChanged={handleViewableItemsChanged}
         renderItem={renderItem}
         showsVerticalScrollIndicator={false}
