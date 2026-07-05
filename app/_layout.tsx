@@ -37,7 +37,7 @@ import { LastFmAuthListener } from '@/relisten/lastfm/lastfm_auth_listener';
 import * as Sentry from '@sentry/react-native';
 import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
 import { enableFreeze } from 'react-native-screens';
-import { LogBox } from 'react-native';
+import { LogBox, StyleSheet, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useCarPlaySetup } from '@/relisten/carplay/useCarPlaySetup';
 import {
@@ -234,7 +234,12 @@ function TabLayout() {
                           <StatusBar style="light" />
                           <Slot />
                           <PlayerPresentationOverlay />
-                          <FlashMessage position="top" />
+                          <View
+                            pointerEvents="box-none"
+                            style={[StyleSheet.absoluteFill, { elevation: 2000, zIndex: 2000 }]}
+                          >
+                            <FlashMessage position="top" />
+                          </View>
                         </SafeAreaProvider>
                       </GestureHandlerRootView>
                     </PlayerPresentationProvider>

@@ -53,10 +53,12 @@ export function PlayerQueueActionsMenu({ index, queueTrack }: PlayerQueueActions
           player.playTrackAtIndex(index);
           break;
         case ACTION_IDS.playNext:
-          player.queue.queueNextTrack([queueTrack]);
+          player.queue.queueNextTrack([PlayerQueueTrack.fromSourceTrack(queueTrack.sourceTrack)]);
           break;
         case ACTION_IDS.addToQueue:
-          player.queue.addTrackToEndOfQueue([queueTrack]);
+          player.queue.addTrackToEndOfQueue([
+            PlayerQueueTrack.fromSourceTrack(queueTrack.sourceTrack),
+          ]);
           break;
         case ACTION_IDS.remove:
           player.queue.removeTrackAtIndex(index);
