@@ -1,7 +1,10 @@
 import { OverflowMenuTrigger } from '@/relisten/components/menus/overflow_menu_trigger';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { PlayerActionsMenu } from '@/relisten/player/ui/player_actions_menu';
-import { PLAYER_PANEL_BACKGROUND } from '@/relisten/player/ui/player_panel_row';
+import {
+  PLAYER_PANEL_BACKGROUND,
+  PLAYER_PANEL_DIVIDER_COLOR,
+} from '@/relisten/player/ui/player_panel_theme';
 import {
   playerPresentationProgress,
   usePlayerPresentation,
@@ -65,7 +68,7 @@ export function PlayerOverlayHeader({
     borderBottomColor: interpolateColor(
       surfaceProgress.value,
       [0, 1],
-      ['rgba(60, 219, 255, 0)', 'rgba(60, 219, 255, 0.22)']
+      ['rgba(101, 226, 255, 0)', PLAYER_PANEL_DIVIDER_COLOR]
     ),
     borderBottomWidth: surfaceProgress.value,
   }));
