@@ -5,6 +5,8 @@ import {
   useRelistenCastStatus,
   useShouldRenderCastButton,
 } from '@/relisten/casting/cast_ui';
+import { audioAdjustmentNative } from '@/relisten/player/audio_adjustments/audio_adjustment_native';
+import { useAudioAdjustmentConfiguration } from '@/relisten/player/audio_adjustments/audio_adjustment_repo';
 import {
   useRelistenPlayer,
   useRelistenPlayerPlaybackState,
@@ -26,6 +28,7 @@ import { ScrubberRow } from '@/relisten/player/ui/player_scrubber';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { accessibleControlScale } from '@/relisten/util/accessible_control_scale';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { Platform, Share, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import AirPlayButton from 'react-native-airplay-button';
 import * as Progress from 'react-native-progress';
@@ -303,6 +306,7 @@ function PlayerSecondaryControls() {
   const queue = useRelistenPlayerQueue();
   const [shuffleState] = useRelistenPlayerShuffleState();
   const [repeatState] = useRelistenPlayerRepeatState();
+  const audioEqualizerConfiguration = useAudioAdjustmentConfiguration();
   const shouldRenderCastButton = useShouldRenderCastButton();
   const { fontScale } = useWindowDimensions();
   const controlScale = accessibleControlScale(fontScale);
@@ -311,6 +315,8 @@ function PlayerSecondaryControls() {
   const isRepeatTrack = repeatState === PlayerRepeatState.REPEAT_TRACK;
   const isRepeatQueue = repeatState === PlayerRepeatState.REPEAT_QUEUE;
   const isRepeatOn = isRepeatTrack || isRepeatQueue;
+  const isAudioEqualizerOn = audioEqualizerConfiguration?.enabled ?? false;
+  const supportsAudioEqualizer = audioAdjustmentNative.capabilities().supported;
   const inactiveColor = 'rgba(255, 255, 255, 0.62)';
 
   const toggleShuffle = () => {
@@ -335,7 +341,7 @@ function PlayerSecondaryControls() {
   const iconSize = 20 * controlScale;
 
   return (
-    <View className="flex-row items-center justify-between px-10">
+    <View className="flex-row items-center justify-between px-4">
       <TouchableOpacity
         accessibilityLabel={isShuffleOn ? 'Turn shuffle off' : 'Turn shuffle on'}
         accessibilityRole="button"
@@ -374,6 +380,27 @@ function PlayerSecondaryControls() {
           />
         </View>
       </TouchableOpacity>
+      {supportsAudioEqualizer && (
+        <TouchableOpacity
+          accessibilityLabel="Open Audio Equalizer"
+          accessibilityRole="button"
+          accessibilityState={{ selected: isAudioEqualizerOn }}
+          className="items-center justify-center"
+          onPress={() => router.push('/relisten/audio-adjustments')}
+          style={{ height: touchSize, width: touchSize }}
+        >
+          <View
+            className="items-center justify-center rounded-full border border-white/25 bg-white/5"
+            style={{ height: visualSize, width: visualSize }}
+          >
+            <MaterialCommunityIcons
+              color={isAudioEqualizerOn ? RelistenBlue['300'] : inactiveColor}
+              name="equalizer"
+              size={iconSize}
+            />
+          </View>
+        </TouchableOpacity>
+      )}
       {shouldRenderCastButton && (
         <View
           className="items-center justify-center"
