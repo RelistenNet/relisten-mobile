@@ -51,8 +51,6 @@ export function PlayerHistoryItem({ entry, isFirst, isLast, onViewShow }: Player
           <HistoryEntryContent
             action={
               <View
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
                 style={{
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -69,8 +67,6 @@ export function PlayerHistoryItem({ entry, isFirst, isLast, onViewShow }: Player
             }
             leading={
               <View
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
                 style={{
                   alignItems: 'center',
                   justifyContent: 'center',
