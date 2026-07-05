@@ -283,7 +283,7 @@ export function PlayerQueueSheet({
 
             anchorReady.value = true;
             if (reveal) {
-              anchorAwaitingInitialScroll.value = true;
+              anchorAwaitingInitialScroll.value = isPresentedOverlay;
               hasAnchored.current = true;
               requestAnimationFrame(focusNowPlaying);
             }
@@ -296,6 +296,7 @@ export function PlayerQueueSheet({
       anchorReady,
       applyScrollOffset,
       focusNowPlaying,
+      isPresentedOverlay,
       pivotOffset,
       scrollOffset,
     ]
@@ -314,6 +315,7 @@ export function PlayerQueueSheet({
     () => isPresentedOverlay && playerPresentationProgress.value >= 0.999,
     (isFullyPresented, wasFullyPresented) => {
       if (isFullyPresented && !wasFullyPresented && !hasUserInteracted.value) {
+        anchorAwaitingInitialScroll.value = false;
         runOnJS(reconcilePivot)(false);
       }
     }
