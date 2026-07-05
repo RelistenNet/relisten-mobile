@@ -21,7 +21,7 @@ export function PlayerTimelineSectionHeader({
       accessible
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="header"
-      className="z-10 min-h-12 flex-row items-center gap-2 border-b border-relisten-blue-500/15 bg-relisten-blue-900 px-5 py-2"
+      className="z-10 min-h-12 flex-row items-center gap-2 border-b border-relisten-blue-500/15 bg-relisten-blue-900 px-6 pb-3 pt-2.5"
     >
       <MaterialIcons color="rgba(101, 226, 255, 0.78)" name={icon} size={19} />
       <RelistenText

@@ -10,7 +10,7 @@ type PlayerPanelRowProps = {
 
 export function PlayerPanelRow({ children, isFirst, isLast }: PlayerPanelRowProps) {
   return (
-    <View className={tw('z-10 bg-relisten-blue-900', isFirst && 'pt-2')}>
+    <View className={tw('z-10 bg-relisten-blue-900', isFirst && 'pt-2', isLast && 'pb-2')}>
       <View
         className={tw(
           'mx-2 border-x border-b border-relisten-blue-500/15 bg-relisten-blue-950',

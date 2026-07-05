@@ -139,7 +139,7 @@ export function SourceTrackActionsMenu({ playShow, sourceTrack }: SourceTrackAct
         void handleAction(nativeEvent.event as SourceTrackActionId);
       }}
     >
-      <OverflowMenuTrigger accessibilityLabel={`Actions for ${sourceTrack.title}`} tone="muted" />
+      <OverflowMenuTrigger accessibilityLabel={`Actions for ${sourceTrack.title}`} />
     </NativeMenuView>
   );
 }

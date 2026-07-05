@@ -3,17 +3,24 @@ import dayjs from 'dayjs';
 import { type ReactNode } from 'react';
 import TimeAgo, { type Formatter, type Unit } from 'react-timeago';
 
-const COMPACT_UNITS: Record<Exclude<Unit, 'second'>, string> = {
-  minute: 'min',
-  hour: 'hr',
-  day: 'd',
-  week: 'wk',
-  month: 'mo',
-  year: 'yr',
+const compactPlaybackTime: Formatter = (value, unit: Unit) => {
+  switch (unit) {
+    case 'second':
+      return 'now';
+    case 'minute':
+      return `${value} ${value === 1 ? 'min' : 'mins'} ago`;
+    case 'hour':
+      return `${value}hr ago`;
+    case 'day':
+      return `${value}d ago`;
+    case 'week':
+      return `${value}wk ago`;
+    case 'month':
+      return `${value}mo ago`;
+    case 'year':
+      return `${value}yr ago`;
+  }
 };
-
-const compactPlaybackTime: Formatter = (value, unit) =>
-  unit === 'second' ? 'now' : `${value} ${COMPACT_UNITS[unit]}`;
 
 export function spokenRelativePlaybackTime(date: Date) {
   return `played ${dayjs(date).fromNow()}`;
