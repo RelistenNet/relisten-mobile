@@ -20,6 +20,7 @@ import {
 import { PlayerTimelineBoundary } from '@/relisten/player/ui/player_timeline_boundary';
 import { ReturnToNowPlayingButton } from '@/relisten/player/ui/return_to_now_playing_button';
 import { UpNextHeader } from '@/relisten/player/ui/up_next_header';
+import { playerPresentationProgress } from '@/relisten/player/ui/player_presentation';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { useQuery } from '@/relisten/realm/schema';
 import { accessibleControlScale } from '@/relisten/util/accessible_control_scale';
@@ -37,6 +38,7 @@ import ReorderableList from 'react-native-reorderable-list';
 import { ReorderableListReorderEvent } from 'react-native-reorderable-list/src/types/props';
 import Animated, {
   runOnJS,
+  useAnimatedReaction,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
@@ -60,6 +62,7 @@ type TimelineItem =
   | { kind: 'empty-up-next' };
 
 type PlayerQueueSheetProps = {
+  isPresentedOverlay: boolean;
   onOpenHistory: () => void;
   onQueueHeaderActiveChange: (active: boolean) => void;
   onViewHistoryShow: (entry: PlaybackHistoryEntry) => void;
@@ -84,6 +87,7 @@ function timelineItemKey(item: TimelineItem) {
 }
 
 export function PlayerQueueSheet({
+  isPresentedOverlay,
   onOpenHistory,
   onQueueHeaderActiveChange,
   onViewHistoryShow,
@@ -108,6 +112,8 @@ export function PlayerQueueSheet({
   const scrollOffset = useSharedValue(0);
   const pivotOffset = useSharedValue(0);
   const anchorReady = useSharedValue(false);
+  const anchorAwaitingInitialScroll = useSharedValue(false);
+  const hasUserInteracted = useSharedValue(false);
   const recentlyPlayed = useQuery(
     {
       type: PlaybackHistoryEntry,
@@ -208,9 +214,13 @@ export function PlayerQueueSheet({
           length = 44 * controlScale;
           break;
         case 'history':
+          length = 66 * controlScale;
+          break;
         case 'earlier-queue':
+          length = 51 * controlScale;
+          break;
         case 'up-next':
-          length = 62 * controlScale;
+          length = 66 * controlScale;
           break;
         case 'now-playing':
           length = height * 0.64;
@@ -237,9 +247,13 @@ export function PlayerQueueSheet({
   );
 
   const focusNowPlaying = useCallback(() => {
-    requestAnimationFrame(() => {
-      const handle = findNodeHandle(nowPlayingHeadingRef.current);
-      if (handle) AccessibilityInfo.setAccessibilityFocus(handle);
+    void AccessibilityInfo.isScreenReaderEnabled().then((isScreenReaderEnabled) => {
+      if (!isScreenReaderEnabled) return;
+
+      requestAnimationFrame(() => {
+        const handle = findNodeHandle(nowPlayingHeadingRef.current);
+        if (handle) AccessibilityInfo.setAccessibilityFocus(handle);
+      });
     });
   }, []);
 
@@ -269,6 +283,7 @@ export function PlayerQueueSheet({
 
             anchorReady.value = true;
             if (reveal) {
+              anchorAwaitingInitialScroll.value = true;
               hasAnchored.current = true;
               requestAnimationFrame(focusNowPlaying);
             }
@@ -276,7 +291,14 @@ export function PlayerQueueSheet({
         });
       });
     },
-    [anchorReady, applyScrollOffset, focusNowPlaying, pivotOffset, scrollOffset]
+    [
+      anchorAwaitingInitialScroll,
+      anchorReady,
+      applyScrollOffset,
+      focusNowPlaying,
+      pivotOffset,
+      scrollOffset,
+    ]
   );
 
   const prePivotSignature = useMemo(
@@ -288,9 +310,27 @@ export function PlayerQueueSheet({
     if (hasAnchored.current) reconcilePivot(false);
   }, [currentTrack?.identifier, prePivotSignature, reconcilePivot]);
 
+  useAnimatedReaction(
+    () => isPresentedOverlay && playerPresentationProgress.value >= 0.999,
+    (isFullyPresented, wasFullyPresented) => {
+      if (isFullyPresented && !wasFullyPresented && !hasUserInteracted.value) {
+        runOnJS(reconcilePivot)(false);
+      }
+    }
+  );
+
   const handleScroll = useAnimatedScrollHandler({
     onScroll: (event) => {
-      scrollOffset.value = event.contentOffset.y;
+      const nextOffset = event.contentOffset.y;
+      scrollOffset.value = nextOffset;
+      if (
+        anchorAwaitingInitialScroll.value &&
+        anchorReady.value &&
+        Math.abs(nextOffset - pivotOffset.value) > 1
+      ) {
+        anchorAwaitingInitialScroll.value = false;
+        runOnJS(reconcilePivot)(true);
+      }
     },
   });
 
@@ -402,7 +442,7 @@ export function PlayerQueueSheet({
   if (!currentTrack) return <View style={{ flex: 1 }} />;
 
   return (
-    <View ref={listContainerRef} style={{ flex: 1 }}>
+    <View collapsable={false} ref={listContainerRef} style={{ flex: 1 }}>
       <ReorderableList
         ref={listRef}
         alwaysBounceVertical
@@ -435,7 +475,11 @@ export function PlayerQueueSheet({
         onIndexChange={triggerHaptics}
         onReorder={onReorder}
         onScroll={handleScroll}
-        onScrollBeginDrag={() => setIsDragging(false)}
+        onScrollBeginDrag={() => {
+          anchorAwaitingInitialScroll.value = false;
+          hasUserInteracted.value = true;
+          setIsDragging(false);
+        }}
         onViewableItemsChanged={handleViewableItemsChanged}
         renderItem={renderItem}
         showsVerticalScrollIndicator={false}

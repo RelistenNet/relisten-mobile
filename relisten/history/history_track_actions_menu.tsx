@@ -9,6 +9,7 @@ import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import * as Haptics from 'expo-haptics';
 import { type ReactNode, useCallback } from 'react';
+import { type AccessibilityRole } from 'react-native';
 
 const ACTION_IDS = {
   addToQueue: 'add-to-queue',
@@ -37,12 +38,18 @@ const ACTIONS: MenuAction[] = [
 ];
 
 type HistoryTrackActionsMenuProps = {
+  accessibilityHint?: string;
+  accessibilityLabel?: string;
+  accessibilityRole?: AccessibilityRole;
   children: ReactNode;
   onViewShow: () => void;
   sourceTrack: SourceTrack;
 };
 
 export function HistoryTrackActionsMenu({
+  accessibilityHint,
+  accessibilityLabel,
+  accessibilityRole,
   children,
   onViewShow,
   sourceTrack,
@@ -94,6 +101,9 @@ export function HistoryTrackActionsMenu({
 
   return (
     <NativeMenuView
+      accessibilityHint={accessibilityHint}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole={accessibilityRole}
       actions={ACTIONS}
       onPressAction={({ nativeEvent }) => handleAction(nativeEvent.event as HistoryTrackActionId)}
       shouldOpenOnLongPress={false}

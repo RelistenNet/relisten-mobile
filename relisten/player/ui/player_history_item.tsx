@@ -35,13 +35,17 @@ export function PlayerHistoryItem({ entry, isFirst, isLast, onViewShow }: Player
     .join(', ');
 
   return (
-    <HistoryTrackActionsMenu onViewShow={onViewShow} sourceTrack={sourceTrack}>
+    <HistoryTrackActionsMenu
+      accessibilityHint="Opens queue actions for this track."
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole="button"
+      onViewShow={onViewShow}
+      sourceTrack={sourceTrack}
+    >
       <PlayerPanelRow isFirst={isFirst} isLast={isLast}>
         <View
-          accessible
-          accessibilityHint="Opens queue actions for this track."
-          accessibilityLabel={accessibilityLabel}
-          accessibilityRole="button"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
           style={{ paddingHorizontal: 8 }}
         >
           <HistoryEntryContent
