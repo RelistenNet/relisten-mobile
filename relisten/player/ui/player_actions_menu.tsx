@@ -70,34 +70,51 @@ export function PlayerActionsMenu({ children, onBeforeNavigate }: PlayerActionsM
   );
 }
 
-export function PlayerHeaderToolbar({ onClose }: { onClose: () => void }) {
+export function PlayerHeaderToolbar({
+  mode = 'timeline',
+  onBack,
+  onClose,
+}: {
+  mode?: 'timeline' | 'history';
+  onBack?: () => void;
+  onClose: () => void;
+}) {
   const { actions, handleAction } = usePlayerActions(onClose);
+  const isHistory = mode === 'history';
 
   return (
     <>
       <Stack.Toolbar placement="left">
         <Stack.Toolbar.Button
-          accessibilityLabel="Close player"
-          icon={nativeMenuIcons.collapse}
-          onPress={onClose}
+          accessibilityLabel={isHistory ? 'Back to queue' : 'Close player'}
+          icon={isHistory ? nativeMenuIcons.back : nativeMenuIcons.collapse}
+          onPress={isHistory ? onBack : onClose}
         />
       </Stack.Toolbar>
       <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Menu
-          accessibilityLabel="Player actions"
-          hidden={actions.length === 0}
-          icon={nativeMenuIcons.toolbarMore}
-        >
-          {actions.map((action) => (
-            <Stack.Toolbar.MenuAction
-              icon={action.image}
-              key={action.id}
-              onPress={() => handleAction(action.id)}
-            >
-              {action.title}
-            </Stack.Toolbar.MenuAction>
-          ))}
-        </Stack.Toolbar.Menu>
+        {isHistory ? (
+          <Stack.Toolbar.Button
+            accessibilityLabel="Close player"
+            icon={nativeMenuIcons.collapse}
+            onPress={onClose}
+          />
+        ) : (
+          <Stack.Toolbar.Menu
+            accessibilityLabel="Player actions"
+            hidden={actions.length === 0}
+            icon={nativeMenuIcons.toolbarMore}
+          >
+            {actions.map((action) => (
+              <Stack.Toolbar.MenuAction
+                icon={action.image}
+                key={action.id}
+                onPress={() => handleAction(action.id)}
+              >
+                {action.title}
+              </Stack.Toolbar.MenuAction>
+            ))}
+          </Stack.Toolbar.Menu>
+        )}
       </Stack.Toolbar>
     </>
   );

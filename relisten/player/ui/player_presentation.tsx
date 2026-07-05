@@ -1,4 +1,11 @@
-import { type PropsWithChildren, createContext, useCallback, useContext, useState } from 'react';
+import {
+  type PropsWithChildren,
+  createContext,
+  useCallback,
+  useContext,
+  useRef,
+  useState,
+} from 'react';
 import { cancelAnimation, makeMutable, runOnJS, withSpring } from 'react-native-reanimated';
 
 export const playerPresentationProgress = makeMutable(0);
@@ -13,7 +20,7 @@ const PRESENTATION_SPRING = {
 type PlayerPresentationContextValue = {
   beginInteractivePresentation: () => void;
   cancelPreparedPresentation: () => void;
-  closePlayer: () => void;
+  closePlayer: (afterClose?: () => void) => void;
   isPresentationActive: boolean;
   isPresentationMounted: boolean;
   openPlayer: () => void;
@@ -29,46 +36,62 @@ const PlayerPresentationContext = createContext<PlayerPresentationContextValue |
 
 export function PlayerPresentationProvider({ children }: PropsWithChildren) {
   const [presentationState, setPresentationState] = useState<PlayerPresentationState>('idle');
+  const afterCloseRef = useRef<(() => void) | undefined>(undefined);
+
+  const cancelPendingClose = useCallback(() => {
+    afterCloseRef.current = undefined;
+  }, []);
 
   const finishClosing = useCallback(() => {
+    const afterClose = afterCloseRef.current;
+    afterCloseRef.current = undefined;
     setPresentationState('idle');
+    afterClose?.();
   }, []);
 
   const preparePlayerPresentation = useCallback(() => {
+    cancelPendingClose();
     setPresentationState((state) => (state === 'idle' ? 'prepared' : state));
-  }, []);
+  }, [cancelPendingClose]);
 
   const cancelPreparedPresentation = useCallback(() => {
     setPresentationState((state) => (state === 'prepared' ? 'idle' : state));
   }, []);
 
   const beginInteractivePresentation = useCallback(() => {
+    cancelPendingClose();
     cancelAnimation(playerPresentationProgress);
     setPresentationState('active');
-  }, []);
+  }, [cancelPendingClose]);
 
   const openPlayer = useCallback(() => {
+    cancelPendingClose();
     cancelAnimation(playerPresentationProgress);
     setPresentationState('active');
     playerPresentationProgress.set(withSpring(1, PRESENTATION_SPRING));
-  }, []);
+  }, [cancelPendingClose]);
 
-  const closePlayer = useCallback(() => {
-    cancelAnimation(playerPresentationProgress);
-    playerPresentationProgress.set(
-      withSpring(0, PRESENTATION_SPRING, (finished) => {
-        if (finished) {
-          runOnJS(finishClosing)();
-        }
-      })
-    );
-  }, [finishClosing]);
+  const closePlayer = useCallback(
+    (afterClose?: () => void) => {
+      afterCloseRef.current = afterClose;
+      cancelAnimation(playerPresentationProgress);
+      playerPresentationProgress.set(
+        withSpring(0, PRESENTATION_SPRING, (finished) => {
+          if (finished) {
+            runOnJS(finishClosing)();
+          }
+        })
+      );
+    },
+    [finishClosing]
+  );
 
   const resetPlayerPresentation = useCallback(() => {
+    cancelPendingClose();
     cancelAnimation(playerPresentationProgress);
     playerPresentationProgress.set(0);
     setPresentationState('idle');
-  }, []);
+  }, [cancelPendingClose]);
 
   return (
     <PlayerPresentationContext.Provider

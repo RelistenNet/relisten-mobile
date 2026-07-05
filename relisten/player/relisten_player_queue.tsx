@@ -260,8 +260,15 @@ export class RelistenPlayerQueue {
   }
 
   removeTrackAtIndex(index: number) {
-    // Queue rows use playback order; the original order can differ while shuffled.
-    const removed = this.orderedTracks[index];
+    const identifier = this.orderedTracks[index]?.identifier;
+    return identifier ? this.removeTrackWithIdentifier(identifier) : false;
+  }
+
+  removeTrackWithIdentifier(identifier: string) {
+    const removed = this.originalTracks.find((track) => track.identifier === identifier);
+    if (!removed) {
+      return false;
+    }
     const currentIdentifier = this.currentTrack?.identifier;
 
     this.applyPlaybackCheckpoint(() => {
@@ -284,6 +291,7 @@ export class RelistenPlayerQueue {
         this.onCurrentTrackChanged.dispatch(undefined);
       }
     }, true);
+    return true;
   }
 
   get shuffleState() {
