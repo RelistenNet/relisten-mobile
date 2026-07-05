@@ -64,31 +64,33 @@ interface PlayerBottomBarContentsProps {
   placementBackend: PlayerBarPlacementBackend;
 }
 
-function PlayerBottomBarProgress({
-  placementBackend,
-}: {
-  placementBackend: PlayerBarPlacementBackend;
-}) {
+function NativeTabsAccessoryProgress() {
   const progress = useNativePlaybackProgress();
   const percent =
     progress?.duration && progress.duration > 0
       ? Math.max(0, Math.min(1, progress.elapsed / progress.duration))
       : 0;
 
-  if (placementBackend === 'nativeTabsAccessory') {
-    return (
-      <View style={styles.accessoryProgressTrack}>
-        <View
-          style={[
-            styles.accessoryProgressFill,
-            { width: `${percent * 100}%`, opacity: percent < 0.01 ? 0 : 1 },
-          ]}
-        />
-      </View>
-    );
-  }
-
   return (
+    <View style={styles.accessoryProgressTrack}>
+      <View
+        style={[
+          styles.accessoryProgressFill,
+          { width: `${percent * 100}%`, opacity: percent < 0.01 ? 0 : 1 },
+        ]}
+      />
+    </View>
+  );
+}
+
+function PlayerBottomBarProgress({
+  placementBackend,
+}: {
+  placementBackend: PlayerBarPlacementBackend;
+}) {
+  return placementBackend === 'nativeTabsAccessory' ? (
+    <NativeTabsAccessoryProgress />
+  ) : (
     <View style={styles.scrubberShell}>
       <ScrubberRow showTimes={false} />
     </View>
