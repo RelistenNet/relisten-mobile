@@ -32,6 +32,7 @@ export function showHistoryQueueConfirmation({
         accessibilityHint="Removes the track that was just added."
         accessibilityLabel="Undo queue change"
         accessibilityRole="button"
+        className="absolute right-0 top-[-13px] min-h-11 min-w-16 items-center justify-center px-3"
         onPress={() => {
           hideMessage();
           const result = onUndo();
@@ -39,19 +40,9 @@ export function showHistoryQueueConfirmation({
             showUndoResult(result);
           }
         }}
-        style={({ pressed }) => ({
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: 44,
-          minWidth: 64,
-          opacity: pressed ? 0.65 : 1,
-          paddingHorizontal: 12,
-          position: 'absolute',
-          right: 0,
-          top: -13,
-        })}
+        style={({ pressed }) => ({ opacity: pressed ? 0.65 : 1 })}
       >
-        <RelistenText selectable={false} style={{ fontWeight: '700' }}>
+        <RelistenText className="font-bold" selectable={false}>
           Undo
         </RelistenText>
       </Pressable>
