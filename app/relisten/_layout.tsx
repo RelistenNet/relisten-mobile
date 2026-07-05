@@ -49,6 +49,20 @@ export default function TabLayout() {
           gestureEnabled: true,
           headerShown: true,
           headerStyle: { backgroundColor: RelistenBlue['900'] },
+          headerTintColor: 'white',
+          title: 'Now Playing',
+        }}
+      />
+      <Stack.Screen
+        name="player-history"
+        options={{
+          contentStyle: { backgroundColor: RelistenBlue['950'] },
+          headerBackButtonDisplayMode: 'minimal',
+          headerShown: true,
+          headerStyle: { backgroundColor: RelistenBlue['900'] },
+          headerTintColor: 'white',
+          presentation: 'modal',
+          title: 'Listening History',
         }}
       />
       <Stack.Screen
