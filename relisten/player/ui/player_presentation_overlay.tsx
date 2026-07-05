@@ -5,7 +5,7 @@ import {
 } from '@/relisten/player/ui/player_presentation';
 import { PlayerScreen } from '@/relisten/player/ui/player_screen';
 import { RelistenNavigationProvider } from '@/relisten/util/routes';
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useWindowDimensions } from 'react-native';
 import Animated, { Extrapolation, interpolate, useAnimatedStyle } from 'react-native-reanimated';
 import {
@@ -20,6 +20,7 @@ export function PlayerPresentationOverlay() {
   const isPlayerVisible = useIsPlayerBottomBarVisible();
   const { closePlayer, isPresentationActive, isPresentationMounted, resetPlayerPresentation } =
     usePlayerPresentation();
+  const handleClose = useCallback(() => closePlayer(), [closePlayer]);
   const collapsedTop = Math.max(height - playerBottomBarHeight - placementOffset, 0);
 
   useEffect(() => {
@@ -88,7 +89,7 @@ export function PlayerPresentationOverlay() {
     >
       {isPresentationMounted && (
         <RelistenNavigationProvider groupSegment="(artists)">
-          <PlayerScreen onClose={closePlayer} variant="overlay" />
+          <PlayerScreen onClose={handleClose} variant="overlay" />
         </RelistenNavigationProvider>
       )}
     </Animated.View>
