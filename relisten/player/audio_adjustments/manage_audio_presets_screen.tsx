@@ -43,7 +43,7 @@ export function ManageAudioPresetsScreen() {
               No Saved Presets
             </RelistenText>
             <RelistenText className="text-center text-gray-400" selectable={false}>
-              Customize the equalizer, then save the changes when closing Audio Adjustments.
+              Customize the equalizer, then save the changes when closing Audio Equalizer.
             </RelistenText>
           </View>
         ) : (
