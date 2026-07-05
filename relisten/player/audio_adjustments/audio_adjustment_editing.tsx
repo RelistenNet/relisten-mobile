@@ -196,7 +196,7 @@ export function AudioAdjustmentEditingProvider({ children }: PropsWithChildren) 
       return;
     }
 
-    Alert.alert('Keep Custom Adjustments?', 'Save these changes before closing?', [
+    Alert.alert('Keep Equalizer Changes?', 'Save these changes before closing?', [
       { text: 'Discard', style: 'destructive', onPress: discard },
       {
         text: 'Keep as Custom',
