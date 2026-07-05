@@ -4,6 +4,11 @@ import { AudioAdjustmentPresetMenu } from '@/relisten/player/audio_adjustments/a
 import { useAudioAdjustmentEditing } from '@/relisten/player/audio_adjustments/audio_adjustment_editing';
 import { EqualizerBandSlider } from '@/relisten/player/audio_adjustments/equalizer_band_slider';
 import { EqualizerResponseCurve } from '@/relisten/player/audio_adjustments/equalizer_response_curve';
+import {
+  PLAYER_PANEL_BACKGROUND,
+  PLAYER_PANEL_BORDER_COLOR,
+  PLAYER_PANEL_DIVIDER_COLOR,
+} from '@/relisten/player/ui/player_panel_theme';
 import { AUDIO_ADJUSTMENT_FREQUENCIES_HZ } from '@/relisten/player/audio_adjustments/audio_adjustment_types';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { Stack } from 'expo-router';
@@ -26,8 +31,8 @@ export function AdvancedEqualizerScreen() {
       >
         <View
           style={{
-            backgroundColor: RelistenBlue[900],
-            borderColor: RelistenBlue[800],
+            backgroundColor: PLAYER_PANEL_BACKGROUND,
+            borderColor: PLAYER_PANEL_BORDER_COLOR,
             borderCurve: 'continuous',
             borderRadius: 16,
             borderWidth: 1,
@@ -35,7 +40,7 @@ export function AdvancedEqualizerScreen() {
           }}
         >
           <AudioAdjustmentPresetMenu disabled={isCasting} />
-          <View style={{ backgroundColor: RelistenBlue[800], height: 1 }} />
+          <View style={{ backgroundColor: PLAYER_PANEL_DIVIDER_COLOR, height: 1 }} />
           <View style={{ opacity: isCasting ? 0.45 : 1, padding: 14 }}>
             <EqualizerResponseCurve gains={configuration.bandGainsDb} />
           </View>
@@ -43,8 +48,8 @@ export function AdvancedEqualizerScreen() {
 
         <View
           style={{
-            backgroundColor: RelistenBlue[900],
-            borderColor: RelistenBlue[800],
+            backgroundColor: PLAYER_PANEL_BACKGROUND,
+            borderColor: PLAYER_PANEL_BORDER_COLOR,
             borderCurve: 'continuous',
             borderRadius: 16,
             borderWidth: 1,
@@ -53,7 +58,9 @@ export function AdvancedEqualizerScreen() {
         >
           {AUDIO_ADJUSTMENT_FREQUENCIES_HZ.map((frequency, index) => (
             <View key={frequency}>
-              {index > 0 && <View style={{ backgroundColor: RelistenBlue[800], height: 1 }} />}
+              {index > 0 && (
+                <View style={{ backgroundColor: PLAYER_PANEL_DIVIDER_COLOR, height: 1 }} />
+              )}
               <EqualizerBandSlider
                 disabled={isCasting}
                 frequencyLabel={frequencyLabel(frequency)}
