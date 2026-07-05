@@ -34,13 +34,15 @@ function QueueDragHandle({
       accessibilityLabel={`Reorder ${title}`}
       accessibilityRole="button"
       delayLongPress={250}
-      className="min-h-11 min-w-11 items-center justify-center"
+      className="h-11 w-11 items-center justify-center"
       onLongPress={() => {
         onDragStart();
         drag();
       }}
     >
-      <MaterialIcons color="rgba(255, 255, 255, 0.62)" name="drag-handle" size={24} />
+      <View className="-translate-x-2.5">
+        <MaterialIcons color="rgba(255, 255, 255, 0.62)" name="drag-handle" size={24} />
+      </View>
     </TouchableOpacity>
   );
 }
