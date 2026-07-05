@@ -8,6 +8,7 @@ import { PlayerPanelRow } from '@/relisten/player/ui/player_panel_row';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { View } from 'react-native';
+import colors from 'tailwindcss/colors';
 
 type PlayerHistoryItemProps = {
   entry: PlaybackHistoryEntry;
@@ -42,21 +43,21 @@ export function PlayerHistoryItem({ entry, isFirst, isLast, onViewShow }: Player
       <PlayerPanelRow isFirst={isFirst} isLast={isLast}>
         <View
           accessibilityElementsHidden
-          className="px-2"
+          className="pl-2"
           importantForAccessibility="no-hide-descendants"
         >
           <HistoryEntryContent
             action={
-              <View className="min-h-11 min-w-11 items-center justify-center">
+              <View className="ml-2 h-11 w-11 items-center justify-center">
                 <Ionicons
-                  color="rgba(255, 255, 255, 0.72)"
+                  color={colors.white}
                   name="ellipsis-horizontal-circle-outline"
                   size={21}
                 />
               </View>
             }
             leading={
-              <View className="min-w-8 items-center justify-center">
+              <View className="mr-1.5 w-8 items-center justify-center">
                 <MaterialIcons color="rgba(255, 255, 255, 0.58)" name="history" size={21} />
               </View>
             }

@@ -197,7 +197,7 @@ function CurrentTrackInfo({
     <TouchableOpacity
       accessibilityLabel="Share current track"
       accessibilityRole="button"
-      className="min-h-11 min-w-11 items-center justify-center rounded-full border border-white/25 bg-white/5"
+      className="h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-white/5"
       onPress={onShare}
     >
       <MaterialIcons color="white" name={Platform.OS === 'ios' ? 'ios-share' : 'share'} size={21} />
@@ -205,14 +205,14 @@ function CurrentTrackInfo({
   );
 
   const actionButtons = (
-    <View className="flex-row items-center gap-2">
+    <View className="flex-row items-center gap-2 py-1">
       {shareButton}
       <PlayerActionsMenu onBeforeNavigate={onBeforeNavigate}>
         <View
           accessible
           accessibilityLabel="Player actions"
           accessibilityRole="button"
-          className="min-h-11 min-w-11 items-center justify-center rounded-full border border-white/25 bg-white/5"
+          className="h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-white/5"
           collapsable={false}
         >
           <Ionicons color="white" name="ellipsis-horizontal" size={22} />
@@ -237,7 +237,7 @@ function CurrentTrackInfo({
         {displayTitle}
       </RelistenText>
       <RelistenText
-        className="mt-1 text-lg"
+        className="mt-2 text-lg"
         numberOfLines={fontScale < 1.4 ? 1 : undefined}
         selectable={false}
       >
@@ -462,11 +462,11 @@ export function PlayerNowPlaying({
   }
 
   return (
-    <View className={tw('pb-6', showDecorativeIdentity ? 'pt-4' : 'pt-6')}>
+    <View className={tw('pb-6', showDecorativeIdentity ? 'pt-6' : 'pt-7')}>
       {showDecorativeIdentity && (
         <ShowIdentity visualizerActive={visualizerActive && !castStatus.isCasting} />
       )}
-      <View className={showDecorativeIdentity ? 'mt-4' : undefined}>
+      <View className={showDecorativeIdentity ? 'mt-5' : undefined}>
         <CurrentTrackInfo
           castStatus={castStatus}
           headingRef={headingRef}
