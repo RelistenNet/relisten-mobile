@@ -29,6 +29,7 @@ import { RelistenBlue } from '@/relisten/relisten_blue';
 import { accessibleControlScale } from '@/relisten/util/accessible_control_scale';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { type Ref } from 'react';
 import { Platform, Share, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import AirPlayButton from 'react-native-airplay-button';
 import * as Progress from 'react-native-progress';
@@ -149,7 +150,7 @@ function ShowIdentity() {
   );
 }
 
-function CurrentTrackInfo() {
+function CurrentTrackInfo({ headingRef }: { headingRef?: Ref<View> }) {
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
   const { isCasting, deviceName } = useRelistenCastStatus();
   const { fontScale } = useWindowDimensions();
@@ -166,6 +167,16 @@ function CurrentTrackInfo() {
   }
 
   const displayTitle = playerDisplayTitle(track.title);
+  const accessibilityLabel = [
+    'Now Playing',
+    displayTitle,
+    artist.name,
+    playerDisplayDate(show.displayDate),
+    show.venue?.name,
+    show.venue?.location,
+  ]
+    .filter(Boolean)
+    .join(', ');
 
   const onShare = () => {
     const [year, month, day] = show.displayDate.split('-');
@@ -192,47 +203,64 @@ function CurrentTrackInfo() {
     </TouchableOpacity>
   );
 
-  return (
-    <View className="px-6">
-      {isAccessibilityLayout ? (
-        <View className="gap-2">
-          <RelistenText className="text-2xl font-bold leading-tight">{displayTitle}</RelistenText>
-          <View className="items-end">{shareButton}</View>
-        </View>
-      ) : (
-        <View className="flex-row items-center justify-between gap-3">
-          <View className="min-w-0 flex-1">
-            <RelistenText className="text-2xl font-bold leading-tight" numberOfLines={2}>
-              {displayTitle}
-            </RelistenText>
-          </View>
-          {shareButton}
-        </View>
-      )}
+  const trackDetails = (
+    <View
+      ref={headingRef}
+      accessible
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole="header"
+      style={{ flex: 1, minWidth: 0 }}
+    >
+      <RelistenText
+        className="text-2xl font-bold leading-tight"
+        numberOfLines={fontScale < 1.4 ? 2 : undefined}
+        selectable={false}
+      >
+        {displayTitle}
+      </RelistenText>
       <RelistenText
         className="text-lg"
         numberOfLines={fontScale < 1.4 ? 1 : undefined}
+        selectable={false}
         style={{ marginTop: 4 }}
       >
         {artist.name} · {playerDisplayDate(show.displayDate)}
       </RelistenText>
-      {show.venue && (
+      {show.venue ? (
         <RelistenText
           className="text-base text-gray-400"
           numberOfLines={fontScale < 1.4 ? 1 : undefined}
+          selectable={false}
           style={{ marginTop: 2 }}
         >
           {show.venue.name} · {show.venue.location}
         </RelistenText>
-      )}
+      ) : null}
       {isCasting && (
         <RelistenText
           className="text-sm text-relisten-blue-200"
           numberOfLines={1}
+          selectable={false}
           style={{ marginTop: 4 }}
         >
           Casting{deviceName ? ` to ${deviceName}` : ''}
         </RelistenText>
+      )}
+    </View>
+  );
+
+  return (
+    <View className="px-6">
+      {isAccessibilityLayout ? (
+        <View className="gap-2">
+          {trackDetails}
+          <View className="items-end">{shareButton}</View>
+        </View>
+      ) : (
+        <View className="flex-row items-center justify-between gap-3">
+          {trackDetails}
+          {shareButton}
+        </View>
       )}
     </View>
   );
@@ -436,7 +464,7 @@ function PlayerSecondaryControls() {
   );
 }
 
-export function PlayerNowPlaying() {
+export function PlayerNowPlaying({ headingRef }: { headingRef?: Ref<View> }) {
   const currentTrack = useRelistenPlayerCurrentTrack();
   const { fontScale } = useWindowDimensions();
   const showDecorativeIdentity = fontScale < 1.4;
@@ -455,7 +483,7 @@ export function PlayerNowPlaying() {
     <View style={{ paddingBottom: 24, paddingTop: showDecorativeIdentity ? 4 : 24 }}>
       {showDecorativeIdentity && <ShowIdentity />}
       <View style={{ marginTop: showDecorativeIdentity ? 14 : 0 }}>
-        <CurrentTrackInfo />
+        <CurrentTrackInfo headingRef={headingRef} />
       </View>
       <View className="px-6" style={{ marginTop: 18 }}>
         <ScrubberRow subduedCache />

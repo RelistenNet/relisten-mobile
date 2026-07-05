@@ -6,7 +6,7 @@ import {
 import { PlayerScreen } from '@/relisten/player/ui/player_screen';
 import { RelistenNavigationProvider } from '@/relisten/util/routes';
 import { useEffect } from 'react';
-import { BackHandler, useWindowDimensions } from 'react-native';
+import { useWindowDimensions } from 'react-native';
 import Animated, { Extrapolation, interpolate, useAnimatedStyle } from 'react-native-reanimated';
 import {
   usePlayerBarPlacementOffset,
@@ -27,19 +27,6 @@ export function PlayerPresentationOverlay() {
       resetPlayerPresentation();
     }
   }, [isPlayerVisible, resetPlayerPresentation]);
-
-  useEffect(() => {
-    if (!isPresentationActive) {
-      return;
-    }
-
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      closePlayer();
-      return true;
-    });
-
-    return () => subscription.remove();
-  }, [closePlayer, isPresentationActive]);
 
   const overlayStyle = useAnimatedStyle(() => ({
     borderRadius: interpolate(
