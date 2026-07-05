@@ -7,11 +7,8 @@ import {
 } from '@/relisten/player/relisten_player_queue_hooks';
 import { PlayerHistoryItem } from '@/relisten/player/ui/player_history_item';
 import { PlayerNowPlaying } from '@/relisten/player/ui/player_now_playing';
-import {
-  PLAYER_PANEL_BACKGROUND,
-  PLAYER_PANEL_BORDER_COLOR,
-  PlayerPanelRow,
-} from '@/relisten/player/ui/player_panel_row';
+import { PLAYER_PANEL_BACKGROUND } from '@/relisten/player/ui/player_panel_theme';
+import { PlayerPanelRow } from '@/relisten/player/ui/player_panel_row';
 import {
   EarlierQueueItem,
   type QueueTimelineEntry,
@@ -229,7 +226,7 @@ export function PlayerQueueSheet({
           length = height * 0.64;
           break;
         case 'up-next-header':
-          length = 68 * controlScale;
+          length = 56 * controlScale;
           break;
         case 'empty-up-next':
           length = 80 * controlScale;
@@ -465,9 +462,6 @@ export function PlayerQueueSheet({
               pointerEvents="none"
               style={{
                 backgroundColor: PLAYER_PANEL_BACKGROUND,
-                borderColor: PLAYER_PANEL_BORDER_COLOR,
-                borderLeftWidth: 1,
-                borderRightWidth: 1,
                 height,
                 left: 0,
                 position: 'absolute',

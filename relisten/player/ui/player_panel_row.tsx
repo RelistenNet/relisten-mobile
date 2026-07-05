@@ -1,10 +1,12 @@
-import { RelistenBlue } from '@/relisten/relisten_blue';
+import {
+  PLAYER_PANEL_BACKGROUND,
+  PLAYER_PANEL_BORDER_COLOR,
+  PLAYER_PANEL_ROW_BACKGROUND,
+  PLAYER_PANEL_ROW_INSET,
+  PLAYER_PANEL_ROW_RADIUS,
+} from '@/relisten/player/ui/player_panel_theme';
 import { type ReactNode } from 'react';
 import { View } from 'react-native';
-
-export const PLAYER_PANEL_BACKGROUND = RelistenBlue['800'];
-export const PLAYER_PANEL_BORDER_COLOR = 'rgba(60, 219, 255, 0.3)';
-export const PLAYER_PANEL_ROW_BACKGROUND = RelistenBlue['900'];
 
 type PlayerPanelRowProps = {
   children: ReactNode;
@@ -17,10 +19,6 @@ export function PlayerPanelRow({ children, isFirst, isLast }: PlayerPanelRowProp
     <View
       style={{
         backgroundColor: PLAYER_PANEL_BACKGROUND,
-        borderColor: PLAYER_PANEL_BORDER_COLOR,
-        borderCurve: 'continuous',
-        borderLeftWidth: 1,
-        borderRightWidth: 1,
         paddingTop: isFirst ? 8 : 0,
         zIndex: 1,
       }}
@@ -28,17 +26,17 @@ export function PlayerPanelRow({ children, isFirst, isLast }: PlayerPanelRowProp
       <View
         style={{
           backgroundColor: PLAYER_PANEL_ROW_BACKGROUND,
-          borderBottomLeftRadius: isLast ? 16 : 0,
-          borderBottomRightRadius: isLast ? 16 : 0,
+          borderBottomLeftRadius: isLast ? PLAYER_PANEL_ROW_RADIUS : 0,
+          borderBottomRightRadius: isLast ? PLAYER_PANEL_ROW_RADIUS : 0,
           borderBottomWidth: 1,
-          borderColor: 'rgba(60, 219, 255, 0.16)',
+          borderColor: PLAYER_PANEL_BORDER_COLOR,
           borderCurve: 'continuous',
           borderLeftWidth: 1,
           borderRightWidth: 1,
-          borderTopLeftRadius: isFirst ? 16 : 0,
-          borderTopRightRadius: isFirst ? 16 : 0,
+          borderTopLeftRadius: isFirst ? PLAYER_PANEL_ROW_RADIUS : 0,
+          borderTopRightRadius: isFirst ? PLAYER_PANEL_ROW_RADIUS : 0,
           borderTopWidth: isFirst ? 1 : 0,
-          marginHorizontal: 8,
+          marginHorizontal: PLAYER_PANEL_ROW_INSET,
         }}
       >
         {children}
