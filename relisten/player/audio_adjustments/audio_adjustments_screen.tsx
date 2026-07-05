@@ -3,17 +3,16 @@ import { useRelistenCastStatus } from '@/relisten/casting/cast_ui';
 import { AudioAdjustmentSection } from '@/relisten/player/audio_adjustments/audio_adjustment_section';
 import { useAudioAdjustmentEditing } from '@/relisten/player/audio_adjustments/audio_adjustment_editing';
 import { AudioAdjustmentPresetMenu } from '@/relisten/player/audio_adjustments/audio_adjustment_preset_menu';
+import { AudioAdjustmentSlider } from '@/relisten/player/audio_adjustments/audio_adjustment_slider';
 import { EqualizerResponseCurve } from '@/relisten/player/audio_adjustments/equalizer_response_curve';
 import {
   AUDIO_ADJUSTMENT_VOLUME_REDUCTION_MAX_DB,
   AUDIO_ADJUSTMENT_VOLUME_REDUCTION_MIN_DB,
 } from '@/relisten/player/audio_adjustments/audio_adjustment_types';
 import { RelistenBlue } from '@/relisten/relisten_blue';
-import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { Alert, Pressable, ScrollView, Switch, View } from 'react-native';
-import colors from 'tailwindcss/colors';
 
 function reductionLabel(value: number) {
   return value === 0 ? 'Off' : `${value} dB`;
@@ -52,7 +51,7 @@ export function AudioAdjustmentsScreen() {
               Unavailable while casting{deviceName ? ` to ${deviceName}` : ''}
             </RelistenText>
             <RelistenText className="text-gray-300" selectable={false}>
-              Audio adjustments affect local playback only. Your saved settings resume when casting
+              Audio Equalizer affects local playback only. Your saved settings resume when casting
               ends.
             </RelistenText>
           </View>
@@ -70,7 +69,7 @@ export function AudioAdjustmentsScreen() {
           >
             <View style={{ flex: 1, gap: 2, paddingVertical: 10 }}>
               <RelistenText selectable={false} style={{ fontWeight: '600' }}>
-                Audio Adjustments
+                Audio Equalizer
               </RelistenText>
               <RelistenText className="text-sm text-gray-400" selectable={false}>
                 {configuration.enabled ? 'On for local playback' : 'Off — your settings are saved'}
@@ -78,7 +77,7 @@ export function AudioAdjustmentsScreen() {
             </View>
             <View style={{ alignItems: 'center', alignSelf: 'stretch', justifyContent: 'center' }}>
               <Switch
-                accessibilityLabel="Audio Adjustments"
+                accessibilityLabel="Audio Equalizer"
                 disabled={isCasting}
                 onValueChange={setEnabled}
                 style={{ alignSelf: 'center' }}
@@ -127,24 +126,15 @@ export function AudioAdjustmentsScreen() {
                 {reductionLabel(configuration.extraVolumeReductionDb)}
               </RelistenText>
             </View>
-            <Slider
+            <AudioAdjustmentSlider
               accessibilityLabel="Extra Volume Reduction"
-              accessibilityValue={{
-                max: AUDIO_ADJUSTMENT_VOLUME_REDUCTION_MAX_DB,
-                min: AUDIO_ADJUSTMENT_VOLUME_REDUCTION_MIN_DB,
-                now: configuration.extraVolumeReductionDb,
-                text: reductionLabel(configuration.extraVolumeReductionDb),
-              }}
+              accessibilityText={reductionLabel(configuration.extraVolumeReductionDb)}
               disabled={isCasting}
-              maximumTrackTintColor={RelistenBlue[800]}
-              maximumValue={AUDIO_ADJUSTMENT_VOLUME_REDUCTION_MAX_DB}
-              minimumTrackTintColor={RelistenBlue[300]}
-              minimumValue={AUDIO_ADJUSTMENT_VOLUME_REDUCTION_MIN_DB}
+              maximumDb={AUDIO_ADJUSTMENT_VOLUME_REDUCTION_MAX_DB}
+              minimumDb={AUDIO_ADJUSTMENT_VOLUME_REDUCTION_MIN_DB}
               onSlidingComplete={finishAdjustment}
               onValueChange={setExtraVolumeReduction}
-              step={1}
-              thumbTintColor={colors.gray[50]}
-              value={configuration.extraVolumeReductionDb}
+              valueDb={configuration.extraVolumeReductionDb}
             />
             <RelistenText className="text-sm text-gray-400" selectable={false}>
               Makes Relisten quieter than the iPhone volume control allows. This affects Relisten
@@ -158,8 +148,8 @@ export function AudioAdjustmentsScreen() {
           disabled={isCasting}
           onPress={() =>
             Alert.alert(
-              'Reset Adjustments?',
-              'This selects Flat, sets every band to 0 dB, and turns Extra Volume Reduction off. Audio Adjustments will keep its current On or Off state.',
+              'Reset Equalizer?',
+              'This selects Flat, sets every band to 0 dB, and turns Extra Volume Reduction off. Audio Equalizer will keep its current On or Off state.',
               [
                 { text: 'Cancel', style: 'cancel' },
                 { text: 'Reset', style: 'destructive', onPress: reset },
@@ -179,7 +169,7 @@ export function AudioAdjustmentsScreen() {
           })}
         >
           <RelistenText selectable={false} style={{ fontWeight: '600' }}>
-            Reset Adjustments…
+            Reset Equalizer…
           </RelistenText>
         </Pressable>
 
@@ -188,10 +178,10 @@ export function AudioAdjustmentsScreen() {
         </RelistenText>
       </ScrollView>
 
-      <Stack.Screen.Title>Audio Adjustments</Stack.Screen.Title>
+      <Stack.Screen.Title>Audio Equalizer</Stack.Screen.Title>
       <Stack.Toolbar placement="left">
         <Stack.Toolbar.Button
-          accessibilityLabel="Close Audio Adjustments"
+          accessibilityLabel="Close Audio Equalizer"
           icon="xmark"
           onPress={requestClose}
         />

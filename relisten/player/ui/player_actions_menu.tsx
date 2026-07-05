@@ -25,7 +25,7 @@ function usePlayerActions(onBeforeNavigate?: () => void) {
             {
               id: AUDIO_ADJUSTMENTS_ACTION_ID,
               image: nativeMenuIcons.audioAdjustments,
-              title: 'Audio Adjustments',
+              title: 'Audio Equalizer',
             } as const,
           ]
         : []),
@@ -36,14 +36,13 @@ function usePlayerActions(onBeforeNavigate?: () => void) {
   const handleAction = useCallback(
     (actionId: PlayerActionId) => {
       if (actionId === AUDIO_ADJUSTMENTS_ACTION_ID) {
-        onBeforeNavigate?.();
         router.push('/relisten/audio-adjustments');
         return;
       }
 
       handleNavigationAction(actionId);
     },
-    [handleNavigationAction, onBeforeNavigate]
+    [handleNavigationAction]
   );
 
   return { actions, handleAction };
