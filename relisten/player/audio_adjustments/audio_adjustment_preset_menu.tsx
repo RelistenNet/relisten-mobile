@@ -83,17 +83,12 @@ export function AudioAdjustmentPresetMenu({ disabled = false }: { disabled?: boo
       <Pressable
         accessibilityLabel={`Preset, ${currentName}`}
         accessibilityRole="button"
+        className="min-h-[52px] flex-row items-center px-4"
         disabled={disabled}
-        style={({ pressed }) => ({
-          alignItems: 'center',
-          flexDirection: 'row',
-          minHeight: 52,
-          opacity: disabled ? 0.45 : pressed ? 0.7 : 1,
-          paddingHorizontal: 16,
-        })}
+        style={({ pressed }) => ({ opacity: disabled ? 0.45 : pressed ? 0.7 : 1 })}
       >
-        <View style={{ flex: 1, gap: 2, paddingVertical: 10 }}>
-          <RelistenText selectable={false} style={{ fontWeight: '600' }}>
+        <View className="flex-1 gap-0.5 py-2.5">
+          <RelistenText className="font-semibold" selectable={false}>
             Preset
           </RelistenText>
           {currentPreset?.subtitle && (
@@ -102,22 +97,11 @@ export function AudioAdjustmentPresetMenu({ disabled = false }: { disabled?: boo
             </RelistenText>
           )}
         </View>
-        <View
-          style={{
-            alignItems: 'center',
-            alignSelf: 'stretch',
-            flexDirection: 'row',
-            gap: 6,
-            justifyContent: 'flex-end',
-            maxWidth: '50%',
-            paddingLeft: 12,
-          }}
-        >
+        <View className="max-w-[50%] flex-row items-center self-stretch justify-end gap-1.5 pl-3">
           <RelistenText
-            className="text-right text-gray-400"
+            className="shrink text-right text-gray-400"
             numberOfLines={2}
             selectable={false}
-            style={{ flexShrink: 1 }}
           >
             {currentName}
           </RelistenText>
