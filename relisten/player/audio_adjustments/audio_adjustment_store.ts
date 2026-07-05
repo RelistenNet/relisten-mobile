@@ -70,6 +70,7 @@ export class AudioAdjustmentStore {
       {
         ...current,
         bandGainsDb: [...preset.bandGainsDb],
+        enabled: true,
         extraVolumeReductionDb: preset.extraVolumeReductionDb,
       },
       preset.id
