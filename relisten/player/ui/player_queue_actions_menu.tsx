@@ -39,11 +39,16 @@ const ACTIONS: MenuAction[] = [
 ];
 
 type PlayerQueueActionsMenuProps = {
+  iconAlignment?: 'center' | 'trailing';
   index: number;
   queueTrack: PlayerQueueTrack;
 };
 
-export function PlayerQueueActionsMenu({ index, queueTrack }: PlayerQueueActionsMenuProps) {
+export function PlayerQueueActionsMenu({
+  iconAlignment,
+  index,
+  queueTrack,
+}: PlayerQueueActionsMenuProps) {
   const player = useRelistenPlayer();
 
   const handleAction = useCallback(
@@ -73,7 +78,10 @@ export function PlayerQueueActionsMenu({ index, queueTrack }: PlayerQueueActions
       actions={ACTIONS}
       onPressAction={({ nativeEvent }) => handleAction(nativeEvent.event as PlayerQueueActionId)}
     >
-      <OverflowMenuTrigger accessibilityLabel={`Actions for ${queueTrack.sourceTrack.title}`} />
+      <OverflowMenuTrigger
+        accessibilityLabel={`Actions for ${queueTrack.sourceTrack.title}`}
+        iconAlignment={iconAlignment}
+      />
     </NativeMenuView>
   );
 }
