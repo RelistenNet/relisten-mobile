@@ -46,6 +46,7 @@ import Animated, {
 
 const EXPANSION_ACTIVATION_DISTANCE = 2;
 const EXPANSION_PROJECTION_SECONDS = 0.18;
+const TAP_EQUIVALENT_DISTANCE = 8;
 
 function OfflineBanner() {
   return (
@@ -160,6 +161,11 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
       );
     })
     .onEnd((event) => {
+      if (Math.abs(event.translationY) <= TAP_EQUIVALENT_DISTANCE) {
+        runOnJS(openPlayer)();
+        return;
+      }
+
       const projectedProgress =
         playerPresentationProgress.value -
         (event.velocityY * EXPANSION_PROJECTION_SECONDS) / gestureDistance;
