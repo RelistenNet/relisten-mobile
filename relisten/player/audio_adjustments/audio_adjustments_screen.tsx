@@ -6,6 +6,12 @@ import { AudioAdjustmentPresetMenu } from '@/relisten/player/audio_adjustments/a
 import { AudioAdjustmentSlider } from '@/relisten/player/audio_adjustments/audio_adjustment_slider';
 import { EqualizerResponseCurve } from '@/relisten/player/audio_adjustments/equalizer_response_curve';
 import {
+  PLAYER_PANEL_BACKGROUND,
+  PLAYER_PANEL_BORDER_COLOR,
+  PLAYER_PANEL_CONTROL_BORDER_COLOR,
+  PLAYER_PANEL_DIVIDER_COLOR,
+} from '@/relisten/player/ui/player_panel_theme';
+import {
   AUDIO_ADJUSTMENT_VOLUME_REDUCTION_MAX_DB,
   AUDIO_ADJUSTMENT_VOLUME_REDUCTION_MIN_DB,
 } from '@/relisten/player/audio_adjustments/audio_adjustment_types';
@@ -40,9 +46,11 @@ export function AudioAdjustmentsScreen() {
           <View
             accessibilityRole="alert"
             style={{
-              backgroundColor: RelistenBlue[800],
+              backgroundColor: PLAYER_PANEL_BACKGROUND,
+              borderColor: PLAYER_PANEL_BORDER_COLOR,
               borderCurve: 'continuous',
               borderRadius: 14,
+              borderWidth: 1,
               gap: 4,
               padding: 14,
             }}
@@ -89,7 +97,7 @@ export function AudioAdjustmentsScreen() {
 
         <AudioAdjustmentSection title="Equalizer">
           <AudioAdjustmentPresetMenu disabled={isCasting} />
-          <View style={{ backgroundColor: RelistenBlue[800], height: 1 }} />
+          <View style={{ backgroundColor: PLAYER_PANEL_DIVIDER_COLOR, height: 1 }} />
           <View style={{ gap: 8, opacity: isCasting ? 0.45 : 1, padding: 14 }}>
             <EqualizerResponseCurve gains={configuration.bandGainsDb} />
             <Pressable
@@ -98,7 +106,7 @@ export function AudioAdjustmentsScreen() {
               onPress={() => router.push('/relisten/audio-adjustments/equalizer')}
               style={({ pressed }) => ({
                 alignItems: 'center',
-                borderColor: RelistenBlue[700],
+                borderColor: PLAYER_PANEL_CONTROL_BORDER_COLOR,
                 borderCurve: 'continuous',
                 borderRadius: 12,
                 borderWidth: 1,
@@ -127,6 +135,7 @@ export function AudioAdjustmentsScreen() {
               </RelistenText>
             </View>
             <AudioAdjustmentSlider
+              activeTrackDirection="maximum"
               accessibilityLabel="Extra Volume Reduction"
               accessibilityText={reductionLabel(configuration.extraVolumeReductionDb)}
               disabled={isCasting}
@@ -158,7 +167,7 @@ export function AudioAdjustmentsScreen() {
           }
           style={({ pressed }) => ({
             alignItems: 'center',
-            borderColor: RelistenBlue[700],
+            borderColor: PLAYER_PANEL_CONTROL_BORDER_COLOR,
             borderCurve: 'continuous',
             borderRadius: 12,
             borderWidth: 1,
