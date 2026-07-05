@@ -2,6 +2,7 @@ import { PlayerHeaderToolbar } from '@/relisten/player/ui/player_actions_menu';
 import { PlayerBackground } from '@/relisten/player/ui/player_background';
 import { PlayerHistoryView } from '@/relisten/player/ui/player_history_view';
 import { PlayerOverlayHeader } from '@/relisten/player/ui/player_overlay_header';
+import { PLAYER_PANEL_ROW_BACKGROUND } from '@/relisten/player/ui/player_panel_theme';
 import { usePlayerPresentation } from '@/relisten/player/ui/player_presentation';
 import { PlayerQueueSheet } from '@/relisten/player/ui/player_queue_sheet';
 import { RelistenBlue } from '@/relisten/relisten_blue';
@@ -9,7 +10,14 @@ import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_h
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { Stack, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { BackHandler, InteractionManager, Platform, StyleSheet, View } from 'react-native';
+import {
+  BackHandler,
+  InteractionManager,
+  Platform,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -37,6 +45,7 @@ export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) 
   const closePlayer = onClose ?? (() => navigation.goBack());
   const { closePlayer: closePresentedPlayer } = usePlayerPresentation();
   const { pushShow } = usePushShowRespectingUserSettings();
+  const { width } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
   const historyProgress = useSharedValue(0);
   const [historyMounted, setHistoryMounted] = useState(false);
@@ -47,7 +56,7 @@ export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) 
     setHistoryMounted(true);
     setView('history');
     historyProgress.value = withTiming(1, {
-      duration: reduceMotion ? 100 : 220,
+      duration: reduceMotion ? 100 : 260,
       easing: Easing.out(Easing.cubic),
     });
   }, [historyProgress, reduceMotion]);
@@ -56,7 +65,7 @@ export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) 
     setView('timeline');
     historyProgress.value = withTiming(
       0,
-      { duration: reduceMotion ? 100 : 220, easing: Easing.out(Easing.cubic) },
+      { duration: reduceMotion ? 100 : 260, easing: Easing.out(Easing.cubic) },
       (finished) => {
         if (finished) runOnJS(setHistoryMounted)(false);
       }
@@ -64,12 +73,12 @@ export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) 
   }, [historyProgress, reduceMotion]);
 
   const timelineStyle = useAnimatedStyle(() => ({
-    opacity: 1 - historyProgress.value,
-    transform: [{ translateX: reduceMotion ? 0 : historyProgress.value * -14 }],
+    opacity: reduceMotion ? 1 - historyProgress.value : 1 - historyProgress.value * 0.16,
+    transform: [{ translateX: reduceMotion ? 0 : historyProgress.value * width * -0.18 }],
   }));
   const historyStyle = useAnimatedStyle(() => ({
-    opacity: historyProgress.value,
-    transform: [{ translateX: reduceMotion ? 0 : (1 - historyProgress.value) * 14 }],
+    opacity: reduceMotion ? historyProgress.value : 1,
+    transform: [{ translateX: reduceMotion ? 0 : (1 - historyProgress.value) * width }],
   }));
 
   useEffect(() => {
@@ -166,7 +175,14 @@ export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) 
             {historyMounted && (
               <Animated.View
                 pointerEvents={view === 'history' ? 'auto' : 'none'}
-                style={[StyleSheet.absoluteFill, historyStyle]}
+                style={[
+                  StyleSheet.absoluteFill,
+                  {
+                    backgroundColor: PLAYER_PANEL_ROW_BACKGROUND,
+                    boxShadow: '-10px 0 26px rgba(0, 0, 0, 0.28)',
+                  },
+                  historyStyle,
+                ]}
               >
                 <PlayerHistoryView onViewShow={viewHistoryShow} />
               </Animated.View>
