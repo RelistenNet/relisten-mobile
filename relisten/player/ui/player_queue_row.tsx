@@ -40,9 +40,7 @@ function QueueDragHandle({
         drag();
       }}
     >
-      <View className="-translate-x-2.5">
-        <MaterialIcons color="rgba(255, 255, 255, 0.62)" name="drag-handle" size={24} />
-      </View>
+      <MaterialIcons color="rgba(255, 255, 255, 0.62)" name="drag-handle" size={24} />
     </TouchableOpacity>
   );
 }
@@ -126,7 +124,11 @@ export function UpNextQueueItem({
     <QueueTrackRow
       action={
         <>
-          <PlayerQueueActionsMenu index={entry.queueIndex} queueTrack={entry.queueTrack} />
+          <PlayerQueueActionsMenu
+            iconAlignment="trailing"
+            index={entry.queueIndex}
+            queueTrack={entry.queueTrack}
+          />
           <QueueDragHandle
             drag={drag}
             onDragStart={onReorderStart}
