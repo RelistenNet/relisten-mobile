@@ -24,28 +24,20 @@ export function HistoryEntryContent({
   const metadata = playerTrackMetadata(sourceTrack);
 
   return (
-    <View style={{ alignItems: 'center', flexDirection: 'row', minWidth: 0 }}>
+    <View className="min-w-0 flex-row items-center">
       {leading}
-      <View style={{ flex: 1, minWidth: 0, paddingVertical: 8 }}>
-        <View style={{ alignItems: 'flex-start', flexDirection: 'row', minWidth: 0 }}>
-          <RelistenText
-            className="shrink text-base font-semibold"
-            selectable={false}
-            style={{ flex: 1, flexShrink: 1 }}
-          >
+      <View className="min-w-0 flex-1 py-2">
+        <View className="min-w-0 flex-row items-start">
+          <RelistenText className="flex-1 shrink text-base font-semibold" selectable={false}>
             {playerDisplayTitle(sourceTrack.title)}
           </RelistenText>
           <SourceTrackOfflineIndicator offlineInfo={sourceTrack.offlineInfo} />
         </View>
-        <RelistenText
-          className="text-sm text-gray-300/70"
-          selectable={false}
-          style={{ marginTop: 3 }}
-        >
+        <RelistenText className="mt-[3px] text-sm text-gray-300/70" selectable={false}>
           {metadata}
         </RelistenText>
       </View>
-      {trailing ? <View style={{ marginLeft: 8 }}>{trailing}</View> : null}
+      {trailing ? <View className="ml-2">{trailing}</View> : null}
       {action}
     </View>
   );

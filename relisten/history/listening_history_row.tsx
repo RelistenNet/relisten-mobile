@@ -26,20 +26,14 @@ export function ListeningHistoryRow({ entry, onViewShow }: ListeningHistoryRowPr
     .join(', ');
 
   return (
-    <View
-      style={{
-        alignItems: 'center',
-        flexDirection: 'row',
-        paddingLeft: 20,
-        paddingRight: 4,
-      }}
-    >
+    <View className="flex-row items-center pl-5 pr-1">
       <Pressable
         accessibilityHint="Opens the show containing this track."
         accessibilityLabel={accessibilityLabel}
         accessibilityRole="button"
+        className="min-w-0 flex-1"
         onPress={viewShow}
-        style={({ pressed }) => ({ flex: 1, minWidth: 0, opacity: pressed ? 0.65 : 1 })}
+        style={({ pressed }) => ({ opacity: pressed ? 0.65 : 1 })}
       >
         <HistoryEntryContent
           sourceTrack={sourceTrack}

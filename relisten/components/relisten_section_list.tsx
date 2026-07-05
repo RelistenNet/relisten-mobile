@@ -40,7 +40,9 @@ export type RelistenSectionListProps<T> = Omit<
   data: RelistenSectionData<T>;
   renderItem: ListRenderItem<T>;
   renderSectionHeader?: (item: RelistenSectionHeader) => ReactElement;
+  adjustsForPlayerBottomBar?: boolean;
   pullToRefresh?: boolean;
+  stickySectionHeadersEnabled?: boolean;
 };
 
 export const FAKE_SENTINEL = '__FAKE__';
@@ -52,9 +54,11 @@ const ReanimatedFlashList = Animated.createAnimatedComponent(FlashList) as typeo
 export const RelistenSectionList = <T extends RelistenObject>({
   data,
   renderItem,
+  adjustsForPlayerBottomBar = true,
   pullToRefresh = false,
   renderSectionHeader,
   ListHeaderComponent,
+  stickySectionHeadersEnabled = false,
   ...props
 }: RelistenSectionListProps<T>) => {
   const { onRefresh, refreshing, errors } = useRefreshContext(/* refreshRequired= */ false);
@@ -63,6 +67,10 @@ export const RelistenSectionList = <T extends RelistenObject>({
     contentContainerStyle: props.contentContainerStyle,
     scrollIndicatorInsets: props.scrollIndicatorInsets,
   });
+  const hasRenderableError = Boolean(
+    errors && errors.length && !(data.length > 1 && data[1].data.length > 0)
+  );
+  const shouldPullToRefresh = pullToRefresh || hasRenderableError;
   // you might ask why we need this
   // and you'd be correct
   // ..
@@ -77,12 +85,9 @@ export const RelistenSectionList = <T extends RelistenObject>({
     if (refreshing) {
       internalData.push({ sectionTitle: FAKE_SENTINEL });
       internalData.push({ sectionTitle: LOADING_SENTINEL });
-    } else if (errors && errors.length && !(data && data.length > 1 && data[1].data.length > 0)) {
+    } else if (hasRenderableError) {
       internalData.push({ sectionTitle: FAKE_SENTINEL });
       internalData.push({ sectionTitle: ERROR_SENTINEL });
-
-      // always allow pull to refresh if we got an error. refreshing might fix it.
-      pullToRefresh = true;
     } else {
       for (const section of data) {
         if (section.sectionTitle) {
@@ -100,19 +105,26 @@ export const RelistenSectionList = <T extends RelistenObject>({
       }
     }
     return internalData;
-  }, [ListHeaderComponent, data, errors, refreshing]);
+  }, [ListHeaderComponent, data, hasRenderableError, refreshing]);
 
-  // TODO: fix in core - or migrate back to SectionList
-  // reference: https://discord.com/channels/395033814008594436/466023446590259220/1186791164423176275
-  // const stickyHeaderIndices = useMemo(
-  //   () =>
-  //     internalData
-  //       .map((item, index) => {
-  //         if ('sectionTitle' in item) return index;
-  //       })
-  //       .filter((x) => typeof x !== 'undefined') as number[],
-  //   [internalData]
-  // );
+  const stickyHeaderIndices = useMemo(
+    () =>
+      stickySectionHeadersEnabled
+        ? internalData.flatMap((item, index) => {
+            if (!('sectionTitle' in item)) return [];
+            if (
+              item.sectionTitle === 'ListHeaderComponent' ||
+              item.sectionTitle === FAKE_SENTINEL ||
+              item.sectionTitle === LOADING_SENTINEL ||
+              item.sectionTitle === ERROR_SENTINEL
+            ) {
+              return [];
+            }
+            return [index];
+          })
+        : undefined,
+    [internalData, stickySectionHeadersEnabled]
+  );
 
   return (
     <ReanimatedFlashList
@@ -127,7 +139,7 @@ export const RelistenSectionList = <T extends RelistenObject>({
       // stickyHeaderIndices={stickyHeaderIndices}
       keyExtractor={(item, index) => {
         if ('sectionTitle' in item) {
-          return [item.sectionKey ?? item.sectionTitle, index].join(':');
+          return item.sectionKey ?? [item.sectionTitle, index].join(':');
         } else if ('uuid' in item.rawItem) {
           // keyPrefix is for situations where multiple sections contain the same object,
           // such as an artist appearing in both Favorites and Featured.
@@ -180,13 +192,26 @@ export const RelistenSectionList = <T extends RelistenObject>({
       }}
       refreshing={refreshing}
       refreshControl={
-        pullToRefresh ? (
+        shouldPullToRefresh ? (
           <RefreshControl refreshing={refreshing} onRefresh={() => onRefresh(true)} />
         ) : undefined
       }
-      contentInsetAdjustmentBehavior={playerBottomScrollViewProps.contentInsetAdjustmentBehavior}
-      contentContainerStyle={playerBottomScrollViewProps.contentContainerStyle}
-      scrollIndicatorInsets={playerBottomScrollViewProps.scrollIndicatorInsets}
+      contentInsetAdjustmentBehavior={
+        adjustsForPlayerBottomBar
+          ? playerBottomScrollViewProps.contentInsetAdjustmentBehavior
+          : props.contentInsetAdjustmentBehavior
+      }
+      contentContainerStyle={
+        adjustsForPlayerBottomBar
+          ? playerBottomScrollViewProps.contentContainerStyle
+          : props.contentContainerStyle
+      }
+      scrollIndicatorInsets={
+        adjustsForPlayerBottomBar
+          ? playerBottomScrollViewProps.scrollIndicatorInsets
+          : props.scrollIndicatorInsets
+      }
+      stickyHeaderIndices={stickyHeaderIndices}
     />
   );
 };
