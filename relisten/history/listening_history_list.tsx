@@ -18,7 +18,12 @@ type ListeningHistoryListProps = Omit<
   onViewShow: (entry: PlaybackHistoryEntry) => void;
 };
 
-export function ListeningHistoryList({ history, onViewShow, ...props }: ListeningHistoryListProps) {
+export function ListeningHistoryList({
+  history,
+  onViewShow,
+  stickySectionHeadersEnabled = true,
+  ...props
+}: ListeningHistoryListProps) {
   const sections = useMemo<RelistenSectionData<PlaybackHistoryEntry>>(() => {
     const byDate = new Map<string, PlaybackHistoryEntry[]>();
 
@@ -59,6 +64,7 @@ export function ListeningHistoryList({ history, onViewShow, ...props }: Listenin
       onEndReached={history.hasMore ? history.loadMore : undefined}
       onEndReachedThreshold={0.4}
       renderItem={renderItem}
+      stickySectionHeadersEnabled={stickySectionHeadersEnabled}
     />
   );
 }

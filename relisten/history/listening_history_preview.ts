@@ -6,16 +6,11 @@ export function listeningHistoryPreview(
   activeSourceTrackUuids: ReadonlySet<string>,
   limit: number
 ) {
-  const preview: PlaybackHistoryEntry[] = [];
+  const excludedUuids = [...activeSourceTrackUuids];
+  const candidates =
+    excludedUuids.length > 0
+      ? sortedHistory.filtered('NOT (sourceTrack.uuid IN $0)', excludedUuids)
+      : sortedHistory;
 
-  for (const entry of sortedHistory) {
-    if (!activeSourceTrackUuids.has(entry.sourceTrack.uuid)) {
-      preview.push(entry);
-    }
-    if (preview.length >= limit) {
-      break;
-    }
-  }
-
-  return preview;
+  return Array.from(candidates.slice(0, limit));
 }
