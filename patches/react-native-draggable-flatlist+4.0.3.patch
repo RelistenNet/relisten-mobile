@@ -1,0 +1,19 @@
+diff --git a/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx b/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
+index 7c88afc..bd71dab 100644
+--- a/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
++++ b/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
+@@ -336,14 +336,9 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+-  const onScroll = useStableCallback((scrollOffset: number) => {
+-    props.onScrollOffsetChange?.(scrollOffset);
+-  });
+-
+   const scrollHandler = useAnimatedScrollHandler(
+     {
+       onScroll: (evt) => {
+         scrollOffset.value = horizontalAnim.value
+           ? evt.contentOffset.x
+           : evt.contentOffset.y;
+-        runOnJS(onScroll)(scrollOffset.value);
+       },
+     },
+     [horizontalAnim]

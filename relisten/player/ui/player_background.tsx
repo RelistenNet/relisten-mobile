@@ -3,10 +3,7 @@ import Svg, { Defs, LinearGradient, RadialGradient, Rect, Stop } from 'react-nat
 
 export function PlayerBackground() {
   return (
-    <View
-      pointerEvents="none"
-      style={{ bottom: 0, left: 0, position: 'absolute', right: 0, top: 0, zIndex: 0 }}
-    >
+    <View className="absolute inset-0 z-0" pointerEvents="none">
       <Svg height="100%" width="100%">
         <Defs>
           <LinearGradient id="base" x1="0" x2="0" y1="0" y2="1">
