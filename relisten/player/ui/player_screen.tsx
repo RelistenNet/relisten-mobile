@@ -8,7 +8,7 @@ import { PlayerQueueSheet } from '@/relisten/player/ui/player_queue_sheet';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
-import { Stack, useNavigation } from 'expo-router';
+import { Stack, useNavigation, usePathname } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   BackHandler,
@@ -43,7 +43,8 @@ export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) 
   const isOverlay = variant === 'overlay';
   const usesTransparentHeader = variant === 'modal' && Platform.OS === 'ios';
   const closePlayer = onClose ?? (() => navigation.goBack());
-  const { closePlayer: closePresentedPlayer } = usePlayerPresentation();
+  const { closePlayer: closePresentedPlayer, isPresentationActive } = usePlayerPresentation();
+  const pathname = usePathname();
   const { pushShow } = usePushShowRespectingUserSettings();
   const { width } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
@@ -51,6 +52,10 @@ export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) 
   const [historyMounted, setHistoryMounted] = useState(false);
   const [queueHeaderActive, setQueueHeaderActive] = useState(false);
   const [view, setView] = useState<'timeline' | 'history'>('timeline');
+  const visualizerActive =
+    view === 'timeline' &&
+    (!isOverlay || isPresentationActive) &&
+    !pathname.startsWith('/relisten/audio-adjustments');
 
   const openHistory = useCallback(() => {
     setHistoryMounted(true);
@@ -170,6 +175,7 @@ export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) 
                 onQueueHeaderActiveChange={setQueueHeaderActive}
                 onViewHistoryShow={viewHistoryShow}
                 usesTransparentHeader={usesTransparentHeader}
+                visualizerActive={visualizerActive}
               />
             </Animated.View>
             {historyMounted && (

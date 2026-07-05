@@ -1,4 +1,5 @@
 import { RelistenBlue } from '@/relisten/relisten_blue';
+import { type FunctionComponent } from 'react';
 import { View } from 'react-native';
 import Svg, { Line } from 'react-native-svg';
 
@@ -10,7 +11,7 @@ const WAVEFORM_BARS = Array.from({ length: WAVEFORM_BAR_COUNT }, (_, index) => {
   return 7 + Math.round(envelope * detail * 48);
 });
 
-export function PlayerAudioVisualizer() {
+export const PlayerAudioVisualizer: FunctionComponent<{ active?: boolean }> = () => {
   return (
     <View
       accessible={false}
@@ -54,4 +55,4 @@ export function PlayerAudioVisualizer() {
       </Svg>
     </View>
   );
-}
+};
