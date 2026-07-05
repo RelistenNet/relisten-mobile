@@ -20,7 +20,6 @@ import { UpNextHeader } from '@/relisten/player/ui/up_next_header';
 import { playerPresentationProgress } from '@/relisten/player/ui/player_presentation';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { useQuery } from '@/relisten/realm/schema';
-import { accessibleControlScale } from '@/relisten/util/accessible_control_scale';
 import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -66,6 +65,7 @@ type PlayerQueueSheetProps = {
   onQueueHeaderActiveChange: (active: boolean) => void;
   onViewHistoryShow: (entry: PlaybackHistoryEntry) => void;
   usesTransparentHeader: boolean;
+  visualizerActive: boolean;
 };
 
 function timelineItemKey(item: TimelineItem) {
@@ -91,12 +91,12 @@ export function PlayerQueueSheet({
   onQueueHeaderActiveChange,
   onViewHistoryShow,
   usesTransparentHeader,
+  visualizerActive,
 }: PlayerQueueSheetProps) {
   'use no memo';
 
   const player = useRelistenPlayer();
-  const { fontScale, height } = useWindowDimensions();
-  const controlScale = accessibleControlScale(fontScale);
+  const { height } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
   const orderedQueueTracks = useRelistenPlayerQueueOrderedTracks();
   const currentTrack = useRelistenPlayerCurrentTrack();
@@ -204,40 +204,6 @@ export function PlayerQueueSheet({
     [timelineItems]
   );
 
-  const itemLayouts = useMemo(() => {
-    let offset = 0;
-    return timelineItems.map((item, index) => {
-      let length: number;
-      switch (item.kind) {
-        case 'view-all-history':
-        case 'boundary':
-          length = 44 * controlScale;
-          break;
-        case 'history':
-          length = 66 * controlScale;
-          break;
-        case 'earlier-queue':
-          length = 51 * controlScale;
-          break;
-        case 'up-next':
-          length = 66 * controlScale;
-          break;
-        case 'now-playing':
-          length = height * 0.64;
-          break;
-        case 'up-next-header':
-          length = 56 * controlScale;
-          break;
-        case 'empty-up-next':
-          length = 80 * controlScale;
-          break;
-      }
-      const layout = { index, length, offset };
-      offset += length;
-      return layout;
-    });
-  }, [controlScale, height, timelineItems]);
-
   const applyScrollOffset = useCallback(
     (offset: number) => {
       listRef.current?.scrollToOffset({ animated: false, offset });
@@ -310,6 +276,16 @@ export function PlayerQueueSheet({
   useEffect(() => {
     if (hasAnchored.current && !isDragging) reconcilePivot(false);
   }, [currentTrack?.identifier, isDragging, prePivotSignature, reconcilePivot]);
+
+  const handleInitialScrollFailure = useCallback(() => {
+    requestAnimationFrame(() => reconcilePivot(true));
+  }, [reconcilePivot]);
+
+  const handleContentSizeChange = useCallback(() => {
+    if (hasAnchored.current) {
+      requestAnimationFrame(() => reconcilePivot(false));
+    }
+  }, [reconcilePivot]);
 
   useAnimatedReaction(
     () => isPresentedOverlay && playerPresentationProgress.value >= 0.999,
@@ -414,15 +390,20 @@ export function PlayerQueueSheet({
           return <EarlierQueueItem entry={item.entry} />;
         case 'now-playing':
           return (
-            <Animated.View
+            <View
+              collapsable={false}
               ref={nowPlayingRef}
               onLayout={() => {
-                if (!hasAnchored.current) reconcilePivot(true);
+                reconcilePivot(!hasAnchored.current);
               }}
-              style={nowPlayingStyle}
             >
-              <PlayerNowPlaying headingRef={nowPlayingHeadingRef} />
-            </Animated.View>
+              <Animated.View style={nowPlayingStyle}>
+                <PlayerNowPlaying
+                  headingRef={nowPlayingHeadingRef}
+                  visualizerActive={visualizerActive && !isPivotOffscreen}
+                />
+              </Animated.View>
+            </View>
           );
         case 'up-next-header':
           return <UpNextHeader count={item.count} />;
@@ -440,7 +421,14 @@ export function PlayerQueueSheet({
           );
       }
     },
-    [nowPlayingStyle, onOpenHistory, onViewHistoryShow, reconcilePivot]
+    [
+      isPivotOffscreen,
+      nowPlayingStyle,
+      onOpenHistory,
+      onViewHistoryShow,
+      reconcilePivot,
+      visualizerActive,
+    ]
   );
 
   if (!currentTrack) return <View style={{ flex: 1 }} />;
@@ -452,7 +440,6 @@ export function PlayerQueueSheet({
         alwaysBounceVertical
         contentInsetAdjustmentBehavior={usesTransparentHeader ? 'automatic' : 'never'}
         data={timelineItems}
-        getItemLayout={(_data, index) => itemLayouts[index]}
         initialNumToRender={12}
         initialScrollIndex={pivotIndex}
         keyExtractor={timelineItemKey}
@@ -474,6 +461,8 @@ export function PlayerQueueSheet({
         onDragEnd={handleDragEnd}
         onDragStart={triggerHaptics}
         onIndexChange={triggerHaptics}
+        onContentSizeChange={handleContentSizeChange}
+        onScrollToIndexFailed={handleInitialScrollFailure}
         onReorder={onReorder}
         onScroll={handleScroll}
         onScrollBeginDrag={() => {

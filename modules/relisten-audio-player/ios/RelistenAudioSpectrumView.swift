@@ -8,6 +8,7 @@ final class RelistenAudioSpectrumView: ExpoView {
     private let centerLineLayer = CAShapeLayer()
     private let snapshotStore = SpectrumSnapshotStore.shared
     private var displayLink: CADisplayLink?
+    private var isApplicationActive = UIApplication.shared.applicationState == .active
     private var isConsuming = false
     private var lastFrameTimestamp: CFTimeInterval?
     private var smoother = SpectrumSmoother()
@@ -41,12 +42,21 @@ final class RelistenAudioSpectrumView: ExpoView {
         barLayer.fillColor = nil
         barLayer.lineCap = .round
         barLayer.opacity = 0.82
+        barLayer.actions = [
+            "lineWidth": NSNull(),
+            "path": NSNull(),
+            "strokeColor": NSNull(),
+        ]
         layer.addSublayer(barLayer)
 
         centerLineLayer.fillColor = nil
         centerLineLayer.lineDashPattern = [1, 3]
         centerLineLayer.lineWidth = 0.75
         centerLineLayer.opacity = 0.3
+        centerLineLayer.actions = [
+            "path": NSNull(),
+            "strokeColor": NSNull(),
+        ]
         layer.addSublayer(centerLineLayer)
 
         updateLayerColors()
@@ -54,6 +64,18 @@ final class RelistenAudioSpectrumView: ExpoView {
             self,
             selector: #selector(reduceMotionStatusDidChange),
             name: UIAccessibility.reduceMotionStatusDidChangeNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(applicationDidBecomeActive),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(applicationWillResignActive),
+            name: UIApplication.willResignActiveNotification,
             object: nil
         )
     }
@@ -88,8 +110,25 @@ final class RelistenAudioSpectrumView: ExpoView {
         updateConsumption()
         if UIAccessibility.isReduceMotionEnabled {
             resetSpectrum()
+            stopDisplayLink()
+        } else {
+            startDisplayLink()
         }
+    }
+
+    @objc
+    private func applicationDidBecomeActive() {
+        isApplicationActive = true
+        updateConsumption()
         startDisplayLink()
+    }
+
+    @objc
+    private func applicationWillResignActive() {
+        isApplicationActive = false
+        updateConsumption()
+        resetSpectrum()
+        stopDisplayLink()
     }
 
     @objc
@@ -120,7 +159,10 @@ final class RelistenAudioSpectrumView: ExpoView {
     }
 
     private func updateConsumption() {
-        let shouldConsume = window != nil && isActive && !UIAccessibility.isReduceMotionEnabled
+        let shouldConsume = window != nil
+            && isActive
+            && isApplicationActive
+            && !UIAccessibility.isReduceMotionEnabled
 
         if shouldConsume && !isConsuming {
             snapshotStore.beginConsuming()
@@ -137,7 +179,9 @@ final class RelistenAudioSpectrumView: ExpoView {
     }
 
     private func startDisplayLink() {
-        guard window != nil else { return }
+        guard window != nil, isApplicationActive, !UIAccessibility.isReduceMotionEnabled else {
+            return
+        }
 
         if displayLink == nil {
             let displayLink = CADisplayLink(target: self, selector: #selector(renderFrame(_:)))

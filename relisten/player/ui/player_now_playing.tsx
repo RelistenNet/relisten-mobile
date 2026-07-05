@@ -34,7 +34,7 @@ import { Platform, Share, TouchableOpacity, useWindowDimensions, View } from 're
 import AirPlayButton from 'react-native-airplay-button';
 import * as Progress from 'react-native-progress';
 
-function ShowIdentity() {
+function ShowIdentity({ visualizerActive }: { visualizerActive: boolean }) {
   const currentTrack = useRelistenPlayerCurrentTrack()?.sourceTrack;
   const { width } = useWindowDimensions();
 
@@ -143,16 +143,22 @@ function ShowIdentity() {
           </View>
         )}
         <View className="w-full px-3" style={{ marginBottom: 8, marginTop: 18 }}>
-          <PlayerAudioVisualizer />
+          <PlayerAudioVisualizer active={visualizerActive} />
         </View>
       </View>
     </View>
   );
 }
 
-function CurrentTrackInfo({ headingRef }: { headingRef?: Ref<View> }) {
+function CurrentTrackInfo({
+  castStatus,
+  headingRef,
+}: {
+  castStatus: ReturnType<typeof useRelistenCastStatus>;
+  headingRef?: Ref<View>;
+}) {
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
-  const { isCasting, deviceName } = useRelistenCastStatus();
+  const { isCasting, deviceName } = castStatus;
   const { fontScale } = useWindowDimensions();
   const controlScale = accessibleControlScale(fontScale);
   const isAccessibilityLayout = fontScale >= 1.4;
@@ -464,8 +470,14 @@ function PlayerSecondaryControls() {
   );
 }
 
-export function PlayerNowPlaying({ headingRef }: { headingRef?: Ref<View> }) {
+type PlayerNowPlayingProps = {
+  headingRef?: Ref<View>;
+  visualizerActive?: boolean;
+};
+
+export function PlayerNowPlaying({ headingRef, visualizerActive = true }: PlayerNowPlayingProps) {
   const currentTrack = useRelistenPlayerCurrentTrack();
+  const castStatus = useRelistenCastStatus();
   const { fontScale } = useWindowDimensions();
   const showDecorativeIdentity = fontScale < 1.4;
 
@@ -481,9 +493,11 @@ export function PlayerNowPlaying({ headingRef }: { headingRef?: Ref<View> }) {
 
   return (
     <View style={{ paddingBottom: 24, paddingTop: showDecorativeIdentity ? 4 : 24 }}>
-      {showDecorativeIdentity && <ShowIdentity />}
+      {showDecorativeIdentity && (
+        <ShowIdentity visualizerActive={visualizerActive && !castStatus.isCasting} />
+      )}
       <View style={{ marginTop: showDecorativeIdentity ? 14 : 0 }}>
-        <CurrentTrackInfo headingRef={headingRef} />
+        <CurrentTrackInfo castStatus={castStatus} headingRef={headingRef} />
       </View>
       <View className="px-6" style={{ marginTop: 18 }}>
         <ScrubberRow subduedCache />
