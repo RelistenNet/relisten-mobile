@@ -229,9 +229,7 @@ final class SpectrumBandAnalyzer {
         }
     }
 
-    static var flatBands: [Float] {
-        [Float](repeating: 0, count: bandCount)
-    }
+    static let flatBands = [Float](repeating: 0, count: bandCount)
 }
 
 struct SpectrumSmoother {

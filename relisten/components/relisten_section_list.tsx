@@ -11,11 +11,15 @@ import { RelistenErrors } from '@/relisten/components/relisten_errors';
 import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
 
 export interface RelistenSection<T> {
-  sectionTitle?: string;
   data: ReadonlyArray<T>;
+  headerComponent?: ReactElement;
+  metadata?: number;
+  sectionKey?: string;
+  sectionTitle?: string;
 }
 
 export type RelistenSectionHeader = {
+  sectionKey?: string;
   sectionTitle: string;
   metadata?: number;
   headerComponent?: ReactElement;
@@ -61,7 +65,7 @@ export const RelistenSectionList = <T extends RelistenObject>({
   // ..
   // it's to fix a flashlist bug: https://github.com/Shopify/flash-list/issues/727
   const internalData = useMemo<FlashListRelistenData<T>>(() => {
-    const internalData = [];
+    const internalData: Array<FlashListRelistenRawItem<T> | RelistenSectionHeader> = [];
 
     if (ListHeaderComponent) {
       internalData.push({ sectionTitle: 'ListHeaderComponent' });
@@ -77,29 +81,23 @@ export const RelistenSectionList = <T extends RelistenObject>({
       // always allow pull to refresh if we got an error. refreshing might fix it.
       pullToRefresh = true;
     } else {
-      internalData.push(
-        ...data.flatMap((section) => {
-          if (section.sectionTitle) {
-            return [
-              { sectionTitle: section.sectionTitle, ...section },
-              ...section.data.map((rawItem) => ({
-                rawItem,
-                keyPrefix: section.sectionTitle,
-              })),
-            ];
-          } else {
-            return [
-              ...section.data.map((rawItem) => ({
-                rawItem,
-                keyPrefix: undefined,
-              })),
-            ];
-          }
-        })
-      );
+      for (const section of data) {
+        if (section.sectionTitle) {
+          const sectionKey = section.sectionKey ?? section.sectionTitle;
+          internalData.push({
+            headerComponent: section.headerComponent,
+            metadata: section.metadata,
+            sectionKey,
+            sectionTitle: section.sectionTitle,
+          });
+          internalData.push(...section.data.map((rawItem) => ({ rawItem, keyPrefix: sectionKey })));
+        } else {
+          internalData.push(...section.data.map((rawItem) => ({ rawItem })));
+        }
+      }
     }
     return internalData;
-  }, [data, refreshing, errors]);
+  }, [ListHeaderComponent, data, errors, refreshing]);
 
   // TODO: fix in core - or migrate back to SectionList
   // reference: https://discord.com/channels/395033814008594436/466023446590259220/1186791164423176275
@@ -126,7 +124,7 @@ export const RelistenSectionList = <T extends RelistenObject>({
       // stickyHeaderIndices={stickyHeaderIndices}
       keyExtractor={(item, index) => {
         if ('sectionTitle' in item) {
-          return [item.sectionTitle, index].join(':');
+          return [item.sectionKey ?? item.sectionTitle, index].join(':');
         } else if ('uuid' in item.rawItem) {
           if ('keyPrefix' in item) {
             // keyPrefix is for situations where we have 2 rows in the same list
