@@ -114,7 +114,7 @@ export function AudioAdjustmentEditingProvider({ children }: PropsWithChildren) 
 
   const applyManualAdjustment = useCallback(
     (next: AudioAdjustmentConfiguration) => {
-      const normalized = normalizeAudioAdjustmentConfiguration(next);
+      const normalized = normalizeAudioAdjustmentConfiguration({ ...next, enabled: true });
       latestConfigurationRef.current = normalized;
       activePresetIdRef.current = undefined;
       setConfiguration(normalized);
@@ -299,6 +299,8 @@ export function AudioAdjustmentEditingProvider({ children }: PropsWithChildren) 
       reset,
       selectPreset,
       setBandGain: (index, gainDb) => {
+        if (latestConfigurationRef.current.bandGainsDb[index] === gainDb) return;
+
         const gains = [...latestConfigurationRef.current.bandGainsDb];
         gains[index] = gainDb;
         applyManualAdjustment({
@@ -307,8 +309,13 @@ export function AudioAdjustmentEditingProvider({ children }: PropsWithChildren) 
         });
       },
       setEnabled,
-      setExtraVolumeReduction: (extraVolumeReductionDb) =>
-        applyManualAdjustment({ ...latestConfigurationRef.current, extraVolumeReductionDb }),
+      setExtraVolumeReduction: (extraVolumeReductionDb) => {
+        if (latestConfigurationRef.current.extraVolumeReductionDb === extraVolumeReductionDb) {
+          return;
+        }
+
+        applyManualAdjustment({ ...latestConfigurationRef.current, extraVolumeReductionDb });
+      },
     }),
     [
       activePresetId,
