@@ -88,7 +88,7 @@ export function PlayerPresentationOverlay() {
     >
       {isPresentationMounted && (
         <RelistenNavigationProvider groupSegment="(artists)">
-          <PlayerScreen onClose={() => closePlayer()} variant="overlay" />
+          <PlayerScreen onClose={closePlayer} variant="overlay" />
         </RelistenNavigationProvider>
       )}
     </Animated.View>

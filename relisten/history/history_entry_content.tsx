@@ -1,6 +1,9 @@
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { SourceTrackOfflineIndicator } from '@/relisten/components/source/source_track_offline_indicator';
-import { playerDisplayTitle, playerQueueDate } from '@/relisten/player/ui/player_display_helpers';
+import {
+  playerDisplayTitle,
+  playerTrackMetadata,
+} from '@/relisten/player/ui/player_display_helpers';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { type ReactNode } from 'react';
 import { View } from 'react-native';
@@ -18,13 +21,7 @@ export function HistoryEntryContent({
   sourceTrack,
   trailing,
 }: HistoryEntryContentProps) {
-  const metadata = [
-    sourceTrack.artist.name,
-    playerQueueDate(sourceTrack.show.displayDate),
-    sourceTrack.show.venue?.name,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  const metadata = playerTrackMetadata(sourceTrack);
 
   return (
     <View style={{ alignItems: 'center', flexDirection: 'row', minWidth: 0 }}>

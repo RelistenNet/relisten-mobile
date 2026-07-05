@@ -73,7 +73,7 @@ export function PlayerPresentationProvider({ children }: PropsWithChildren) {
 
   const closePlayer = useCallback(
     (afterClose?: () => void) => {
-      afterCloseRef.current = typeof afterClose === 'function' ? afterClose : undefined;
+      afterCloseRef.current = afterClose;
       cancelAnimation(playerPresentationProgress);
       playerPresentationProgress.set(
         withSpring(0, PRESENTATION_SPRING, (finished) => {

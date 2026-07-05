@@ -13,6 +13,7 @@ type ListeningHistoryRowProps = {
 export function ListeningHistoryRow({ entry, onViewShow }: ListeningHistoryRowProps) {
   const sourceTrack = entry.sourceTrack;
   const venue = sourceTrack.show.venue;
+  const viewShow = () => onViewShow(entry);
   const accessibilityLabel = [
     `View show for ${sourceTrack.title}`,
     sourceTrack.artist.name,
@@ -37,7 +38,7 @@ export function ListeningHistoryRow({ entry, onViewShow }: ListeningHistoryRowPr
         accessibilityHint="Opens the show containing this track."
         accessibilityLabel={accessibilityLabel}
         accessibilityRole="button"
-        onPress={() => onViewShow(entry)}
+        onPress={viewShow}
         style={({ pressed }) => ({ flex: 1, minWidth: 0, opacity: pressed ? 0.65 : 1 })}
       >
         <HistoryEntryContent
@@ -49,7 +50,7 @@ export function ListeningHistoryRow({ entry, onViewShow }: ListeningHistoryRowPr
           }
         />
       </Pressable>
-      <HistoryTrackActionsMenu onViewShow={() => onViewShow(entry)} sourceTrack={sourceTrack}>
+      <HistoryTrackActionsMenu onViewShow={viewShow} sourceTrack={sourceTrack}>
         <OverflowMenuTrigger accessibilityLabel={`Actions for ${sourceTrack.title}`} />
       </HistoryTrackActionsMenu>
     </View>
