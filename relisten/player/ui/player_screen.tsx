@@ -1,11 +1,24 @@
 import { PlayerHeaderToolbar } from '@/relisten/player/ui/player_actions_menu';
 import { PlayerBackground } from '@/relisten/player/ui/player_background';
+import { PlayerHistoryView } from '@/relisten/player/ui/player_history_view';
 import { PlayerOverlayHeader } from '@/relisten/player/ui/player_overlay_header';
+import { usePlayerPresentation } from '@/relisten/player/ui/player_presentation';
 import { PlayerQueueSheet } from '@/relisten/player/ui/player_queue_sheet';
 import { RelistenBlue } from '@/relisten/relisten_blue';
+import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
+import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { Stack, useNavigation } from 'expo-router';
-import { Platform, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { BackHandler, InteractionManager, Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, {
+  Easing,
+  runOnJS,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
 export type PlayerScreenVariant = 'modal' | 'embedded' | 'overlay';
 
@@ -15,11 +28,87 @@ type PlayerScreenProps = {
 };
 
 export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) {
+  'use no memo';
+
   const navigation = useNavigation();
   const isEmbedded = variant === 'embedded';
   const isOverlay = variant === 'overlay';
   const usesTransparentHeader = variant === 'modal' && Platform.OS === 'ios';
   const closePlayer = onClose ?? (() => navigation.goBack());
+  const { closePlayer: closePresentedPlayer } = usePlayerPresentation();
+  const { pushShow } = usePushShowRespectingUserSettings();
+  const reduceMotion = useReducedMotion();
+  const historyProgress = useSharedValue(0);
+  const [historyMounted, setHistoryMounted] = useState(false);
+  const [queueHeaderActive, setQueueHeaderActive] = useState(false);
+  const [view, setView] = useState<'timeline' | 'history'>('timeline');
+
+  const openHistory = useCallback(() => {
+    setHistoryMounted(true);
+    setView('history');
+    historyProgress.value = withTiming(1, {
+      duration: reduceMotion ? 100 : 220,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [historyProgress, reduceMotion]);
+
+  const closeHistory = useCallback(() => {
+    setView('timeline');
+    historyProgress.value = withTiming(
+      0,
+      { duration: reduceMotion ? 100 : 220, easing: Easing.out(Easing.cubic) },
+      (finished) => {
+        if (finished) runOnJS(setHistoryMounted)(false);
+      }
+    );
+  }, [historyProgress, reduceMotion]);
+
+  const timelineStyle = useAnimatedStyle(() => ({
+    opacity: 1 - historyProgress.value,
+    transform: [{ translateX: reduceMotion ? 0 : historyProgress.value * -14 }],
+  }));
+  const historyStyle = useAnimatedStyle(() => ({
+    opacity: historyProgress.value,
+    transform: [{ translateX: reduceMotion ? 0 : (1 - historyProgress.value) * 14 }],
+  }));
+
+  useEffect(() => {
+    if (Platform.OS !== 'android' || (!isOverlay && view !== 'history')) {
+      return;
+    }
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (view === 'history') {
+        closeHistory();
+      } else {
+        closePlayer();
+      }
+      return true;
+    });
+
+    return () => subscription.remove();
+  }, [closeHistory, closePlayer, isOverlay, view]);
+
+  const viewHistoryShow = useCallback(
+    (entry: PlaybackHistoryEntry) => {
+      const navigate = () =>
+        pushShow({
+          artist: entry.artist,
+          showUuid: entry.show.uuid,
+          sourceUuid: entry.source.uuid,
+        });
+
+      if (isOverlay) {
+        closePresentedPlayer(navigate);
+      } else if (variant === 'modal') {
+        closePlayer();
+        void InteractionManager.runAfterInteractions(navigate);
+      } else {
+        navigate();
+      }
+    },
+    [closePlayer, closePresentedPlayer, isOverlay, pushShow, variant]
+  );
 
   return (
     <>
@@ -27,7 +116,12 @@ export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) 
         <>
           <Stack.Screen
             options={{
-              title: 'Now Playing',
+              title:
+                view === 'history'
+                  ? 'Listening History'
+                  : queueHeaderActive
+                    ? 'Queue'
+                    : 'Now Playing',
               contentStyle: { backgroundColor: 'transparent' },
               headerStyle: {
                 backgroundColor: usesTransparentHeader ? 'transparent' : RelistenBlue['950'],
@@ -38,7 +132,7 @@ export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) 
               headerTransparent: usesTransparentHeader,
             }}
           />
-          <PlayerHeaderToolbar onClose={closePlayer} />
+          <PlayerHeaderToolbar mode={view} onBack={closeHistory} onClose={closePlayer} />
         </>
       )}
       <View className="flex-1 bg-relisten-blue-950">
@@ -48,11 +142,35 @@ export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) 
           edges={isEmbedded || isOverlay ? ['top'] : []}
           style={{ zIndex: 1 }}
         >
-          {isOverlay && <PlayerOverlayHeader onClose={closePlayer} />}
-          <PlayerQueueSheet
-            allowsInteractiveDismiss={isOverlay}
-            usesTransparentHeader={usesTransparentHeader}
-          />
+          {isOverlay && (
+            <PlayerOverlayHeader
+              mode={view}
+              onBack={closeHistory}
+              onClose={closePlayer}
+              queueActive={queueHeaderActive}
+            />
+          )}
+          <View style={{ flex: 1 }}>
+            <Animated.View
+              pointerEvents={view === 'timeline' ? 'auto' : 'none'}
+              style={[StyleSheet.absoluteFill, timelineStyle]}
+            >
+              <PlayerQueueSheet
+                onOpenHistory={openHistory}
+                onQueueHeaderActiveChange={setQueueHeaderActive}
+                onViewHistoryShow={viewHistoryShow}
+                usesTransparentHeader={usesTransparentHeader}
+              />
+            </Animated.View>
+            {historyMounted && (
+              <Animated.View
+                pointerEvents={view === 'history' ? 'auto' : 'none'}
+                style={[StyleSheet.absoluteFill, historyStyle]}
+              >
+                <PlayerHistoryView onViewShow={viewHistoryShow} />
+              </Animated.View>
+            )}
+          </View>
         </SafeAreaView>
       </View>
     </>
