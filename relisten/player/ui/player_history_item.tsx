@@ -6,9 +6,8 @@ import {
 } from '@/relisten/history/relative_playback_time';
 import { PlayerPanelRow } from '@/relisten/player/ui/player_panel_row';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
-import { accessibleControlScale } from '@/relisten/util/accessible_control_scale';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import { useWindowDimensions, View } from 'react-native';
+import { View } from 'react-native';
 
 type PlayerHistoryItemProps = {
   entry: PlaybackHistoryEntry;
@@ -18,8 +17,6 @@ type PlayerHistoryItemProps = {
 };
 
 export function PlayerHistoryItem({ entry, isFirst, isLast, onViewShow }: PlayerHistoryItemProps) {
-  const { fontScale } = useWindowDimensions();
-  const controlScale = accessibleControlScale(fontScale);
   const sourceTrack = entry.sourceTrack;
   const venue = sourceTrack.show.venue;
   const accessibilityLabel = [
@@ -45,39 +42,22 @@ export function PlayerHistoryItem({ entry, isFirst, isLast, onViewShow }: Player
       <PlayerPanelRow isFirst={isFirst} isLast={isLast}>
         <View
           accessibilityElementsHidden
+          className="px-2"
           importantForAccessibility="no-hide-descendants"
-          style={{ paddingHorizontal: 8 }}
         >
           <HistoryEntryContent
             action={
-              <View
-                style={{
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minHeight: 44 * controlScale,
-                  minWidth: 44 * controlScale,
-                }}
-              >
+              <View className="min-h-11 min-w-11 items-center justify-center">
                 <Ionicons
                   color="rgba(255, 255, 255, 0.72)"
                   name="ellipsis-horizontal-circle-outline"
-                  size={21 * controlScale}
+                  size={21}
                 />
               </View>
             }
             leading={
-              <View
-                style={{
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minWidth: 34 * controlScale,
-                }}
-              >
-                <MaterialIcons
-                  color="rgba(255, 255, 255, 0.58)"
-                  name="history"
-                  size={21 * controlScale}
-                />
+              <View className="min-w-8 items-center justify-center">
+                <MaterialIcons color="rgba(255, 255, 255, 0.58)" name="history" size={21} />
               </View>
             }
             sourceTrack={sourceTrack}

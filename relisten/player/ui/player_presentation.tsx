@@ -19,16 +19,14 @@ const PRESENTATION_SPRING = {
 
 type PlayerPresentationContextValue = {
   beginInteractivePresentation: () => void;
-  cancelPreparedPresentation: () => void;
   closePlayer: (afterClose?: () => void) => void;
   isPresentationActive: boolean;
   isPresentationMounted: boolean;
   openPlayer: () => void;
-  preparePlayerPresentation: () => void;
   resetPlayerPresentation: () => void;
 };
 
-type PlayerPresentationState = 'active' | 'idle' | 'prepared';
+type PlayerPresentationState = 'active' | 'idle';
 
 const PlayerPresentationContext = createContext<PlayerPresentationContextValue | undefined>(
   undefined
@@ -47,15 +45,6 @@ export function PlayerPresentationProvider({ children }: PropsWithChildren) {
     afterCloseRef.current = undefined;
     setPresentationState('idle');
     afterClose?.();
-  }, []);
-
-  const preparePlayerPresentation = useCallback(() => {
-    cancelPendingClose();
-    setPresentationState((state) => (state === 'idle' ? 'prepared' : state));
-  }, [cancelPendingClose]);
-
-  const cancelPreparedPresentation = useCallback(() => {
-    setPresentationState((state) => (state === 'prepared' ? 'idle' : state));
   }, []);
 
   const beginInteractivePresentation = useCallback(() => {
@@ -97,12 +86,10 @@ export function PlayerPresentationProvider({ children }: PropsWithChildren) {
     <PlayerPresentationContext.Provider
       value={{
         beginInteractivePresentation,
-        cancelPreparedPresentation,
         closePlayer,
         isPresentationActive: presentationState === 'active',
-        isPresentationMounted: presentationState !== 'idle',
+        isPresentationMounted: presentationState === 'active',
         openPlayer,
-        preparePlayerPresentation,
         resetPlayerPresentation,
       }}
     >

@@ -6,11 +6,10 @@ import {
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
 import { sharedStates } from '@/relisten/player/shared_state';
 import { RelistenBlue } from '@/relisten/relisten_blue';
-import { accessibleControlScale } from '@/relisten/util/accessible_control_scale';
 import { trackDuration } from '@/relisten/util/duration';
 import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useRef } from 'react';
-import { Text, useWindowDimensions } from 'react-native';
+import { Text } from 'react-native';
 import { HapticModeEnum, Slider } from 'react-native-awesome-slider';
 import { useSharedValue } from 'react-native-reanimated';
 import { useRelistenCastStatus } from '@/relisten/casting/cast_ui';
@@ -27,8 +26,6 @@ export function ScrubberRow({ showTimes = true, subduedCache = false }: Scrubber
   const downloadProgress = useNativeActiveTrackDownloadProgress();
   const player = useRelistenPlayer();
   const { isCasting } = useRelistenCastStatus();
-  const { fontScale } = useWindowDimensions();
-  const controlScale = accessibleControlScale(fontScale);
 
   const cacheValue =
     Math.max(0, Math.min(1, downloadProgress?.percent ?? 0)) * (progressObj?.duration ?? 0);
@@ -112,20 +109,18 @@ export function ScrubberRow({ showTimes = true, subduedCache = false }: Scrubber
         bubbleTextStyle={{ fontVariant: ['tabular-nums'], textAlign: 'center' }}
       />
       {showTimes && (
-        <Flex className="mt-2 justify-between" style={{ minHeight: 20 * controlScale }}>
+        <Flex className="mt-2 min-h-5 justify-between">
           <Text
-            className="font-semibold text-gray-300"
+            className="font-semibold leading-5 text-gray-300 tabular-nums"
             maxFontSizeMultiplier={1.8}
             selectable={false}
-            style={{ fontVariant: ['tabular-nums'], lineHeight: 20 * controlScale }}
           >
             {trackDuration(progressObj?.elapsed ?? 0)}
           </Text>
           <Text
-            className="font-semibold text-gray-300"
+            className="font-semibold leading-5 text-gray-300 tabular-nums"
             maxFontSizeMultiplier={1.8}
             selectable={false}
-            style={{ fontVariant: ['tabular-nums'], lineHeight: 20 * controlScale }}
           >
             {trackDuration(progressObj?.duration ?? 0)}
           </Text>

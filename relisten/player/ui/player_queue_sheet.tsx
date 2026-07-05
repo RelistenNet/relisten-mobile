@@ -7,18 +7,16 @@ import {
 } from '@/relisten/player/relisten_player_queue_hooks';
 import { PlayerHistoryItem } from '@/relisten/player/ui/player_history_item';
 import { PlayerNowPlaying } from '@/relisten/player/ui/player_now_playing';
-import { PLAYER_PANEL_BACKGROUND } from '@/relisten/player/ui/player_panel_theme';
 import { PlayerPanelRow } from '@/relisten/player/ui/player_panel_row';
 import {
   EarlierQueueItem,
   type QueueTimelineEntry,
   UpNextQueueItem,
 } from '@/relisten/player/ui/player_queue_row';
-import { PlayerTimelineBoundary } from '@/relisten/player/ui/player_timeline_boundary';
+import { PlayerTimelineSectionHeader } from '@/relisten/player/ui/player_timeline_section_header';
 import { ReturnToNowPlayingButton } from '@/relisten/player/ui/return_to_now_playing_button';
-import { UpNextHeader } from '@/relisten/player/ui/up_next_header';
-import { playerPresentationProgress } from '@/relisten/player/ui/player_presentation';
 import { usePlayerListDismissal } from '@/relisten/player/ui/use_player_list_dismissal';
+import { ViewAllHistoryButton } from '@/relisten/player/ui/view_all_history_button';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { useQuery } from '@/relisten/realm/schema';
 import * as Haptics from 'expo-haptics';
@@ -27,24 +25,46 @@ import {
   AccessibilityInfo,
   findNodeHandle,
   FlatList,
+  type LayoutChangeEvent,
   useWindowDimensions,
   View,
   type ViewToken,
 } from 'react-native';
-import ReorderableList from 'react-native-reorderable-list';
-import { ReorderableListReorderEvent } from 'react-native-reorderable-list/src/types/props';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import DraggableFlatList, {
+  type DragEndParams,
+  type RenderItemParams,
+} from 'react-native-draggable-flatlist';
 import Animated, {
-  runOnJS,
+  type SharedValue,
   useAnimatedReaction,
-  useAnimatedScrollHandler,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
-  type SharedValue,
 } from 'react-native-reanimated';
 
 const HISTORY_PREVIEW_LIMIT = 10;
-const PIVOT_VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 1 } as const;
+const PIVOT_VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 40 } as const;
+
+type ScrollPhase = 'awaiting-momentum' | 'dragging' | 'idle' | 'momentum';
+
+function PlayerTimelineScrollObserver({
+  onScroll,
+  source,
+}: {
+  onScroll: (offset: number) => void;
+  source: SharedValue<number>;
+}) {
+  useAnimatedReaction(
+    () => source.value,
+    (offset) => {
+      onScroll(offset);
+    },
+    [onScroll, source]
+  );
+
+  return null;
+}
 
 type TimelineItem =
   | { kind: 'view-all-history' }
@@ -54,20 +74,24 @@ type TimelineItem =
       isLast: boolean;
       kind: 'history';
     }
-  | { icon: 'history' | 'queue-music'; id: string; kind: 'boundary'; label: string }
+  | {
+      count?: number;
+      icon: 'history' | 'queue-music';
+      id: 'listening' | 'queue' | 'up-next';
+      kind: 'section-header';
+      label: string;
+    }
   | { entry: QueueTimelineEntry; kind: 'earlier-queue' }
+  | { id: 'before-now-playing' | 'before-queue'; kind: 'sticky-reset' }
   | { kind: 'now-playing' }
-  | { count: number; kind: 'up-next-header' }
   | { entry: QueueTimelineEntry; kind: 'up-next' }
   | { kind: 'empty-up-next' };
 
 type PlayerQueueSheetProps = {
   isPresentedOverlay: boolean;
+  onBeforeNavigate: () => void;
   onOpenHistory: () => void;
-  onQueueHeaderActiveChange: (active: boolean) => void;
   onViewHistoryShow: (entry: PlaybackHistoryEntry) => void;
-  queueSurfaceProgress: SharedValue<number>;
-  usesTransparentHeader: boolean;
   visualizerActive: boolean;
 };
 
@@ -75,13 +99,14 @@ function timelineItemKey(item: TimelineItem) {
   switch (item.kind) {
     case 'view-all-history':
     case 'now-playing':
-    case 'up-next-header':
     case 'empty-up-next':
       return item.kind;
+    case 'sticky-reset':
+      return `sticky-reset-${item.id}`;
     case 'history':
       return `history-${item.entry.uuid}`;
-    case 'boundary':
-      return `boundary-${item.id}`;
+    case 'section-header':
+      return `section-${item.id}`;
     case 'earlier-queue':
     case 'up-next':
       return `${item.kind}-${item.entry.queueTrack.identifier}`;
@@ -90,17 +115,16 @@ function timelineItemKey(item: TimelineItem) {
 
 export function PlayerQueueSheet({
   isPresentedOverlay,
+  onBeforeNavigate,
   onOpenHistory,
-  onQueueHeaderActiveChange,
   onViewHistoryShow,
-  queueSurfaceProgress,
-  usesTransparentHeader,
   visualizerActive,
 }: PlayerQueueSheetProps) {
   'use no memo';
 
   const player = useRelistenPlayer();
   const { height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const reduceMotion = useReducedMotion();
   const orderedQueueTracks = useRelistenPlayerQueueOrderedTracks();
   const currentTrack = useRelistenPlayerCurrentTrack();
@@ -109,16 +133,24 @@ export function PlayerQueueSheet({
   const nowPlayingRef = useRef<View>(null);
   const nowPlayingHeadingRef = useRef<View>(null);
   const hasAnchored = useRef(false);
+  const anchorAttemptStarted = useRef(false);
+  const anchorRetryCount = useRef(0);
   const anchorMeasurementPending = useRef(false);
+  const pendingPivotReconciliation = useRef(false);
+  const reconciliationGeneration = useRef(0);
   const pivotOffsetRef = useRef(0);
+  const isPivotOffscreenRef = useRef(false);
+  const isQueueDraggingRef = useRef(false);
+  const [isAnchorReady, setIsAnchorReady] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isPivotOffscreen, setIsPivotOffscreen] = useState(false);
+  const [listViewportHeight, setListViewportHeight] = useState(0);
+  const [nativeScrollOffset, setNativeScrollOffset] = useState<SharedValue<number> | null>(null);
   const scrollOffset = useSharedValue(0);
+  const effectiveScrollOffset = nativeScrollOffset ?? scrollOffset;
   const pivotOffset = useSharedValue(0);
-  const nowPlayingHeight = useSharedValue(0);
   const anchorReady = useSharedValue(false);
-  const anchorAwaitingInitialScroll = useSharedValue(false);
-  const hasUserInteracted = useSharedValue(false);
+  const scrollPhaseRef = useRef<ScrollPhase>('idle');
   const recentlyPlayed = useQuery(
     {
       type: PlaybackHistoryEntry,
@@ -126,7 +158,12 @@ export function PlayerQueueSheet({
     },
     []
   );
-  const listDismissal = usePlayerListDismissal(isPresentedOverlay);
+  const {
+    onScrollBeginDrag: beginListDismissalDrag,
+    onScrollEndDrag: endListDismissalDrag,
+    updateDismissalProgress,
+  } = usePlayerListDismissal(isPresentedOverlay);
+  const listBottomClearance = insets.bottom + 76;
 
   const currentIndex = useMemo(
     () =>
@@ -170,33 +207,46 @@ export function PlayerQueueSheet({
 
   const timelineItems = useMemo<TimelineItem[]>(() => {
     const items: TimelineItem[] = [];
+    if (recentlyPlayed.length > 0 || historyPreview.length > 0) {
+      items.push({
+        icon: 'history',
+        id: 'listening',
+        kind: 'section-header',
+        label: 'Earlier Listening',
+      });
+    }
     if (recentlyPlayed.length > 0) items.push({ kind: 'view-all-history' });
     items.push(
       ...historyPreview.map((entry, index) => ({
         entry,
-        isFirst: index === 0,
+        isFirst: recentlyPlayed.length === 0 && index === 0,
         isLast: index === historyPreview.length - 1,
         kind: 'history' as const,
       }))
     );
-    if (historyPreview.length > 0) {
-      items.push({
-        icon: 'history',
-        id: 'listening',
-        kind: 'boundary',
-        label: 'Earlier Listening',
-      });
-    }
-    items.push(...earlierQueueEntries.map((entry) => ({ entry, kind: 'earlier-queue' as const })));
     if (earlierQueueEntries.length > 0) {
+      if (recentlyPlayed.length > 0 || historyPreview.length > 0) {
+        items.push({ id: 'before-queue', kind: 'sticky-reset' });
+      }
       items.push({
         icon: 'queue-music',
         id: 'queue',
-        kind: 'boundary',
+        kind: 'section-header',
         label: 'Earlier in Queue',
       });
     }
-    items.push({ kind: 'now-playing' }, { count: upNextEntries.length, kind: 'up-next-header' });
+    items.push(...earlierQueueEntries.map((entry) => ({ entry, kind: 'earlier-queue' as const })));
+    items.push(
+      { id: 'before-now-playing', kind: 'sticky-reset' },
+      { kind: 'now-playing' },
+      {
+        count: upNextEntries.length,
+        icon: 'queue-music',
+        id: 'up-next',
+        kind: 'section-header',
+        label: 'Up Next',
+      }
+    );
     if (upNextEntries.length > 0) {
       items.push(...upNextEntries.map((entry) => ({ entry, kind: 'up-next' as const })));
     } else {
@@ -207,6 +257,18 @@ export function PlayerQueueSheet({
 
   const pivotIndex = useMemo(
     () => timelineItems.findIndex((item) => item.kind === 'now-playing'),
+    [timelineItems]
+  );
+  const initialRenderCount = Math.min(timelineItems.length, pivotIndex < 40 ? pivotIndex + 2 : 20);
+  const prePivotSignature = useMemo(
+    () => timelineItems.slice(0, pivotIndex).map(timelineItemKey).join('|'),
+    [pivotIndex, timelineItems]
+  );
+  const stickyHeaderIndices = useMemo(
+    () =>
+      timelineItems.flatMap((item, index) =>
+        item.kind === 'section-header' || item.kind === 'sticky-reset' ? [index] : []
+      ),
     [timelineItems]
   );
 
@@ -237,12 +299,24 @@ export function PlayerQueueSheet({
       if (!pivot || !container) return;
 
       anchorMeasurementPending.current = true;
-      requestAnimationFrame(() => {
+      const generation = reconciliationGeneration.current;
+      const measurePivot = () => {
         pivot.measureInWindow((_pivotX, pivotY) => {
           container.measureInWindow((_containerX, containerY) => {
             anchorMeasurementPending.current = false;
+            if (
+              !reveal &&
+              (generation !== reconciliationGeneration.current ||
+                scrollPhaseRef.current !== 'idle' ||
+                isQueueDraggingRef.current ||
+                isPivotOffscreenRef.current)
+            ) {
+              pendingPivotReconciliation.current = true;
+              return;
+            }
+
             const previousPivotOffset = pivotOffsetRef.current;
-            const currentOffset = scrollOffset.value;
+            const currentOffset = effectiveScrollOffset.value;
             const nextPivotOffset = Math.max(0, currentOffset + pivotY - containerY);
             pivotOffsetRef.current = nextPivotOffset;
             pivotOffset.value = nextPivotOffset;
@@ -255,105 +329,125 @@ export function PlayerQueueSheet({
 
             anchorReady.value = true;
             if (reveal) {
-              anchorAwaitingInitialScroll.value = isPresentedOverlay;
               hasAnchored.current = true;
-              requestAnimationFrame(focusNowPlaying);
+              requestAnimationFrame(() => {
+                setIsAnchorReady(true);
+                focusNowPlaying();
+              });
             }
           });
         });
-      });
+      };
+
+      requestAnimationFrame(measurePivot);
     },
-    [
-      anchorAwaitingInitialScroll,
-      anchorReady,
-      applyScrollOffset,
-      focusNowPlaying,
-      isPresentedOverlay,
-      pivotOffset,
-      scrollOffset,
-    ]
+    [anchorReady, applyScrollOffset, effectiveScrollOffset, focusNowPlaying, pivotOffset]
   );
 
-  const prePivotSignature = useMemo(
-    () => timelineItems.slice(0, pivotIndex).map(timelineItemKey).join('|'),
-    [pivotIndex, timelineItems]
+  const schedulePivotReconciliation = useCallback(() => {
+    if (!hasAnchored.current) return;
+
+    if (
+      scrollPhaseRef.current !== 'idle' ||
+      isQueueDraggingRef.current ||
+      isPivotOffscreenRef.current
+    ) {
+      pendingPivotReconciliation.current = true;
+      return;
+    }
+
+    pendingPivotReconciliation.current = false;
+    requestAnimationFrame(() => {
+      if (
+        scrollPhaseRef.current !== 'idle' ||
+        isQueueDraggingRef.current ||
+        isPivotOffscreenRef.current
+      ) {
+        pendingPivotReconciliation.current = true;
+        return;
+      }
+
+      reconcilePivot(false);
+    });
+  }, [reconcilePivot]);
+
+  const settleScrollWithoutMomentum = useCallback(() => {
+    requestAnimationFrame(() => {
+      if (scrollPhaseRef.current !== 'awaiting-momentum') return;
+      scrollPhaseRef.current = 'idle';
+      if (pendingPivotReconciliation.current) schedulePivotReconciliation();
+    });
+  }, [schedulePivotReconciliation]);
+
+  useEffect(() => {
+    schedulePivotReconciliation();
+  }, [currentTrack?.identifier, prePivotSignature, schedulePivotReconciliation]);
+
+  const handleInitialScrollFailure = useCallback(
+    ({ averageItemLength, index }: { averageItemLength: number; index: number }) => {
+      if (hasAnchored.current) return;
+      applyScrollOffset(Math.max(0, averageItemLength * index));
+
+      if (anchorRetryCount.current >= 3) {
+        setIsAnchorReady(true);
+        return;
+      }
+      anchorRetryCount.current += 1;
+      setTimeout(() => {
+        if (hasAnchored.current) return;
+        listRef.current?.scrollToIndex({ animated: false, index, viewPosition: 0 });
+      }, 50);
+    },
+    [applyScrollOffset]
   );
 
   useEffect(() => {
-    if (hasAnchored.current && !isDragging) reconcilePivot(false);
-  }, [currentTrack?.identifier, isDragging, prePivotSignature, reconcilePivot]);
-
-  const handleInitialScrollFailure = useCallback(() => {
-    requestAnimationFrame(() => reconcilePivot(true));
-  }, [reconcilePivot]);
-
-  const handleContentSizeChange = useCallback(() => {
-    if (hasAnchored.current) {
-      requestAnimationFrame(() => reconcilePivot(false));
+    if (listViewportHeight <= 0 || hasAnchored.current || anchorAttemptStarted.current) {
+      return;
     }
-  }, [reconcilePivot]);
 
-  useAnimatedReaction(
-    () => isPresentedOverlay && playerPresentationProgress.value >= 0.999,
-    (isFullyPresented, wasFullyPresented) => {
-      if (isFullyPresented && !wasFullyPresented && !hasUserInteracted.value) {
-        anchorAwaitingInitialScroll.value = false;
-        runOnJS(reconcilePivot)(false);
-      }
-    }
-  );
+    anchorAttemptStarted.current = true;
+    requestAnimationFrame(() => {
+      listRef.current?.scrollToIndex({ animated: false, index: pivotIndex, viewPosition: 0 });
+    });
+  }, [listViewportHeight, pivotIndex]);
 
-  const handleScroll = useAnimatedScrollHandler({
-    onScroll: (event) => {
-      const nextOffset = event.contentOffset.y;
-      scrollOffset.value = nextOffset;
-      listDismissal.updateDismissalProgress(nextOffset);
+  const handleListContainerLayout = useCallback((event: LayoutChangeEvent) => {
+    const nextHeight = event.nativeEvent.layout.height;
+    setListViewportHeight((currentHeight) =>
+      Math.abs(currentHeight - nextHeight) >= 1 ? nextHeight : currentHeight
+    );
+  }, []);
 
-      const relativeOffset = nextOffset - pivotOffset.value;
-      const earlierProgress = Math.min(Math.max(-relativeOffset / 72, 0), 1);
-      const queueTransitionDistance = 112;
-      const queueTransitionStart = Math.max(nowPlayingHeight.value - queueTransitionDistance, 0);
-      const upNextProgress = Math.min(
-        Math.max((relativeOffset - queueTransitionStart) / queueTransitionDistance, 0),
-        1
-      );
-      queueSurfaceProgress.value = Math.max(earlierProgress, upNextProgress);
-
-      if (
-        anchorAwaitingInitialScroll.value &&
-        anchorReady.value &&
-        Math.abs(nextOffset - pivotOffset.value) > 1
-      ) {
-        anchorAwaitingInitialScroll.value = false;
-        runOnJS(reconcilePivot)(true);
-      }
-    },
-  });
-
-  const handleViewableItemsChanged = useCallback(
-    ({ viewableItems }: { viewableItems: ViewToken<TimelineItem>[] }) => {
-      if (!hasAnchored.current) return;
-      setIsPivotOffscreen(
-        !viewableItems.some(({ isViewable, item }) => isViewable && item.kind === 'now-playing')
+  const handleAnimatedValuesReady = useCallback(
+    ({ scrollOffset: nextScrollOffset }: { scrollOffset: SharedValue<number> }) => {
+      setNativeScrollOffset((current) =>
+        current === nextScrollOffset ? current : nextScrollOffset
       );
     },
     []
   );
 
-  useAnimatedReaction(
-    () => queueSurfaceProgress.value >= 0.65,
-    (isQueueSurfaceActive, wasQueueSurfaceActive) => {
-      if (isQueueSurfaceActive !== wasQueueSurfaceActive) {
-        runOnJS(onQueueHeaderActiveChange)(isQueueSurfaceActive);
+  const handleViewableItemsChanged = useCallback(
+    ({ viewableItems }: { viewableItems: ViewToken<TimelineItem>[] }) => {
+      if (!hasAnchored.current) return;
+      const nextIsPivotOffscreen = !viewableItems.some(
+        ({ isViewable, item }) => isViewable && item.kind === 'now-playing'
+      );
+      isPivotOffscreenRef.current = nextIsPivotOffscreen;
+      setIsPivotOffscreen(nextIsPivotOffscreen);
+      if (!nextIsPivotOffscreen && pendingPivotReconciliation.current) {
+        schedulePivotReconciliation();
       }
-    }
+    },
+    [schedulePivotReconciliation]
   );
 
   const nowPlayingStyle = useAnimatedStyle(() => {
     if (!anchorReady.value || reduceMotion) {
       return { transform: [{ translateY: 0 }], zIndex: 0 };
     }
-    const relativeOffset = Math.max(scrollOffset.value - pivotOffset.value, 0);
+    const relativeOffset = Math.max(effectiveScrollOffset.value - pivotOffset.value, 0);
     return {
       transform: [{ translateY: Math.min(relativeOffset * 0.78, height * 0.16) }],
       zIndex: 0,
@@ -361,24 +455,36 @@ export function PlayerQueueSheet({
   });
 
   const triggerHaptics = useCallback(() => {
-    'worklet';
-    runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }, []);
 
-  const handleDragEnd = useCallback(() => {
-    'worklet';
-    runOnJS(setIsDragging)(false);
-    runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
+  const setQueueDragging = useCallback((dragging: boolean) => {
+    isQueueDraggingRef.current = dragging;
+    setIsDragging(dragging);
   }, []);
 
-  const onReorder = ({ from, to }: ReorderableListReorderEvent) => {
-    setIsDragging(false);
-    const fromItem = timelineItems[from];
-    const toItem = timelineItems[to];
-    if (fromItem?.kind === 'up-next' && toItem?.kind === 'up-next') {
-      player.queue.moveQueueTrack(fromItem.entry.queueIndex, toItem.entry.queueIndex);
-    }
-  };
+  const finishQueueDrag = useCallback(() => {
+    setQueueDragging(false);
+    schedulePivotReconciliation();
+  }, [schedulePivotReconciliation, setQueueDragging]);
+
+  const handleDragEnd = useCallback(
+    ({ from, to }: DragEndParams<TimelineItem>) => {
+      finishQueueDrag();
+      triggerHaptics();
+      const fromItem = timelineItems[from];
+      if (fromItem?.kind !== 'up-next') return;
+
+      const firstUpNextIndex = timelineItems.findIndex((item) => item.kind === 'up-next');
+      const lastUpNextIndex = timelineItems.findLastIndex((item) => item.kind === 'up-next');
+      const targetIndex = Math.max(firstUpNextIndex, Math.min(to, lastUpNextIndex));
+      const targetItem = timelineItems[targetIndex];
+      if (targetItem?.kind === 'up-next') {
+        player.queue.moveQueueTrack(fromItem.entry.queueIndex, targetItem.entry.queueIndex);
+      }
+    },
+    [finishQueueDrag, player, timelineItems, triggerHaptics]
+  );
 
   const returnToNowPlaying = useCallback(() => {
     applyScrollOffset(pivotOffsetRef.current);
@@ -387,16 +493,11 @@ export function PlayerQueueSheet({
   }, [applyScrollOffset, focusNowPlaying]);
 
   const renderItem = useCallback(
-    ({ item }: { item: TimelineItem }) => {
+    ({ drag, item }: RenderItemParams<TimelineItem>) => {
       switch (item.kind) {
         case 'view-all-history':
           return (
-            <PlayerTimelineBoundary
-              accessibilityHint="Opens your complete listening history."
-              icon="history"
-              label="View All Listening History"
-              onPress={onOpenHistory}
-            />
+            <ViewAllHistoryButton isLast={historyPreview.length === 0} onPress={onOpenHistory} />
           );
         case 'history':
           return (
@@ -407,8 +508,18 @@ export function PlayerQueueSheet({
               onViewShow={() => onViewHistoryShow(item.entry)}
             />
           );
-        case 'boundary':
-          return <PlayerTimelineBoundary icon={item.icon} label={item.label} />;
+        case 'section-header':
+          return (
+            <PlayerTimelineSectionHeader count={item.count} icon={item.icon} label={item.label} />
+          );
+        case 'sticky-reset':
+          return (
+            <View
+              accessibilityElementsHidden
+              className="h-px bg-transparent"
+              importantForAccessibility="no-hide-descendants"
+            />
+          );
         case 'earlier-queue':
           return <EarlierQueueItem entry={item.entry} />;
         case 'now-playing':
@@ -416,27 +527,35 @@ export function PlayerQueueSheet({
             <View
               collapsable={false}
               ref={nowPlayingRef}
-              onLayout={(event) => {
-                nowPlayingHeight.value = event.nativeEvent.layout.height;
-                reconcilePivot(!hasAnchored.current);
+              onLayout={() => {
+                if (hasAnchored.current) {
+                  schedulePivotReconciliation();
+                } else {
+                  reconcilePivot(true);
+                }
               }}
             >
               <Animated.View style={nowPlayingStyle}>
                 <PlayerNowPlaying
                   headingRef={nowPlayingHeadingRef}
+                  onBeforeNavigate={onBeforeNavigate}
                   visualizerActive={visualizerActive && !isPivotOffscreen}
                 />
               </Animated.View>
             </View>
           );
-        case 'up-next-header':
-          return <UpNextHeader count={item.count} />;
         case 'up-next':
-          return <UpNextQueueItem entry={item.entry} onReorderStart={() => setIsDragging(true)} />;
+          return (
+            <UpNextQueueItem
+              drag={drag}
+              entry={item.entry}
+              onReorderStart={() => setQueueDragging(true)}
+            />
+          );
         case 'empty-up-next':
           return (
             <PlayerPanelRow isFirst isLast>
-              <View style={{ padding: 24 }}>
+              <View className="p-6">
                 <RelistenText className="text-center text-gray-300" selectable={false}>
                   Nothing else is queued
                 </RelistenText>
@@ -448,62 +567,82 @@ export function PlayerQueueSheet({
     [
       isPivotOffscreen,
       nowPlayingStyle,
+      onBeforeNavigate,
       onOpenHistory,
       onViewHistoryShow,
       reconcilePivot,
-      nowPlayingHeight,
+      schedulePivotReconciliation,
+      setQueueDragging,
       visualizerActive,
     ]
   );
 
-  if (!currentTrack) return <View style={{ flex: 1 }} />;
+  if (!currentTrack) return <View className="flex-1" />;
 
   return (
-    <View collapsable={false} ref={listContainerRef} style={{ flex: 1 }}>
-      <ReorderableList
-        ref={listRef}
+    <View
+      className="flex-1"
+      collapsable={false}
+      onLayout={handleListContainerLayout}
+      ref={listContainerRef}
+    >
+      <DraggableFlatList
+        // The library's ref type names the RNGH component instead of the native FlatList instance.
+        ref={listRef as never}
         alwaysBounceVertical
-        contentInsetAdjustmentBehavior={usesTransparentHeader ? 'automatic' : 'never'}
+        contentInsetAdjustmentBehavior="never"
+        containerStyle={{ height: listViewportHeight }}
         data={timelineItems}
-        initialNumToRender={12}
-        initialScrollIndex={pivotIndex}
+        onAnimValInit={handleAnimatedValuesReady}
+        initialNumToRender={initialRenderCount}
         keyExtractor={timelineItemKey}
         ListFooterComponent={
-          <View style={{ backgroundColor: PLAYER_PANEL_BACKGROUND, height: 1 }}>
+          <View className="bg-relisten-blue-900" style={{ height: listBottomClearance }}>
             <View
+              className="absolute inset-x-0 top-0 bg-relisten-blue-900"
               pointerEvents="none"
-              style={{
-                backgroundColor: PLAYER_PANEL_BACKGROUND,
-                height,
-                left: 0,
-                position: 'absolute',
-                right: 0,
-                top: 0,
-              }}
+              style={{ height }}
             />
           </View>
         }
-        onDragEnd={handleDragEnd}
-        onDragStart={triggerHaptics}
-        onIndexChange={triggerHaptics}
-        onContentSizeChange={handleContentSizeChange}
-        onScrollToIndexFailed={handleInitialScrollFailure}
-        onReorder={onReorder}
-        onScroll={handleScroll}
-        onScrollBeginDrag={(event) => {
-          listDismissal.onScrollBeginDrag(event);
-          anchorAwaitingInitialScroll.value = false;
-          hasUserInteracted.value = true;
-          setIsDragging(false);
+        onDragBegin={() => {
+          setQueueDragging(true);
+          triggerHaptics();
         }}
-        onScrollEndDrag={listDismissal.onScrollEndDrag}
+        onDragEnd={handleDragEnd}
+        onScrollToIndexFailed={handleInitialScrollFailure}
+        onScrollBeginDrag={(event) => {
+          reconciliationGeneration.current += 1;
+          scrollPhaseRef.current = 'dragging';
+          beginListDismissalDrag(event);
+        }}
+        onScrollEndDrag={(event) => {
+          scrollPhaseRef.current = 'awaiting-momentum';
+          endListDismissalDrag(event);
+          settleScrollWithoutMomentum();
+        }}
+        onMomentumScrollBegin={() => {
+          scrollPhaseRef.current = 'momentum';
+        }}
+        onMomentumScrollEnd={() => {
+          scrollPhaseRef.current = 'idle';
+          if (pendingPivotReconciliation.current) schedulePivotReconciliation();
+        }}
         onViewableItemsChanged={handleViewableItemsChanged}
         renderItem={renderItem}
         showsVerticalScrollIndicator={false}
-        style={{ flex: 1 }}
+        stickyHeaderIndices={stickyHeaderIndices}
+        style={{ height: listViewportHeight, opacity: isAnchorReady ? 1 : 0 }}
         viewabilityConfig={PIVOT_VIEWABILITY_CONFIG}
       />
+      {nativeScrollOffset && (
+        <PlayerTimelineScrollObserver
+          onScroll={updateDismissalProgress}
+          source={nativeScrollOffset}
+        />
+      )}
       <ReturnToNowPlayingButton
+        bottomInset={insets.bottom}
         onPress={returnToNowPlaying}
         visible={isPivotOffscreen && !isDragging}
       />

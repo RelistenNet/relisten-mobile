@@ -16,8 +16,8 @@ export const PlayerAudioVisualizer: FunctionComponent<{ active?: boolean }> = ()
     <View
       accessible={false}
       accessibilityElementsHidden
+      className="aspect-[5.5] w-full"
       importantForAccessibility="no-hide-descendants"
-      style={{ aspectRatio: 5.5, width: '100%' }}
     >
       <Svg
         height="100%"

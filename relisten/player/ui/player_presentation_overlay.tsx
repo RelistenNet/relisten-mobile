@@ -5,8 +5,9 @@ import {
 } from '@/relisten/player/ui/player_presentation';
 import { PlayerScreen } from '@/relisten/player/ui/player_screen';
 import { RelistenNavigationProvider } from '@/relisten/util/routes';
+import { usePathname } from 'expo-router';
 import { useCallback, useEffect } from 'react';
-import { useWindowDimensions } from 'react-native';
+import { StyleSheet, useWindowDimensions } from 'react-native';
 import Animated, { Extrapolation, interpolate, useAnimatedStyle } from 'react-native-reanimated';
 import {
   usePlayerBarPlacementOffset,
@@ -15,6 +16,7 @@ import {
 
 export function PlayerPresentationOverlay() {
   const { height } = useWindowDimensions();
+  const pathname = usePathname();
   const { playerBottomBarHeight } = useRelistenPlayerBottomBarContext();
   const placementOffset = usePlayerBarPlacementOffset();
   const isPlayerVisible = useIsPlayerBottomBarVisible();
@@ -22,6 +24,10 @@ export function PlayerPresentationOverlay() {
     usePlayerPresentation();
   const handleClose = useCallback(() => closePlayer(), [closePlayer]);
   const collapsedTop = Math.max(height - playerBottomBarHeight - placementOffset, 0);
+  const isCoveredByRoute =
+    pathname.startsWith('/relisten/audio-adjustments') ||
+    pathname.startsWith('/relisten/player-history');
+  const isInteractive = isPresentationActive && !isCoveredByRoute;
 
   useEffect(() => {
     if (!isPlayerVisible) {
@@ -68,19 +74,16 @@ export function PlayerPresentationOverlay() {
 
   return (
     <Animated.View
-      accessibilityElementsHidden={!isPresentationActive}
-      accessibilityViewIsModal={isPresentationActive}
-      pointerEvents={isPresentationActive ? 'auto' : 'none'}
+      accessibilityElementsHidden={!isInteractive}
+      accessibilityViewIsModal={isInteractive}
+      onAccessibilityEscape={handleClose}
+      pointerEvents={isInteractive ? 'auto' : 'none'}
       style={[
+        StyleSheet.absoluteFill,
         {
           backgroundColor: '#001b21',
-          bottom: 0,
           boxShadow: '0 -12px 36px rgba(0, 0, 0, 0.34)',
-          left: 0,
           overflow: 'hidden',
-          position: 'absolute',
-          right: 0,
-          top: 0,
           transformOrigin: 'bottom center',
           zIndex: 1000,
         },
