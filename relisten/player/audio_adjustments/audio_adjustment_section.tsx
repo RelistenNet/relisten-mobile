@@ -1,38 +1,28 @@
 import { RelistenText } from '@/relisten/components/relisten_text';
-import {
-  PLAYER_PANEL_BACKGROUND,
-  PLAYER_PANEL_BORDER_COLOR,
-} from '@/relisten/player/ui/player_panel_theme';
-import { RelistenBlue } from '@/relisten/relisten_blue';
 import type { PropsWithChildren } from 'react';
 import { View } from 'react-native';
 
+export function AudioAdjustmentCard({ children }: PropsWithChildren) {
+  return (
+    <View
+      className="overflow-hidden rounded-2xl border border-relisten-blue-200/15 bg-relisten-blue-900"
+      style={{ borderCurve: 'continuous' }}
+    >
+      {children}
+    </View>
+  );
+}
+
 export function AudioAdjustmentSection({ children, title }: PropsWithChildren<{ title: string }>) {
   return (
-    <View style={{ gap: 8 }}>
+    <View className="gap-2">
       <RelistenText
+        className="text-[13px] font-bold tracking-[1.5px] text-relisten-blue-200"
         selectable={false}
-        style={{
-          color: RelistenBlue[200],
-          fontSize: 13,
-          fontWeight: '700',
-          letterSpacing: 1.5,
-        }}
       >
         {title.toUpperCase()}
       </RelistenText>
-      <View
-        style={{
-          backgroundColor: PLAYER_PANEL_BACKGROUND,
-          borderColor: PLAYER_PANEL_BORDER_COLOR,
-          borderCurve: 'continuous',
-          borderRadius: 16,
-          borderWidth: 1,
-          overflow: 'hidden',
-        }}
-      >
-        {children}
-      </View>
+      <AudioAdjustmentCard>{children}</AudioAdjustmentCard>
     </View>
   );
 }
