@@ -45,6 +45,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 const HISTORY_PREVIEW_LIMIT = 10;
+const PIVOT_VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 1 } as const;
 
 type TimelineItem =
   | { kind: 'view-all-history' }
@@ -308,8 +309,8 @@ export function PlayerQueueSheet({
   );
 
   useEffect(() => {
-    if (hasAnchored.current) reconcilePivot(false);
-  }, [currentTrack?.identifier, prePivotSignature, reconcilePivot]);
+    if (hasAnchored.current && !isDragging) reconcilePivot(false);
+  }, [currentTrack?.identifier, isDragging, prePivotSignature, reconcilePivot]);
 
   useAnimatedReaction(
     () => isPresentedOverlay && playerPresentationProgress.value >= 0.999,
@@ -486,7 +487,7 @@ export function PlayerQueueSheet({
         renderItem={renderItem}
         showsVerticalScrollIndicator={false}
         style={{ flex: 1 }}
-        viewabilityConfig={{ itemVisiblePercentThreshold: 1 }}
+        viewabilityConfig={PIVOT_VIEWABILITY_CONFIG}
       />
       <ReturnToNowPlayingButton
         onPress={returnToNowPlaying}
