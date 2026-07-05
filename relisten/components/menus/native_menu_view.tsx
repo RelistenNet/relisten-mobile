@@ -7,7 +7,7 @@ import {
   MenuView as ReactNativeMenuView,
   type MenuAction as ReactNativeMenuAction,
 } from '@react-native-menu/menu';
-import { Platform } from 'react-native';
+import { type AccessibilityRole, Platform } from 'react-native';
 
 export type { MenuAction, MenuComponentProps } from '@expo/ui/community/menu';
 
@@ -32,7 +32,13 @@ function reactNativeMenuAction(action: MenuAction): ReactNativeMenuAction {
   };
 }
 
-export function NativeMenuView({ actions, children, ...props }: MenuComponentProps) {
+type NativeMenuViewProps = MenuComponentProps & {
+  accessibilityHint?: string;
+  accessibilityLabel?: string;
+  accessibilityRole?: AccessibilityRole;
+};
+
+export function NativeMenuView({ actions, children, ...props }: NativeMenuViewProps) {
   if (Platform.OS === 'ios') {
     return (
       <ReactNativeMenuView
