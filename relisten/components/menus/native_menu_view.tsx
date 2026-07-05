@@ -7,6 +7,7 @@ import {
   MenuView as ReactNativeMenuView,
   type MenuAction as ReactNativeMenuAction,
 } from '@react-native-menu/menu';
+import { useMemo } from 'react';
 import { type AccessibilityRole, Platform } from 'react-native';
 
 export type { MenuAction, MenuComponentProps } from '@expo/ui/community/menu';
@@ -39,13 +40,14 @@ type NativeMenuViewProps = MenuComponentProps & {
 };
 
 export function NativeMenuView({ actions, children, ...props }: NativeMenuViewProps) {
+  const iosActions = useMemo(
+    () => (Platform.OS === 'ios' ? actions.map(reactNativeMenuAction) : undefined),
+    [actions]
+  );
+
   if (Platform.OS === 'ios') {
     return (
-      <ReactNativeMenuView
-        actions={actions.map(reactNativeMenuAction)}
-        themeVariant="dark"
-        {...props}
-      >
+      <ReactNativeMenuView actions={iosActions!} themeVariant="dark" {...props}>
         {children}
       </ReactNativeMenuView>
     );

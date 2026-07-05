@@ -67,7 +67,7 @@ export function useCurrentTrackNavigation(onBeforeNavigate?: () => void) {
     [artist, groupSegment, onBeforeNavigate, pushShow, show, source]
   );
 
-  return { actions, handleAction, hasActions: actions.length > 0 };
+  return { actions, handleAction };
 }
 
 type CurrentTrackNavigationMenuProps = {
@@ -92,9 +92,9 @@ export function CurrentTrackNavigationMenu({
       navigation.goBack();
     }
   }, [dismissOnNavigate, navigation, onBeforeNavigate]);
-  const { actions, handleAction, hasActions } = useCurrentTrackNavigation(handleBeforeNavigate);
+  const { actions, handleAction } = useCurrentTrackNavigation(handleBeforeNavigate);
 
-  if (!hasActions) {
+  if (actions.length === 0) {
     return children;
   }
 

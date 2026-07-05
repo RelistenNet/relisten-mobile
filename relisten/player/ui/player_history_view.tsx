@@ -15,7 +15,6 @@ import {
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { useRealm } from '@/relisten/realm/schema';
 import { accessibleControlScale } from '@/relisten/util/accessible_control_scale';
-import { useCallback } from 'react';
 import { useWindowDimensions, View } from 'react-native';
 
 const CLEAR_ACTION_ID = 'clear-history';
@@ -98,7 +97,6 @@ export function PlayerHistoryView({
 }) {
   const realm = useRealm();
   const history = usePagedListeningHistory();
-  const clearHistory = useCallback(() => confirmClearListeningHistory(realm), [realm]);
 
   return (
     <ListeningHistoryList
@@ -110,7 +108,10 @@ export function PlayerHistoryView({
         </View>
       }
       ListHeaderComponent={
-        <PlayerHistorySummary onClear={clearHistory} totalCount={history.totalCount} />
+        <PlayerHistorySummary
+          onClear={() => confirmClearListeningHistory(realm)}
+          totalCount={history.totalCount}
+        />
       }
       contentContainerStyle={{
         backgroundColor: PLAYER_PANEL_ROW_BACKGROUND,
