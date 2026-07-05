@@ -114,9 +114,14 @@ function QueueTrackRow({
           </RelistenText>
         </TouchableOpacity>
         <RelistenText
-          className="pl-2 text-gray-300"
+          className="text-gray-300"
           selectable={false}
-          style={{ minWidth: 44 * controlScale, textAlign: 'right' }}
+          style={{
+            fontVariant: ['tabular-nums'],
+            marginLeft: 10 * controlScale,
+            minWidth: 42 * controlScale,
+            textAlign: 'right',
+          }}
         >
           {sourceTrack.humanizedDuration}
         </RelistenText>
@@ -127,7 +132,13 @@ function QueueTrackRow({
 }
 
 export function EarlierQueueItem({ entry }: { entry: QueueTimelineEntry }) {
-  return <QueueTrackRow entry={entry} playbackHint="Plays this earlier queue item now." />;
+  return (
+    <QueueTrackRow
+      action={<PlayerQueueActionsMenu index={entry.queueIndex} queueTrack={entry.queueTrack} />}
+      entry={entry}
+      playbackHint="Plays this earlier queue item now."
+    />
+  );
 }
 
 export function UpNextQueueItem({
