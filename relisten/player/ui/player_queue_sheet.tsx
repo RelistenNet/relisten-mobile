@@ -39,7 +39,6 @@ import Animated, {
   type SharedValue,
   useAnimatedReaction,
   useAnimatedStyle,
-  useReducedMotion,
   useSharedValue,
 } from 'react-native-reanimated';
 
@@ -125,7 +124,6 @@ export function PlayerQueueSheet({
   const player = useRelistenPlayer();
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const reduceMotion = useReducedMotion();
   const orderedQueueTracks = useRelistenPlayerQueueOrderedTracks();
   const currentTrack = useRelistenPlayerCurrentTrack();
   const listRef = useRef<FlatList<TimelineItem>>(null);
@@ -443,13 +441,13 @@ export function PlayerQueueSheet({
     [schedulePivotReconciliation]
   );
 
-  const nowPlayingStyle = useAnimatedStyle(() => {
-    if (!anchorReady.value || reduceMotion) {
+  const pinnedNowPlayingStyle = useAnimatedStyle(() => {
+    if (!anchorReady.value) {
       return { transform: [{ translateY: 0 }], zIndex: 0 };
     }
     const relativeOffset = Math.max(effectiveScrollOffset.value - pivotOffset.value, 0);
     return {
-      transform: [{ translateY: Math.min(relativeOffset * 0.78, height * 0.16) }],
+      transform: [{ translateY: relativeOffset }],
       zIndex: 0,
     };
   });
@@ -535,7 +533,7 @@ export function PlayerQueueSheet({
                 }
               }}
             >
-              <Animated.View style={nowPlayingStyle}>
+              <Animated.View style={pinnedNowPlayingStyle}>
                 <PlayerNowPlaying
                   headingRef={nowPlayingHeadingRef}
                   onBeforeNavigate={onBeforeNavigate}
@@ -566,10 +564,10 @@ export function PlayerQueueSheet({
     },
     [
       isPivotOffscreen,
-      nowPlayingStyle,
       onBeforeNavigate,
       onOpenHistory,
       onViewHistoryShow,
+      pinnedNowPlayingStyle,
       reconcilePivot,
       schedulePivotReconciliation,
       setQueueDragging,
