@@ -19,19 +19,23 @@ export function spokenRelativePlaybackTime(date: Date) {
   return `played ${dayjs(date).fromNow()}`;
 }
 
+function RelativePlaybackTimeText({ children }: { children?: ReactNode }) {
+  return (
+    <RelistenText
+      className="text-sm text-gray-300"
+      maxFontSizeMultiplier={1.6}
+      numberOfLines={1}
+      selectable={false}
+    >
+      {children}
+    </RelistenText>
+  );
+}
+
 export function RelativePlaybackTime({ date }: { date: Date }) {
   return (
     <TimeAgo
-      component={({ children }: { children?: ReactNode }) => (
-        <RelistenText
-          className="text-sm text-gray-300"
-          maxFontSizeMultiplier={1.6}
-          numberOfLines={1}
-          selectable={false}
-        >
-          {children}
-        </RelistenText>
-      )}
+      component={RelativePlaybackTimeText}
       date={date}
       formatter={compactPlaybackTime}
       minPeriod={30}

@@ -2,7 +2,10 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import { SourceTrackOfflineIndicator } from '@/relisten/components/source/source_track_offline_indicator';
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
 import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
-import { playerDisplayTitle, playerQueueDate } from '@/relisten/player/ui/player_display_helpers';
+import {
+  playerDisplayTitle,
+  playerTrackMetadata,
+} from '@/relisten/player/ui/player_display_helpers';
 import { PlayerPanelRow } from '@/relisten/player/ui/player_panel_row';
 import { PlayerQueueActionsMenu } from '@/relisten/player/ui/player_queue_actions_menu';
 import { accessibleControlScale } from '@/relisten/util/accessible_control_scale';
@@ -71,13 +74,7 @@ function QueueTrackRow({
   const { isFirst, isLast, queueIndex, queueTrack } = entry;
   const sourceTrack = queueTrack.sourceTrack;
   const displayTitle = playerDisplayTitle(sourceTrack.title);
-  const metadata = [
-    sourceTrack.artist.name,
-    playerQueueDate(sourceTrack.show.displayDate),
-    sourceTrack.show.venue?.name,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  const metadata = playerTrackMetadata(sourceTrack);
 
   return (
     <PlayerPanelRow isFirst={isFirst} isLast={isLast}>
