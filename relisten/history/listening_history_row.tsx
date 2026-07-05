@@ -26,7 +26,7 @@ export function ListeningHistoryRow({ entry, onViewShow }: ListeningHistoryRowPr
     .join(', ');
 
   return (
-    <View className="flex-row items-center pl-5 pr-1">
+    <View className="flex-row items-center pl-5 pr-2">
       <Pressable
         accessibilityHint="Opens the show containing this track."
         accessibilityLabel={accessibilityLabel}
@@ -44,9 +44,11 @@ export function ListeningHistoryRow({ entry, onViewShow }: ListeningHistoryRowPr
           }
         />
       </Pressable>
-      <HistoryTrackActionsMenu onViewShow={viewShow} sourceTrack={sourceTrack}>
-        <OverflowMenuTrigger accessibilityLabel={`Actions for ${sourceTrack.title}`} />
-      </HistoryTrackActionsMenu>
+      <View className="ml-1">
+        <HistoryTrackActionsMenu onViewShow={viewShow} sourceTrack={sourceTrack}>
+          <OverflowMenuTrigger accessibilityLabel={`Actions for ${sourceTrack.title}`} />
+        </HistoryTrackActionsMenu>
+      </View>
     </View>
   );
 }

@@ -70,7 +70,8 @@ export function PlayerOverlayHeader({ interactive }: { interactive: boolean }) {
     <GestureDetector gesture={collapseGesture}>
       <View
         accessibilityElementsHidden
-        className="min-h-11 items-center justify-center"
+        className="min-h-14 items-center justify-end pb-2 pt-3"
+        collapsable={false}
         importantForAccessibility="no-hide-descendants"
       >
         <View className="h-1 w-9 rounded-full bg-relisten-blue-200/80" />
