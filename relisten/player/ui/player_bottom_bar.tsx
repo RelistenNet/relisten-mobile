@@ -16,8 +16,6 @@ import { useCallback } from 'react';
 import {
   LayoutChangeEvent,
   Platform,
-  Pressable,
-  StyleSheet,
   TouchableOpacity,
   useWindowDimensions,
   View,
@@ -52,7 +50,9 @@ const EXPANSION_PROJECTION_SECONDS = 0.18;
 function OfflineBanner() {
   return (
     <View className="flex flex-row items-center justify-center bg-red-900/85 px-3 py-2">
-      <MaterialIcons name="cloud-off" size={20} color={'white'} style={{ marginRight: 4 }} />
+      <View className="mr-1">
+        <MaterialIcons name="cloud-off" size={20} color="white" />
+      </View>
       <RelistenText className="text-sm text-white">
         Offline. You can stream downloaded tracks
       </RelistenText>
@@ -72,12 +72,10 @@ function NativeTabsAccessoryProgress() {
       : 0;
 
   return (
-    <View style={styles.accessoryProgressTrack}>
+    <View className="mx-1.5 h-[3px] overflow-hidden rounded-full bg-slate-400/20">
       <View
-        style={[
-          styles.accessoryProgressFill,
-          { width: `${percent * 100}%`, opacity: percent < 0.01 ? 0 : 1 },
-        ]}
+        className="h-full rounded-full bg-cyan-400"
+        style={{ width: `${percent * 100}%`, opacity: percent < 0.01 ? 0 : 1 }}
       />
     </View>
   );
@@ -91,19 +89,25 @@ function PlayerBottomBarProgress({
   return placementBackend === 'nativeTabsAccessory' ? (
     <NativeTabsAccessoryProgress />
   ) : (
-    <View style={styles.scrubberShell}>
+    <View className="mx-0.5 overflow-hidden rounded-full bg-slate-400/10 px-1.5 py-0.5">
       <ScrubberRow showTimes={false} />
     </View>
   );
 }
 
 function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsProps) {
+  'use no memo';
+
   const currentTrack = useRelistenPlayerCurrentTrack();
   const playbackState = useRelistenPlayerPlaybackState();
   const player = useRelistenPlayer();
-  const { openPlayer } = usePlayerPresentation();
+  const { height } = useWindowDimensions();
+  const { beginInteractivePresentation, closePlayer, openPlayer } = usePlayerPresentation();
   const { isCasting, deviceName } = useRelistenCastStatus();
   const shouldRenderCastButton = useShouldRenderCastButton();
+  const gesturePresentationStarted = useSharedValue(false);
+  const gestureStartProgress = useSharedValue(0);
+  const gestureDistance = Math.max(height * 0.72, 1);
 
   if (!currentTrack) {
     return <></>;
@@ -120,12 +124,12 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
     : 'text-base font-semibold text-white';
   const subtitleClassName = isAccessory ? 'text-xs text-slate-200' : 'text-sm text-slate-200';
   const castingClassName = isAccessory ? 'text-[11px] text-slate-300' : 'text-xs text-slate-300';
-  const transportButtonStyle = isAccessory
-    ? styles.transportButtonAccessory
-    : styles.transportButton;
-  const utilityButtonShellStyle = isAccessory
-    ? styles.utilityButtonShellAccessory
-    : styles.utilityButtonShell;
+  const transportButtonClassName = isAccessory
+    ? 'h-9 w-9 items-center justify-center rounded-full bg-white/15'
+    : 'h-11 w-11 items-center justify-center rounded-full bg-white/10';
+  const utilityButtonShellClassName = isAccessory
+    ? 'ml-1.5 h-[30px] w-[30px] items-center justify-center rounded-full bg-white/10'
+    : 'ml-2 h-9 w-9 items-center justify-center rounded-full bg-white/10';
 
   let playbackStateIcon = <MaterialIcons name="play-arrow" size={playbackIconSize} color="white" />;
 
@@ -137,41 +141,86 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
     );
   }
 
+  const expandGesture = Gesture.Pan()
+    .activeOffsetY(-EXPANSION_ACTIVATION_DISTANCE)
+    .failOffsetX([-24, 24])
+    .failOffsetY(EXPANSION_ACTIVATION_DISTANCE)
+    .onBegin(() => {
+      gesturePresentationStarted.value = false;
+    })
+    .onStart(() => {
+      gesturePresentationStarted.value = true;
+      gestureStartProgress.value = playerPresentationProgress.value;
+      runOnJS(beginInteractivePresentation)();
+    })
+    .onUpdate((event) => {
+      playerPresentationProgress.value = Math.max(
+        0,
+        Math.min(1, gestureStartProgress.value - event.translationY / gestureDistance)
+      );
+    })
+    .onEnd((event) => {
+      const projectedProgress =
+        playerPresentationProgress.value -
+        (event.velocityY * EXPANSION_PROJECTION_SECONDS) / gestureDistance;
+
+      if (projectedProgress > 0.32) {
+        runOnJS(openPlayer)();
+      } else {
+        runOnJS(closePlayer)();
+      }
+    })
+    .onFinalize((_event, success) => {
+      if (success || !gesturePresentationStarted.value) return;
+
+      if (playerPresentationProgress.value > 0.32) {
+        runOnJS(openPlayer)();
+      } else {
+        runOnJS(closePlayer)();
+      }
+    });
+  const openGesture = Gesture.Tap().onEnd((_event, success) => {
+    if (success) runOnJS(openPlayer)();
+  });
+  const metadataGesture = Gesture.Exclusive(expandGesture, openGesture);
+
   return (
     <Flex column cn={rootContainerCn}>
       <Flex cn={headerRowCn}>
         <TouchableOpacity
+          className={transportButtonClassName}
           onPress={() => {
             player.togglePauseResume();
           }}
-          style={transportButtonStyle}
         >
           {playbackStateIcon}
         </TouchableOpacity>
-        <Pressable
-          accessibilityLabel={`Open player for ${track.title}`}
-          accessibilityRole="button"
-          onPress={openPlayer}
-          className={isAccessory ? 'ml-2 flex-1' : 'ml-3 flex-1'}
-          style={styles.metadataPressable}
-        >
-          <Flex column cn="flex-1 min-w-0">
-            <RelistenText className={titleClassName} numberOfLines={1}>
-              {track?.title ?? ''}
-            </RelistenText>
-            <RelistenText className={subtitleClassName} numberOfLines={1}>
-              {currentTrack.subtitle ?? ''}
-            </RelistenText>
-            {isCasting && (
-              <RelistenText className={castingClassName} numberOfLines={1}>
-                Casting{deviceName ? ` to ${deviceName}` : ''}
+        <GestureDetector gesture={metadataGesture}>
+          <Animated.View
+            accessible
+            accessibilityLabel={`Open player for ${track.title}`}
+            accessibilityRole="button"
+            className={`${isAccessory ? 'ml-2' : 'ml-3'} min-w-0 flex-1`}
+            onAccessibilityTap={openPlayer}
+          >
+            <Flex column cn="flex-1 min-w-0">
+              <RelistenText className={titleClassName} numberOfLines={1}>
+                {track?.title ?? ''}
               </RelistenText>
-            )}
-          </Flex>
-        </Pressable>
+              <RelistenText className={subtitleClassName} numberOfLines={1}>
+                {currentTrack.subtitle ?? ''}
+              </RelistenText>
+              {isCasting && (
+                <RelistenText className={castingClassName} numberOfLines={1}>
+                  Casting{deviceName ? ` to ${deviceName}` : ''}
+                </RelistenText>
+              )}
+            </Flex>
+          </Animated.View>
+        </GestureDetector>
         <Flex cn={isAccessory ? 'ml-2 items-center self-center' : 'ml-2 items-center'}>
           {Platform.OS === 'ios' && (
-            <View style={utilityButtonShellStyle}>
+            <View className={utilityButtonShellClassName}>
               <AirPlayButton
                 activeTintColor="white"
                 tintColor="rgba(226, 232, 240, 0.72)"
@@ -181,7 +230,7 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
             </View>
           )}
           {shouldRenderCastButton && (
-            <View style={utilityButtonShellStyle}>
+            <View className={utilityButtonShellClassName}>
               <RelistenCastButton
                 tintColor="rgba(226, 232, 240, 0.78)"
                 className={utilityIconClassName}
@@ -206,21 +255,9 @@ export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBa
   'use no memo';
 
   const isOnline = useShouldMakeNetworkRequests();
-  const { height } = useWindowDimensions();
   const { playerBottomBarHeight, setPlayerBottomBarHeight } = useRelistenPlayerBottomBarContext();
   const placementOffset = usePlayerBarPlacementOffset();
-  const {
-    beginInteractivePresentation,
-    cancelPreparedPresentation,
-    closePlayer,
-    isPresentationActive,
-    openPlayer,
-    preparePlayerPresentation,
-  } = usePlayerPresentation();
-  const touchStartX = useSharedValue(0);
-  const touchStartY = useSharedValue(0);
-  const gestureStartProgress = useSharedValue(0);
-  const gestureDistance = Math.max(height * 0.72, 1);
+  const { isPresentationActive } = usePlayerPresentation();
   const offlineMinHeight = !isOnline
     ? placementBackend === 'overlay'
       ? OFFLINE_OVERLAY_MIN_HEIGHT
@@ -270,216 +307,45 @@ export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBa
     return <></>;
   }
 
-  const containerStyle =
-    placementBackend === 'overlay'
-      ? {
-          minHeight: offlineMinHeight,
-          bottom: placementOffset,
-          position: 'absolute' as const,
-          width: '100%' as const,
-        }
-      : {
-          minHeight: offlineMinHeight,
-          width: '100%' as const,
-        };
-  const contentContainerStyle =
-    placementBackend === 'overlay'
-      ? styles.overlayContentContainer
-      : styles.accessoryContentContainer;
+  const isOverlay = placementBackend === 'overlay';
+  const containerClassName = isOverlay ? 'absolute w-full' : 'w-full';
+  const contentContainerClassName = isOverlay ? 'w-full flex-1 px-3 pb-2' : 'w-full px-1.5';
+  const mainSurfaceClassName = isOverlay ? 'px-3 pb-3 pt-2.5' : 'pb-2 pt-1.5';
   const shellChromeStyle =
-    Platform.OS === 'ios' ? styles.shellChromeIos : styles.shellChromeAndroid;
-  const shellSurfaceStyle =
-    Platform.OS === 'ios' ? styles.shellSurfaceIos : styles.shellSurfaceAndroid;
-  const mainSurfaceStyle =
-    placementBackend === 'overlay' ? styles.mainSurfaceOverlay : styles.mainSurfaceAccessory;
+    Platform.OS === 'ios'
+      ? { boxShadow: '0 10px 22px rgba(2, 6, 23, 0.22)' }
+      : { elevation: 10, shadowColor: '#020617' };
+  const shellSurfaceClassName = `overflow-hidden rounded-3xl border bg-[rgba(8,18,31,0.95)] ${
+    Platform.OS === 'ios' ? 'border-white/15' : 'border-white/10'
+  }`;
   const body = (
     <>
       {!isOnline && <OfflineBanner />}
-      <View style={mainSurfaceStyle}>
+      <View className={mainSurfaceClassName}>
         <PlayerBottomBarContents placementBackend={placementBackend} />
       </View>
     </>
   );
 
-  const expandGesture = Gesture.Pan()
-    .manualActivation(true)
-    .onTouchesDown((event) => {
-      const touch = event.allTouches[0];
-      touchStartX.value = touch?.absoluteX ?? 0;
-      touchStartY.value = touch?.absoluteY ?? 0;
-      runOnJS(preparePlayerPresentation)();
-    })
-    .onTouchesMove((event, stateManager) => {
-      const touch = event.allTouches[0];
-
-      if (!touch) {
-        return;
-      }
-
-      const translationX = touch.absoluteX - touchStartX.value;
-      const translationY = touch.absoluteY - touchStartY.value;
-
-      if (translationY > EXPANSION_ACTIVATION_DISTANCE || Math.abs(translationX) > 24) {
-        stateManager.fail();
-      } else if (translationY < -EXPANSION_ACTIVATION_DISTANCE) {
-        stateManager.activate();
-      }
-    })
-    .onStart(() => {
-      gestureStartProgress.value = playerPresentationProgress.value;
-      runOnJS(beginInteractivePresentation)();
-    })
-    .onUpdate((event) => {
-      playerPresentationProgress.value = Math.max(
-        0,
-        Math.min(1, gestureStartProgress.value - event.translationY / gestureDistance)
-      );
-    })
-    .onEnd((event) => {
-      const projectedProgress =
-        playerPresentationProgress.value -
-        (event.velocityY * EXPANSION_PROJECTION_SECONDS) / gestureDistance;
-
-      if (projectedProgress > 0.32) {
-        runOnJS(openPlayer)();
-      } else {
-        runOnJS(closePlayer)();
-      }
-    })
-    .onFinalize((_event, success) => {
-      if (!success && playerPresentationProgress.value <= 0) {
-        runOnJS(cancelPreparedPresentation)();
-      }
-    });
-
   return (
-    <GestureDetector gesture={expandGesture}>
-      <Animated.View
-        onLayout={onLayout}
-        pointerEvents={isPresentationActive ? 'none' : 'auto'}
-        style={[containerStyle, barStyle]}
-      >
-        <View style={contentContainerStyle}>
-          {placementBackend === 'overlay' ? (
-            <View style={shellChromeStyle}>
-              <View style={[styles.shellSurface, shellSurfaceStyle]}>{body}</View>
-            </View>
-          ) : (
-            body
-          )}
-        </View>
-      </Animated.View>
-    </GestureDetector>
+    <Animated.View
+      className={containerClassName}
+      onLayout={onLayout}
+      pointerEvents={isPresentationActive ? 'none' : 'auto'}
+      style={[
+        { bottom: isOverlay ? placementOffset : undefined, minHeight: offlineMinHeight },
+        barStyle,
+      ]}
+    >
+      <View className={contentContainerClassName}>
+        {isOverlay ? (
+          <View className="rounded-3xl" style={shellChromeStyle}>
+            <View className={shellSurfaceClassName}>{body}</View>
+          </View>
+        ) : (
+          body
+        )}
+      </View>
+    </Animated.View>
   );
 }
-
-const styles = StyleSheet.create({
-  accessoryProgressFill: {
-    backgroundColor: '#22d3ee',
-    borderRadius: 999,
-    height: '100%',
-  },
-  accessoryProgressTrack: {
-    backgroundColor: 'rgba(148, 163, 184, 0.18)',
-    borderRadius: 999,
-    height: 3,
-    marginHorizontal: 5,
-    overflow: 'hidden',
-  },
-  accessoryContentContainer: {
-    paddingBottom: 0,
-    paddingHorizontal: 6,
-    paddingTop: 0,
-    width: '100%',
-  },
-  metadataPressable: {
-    minWidth: 0,
-  },
-  mainSurfaceAccessory: {
-    paddingBottom: 8,
-    paddingHorizontal: 0,
-    paddingTop: 6,
-  },
-  mainSurfaceOverlay: {
-    paddingBottom: 12,
-    paddingHorizontal: 12,
-    paddingTop: 10,
-  },
-  overlayContentContainer: {
-    flex: 1,
-    paddingBottom: 8,
-    paddingHorizontal: 12,
-    width: '100%',
-  },
-  scrubberShell: {
-    backgroundColor: 'rgba(148, 163, 184, 0.12)',
-    borderRadius: 999,
-    marginHorizontal: 2,
-    overflow: 'hidden',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  shellChromeAndroid: {
-    borderRadius: 24,
-    elevation: 10,
-    shadowColor: '#020617',
-  },
-  shellChromeIos: {
-    borderRadius: 24,
-    shadowColor: '#020617',
-    shadowOffset: {
-      height: 10,
-      width: 0,
-    },
-    shadowOpacity: 0.22,
-    shadowRadius: 22,
-  },
-  shellSurface: {
-    borderRadius: 24,
-    overflow: 'hidden',
-  },
-  shellSurfaceAndroid: {
-    backgroundColor: 'rgba(8, 18, 31, 0.95)',
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    borderWidth: 1,
-  },
-  shellSurfaceIos: {
-    backgroundColor: 'rgba(8, 18, 31, 0.95)',
-    borderColor: 'rgba(255, 255, 255, 0.16)',
-    borderWidth: 1,
-  },
-  transportButton: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 22,
-    height: 44,
-    justifyContent: 'center',
-    width: 44,
-  },
-  transportButtonAccessory: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.14)',
-    borderRadius: 18,
-    height: 36,
-    justifyContent: 'center',
-    width: 36,
-  },
-  utilityButtonShell: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 18,
-    height: 36,
-    justifyContent: 'center',
-    marginLeft: 8,
-    width: 36,
-  },
-  utilityButtonShellAccessory: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    borderRadius: 15,
-    height: 30,
-    justifyContent: 'center',
-    marginLeft: 6,
-    width: 30,
-  },
-});
