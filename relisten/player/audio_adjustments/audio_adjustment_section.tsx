@@ -1,4 +1,8 @@
 import { RelistenText } from '@/relisten/components/relisten_text';
+import {
+  PLAYER_PANEL_BACKGROUND,
+  PLAYER_PANEL_BORDER_COLOR,
+} from '@/relisten/player/ui/player_panel_theme';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import type { PropsWithChildren } from 'react';
 import { View } from 'react-native';
@@ -19,8 +23,8 @@ export function AudioAdjustmentSection({ children, title }: PropsWithChildren<{ 
       </RelistenText>
       <View
         style={{
-          backgroundColor: RelistenBlue[900],
-          borderColor: RelistenBlue[800],
+          backgroundColor: PLAYER_PANEL_BACKGROUND,
+          borderColor: PLAYER_PANEL_BORDER_COLOR,
           borderCurve: 'continuous',
           borderRadius: 16,
           borderWidth: 1,

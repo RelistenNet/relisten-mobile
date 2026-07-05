@@ -3,6 +3,11 @@ import { OverflowMenuTrigger } from '@/relisten/components/menus/overflow_menu_t
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { useAudioAdjustmentEditing } from '@/relisten/player/audio_adjustments/audio_adjustment_editing';
 import { useCustomAudioAdjustmentPresets } from '@/relisten/player/audio_adjustments/audio_adjustment_repo';
+import {
+  PLAYER_PANEL_BACKGROUND,
+  PLAYER_PANEL_BORDER_COLOR,
+  PLAYER_PANEL_DIVIDER_COLOR,
+} from '@/relisten/player/ui/player_panel_theme';
 import { useAudioAdjustmentStore } from '@/relisten/realm/root_services';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { Stack } from 'expo-router';
@@ -49,8 +54,8 @@ export function ManageAudioPresetsScreen() {
         ) : (
           <View
             style={{
-              backgroundColor: RelistenBlue[900],
-              borderColor: RelistenBlue[800],
+              backgroundColor: PLAYER_PANEL_BACKGROUND,
+              borderColor: PLAYER_PANEL_BORDER_COLOR,
               borderCurve: 'continuous',
               borderRadius: 16,
               borderWidth: 1,
@@ -59,7 +64,9 @@ export function ManageAudioPresetsScreen() {
           >
             {presets.map((preset, index) => (
               <View key={preset.id}>
-                {index > 0 && <View style={{ backgroundColor: RelistenBlue[800], height: 1 }} />}
+                {index > 0 && (
+                  <View style={{ backgroundColor: PLAYER_PANEL_DIVIDER_COLOR, height: 1 }} />
+                )}
                 <View
                   style={{ alignItems: 'center', flexDirection: 'row', minHeight: 58, padding: 14 }}
                 >

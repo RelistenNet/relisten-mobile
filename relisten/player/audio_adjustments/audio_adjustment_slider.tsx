@@ -3,6 +3,7 @@ import Slider from '@react-native-community/slider';
 import colors from 'tailwindcss/colors';
 
 type AudioAdjustmentSliderProps = {
+  activeTrackDirection?: 'maximum' | 'minimum';
   accessibilityLabel: string;
   accessibilityText: string;
   disabled: boolean;
@@ -18,6 +19,7 @@ function clamp(value: number, minimum: number, maximum: number) {
 }
 
 export function AudioAdjustmentSlider({
+  activeTrackDirection = 'minimum',
   accessibilityLabel,
   accessibilityText,
   disabled,
@@ -40,9 +42,13 @@ export function AudioAdjustmentSlider({
         text: accessibilityText,
       }}
       disabled={disabled}
-      maximumTrackTintColor={RelistenBlue[800]}
+      maximumTrackTintColor={
+        activeTrackDirection === 'maximum' ? RelistenBlue[300] : RelistenBlue[800]
+      }
       maximumValue={1}
-      minimumTrackTintColor={RelistenBlue[300]}
+      minimumTrackTintColor={
+        activeTrackDirection === 'minimum' ? RelistenBlue[300] : RelistenBlue[800]
+      }
       minimumValue={0}
       onSlidingComplete={onSlidingComplete}
       onValueChange={(value) => onValueChange(minimumDb + Math.round(value * rangeDb))}
