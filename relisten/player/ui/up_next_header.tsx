@@ -1,5 +1,9 @@
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { PLAYER_PANEL_BACKGROUND } from '@/relisten/player/ui/player_panel_row';
+import {
+  PLAYER_PANEL_BACKGROUND,
+  PLAYER_PANEL_BORDER_COLOR,
+  PLAYER_PANEL_HORIZONTAL_PADDING,
+} from '@/relisten/player/ui/player_panel_theme';
 import { accessibleControlScale } from '@/relisten/util/accessible_control_scale';
 import { useWindowDimensions, View } from 'react-native';
 
@@ -12,26 +16,26 @@ export function UpNextHeader({ count }: { count: number }) {
       accessibilityLabel={`Up Next, ${count} ${count === 1 ? 'track' : 'tracks'}`}
       accessibilityRole="header"
       style={{
+        alignItems: 'center',
         backgroundColor: PLAYER_PANEL_BACKGROUND,
-        borderColor: 'rgba(60, 219, 255, 0.34)',
+        borderColor: PLAYER_PANEL_BORDER_COLOR,
         borderCurve: 'continuous',
-        borderLeftWidth: 1,
-        borderRightWidth: 1,
-        borderTopLeftRadius: 28,
-        borderTopRightRadius: 28,
+        borderTopLeftRadius: 26,
+        borderTopRightRadius: 26,
         borderTopWidth: 1,
-        boxShadow: '0 -10px 24px rgba(0, 0, 0, 0.38)',
-        minHeight: 62 * controlScale,
-        paddingBottom: 8 * controlScale,
-        paddingHorizontal: 16,
-        paddingTop: 12 * controlScale,
+        boxShadow: '0 -8px 22px rgba(0, 0, 0, 0.32)',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        minHeight: 56 * controlScale,
+        paddingHorizontal: PLAYER_PANEL_HORIZONTAL_PADDING,
+        paddingVertical: 9 * controlScale,
         zIndex: 2,
       }}
     >
       <RelistenText className="text-lg font-semibold" selectable={false}>
         Up Next
       </RelistenText>
-      <RelistenText className="text-sm text-gray-300" selectable={false}>
+      <RelistenText className="text-sm text-gray-300/80" selectable={false}>
         {count} {count === 1 ? 'track' : 'tracks'}
       </RelistenText>
     </View>
