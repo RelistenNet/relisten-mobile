@@ -156,6 +156,7 @@ export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) 
               style={[StyleSheet.absoluteFill, timelineStyle]}
             >
               <PlayerQueueSheet
+                isPresentedOverlay={isOverlay}
                 onOpenHistory={openHistory}
                 onQueueHeaderActiveChange={setQueueHeaderActive}
                 onViewHistoryShow={viewHistoryShow}
