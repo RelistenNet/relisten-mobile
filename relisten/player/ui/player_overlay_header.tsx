@@ -127,7 +127,7 @@ export function PlayerOverlayHeader({
           accessibilityLabel={isHistory ? 'Back to queue' : 'Collapse player'}
           accessibilityRole="button"
           className="items-center justify-center rounded-full bg-white/5"
-          onPress={() => (isHistory ? onBack() : onClose())}
+          onPress={isHistory ? onBack : onClose}
           style={{ height: touchSize, width: touchSize }}
         >
           <Ionicons
@@ -150,7 +150,7 @@ export function PlayerOverlayHeader({
             accessibilityLabel="Collapse player"
             accessibilityRole="button"
             className="items-center justify-center rounded-full bg-white/5"
-            onPress={() => onClose()}
+            onPress={onClose}
             style={{ height: touchSize, width: touchSize }}
           >
             <Ionicons color="white" name="chevron-down" size={24 * controlScale} />

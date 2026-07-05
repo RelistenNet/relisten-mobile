@@ -1,3 +1,5 @@
+import { type SourceTrack } from '@/relisten/realm/models/source_track';
+
 const LONG_MONTHS = [
   'January',
   'February',
@@ -57,4 +59,14 @@ export function playerQueueDate(displayDate: string) {
 
 export function playerDisplayTitle(title: string) {
   return title.replace(/\s*>\s*/g, ' > ');
+}
+
+export function playerTrackMetadata(sourceTrack: SourceTrack) {
+  return [
+    sourceTrack.artist.name,
+    playerQueueDate(sourceTrack.show.displayDate),
+    sourceTrack.show.venue?.name,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 }
