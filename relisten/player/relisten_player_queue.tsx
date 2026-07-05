@@ -241,25 +241,43 @@ export class RelistenPlayerQueue {
   }
 
   removeTrackAtIndex(index: number) {
-    const originalCopy = [...this.originalTracks];
-    const [removed] = originalCopy.splice(index, 1);
+    const identifier = this.orderedTracks[index]?.identifier;
+    return identifier ? this.removeTrackWithIdentifier(identifier) : false;
+  }
 
-    this.originalTracks = originalCopy;
-
-    const shuffledCopy = [...this.shuffledTracks];
-
-    for (let i = 0; i < this.shuffledTracks.length; i++) {
-      if (this.shuffledTracks[i].identifier === removed.identifier) {
-        shuffledCopy.splice(i, 1);
-        break;
-      }
+  removeTrackWithIdentifier(identifier: string) {
+    const currentIdentifier = this.currentTrack?.identifier;
+    if (identifier === currentIdentifier) {
+      return false;
     }
 
-    this.shuffledTracks = shuffledCopy;
+    const originalIndex = this.originalTracks.findIndex((track) => track.identifier === identifier);
+    const shuffledIndex = this.shuffledTracks.findIndex((track) => track.identifier === identifier);
+
+    if (originalIndex < 0 && shuffledIndex < 0) {
+      return false;
+    }
+
+    if (originalIndex >= 0) {
+      const originalTracks = [...this.originalTracks];
+      originalTracks.splice(originalIndex, 1);
+      this.originalTracks = originalTracks;
+    }
+    if (shuffledIndex >= 0) {
+      const shuffledTracks = [...this.shuffledTracks];
+      shuffledTracks.splice(shuffledIndex, 1);
+      this.shuffledTracks = shuffledTracks;
+    }
+
+    if (currentIdentifier) {
+      this.clearCurrentTrack();
+      this.recalculateTrackIndexes(currentIdentifier);
+    }
 
     this.recalculateNextTrack();
     this.onOrderedTracksChanged.dispatch(this.orderedTracks);
     this.savePlayerState();
+    return true;
   }
 
   get shuffleState() {

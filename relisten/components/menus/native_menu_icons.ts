@@ -1,6 +1,10 @@
 import { Icon } from '@expo/ui';
 
 export const nativeMenuIcons = {
+  back: Icon.select({
+    ios: 'chevron.left',
+    android: import('@expo/material-symbols/arrow_back.xml'),
+  }),
   audioAdjustments: Icon.select({
     ios: 'slider.horizontal.3',
     android: import('@expo/material-symbols/tune.xml'),
