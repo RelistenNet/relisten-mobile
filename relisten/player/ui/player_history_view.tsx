@@ -6,11 +6,17 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import { confirmClearListeningHistory } from '@/relisten/history/confirm_clear_listening_history';
 import { ListeningHistoryList } from '@/relisten/history/listening_history_list';
 import { usePagedListeningHistory } from '@/relisten/history/use_paged_listening_history';
+import {
+  PLAYER_PANEL_BACKGROUND,
+  PLAYER_PANEL_DIVIDER_COLOR,
+  PLAYER_PANEL_HORIZONTAL_PADDING,
+  PLAYER_PANEL_ROW_BACKGROUND,
+} from '@/relisten/player/ui/player_panel_theme';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { useRealm } from '@/relisten/realm/schema';
-import { RelistenBlue } from '@/relisten/relisten_blue';
+import { accessibleControlScale } from '@/relisten/util/accessible_control_scale';
 import { useCallback } from 'react';
-import { View } from 'react-native';
+import { useWindowDimensions, View } from 'react-native';
 
 const CLEAR_ACTION_ID = 'clear-history';
 const CLEAR_ACTIONS: MenuAction[] = [
@@ -29,14 +35,22 @@ function PlayerHistorySummary({
   onClear: () => void;
   totalCount: number;
 }) {
+  const { fontScale } = useWindowDimensions();
+  const controlScale = accessibleControlScale(fontScale);
+
   return (
     <View
       style={{
         alignItems: 'center',
+        backgroundColor: PLAYER_PANEL_ROW_BACKGROUND,
+        borderBottomColor: PLAYER_PANEL_DIVIDER_COLOR,
+        borderBottomWidth: 1,
         flexDirection: 'row',
         justifyContent: 'space-between',
-        minHeight: 56,
-        paddingHorizontal: 16,
+        minHeight: 60 * controlScale,
+        paddingLeft: PLAYER_PANEL_HORIZONTAL_PADDING,
+        paddingRight: 4,
+        paddingVertical: 8 * controlScale,
       }}
     >
       <RelistenText className="text-gray-300" selectable={false}>
@@ -50,6 +64,29 @@ function PlayerHistorySummary({
       >
         <OverflowMenuTrigger accessibilityLabel="Listening history actions" />
       </NativeMenuView>
+    </View>
+  );
+}
+
+function PlayerHistorySectionHeader({ title }: { title: string }) {
+  const { fontScale } = useWindowDimensions();
+  const controlScale = accessibleControlScale(fontScale);
+
+  return (
+    <View
+      accessibilityRole="header"
+      style={{
+        backgroundColor: PLAYER_PANEL_BACKGROUND,
+        borderBottomColor: PLAYER_PANEL_DIVIDER_COLOR,
+        borderBottomWidth: 1,
+        minHeight: 46 * controlScale,
+        paddingHorizontal: PLAYER_PANEL_HORIZONTAL_PADDING,
+        paddingVertical: 10 * controlScale,
+      }}
+    >
+      <RelistenText className="text-sm font-semibold text-relisten-blue-100/90" selectable={false}>
+        {title}
+      </RelistenText>
     </View>
   );
 }
@@ -75,12 +112,16 @@ export function PlayerHistoryView({
       ListHeaderComponent={
         <PlayerHistorySummary onClear={clearHistory} totalCount={history.totalCount} />
       }
-      contentContainerStyle={{ backgroundColor: RelistenBlue[900], paddingBottom: 24 }}
+      contentContainerStyle={{
+        backgroundColor: PLAYER_PANEL_ROW_BACKGROUND,
+        paddingBottom: 24,
+      }}
       contentInsetAdjustmentBehavior="never"
       history={history}
       onViewShow={onViewShow}
+      renderSectionHeader={(section) => <PlayerHistorySectionHeader title={section.sectionTitle} />}
       showsVerticalScrollIndicator={false}
-      style={{ backgroundColor: RelistenBlue[900], flex: 1 }}
+      style={{ backgroundColor: PLAYER_PANEL_ROW_BACKGROUND, flex: 1 }}
     />
   );
 }
