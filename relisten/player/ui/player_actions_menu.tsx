@@ -88,7 +88,7 @@ export function PlayerHeaderToolbar({
         <Stack.Toolbar.Button
           accessibilityLabel={isHistory ? 'Back to queue' : 'Close player'}
           icon={isHistory ? nativeMenuIcons.back : nativeMenuIcons.collapse}
-          onPress={isHistory ? onBack : onClose}
+          onPress={() => (isHistory ? onBack?.() : onClose())}
         />
       </Stack.Toolbar>
       <Stack.Toolbar placement="right">
@@ -96,7 +96,7 @@ export function PlayerHeaderToolbar({
           <Stack.Toolbar.Button
             accessibilityLabel="Close player"
             icon={nativeMenuIcons.collapse}
-            onPress={onClose}
+            onPress={() => onClose()}
           />
         ) : (
           <Stack.Toolbar.Menu
