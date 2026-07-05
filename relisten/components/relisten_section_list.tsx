@@ -2,6 +2,7 @@ import { FlashList, FlashListProps, ListRenderItem } from '@shopify/flash-list';
 import { ReactElement, useMemo } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import { RefreshControl, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { RelistenObject } from '../api/models/relisten';
 import { RelistenBlue } from '../relisten_blue';
 import { ItemSeparator } from './item_separator';
@@ -45,6 +46,8 @@ export type RelistenSectionListProps<T> = Omit<
 export const FAKE_SENTINEL = '__FAKE__';
 export const LOADING_SENTINEL = '__LOADING__';
 export const ERROR_SENTINEL = '__ERROR__';
+
+const ReanimatedFlashList = Animated.createAnimatedComponent(FlashList) as typeof FlashList;
 
 export const RelistenSectionList = <T extends RelistenObject>({
   data,
@@ -112,7 +115,7 @@ export const RelistenSectionList = <T extends RelistenObject>({
   // );
 
   return (
-    <FlashList
+    <ReanimatedFlashList
       {...props}
       data={internalData}
       keyboardShouldPersistTaps="handled"

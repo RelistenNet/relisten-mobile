@@ -3,8 +3,14 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import { PlayerActionsMenu } from '@/relisten/player/ui/player_actions_menu';
 import {
   PLAYER_PANEL_BACKGROUND,
+  PLAYER_PANEL_ACCENT_COLOR,
   PLAYER_PANEL_DIVIDER_COLOR,
 } from '@/relisten/player/ui/player_panel_theme';
+import {
+  PLAYER_DISMISS_ACTIVATION_DISTANCE,
+  playerDismissGestureDistance,
+  shouldFinishPlayerDismiss,
+} from '@/relisten/player/ui/player_dismissal';
 import {
   playerPresentationProgress,
   usePlayerPresentation,
@@ -21,16 +27,15 @@ import Animated, {
   useReducedMotion,
   useSharedValue,
   withTiming,
+  type SharedValue,
 } from 'react-native-reanimated';
-
-const DISMISS_ACTIVATION_DISTANCE = 10;
-const DISMISS_PROJECTION_SECONDS = 0.18;
 
 type PlayerOverlayHeaderProps = {
   mode: 'timeline' | 'history';
   onBack: () => void;
   onClose: () => void;
   queueActive: boolean;
+  queueSurfaceProgress: SharedValue<number>;
 };
 
 export function PlayerOverlayHeader({
@@ -38,6 +43,7 @@ export function PlayerOverlayHeader({
   onBack,
   onClose,
   queueActive,
+  queueSurfaceProgress,
 }: PlayerOverlayHeaderProps) {
   'use no memo';
 
@@ -49,29 +55,32 @@ export function PlayerOverlayHeader({
   const touchStartY = useSharedValue(0);
   const gestureStartProgress = useSharedValue(1);
   const gestureStartTranslationY = useSharedValue(0);
-  const gestureDistance = Math.max(height * 0.72, 1);
+  const gestureDistance = playerDismissGestureDistance(height);
   const isHistory = mode === 'history';
-  const surfaceProgress = useSharedValue(isHistory || queueActive ? 1 : 0);
+  const historySurfaceProgress = useSharedValue(isHistory ? 1 : 0);
 
   useEffect(() => {
-    surfaceProgress.value = withTiming(isHistory || queueActive ? 1 : 0, {
+    historySurfaceProgress.value = withTiming(isHistory ? 1 : 0, {
       duration: reduceMotion ? 100 : 180,
     });
-  }, [isHistory, queueActive, reduceMotion, surfaceProgress]);
+  }, [historySurfaceProgress, isHistory, reduceMotion]);
 
-  const headerStyle = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(
-      surfaceProgress.value,
-      [0, 1],
-      ['rgba(0, 27, 33, 0)', PLAYER_PANEL_BACKGROUND]
-    ),
-    borderBottomColor: interpolateColor(
-      surfaceProgress.value,
-      [0, 1],
-      ['rgba(101, 226, 255, 0)', PLAYER_PANEL_DIVIDER_COLOR]
-    ),
-    borderBottomWidth: surfaceProgress.value,
-  }));
+  const headerStyle = useAnimatedStyle(() => {
+    const surfaceProgress = Math.max(queueSurfaceProgress.value, historySurfaceProgress.value);
+    return {
+      backgroundColor: interpolateColor(
+        surfaceProgress,
+        [0, 1],
+        ['rgba(0, 27, 33, 0)', PLAYER_PANEL_BACKGROUND]
+      ),
+      borderBottomColor: interpolateColor(
+        surfaceProgress,
+        [0, 1],
+        ['rgba(101, 226, 255, 0)', PLAYER_PANEL_DIVIDER_COLOR]
+      ),
+      borderBottomWidth: surfaceProgress,
+    };
+  });
 
   const collapseGesture = Gesture.Pan()
     .manualActivation(true)
@@ -87,9 +96,9 @@ export function PlayerOverlayHeader({
 
       const translationY = currentY - touchStartY.value;
 
-      if (translationY < -DISMISS_ACTIVATION_DISTANCE) {
+      if (translationY < -PLAYER_DISMISS_ACTIVATION_DISTANCE) {
         stateManager.fail();
-      } else if (translationY > DISMISS_ACTIVATION_DISTANCE) {
+      } else if (translationY > PLAYER_DISMISS_ACTIVATION_DISTANCE) {
         stateManager.activate();
       }
     })
@@ -106,62 +115,81 @@ export function PlayerOverlayHeader({
       );
     })
     .onEnd((event) => {
-      const projectedProgress =
-        playerPresentationProgress.value -
-        (event.velocityY * DISMISS_PROJECTION_SECONDS) / gestureDistance;
-
-      if (projectedProgress > 0.55) {
-        runOnJS(openPlayer)();
-      } else {
+      if (
+        shouldFinishPlayerDismiss(
+          playerPresentationProgress.value,
+          event.velocityY,
+          gestureDistance
+        )
+      ) {
         runOnJS(closePlayer)();
+      } else {
+        runOnJS(openPlayer)();
       }
     });
 
   return (
     <GestureDetector gesture={collapseGesture}>
-      <Animated.View
-        className="flex-row items-center justify-between px-4 py-1"
-        style={headerStyle}
-      >
-        <TouchableOpacity
-          accessibilityLabel={isHistory ? 'Back to queue' : 'Collapse player'}
-          accessibilityRole="button"
-          className="items-center justify-center rounded-full bg-white/5"
-          onPress={isHistory ? onBack : onClose}
-          style={{ height: touchSize, width: touchSize }}
+      <Animated.View style={headerStyle}>
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          pointerEvents="none"
+          style={{ alignItems: 'center', paddingTop: 4 * controlScale }}
         >
-          <Ionicons
-            color="white"
-            name={isHistory ? 'chevron-back' : 'chevron-down'}
-            size={24 * controlScale}
+          <View
+            style={{
+              backgroundColor: PLAYER_PANEL_ACCENT_COLOR,
+              borderRadius: 999,
+              height: 4 * controlScale,
+              width: 36 * controlScale,
+            }}
           />
-        </TouchableOpacity>
-        <RelistenText
-          className="text-lg font-semibold"
-          maxFontSizeMultiplier={1.5}
-          numberOfLines={1}
-          selectable={false}
-          style={{ flex: 1, minWidth: 0, textAlign: 'center' }}
+        </View>
+        <View
+          className="flex-row items-center justify-between px-4 pb-1"
+          style={{ paddingTop: 2 * controlScale }}
         >
-          {isHistory ? 'Listening History' : queueActive ? 'Queue' : 'Now Playing'}
-        </RelistenText>
-        {isHistory ? (
           <TouchableOpacity
-            accessibilityLabel="Collapse player"
+            accessibilityLabel={isHistory ? 'Back to queue' : 'Collapse player'}
             accessibilityRole="button"
             className="items-center justify-center rounded-full bg-white/5"
-            onPress={onClose}
+            onPress={isHistory ? onBack : onClose}
             style={{ height: touchSize, width: touchSize }}
           >
-            <Ionicons color="white" name="chevron-down" size={24 * controlScale} />
+            <Ionicons
+              color="white"
+              name={isHistory ? 'chevron-back' : 'chevron-down'}
+              size={24 * controlScale}
+            />
           </TouchableOpacity>
-        ) : (
-          <PlayerActionsMenu onBeforeNavigate={onClose}>
-            <View className="rounded-full bg-white/5" collapsable={false}>
-              <OverflowMenuTrigger accessibilityLabel="Player actions" />
-            </View>
-          </PlayerActionsMenu>
-        )}
+          <RelistenText
+            className="text-lg font-semibold"
+            maxFontSizeMultiplier={1.5}
+            numberOfLines={1}
+            selectable={false}
+            style={{ flex: 1, minWidth: 0, textAlign: 'center' }}
+          >
+            {isHistory ? 'Listening History' : queueActive ? 'Queue' : 'Now Playing'}
+          </RelistenText>
+          {isHistory ? (
+            <TouchableOpacity
+              accessibilityLabel="Collapse player"
+              accessibilityRole="button"
+              className="items-center justify-center rounded-full bg-white/5"
+              onPress={onClose}
+              style={{ height: touchSize, width: touchSize }}
+            >
+              <Ionicons color="white" name="chevron-down" size={24 * controlScale} />
+            </TouchableOpacity>
+          ) : (
+            <PlayerActionsMenu onBeforeNavigate={onClose}>
+              <View className="rounded-full bg-white/5" collapsable={false}>
+                <OverflowMenuTrigger accessibilityLabel="Player actions" />
+              </View>
+            </PlayerActionsMenu>
+          )}
+        </View>
       </Animated.View>
     </GestureDetector>
   );

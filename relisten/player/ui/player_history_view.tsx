@@ -12,10 +12,12 @@ import {
   PLAYER_PANEL_HORIZONTAL_PADDING,
   PLAYER_PANEL_ROW_BACKGROUND,
 } from '@/relisten/player/ui/player_panel_theme';
+import { usePlayerListDismissal } from '@/relisten/player/ui/use_player_list_dismissal';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { useRealm } from '@/relisten/realm/schema';
 import { accessibleControlScale } from '@/relisten/util/accessible_control_scale';
 import { useWindowDimensions, View } from 'react-native';
+import { useAnimatedScrollHandler } from 'react-native-reanimated';
 
 const CLEAR_ACTION_ID = 'clear-history';
 const CLEAR_ACTIONS: MenuAction[] = [
@@ -91,15 +93,24 @@ function PlayerHistorySectionHeader({ title }: { title: string }) {
 }
 
 export function PlayerHistoryView({
+  allowsInteractiveDismiss,
   onViewShow,
 }: {
+  allowsInteractiveDismiss: boolean;
   onViewShow: (entry: PlaybackHistoryEntry) => void;
 }) {
   const realm = useRealm();
   const history = usePagedListeningHistory();
+  const listDismissal = usePlayerListDismissal(allowsInteractiveDismiss);
+  const handleScroll = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      listDismissal.updateDismissalProgress(event.contentOffset.y);
+    },
+  });
 
   return (
     <ListeningHistoryList
+      alwaysBounceVertical
       ListEmptyComponent={
         <View style={{ alignItems: 'center', padding: 32 }}>
           <RelistenText className="text-center text-gray-300" selectable={false}>
@@ -119,9 +130,13 @@ export function PlayerHistoryView({
       }}
       contentInsetAdjustmentBehavior="never"
       history={history}
+      onScroll={handleScroll}
+      onScrollBeginDrag={listDismissal.onScrollBeginDrag}
+      onScrollEndDrag={listDismissal.onScrollEndDrag}
       onViewShow={onViewShow}
       renderSectionHeader={(section) => <PlayerHistorySectionHeader title={section.sectionTitle} />}
       showsVerticalScrollIndicator={false}
+      scrollEventThrottle={16}
       style={{ backgroundColor: PLAYER_PANEL_ROW_BACKGROUND, flex: 1 }}
     />
   );
