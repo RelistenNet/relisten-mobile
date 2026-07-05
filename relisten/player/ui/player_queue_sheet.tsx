@@ -41,6 +41,7 @@ import Animated, {
   useAnimatedReaction,
   useAnimatedScrollHandler,
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
 } from 'react-native-reanimated';
 
@@ -99,6 +100,7 @@ export function PlayerQueueSheet({
   const player = useRelistenPlayer();
   const { fontScale, height } = useWindowDimensions();
   const controlScale = accessibleControlScale(fontScale);
+  const reduceMotion = useReducedMotion();
   const orderedQueueTracks = useRelistenPlayerQueueOrderedTracks();
   const currentTrack = useRelistenPlayerCurrentTrack();
   const listRef = useRef<FlatList<TimelineItem>>(null);
@@ -352,7 +354,9 @@ export function PlayerQueueSheet({
   }, [isPivotOffscreen, onQueueHeaderActiveChange]);
 
   const nowPlayingStyle = useAnimatedStyle(() => {
-    if (!anchorReady.value) return { transform: [{ translateY: 0 }], zIndex: 0 };
+    if (!anchorReady.value || reduceMotion) {
+      return { transform: [{ translateY: 0 }], zIndex: 0 };
+    }
     const relativeOffset = Math.max(scrollOffset.value - pivotOffset.value, 0);
     return {
       transform: [{ translateY: Math.min(relativeOffset * 0.78, height * 0.16) }],
