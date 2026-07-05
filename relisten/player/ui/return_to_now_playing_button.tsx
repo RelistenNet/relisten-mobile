@@ -2,8 +2,9 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { accessibleControlScale } from '@/relisten/util/accessible_control_scale';
 import { MaterialIcons } from '@expo/vector-icons';
-import { TouchableOpacity, useWindowDimensions } from 'react-native';
-import Animated, { FadeIn, FadeOut, useReducedMotion } from 'react-native-reanimated';
+import { useEffect, useState } from 'react';
+import { Animated, Easing, TouchableOpacity, useWindowDimensions } from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
 
 export function ReturnToNowPlayingButton({
   onPress,
@@ -15,19 +16,61 @@ export function ReturnToNowPlayingButton({
   const { fontScale } = useWindowDimensions();
   const controlScale = accessibleControlScale(fontScale);
   const reduceMotion = useReducedMotion();
+  const [progress] = useState(() => new Animated.Value(visible ? 1 : 0));
+  const [mounted, setMounted] = useState(visible);
 
-  if (!visible) return null;
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+      const animation = reduceMotion
+        ? Animated.timing(progress, {
+            duration: 100,
+            easing: Easing.out(Easing.quad),
+            toValue: 1,
+            useNativeDriver: true,
+          })
+        : Animated.spring(progress, {
+            damping: 19,
+            mass: 0.7,
+            stiffness: 250,
+            toValue: 1,
+            useNativeDriver: true,
+          });
+      animation.start();
+      return () => animation.stop();
+    }
+
+    const animation = Animated.timing(progress, {
+      duration: reduceMotion ? 80 : 120,
+      easing: Easing.in(Easing.quad),
+      toValue: 0,
+      useNativeDriver: true,
+    });
+    animation.start(({ finished }) => {
+      if (finished) setMounted(false);
+    });
+    return () => animation.stop();
+  }, [progress, reduceMotion, visible]);
+
+  if (!mounted) return null;
 
   return (
     <Animated.View
-      entering={FadeIn.duration(reduceMotion ? 100 : 160)}
-      exiting={FadeOut.duration(reduceMotion ? 80 : 120)}
+      pointerEvents={visible ? 'auto' : 'none'}
       style={{
         alignSelf: 'center',
         bottom: 16,
         boxShadow: '0 6px 18px rgba(0, 0, 0, 0.42)',
         elevation: 1000,
+        opacity: progress,
         position: 'absolute',
+        transform: [
+          {
+            scale: reduceMotion
+              ? 1
+              : progress.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }),
+          },
+        ],
         zIndex: 1000,
       }}
     >
