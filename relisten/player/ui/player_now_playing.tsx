@@ -207,17 +207,20 @@ function CurrentTrackInfo({
   const actionButtons = (
     <View className="flex-row items-center gap-2 py-1">
       {shareButton}
-      <PlayerActionsMenu onBeforeNavigate={onBeforeNavigate}>
-        <View
-          accessible
-          accessibilityLabel="Player actions"
-          accessibilityRole="button"
-          className="h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-white/5"
-          collapsable={false}
-        >
-          <Ionicons color="white" name="ellipsis-horizontal" size={22} />
-        </View>
-      </PlayerActionsMenu>
+      <View className="h-11 w-11">
+        <PlayerActionsMenu onBeforeNavigate={onBeforeNavigate}>
+          {/* The iOS menu host offsets its child 8pt left and 4pt up. */}
+          <View
+            accessible
+            accessibilityLabel="Player actions"
+            accessibilityRole="button"
+            className="h-11 w-11 translate-x-2 translate-y-1 items-center justify-center rounded-full border border-white/25 bg-white/5"
+            collapsable={false}
+          >
+            <Ionicons color="white" name="ellipsis-horizontal" size={22} />
+          </View>
+        </PlayerActionsMenu>
+      </View>
     </View>
   );
 
