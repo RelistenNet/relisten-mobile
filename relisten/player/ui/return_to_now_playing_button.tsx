@@ -52,13 +52,12 @@ export function ReturnToNowPlayingButton({
 
   return (
     <Animated.View
-      className="absolute self-center"
+      className="absolute self-center rounded-full shadow-lg shadow-black/30"
       pointerEvents={visible ? 'auto' : 'none'}
       style={[
         {
           bottom: bottomInset + 12,
-          boxShadow: '0 6px 18px rgba(0, 0, 0, 0.42)',
-          elevation: 1000,
+          elevation: 12,
           zIndex: 1000,
         },
         animatedStyle,
@@ -68,7 +67,7 @@ export function ReturnToNowPlayingButton({
         accessibilityHint="Returns to the current track and player controls."
         accessibilityLabel="Return to Now Playing"
         accessibilityRole="button"
-        className="min-h-11 flex-row items-center gap-2 rounded-full border border-relisten-blue-200/35 bg-relisten-blue-700 px-4 py-2"
+        className="min-h-11 flex-row items-center gap-1.5 rounded-full border border-relisten-blue-200/35 bg-relisten-blue-700 px-3.5 py-2"
         onPress={onPress}
         style={{ borderCurve: 'continuous' }}
       >

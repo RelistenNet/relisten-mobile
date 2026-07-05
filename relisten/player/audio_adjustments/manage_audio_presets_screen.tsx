@@ -99,10 +99,7 @@ export function ManageAudioPresetsScreen() {
                       }
                     }}
                   >
-                    <OverflowMenuTrigger
-                      accessibilityLabel={`Actions for ${preset.name}`}
-                      tone="muted"
-                    />
+                    <OverflowMenuTrigger accessibilityLabel={`Actions for ${preset.name}`} />
                   </NativeMenuView>
                 </View>
               </View>
