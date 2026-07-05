@@ -22,21 +22,21 @@ import { ReturnToNowPlayingButton } from '@/relisten/player/ui/return_to_now_pla
 import { UpNextHeader } from '@/relisten/player/ui/up_next_header';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { useQuery } from '@/relisten/realm/schema';
+import { accessibleControlScale } from '@/relisten/util/accessible_control_scale';
 import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   findNodeHandle,
   FlatList,
-  type LayoutChangeEvent,
   useWindowDimensions,
   View,
+  type ViewToken,
 } from 'react-native';
 import ReorderableList from 'react-native-reorderable-list';
 import { ReorderableListReorderEvent } from 'react-native-reorderable-list/src/types/props';
 import Animated, {
   runOnJS,
-  useAnimatedReaction,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
@@ -44,12 +44,44 @@ import Animated, {
 
 const HISTORY_PREVIEW_LIMIT = 10;
 
+type TimelineItem =
+  | { kind: 'view-all-history' }
+  | {
+      entry: PlaybackHistoryEntry;
+      isFirst: boolean;
+      isLast: boolean;
+      kind: 'history';
+    }
+  | { icon: 'history' | 'queue-music'; id: string; kind: 'boundary'; label: string }
+  | { entry: QueueTimelineEntry; kind: 'earlier-queue' }
+  | { kind: 'now-playing' }
+  | { count: number; kind: 'up-next-header' }
+  | { entry: QueueTimelineEntry; kind: 'up-next' }
+  | { kind: 'empty-up-next' };
+
 type PlayerQueueSheetProps = {
   onOpenHistory: () => void;
   onQueueHeaderActiveChange: (active: boolean) => void;
   onViewHistoryShow: (entry: PlaybackHistoryEntry) => void;
   usesTransparentHeader: boolean;
 };
+
+function timelineItemKey(item: TimelineItem) {
+  switch (item.kind) {
+    case 'view-all-history':
+    case 'now-playing':
+    case 'up-next-header':
+    case 'empty-up-next':
+      return item.kind;
+    case 'history':
+      return `history-${item.entry.uuid}`;
+    case 'boundary':
+      return `boundary-${item.id}`;
+    case 'earlier-queue':
+    case 'up-next':
+      return `${item.kind}-${item.entry.queueTrack.identifier}`;
+  }
+}
 
 export function PlayerQueueSheet({
   onOpenHistory,
@@ -60,20 +92,22 @@ export function PlayerQueueSheet({
   'use no memo';
 
   const player = useRelistenPlayer();
-  const { height } = useWindowDimensions();
+  const { fontScale, height } = useWindowDimensions();
+  const controlScale = accessibleControlScale(fontScale);
   const orderedQueueTracks = useRelistenPlayerQueueOrderedTracks();
   const currentTrack = useRelistenPlayerCurrentTrack();
-  const listRef = useRef<FlatList<QueueTimelineEntry>>(null);
+  const listRef = useRef<FlatList<TimelineItem>>(null);
+  const listContainerRef = useRef<View>(null);
+  const nowPlayingRef = useRef<View>(null);
   const nowPlayingHeadingRef = useRef<View>(null);
   const hasAnchored = useRef(false);
-  const pastContentHeightRef = useRef(0);
-  const [isAnchored, setIsAnchored] = useState(false);
+  const anchorMeasurementPending = useRef(false);
+  const pivotOffsetRef = useRef(0);
   const [isDragging, setIsDragging] = useState(false);
   const [isPivotOffscreen, setIsPivotOffscreen] = useState(false);
   const scrollOffset = useSharedValue(0);
-  const pastContentHeight = useSharedValue(0);
-  const nowPlayingHeight = useSharedValue(0);
-  const viewportHeight = useSharedValue(0);
+  const pivotOffset = useSharedValue(0);
+  const anchorReady = useSharedValue(false);
   const recentlyPlayed = useQuery(
     {
       type: PlaybackHistoryEntry,
@@ -122,6 +156,78 @@ export function PlayerQueueSheet({
     ).reverse();
   }, [orderedQueueTracks, recentlyPlayed, recentlyPlayed.length]);
 
+  const timelineItems = useMemo<TimelineItem[]>(() => {
+    const items: TimelineItem[] = [];
+    if (recentlyPlayed.length > 0) items.push({ kind: 'view-all-history' });
+    items.push(
+      ...historyPreview.map((entry, index) => ({
+        entry,
+        isFirst: index === 0,
+        isLast: index === historyPreview.length - 1,
+        kind: 'history' as const,
+      }))
+    );
+    if (historyPreview.length > 0) {
+      items.push({
+        icon: 'history',
+        id: 'listening',
+        kind: 'boundary',
+        label: 'Earlier Listening',
+      });
+    }
+    items.push(...earlierQueueEntries.map((entry) => ({ entry, kind: 'earlier-queue' as const })));
+    if (earlierQueueEntries.length > 0) {
+      items.push({
+        icon: 'queue-music',
+        id: 'queue',
+        kind: 'boundary',
+        label: 'Earlier in Queue',
+      });
+    }
+    items.push({ kind: 'now-playing' }, { count: upNextEntries.length, kind: 'up-next-header' });
+    if (upNextEntries.length > 0) {
+      items.push(...upNextEntries.map((entry) => ({ entry, kind: 'up-next' as const })));
+    } else {
+      items.push({ kind: 'empty-up-next' });
+    }
+    return items;
+  }, [earlierQueueEntries, historyPreview, recentlyPlayed.length, upNextEntries]);
+
+  const pivotIndex = useMemo(
+    () => timelineItems.findIndex((item) => item.kind === 'now-playing'),
+    [timelineItems]
+  );
+
+  const itemLayouts = useMemo(() => {
+    let offset = 0;
+    return timelineItems.map((item, index) => {
+      let length: number;
+      switch (item.kind) {
+        case 'view-all-history':
+        case 'boundary':
+          length = 44 * controlScale;
+          break;
+        case 'history':
+        case 'earlier-queue':
+        case 'up-next':
+          length = 62 * controlScale;
+          break;
+        case 'now-playing':
+          length = height * 0.64;
+          break;
+        case 'up-next-header':
+          length = 68 * controlScale;
+          break;
+        case 'empty-up-next':
+          length = 80 * controlScale;
+          break;
+      }
+      const layout = { index, length, offset };
+      offset += length;
+      return layout;
+    });
+  }, [controlScale, height, timelineItems]);
+
   const applyScrollOffset = useCallback(
     (offset: number) => {
       listRef.current?.scrollToOffset({ animated: false, offset });
@@ -137,39 +243,50 @@ export function PlayerQueueSheet({
     });
   }, []);
 
-  const revealAnchoredList = useCallback(() => {
-    requestAnimationFrame(() => {
-      setIsAnchored(true);
-      focusNowPlaying();
-    });
-  }, [focusNowPlaying]);
+  const reconcilePivot = useCallback(
+    (reveal: boolean) => {
+      if (anchorMeasurementPending.current) return;
+      const pivot = nowPlayingRef.current;
+      const container = listContainerRef.current;
+      if (!pivot || !container) return;
 
-  const handlePastContentLayout = useCallback(
-    (event: LayoutChangeEvent) => {
-      const nextHeight = event.nativeEvent.layout.height;
-      const previousHeight = pastContentHeightRef.current;
-      if (hasAnchored.current && nextHeight === previousHeight) {
-        if (!isAnchored) setIsAnchored(true);
-        return;
-      }
+      anchorMeasurementPending.current = true;
+      requestAnimationFrame(() => {
+        pivot.measureInWindow((_pivotX, pivotY) => {
+          container.measureInWindow((_containerX, containerY) => {
+            anchorMeasurementPending.current = false;
+            const previousPivotOffset = pivotOffsetRef.current;
+            const currentOffset = scrollOffset.value;
+            const nextPivotOffset = Math.max(0, currentOffset + pivotY - containerY);
+            pivotOffsetRef.current = nextPivotOffset;
+            pivotOffset.value = nextPivotOffset;
 
-      pastContentHeightRef.current = nextHeight;
-      pastContentHeight.value = nextHeight;
+            if (reveal || currentOffset >= previousPivotOffset - 1) {
+              applyScrollOffset(
+                reveal ? nextPivotOffset : currentOffset + nextPivotOffset - previousPivotOffset
+              );
+            }
 
-      if (!hasAnchored.current) {
-        hasAnchored.current = true;
-        applyScrollOffset(nextHeight);
-        revealAnchoredList();
-        return;
-      }
-
-      const currentOffset = scrollOffset.value;
-      if (currentOffset >= previousHeight - 1) {
-        applyScrollOffset(currentOffset + nextHeight - previousHeight);
-      }
+            anchorReady.value = true;
+            if (reveal) {
+              hasAnchored.current = true;
+              requestAnimationFrame(focusNowPlaying);
+            }
+          });
+        });
+      });
     },
-    [applyScrollOffset, isAnchored, pastContentHeight, revealAnchoredList, scrollOffset]
+    [anchorReady, applyScrollOffset, focusNowPlaying, pivotOffset, scrollOffset]
   );
+
+  const prePivotSignature = useMemo(
+    () => timelineItems.slice(0, pivotIndex).map(timelineItemKey).join('|'),
+    [pivotIndex, timelineItems]
+  );
+
+  useEffect(() => {
+    if (hasAnchored.current) reconcilePivot(false);
+  }, [currentTrack?.identifier, prePivotSignature, reconcilePivot]);
 
   const handleScroll = useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -177,22 +294,14 @@ export function PlayerQueueSheet({
     },
   });
 
-  useAnimatedReaction(
-    () => {
-      if (nowPlayingHeight.value <= 0 || viewportHeight.value <= 0) {
-        return false;
-      }
-
-      const relativeOffset = scrollOffset.value - pastContentHeight.value;
-      return (
-        relativeOffset >= nowPlayingHeight.value || relativeOffset <= -viewportHeight.value + 44
+  const handleViewableItemsChanged = useCallback(
+    ({ viewableItems }: { viewableItems: ViewToken<TimelineItem>[] }) => {
+      if (!hasAnchored.current) return;
+      setIsPivotOffscreen(
+        !viewableItems.some(({ isViewable, item }) => isViewable && item.kind === 'now-playing')
       );
     },
-    (offscreen, previous) => {
-      if (offscreen !== previous) {
-        runOnJS(setIsPivotOffscreen)(offscreen);
-      }
-    }
+    []
   );
 
   useEffect(() => {
@@ -200,7 +309,8 @@ export function PlayerQueueSheet({
   }, [isPivotOffscreen, onQueueHeaderActiveChange]);
 
   const nowPlayingStyle = useAnimatedStyle(() => {
-    const relativeOffset = Math.max(scrollOffset.value - pastContentHeight.value, 0);
+    if (!anchorReady.value) return { transform: [{ translateY: 0 }], zIndex: 0 };
+    const relativeOffset = Math.max(scrollOffset.value - pivotOffset.value, 0);
     return {
       transform: [{ translateY: Math.min(relativeOffset * 0.78, height * 0.16) }],
       zIndex: 0,
@@ -208,11 +318,6 @@ export function PlayerQueueSheet({
   });
 
   const triggerHaptics = useCallback(() => {
-    'worklet';
-    runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
-  }, []);
-
-  const handleDragStart = useCallback(() => {
     'worklet';
     runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
   }, []);
@@ -225,77 +330,88 @@ export function PlayerQueueSheet({
 
   const onReorder = ({ from, to }: ReorderableListReorderEvent) => {
     setIsDragging(false);
-    const fromEntry = upNextEntries[from];
-    const toEntry = upNextEntries[to];
-    if (fromEntry && toEntry) {
-      player.queue.moveQueueTrack(fromEntry.queueIndex, toEntry.queueIndex);
+    const fromItem = timelineItems[from];
+    const toItem = timelineItems[to];
+    if (fromItem?.kind === 'up-next' && toItem?.kind === 'up-next') {
+      player.queue.moveQueueTrack(fromItem.entry.queueIndex, toItem.entry.queueIndex);
     }
   };
 
   const returnToNowPlaying = useCallback(() => {
-    applyScrollOffset(pastContentHeightRef.current);
+    applyScrollOffset(pivotOffsetRef.current);
     AccessibilityInfo.announceForAccessibility('Returned to Now Playing');
     focusNowPlaying();
   }, [applyScrollOffset, focusNowPlaying]);
 
-  return (
-    <View style={{ flex: 1 }}>
-      <ReorderableList
-        ref={listRef}
-        alwaysBounceVertical
-        contentInsetAdjustmentBehavior={usesTransparentHeader ? 'automatic' : 'never'}
-        data={upNextEntries}
-        keyExtractor={(entry) => entry.queueTrack.identifier}
-        ListHeaderComponent={
-          <View style={{ overflow: 'visible' }}>
-            <View onLayout={handlePastContentLayout}>
-              {recentlyPlayed.length > 0 && (
-                <PlayerTimelineBoundary
-                  accessibilityHint="Opens your complete listening history."
-                  icon="history"
-                  label="View All Listening History"
-                  onPress={onOpenHistory}
-                />
-              )}
-              {historyPreview.map((entry, index) => (
-                <PlayerHistoryItem
-                  key={entry.uuid}
-                  entry={entry}
-                  isFirst={index === 0}
-                  isLast={index === historyPreview.length - 1}
-                  onViewShow={() => onViewHistoryShow(entry)}
-                />
-              ))}
-              {historyPreview.length > 0 && (
-                <PlayerTimelineBoundary icon="history" label="Earlier Listening" />
-              )}
-              {earlierQueueEntries.map((entry) => (
-                <EarlierQueueItem key={entry.queueTrack.identifier} entry={entry} />
-              ))}
-              {earlierQueueEntries.length > 0 && (
-                <PlayerTimelineBoundary icon="queue-music" label="Earlier in Queue" />
-              )}
-            </View>
+  const renderItem = useCallback(
+    ({ item }: { item: TimelineItem }) => {
+      switch (item.kind) {
+        case 'view-all-history':
+          return (
+            <PlayerTimelineBoundary
+              accessibilityHint="Opens your complete listening history."
+              icon="history"
+              label="View All Listening History"
+              onPress={onOpenHistory}
+            />
+          );
+        case 'history':
+          return (
+            <PlayerHistoryItem
+              entry={item.entry}
+              isFirst={item.isFirst}
+              isLast={item.isLast}
+              onViewShow={() => onViewHistoryShow(item.entry)}
+            />
+          );
+        case 'boundary':
+          return <PlayerTimelineBoundary icon={item.icon} label={item.label} />;
+        case 'earlier-queue':
+          return <EarlierQueueItem entry={item.entry} />;
+        case 'now-playing':
+          return (
             <Animated.View
-              onLayout={(event) => {
-                nowPlayingHeight.value = event.nativeEvent.layout.height;
+              ref={nowPlayingRef}
+              onLayout={() => {
+                if (!hasAnchored.current) reconcilePivot(true);
               }}
               style={nowPlayingStyle}
             >
               <PlayerNowPlaying headingRef={nowPlayingHeadingRef} />
             </Animated.View>
-            <UpNextHeader count={upNextEntries.length} />
-          </View>
-        }
-        ListEmptyComponent={
-          <PlayerPanelRow isFirst isLast>
-            <View style={{ padding: 24 }}>
-              <RelistenText className="text-center text-gray-300" selectable={false}>
-                Nothing else is queued
-              </RelistenText>
-            </View>
-          </PlayerPanelRow>
-        }
+          );
+        case 'up-next-header':
+          return <UpNextHeader count={item.count} />;
+        case 'up-next':
+          return <UpNextQueueItem entry={item.entry} onReorderStart={() => setIsDragging(true)} />;
+        case 'empty-up-next':
+          return (
+            <PlayerPanelRow isFirst isLast>
+              <View style={{ padding: 24 }}>
+                <RelistenText className="text-center text-gray-300" selectable={false}>
+                  Nothing else is queued
+                </RelistenText>
+              </View>
+            </PlayerPanelRow>
+          );
+      }
+    },
+    [nowPlayingStyle, onOpenHistory, onViewHistoryShow, reconcilePivot]
+  );
+
+  if (!currentTrack) return <View style={{ flex: 1 }} />;
+
+  return (
+    <View ref={listContainerRef} style={{ flex: 1 }}>
+      <ReorderableList
+        ref={listRef}
+        alwaysBounceVertical
+        contentInsetAdjustmentBehavior={usesTransparentHeader ? 'automatic' : 'never'}
+        data={timelineItems}
+        getItemLayout={(_data, index) => itemLayouts[index]}
+        initialNumToRender={12}
+        initialScrollIndex={pivotIndex}
+        keyExtractor={timelineItemKey}
         ListFooterComponent={
           <View style={{ backgroundColor: PLAYER_PANEL_BACKGROUND, height: 1 }}>
             <View
@@ -315,19 +431,16 @@ export function PlayerQueueSheet({
           </View>
         }
         onDragEnd={handleDragEnd}
-        onDragStart={handleDragStart}
+        onDragStart={triggerHaptics}
         onIndexChange={triggerHaptics}
-        onLayout={(event) => {
-          viewportHeight.value = event.nativeEvent.layout.height;
-        }}
         onReorder={onReorder}
         onScroll={handleScroll}
         onScrollBeginDrag={() => setIsDragging(false)}
-        renderItem={({ item }) => (
-          <UpNextQueueItem entry={item} onReorderStart={() => setIsDragging(true)} />
-        )}
+        onViewableItemsChanged={handleViewableItemsChanged}
+        renderItem={renderItem}
         showsVerticalScrollIndicator={false}
-        style={{ flex: 1, opacity: isAnchored ? 1 : 0 }}
+        style={{ flex: 1 }}
+        viewabilityConfig={{ itemVisiblePercentThreshold: 1 }}
       />
       <ReturnToNowPlayingButton
         onPress={returnToNowPlaying}
