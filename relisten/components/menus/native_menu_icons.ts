@@ -1,10 +1,6 @@
 import { Icon } from '@expo/ui';
 
 export const nativeMenuIcons = {
-  back: Icon.select({
-    ios: 'chevron.left',
-    android: import('@expo/material-symbols/arrow_back.xml'),
-  }),
   audioAdjustments: Icon.select({
     ios: 'slider.horizontal.3',
     android: import('@expo/material-symbols/tune.xml'),
@@ -20,10 +16,6 @@ export const nativeMenuIcons = {
   cancel: Icon.select({
     ios: 'xmark.circle',
     android: import('@expo/material-symbols/cancel.xml'),
-  }),
-  collapse: Icon.select({
-    ios: 'chevron.down',
-    android: import('@expo/material-symbols/keyboard_arrow_down.xml'),
   }),
   clearHistory: Icon.select({
     ios: 'trash',
@@ -84,9 +76,5 @@ export const nativeMenuIcons = {
   switchSource: Icon.select({
     ios: 'rectangle.on.rectangle',
     android: import('@expo/material-symbols/swap_horiz.xml'),
-  }),
-  toolbarMore: Icon.select({
-    ios: 'ellipsis',
-    android: import('@expo/material-symbols/more_vert.xml'),
   }),
 } as const;

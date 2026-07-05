@@ -19,6 +19,7 @@ import {
 } from '@/relisten/player/relisten_player_queue_hooks';
 import { PlayerRepeatState, PlayerShuffleState } from '@/relisten/player/relisten_player_queue';
 import { PlayerAudioVisualizer } from '@/relisten/player/ui/player_audio_visualizer';
+import { PlayerActionsMenu } from '@/relisten/player/ui/player_actions_menu';
 import {
   playerDisplayDate,
   playerDisplayTitle,
@@ -26,8 +27,8 @@ import {
 } from '@/relisten/player/ui/player_display_helpers';
 import { ScrubberRow } from '@/relisten/player/ui/player_scrubber';
 import { RelistenBlue } from '@/relisten/relisten_blue';
-import { accessibleControlScale } from '@/relisten/util/accessible_control_scale';
-import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { tw } from '@/relisten/util/tw';
+import { Ionicons, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { type Ref } from 'react';
 import { Platform, Share, TouchableOpacity, useWindowDimensions, View } from 'react-native';
@@ -104,13 +105,13 @@ function ShowIdentity({ visualizerActive }: { visualizerActive: boolean }) {
         </View>
 
         {venue && (
-          <View className="w-full items-center" style={{ marginTop: 2 }}>
+          <View className="mt-0.5 w-full items-center">
             <View className="w-full flex-row items-center gap-4 px-7">
               <View className="h-px flex-1 bg-relisten-blue-700/60" />
               <RelistenText
                 adjustsFontSizeToFit
                 allowFontScaling={false}
-                className="min-w-0 shrink font-semibold uppercase text-relisten-blue-200/70"
+                className="min-w-0 shrink text-center font-semibold uppercase text-relisten-blue-200/70"
                 minimumFontScale={0.72}
                 numberOfLines={2}
                 selectable={false}
@@ -118,7 +119,6 @@ function ShowIdentity({ visualizerActive }: { visualizerActive: boolean }) {
                   fontSize: 13 * posterScale,
                   letterSpacing: 3 * posterScale,
                   lineHeight: 18 * posterScale,
-                  textAlign: 'center',
                 }}
               >
                 {venue.name}
@@ -128,21 +128,20 @@ function ShowIdentity({ visualizerActive }: { visualizerActive: boolean }) {
             <RelistenText
               adjustsFontSizeToFit
               allowFontScaling={false}
-              className="w-full px-7 text-center uppercase text-relisten-blue-300/65"
+              className="mt-1 w-full px-7 text-center uppercase text-relisten-blue-300/65"
               minimumFontScale={0.6}
               numberOfLines={1}
               selectable={false}
               style={{
                 fontSize: 12 * posterScale,
                 letterSpacing: 3 * posterScale,
-                marginTop: 4,
               }}
             >
               {venue.location}
             </RelistenText>
           </View>
         )}
-        <View className="w-full px-3" style={{ marginBottom: 8, marginTop: 18 }}>
+        <View className="mb-2 mt-5 w-full px-3">
           <PlayerAudioVisualizer active={visualizerActive} />
         </View>
       </View>
@@ -153,14 +152,15 @@ function ShowIdentity({ visualizerActive }: { visualizerActive: boolean }) {
 function CurrentTrackInfo({
   castStatus,
   headingRef,
+  onBeforeNavigate,
 }: {
   castStatus: ReturnType<typeof useRelistenCastStatus>;
   headingRef?: Ref<View>;
+  onBeforeNavigate: () => void;
 }) {
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
   const { isCasting, deviceName } = castStatus;
   const { fontScale } = useWindowDimensions();
-  const controlScale = accessibleControlScale(fontScale);
   const isAccessibilityLayout = fontScale >= 1.4;
 
   const track = currentPlayerTrack?.sourceTrack;
@@ -197,16 +197,28 @@ function CurrentTrackInfo({
     <TouchableOpacity
       accessibilityLabel="Share current track"
       accessibilityRole="button"
-      className="items-center justify-center rounded-full border border-white/25 bg-white/5"
+      className="min-h-11 min-w-11 items-center justify-center rounded-full border border-white/25 bg-white/5"
       onPress={onShare}
-      style={{ minHeight: 44 * controlScale, minWidth: 44 * controlScale }}
     >
-      <MaterialIcons
-        color="white"
-        name={Platform.OS === 'ios' ? 'ios-share' : 'share'}
-        size={21 * controlScale}
-      />
+      <MaterialIcons color="white" name={Platform.OS === 'ios' ? 'ios-share' : 'share'} size={21} />
     </TouchableOpacity>
+  );
+
+  const actionButtons = (
+    <View className="flex-row items-center gap-2">
+      {shareButton}
+      <PlayerActionsMenu onBeforeNavigate={onBeforeNavigate}>
+        <View
+          accessible
+          accessibilityLabel="Player actions"
+          accessibilityRole="button"
+          className="min-h-11 min-w-11 items-center justify-center rounded-full border border-white/25 bg-white/5"
+          collapsable={false}
+        >
+          <Ionicons color="white" name="ellipsis-horizontal" size={22} />
+        </View>
+      </PlayerActionsMenu>
+    </View>
   );
 
   const trackDetails = (
@@ -215,7 +227,7 @@ function CurrentTrackInfo({
       accessible
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="header"
-      style={{ flex: 1, minWidth: 0 }}
+      className={isAccessibilityLayout ? 'min-w-0' : 'min-w-0 flex-1'}
     >
       <RelistenText
         className="text-2xl font-bold leading-tight"
@@ -225,29 +237,26 @@ function CurrentTrackInfo({
         {displayTitle}
       </RelistenText>
       <RelistenText
-        className="text-lg"
+        className="mt-1 text-lg"
         numberOfLines={fontScale < 1.4 ? 1 : undefined}
         selectable={false}
-        style={{ marginTop: 4 }}
       >
         {artist.name} · {playerDisplayDate(show.displayDate)}
       </RelistenText>
       {show.venue ? (
         <RelistenText
-          className="text-base text-gray-400"
+          className="mt-0.5 text-base text-gray-400"
           numberOfLines={fontScale < 1.4 ? 1 : undefined}
           selectable={false}
-          style={{ marginTop: 2 }}
         >
           {show.venue.name} · {show.venue.location}
         </RelistenText>
       ) : null}
       {isCasting && (
         <RelistenText
-          className="text-sm text-relisten-blue-200"
+          className="mt-1 text-sm text-relisten-blue-200"
           numberOfLines={1}
           selectable={false}
-          style={{ marginTop: 4 }}
         >
           Casting{deviceName ? ` to ${deviceName}` : ''}
         </RelistenText>
@@ -260,12 +269,12 @@ function CurrentTrackInfo({
       {isAccessibilityLayout ? (
         <View className="gap-2">
           {trackDetails}
-          <View className="items-end">{shareButton}</View>
+          <View className="items-end">{actionButtons}</View>
         </View>
       ) : (
         <View className="flex-row items-center justify-between gap-3">
           {trackDetails}
-          {shareButton}
+          {actionButtons}
         </View>
       )}
     </View>
@@ -275,45 +284,33 @@ function CurrentTrackInfo({
 function PlayerControls() {
   const player = useRelistenPlayer();
   const playbackState = useRelistenPlayerPlaybackState();
-  const { fontScale, width } = useWindowDimensions();
-  const controlScale = accessibleControlScale(fontScale);
-  const playSize = 64 * controlScale;
 
-  let playbackStateIcon = (
-    <MaterialIcons color="white" name="play-arrow" size={46 * controlScale} />
-  );
+  let playbackStateIcon = <MaterialIcons color="white" name="play-arrow" size={46} />;
   let playbackLabel = 'Play';
 
   if (playbackState === RelistenPlaybackState.Playing) {
-    playbackStateIcon = <MaterialIcons color="white" name="pause" size={46 * controlScale} />;
+    playbackStateIcon = <MaterialIcons color="white" name="pause" size={46} />;
     playbackLabel = 'Pause';
   } else if (playbackState === RelistenPlaybackState.Stalled) {
-    playbackStateIcon = (
-      <Progress.CircleSnail color="white" indeterminate size={34 * controlScale} />
-    );
+    playbackStateIcon = <Progress.CircleSnail color="white" indeterminate size={34} />;
     playbackLabel = 'Buffering';
   }
 
   return (
-    <View
-      className="flex-row items-center justify-between"
-      style={{ paddingHorizontal: Math.max(width * 0.225, 48) }}
-    >
+    <View className="flex-row items-center justify-between px-12">
       <TouchableOpacity
         accessibilityLabel="Previous track"
         accessibilityRole="button"
-        className="items-center justify-center"
+        className="min-h-11 min-w-11 items-center justify-center"
         onPress={() => player.back()}
-        style={{ minHeight: 44 * controlScale, minWidth: 44 * controlScale }}
       >
-        <MaterialCommunityIcons color="white" name="skip-backward" size={34 * controlScale} />
+        <MaterialCommunityIcons color="white" name="skip-backward" size={34} />
       </TouchableOpacity>
       <TouchableOpacity
         accessibilityLabel={playbackLabel}
         accessibilityRole="button"
-        className="items-center justify-center rounded-full border border-white/30 bg-white/5"
+        className="h-16 w-16 items-center justify-center rounded-full border border-white/30 bg-white/5"
         onPress={() => player.togglePauseResume()}
-        style={{ height: playSize, width: playSize }}
       >
         {playbackStateIcon}
       </TouchableOpacity>
@@ -321,16 +318,14 @@ function PlayerControls() {
         accessibilityLabel="Next track"
         accessibilityRole="button"
         accessibilityState={{ disabled: player.queue.isCurrentTrackLast }}
-        className="items-center justify-center"
+        className={tw(
+          'min-h-11 min-w-11 items-center justify-center',
+          player.queue.isCurrentTrackLast && 'opacity-40'
+        )}
         disabled={player.queue.isCurrentTrackLast}
         onPress={() => player.next()}
-        style={{
-          minHeight: 44 * controlScale,
-          minWidth: 44 * controlScale,
-          opacity: player.queue.isCurrentTrackLast ? 0.4 : 1,
-        }}
       >
-        <MaterialCommunityIcons color="white" name="skip-forward" size={34 * controlScale} />
+        <MaterialCommunityIcons color="white" name="skip-forward" size={34} />
       </TouchableOpacity>
     </View>
   );
@@ -342,8 +337,6 @@ function PlayerSecondaryControls() {
   const [repeatState] = useRelistenPlayerRepeatState();
   const audioEqualizerConfiguration = useAudioAdjustmentConfiguration();
   const shouldRenderCastButton = useShouldRenderCastButton();
-  const { fontScale } = useWindowDimensions();
-  const controlScale = accessibleControlScale(fontScale);
 
   const isShuffleOn = shuffleState === PlayerShuffleState.SHUFFLE_ON;
   const isRepeatTrack = repeatState === PlayerRepeatState.REPEAT_TRACK;
@@ -370,28 +363,20 @@ function PlayerSecondaryControls() {
     queue.setRepeatState(nextRepeatState);
   };
 
-  const touchSize = 44 * controlScale;
-  const visualSize = 36 * controlScale;
-  const iconSize = 20 * controlScale;
-
   return (
     <View className="flex-row items-center justify-between px-4">
       <TouchableOpacity
         accessibilityLabel={isShuffleOn ? 'Turn shuffle off' : 'Turn shuffle on'}
         accessibilityRole="button"
         accessibilityState={{ selected: isShuffleOn }}
-        className="items-center justify-center"
+        className="h-11 w-11 items-center justify-center"
         onPress={toggleShuffle}
-        style={{ height: touchSize, width: touchSize }}
       >
-        <View
-          className="items-center justify-center rounded-full border border-white/25 bg-white/5"
-          style={{ height: visualSize, width: visualSize }}
-        >
+        <View className="h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-white/5">
           <MaterialCommunityIcons
             color={isShuffleOn ? RelistenBlue['300'] : inactiveColor}
             name="shuffle"
-            size={iconSize}
+            size={20}
           />
         </View>
       </TouchableOpacity>
@@ -399,18 +384,14 @@ function PlayerSecondaryControls() {
         accessibilityLabel="Change repeat mode"
         accessibilityRole="button"
         accessibilityState={{ selected: isRepeatOn }}
-        className="items-center justify-center"
+        className="h-11 w-11 items-center justify-center"
         onPress={toggleRepeat}
-        style={{ height: touchSize, width: touchSize }}
       >
-        <View
-          className="items-center justify-center rounded-full border border-white/25 bg-white/5"
-          style={{ height: visualSize, width: visualSize }}
-        >
+        <View className="h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-white/5">
           <MaterialCommunityIcons
             color={isRepeatOn ? RelistenBlue['300'] : inactiveColor}
             name={isRepeatTrack ? 'repeat-once' : 'repeat'}
-            size={iconSize}
+            size={20}
           />
         </View>
       </TouchableOpacity>
@@ -419,44 +400,28 @@ function PlayerSecondaryControls() {
           accessibilityLabel="Open Audio Equalizer"
           accessibilityRole="button"
           accessibilityState={{ selected: isAudioEqualizerOn }}
-          className="items-center justify-center"
+          className="h-11 w-11 items-center justify-center"
           onPress={() => router.push('/relisten/audio-adjustments')}
-          style={{ height: touchSize, width: touchSize }}
         >
-          <View
-            className="items-center justify-center rounded-full border border-white/25 bg-white/5"
-            style={{ height: visualSize, width: visualSize }}
-          >
+          <View className="h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-white/5">
             <MaterialCommunityIcons
               color={isAudioEqualizerOn ? RelistenBlue['300'] : inactiveColor}
               name="equalizer"
-              size={iconSize}
+              size={20}
             />
           </View>
         </TouchableOpacity>
       )}
       {shouldRenderCastButton && (
-        <View
-          className="items-center justify-center"
-          style={{ height: touchSize, width: touchSize }}
-        >
-          <View
-            className="items-center justify-center rounded-full border border-white/25 bg-white/5"
-            style={{ height: visualSize, width: visualSize }}
-          >
+        <View className="h-11 w-11 items-center justify-center">
+          <View className="h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-white/5">
             <RelistenCastButton className="h-5 w-5" tintColor={inactiveColor} />
           </View>
         </View>
       )}
       {Platform.OS === 'ios' && (
-        <View
-          className="items-center justify-center"
-          style={{ height: touchSize, width: touchSize }}
-        >
-          <View
-            className="items-center justify-center rounded-full border border-white/25 bg-white/5"
-            style={{ height: visualSize, width: visualSize }}
-          >
+        <View className="h-11 w-11 items-center justify-center">
+          <View className="h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-white/5">
             <AirPlayButton
               activeTintColor="white"
               className="h-5 w-5"
@@ -472,10 +437,15 @@ function PlayerSecondaryControls() {
 
 type PlayerNowPlayingProps = {
   headingRef?: Ref<View>;
+  onBeforeNavigate: () => void;
   visualizerActive?: boolean;
 };
 
-export function PlayerNowPlaying({ headingRef, visualizerActive = true }: PlayerNowPlayingProps) {
+export function PlayerNowPlaying({
+  headingRef,
+  onBeforeNavigate,
+  visualizerActive = true,
+}: PlayerNowPlayingProps) {
   const currentTrack = useRelistenPlayerCurrentTrack();
   const castStatus = useRelistenCastStatus();
   const { fontScale } = useWindowDimensions();
@@ -492,20 +462,24 @@ export function PlayerNowPlaying({ headingRef, visualizerActive = true }: Player
   }
 
   return (
-    <View style={{ paddingBottom: 24, paddingTop: showDecorativeIdentity ? 4 : 24 }}>
+    <View className={tw('pb-6', showDecorativeIdentity ? 'pt-4' : 'pt-6')}>
       {showDecorativeIdentity && (
         <ShowIdentity visualizerActive={visualizerActive && !castStatus.isCasting} />
       )}
-      <View style={{ marginTop: showDecorativeIdentity ? 14 : 0 }}>
-        <CurrentTrackInfo castStatus={castStatus} headingRef={headingRef} />
+      <View className={showDecorativeIdentity ? 'mt-4' : undefined}>
+        <CurrentTrackInfo
+          castStatus={castStatus}
+          headingRef={headingRef}
+          onBeforeNavigate={onBeforeNavigate}
+        />
       </View>
-      <View className="px-6" style={{ marginTop: 18 }}>
+      <View className="mt-5 px-6">
         <ScrubberRow subduedCache />
       </View>
-      <View style={{ marginTop: 4 }}>
+      <View className="mt-1">
         <PlayerControls />
       </View>
-      <View style={{ marginTop: 16 }}>
+      <View className="mt-6 pb-4 pt-2">
         <PlayerSecondaryControls />
       </View>
     </View>
