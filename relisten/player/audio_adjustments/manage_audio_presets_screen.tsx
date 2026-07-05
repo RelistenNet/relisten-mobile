@@ -1,15 +1,10 @@
 import { NativeMenuView, type MenuAction } from '@/relisten/components/menus/native_menu_view';
 import { OverflowMenuTrigger } from '@/relisten/components/menus/overflow_menu_trigger';
 import { RelistenText } from '@/relisten/components/relisten_text';
+import { AudioAdjustmentCard } from '@/relisten/player/audio_adjustments/audio_adjustment_section';
 import { useAudioAdjustmentEditing } from '@/relisten/player/audio_adjustments/audio_adjustment_editing';
 import { useCustomAudioAdjustmentPresets } from '@/relisten/player/audio_adjustments/audio_adjustment_repo';
-import {
-  PLAYER_PANEL_BACKGROUND,
-  PLAYER_PANEL_BORDER_COLOR,
-  PLAYER_PANEL_DIVIDER_COLOR,
-} from '@/relisten/player/ui/player_panel_theme';
 import { useAudioAdjustmentStore } from '@/relisten/realm/root_services';
-import { RelistenBlue } from '@/relisten/relisten_blue';
 import { Stack } from 'expo-router';
 import { Alert, ScrollView, View } from 'react-native';
 
@@ -38,13 +33,13 @@ export function ManageAudioPresetsScreen() {
   return (
     <>
       <ScrollView
+        className="flex-1 bg-relisten-blue-950"
         contentContainerStyle={{ gap: 16, padding: 16, paddingBottom: 36 }}
         contentInsetAdjustmentBehavior="automatic"
-        style={{ backgroundColor: RelistenBlue[950], flex: 1 }}
       >
         {presets.length === 0 ? (
-          <View style={{ alignItems: 'center', gap: 8, paddingVertical: 48 }}>
-            <RelistenText selectable={false} style={{ fontSize: 20, fontWeight: '700' }}>
+          <View className="items-center gap-2 py-12">
+            <RelistenText className="text-xl font-bold" selectable={false}>
               No Saved Presets
             </RelistenText>
             <RelistenText className="text-center text-gray-400" selectable={false}>
@@ -52,26 +47,13 @@ export function ManageAudioPresetsScreen() {
             </RelistenText>
           </View>
         ) : (
-          <View
-            style={{
-              backgroundColor: PLAYER_PANEL_BACKGROUND,
-              borderColor: PLAYER_PANEL_BORDER_COLOR,
-              borderCurve: 'continuous',
-              borderRadius: 16,
-              borderWidth: 1,
-              overflow: 'hidden',
-            }}
-          >
+          <AudioAdjustmentCard>
             {presets.map((preset, index) => (
               <View key={preset.id}>
-                {index > 0 && (
-                  <View style={{ backgroundColor: PLAYER_PANEL_DIVIDER_COLOR, height: 1 }} />
-                )}
-                <View
-                  style={{ alignItems: 'center', flexDirection: 'row', minHeight: 58, padding: 14 }}
-                >
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <RelistenText selectable={false} style={{ fontWeight: '600' }}>
+                {index > 0 && <View className="h-px bg-relisten-blue-200/10" />}
+                <View className="min-h-[58px] flex-row items-center p-3.5">
+                  <View className="flex-1 gap-0.5">
+                    <RelistenText className="font-semibold" selectable={false}>
                       {preset.name}
                     </RelistenText>
                     <RelistenText className="text-sm text-gray-400" selectable={false}>
@@ -125,7 +107,7 @@ export function ManageAudioPresetsScreen() {
                 </View>
               </View>
             ))}
-          </View>
+          </AudioAdjustmentCard>
         )}
         <RelistenText className="text-center text-xs text-gray-500" selectable={false}>
           Preset names do not need to be unique.

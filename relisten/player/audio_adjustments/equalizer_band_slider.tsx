@@ -4,8 +4,8 @@ import {
   AUDIO_ADJUSTMENT_BAND_GAIN_MAX_DB,
   AUDIO_ADJUSTMENT_BAND_GAIN_MIN_DB,
 } from '@/relisten/player/audio_adjustments/audio_adjustment_types';
-import { RelistenBlue } from '@/relisten/relisten_blue';
 import { View } from 'react-native';
+import { tw } from '@/relisten/util/tw';
 
 function signedDecibels(value: number) {
   if (value === 0) return '0 dB';
@@ -26,12 +26,12 @@ export function EqualizerBandSlider({
   value: number;
 }) {
   return (
-    <View style={{ gap: 2, minHeight: 72, opacity: disabled ? 0.45 : 1, padding: 14 }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-        <RelistenText selectable={false} style={{ fontWeight: '600' }}>
+    <View className={tw('min-h-[72px] gap-0.5 p-3.5', disabled && 'opacity-45')}>
+      <View className="flex-row justify-between">
+        <RelistenText className="font-semibold" selectable={false}>
           {frequencyLabel}
         </RelistenText>
-        <RelistenText selectable={false} style={{ color: RelistenBlue[200] }}>
+        <RelistenText className="text-relisten-blue-200" selectable={false}>
           {signedDecibels(value)}
         </RelistenText>
       </View>
