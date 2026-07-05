@@ -38,6 +38,7 @@ export function ListeningHistoryList({ history, onViewShow, ...props }: Listenin
         0
       );
       return {
+        sectionKey: date,
         sectionTitle: `${date} · ${dayjs.duration(totalDuration, 'seconds').humanize()}`,
         data: entries,
       };
