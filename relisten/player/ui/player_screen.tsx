@@ -49,6 +49,7 @@ export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) 
   const { width } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
   const historyProgress = useSharedValue(0);
+  const queueSurfaceProgress = useSharedValue(0);
   const [historyMounted, setHistoryMounted] = useState(false);
   const [queueHeaderActive, setQueueHeaderActive] = useState(false);
   const [view, setView] = useState<'timeline' | 'history'>('timeline');
@@ -162,6 +163,7 @@ export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) 
               onBack={closeHistory}
               onClose={closePlayer}
               queueActive={queueHeaderActive}
+              queueSurfaceProgress={queueSurfaceProgress}
             />
           )}
           <View style={{ flex: 1 }}>
@@ -174,6 +176,7 @@ export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) 
                 onOpenHistory={openHistory}
                 onQueueHeaderActiveChange={setQueueHeaderActive}
                 onViewHistoryShow={viewHistoryShow}
+                queueSurfaceProgress={queueSurfaceProgress}
                 usesTransparentHeader={usesTransparentHeader}
                 visualizerActive={visualizerActive}
               />
@@ -190,7 +193,10 @@ export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) 
                   historyStyle,
                 ]}
               >
-                <PlayerHistoryView onViewShow={viewHistoryShow} />
+                <PlayerHistoryView
+                  allowsInteractiveDismiss={isOverlay}
+                  onViewShow={viewHistoryShow}
+                />
               </Animated.View>
             )}
           </View>
