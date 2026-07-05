@@ -126,14 +126,9 @@ export const RelistenSectionList = <T extends RelistenObject>({
         if ('sectionTitle' in item) {
           return [item.sectionKey ?? item.sectionTitle, index].join(':');
         } else if ('uuid' in item.rawItem) {
-          if ('keyPrefix' in item) {
-            // keyPrefix is for situations where we have 2 rows in the same list
-            // that all share the same `uuid`
-            // a good example is on the Artists list, where Grateful Dead may show up under
-            // 'featured' and 'default' (and even 'favorites' too!)
-            // so we need to ensure each row has its own unique key despite all being "Grateful Dead"
-            return [item.keyPrefix, item.rawItem.uuid].join(':');
-          }
+          // keyPrefix is for situations where multiple sections contain the same object,
+          // such as an artist appearing in both Favorites and Featured.
+          return item.keyPrefix ? [item.keyPrefix, item.rawItem.uuid].join(':') : item.rawItem.uuid;
         }
 
         throw new Error('missing key');
