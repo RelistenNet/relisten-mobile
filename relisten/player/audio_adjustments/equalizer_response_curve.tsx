@@ -39,8 +39,8 @@ export function EqualizerResponseCurve({ gains }: { gains: AudioAdjustmentBandGa
   return (
     <View
       accessibilityElementsHidden
+      className="aspect-[2.5] w-full"
       importantForAccessibility="no-hide-descendants"
-      style={{ aspectRatio: 2.5, width: '100%' }}
     >
       <Svg height="100%" viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`} width="100%">
         <Line
