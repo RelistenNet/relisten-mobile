@@ -5,7 +5,7 @@ import {
   type CurrentTrackNavigationActionId,
   useCurrentTrackNavigation,
 } from '@/relisten/player/ui/current_track_navigation_menu';
-import { router, Stack } from 'expo-router';
+import { router } from 'expo-router';
 import { useCallback, useMemo, type ReactNode } from 'react';
 
 const AUDIO_ADJUSTMENTS_ACTION_ID = 'audio-adjustments';
@@ -67,55 +67,5 @@ export function PlayerActionsMenu({ children, onBeforeNavigate }: PlayerActionsM
     >
       {children}
     </NativeMenuView>
-  );
-}
-
-export function PlayerHeaderToolbar({
-  mode = 'timeline',
-  onBack,
-  onClose,
-}: {
-  mode?: 'timeline' | 'history';
-  onBack?: () => void;
-  onClose: () => void;
-}) {
-  const { actions, handleAction } = usePlayerActions(onClose);
-  const isHistory = mode === 'history';
-
-  return (
-    <>
-      <Stack.Toolbar placement="left">
-        <Stack.Toolbar.Button
-          accessibilityLabel={isHistory ? 'Back to queue' : 'Close player'}
-          icon={isHistory ? nativeMenuIcons.back : nativeMenuIcons.collapse}
-          onPress={isHistory ? onBack : onClose}
-        />
-      </Stack.Toolbar>
-      <Stack.Toolbar placement="right">
-        {isHistory ? (
-          <Stack.Toolbar.Button
-            accessibilityLabel="Close player"
-            icon={nativeMenuIcons.collapse}
-            onPress={onClose}
-          />
-        ) : (
-          <Stack.Toolbar.Menu
-            accessibilityLabel="Player actions"
-            hidden={actions.length === 0}
-            icon={nativeMenuIcons.toolbarMore}
-          >
-            {actions.map((action) => (
-              <Stack.Toolbar.MenuAction
-                icon={action.image}
-                key={action.id}
-                onPress={() => handleAction(action.id)}
-              >
-                {action.title}
-              </Stack.Toolbar.MenuAction>
-            ))}
-          </Stack.Toolbar.Menu>
-        )}
-      </Stack.Toolbar>
-    </>
   );
 }

@@ -8,11 +8,9 @@ import {
 } from '@/relisten/player/ui/player_display_helpers';
 import { PlayerPanelRow } from '@/relisten/player/ui/player_panel_row';
 import { PlayerQueueActionsMenu } from '@/relisten/player/ui/player_queue_actions_menu';
-import { accessibleControlScale } from '@/relisten/util/accessible_control_scale';
 import { MaterialIcons } from '@expo/vector-icons';
 import { type ReactNode } from 'react';
 import { TouchableOpacity, useWindowDimensions, View } from 'react-native';
-import { useReorderableDrag } from 'react-native-reorderable-list';
 
 export type QueueTimelineEntry = {
   isFirst: boolean;
@@ -30,31 +28,19 @@ function QueueDragHandle({
   onDragStart: () => void;
   title: string;
 }) {
-  const { fontScale } = useWindowDimensions();
-  const controlScale = accessibleControlScale(fontScale);
-
   return (
     <TouchableOpacity
       accessibilityHint="Double tap and hold, then drag to reorder."
       accessibilityLabel={`Reorder ${title}`}
       accessibilityRole="button"
       delayLongPress={250}
+      className="min-h-11 min-w-11 items-center justify-center"
       onLongPress={() => {
         onDragStart();
         drag();
       }}
-      style={{
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: 44 * controlScale,
-        minWidth: 44 * controlScale,
-      }}
     >
-      <MaterialIcons
-        color="rgba(255, 255, 255, 0.62)"
-        name="drag-handle"
-        size={24 * controlScale}
-      />
+      <MaterialIcons color="rgba(255, 255, 255, 0.62)" name="drag-handle" size={24} />
     </TouchableOpacity>
   );
 }
@@ -70,7 +56,6 @@ function QueueTrackRow({
 }) {
   const player = useRelistenPlayer();
   const { fontScale } = useWindowDimensions();
-  const controlScale = accessibleControlScale(fontScale);
   const { isFirst, isLast, queueIndex, queueTrack } = entry;
   const sourceTrack = queueTrack.sourceTrack;
   const displayTitle = playerDisplayTitle(sourceTrack.title);
@@ -78,50 +63,35 @@ function QueueTrackRow({
 
   return (
     <PlayerPanelRow isFirst={isFirst} isLast={isLast}>
-      <View
-        style={{
-          alignItems: 'center',
-          flexDirection: 'row',
-          paddingLeft: 12 * controlScale,
-          paddingVertical: 5 * controlScale,
-        }}
-      >
+      <View className="flex-row items-center py-1.5 pl-3">
         <TouchableOpacity
           accessibilityHint={playbackHint}
           accessibilityLabel={`${displayTitle}, ${metadata}, ${sourceTrack.humanizedDuration}`}
           accessibilityRole="button"
+          className="min-w-0 flex-1 py-1"
           onPress={() => player.playTrackAtIndex(queueIndex)}
-          style={{ flex: 1, minWidth: 0, paddingVertical: 3 }}
         >
-          <View style={{ alignItems: 'flex-start', flexDirection: 'row', minWidth: 0 }}>
+          <View className="min-w-0 flex-row items-start">
             <RelistenText
-              className="shrink text-base font-semibold"
+              className="flex-1 shrink text-base font-semibold"
               numberOfLines={fontScale <= 1.2 ? 2 : undefined}
               selectable={false}
-              style={{ flex: 1, flexShrink: 1 }}
             >
               {displayTitle}
             </RelistenText>
             <SourceTrackOfflineIndicator offlineInfo={sourceTrack.offlineInfo} />
           </View>
           <RelistenText
-            className="text-sm text-gray-300/70"
+            className="mt-[3px] text-sm text-gray-300/70"
             numberOfLines={fontScale <= 1.2 ? 2 : undefined}
             selectable={false}
-            style={{ marginTop: 3 }}
           >
             {metadata}
           </RelistenText>
         </TouchableOpacity>
         <RelistenText
-          className="text-gray-300"
+          className="ml-2.5 min-w-[42px] text-right text-gray-300 tabular-nums"
           selectable={false}
-          style={{
-            fontVariant: ['tabular-nums'],
-            marginLeft: 10 * controlScale,
-            minWidth: 42 * controlScale,
-            textAlign: 'right',
-          }}
         >
           {sourceTrack.humanizedDuration}
         </RelistenText>
@@ -142,14 +112,14 @@ export function EarlierQueueItem({ entry }: { entry: QueueTimelineEntry }) {
 }
 
 export function UpNextQueueItem({
+  drag,
   entry,
   onReorderStart,
 }: {
+  drag: () => void;
   entry: QueueTimelineEntry;
   onReorderStart: () => void;
 }) {
-  const drag = useReorderableDrag();
-
   return (
     <QueueTrackRow
       action={
