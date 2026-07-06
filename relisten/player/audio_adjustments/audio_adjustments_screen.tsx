@@ -84,7 +84,7 @@ export function AudioAdjustmentsScreen() {
             <EqualizerResponseCurve gains={configuration.bandGainsDb} />
             <Pressable
               accessibilityRole="button"
-              className="min-h-12 flex-row items-center rounded-xl border border-relisten-blue-200/25 px-3.5"
+              className="min-h-12 flex-row items-center rounded-xl border border-relisten-blue-200/25 px-3.5 py-3"
               disabled={isCasting}
               onPress={() => router.push('/relisten/audio-adjustments/equalizer')}
               style={({ pressed }) => ({
@@ -130,7 +130,7 @@ export function AudioAdjustmentsScreen() {
 
         <Pressable
           accessibilityRole="button"
-          className="min-h-12 items-center justify-center rounded-xl border border-relisten-blue-200/25 px-3.5"
+          className="min-h-12 items-center justify-center rounded-xl border border-relisten-blue-200/25 px-3.5 py-3"
           disabled={isCasting}
           onPress={() =>
             Alert.alert(
