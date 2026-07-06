@@ -14,6 +14,10 @@ import {
   UpNextQueueItem,
 } from '@/relisten/player/ui/player_queue_row';
 import { PlayerTimelineSectionHeader } from '@/relisten/player/ui/player_timeline_section_header';
+import {
+  PlayerTimelineStickyHeader,
+  PlayerTimelineStickyHeaderProvider,
+} from '@/relisten/player/ui/player_timeline_sticky_header';
 import { ReturnToNowPlayingButton } from '@/relisten/player/ui/return_to_now_playing_button';
 import { usePlayerListDismissal } from '@/relisten/player/ui/use_player_list_dismissal';
 import { ViewAllHistoryButton } from '@/relisten/player/ui/view_all_history_button';
@@ -28,22 +32,20 @@ import {
   type LayoutChangeEvent,
   useWindowDimensions,
   View,
-  type ViewToken,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DraggableFlatList, {
   type DragEndParams,
   type RenderItemParams,
 } from 'react-native-draggable-flatlist';
-import Animated, {
+import {
+  runOnJS,
   type SharedValue,
   useAnimatedReaction,
-  useAnimatedStyle,
   useSharedValue,
 } from 'react-native-reanimated';
 
 const HISTORY_PREVIEW_LIMIT = 10;
-const PIVOT_VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 40 } as const;
 
 type ScrollPhase = 'awaiting-momentum' | 'dragging' | 'idle' | 'momentum';
 
@@ -60,6 +62,39 @@ function PlayerTimelineScrollObserver({
       onScroll(offset);
     },
     [onScroll, source]
+  );
+
+  return null;
+}
+
+function PlayerTimelinePivotObserver({
+  anchorReady,
+  nowPlayingHeight,
+  onVisibilityChange,
+  pivotOffset,
+  scrollOffset,
+  viewportHeight,
+}: {
+  anchorReady: SharedValue<boolean>;
+  nowPlayingHeight: SharedValue<number>;
+  onVisibilityChange: (offscreen: boolean) => void;
+  pivotOffset: SharedValue<number>;
+  scrollOffset: SharedValue<number>;
+  viewportHeight: number;
+}) {
+  useAnimatedReaction(
+    () => {
+      if (!anchorReady.value || nowPlayingHeight.value <= 0 || viewportHeight <= 0) {
+        return false;
+      }
+
+      const relativeOffset = scrollOffset.value - pivotOffset.value;
+      return relativeOffset >= nowPlayingHeight.value - 1 || relativeOffset <= -viewportHeight + 1;
+    },
+    (offscreen, wasOffscreen) => {
+      if (offscreen !== wasOffscreen) runOnJS(onVisibilityChange)(offscreen);
+    },
+    [anchorReady, nowPlayingHeight, onVisibilityChange, pivotOffset, scrollOffset, viewportHeight]
   );
 
   return null;
@@ -127,15 +162,14 @@ export function PlayerQueueSheet({
   const orderedQueueTracks = useRelistenPlayerQueueOrderedTracks();
   const currentTrack = useRelistenPlayerCurrentTrack();
   const listRef = useRef<FlatList<TimelineItem>>(null);
-  const listContainerRef = useRef<View>(null);
-  const nowPlayingRef = useRef<View>(null);
   const nowPlayingHeadingRef = useRef<View>(null);
   const hasAnchored = useRef(false);
+  const anchorRevealScheduled = useRef(false);
   const anchorAttemptStarted = useRef(false);
   const anchorRetryCount = useRef(0);
-  const anchorMeasurementPending = useRef(false);
   const pendingPivotReconciliation = useRef(false);
   const reconciliationGeneration = useRef(0);
+  const measuredPivotOffsetRef = useRef<number | undefined>(undefined);
   const pivotOffsetRef = useRef(0);
   const isPivotOffscreenRef = useRef(false);
   const isQueueDraggingRef = useRef(false);
@@ -147,6 +181,7 @@ export function PlayerQueueSheet({
   const scrollOffset = useSharedValue(0);
   const effectiveScrollOffset = nativeScrollOffset ?? scrollOffset;
   const pivotOffset = useSharedValue(0);
+  const nowPlayingHeight = useSharedValue(0);
   const anchorReady = useSharedValue(false);
   const scrollPhaseRef = useRef<ScrollPhase>('idle');
   const recentlyPlayed = useQuery(
@@ -265,7 +300,11 @@ export function PlayerQueueSheet({
   const stickyHeaderIndices = useMemo(
     () =>
       timelineItems.flatMap((item, index) =>
-        item.kind === 'section-header' || item.kind === 'sticky-reset' ? [index] : []
+        item.kind === 'section-header' ||
+        item.kind === 'sticky-reset' ||
+        item.kind === 'now-playing'
+          ? [index]
+          : []
       ),
     [timelineItems]
   );
@@ -273,7 +312,7 @@ export function PlayerQueueSheet({
   const applyScrollOffset = useCallback(
     (offset: number) => {
       listRef.current?.scrollToOffset({ animated: false, offset });
-      scrollOffset.value = offset;
+      scrollOffset.set(offset);
     },
     [scrollOffset]
   );
@@ -291,53 +330,43 @@ export function PlayerQueueSheet({
 
   const reconcilePivot = useCallback(
     (reveal: boolean) => {
-      if (anchorMeasurementPending.current) return;
-      const pivot = nowPlayingRef.current;
-      const container = listContainerRef.current;
-      if (!pivot || !container) return;
-
-      anchorMeasurementPending.current = true;
+      const nextPivotOffset = measuredPivotOffsetRef.current;
+      if (nextPivotOffset === undefined) return;
+      if (!reveal && Math.abs(effectiveScrollOffset.value - pivotOffsetRef.current) > 1) {
+        pendingPivotReconciliation.current = true;
+        return;
+      }
       const generation = reconciliationGeneration.current;
-      const measurePivot = () => {
-        pivot.measureInWindow((_pivotX, pivotY) => {
-          container.measureInWindow((_containerX, containerY) => {
-            anchorMeasurementPending.current = false;
-            if (
-              !reveal &&
-              (generation !== reconciliationGeneration.current ||
-                scrollPhaseRef.current !== 'idle' ||
-                isQueueDraggingRef.current ||
-                isPivotOffscreenRef.current)
-            ) {
-              pendingPivotReconciliation.current = true;
-              return;
-            }
+      if (
+        !reveal &&
+        (generation !== reconciliationGeneration.current ||
+          scrollPhaseRef.current !== 'idle' ||
+          isQueueDraggingRef.current ||
+          isPivotOffscreenRef.current)
+      ) {
+        pendingPivotReconciliation.current = true;
+        return;
+      }
 
-            const previousPivotOffset = pivotOffsetRef.current;
-            const currentOffset = effectiveScrollOffset.value;
-            const nextPivotOffset = Math.max(0, currentOffset + pivotY - containerY);
-            pivotOffsetRef.current = nextPivotOffset;
-            pivotOffset.value = nextPivotOffset;
+      const previousPivotOffset = pivotOffsetRef.current;
+      const currentOffset = effectiveScrollOffset.value;
+      pivotOffsetRef.current = nextPivotOffset;
+      pivotOffset.set(nextPivotOffset);
 
-            if (reveal || currentOffset >= previousPivotOffset - 1) {
-              applyScrollOffset(
-                reveal ? nextPivotOffset : currentOffset + nextPivotOffset - previousPivotOffset
-              );
-            }
+      if (reveal || currentOffset >= previousPivotOffset - 1) {
+        applyScrollOffset(
+          reveal ? nextPivotOffset : currentOffset + nextPivotOffset - previousPivotOffset
+        );
+      }
 
-            anchorReady.value = true;
-            if (reveal) {
-              hasAnchored.current = true;
-              requestAnimationFrame(() => {
-                setIsAnchorReady(true);
-                focusNowPlaying();
-              });
-            }
-          });
+      anchorReady.set(true);
+      if (reveal) {
+        hasAnchored.current = true;
+        requestAnimationFrame(() => {
+          setIsAnchorReady(true);
+          focusNowPlaying();
         });
-      };
-
-      requestAnimationFrame(measurePivot);
+      }
     },
     [anchorReady, applyScrollOffset, effectiveScrollOffset, focusNowPlaying, pivotOffset]
   );
@@ -348,7 +377,8 @@ export function PlayerQueueSheet({
     if (
       scrollPhaseRef.current !== 'idle' ||
       isQueueDraggingRef.current ||
-      isPivotOffscreenRef.current
+      isPivotOffscreenRef.current ||
+      Math.abs(effectiveScrollOffset.value - pivotOffsetRef.current) > 1
     ) {
       pendingPivotReconciliation.current = true;
       return;
@@ -359,7 +389,8 @@ export function PlayerQueueSheet({
       if (
         scrollPhaseRef.current !== 'idle' ||
         isQueueDraggingRef.current ||
-        isPivotOffscreenRef.current
+        isPivotOffscreenRef.current ||
+        Math.abs(effectiveScrollOffset.value - pivotOffsetRef.current) > 1
       ) {
         pendingPivotReconciliation.current = true;
         return;
@@ -367,7 +398,7 @@ export function PlayerQueueSheet({
 
       reconcilePivot(false);
     });
-  }, [reconcilePivot]);
+  }, [effectiveScrollOffset, reconcilePivot]);
 
   const settleScrollWithoutMomentum = useCallback(() => {
     requestAnimationFrame(() => {
@@ -383,7 +414,7 @@ export function PlayerQueueSheet({
 
   const handleInitialScrollFailure = useCallback(
     ({ averageItemLength, index }: { averageItemLength: number; index: number }) => {
-      if (hasAnchored.current) return;
+      if (hasAnchored.current || anchorRevealScheduled.current) return;
       applyScrollOffset(Math.max(0, averageItemLength * index));
 
       if (anchorRetryCount.current >= 3) {
@@ -392,7 +423,7 @@ export function PlayerQueueSheet({
       }
       anchorRetryCount.current += 1;
       setTimeout(() => {
-        if (hasAnchored.current) return;
+        if (hasAnchored.current || anchorRevealScheduled.current) return;
         listRef.current?.scrollToIndex({ animated: false, index, viewPosition: 0 });
       }, 50);
     },
@@ -406,6 +437,7 @@ export function PlayerQueueSheet({
 
     anchorAttemptStarted.current = true;
     requestAnimationFrame(() => {
+      if (anchorRevealScheduled.current) return;
       listRef.current?.scrollToIndex({ animated: false, index: pivotIndex, viewPosition: 0 });
     });
   }, [listViewportHeight, pivotIndex]);
@@ -426,12 +458,9 @@ export function PlayerQueueSheet({
     []
   );
 
-  const handleViewableItemsChanged = useCallback(
-    ({ viewableItems }: { viewableItems: ViewToken<TimelineItem>[] }) => {
-      if (!hasAnchored.current) return;
-      const nextIsPivotOffscreen = !viewableItems.some(
-        ({ isViewable, item }) => isViewable && item.kind === 'now-playing'
-      );
+  const handlePivotVisibilityChange = useCallback(
+    (nextIsPivotOffscreen: boolean) => {
+      if (isPivotOffscreenRef.current === nextIsPivotOffscreen) return;
       isPivotOffscreenRef.current = nextIsPivotOffscreen;
       setIsPivotOffscreen(nextIsPivotOffscreen);
       if (!nextIsPivotOffscreen && pendingPivotReconciliation.current) {
@@ -441,16 +470,26 @@ export function PlayerQueueSheet({
     [schedulePivotReconciliation]
   );
 
-  const pinnedNowPlayingStyle = useAnimatedStyle(() => {
-    if (!anchorReady.value) {
-      return { transform: [{ translateY: 0 }], zIndex: 0 };
-    }
-    const relativeOffset = Math.max(effectiveScrollOffset.value - pivotOffset.value, 0);
-    return {
-      transform: [{ translateY: relativeOffset }],
-      zIndex: 0,
-    };
-  });
+  const handleNowPlayingStickyLayout = useCallback(
+    ({ height: measuredHeight, y }: { height: number; y: number }) => {
+      measuredPivotOffsetRef.current = y;
+      nowPlayingHeight.set(measuredHeight);
+      if (hasAnchored.current) {
+        schedulePivotReconciliation();
+      } else if (!anchorRevealScheduled.current) {
+        anchorRevealScheduled.current = true;
+        // The sticky wrapper and the FlatList ref settle in consecutive native commits.
+        // Scrolling in the wrapper's layout transaction is ignored on iOS.
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (!hasAnchored.current) reconcilePivot(true);
+            anchorRevealScheduled.current = false;
+          });
+        });
+      }
+    },
+    [nowPlayingHeight, reconcilePivot, schedulePivotReconciliation]
+  );
 
   const triggerHaptics = useCallback(() => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -486,9 +525,10 @@ export function PlayerQueueSheet({
 
   const returnToNowPlaying = useCallback(() => {
     applyScrollOffset(pivotOffsetRef.current);
+    handlePivotVisibilityChange(false);
     AccessibilityInfo.announceForAccessibility('Returned to Now Playing');
     focusNowPlaying();
-  }, [applyScrollOffset, focusNowPlaying]);
+  }, [applyScrollOffset, focusNowPlaying, handlePivotVisibilityChange]);
 
   const renderItem = useCallback(
     ({ drag, item }: RenderItemParams<TimelineItem>) => {
@@ -523,23 +563,16 @@ export function PlayerQueueSheet({
         case 'now-playing':
           return (
             <View
+              accessibilityElementsHidden={isPivotOffscreen}
               collapsable={false}
-              ref={nowPlayingRef}
-              onLayout={() => {
-                if (hasAnchored.current) {
-                  schedulePivotReconciliation();
-                } else {
-                  reconcilePivot(true);
-                }
-              }}
+              importantForAccessibility={isPivotOffscreen ? 'no-hide-descendants' : 'auto'}
+              pointerEvents={isPivotOffscreen ? 'none' : 'auto'}
             >
-              <Animated.View style={pinnedNowPlayingStyle}>
-                <PlayerNowPlaying
-                  headingRef={nowPlayingHeadingRef}
-                  onBeforeNavigate={onBeforeNavigate}
-                  visualizerActive={visualizerActive && !isPivotOffscreen}
-                />
-              </Animated.View>
+              <PlayerNowPlaying
+                headingRef={nowPlayingHeadingRef}
+                onBeforeNavigate={onBeforeNavigate}
+                visualizerActive={visualizerActive && !isPivotOffscreen}
+              />
             </View>
           );
         case 'up-next':
@@ -567,9 +600,6 @@ export function PlayerQueueSheet({
       onBeforeNavigate,
       onOpenHistory,
       onViewHistoryShow,
-      pinnedNowPlayingStyle,
-      reconcilePivot,
-      schedulePivotReconciliation,
       setQueueDragging,
       visualizerActive,
     ]
@@ -578,66 +608,72 @@ export function PlayerQueueSheet({
   if (!currentTrack) return <View className="flex-1" />;
 
   return (
-    <View
-      className="flex-1"
-      collapsable={false}
-      onLayout={handleListContainerLayout}
-      ref={listContainerRef}
-    >
-      <DraggableFlatList
-        // The library's ref type names the RNGH component instead of the native FlatList instance.
-        ref={listRef as never}
-        alwaysBounceVertical
-        contentInsetAdjustmentBehavior="never"
-        containerStyle={{ height: listViewportHeight }}
-        data={timelineItems}
-        onAnimValInit={handleAnimatedValuesReady}
-        initialNumToRender={initialRenderCount}
-        keyExtractor={timelineItemKey}
-        ListFooterComponent={
-          <View className="bg-relisten-blue-900" style={{ height: listBottomClearance }}>
-            <View
-              className="absolute inset-x-0 top-0 bg-relisten-blue-900"
-              pointerEvents="none"
-              style={{ height }}
-            />
-          </View>
-        }
-        onDragBegin={() => {
-          setQueueDragging(true);
-          triggerHaptics();
-        }}
-        onDragEnd={handleDragEnd}
-        onScrollToIndexFailed={handleInitialScrollFailure}
-        onScrollBeginDrag={(event) => {
-          reconciliationGeneration.current += 1;
-          scrollPhaseRef.current = 'dragging';
-          beginListDismissalDrag(event);
-        }}
-        onScrollEndDrag={(event) => {
-          scrollPhaseRef.current = 'awaiting-momentum';
-          endListDismissalDrag(event);
-          settleScrollWithoutMomentum();
-        }}
-        onMomentumScrollBegin={() => {
-          scrollPhaseRef.current = 'momentum';
-        }}
-        onMomentumScrollEnd={() => {
-          scrollPhaseRef.current = 'idle';
-          if (pendingPivotReconciliation.current) schedulePivotReconciliation();
-        }}
-        onViewableItemsChanged={handleViewableItemsChanged}
-        renderItem={renderItem}
-        showsVerticalScrollIndicator={false}
-        stickyHeaderIndices={stickyHeaderIndices}
-        style={{ height: listViewportHeight, opacity: isAnchorReady ? 1 : 0 }}
-        viewabilityConfig={PIVOT_VIEWABILITY_CONFIG}
-      />
-      {nativeScrollOffset && (
-        <PlayerTimelineScrollObserver
-          onScroll={updateDismissalProgress}
-          source={nativeScrollOffset}
+    <View className="flex-1" collapsable={false} onLayout={handleListContainerLayout}>
+      <PlayerTimelineStickyHeaderProvider onNowPlayingLayout={handleNowPlayingStickyLayout}>
+        <DraggableFlatList
+          // The library's ref type names the RNGH component instead of the native FlatList instance.
+          ref={listRef as never}
+          alwaysBounceVertical
+          contentInsetAdjustmentBehavior="never"
+          containerStyle={{ height: listViewportHeight }}
+          data={timelineItems}
+          onAnimValInit={handleAnimatedValuesReady}
+          initialNumToRender={initialRenderCount}
+          keyExtractor={timelineItemKey}
+          ListFooterComponent={
+            <View className="bg-relisten-blue-900" style={{ height: listBottomClearance }}>
+              <View
+                className="absolute inset-x-0 top-0 bg-relisten-blue-900"
+                pointerEvents="none"
+                style={{ height }}
+              />
+            </View>
+          }
+          onDragBegin={() => {
+            setQueueDragging(true);
+            triggerHaptics();
+          }}
+          onDragEnd={handleDragEnd}
+          onScrollToIndexFailed={handleInitialScrollFailure}
+          onScrollBeginDrag={(event) => {
+            reconciliationGeneration.current += 1;
+            scrollPhaseRef.current = 'dragging';
+            beginListDismissalDrag(event);
+          }}
+          onScrollEndDrag={(event) => {
+            scrollPhaseRef.current = 'awaiting-momentum';
+            endListDismissalDrag(event);
+            settleScrollWithoutMomentum();
+          }}
+          onMomentumScrollBegin={() => {
+            scrollPhaseRef.current = 'momentum';
+          }}
+          onMomentumScrollEnd={() => {
+            scrollPhaseRef.current = 'idle';
+            if (pendingPivotReconciliation.current) schedulePivotReconciliation();
+          }}
+          renderItem={renderItem}
+          showsVerticalScrollIndicator={false}
+          stickyHeaderIndices={stickyHeaderIndices}
+          StickyHeaderComponent={PlayerTimelineStickyHeader}
+          style={{ height: listViewportHeight, opacity: isAnchorReady ? 1 : 0 }}
         />
+      </PlayerTimelineStickyHeaderProvider>
+      {nativeScrollOffset && (
+        <>
+          <PlayerTimelineScrollObserver
+            onScroll={updateDismissalProgress}
+            source={nativeScrollOffset}
+          />
+          <PlayerTimelinePivotObserver
+            anchorReady={anchorReady}
+            nowPlayingHeight={nowPlayingHeight}
+            onVisibilityChange={handlePivotVisibilityChange}
+            pivotOffset={pivotOffset}
+            scrollOffset={nativeScrollOffset}
+            viewportHeight={listViewportHeight}
+          />
+        </>
       )}
       <ReturnToNowPlayingButton
         bottomInset={insets.bottom}
