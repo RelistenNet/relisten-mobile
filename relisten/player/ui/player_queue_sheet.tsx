@@ -45,7 +45,7 @@ import {
   useSharedValue,
 } from 'react-native-reanimated';
 
-const HISTORY_PREVIEW_LIMIT = 10;
+const HISTORY_PREVIEW_LIMIT = 5;
 
 type ScrollPhase = 'awaiting-momentum' | 'dragging' | 'idle' | 'momentum';
 
