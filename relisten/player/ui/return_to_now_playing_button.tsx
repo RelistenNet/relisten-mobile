@@ -1,7 +1,7 @@
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import { TouchableOpacity } from 'react-native';
+import { TouchableOpacity, View } from 'react-native';
 import Animated, {
   Easing,
   runOnJS,
@@ -67,14 +67,16 @@ export function ReturnToNowPlayingButton({
         accessibilityHint="Returns to the current track and player controls."
         accessibilityLabel="Return to Now Playing"
         accessibilityRole="button"
-        className="min-h-11 flex-row items-center gap-1.5 rounded-full border border-relisten-blue-200/35 bg-relisten-blue-700 px-3.5 py-2"
+        className="min-h-11 items-center justify-center rounded-full border border-relisten-blue-200/35 bg-relisten-blue-700 px-3.5 py-2"
         onPress={onPress}
         style={{ borderCurve: 'continuous' }}
       >
-        <MaterialIcons color="white" name="my-location" size={18} />
-        <RelistenText className="font-semibold" selectable={false}>
-          Now Playing
-        </RelistenText>
+        <View className="flex-row items-center gap-1.5">
+          <MaterialIcons color="white" name="my-location" size={18} />
+          <RelistenText className="font-semibold" selectable={false}>
+            Now Playing
+          </RelistenText>
+        </View>
       </TouchableOpacity>
     </Animated.View>
   );
