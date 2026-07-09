@@ -192,7 +192,7 @@ export default function Page() {
     }
 
     const [year, month, day] = selectedSource.displayDate.split('-');
-    const url = `https://relisten.net/${artist?.slug}/${year}/${month}/${day}?source=${selectedSource.uuid}`;
+    const url = `https://relisten.net/${artist?.slug}/${year}/${month}/${day}?source=${selectedSource.sourceId ?? selectedSource.uuid}`;
 
     void Share.share({
       message: `Check out ${show.displayDate} (${show.venue?.name ?? ''}) by ${artist?.name} on @relistenapp${Platform.OS === 'ios' ? '' : `: ${url}`}`,
@@ -505,7 +505,7 @@ export const SourceHeader = ({
           textClassName="text-l"
           onPress={() => {
             const [year, month, day] = show.displayDate.split('-');
-            const url = `https://relisten.net/${artist?.slug}/${year}/${month}/${day}?source=${source.uuid}`;
+            const url = `https://relisten.net/${artist?.slug}/${year}/${month}/${day}?source=${source.sourceId ?? source.uuid}`;
             Share.share({
               message: `Check out ${show.displayDate} (${show.venue?.name ?? ''}) by ${artist?.name} on @relistenapp${Platform.OS === 'ios' ? '' : `: ${url}`}`,
               url: url,

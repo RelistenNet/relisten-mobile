@@ -57,7 +57,7 @@ const realmConfig: Realm.Configuration = {
     PopularityWindow,
     PopularityWindows,
   ],
-  schemaVersion: 12,
+  schemaVersion: 13,
   // As to not conflict with the prior versions default.realm that isn't readable with this version of the SDK
   path: './relisten.realm',
 };
