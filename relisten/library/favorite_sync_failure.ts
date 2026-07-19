@@ -1,27 +1,7 @@
 import { AccountsApiError } from '@/relisten/accounts/api/accounts_api_client';
 import { AuthFlowError } from '@/relisten/accounts/auth/auth_validation';
 
-export class FavoriteMetadataHydrationError extends Error {
-  readonly code = 'favorite_metadata_incomplete';
-
-  constructor(readonly unresolvedCount: number) {
-    super('Some synced favorites could not be loaded from the music catalog.');
-    this.name = 'FavoriteMetadataHydrationError';
-  }
-}
-
 export function favoriteSyncFailure(error: unknown, hasLocalSnapshot: boolean) {
-  if (error instanceof FavoriteMetadataHydrationError) {
-    return {
-      code: error.code,
-      retryable: true,
-      message:
-        error.unresolvedCount === 1
-          ? 'One synced favorite could not be loaded. Try again to finish setting up your library.'
-          : `${error.unresolvedCount} synced favorites could not be loaded. Try again to finish setting up your library.`,
-    };
-  }
-
   if (error instanceof AccountsApiError) {
     return {
       code: error.code ?? 'favorite_sync_failed',
