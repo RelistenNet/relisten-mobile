@@ -24,28 +24,36 @@ export function SignedOutAccountScreen({
       contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}
       keyboardShouldPersistTaps="handled"
     >
-      <Flex column className="gap-5">
-        <View className="gap-2">
+      <Flex column>
+        <View className="mb-6">
           <RelistenText className="text-3xl font-bold">Sync your favorites</RelistenText>
-          <RelistenText className="text-gray-300">
+          <RelistenText className="mt-2 text-gray-300">
             Sign in to keep favorites available on your signed-in devices.
           </RelistenText>
         </View>
 
-        {errorMessage && <AccountErrorNotice message={errorMessage} />}
+        {errorMessage && (
+          <View className="mb-5">
+            <AccountErrorNotice message={errorMessage} />
+          </View>
+        )}
 
-        <ProviderButton
-          disabled={busy}
-          opening={openingProvider === 'apple'}
-          onPress={() => onSignIn('apple')}
-          provider="apple"
-        />
-        <ProviderButton
-          disabled={busy}
-          opening={openingProvider === 'google'}
-          onPress={() => onSignIn('google')}
-          provider="google"
-        />
+        <View className="mb-3">
+          <ProviderButton
+            disabled={busy}
+            opening={openingProvider === 'apple'}
+            onPress={() => onSignIn('apple')}
+            provider="apple"
+          />
+        </View>
+        <View className="mb-6">
+          <ProviderButton
+            disabled={busy}
+            opening={openingProvider === 'google'}
+            onPress={() => onSignIn('google')}
+            provider="google"
+          />
+        </View>
 
         <RelistenText className="text-center text-sm text-gray-400">
           Relisten does not create or store a separate password.

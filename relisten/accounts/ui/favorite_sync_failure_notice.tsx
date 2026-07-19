@@ -15,6 +15,7 @@ export function FavoriteSyncFailureNotice({
   onRetry,
 }: FavoriteSyncFailureNoticeProps) {
   const rejected = failure.kind === 'rejected';
+  const actionable = failure.kind === 'actionable';
   const noun = failure.count === 1 ? 'change' : 'changes';
 
   const confirmDiscard = () => {
@@ -36,27 +37,34 @@ export function FavoriteSyncFailureNotice({
     <View
       accessibilityLiveRegion="polite"
       className={
-        rejected
-          ? 'gap-3 rounded-lg border border-red-500/40 bg-red-950/40 p-4'
-          : 'gap-3 rounded-lg border border-amber-500/40 bg-amber-950/30 p-4'
+        rejected || actionable
+          ? 'rounded-lg border border-red-500/40 bg-red-950/40 p-4'
+          : 'rounded-lg border border-amber-500/40 bg-amber-950/30 p-4'
       }
     >
-      <View className="gap-1">
+      <View>
         <RelistenText className="font-semibold">
           {rejected
             ? `${failure.count} favorite ${noun} could not be saved`
-            : "Favorites couldn't finish syncing"}
+            : actionable
+              ? 'Favorites could not finish syncing'
+              : 'Favorites are waiting to sync'}
         </RelistenText>
-        <RelistenText className="text-sm text-gray-300">{failure.message}</RelistenText>
-        {failure.errorCode && (
-          <RelistenText className="text-xs text-gray-500">
-            Reference: {failure.errorCode}
-          </RelistenText>
-        )}
+        <RelistenText className="mt-1 text-sm text-gray-300">{failure.message}</RelistenText>
       </View>
 
-      <RelistenButton intent="outline" onPress={rejected ? confirmDiscard : onRetry} size="sm">
-        {rejected ? (failure.count === 1 ? 'Discard change' : 'Discard changes') : 'Try again'}
+      <RelistenButton
+        className="mt-3"
+        intent="outline"
+        onPress={rejected ? confirmDiscard : onRetry}
+      >
+        {rejected
+          ? failure.count === 1
+            ? 'Discard change'
+            : 'Discard changes'
+          : actionable
+            ? 'Try again'
+            : 'Try now'}
       </RelistenButton>
     </View>
   );
