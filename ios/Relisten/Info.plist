@@ -28,6 +28,7 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>relisten</string>
+          <string>net.relisten.mobile</string>
           <string>com.alecgorge.ios.Listen-to-the-Dead</string>
         </array>
       </dict>

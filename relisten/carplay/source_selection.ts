@@ -7,7 +7,7 @@ export function resolveSourcesForScope(
   scope: CarPlayScope,
   show: Show,
   sources: Source[],
-  libraryIndex: Pick<LibraryIndex, 'sourceHasOfflineTracks'>
+  libraryIndex: Pick<LibraryIndex, 'sourceHasOfflineTracks' | 'isFavorite'>
 ) {
   if (scope === 'browse') {
     return {
@@ -27,10 +27,12 @@ export function resolveSourcesForScope(
   }
 
   const preferredSources = sources.filter(
-    (source) => source.isFavorite || libraryIndex.sourceHasOfflineTracks(source.uuid)
+    (source) =>
+      libraryIndex.isFavorite('source', source.uuid) ||
+      libraryIndex.sourceHasOfflineTracks(source.uuid)
   );
 
-  if (show.isFavorite && preferredSources.length === 0) {
+  if (libraryIndex.isFavorite('show', show.uuid) && preferredSources.length === 0) {
     return {
       displaySources: sources,
       autoSelectSource: sources.length === 1 ? sources[0] : undefined,
