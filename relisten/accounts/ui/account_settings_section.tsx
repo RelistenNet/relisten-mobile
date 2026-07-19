@@ -22,7 +22,7 @@ export function AccountSettingsSection() {
       <SectionHeader title="Account" />
       <Flex column className="gap-4 p-4 pr-8">
         <RowWithAction title={title} subtitle={subtitle}>
-          <Link href="/relisten/account" asChild>
+          <Link href="/relisten/account" push asChild>
             <RelistenButton intent="outline" disabled={status === 'restoring'}>
               {signedIn ? 'Manage' : 'Sign in'}
             </RelistenButton>
