@@ -14,7 +14,8 @@ import { anonymousFavoriteSourceFingerprint } from '@/relisten/library/anonymous
 
 const LEGACY_FAVORITES_MIGRATION_VERSION = 14;
 const IMPORT_BATCH_FINGERPRINT_VERSION = 16;
-export const FAVORITES_SCHEMA_VERSION = IMPORT_BATCH_FINGERPRINT_VERSION;
+const SYNC_FAILURE_CLASSIFICATION_VERSION = 17;
+export const FAVORITES_SCHEMA_VERSION = SYNC_FAILURE_CLASSIFICATION_VERSION;
 
 const LEGACY_FAVORITE_MODELS: ReadonlyArray<{
   modelName: string;
@@ -37,7 +38,8 @@ const LEGACY_FAVORITE_MODELS: ReadonlyArray<{
  * shared device. Schema 15 also promotes known removals into the catalog-global
  * availability table used by network media gates. Schema 16 identifies each
  * anonymous import decision by the source snapshot instead of permanently by
- * installation and account.
+ * installation and account. Schema 17 records whether a failed sync can retry
+ * automatically; older ambiguous failures safely require user attention.
  */
 export function migrateLegacyFavoritesToAnonymous(
   oldRealm: Realm,

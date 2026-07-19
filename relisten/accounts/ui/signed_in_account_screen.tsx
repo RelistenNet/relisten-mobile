@@ -1,4 +1,5 @@
 import { AccountErrorNotice } from '@/relisten/accounts/ui/account_error_notice';
+import { AccountDetailRow } from '@/relisten/accounts/ui/account_detail_row';
 import { FavoriteSyncFailureNotice } from '@/relisten/accounts/ui/favorite_sync_failure_notice';
 import {
   AccountSyncState,
@@ -9,7 +10,6 @@ import { UnavailableFavoritesNotice } from '@/relisten/accounts/ui/unavailable_f
 import Flex from '@/relisten/components/flex';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { RowWithAction } from '@/relisten/components/row_with_action';
 import { SectionHeader } from '@/relisten/components/section_header';
 import { ScrollView, View } from 'react-native';
 import type { FavoriteSyncFailure } from '@/relisten/library/favorite_hooks';
@@ -70,9 +70,9 @@ export function SignedInAccountScreen({
   return (
     <ScrollView className="flex-1 bg-relisten-blue-950">
       <Flex column className="pb-8">
-        <View className="gap-1 p-6">
+        <View className="p-6">
           <RelistenText className="text-3xl font-bold">@{username}</RelistenText>
-          <RelistenText className="text-gray-400">
+          <RelistenText className="mt-1 text-gray-400">
             This is your public Relisten username.
           </RelistenText>
         </View>
@@ -85,16 +85,16 @@ export function SignedInAccountScreen({
 
         {usernameReviewNeeded && (
           <View className="px-4 pb-4">
-            <View className="gap-3 rounded-lg border border-relisten-blue-600 bg-relisten-blue-900 p-4">
+            <View className="rounded-lg border border-relisten-blue-600 bg-relisten-blue-900 p-4">
               <RelistenText className="font-semibold">
                 Choose how you appear on Relisten
               </RelistenText>
-              <RelistenText className="text-sm text-gray-300">
+              <RelistenText className="mt-2 text-sm text-gray-300">
                 {pendingUsername
                   ? `@${pendingUsername} is saved on this device and waiting to sync.`
                   : `@${username} already works. Review it now, or keep listening and decide later.`}
               </RelistenText>
-              <RelistenButton intent="primary" onPress={onReviewUsername}>
+              <RelistenButton className="mt-3" intent="primary" onPress={onReviewUsername}>
                 {pendingUsername ? 'Retry username' : 'Review username'}
               </RelistenButton>
             </View>
@@ -102,55 +102,63 @@ export function SignedInAccountScreen({
         )}
 
         <SectionHeader title="Account" />
-        <Flex column className="gap-5 p-4 pr-8">
-          <RowWithAction
-            title="Username"
-            subtitle={
-              pendingUsername
-                ? `@${pendingUsername} is waiting to sync.`
-                : usernameReviewNeeded
-                  ? 'Your assigned username is ready to review.'
-                  : 'Used when your name is shown publicly.'
-            }
-          >
-            <RelistenButton intent="outline" onPress={onReviewUsername}>
-              {pendingUsername ? 'Retry' : usernameReviewNeeded ? 'Review' : 'Change'}
-            </RelistenButton>
-          </RowWithAction>
+        <Flex column className="p-4">
+          <View className="mb-5">
+            <AccountDetailRow
+              title="Username"
+              subtitle={
+                pendingUsername
+                  ? `@${pendingUsername} is waiting to sync.`
+                  : usernameReviewNeeded
+                    ? 'Your assigned username is ready to review.'
+                    : 'Used when your name is shown publicly.'
+              }
+            >
+              <RelistenButton intent="outline" onPress={onReviewUsername}>
+                {pendingUsername ? 'Retry' : usernameReviewNeeded ? 'Review' : 'Change'}
+              </RelistenButton>
+            </AccountDetailRow>
+          </View>
 
-          <RowWithAction title="Favorites sync" subtitle={syncSubtitle}>
-            <SyncStatusText state={syncState} />
-          </RowWithAction>
-
-          {syncFailure && (
-            <FavoriteSyncFailureNotice
-              failure={syncFailure}
-              onDiscardRejected={onDiscardRejectedFavorites}
-              onRetry={onRetryFavoriteSync}
-            />
-          )}
+          <View className="mb-5">
+            {syncFailure ? (
+              <FavoriteSyncFailureNotice
+                failure={syncFailure}
+                onDiscardRejected={onDiscardRejectedFavorites}
+                onRetry={onRetryFavoriteSync}
+              />
+            ) : (
+              <AccountDetailRow title="Favorites sync" subtitle={syncSubtitle}>
+                <SyncStatusText state={syncState} />
+              </AccountDetailRow>
+            )}
+          </View>
 
           <UnavailableFavoritesNotice count={unavailableFavoriteCount} />
 
           {(importAvailable || importInProgress) && (
-            <RowWithAction
-              title="Favorites on this device"
-              subtitle={`${anonymousFavoriteCount} ${
-                anonymousFavoriteCount === 1 ? 'favorite is' : 'favorites are'
-              } available to add to this account.`}
-            >
-              <RelistenButton disabled={importInProgress} onPress={onImportFavorites}>
-                {importInProgress ? 'Adding...' : 'Add'}
-              </RelistenButton>
-            </RowWithAction>
+            <View className="mt-5">
+              <AccountDetailRow
+                title="Favorites on this device"
+                subtitle={`${anonymousFavoriteCount} ${
+                  anonymousFavoriteCount === 1 ? 'favorite is' : 'favorites are'
+                } available to add to this account.`}
+              >
+                <RelistenButton disabled={importInProgress} onPress={onImportFavorites}>
+                  {importInProgress ? 'Adding...' : 'Add'}
+                </RelistenButton>
+              </AccountDetailRow>
+            </View>
           )}
         </Flex>
 
         <SectionHeader title="Account access" />
-        <Flex column className="gap-3 p-4">
-          <RelistenButton disabled={transitioning} intent="outline" onPress={onSwitchAccount}>
-            Switch account
-          </RelistenButton>
+        <Flex column className="p-4">
+          <View className="mb-3">
+            <RelistenButton disabled={transitioning} intent="outline" onPress={onSwitchAccount}>
+              Switch account
+            </RelistenButton>
+          </View>
           <RelistenButton disabled={transitioning} intent="outline" onPress={onSignOut}>
             Sign out
           </RelistenButton>

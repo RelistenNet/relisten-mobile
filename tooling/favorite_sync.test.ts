@@ -32,10 +32,17 @@ import {
 test('favorite sync snapshots change when a live Realm object is mutated in place', () => {
   const state = {
     runStatus: 'waiting' as 'waiting' | 'saved',
+    lastErrorRetryable: false as boolean,
     lastSuccessfulSyncAt: undefined as Date | undefined,
   };
   const waitingSnapshot = favoriteSyncStateSnapshot(state);
 
+  state.lastErrorRetryable = true;
+  const retryableSnapshot = favoriteSyncStateSnapshot(state);
+  assert.notEqual(retryableSnapshot, waitingSnapshot);
+  assert.equal(favoriteSyncStateView(retryableSnapshot).lastErrorRetryable, true);
+
+  state.lastErrorRetryable = false;
   state.runStatus = 'saved';
   state.lastSuccessfulSyncAt = new Date('2026-07-19T12:00:00Z');
   const savedSnapshot = favoriteSyncStateSnapshot(state);
@@ -45,6 +52,7 @@ test('favorite sync snapshots change when a live Realm object is mutated in plac
     runStatus: 'saved',
     lastErrorCode: undefined,
     lastErrorMessage: undefined,
+    lastErrorRetryable: false,
     lastSuccessfulSyncAt: new Date('2026-07-19T12:00:00Z'),
   });
 });
@@ -197,6 +205,8 @@ test('a fresh or failed library read cannot be presented as saved', () => {
       runStatus: undefined,
       hasInFlightMutation: false,
       hasRejectedMutation: false,
+      hasActionableFailure: false,
+      hasRetryableFailure: false,
       pendingMutationCount: 0,
     }),
     'waiting'
@@ -206,6 +216,8 @@ test('a fresh or failed library read cannot be presented as saved', () => {
       runStatus: 'needs_attention',
       hasInFlightMutation: false,
       hasRejectedMutation: false,
+      hasActionableFailure: true,
+      hasRetryableFailure: false,
       pendingMutationCount: 0,
     }),
     'needsAttention'
@@ -215,9 +227,22 @@ test('a fresh or failed library read cannot be presented as saved', () => {
       runStatus: 'saved',
       hasInFlightMutation: false,
       hasRejectedMutation: false,
+      hasActionableFailure: false,
+      hasRetryableFailure: false,
       pendingMutationCount: 0,
     }),
     'saved'
+  );
+  assert.equal(
+    favoriteSyncPresentationState({
+      runStatus: 'needs_attention',
+      hasInFlightMutation: false,
+      hasRejectedMutation: false,
+      hasActionableFailure: false,
+      hasRetryableFailure: true,
+      pendingMutationCount: 0,
+    }),
+    'waiting'
   );
   assert.equal(resumedFavoriteSyncRunStatus('needs_attention', false), 'needs_attention');
   assert.equal(resumedFavoriteSyncRunStatus('syncing', true), 'waiting');
