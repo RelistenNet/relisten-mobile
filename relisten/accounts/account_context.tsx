@@ -79,7 +79,8 @@ export function AccountProvider({
       if (
         state === 'active' &&
         (errorCode === 'credentials_temporarily_unavailable' ||
-          errorCode === 'session_restore_failed')
+          errorCode === 'session_restore_failed' ||
+          errorCode === 'auth_service_unavailable')
       ) {
         void coordinator.restoreSession();
       } else if (state === 'active') {

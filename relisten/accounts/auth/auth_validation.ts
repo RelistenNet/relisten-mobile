@@ -4,7 +4,8 @@ export class AuthFlowError extends Error {
   constructor(
     message: string,
     readonly code: string,
-    readonly cancelled = false
+    readonly cancelled = false,
+    readonly retryable = false
   ) {
     super(message);
     this.name = 'AuthFlowError';

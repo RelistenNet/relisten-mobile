@@ -16,8 +16,16 @@ export function toAccountError(error: unknown, fallbackCode: string): AccountErr
     };
   }
 
+  if (fallbackCode === 'session_restore_failed' && isTerminalRefreshFailure(error)) {
+    return {
+      code: 'session_expired',
+      message: 'Your Relisten session expired. Sign in again.',
+      retryable: false,
+    };
+  }
+
   if (error instanceof AuthFlowError) {
-    return { code: error.code, message: error.message, retryable: false };
+    return { code: error.code, message: error.message, retryable: error.retryable };
   }
 
   return {
