@@ -149,6 +149,7 @@ export class FavoriteSyncService {
   private async run() {
     this.running = true;
     let activeCapture: FavoriteAccountScopeCapture | null = null;
+    let retryableFailure = false;
     try {
       do {
         this.rerunRequested = false;
@@ -185,11 +186,13 @@ export class FavoriteSyncService {
         const hasLocalSnapshot = !!this.runState.current(activeCapture.scopeId)
           ?.lastSuccessfulSyncAt;
         const failure = favoriteSyncFailure(error, hasLocalSnapshot);
+        retryableFailure = failure.retryable;
         this.runState.update(
           activeCapture,
           FavoriteSyncRunStatus.NeedsAttention,
           failure.code,
-          failure.message
+          failure.message,
+          failure.retryable
         );
       }
       // A scope switch already requested a fresh run for the new account. Do
@@ -197,7 +200,7 @@ export class FavoriteSyncService {
       const persistedRetryAt = staleScope
         ? undefined
         : this.nextPersistedRetryAt(this.environment.account.scopeId);
-      if (isRetryable(error) || persistedRetryAt !== undefined) {
+      if (retryableFailure) {
         this.retryAt = persistedRetryAt ?? Date.now() + RETRY_DELAY_MS;
         this.scheduleRetryTimer();
       }
@@ -337,13 +340,6 @@ function isExpiredCursor(error: unknown) {
     error.status === 410 &&
     error.code === 'sync_cursor_expired'
   );
-}
-
-function isRetryable(error: unknown) {
-  if (isStaleScopeError(error)) {
-    return false;
-  }
-  return !(error instanceof AccountsApiError) || error.retryable;
 }
 
 function isStaleScopeError(error: unknown) {

@@ -19,20 +19,26 @@ export function favoriteSyncPresentationState(options: {
   runStatus?: FavoriteSyncRunStatus;
   hasInFlightMutation: boolean;
   hasRejectedMutation: boolean;
+  hasActionableFailure: boolean;
+  hasRetryableFailure: boolean;
   pendingMutationCount: number;
 }): FavoriteSyncPresentationState {
-  if (options.hasRejectedMutation || options.runStatus === 'needs_attention') {
+  if (options.hasRejectedMutation || options.hasActionableFailure) {
     return 'needsAttention';
   }
   if (options.hasInFlightMutation || options.runStatus === 'syncing') {
     return 'syncing';
   }
   if (
+    options.hasRetryableFailure ||
     options.pendingMutationCount > 0 ||
     options.runStatus === undefined ||
     options.runStatus === 'waiting'
   ) {
     return 'waiting';
+  }
+  if (options.runStatus === 'needs_attention') {
+    return 'needsAttention';
   }
   return 'saved';
 }
