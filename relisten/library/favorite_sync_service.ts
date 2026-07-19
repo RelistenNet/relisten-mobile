@@ -10,10 +10,7 @@ import {
 } from '@/relisten/library/favorite_repository';
 import { FavoriteMetadataHydrator } from '@/relisten/library/favorite_metadata_hydrator';
 import { earliestFutureRetryAt } from '@/relisten/library/favorite_retry_schedule';
-import {
-  FavoriteMetadataHydrationError,
-  favoriteSyncFailure,
-} from '@/relisten/library/favorite_sync_failure';
+import { favoriteSyncFailure } from '@/relisten/library/favorite_sync_failure';
 import { FavoriteSyncRunStateStore } from '@/relisten/library/favorite_sync_run_state_store';
 import {
   FavoriteMutationTransport,
@@ -26,11 +23,9 @@ import {
   FavoriteMutationBatchResponse,
 } from '@/relisten/library/favorite_sync_contract';
 import {
-  FavoriteMetadataStatus,
   FavoriteMutation,
   FavoriteMutationState,
   FavoriteSyncRunStatus,
-  UserFavorite,
 } from '@/relisten/realm/models/library';
 import { log } from '@/relisten/util/logging';
 
@@ -174,7 +169,13 @@ export class FavoriteSyncService {
           return;
         }
         await this.pullLibrary(capture);
-        await this.hydrateMetadata(capture);
+        // Favorite membership and its cursor are already durable at this point. Catalog
+        // hydration uses a separate anonymous API and may fail independently, so unresolved
+        // display metadata must not turn a successful account sync into "Needs attention."
+        await this.metadataHydrator.hydrateMissing(capture);
+        if (!this.captureMatchesEnvironment(capture)) {
+          return;
+        }
         this.runState.update(capture, FavoriteSyncRunStatus.Saved);
         this.retryAt = this.nextPersistedRetryAt(capture.scopeId);
         this.scheduleRetryTimer();
@@ -247,24 +248,6 @@ export class FavoriteSyncService {
         throw new Error('A paged favorite response did not advance its cursor.');
       }
       syncState = this.runState.current(capture.scopeId);
-    }
-  }
-
-  private async hydrateMetadata(capture: FavoriteAccountScopeCapture) {
-    await this.metadataHydrator.hydrateMissing(capture);
-    if (!this.repository.isCaptureCurrent(capture)) {
-      throw new StaleFavoriteAccountScopeError();
-    }
-
-    const unresolvedCount = this.repository.realm
-      .objects(UserFavorite)
-      .filtered(
-        'scopeId == $0 AND effectivePresent == true AND metadataStatus == $1',
-        capture.scopeId,
-        FavoriteMetadataStatus.Unknown
-      ).length;
-    if (unresolvedCount > 0) {
-      throw new FavoriteMetadataHydrationError(unresolvedCount);
     }
   }
 
