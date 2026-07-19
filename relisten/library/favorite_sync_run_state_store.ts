@@ -28,7 +28,8 @@ export class FavoriteSyncRunStateStore {
     capture: FavoriteAccountScopeCapture,
     status: FavoriteSyncRunStatus,
     errorCode?: string,
-    errorMessage?: string
+    errorMessage?: string,
+    errorRetryable = false
   ) {
     if (!this.repository.isCaptureCurrent(capture)) {
       return;
@@ -43,6 +44,7 @@ export class FavoriteSyncRunStateStore {
       syncState.runStatus = status;
       syncState.lastErrorCode = errorCode;
       syncState.lastErrorMessage = errorMessage;
+      syncState.lastErrorRetryable = errorRetryable;
       syncState.updatedAt = new Date();
     });
   }

@@ -78,7 +78,7 @@ export type FavoriteSyncStatus = {
 };
 
 export type FavoriteSyncFailure = {
-  kind: 'retryable' | 'rejected';
+  kind: 'actionable' | 'retryable' | 'rejected';
   count: number;
   errorCode?: string;
   message: string;
@@ -112,6 +112,7 @@ export function useFavoriteSyncStatus(): FavoriteSyncStatus {
           'runStatus',
           'lastErrorCode',
           'lastErrorMessage',
+          'lastErrorRetryable',
           'lastSuccessfulSyncAt',
         ]);
         return () => syncStates.removeListener(listener);
@@ -145,6 +146,12 @@ export function useFavoriteSyncStatus(): FavoriteSyncStatus {
   const syncState = useMemo(() => favoriteSyncStateView(syncStateSnapshot), [syncStateSnapshot]);
   const mutationFailure = buildFavoriteSyncFailure(mutationList);
   const runFailure = buildFavoriteSyncRunFailure(syncState);
+  const failure =
+    mutationFailure?.kind === 'rejected'
+      ? mutationFailure
+      : runFailure?.kind === 'actionable'
+        ? runFailure
+        : (mutationFailure ?? runFailure);
   const hasInFlight = mutationList.some(
     (mutation) => mutation.state === FavoriteMutationState.InFlight
   );
@@ -154,12 +161,14 @@ export function useFavoriteSyncStatus(): FavoriteSyncStatus {
       runStatus: syncState?.runStatus,
       hasInFlightMutation: hasInFlight,
       hasRejectedMutation: mutationFailure?.kind === 'rejected',
+      hasActionableFailure: runFailure?.kind === 'actionable',
+      hasRetryableFailure: failure?.kind === 'retryable',
       pendingMutationCount: pendingCount,
     }),
     pendingCount,
     unavailableCount: unavailableFavorites.length,
     lastSuccessfulSyncAt: syncState?.lastSuccessfulSyncAt,
-    failure: mutationFailure ?? runFailure,
+    failure,
     retryFailed,
     discardRejected,
   };
@@ -170,8 +179,12 @@ function buildFavoriteSyncRunFailure(syncState: FavoriteSyncStateView) {
     return undefined;
   }
 
+  const kind: FavoriteSyncFailure['kind'] = syncState.lastErrorRetryable
+    ? 'retryable'
+    : 'actionable';
+
   return {
-    kind: 'retryable' as const,
+    kind,
     count: 0,
     errorCode: syncState.lastErrorCode,
     message:
