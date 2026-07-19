@@ -1,12 +1,13 @@
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { Stack } from 'expo-router/stack';
 import { useRouter } from 'expo-router';
-import { Pressable, Text } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+import { Pressable } from 'react-native';
 
-function CloseAccountButton() {
+function AccountBackButton() {
   const router = useRouter();
 
-  const closeAccount = () => {
+  const goBack = () => {
     if (router.canGoBack()) {
       router.back();
       return;
@@ -18,8 +19,14 @@ function CloseAccountButton() {
   };
 
   return (
-    <Pressable accessibilityRole="button" hitSlop={12} onPress={closeAccount}>
-      <Text className="text-base font-semibold text-white">Done</Text>
+    <Pressable
+      accessibilityLabel="Back"
+      accessibilityRole="button"
+      className="pl-1 pr-3"
+      hitSlop={12}
+      onPress={goBack}
+    >
+      <MaterialIcons color="white" name="arrow-back-ios-new" size={22} />
     </Pressable>
   );
 }
@@ -37,7 +44,7 @@ export default function AccountLayout() {
     >
       <Stack.Screen
         name="index"
-        options={{ headerRight: () => <CloseAccountButton />, title: 'Account' }}
+        options={{ headerLeft: () => <AccountBackButton />, title: 'Account' }}
       />
       <Stack.Screen name="username" options={{ title: 'Username' }} />
     </Stack>

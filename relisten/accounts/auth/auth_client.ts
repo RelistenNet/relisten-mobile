@@ -19,6 +19,7 @@ import {
 } from './account_auth_types';
 import { authTransactionExpiry } from './pkce_transaction';
 import { AuthFlowError, normalizedIssuer, validateInitialIdToken } from './auth_validation';
+import { log } from '@/relisten/util/logging';
 
 export { AuthFlowError } from './auth_validation';
 
@@ -31,6 +32,7 @@ const ACCOUNT_SCOPES = [
   'library.write',
   'account.manage',
 ];
+const logger = log.extend('account-auth');
 
 export interface PreparedAuthorization {
   authorizationUrl: string;
@@ -231,7 +233,25 @@ export class AccountAuthClient {
   }
 
   private async loadDiscovery(): Promise<DiscoveryDocument> {
-    const discovery = await fetchDiscoveryAsync(this.config.issuer);
+    let discovery: DiscoveryDocument;
+
+    try {
+      discovery = await fetchDiscoveryAsync(this.config.issuer);
+    } catch (error) {
+      logger.warn(
+        `OIDC discovery failed for ${this.config.issuer}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+      throw new AuthFlowError(
+        __DEV__
+          ? 'Relisten could not reach the local account service on port 5443. Start RelistenUserService and try again.'
+          : 'Relisten could not reach the account service. Try again.',
+        'auth_service_unavailable',
+        false,
+        true
+      );
+    }
     const metadataIssuer = discovery.discoveryDocument?.issuer;
 
     if (
