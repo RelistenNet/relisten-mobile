@@ -9,9 +9,16 @@ export function useCarPlaySetup(
   apiClient: RelistenApiClient,
   realm: Realm | undefined,
   libraryIndex: LibraryIndex,
-  userSettingsStore: UserSettingsStore
+  userSettingsStore: UserSettingsStore,
+  accountGeneration: number
 ) {
   useEffect(() => {
-    setCarPlayDependencies({ apiClient, realm, libraryIndex, userSettingsStore });
-  }, [apiClient, realm, libraryIndex, userSettingsStore]);
+    setCarPlayDependencies({
+      accountGeneration,
+      apiClient,
+      realm,
+      libraryIndex,
+      userSettingsStore,
+    });
+  }, [accountGeneration, apiClient, realm, libraryIndex, userSettingsStore]);
 }

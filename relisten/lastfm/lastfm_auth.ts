@@ -47,7 +47,9 @@ export const LastFmAuth = {
     const token = await client.getToken();
     await AsyncStorage.setItem(LASTFM_AUTH_TOKEN_KEY, token);
 
-    const callbackUrl = Linking.createURL(LASTFM_AUTH_PATH);
+    // Relisten now has a second scheme dedicated to OIDC callbacks. Keep the
+    // existing Last.fm callback on its original public app scheme explicitly.
+    const callbackUrl = Linking.createURL(LASTFM_AUTH_PATH, { scheme: 'relisten' });
     const authUrl = client.getAuthUrl(token, callbackUrl);
 
     await Linking.openURL(authUrl);

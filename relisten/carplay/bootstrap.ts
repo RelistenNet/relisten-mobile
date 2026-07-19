@@ -8,8 +8,10 @@ import { PlaybackSource, sharedStates } from '@/relisten/player/shared_state';
 import { RelistenPlayer } from '@/relisten/player/relisten_player';
 import { LibraryIndex } from '@/relisten/realm/library_index';
 import { UserSettingsStore } from '@/relisten/realm/user_settings_store';
+import { AccountScopeStore } from '@/relisten/accounts/account_scope_store';
 
 type CarPlayDependencyInput = {
+  accountGeneration?: number;
   apiClient?: RelistenApiClient;
   realm?: Realm;
   libraryIndex?: LibraryIndex;
@@ -20,11 +22,15 @@ let providedApiClient: RelistenApiClient | null = null;
 let providedRealm: Realm | null = null;
 let providedLibraryIndex: LibraryIndex | null = null;
 let providedUserSettingsStore: UserSettingsStore | null = null;
+let providedAccountGeneration: number | null = null;
 let ownedLibraryIndex: LibraryIndex | null = null;
+let ownedAccountScopeStore: AccountScopeStore | null = null;
 let ownedUserSettingsStore: UserSettingsStore | null = null;
 let teardown: (() => void) | null = null;
 let connected = false;
 let setupInFlight: Promise<void> | null = null;
+let activeSetupGeneration: number | null = null;
+let dependencyRevision = 0;
 
 const ensureApiClient = () => {
   if (!providedApiClient) {
@@ -48,7 +54,10 @@ const ensureLibraryIndex = async () => {
   }
 
   const realm = await ensureRealm();
-  ownedLibraryIndex = new LibraryIndex(realm);
+  ownedAccountScopeStore = new AccountScopeStore(realm);
+  ownedAccountScopeStore.start();
+  providedAccountGeneration = ownedAccountScopeStore.capture().generation;
+  ownedLibraryIndex = new LibraryIndex(realm, ownedAccountScopeStore);
   providedLibraryIndex = ownedLibraryIndex;
   return providedLibraryIndex;
 };
@@ -69,6 +78,8 @@ const ensureSetup = () => {
     return;
   }
 
+  const setupGeneration = providedAccountGeneration;
+  const setupDependencyRevision = dependencyRevision;
   setupInFlight = (async () => {
     const [realm, apiClient, libraryIndex, userSettingsStore] = await Promise.all([
       ensureRealm(),
@@ -77,26 +88,66 @@ const ensureSetup = () => {
       ensureUserSettingsStore(),
     ]);
 
-    if (!connected || teardown) {
+    if (
+      !connected ||
+      teardown ||
+      providedAccountGeneration !== setupGeneration ||
+      dependencyRevision !== setupDependencyRevision
+    ) {
       return;
     }
 
     teardown = setupCarPlay(realm, apiClient, libraryIndex, userSettingsStore);
+    activeSetupGeneration = setupGeneration;
   })()
     .catch((error) => {
       console.warn('CarPlay setup failed', error);
     })
     .finally(() => {
       setupInFlight = null;
+      if (
+        providedAccountGeneration !== setupGeneration ||
+        dependencyRevision !== setupDependencyRevision
+      ) {
+        ensureSetup();
+      }
     });
 };
 
 export const setCarPlayDependencies = ({
+  accountGeneration,
   apiClient,
   realm,
   libraryIndex,
   userSettingsStore,
 }: CarPlayDependencyInput) => {
+  const accountGenerationChanged =
+    accountGeneration !== undefined && accountGeneration !== providedAccountGeneration;
+  const dependencyChanged =
+    (apiClient !== undefined && apiClient !== providedApiClient) ||
+    (realm !== undefined && realm !== providedRealm) ||
+    (libraryIndex !== undefined && libraryIndex !== providedLibraryIndex) ||
+    (userSettingsStore !== undefined && userSettingsStore !== providedUserSettingsStore);
+  if (dependencyChanged) {
+    dependencyRevision += 1;
+  }
+
+  if (
+    connected &&
+    teardown &&
+    (dependencyChanged || (accountGenerationChanged && activeSetupGeneration !== accountGeneration))
+  ) {
+    // A live template context owns the old services and captured account rows.
+    // Tear it down before replacing either so no nested screen survives a switch.
+    teardown();
+    teardown = null;
+    activeSetupGeneration = null;
+  }
+
+  if (accountGeneration !== undefined) {
+    providedAccountGeneration = accountGeneration;
+  }
+
   if (apiClient) {
     providedApiClient = apiClient;
   }
@@ -110,6 +161,8 @@ export const setCarPlayDependencies = ({
       ownedLibraryIndex.tearDown();
       ownedLibraryIndex = null;
     }
+    ownedAccountScopeStore?.tearDown();
+    ownedAccountScopeStore = null;
     providedLibraryIndex = libraryIndex;
   }
 
@@ -125,8 +178,6 @@ export const setCarPlayDependencies = ({
     return;
   }
 
-  // If we already have an active template stack, keep it to avoid resetting CarPlay UI.
-  // The provided dependencies will be used on the next setup (e.g., after disconnect/reconnect).
   ensureSetup();
 };
 
@@ -158,9 +209,12 @@ const registerCarPlayBootstrap = () => {
     connected = false;
     teardown?.();
     teardown = null;
+    activeSetupGeneration = null;
     const disconnectedLibraryIndex = ownedLibraryIndex;
     disconnectedLibraryIndex?.tearDown();
     ownedLibraryIndex = null;
+    ownedAccountScopeStore?.tearDown();
+    ownedAccountScopeStore = null;
     if (providedLibraryIndex === disconnectedLibraryIndex) {
       providedLibraryIndex = null;
     }

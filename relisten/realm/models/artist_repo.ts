@@ -60,7 +60,6 @@ export function artistsNetworkBackedBehavior(
       }
 
       let q = filterForUser(catalogArtists, {
-        isFavorite: null,
         isPlayableOffline: availableOfflineOnly ? availableOfflineOnly : null,
       });
 
