@@ -1,6 +1,8 @@
 import Realm from 'realm';
-import { Artist } from '@/relisten/realm/models/artist';
-import { Show } from '@/relisten/realm/models/show';
+import { FavoriteAccountScopeSource } from '@/relisten/library/favorite_repository';
+import { FavoriteMembershipProjection } from '@/relisten/library/favorite_membership_projection';
+import { OfflineAvailabilityProjection } from '@/relisten/library/offline_availability_projection';
+import { FavoriteCatalogType, FAVORITE_CATALOG_TYPES } from '@/relisten/realm/models/library';
 import {
   SourceTrackOfflineInfo,
   SourceTrackOfflineInfoStatus,
@@ -8,11 +10,23 @@ import {
 import { logLibraryIndexDebug } from '@/relisten/util/profile_logging';
 
 type Listener = () => void;
+type SliceScope = 'library-membership' | 'offline-availability' | 'remaining-downloads';
+type KeyedScope =
+  | 'artist-library'
+  | 'year-library'
+  | 'show-library'
+  | 'artist-offline'
+  | 'year-offline'
+  | 'show-offline'
+  | 'source-offline'
+  | 'favorite';
 
-const SLICE_SCOPES = ['library-membership', 'offline-availability', 'remaining-downloads'] as const;
-type SliceScope = (typeof SLICE_SCOPES)[number];
-
-const KEYED_SCOPES = [
+const SLICE_SCOPES: SliceScope[] = [
+  'library-membership',
+  'offline-availability',
+  'remaining-downloads',
+];
+const KEYED_SCOPES: KeyedScope[] = [
   'artist-library',
   'year-library',
   'show-library',
@@ -20,155 +34,62 @@ const KEYED_SCOPES = [
   'year-offline',
   'show-offline',
   'source-offline',
-] as const;
-type KeyedScope = (typeof KEYED_SCOPES)[number];
+  'favorite',
+];
 
-type SliceListeners = Record<SliceScope, Set<Listener>>;
-type SliceVersions = Record<SliceScope, number>;
-type KeyedListeners = Record<KeyedScope, Map<string, Set<Listener>>>;
-type KeyedVersions = Record<KeyedScope, Map<string, number>>;
-type PendingKeyNotifications = Record<KeyedScope, Set<string>>;
-
-function createSliceListeners(): SliceListeners {
-  return {
-    'library-membership': new Set<Listener>(),
-    'offline-availability': new Set<Listener>(),
-    'remaining-downloads': new Set<Listener>(),
-  };
-}
-
-function createSliceVersions(): SliceVersions {
-  return {
-    'library-membership': 0,
-    'offline-availability': 0,
-    'remaining-downloads': 0,
-  };
-}
-
-function createKeyedListeners(): KeyedListeners {
-  return {
-    'artist-library': new Map<string, Set<Listener>>(),
-    'year-library': new Map<string, Set<Listener>>(),
-    'show-library': new Map<string, Set<Listener>>(),
-    'artist-offline': new Map<string, Set<Listener>>(),
-    'year-offline': new Map<string, Set<Listener>>(),
-    'show-offline': new Map<string, Set<Listener>>(),
-    'source-offline': new Map<string, Set<Listener>>(),
-  };
-}
-
-function createKeyedVersions(): KeyedVersions {
-  return {
-    'artist-library': new Map<string, number>(),
-    'year-library': new Map<string, number>(),
-    'show-library': new Map<string, number>(),
-    'artist-offline': new Map<string, number>(),
-    'year-offline': new Map<string, number>(),
-    'show-offline': new Map<string, number>(),
-    'source-offline': new Map<string, number>(),
-  };
-}
-
-function createPendingKeyNotifications(): PendingKeyNotifications {
-  return {
-    'artist-library': new Set<string>(),
-    'year-library': new Set<string>(),
-    'show-library': new Set<string>(),
-    'artist-offline': new Set<string>(),
-    'year-offline': new Set<string>(),
-    'show-offline': new Set<string>(),
-    'source-offline': new Set<string>(),
-  };
-}
-
-function cloneStringSet(source: Set<string>) {
-  return new Set(source);
-}
-
-function cloneCountMap(source: Map<string, number>) {
-  return new Map(source);
-}
-
-function unionSetValues(...sources: Array<ReadonlySet<string>>) {
-  const union = new Set<string>();
-
-  for (const source of sources) {
-    for (const value of source) {
-      union.add(value);
-    }
-  }
-
-  return union;
-}
-
-function unionMapKeys(...sources: Array<ReadonlyMap<string, number>>) {
-  const union = new Set<string>();
-
-  for (const source of sources) {
-    for (const key of source.keys()) {
-      union.add(key);
-    }
-  }
-
-  return union;
-}
-
+/**
+ * Subscription facade over account-scoped favorites and device-global media.
+ * The projections own Realm traversal; this class only combines their results
+ * and preserves the fine-grained subscriptions used by list rows.
+ */
 export class LibraryIndex {
+  private readonly favoriteProjection: FavoriteMembershipProjection;
+  private readonly offlineProjection: OfflineAvailabilityProjection;
+  private readonly remainingDownloads: Realm.Results<SourceTrackOfflineInfo>;
   private readonly listeners = new Set<Listener>();
+  private readonly sliceListeners = createListenerRecord<SliceScope>(SLICE_SCOPES);
+  private readonly sliceVersions = createVersionRecord<SliceScope>(SLICE_SCOPES);
+  private readonly keyedListeners = createKeyedListenerRecord();
+  private readonly keyedVersions = createKeyedVersionRecord();
+  private readonly pendingSlices = new Set<SliceScope>();
+  private readonly pendingKeys = createPendingKeyRecord();
+  private readonly favoriteUuids = createFavoriteSetRecord();
+  private libraryArtistUuids = new Set<string>();
+  private libraryYearUuids = new Set<string>();
+  private libraryShowUuids = new Set<string>();
+  private offlineArtistUuids = new Set<string>();
+  private offlineYearUuids = new Set<string>();
+  private offlineShowUuids = new Set<string>();
+  private offlineSourceUuids = new Set<string>();
   private version = 0;
   private emitScheduled = false;
-  private readonly sliceListeners = createSliceListeners();
-  private readonly sliceVersions = createSliceVersions();
-  private readonly keyedListeners = createKeyedListeners();
-  private readonly keyedVersions = createKeyedVersions();
-  private readonly pendingSlices = new Set<SliceScope>();
-  private readonly pendingKeyNotifications = createPendingKeyNotifications();
+  private lastRemainingDownloadsCount = 0;
 
-  private readonly artistOfflineCounts = new Map<string, number>();
-  private readonly yearOfflineCounts = new Map<string, number>();
-  private readonly showOfflineCounts = new Map<string, number>();
-  private readonly sourceOfflineCounts = new Map<string, number>();
-
-  private readonly favoriteArtistUuids = new Set<string>();
-  private readonly favoriteShowUuids = new Set<string>();
-  private readonly favoriteShowArtistCounts = new Map<string, number>();
-  private readonly favoriteShowYearCounts = new Map<string, number>();
-
-  private readonly favoriteArtists: Realm.Results<Artist>;
-  private readonly favoriteShows: Realm.Results<Show>;
-  private readonly offlineInfos: Realm.Results<SourceTrackOfflineInfo>;
-  private readonly remainingDownloads: Realm.Results<SourceTrackOfflineInfo>;
-  private lastNotifiedRemainingDownloadsCount = 0;
-
-  constructor(private readonly realm: Realm.Realm) {
-    this.favoriteArtists = this.realm.objects(Artist).filtered('isFavorite == true');
-    this.favoriteShows = this.realm.objects(Show).filtered('isFavorite == true');
-    this.offlineInfos = this.realm
-      .objects(SourceTrackOfflineInfo)
-      .filtered('status == $0', SourceTrackOfflineInfoStatus.Succeeded);
-    this.remainingDownloads = this.realm
+  constructor(
+    private readonly realm: Realm,
+    accountScopeSource: FavoriteAccountScopeSource
+  ) {
+    this.favoriteProjection = new FavoriteMembershipProjection(realm, accountScopeSource);
+    this.offlineProjection = new OfflineAvailabilityProjection(realm);
+    this.remainingDownloads = realm
       .objects(SourceTrackOfflineInfo)
       .filtered('status != $0', SourceTrackOfflineInfoStatus.Succeeded);
-    this.lastNotifiedRemainingDownloadsCount = this.remainingDownloads.length;
+    this.lastRemainingDownloadsCount = this.remainingDownloads.length;
 
-    this.favoriteArtists.addListener(this.handleFavoriteArtistsChanged);
-    this.favoriteShows.addListener(this.handleFavoriteShowsChanged);
-    this.offlineInfos.addListener(this.handleOfflineInfosChanged);
+    this.favoriteProjection.subscribe(this.handleFavoriteProjectionChanged);
+    this.offlineProjection.subscribe(this.handleOfflineProjectionChanged);
     this.remainingDownloads.addListener(this.handleRemainingDownloadsChanged);
-
-    this.rebuildFavoriteArtists();
-    this.rebuildFavoriteShows();
-    this.rebuildOfflineAvailability();
+    this.replaceFavoriteSets();
+    this.replaceOfflineSets();
+    this.replaceLibrarySets();
   }
 
   tearDown() {
+    this.favoriteProjection.tearDown();
+    this.offlineProjection.tearDown();
     if (!this.realm.isClosed) {
-      this.favoriteArtists.removeListener(this.handleFavoriteArtistsChanged);
-      this.favoriteShows.removeListener(this.handleFavoriteShowsChanged);
-      this.offlineInfos.removeListener(this.handleOfflineInfosChanged);
       this.remainingDownloads.removeListener(this.handleRemainingDownloadsChanged);
     }
-
     this.listeners.clear();
     for (const scope of SLICE_SCOPES) {
       this.sliceListeners[scope].clear();
@@ -178,142 +99,82 @@ export class LibraryIndex {
     }
   }
 
-  subscribe = (listener: Listener) => {
-    this.listeners.add(listener);
+  subscribe = (listener: Listener) => subscribeSet(this.listeners, listener);
+  getSnapshot = () => this.version;
 
-    return () => {
-      this.listeners.delete(listener);
-    };
-  };
+  subscribeLibraryMembership = (listener: Listener) =>
+    subscribeSet(this.sliceListeners['library-membership'], listener);
+  getLibraryMembershipSnapshot = () => this.sliceVersions['library-membership'];
 
-  getSnapshot = () => {
-    return this.version;
-  };
+  subscribeOfflineAvailability = (listener: Listener) =>
+    subscribeSet(this.sliceListeners['offline-availability'], listener);
+  getOfflineAvailabilitySnapshot = () => this.sliceVersions['offline-availability'];
 
-  subscribeLibraryMembership = (listener: Listener) => {
-    return this.subscribeSlice('library-membership', listener);
-  };
+  subscribeRemainingDownloads = (listener: Listener) =>
+    subscribeSet(this.sliceListeners['remaining-downloads'], listener);
+  getRemainingDownloadsSnapshot = () => this.remainingDownloadsCount();
 
-  getLibraryMembershipSnapshot = () => {
-    return this.sliceVersions['library-membership'];
-  };
+  subscribeFavorite = (catalogType: FavoriteCatalogType, catalogUuid: string, listener: Listener) =>
+    this.subscribeKey('favorite', favoriteKey(catalogType, catalogUuid), listener);
+  getFavoriteSnapshot = (catalogType: FavoriteCatalogType, catalogUuid: string) =>
+    this.keyVersion('favorite', favoriteKey(catalogType, catalogUuid));
 
-  subscribeOfflineAvailability = (listener: Listener) => {
-    return this.subscribeSlice('offline-availability', listener);
-  };
+  subscribeArtistLibrary = (uuid: string, listener: Listener) =>
+    this.subscribeKey('artist-library', uuid, listener);
+  getArtistLibrarySnapshot = (uuid: string) => this.keyVersion('artist-library', uuid);
+  subscribeYearLibrary = (uuid: string, listener: Listener) =>
+    this.subscribeKey('year-library', uuid, listener);
+  getYearLibrarySnapshot = (uuid: string) => this.keyVersion('year-library', uuid);
+  subscribeShowLibrary = (uuid: string, listener: Listener) =>
+    this.subscribeKey('show-library', uuid, listener);
+  getShowLibrarySnapshot = (uuid: string) => this.keyVersion('show-library', uuid);
+  subscribeArtistOfflineTracks = (uuid: string, listener: Listener) =>
+    this.subscribeKey('artist-offline', uuid, listener);
+  getArtistOfflineTracksSnapshot = (uuid: string) => this.keyVersion('artist-offline', uuid);
+  subscribeYearOfflineTracks = (uuid: string, listener: Listener) =>
+    this.subscribeKey('year-offline', uuid, listener);
+  getYearOfflineTracksSnapshot = (uuid: string) => this.keyVersion('year-offline', uuid);
+  subscribeShowOfflineTracks = (uuid: string, listener: Listener) =>
+    this.subscribeKey('show-offline', uuid, listener);
+  getShowOfflineTracksSnapshot = (uuid: string) => this.keyVersion('show-offline', uuid);
+  subscribeSourceOfflineTracks = (uuid: string, listener: Listener) =>
+    this.subscribeKey('source-offline', uuid, listener);
+  getSourceOfflineTracksSnapshot = (uuid: string) => this.keyVersion('source-offline', uuid);
 
-  getOfflineAvailabilitySnapshot = () => {
-    return this.sliceVersions['offline-availability'];
-  };
-
-  subscribeRemainingDownloads = (listener: Listener) => {
-    return this.subscribeSlice('remaining-downloads', listener);
-  };
-
-  getRemainingDownloadsSnapshot = () => {
-    return this.remainingDownloadsCount();
-  };
-
-  subscribeArtistLibrary = (artistUuid: string, listener: Listener) => {
-    return this.subscribeKeyed('artist-library', artistUuid, listener);
-  };
-
-  getArtistLibrarySnapshot = (artistUuid: string) => {
-    return this.getKeyedSnapshot('artist-library', artistUuid);
-  };
-
-  subscribeYearLibrary = (yearUuid: string, listener: Listener) => {
-    return this.subscribeKeyed('year-library', yearUuid, listener);
-  };
-
-  getYearLibrarySnapshot = (yearUuid: string) => {
-    return this.getKeyedSnapshot('year-library', yearUuid);
-  };
-
-  subscribeShowLibrary = (showUuid: string, listener: Listener) => {
-    return this.subscribeKeyed('show-library', showUuid, listener);
-  };
-
-  getShowLibrarySnapshot = (showUuid: string) => {
-    return this.getKeyedSnapshot('show-library', showUuid);
-  };
-
-  subscribeArtistOfflineTracks = (artistUuid: string, listener: Listener) => {
-    return this.subscribeKeyed('artist-offline', artistUuid, listener);
-  };
-
-  getArtistOfflineTracksSnapshot = (artistUuid: string) => {
-    return this.getKeyedSnapshot('artist-offline', artistUuid);
-  };
-
-  subscribeYearOfflineTracks = (yearUuid: string, listener: Listener) => {
-    return this.subscribeKeyed('year-offline', yearUuid, listener);
-  };
-
-  getYearOfflineTracksSnapshot = (yearUuid: string) => {
-    return this.getKeyedSnapshot('year-offline', yearUuid);
-  };
-
-  subscribeShowOfflineTracks = (showUuid: string, listener: Listener) => {
-    return this.subscribeKeyed('show-offline', showUuid, listener);
-  };
-
-  getShowOfflineTracksSnapshot = (showUuid: string) => {
-    return this.getKeyedSnapshot('show-offline', showUuid);
-  };
-
-  subscribeSourceOfflineTracks = (sourceUuid: string, listener: Listener) => {
-    return this.subscribeKeyed('source-offline', sourceUuid, listener);
-  };
-
-  getSourceOfflineTracksSnapshot = (sourceUuid: string) => {
-    return this.getKeyedSnapshot('source-offline', sourceUuid);
-  };
-
-  artistHasOfflineTracks(artistUuid?: string | null) {
-    return this.hasEntries(this.artistOfflineCounts, artistUuid);
+  isFavorite(catalogType: FavoriteCatalogType, catalogUuid?: string | null) {
+    return !!catalogUuid && this.favoriteUuids[catalogType].has(catalogUuid);
   }
 
-  yearHasOfflineTracks(yearUuid?: string | null) {
-    return this.hasEntries(this.yearOfflineCounts, yearUuid);
+  favoriteCatalogUuids(catalogType: FavoriteCatalogType): ReadonlySet<string> {
+    return this.favoriteUuids[catalogType];
   }
 
-  showHasOfflineTracks(showUuid?: string | null) {
-    return this.hasEntries(this.showOfflineCounts, showUuid);
+  artistHasOfflineTracks(uuid?: string | null) {
+    return !!uuid && this.offlineArtistUuids.has(uuid);
   }
 
-  sourceHasOfflineTracks(sourceUuid?: string | null) {
-    return this.hasEntries(this.sourceOfflineCounts, sourceUuid);
+  yearHasOfflineTracks(uuid?: string | null) {
+    return !!uuid && this.offlineYearUuids.has(uuid);
   }
 
-  artistIsInLibrary(artistUuid?: string | null) {
-    if (!artistUuid) {
-      return false;
-    }
-
-    return (
-      this.favoriteArtistUuids.has(artistUuid) ||
-      this.artistHasOfflineTracks(artistUuid) ||
-      this.hasEntries(this.favoriteShowArtistCounts, artistUuid)
-    );
+  showHasOfflineTracks(uuid?: string | null) {
+    return !!uuid && this.offlineShowUuids.has(uuid);
   }
 
-  yearIsInLibrary(yearUuid?: string | null) {
-    if (!yearUuid) {
-      return false;
-    }
-
-    return (
-      this.yearHasOfflineTracks(yearUuid) || this.hasEntries(this.favoriteShowYearCounts, yearUuid)
-    );
+  sourceHasOfflineTracks(uuid?: string | null) {
+    return !!uuid && this.offlineSourceUuids.has(uuid);
   }
 
-  showIsInLibrary(showUuid?: string | null) {
-    if (!showUuid) {
-      return false;
-    }
+  artistIsInLibrary(uuid?: string | null) {
+    return !!uuid && this.libraryArtistUuids.has(uuid);
+  }
 
-    return this.favoriteShowUuids.has(showUuid) || this.showHasOfflineTracks(showUuid);
+  yearIsInLibrary(uuid?: string | null) {
+    return !!uuid && this.libraryYearUuids.has(uuid);
+  }
+
+  showIsInLibrary(uuid?: string | null) {
+    return !!uuid && this.libraryShowUuids.has(uuid);
   }
 
   remainingDownloadsCount() {
@@ -324,249 +185,149 @@ export class LibraryIndex {
     return this.remainingDownloadsCount() > 0;
   }
 
-  private readonly handleFavoriteArtistsChanged = () => {
-    this.rebuildFavoriteArtists();
+  private readonly handleFavoriteProjectionChanged = () => {
+    const previousFavorites = cloneFavoriteSets(this.favoriteUuids);
+    const previousLibrary = this.librarySets();
+    this.replaceFavoriteSets();
+    this.replaceLibrarySets();
+
+    this.queueSlice('library-membership');
+    for (const catalogType of FAVORITE_CATALOG_TYPES) {
+      this.queueChangedKeys(
+        'favorite',
+        previousFavorites[catalogType],
+        this.favoriteUuids[catalogType],
+        (uuid) => favoriteKey(catalogType, uuid)
+      );
+    }
+    this.queueLibraryChanges(previousLibrary);
+    this.scheduleEmit();
   };
 
-  private readonly handleFavoriteShowsChanged = () => {
-    this.rebuildFavoriteShows();
-  };
+  private readonly handleOfflineProjectionChanged = () => {
+    const previousOffline = this.offlineSets();
+    const previousLibrary = this.librarySets();
+    this.replaceOfflineSets();
+    this.replaceLibrarySets();
 
-  private readonly handleOfflineInfosChanged = () => {
-    this.rebuildOfflineAvailability();
+    this.queueSlice('offline-availability');
+    this.queueSlice('library-membership');
+    this.queueChangedKeys('artist-offline', previousOffline.artist, this.offlineArtistUuids);
+    this.queueChangedKeys('year-offline', previousOffline.year, this.offlineYearUuids);
+    this.queueChangedKeys('show-offline', previousOffline.show, this.offlineShowUuids);
+    this.queueChangedKeys('source-offline', previousOffline.source, this.offlineSourceUuids);
+    this.queueLibraryChanges(previousLibrary);
+    this.scheduleEmit();
   };
 
   private readonly handleRemainingDownloadsChanged = () => {
-    const remainingDownloadsCount = this.remainingDownloadsCount();
-
-    if (remainingDownloadsCount === this.lastNotifiedRemainingDownloadsCount) {
+    const count = this.remainingDownloadsCount();
+    if (count === this.lastRemainingDownloadsCount) {
       return;
     }
 
-    logLibraryIndexDebug(
-      `remaining-downloads ${this.lastNotifiedRemainingDownloadsCount} -> ${remainingDownloadsCount}`
-    );
-    this.lastNotifiedRemainingDownloadsCount = remainingDownloadsCount;
-
-    this.queueSliceNotification('remaining-downloads');
+    logLibraryIndexDebug(`remaining-downloads ${this.lastRemainingDownloadsCount} -> ${count}`);
+    this.lastRemainingDownloadsCount = count;
+    this.queueSlice('remaining-downloads');
     this.scheduleEmit();
   };
 
-  private rebuildFavoriteArtists() {
-    const previousFavoriteArtistUuids = cloneStringSet(this.favoriteArtistUuids);
-
-    this.favoriteArtistUuids.clear();
-
-    for (const artist of this.favoriteArtists) {
-      this.favoriteArtistUuids.add(artist.uuid);
+  private replaceFavoriteSets() {
+    for (const type of FAVORITE_CATALOG_TYPES) {
+      this.favoriteUuids[type] = new Set(this.favoriteProjection.favoriteUuids(type));
     }
-
-    this.queueSliceNotification('library-membership');
-
-    for (const artistUuid of unionSetValues(
-      previousFavoriteArtistUuids,
-      this.favoriteArtistUuids
-    )) {
-      const wasInLibrary =
-        previousFavoriteArtistUuids.has(artistUuid) ||
-        this.hasEntries(this.artistOfflineCounts, artistUuid) ||
-        this.hasEntries(this.favoriteShowArtistCounts, artistUuid);
-      const isInLibrary = this.artistIsInLibrary(artistUuid);
-
-      if (wasInLibrary !== isInLibrary) {
-        this.queueKeyNotification('artist-library', artistUuid);
-      }
-    }
-
-    this.scheduleEmit();
   }
 
-  private rebuildFavoriteShows() {
-    const previousFavoriteArtistUuids = cloneStringSet(this.favoriteArtistUuids);
-    const previousFavoriteShowUuids = cloneStringSet(this.favoriteShowUuids);
-    const previousFavoriteShowArtistCounts = cloneCountMap(this.favoriteShowArtistCounts);
-    const previousFavoriteShowYearCounts = cloneCountMap(this.favoriteShowYearCounts);
-
-    this.favoriteShowUuids.clear();
-    this.favoriteShowArtistCounts.clear();
-    this.favoriteShowYearCounts.clear();
-
-    for (const show of this.favoriteShows) {
-      this.favoriteShowUuids.add(show.uuid);
-      this.incrementCount(this.favoriteShowArtistCounts, show.artistUuid);
-      this.incrementCount(this.favoriteShowYearCounts, show.yearUuid);
-    }
-
-    this.queueSliceNotification('library-membership');
-
-    for (const showUuid of unionSetValues(previousFavoriteShowUuids, this.favoriteShowUuids)) {
-      const wasInLibrary =
-        previousFavoriteShowUuids.has(showUuid) ||
-        this.hasEntries(this.showOfflineCounts, showUuid);
-      const isInLibrary = this.showIsInLibrary(showUuid);
-
-      if (wasInLibrary !== isInLibrary) {
-        this.queueKeyNotification('show-library', showUuid);
-      }
-    }
-
-    for (const artistUuid of unionMapKeys(
-      previousFavoriteShowArtistCounts,
-      this.favoriteShowArtistCounts
-    )) {
-      const wasInLibrary = this.artistLibraryMembershipFromState(
-        previousFavoriteShowArtistCounts,
-        previousFavoriteArtistUuids,
-        this.artistOfflineCounts,
-        artistUuid
-      );
-      const isInLibrary = this.artistIsInLibrary(artistUuid);
-
-      if (wasInLibrary !== isInLibrary) {
-        this.queueKeyNotification('artist-library', artistUuid);
-      }
-    }
-
-    for (const yearUuid of unionMapKeys(
-      previousFavoriteShowYearCounts,
-      this.favoriteShowYearCounts
-    )) {
-      const wasInLibrary = this.yearLibraryMembershipFromState(
-        previousFavoriteShowYearCounts,
-        this.yearOfflineCounts,
-        yearUuid
-      );
-      const isInLibrary = this.yearIsInLibrary(yearUuid);
-
-      if (wasInLibrary !== isInLibrary) {
-        this.queueKeyNotification('year-library', yearUuid);
-      }
-    }
-
-    this.scheduleEmit();
+  private replaceOfflineSets() {
+    this.offlineArtistUuids = new Set(this.offlineProjection.playableArtistUuids());
+    this.offlineYearUuids = new Set(this.offlineProjection.playableYearUuids());
+    this.offlineShowUuids = new Set(this.offlineProjection.playableShowUuids());
+    this.offlineSourceUuids = new Set(this.offlineProjection.playableSourceUuids());
   }
 
-  private rebuildOfflineAvailability() {
-    const previousArtistOfflineCounts = cloneCountMap(this.artistOfflineCounts);
-    const previousYearOfflineCounts = cloneCountMap(this.yearOfflineCounts);
-    const previousShowOfflineCounts = cloneCountMap(this.showOfflineCounts);
-    const previousSourceOfflineCounts = cloneCountMap(this.sourceOfflineCounts);
-
-    this.artistOfflineCounts.clear();
-    this.yearOfflineCounts.clear();
-    this.showOfflineCounts.clear();
-    this.sourceOfflineCounts.clear();
-
-    for (const offlineInfo of this.offlineInfos) {
-      const track = offlineInfo.sourceTrack;
-      if (!track) {
-        continue;
-      }
-
-      this.incrementCount(this.artistOfflineCounts, track.artistUuid);
-      this.incrementCount(this.showOfflineCounts, track.showUuid);
-      this.incrementCount(this.sourceOfflineCounts, track.sourceUuid);
-
-      const yearUuid =
-        track.year?.uuid ??
-        track.show?.yearUuid ??
-        this.realm.objectForPrimaryKey(Show, track.showUuid)?.yearUuid;
-      this.incrementCount(this.yearOfflineCounts, yearUuid);
-    }
-
-    this.queueSliceNotification('offline-availability');
-    this.queueSliceNotification('library-membership');
-
-    for (const artistUuid of unionMapKeys(previousArtistOfflineCounts, this.artistOfflineCounts)) {
-      const hadOfflineTracks = this.hasEntries(previousArtistOfflineCounts, artistUuid);
-      const hasOfflineTracks = this.artistHasOfflineTracks(artistUuid);
-
-      if (hadOfflineTracks !== hasOfflineTracks) {
-        this.queueKeyNotification('artist-offline', artistUuid);
-      }
-
-      const wasInLibrary = this.artistLibraryMembershipFromState(
-        this.favoriteShowArtistCounts,
-        this.favoriteArtistUuids,
-        previousArtistOfflineCounts,
-        artistUuid
-      );
-      const isInLibrary = this.artistIsInLibrary(artistUuid);
-
-      if (wasInLibrary !== isInLibrary) {
-        this.queueKeyNotification('artist-library', artistUuid);
-      }
-    }
-
-    for (const yearUuid of unionMapKeys(previousYearOfflineCounts, this.yearOfflineCounts)) {
-      const hadOfflineTracks = this.hasEntries(previousYearOfflineCounts, yearUuid);
-      const hasOfflineTracks = this.yearHasOfflineTracks(yearUuid);
-
-      if (hadOfflineTracks !== hasOfflineTracks) {
-        this.queueKeyNotification('year-offline', yearUuid);
-      }
-
-      const wasInLibrary = this.yearLibraryMembershipFromState(
-        this.favoriteShowYearCounts,
-        previousYearOfflineCounts,
-        yearUuid
-      );
-      const isInLibrary = this.yearIsInLibrary(yearUuid);
-
-      if (wasInLibrary !== isInLibrary) {
-        this.queueKeyNotification('year-library', yearUuid);
-      }
-    }
-
-    for (const showUuid of unionMapKeys(previousShowOfflineCounts, this.showOfflineCounts)) {
-      const hadOfflineTracks = this.hasEntries(previousShowOfflineCounts, showUuid);
-      const hasOfflineTracks = this.showHasOfflineTracks(showUuid);
-
-      if (hadOfflineTracks !== hasOfflineTracks) {
-        this.queueKeyNotification('show-offline', showUuid);
-      }
-
-      const wasInLibrary =
-        this.favoriteShowUuids.has(showUuid) ||
-        this.hasEntries(previousShowOfflineCounts, showUuid);
-      const isInLibrary = this.showIsInLibrary(showUuid);
-
-      if (wasInLibrary !== isInLibrary) {
-        this.queueKeyNotification('show-library', showUuid);
-      }
-    }
-
-    for (const sourceUuid of unionMapKeys(previousSourceOfflineCounts, this.sourceOfflineCounts)) {
-      const hadOfflineTracks = this.hasEntries(previousSourceOfflineCounts, sourceUuid);
-      const hasOfflineTracks = this.sourceHasOfflineTracks(sourceUuid);
-
-      if (hadOfflineTracks !== hasOfflineTracks) {
-        this.queueKeyNotification('source-offline', sourceUuid);
-      }
-    }
-
-    this.scheduleEmit();
+  private replaceLibrarySets() {
+    this.libraryArtistUuids = new Set([
+      ...this.favoriteProjection.libraryArtistUuids(),
+      ...this.offlineProjection.libraryArtistUuids(),
+    ]);
+    this.libraryYearUuids = new Set([
+      ...this.favoriteProjection.libraryYearUuids(),
+      ...this.offlineProjection.libraryYearUuids(),
+    ]);
+    this.libraryShowUuids = new Set([
+      ...this.favoriteProjection.favoriteShowUuidsForLibrary(),
+      ...this.offlineProjection.libraryShowUuids(),
+    ]);
   }
 
-  private emit() {
-    this.version += 1;
-    for (const listener of this.listeners) {
-      listener();
+  private queueLibraryChanges(previous: ReturnType<LibraryIndex['librarySets']>) {
+    this.queueChangedKeys('artist-library', previous.artist, this.libraryArtistUuids);
+    this.queueChangedKeys('year-library', previous.year, this.libraryYearUuids);
+    this.queueChangedKeys('show-library', previous.show, this.libraryShowUuids);
+  }
+
+  private librarySets() {
+    return {
+      artist: new Set(this.libraryArtistUuids),
+      year: new Set(this.libraryYearUuids),
+      show: new Set(this.libraryShowUuids),
+    };
+  }
+
+  private offlineSets() {
+    return {
+      artist: new Set(this.offlineArtistUuids),
+      year: new Set(this.offlineYearUuids),
+      show: new Set(this.offlineShowUuids),
+      source: new Set(this.offlineSourceUuids),
+    };
+  }
+
+  private queueChangedKeys(
+    scope: KeyedScope,
+    previous: ReadonlySet<string>,
+    current: ReadonlySet<string>,
+    keyForUuid: (uuid: string) => string = (uuid) => uuid
+  ) {
+    for (const uuid of union(previous, current)) {
+      if (previous.has(uuid) !== current.has(uuid)) {
+        this.pendingKeys[scope].add(keyForUuid(uuid));
+      }
     }
+  }
+
+  private queueSlice(scope: SliceScope) {
+    this.pendingSlices.add(scope);
+  }
+
+  private subscribeKey(scope: KeyedScope, key: string, listener: Listener) {
+    let listeners = this.keyedListeners[scope].get(key);
+    if (!listeners) {
+      listeners = new Set();
+      this.keyedListeners[scope].set(key, listeners);
+    }
+    listeners.add(listener);
+
+    return () => {
+      listeners?.delete(listener);
+      if (listeners?.size === 0) {
+        this.keyedListeners[scope].delete(key);
+      }
+    };
+  }
+
+  private keyVersion(scope: KeyedScope, key: string) {
+    return this.keyedVersions[scope].get(key) ?? 0;
   }
 
   private scheduleEmit() {
     if (this.emitScheduled) {
       return;
     }
-
     this.emitScheduled = true;
 
-    // Realm can fire several notifiers back-to-back for one write transaction.
-    // Forwarding those notifications synchronously into useSyncExternalStore can
-    // re-enter Fabric while it is still committing. Batch them into one
-    // microtask so React observes the final derived state after the notifier
-    // burst has settled.
+    // One Realm transaction can notify several projections. React should see
+    // the final combined membership instead of the intermediate notifications.
     queueMicrotask(() => {
       this.emitScheduled = false;
       this.flushNotifications();
@@ -574,127 +335,91 @@ export class LibraryIndex {
   }
 
   private flushNotifications() {
-    const pendingSlices = [...this.pendingSlices];
+    const slices = [...this.pendingSlices];
     this.pendingSlices.clear();
+    const keyed = KEYED_SCOPES.map((scope) => ({ scope, keys: [...this.pendingKeys[scope]] }));
+    for (const scope of KEYED_SCOPES) {
+      this.pendingKeys[scope].clear();
+    }
 
-    const pendingKeyNotifications = KEYED_SCOPES.map((scope) => {
-      const keys = [...this.pendingKeyNotifications[scope]];
-      this.pendingKeyNotifications[scope].clear();
-      return { scope, keys };
-    }).filter((entry) => entry.keys.length > 0);
-
-    if (pendingSlices.length === 0 && pendingKeyNotifications.length === 0) {
+    if (slices.length === 0 && keyed.every(({ keys }) => keys.length === 0)) {
       return;
     }
 
-    const keyedSummary = pendingKeyNotifications
-      .map(({ scope, keys }) => `${scope}:${keys.length}`)
-      .join(', ');
-    logLibraryIndexDebug(
-      `flush slices=${pendingSlices.join(',') || '<none>'} keyed=${keyedSummary || '<none>'}`
-    );
-
-    for (const scope of pendingSlices) {
+    for (const scope of slices) {
       this.sliceVersions[scope] += 1;
       for (const listener of this.sliceListeners[scope]) {
         listener();
       }
     }
-
-    for (const { scope, keys } of pendingKeyNotifications) {
-      const versions = this.keyedVersions[scope];
-      const listenersByKey = this.keyedListeners[scope];
-
+    for (const { scope, keys } of keyed) {
       for (const key of keys) {
-        versions.set(key, (versions.get(key) ?? 0) + 1);
-        for (const listener of listenersByKey.get(key) ?? []) {
+        this.keyedVersions[scope].set(key, this.keyVersion(scope, key) + 1);
+        for (const listener of this.keyedListeners[scope].get(key) ?? []) {
           listener();
         }
       }
     }
 
-    this.emit();
-  }
-
-  private subscribeSlice(scope: SliceScope, listener: Listener) {
-    this.sliceListeners[scope].add(listener);
-
-    return () => {
-      this.sliceListeners[scope].delete(listener);
-    };
-  }
-
-  private subscribeKeyed(scope: KeyedScope, key: string, listener: Listener) {
-    let listenersByKey = this.keyedListeners[scope].get(key);
-    if (!listenersByKey) {
-      listenersByKey = new Set<Listener>();
-      this.keyedListeners[scope].set(key, listenersByKey);
+    this.version += 1;
+    for (const listener of this.listeners) {
+      listener();
     }
-
-    listenersByKey.add(listener);
-
-    return () => {
-      const currentListeners = this.keyedListeners[scope].get(key);
-      currentListeners?.delete(listener);
-      if (currentListeners && currentListeners.size === 0) {
-        this.keyedListeners[scope].delete(key);
-      }
-    };
   }
+}
 
-  private getKeyedSnapshot(scope: KeyedScope, key: string) {
-    return this.keyedVersions[scope].get(key) ?? 0;
-  }
+function createListenerRecord<T extends string>(keys: T[]) {
+  return Object.fromEntries(keys.map((key) => [key, new Set<Listener>()])) as Record<
+    T,
+    Set<Listener>
+  >;
+}
 
-  private queueSliceNotification(scope: SliceScope) {
-    this.pendingSlices.add(scope);
-  }
+function createVersionRecord<T extends string>(keys: T[]) {
+  return Object.fromEntries(keys.map((key) => [key, 0])) as Record<T, number>;
+}
 
-  private queueKeyNotification(scope: KeyedScope, key?: string | null) {
-    if (!key) {
-      return;
-    }
+function createKeyedListenerRecord() {
+  return Object.fromEntries(
+    KEYED_SCOPES.map((key) => [key, new Map<string, Set<Listener>>()])
+  ) as Record<KeyedScope, Map<string, Set<Listener>>>;
+}
 
-    this.pendingKeyNotifications[scope].add(key);
-  }
+function createKeyedVersionRecord() {
+  return Object.fromEntries(KEYED_SCOPES.map((key) => [key, new Map<string, number>()])) as Record<
+    KeyedScope,
+    Map<string, number>
+  >;
+}
 
-  private artistLibraryMembershipFromState(
-    favoriteShowArtistCounts: ReadonlyMap<string, number>,
-    favoriteArtistUuids: ReadonlySet<string>,
-    artistOfflineCounts: ReadonlyMap<string, number>,
-    artistUuid: string
-  ) {
-    return (
-      favoriteArtistUuids.has(artistUuid) ||
-      this.hasEntries(artistOfflineCounts, artistUuid) ||
-      this.hasEntries(favoriteShowArtistCounts, artistUuid)
-    );
-  }
+function createPendingKeyRecord() {
+  return Object.fromEntries(KEYED_SCOPES.map((key) => [key, new Set<string>()])) as Record<
+    KeyedScope,
+    Set<string>
+  >;
+}
 
-  private yearLibraryMembershipFromState(
-    favoriteShowYearCounts: ReadonlyMap<string, number>,
-    yearOfflineCounts: ReadonlyMap<string, number>,
-    yearUuid: string
-  ) {
-    return (
-      this.hasEntries(yearOfflineCounts, yearUuid) ||
-      this.hasEntries(favoriteShowYearCounts, yearUuid)
-    );
-  }
+function createFavoriteSetRecord() {
+  return Object.fromEntries(
+    FAVORITE_CATALOG_TYPES.map((type) => [type, new Set<string>()])
+  ) as Record<FavoriteCatalogType, Set<string>>;
+}
 
-  private hasEntries(map: ReadonlyMap<string, number>, uuid?: string | null) {
-    if (!uuid) {
-      return false;
-    }
+function cloneFavoriteSets(source: Record<FavoriteCatalogType, Set<string>>) {
+  return Object.fromEntries(
+    FAVORITE_CATALOG_TYPES.map((type) => [type, new Set(source[type])])
+  ) as Record<FavoriteCatalogType, Set<string>>;
+}
 
-    return (map.get(uuid) ?? 0) > 0;
-  }
+function favoriteKey(catalogType: FavoriteCatalogType, catalogUuid: string) {
+  return `${catalogType}:${catalogUuid}`;
+}
 
-  private incrementCount(map: Map<string, number>, uuid?: string | null) {
-    if (!uuid) {
-      return;
-    }
+function union(a: ReadonlySet<string>, b: ReadonlySet<string>) {
+  return new Set([...a, ...b]);
+}
 
-    map.set(uuid, (map.get(uuid) ?? 0) + 1);
-  }
+function subscribeSet(listeners: Set<Listener>, listener: Listener) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
 }

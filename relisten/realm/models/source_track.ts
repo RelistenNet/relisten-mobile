@@ -40,7 +40,7 @@ export interface SourceTrackRequiredProperties extends RelistenObjectRequiredPro
   duration?: number;
   title: string;
   slug: string;
-  mp3Url: string;
+  mp3Url?: string;
   mp3Md5?: string;
   flacUrl?: string;
   flacMd5?: string;
@@ -67,7 +67,7 @@ export class SourceTrack
       duration: 'double?',
       title: 'string',
       slug: 'string',
-      mp3Url: 'string',
+      mp3Url: 'string?',
       mp3Md5: 'string?',
       flacUrl: 'string?',
       flacMd5: 'string?',
@@ -96,7 +96,7 @@ export class SourceTrack
   duration?: number;
   title!: string;
   slug!: string;
-  mp3Url!: string;
+  mp3Url?: string;
   mp3Md5?: string;
   flacUrl?: string;
   flacMd5?: string;
@@ -109,29 +109,32 @@ export class SourceTrack
   show!: Show;
   source!: Source;
 
-  _streamingUrl: string | undefined;
-  streamingUrl() {
-    // TODO: allow people to prefer FLAC
-
-    if (!this._streamingUrl) {
-      let url = this.mp3Url;
-
-      const proxyConfig = sharedStatsigClient().getDynamicConfig(
-        'proxy_audio_through_audio.relisten.net'
-      );
-      const urlReplacements = proxyConfig.get('url_replacements', {
-        '://archive.org/': '://audio.relisten.net/archive.org/',
-        '://phish.in/': '://audio.relisten.net/phish.in/',
-      });
-
-      for (const [key, value] of Object.entries(urlReplacements)) {
-        url = url.replace(key, value);
-      }
-
-      this._streamingUrl = url;
+  streamingUrl(): string | undefined {
+    // MP3 remains the default because offline validation and storage are MP3
+    // specific. A rare FLAC-only catalog row is still streamable instead of
+    // becoming impossible to materialize in Realm.
+    let url = this.mp3Url || this.flacUrl;
+    if (!url) {
+      return undefined;
     }
 
-    return this._streamingUrl;
+    const proxyConfig = sharedStatsigClient().getDynamicConfig(
+      'proxy_audio_through_audio.relisten.net'
+    );
+    const urlReplacements = proxyConfig.get('url_replacements', {
+      '://archive.org/': '://audio.relisten.net/archive.org/',
+      '://phish.in/': '://audio.relisten.net/phish.in/',
+    });
+
+    for (const [key, value] of Object.entries(urlReplacements)) {
+      url = url.replace(key, value);
+    }
+
+    return url;
+  }
+
+  supportsOfflineDownload() {
+    return !!this.mp3Url;
   }
 
   private _humanizedDuration?: string;
@@ -156,6 +159,10 @@ export class SourceTrack
   }
 
   static propertiesFromApi(relistenObj: ApiSourceTrack): SourceTrackRequiredProperties {
+    if (!relistenObj.mp3_url && !relistenObj.flac_url) {
+      throw new Error(`Source track ${relistenObj.uuid} has no playable audio URL.`);
+    }
+
     return {
       uuid: relistenObj.uuid,
       createdAt: dayjs(relistenObj.created_at).toDate(),
@@ -169,7 +176,7 @@ export class SourceTrack
       duration: relistenObj.duration,
       title: relistenObj.title,
       slug: relistenObj.slug,
-      mp3Url: relistenObj.mp3_url!,
+      mp3Url: relistenObj.mp3_url,
       mp3Md5: relistenObj.mp3_md5,
       flacUrl: relistenObj.flac_url,
       flacMd5: relistenObj.flac_md5,
