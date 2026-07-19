@@ -4,6 +4,7 @@ export type FavoriteSyncStateView = {
   runStatus?: FavoriteSyncRunStatus;
   lastErrorCode?: string;
   lastErrorMessage?: string;
+  lastErrorRetryable: boolean;
   lastSuccessfulSyncAt?: Date;
 };
 
@@ -11,6 +12,7 @@ type PersistedFavoriteSyncState = {
   runStatus: FavoriteSyncRunStatus;
   lastErrorCode?: string;
   lastErrorMessage?: string;
+  lastErrorRetryable: boolean;
   lastSuccessfulSyncAt?: Date;
 };
 
@@ -29,23 +31,30 @@ export function favoriteSyncStateSnapshot(state?: PersistedFavoriteSyncState): s
     state.runStatus,
     state.lastErrorCode ?? null,
     state.lastErrorMessage ?? null,
+    state.lastErrorRetryable,
     state.lastSuccessfulSyncAt?.getTime() ?? null,
   ]);
 }
 
 export function favoriteSyncStateView(snapshot: string): FavoriteSyncStateView {
   if (!snapshot) {
-    return {};
+    return { lastErrorRetryable: false };
   }
 
-  const [runStatus, lastErrorCode, lastErrorMessage, lastSuccessfulSyncAt] = JSON.parse(
-    snapshot
-  ) as [FavoriteSyncRunStatus, string | null, string | null, number | null];
+  const [runStatus, lastErrorCode, lastErrorMessage, lastErrorRetryable, lastSuccessfulSyncAt] =
+    JSON.parse(snapshot) as [
+      FavoriteSyncRunStatus,
+      string | null,
+      string | null,
+      boolean,
+      number | null,
+    ];
 
   return {
     runStatus,
     lastErrorCode: lastErrorCode ?? undefined,
     lastErrorMessage: lastErrorMessage ?? undefined,
+    lastErrorRetryable,
     lastSuccessfulSyncAt: lastSuccessfulSyncAt == null ? undefined : new Date(lastSuccessfulSyncAt),
   };
 }

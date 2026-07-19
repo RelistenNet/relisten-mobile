@@ -20,6 +20,7 @@ export class FavoriteSyncState extends Realm.Object<FavoriteSyncState> {
       runStatus: { type: 'string', default: FavoriteSyncRunStatus.Waiting },
       lastErrorCode: 'string?',
       lastErrorMessage: 'string?',
+      lastErrorRetryable: { type: 'bool', default: false },
       lastSuccessfulSyncAt: 'date?',
       createdAt: 'date',
       updatedAt: 'date',
@@ -34,6 +35,7 @@ export class FavoriteSyncState extends Realm.Object<FavoriteSyncState> {
   runStatus!: FavoriteSyncRunStatus;
   lastErrorCode?: string;
   lastErrorMessage?: string;
+  lastErrorRetryable!: boolean;
   lastSuccessfulSyncAt?: Date;
   createdAt!: Date;
   updatedAt!: Date;

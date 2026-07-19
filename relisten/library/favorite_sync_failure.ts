@@ -1,4 +1,5 @@
 import { AccountsApiError } from '@/relisten/accounts/api/accounts_api_client';
+import { AuthFlowError } from '@/relisten/accounts/auth/auth_validation';
 
 export class FavoriteMetadataHydrationError extends Error {
   readonly code = 'favorite_metadata_incomplete';
@@ -13,6 +14,7 @@ export function favoriteSyncFailure(error: unknown, hasLocalSnapshot: boolean) {
   if (error instanceof FavoriteMetadataHydrationError) {
     return {
       code: error.code,
+      retryable: true,
       message:
         error.unresolvedCount === 1
           ? 'One synced favorite could not be loaded. Try again to finish setting up your library.'
@@ -23,6 +25,7 @@ export function favoriteSyncFailure(error: unknown, hasLocalSnapshot: boolean) {
   if (error instanceof AccountsApiError) {
     return {
       code: error.code ?? 'favorite_sync_failed',
+      retryable: error.retryable,
       message: error.retryable
         ? hasLocalSnapshot
           ? 'Relisten could not reach your account. Your last synced library is still available on this device.'
@@ -31,10 +34,23 @@ export function favoriteSyncFailure(error: unknown, hasLocalSnapshot: boolean) {
     };
   }
 
+  if (error instanceof AuthFlowError) {
+    return {
+      code: error.code,
+      retryable: error.retryable,
+      message: error.retryable
+        ? hasLocalSnapshot
+          ? 'Relisten could not reach your account. Your last synced favorites are still available on this device.'
+          : 'Relisten could not load your account favorites yet. Try again when the account service is reachable.'
+        : 'Your Relisten sign-in needs attention. Try again, then sign in again if the problem continues.',
+    };
+  }
+
   return {
     code: 'favorite_sync_failed',
+    retryable: false,
     message: hasLocalSnapshot
-      ? 'Relisten could not finish syncing your library. Try again when you are online.'
-      : 'Relisten could not load your account library yet. Try again when you are online.',
+      ? 'Relisten hit a problem while syncing. Your last synced library is still available on this device.'
+      : 'Relisten hit a problem while loading your account library. Try again.',
   };
 }
