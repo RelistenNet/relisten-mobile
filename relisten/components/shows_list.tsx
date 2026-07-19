@@ -22,7 +22,12 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import colors from 'tailwindcss/colors';
 import { ShowLink } from '@/relisten/util/push_show';
 import { PopularityIndicator } from '@/relisten/components/popularity_indicator';
-import { useLibraryMembershipIndex, useShowHasOfflineTracks } from '@/relisten/realm/root_services';
+import {
+  useLibraryMembershipRevision,
+  useRootLibraryIndex,
+  useShowHasOfflineTracks,
+} from '@/relisten/realm/root_services';
+import { useFavorite } from '@/relisten/library/favorite_hooks';
 
 interface ShowListItemProps {
   show: Show;
@@ -41,6 +46,7 @@ const ShowListItemView = ({
   venueLineCount,
 }: ShowListItemViewProps) => {
   const hasOfflineTracks = useShowHasOfflineTracks(show.uuid);
+  const favorite = useFavorite('show', show.uuid);
 
   return (
     <ShowLink
@@ -60,7 +66,7 @@ const ShowListItemView = ({
                   SBD
                 </RelistenText>
               )}
-              {show?.isFavorite && (
+              {favorite.isFavorite && (
                 <MaterialCommunityIcons name="cards-heart" color={colors.blue['200']} />
               )}
               {hasOfflineTracks && <SourceTrackSucceededIndicator />}
@@ -123,7 +129,8 @@ export enum ShowFilterKey {
 }
 
 export function useShowFilters(): Filter<ShowFilterKey, Show>[] {
-  const libraryIndex = useLibraryMembershipIndex();
+  const libraryIndex = useRootLibraryIndex();
+  const libraryMembershipRevision = useLibraryMembershipRevision();
 
   return useMemo(() => {
     return [
@@ -213,7 +220,7 @@ export function useShowFilters(): Filter<ShowFilterKey, Show>[] {
         },
       },
     ];
-  }, [libraryIndex]);
+  }, [libraryIndex, libraryMembershipRevision]);
 }
 
 const DEFAULT_SHOW_FILTER = {

@@ -117,9 +117,11 @@ export class Source
   artist!: Artist;
 
   private _links?: Link[];
+  private _cachedLinksRaw?: string;
   links() {
-    if (!this._links) {
+    if (!this._links || this._cachedLinksRaw !== this.linksRaw) {
       this._links = JSON.parse(this.linksRaw);
+      this._cachedLinksRaw = this.linksRaw;
     }
     return this._links!;
   }
@@ -189,5 +191,12 @@ export class Source
       reviewCount: relistenObj.review_count,
       linksRaw: JSON.stringify(relistenObj.links),
     };
+  }
+
+  static shouldUpdateFromApi(model: Source, relistenObj: SourceFull) {
+    // A resolver-hydrated source has the catalog's current updated_at but an
+    // intentionally empty link sidecar. Let the ordinary full-show response
+    // enrich it even when the underlying source timestamp has not changed.
+    return model.linksRaw !== JSON.stringify(relistenObj.links);
   }
 }

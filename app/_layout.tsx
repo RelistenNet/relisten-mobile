@@ -21,7 +21,14 @@ import { RelistenBlue } from '@/relisten/relisten_blue';
 import { StatusBar } from 'expo-status-bar';
 
 import '@/relisten/util/dayjs_setup';
-import { PropsWithChildren, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  PropsWithChildren,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import useCacheAssets from './useCacheAssets';
 
 import { RelistenPlayerProvider } from '@/relisten/player/relisten_player_hooks';
@@ -46,6 +53,8 @@ import {
   useRootUserSettingsStore,
 } from '@/relisten/realm/root_services';
 import { routingQueue } from 'expo-router/build/global-state/routing';
+import { AccountProvider, useAccountScope } from '@/relisten/accounts/account_context';
+import { FavoriteSyncCoordinator } from '@/relisten/library/favorite_sync_coordinator';
 import {
   createRouteDebugSignature,
   describeNavigationStack,
@@ -54,6 +63,8 @@ import {
   logRouteDebug,
 } from '@/relisten/util/profile_logging';
 import { repairCatalogAtStartup } from '@/relisten/realm/catalog_startup_repair';
+import { PlaybackAccountTransitionEffects } from '@/relisten/player/playback_account_transition_effects';
+import { RelistenPlayer } from '@/relisten/player/relisten_player';
 
 // c.f. https://github.com/meliorence/react-native-render-html/issues/661#issuecomment-2453476566
 LogBox.ignoreLogs([/Support for defaultProps will be removed/]);
@@ -115,13 +126,28 @@ function RealmStartupGate({ children }: PropsWithChildren) {
   return readyRealm === realm ? children : null;
 }
 
+function AccountProviderBridge({ children }: { children: React.ReactNode }) {
+  const realm = useRealm();
+  const transitionEffects = useMemo(
+    () => new PlaybackAccountTransitionEffects(RelistenPlayer.DEFAULT_INSTANCE, realm),
+    [realm]
+  );
+
+  return (
+    <AccountProvider realm={realm} transitionEffects={transitionEffects}>
+      {children}
+    </AccountProvider>
+  );
+}
+
 function CarPlayBootstrap() {
   const realm = useRealm();
   const { apiClient } = useRelistenApi();
   const libraryIndex = useRootLibraryIndex();
   const userSettingsStore = useRootUserSettingsStore();
+  const { generation } = useAccountScope();
 
-  useCarPlaySetup(apiClient, realm, libraryIndex, userSettingsStore);
+  useCarPlaySetup(apiClient, realm, libraryIndex, userSettingsStore, generation);
 
   return null;
 }
@@ -205,51 +231,54 @@ function TabLayout() {
   return (
     <RealmProvider realmRef={realmRef} closeOnUnmount={false}>
       <RealmStartupGate>
-        <RootServicesProvider>
-          <RelistenApiProvider>
-            <RelistenPlayerProvider>
-              <RelistenCastProvider>
-                <PlaybackHistoryReporterComponent />
-                <LastFmReporterComponent />
-                <LastFmAuthListener />
-                <AudioAdjustmentCoordinator />
-                <CarPlayBootstrap />
-                <ThemeProvider
-                  value={{
-                    dark: true,
-                    colors: {
-                      ...DarkTheme.colors,
-                      primary: 'rgb(0,157,193)',
-                      background: RelistenBlue[900],
-                      card: '#001114',
-                    },
-                    fonts: DefaultTheme.fonts,
-                  }}
-                >
-                  <RelistenPlayerBottomBarProvider>
-                    <PlayerPresentationProvider>
-                      <GestureHandlerRootView className="flex-1" onLayout={onLayoutRootView}>
-                        <SafeAreaProvider>
-                          {/* */}
-                          <StatusBar style="light" />
-                          <Slot />
-                          <PlayerPresentationOverlay />
-                          <View
-                            className="absolute inset-0"
-                            pointerEvents="box-none"
-                            style={{ elevation: 2000, zIndex: 2000 }}
-                          >
-                            <FlashMessage position="top" />
-                          </View>
-                        </SafeAreaProvider>
-                      </GestureHandlerRootView>
-                    </PlayerPresentationProvider>
-                  </RelistenPlayerBottomBarProvider>
-                </ThemeProvider>
-              </RelistenCastProvider>
-            </RelistenPlayerProvider>
-          </RelistenApiProvider>
-        </RootServicesProvider>
+        <AccountProviderBridge>
+          <RootServicesProvider>
+            <RelistenApiProvider>
+              <RelistenPlayerProvider>
+                <RelistenCastProvider>
+                  <PlaybackHistoryReporterComponent />
+                  <FavoriteSyncCoordinator />
+                  <LastFmReporterComponent />
+                  <LastFmAuthListener />
+                  <AudioAdjustmentCoordinator />
+                  <CarPlayBootstrap />
+                  <ThemeProvider
+                    value={{
+                      dark: true,
+                      colors: {
+                        ...DarkTheme.colors,
+                        primary: 'rgb(0,157,193)',
+                        background: RelistenBlue[900],
+                        card: '#001114',
+                      },
+                      fonts: DefaultTheme.fonts,
+                    }}
+                  >
+                    <RelistenPlayerBottomBarProvider>
+                      <PlayerPresentationProvider>
+                        <GestureHandlerRootView className="flex-1" onLayout={onLayoutRootView}>
+                          <SafeAreaProvider>
+                            {/* */}
+                            <StatusBar style="light" />
+                            <Slot />
+                            <PlayerPresentationOverlay />
+                            <View
+                              className="absolute inset-0"
+                              pointerEvents="box-none"
+                              style={{ elevation: 2000, zIndex: 2000 }}
+                            >
+                              <FlashMessage position="top" />
+                            </View>
+                          </SafeAreaProvider>
+                        </GestureHandlerRootView>
+                      </PlayerPresentationProvider>
+                    </RelistenPlayerBottomBarProvider>
+                  </ThemeProvider>
+                </RelistenCastProvider>
+              </RelistenPlayerProvider>
+            </RelistenApiProvider>
+          </RootServicesProvider>
+        </AccountProviderBridge>
       </RealmStartupGate>
     </RealmProvider>
   );

@@ -9,9 +9,7 @@ import { Show } from '@/relisten/realm/models/show';
 import { useFullShowWithSelectedSource } from '@/relisten/realm/models/show_repo';
 import { Source } from '@/relisten/realm/models/source';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
-import { useRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
-import { useForceUpdate } from '@/relisten/util/forced_update';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Link, Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { PropsWithChildren, useEffect, useRef, useState } from 'react';
@@ -52,6 +50,14 @@ import {
   SourceTrackOfflineInfoStatus,
   SourceTrackOfflineInfoType,
 } from '@/relisten/realm/models/source_track_offline_info';
+import { useFavorite } from '@/relisten/library/favorite_hooks';
+import { useFavoriteRepository } from '@/relisten/realm/root_services';
+import {
+  canPlaySourceTrackForTargets,
+  canUseNetworkAudioForTargets,
+  hasPlayableLocalFile,
+  useUnavailableCatalogTargetKeys,
+} from '@/relisten/library/catalog_audio_availability';
 
 const logger = log.extend('source screen');
 
@@ -62,33 +68,28 @@ function shouldQueueOfflineTracksOnly(isOfflineTab: boolean, offlineMode: Offlin
 function getQueueableSourceTracks(
   source: Source,
   isOfflineTab: boolean,
-  offlineMode: OfflineModeSetting
+  offlineMode: OfflineModeSetting,
+  unavailableTargetKeys: ReadonlySet<string>
 ) {
   const queueOfflineOnly = shouldQueueOfflineTracksOnly(isOfflineTab, offlineMode);
 
   return source.allSourceTracks().filter((track) => {
-    return queueOfflineOnly ? track.playable(false) : true;
+    return queueOfflineOnly
+      ? hasPlayableLocalFile(track)
+      : canPlaySourceTrackForTargets(unavailableTargetKeys, track);
   });
 }
 
-function toggleSourceFavorite(
-  realm: ReturnType<typeof useRealm>,
-  source: Source,
-  show: Show,
-  forceUpdate: () => void
-) {
-  realm.write(() => {
-    const nextFavorite = !(source.isFavorite || show.isFavorite);
-    source.isFavorite = nextFavorite;
-    show.isFavorite = nextFavorite;
-    forceUpdate();
-  });
-}
-
-function toggleSelectedSourceFavorite(realm: ReturnType<typeof useRealm>, source: Source) {
-  realm.write(() => {
-    source.isFavorite = !source.isFavorite;
-  });
+function sourceHasDownloadableTrack(source: Source, unavailableTargetKeys: ReadonlySet<string>) {
+  return source
+    .allSourceTracks()
+    .some(
+      (track) =>
+        track.supportsOfflineDownload() &&
+        (canUseNetworkAudioForTargets(unavailableTargetKeys, track) ||
+          (hasPlayableLocalFile(track) &&
+            track.offlineInfo?.type === SourceTrackOfflineInfoType.StreamingCache))
+    );
 }
 
 export const SourceList = ({ sources }: { sources: Source[] }) => {
@@ -104,7 +105,6 @@ export const SourceList = ({ sources }: { sources: Source[] }) => {
 };
 
 export default function Page() {
-  const realm = useRealm();
   const player = useRelistenPlayer();
   const { showUuid, sourceUuid, playTrackUuid } = useLocalSearchParams();
   const router = useRouter();
@@ -116,11 +116,13 @@ export default function Page() {
   const userSettings = useUserSettings();
   const isOfflineTab = useIsOfflineTab();
   const offlineMode = userSettings.offlineModeWithDefault();
+  const unavailableTargetKeys = useUnavailableCatalogTargetKeys();
 
   const { results, show, artist, selectedSource } = useFullShowWithSelectedSource(
     String(showUuid),
     String(sourceUuid)
   );
+  const selectedSourceFavorite = useFavorite('source', selectedSource?.uuid ?? '__missing__');
 
   const playShow = ((sourceTrack?: SourceTrack) => {
     if (!sourceTrack || !sourceTrack.streamingUrl() || !sourceTrack.uuid || !selectedSource) {
@@ -130,7 +132,12 @@ export default function Page() {
       return;
     }
 
-    const showTracks = getQueueableSourceTracks(selectedSource, isOfflineTab, offlineMode);
+    const showTracks = getQueueableSourceTracks(
+      selectedSource,
+      isOfflineTab,
+      offlineMode,
+      unavailableTargetKeys
+    );
 
     const trackIndex = Math.max(
       showTracks.findIndex((st) => st.uuid === sourceTrack?.uuid),
@@ -203,7 +210,12 @@ export default function Page() {
   const playEntireShow = () => {
     playShow(
       selectedSource
-        ? getQueueableSourceTracks(selectedSource, isOfflineTab, offlineMode)[0]
+        ? getQueueableSourceTracks(
+            selectedSource,
+            isOfflineTab,
+            offlineMode,
+            unavailableTargetKeys
+          )[0]
         : undefined
     );
   };
@@ -237,7 +249,12 @@ export default function Page() {
       return;
     }
 
-    for (const track of getQueueableSourceTracks(selectedSource, isOfflineTab, offlineMode)) {
+    for (const track of getQueueableSourceTracks(
+      selectedSource,
+      isOfflineTab,
+      offlineMode,
+      unavailableTargetKeys
+    )) {
       if (track.uuid === playTrackUuid) {
         playShow(track);
 
@@ -255,17 +272,28 @@ export default function Page() {
     selectedSource,
     setHasAutoplayed,
     show,
+    unavailableTargetKeys,
   ]);
+
+  const selectedTracks = selectedSource?.allSourceTracks() ?? [];
+  const canPlaySelectedSource = selectedTracks.some((track) =>
+    canPlaySourceTrackForTargets(unavailableTargetKeys, track)
+  );
+  const canDownloadSelectedSource = selectedSource
+    ? sourceHasDownloadableTrack(selectedSource, unavailableTargetKeys)
+    : false;
 
   return (
     <>
       <Stack.Screen options={{ title: show?.displayDate ?? '' }} />
       {show && selectedSource && (
         <SourceActionsToolbar
-          isFavorite={selectedSource.isFavorite}
+          isFavorite={selectedSourceFavorite.isFavorite}
           isRemovingDownloads={isRemovingDownloads}
+          canDownload={canDownloadSelectedSource}
+          canPlay={canPlaySelectedSource}
           onDownload={downloadShow}
-          onFavorite={() => toggleSelectedSourceFavorite(realm, selectedSource)}
+          onFavorite={selectedSourceFavorite.toggleFavorite}
           onPlay={playEntireShow}
           onRemoveDownloads={confirmRemoveDownloads}
           onShare={shareShow}
@@ -283,6 +311,7 @@ export default function Page() {
           selectedSource={selectedSource}
           playShow={playShow}
           downloadShow={downloadShow}
+          unavailableTargetKeys={unavailableTargetKeys}
         />
       </RefreshContextProvider>
     </>
@@ -295,6 +324,7 @@ const SourceComponent = ({
   playShow,
   artist,
   downloadShow,
+  unavailableTargetKeys,
   ...props
 }: {
   show: Show | undefined;
@@ -302,6 +332,7 @@ const SourceComponent = ({
   artist?: Artist;
   playShow: PlayShow;
   downloadShow: () => void;
+  unavailableTargetKeys: ReadonlySet<string>;
 } & ScrollViewProps) => {
   const { refreshing, errors, hasData } = useRefreshContext();
   const userSettings = useUserSettings();
@@ -342,8 +373,10 @@ const SourceComponent = ({
   const initialTrackToPlay = getQueueableSourceTracks(
     selectedSource,
     isOfflineTab,
-    userSettings.offlineModeWithDefault()
+    userSettings.offlineModeWithDefault(),
+    unavailableTargetKeys
   )[0];
+  const hasDownloadableTrack = sourceHasDownloadableTrack(selectedSource, unavailableTargetKeys);
 
   return (
     <Animated.ScrollView style={{ flex: 1 }} {...props} {...playerBottomScrollViewProps}>
@@ -355,6 +388,7 @@ const SourceComponent = ({
         playShow={playShow}
         artist={artist}
         initialTrackToPlay={initialTrackToPlay}
+        hasDownloadableTrack={hasDownloadableTrack}
       />
       <SourceSets source={selectedSource} playShow={playShow} />
       <SourceFooter source={selectedSource} />
@@ -377,6 +411,7 @@ export const SourceHeader = ({
   playShow,
   downloadShow,
   initialTrackToPlay,
+  hasDownloadableTrack,
 }: {
   source: Source;
   show: Show;
@@ -384,10 +419,12 @@ export const SourceHeader = ({
   artist: Artist;
   downloadShow: () => void;
   initialTrackToPlay?: SourceTrack;
+  hasDownloadableTrack: boolean;
 }) => {
-  const realm = useRealm();
   const router = useRouter();
-  const forceUpdate = useForceUpdate();
+  const favoriteRepository = useFavoriteRepository();
+  const sourceFavorite = useFavorite('source', source.uuid);
+  const showFavorite = useFavorite('show', show.uuid);
   const groupSegment = useGroupSegment();
   const { fontScale } = useWindowDimensions();
 
@@ -474,7 +511,7 @@ export const SourceHeader = ({
             }
           }}
           disabled={!initialTrackToPlay}
-          disabledPopoverText="No playable offline tracks are available for this source"
+          disabledPopoverText="No playable tracks are available for this source"
         >
           Play
         </RelistenButton>
@@ -482,8 +519,12 @@ export const SourceHeader = ({
           className="shrink basis-1/4"
           textClassName="text-l"
           onPress={() => downloadShow()}
-          disabled={isFullyDownloaded}
-          disabledPopoverText="This show is already fully downloaded"
+          disabled={isFullyDownloaded || !hasDownloadableTrack}
+          disabledPopoverText={
+            isFullyDownloaded
+              ? 'This show is already fully downloaded'
+              : 'This source is no longer available for download'
+          }
         >
           <MaterialIcons name="file-download" size={20 * fontScale} color="white" />
         </RelistenButton>
@@ -491,13 +532,19 @@ export const SourceHeader = ({
           className="shrink basis-1/4"
           textClassName="text-l"
           onPress={() => {
-            toggleSourceFavorite(realm, source, show, forceUpdate);
+            const nextFavorite = !(sourceFavorite.isFavorite || showFavorite.isFavorite);
+            favoriteRepository.setFavorites([
+              { catalogType: 'source', catalogUuid: source.uuid, isFavorite: nextFavorite },
+              { catalogType: 'show', catalogUuid: show.uuid, isFavorite: nextFavorite },
+            ]);
           }}
         >
           <MaterialIcons
-            name={source.isFavorite || show.isFavorite ? 'favorite' : 'favorite-outline'}
+            name={
+              sourceFavorite.isFavorite || showFavorite.isFavorite ? 'favorite' : 'favorite-outline'
+            }
             size={20 * fontScale}
-            color={source.isFavorite || show.isFavorite ? 'red' : 'white'}
+            color={sourceFavorite.isFavorite || showFavorite.isFavorite ? 'red' : 'white'}
           />
         </RelistenButton>
         <RelistenButton
