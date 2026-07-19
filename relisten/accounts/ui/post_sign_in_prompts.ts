@@ -77,7 +77,7 @@ export function usePostSignInPrompts() {
       return;
     }
 
-    const promptKey = `${account.profile.userUuid}:${anonymousImport.anonymousFavoriteCount}`;
+    const promptKey = `${account.profile.userUuid}:${anonymousImport.sourceFingerprint}`;
     if (promptedImportKey.current === promptKey) {
       return;
     }
@@ -86,7 +86,7 @@ export function usePostSignInPrompts() {
     presentImportPrompt();
   }, [
     account.profile,
-    anonymousImport.anonymousFavoriteCount,
+    anonymousImport.sourceFingerprint,
     anonymousImport.state,
     presentImportPrompt,
   ]);

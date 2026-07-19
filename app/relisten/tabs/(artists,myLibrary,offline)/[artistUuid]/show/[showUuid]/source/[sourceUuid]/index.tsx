@@ -51,7 +51,6 @@ import {
   SourceTrackOfflineInfoType,
 } from '@/relisten/realm/models/source_track_offline_info';
 import { useFavorite } from '@/relisten/library/favorite_hooks';
-import { useFavoriteRepository } from '@/relisten/realm/root_services';
 import {
   canPlaySourceTrackForTargets,
   canUseNetworkAudioForTargets,
@@ -422,9 +421,7 @@ export const SourceHeader = ({
   hasDownloadableTrack: boolean;
 }) => {
   const router = useRouter();
-  const favoriteRepository = useFavoriteRepository();
   const sourceFavorite = useFavorite('source', source.uuid);
-  const showFavorite = useFavorite('show', show.uuid);
   const groupSegment = useGroupSegment();
   const { fontScale } = useWindowDimensions();
 
@@ -531,20 +528,12 @@ export const SourceHeader = ({
         <RelistenButton
           className="shrink basis-1/4"
           textClassName="text-l"
-          onPress={() => {
-            const nextFavorite = !(sourceFavorite.isFavorite || showFavorite.isFavorite);
-            favoriteRepository.setFavorites([
-              { catalogType: 'source', catalogUuid: source.uuid, isFavorite: nextFavorite },
-              { catalogType: 'show', catalogUuid: show.uuid, isFavorite: nextFavorite },
-            ]);
-          }}
+          onPress={sourceFavorite.toggleFavorite}
         >
           <MaterialIcons
-            name={
-              sourceFavorite.isFavorite || showFavorite.isFavorite ? 'favorite' : 'favorite-outline'
-            }
+            name={sourceFavorite.isFavorite ? 'favorite' : 'favorite-outline'}
             size={20 * fontScale}
-            color={sourceFavorite.isFavorite || showFavorite.isFavorite ? 'red' : 'white'}
+            color={sourceFavorite.isFavorite ? 'red' : 'white'}
           />
         </RelistenButton>
         <RelistenButton

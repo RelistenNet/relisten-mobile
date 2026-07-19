@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
+import { useAccountScope } from '@/relisten/accounts/account_context';
 import { requireInstallationUuid } from '@/relisten/accounts/auth/installation_id';
 import {
   AnonymousFavoriteImport,
-  AnonymousFavoriteImportState,
   FavoriteCatalogType,
   FavoriteMetadataStatus,
   FavoriteMutation,
@@ -26,6 +26,10 @@ import {
   favoriteSyncStateSnapshot,
   favoriteSyncStateView,
 } from '@/relisten/library/favorite_sync_state_snapshot';
+import {
+  AnonymousFavoriteImportHookState,
+  anonymousFavoriteImportState,
+} from '@/relisten/library/anonymous_favorite_import_state';
 
 export interface FavoriteState {
   isFavorite: boolean;
@@ -37,16 +41,15 @@ export function useFavorite(catalogType: FavoriteCatalogType, catalogUuid: strin
   const repository = useFavoriteRepository();
   const libraryIndex = useRootLibraryIndex();
 
-  const favoriteRevision = useSyncExternalStore(
-    (listener) => libraryIndex.subscribeFavorite(catalogType, catalogUuid, listener),
-    () => libraryIndex.getFavoriteSnapshot(catalogType, catalogUuid),
-    () => libraryIndex.getFavoriteSnapshot(catalogType, catalogUuid)
+  const subscribe = useCallback(
+    (listener: () => void) => libraryIndex.subscribeFavorite(catalogType, catalogUuid, listener),
+    [catalogType, catalogUuid, libraryIndex]
   );
-
-  const isFavorite = useMemo(
+  const getSnapshot = useCallback(
     () => libraryIndex.isFavorite(catalogType, catalogUuid),
-    [catalogType, catalogUuid, favoriteRevision, libraryIndex]
+    [catalogType, catalogUuid, libraryIndex]
   );
+  const isFavorite = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const setFavorite = useCallback(
     (nextFavorite: boolean) => {
       repository.setFavorite({
@@ -82,6 +85,7 @@ export type FavoriteSyncFailure = {
 };
 
 export function useFavoriteSyncStatus(): FavoriteSyncStatus {
+  const accountScope = useAccountScope();
   const repository = useFavoriteRepository();
   const syncService = useFavoriteSyncService();
   const libraryIndex = useRootLibraryIndex();
@@ -90,7 +94,7 @@ export function useFavoriteSyncStatus(): FavoriteSyncStatus {
     libraryIndex.getLibraryMembershipSnapshot,
     libraryIndex.getLibraryMembershipSnapshot
   );
-  const scopeId = repository.activeScopeId();
+  const scopeId = accountScope.scopeId;
   const mutations = useQuery(
     FavoriteMutation,
     (query) => query.filtered('scopeId == $0', scopeId),
@@ -205,15 +209,8 @@ function buildFavoriteSyncFailure(mutations: ReadonlyArray<FavoriteMutation>) {
   };
 }
 
-export type AnonymousFavoriteImportHookState =
-  | 'notApplicable'
-  | 'none'
-  | 'available'
-  | 'deferred'
-  | 'importing'
-  | 'completed';
-
 export function useAnonymousFavoriteImport() {
+  const accountScope = useAccountScope();
   const repository = useFavoriteRepository();
   const importService = useAnonymousLibraryImportService();
   const libraryIndex = useRootLibraryIndex();
@@ -222,7 +219,7 @@ export function useAnonymousFavoriteImport() {
     libraryIndex.getLibraryMembershipSnapshot,
     libraryIndex.getLibraryMembershipSnapshot
   );
-  const activeScopeId = repository.activeScopeId();
+  const activeScopeId = accountScope.scopeId;
   const anonymousFavorites = useQuery(
     UserFavorite,
     (query) =>
@@ -238,26 +235,11 @@ export function useAnonymousFavoriteImport() {
   const receipt = [...receipts].find(
     (candidate) => candidate.sourceFingerprint === sourceFingerprint
   );
-  const unfinishedReceipt = [...receipts].find(
-    (candidate) => candidate.state === AnonymousFavoriteImportState.Importing
-  );
-
-  const state: AnonymousFavoriteImportHookState =
-    activeScopeId === ANONYMOUS_ACCOUNT_SCOPE_ID
-      ? 'notApplicable'
-      : anonymousFavorites.length === 0
-        ? 'none'
-        : receipt?.state === AnonymousFavoriteImportState.Deferred
-          ? 'deferred'
-          : receipt?.state === AnonymousFavoriteImportState.Importing
-            ? 'importing'
-            : receipt?.state === AnonymousFavoriteImportState.Completed
-              ? 'completed'
-              : unfinishedReceipt
-                ? 'importing'
-                : receipts.length > 0
-                  ? 'deferred'
-                  : 'available';
+  const state: AnonymousFavoriteImportHookState = anonymousFavoriteImportState({
+    isAuthenticatedScope: activeScopeId !== ANONYMOUS_ACCOUNT_SCOPE_ID,
+    anonymousFavoriteCount: anonymousFavorites.length,
+    currentReceiptState: receipt?.state,
+  });
 
   const importToActiveAccount = useCallback(async () => {
     const capture = repository.captureScope();
@@ -274,6 +256,7 @@ export function useAnonymousFavoriteImport() {
   return {
     state,
     anonymousFavoriteCount: anonymousFavorites.length,
+    sourceFingerprint,
     importToActiveAccount,
     defer,
   };

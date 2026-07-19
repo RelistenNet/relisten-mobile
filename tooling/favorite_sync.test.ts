@@ -19,6 +19,7 @@ import {
 import {
   anonymousFavoriteSourceFingerprint,
 } from '../relisten/library/anonymous_favorite_import_fingerprint.ts';
+import { anonymousFavoriteImportState } from '../relisten/library/anonymous_favorite_import_state.ts';
 import {
   CATALOG_AVAILABILITY_REFRESH_INTERVAL_MS,
   catalogAvailabilityNeedsRefresh,
@@ -256,6 +257,17 @@ test('anonymous import receipts identify one exact source snapshot', () => {
 
   assert.equal(reorderedFingerprint, firstFingerprint);
   assert.notEqual(changedFingerprint, firstFingerprint);
+});
+
+test('an older import decision does not hide a new anonymous snapshot', () => {
+  assert.equal(
+    anonymousFavoriteImportState({
+      isAuthenticatedScope: true,
+      anonymousFavoriteCount: 1,
+      currentReceiptState: undefined,
+    }),
+    'available'
+  );
 });
 
 test('an idempotent username receipt cannot replace a newer cached profile', () => {
