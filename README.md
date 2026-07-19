@@ -12,6 +12,45 @@ React Compiler is enabled repo-wide, and compiler diagnostics are treated as har
 
 ### Running the app locally
 
+#### Local account sign-in
+
+Start the restored database, catalog API, and User Service from the sibling API repository before
+opening the mobile app. The catalog API hydrates favorite metadata on a fresh device; the User
+Service owns sign-in, accounts, and favorites sync.
+
+```bash
+# Terminal 1
+cd ../RelistenApi
+./start-local-databases.sh
+dotnet run --project RelistenApi/RelistenApi.csproj
+
+# Terminal 2
+cd ../RelistenApi
+dotnet run --project RelistenUserService/RelistenUserService.csproj
+```
+
+The iOS Simulator can reach the catalog API at `http://localhost:3823` and the User Service at
+`http://localhost:5443`. For an Android emulator, forward both loopback addresses before starting
+the app:
+
+```bash
+adb reverse tcp:3823 tcp:3823
+adb reverse tcp:5443 tcp:5443
+```
+
+In local Development, the Apple and Google buttons open a page of fixed test personas. The rest of
+the sign-in path is real: OpenID Connect authorization code, S256 PKCE, token exchange, protected
+credential storage, and the normal account API. Local sign-in needs no Apple or Google secrets.
+
+A physical phone cannot reach the Mac through its own `localhost`. Use the configured preview
+issuer for normal physical-device account testing, and point
+`EXPO_PUBLIC_RELISTEN_AUTH_ISSUER`, `EXPO_PUBLIC_RELISTEN_ACCOUNTS_ORIGIN`, and
+`EXPO_PUBLIC_RELISTEN_CATALOG_ORIGIN` at that environment.
+A laptop tunnel works only when the User Service is also configured with the same public HTTPS
+issuer, allowed hosts, and provider callbacks; changing the mobile variables alone is not
+enough. Fixed development personas intentionally work only with a loopback issuer. The simulator
+and emulator paths above are the default zero-secret workflow.
+
 #### Mac + iOS Simulator
 
 If you are on a Mac and would like to get the app running locally on iOS simulator, please:

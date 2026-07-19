@@ -323,7 +323,7 @@ Use `expo-web-browser`'s system auth-session API. On iOS it presents `ASWebAuthe
 
 The app validates issuer, authorization response state, nonce where applicable, exact callback URI, token audience, and the `sub` returned by `/me`. Discovery metadata and JWKS belong to the issuer. Provider emails remain private linked-method metadata and are never an account label or login identifier. `/me` returns the lowercase username, monotonic `username_version`, and `username_review_needed`. The assigned `@username` is already the account's public label; the flag drives a resumable reminder, not restricted scopes or blocked account APIs. The User Service enforces global case-insensitive uniqueness, stores lowercase, accepts only 3–30 ASCII letters, numbers, or underscores, and rejects reserved, system, and abuse-denylisted names. There is no profile, search, or account directory, and username is never accepted for login. Later rename is allowed at most once per 30 days.
 
-Process-death recovery is a launch requirement, not a later hardening option. Before opening the browser, write one protected pending-attempt record containing the PKCE verifier, state, nonce, provider, exact redirect URI, creation time, and a short expiry. The callback must match that record exactly. Delete it after success, an explicit cancellation, validation failure, or expiry. A startup callback with no valid record cannot exchange the code and returns the listener to a fresh sign-in attempt.
+Process-death recovery is a launch requirement, not a later hardening option. Before opening the browser, write one protected pending-attempt record containing the PKCE verifier, state, nonce, provider, exact redirect URI, creation time, and a short expiry. The callback must match that record exactly. Keep the record when the browser handoff or code exchange fails ambiguously before a token response; the authorization code may still be usable after restart. Delete it after successful account promotion, explicit cancellation, deterministic callback/token rejection, expiry, or any failure after the one-time code has already produced tokens. A startup callback with no valid record cannot exchange the code and returns the listener to a fresh sign-in attempt.
 
 ### Username lifecycle
 
@@ -341,7 +341,7 @@ Process-death recovery is a launch requirement, not a later hardening option. Be
 | Access token | Memory only | Never Realm, AsyncStorage, logs, analytics, or crash breadcrumbs. |
 | Rotating refresh token | SecureStore with after-first-unlock accessibility | One active Relisten native session; bind the envelope to its native session ID and user UUID. |
 | Issuer, client ID, user UUID, native session ID | Small non-secret session envelope; user UUID also in scoped Realm | Validate before accepting a restored refresh token. |
-| PKCE verifier, OAuth state, nonce | Short-lived protected pending-attempt record plus memory while active | Required for OS-terminated callback recovery; delete after success, failure, cancellation, or timeout. |
+| PKCE verifier, OAuth state, nonce | Short-lived protected pending-attempt record plus memory while active | Required for OS-terminated callback recovery; retain only while the callback may still be retried, then delete on terminal handling or expiry. |
 | Collaborator-invitation fragment secret | Memory only during anonymous exchange | Never persist or log the raw link or fragment. |
 | Pending collaborator-invitation grant | Short-lived protected SecureStore record | Bind to invitation UUID and expiry; retain across sign-in or process death, then delete after acceptance, local decline, cancellation, or expiry. |
 | Provider tokens | Nowhere | Apple and Google tokens remain server-side. |
@@ -351,7 +351,7 @@ Refresh is single-flight. Callers waiting for an access token share one refresh 
 
 On `invalid_grant`, reuse detection, revoked session, or security-version mismatch, the coordinator signs out once; independent requests do not race to clear state. SecureStore replacement must finish before the in-memory client exposes the rotated access token to waiters. If the process dies in the server/SecureStore crash gap, the next refresh fails and the listener signs in again. This accepted re-login keeps launch recovery to one credential envelope while preserving strict refresh-token reuse detection. Scoped Realm data remains intact.
 
-SecureStore can be unavailable before first device unlock. The app opens in anonymous/offline-capable mode and retries credential restoration after the app becomes active. It does not treat a temporarily unreadable keychain as a deliberate logout.
+SecureStore can be unavailable before first device unlock. A previously selected account keeps its cached profile and scoped library visible offline while cloud sync waits; a device with no cached account opens anonymously. The app retries credential restoration after it becomes active and never treats a temporarily unreadable keychain or retryable network failure as deliberate logout.
 
 ### Generation guard
 
@@ -542,7 +542,7 @@ Within one device, the favorite coordinator permits only one in-flight mutation 
 
 Receipts and deltas can arrive out of order across different targets. Keep the contiguous `libraryCursor` from the snapshot/change feed separate from `highestObservedLibraryRevision`, and update both monotonically. A receipt marks its operation accepted but never lowers either value or overwrites a target whose acknowledged revision is newer. If a receipt observes revision 50 while the contiguous cursor is 47, record 50 as observed and pull changes after 47; do not skip revisions 48–50 by assigning the receipt revision to the cursor. After updating the acknowledged base, replay remaining target mutations in local sequence.
 
-Favorite types at launch are `artist`, `show`, `source`, `source_track`, `song`, `tour`, and `venue`. When a favorite row lacks display metadata, the favorites coordinator may call anonymous `POST https://api.relisten.net/api/v3/catalog/resolve`, passing typed `entity_refs` rather than guessing a source-track reference. One request may contain at most 500 combined unique `source_track_uuids` and typed entity refs. The response supplies a typed status for every requested reference plus normalized entities, including song and tour records when requested. Playlist screens do not use this resolver.
+Favorite types at launch are `artist`, `show`, `source`, `source_track`, `song`, `tour`, and `venue`. When a favorite row lacks display metadata, the favorites coordinator may call anonymous `POST https://api.relisten.net/api/v3/catalog/resolve` with `{contract_version: 1, references: [{catalog_type, catalog_uuid}]}`. One request may contain at most 500 distinct references. The response preserves that normalized reference list with `available` or `unavailable` status and returns deduplicated arrays of the ordinary UUID-bearing catalog DTOs, including the shallow parent rows a requested child needs. Playlist screens do not use this resolver.
 
 `LibraryIndex` becomes a projection over two independent facts:
 
