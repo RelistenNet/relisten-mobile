@@ -8,7 +8,8 @@ export function isAccountWaitingToRestore(error: { code: string; retryable: bool
     error?.retryable === true &&
     (error.code === 'session_restore_failed' ||
       error.code === 'session_restore_in_progress' ||
-      error.code === 'credentials_temporarily_unavailable')
+      error.code === 'credentials_temporarily_unavailable' ||
+      error.code === 'auth_service_unavailable')
   );
 }
 
