@@ -13,6 +13,11 @@ import { SourceTrackComponent } from '@/relisten/components/source/source_track_
 import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
 import { OfflineModeSetting } from '@/relisten/realm/models/user_settings';
 import { useIsOfflineTab } from '@/relisten/util/routes';
+import {
+  canUseNetworkAudioForTargets,
+  hasPlayableLocalFile,
+  useUnavailableCatalogTargetKeys,
+} from '@/relisten/library/catalog_audio_availability';
 
 function sortSetsByIndex(sets: Realm.List<SourceSet> | SourceSet[]): SourceSet[] {
   return Array.from(sets).sort((a, b) => a.index - b.index);
@@ -29,11 +34,18 @@ interface SourceSetsProps {
 
 export const SourceSets = ({ source, playShow }: SourceSetsProps) => {
   const sortedSets = sortSetsByIndex(source.sourceSets);
+  const unavailableTargetKeys = useUnavailableCatalogTargetKeys();
 
   return (
     <View>
       {sortedSets.map((s) => (
-        <SourceSetComponent key={s.uuid} sourceSet={s} source={source} playShow={playShow} />
+        <SourceSetComponent
+          key={s.uuid}
+          sourceSet={s}
+          source={source}
+          playShow={playShow}
+          unavailableTargetKeys={unavailableTargetKeys}
+        />
       ))}
       <View className="px-4">
         <ItemSeparator />
@@ -46,9 +58,15 @@ interface SourceSetProps {
   source: Source;
   sourceSet: SourceSet;
   playShow: PlayShow;
+  unavailableTargetKeys: ReadonlySet<string>;
 }
 
-export const SourceSetComponent = ({ source, sourceSet, playShow }: SourceSetProps) => {
+export const SourceSetComponent = ({
+  source,
+  sourceSet,
+  playShow,
+  unavailableTargetKeys,
+}: SourceSetProps) => {
   const userSettings = useUserSettings();
   const isOfflineTab = useIsOfflineTab();
   const queueOfflineOnly =
@@ -58,7 +76,9 @@ export const SourceSetComponent = ({ source, sourceSet, playShow }: SourceSetPro
     <View>
       {source.sourceSets.length > 1 && <SectionHeader title={sourceSet.name} />}
       {sortTracksByPosition(sourceSet.sourceTracks).map((t, idx) => {
-        const playable = queueOfflineOnly ? t.playable(false) : true;
+        const hasLocalFile = hasPlayableLocalFile(t);
+        const networkPlaybackAllowed = canUseNetworkAudioForTargets(unavailableTargetKeys, t);
+        const playable = queueOfflineOnly ? hasLocalFile : hasLocalFile || networkPlaybackAllowed;
 
         return (
           <SourceTrackComponent
@@ -67,7 +87,11 @@ export const SourceSetComponent = ({ source, sourceSet, playShow }: SourceSetPro
             isLastTrackInSet={idx == sourceSet.sourceTracks.length - 1}
             onPress={playable ? playShow : undefined}
             actions={
-              playable ? <SourceTrackActionsMenu sourceTrack={t} playShow={playShow} /> : null
+              <SourceTrackActionsMenu
+                sourceTrack={t}
+                playShow={playShow}
+                networkPlaybackAllowed={networkPlaybackAllowed}
+              />
             }
             disabled={!playable}
           />

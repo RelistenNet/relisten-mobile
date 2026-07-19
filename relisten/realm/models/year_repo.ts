@@ -44,7 +44,6 @@ export function yearsNetworkBackedModelArrayBehavior(
             artistUuid
           ),
         {
-          isFavorite: null,
           isPlayableOffline: isOfflineTab ? true : null,
         }
       ),
@@ -185,7 +184,6 @@ export function useYearShows(
       yearUuid,
       {
         isPlayableOffline: isOfflineTab ? true : null,
-        isFavorite: null,
       },
       includeDeleted
     );

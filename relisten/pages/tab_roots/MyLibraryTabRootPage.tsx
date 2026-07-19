@@ -12,14 +12,15 @@ import { aggregateBy } from '@/relisten/util/group_by';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { tw } from '@/relisten/util/tw';
 import { Link, useFocusEffect } from 'expo-router';
-import { PropsWithChildren, ReactNode, useCallback, useEffect, useMemo } from 'react';
+import { PropsWithChildren, ReactNode, useCallback, useEffect } from 'react';
 import { TouchableOpacity, View, ViewProps } from 'react-native';
 import {
-  SourceTrackOfflineInfoStatus,
-  SourceTrackOfflineInfoType,
-} from '@/relisten/realm/models/source_track_offline_info';
-import { useRemainingDownloadsCount } from '@/relisten/realm/root_services';
+  useLibraryMembershipRevision,
+  useRemainingDownloadsCount,
+  useRootLibraryIndex,
+} from '@/relisten/realm/root_services';
 import { logTabRootDebug } from '@/relisten/util/profile_logging';
+import { AccountEntryCard } from '@/relisten/accounts/ui/account_entry_card';
 
 function MyLibrarySectionHeader({ children, className, ...props }: PropsWithChildren<ViewProps>) {
   return (
@@ -73,21 +74,13 @@ function RecentlyPlayedShows() {
 
 function FavoriteShows({ topContent }: { topContent?: ReactNode }) {
   const showFilters = useShowFilters();
-  const favoriteShowsQuery = useQuery(
-    {
-      type: Show,
-      query: (query) =>
-        query.filtered(
-          'isFavorite == true OR SUBQUERY(sourceTracks, $item, $item.offlineInfo.status == $0 AND $item.offlineInfo.type == $1).@count > 0',
-          SourceTrackOfflineInfoStatus.Succeeded,
-          SourceTrackOfflineInfoType.UserInitiated
-        ),
-    },
-    []
-  );
+  const allShows = useQuery(Show);
+  const libraryIndex = useRootLibraryIndex();
+  useLibraryMembershipRevision();
+  const favoriteShows = [...allShows].filter((show) => libraryIndex.showIsInLibrary(show.uuid));
 
-  const favoriteShowsByArtist: RelistenSectionData<Show> = useMemo(() => {
-    const showsByArtistUuid = aggregateBy([...favoriteShowsQuery], (s) => s.artistUuid);
+  const favoriteShowsByArtist: RelistenSectionData<Show> = (() => {
+    const showsByArtistUuid = aggregateBy(favoriteShows, (s) => s.artistUuid);
 
     return Object.keys(showsByArtistUuid)
       .sort((a, b) => {
@@ -103,7 +96,7 @@ function FavoriteShows({ topContent }: { topContent?: ReactNode }) {
           data: shows,
         };
       });
-  }, [favoriteShowsQuery]);
+  })();
 
   const nonIdealState = {
     noData: {
@@ -130,7 +123,7 @@ function FavoriteShows({ topContent }: { topContent?: ReactNode }) {
           <View className="pt-4">
             {topContent}
             <MyLibrarySectionHeader>
-              <Plur word="Show" count={favoriteShowsQuery.length} /> in My Library
+              <Plur word="Show" count={favoriteShows.length} /> in My Library
             </MyLibrarySectionHeader>
           </View>
         }
@@ -198,6 +191,7 @@ export default function MyLibraryTabRootPage() {
       <FavoriteShows
         topContent={
           <>
+            <AccountEntryCard />
             <ActiveDownloads />
             <RecentlyPlayedShows />
             <Link
