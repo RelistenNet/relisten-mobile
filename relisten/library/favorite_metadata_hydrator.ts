@@ -9,7 +9,10 @@ import {
   FavoriteAccountScopeCapture,
   FavoriteRepository,
 } from '@/relisten/library/favorite_repository';
-import { catalogAvailabilityNeedsRefresh } from '@/relisten/library/catalog_availability_refresh_policy';
+import {
+  favoriteMetadataNeedsHydration,
+  filterActiveFavoriteReferences,
+} from '@/relisten/library/catalog_availability_refresh_policy';
 import { Artist } from '@/relisten/realm/models/artist';
 import {
   FavoriteCatalogType,
@@ -58,7 +61,13 @@ export class FavoriteMetadataHydrator {
         return;
       }
 
-      const batch = references.slice(offset, offset + MAX_REFERENCES_PER_REQUEST);
+      const batch = filterActiveFavoriteReferences(
+        references.slice(offset, offset + MAX_REFERENCES_PER_REQUEST),
+        (reference) => this.favoriteIsActive(capture, reference)
+      );
+      if (batch.length === 0) {
+        continue;
+      }
       const response = await this.catalogApi.resolveCatalogReferences(batch);
       if (!response.data || response.error) {
         logger.warn(`catalog resolver failed for ${batch.length} favorite references`);
@@ -94,12 +103,6 @@ export class FavoriteMetadataHydrator {
     this.repository.realm.write(() => {
       for (const favorite of favorites) {
         const hasLocalMetadata = this.catalogObjectExists(favorite);
-        // A catalog cleanup can remove a row after its availability was
-        // checked. Give that transition one immediate recovery attempt, then
-        // leave the status unknown so repeated foreground syncs honor the
-        // normal freshness window if the resolver cannot rebuild it.
-        const needsMetadataRecovery =
-          !hasLocalMetadata && favorite.metadataStatus === FavoriteMetadataStatus.Available;
         // Retain an explicit unavailable result until a later resolver answer
         // supersedes it. Missing or failed refreshes must not silently restore
         // stale streaming URLs.
@@ -112,8 +115,15 @@ export class FavoriteMetadataHydrator {
           catalogAvailabilityKey(favorite.catalogType, favorite.catalogUuid)
         );
         if (
-          needsMetadataRecovery ||
-          catalogAvailabilityNeedsRefresh(availability?.checkedAt, now)
+          favoriteMetadataNeedsHydration(
+            {
+              availabilityCheckedAt: availability?.checkedAt,
+              effectivePresent: favorite.effectivePresent,
+              hasLocalMetadata,
+              metadataStatus: favorite.metadataStatus,
+            },
+            now
+          )
         ) {
           references.set(targetKey(favorite), {
             catalog_type: favorite.catalogType,
@@ -123,24 +133,19 @@ export class FavoriteMetadataHydrator {
       }
     });
 
-    // A removal can outlive the favorite that first discovered it. Recheck
-    // stale tombstones so restored catalog media does not remain blocked
-    // forever. Until a successful response says otherwise, the persisted
-    // unavailable status continues to block network playback.
-    const knownUnavailable = this.repository.realm
-      .objects(CatalogAvailability)
-      .filtered('status == $0', CatalogAvailabilityStatus.Unavailable);
-    for (const entry of knownUnavailable) {
-      if (!catalogAvailabilityNeedsRefresh(entry.checkedAt, now)) {
-        continue;
-      }
-      references.set(entry.targetKey, {
-        catalog_type: entry.catalogType,
-        catalog_uuid: entry.catalogUuid,
-      });
-    }
-
     return [...references.values()];
+  }
+
+  private favoriteIsActive(
+    capture: FavoriteAccountScopeCapture,
+    reference: CatalogReferenceRequest
+  ) {
+    return (
+      this.repository.favoriteForTarget(capture.scopeId, {
+        catalogType: reference.catalog_type,
+        catalogUuid: reference.catalog_uuid,
+      })?.effectivePresent === true
+    );
   }
 
   private applyResponse(

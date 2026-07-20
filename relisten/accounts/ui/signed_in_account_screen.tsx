@@ -6,7 +6,6 @@ import {
   SyncStatusText,
   syncStatusLabel,
 } from '@/relisten/accounts/ui/sync_status';
-import { UnavailableFavoritesNotice } from '@/relisten/accounts/ui/unavailable_favorites_notice';
 import Flex from '@/relisten/components/flex';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RelistenText } from '@/relisten/components/relisten_text';
@@ -32,7 +31,6 @@ type SignedInAccountScreenProps = {
   onDiscardRejectedFavorites: () => void;
   onRetryFavoriteSync: () => void;
   transitioning: boolean;
-  unavailableFavoriteCount: number;
   username: string;
   usernameReviewNeeded: boolean;
 };
@@ -55,7 +53,6 @@ export function SignedInAccountScreen({
   syncState,
   syncWaitingMessage,
   transitioning,
-  unavailableFavoriteCount,
   username,
   usernameReviewNeeded,
 }: SignedInAccountScreenProps) {
@@ -133,8 +130,6 @@ export function SignedInAccountScreen({
               </AccountDetailRow>
             )}
           </View>
-
-          <UnavailableFavoritesNotice count={unavailableFavoriteCount} />
 
           {(importAvailable || importInProgress) && (
             <View className="mt-5">

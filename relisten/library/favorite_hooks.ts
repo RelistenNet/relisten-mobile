@@ -4,7 +4,6 @@ import { requireInstallationUuid } from '@/relisten/accounts/auth/installation_i
 import {
   AnonymousFavoriteImport,
   FavoriteCatalogType,
-  FavoriteMetadataStatus,
   FavoriteMutation,
   FavoriteMutationState,
   FavoriteSyncRunStatus,
@@ -70,7 +69,6 @@ export function useFavorite(catalogType: FavoriteCatalogType, catalogUuid: strin
 export type FavoriteSyncStatus = {
   state: 'saved' | 'waiting' | 'syncing' | 'needsAttention';
   pendingCount: number;
-  unavailableCount: number;
   lastSuccessfulSyncAt?: Date;
   failure?: FavoriteSyncFailure;
   retryFailed(): void;
@@ -122,17 +120,6 @@ export function useFavoriteSyncStatus(): FavoriteSyncStatus {
     useCallback(() => favoriteSyncStateSnapshot(syncStates[0]), [syncStates]),
     () => ''
   );
-  const unavailableFavorites = useQuery(
-    UserFavorite,
-    (query) =>
-      query.filtered(
-        'scopeId == $0 AND effectivePresent == true AND metadataStatus == $1',
-        scopeId,
-        FavoriteMetadataStatus.Unavailable
-      ),
-    [scopeId]
-  );
-
   const retryFailed = useCallback(() => {
     repository.retryFailedMutations();
     syncService.retryNow();
@@ -166,7 +153,6 @@ export function useFavoriteSyncStatus(): FavoriteSyncStatus {
       pendingMutationCount: pendingCount,
     }),
     pendingCount,
-    unavailableCount: unavailableFavorites.length,
     lastSuccessfulSyncAt: syncState?.lastSuccessfulSyncAt,
     failure,
     retryFailed,
