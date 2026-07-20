@@ -282,14 +282,13 @@ Examples are intentionally staged. The favorites slice converts catalog `isFavor
 
 ### Authorization flow
 
-Production mobile login uses exact claimed HTTPS callbacks:
+The initial production iOS login uses the collision-resistant OAuth-only callback:
 
-- iOS: `https://relisten.net/auth/mobile/ios/callback`
-- Android: `https://relisten.net/auth/mobile/android/callback`
+- iOS: `net.relisten.mobile:/oauth2redirect/ios`
 
-Development uses a collision-resistant OAuth-only scheme such as `net.relisten.mobile:/oauth2redirect/ios` or `/android`. Keep `relisten://` for ordinary app navigation. Narrow iOS associated-domain components and Android intent filters so generic `/auth/session/*` browser routes are not captured by the app.
+Development uses the same collision-resistant scheme with `/ios` or `/android`. Keep `relisten://` for ordinary app navigation. Android production login remains deferred and keeps its planned claimed HTTPS callback until its own server client and app-link routing ship.
 
-On the current iOS 18 minimum and Expo SDK 57, call `WebBrowser.openAuthSessionAsync(authorizeUrl, redirectUri, { preferUniversalLinks: true })` for the production HTTPS callback. Expo then uses `ASWebAuthenticationSession.Callback.https(host:path:)`, which matches the exact associated host and path. Development custom-scheme callbacks omit that option. Treat this as a physical-device TestFlight release gate, not an automated build test: the checklist fails the release if the AASA association or callback path is wrong.
+On the current iOS 18 minimum and Expo SDK 57, call `WebBrowser.openAuthSessionAsync` with the custom redirect and `preferUniversalLinks: false`. This still uses `ASWebAuthenticationSession`; the callback returns directly to the installed app without requiring a `relisten.net` web route. A later universal-link release registers both redirects server-side, proves the claimed callback on a physical device, and retains the custom scheme for one rollback release.
 
 ```mermaid
 sequenceDiagram
@@ -307,7 +306,7 @@ sequenceDiagram
     A->>P: Provider authorization
     P-->>A: Provider callback
     A-->>B: Redirect with one-time code and state
-    B-->>M: Claimed HTTPS app callback
+    B-->>M: OAuth custom-scheme callback
     M->>M: Restore protected attempt and validate TTL, state, nonce, callback
     M->>A: Exchange code + PKCE verifier
     A-->>M: Candidate access token + rotating refresh token
@@ -542,7 +541,7 @@ Within one device, the favorite coordinator permits only one in-flight mutation 
 
 Receipts and deltas can arrive out of order across different targets. Keep the contiguous `libraryCursor` from the snapshot/change feed separate from `highestObservedLibraryRevision`, and update both monotonically. A receipt marks its operation accepted but never lowers either value or overwrites a target whose acknowledged revision is newer. If a receipt observes revision 50 while the contiguous cursor is 47, record 50 as observed and pull changes after 47; do not skip revisions 48–50 by assigning the receipt revision to the cursor. After updating the acknowledged base, replay remaining target mutations in local sequence.
 
-Favorite types at launch are `artist`, `show`, `source`, `source_track`, `song`, `tour`, and `venue`. When a favorite row lacks display metadata, the favorites coordinator may call anonymous `POST https://api.relisten.net/api/v3/catalog/resolve` with `{contract_version: 1, references: [{catalog_type, catalog_uuid}]}`. One request may contain at most 500 distinct references. The response preserves that normalized reference list with `available` or `unavailable` status and returns deduplicated arrays of the ordinary UUID-bearing catalog DTOs, including the shallow parent rows a requested child needs. Playlist screens do not use this resolver. A resolver failure leaves favorite membership and its sync cursor intact. Mobile keeps the affected metadata status unknown and tries again during a later foreground sync; it does not report an account sync failure.
+Favorite types at launch are `artist`, `show`, `source`, `source_track`, `song`, `tour`, and `venue`. Favorite writes validate the type and UUID syntax but never require the UUID to exist in the catalog. When an active favorite lacks display metadata, the favorites coordinator may call anonymous `POST https://api.relisten.net/api/v3/catalog/resolve` with `{contract_version: 1, references: [{catalog_type, catalog_uuid}]}`. One request may contain at most 500 distinct references. The response preserves that normalized reference list with `available` or `unavailable` status and returns deduplicated arrays of the ordinary UUID-bearing catalog DTOs, including the shallow parent rows a requested child needs. `Unavailable` means only that the target did not hydrate at the response's `checked_at` time. Playlist screens do not use this resolver. A resolver failure or omitted entity leaves favorite membership, its sync cursor, and any cached Realm catalog object intact. Mobile retries unresolved metadata during a later foreground sync only while the reference belongs to an active favorite. Unfavorite stops future hydration attempts without deleting shared catalog data; refavorite makes the reference eligible again. Missing metadata is neither an account-sync failure nor an account warning.
 
 `LibraryIndex` becomes a projection over two independent facts:
 
@@ -1026,7 +1025,7 @@ There is no general synchronized-preferences API at launch. A future cross-devic
 | Accounts API unavailable | Favorites/playlists show pending-sync state; history remains local. | Domain outboxes retain operations with jittered retry. |
 | Cloud-history off cannot reach server | Switch reads off immediately; no signed-in history or anonymous popularity write is sent. | The typed history-state command remains first in the history domain until the disabled generation is acknowledged. |
 | History clear cannot reach server | Local history disappears immediately and cloud status reads pending. | Old rows remain hidden, uploads stay fenced, and the idempotent clear retries before history sync. |
-| Catalog API unavailable | Cached browsing, favorite metadata, and downloads work. Playlist snapshots continue to use the Accounts API. | Retry only the anonymous catalog request that failed. |
+| Catalog API unavailable | Cached browsing, favorite metadata, and downloads work. Playlist snapshots continue to use the Accounts API. | Retry unresolved references only while they remain active favorites. |
 | Playlist returns `409 snapshot_required` | Brief playlist refresh, with pending edits still overlaid. | Fetch that playlist snapshot and replay local pending operations provisionally. |
 | Library returns `410 sync_cursor_expired` | Brief library refresh, with pending favorite intent still overlaid. | Fetch the library snapshot and reapply pending favorite intent. |
 | Exact `403 collaborator_access_revoked` | Explain that unsynced edits could not be saved. | Stop writes; retain inaccessible state only until acknowledgement, then discard it. |

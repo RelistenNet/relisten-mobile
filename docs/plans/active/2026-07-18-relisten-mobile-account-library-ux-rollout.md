@@ -110,9 +110,8 @@ Slice 1 has two release gates. Slice 1A is the first internal TestFlight and pro
 ├── sign out
 └── switch account
 
-/auth/mobile/ios/callback
-/auth/mobile/android/callback
-└── exact platform-specific, nonvisual callbacks handled by the central deep-link coordinator
+net.relisten.mobile:/oauth2redirect/ios
+└── exact nonvisual OAuth callback consumed by the active ASWebAuthenticationSession
 ```
 
 The signed-out screen explains the value in one sentence: signing in keeps favorites, history, and playlists available on the listener's devices. It offers **Continue with Apple** and **Continue with Google**. Both open the system browser through the Expo auth-session API.
