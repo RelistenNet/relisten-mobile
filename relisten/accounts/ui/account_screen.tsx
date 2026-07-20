@@ -150,7 +150,6 @@ export function AccountScreen() {
       syncState={displayedSyncState}
       syncWaitingMessage={syncWaitingMessage}
       transitioning={transitioning}
-      unavailableFavoriteCount={syncStatus.unavailableCount}
       username={account.profile.username}
       usernameReviewNeeded={account.profile.usernameReviewNeeded}
     />

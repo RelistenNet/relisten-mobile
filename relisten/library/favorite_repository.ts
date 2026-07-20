@@ -15,6 +15,7 @@ import {
   importUuidsSettledByCompaction,
   isTrulyUnsentFavoriteMutation,
 } from './favorite_mutation_compaction';
+import { favoritePresenceChangeNeedsHydration } from './catalog_availability_refresh_policy';
 
 export interface FavoriteAccountScopeCapture {
   scopeId: string;
@@ -284,7 +285,8 @@ export class FavoriteRepository {
         favorite.catalogUuid
       )[0];
 
-    favorite.effectivePresent = newestMutation?.desiredPresent ?? favorite.acknowledgedPresent;
+    const effectivePresent = newestMutation?.desiredPresent ?? favorite.acknowledgedPresent;
+    this.updateEffectivePresence(favorite, effectivePresent);
     favorite.lastLocalSequence = newestMutation?.localSequence ?? 0;
     favorite.updatedAt = now;
   }
@@ -328,7 +330,7 @@ export class FavoriteRepository {
 
     if (capture.scopeId === ANONYMOUS_ACCOUNT_SCOPE_ID) {
       favorite.acknowledgedPresent = change.isFavorite;
-      favorite.effectivePresent = change.isFavorite;
+      this.updateEffectivePresence(favorite, change.isFavorite);
       favorite.acknowledgedRevision = undefined;
       favorite.lastLocalSequence = 0;
       favorite.updatedAt = now;
@@ -385,7 +387,7 @@ export class FavoriteRepository {
       updatedAt: now,
     });
 
-    favorite.effectivePresent = change.isFavorite;
+    this.updateEffectivePresence(favorite, change.isFavorite);
     favorite.lastLocalSequence = localSequence;
     favorite.updatedAt = now;
 
@@ -402,6 +404,19 @@ export class FavoriteRepository {
     if (catalogObject && 'isFavorite' in catalogObject) {
       catalogObject.isFavorite = change.isFavorite;
     }
+  }
+
+  private updateEffectivePresence(favorite: UserFavorite, effectivePresent: boolean) {
+    if (
+      favoritePresenceChangeNeedsHydration(
+        favorite.effectivePresent,
+        effectivePresent,
+        favorite.metadataStatus
+      )
+    ) {
+      favorite.metadataStatus = FavoriteMetadataStatus.Unknown;
+    }
+    favorite.effectivePresent = effectivePresent;
   }
 
   private catalogObjectExists(target: FavoriteTarget) {
