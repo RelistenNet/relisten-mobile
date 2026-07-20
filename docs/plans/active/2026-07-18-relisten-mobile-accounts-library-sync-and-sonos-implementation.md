@@ -39,12 +39,12 @@ Public playlist URLs are stable identifiers and may be copied normally. Private 
 ## Progress
 
 - [x] (2026-07-18 23:10Z) Audited the current Realm, favorite, history, queue, deep-link, CarPlay, Cast, download, and API code and wrote this implementation plan against commit `0132dfe`.
-- [ ] Workstream 1: freeze the current slice's contract and add only high-value test support.
-- [ ] Workstream 2: introduce account scope and evolve Realm incrementally with each slice.
-- [ ] Workstream 3: implement Relisten OIDC authentication and account lifecycle UI.
-- [ ] Workstream 4: centralize auth, public-playlist, private-invitation, catalog, Last.fm, and Sonos deep links.
-- [ ] Workstream 5: implement the plain-TypeScript sync coordinator and durable outboxes.
-- [ ] Workstream 6: migrate favorites to scoped membership and synchronize them.
+- [ ] Workstream 1: account and favorite contracts have focused tests; repeat the contract-first step for later slices.
+- [x] (2026-07-19) Workstream 2: account and favorite state share one Realm 13-to-14 migration after the released audio-EQ schema; later slices remain pending.
+- [ ] Workstream 3: iOS sign-in, refresh, restoration, sign-out, switching, and username review are implemented; account deletion, Android production auth, and release proof remain.
+- [ ] Workstream 4: authentication callbacks are centralized; public-playlist, invitation, Last.fm, and Sonos routing remain.
+- [ ] Workstream 5: the favorite coordinator and durable outbox are implemented; later domain coordinators remain.
+- [x] (2026-07-19) Workstream 6: favorites use scoped membership, desired-state sync, anonymous import, and best-effort metadata hydration.
 - [ ] Workstream 7: implement playlist reading, publishing, direct following, cloning, invitations, and roles.
 - [ ] Workstream 8: implement offline playlist operations, server ranks, and revoked-access cleanup.
 - [ ] Workstream 9: consume server-hydrated playlist snapshots and handle licensing removal.
@@ -56,8 +56,8 @@ Public playlist URLs are stable identifiers and may be copied normally. Private 
 
 ## Surprises & Discoveries
 
-- Observation: `relisten/realm/schema.ts` opens one `./relisten.realm` file at schema version 13 and has no explicit migration callback. Evidence: the current `realmConfig` contains one schema array, `schemaVersion: 13`, and one path. Consequence: preserve one file and add a real migration function before adding scoped data.
-- Observation: favorites are mutable `isFavorite` booleans on device-global `Artist`, `Show`, `Source`, `SourceTrack`, `Tour`, `Song`, and `Venue` catalog objects. `LibraryIndex` subscribes directly to favorite catalog queries. Consequence: a shared device cannot support accounts safely until favorite membership is a separate scoped row.
+- Observation: `origin/main` uses Realm schema 12, and the released audio-EQ TestFlight owns schema 13. This branch uses schema 14 and one account/favorites callback that converts legacy catalog favorite flags into anonymous `UserFavorite` rows. Later intermediate development schemas were never released and are not supported.
+- Observation: `UserFavorite` is now authoritative. `LibraryIndex`, favorite hooks, and CarPlay query scoped membership and combine it with device-global offline availability; catalog `isFavorite` fields are migration inputs and compatibility fields only.
 - Observation: downloads already have device-global ownership. `SourceTrackOfflineInfo` is keyed by source-track UUID and files live under the UUID in the offline directory. Consequence: do not shard, copy, or delete downloaded media on sign-in, sign-out, or account deletion.
 - Observation: the player already dispatches history exactly when `elapsed >= 240 || percent >= 0.5` changes from false to true in `relisten/player/relisten_player.tsx`. Consequence: preserve this threshold and improve durability; do not expand the meaning of a listen.
 - Observation: `PlaybackHistoryEntry` is device-global and points at live Realm catalog objects, while `PlaybackHistoryReporter` publishes pending rows one at a time to the anonymous catalog play endpoint. Consequence: split local display history, signed-in upload, and old anonymous popularity projection deliberately.
@@ -65,7 +65,7 @@ Public playlist URLs are stable identifiers and may be copied normally. Private 
 - Observation: the app already depends on `expo-web-browser`, `expo-linking`, `expo-secure-store`, and claims `relisten.net`, but its Android intent filter currently captures every path on every Relisten subdomain. Consequence: the native pieces exist, but callback ownership must be narrowed before authentication ships.
 - Observation: Last.fm has its own initial-link, warm-link, and foreground listener. Consequence: add one typed deep-link router and route Last.fm through it instead of adding another competing listener.
 - Observation: Cast already forces remote streaming URLs and loads a queue snapshot, and CarPlay reads Realm and `LibraryIndex` directly. Consequence: both integrations can consume the new scope and queue boundaries without becoming separate sync implementations.
-- Observation: there is no test framework configured today. Consequence: add a small runner only when the first pure invariant needs it; do not front-load a broad mocked test system.
+- Observation: focused favorite invariants run through Node's built-in test runner as `yarn test:favorites`. Consequence: keep adding tests only where they protect an expensive contract or persistence failure.
 - Observation: there is no Sonos Control or Sonos account code in this repository. The only Sonos string in playback is an album-art hostname. Consequence: implement Sonos as a new narrow integration rather than adapting an imaginary existing controller.
 
 ## Decision Log
@@ -86,7 +86,7 @@ Public playlist URLs are stable identifiers and may be copied normally. Private 
 - Decision: Every playlist snapshot is one server-hydrated response containing complete structure, per-occurrence availability, and normalized deduplicated `catalog` arrays. Mobile derives the active view and performs no playlist resolver batching, visible-window hydration, or revision-pinned multi-request assembly. Rationale: one request is much easier to implement and reason about; compression and deduplication are sufficient until measurements prove otherwise. Date/Author: 2026-07-18, architecture review.
 - Decision: Record one `qualified_listen` after four minutes or 50 percent, with catalog duration as an estimate. Record no skip, completion, checkpoint, or exact listened duration. Cloud history is on by default with disclosure and an off switch. Rationale: this is the signal the current player actually knows. Date/Author: 2026-07-18, Relisten architecture discussion.
 - Decision: A history batch deduplicates synchronously through an ordinary PostgreSQL receipt keyed globally by UUIDv7 `event_uuid`; the receipt stores the owning user and canonical payload hash. The same UUID is the local row ID, wire ID, retry ID, and server row ID. An identical replay by that user succeeds; an event UUID already bound to another user or payload produces one atomic whole-batch `409 idempotency_conflict` listing every colliding event UUID and applying no siblings. Rationale: process death and retries must not create a second event, mutate an accepted event, or partially apply a rejected batch. Date/Author: 2026-07-18, Relisten architecture discussion.
-- Decision: History uploads carry the server-issued ingestion generation, and normalized catalog snapshots/resolver results carry a monotonic `availability_revision`. A stale history generation is terminal and reconciled after disable/clear; a stale availability response cannot resurrect remote playability. Rationale: delayed offline work and out-of-order responses must respect privacy clears and licensing changes. Date/Author: 2026-07-18, Relisten architecture discussion.
+- Decision: History uploads carry the server-issued ingestion generation. Playlist snapshots carry server-owned occurrence availability and a projection revision. Favorite resolver results are point-in-time hydration results identified by `checked_at`; mobile does not persist them or use them to gate playback. Rationale: favorite membership is durable intent, while playlist projections and history privacy have separate freshness rules. Date/Author: 2026-07-19, implementation review.
 - Decision: History adds a small persisted playback-instance UUID and qualification row to the existing player. Queue V2 waits until private-playlist playback or Sonos requires stable duplicate occurrences. Rationale: history needs one listening-attempt identity, not a queue migration. Date/Author: 2026-07-18, architecture review.
 - Decision: Sonos is a mobile-only, one-way queue handoff. The server stores an ephemeral transport snapshot; mobile queue edits do not update it. Cloud Queue protocol-version negotiation belongs to the Sonos adapter/partner spike rather than the mobile contract. Rationale: mobile needs Spotify-like room playback, not a universal queue product. Date/Author: 2026-07-18, Relisten architecture discussion.
 - Decision: On account switch or sign-out, stop playback and clear local, Cast, and Sonos queue/control state before changing scope or auth generation. Do not remove downloads. Rationale: one account's playback must never become another account's history. Date/Author: 2026-07-18, Relisten architecture discussion.
@@ -98,7 +98,7 @@ Public playlist URLs are stable identifiers and may be copied normally. Private 
 
 ## Outcomes & Retrospective
 
-No product code has been changed by this plan. Fill this section after rollout with adoption, sync backlog, history dedupe, large-playlist, auth cancellation, account-switch, and Sonos handoff results. Record which provisional performance budgets held, which were revised from measured device data, and which deferred features should be reconsidered.
+This branch implements iOS account sign-in and session restoration, scoped favorite sync and anonymous import, the Realm 13-to-14 migration, scoped `LibraryIndex` and CarPlay reads, and best-effort favorite metadata hydration. Account deletion, Android production authentication, history, playlists, collaboration, Sonos, and release-device evidence remain open.
 
 ## Context and Orientation
 
@@ -107,9 +107,9 @@ The app uses Expo Router under `app/`; feature logic lives under `relisten/`; th
 - `relisten/api/client.ts` is the anonymous catalog client. Keep it anonymous.
 - `relisten/api/schema.ts` is generated catalog API typing. Do not mix the account OpenAPI into it.
 - `relisten/realm/schema.ts` registers all Realm models and opens the one database.
-- `relisten/realm/library_index.ts` currently combines global favorite booleans and global offline availability.
+- `relisten/realm/library_index.ts` combines active-scope `UserFavorite` membership with device-global offline availability.
 - `relisten/realm/root_services.tsx` creates long-lived Realm-backed services.
-- `relisten/components/favorite_icon_button.tsx` mutates a catalog object directly.
+- `relisten/components/favorite_icon_button.tsx` uses the scoped favorite hook and repository.
 - `relisten/player/relisten_player.tsx` owns playback and the qualified-listen threshold.
 - `relisten/player/relisten_player_queue.tsx` and `relisten/realm/models/player_state.ts` own queue identity and persistence.
 - `relisten/playback_history_reporter.ts` and `relisten/realm/models/history/` own current history.
@@ -138,7 +138,7 @@ Definitions used throughout this plan:
 | Device-global in one Realm and filesystem | Account/anonymous scoped in the same Realm |
 | --- | --- |
 | Catalog artists, shows, venues, sources, source sets, source tracks | Account profile and auth metadata excluding token secrets |
-| Normalized catalog cache, typed resolver statuses, and catalog-availability observations | Favorite memberships and library cursor |
+| Normalized catalog cache | Favorite memberships and library cursor |
 | `SourceTrackOfflineInfo`, download queue, downloaded files, streaming cache | Playlists, roles, segments, occurrences, follows, invitations, and playlist cursors |
 | Storage, cellular, offline-mode, audio, and cache settings | Domain outbox operations and import receipts |
 | SecureStore installation UUID and active-scope singleton | Local/remote qualified history and history cursor |
@@ -250,14 +250,13 @@ The full database backup/restore rehearsal remains a broad-public-rollout gate. 
 - Add the maintained `uuid` runtime package and one wrapper at `relisten/util/uuid_v7.ts` that exposes `v7()`; no feature may construct a user-domain UUID independently.
 - Add or update `docs/mobile-product-language-and-states.md` as each slice adds visible copy.
 
-Generate TypeScript from a pinned `openapi-typescript` dev dependency. Add scripts equivalent to:
+The implemented account and catalog-resolver clients use explicit checked-in TypeScript contracts. Add generation only when the repository has a real generator and source schema. The current automated gates are:
 
-```json
-{
-  "test": "jest",
-  "test:accounts": "jest --runInBand relisten/accounts",
-  "schema:accounts": "openapi-typescript relisten/accounts/api/contracts/accounts-v1.openapi.json -o relisten/accounts/api/schema.ts"
-}
+```bash
+yarn test:favorites
+yarn ts:check
+yarn lint
+git diff --check
 ```
 
 Use OpenAPI types at the network boundary, then map them into explicit domain values. Validate only the values whose failure could corrupt local state: UUIDs, revisions, operation receipt identity, known domain problem codes, and bounded arrays before Realm writes.
@@ -270,26 +269,25 @@ For each slice, pick the smallest proof that protects its riskiest boundary. Exa
 
 **Recovery.** Contract snapshots are append-compatible within `/v1`. If a backend change is not backward compatible, publish a new version rather than conditionally parsing by app build. Revert generated code and its source snapshot together.
 
-### Workstream 2: introduce account scope and evolve Realm with each slice
+### Workstream 2: introduce account scope and evolve Realm
 
-**Outcome.** One Realm safely contains anonymous state and signed-in account partitions. Each TestFlight slice adds only the models and migration it uses; catalog data and downloads remain shared.
+**Outcome.** One Realm safely contains anonymous state and signed-in account partitions. Audio EQ remains the released schema-13 change; the unreleased account and favorites work is one schema-14 change. Catalog data and downloads remain shared.
 
 **Files to add or change.**
 
-- In the authentication slice, add only `active_account_scope.ts`, `account_profile.ts`, and the account coordinator/context.
-- In the favorites slice, add `user_favorite.ts`, its outbox/cursor rows, and the anonymous favorite import receipt.
+- Schema 14 adds `active_account_scope.ts`, `account_profile.ts`, `user_favorite.ts`, its outbox/cursor rows, and the anonymous favorite import receipt.
 - In the history slice, add `qualified_listen.ts`, `current_playback_qualification.ts`, `history_import_receipt.ts`, and device-global `legacy_history_dataset_claim.ts`.
 - In the private-playlist slice, add only playlist, segment, occurrence, and operation rows. Add follow/public state in Slice 5 and membership/invitation state in Slice 6. Add Queue V2 only when playlist playback needs stable duplicate occurrences.
 - Add `offline_media_snapshot.ts` when licensing-removal behavior needs catalog-independent downloaded metadata.
 - Add `relisten/accounts/account_scope.ts`, `account_coordinator.ts`, and `account_context.tsx`.
-- Add a domain-specific post-open migrator only for a slice whose legacy data cannot be converted cheaply in the Realm callback.
+- Add a domain-specific post-open migrator only for a future shipped slice whose legacy data cannot be converted cheaply in the Realm callback.
 - Update `relisten/realm/root_services.tsx` so `LibraryIndex`, repositories, and sync subscribe to an `AccountScopeStore` rather than capturing one scope forever.
 
 Persist a stable UUIDv7 installation identifier once in SecureStore; use it only for device-local coordination and diagnostics. The anonymous `scopeId` is literal `anonymous`; a signed-in `scopeId` is `user:${me.user_uuid}` and also stores the raw `/v1/me.user_uuid` separately. Server requests derive user authority from the bearer token, never by parsing `scopeId`. Persist a monotonically increasing `accountGeneration` in `ActiveAccountScope` and mirror it in memory for cheap checks. Every network completion captures and compares it before writing. Startup validates the one stored refresh-token envelope through `/v1/me`; it never treats the Realm pointer alone as authenticated identity.
 
 Every user-owned row has indexed `scopeId`; child repositories constrain both `scopeId` and parent UUID. Store catalog relationships as UUID strings, not required Realm links. Every user-domain row has one UUID primary key; natural tuples are unique indexes and lookups only.
 
-Keep each Realm callback small and additive. Large legacy conversion runs after open in bounded transactions with a receipt. Favorites convert when favorites sync ships. History conversion runs only after the listener chooses legacy import. Queue conversion belongs to Workstream 10. There is no global backfill gate and no compatibility build containing unused future schemas.
+The account/favorites build performs one Realm 13-to-14 migration after the released audio-EQ schema. Realm adds the final account and favorite schemas, and the callback copies legacy catalog `isFavorite` values into anonymous `UserFavorite` rows. It preserves audio settings, downloads, and unrelated rows and has no intermediate account/favorite versions or post-open migration phases. Schema-12 App Store installs may open schema 14 directly; schema-13 TestFlight installs run only the account/favorite upgrade. History and playlist work increment from schema 14 when those slices ship; Queue conversion still belongs to Workstream 10.
 
 **Observable proof.** For the current slice, a temporary Realm seeded from the previous shipped schema opens with downloads and unrelated data intact. If the slice has a post-open backfill, closing and reopening resumes without duplicate rows. A focused scope test proves account A and B cannot read each other's new rows while both see the same downloaded file.
 
@@ -437,7 +435,7 @@ On the first successful sign-in when anonymous favorites exist, show the account
 
 During the compatibility release, anonymous writes may dual-write the old global boolean solely for rollback compatibility. Signed-in writes never do. Remove boolean reads only after migration metrics prove parity.
 
-**Observable proof.** Focused tests protect canonical-ID remapping and pending desired state over an acknowledged snapshot. Manual TestFlight checks cover online/offline heart changes, restart, two accounts, anonymous import, unavailable metadata, and CarPlay showing the active account plus global downloads.
+**Observable proof.** Focused tests prove that a missing catalog UUID remains favorited, unfavorite syncs without hydration, an omitted resolver entity does not delete cached Realm data, and refavorite becomes hydration-eligible again. Manual TestFlight checks cover online/offline heart changes, restart, two accounts, anonymous import, and CarPlay showing the active account plus global downloads.
 
 **Recovery.** If union fails, leave the import receipt pending and anonymous source rows intact. If the account is deleted mid-import, remove its scoped rows but retain anonymous favorites. A server rejection never clears the local favorite silently; surface a terminal operation with a retry/export path.
 
@@ -713,23 +711,16 @@ Add the pure JavaScript UUID dependency and commit the resolved lockfile:
 yarn add uuid
 ```
 
-Add code generation in the authentication slice and the test runner only when the first high-value test lands. Run the current slice's narrow proof first:
+Run the implemented account/favorite slice's narrow proof first:
 
 ```bash
-yarn schema:accounts
-yarn test:accounts --runInBand
-```
-
-The favorites slice may add `yarn schema:catalog-resolver` for its anonymous metadata resolver. Playlist work does not use that generated client.
-
-After every TypeScript workstream:
-
-```bash
+yarn test:favorites
 yarn ts:check
 yarn lint
-yarn test:accounts --runInBand # when the current slice added account tests
 git diff --check
 ```
+
+The resolver v1 client currently uses an explicit checked-in TypeScript contract. Playlist work does not use the standalone favorite resolver.
 
 For a JS-only iOS development run, use the existing dev client and simulator:
 
@@ -863,27 +854,25 @@ These are product invariants, not a demand for one automated test per bullet. Ap
 ### Quality gates
 
 ```bash
-yarn schema:accounts
-git diff --exit-code -- relisten/accounts/api/schema.ts
-yarn test:accounts --runInBand # only when the current slice has focused tests
+yarn test:favorites
 yarn ts:check
 yarn lint
 git diff --check
 ```
 
-The release PR links the current slice's short manual checklist and names affected physical-device checks. The favorites slice also regenerates its catalog-resolver type when that contract changes. The Sonos slice records whether real-speaker testing is approved/completed or still partner-gated; mocked behavior cannot substitute for partner approval.
+The release PR links the current slice's short manual checklist and names affected physical-device checks. The Sonos slice records whether real-speaker testing is approved/completed or still partner-gated; mocked behavior cannot substitute for partner approval.
 
 ## Idempotence and Recovery
 
 The plan is designed so re-running work is safe:
 
-- Realm-open migration is minimal and additive; each resumable post-open backfill family records its own phase/cursor receipt, retains its compatibility reader until completion, and never gates unrelated repositories or clears the file.
+- The account/favorites build performs one Realm 13-to-14 migration after the released audio-EQ schema. It preserves audio settings, downloads, and unrelated rows and has no intermediate account/favorite versions or post-open migration phases.
 - Favorite desired-state mutations, versioned playlist operations, archive/unarchive commands, clones, history events/clears, imports, Sonos handoffs, and Sonos commands carry stable client UUIDs. Mobile retries the same immutable typed playlist payload; server-side canonical hashing detects changed reuse.
 - Server snapshots replace only acknowledged materialized state. Pending favorite intent and playlist outbox rows remain and overlay/replay afterward.
 - Account generation guards all asynchronous writes. Candidate `/me` validation precedes scope selection; refresh uses one envelope and requires sign-in after an unprovable rotation result.
 - Publication, direct follows, invitation exchange/acceptance, and archive state are online-only. Only the expiring pending invitation grant crosses sign-in or restart; membership is never inferred before the first authenticated acceptance succeeds.
 - Account deletion uses one persisted command ID, immediate local scoped purge after acceptance or observed session revocation, and an idempotent server Temporal purge. Restore replay remains an operator responsibility.
-- Catalog unavailability never deletes a download or cached metadata needed to play it.
+- A favorite resolver omission never deletes cached catalog data or downloads. Playlist availability may exclude a network occurrence, while an existing downloaded file remains playable locally.
 - Queue V2 schema and conversion ship together in Workstream 10, after history is already using its independent playback-instance UUID. Recovery may clear corrupt queue state, never library or media.
 - A revoked collaborator's inaccessible state is retained only until the listener acknowledges that unsynced edits could not be saved, then discarded.
 - History receipt conflicts are terminal and inspectable; the app never mutates/rekeys an accepted event to force a retry.
@@ -1063,6 +1052,6 @@ interface SonosPlaybackCommand {
 }
 ```
 
-Required existing dependencies are Realm, Expo Router, `expo-linking`, `expo-web-browser`, `expo-secure-store`, NetInfo, FlashList, Google Cast, and the custom audio player. Add `expo-auth-session`, pinned OpenAPI generation, and a compatible Jest/Expo runner only when the first high-value test lands. Do not add a second local database, generic replication framework, CRDT library, WebSocket client, native Apple/Google sign-in SDK, Sonos SDK carrying end-user credentials, or Temporal client to mobile.
+Required existing dependencies are Realm, Expo Router, `expo-auth-session`, `expo-linking`, `expo-web-browser`, `expo-secure-store`, NetInfo, FlashList, Google Cast, and the custom audio player. The focused favorite suite uses Node's built-in runner. Add contract generation or a broader test runner only when a real consumer justifies it. Do not add a second local database, generic replication framework, CRDT library, WebSocket client, native Apple/Google sign-in SDK, Sonos SDK carrying end-user credentials, or Temporal client to mobile.
 
-The User Service must provide the `/v1` OpenAPI/fixtures, OIDC issuer, username onboarding, revision feeds, idempotent receipts, public-playlist reads, direct follows, one-time private invitation exchange/acceptance, archive restoration, history dedupe, account lifecycle, and Sonos control endpoints. The catalog service must provide the UUID-only normalized resolver and durable availability state. Mobile must not emulate missing server authorization, canonical rank generation, Sonos tokens, or catalog availability rules.
+The User Service must provide the `/v1` OpenAPI/fixtures, OIDC issuer, username onboarding, revision feeds, idempotent receipts, public-playlist reads, direct follows, one-time private invitation exchange/acceptance, archive restoration, history dedupe, account lifecycle, and Sonos control endpoints. The catalog service provides the UUID-only best-effort resolver used to hydrate missing favorite metadata. The User Service owns durable availability rules for playlist occurrences and includes them in server-hydrated playlist snapshots. Mobile does not infer playlist availability from favorite resolver results or emulate missing server authorization, canonical rank generation, or Sonos tokens.
