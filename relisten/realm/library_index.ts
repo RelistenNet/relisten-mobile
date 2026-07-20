@@ -149,6 +149,10 @@ export class LibraryIndex {
     return this.favoriteUuids[catalogType];
   }
 
+  libraryShowCatalogUuids(): ReadonlySet<string> {
+    return this.libraryShowUuids;
+  }
+
   artistHasOfflineTracks(uuid?: string | null) {
     return !!uuid && this.offlineArtistUuids.has(uuid);
   }
@@ -175,6 +179,19 @@ export class LibraryIndex {
 
   showIsInLibrary(uuid?: string | null) {
     return !!uuid && this.libraryShowUuids.has(uuid);
+  }
+
+  /**
+   * Small read-only snapshot used by account diagnostics. These are derived
+   * memberships, not persisted counters, so they cannot drift from the sets
+   * that actually drive Artists and My Library.
+   */
+  libraryMembershipCounts() {
+    return {
+      artists: this.libraryArtistUuids.size,
+      years: this.libraryYearUuids.size,
+      shows: this.libraryShowUuids.size,
+    };
   }
 
   remainingDownloadsCount() {
