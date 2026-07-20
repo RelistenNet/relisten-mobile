@@ -1,4 +1,3 @@
-import type { FavoriteTarget } from '@/relisten/library/favorite_repository';
 import type {
   FavoriteMutationBatchRequest,
   FavoriteMutationBatchResponse,
@@ -10,6 +9,11 @@ export type FavoriteSyncFailure = {
   retryable: boolean;
 };
 
+/** Catalog absence was a write error on older servers, but is now retryable version skew. */
+export function favoriteSyncErrorIsRetryable(code: string, declaredRetryable: boolean) {
+  return code === 'catalog_unavailable' || declaredRetryable;
+}
+
 type BatchIsolationOptions = {
   request: FavoriteMutationBatchRequest;
   send: (request: FavoriteMutationBatchRequest) => Promise<FavoriteMutationBatchResponse>;
@@ -18,7 +22,6 @@ type BatchIsolationOptions = {
 };
 
 const MUTATION_SEMANTIC_ERROR_CODES = new Set([
-  'catalog_unavailable',
   'favorite_uuid_conflict',
   'idempotency_conflict',
   'invalid_favorite_mutation',
@@ -30,8 +33,8 @@ const MUTATION_SEMANTIC_ERROR_CODES = new Set([
  * error means none of its valid neighbors were saved. Prefer the server's
  * named bad operations; otherwise bisect only that failed batch until each
  * rejection is isolated.
- * Successful imports keep normal 100-item throughput, while one unavailable
- * favorite cannot force the user to discard 99 unrelated changes.
+ * Successful imports keep normal 100-item throughput while one invalid
+ * operation cannot force the user to discard unrelated changes.
  */
 export async function sendFavoriteMutationBatchWithIsolation(options: BatchIsolationOptions) {
   await sendWithIsolation(options.request, options);
@@ -114,8 +117,10 @@ export function favoriteSyncFailure(error: unknown): FavoriteSyncFailure {
       code,
       message,
       // Network and unexpected client failures can be retried safely because
-      // mutation UUIDs are idempotency keys. Explicit API rejections cannot.
-      retryable: candidate.retryable !== false,
+      // mutation UUIDs are idempotency keys. Older servers may still reject a
+      // missing catalog UUID, but catalog availability is no longer a terminal
+      // favorite-write condition.
+      retryable: favoriteSyncErrorIsRetryable(code, candidate.retryable !== false),
     };
   }
 
@@ -140,15 +145,6 @@ function terminalMutationUuids(error: unknown, request: FavoriteMutationBatchReq
       .filter((mutation) => mutation.desired_state === 'favorite')
       .map((mutation) => [mutation.favorite_uuid, mutation.mutation_uuid])
   );
-  const requestedTargets = new Map(
-    request.mutations.map((mutation) => [
-      targetKey({
-        catalogType: mutation.catalog_type,
-        catalogUuid: mutation.catalog_uuid,
-      }),
-      mutation.mutation_uuid,
-    ])
-  );
   const rejected = new Set<string>();
 
   for (const uuid of stringArray(problem.conflicting_mutation_uuids)) {
@@ -162,13 +158,6 @@ function terminalMutationUuids(error: unknown, request: FavoriteMutationBatchReq
       rejected.add(mutationUuid);
     }
   }
-  for (const reference of catalogReferences(problem.unavailable_references)) {
-    const mutationUuid = requestedTargets.get(targetKey(reference));
-    if (mutationUuid) {
-      rejected.add(mutationUuid);
-    }
-  }
-
   return rejected;
 }
 
@@ -189,29 +178,4 @@ function stringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === 'string')
     : [];
-}
-
-function catalogReferences(value: unknown): FavoriteTarget[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.flatMap((item) => {
-    if (!item || typeof item !== 'object') {
-      return [];
-    }
-    const candidate = item as { catalog_type?: unknown; catalog_uuid?: unknown };
-    return typeof candidate.catalog_type === 'string' && typeof candidate.catalog_uuid === 'string'
-      ? [
-          {
-            catalogType: candidate.catalog_type as FavoriteTarget['catalogType'],
-            catalogUuid: candidate.catalog_uuid,
-          },
-        ]
-      : [];
-  });
-}
-
-function targetKey(target: FavoriteTarget) {
-  return `${target.catalogType}:${target.catalogUuid}`;
 }
