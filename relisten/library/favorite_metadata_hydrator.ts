@@ -17,22 +17,13 @@ import { Source } from '@/relisten/realm/models/source';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { Tour } from '@/relisten/realm/models/tour';
 import { Venue } from '@/relisten/realm/models/venue';
+import { Year } from '@/relisten/realm/models/year';
 import { log } from '@/relisten/util/logging';
 
 const logger = log.extend('favorite-metadata');
 const MAX_REFERENCES_PER_REQUEST = 500;
 
 type CatalogEntityApplier = (realm: Realm, response: CatalogResolveResponse) => void;
-
-const MODEL_BY_CATALOG_TYPE: Record<FavoriteCatalogType, string> = {
-  artist: Artist.name,
-  show: Show.name,
-  source: Source.name,
-  source_track: SourceTrack.name,
-  song: Song.name,
-  tour: Tour.name,
-  venue: Venue.name,
-};
 
 /** Best-effort catalog hydration for active favorites missing local metadata. */
 export class FavoriteMetadataHydrator {
@@ -88,7 +79,7 @@ export class FavoriteMetadataHydrator {
       .filtered('scopeId == $0 AND effectivePresent == true', capture.scopeId);
 
     for (const favorite of favorites) {
-      if (!this.catalogObjectExists(favorite)) {
+      if (!this.hasRequiredMetadata(favorite)) {
         references.set(targetKey(favorite), {
           catalog_type: favorite.catalogType,
           catalog_uuid: favorite.catalogUuid,
@@ -132,13 +123,49 @@ export class FavoriteMetadataHydrator {
     });
   }
 
-  private catalogObjectExists(reference: {
+  private hasRequiredMetadata(reference: {
     catalogType: FavoriteCatalogType;
     catalogUuid: string;
   }) {
-    return !!this.repository.realm.objectForPrimaryKey(
-      MODEL_BY_CATALOG_TYPE[reference.catalogType],
-      reference.catalogUuid
+    const realm = this.repository.realm;
+
+    // A child row by itself is not enough to render My Library. Resolver
+    // responses include these shallow parents, so ask again when an older or
+    // partial local catalog has the favorite but not the graph it projects to.
+    if (reference.catalogType === 'source') {
+      const source = realm.objectForPrimaryKey(Source, reference.catalogUuid);
+      return !!source && this.hasShowMetadata(source.showUuid);
+    }
+    if (reference.catalogType === 'source_track') {
+      const track = realm.objectForPrimaryKey(SourceTrack, reference.catalogUuid);
+      return !!track && this.hasShowMetadata(track.showUuid);
+    }
+    if (reference.catalogType === 'show') {
+      return this.hasShowMetadata(reference.catalogUuid);
+    }
+    if (reference.catalogType === 'song') {
+      const song = realm.objectForPrimaryKey(Song, reference.catalogUuid);
+      return !!song && !!realm.objectForPrimaryKey(Artist, song.artistUuid);
+    }
+    if (reference.catalogType === 'tour') {
+      const tour = realm.objectForPrimaryKey(Tour, reference.catalogUuid);
+      return !!tour && !!realm.objectForPrimaryKey(Artist, tour.artistUuid);
+    }
+    if (reference.catalogType === 'venue') {
+      const venue = realm.objectForPrimaryKey(Venue, reference.catalogUuid);
+      return !!venue && !!realm.objectForPrimaryKey(Artist, venue.artistUuid);
+    }
+
+    return !!realm.objectForPrimaryKey(Artist, reference.catalogUuid);
+  }
+
+  private hasShowMetadata(showUuid: string) {
+    const realm = this.repository.realm;
+    const show = realm.objectForPrimaryKey(Show, showUuid);
+    return (
+      !!show &&
+      !!realm.objectForPrimaryKey(Artist, show.artistUuid) &&
+      !!realm.objectForPrimaryKey(Year, show.yearUuid)
     );
   }
 }
