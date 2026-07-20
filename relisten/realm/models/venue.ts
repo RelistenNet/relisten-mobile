@@ -1,6 +1,6 @@
 import Realm from 'realm';
 import { VenueWithShowCounts } from '../../api/models/venue';
-import { FavoritableObject } from '../favoritable_object';
+import { LegacyFavoriteMirror } from '../legacy_favorite_mirror';
 
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import dayjs from 'dayjs';
@@ -21,7 +21,7 @@ export interface VenueRequiredProperties extends RelistenObjectRequiredPropertie
 
 export class Venue
   extends Realm.Object<Venue, keyof VenueRequiredProperties>
-  implements VenueRequiredProperties, FavoritableObject
+  implements VenueRequiredProperties, LegacyFavoriteMirror
 {
   static schema: Realm.ObjectSchema = {
     name: 'Venue',
@@ -41,6 +41,7 @@ export class Venue
       pastNames: 'string?',
       sortName: 'string',
       showsAtVenue: 'int',
+      // Deprecated compatibility mirror. Canonical membership is in UserFavorite.
       isFavorite: { type: 'bool', default: false },
     },
   };
@@ -60,6 +61,7 @@ export class Venue
   sortName!: string;
   showsAtVenue!: number;
 
+  /** @deprecated Use `useFavorite` or `LibraryIndex` for active-account membership. */
   isFavorite!: boolean;
 
   static propertiesFromApi(relistenObj: VenueWithShowCounts): VenueRequiredProperties {
