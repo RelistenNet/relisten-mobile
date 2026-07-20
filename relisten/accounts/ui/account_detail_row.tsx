@@ -14,7 +14,10 @@ export function AccountDetailRow({ children, title, subtitle }: AccountDetailRow
   const stacksAction = fontScale >= 1.25;
 
   return (
-    <Flex className="w-full items-start" column={stacksAction}>
+    <Flex
+      className={stacksAction ? 'w-full items-start' : 'w-full items-center'}
+      column={stacksAction}
+    >
       <View className={stacksAction ? 'w-full' : 'min-w-0 flex-1'}>
         <RelistenText className="font-semibold">{title}</RelistenText>
         {subtitle && <RelistenText className="mt-1 text-sm text-gray-400">{subtitle}</RelistenText>}
