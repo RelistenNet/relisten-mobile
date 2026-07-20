@@ -12,12 +12,11 @@ import { aggregateBy } from '@/relisten/util/group_by';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { tw } from '@/relisten/util/tw';
 import { Link, useFocusEffect } from 'expo-router';
-import { PropsWithChildren, ReactNode, useCallback, useEffect } from 'react';
+import { PropsWithChildren, ReactNode, useCallback, useEffect, useMemo, useReducer } from 'react';
 import { TouchableOpacity, View, ViewProps } from 'react-native';
 import {
-  useLibraryMembershipRevision,
+  useLibraryShowCatalogUuids,
   useRemainingDownloadsCount,
-  useRootLibraryIndex,
 } from '@/relisten/realm/root_services';
 import { logTabRootDebug } from '@/relisten/util/profile_logging';
 import { AccountEntryCard } from '@/relisten/accounts/ui/account_entry_card';
@@ -75,11 +74,27 @@ function RecentlyPlayedShows() {
 function FavoriteShows({ topContent }: { topContent?: ReactNode }) {
   const showFilters = useShowFilters();
   const allShows = useQuery(Show);
-  const libraryIndex = useRootLibraryIndex();
-  useLibraryMembershipRevision();
-  const favoriteShows = [...allShows].filter((show) => libraryIndex.showIsInLibrary(show.uuid));
+  const libraryShowUuids = useLibraryShowCatalogUuids();
+  const [focusRevision, refreshAfterFocus] = useReducer((revision: number) => revision + 1, 0);
 
-  const favoriteShowsByArtist: RelistenSectionData<Show> = (() => {
+  useFocusEffect(
+    useCallback(() => {
+      // Tab roots are frozen while another tab or a pushed detail screen is
+      // active. Re-read the external index on focus because React can suppress
+      // the render that accompanied a Realm notification while this tree froze.
+      refreshAfterFocus();
+    }, [])
+  );
+
+  // Realm Results have a stable identity, so include the library set snapshot
+  // and focus revision explicitly. React Compiler can then see both reasons
+  // this derived array must be rebuilt.
+  const favoriteShows = useMemo(
+    () => [...allShows].filter((show) => libraryShowUuids.has(show.uuid)),
+    [allShows, focusRevision, libraryShowUuids]
+  );
+
+  const favoriteShowsByArtist = useMemo<RelistenSectionData<Show>>(() => {
     const showsByArtistUuid = aggregateBy(favoriteShows, (s) => s.artistUuid);
 
     return Object.keys(showsByArtistUuid)
@@ -96,7 +111,11 @@ function FavoriteShows({ topContent }: { topContent?: ReactNode }) {
           data: shows,
         };
       });
-  })();
+  }, [favoriteShows]);
+  const listExtraData = useMemo(
+    () => ({ focusRevision, libraryShowUuids }),
+    [focusRevision, libraryShowUuids]
+  );
 
   const nonIdealState = {
     noData: {
@@ -119,6 +138,7 @@ function FavoriteShows({ topContent }: { topContent?: ReactNode }) {
     <RefreshContextProvider>
       <ShowListContainer
         data={favoriteShowsByArtist}
+        extraData={listExtraData}
         ListHeaderComponent={
           <View className="pt-4">
             {topContent}

@@ -12,6 +12,7 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import { SectionHeader } from '@/relisten/components/section_header';
 import { ScrollView, View } from 'react-native';
 import type { FavoriteSyncFailure } from '@/relisten/library/favorite_hooks';
+import { FavoriteDiagnostics } from '@/relisten/accounts/ui/favorite_diagnostics';
 
 type SignedInAccountScreenProps = {
   actionError?: string;
@@ -146,6 +147,8 @@ export function SignedInAccountScreen({
             </View>
           )}
         </Flex>
+
+        <FavoriteDiagnostics />
 
         <SectionHeader title="Account access" />
         <Flex column className="p-4">
