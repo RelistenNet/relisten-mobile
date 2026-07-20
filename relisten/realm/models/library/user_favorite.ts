@@ -1,12 +1,6 @@
 import Realm from 'realm';
 import type { FavoriteCatalogType } from './favorite_catalog_type';
 
-export enum FavoriteMetadataStatus {
-  Unknown = 'unknown',
-  Available = 'available',
-  Unavailable = 'unavailable',
-}
-
 /**
  * Account-owned membership that survives catalog eviction and licensing removal.
  * Catalog references stay as UUID strings instead of Realm links for that reason.
@@ -24,7 +18,6 @@ export class UserFavorite extends Realm.Object<UserFavorite> {
       effectivePresent: { type: 'bool', default: false, indexed: true },
       acknowledgedRevision: 'int?',
       lastLocalSequence: { type: 'int', default: 0 },
-      metadataStatus: { type: 'string', default: FavoriteMetadataStatus.Unknown },
       serverCreatedAt: 'date?',
       serverUpdatedAt: 'date?',
       createdAt: 'date',
@@ -40,7 +33,6 @@ export class UserFavorite extends Realm.Object<UserFavorite> {
   effectivePresent!: boolean;
   acknowledgedRevision?: number;
   lastLocalSequence!: number;
-  metadataStatus!: FavoriteMetadataStatus;
   serverCreatedAt?: Date;
   serverUpdatedAt?: Date;
   createdAt!: Date;

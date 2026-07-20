@@ -9,19 +9,8 @@ import {
   FavoriteAccountScopeCapture,
   FavoriteRepository,
 } from '@/relisten/library/favorite_repository';
-import {
-  favoriteMetadataNeedsHydration,
-  filterActiveFavoriteReferences,
-} from '@/relisten/library/catalog_availability_refresh_policy';
 import { Artist } from '@/relisten/realm/models/artist';
-import {
-  FavoriteCatalogType,
-  CatalogAvailability,
-  CatalogAvailabilityStatus,
-  FavoriteMetadataStatus,
-  UserFavorite,
-  catalogAvailabilityKey,
-} from '@/relisten/realm/models/library';
+import { FavoriteCatalogType, UserFavorite } from '@/relisten/realm/models/library';
 import { Show } from '@/relisten/realm/models/show';
 import { Song } from '@/relisten/realm/models/song';
 import { Source } from '@/relisten/realm/models/source';
@@ -45,7 +34,7 @@ const MODEL_BY_CATALOG_TYPE: Record<FavoriteCatalogType, string> = {
   venue: Venue.name,
 };
 
-/** Best-effort catalog hydration and availability refresh for account favorites. */
+/** Best-effort catalog hydration for active favorites missing local metadata. */
 export class FavoriteMetadataHydrator {
   constructor(
     private readonly repository: FavoriteRepository,
@@ -61,10 +50,9 @@ export class FavoriteMetadataHydrator {
         return;
       }
 
-      const batch = filterActiveFavoriteReferences(
-        references.slice(offset, offset + MAX_REFERENCES_PER_REQUEST),
-        (reference) => this.favoriteIsActive(capture, reference)
-      );
+      const batch = references
+        .slice(offset, offset + MAX_REFERENCES_PER_REQUEST)
+        .filter((reference) => this.favoriteIsActive(capture, reference));
       if (batch.length === 0) {
         continue;
       }
@@ -95,43 +83,18 @@ export class FavoriteMetadataHydrator {
     }
 
     const references = new Map<string, CatalogReferenceRequest>();
-    const now = new Date();
     const favorites = this.repository.realm
       .objects(UserFavorite)
       .filtered('scopeId == $0 AND effectivePresent == true', capture.scopeId);
 
-    this.repository.realm.write(() => {
-      for (const favorite of favorites) {
-        const hasLocalMetadata = this.catalogObjectExists(favorite);
-        // Retain an explicit unavailable result until a later resolver answer
-        // supersedes it. Missing or failed refreshes must not silently restore
-        // stale streaming URLs.
-        if (!hasLocalMetadata && favorite.metadataStatus !== FavoriteMetadataStatus.Unavailable) {
-          favorite.metadataStatus = FavoriteMetadataStatus.Unknown;
-        }
-
-        const availability = this.repository.realm.objectForPrimaryKey(
-          CatalogAvailability,
-          catalogAvailabilityKey(favorite.catalogType, favorite.catalogUuid)
-        );
-        if (
-          favoriteMetadataNeedsHydration(
-            {
-              availabilityCheckedAt: availability?.checkedAt,
-              effectivePresent: favorite.effectivePresent,
-              hasLocalMetadata,
-              metadataStatus: favorite.metadataStatus,
-            },
-            now
-          )
-        ) {
-          references.set(targetKey(favorite), {
-            catalog_type: favorite.catalogType,
-            catalog_uuid: favorite.catalogUuid,
-          });
-        }
+    for (const favorite of favorites) {
+      if (!this.catalogObjectExists(favorite)) {
+        references.set(targetKey(favorite), {
+          catalog_type: favorite.catalogType,
+          catalog_uuid: favorite.catalogUuid,
+        });
       }
-    });
+    }
 
     return [...references.values()];
   }
@@ -166,56 +129,16 @@ export class FavoriteMetadataHydrator {
       }
 
       applyCatalogEntities(realm, response);
-
-      const checkedAt = new Date(response.checked_at);
-
-      for (const reference of response.references) {
-        realm.create(
-          CatalogAvailability,
-          {
-            targetKey: catalogAvailabilityKey(reference.catalog_type, reference.catalog_uuid),
-            catalogType: reference.catalog_type,
-            catalogUuid: reference.catalog_uuid,
-            status:
-              reference.availability === 'unavailable'
-                ? CatalogAvailabilityStatus.Unavailable
-                : CatalogAvailabilityStatus.Available,
-            checkedAt,
-          },
-          Realm.UpdateMode.Modified
-        );
-
-        const favorite = this.repository.favoriteForTarget(capture.scopeId, {
-          catalogType: reference.catalog_type,
-          catalogUuid: reference.catalog_uuid,
-        });
-        if (!favorite?.effectivePresent) {
-          continue;
-        }
-
-        favorite.metadataStatus =
-          reference.availability === 'unavailable'
-            ? FavoriteMetadataStatus.Unavailable
-            : this.catalogObjectExists(reference)
-              ? FavoriteMetadataStatus.Available
-              : FavoriteMetadataStatus.Unknown;
-        favorite.updatedAt = new Date();
-      }
     });
   }
 
   private catalogObjectExists(reference: {
-    catalogType?: FavoriteCatalogType;
-    catalogUuid?: string;
-    catalog_type?: FavoriteCatalogType;
-    catalog_uuid?: string;
+    catalogType: FavoriteCatalogType;
+    catalogUuid: string;
   }) {
-    const catalogType = reference.catalogType ?? reference.catalog_type;
-    const catalogUuid = reference.catalogUuid ?? reference.catalog_uuid;
-    return !!(
-      catalogType &&
-      catalogUuid &&
-      this.repository.realm.objectForPrimaryKey(MODEL_BY_CATALOG_TYPE[catalogType], catalogUuid)
+    return !!this.repository.realm.objectForPrimaryKey(
+      MODEL_BY_CATALOG_TYPE[reference.catalogType],
+      reference.catalogUuid
     );
   }
 }
