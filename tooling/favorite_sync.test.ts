@@ -23,7 +23,12 @@ import { anonymousFavoriteImportState } from '../relisten/library/anonymous_favo
 import {
   CATALOG_AVAILABILITY_REFRESH_INTERVAL_MS,
   catalogAvailabilityNeedsRefresh,
+  favoriteMetadataNeedsHydration,
+  favoritePresenceChangeNeedsHydration,
+  filterActiveFavoriteReferences,
 } from '../relisten/library/catalog_availability_refresh_policy.ts';
+import { upsertResolvedCatalogDtos } from '../relisten/library/resolved_catalog_dto_updater.ts';
+import { favoriteSyncErrorIsRetryable } from '../relisten/library/favorite_mutation_batch_isolation.ts';
 import {
   favoriteSyncStateSnapshot,
   favoriteSyncStateView,
@@ -80,40 +85,57 @@ function mutation(id: string, catalogUuid: string) {
   };
 }
 
-test('a named unavailable mutation does not reject its valid batch neighbors', async () => {
-  const first = mutation('first', '11111111-1111-4111-8111-111111111111');
-  const unavailable = mutation('unavailable', '22222222-2222-4222-8222-222222222222');
-  const last = mutation('last', '33333333-3333-4333-8333-333333333333');
-  const sent: string[][] = [];
-  const applied: string[][] = [];
+test('an obsolete catalog rejection leaves the mutation pending for a later server retry', async () => {
+  const favorite = mutation('favorite', '22222222-2222-4222-8222-222222222222');
+  let sendCount = 0;
   const rejected: string[] = [];
 
-  await sendFavoriteMutationBatchWithIsolation({
-    request: { contract_version: 1, mutations: [first, unavailable, last] },
-    send: async (request) => {
-      sent.push(request.mutations.map((item) => item.mutation_uuid));
-      if (sent.length === 1) {
+  await assert.rejects(
+    sendFavoriteMutationBatchWithIsolation({
+      request: { contract_version: 1, mutations: [favorite] },
+      send: async () => {
+        sendCount += 1;
         throw accountError('catalog_unavailable', {
-          unavailable_references: [
-            {
-              catalog_type: unavailable.catalog_type,
-              catalog_uuid: unavailable.catalog_uuid,
-            },
-          ],
+          unavailable_references: [],
         });
-      }
+      },
+      apply: () => assert.fail('A rejected request cannot be applied.'),
+      reject: (mutationUuids) => rejected.push(...mutationUuids),
+    }),
+    (error) => (error as Error & { code?: string }).code === 'catalog_unavailable'
+  );
+
+  assert.equal(sendCount, 1);
+  assert.deepEqual(rejected, []);
+  assert.equal(favoriteSyncErrorIsRetryable('catalog_unavailable', false), true);
+});
+
+test('an unfavorite request syncs without catalog metadata or a favorite UUID', async () => {
+  const request = {
+    contract_version: 1 as const,
+    mutations: [
+      {
+        mutation_uuid: 'remove',
+        catalog_type: 'show' as const,
+        catalog_uuid: '22222222-2222-4222-8222-222222222222',
+        desired_state: 'not_favorite' as const,
+      },
+    ],
+  };
+  let sent = false;
+
+  await sendFavoriteMutationBatchWithIsolation({
+    request,
+    send: async (submitted) => {
+      sent = true;
+      assert.deepEqual(submitted, request);
       return { contract_version: 1, library_revision: 1, results: [] };
     },
-    apply: (request) => applied.push(request.mutations.map((item) => item.mutation_uuid)),
-    reject: (mutationUuids) => rejected.push(...mutationUuids),
+    apply: () => {},
+    reject: () => assert.fail('A valid unfavorite cannot be rejected locally.'),
   });
 
-  assert.deepEqual(sent, [
-    ['first', 'unavailable', 'last'],
-    ['first', 'last'],
-  ]);
-  assert.deepEqual(applied, [['first', 'last']]);
-  assert.deepEqual(rejected, ['unavailable']);
+  assert.equal(sent, true);
 });
 
 test('a terminal account failure bubbles without bisecting or rejecting mutations', async () => {
@@ -197,6 +219,92 @@ test('catalog availability refreshes unknown answers promptly and known answers 
   assert.equal(catalogAvailabilityNeedsRefresh(undefined, now), true);
   assert.equal(catalogAvailabilityNeedsRefresh(justInsideFreshnessWindow, now), false);
   assert.equal(catalogAvailabilityNeedsRefresh(freshnessBoundary, now), true);
+});
+
+test('favorite hydration eligibility follows active membership and resets on refavorite', () => {
+  const now = new Date('2026-07-19T12:00:00Z');
+  const recentlyUnavailable = {
+    availabilityCheckedAt: new Date('2026-07-19T11:59:00Z'),
+    effectivePresent: true,
+    hasLocalMetadata: false,
+    metadataStatus: 'unavailable' as const,
+  };
+
+  assert.equal(favoriteMetadataNeedsHydration(recentlyUnavailable, now), false);
+  assert.equal(
+    favoriteMetadataNeedsHydration(
+      {
+        ...recentlyUnavailable,
+        effectivePresent: false,
+        metadataStatus: 'unknown',
+      },
+      now
+    ),
+    false
+  );
+  assert.equal(
+    favoriteMetadataNeedsHydration({ ...recentlyUnavailable, metadataStatus: 'unknown' }, now),
+    true
+  );
+  assert.equal(
+    favoritePresenceChangeNeedsHydration(false, true, 'unavailable'),
+    true
+  );
+  assert.equal(
+    favoritePresenceChangeNeedsHydration(true, true, 'unavailable'),
+    false
+  );
+});
+
+test('a hydration batch is rechecked after an unfavorite', () => {
+  const reference = {
+    catalog_type: 'show' as const,
+    catalog_uuid: '22222222-2222-4222-8222-222222222222',
+  };
+  const activeTargets = new Set([`${reference.catalog_type}:${reference.catalog_uuid}`]);
+  const active = (candidate: typeof reference) =>
+    activeTargets.has(`${candidate.catalog_type}:${candidate.catalog_uuid}`);
+
+  assert.deepEqual(filterActiveFavoriteReferences([reference], active), [reference]);
+  activeTargets.clear();
+  assert.deepEqual(filterActiveFavoriteReferences([reference], active), []);
+  activeTargets.add(`${reference.catalog_type}:${reference.catalog_uuid}`);
+  assert.deepEqual(filterActiveFavoriteReferences([reference], active), [reference]);
+});
+
+test('resolver omissions retain cached catalog DTOs', () => {
+  const cached = new Map([['cached', { uuid: 'cached', name: 'Cached metadata' }]]);
+
+  upsertResolvedCatalogDtos(
+    {
+      artists: [{ uuid: 'new', name: 'New metadata' }],
+      years: [],
+      venues: [],
+      tours: [],
+      shows: [],
+      sources: [],
+      source_sets: [],
+      source_tracks: [],
+      songs: [],
+    },
+    {
+      artists: (entity) => cached.set(entity.uuid, entity),
+      years: () => assert.fail('An omitted catalog group cannot be applied.'),
+      venues: () => assert.fail('An omitted catalog group cannot be applied.'),
+      tours: () => assert.fail('An omitted catalog group cannot be applied.'),
+      shows: () => assert.fail('An omitted catalog group cannot be applied.'),
+      sources: () => assert.fail('An omitted catalog group cannot be applied.'),
+      source_sets: () => assert.fail('An omitted catalog group cannot be applied.'),
+      source_tracks: () => assert.fail('An omitted catalog group cannot be applied.'),
+      songs: () => assert.fail('An omitted catalog group cannot be applied.'),
+    }
+  );
+
+  assert.deepEqual(cached.get('cached'), {
+    uuid: 'cached',
+    name: 'Cached metadata',
+  });
+  assert.deepEqual(cached.get('new'), { uuid: 'new', name: 'New metadata' });
 });
 
 test('a fresh or failed library read cannot be presented as saved', () => {

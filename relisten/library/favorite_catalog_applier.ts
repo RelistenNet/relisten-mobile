@@ -18,49 +18,44 @@ import { Venue } from '@/relisten/realm/models/venue';
 import { venueRepo } from '@/relisten/realm/models/venue_repo';
 import { Year } from '@/relisten/realm/models/year';
 import { yearRepo } from '@/relisten/realm/models/year_repo';
+import { upsertResolvedCatalogDtos } from '@/relisten/library/resolved_catalog_dto_updater';
 
 /** Upserts ordinary catalog DTOs, then restores the Realm links consumed by existing screens. */
 export function applyResolvedCatalogEntities(realm: Realm, response: CatalogResolveResponse) {
-  for (const artist of response.entities.artists) {
-    artistRepo.upsert(realm, artist, realm.objectForPrimaryKey(Artist, artist.uuid) ?? undefined);
-  }
-  for (const year of response.entities.years) {
-    yearRepo.upsert(realm, year, realm.objectForPrimaryKey(Year, year.uuid) ?? undefined);
-  }
-  for (const venue of response.entities.venues) {
-    venueRepo.upsert(realm, venue, realm.objectForPrimaryKey(Venue, venue.uuid) ?? undefined);
-  }
-  for (const tour of response.entities.tours) {
-    tourRepo.upsert(realm, tour, realm.objectForPrimaryKey(Tour, tour.uuid) ?? undefined);
-  }
-  for (const show of response.entities.shows) {
-    showRepo.upsert(realm, show, realm.objectForPrimaryKey(Show, show.uuid) ?? undefined);
-  }
-  for (const source of response.entities.sources) {
-    // Resolver sources intentionally omit link details. Preserve a richer row
-    // already loaded by the normal show endpoint; a fresh shallow row is still
-    // enough to render the favorite and navigate to that full endpoint.
-    if (!realm.objectForPrimaryKey(Source, source.uuid)) {
-      sourceRepo.upsert(realm, source, undefined);
-    }
-  }
-  for (const sourceSet of response.entities.source_sets) {
-    sourceSetRepo.upsert(
-      realm,
-      sourceSet,
-      realm.objectForPrimaryKey(SourceSet, sourceSet.uuid) ?? undefined
-    );
-  }
-  for (const sourceTrack of response.entities.source_tracks) {
-    sourceTrackRepo.upsert(
-      realm,
-      sourceTrack,
-      realm.objectForPrimaryKey(SourceTrack, sourceTrack.uuid) ?? undefined
-    );
-  }
-  for (const song of response.entities.songs) {
-    songRepo.upsert(realm, song, realm.objectForPrimaryKey(Song, song.uuid) ?? undefined);
-  }
+  upsertResolvedCatalogDtos(response.entities, {
+    artists: (artist) =>
+      artistRepo.upsert(realm, artist, realm.objectForPrimaryKey(Artist, artist.uuid) ?? undefined),
+    years: (year) =>
+      yearRepo.upsert(realm, year, realm.objectForPrimaryKey(Year, year.uuid) ?? undefined),
+    venues: (venue) =>
+      venueRepo.upsert(realm, venue, realm.objectForPrimaryKey(Venue, venue.uuid) ?? undefined),
+    tours: (tour) =>
+      tourRepo.upsert(realm, tour, realm.objectForPrimaryKey(Tour, tour.uuid) ?? undefined),
+    shows: (show) =>
+      showRepo.upsert(realm, show, realm.objectForPrimaryKey(Show, show.uuid) ?? undefined),
+    sources: (source) => {
+      // Resolver sources intentionally omit link details. Preserve a richer row
+      // already loaded by the normal show endpoint; a fresh shallow row is still
+      // enough to render the favorite and navigate to that full endpoint.
+      if (!realm.objectForPrimaryKey(Source, source.uuid)) {
+        sourceRepo.upsert(realm, source, undefined);
+      }
+    },
+    source_sets: (sourceSet) =>
+      sourceSetRepo.upsert(
+        realm,
+        sourceSet,
+        realm.objectForPrimaryKey(SourceSet, sourceSet.uuid) ?? undefined
+      ),
+    source_tracks: (sourceTrack) =>
+      sourceTrackRepo.upsert(
+        realm,
+        sourceTrack,
+        realm.objectForPrimaryKey(SourceTrack, sourceTrack.uuid) ?? undefined
+      ),
+    songs: (song) =>
+      songRepo.upsert(realm, song, realm.objectForPrimaryKey(Song, song.uuid) ?? undefined),
+  });
 
   attachRelationships(realm, response);
 }
