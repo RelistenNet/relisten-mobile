@@ -33,9 +33,8 @@ import { ARTIST_SORT_FILTERS, ArtistSortKey } from '@/relisten/components/artist
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
 import { useTopPlayedArtistUuidsOnce } from '@/relisten/realm/models/history/playback_history_entry_repo';
 import {
-  useLibraryMembershipRevision,
+  useFavoriteCatalogUuids,
   useRemainingDownloadsCount,
-  useRootLibraryIndex,
 } from '@/relisten/realm/root_services';
 import { logTabRootDebug } from '@/relisten/util/profile_logging';
 import { selectFeaturedArtists } from '@/relisten/pages/tab_roots/featured_artists';
@@ -133,8 +132,7 @@ const OnlineArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> 
   const router = useRouter();
   const groupSegment = useGroupSegment();
   const { filter } = useFilters<ArtistSortKey, Artist>();
-  const libraryIndex = useRootLibraryIndex();
-  const libraryMembershipRevision = useLibraryMembershipRevision();
+  const favoriteArtistUuids = useFavoriteCatalogUuids('artist');
   const [focusRevision, refreshAfterFocus] = useReducer((revision: number) => revision + 1, 0);
 
   useFocusEffect(
@@ -150,10 +148,10 @@ const OnlineArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> 
   const { all, favorites, featured } = useMemo(() => {
     const allSorted = [...artists].sort((a, b) => a.sortName.localeCompare(b.sortName));
     const favoritesSorted = allSorted
-      .filter((artist) => libraryIndex.isFavorite('artist', artist.uuid))
+      .filter((artist) => favoriteArtistUuids.has(artist.uuid))
       .sort((a, b) => a.sortName.localeCompare(b.sortName));
     const featuredSorted = filter(
-      selectFeaturedArtists(allSorted, (artist) => libraryIndex.isFavorite('artist', artist.uuid)),
+      selectFeaturedArtists(allSorted, (artist) => favoriteArtistUuids.has(artist.uuid)),
       undefined
     );
 
@@ -162,7 +160,7 @@ const OnlineArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> 
       favorites: favoritesSorted,
       featured: featuredSorted,
     };
-  }, [artists, filter, focusRevision, libraryIndex, libraryMembershipRevision]);
+  }, [artists, favoriteArtistUuids, filter, focusRevision]);
 
   const shouldSuggestFavorites = favorites.length < 3;
   const topPlayedArtistUuids = useTopPlayedArtistUuidsOnce(6, shouldSuggestFavorites);
@@ -185,6 +183,10 @@ const OnlineArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> 
   const favoritesForSection = useMemo(
     () => (favorites.length < 3 ? [...favorites, ...suggestedFavorites] : favorites),
     [favorites, suggestedFavorites]
+  );
+  const listExtraData = useMemo(
+    () => ({ favoriteArtistUuids, focusRevision }),
+    [favoriteArtistUuids, focusRevision]
   );
 
   const sectionedArtists = useMemo<RelistenSectionData<Artist>>(() => {
@@ -216,7 +218,7 @@ const OnlineArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> 
   return (
     <RelistenSectionList
       data={sectionedArtists}
-      extraData={`${focusRevision}:${libraryMembershipRevision}`}
+      extraData={listExtraData}
       renderItem={({ item }) => {
         return <ArtistListItem artist={item} />;
       }}

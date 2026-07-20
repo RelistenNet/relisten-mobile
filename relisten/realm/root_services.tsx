@@ -18,6 +18,7 @@ import { AnonymousLibraryImportService } from '@/relisten/library/anonymous_libr
 import { FavoriteMetadataHydrator } from '@/relisten/library/favorite_metadata_hydrator';
 import { RelistenApiClient } from '@/relisten/api/client';
 import { AudioAdjustmentStore } from '@/relisten/player/audio_adjustments/audio_adjustment_store';
+import type { FavoriteCatalogType } from '@/relisten/realm/models/library';
 
 export interface RootServices {
   libraryIndex: LibraryIndex;
@@ -125,6 +126,32 @@ export function useLibraryMembershipRevision() {
     libraryIndex.subscribeLibraryMembership,
     libraryIndex.getLibraryMembershipSnapshot,
     libraryIndex.getLibraryMembershipSnapshot
+  );
+}
+
+/**
+ * Returns the immutable-by-convention set snapshot for one favorite type.
+ * LibraryIndex replaces the set before notifying, which gives React a useful
+ * identity change instead of asking list code to depend on a mutable service.
+ */
+export function useFavoriteCatalogUuids(catalogType: FavoriteCatalogType) {
+  const { libraryIndex } = useRootServices();
+
+  return useSyncExternalStore(
+    libraryIndex.subscribeLibraryMembership,
+    () => libraryIndex.favoriteCatalogUuids(catalogType),
+    () => libraryIndex.favoriteCatalogUuids(catalogType)
+  );
+}
+
+/** Exact show UUIDs rendered by My Library, including source-derived membership. */
+export function useLibraryShowCatalogUuids() {
+  const { libraryIndex } = useRootServices();
+
+  return useSyncExternalStore(
+    libraryIndex.subscribeLibraryMembership,
+    () => libraryIndex.libraryShowCatalogUuids(),
+    () => libraryIndex.libraryShowCatalogUuids()
   );
 }
 
