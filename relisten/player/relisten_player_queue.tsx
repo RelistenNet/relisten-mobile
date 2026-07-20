@@ -14,7 +14,6 @@ import { log } from '@/relisten/util/logging';
 import { groupByUuid } from '@/relisten/util/group_by';
 import { Realm } from '@realm/react';
 import { indentString } from '@/relisten/util/string_indent';
-import { canUseNetworkAudio } from '@/relisten/library/catalog_audio_availability';
 
 const logger = log.extend('player-queue');
 
@@ -102,12 +101,6 @@ export class PlayerQueueTrack {
     if (!options?.forceStreaming && this.sourceTrack.offlineInfo?.isPlayableOffline()) {
       url = this.sourceTrack.downloadedFileLocation();
     } else {
-      if (!canUseNetworkAudio(realm, this.sourceTrack)) {
-        throw new Error(
-          `Source track ${this.sourceTrack.uuid} is no longer available for network playback.`
-        );
-      }
-
       const streamingUrl = this.sourceTrack.streamingUrl();
       if (!streamingUrl) {
         throw new Error(`Source track ${this.sourceTrack.uuid} has no playable audio URL.`);
@@ -453,9 +446,7 @@ ${indentString(tracks)}
         try {
           this.player.setNextStream(newNextTrack.toStreamable(this.player.enableStreamingCache));
         } catch (error) {
-          // A licensing refresh can invalidate a track that was queued earlier.
-          // Clearing preload is safer than handing the native player its retained URL.
-          logger.warn('Next queue track is unavailable; clearing native preload.', error);
+          logger.warn('Next queue track has no playable URL; clearing native preload.', error);
           this.player.setNextStream(undefined);
         }
       } else {

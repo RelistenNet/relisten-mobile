@@ -1,21 +1,17 @@
 import Realm from 'realm';
 import { createUuidV7 } from '@/relisten/util/uuid_v7';
 import {
-  CatalogAvailability,
-  CatalogAvailabilityStatus,
   AnonymousFavoriteImport,
   FavoriteCatalogType,
-  FavoriteMetadataStatus,
   UserFavorite,
-  catalogAvailabilityKey,
 } from '@/relisten/realm/models/library';
 import { ANONYMOUS_ACCOUNT_SCOPE_ID } from '@/relisten/realm/models/accounts';
 import { anonymousFavoriteSourceFingerprint } from '@/relisten/library/anonymous_favorite_import_fingerprint';
 
 const LEGACY_FAVORITES_MIGRATION_VERSION = 14;
 const IMPORT_BATCH_FINGERPRINT_VERSION = 16;
-const SYNC_FAILURE_CLASSIFICATION_VERSION = 17;
-export const FAVORITES_SCHEMA_VERSION = SYNC_FAILURE_CLASSIFICATION_VERSION;
+const FAVORITE_METADATA_SIMPLIFICATION_VERSION = 18;
+export const FAVORITES_SCHEMA_VERSION = FAVORITE_METADATA_SIMPLIFICATION_VERSION;
 
 const LEGACY_FAVORITE_MODELS: ReadonlyArray<{
   modelName: string;
@@ -35,11 +31,11 @@ const LEGACY_FAVORITE_MODELS: ReadonlyArray<{
  * belongs only to versions before scoped favorites first ship in schema 14.
  * Old catalog flags always belong to the anonymous partition; assigning them to
  * whichever account happens to be active during an upgrade would leak data on a
- * shared device. Schema 15 also promotes known removals into the catalog-global
- * availability table used by network media gates. Schema 16 identifies each
- * anonymous import decision by the source snapshot instead of permanently by
- * installation and account. Schema 17 records whether a failed sync can retry
- * automatically; older ambiguous failures safely require user attention.
+ * shared device. Schema 16 identifies each anonymous import decision by the
+ * source snapshot instead of permanently by installation and account. Schema
+ * 17 records whether a failed sync can retry automatically; older ambiguous
+ * failures safely require user attention. Schema 18 removes resolver-status
+ * state that was incorrectly used as a durable network-playback gate.
  */
 export function migrateLegacyFavoritesToAnonymous(
   oldRealm: Realm,
@@ -71,7 +67,6 @@ export function migrateLegacyFavoritesToAnonymous(
           effectivePresent: true,
           acknowledgedRevision: undefined,
           lastLocalSequence: 0,
-          metadataStatus: FavoriteMetadataStatus.Available,
           serverCreatedAt: undefined,
           serverUpdatedAt: undefined,
           createdAt: migratedAt,
@@ -79,26 +74,6 @@ export function migrateLegacyFavoritesToAnonymous(
         });
       }
     }
-  }
-
-  // Schema 14 could already hold a resolver-confirmed removal. Carry that
-  // durable answer into the global availability table before any UI can reuse
-  // the retained catalog URLs.
-  const unavailableFavorites = newRealm
-    .objects(UserFavorite)
-    .filtered('metadataStatus == $0', FavoriteMetadataStatus.Unavailable);
-  for (const favorite of unavailableFavorites) {
-    newRealm.create(
-      CatalogAvailability,
-      {
-        targetKey: catalogAvailabilityKey(favorite.catalogType, favorite.catalogUuid),
-        catalogType: favorite.catalogType,
-        catalogUuid: favorite.catalogUuid,
-        status: CatalogAvailabilityStatus.Unavailable,
-        checkedAt: favorite.updatedAt,
-      },
-      Realm.UpdateMode.Modified
-    );
   }
 
   if (oldRealm.schemaVersion < IMPORT_BATCH_FINGERPRINT_VERSION) {

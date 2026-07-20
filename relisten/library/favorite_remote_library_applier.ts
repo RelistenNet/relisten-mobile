@@ -1,7 +1,6 @@
 import {
   AnonymousFavoriteImport,
   AnonymousFavoriteImportState,
-  FavoriteMetadataStatus,
   FavoriteMutation,
   UserFavorite,
 } from '@/relisten/realm/models/library';
@@ -240,7 +239,6 @@ export class FavoriteRemoteLibraryApplier {
         effectivePresent: naturalFavorite?.effectivePresent ?? false,
         acknowledgedRevision: naturalFavorite?.acknowledgedRevision,
         lastLocalSequence: naturalFavorite?.lastLocalSequence ?? 0,
-        metadataStatus: naturalFavorite?.metadataStatus ?? FavoriteMetadataStatus.Unknown,
         serverCreatedAt: naturalFavorite?.serverCreatedAt,
         serverUpdatedAt: naturalFavorite?.serverUpdatedAt,
         createdAt: naturalFavorite?.createdAt ?? now,
