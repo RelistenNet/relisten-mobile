@@ -22,7 +22,7 @@ flowchart LR
 
 Each slice can go to TestFlight after its API, local persistence, and UI work together. A feature included in a build is on; there is no mobile feature-flag service or Statsig dependency. Keep an unfinished button or route out of the build. A narrow server emergency switch may pause a dangerous external write during an incident, but it is not a per-user rollout mechanism.
 
-Realm changes also follow the slices. Authentication adds account-scope rows; favorites adds favorite rows; history adds its small playback-instance and event rows; playlists add playlist and, when playback needs it, Queue V2 rows. Do not ship empty model families or converters for later features.
+The released audio-EQ TestFlight owns Realm schema 13. The first account build includes authentication and favorites in schema 14. Its callback supports both the schema-12 App Store build and the schema-13 TestFlight build; there are no intermediate account/favorite migrations. History, playlists, and Queue V2 add only the models they need in later schema versions.
 
 ## Existing navigation to preserve
 
@@ -214,12 +214,14 @@ Actions are **Add to account** and **Not now**. The sheet names the target `@use
 | Natural-key collision | Apply the receipt's canonical favorite UUID without a visible duplicate or alert. |
 | Retryable failure | Leave the heart in the saved local state and sync later. |
 | Terminal rejection | Show **Needs attention** in account status with a retry/details action. |
+| Missing catalog metadata | Keep the favorite saved. Show cached metadata when present; a fresh device may omit the item until a later foreground hydration succeeds. Do not show an account warning or **Needs attention**. |
 | Empty library | Keep the current friendly prompt to favorite artists and shows. |
 
 ### Backend dependencies
 
 - Library snapshot and delta endpoints.
 - `POST /v1/library/favorite-mutations:batch`.
+- Anonymous `POST /api/v3/catalog/resolve` for best-effort metadata hydration.
 - Receipt fields for `submitted_favorite_uuid` and `canonical_favorite_uuid` when they differ.
 
 ### TestFlight proof
@@ -229,6 +231,8 @@ Actions are **Add to account** and **Not now**. The sheet names the target `@use
 - Two devices converge after opposing changes.
 - Two offline devices create the same natural favorite with different UUIDv7 IDs and both converge to the server's canonical ID.
 - First-sign-in import, decline, and later manual import.
+- Favorite and unfavorite a syntactically valid UUID that is absent from the catalog; unfavorite must sync and stop later hydration attempts.
+- Omit an entity from a resolver response and verify that existing cached Realm catalog data remains intact.
 - Account switch isolates favorites while Offline Library remains global.
 - CarPlay reconnects after an account switch and shows only the active account's favorites plus device-global downloads.
 
