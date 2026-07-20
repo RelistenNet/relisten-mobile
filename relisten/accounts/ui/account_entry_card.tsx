@@ -1,6 +1,5 @@
 import { useAccount } from '@/relisten/accounts/account_context';
 import { SyncStatusText, isAccountWaitingToRestore } from '@/relisten/accounts/ui/sync_status';
-import { UnavailableFavoritesNotice } from '@/relisten/accounts/ui/unavailable_favorites_notice';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { useFavoriteSyncStatus } from '@/relisten/library/favorite_hooks';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -47,7 +46,6 @@ export function AccountEntryCard() {
             <RelistenText className="font-semibold">{title}</RelistenText>
             <RelistenText className="text-sm text-gray-400">{description}</RelistenText>
             {signedIn && <SyncStatusText className="pt-1" state={syncState} />}
-            <UnavailableFavoritesNotice className="pt-1" count={syncStatus.unavailableCount} />
           </View>
           <MaterialIcons color="#9ca3af" name="chevron-right" size={24} />
         </View>
