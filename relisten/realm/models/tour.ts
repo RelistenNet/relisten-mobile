@@ -2,7 +2,7 @@ import Realm from 'realm';
 import { TourWithShowCount } from '../../api/models/tour';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import dayjs from 'dayjs';
-import { FavoritableObject } from '../favoritable_object';
+import { LegacyFavoriteMirror } from '../legacy_favorite_mirror';
 
 export interface TourRequiredProperties extends RelistenObjectRequiredProperties {
   uuid: string;
@@ -19,7 +19,7 @@ export interface TourRequiredProperties extends RelistenObjectRequiredProperties
 
 export class Tour
   extends Realm.Object<Tour, keyof TourRequiredProperties>
-  implements TourRequiredProperties, FavoritableObject
+  implements TourRequiredProperties, LegacyFavoriteMirror
 {
   static schema: Realm.ObjectSchema = {
     name: 'Tour',
@@ -35,6 +35,7 @@ export class Tour
       slug: 'string',
       upstreamIdentifier: 'string',
       uuid: 'string',
+      // Deprecated compatibility mirror. Canonical membership is in UserFavorite.
       isFavorite: { type: 'bool', default: false },
     },
   };
@@ -51,6 +52,7 @@ export class Tour
   upstreamIdentifier!: string;
   showsOnTour?: number;
 
+  /** @deprecated Use `useFavorite` or `LibraryIndex` for active-account membership. */
   isFavorite!: boolean;
 
   static propertiesFromApi(relistenObj: TourWithShowCount): TourRequiredProperties {

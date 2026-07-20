@@ -2,7 +2,7 @@ import dayjs from 'dayjs';
 import { Show as ApiShow } from '../../api/models/show';
 import Realm from 'realm';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
-import { FavoritableObject } from '../favoritable_object';
+import { LegacyFavoriteMirror } from '../legacy_favorite_mirror';
 import { Venue } from './venue';
 import { SourceTrack } from './source_track';
 import { checkIfOfflineSourceTrackExists } from '../realm_filters';
@@ -32,7 +32,7 @@ export interface ShowRequiredProperties extends RelistenObjectRequiredProperties
 
 export class Show
   extends Realm.Object<Show, keyof ShowRequiredProperties>
-  implements ShowRequiredProperties, FavoritableObject
+  implements ShowRequiredProperties, LegacyFavoriteMirror
 {
   static schema: Realm.ObjectSchema = {
     name: 'Show',
@@ -55,6 +55,7 @@ export class Show
       hasStreamableFlacSource: 'bool',
       sourceCount: 'int',
       popularity: 'Popularity?',
+      // Deprecated compatibility mirror. Canonical membership is in UserFavorite.
       isFavorite: { type: 'bool', default: false },
       venue: 'Venue?',
       sourceTracks: {
@@ -96,6 +97,7 @@ export class Show
   artist!: Artist;
   tour?: Tour;
 
+  /** @deprecated Use `useFavorite` or `LibraryIndex` for active-account membership. */
   isFavorite!: boolean;
 
   private _humanizedAvgDuration?: string;

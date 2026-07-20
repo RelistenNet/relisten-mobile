@@ -334,7 +334,7 @@ export class FavoriteRepository {
       favorite.acknowledgedRevision = undefined;
       favorite.lastLocalSequence = 0;
       favorite.updatedAt = now;
-      this.updateLegacyCatalogFlag(change);
+      this.updateLegacyAnonymousFavoriteMirror(change);
       return { changed: true };
     }
 
@@ -394,7 +394,12 @@ export class FavoriteRepository {
     return { changed: true, mutationUuid };
   }
 
-  private updateLegacyCatalogFlag(change: DesiredFavoriteChange) {
+  /**
+   * Keeps the deprecated catalog field compatible with anonymous favorites.
+   * Signed-in scopes deliberately never write this mirror because it cannot
+   * represent active-account membership.
+   */
+  private updateLegacyAnonymousFavoriteMirror(change: DesiredFavoriteChange) {
     const modelName = LEGACY_MODEL_BY_CATALOG_TYPE[change.catalogType];
     if (!this.realm.schema.some((model) => model.name === modelName)) {
       return;
