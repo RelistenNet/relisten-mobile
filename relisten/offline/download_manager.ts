@@ -28,7 +28,6 @@ import {
   stringifyDownloadError,
   validateCompletedDownloadResponse,
 } from '@/relisten/offline/download_validation';
-import { canUseNetworkAudio } from '@/relisten/library/catalog_audio_availability';
 
 const logger = log.extend('offline');
 
@@ -70,16 +69,9 @@ export class DownloadManager {
       sourceTrack.offlineInfo?.type === SourceTrackOfflineInfoType.StreamingCache &&
       sourceTrack.offlineInfo.isPlayableOffline()
     ) {
-      // Keeping an already-complete streaming cache is a local operation and
-      // remains valid after a licensing removal.
       realm.write(() => {
         sourceTrack.offlineInfo!.type = SourceTrackOfflineInfoType.UserInitiated;
       });
-      return;
-    }
-
-    if (!canUseNetworkAudio(realm, sourceTrack)) {
-      logger.warn(`downloadTrack: ${sourceTrack.uuid} is unavailable for network use.`);
       return;
     }
 
@@ -233,20 +225,6 @@ export class DownloadManager {
   }
 
   private async createDownloadTask(sourceTrack: SourceTrack, offlineInfo: SourceTrackOfflineInfo) {
-    if (!canUseNetworkAudio(realm, sourceTrack)) {
-      const errorInfo = 'This source track is no longer available for download.';
-      logger.warn(`createDownloadTask: ${sourceTrack.uuid} is unavailable for network use.`);
-      if (realm && offlineInfo.isValid()) {
-        realm.write(() => {
-          offlineInfo.status = SourceTrackOfflineInfoStatus.Failed;
-          offlineInfo.completedAt = new Date();
-          offlineInfo.errorInfo = errorInfo;
-        });
-      }
-      this.emitRemainingDownloadsChanged();
-      return;
-    }
-
     const downloadUrl = sourceTrack.mp3Url && sourceTrack.streamingUrl();
     if (!downloadUrl) {
       const errorInfo = 'This source track has no MP3 download.';
