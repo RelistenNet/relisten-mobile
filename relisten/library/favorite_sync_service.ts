@@ -61,6 +61,7 @@ export class FavoriteSyncService {
   private started = false;
   private running = false;
   private rerunRequested = false;
+  private runScheduled = false;
   private retryAt: number | undefined;
   private retryTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly runState: FavoriteSyncRunStateStore;
@@ -137,8 +138,26 @@ export class FavoriteSyncService {
       this.rerunRequested = true;
       return;
     }
+    if (this.runScheduled) {
+      return;
+    }
 
-    void this.run();
+    this.runScheduled = true;
+    queueMicrotask(() => {
+      this.runScheduled = false;
+      if (!this.started || !this.canRun(this.environment)) {
+        return;
+      }
+      if (this.retryAt && this.retryAt > Date.now()) {
+        this.scheduleRetryTimer();
+        return;
+      }
+
+      // Realm collection listeners may run before the transaction that woke
+      // them has fully unwound. Starting on the next microtask prevents the
+      // sync run's first status write from becoming a nested transaction.
+      void this.run();
+    });
   }
 
   private async run() {
