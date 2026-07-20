@@ -14,14 +14,16 @@ React Compiler is enabled repo-wide, and compiler diagnostics are treated as har
 
 #### Local account sign-in
 
-Start the restored database, catalog API, and User Service from the sibling API repository before
-opening the mobile app. The catalog API hydrates favorite metadata on a fresh device; the User
-Service owns sign-in, accounts, and favorites sync.
+Start the restored database and User Service from the sibling API repository for local sign-in and
+favorites sync. Run the catalog API as well when testing best-effort hydration for an active favorite
+whose catalog object is missing from Realm. Catalog resolver failure does not block favorite or
+unfavorite synchronization.
 
 ```bash
 # Terminal 1
 cd ../RelistenApi
 ./start-local-databases.sh
+# Optional: best-effort favorite metadata hydration
 dotnet run --project RelistenApi/RelistenApi.csproj
 
 # Terminal 2
