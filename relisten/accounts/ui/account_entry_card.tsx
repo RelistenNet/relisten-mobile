@@ -45,9 +45,11 @@ export function AccountEntryCard() {
           <View className="flex-1 gap-1">
             <RelistenText className="font-semibold">{title}</RelistenText>
             <RelistenText className="text-sm text-gray-400">{description}</RelistenText>
-            {signedIn && <SyncStatusText className="pt-1" state={syncState} />}
           </View>
-          <MaterialIcons color="#9ca3af" name="chevron-right" size={24} />
+          <View className="shrink-0 flex-row items-center gap-2">
+            {signedIn && <SyncStatusText state={syncState} />}
+            <MaterialIcons color="#9ca3af" name="chevron-right" size={24} />
+          </View>
         </View>
       </TouchableOpacity>
     </View>
