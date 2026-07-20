@@ -13,20 +13,9 @@ import {
 import { preferNewerUsernameProfile } from '../relisten/accounts/username_profile_monotonicity.ts';
 import { isPostgresUuid } from '../relisten/util/postgres_uuid.ts';
 import {
-  canPlaySourceTrackForTargets,
-  canUseNetworkAudioForTargets,
-} from '../relisten/library/catalog_audio_availability_policy.ts';
-import {
   anonymousFavoriteSourceFingerprint,
 } from '../relisten/library/anonymous_favorite_import_fingerprint.ts';
 import { anonymousFavoriteImportState } from '../relisten/library/anonymous_favorite_import_state.ts';
-import {
-  CATALOG_AVAILABILITY_REFRESH_INTERVAL_MS,
-  catalogAvailabilityNeedsRefresh,
-  favoriteMetadataNeedsHydration,
-  favoritePresenceChangeNeedsHydration,
-  filterActiveFavoriteReferences,
-} from '../relisten/library/catalog_availability_refresh_policy.ts';
 import { upsertResolvedCatalogDtos } from '../relisten/library/resolved_catalog_dto_updater.ts';
 import { favoriteSyncErrorIsRetryable } from '../relisten/library/favorite_mutation_batch_isolation.ts';
 import {
@@ -184,92 +173,6 @@ test('catalog UUID validation accepts legacy PostgreSQL UUID values', () => {
   assert.equal(isPostgresUuid('8bf22e27-11de-96e8-4653-964ff9faae2d'), true);
   assert.equal(isPostgresUuid('00000000-0000-0000-0000-000000000000'), false);
   assert.equal(isPostgresUuid('not-a-uuid'), false);
-});
-
-test('explicit catalog removal blocks network audio but preserves a local download', () => {
-  const unavailableShow = new Set(['show:22222222-2222-4222-8222-222222222222']);
-  const track = {
-    uuid: '11111111-1111-4111-8111-111111111111',
-    sourceUuid: '33333333-3333-4333-8333-333333333333',
-    showUuid: '22222222-2222-4222-8222-222222222222',
-    artistUuid: '44444444-4444-4444-8444-444444444444',
-  };
-
-  assert.equal(canUseNetworkAudioForTargets(new Set(), track), true);
-  assert.equal(canUseNetworkAudioForTargets(unavailableShow, track), false);
-  assert.equal(canPlaySourceTrackForTargets(unavailableShow, track), false);
-  assert.equal(
-    canPlaySourceTrackForTargets(unavailableShow, {
-      ...track,
-      offlineInfo: { isPlayableOffline: () => true },
-    }),
-    true
-  );
-});
-
-test('catalog availability refreshes unknown answers promptly and known answers daily', () => {
-  const now = new Date('2026-07-19T12:00:00Z');
-  const justInsideFreshnessWindow = new Date(
-    now.getTime() - CATALOG_AVAILABILITY_REFRESH_INTERVAL_MS + 1
-  );
-  const freshnessBoundary = new Date(
-    now.getTime() - CATALOG_AVAILABILITY_REFRESH_INTERVAL_MS
-  );
-
-  assert.equal(catalogAvailabilityNeedsRefresh(undefined, now), true);
-  assert.equal(catalogAvailabilityNeedsRefresh(justInsideFreshnessWindow, now), false);
-  assert.equal(catalogAvailabilityNeedsRefresh(freshnessBoundary, now), true);
-});
-
-test('favorite hydration eligibility follows active membership and resets on refavorite', () => {
-  const now = new Date('2026-07-19T12:00:00Z');
-  const recentlyUnavailable = {
-    availabilityCheckedAt: new Date('2026-07-19T11:59:00Z'),
-    effectivePresent: true,
-    hasLocalMetadata: false,
-    metadataStatus: 'unavailable' as const,
-  };
-
-  assert.equal(favoriteMetadataNeedsHydration(recentlyUnavailable, now), false);
-  assert.equal(
-    favoriteMetadataNeedsHydration(
-      {
-        ...recentlyUnavailable,
-        effectivePresent: false,
-        metadataStatus: 'unknown',
-      },
-      now
-    ),
-    false
-  );
-  assert.equal(
-    favoriteMetadataNeedsHydration({ ...recentlyUnavailable, metadataStatus: 'unknown' }, now),
-    true
-  );
-  assert.equal(
-    favoritePresenceChangeNeedsHydration(false, true, 'unavailable'),
-    true
-  );
-  assert.equal(
-    favoritePresenceChangeNeedsHydration(true, true, 'unavailable'),
-    false
-  );
-});
-
-test('a hydration batch is rechecked after an unfavorite', () => {
-  const reference = {
-    catalog_type: 'show' as const,
-    catalog_uuid: '22222222-2222-4222-8222-222222222222',
-  };
-  const activeTargets = new Set([`${reference.catalog_type}:${reference.catalog_uuid}`]);
-  const active = (candidate: typeof reference) =>
-    activeTargets.has(`${candidate.catalog_type}:${candidate.catalog_uuid}`);
-
-  assert.deepEqual(filterActiveFavoriteReferences([reference], active), [reference]);
-  activeTargets.clear();
-  assert.deepEqual(filterActiveFavoriteReferences([reference], active), []);
-  activeTargets.add(`${reference.catalog_type}:${reference.catalog_uuid}`);
-  assert.deepEqual(filterActiveFavoriteReferences([reference], active), [reference]);
 });
 
 test('resolver omissions retain cached catalog DTOs', () => {

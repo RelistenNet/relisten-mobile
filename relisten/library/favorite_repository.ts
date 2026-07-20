@@ -4,7 +4,6 @@ import {
   AnonymousFavoriteImport,
   AnonymousFavoriteImportState,
   FavoriteCatalogType,
-  FavoriteMetadataStatus,
   FavoriteMutation,
   FavoriteMutationState,
   FavoriteSyncState,
@@ -15,7 +14,6 @@ import {
   importUuidsSettledByCompaction,
   isTrulyUnsentFavoriteMutation,
 } from './favorite_mutation_compaction';
-import { favoritePresenceChangeNeedsHydration } from './catalog_availability_refresh_policy';
 
 export interface FavoriteAccountScopeCapture {
   scopeId: string;
@@ -285,8 +283,7 @@ export class FavoriteRepository {
         favorite.catalogUuid
       )[0];
 
-    const effectivePresent = newestMutation?.desiredPresent ?? favorite.acknowledgedPresent;
-    this.updateEffectivePresence(favorite, effectivePresent);
+    favorite.effectivePresent = newestMutation?.desiredPresent ?? favorite.acknowledgedPresent;
     favorite.lastLocalSequence = newestMutation?.localSequence ?? 0;
     favorite.updatedAt = now;
   }
@@ -318,9 +315,6 @@ export class FavoriteRepository {
         effectivePresent: false,
         acknowledgedRevision: undefined,
         lastLocalSequence: 0,
-        metadataStatus: this.catalogObjectExists(change)
-          ? FavoriteMetadataStatus.Available
-          : FavoriteMetadataStatus.Unknown,
         serverCreatedAt: undefined,
         serverUpdatedAt: undefined,
         createdAt: now,
@@ -330,7 +324,7 @@ export class FavoriteRepository {
 
     if (capture.scopeId === ANONYMOUS_ACCOUNT_SCOPE_ID) {
       favorite.acknowledgedPresent = change.isFavorite;
-      this.updateEffectivePresence(favorite, change.isFavorite);
+      favorite.effectivePresent = change.isFavorite;
       favorite.acknowledgedRevision = undefined;
       favorite.lastLocalSequence = 0;
       favorite.updatedAt = now;
@@ -387,7 +381,7 @@ export class FavoriteRepository {
       updatedAt: now,
     });
 
-    this.updateEffectivePresence(favorite, change.isFavorite);
+    favorite.effectivePresent = change.isFavorite;
     favorite.lastLocalSequence = localSequence;
     favorite.updatedAt = now;
 
@@ -409,26 +403,6 @@ export class FavoriteRepository {
     if (catalogObject && 'isFavorite' in catalogObject) {
       catalogObject.isFavorite = change.isFavorite;
     }
-  }
-
-  private updateEffectivePresence(favorite: UserFavorite, effectivePresent: boolean) {
-    if (
-      favoritePresenceChangeNeedsHydration(
-        favorite.effectivePresent,
-        effectivePresent,
-        favorite.metadataStatus
-      )
-    ) {
-      favorite.metadataStatus = FavoriteMetadataStatus.Unknown;
-    }
-    favorite.effectivePresent = effectivePresent;
-  }
-
-  private catalogObjectExists(target: FavoriteTarget) {
-    return !!this.realm.objectForPrimaryKey(
-      LEGACY_MODEL_BY_CATALOG_TYPE[target.catalogType],
-      target.catalogUuid
-    );
   }
 
   private completeImportWhenSettled(importUuid: string, now: Date) {

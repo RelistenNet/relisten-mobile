@@ -51,12 +51,6 @@ import {
   SourceTrackOfflineInfoType,
 } from '@/relisten/realm/models/source_track_offline_info';
 import { useFavorite } from '@/relisten/library/favorite_hooks';
-import {
-  canPlaySourceTrackForTargets,
-  canUseNetworkAudioForTargets,
-  hasPlayableLocalFile,
-  useUnavailableCatalogTargetKeys,
-} from '@/relisten/library/catalog_audio_availability';
 
 const logger = log.extend('source screen');
 
@@ -67,28 +61,18 @@ function shouldQueueOfflineTracksOnly(isOfflineTab: boolean, offlineMode: Offlin
 function getQueueableSourceTracks(
   source: Source,
   isOfflineTab: boolean,
-  offlineMode: OfflineModeSetting,
-  unavailableTargetKeys: ReadonlySet<string>
+  offlineMode: OfflineModeSetting
 ) {
-  const queueOfflineOnly = shouldQueueOfflineTracksOnly(isOfflineTab, offlineMode);
+  const tracks = source.allSourceTracks();
+  if (!shouldQueueOfflineTracksOnly(isOfflineTab, offlineMode)) {
+    return tracks;
+  }
 
-  return source.allSourceTracks().filter((track) => {
-    return queueOfflineOnly
-      ? hasPlayableLocalFile(track)
-      : canPlaySourceTrackForTargets(unavailableTargetKeys, track);
-  });
+  return tracks.filter((track) => track.offlineInfo?.isPlayableOffline() === true);
 }
 
-function sourceHasDownloadableTrack(source: Source, unavailableTargetKeys: ReadonlySet<string>) {
-  return source
-    .allSourceTracks()
-    .some(
-      (track) =>
-        track.supportsOfflineDownload() &&
-        (canUseNetworkAudioForTargets(unavailableTargetKeys, track) ||
-          (hasPlayableLocalFile(track) &&
-            track.offlineInfo?.type === SourceTrackOfflineInfoType.StreamingCache))
-    );
+function sourceHasDownloadableTrack(source: Source) {
+  return source.allSourceTracks().some((track) => track.supportsOfflineDownload());
 }
 
 export const SourceList = ({ sources }: { sources: Source[] }) => {
@@ -115,7 +99,6 @@ export default function Page() {
   const userSettings = useUserSettings();
   const isOfflineTab = useIsOfflineTab();
   const offlineMode = userSettings.offlineModeWithDefault();
-  const unavailableTargetKeys = useUnavailableCatalogTargetKeys();
 
   const { results, show, artist, selectedSource } = useFullShowWithSelectedSource(
     String(showUuid),
@@ -124,19 +107,14 @@ export default function Page() {
   const selectedSourceFavorite = useFavorite('source', selectedSource?.uuid ?? '__missing__');
 
   const playShow = ((sourceTrack?: SourceTrack) => {
-    if (!sourceTrack || !sourceTrack.streamingUrl() || !sourceTrack.uuid || !selectedSource) {
+    if (!sourceTrack || !sourceTrack.uuid || !selectedSource) {
       logger.warn(
-        `Missing value when trying to play source track: sourceTrack=${sourceTrack} sourceUuid=${sourceUuid} mp3Url=${sourceTrack?.streamingUrl()} uuid=${sourceTrack?.uuid} artist=${artist} show=${show} selectedSource=${selectedSource}`
+        `Missing value when trying to play source track: sourceTrack=${sourceTrack} sourceUuid=${sourceUuid} uuid=${sourceTrack?.uuid} artist=${artist} show=${show} selectedSource=${selectedSource}`
       );
       return;
     }
 
-    const showTracks = getQueueableSourceTracks(
-      selectedSource,
-      isOfflineTab,
-      offlineMode,
-      unavailableTargetKeys
-    );
+    const showTracks = getQueueableSourceTracks(selectedSource, isOfflineTab, offlineMode);
 
     const trackIndex = Math.max(
       showTracks.findIndex((st) => st.uuid === sourceTrack?.uuid),
@@ -209,12 +187,7 @@ export default function Page() {
   const playEntireShow = () => {
     playShow(
       selectedSource
-        ? getQueueableSourceTracks(
-            selectedSource,
-            isOfflineTab,
-            offlineMode,
-            unavailableTargetKeys
-          )[0]
+        ? getQueueableSourceTracks(selectedSource, isOfflineTab, offlineMode)[0]
         : undefined
     );
   };
@@ -248,12 +221,7 @@ export default function Page() {
       return;
     }
 
-    for (const track of getQueueableSourceTracks(
-      selectedSource,
-      isOfflineTab,
-      offlineMode,
-      unavailableTargetKeys
-    )) {
+    for (const track of getQueueableSourceTracks(selectedSource, isOfflineTab, offlineMode)) {
       if (track.uuid === playTrackUuid) {
         playShow(track);
 
@@ -271,15 +239,13 @@ export default function Page() {
     selectedSource,
     setHasAutoplayed,
     show,
-    unavailableTargetKeys,
   ]);
 
-  const selectedTracks = selectedSource?.allSourceTracks() ?? [];
-  const canPlaySelectedSource = selectedTracks.some((track) =>
-    canPlaySourceTrackForTargets(unavailableTargetKeys, track)
-  );
+  const canPlaySelectedSource =
+    !!selectedSource &&
+    getQueueableSourceTracks(selectedSource, isOfflineTab, offlineMode).length > 0;
   const canDownloadSelectedSource = selectedSource
-    ? sourceHasDownloadableTrack(selectedSource, unavailableTargetKeys)
+    ? sourceHasDownloadableTrack(selectedSource)
     : false;
 
   return (
@@ -310,7 +276,6 @@ export default function Page() {
           selectedSource={selectedSource}
           playShow={playShow}
           downloadShow={downloadShow}
-          unavailableTargetKeys={unavailableTargetKeys}
         />
       </RefreshContextProvider>
     </>
@@ -323,7 +288,6 @@ const SourceComponent = ({
   playShow,
   artist,
   downloadShow,
-  unavailableTargetKeys,
   ...props
 }: {
   show: Show | undefined;
@@ -331,7 +295,6 @@ const SourceComponent = ({
   artist?: Artist;
   playShow: PlayShow;
   downloadShow: () => void;
-  unavailableTargetKeys: ReadonlySet<string>;
 } & ScrollViewProps) => {
   const { refreshing, errors, hasData } = useRefreshContext();
   const userSettings = useUserSettings();
@@ -372,10 +335,9 @@ const SourceComponent = ({
   const initialTrackToPlay = getQueueableSourceTracks(
     selectedSource,
     isOfflineTab,
-    userSettings.offlineModeWithDefault(),
-    unavailableTargetKeys
+    userSettings.offlineModeWithDefault()
   )[0];
-  const hasDownloadableTrack = sourceHasDownloadableTrack(selectedSource, unavailableTargetKeys);
+  const hasDownloadableTrack = sourceHasDownloadableTrack(selectedSource);
 
   return (
     <Animated.ScrollView style={{ flex: 1 }} {...props} {...playerBottomScrollViewProps}>

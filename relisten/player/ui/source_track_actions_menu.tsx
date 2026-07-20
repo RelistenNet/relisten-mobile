@@ -12,7 +12,6 @@ import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { useCallback, useMemo } from 'react';
 import { Platform, Share } from 'react-native';
 import { useFavorite } from '@/relisten/library/favorite_hooks';
-import { hasPlayableLocalFile } from '@/relisten/library/catalog_audio_availability';
 
 export type PlayShow = (sourceTrack?: SourceTrack) => void;
 
@@ -28,14 +27,11 @@ const ACTION_IDS = {
 
 type SourceTrackActionId = (typeof ACTION_IDS)[keyof typeof ACTION_IDS];
 
-function downloadActionFor(sourceTrack: SourceTrack, networkPlaybackAllowed: boolean): MenuAction {
+function downloadActionFor(sourceTrack: SourceTrack): MenuAction {
   const offlineInfo = sourceTrack.offlineInfo;
-  const hasLocalFile = hasPlayableLocalFile(sourceTrack);
 
   if (!offlineInfo || offlineInfo.type === SourceTrackOfflineInfoType.StreamingCache) {
-    const canKeepLocalCache = hasLocalFile && !!offlineInfo;
-    const canDownload =
-      sourceTrack.supportsOfflineDownload() && (networkPlaybackAllowed || canKeepLocalCache);
+    const canDownload = sourceTrack.supportsOfflineDownload();
     return {
       id: ACTION_IDS.download,
       image: nativeMenuIcons.download,
@@ -49,8 +45,7 @@ function downloadActionFor(sourceTrack: SourceTrack, networkPlaybackAllowed: boo
       return {
         id: ACTION_IDS.download,
         image: nativeMenuIcons.retry,
-        title: networkPlaybackAllowed ? 'Retry Download' : 'Download unavailable',
-        attributes: networkPlaybackAllowed ? undefined : { disabled: true },
+        title: 'Retry Download',
       };
     case SourceTrackOfflineInfoStatus.Queued:
     case SourceTrackOfflineInfoStatus.Downloading:
@@ -72,41 +67,32 @@ function downloadActionFor(sourceTrack: SourceTrack, networkPlaybackAllowed: boo
 }
 
 type SourceTrackActionsMenuProps = {
-  networkPlaybackAllowed: boolean;
   playShow: PlayShow;
   sourceTrack: SourceTrack;
 };
 
-export function SourceTrackActionsMenu({
-  networkPlaybackAllowed,
-  playShow,
-  sourceTrack,
-}: SourceTrackActionsMenuProps) {
+export function SourceTrackActionsMenu({ playShow, sourceTrack }: SourceTrackActionsMenuProps) {
   const player = useRelistenPlayer();
   const favorite = useFavorite('source_track', sourceTrack.uuid);
   const queueTrack = useMemo(() => PlayerQueueTrack.fromSourceTrack(sourceTrack), [sourceTrack]);
   const offlineStatus = sourceTrack.offlineInfo?.status;
   const offlineType = sourceTrack.offlineInfo?.type;
-  const canPlay = networkPlaybackAllowed || hasPlayableLocalFile(sourceTrack);
   const actions = useMemo<MenuAction[]>(
     () => [
       {
         id: ACTION_IDS.playNow,
         image: nativeMenuIcons.play,
         title: 'Play Now',
-        attributes: canPlay ? undefined : { disabled: true },
       },
       {
         id: ACTION_IDS.playNext,
         image: nativeMenuIcons.playNext,
         title: 'Play Next',
-        attributes: canPlay ? undefined : { disabled: true },
       },
       {
         id: ACTION_IDS.addToQueue,
         image: nativeMenuIcons.addToQueue,
         title: 'Add to End of Queue',
-        attributes: canPlay ? undefined : { disabled: true },
       },
       {
         id: ACTION_IDS.favorite,
@@ -114,14 +100,14 @@ export function SourceTrackActionsMenu({
         title: favorite.isFavorite ? 'Remove from My Library' : 'Add to My Library',
         state: favorite.isFavorite ? 'on' : 'off',
       },
-      downloadActionFor(sourceTrack, networkPlaybackAllowed),
+      downloadActionFor(sourceTrack),
       {
         id: ACTION_IDS.share,
         image: nativeMenuIcons.share,
         title: 'Share Track',
       },
     ],
-    [canPlay, favorite.isFavorite, networkPlaybackAllowed, offlineStatus, offlineType, sourceTrack]
+    [favorite.isFavorite, offlineStatus, offlineType, sourceTrack]
   );
 
   const handleAction = useCallback(
