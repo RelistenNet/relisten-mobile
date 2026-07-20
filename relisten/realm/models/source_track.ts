@@ -11,6 +11,7 @@ import { Year } from './year';
 import { trackDuration } from '@/relisten/util/duration';
 import { Paths } from 'expo-file-system';
 import { sharedStatsigClient } from '@/relisten/events';
+import { LegacyFavoriteMirror } from '@/relisten/realm/legacy_favorite_mirror';
 
 export const OFFLINE_DIRECTORY = Paths.join(Paths.document, 'offline');
 
@@ -48,7 +49,7 @@ export interface SourceTrackRequiredProperties extends RelistenObjectRequiredPro
 
 export class SourceTrack
   extends Realm.Object<SourceTrack, keyof SourceTrackRequiredProperties>
-  implements SourceTrackRequiredProperties
+  implements SourceTrackRequiredProperties, LegacyFavoriteMirror
 {
   static schema: Realm.ObjectSchema = {
     name: 'SourceTrack',
@@ -72,6 +73,7 @@ export class SourceTrack
       flacUrl: 'string?',
       flacMd5: 'string?',
 
+      // Deprecated compatibility mirror. Canonical membership is in UserFavorite.
       isFavorite: { type: 'bool', default: false },
 
       offlineInfo: 'SourceTrackOfflineInfo',
@@ -101,6 +103,7 @@ export class SourceTrack
   flacUrl?: string;
   flacMd5?: string;
 
+  /** @deprecated Use `useFavorite` or `LibraryIndex` for active-account membership. */
   isFavorite!: boolean;
 
   offlineInfo?: SourceTrackOfflineInfo;
