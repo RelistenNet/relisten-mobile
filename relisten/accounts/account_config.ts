@@ -63,9 +63,10 @@ export function getAccountRuntimeConfig(): AccountRuntimeConfig {
       : process.env.EXPO_PUBLIC_RELISTEN_OIDC_ANDROID_CLIENT_ID,
     __DEV__ ? `relisten-mobile-${platform}-dev` : `relisten-mobile-${platform}`
   );
-  const redirectUri = __DEV__
-    ? `net.relisten.mobile:/oauth2redirect/${platform}`
-    : `https://relisten.net/auth/mobile/${platform}/callback`;
+  const redirectUri =
+    __DEV__ || platform === 'ios'
+      ? `net.relisten.mobile:/oauth2redirect/${platform}`
+      : `https://relisten.net/auth/mobile/${platform}/callback`;
 
   assertSecureOrigin(issuer, 'Relisten auth issuer');
   assertSecureOrigin(accountsOrigin, 'Relisten accounts origin');
@@ -75,6 +76,6 @@ export function getAccountRuntimeConfig(): AccountRuntimeConfig {
     accountsOrigin,
     clientId,
     redirectUri,
-    useUniversalLinkCallback: !__DEV__ && platform === 'ios',
+    useUniversalLinkCallback: false,
   };
 }

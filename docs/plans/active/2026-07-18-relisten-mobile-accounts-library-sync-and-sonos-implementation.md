@@ -203,7 +203,7 @@ DELETE /v1/integrations/sonos/playback/{playback_handle}
 
 Endpoint names are frozen by the checked-in OpenAPI fixture in Workstream 1; update this list and the fixture together if the server chooses an equivalent route before implementation. Never accept a user UUID in a request body to select ownership. The access token selects the user.
 
-The anonymous catalog client continues to use `https://api.relisten.net`. Favorites call `POST /api/v3/catalog/resolve` when a membership lacks cached display metadata, sending `{contract_version: 1, references: [{catalog_type, catalog_uuid}]}` for artist, show, source, source track, song, tour, or venue. The server deduplicates the list and accepts at most 500 distinct references. It returns one `available` or `unavailable` result per normalized reference plus deduplicated UUID-bearing arrays of the ordinary catalog DTOs and their required shallow parents. No account token is sent. A resolver failure does not undo membership, delay the library cursor, or put account sync in **Needs attention**. Mobile leaves the affected metadata unknown and tries again during a later foreground sync. Playlist reads do not use this endpoint; the Accounts API snapshot already includes the normalized catalog rows needed to render that playlist.
+The anonymous catalog client continues to use `https://api.relisten.net`. Favorite writes validate only the type allowlist and UUID syntax; they do not require the target to resolve. Active favorites call `POST /api/v3/catalog/resolve` when membership lacks cached display metadata, sending `{contract_version: 1, references: [{catalog_type, catalog_uuid}]}` for artist, show, source, source track, song, tour, or venue. The server deduplicates the list and accepts at most 500 distinct references. It returns one `available` or `unavailable` result per normalized reference plus deduplicated UUID-bearing arrays of the ordinary catalog DTOs and their required shallow parents. No account token is sent. A resolver failure or omitted entity does not undo membership, delay the library cursor, delete a cached Realm catalog object, put account sync in **Needs attention**, or add an account warning. Mobile retries unresolved metadata during a later foreground sync only while the reference remains an active favorite. Unfavorite stops future hydration attempts without deleting shared catalog data; refavorite makes the reference eligible again. Playlist reads do not use this endpoint; the Accounts API snapshot already includes the normalized catalog rows needed to render that playlist.
 
 ### Execution order
 
@@ -310,14 +310,13 @@ Keep each Realm callback small and additive. Large legacy conversion runs after 
 - Install providers in `app/_layout.tsx` in this order: Realm, account scope/auth, account API, root services, sync, player, Cast, and navigation UI.
 - Narrow callback configuration in `app.json`/`app.config.js` and coordinate the matching AASA/Android asset links with the web deployment.
 
-Use authorization code plus PKCE against `https://auth.relisten.net`. Production redirect URIs are exact platform-specific claimed HTTPS URLs:
+Use authorization code plus PKCE against `https://auth.relisten.net`. The initial production iOS redirect is:
 
 ```text
-https://relisten.net/auth/mobile/ios/callback
-https://relisten.net/auth/mobile/android/callback
+net.relisten.mobile:/oauth2redirect/ios
 ```
 
-Use collision-resistant `net.relisten.mobile:/oauth2redirect/{ios|android}` callbacks only for development. Keep `relisten://` for ordinary app deep links. On iOS pass `preferUniversalLinks: true` so `openAuthSessionAsync` uses `ASWebAuthenticationSession`; Android uses the system Custom Tab. Never embed auth in `WebView` and never call Apple or Google token endpoints from mobile.
+Development uses the same collision-resistant scheme with the platform suffix. Keep `relisten://` for ordinary app deep links. On iOS pass `preferUniversalLinks: false`; `openAuthSessionAsync` still uses `ASWebAuthenticationSession`. Android production auth remains deferred until its separate client and claimed HTTPS callback are deployed. Never embed auth in `WebView` and never call Apple or Google token endpoints from mobile. Later, register both iOS redirects before switching to the claimed HTTPS callback and retain the custom scheme for one rollback release.
 
 Make the issuer an explicit build environment value. Daily local work uses the User Service's development-only identity provider and an isolated local database. Real Apple testing uses the stable HTTPS preview issuer/database because Apple web callbacks cannot target localhost or an IP address; a local mobile build may authorize against that preview issuer. Never mix local and preview user databases or silently fall back from a preview issuer to production.
 
@@ -426,7 +425,7 @@ Use capped exponential backoff with jitter in process and persist `nextAttemptAt
 - Replace direct `isFavorite` filters across `relisten/pages/`, `relisten/components/`, Realm repositories, and CarPlay with scoped membership queries/hooks.
 - Update My Library in `relisten/pages/tab_roots/MyLibraryTabRootPage.tsx` to show active-scope favorites and global offline content explicitly while preserving the existing local-history presentation. Slice 3 scopes history, and Slice 4 adds the playlist section after those models and repositories exist.
 
-Support the current catalog favorite types: artist, show, source, source track, tour, song, and venue. Every `UserFavorite` has a UUIDv7 `favoriteUuid`. A favorite operation contains that favorite ID, a separate UUIDv7 mutation ID, typed catalog reference, desired boolean state, local creation time, and no user UUID. Resolve metadata through `POST /api/v3/catalog/resolve` using the typed `references` array; song and tour are normalized entities like the other favorite types, not client-only exceptions. Store the resolver's typed per-reference status so an unavailable favorite remains a membership fact without masquerading as remotely playable.
+Support the current catalog favorite types: artist, show, source, source track, tour, song, and venue. Every `UserFavorite` has a UUIDv7 `favoriteUuid`. A favorite operation contains that favorite ID, a separate UUIDv7 mutation ID, typed catalog reference, desired boolean state, local creation time, and no user UUID. Resolve metadata through `POST /api/v3/catalog/resolve` using the typed `references` array; song and tour are normalized entities like the other favorite types, not client-only exceptions. Store the resolver's typed per-reference status so unresolved network media can remain blocked while downloaded audio stays playable. Never delete cached catalog objects because a resolver response omits them.
 
 Serialize favorite sends per `(scopeId, catalogType, catalogUuid)`. At most one mutation for a target is in flight; a later tap records a newer desired operation and may compact only unsent redundant operations, never an in-flight or acknowledged UUID. The server's receipt order wins when two devices reconnect with opposite choices.
 
