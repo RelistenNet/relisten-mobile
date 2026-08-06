@@ -136,10 +136,19 @@ export class Source
   }
 
   allSourceTracks() {
+    const sortedSets = Array.from(this.sourceSets).sort((a, b) => {
+      const minA = Math.min(...Array.from(a.sourceTracks).map((t) => t.trackPosition));
+      const minB = Math.min(...Array.from(b.sourceTracks).map((t) => t.trackPosition));
+      return minA - minB;
+    });
+
     const tracks: SourceTrack[] = [];
 
-    for (const set of this.sourceSets) {
-      for (const track of set.sourceTracks) {
+    for (const set of sortedSets) {
+      const sortedTracks = Array.from(set.sourceTracks).sort(
+        (a, b) => a.trackPosition - b.trackPosition
+      );
+      for (const track of sortedTracks) {
         tracks.push(track);
       }
     }
