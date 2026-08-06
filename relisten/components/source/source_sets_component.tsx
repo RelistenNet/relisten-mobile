@@ -14,16 +14,8 @@ import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
 import { OfflineModeSetting } from '@/relisten/realm/models/user_settings';
 import { useIsOfflineTab } from '@/relisten/util/routes';
 
-function minTrackPosition(set: SourceSet): number {
-  let min = Infinity;
-  for (const t of set.sourceTracks) {
-    if (t.trackPosition < min) min = t.trackPosition;
-  }
-  return min === Infinity ? 0 : min;
-}
-
-function sortSetsByTrackPosition(sets: Realm.List<SourceSet> | SourceSet[]): SourceSet[] {
-  return Array.from(sets).sort((a, b) => minTrackPosition(a) - minTrackPosition(b));
+function sortSetsByIndex(sets: Realm.List<SourceSet> | SourceSet[]): SourceSet[] {
+  return Array.from(sets).sort((a, b) => a.index - b.index);
 }
 
 function sortTracksByPosition(tracks: Realm.List<SourceTrack> | SourceTrack[]): SourceTrack[] {
@@ -36,7 +28,7 @@ interface SourceSetsProps {
 }
 
 export const SourceSets = ({ source, playShow }: SourceSetsProps) => {
-  const sortedSets = sortSetsByTrackPosition(source.sourceSets);
+  const sortedSets = sortSetsByIndex(source.sourceSets);
 
   return (
     <View>

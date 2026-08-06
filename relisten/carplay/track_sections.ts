@@ -25,11 +25,7 @@ export function buildTrackSections({
   offlineMode: OfflineModeSetting;
   currentTrackUuid?: string;
 }): TrackSectionsResult {
-  const sortedSets = Array.from(source.sourceSets || []).sort((a, b) => {
-    const minA = Math.min(...Array.from(a.sourceTracks || []).map((t) => t.trackPosition));
-    const minB = Math.min(...Array.from(b.sourceTracks || []).map((t) => t.trackPosition));
-    return minA - minB;
-  });
+  const sortedSets = Array.from(source.sourceSets || []).sort((a, b) => a.index - b.index);
   const orderedTracks: SourceTrack[] = [];
 
   if (artist.features().sets) {
