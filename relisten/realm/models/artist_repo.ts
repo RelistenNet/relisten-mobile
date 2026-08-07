@@ -1,5 +1,5 @@
 import Realm from 'realm';
-import { RelistenApiClient, RelistenApiResponse } from '@/relisten/api/client';
+import { RelistenApiClient } from '@/relisten/api/client';
 import {
   NetworkBackedBehaviorFetchStrategy,
   NetworkBackedBehaviorOptions,
@@ -23,34 +23,26 @@ import { attachArtistsToExistingShows } from '@/relisten/realm/models/show_artis
 
 export const artistRepo = new Repository(Artist);
 
+function artistHasUserInteraction(artist: Artist): boolean {
+  return artist.isFavorite || artist.hasOfflineTracks();
+}
+
 class ArtistsNetworkBackedBehavior extends NetworkBackedModelArrayBehavior<
   Artist,
   ArtistWithCounts,
   ArtistRequiredProperties,
   object
 > {
-  constructor(
-    realm: Realm.Realm,
-    repository: Repository<Artist, ArtistWithCounts, ArtistRequiredProperties, object>,
-    fetchFromRealm: (realm: Realm.Realm) => Realm.Results<Artist>,
-    apiCall: (
-      api: RelistenApiClient,
-      forcedRefresh: boolean
-    ) => Promise<RelistenApiResponse<ArtistWithCounts[]>>,
-    private readonly includeAutomaticallyCreated: boolean,
-    options?: NetworkBackedBehaviorOptions
-  ) {
-    super(realm, repository, fetchFromRealm, apiCall, options);
-  }
-
   override upsert(localData: Realm.Results<Artist>, apiData: ArtistWithCounts[]): void {
     this.realm.write(() => {
-      // When auto-created artists are excluded from the API response, filter them
-      // out of localData so the delete pass doesn't remove favorited ones we kept
-      const syncData = this.includeAutomaticallyCreated
-        ? localData
-        : localData.filtered(`featured != ${ArtistFeaturedFlags.AutoCreated}`);
-      const { allModels } = artistRepo.upsertMultiple(this.realm, apiData, syncData, true, true);
+      const { allModels } = artistRepo.upsertMultiple(
+        this.realm,
+        apiData,
+        localData,
+        true,
+        true,
+        artistHasUserInteraction
+      );
 
       attachArtistsToExistingShows(this.realm, allModels);
     });
@@ -87,7 +79,6 @@ export function artistsNetworkBackedBehavior(
     },
     (api, forcedRefresh) =>
       api.artists(includeAutomaticallyCreated, api.refreshOptions(forcedRefresh)),
-    includeAutomaticallyCreated,
     options
   );
 }

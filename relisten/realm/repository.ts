@@ -201,7 +201,8 @@ export class Repository<
     api: ReadonlyArray<TApi>,
     models: ReadonlyArray<TModel> | Realm.List<TModel> | Realm.Results<TModel>,
     performDeletes: boolean = true,
-    queryForModel = false
+    queryForModel = false,
+    shouldPreserve?: (model: TModel) => boolean
   ): UpsertResults<TModel> {
     const dbIds = [...new Set(models.map((m) => m.uuid))];
     const networkUuids = [...new Set(api.map((a) => a.uuid))];
@@ -226,7 +227,11 @@ export class Repository<
     const writeHandler = () => {
       if (performDeletes) {
         for (const uuid of dbIdsToRemove) {
-          realm.delete(modelsById[uuid]);
+          const model = modelsById[uuid];
+          if (shouldPreserve?.(model)) {
+            continue;
+          }
+          realm.delete(model);
           acc.deleted += 1;
         }
       }
