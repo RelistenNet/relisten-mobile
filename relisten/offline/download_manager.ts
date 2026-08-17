@@ -186,6 +186,21 @@ export class DownloadManager {
       return createdTasks;
     }
 
+    const allQueued = realm
+      .objects(SourceTrackOfflineInfo)
+      .filtered('status == $0', SourceTrackOfflineInfoStatus.Queued)
+      .sorted('queuedAt');
+
+    const orphaned = [...allQueued].filter((d) => !d.sourceTrack);
+    if (orphaned.length > 0) {
+      logger.warn(`Removing ${orphaned.length} orphaned SourceTrackOfflineInfo entries`);
+      realm.write(() => {
+        for (const entry of orphaned) {
+          realm.delete(entry);
+        }
+      });
+    }
+
     const queuedDownloads = realm
       .objects(SourceTrackOfflineInfo)
       .filtered('status == $0', SourceTrackOfflineInfoStatus.Queued)
@@ -193,11 +208,6 @@ export class DownloadManager {
       .slice(0, this.availableDownloadSlots());
 
     for (const queuedDownload of queuedDownloads) {
-      if (!queuedDownload.sourceTrack) {
-        logger.warn(`Orphaned SourceTrackOfflineInfo: ${queuedDownload.sourceTrackUuid}`);
-        continue;
-      }
-
       if (this.isPendingOrDownloading(queuedDownload.sourceTrack)) {
         logger.debug(`${queuedDownload.sourceTrack.uuid} is already pending or downloading`);
         continue;
