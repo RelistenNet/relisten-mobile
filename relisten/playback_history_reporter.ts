@@ -111,10 +111,12 @@ export class PlaybackHistoryReporter {
       return { type: RelistenApiResponseType.OnlineRequestCompleted, data: undefined };
     }
 
-    const res = await this.apiClient.recordPlayback(entry.sourceTrack.uuid);
+    const entryUuid = entry.uuid;
+    const sourceTrackUuid = entry.sourceTrack.uuid;
+    const res = await this.apiClient.recordPlayback(sourceTrackUuid);
 
     if (!res.error) {
-      logger.info(`Reported playback ${entry.uuid} for sourceTrack=${entry.sourceTrack.uuid}`);
+      logger.info(`Reported playback ${entryUuid} for sourceTrack=${sourceTrackUuid}`);
       this.realm.write(() => {
         if (entry.isValid()) {
           entry.publishedAt = new Date();
@@ -143,11 +145,12 @@ export class PlaybackHistoryReporter {
     logger.info(`Reporting ${entriesToPublish.length} playback history entries`);
 
     for (const entry of entriesToPublish) {
+      const entryUuid = entry.uuid;
       const res = await this.attemptReport(entry);
 
       if (res.error) {
         logger.warn(
-          `Error reporting ${entry.uuid}. Will try again in 30s; ${JSON.stringify(res.error)}`
+          `Error reporting ${entryUuid}. Will try again in 30s; ${JSON.stringify(res.error)}`
         );
 
         this.retryTimer = setTimeout(() => {

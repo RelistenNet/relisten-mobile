@@ -7,6 +7,15 @@ import { log } from '@/relisten/util/logging';
 
 const logger = log.extend('relisten-audio-player');
 
+function normalizeNativeTimeMs(value: number | undefined): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return undefined;
+  }
+
+  const milliseconds = Math.floor(value);
+  return Number.isSafeInteger(milliseconds) ? Math.max(0, milliseconds) : undefined;
+}
+
 const emitter = new EventEmitter<{
   onError: (event: RelistenErrorEvent) => void;
   onPlaybackStateChanged: (event: RelistenPlaybackStateChangedEvent) => void;
@@ -174,9 +183,14 @@ class RelistenGaplessPlayer {
   }
 
   play(streamable: RelistenStreamable, startingAtMs?: number): Promise<void> {
-    startingAtMs = startingAtMs !== undefined ? Math.floor(startingAtMs) : undefined;
-    logger.debug(`play called startingAtMs=${startingAtMs}`, streamable);
-    return RelistenAudioPlayerModule.play(streamable, startingAtMs);
+    const nativeStartingAtMs = normalizeNativeTimeMs(startingAtMs);
+
+    if (startingAtMs !== undefined && nativeStartingAtMs === undefined) {
+      logger.warn('Ignoring invalid native playback start time', { startingAtMs });
+    }
+
+    logger.debug(`play called startingAtMs=${nativeStartingAtMs}`, streamable);
+    return RelistenAudioPlayerModule.play(streamable, nativeStartingAtMs);
   }
 
   setNextStream(streamable?: RelistenStreamable) {
@@ -239,8 +253,15 @@ class RelistenGaplessPlayer {
   }
 
   seekToTime(timeMs: number): Promise<void> {
-    logger.debug('seekToTime called');
-    return RelistenAudioPlayerModule.seekToTime(timeMs);
+    const nativeTimeMs = normalizeNativeTimeMs(timeMs);
+
+    if (nativeTimeMs === undefined) {
+      logger.warn('Ignoring invalid native seek time', { timeMs });
+      return Promise.resolve();
+    }
+
+    logger.debug('seekToTime called', { timeMs: nativeTimeMs });
+    return RelistenAudioPlayerModule.seekToTime(nativeTimeMs);
   }
 }
 

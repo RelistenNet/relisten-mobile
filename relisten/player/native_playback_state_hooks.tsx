@@ -59,8 +59,14 @@ export function addPlayerListeners() {
         return;
       }
 
-      const elapsed = Number.isFinite(progress.elapsed) ? progress.elapsed : 0;
-      const duration = Number.isFinite(progress.duration) ? progress.duration : 0;
+      const elapsed =
+        typeof progress.elapsed === 'number' && Number.isFinite(progress.elapsed)
+          ? progress.elapsed
+          : 0;
+      const duration =
+        typeof progress.duration === 'number' && Number.isFinite(progress.duration)
+          ? progress.duration
+          : 0;
       const newProgress = {
         elapsed,
         duration,

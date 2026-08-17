@@ -14,6 +14,9 @@ import { ShowLink } from '@/relisten/util/push_show';
 import { useArtists } from '@/relisten/realm/models/artist_repo';
 import { groupByUuid } from '@/relisten/util/group_by';
 import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
+import { log } from '@/relisten/util/logging';
+
+const logger = log.extend('recently-played');
 
 enum ACTIONS {
   UPDATE_DATA,
@@ -226,12 +229,26 @@ export default function Page() {
       if (state.data[0]) {
         params = `?lastSeenId=${state.data[0]}`;
       }
-      const data = await fetch(RelistenApiClient.API_BASE + `/v2/live/history${params}`).then(
-        (res) => res.json()
-      );
+      try {
+        const response = await fetch(RelistenApiClient.API_BASE + `/v2/live/history${params}`);
+        if (!response.ok) {
+          logger.warn('Recently played request failed', { status: response.status });
+          return;
+        }
 
-      // console.log(data);
-      call({ type: ACTIONS.UPDATE_DATA, data: data?.toReversed() });
+        const text = await response.text();
+        if (!text) return;
+
+        const data: unknown = JSON.parse(text);
+        if (!Array.isArray(data)) {
+          logger.warn('Recently played response was not an array');
+          return;
+        }
+
+        call({ type: ACTIONS.UPDATE_DATA, data: (data as HistoryTrack[]).toReversed() });
+      } catch (error) {
+        logger.warn('Failed to update recently played history', { error });
+      }
     };
 
     getData();

@@ -176,18 +176,18 @@ export class RelistenPlayer {
   }
 
   playTrackAtIndex(index: number, seekToTime?: number) {
-    this.playbackIntentStarted = true;
-
     const newIndex = Math.max(0, Math.min(index, this.queue.orderedTracks.length - 1));
-    const playRequestVersion = ++this.playRequestVersion;
-    this.requestedTrackIndex = newIndex;
-
     const track = this.queue.orderedTracks[newIndex];
 
     if (!track) {
       logger.warn('playTrackAtIndex: no track at index', { index, newIndex });
       return;
     }
+
+    this.playbackIntentStarted = true;
+
+    const playRequestVersion = ++this.playRequestVersion;
+    this.requestedTrackIndex = newIndex;
 
     logger.debug('playTrackAtIndex requested', {
       index,
