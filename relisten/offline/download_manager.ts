@@ -193,6 +193,11 @@ export class DownloadManager {
       .slice(0, this.availableDownloadSlots());
 
     for (const queuedDownload of queuedDownloads) {
+      if (!queuedDownload.sourceTrack) {
+        logger.warn(`Orphaned SourceTrackOfflineInfo: ${queuedDownload.sourceTrackUuid}`);
+        continue;
+      }
+
       if (this.isPendingOrDownloading(queuedDownload.sourceTrack)) {
         logger.debug(`${queuedDownload.sourceTrack.uuid} is already pending or downloading`);
         continue;

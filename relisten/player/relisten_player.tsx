@@ -183,10 +183,16 @@ export class RelistenPlayer {
     this.requestedTrackIndex = newIndex;
 
     const track = this.queue.orderedTracks[newIndex];
+
+    if (!track) {
+      logger.warn('playTrackAtIndex: no track at index', { index, newIndex });
+      return;
+    }
+
     logger.debug('playTrackAtIndex requested', {
       index,
       newIndex,
-      identifier: track?.identifier,
+      identifier: track.identifier,
       seekToTime,
       currentlyProcessingPlayRequest: !!this.currentlyProcessingPlayRequest,
       playRequestVersion,

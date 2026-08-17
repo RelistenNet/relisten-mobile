@@ -59,10 +59,12 @@ export function addPlayerListeners() {
         return;
       }
 
+      const elapsed = Number.isFinite(progress.elapsed) ? progress.elapsed : 0;
+      const duration = Number.isFinite(progress.duration) ? progress.duration : 0;
       const newProgress = {
-        elapsed: progress.elapsed ?? 0,
-        duration: progress.duration ?? 0,
-        percent: progress.duration ? (progress.elapsed ?? 0) / progress.duration : 0,
+        elapsed,
+        duration,
+        percent: duration > 0 ? elapsed / duration : 0,
       };
 
       const lastProgress = sharedStates.progress.lastState();

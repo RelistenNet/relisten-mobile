@@ -208,7 +208,8 @@ export class RelistenApiClient {
 
     try {
       const resp = await this.api.fetch(method, url, body).res();
-      const j = await resp.json();
+      const text = await resp.text();
+      const j = text ? JSON.parse(text) : null;
 
       const completedAt = new Date();
       const duration = dayjs(completedAt).diff(startedAt, 'milliseconds');

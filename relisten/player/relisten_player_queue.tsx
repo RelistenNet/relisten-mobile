@@ -244,12 +244,14 @@ export class RelistenPlayerQueue {
     const originalCopy = [...this.originalTracks];
     const [removed] = originalCopy.splice(index, 1);
 
+    if (!removed) return;
+
     this.originalTracks = originalCopy;
 
     const shuffledCopy = [...this.shuffledTracks];
 
     for (let i = 0; i < this.shuffledTracks.length; i++) {
-      if (this.shuffledTracks[i].identifier === removed.identifier) {
+      if (this.shuffledTracks[i]?.identifier === removed.identifier) {
         shuffledCopy.splice(i, 1);
         break;
       }
@@ -522,21 +524,15 @@ ${indentString(tracks)}
 
   private recalculateTrackIndexes(newIdentifier: string) {
     for (let i = 0; i < this.originalTracks.length; i++) {
-      const originalTrack = this.originalTracks[i];
-      const shuffledTrack = this.shuffledTracks[i];
-
-      if (originalTrack.identifier == newIdentifier) {
+      if (this.originalTracks[i]?.identifier == newIdentifier) {
         this.originalTracksCurrentIndex = i;
+        break;
       }
+    }
 
-      if (shuffledTrack.identifier == newIdentifier) {
+    for (let i = 0; i < this.shuffledTracks.length; i++) {
+      if (this.shuffledTracks[i]?.identifier == newIdentifier) {
         this.shuffledTracksCurrentIndex = i;
-      }
-
-      if (
-        this.originalTracksCurrentIndex !== undefined &&
-        this.shuffledTracksCurrentIndex !== undefined
-      ) {
         break;
       }
     }
@@ -577,8 +573,12 @@ ${indentString(tracks)}
         const state = {
           queueShuffleState: this.shuffleState,
           queueRepeatState: this.repeatState,
-          queueSourceTrackUuids: this.originalTracks.map((t) => t.sourceTrack.uuid),
-          queueSourceTrackShuffledUuids: this.shuffledTracks.map((t) => t.sourceTrack.uuid),
+          queueSourceTrackUuids: this.originalTracks
+            .filter((t) => t.sourceTrack?.isValid())
+            .map((t) => t.sourceTrack.uuid),
+          queueSourceTrackShuffledUuids: this.shuffledTracks
+            .filter((t) => t.sourceTrack?.isValid())
+            .map((t) => t.sourceTrack.uuid),
           activeSourceTrackIndex: this.originalTracksCurrentIndex,
           activeSourceTrackShuffledIndex: this.shuffledTracksCurrentIndex,
           lastUpdatedAt: new Date(),
@@ -719,11 +719,14 @@ ${indentString(tracks)}
       this._nextTrack = undefined;
       this._nextTrackIndex = undefined;
 
-      if (playerState.elapsed != null && playerState.duration != null) {
+      const restoredElapsed = Number.isFinite(playerState.elapsed) ? playerState.elapsed : null;
+      const restoredDuration = Number.isFinite(playerState.duration) ? playerState.duration : null;
+
+      if (restoredElapsed != null && restoredDuration != null) {
         const restoredProgress = {
-          elapsed: playerState.elapsed,
-          duration: playerState.duration,
-          percent: playerState.duration > 0 ? playerState.elapsed / playerState.duration : 0,
+          elapsed: restoredElapsed,
+          duration: restoredDuration,
+          percent: restoredDuration > 0 ? restoredElapsed / restoredDuration : 0,
         };
 
         logger.debug('restoring player progress', {

@@ -1,4 +1,8 @@
-import { RelistenApiClient, RelistenApiResponse } from '@/relisten/api/client';
+import {
+  RelistenApiClient,
+  RelistenApiResponse,
+  RelistenApiResponseType,
+} from '@/relisten/api/client';
 import Realm from 'realm';
 import {
   PlaybackFlags,
@@ -98,12 +102,23 @@ export class PlaybackHistoryReporter {
   }
 
   private async attemptReport(entry: PlaybackHistoryEntry): Promise<RelistenApiResponse<unknown>> {
+    if (!entry.isValid() || !entry.sourceTrack) {
+      this.realm.write(() => {
+        if (entry.isValid()) {
+          entry.publishedAt = new Date();
+        }
+      });
+      return { type: RelistenApiResponseType.OnlineRequestCompleted, data: undefined };
+    }
+
     const res = await this.apiClient.recordPlayback(entry.sourceTrack.uuid);
 
     if (!res.error) {
       logger.info(`Reported playback ${entry.uuid} for sourceTrack=${entry.sourceTrack.uuid}`);
       this.realm.write(() => {
-        entry.publishedAt = new Date();
+        if (entry.isValid()) {
+          entry.publishedAt = new Date();
+        }
       });
     }
 
