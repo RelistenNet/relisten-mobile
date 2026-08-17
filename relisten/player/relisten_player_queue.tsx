@@ -570,17 +570,24 @@ ${indentString(tracks)}
 
     this.playerStateDebounce = setTimeout(() => {
       if (realm) {
+        const validOriginal = this.originalTracks.filter((t) => t.sourceTrack?.isValid());
+        const validShuffled = this.shuffledTracks.filter((t) => t.sourceTrack?.isValid());
+        const currentUuid = this.currentTrack?.sourceTrack?.isValid()
+          ? this.currentTrack.sourceTrack.uuid
+          : undefined;
+        const findIdx = (tracks: PlayerQueueTrack[], uuid: string | undefined) => {
+          if (!uuid) return undefined;
+          const idx = tracks.findIndex((t) => t.sourceTrack.uuid === uuid);
+          return idx >= 0 ? idx : undefined;
+        };
+
         const state = {
           queueShuffleState: this.shuffleState,
           queueRepeatState: this.repeatState,
-          queueSourceTrackUuids: this.originalTracks
-            .filter((t) => t.sourceTrack?.isValid())
-            .map((t) => t.sourceTrack.uuid),
-          queueSourceTrackShuffledUuids: this.shuffledTracks
-            .filter((t) => t.sourceTrack?.isValid())
-            .map((t) => t.sourceTrack.uuid),
-          activeSourceTrackIndex: this.originalTracksCurrentIndex,
-          activeSourceTrackShuffledIndex: this.shuffledTracksCurrentIndex,
+          queueSourceTrackUuids: validOriginal.map((t) => t.sourceTrack.uuid),
+          queueSourceTrackShuffledUuids: validShuffled.map((t) => t.sourceTrack.uuid),
+          activeSourceTrackIndex: findIdx(validOriginal, currentUuid),
+          activeSourceTrackShuffledIndex: findIdx(validShuffled, currentUuid),
           lastUpdatedAt: new Date(),
           progress: this.player.progress?.percent,
           duration: this.player.progress?.duration,
