@@ -2,11 +2,13 @@ import { useQuery, useRealm } from '@/relisten/realm/schema';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { InteractionManager } from 'react-native';
+import { VALID_PLAYBACK_HISTORY_QUERY } from '@/relisten/realm/models/history/playback_history_repair';
 
 export function useTotalListeningTime(): number {
   const allEntries = useQuery(
     {
       type: PlaybackHistoryEntry,
+      query: (query) => query.filtered(VALID_PLAYBACK_HISTORY_QUERY),
     },
     []
   );
@@ -38,6 +40,7 @@ export function useListeningTimeByArtist(): ArtistListeningTime[] {
   const allEntries = useQuery(
     {
       type: PlaybackHistoryEntry,
+      query: (query) => query.filtered(VALID_PLAYBACK_HISTORY_QUERY),
     },
     []
   );
@@ -86,7 +89,10 @@ export function useHistoryRecentlyPlayedShows(
   const recentlyPlayed = useQuery(
     {
       type: PlaybackHistoryEntry,
-      query: (query) => query.sorted('playbackStartedAt', /* reverse= */ true),
+      query: (query) =>
+        query
+          .filtered(VALID_PLAYBACK_HISTORY_QUERY)
+          .sorted('playbackStartedAt', /* reverse= */ true),
     },
     []
   );
@@ -179,7 +185,9 @@ export function useTopPlayedArtistUuidsOnce(
 
       const entries = realm
         .objects(PlaybackHistoryEntry)
-        .sorted('playbackStartedAt', /* reverse= */ true);
+        .filtered(VALID_PLAYBACK_HISTORY_QUERY)
+        .sorted('playbackStartedAt', /* reverse= */ true)
+        .snapshot();
       const cutoffTime = Date.now() - EARLY_EXIT_DAYS_MS;
       const counts = new Map<string, number>();
       const sortNames = new Map<string, string>();
@@ -205,6 +213,12 @@ export function useTopPlayedArtistUuidsOnce(
 
         while (index < end) {
           const entry = entries[index];
+
+          if (!entry?.isValid()) {
+            index += 1;
+            continue;
+          }
+
           const artist = entry.artist;
           const uuid = artist?.uuid;
 

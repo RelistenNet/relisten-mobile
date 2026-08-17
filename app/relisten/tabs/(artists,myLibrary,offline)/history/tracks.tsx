@@ -18,6 +18,7 @@ import { SubtitleText } from '@/relisten/components/row_subtitle';
 import { ListRenderItem } from '@shopify/flash-list';
 import { TrackWithArtist } from '@/relisten/components/source/source_track_with_artist';
 import { Stack } from 'expo-router';
+import { VALID_PLAYBACK_HISTORY_QUERY } from '@/relisten/realm/models/history/playback_history_repair';
 
 function HistoryHeader({ totalPlayed }: { totalPlayed: number }) {
   return (
@@ -60,7 +61,10 @@ export default function Page() {
   const recentlyPlayed = useQuery(
     {
       type: PlaybackHistoryEntry,
-      query: (query) => query.sorted('playbackStartedAt', /* reverse= */ true),
+      query: (query) =>
+        query
+          .filtered(VALID_PLAYBACK_HISTORY_QUERY)
+          .sorted('playbackStartedAt', /* reverse= */ true),
     },
     []
   );

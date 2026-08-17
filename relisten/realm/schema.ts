@@ -23,6 +23,7 @@ import {
   PopularityWindows,
 } from '@/relisten/realm/models/popularity';
 import { isVerboseProfileLoggingEnabled } from '@/relisten/util/profile_logging';
+import { removeOrphanedPlaybackHistoryEntries } from '@/relisten/realm/models/history/playback_history_repair';
 
 if (isVerboseProfileLoggingEnabled()) {
   Realm.setLogger(({ category, level, message }) => {
@@ -82,6 +83,7 @@ export async function openRealm(): Promise<Realm> {
   if (!realmOpenPromise) {
     realmOpenPromise = Realm.open(realmConfig)
       .then((openedRealm) => {
+        removeOrphanedPlaybackHistoryEntries(openedRealm);
         setRealm(openedRealm);
         return openedRealm;
       })

@@ -10,6 +10,7 @@ import { OfflineModeSetting } from '@/relisten/realm/models/user_settings';
 import plur from 'plur';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { queuePlaybackHistoryEntry } from '@/relisten/carplay/queue_helpers';
+import { VALID_PLAYBACK_HISTORY_QUERY } from '@/relisten/realm/models/history/playback_history_repair';
 
 export function createLibraryTemplate(ctx: RelistenCarPlayContext): ListTemplate {
   carplay_logger.info('createLibraryTemplate');
@@ -115,7 +116,10 @@ export function createRecentTemplate(ctx: RelistenCarPlayContext): ListTemplate 
 
   const historyStream = new RealmQueryValueStream(
     ctx.realm,
-    ctx.realm.objects(PlaybackHistoryEntry).sorted('playbackStartedAt', true)
+    ctx.realm
+      .objects(PlaybackHistoryEntry)
+      .filtered(VALID_PLAYBACK_HISTORY_QUERY)
+      .sorted('playbackStartedAt', true)
   );
 
   ctx.addTeardown(() => historyStream.tearDown());
@@ -128,7 +132,15 @@ export function createRecentTemplate(ctx: RelistenCarPlayContext): ListTemplate 
     tabSystemImageName: 'clock.arrow.circlepath',
     async onItemSelect({ id }: { templateId: string; index: number; id: string }) {
       const entry = entryMap.get(String(id));
-      if (!entry) return;
+      if (
+        !entry?.isValid() ||
+        !entry.sourceTrack ||
+        !entry.artist ||
+        !entry.show ||
+        !entry.source
+      ) {
+        return;
+      }
 
       const track = entry.sourceTrack;
       const offlineMode = ctx.userSettings.offlineModeWithDefault();
@@ -149,7 +161,7 @@ export function createRecentTemplate(ctx: RelistenCarPlayContext): ListTemplate 
 
   const updateSections = () => {
     entryMap.clear();
-    const entries = Array.from(historyStream.currentValue || []).slice(0, 50);
+    const entries = historyStream.currentValue?.slice(0, 50) ?? [];
 
     const items = entries.map((entry) => {
       entryMap.set(entry.uuid, entry);

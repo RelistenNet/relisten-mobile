@@ -50,6 +50,7 @@ import {
   isVerboseProfileLoggingEnabled,
   logRouteDebug,
 } from '@/relisten/util/profile_logging';
+import { removeOrphanedPlaybackHistoryEntries } from '@/relisten/realm/models/history/playback_history_repair';
 
 // c.f. https://github.com/meliorence/react-native-render-html/issues/661#issuecomment-2453476566
 LogBox.ignoreLogs([/Support for defaultProps will be removed/]);
@@ -93,6 +94,7 @@ function RealmBridge() {
   const realm = useRealm();
 
   useEffect(() => {
+    removeOrphanedPlaybackHistoryEntries(realm);
     setRealm(realm);
 
     return () => {
