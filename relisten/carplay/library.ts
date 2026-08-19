@@ -161,7 +161,9 @@ export function createRecentTemplate(ctx: RelistenCarPlayContext): ListTemplate 
 
   const updateSections = () => {
     entryMap.clear();
-    const entries = historyStream.currentValue?.slice(0, 50) ?? [];
+    const entries = Array.from(historyStream.currentValue ?? [])
+      .filter((entry) => entry.isValid() && entry.sourceTrack?.isValid())
+      .slice(0, 50);
 
     const items = entries.map((entry) => {
       entryMap.set(entry.uuid, entry);
