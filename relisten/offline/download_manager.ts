@@ -182,11 +182,28 @@ export class DownloadManager {
       return createdTasks;
     }
 
+    const activeRealm = realm;
+
     if (this.availableDownloadSlots() <= 0) {
       return createdTasks;
     }
 
-    const queuedDownloads = realm
+    const allQueued = activeRealm
+      .objects(SourceTrackOfflineInfo)
+      .filtered('status == $0', SourceTrackOfflineInfoStatus.Queued)
+      .sorted('queuedAt');
+
+    const orphaned = [...allQueued].filter((d) => !d.sourceTrack);
+    if (orphaned.length > 0) {
+      logger.warn(`Removing ${orphaned.length} orphaned SourceTrackOfflineInfo entries`);
+      activeRealm.write(() => {
+        for (const entry of orphaned) {
+          activeRealm.delete(entry);
+        }
+      });
+    }
+
+    const queuedDownloads = activeRealm
       .objects(SourceTrackOfflineInfo)
       .filtered('status == $0', SourceTrackOfflineInfoStatus.Queued)
       .sorted('queuedAt')

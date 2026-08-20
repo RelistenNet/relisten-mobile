@@ -450,7 +450,7 @@ function PlayerQueue() {
         onDragStart={triggerHaptics}
         onDragEnd={triggerHaptics}
         onIndexChange={triggerHaptics}
-        keyExtractor={(item) => item.identifier}
+        keyExtractor={(item, index) => item?.identifier ?? String(index)}
         renderItem={({ item, index }) => (
           // <ScaleDecorator>
           //   <TouchableOpacity onLongPress={drag} disabled={isActive} className="flex-1">

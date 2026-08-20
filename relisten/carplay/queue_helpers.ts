@@ -55,23 +55,31 @@ export async function queuePlaybackHistoryEntry(
   scope: CarPlayScope,
   entry: PlaybackHistoryEntry
 ) {
-  const offlineMode = ctx.userSettings.offlineModeWithDefault();
-  let source = entry.source;
-  let artist = entry.artist;
-
-  if (!source || !artist) {
-    carplay_logger.warn('History entry missing source or artist', { id: entry.uuid });
+  if (!entry.isValid() || !entry.sourceTrack || !entry.artist || !entry.show || !entry.source) {
     return;
   }
 
+  const offlineMode = ctx.userSettings.offlineModeWithDefault();
+  const entryUuid = entry.uuid;
+  const showUuid = entry.show.uuid;
+  const sourceUuid = entry.source.uuid;
+  const sourceTrackUuid = entry.sourceTrack.uuid;
+  let source = entry.source;
+  let artist = entry.artist;
+
   if (!source.sourceSets?.length) {
-    const response = await ctx.apiClient.showWithSources(entry.show.uuid);
+    const response = await ctx.apiClient.showWithSources(showUuid);
 
     if (response?.data?.uuid) {
       const show = upsertShowWithSources(ctx.realm, response.data);
-      source = ctx.realm.objectForPrimaryKey(Source, entry.source.uuid) || source;
+      source = ctx.realm.objectForPrimaryKey(Source, sourceUuid) || source;
       artist = show?.artist || artist;
     }
+  }
+
+  if (!source.isValid() || !artist.isValid()) {
+    carplay_logger.warn('History source or artist was deleted while loading', { id: entryUuid });
+    return;
   }
 
   const { orderedTracks } = buildTrackSections({
@@ -86,7 +94,7 @@ export async function queuePlaybackHistoryEntry(
     ctx,
     scope,
     orderedTracks,
-    selectedTrackUuid: entry.sourceTrack.uuid,
+    selectedTrackUuid: sourceTrackUuid,
     sourceUuid: source.uuid,
   });
 }

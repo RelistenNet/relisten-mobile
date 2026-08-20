@@ -211,7 +211,10 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
             this.realm,
             apiSourceTracksBySet[sourceSet.uuid] || [],
             sourceSet.sourceTracks,
-            true,
+            // Queue, history, and offline records retain links to SourceTrack rows. Removing a
+            // track from this source set must update membership without invalidating those durable
+            // references; unreferenced catalog rows can be collected separately.
+            false,
             true
           );
 

@@ -62,12 +62,18 @@ export class PlayerState extends Realm.Object<PlayerState> implements PlayerStat
         obj.activeSourceTrackIndex = props.activeSourceTrackIndex;
         obj.activeSourceTrackShuffledIndex = props.activeSourceTrackShuffledIndex;
         obj.lastUpdatedAt = props.lastUpdatedAt;
-        obj.duration = props.duration;
-        obj.progress = props.progress;
-        obj.elapsed = props.elapsed;
+        obj.duration = Number.isFinite(props.duration) ? props.duration : undefined;
+        obj.progress = Number.isFinite(props.progress) ? props.progress : undefined;
+        obj.elapsed = Number.isFinite(props.elapsed) ? props.elapsed : undefined;
         return obj;
       } else {
-        return realm.create(PlayerState, { id: PLAYER_STATE_SENTINEL, ...props });
+        return realm.create(PlayerState, {
+          id: PLAYER_STATE_SENTINEL,
+          ...props,
+          duration: Number.isFinite(props.duration) ? props.duration : undefined,
+          progress: Number.isFinite(props.progress) ? props.progress : undefined,
+          elapsed: Number.isFinite(props.elapsed) ? props.elapsed : undefined,
+        });
       }
     });
   }

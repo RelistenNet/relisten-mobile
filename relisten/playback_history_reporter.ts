@@ -1,4 +1,8 @@
-import { RelistenApiClient, RelistenApiResponse } from '@/relisten/api/client';
+import {
+  RelistenApiClient,
+  RelistenApiResponse,
+  RelistenApiResponseType,
+} from '@/relisten/api/client';
 import Realm from 'realm';
 import {
   PlaybackFlags,
@@ -10,6 +14,7 @@ import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { Artist } from '@/relisten/realm/models/artist';
 import { Show } from '@/relisten/realm/models/show';
 import { Source } from '@/relisten/realm/models/source';
+import { VALID_PLAYBACK_HISTORY_QUERY } from '@/relisten/realm/models/history/playback_history_repair';
 
 const logger = log.extend('playback-history-reporter');
 
@@ -98,12 +103,29 @@ export class PlaybackHistoryReporter {
   }
 
   private async attemptReport(entry: PlaybackHistoryEntry): Promise<RelistenApiResponse<unknown>> {
-    const res = await this.apiClient.recordPlayback(entry.sourceTrack.uuid);
+    if (!entry.isValid()) {
+      return { type: RelistenApiResponseType.OnlineRequestCompleted, data: undefined };
+    }
+
+    if (!entry.sourceTrack || !entry.artist || !entry.show || !entry.source) {
+      const entryUuid = entry.uuid;
+      this.realm.write(() => {
+        this.realm.delete(entry);
+      });
+      logger.warn('Removed orphaned playback history entry before reporting', { entryUuid });
+      return { type: RelistenApiResponseType.OnlineRequestCompleted, data: undefined };
+    }
+
+    const entryUuid = entry.uuid;
+    const sourceTrackUuid = entry.sourceTrack.uuid;
+    const res = await this.apiClient.recordPlayback(sourceTrackUuid);
 
     if (!res.error) {
-      logger.info(`Reported playback ${entry.uuid} for sourceTrack=${entry.sourceTrack.uuid}`);
+      logger.info(`Reported playback ${entryUuid} for sourceTrack=${sourceTrackUuid}`);
       this.realm.write(() => {
-        entry.publishedAt = new Date();
+        if (entry.isValid()) {
+          entry.publishedAt = new Date();
+        }
       });
     }
 
@@ -118,7 +140,8 @@ export class PlaybackHistoryReporter {
 
     const entriesToPublish = this.realm
       .objects(PlaybackHistoryEntry)
-      .filtered('publishedAt == null');
+      .filtered(`publishedAt == null AND ${VALID_PLAYBACK_HISTORY_QUERY}`)
+      .snapshot();
 
     if (entriesToPublish.length === 0) {
       logger.info('No playback history entries to publish');
@@ -128,11 +151,14 @@ export class PlaybackHistoryReporter {
     logger.info(`Reporting ${entriesToPublish.length} playback history entries`);
 
     for (const entry of entriesToPublish) {
+      if (!entry?.isValid()) continue;
+
+      const entryUuid = entry.uuid;
       const res = await this.attemptReport(entry);
 
       if (res.error) {
         logger.warn(
-          `Error reporting ${entry.uuid}. Will try again in 30s; ${JSON.stringify(res.error)}`
+          `Error reporting ${entryUuid}. Will try again in 30s; ${JSON.stringify(res.error)}`
         );
 
         this.retryTimer = setTimeout(() => {
