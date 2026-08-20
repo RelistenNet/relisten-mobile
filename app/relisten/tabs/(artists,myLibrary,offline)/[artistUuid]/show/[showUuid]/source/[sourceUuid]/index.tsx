@@ -416,7 +416,7 @@ export const SourceHeader = ({
   };
 
   // If all tracks on this show have offlineInfo and it is Succeeded, then the show is fully downloaded
-  const isFullyDownloaded = source.sourceTracks.every(
+  const isFullyDownloaded = source.allSourceTracks().every(
     (st) =>
       st.offlineInfo &&
       st.offlineInfo.type !== SourceTrackOfflineInfoType.StreamingCache &&
