@@ -58,7 +58,18 @@ const realmConfig: Realm.Configuration = {
     PopularityWindow,
     PopularityWindows,
   ],
-  schemaVersion: 12,
+  schemaVersion: 15,
+  migration: (oldRealm, newRealm) => {
+    if (oldRealm.schemaVersion < 15) {
+      const tracks = newRealm.objects('SourceTrack');
+      for (let i = 0; i < tracks.length; i++) {
+        const track = tracks[i] as Record<string, unknown>;
+        if (!track.mp3Url) {
+          track.mp3Url = '';
+        }
+      }
+    }
+  },
   // As to not conflict with the prior versions default.realm that isn't readable with this version of the SDK
   path: './relisten.realm',
 };
