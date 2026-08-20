@@ -1,11 +1,17 @@
 import Realm from 'realm';
 import { Artist } from '@/relisten/realm/models/artist';
 import { Show } from '@/relisten/realm/models/show';
+import { SourceTrack } from '@/relisten/realm/models/source_track';
 import {
+  ACTIVE_SOURCE_TRACK_OFFLINE_INFO_QUERY,
   SourceTrackOfflineInfo,
   SourceTrackOfflineInfoStatus,
 } from '@/relisten/realm/models/source_track_offline_info';
 import { logLibraryIndexDebug } from '@/relisten/util/profile_logging';
+import {
+  readRetainedCatalogObject,
+  retainedCatalogObjectForPrimaryKey,
+} from '@/relisten/realm/catalog_retirement';
 
 type Listener = () => void;
 
@@ -145,10 +151,16 @@ export class LibraryIndex {
     this.favoriteShows = this.realm.objects(Show).filtered('isFavorite == true');
     this.offlineInfos = this.realm
       .objects(SourceTrackOfflineInfo)
-      .filtered('status == $0', SourceTrackOfflineInfoStatus.Succeeded);
+      .filtered(
+        `${ACTIVE_SOURCE_TRACK_OFFLINE_INFO_QUERY} AND status == $0`,
+        SourceTrackOfflineInfoStatus.Succeeded
+      );
     this.remainingDownloads = this.realm
       .objects(SourceTrackOfflineInfo)
-      .filtered('status != $0', SourceTrackOfflineInfoStatus.Succeeded);
+      .filtered(
+        `${ACTIVE_SOURCE_TRACK_OFFLINE_INFO_QUERY} AND status != $0`,
+        SourceTrackOfflineInfoStatus.Succeeded
+      );
     this.lastNotifiedRemainingDownloadsCount = this.remainingDownloads.length;
 
     this.favoriteArtists.addListener(this.handleFavoriteArtistsChanged);
@@ -357,7 +369,10 @@ export class LibraryIndex {
 
     this.favoriteArtistUuids.clear();
 
-    for (const artist of this.favoriteArtists) {
+    for (const candidate of this.favoriteArtists) {
+      const artist = readRetainedCatalogObject(candidate, 'library-index.favorite-artist');
+      if (!artist) continue;
+
       this.favoriteArtistUuids.add(artist.uuid);
     }
 
@@ -391,7 +406,10 @@ export class LibraryIndex {
     this.favoriteShowArtistCounts.clear();
     this.favoriteShowYearCounts.clear();
 
-    for (const show of this.favoriteShows) {
+    for (const candidate of this.favoriteShows) {
+      const show = readRetainedCatalogObject(candidate, 'library-index.favorite-show');
+      if (!show) continue;
+
       this.favoriteShowUuids.add(show.uuid);
       this.incrementCount(this.favoriteShowArtistCounts, show.artistUuid);
       this.incrementCount(this.favoriteShowYearCounts, show.yearUuid);
@@ -458,7 +476,12 @@ export class LibraryIndex {
     this.sourceOfflineCounts.clear();
 
     for (const offlineInfo of this.offlineInfos) {
-      const track = offlineInfo.sourceTrack;
+      const track = retainedCatalogObjectForPrimaryKey(
+        this.realm,
+        SourceTrack,
+        offlineInfo.sourceTrackUuid,
+        'library-index.offline-track'
+      );
       if (!track) {
         continue;
       }
@@ -467,10 +490,18 @@ export class LibraryIndex {
       this.incrementCount(this.showOfflineCounts, track.showUuid);
       this.incrementCount(this.sourceOfflineCounts, track.sourceUuid);
 
-      const yearUuid =
-        track.year?.uuid ??
-        track.show?.yearUuid ??
-        this.realm.objectForPrimaryKey(Show, track.showUuid)?.yearUuid;
+      const year = readRetainedCatalogObject(track.year, 'library-index.offline-track.year');
+      const show = readRetainedCatalogObject(track.show, 'library-index.offline-track.show');
+      const fallbackShow =
+        year || show
+          ? undefined
+          : retainedCatalogObjectForPrimaryKey(
+              this.realm,
+              Show,
+              track.showUuid,
+              'library-index.offline-track.show-fallback'
+            );
+      const yearUuid = year?.uuid ?? show?.yearUuid ?? fallbackShow?.yearUuid;
       this.incrementCount(this.yearOfflineCounts, yearUuid);
     }
 

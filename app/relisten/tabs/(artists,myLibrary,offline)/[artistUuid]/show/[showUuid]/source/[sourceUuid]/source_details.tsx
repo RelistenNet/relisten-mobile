@@ -10,6 +10,14 @@ import { Source } from '@/relisten/realm/models/source';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
 import { SourceFooter, SourceProperty } from '@/relisten/components/source/source_components';
 import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
+import { useRealm } from '@/relisten/realm/schema';
+import { useGroupSegment } from '@/relisten/util/routes';
+import { Show } from '@/relisten/realm/models/show';
+import {
+  activeCatalogObjectForPrimaryKey,
+  retainedCatalogObjectForPrimaryKey,
+  readRetainedCatalogObject,
+} from '@/relisten/realm/catalog_retirement';
 
 function SourceDetails({ source, ...props }: { source: Source } & ScrollViewProps) {
   const { width } = useWindowDimensions();
@@ -83,21 +91,52 @@ function SourceDetails({ source, ...props }: { source: Source } & ScrollViewProp
 }
 
 export default function Page() {
+  const realm = useRealm();
   const navigation = useNavigation();
   const { showUuid, sourceUuid } = useLocalSearchParams();
+  const groupSegment = useGroupSegment();
   const playerBottomScrollViewProps = usePlayerBottomScrollViewProps();
 
   const {
     results: { isNetworkLoading },
-    show,
-    selectedSource: source,
+    show: queriedShow,
+    selectedSource: queriedSource,
   } = useFullShowWithSelectedSource(String(showUuid), String(sourceUuid));
+  const retainedAccessSite =
+    groupSegment === '(offline)'
+      ? 'offline.source-details'
+      : groupSegment === '(myLibrary)'
+        ? 'library.source-details'
+        : undefined;
+  const show = retainedAccessSite
+    ? (retainedCatalogObjectForPrimaryKey(
+        realm,
+        Show,
+        String(showUuid),
+        `${retainedAccessSite}.show`
+      ) ?? readRetainedCatalogObject(queriedShow, `${retainedAccessSite}.show-fallback`))
+    : queriedShow;
+  const source = retainedAccessSite
+    ? (retainedCatalogObjectForPrimaryKey(
+        realm,
+        Source,
+        String(sourceUuid),
+        `${retainedAccessSite}.source`
+      ) ?? readRetainedCatalogObject(queriedSource, `${retainedAccessSite}.source-fallback`))
+    : String(sourceUuid) === 'initial'
+      ? queriedSource
+      : activeCatalogObjectForPrimaryKey(
+          realm,
+          Source,
+          String(sourceUuid),
+          'artists.source-details.source'
+        );
 
   useEffect(() => {
     navigation.setOptions({ title: show ? `${show.displayDate} Details` : 'Details' });
-  }, [show]);
+  }, [navigation, show]);
 
-  if (isNetworkLoading) {
+  if (isNetworkLoading || !source) {
     return (
       <View className="w-full p-4">
         <ListContentLoader

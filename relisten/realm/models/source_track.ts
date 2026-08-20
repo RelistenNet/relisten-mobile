@@ -11,6 +11,10 @@ import { Year } from './year';
 import { trackDuration } from '@/relisten/util/duration';
 import { Paths } from 'expo-file-system';
 import { sharedStatsigClient } from '@/relisten/events';
+import {
+  CATALOG_RETIREMENT_SCHEMA_PROPERTIES,
+  CatalogRetirementState,
+} from '@/relisten/realm/catalog_retirement_schema';
 
 export const OFFLINE_DIRECTORY = Paths.join(Paths.document, 'offline');
 
@@ -48,7 +52,7 @@ export interface SourceTrackRequiredProperties extends RelistenObjectRequiredPro
 
 export class SourceTrack
   extends Realm.Object<SourceTrack, keyof SourceTrackRequiredProperties>
-  implements SourceTrackRequiredProperties
+  implements SourceTrackRequiredProperties, CatalogRetirementState
 {
   static schema: Realm.ObjectSchema = {
     name: 'SourceTrack',
@@ -57,6 +61,7 @@ export class SourceTrack
       uuid: 'string',
       createdAt: 'date',
       updatedAt: 'date',
+      ...CATALOG_RETIREMENT_SCHEMA_PROPERTIES,
       artistUuid: { type: 'string', indexed: true },
       sourceUuid: { type: 'string', indexed: true },
       sourceSetUuid: { type: 'string', indexed: true },
@@ -85,6 +90,8 @@ export class SourceTrack
   uuid!: string;
   createdAt!: Date;
   updatedAt!: Date;
+  retiredAt?: Date;
+  retirementReason?: string;
 
   sourceUuid!: string;
   sourceSetUuid!: string;

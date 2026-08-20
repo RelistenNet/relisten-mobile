@@ -7,6 +7,7 @@ import { useMemo } from 'react';
 import { Tour } from './tour';
 import { NetworkBackedBehaviorOptions } from '@/relisten/realm/network_backed_behavior';
 import { NetworkBackedModelArrayBehavior } from '@/relisten/realm/network_backed_model_array_behavior';
+import { activeCatalogObjects } from '@/relisten/realm/catalog_retirement';
 
 export const tourRepo = new Repository(Tour);
 
@@ -17,7 +18,7 @@ export function useTours(artistUuid: string, options?: NetworkBackedBehaviorOpti
     return new NetworkBackedModelArrayBehavior(
       realm,
       tourRepo,
-      (realm) => realm.objects(Tour).filtered('artistUuid == $0', artistUuid),
+      (realm) => activeCatalogObjects(realm, Tour).filtered('artistUuid == $0', artistUuid),
       (api) => api.tours(artistUuid),
       options
     );

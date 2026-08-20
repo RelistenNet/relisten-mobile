@@ -3,6 +3,10 @@ import { TourWithShowCount } from '../../api/models/tour';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import dayjs from 'dayjs';
 import { FavoritableObject } from '../favoritable_object';
+import {
+  CATALOG_RETIREMENT_SCHEMA_PROPERTIES,
+  CatalogRetirementState,
+} from '@/relisten/realm/catalog_retirement_schema';
 
 export interface TourRequiredProperties extends RelistenObjectRequiredProperties {
   uuid: string;
@@ -19,7 +23,7 @@ export interface TourRequiredProperties extends RelistenObjectRequiredProperties
 
 export class Tour
   extends Realm.Object<Tour, keyof TourRequiredProperties>
-  implements TourRequiredProperties, FavoritableObject
+  implements TourRequiredProperties, FavoritableObject, CatalogRetirementState
 {
   static schema: Realm.ObjectSchema = {
     name: 'Tour',
@@ -27,6 +31,7 @@ export class Tour
     properties: {
       createdAt: 'date',
       updatedAt: 'date',
+      ...CATALOG_RETIREMENT_SCHEMA_PROPERTIES,
       artistUuid: 'string',
       startDate: 'date',
       endDate: 'date',
@@ -41,6 +46,8 @@ export class Tour
   uuid!: string;
   createdAt!: Date;
   updatedAt!: Date;
+  retiredAt?: Date;
+  retirementReason?: string;
   artistUuid!: string;
   startDate!: Date;
   endDate!: Date;

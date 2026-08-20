@@ -31,6 +31,7 @@ export class PlayerState extends Realm.Object<PlayerState> implements PlayerStat
       progress: 'float?',
       duration: 'float?',
       elapsed: 'float?',
+      deletedAt: { type: 'date', optional: true, indexed: true },
     },
   };
 
@@ -45,16 +46,20 @@ export class PlayerState extends Realm.Object<PlayerState> implements PlayerStat
   progress?: number;
   duration?: number;
   elapsed?: number;
+  deletedAt?: Date;
 
   static defaultObject(realm: Realm) {
-    return realm.objectForPrimaryKey(PlayerState, PLAYER_STATE_SENTINEL);
+    const obj = realm.objectForPrimaryKey(PlayerState, PLAYER_STATE_SENTINEL);
+
+    return obj?.deletedAt ? undefined : obj;
   }
 
   static upsert(realm: Realm, props: PlayerStateProps): PlayerState {
-    const obj = this.defaultObject(realm);
+    const obj = realm.objectForPrimaryKey(PlayerState, PLAYER_STATE_SENTINEL);
 
     return realm.write(() => {
       if (obj) {
+        obj.deletedAt = undefined;
         obj.queueShuffleState = props.queueShuffleState;
         obj.queueRepeatState = props.queueRepeatState;
         obj.queueSourceTrackUuids = props.queueSourceTrackUuids;
@@ -69,6 +74,7 @@ export class PlayerState extends Realm.Object<PlayerState> implements PlayerStat
       } else {
         return realm.create(PlayerState, {
           id: PLAYER_STATE_SENTINEL,
+          deletedAt: undefined,
           ...props,
           duration: Number.isFinite(props.duration) ? props.duration : undefined,
           progress: Number.isFinite(props.progress) ? props.progress : undefined,
@@ -86,7 +92,7 @@ export class PlayerState extends Realm.Object<PlayerState> implements PlayerStat
     }
 
     realm.write(() => {
-      realm.delete(obj);
+      obj.deletedAt = new Date();
     });
   }
 

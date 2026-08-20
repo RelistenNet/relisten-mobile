@@ -1,5 +1,8 @@
 import Realm from 'realm';
-import { LastFmScrobbleEntry } from '@/relisten/realm/models/lastfm_scrobble_entry';
+import {
+  ACTIVE_LASTFM_SCROBBLE_ENTRY_QUERY,
+  LastFmScrobbleEntry,
+} from '@/relisten/realm/models/lastfm_scrobble_entry';
 import { log } from '@/relisten/util/logging';
 
 const logger = log.extend('lastfm-queue');
@@ -30,10 +33,13 @@ export class LastFmScrobbleQueue {
 
   loadPersisted() {
     if (this.loaded) {
+      this.reconcileEntriesWithRealm();
       return;
     }
 
-    const persisted = this.realm.objects(LastFmScrobbleEntry);
+    const persisted = this.realm
+      .objects(LastFmScrobbleEntry)
+      .filtered(ACTIVE_LASTFM_SCROBBLE_ENTRY_QUERY);
     const now = Date.now();
     const staleEntries: LastFmScrobbleEntry[] = [];
 
@@ -58,7 +64,10 @@ export class LastFmScrobbleQueue {
 
     if (staleEntries.length > 0) {
       this.realm.write(() => {
-        this.realm.delete(staleEntries);
+        const deletedAt = new Date();
+        for (const entry of staleEntries) {
+          entry.deletedAt = deletedAt;
+        }
       });
     }
 
@@ -83,13 +92,15 @@ export class LastFmScrobbleQueue {
     };
 
     this.entries.set(id, entry);
-    this.persist(entry);
+    this.persist(entry, true);
     this.prune();
 
     return entry;
   }
 
   markAttempt(id: string, success: boolean) {
+    this.loadPersisted();
+
     const entry = this.entries.get(id);
 
     if (!entry) {
@@ -104,7 +115,7 @@ export class LastFmScrobbleQueue {
 
     entry.failureCount += 1;
     entry.lastAttemptAt = new Date();
-    this.persist(entry);
+    this.persist(entry, false);
   }
 
   list(): LastFmScrobbleQueueEntry[] {
@@ -116,14 +127,27 @@ export class LastFmScrobbleQueue {
   clearAll() {
     this.entries.clear();
     this.realm.write(() => {
-      const allEntries = this.realm.objects(LastFmScrobbleEntry);
-      this.realm.delete(allEntries);
+      const allEntries = this.realm
+        .objects(LastFmScrobbleEntry)
+        .filtered(ACTIVE_LASTFM_SCROBBLE_ENTRY_QUERY)
+        .snapshot();
+      const deletedAt = new Date();
+
+      for (const entry of allEntries) {
+        entry.deletedAt = deletedAt;
+      }
     });
   }
 
-  private persist(entry: LastFmScrobbleQueueEntry) {
+  private persist(entry: LastFmScrobbleQueueEntry, allowResurrection: boolean) {
     this.realm.write(() => {
-      this.realm.create(
+      const existing = this.realm.objectForPrimaryKey(LastFmScrobbleEntry, entry.id);
+      if (!allowResurrection && (!existing || existing.deletedAt)) {
+        this.entries.delete(entry.id);
+        return;
+      }
+
+      const persisted = this.realm.create(
         LastFmScrobbleEntry,
         {
           id: entry.id,
@@ -135,17 +159,37 @@ export class LastFmScrobbleQueue {
           timestamp: entry.timestamp,
           failureCount: entry.failureCount,
           lastAttemptAt: entry.lastAttemptAt,
+          deletedAt: undefined,
         },
         Realm.UpdateMode.Modified
       );
+
+      // A scrobble can be re-enqueued with the same deterministic id before
+      // cold-start cleanup has physically collected its tombstone.
+      persisted.deletedAt = undefined;
     });
+  }
+
+  private reconcileEntriesWithRealm() {
+    const activeIds = new Set(
+      this.realm
+        .objects(LastFmScrobbleEntry)
+        .filtered(ACTIVE_LASTFM_SCROBBLE_ENTRY_QUERY)
+        .map((entry) => entry.id)
+    );
+
+    for (const id of this.entries.keys()) {
+      if (!activeIds.has(id)) {
+        this.entries.delete(id);
+      }
+    }
   }
 
   private deletePersisted(id: string) {
     this.realm.write(() => {
       const existing = this.realm.objectForPrimaryKey(LastFmScrobbleEntry, id);
-      if (existing) {
-        this.realm.delete(existing);
+      if (existing && !existing.deletedAt) {
+        existing.deletedAt = new Date();
       }
     });
   }

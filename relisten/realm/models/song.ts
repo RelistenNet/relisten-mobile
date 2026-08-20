@@ -4,6 +4,10 @@ import { RelistenObjectRequiredProperties } from '../relisten_object';
 import dayjs from 'dayjs';
 import { FavoritableObject } from '../favoritable_object';
 import type { Show } from '@/relisten/realm/models/show';
+import {
+  CATALOG_RETIREMENT_SCHEMA_PROPERTIES,
+  CatalogRetirementState,
+} from '@/relisten/realm/catalog_retirement_schema';
 
 export interface SongRequiredProperties extends RelistenObjectRequiredProperties {
   uuid: string;
@@ -19,7 +23,7 @@ export interface SongRequiredProperties extends RelistenObjectRequiredProperties
 
 export class Song
   extends Realm.Object<Song, keyof SongRequiredProperties>
-  implements SongRequiredProperties, FavoritableObject
+  implements SongRequiredProperties, FavoritableObject, CatalogRetirementState
 {
   static schema: Realm.ObjectSchema = {
     name: 'Song',
@@ -27,6 +31,7 @@ export class Song
     properties: {
       createdAt: 'date',
       updatedAt: 'date',
+      ...CATALOG_RETIREMENT_SCHEMA_PROPERTIES,
       artistUuid: 'string',
       name: 'string',
       slug: 'string',
@@ -45,6 +50,8 @@ export class Song
   uuid!: string;
   createdAt!: Date;
   updatedAt!: Date;
+  retiredAt?: Date;
+  retirementReason?: string;
   artistUuid!: string;
   name!: string;
   slug!: string;

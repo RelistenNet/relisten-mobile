@@ -2,11 +2,16 @@ import { useQuery, useRealm } from '@/relisten/realm/schema';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { InteractionManager } from 'react-native';
+import {
+  ACTIVE_PLAYBACK_HISTORY_QUERY,
+  readRetainedPlaybackHistoryCatalogLinks,
+} from '@/relisten/realm/models/history/playback_history_lifecycle';
 
 export function useTotalListeningTime(): number {
   const allEntries = useQuery(
     {
       type: PlaybackHistoryEntry,
+      query: (query) => query.filtered(ACTIVE_PLAYBACK_HISTORY_QUERY),
     },
     []
   );
@@ -14,7 +19,11 @@ export function useTotalListeningTime(): number {
   const totalSeconds = useMemo(() => {
     let total = 0;
     for (const entry of allEntries) {
-      total += entry.sourceTrack.duration ?? 0;
+      const { sourceTrack } = readRetainedPlaybackHistoryCatalogLinks(
+        entry,
+        'history.statistics.totalTime'
+      );
+      total += sourceTrack.duration ?? 0;
     }
     return total;
   }, [allEntries]);
@@ -38,6 +47,7 @@ export function useListeningTimeByArtist(): ArtistListeningTime[] {
   const allEntries = useQuery(
     {
       type: PlaybackHistoryEntry,
+      query: (query) => query.filtered(ACTIVE_PLAYBACK_HISTORY_QUERY),
     },
     []
   );
@@ -54,16 +64,20 @@ export function useListeningTimeByArtist(): ArtistListeningTime[] {
     > = {};
 
     for (const entry of allEntries) {
-      const uuid = entry.artist.uuid;
+      const { artist: catalogArtist, sourceTrack } = readRetainedPlaybackHistoryCatalogLinks(
+        entry,
+        'history.statistics.byArtist'
+      );
+      const uuid = catalogArtist.uuid;
       if (!artist[uuid]) {
         artist[uuid] = {
           uuid: uuid,
-          artistName: entry.artist.name,
+          artistName: catalogArtist.name,
           totalSeconds: 0,
           years: {},
         };
       }
-      const duration = entry.sourceTrack.duration ?? 0;
+      const duration = sourceTrack.duration ?? 0;
       artist[uuid].totalSeconds += duration;
       const year = entry.playbackStartedAt.getFullYear();
       artist[uuid].years[year] = (artist[uuid].years[year] ?? 0) + duration;
@@ -86,7 +100,10 @@ export function useHistoryRecentlyPlayedShows(
   const recentlyPlayed = useQuery(
     {
       type: PlaybackHistoryEntry,
-      query: (query) => query.sorted('playbackStartedAt', /* reverse= */ true),
+      query: (query) =>
+        query
+          .filtered(ACTIVE_PLAYBACK_HISTORY_QUERY)
+          .sorted('playbackStartedAt', /* reverse= */ true),
     },
     []
   );
@@ -96,9 +113,10 @@ export function useHistoryRecentlyPlayedShows(
     const entryByShowUuid: { [uuid: string]: PlaybackHistoryEntry } = {};
 
     for (const entry of recentlyPlayed) {
-      if (recentlyPlayedShowUuids.indexOf(entry.show.uuid) === -1) {
-        recentlyPlayedShowUuids.push(entry.show.uuid);
-        entryByShowUuid[entry.show.uuid] = entry;
+      const { show } = readRetainedPlaybackHistoryCatalogLinks(entry, 'history.recentShows');
+      if (recentlyPlayedShowUuids.indexOf(show.uuid) === -1) {
+        recentlyPlayedShowUuids.push(show.uuid);
+        entryByShowUuid[show.uuid] = entry;
       }
 
       if (recentlyPlayedShowUuids.length >= limit) {
@@ -179,7 +197,9 @@ export function useTopPlayedArtistUuidsOnce(
 
       const entries = realm
         .objects(PlaybackHistoryEntry)
-        .sorted('playbackStartedAt', /* reverse= */ true);
+        .filtered(ACTIVE_PLAYBACK_HISTORY_QUERY)
+        .sorted('playbackStartedAt', /* reverse= */ true)
+        .snapshot();
       const cutoffTime = Date.now() - EARLY_EXIT_DAYS_MS;
       const counts = new Map<string, number>();
       const sortNames = new Map<string, string>();
@@ -205,7 +225,7 @@ export function useTopPlayedArtistUuidsOnce(
 
         while (index < end) {
           const entry = entries[index];
-          const artist = entry.artist;
+          const { artist } = readRetainedPlaybackHistoryCatalogLinks(entry, 'history.topArtists');
           const uuid = artist?.uuid;
 
           if (uuid) {

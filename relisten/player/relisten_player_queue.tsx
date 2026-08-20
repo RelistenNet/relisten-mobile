@@ -11,11 +11,16 @@ import { EventSource } from '@/relisten/util/event_source';
 import { realm } from '@/relisten/realm/schema';
 import { PlayerState } from '@/relisten/realm/models/player_state';
 import { log } from '@/relisten/util/logging';
-import { groupByUuid } from '@/relisten/util/group_by';
 import { Realm } from '@realm/react';
 import { indentString } from '@/relisten/util/string_indent';
+import {
+  readRetainedCatalogObject,
+  retainedCatalogObjectForPrimaryKey,
+} from '@/relisten/realm/catalog_retirement';
 
 const logger = log.extend('player-queue');
+const QUEUE_TRACK_ACCESS_SITE = 'player.queue.track';
+const QUEUE_RESTORE_ACCESS_SITE = 'player.queue.restore.source-track';
 
 export enum PlayerShuffleState {
   SHUFFLE_OFF = 1,
@@ -69,17 +74,36 @@ export class PlayerQueueTrack {
   }
 
   static fromSourceTrack(sourceTrack: SourceTrack) {
-    const artist = sourceTrack.artist;
-    const source = sourceTrack.source;
-    const venue = sourceTrack.show.venue;
+    const retainedSourceTrack = readRetainedCatalogObject(
+      sourceTrack,
+      `${QUEUE_TRACK_ACCESS_SITE}.source-track`
+    );
+    const artist = readRetainedCatalogObject(
+      retainedSourceTrack?.artist,
+      `${QUEUE_TRACK_ACCESS_SITE}.artist`
+    );
+    const source = readRetainedCatalogObject(
+      retainedSourceTrack?.source,
+      `${QUEUE_TRACK_ACCESS_SITE}.source`
+    );
+    const show = readRetainedCatalogObject(
+      retainedSourceTrack?.show,
+      `${QUEUE_TRACK_ACCESS_SITE}.show`
+    );
+
+    if (!retainedSourceTrack || !artist || !source || !show) {
+      throw new Error(`Cannot create queue track for incomplete SourceTrack ${sourceTrack.uuid}`);
+    }
+
+    const venue = readRetainedCatalogObject(show.venue, `${QUEUE_TRACK_ACCESS_SITE}.venue`);
 
     const [year, month, day] = source.displayDate.split('-');
 
-    const albumArtUrl = `https://sonos.relisten.net/album-art/${artist?.slug}/years/${year}/${year}-${month}-${day}/${source.uuid}/550.png`;
+    const albumArtUrl = `https://sonos.relisten.net/album-art/${artist.slug}/years/${year}/${year}-${month}-${day}/${source.uuid}/550.png`;
 
     return new PlayerQueueTrack(
-      sourceTrack,
-      sourceTrack.title,
+      retainedSourceTrack,
+      retainedSourceTrack.title,
       [artist.name, source.displayDate, venue?.name].filter((part) => !!part).join(' • ') || '',
       [artist.name, source.displayDate, venue?.name, venue?.location]
         .filter((part) => !!part)
@@ -622,11 +646,18 @@ ${indentString(tracks)}
         queueShuffleState: playerState.queueShuffleState,
       });
 
-      const sourceTracksByUuid = groupByUuid([
-        ...realm
-          .objects(SourceTrack)
-          .filtered('uuid in $0', [...playerState.queueSourceTrackUuids]),
-      ]);
+      const sourceTracksByUuid: Record<string, SourceTrack> = {};
+      for (const sourceTrackUuid of new Set(playerState.queueSourceTrackUuids)) {
+        const sourceTrack = retainedCatalogObjectForPrimaryKey(
+          realm,
+          SourceTrack,
+          sourceTrackUuid,
+          QUEUE_RESTORE_ACCESS_SITE
+        );
+        if (sourceTrack) {
+          sourceTracksByUuid[sourceTrackUuid] = sourceTrack;
+        }
+      }
       let droppedInvalidTrack = false;
 
       const makeQueue = (uuids: string[]) => {

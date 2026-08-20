@@ -10,6 +10,13 @@ import { OfflineModeSetting } from '@/relisten/realm/models/user_settings';
 import plur from 'plur';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { queuePlaybackHistoryEntry } from '@/relisten/carplay/queue_helpers';
+import {
+  ACTIVE_PLAYBACK_HISTORY_QUERY,
+  activePlaybackHistoryEntryForPrimaryKey,
+  readRetainedPlaybackHistoryCatalogLinks,
+} from '@/relisten/realm/models/history/playback_history_lifecycle';
+import { catalogObjectsForAccess } from '@/relisten/carplay/catalog_scope';
+import { readRetainedCatalogObject } from '@/relisten/realm/catalog_retirement';
 
 export function createLibraryTemplate(ctx: RelistenCarPlayContext): ListTemplate {
   carplay_logger.info('createLibraryTemplate');
@@ -32,13 +39,20 @@ export function createLibraryTemplate(ctx: RelistenCarPlayContext): ListTemplate
     tabTitle: 'Library',
     tabSystemImageName: 'star.circle',
     async onItemSelect({ id }: { templateId: string; index: number; id: string }) {
-      const show = showMap.get(String(id));
-      if (!show || !show.artist) {
+      const show = readRetainedCatalogObject(
+        showMap.get(String(id)),
+        'carplay.library.show-selection'
+      );
+      const artist = readRetainedCatalogObject(
+        show?.artist,
+        'carplay.library.show-selection-artist'
+      );
+      if (!show || !artist) {
         carplay_logger.warn('Library show selection missing data', { id });
         return;
       }
 
-      const sourcesTemplate = createSourcesListTemplate(ctx, 'library', show.artist, show);
+      const sourcesTemplate = createSourcesListTemplate(ctx, 'library', artist, show);
       CarPlay.pushTemplate(sourcesTemplate, true);
     },
     sections: [],
@@ -47,14 +61,18 @@ export function createLibraryTemplate(ctx: RelistenCarPlayContext): ListTemplate
 
   const updateSections = () => {
     showMap.clear();
-    const shows = Array.from(showsStream.currentValue || []);
+    const shows = catalogObjectsForAccess(
+      Array.from(showsStream.currentValue || []),
+      'retained',
+      'carplay.library.show'
+    );
 
     const sections: ListSection[] = [];
 
     const groupedByArtist: Map<string, Show[]> = new Map();
 
     for (const show of shows) {
-      const artist = show.artist;
+      const artist = readRetainedCatalogObject(show.artist, 'carplay.library.show-artist');
       if (!artist) continue;
 
       const existing = groupedByArtist.get(artist.uuid) || [];
@@ -115,22 +133,29 @@ export function createRecentTemplate(ctx: RelistenCarPlayContext): ListTemplate 
 
   const historyStream = new RealmQueryValueStream(
     ctx.realm,
-    ctx.realm.objects(PlaybackHistoryEntry).sorted('playbackStartedAt', true)
+    ctx.realm
+      .objects(PlaybackHistoryEntry)
+      .filtered(ACTIVE_PLAYBACK_HISTORY_QUERY)
+      .sorted('playbackStartedAt', true)
   );
 
   ctx.addTeardown(() => historyStream.tearDown());
-
-  const entryMap: Map<string, PlaybackHistoryEntry> = new Map();
 
   const template = new ListTemplate({
     title: 'Recently Played',
     tabTitle: 'Recent',
     tabSystemImageName: 'clock.arrow.circlepath',
     async onItemSelect({ id }: { templateId: string; index: number; id: string }) {
-      const entry = entryMap.get(String(id));
-      if (!entry) return;
+      const entry = activePlaybackHistoryEntryForPrimaryKey(ctx.realm, String(id));
+      if (!entry) {
+        carplay_logger.warn('History selection is no longer active', { id });
+        return;
+      }
 
-      const track = entry.sourceTrack;
+      const { sourceTrack: track } = readRetainedPlaybackHistoryCatalogLinks(
+        entry,
+        'history.carplay.selection'
+      );
       const offlineMode = ctx.userSettings.offlineModeWithDefault();
 
       if (
@@ -148,18 +173,18 @@ export function createRecentTemplate(ctx: RelistenCarPlayContext): ListTemplate 
   });
 
   const updateSections = () => {
-    entryMap.clear();
     const entries = Array.from(historyStream.currentValue || []).slice(0, 50);
 
     const items = entries.map((entry) => {
-      entryMap.set(entry.uuid, entry);
-      const show = entry.show;
-      const artist = entry.artist;
+      const { artist, show, sourceTrack } = readRetainedPlaybackHistoryCatalogLinks(
+        entry,
+        'history.carplay.recentFormatting'
+      );
       const subtitle = [artist?.name, show?.displayDate].filter(Boolean).join(' • ');
 
       return {
         id: entry.uuid,
-        text: entry.sourceTrack.title,
+        text: sourceTrack.title,
         detailText: subtitle,
         showsDisclosureIndicator: false,
       };
@@ -185,8 +210,9 @@ export function createRecentTemplate(ctx: RelistenCarPlayContext): ListTemplate 
 }
 
 function formatLibraryShowDetail(ctx: RelistenCarPlayContext, show: Show) {
-  const venue = show.venue?.name;
-  const location = show.venue?.location;
+  const showVenue = readRetainedCatalogObject(show.venue, 'carplay.library.show-venue');
+  const venue = showVenue?.name;
+  const location = showVenue?.location;
   const locationText = [venue, location].filter(Boolean).join(' • ');
   const offline = ctx.libraryIndex.showHasOfflineTracks(show.uuid) ? 'Offline' : undefined;
   const rating = show.avgRating ? `${show.humanizedAvgRating()}★` : undefined;

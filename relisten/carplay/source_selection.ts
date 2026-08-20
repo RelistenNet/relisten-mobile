@@ -5,7 +5,7 @@ import { LibraryIndex } from '@/relisten/realm/library_index';
 
 export function resolveSourcesForScope(
   scope: CarPlayScope,
-  show: Show,
+  show: Pick<Show, 'isFavorite'>,
   sources: Source[],
   libraryIndex: Pick<LibraryIndex, 'sourceHasOfflineTracks'>
 ) {

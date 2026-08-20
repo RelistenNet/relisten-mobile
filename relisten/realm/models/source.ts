@@ -9,6 +9,10 @@ import { Artist } from '@/relisten/realm/models/artist';
 import { duration } from '@/relisten/util/duration';
 import { checkIfOfflineSourceTrackExists } from '@/relisten/realm/realm_filters';
 import type { LibraryIndex } from '@/relisten/realm/library_index';
+import {
+  CATALOG_RETIREMENT_SCHEMA_PROPERTIES,
+  CatalogRetirementState,
+} from '@/relisten/realm/catalog_retirement_schema';
 
 export interface SourceRequiredProperties extends RelistenObjectRequiredProperties {
   artistUuid: string;
@@ -37,7 +41,7 @@ export interface SourceRequiredProperties extends RelistenObjectRequiredProperti
 
 export class Source
   extends Realm.Object<Source, keyof SourceRequiredProperties>
-  implements SourceRequiredProperties, FavoritableObject
+  implements SourceRequiredProperties, FavoritableObject, CatalogRetirementState
 {
   static schema: Realm.ObjectSchema = {
     name: 'Source',
@@ -46,6 +50,7 @@ export class Source
       uuid: 'string',
       createdAt: 'date',
       updatedAt: 'date',
+      ...CATALOG_RETIREMENT_SCHEMA_PROPERTIES,
       artistUuid: { type: 'string', indexed: true },
       showUuid: { type: 'string', indexed: true },
       venueUuid: { type: 'string', optional: true, indexed: true },
@@ -85,6 +90,8 @@ export class Source
   uuid!: string;
   createdAt!: Date;
   updatedAt!: Date;
+  retiredAt?: Date;
+  retirementReason?: string;
   artistUuid!: string;
   venueUuid?: string;
   displayDate!: string;

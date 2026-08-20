@@ -1,4 +1,4 @@
-import Realm from 'realm';
+import Realm, { AnyRealmObject } from 'realm';
 import { Show } from '@/relisten/realm/models/show';
 import { Show as ApiShow } from '@/relisten/api/models/show';
 import { showRepo } from '@/relisten/realm/models/show_repo';
@@ -10,11 +10,17 @@ import { RelistenObjectRequiredProperties } from '@/relisten/realm/relisten_obje
 import { log } from '@/relisten/util/logging';
 import { Song } from '@/relisten/realm/models/song';
 import { attachShowArtists } from '@/relisten/realm/models/show_artist_relationships';
+import { MissingCatalogObjectBehavior } from '@/relisten/realm/catalog_retirement';
+import { CatalogRetirementState } from '@/relisten/realm/catalog_retirement_schema';
+import { repairCatalogIntegrity } from '@/relisten/realm/catalog_integrity';
 
 const logger = log.extend('repo-utils');
 
 function upsertShowRelationship<
-  TModel extends RequiredProperties & RequiredRelationships,
+  TModel extends AnyRealmObject &
+    RequiredProperties &
+    RequiredRelationships &
+    CatalogRetirementState,
   TApi extends RelistenApiUpdatableObject,
   RequiredProperties extends RelistenObjectRequiredProperties,
   RequiredRelationships extends object,
@@ -29,18 +35,21 @@ function upsertShowRelationship<
   const uniqueApiUuids = [...new Set(apiUuids)];
   const localValues = [...repo.forUuids(realm, uniqueApiUuids)];
 
-  const { createdModels: createdValues } = repo.upsertMultiple(
+  const { allModels } = repo.upsertMultiple(
     realm,
     api.filter((v) => v !== null && v !== undefined) as TApi[],
     localValues,
-    /* performDeletes= */ false
+    { missingObjectBehavior: MissingCatalogObjectBehavior.Preserve }
   );
 
-  const valuesByUuid = { ...groupByUuid(localValues), ...groupByUuid(createdValues) };
+  const valuesByUuid = groupByUuid([...localValues, ...allModels]);
 
-  for (const show of shows) {
-    applyToShow(show, valuesByUuid);
-  }
+  const applyRelationships = () => {
+    for (const show of shows) applyToShow(show, valuesByUuid);
+  };
+
+  if (realm.isInTransaction) applyRelationships();
+  else realm.write(applyRelationships);
 }
 
 export function upsertShowList(
@@ -49,11 +58,9 @@ export function upsertShowList(
   localShows: Realm.Results<Show>,
   {
     performDeletes,
-    queryForModel,
     upsertModels,
   }: {
     performDeletes: boolean;
-    queryForModel: boolean;
     upsertModels?: {
       tours?: boolean;
       venues?: boolean;
@@ -68,8 +75,11 @@ export function upsertShowList(
     realm,
     apiShows,
     localShows,
-    performDeletes,
-    queryForModel
+    {
+      missingObjectBehavior: performDeletes
+        ? MissingCatalogObjectBehavior.Retire
+        : MissingCatalogObjectBehavior.Preserve,
+    }
   );
 
   attachShowArtists(realm, allShows);
@@ -82,9 +92,7 @@ export function upsertShowList(
       tourRepo,
       allShows,
       (show, toursByUuid) => {
-        if (show.tourUuid && !show.tour) {
-          show.tour = toursByUuid[show.tourUuid];
-        }
+        show.tour = show.tourUuid ? toursByUuid[show.tourUuid] : undefined;
       }
     );
   }
@@ -97,9 +105,7 @@ export function upsertShowList(
       venueRepo,
       allShows,
       (show, venuesByUuid) => {
-        if (show.venueUuid && (!show.venue || show.venue.uuid !== show.venueUuid)) {
-          show.venue = venuesByUuid[show.venueUuid];
-        }
+        show.venue = show.venueUuid ? venuesByUuid[show.venueUuid] : undefined;
       }
     );
   }
@@ -121,4 +127,6 @@ export function upsertShowList(
       realm.write(writeHandler);
     }
   }
+
+  repairCatalogIntegrity(realm, { shows: allShows }, { context: 'show-list-api-reconciliation' });
 }

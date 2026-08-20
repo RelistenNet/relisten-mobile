@@ -21,7 +21,7 @@ import { RelistenBlue } from '@/relisten/relisten_blue';
 import { StatusBar } from 'expo-status-bar';
 
 import '@/relisten/util/dayjs_setup';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { PropsWithChildren, useCallback, useEffect, useRef, useState } from 'react';
 import useCacheAssets from './useCacheAssets';
 
 import { RelistenPlayerProvider } from '@/relisten/player/relisten_player_hooks';
@@ -50,6 +50,7 @@ import {
   isVerboseProfileLoggingEnabled,
   logRouteDebug,
 } from '@/relisten/util/profile_logging';
+import { runRealmStartupMaintenance } from '@/relisten/realm/startup_maintenance';
 
 // c.f. https://github.com/meliorence/react-native-render-html/issues/661#issuecomment-2453476566
 LogBox.ignoreLogs([/Support for defaultProps will be removed/]);
@@ -89,11 +90,14 @@ if (!__DEV__) {
   Sentry.init({});
 }
 
-function RealmBridge() {
+function RealmStartupGate({ children }: PropsWithChildren) {
   const realm = useRealm();
+  const [readyRealm, setReadyRealm] = useState<Realm | null>(null);
 
   useEffect(() => {
+    runRealmStartupMaintenance(realm);
     setRealm(realm);
+    setReadyRealm(realm);
 
     return () => {
       // React Strict Mode runs effect cleanup during the initial mount cycle in development.
@@ -104,7 +108,7 @@ function RealmBridge() {
     };
   }, [realm]);
 
-  return null;
+  return readyRealm === realm ? children : null;
 }
 
 function CarPlayBootstrap() {
@@ -196,42 +200,43 @@ function TabLayout() {
 
   return (
     <RealmProvider realmRef={realmRef} closeOnUnmount={false}>
-      <RootServicesProvider>
-        <RelistenApiProvider>
-          <RelistenPlayerProvider>
-            <RelistenCastProvider>
-              <PlaybackHistoryReporterComponent />
-              <LastFmReporterComponent />
-              <LastFmAuthListener />
-              <RealmBridge />
-              <CarPlayBootstrap />
-              <ThemeProvider
-                value={{
-                  dark: true,
-                  colors: {
-                    ...DarkTheme.colors,
-                    primary: 'rgb(0,157,193)',
-                    background: RelistenBlue[900],
-                    card: '#001114',
-                  },
-                  fonts: DefaultTheme.fonts,
-                }}
-              >
-                <RelistenPlayerBottomBarProvider>
-                  <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
-                    <SafeAreaProvider>
-                      {/* */}
-                      <StatusBar style="light" />
-                      <Slot />
-                      <FlashMessage position="top" />
-                    </SafeAreaProvider>
-                  </GestureHandlerRootView>
-                </RelistenPlayerBottomBarProvider>
-              </ThemeProvider>
-            </RelistenCastProvider>
-          </RelistenPlayerProvider>
-        </RelistenApiProvider>
-      </RootServicesProvider>
+      <RealmStartupGate>
+        <RootServicesProvider>
+          <RelistenApiProvider>
+            <RelistenPlayerProvider>
+              <RelistenCastProvider>
+                <PlaybackHistoryReporterComponent />
+                <LastFmReporterComponent />
+                <LastFmAuthListener />
+                <CarPlayBootstrap />
+                <ThemeProvider
+                  value={{
+                    dark: true,
+                    colors: {
+                      ...DarkTheme.colors,
+                      primary: 'rgb(0,157,193)',
+                      background: RelistenBlue[900],
+                      card: '#001114',
+                    },
+                    fonts: DefaultTheme.fonts,
+                  }}
+                >
+                  <RelistenPlayerBottomBarProvider>
+                    <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
+                      <SafeAreaProvider>
+                        {/* */}
+                        <StatusBar style="light" />
+                        <Slot />
+                        <FlashMessage position="top" />
+                      </SafeAreaProvider>
+                    </GestureHandlerRootView>
+                  </RelistenPlayerBottomBarProvider>
+                </ThemeProvider>
+              </RelistenCastProvider>
+            </RelistenPlayerProvider>
+          </RelistenApiProvider>
+        </RootServicesProvider>
+      </RealmStartupGate>
     </RealmProvider>
   );
 }

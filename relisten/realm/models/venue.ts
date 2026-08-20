@@ -4,6 +4,10 @@ import { FavoritableObject } from '../favoritable_object';
 
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import dayjs from 'dayjs';
+import {
+  CATALOG_RETIREMENT_SCHEMA_PROPERTIES,
+  CatalogRetirementState,
+} from '@/relisten/realm/catalog_retirement_schema';
 
 export interface VenueRequiredProperties extends RelistenObjectRequiredProperties {
   createdAt: Date;
@@ -21,7 +25,7 @@ export interface VenueRequiredProperties extends RelistenObjectRequiredPropertie
 
 export class Venue
   extends Realm.Object<Venue, keyof VenueRequiredProperties>
-  implements VenueRequiredProperties, FavoritableObject
+  implements VenueRequiredProperties, FavoritableObject, CatalogRetirementState
 {
   static schema: Realm.ObjectSchema = {
     name: 'Venue',
@@ -30,6 +34,7 @@ export class Venue
       uuid: 'string',
       createdAt: 'date',
       updatedAt: 'date',
+      ...CATALOG_RETIREMENT_SCHEMA_PROPERTIES,
       artistUuid: 'string',
       latitude: 'double?',
       longitude: 'double?',
@@ -47,6 +52,8 @@ export class Venue
   uuid!: string;
   createdAt!: Date;
   updatedAt!: Date;
+  retiredAt?: Date;
+  retirementReason?: string;
   artistUuid!: string;
   latitude?: number;
   longitude?: number;

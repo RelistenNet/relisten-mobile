@@ -17,6 +17,7 @@ import {
 } from '@/relisten/realm/network_backed_behavior';
 import { useRealm } from '../../schema';
 import { RealmQueryValueStream } from '@/relisten/realm/value_streams';
+import { activeCatalogObjects } from '@/relisten/realm/catalog_retirement';
 
 export enum RecentShowTabs {
   Performed = 'performed',
@@ -63,7 +64,9 @@ class RecentShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavi
 
     return new RealmQueryValueStream<Show>(
       this.realm,
-      this.realm.objects(Show).filtered('artistUuid == $0', this.artistUuid).sorted(sortKey, true)
+      activeCatalogObjects(this.realm, Show)
+        .filtered('artistUuid == $0', this.artistUuid)
+        .sorted(sortKey, true)
     );
   }
 }

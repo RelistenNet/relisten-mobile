@@ -7,24 +7,42 @@ import { buildTrackSections, isTrackPlayableInScope } from '@/relisten/carplay/t
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { upsertShowWithSources } from '@/relisten/realm/models/show_repo';
 import { Source } from '@/relisten/realm/models/source';
+import { Artist } from '@/relisten/realm/models/artist';
+import {
+  CarPlayCatalogAccess,
+  catalogAccessForScope,
+  selectedCatalogObjectForAccess,
+} from '@/relisten/carplay/catalog_scope';
+import { readRetainedCatalogObject } from '@/relisten/realm/catalog_retirement';
 
 export function queueTracksFromSelection({
   ctx,
   scope,
-  orderedTracks,
+  orderedTrackUuids,
   selectedTrackUuid,
   sourceUuid,
+  catalogAccess = catalogAccessForScope(scope),
 }: {
   ctx: RelistenCarPlayContext;
   scope: CarPlayScope;
-  orderedTracks: SourceTrack[];
+  orderedTrackUuids: string[];
   selectedTrackUuid: string;
   sourceUuid?: string;
+  catalogAccess?: CarPlayCatalogAccess;
 }) {
   const offlineMode = ctx.userSettings.offlineModeWithDefault();
-  const playableTracks = orderedTracks.filter((track) =>
-    isTrackPlayableInScope(scope, offlineMode, track)
-  );
+  const playableTracks = orderedTrackUuids
+    .map((uuid) =>
+      selectedCatalogObjectForAccess(
+        ctx.realm,
+        catalogAccess,
+        SourceTrack,
+        uuid,
+        'carplay.queue.source-track-selection'
+      )
+    )
+    .filter((track): track is SourceTrack => track !== undefined)
+    .filter((track) => isTrackPlayableInScope(scope, offlineMode, track));
 
   const queueTracks = playableTracks.map((track) => PlayerQueueTrack.fromSourceTrack(track));
   const playIndex = playableTracks.findIndex((track) => track.uuid === selectedTrackUuid);
@@ -56,37 +74,64 @@ export async function queuePlaybackHistoryEntry(
   entry: PlaybackHistoryEntry
 ) {
   const offlineMode = ctx.userSettings.offlineModeWithDefault();
-  let source = entry.source;
-  let artist = entry.artist;
+  const entryUuid = entry.uuid;
+  const sourceUuid = entry.source?.uuid;
+  const artistUuid = entry.artist?.uuid;
+  const showUuid = entry.show?.uuid;
+  const selectedTrackUuid = entry.sourceTrack?.uuid;
+  let source = readRetainedCatalogObject(entry.source, 'carplay.history.initial-source');
+  let artist = readRetainedCatalogObject(entry.artist, 'carplay.history.initial-artist');
+  readRetainedCatalogObject(entry.show, 'carplay.history.initial-show');
+  readRetainedCatalogObject(entry.sourceTrack, 'carplay.history.initial-source-track');
 
-  if (!source || !artist) {
-    carplay_logger.warn('History entry missing source or artist', { id: entry.uuid });
+  if (!sourceUuid || !artistUuid || !showUuid || !selectedTrackUuid || !source || !artist) {
+    carplay_logger.warn('History entry missing source or artist', { id: entryUuid });
     return;
   }
 
   if (!source.sourceSets?.length) {
-    const response = await ctx.apiClient.showWithSources(entry.show.uuid);
+    const response = await ctx.apiClient.showWithSources(showUuid);
 
     if (response?.data?.uuid) {
-      const show = upsertShowWithSources(ctx.realm, response.data);
-      source = ctx.realm.objectForPrimaryKey(Source, entry.source.uuid) || source;
-      artist = show?.artist || artist;
+      upsertShowWithSources(ctx.realm, response.data);
+    }
+
+    source = selectedCatalogObjectForAccess(
+      ctx.realm,
+      'retained',
+      Source,
+      sourceUuid,
+      'carplay.history.source-after-refresh'
+    );
+    artist = selectedCatalogObjectForAccess(
+      ctx.realm,
+      'retained',
+      Artist,
+      artistUuid,
+      'carplay.history.artist-after-refresh'
+    );
+
+    if (!source || !artist) {
+      carplay_logger.warn('History catalog data disappeared during refresh', { id: entryUuid });
+      return;
     }
   }
 
-  const { orderedTracks } = buildTrackSections({
+  const { orderedTrackUuids } = buildTrackSections({
     source,
     artist,
     scope,
     offlineMode,
     currentTrackUuid: ctx.player.queue.currentTrack?.sourceTrack.uuid,
+    catalogAccess: 'retained',
   });
 
   queueTracksFromSelection({
     ctx,
     scope,
-    orderedTracks,
-    selectedTrackUuid: entry.sourceTrack.uuid,
+    orderedTrackUuids,
+    selectedTrackUuid,
     sourceUuid: source.uuid,
+    catalogAccess: 'retained',
   });
 }

@@ -20,6 +20,7 @@ import {
 } from '@/relisten/realm/models/source_track_offline_info';
 import { useRemainingDownloadsCount } from '@/relisten/realm/root_services';
 import { logTabRootDebug } from '@/relisten/util/profile_logging';
+import { readRetainedCatalogObject } from '@/relisten/realm/catalog_retirement';
 
 function MyLibrarySectionHeader({ children, className, ...props }: PropsWithChildren<ViewProps>) {
   return (
@@ -58,14 +59,26 @@ function RecentlyPlayedShows() {
       </Link>
 
       <View className="w-full flex-row flex-wrap px-2">
-        {recentlyPlayedShows.map((show) => (
-          <ShowCard
-            show={show.show}
-            key={show.show.uuid}
-            sourceUuid={show.source.uuid}
-            className="my-1 shrink basis-1/2"
-          />
-        ))}
+        {recentlyPlayedShows.map((entry) => {
+          const show = readRetainedCatalogObject(entry.show, 'history.recent-show-card.show');
+          const source = readRetainedCatalogObject(entry.source, 'history.recent-show-card.source');
+          const artist = readRetainedCatalogObject(show?.artist, 'history.recent-show-card.artist');
+
+          if (!show || !source || !artist) {
+            return null;
+          }
+
+          readRetainedCatalogObject(show.venue, 'history.recent-show-card.venue');
+
+          return (
+            <ShowCard
+              show={show}
+              key={show.uuid}
+              sourceUuid={source.uuid}
+              className="my-1 shrink basis-1/2"
+            />
+          );
+        })}
       </View>
     </View>
   );
@@ -78,7 +91,7 @@ function FavoriteShows({ topContent }: { topContent?: ReactNode }) {
       type: Show,
       query: (query) =>
         query.filtered(
-          'isFavorite == true OR SUBQUERY(sourceTracks, $item, $item.offlineInfo.status == $0 AND $item.offlineInfo.type == $1).@count > 0',
+          'isFavorite == true OR SUBQUERY(sourceTracks, $item, $item.offlineInfo.deletedAt == nil AND $item.offlineInfo.status == $0 AND $item.offlineInfo.type == $1).@count > 0',
           SourceTrackOfflineInfoStatus.Succeeded,
           SourceTrackOfflineInfoType.UserInitiated
         ),
@@ -86,8 +99,22 @@ function FavoriteShows({ topContent }: { topContent?: ReactNode }) {
     []
   );
 
+  const retainedFavoriteShows = useMemo(() => {
+    return [...favoriteShowsQuery].flatMap((candidate) => {
+      const show = readRetainedCatalogObject(candidate, 'library.favorite-show');
+      const artist = readRetainedCatalogObject(show?.artist, 'library.favorite-show.artist');
+
+      if (!show || !artist) {
+        return [];
+      }
+
+      readRetainedCatalogObject(show.venue, 'library.favorite-show.venue');
+      return [{ artist, show }];
+    });
+  }, [favoriteShowsQuery]);
+
   const favoriteShowsByArtist: RelistenSectionData<Show> = useMemo(() => {
-    const showsByArtistUuid = aggregateBy([...favoriteShowsQuery], (s) => s.artistUuid);
+    const showsByArtistUuid = aggregateBy(retainedFavoriteShows, ({ show }) => show.artistUuid);
 
     return Object.keys(showsByArtistUuid)
       .sort((a, b) => {
@@ -100,10 +127,10 @@ function FavoriteShows({ topContent }: { topContent?: ReactNode }) {
         const shows = showsByArtistUuid[artistUuid];
         return {
           sectionTitle: shows[0].artist.name,
-          data: shows,
+          data: shows.map(({ show }) => show),
         };
       });
-  }, [favoriteShowsQuery]);
+  }, [retainedFavoriteShows]);
 
   const nonIdealState = {
     noData: {
@@ -130,7 +157,7 @@ function FavoriteShows({ topContent }: { topContent?: ReactNode }) {
           <View className="pt-4">
             {topContent}
             <MyLibrarySectionHeader>
-              <Plur word="Show" count={favoriteShowsQuery.length} /> in My Library
+              <Plur word="Show" count={retainedFavoriteShows.length} /> in My Library
             </MyLibrarySectionHeader>
           </View>
         }

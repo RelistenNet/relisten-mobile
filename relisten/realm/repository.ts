@@ -1,10 +1,22 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import Realm from 'realm';
+import Realm, { AnyRealmObject } from 'realm';
 import { RelistenObjectRequiredProperties } from './relisten_object';
 import dayjs from 'dayjs';
 import * as R from 'remeda';
 import { log } from '../util/logging';
 import { groupByUuid } from '@/relisten/util/group_by';
+import { reportCatalogMaintenance } from '@/relisten/realm/catalog_access_monitor';
+import {
+  MissingCatalogObjectBehavior,
+  restoreCatalogObject,
+} from '@/relisten/realm/catalog_retirement';
+import { CatalogRetirementState } from '@/relisten/realm/catalog_retirement_schema';
+import {
+  CatalogObject,
+  CATALOG_MODEL_NAMES,
+  emptyCatalogModelCounts,
+  retireCatalogGraph,
+} from '@/relisten/realm/catalog_retirement_graph';
 // @ts-expect-error tsc doesn't like it but this works? AnyRealmObject is exported from 'realm' but RealmObject is not
 import { RealmObject } from 'realm/dist/public-types/Object';
 
@@ -26,25 +38,36 @@ export interface RelistenApiUpdatableObject {
 export interface UpsertResults<T> {
   created: number;
   updated: number;
-  deleted: number;
+  retired: number;
+  restored: number;
   updatedModels: T[];
   createdModels: T[];
+  retiredModels: T[];
+  restoredModels: T[];
   allModels: T[];
+}
+
+export interface UpsertMultipleOptions {
+  missingObjectBehavior?: MissingCatalogObjectBehavior;
+  retiredAt?: Date;
 }
 
 function combinedUpsertResults<T>(acc: UpsertResults<T>, b: UpsertResults<T>): UpsertResults<T> {
   acc.created += b.created;
   acc.updated += b.updated;
-  acc.deleted += b.deleted;
+  acc.retired += b.retired;
+  acc.restored += b.restored;
   acc.updatedModels.push(...b.updatedModels);
   acc.createdModels.push(...b.createdModels);
+  acc.retiredModels.push(...b.retiredModels);
+  acc.restoredModels.push(...b.restoredModels);
   acc.allModels.push(...b.allModels);
 
   return acc;
 }
 
 function humanizeUpsertResults(a: UpsertResults<unknown>) {
-  return `created=${a.created}, updated=${a.updated}, deleted=${a.deleted}; all=${a.allModels.length}`;
+  return `created=${a.created}, updated=${a.updated}, retired=${a.retired}, restored=${a.restored}; all=${a.allModels.length}`;
 }
 
 function getUpdatedAt<T extends { updated_at: string }>(obj: T): dayjs.Dayjs {
@@ -61,7 +84,10 @@ function getUpdatedAt<T extends { updated_at: string }>(obj: T): dayjs.Dayjs {
 }
 
 export class Repository<
-  TModel extends RequiredProperties & RequiredRelationships,
+  TModel extends AnyRealmObject &
+    RequiredProperties &
+    RequiredRelationships &
+    CatalogRetirementState,
   TApi extends RelistenApiUpdatableObject,
   RequiredProperties extends RelistenObjectRequiredProperties,
   RequiredRelationships extends object,
@@ -72,7 +98,20 @@ export class Repository<
     realm: Realm,
     uuids?: ReadonlyArray<string>
   ): Realm.Results<RealmObject<TModel, never> & TModel> {
-    let query = realm.objects<TModel>(this.klass.name);
+    let query = realm.objects<TModel>(this.klass.schema.name);
+
+    if (uuids) {
+      query = query.filtered('uuid in $0', uuids);
+    }
+
+    return query.filtered('retiredAt == nil');
+  }
+
+  public forUuidsIncludingRetired(
+    realm: Realm,
+    uuids?: ReadonlyArray<string>
+  ): Realm.Results<RealmObject<TModel, never> & TModel> {
+    let query = realm.objects<TModel>(this.klass.schema.name);
 
     if (uuids) {
       query = query.filtered('uuid in $0', uuids);
@@ -114,13 +153,8 @@ export class Repository<
     return model;
   }
 
-  public upsert(
-    realm: Realm,
-    api: TApi,
-    model: TModel | undefined,
-    queryForModel = false
-  ): UpsertResults<TModel> {
-    const writeHandler = () => this.upsertWithinWrite(realm, api, model, queryForModel);
+  public upsert(realm: Realm, api: TApi, model?: TModel): UpsertResults<TModel> {
+    const writeHandler = () => this.upsertWithinWrite(realm, api, model);
 
     let res: UpsertResults<TModel>;
 
@@ -141,24 +175,23 @@ export class Repository<
     return res;
   }
 
-  private upsertWithinWrite(
-    realm: Realm,
-    api: TApi,
-    model: TModel | undefined,
-    queryForModel = true
-  ): UpsertResults<TModel> {
-    if (queryForModel && !model) {
+  private upsertWithinWrite(realm: Realm, api: TApi, model?: TModel): UpsertResults<TModel> {
+    // Catalog UUIDs are global. Active-only callers intentionally cannot see a tombstone, so
+    // always resolve a missing model from the complete table before deciding to create it.
+    if (!model) {
       model =
-        realm.objectForPrimaryKey<TModel>(this.klass.name, api.uuid as unknown as any) || undefined;
+        realm.objectForPrimaryKey<TModel>(this.klass.schema.name, api.uuid as unknown as any) ||
+        undefined;
     }
 
     if (model) {
       if (api.uuid !== model.uuid) {
         logger.error(
-          `upsertWithinWrite with mismatched ${this.klass.name}: api.uuid=${api.uuid}, model.uuid=${model.uuid}`
+          `upsertWithinWrite with mismatched ${this.klass.schema.name}: api.uuid=${api.uuid}, model.uuid=${model.uuid}`
         );
       }
 
+      const restored = restoreCatalogObject(model);
       const shouldUpdateFromApi = this.klass.shouldUpdateFromApi?.(model, api) ?? false;
 
       if (getUpdatedAt(api).toDate() > model.updatedAt || shouldUpdateFromApi) {
@@ -167,9 +200,12 @@ export class Repository<
         return {
           created: 0,
           updated: 1,
-          deleted: 0,
+          retired: 0,
+          restored: restored ? 1 : 0,
           updatedModels: [model],
           createdModels: [],
+          retiredModels: [],
+          restoredModels: restored ? [model] : [],
           allModels: [model],
         };
       }
@@ -177,9 +213,12 @@ export class Repository<
       return {
         created: 0,
         updated: 0,
-        deleted: 0,
+        retired: 0,
+        restored: restored ? 1 : 0,
         createdModels: [],
         updatedModels: [],
+        retiredModels: [],
+        restoredModels: restored ? [model] : [],
         allModels: [model],
       };
     } else {
@@ -188,9 +227,12 @@ export class Repository<
       return {
         created: 1,
         updated: 0,
-        deleted: 0,
+        retired: 0,
+        restored: 0,
         createdModels: [newModel],
         updatedModels: [],
+        retiredModels: [],
+        restoredModels: [],
         allModels: [newModel],
       };
     }
@@ -200,10 +242,10 @@ export class Repository<
     realm: Realm,
     api: ReadonlyArray<TApi>,
     models: ReadonlyArray<TModel> | Realm.List<TModel> | Realm.Results<TModel>,
-    performDeletes: boolean = true,
-    queryForModel = false,
-    shouldPreserve?: (model: TModel) => boolean
+    options: UpsertMultipleOptions = {}
   ): UpsertResults<TModel> {
+    const { missingObjectBehavior = MissingCatalogObjectBehavior.Retire, retiredAt = new Date() } =
+      options;
     const dbIds = [...new Set(models.map((m) => m.uuid))];
     const networkUuids = [...new Set(api.map((a) => a.uuid))];
 
@@ -215,31 +257,43 @@ export class Repository<
     const modelsById = groupByUuid(models as ReadonlyArray<TModel>);
     const networkApisByUuid = groupByUuid(api);
 
-    const acc = {
+    const acc: UpsertResults<TModel> = {
       created: 0,
       updated: 0,
-      deleted: 0,
+      retired: 0,
+      restored: 0,
       updatedModels: [],
       createdModels: [],
+      retiredModels: [],
+      restoredModels: [],
       allModels: [],
     };
+    const retirementCounts = emptyCatalogModelCounts();
 
     const writeHandler = () => {
-      if (performDeletes) {
+      if (missingObjectBehavior === MissingCatalogObjectBehavior.Retire) {
         for (const uuid of dbIdsToRemove) {
           const model = modelsById[uuid];
-          if (shouldPreserve?.(model)) {
-            continue;
+          const result = retireCatalogGraph(realm, model as unknown as CatalogObject, {
+            reason: 'api-reconciliation',
+            retiredAt,
+            report: false,
+          });
+          // A Venue or Tour can be protected by an active Show. Only return actual tombstones;
+          // already-retired children remain included so retained parent memberships can preserve
+          // them during reconciliation.
+          if (model.retiredAt) acc.retiredModels.push(model);
+          acc.retired += result.total;
+          for (const modelName of CATALOG_MODEL_NAMES) {
+            retirementCounts[modelName] += result.counts[modelName];
           }
-          realm.delete(model);
-          acc.deleted += 1;
         }
       }
 
       for (const uuid of networkUuidsToUpsert) {
         combinedUpsertResults(
           acc,
-          this.upsertWithinWrite(realm, networkApisByUuid[uuid], modelsById[uuid], queryForModel)
+          this.upsertWithinWrite(realm, networkApisByUuid[uuid], modelsById[uuid])
         );
       }
     };
@@ -255,6 +309,14 @@ export class Repository<
       this.klass.schema.name,
       `api length=${networkUuids.length}, ${humanizeUpsertResults(acc)}`
     );
+
+    for (const modelName of CATALOG_MODEL_NAMES) {
+      reportCatalogMaintenance('retired', modelName, retirementCounts[modelName], {
+        reason: 'api-reconciliation',
+        reconciledModel: this.klass.schema.name,
+      });
+    }
+    reportCatalogMaintenance('restored', this.klass.schema.name, acc.restored);
 
     return acc;
   }

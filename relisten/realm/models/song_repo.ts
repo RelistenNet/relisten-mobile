@@ -7,6 +7,7 @@ import { useArtist } from './artist_repo';
 import { Song } from './song';
 import { NetworkBackedBehaviorOptions } from '@/relisten/realm/network_backed_behavior';
 import { NetworkBackedModelArrayBehavior } from '@/relisten/realm/network_backed_model_array_behavior';
+import { activeCatalogObjects } from '@/relisten/realm/catalog_retirement';
 
 export const songRepo = new Repository(Song);
 
@@ -17,7 +18,7 @@ export function useSongs(artistUuid: string, options?: NetworkBackedBehaviorOpti
     return new NetworkBackedModelArrayBehavior(
       realm,
       songRepo,
-      (realm) => realm.objects(Song).filtered('artistUuid == $0', artistUuid),
+      (realm) => activeCatalogObjects(realm, Song).filtered('artistUuid == $0', artistUuid),
       (api) => api.songs(artistUuid),
       options
     );

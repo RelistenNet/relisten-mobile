@@ -2,6 +2,11 @@ import Realm, { AnyRealmObject } from 'realm';
 import { CollectionCallback } from '@realm/react/src/helpers';
 import { createCachedObject } from '@realm/react/src/cachedObject';
 import { createCachedCollection } from '@realm/react/src/cachedCollection';
+import { CatalogRetirementState } from '@/relisten/realm/catalog_retirement_schema';
+import {
+  readActiveCatalogObject,
+  readRetainedCatalogObject,
+} from '@/relisten/realm/catalog_retirement';
 
 export abstract class ValueStream<T> {
   protected listeners: ((nextValue: T) => void)[] = [];
@@ -122,6 +127,115 @@ export class RealmQueryValueStream<T extends AnyRealmObject> extends ValueStream
   tearDown() {
     super.tearDown();
     this.cachedCollectionTearDown();
+  }
+}
+
+export class RetainedCatalogResultsValueStream<
+  T extends AnyRealmObject & CatalogRetirementState & { uuid: string },
+> extends ValueStream<Realm.Results<T>> {
+  public currentValue: Realm.Results<T>;
+  private readonly resultsStream: RealmQueryValueStream<T>;
+  private readonly tearDownResultsListener: () => void;
+
+  constructor(
+    realm: Realm.Realm,
+    collection: Realm.Results<T>,
+    private readonly accessSite: string
+  ) {
+    super();
+
+    this.resultsStream = new RealmQueryValueStream(realm, collection);
+    this.currentValue = this.resultsStream.currentValue;
+    this.reportRetainedMembers();
+
+    let addingListener = true;
+    this.tearDownResultsListener = this.resultsStream.addListener((results) => {
+      // The subscription synchronously replays the value that was reported above.
+      if (addingListener) return;
+
+      this.currentValue = results;
+      this.reportRetainedMembers();
+      this.emitCurrentValue();
+    });
+    addingListener = false;
+  }
+
+  override tearDown() {
+    super.tearDown();
+    this.tearDownResultsListener();
+    this.resultsStream.tearDown();
+  }
+
+  private reportRetainedMembers() {
+    for (const object of this.currentValue.filtered('retiredAt != nil')) {
+      readRetainedCatalogObject(object, this.accessSite);
+    }
+  }
+}
+
+class RealmSingleResultValueStream<T extends AnyRealmObject> extends ValueStream<T | null> {
+  public currentValue: T | null;
+  private readonly resultsStream: RealmQueryValueStream<T>;
+  private readonly tearDownResultsListener: () => void;
+
+  constructor(
+    realm: Realm.Realm,
+    query: Realm.Results<T>,
+    private readonly resolveCurrentObject: (results: Realm.Results<T>) => T | null = (results) =>
+      results[0] ?? null
+  ) {
+    super();
+
+    this.resultsStream = new RealmQueryValueStream(realm, query);
+    this.currentValue = this.resolveCurrentObject(this.resultsStream.currentValue);
+    let addingListener = true;
+    this.tearDownResultsListener = this.resultsStream.addListener((results) => {
+      // ValueStream subscriptions synchronously replay their current value. The value above is
+      // already resolved, and retained resolvers have access-reporting side effects.
+      if (addingListener) return;
+
+      this.currentValue = this.resolveCurrentObject(results);
+      this.emitCurrentValue();
+    });
+    addingListener = false;
+  }
+
+  override tearDown() {
+    super.tearDown();
+    this.tearDownResultsListener();
+    this.resultsStream.tearDown();
+  }
+}
+
+export class ActiveCatalogObjectValueStream<
+  T extends AnyRealmObject & CatalogRetirementState & { uuid: string },
+> extends RealmSingleResultValueStream<T> {
+  constructor(
+    realm: Realm.Realm,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    type: string | (new (...args: any) => T),
+    uuid: string,
+    accessSite: string
+  ) {
+    super(realm, realm.objects<T>(type as never).filtered('uuid == $0', uuid), (results) => {
+      return readActiveCatalogObject(results[0], accessSite) ?? null;
+    });
+  }
+}
+
+export class RetainedCatalogObjectValueStream<
+  T extends AnyRealmObject & CatalogRetirementState & { uuid: string },
+> extends RealmSingleResultValueStream<T> {
+  constructor(
+    realm: Realm.Realm,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    type: string | (new (...args: any) => T),
+    uuid: string,
+    accessSite: string
+  ) {
+    super(realm, realm.objects<T>(type as never).filtered('uuid == $0', uuid), (results) => {
+      return readRetainedCatalogObject(results[0], accessSite) ?? null;
+    });
   }
 }
 

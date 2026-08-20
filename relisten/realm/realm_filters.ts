@@ -6,8 +6,10 @@ import { RelistenObject } from '../api/models/relisten';
 
 export const checkIfOfflineSourceTrackExists = (items: Realm.List<SourceTrack>) => {
   return (
-    items.filtered('offlineInfo.status == $0 LIMIT(1)', SourceTrackOfflineInfoStatus.Succeeded)
-      .length >= 1
+    items.filtered(
+      'offlineInfo.deletedAt == nil AND offlineInfo.status == $0 LIMIT(1)',
+      SourceTrackOfflineInfoStatus.Succeeded
+    ).length >= 1
   );
 };
 
@@ -16,7 +18,7 @@ export const useRealmTabsFilter = <T extends RelistenObject>(items: Realm.Result
 
   if (isOfflineTab) {
     return items.filtered(
-      'SUBQUERY(sourceTracks, $item, $item.offlineInfo.status == $0).@count > 0',
+      'SUBQUERY(sourceTracks, $item, $item.offlineInfo.deletedAt == nil AND $item.offlineInfo.status == $0).@count > 0',
       SourceTrackOfflineInfoStatus.Succeeded
     );
   }
@@ -43,7 +45,7 @@ export function filterForUser<T extends RelistenObject>(
   }
   if (isPlayableOffline !== null) {
     filters.push(
-      `SUBQUERY(sourceTracks, $item, $item.offlineInfo.status == ${SourceTrackOfflineInfoStatus.Succeeded}).@count ${isPlayableOffline ? '>' : '='} 0`
+      `SUBQUERY(sourceTracks, $item, $item.offlineInfo.deletedAt == nil AND $item.offlineInfo.status == ${SourceTrackOfflineInfoStatus.Succeeded}).@count ${isPlayableOffline ? '>' : '='} 0`
     );
   }
 

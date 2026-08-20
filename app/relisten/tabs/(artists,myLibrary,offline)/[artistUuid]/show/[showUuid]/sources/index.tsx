@@ -4,8 +4,9 @@ import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { Show } from '@/relisten/realm/models/show';
-import { useFullShowWithSelectedSource } from '@/relisten/realm/models/show_repo';
+import { sortSources, useFullShowWithSelectedSource } from '@/relisten/realm/models/show_repo';
 import { Source } from '@/relisten/realm/models/source';
+import { useQuery, useRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { memo } from '@/relisten/util/memo';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
@@ -22,30 +23,79 @@ import { SourceTrackSucceededIndicator } from '@/relisten/components/source/sour
 import { ShowLink, ShowRedirect } from '@/relisten/util/push_show';
 import { Artist } from '@/relisten/realm/models/artist';
 import dayjs from 'dayjs';
-import { useSourceHasOfflineTracks } from '@/relisten/realm/root_services';
+import {
+  useOfflineAvailabilityIndex,
+  useSourceHasOfflineTracks,
+} from '@/relisten/realm/root_services';
 import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
+import { useGroupSegment } from '@/relisten/util/routes';
+import {
+  readRetainedCatalogObject,
+  retainedCatalogObjectForPrimaryKey,
+} from '@/relisten/realm/catalog_retirement';
 
 export default function Page() {
+  const realm = useRealm();
   const navigation = useNavigation();
-  const { showUuid } = useLocalSearchParams();
-  const { sourceUuid } = useLocalSearchParams();
+  const { artistUuid, showUuid, sourceUuid } = useLocalSearchParams();
+  const groupSegment = useGroupSegment();
+  const offlineAvailabilityIndex = useOfflineAvailabilityIndex();
 
-  const { results, show, artist, sources } = useFullShowWithSelectedSource(
-    String(showUuid),
-    'initial'
+  const {
+    results,
+    show: queriedShow,
+    artist: queriedArtist,
+    sources: queriedSources,
+  } = useFullShowWithSelectedSource(String(showUuid), 'initial');
+  const retainedSources = useQuery(
+    Source,
+    (query) => query.filtered('showUuid == $0', String(showUuid)),
+    [showUuid]
   );
+  const retainedAccessSite =
+    groupSegment === '(offline)'
+      ? 'offline.sources-screen'
+      : groupSegment === '(myLibrary)'
+        ? 'library.sources-screen'
+        : undefined;
+  const show = retainedAccessSite
+    ? retainedCatalogObjectForPrimaryKey(
+        realm,
+        Show,
+        String(showUuid),
+        `${retainedAccessSite}.show`
+      )
+    : queriedShow;
+  const sources = retainedAccessSite
+    ? sortSources(retainedSources, offlineAvailabilityIndex).flatMap((source) => {
+        const retainedSource = readRetainedCatalogObject(source, `${retainedAccessSite}.source`);
+        return retainedSource ? [retainedSource] : [];
+      })
+    : queriedSources;
+  const artist = retainedAccessSite
+    ? (retainedCatalogObjectForPrimaryKey(
+        realm,
+        Artist,
+        String(artistUuid),
+        `${retainedAccessSite}.artist`
+      ) ??
+      readRetainedCatalogObject(
+        show?.artist ?? sources[0]?.artist ?? queriedArtist,
+        `${retainedAccessSite}.artist-link`
+      ))
+    : queriedArtist;
 
   useEffect(() => {
     navigation.setOptions({
       title: show?.displayDate,
     });
-  }, [show]);
+  }, [navigation, show]);
 
-  if (sources.length === 1) {
+  if (sources.length === 1 && show && artist) {
     return (
       <ShowRedirect
         show={{
-          artist: artist!,
+          artist,
           showUuid: show.uuid,
           sourceUuid: sources[0].uuid,
         }}
@@ -65,7 +115,7 @@ export default function Page() {
         ScrollableComponent={SourcesList}
         show={show}
         sources={sources}
-        artist={artist!}
+        artist={artist}
       />
     </RefreshContextProvider>
   );
@@ -78,7 +128,7 @@ const SourcesList = ({
   ...props
 }: {
   show: Show | undefined;
-  artist: Artist;
+  artist: Artist | undefined;
   sources?: Source[];
 } & ScrollViewProps) => {
   const { refreshing } = useRefreshContext();
@@ -88,7 +138,7 @@ const SourcesList = ({
     scrollIndicatorInsets: props.scrollIndicatorInsets,
   });
 
-  if (refreshing || !show) {
+  if (refreshing || !show || !artist) {
     return (
       <View className="w-full p-4">
         <ListContentLoader

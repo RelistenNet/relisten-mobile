@@ -2,6 +2,7 @@ import Realm from 'realm';
 import { groupByUuid } from '@/relisten/util/group_by';
 import { Artist } from '@/relisten/realm/models/artist';
 import { Show } from '@/relisten/realm/models/show';
+import { activeCatalogObjects } from '@/relisten/realm/catalog_retirement';
 
 function attachShowsToArtists(
   realm: Realm,
@@ -42,7 +43,7 @@ export function attachShowArtists(realm: Realm, shows: Iterable<Show>): number {
 
   const artistUuids = [...new Set(showsNeedingArtists.map((show) => show.artistUuid))];
   const artistsByUuid = groupByUuid(
-    Array.from(realm.objects(Artist).filtered('uuid in $0', artistUuids))
+    Array.from(activeCatalogObjects(realm, Artist).filtered('uuid in $0', artistUuids))
   );
 
   return attachShowsToArtists(realm, showsNeedingArtists, artistsByUuid);
@@ -55,5 +56,9 @@ export function attachArtistsToExistingShows(realm: Realm, artists: Iterable<Art
     return 0;
   }
 
-  return attachShowsToArtists(realm, realm.objects(Show).filtered('artist == nil'), artistsByUuid);
+  return attachShowsToArtists(
+    realm,
+    realm.objects<Show>(Show).filtered('artist == nil'),
+    artistsByUuid
+  );
 }

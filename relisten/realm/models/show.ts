@@ -12,6 +12,10 @@ import { duration } from '@/relisten/util/duration';
 import type { Song } from '@/relisten/realm/models/song';
 import { Popularity } from './popularity';
 import type { LibraryIndex } from '@/relisten/realm/library_index';
+import {
+  CATALOG_RETIREMENT_SCHEMA_PROPERTIES,
+  CatalogRetirementState,
+} from '@/relisten/realm/catalog_retirement_schema';
 
 export interface ShowRequiredProperties extends RelistenObjectRequiredProperties {
   artistUuid: string;
@@ -32,7 +36,7 @@ export interface ShowRequiredProperties extends RelistenObjectRequiredProperties
 
 export class Show
   extends Realm.Object<Show, keyof ShowRequiredProperties>
-  implements ShowRequiredProperties, FavoritableObject
+  implements ShowRequiredProperties, FavoritableObject, CatalogRetirementState
 {
   static schema: Realm.ObjectSchema = {
     name: 'Show',
@@ -45,6 +49,7 @@ export class Show
       tourUuid: { type: 'string', optional: true, indexed: true },
       createdAt: 'date',
       updatedAt: 'date',
+      ...CATALOG_RETIREMENT_SCHEMA_PROPERTIES,
       date: { type: 'date', indexed: true },
       avgRating: 'float',
       avgDuration: 'float?',
@@ -74,6 +79,8 @@ export class Show
   uuid!: string;
   createdAt!: Date;
   updatedAt!: Date;
+  retiredAt?: Date;
+  retirementReason?: string;
   artistUuid!: string;
   yearUuid!: string;
   venueUuid?: string;

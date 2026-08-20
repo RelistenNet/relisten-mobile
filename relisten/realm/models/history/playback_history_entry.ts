@@ -25,6 +25,7 @@ export class PlaybackHistoryEntry extends Realm.Object<PlaybackHistoryEntry> {
 
       createdAt: 'date',
       playbackStartedAt: 'date',
+      deletedAt: { type: 'date', optional: true, indexed: true },
 
       sourceTrack: 'SourceTrack',
       artist: 'Artist',
@@ -39,6 +40,7 @@ export class PlaybackHistoryEntry extends Realm.Object<PlaybackHistoryEntry> {
 
   createdAt!: Date;
   playbackStartedAt!: Date;
+  deletedAt?: Date;
 
   private _humanizedPlaybackStartedAt?: string;
   humanizedPlaybackStartedAt() {

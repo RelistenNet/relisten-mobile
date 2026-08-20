@@ -12,20 +12,22 @@ import { useQuery, useRealm } from '../schema';
 import { Artist, ArtistFeaturedFlags, ArtistRequiredProperties } from './artist';
 import { ArtistWithCounts } from '@/relisten/api/models/artist';
 
-import { useIsOfflineTab } from '@/relisten/util/routes';
+import { useGroupSegment, useIsOfflineTab } from '@/relisten/util/routes';
 import { filterForUser, useRealmTabsFilter } from '../realm_filters';
 import { Show } from './show';
 import { Source } from './source';
 import { NetworkBackedModelArrayBehavior } from '@/relisten/realm/network_backed_model_array_behavior';
-import { RealmQueryValueStream, ValueStream } from '@/relisten/realm/value_streams';
+import {
+  ActiveCatalogObjectValueStream,
+  RealmQueryValueStream,
+  RetainedCatalogObjectValueStream,
+  ValueStream,
+} from '@/relisten/realm/value_streams';
 import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_network_backed_behavior';
 import { attachArtistsToExistingShows } from '@/relisten/realm/models/show_artist_relationships';
+import { activeCatalogObjects } from '@/relisten/realm/catalog_retirement';
 
 export const artistRepo = new Repository(Artist);
-
-function artistHasUserInteraction(artist: Artist): boolean {
-  return artist.isFavorite || artist.hasOfflineTracks();
-}
 
 class ArtistsNetworkBackedBehavior extends NetworkBackedModelArrayBehavior<
   Artist,
@@ -35,14 +37,7 @@ class ArtistsNetworkBackedBehavior extends NetworkBackedModelArrayBehavior<
 > {
   override upsert(localData: Realm.Results<Artist>, apiData: ArtistWithCounts[]): void {
     this.realm.write(() => {
-      const { allModels } = artistRepo.upsertMultiple(
-        this.realm,
-        apiData,
-        localData,
-        true,
-        true,
-        artistHasUserInteraction
-      );
+      const { allModels } = artistRepo.upsertMultiple(this.realm, apiData, localData);
 
       attachArtistsToExistingShows(this.realm, allModels);
     });
@@ -64,7 +59,10 @@ export function artistsNetworkBackedBehavior(
     realm,
     artistRepo,
     (realm) => {
-      let q = filterForUser(realm.objects<Artist>(Artist), {
+      const catalogArtists = availableOfflineOnly
+        ? realm.objects<Artist>(Artist)
+        : activeCatalogObjects(realm, Artist);
+      let q = filterForUser(catalogArtists, {
         isFavorite: null,
         isPlayableOffline: availableOfflineOnly ? availableOfflineOnly : null,
       });
@@ -77,7 +75,8 @@ export function artistsNetworkBackedBehavior(
     },
     (api, forcedRefresh) =>
       api.artists(includeAutomaticallyCreated, api.refreshOptions(forcedRefresh)),
-    options
+    options,
+    availableOfflineOnly ? 'offline.artist-list' : undefined
   );
 }
 
@@ -135,7 +134,7 @@ class ArtistBootstrapNetworkBackedBehavior extends ThrottledNetworkBackedBehavio
 > {
   constructor(
     realm: Realm.Realm,
-    private readonly localQueryFactory: (realm: Realm.Realm) => Realm.Results<Artist>,
+    private readonly localValueStreamFactory: (realm: Realm.Realm) => ValueStream<Artist | null>,
     options?: NetworkBackedBehaviorOptions
   ) {
     super(realm, {
@@ -149,7 +148,7 @@ class ArtistBootstrapNetworkBackedBehavior extends ThrottledNetworkBackedBehavio
   }
 
   override createLocalUpdatingResults(): ValueStream<Artist | null> {
-    return new SingleArtistValueStream(this.realm, this.localQueryFactory(this.realm));
+    return this.localValueStreamFactory(this.realm);
   }
 
   override isLocalDataShowable(localData: Artist | null): boolean {
@@ -162,7 +161,11 @@ class ArtistBootstrapNetworkBackedBehavior extends ThrottledNetworkBackedBehavio
     }
 
     this.realm.write(() => {
-      const { allModels } = artistRepo.upsertMultiple(this.realm, apiData, [], false, true);
+      const { allModels } = artistRepo.upsertMultiple(
+        this.realm,
+        apiData,
+        activeCatalogObjects(this.realm, Artist)
+      );
 
       attachArtistsToExistingShows(this.realm, allModels);
     });
@@ -170,6 +173,7 @@ class ArtistBootstrapNetworkBackedBehavior extends ThrottledNetworkBackedBehavio
 }
 
 export function useOfflineArtistMetadata(artist?: Artist | null): ArtistMetadataSummary {
+  // Offline metadata intentionally includes retired parents that still own retained downloads.
   const shows = useRealmTabsFilter(
     useQuery(Show, (query) => query.filtered('artistUuid = $0', artist?.uuid), [artist?.uuid])
   );
@@ -187,6 +191,7 @@ export function useOfflineArtistMetadata(artist?: Artist | null): ArtistMetadata
 export function useOfflineArtistMetadataMap(
   artists: ReadonlyArray<Artist>
 ): ReadonlyMap<string, ArtistMetadataSummary> {
+  // Offline metadata intentionally includes retired parents that still own retained downloads.
   const shows = useRealmTabsFilter(useQuery(Show));
   const sources = useRealmTabsFilter(useQuery(Source));
 
@@ -226,14 +231,28 @@ export function useArtist(
     };
   }, [options]);
   const realm = useRealm();
+  const groupSegment = useGroupSegment();
+  const includeRetiredCatalog = groupSegment !== '(artists)';
   const behavior = useMemo(() => {
     return new ArtistBootstrapNetworkBackedBehavior(
       realm,
       (currentRealm) =>
-        currentRealm.objects(Artist).filtered('uuid == $0', artistUuid ?? '__missing__'),
+        includeRetiredCatalog
+          ? new RetainedCatalogObjectValueStream(
+              currentRealm,
+              Artist,
+              artistUuid ?? '__missing__',
+              'artist-detail.root'
+            )
+          : new ActiveCatalogObjectValueStream(
+              currentRealm,
+              Artist,
+              artistUuid ?? '__missing__',
+              'artist-detail.root'
+            ),
       memoOptions
     );
-  }, [artistUuid, memoOptions, realm]);
+  }, [artistUuid, includeRetiredCatalog, memoOptions, realm]);
 
   return useNetworkBackedBehavior(behavior);
 }
@@ -253,7 +272,13 @@ export function useArtistBySlug(
     return new ArtistBootstrapNetworkBackedBehavior(
       realm,
       (currentRealm) =>
-        currentRealm.objects(Artist).filtered('slug == $0', artistSlug ?? '__missing__'),
+        new SingleArtistValueStream(
+          currentRealm,
+          activeCatalogObjects(currentRealm, Artist).filtered(
+            'slug == $0',
+            artistSlug ?? '__missing__'
+          )
+        ),
       memoOptions
     );
   }, [artistSlug, memoOptions, realm]);

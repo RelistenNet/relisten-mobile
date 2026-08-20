@@ -2,7 +2,7 @@ import { Repository } from '../repository';
 import { useQuery, useRealm } from '../schema';
 import { Year } from './year';
 
-import { useIsOfflineTab } from '@/relisten/util/routes';
+import { useGroupSegment } from '@/relisten/util/routes';
 import { useMemo } from 'react';
 import Realm from 'realm';
 import { RelistenApiClient, RelistenApiResponse } from '../../api/client';
@@ -15,13 +15,16 @@ import { useArtist } from './artist_repo';
 import { Show } from './show';
 import { upsertShowList } from '@/relisten/realm/models/repo_utils';
 import {
+  ActiveCatalogObjectValueStream,
   CombinedValueStream,
-  RealmObjectValueStream,
   RealmQueryValueStream,
+  RetainedCatalogObjectValueStream,
+  RetainedCatalogResultsValueStream,
   ValueStream,
 } from '@/relisten/realm/value_streams';
 import { NetworkBackedModelArrayBehavior } from '@/relisten/realm/network_backed_model_array_behavior';
 import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_network_backed_behavior';
+import { activeCatalogObjects } from '@/relisten/realm/catalog_retirement';
 
 export const yearRepo = new Repository(Year);
 
@@ -29,28 +32,42 @@ export function yearsNetworkBackedModelArrayBehavior(
   realm: Realm.Realm,
   isOfflineTab: boolean,
   artistUuid: string,
-  options?: NetworkBackedBehaviorOptions
+  options?: NetworkBackedBehaviorOptions,
+  includeRetiredCatalog: boolean = isOfflineTab
 ) {
   return new NetworkBackedModelArrayBehavior(
     realm,
     yearRepo,
-    (realm) =>
-      filterForUser<Year>(realm.objects(Year).filtered('artistUuid == $0', artistUuid), {
+    (realm) => {
+      const catalogYears = includeRetiredCatalog
+        ? realm.objects(Year)
+        : activeCatalogObjects(realm, Year);
+      return filterForUser<Year>(catalogYears.filtered('artistUuid == $0', artistUuid), {
         isFavorite: null,
         isPlayableOffline: isOfflineTab ? true : null,
-      }),
+      });
+    },
     (api) => api.years(artistUuid),
-    options
+    options,
+    includeRetiredCatalog ? 'year-list.retained' : undefined
   );
 }
 
 export function useYears(artistUuid: string, options?: NetworkBackedBehaviorOptions) {
   const realm = useRealm();
-  const isOfflineTab = useIsOfflineTab();
+  const groupSegment = useGroupSegment();
+  const isOfflineTab = groupSegment === '(offline)';
+  const includeRetiredCatalog = groupSegment !== '(artists)';
 
   const behavior = useMemo(() => {
-    return yearsNetworkBackedModelArrayBehavior(realm, isOfflineTab, artistUuid, options);
-  }, [realm, isOfflineTab, artistUuid, options]);
+    return yearsNetworkBackedModelArrayBehavior(
+      realm,
+      isOfflineTab,
+      artistUuid,
+      options,
+      includeRetiredCatalog
+    );
+  }, [realm, isOfflineTab, artistUuid, options, includeRetiredCatalog]);
 
   return useNetworkBackedBehavior(behavior);
 }
@@ -83,6 +100,7 @@ export class YearShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavi
     public artistUuid: string,
     public yearUuid: string,
     private userFilters: UserFilters,
+    private includeRetiredCatalog: boolean,
     options?: NetworkBackedBehaviorOptions
   ) {
     super(realm, options);
@@ -96,14 +114,19 @@ export class YearShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavi
   }
 
   override createLocalUpdatingResults(): ValueStream<YearShows> {
-    const yearResults = new RealmObjectValueStream(this.realm, Year, this.yearUuid);
-    const showsResults = new RealmQueryValueStream<Show>(
-      this.realm,
-      filterForUser(
-        this.realm.objects(Show).filtered('yearUuid == $0', this.yearUuid),
-        this.userFilters
-      )
+    const yearResults = this.includeRetiredCatalog
+      ? new RetainedCatalogObjectValueStream(this.realm, Year, this.yearUuid, 'year-detail.root')
+      : new ActiveCatalogObjectValueStream(this.realm, Year, this.yearUuid, 'year-detail.root');
+    const catalogShows = this.includeRetiredCatalog
+      ? this.realm.objects(Show)
+      : activeCatalogObjects(this.realm, Show);
+    const showsQuery = filterForUser(
+      catalogShows.filtered('yearUuid == $0', this.yearUuid),
+      this.userFilters
     );
+    const showsResults = this.includeRetiredCatalog
+      ? new RetainedCatalogResultsValueStream(this.realm, showsQuery, 'year-detail.shows')
+      : new RealmQueryValueStream(this.realm, showsQuery);
 
     return new CombinedValueStream(yearResults, showsResults, (year, shows) => {
       return { year, shows };
@@ -123,8 +146,8 @@ export class YearShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavi
       upsertShowList(this.realm, apiData.shows, localData.shows, {
         // we may not have all the shows here on initial load
         performDeletes: false,
-        queryForModel: true, // we know this list of shows is authoritative
       });
+      yearRepo.upsert(this.realm, apiData, localData.year ?? undefined);
     });
   }
 }
@@ -136,7 +159,16 @@ export function createYearShowsNetworkBackedBehavior(
   userFilters: UserFilters,
   options?: NetworkBackedBehaviorOptions
 ) {
-  return new YearShowsNetworkBackedBehavior(realm, artistUuid, yearUuid, userFilters, options);
+  const includeRetiredCatalog =
+    userFilters.isPlayableOffline === true || userFilters.isFavorite === true;
+  return new YearShowsNetworkBackedBehavior(
+    realm,
+    artistUuid,
+    yearUuid,
+    userFilters,
+    includeRetiredCatalog,
+    options
+  );
 }
 
 export function useYearShows(
@@ -144,14 +176,22 @@ export function useYearShows(
   yearUuid: string
 ): NetworkBackedResults<YearShows> {
   const realm = useRealm();
-  const isOfflineTab = useIsOfflineTab();
+  const groupSegment = useGroupSegment();
+  const isOfflineTab = groupSegment === '(offline)';
+  const includeRetiredCatalog = groupSegment !== '(artists)';
 
   const behavior = useMemo(() => {
-    return new YearShowsNetworkBackedBehavior(realm, artistUuid, yearUuid, {
-      isPlayableOffline: isOfflineTab ? true : null,
-      isFavorite: null,
-    });
-  }, [realm, artistUuid, yearUuid, isOfflineTab]);
+    return new YearShowsNetworkBackedBehavior(
+      realm,
+      artistUuid,
+      yearUuid,
+      {
+        isPlayableOffline: isOfflineTab ? true : null,
+        isFavorite: null,
+      },
+      includeRetiredCatalog
+    );
+  }, [realm, artistUuid, yearUuid, isOfflineTab, includeRetiredCatalog]);
 
   return useNetworkBackedBehavior(behavior);
 }
@@ -171,6 +211,7 @@ export const useArtistYearShows = (artistUuid: string, yearUuid: string) => {
 };
 
 export const useOfflineYearMetadata = (year?: Year | null) => {
+  // Offline metadata intentionally includes retired parents that still own retained downloads.
   const shows = useRealmTabsFilter(
     useQuery(Show, (query) => query.filtered('yearUuid = $0', year?.uuid), [year?.uuid])
   );

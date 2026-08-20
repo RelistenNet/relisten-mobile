@@ -12,6 +12,7 @@ import { useRealm } from '@/relisten/realm/schema';
 import { useMemo } from 'react';
 import Realm from 'realm';
 import { RealmQueryValueStream } from '@/relisten/realm/value_streams';
+import { activeCatalogObjects } from '@/relisten/realm/catalog_retirement';
 
 export class TodayShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavior {
   private asOf = new Date();
@@ -36,9 +37,10 @@ export class TodayShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBacked
     const formattedMonth = (now.getMonth() + 1).toFixed(0).padStart(2, '0');
     const formattedDay = now.getDate().toFixed(0).padStart(2, '0');
 
-    let query = this.realm
-      .objects(Show)
-      .filtered('displayDate ENDSWITH $0', `-${formattedMonth}-${formattedDay}`);
+    let query = activeCatalogObjects(this.realm, Show).filtered(
+      'displayDate ENDSWITH $0',
+      `-${formattedMonth}-${formattedDay}`
+    );
 
     if (this.artistUuids) {
       query = query.filtered('artistUuid in $0', this.artistUuids);

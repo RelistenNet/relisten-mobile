@@ -7,6 +7,10 @@ import { RelistenObjectRequiredProperties } from '../relisten_object';
 import { SourceTrack } from './source_track';
 import { Popularity } from './popularity';
 import type { LibraryIndex } from '@/relisten/realm/library_index';
+import {
+  CATALOG_RETIREMENT_SCHEMA_PROPERTIES,
+  CatalogRetirementState,
+} from '@/relisten/realm/catalog_retirement_schema';
 
 export interface ArtistRequiredProperties extends RelistenObjectRequiredProperties {
   musicbrainzId: string;
@@ -29,7 +33,7 @@ export enum ArtistFeaturedFlags {
 
 export class Artist
   extends Realm.Object<Artist, keyof ArtistRequiredProperties>
-  implements ArtistRequiredProperties, FavoritableObject
+  implements ArtistRequiredProperties, FavoritableObject, CatalogRetirementState
 {
   static schema: Realm.ObjectSchema = {
     name: 'Artist',
@@ -38,6 +42,7 @@ export class Artist
       uuid: 'string',
       createdAt: 'date',
       updatedAt: 'date',
+      ...CATALOG_RETIREMENT_SCHEMA_PROPERTIES,
       musicbrainzId: 'string',
       name: 'string',
       featured: 'int',
@@ -60,6 +65,8 @@ export class Artist
   uuid!: string;
   createdAt!: Date;
   updatedAt!: Date;
+  retiredAt?: Date;
+  retirementReason?: string;
   musicbrainzId!: string;
   name!: string;
   featured!: number;

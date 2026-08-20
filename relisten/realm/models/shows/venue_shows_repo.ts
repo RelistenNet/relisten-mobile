@@ -12,12 +12,16 @@ import Realm from 'realm';
 import { upsertShowList } from '@/relisten/realm/models/repo_utils';
 import { useRealm } from '@/relisten/realm/schema';
 import {
+  ActiveCatalogObjectValueStream,
   CombinedValueStream,
-  RealmObjectValueStream,
   RealmQueryValueStream,
+  RetainedCatalogObjectValueStream,
+  RetainedCatalogResultsValueStream,
   ValueStream,
 } from '@/relisten/realm/value_streams';
 import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_network_backed_behavior';
+import { activeCatalogObjects } from '@/relisten/realm/catalog_retirement';
+import { useGroupSegment } from '@/relisten/util/routes';
 
 export interface VenueShows {
   venue: Venue | null;
@@ -32,6 +36,7 @@ class VenueShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
     realm: Realm.Realm,
     public artistUuid: string,
     public venueUuid: string,
+    private includeRetiredCatalog: boolean,
     options?: NetworkBackedBehaviorOptions
   ) {
     super(realm, options);
@@ -45,11 +50,16 @@ class VenueShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
   }
 
   override createLocalUpdatingResults(): ValueStream<VenueShows> {
-    const venueResults = new RealmObjectValueStream(this.realm, Venue, this.venueUuid);
-    const showsResults = new RealmQueryValueStream<Show>(
-      this.realm,
-      this.realm.objects(Show).filtered('venueUuid == $0', this.venueUuid)
-    );
+    const venueResults = this.includeRetiredCatalog
+      ? new RetainedCatalogObjectValueStream(this.realm, Venue, this.venueUuid, 'venue-detail.root')
+      : new ActiveCatalogObjectValueStream(this.realm, Venue, this.venueUuid, 'venue-detail.root');
+    const catalogShows = this.includeRetiredCatalog
+      ? this.realm.objects(Show)
+      : activeCatalogObjects(this.realm, Show);
+    const showsQuery = catalogShows.filtered('venueUuid == $0', this.venueUuid);
+    const showsResults = this.includeRetiredCatalog
+      ? new RetainedCatalogResultsValueStream(this.realm, showsQuery, 'venue-detail.shows')
+      : new RealmQueryValueStream(this.realm, showsQuery);
 
     return new CombinedValueStream(venueResults, showsResults, (venue, shows) => {
       return { venue, shows };
@@ -69,7 +79,6 @@ class VenueShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
       upsertShowList(this.realm, apiData.shows, localData.shows, {
         // we may not have all the shows here on initial load
         performDeletes: false,
-        queryForModel: true,
         upsertModels: {
           // every venue is the same here, so just do it once here
           venues: true,
@@ -86,9 +95,11 @@ export function useVenueShows(
   venueUuid: string
 ): NetworkBackedResults<VenueShows> {
   const realm = useRealm();
+  const groupSegment = useGroupSegment();
+  const includeRetiredCatalog = groupSegment !== '(artists)';
   const behavior = useMemo(() => {
-    return new VenueShowsNetworkBackedBehavior(realm, artistUuid, venueUuid);
-  }, [realm, artistUuid, venueUuid]);
+    return new VenueShowsNetworkBackedBehavior(realm, artistUuid, venueUuid, includeRetiredCatalog);
+  }, [realm, artistUuid, venueUuid, includeRetiredCatalog]);
 
   return useNetworkBackedBehavior(behavior);
 }

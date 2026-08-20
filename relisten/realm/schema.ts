@@ -23,6 +23,7 @@ import {
   PopularityWindows,
 } from '@/relisten/realm/models/popularity';
 import { isVerboseProfileLoggingEnabled } from '@/relisten/util/profile_logging';
+import { runRealmStartupMaintenance } from '@/relisten/realm/startup_maintenance';
 
 if (isVerboseProfileLoggingEnabled()) {
   Realm.setLogger(({ category, level, message }) => {
@@ -34,7 +35,7 @@ if (isVerboseProfileLoggingEnabled()) {
   Realm.setLogLevel('debug', 'Realm.Storage.Notification');
 }
 
-const realmConfig: Realm.Configuration = {
+export const realmConfig: Realm.Configuration = {
   schema: [
     Artist,
     Year,
@@ -57,7 +58,7 @@ const realmConfig: Realm.Configuration = {
     PopularityWindow,
     PopularityWindows,
   ],
-  schemaVersion: 12,
+  schemaVersion: 13,
   // As to not conflict with the prior versions default.realm that isn't readable with this version of the SDK
   path: './relisten.realm',
 };
@@ -82,6 +83,7 @@ export async function openRealm(): Promise<Realm> {
   if (!realmOpenPromise) {
     realmOpenPromise = Realm.open(realmConfig)
       .then((openedRealm) => {
+        runRealmStartupMaintenance(openedRealm);
         setRealm(openedRealm);
         return openedRealm;
       })

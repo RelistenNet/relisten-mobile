@@ -6,9 +6,14 @@ import { SourceSet } from '@/relisten/realm/models/source_set';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { OfflineModeSetting } from '@/relisten/realm/models/user_settings';
 import { CarPlayScope } from '@/relisten/carplay/scope';
+import {
+  CarPlayCatalogAccess,
+  catalogAccessForScope,
+  catalogObjectsForAccess,
+} from '@/relisten/carplay/catalog_scope';
 
 type TrackSectionsResult = {
-  orderedTracks: SourceTrack[];
+  orderedTrackUuids: string[];
   sections: ListSection[];
 };
 
@@ -18,15 +23,22 @@ export function buildTrackSections({
   scope,
   offlineMode,
   currentTrackUuid,
+  catalogAccess = catalogAccessForScope(scope),
 }: {
   source: Source;
   artist: Artist;
   scope: CarPlayScope;
   offlineMode: OfflineModeSetting;
   currentTrackUuid?: string;
+  catalogAccess?: CarPlayCatalogAccess;
 }): TrackSectionsResult {
-  const sortedSets = Array.from(source.sourceSets || []).sort((a, b) => a.index - b.index);
+  const sortedSets = catalogObjectsForAccess(
+    source.sourceSets || [],
+    catalogAccess,
+    'carplay.track-sections.source-set'
+  ).sort((a, b) => a.index - b.index);
   const orderedTracks: SourceTrack[] = [];
+  const orderedTrackUuids: string[] = [];
 
   if (artist.features().sets) {
     const sections: ListSection[] = [];
@@ -34,8 +46,9 @@ export function buildTrackSections({
 
     for (let index = 0; index < sortedSets.length; index++) {
       const set = sortedSets[index];
-      const setTracks = sortedTracksForSet(set);
+      const setTracks = sortedTracksForSet(set, catalogAccess);
       orderedTracks.push(...setTracks);
+      orderedTrackUuids.push(...setTracks.map((track) => track.uuid));
 
       const items = setTracks
         .filter((track) => includeTrackForScope(scope, offlineMode, track))
@@ -58,7 +71,7 @@ export function buildTrackSections({
     }
 
     return {
-      orderedTracks,
+      orderedTrackUuids,
       sections:
         sections.length > 0
           ? sections
@@ -72,7 +85,9 @@ export function buildTrackSections({
   }
 
   for (const set of sortedSets) {
-    orderedTracks.push(...sortedTracksForSet(set));
+    const setTracks = sortedTracksForSet(set, catalogAccess);
+    orderedTracks.push(...setTracks);
+    orderedTrackUuids.push(...setTracks.map((track) => track.uuid));
   }
 
   const items = orderedTracks
@@ -86,7 +101,7 @@ export function buildTrackSections({
     }));
 
   return {
-    orderedTracks,
+    orderedTrackUuids,
     sections: [
       {
         header: `${items.length} ${plur('track', items.length)}`,
@@ -120,10 +135,12 @@ export function isTrackPlayableInScope(
   return includeTrackForScope(scope, offlineMode, track) && !!track.streamingUrl();
 }
 
-function sortedTracksForSet(set: SourceSet) {
-  return Array.from<SourceTrack>(set.sourceTracks || []).sort(
-    (a, b) => a.trackPosition - b.trackPosition
-  );
+function sortedTracksForSet(set: SourceSet, catalogAccess: CarPlayCatalogAccess) {
+  return catalogObjectsForAccess(
+    set.sourceTracks || [],
+    catalogAccess,
+    'carplay.track-sections.source-track'
+  ).sort((a, b) => a.trackPosition - b.trackPosition);
 }
 
 function formatSetHeader(set: SourceSet, index: number, totalSets: number) {

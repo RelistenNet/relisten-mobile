@@ -18,6 +18,11 @@ import { SubtitleText } from '@/relisten/components/row_subtitle';
 import { ListRenderItem } from '@shopify/flash-list';
 import { TrackWithArtist } from '@/relisten/components/source/source_track_with_artist';
 import { Stack } from 'expo-router';
+import {
+  ACTIVE_PLAYBACK_HISTORY_QUERY,
+  readRetainedPlaybackHistoryCatalogLinks,
+  softDeletePlaybackHistoryEntries,
+} from '@/relisten/realm/models/history/playback_history_lifecycle';
 
 function HistoryHeader({ totalPlayed }: { totalPlayed: number }) {
   return (
@@ -60,7 +65,10 @@ export default function Page() {
   const recentlyPlayed = useQuery(
     {
       type: PlaybackHistoryEntry,
-      query: (query) => query.sorted('playbackStartedAt', /* reverse= */ true),
+      query: (query) =>
+        query
+          .filtered(ACTIVE_PLAYBACK_HISTORY_QUERY)
+          .sorted('playbackStartedAt', /* reverse= */ true),
     },
     []
   );
@@ -70,13 +78,7 @@ export default function Page() {
       confirmLabel: 'Clear History',
       message: 'This will permanently delete your listening history.',
       onConfirm: () => {
-        const history = realm.objects(PlaybackHistoryEntry);
-
-        realm.write(() => {
-          for (const entry of history) {
-            realm.delete(entry);
-          }
-        });
+        softDeletePlaybackHistoryEntries(realm);
       },
       title: 'Clear Listening History?',
     });
@@ -90,7 +92,11 @@ export default function Page() {
 
     return Object.keys(byDate).map((d) => {
       const totalDuration = byDate[d]
-        .map((d) => d.sourceTrack.duration || 0)
+        .map(
+          (entry) =>
+            readRetainedPlaybackHistoryCatalogLinks(entry, 'history.screen.sectionDuration')
+              .sourceTrack.duration || 0
+        )
         .reduce((acc, curr) => acc + curr, 0);
 
       return {
@@ -101,8 +107,12 @@ export default function Page() {
   }, [recentlyPlayed]);
 
   const renderItem: ListRenderItem<PlaybackHistoryEntry> = ({ item: entry }) => {
+    const { sourceTrack } = readRetainedPlaybackHistoryCatalogLinks(
+      entry,
+      'history.screen.trackRow'
+    );
     return (
-      <TrackWithArtist sourceTrack={entry.sourceTrack}>
+      <TrackWithArtist sourceTrack={sourceTrack}>
         <SubtitleText>{entry.humanizedPlaybackStartedAt()}</SubtitleText>
       </TrackWithArtist>
     );

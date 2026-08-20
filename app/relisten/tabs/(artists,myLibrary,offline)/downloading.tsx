@@ -1,5 +1,6 @@
-import { useQuery } from '@/relisten/realm/schema';
+import { useQuery, useRealm } from '@/relisten/realm/schema';
 import {
+  ACTIVE_SOURCE_TRACK_OFFLINE_INFO_QUERY,
   SourceTrackOfflineInfo,
   SourceTrackOfflineInfoStatus,
 } from '@/relisten/realm/models/source_track_offline_info';
@@ -16,6 +17,8 @@ import { RelistenSectionList } from '@/relisten/components/relisten_section_list
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import { View } from 'react-native';
 import { DownloadManager } from '@/relisten/offline/download_manager';
+import { SourceTrack } from '@/relisten/realm/models/source_track';
+import { retainedCatalogObjectForPrimaryKey } from '@/relisten/realm/catalog_retirement';
 
 function failedDownloadMessage(errorInfo?: string) {
   if (!errorInfo) {
@@ -47,7 +50,12 @@ export default function Page() {
   const navigation = useNavigation();
 
   const downloads = useQuery(SourceTrackOfflineInfo, (query) =>
-    query.filtered('status != $0', SourceTrackOfflineInfoStatus.Succeeded).sorted('queuedAt')
+    query
+      .filtered(
+        `${ACTIVE_SOURCE_TRACK_OFFLINE_INFO_QUERY} AND status != $0`,
+        SourceTrackOfflineInfoStatus.Succeeded
+      )
+      .sorted('queuedAt')
   );
 
   useEffect(() => {
@@ -69,13 +77,24 @@ export default function Page() {
 }
 
 const DownloadListItem = ({ item }: { item: SourceTrackOfflineInfo }) => {
-  const sourceTrack = item.sourceTrack;
+  const realm = useRealm();
+  const sourceTrack = retainedCatalogObjectForPrimaryKey(
+    realm,
+    SourceTrack,
+    item.sourceTrackUuid,
+    'offline.downloading.track-lookup'
+  );
+
+  if (!sourceTrack) {
+    return null;
+  }
 
   return (
     <TrackWithArtist
       sourceTrack={sourceTrack}
       offlineIndicator={false}
       subtitleColumn={true}
+      retainedAccessSite="offline.downloading.track-row"
       indicatorComponent={<SourceTrackOfflineIndicator offlineInfo={item} />}
     >
       <DownloadStatusTime item={item} />

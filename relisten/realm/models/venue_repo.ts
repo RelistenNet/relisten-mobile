@@ -7,6 +7,7 @@ import { useMemo } from 'react';
 import { Venue } from './venue';
 import { NetworkBackedBehaviorOptions } from '@/relisten/realm/network_backed_behavior';
 import { NetworkBackedModelArrayBehavior } from '@/relisten/realm/network_backed_model_array_behavior';
+import { activeCatalogObjects } from '@/relisten/realm/catalog_retirement';
 
 export const venueRepo = new Repository(Venue);
 
@@ -17,7 +18,11 @@ export function useVenues(artistUuid: string, options?: NetworkBackedBehaviorOpt
     return new NetworkBackedModelArrayBehavior(
       realm,
       venueRepo,
-      (realm) => realm.objects(Venue).filtered('artistUuid == $0 && showsAtVenue > 0', artistUuid),
+      (realm) =>
+        activeCatalogObjects(realm, Venue).filtered(
+          'artistUuid == $0 && showsAtVenue > 0',
+          artistUuid
+        ),
       (api) => api.venues(artistUuid),
       options
     );

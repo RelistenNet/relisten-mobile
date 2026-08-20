@@ -14,7 +14,7 @@ import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useForceUpdate } from '@/relisten/util/forced_update';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Link, Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { PropsWithChildren, useEffect, useRef, useState } from 'react';
+import React, { PropsWithChildren, useEffect, useMemo, useRef, useState } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import {
   Animated,
@@ -27,7 +27,12 @@ import {
 } from 'react-native';
 import * as R from 'remeda';
 
-import { SourceSets } from '@/relisten/components/source/source_sets_component';
+import {
+  type SourceMembershipPolicy,
+  SourceSets,
+  sourceSetsForSource,
+  sourceTracksForSource,
+} from '@/relisten/components/source/source_sets_component';
 import { SourceActionsToolbar } from '@/relisten/components/source/source_actions_toolbar';
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
 import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
@@ -52,6 +57,12 @@ import {
   SourceTrackOfflineInfoStatus,
   SourceTrackOfflineInfoType,
 } from '@/relisten/realm/models/source_track_offline_info';
+import {
+  activeCatalogObjectForPrimaryKey,
+  readRetainedCatalogObject,
+  retainedCatalogObjectForPrimaryKey,
+} from '@/relisten/realm/catalog_retirement';
+import { useOfflineAvailabilityIndex } from '@/relisten/realm/root_services';
 
 const logger = log.extend('source screen');
 
@@ -62,11 +73,12 @@ function shouldQueueOfflineTracksOnly(isOfflineTab: boolean, offlineMode: Offlin
 function getQueueableSourceTracks(
   source: Source,
   isOfflineTab: boolean,
-  offlineMode: OfflineModeSetting
+  offlineMode: OfflineModeSetting,
+  membershipPolicy: SourceMembershipPolicy
 ) {
   const queueOfflineOnly = shouldQueueOfflineTracksOnly(isOfflineTab, offlineMode);
 
-  return source.allSourceTracks().filter((track) => {
+  return sourceTracksForSource(source, membershipPolicy).filter((track) => {
     return queueOfflineOnly ? track.playable(false) : true;
   });
 }
@@ -106,7 +118,7 @@ export const SourceList = ({ sources }: { sources: Source[] }) => {
 export default function Page() {
   const realm = useRealm();
   const player = useRelistenPlayer();
-  const { showUuid, sourceUuid, playTrackUuid } = useLocalSearchParams();
+  const { artistUuid, showUuid, sourceUuid, playTrackUuid } = useLocalSearchParams();
   const router = useRouter();
   const groupSegment = useGroupSegment();
 
@@ -115,12 +127,105 @@ export default function Page() {
   const isRemovingDownloadsRef = useRef(false);
   const userSettings = useUserSettings();
   const isOfflineTab = useIsOfflineTab();
+  const offlineAvailabilityIndex = useOfflineAvailabilityIndex();
   const offlineMode = userSettings.offlineModeWithDefault();
 
-  const { results, show, artist, selectedSource } = useFullShowWithSelectedSource(
-    String(showUuid),
-    String(sourceUuid)
+  const {
+    results,
+    artist: queriedArtist,
+    selectedSource: queriedSource,
+  } = useFullShowWithSelectedSource(String(showUuid), String(sourceUuid));
+  const retainedAccessSite =
+    groupSegment === '(offline)'
+      ? 'offline.source-screen'
+      : groupSegment === '(myLibrary)'
+        ? 'library.source-screen'
+        : undefined;
+  const membershipPolicy = useMemo<SourceMembershipPolicy>(
+    () =>
+      retainedAccessSite
+        ? { mode: 'retained', accessSite: `${retainedAccessSite}.membership` }
+        : { mode: 'active' },
+    [retainedAccessSite]
   );
+  const show = retainedAccessSite
+    ? retainedCatalogObjectForPrimaryKey(
+        realm,
+        Show,
+        String(showUuid),
+        `${retainedAccessSite}.show`
+      )
+    : activeCatalogObjectForPrimaryKey(realm, Show, String(showUuid), 'artists.source-screen.show');
+  const isInitialSource = String(sourceUuid) === 'initial';
+  const retainedSourcesForShow =
+    retainedAccessSite && isInitialSource
+      ? realm.objects(Source).filtered('showUuid == $0', String(showUuid))
+      : undefined;
+  const retainedSourceCandidates =
+    retainedSourcesForShow && retainedAccessSite
+      ? [queriedSource, ...retainedSourcesForShow]
+          .flatMap((candidate) => {
+            const source = readRetainedCatalogObject(
+              candidate,
+              `${retainedAccessSite}.initial-source-candidate`
+            );
+            return source ? [source] : [];
+          })
+          .filter(
+            (source, index, candidates) =>
+              candidates.findIndex((candidate) => candidate.uuid === source.uuid) === index
+          )
+      : [];
+  const retainedInitialSource =
+    groupSegment === '(offline)'
+      ? retainedSourceCandidates.find((source) =>
+          offlineAvailabilityIndex.sourceHasOfflineTracks(source.uuid)
+        )
+      : groupSegment === '(myLibrary)'
+        ? (retainedSourceCandidates.find(
+            (source) =>
+              source.isFavorite || offlineAvailabilityIndex.sourceHasOfflineTracks(source.uuid)
+          ) ?? (show?.isFavorite ? retainedSourceCandidates[0] : undefined))
+        : undefined;
+  const activeSourceUuid = isInitialSource ? queriedSource?.uuid : String(sourceUuid);
+  const selectedSource = retainedAccessSite
+    ? isInitialSource
+      ? readRetainedCatalogObject(retainedInitialSource, `${retainedAccessSite}.source`)
+      : retainedCatalogObjectForPrimaryKey(
+          realm,
+          Source,
+          String(sourceUuid),
+          `${retainedAccessSite}.source`
+        )
+    : activeSourceUuid
+      ? activeCatalogObjectForPrimaryKey(
+          realm,
+          Source,
+          activeSourceUuid,
+          'artists.source-screen.source'
+        )
+      : undefined;
+  const artist = retainedAccessSite
+    ? (retainedCatalogObjectForPrimaryKey(
+        realm,
+        Artist,
+        String(artistUuid),
+        `${retainedAccessSite}.artist`
+      ) ??
+      readRetainedCatalogObject(
+        show?.artist ?? selectedSource?.artist ?? queriedArtist,
+        `${retainedAccessSite}.artist-link`
+      ))
+    : activeCatalogObjectForPrimaryKey(
+        realm,
+        Artist,
+        queriedArtist?.uuid ?? String(artistUuid),
+        'artists.source-screen.artist'
+      );
+
+  if (retainedAccessSite) {
+    readRetainedCatalogObject(show?.venue, `${retainedAccessSite}.venue`);
+  }
 
   const playShow = ((sourceTrack?: SourceTrack) => {
     if (!sourceTrack || !sourceTrack.streamingUrl() || !sourceTrack.uuid || !selectedSource) {
@@ -130,10 +235,15 @@ export default function Page() {
       return;
     }
 
-    const showTracks = getQueueableSourceTracks(selectedSource, isOfflineTab, offlineMode);
+    const showTracks = getQueueableSourceTracks(
+      selectedSource,
+      isOfflineTab,
+      offlineMode,
+      membershipPolicy
+    );
 
     const trackIndex = Math.max(
-      showTracks.findIndex((st) => st.uuid === sourceTrack?.uuid),
+      showTracks.findIndex((st) => st.uuid === sourceTrack.uuid),
       0
     );
 
@@ -153,7 +263,7 @@ export default function Page() {
       );
       return;
     }
-    const showTracks = selectedSource.allSourceTracks();
+    const showTracks = sourceTracksForSource(selectedSource, membershipPolicy);
 
     showTracks.forEach((track) => {
       DownloadManager.SHARED_INSTANCE.downloadTrack(track);
@@ -173,7 +283,7 @@ export default function Page() {
       return;
     }
 
-    const showTracks = selectedSource.allSourceTracks();
+    const showTracks = sourceTracksForSource(selectedSource, membershipPolicy);
 
     isRemovingDownloadsRef.current = true;
     setIsRemovingDownloads(true);
@@ -203,7 +313,7 @@ export default function Page() {
   const playEntireShow = () => {
     playShow(
       selectedSource
-        ? getQueueableSourceTracks(selectedSource, isOfflineTab, offlineMode)[0]
+        ? getQueueableSourceTracks(selectedSource, isOfflineTab, offlineMode, membershipPolicy)[0]
         : undefined
     );
   };
@@ -237,7 +347,12 @@ export default function Page() {
       return;
     }
 
-    for (const track of getQueueableSourceTracks(selectedSource, isOfflineTab, offlineMode)) {
+    for (const track of getQueueableSourceTracks(
+      selectedSource,
+      isOfflineTab,
+      offlineMode,
+      membershipPolicy
+    )) {
       if (track.uuid === playTrackUuid) {
         playShow(track);
 
@@ -249,6 +364,7 @@ export default function Page() {
   }, [
     hasAutoplayed,
     isOfflineTab,
+    membershipPolicy,
     offlineMode,
     playTrackUuid,
     playShow,
@@ -283,6 +399,7 @@ export default function Page() {
           selectedSource={selectedSource}
           playShow={playShow}
           downloadShow={downloadShow}
+          membershipPolicy={membershipPolicy}
         />
       </RefreshContextProvider>
     </>
@@ -295,6 +412,7 @@ const SourceComponent = ({
   playShow,
   artist,
   downloadShow,
+  membershipPolicy,
   ...props
 }: {
   show: Show | undefined;
@@ -302,6 +420,7 @@ const SourceComponent = ({
   artist?: Artist;
   playShow: PlayShow;
   downloadShow: () => void;
+  membershipPolicy: SourceMembershipPolicy;
 } & ScrollViewProps) => {
   const { refreshing, errors, hasData } = useRefreshContext();
   const userSettings = useUserSettings();
@@ -342,7 +461,8 @@ const SourceComponent = ({
   const initialTrackToPlay = getQueueableSourceTracks(
     selectedSource,
     isOfflineTab,
-    userSettings.offlineModeWithDefault()
+    userSettings.offlineModeWithDefault(),
+    membershipPolicy
   )[0];
 
   return (
@@ -355,8 +475,9 @@ const SourceComponent = ({
         playShow={playShow}
         artist={artist}
         initialTrackToPlay={initialTrackToPlay}
+        membershipPolicy={membershipPolicy}
       />
-      <SourceSets source={selectedSource} playShow={playShow} />
+      <SourceSets source={selectedSource} playShow={playShow} membershipPolicy={membershipPolicy} />
       <SourceFooter source={selectedSource} />
     </Animated.ScrollView>
   );
@@ -377,6 +498,7 @@ export const SourceHeader = ({
   playShow,
   downloadShow,
   initialTrackToPlay,
+  membershipPolicy,
 }: {
   source: Source;
   show: Show;
@@ -384,22 +506,18 @@ export const SourceHeader = ({
   artist: Artist;
   downloadShow: () => void;
   initialTrackToPlay?: SourceTrack;
+  membershipPolicy: SourceMembershipPolicy;
 }) => {
   const realm = useRealm();
   const router = useRouter();
   const forceUpdate = useForceUpdate();
   const groupSegment = useGroupSegment();
   const { fontScale } = useWindowDimensions();
+  const sourceSets = sourceSetsForSource(source, membershipPolicy);
+  const sourceTracks = sourceTracksForSource(source, membershipPolicy);
 
   const secondLine = R.filter(
-    [
-      source.humanizedDuration(),
-      `${R.sumBy(
-        source.sourceSets.map((s) => s.sourceTracks.length),
-        (l) => l
-      )} tracks`,
-      artist.name,
-    ],
+    [source.humanizedDuration(), `${sourceTracks.length} tracks`, artist.name],
     R.isTruthy
   );
 
@@ -416,9 +534,10 @@ export const SourceHeader = ({
   };
 
   // If all tracks on this show have offlineInfo and it is Succeeded, then the show is fully downloaded
-  const isFullyDownloaded = source.sourceTracks.every(
+  const isFullyDownloaded = sourceTracks.every(
     (st) =>
       st.offlineInfo &&
+      !st.offlineInfo.deletedAt &&
       st.offlineInfo.type !== SourceTrackOfflineInfoType.StreamingCache &&
       st.offlineInfo.status === SourceTrackOfflineInfoStatus.Succeeded
   );
@@ -540,7 +659,7 @@ export const SourceHeader = ({
           {source.reviewCount > 0 && <SourceReviewsButton source={source} show={show} />}
         </Flex>
       )}
-      {source.sourceSets.length === 1 && <ItemSeparator />}
+      {sourceSets.length === 1 && <ItemSeparator />}
     </View>
   );
 };

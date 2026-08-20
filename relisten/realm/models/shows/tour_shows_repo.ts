@@ -12,12 +12,16 @@ import Realm from 'realm';
 import { upsertShowList } from '@/relisten/realm/models/repo_utils';
 import { useRealm } from '@/relisten/realm/schema';
 import {
+  ActiveCatalogObjectValueStream,
   CombinedValueStream,
-  RealmObjectValueStream,
   RealmQueryValueStream,
+  RetainedCatalogObjectValueStream,
+  RetainedCatalogResultsValueStream,
   ValueStream,
 } from '@/relisten/realm/value_streams';
 import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_network_backed_behavior';
+import { activeCatalogObjects } from '@/relisten/realm/catalog_retirement';
+import { useGroupSegment } from '@/relisten/util/routes';
 
 export interface TourShows {
   tour: Tour | null;
@@ -32,6 +36,7 @@ class TourShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
     realm: Realm.Realm,
     public artistUuid: string,
     public tourUuid: string,
+    private includeRetiredCatalog: boolean,
     options?: NetworkBackedBehaviorOptions
   ) {
     super(realm, options);
@@ -45,11 +50,16 @@ class TourShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
   }
 
   override createLocalUpdatingResults(): ValueStream<TourShows> {
-    const tourResults = new RealmObjectValueStream(this.realm, Tour, this.tourUuid);
-    const showsResults = new RealmQueryValueStream<Show>(
-      this.realm,
-      this.realm.objects(Show).filtered('tourUuid == $0', this.tourUuid)
-    );
+    const tourResults = this.includeRetiredCatalog
+      ? new RetainedCatalogObjectValueStream(this.realm, Tour, this.tourUuid, 'tour-detail.root')
+      : new ActiveCatalogObjectValueStream(this.realm, Tour, this.tourUuid, 'tour-detail.root');
+    const catalogShows = this.includeRetiredCatalog
+      ? this.realm.objects(Show)
+      : activeCatalogObjects(this.realm, Show);
+    const showsQuery = catalogShows.filtered('tourUuid == $0', this.tourUuid);
+    const showsResults = this.includeRetiredCatalog
+      ? new RetainedCatalogResultsValueStream(this.realm, showsQuery, 'tour-detail.shows')
+      : new RealmQueryValueStream(this.realm, showsQuery);
 
     return new CombinedValueStream(tourResults, showsResults, (tour, shows) => {
       return { tour, shows };
@@ -69,7 +79,6 @@ class TourShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
       upsertShowList(this.realm, apiData.shows, localData.shows, {
         // we may not have all the shows here on initial load
         performDeletes: false,
-        queryForModel: true,
         upsertModels: {
           // every tour is the same, so just do it once here
           tours: false,
@@ -86,9 +95,11 @@ export function useTourShows(
   tourUuid: string
 ): NetworkBackedResults<TourShows> {
   const realm = useRealm();
+  const groupSegment = useGroupSegment();
+  const includeRetiredCatalog = groupSegment !== '(artists)';
   const behavior = useMemo(() => {
-    return new TourShowsNetworkBackedBehavior(realm, artistUuid, tourUuid);
-  }, [realm, artistUuid, tourUuid]);
+    return new TourShowsNetworkBackedBehavior(realm, artistUuid, tourUuid, includeRetiredCatalog);
+  }, [realm, artistUuid, tourUuid, includeRetiredCatalog]);
 
   return useNetworkBackedBehavior(behavior);
 }

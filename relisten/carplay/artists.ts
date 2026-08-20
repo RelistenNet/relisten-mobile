@@ -20,8 +20,12 @@ import { upsertShowWithSources } from '@/relisten/realm/models/show_repo';
 import { TodayShowsNetworkBackedBehavior } from '@/relisten/realm/models/shows/today_shows_repo';
 import { sample } from 'remeda';
 import plur from 'plur';
-
-type ItemMap<T extends { uuid: string }> = Map<string, T>;
+import {
+  catalogResultsForScope,
+  selectedCatalogObjectForScope,
+} from '@/relisten/carplay/catalog_scope';
+import { readRetainedCatalogObject } from '@/relisten/realm/catalog_retirement';
+import { RealmQueryValueStream } from '@/relisten/realm/value_streams';
 
 type YearShowsResults = YearShows;
 
@@ -51,9 +55,16 @@ export function createArtistsListTemplate(
 
   const results = executor.start();
   ctx.addTeardown(() => executor.tearDown());
+  const retainedArtistsStream =
+    scope === 'browse'
+      ? undefined
+      : new RealmQueryValueStream<Artist>(ctx.realm, ctx.realm.objects(Artist));
+  if (retainedArtistsStream) {
+    ctx.addTeardown(() => retainedArtistsStream.tearDown());
+  }
 
-  const artistMap: ItemMap<Artist> = new Map();
-  let favoriteArtists: Artist[] = [];
+  const artistUuids = new Set<string>();
+  let favoriteArtistUuids: string[] = [];
 
   const template = new ListTemplate({
     title: SCOPE_META[scope].title,
@@ -61,26 +72,44 @@ export function createArtistsListTemplate(
     tabSystemImageName: 'music.pages.fill',
     async onItemSelect({ id }: { templateId: string; index: number; id: string }) {
       if (scope === 'browse') {
-        if (id === FAVORITES_ACTION_ON_THIS_DAY && favoriteArtists.length > 0) {
+        if (id === FAVORITES_ACTION_ON_THIS_DAY && favoriteArtistUuids.length > 0) {
           const todayTemplate = createTodayShowsTemplate(
             ctx,
             scope,
-            favoriteArtists,
+            favoriteArtistUuids,
             'On This Day'
           );
           CarPlay.pushTemplate(todayTemplate, true);
           return;
         }
 
-        if (id === FAVORITES_ACTION_RANDOM && favoriteArtists.length > 0) {
-          const randomArtist = sample([...favoriteArtists], 1)[0]!;
-          const randomShow = await ctx.apiClient.randomShow(randomArtist.uuid);
+        if (id === FAVORITES_ACTION_RANDOM && favoriteArtistUuids.length > 0) {
+          const randomArtistUuid = sample(favoriteArtistUuids, 1)[0]!;
+          const randomShow = await ctx.apiClient.randomShow(randomArtistUuid);
 
           if (randomShow?.data?.uuid) {
-            const show = upsertShowWithSources(ctx.realm, randomShow.data);
+            const upsertedShow = upsertShowWithSources(ctx.realm, randomShow.data);
+            const show = upsertedShow
+              ? selectedCatalogObjectForScope(
+                  ctx.realm,
+                  scope,
+                  Show,
+                  upsertedShow.uuid,
+                  'carplay.artists.random-show'
+                )
+              : undefined;
+            const showArtist = show
+              ? selectedCatalogObjectForScope(
+                  ctx.realm,
+                  scope,
+                  Artist,
+                  show.artistUuid,
+                  'carplay.artists.random-show-artist'
+                )
+              : undefined;
 
-            if (show && show.artist) {
-              const sourcesTemplate = createSourcesListTemplate(ctx, scope, show.artist, show);
+            if (show && showArtist) {
+              const sourcesTemplate = createSourcesListTemplate(ctx, scope, showArtist, show);
               CarPlay.pushTemplate(sourcesTemplate, true);
             }
           }
@@ -89,9 +118,18 @@ export function createArtistsListTemplate(
       }
 
       carplay_logger.info('artist selected', { id, scope });
-      const artist = artistMap.get(String(id));
+      const artistUuid = String(id);
+      if (!artistUuids.has(artistUuid)) return;
 
-      if (!artist) return;
+      const artist = selectedCatalogObjectForScope(
+        ctx.realm,
+        scope,
+        Artist,
+        artistUuid,
+        'carplay.artists.artist-selection'
+      );
+
+      if (!artist || !includeArtistForScope(ctx, scope, artist)) return;
 
       const yearsTemplate = createYearsListTemplate(ctx, scope, artist);
       CarPlay.pushTemplate(yearsTemplate, true);
@@ -102,17 +140,15 @@ export function createArtistsListTemplate(
 
   ctx.addTeardown(() => results.tearDown());
 
-  results.addListener((nextValue) => {
-    const isLoading = nextValue.isNetworkLoading;
-    const artists = Array.from(nextValue.data || []);
-
+  let isNetworkLoading = true;
+  const updateArtists = (artists: Artist[], isLoading: boolean) => {
     const filtered = artists.filter((artist) => includeArtistForScope(ctx, scope, artist));
     const sorted = filtered.sort((a, b) => a.sortName.localeCompare(b.sortName));
 
-    artistMap.clear();
+    artistUuids.clear();
 
     for (const artist of sorted) {
-      artistMap.set(artist.uuid, artist);
+      artistUuids.add(artist.uuid);
     }
 
     const sections: ListSection[] = [];
@@ -137,7 +173,7 @@ export function createArtistsListTemplate(
 
     const favorites = sorted.filter((a) => a.isFavorite);
     const offline = sorted.filter((a) => ctx.libraryIndex.artistHasOfflineTracks(a.uuid));
-    favoriteArtists = favorites;
+    favoriteArtistUuids = favorites.map((artist) => artist.uuid);
 
     if (scope === 'browse') {
       if (favorites.length > 0) {
@@ -205,6 +241,22 @@ export function createArtistsListTemplate(
     }
 
     template.updateSections(sections);
+  };
+
+  results.addListener((nextValue) => {
+    isNetworkLoading = nextValue.isNetworkLoading;
+    const scopedResults = nextValue.data
+      ? catalogResultsForScope(scope, nextValue.data)
+      : undefined;
+    const artists =
+      scope === 'browse'
+        ? Array.from(scopedResults || [])
+        : Array.from(retainedArtistsStream?.currentValue || []);
+    updateArtists(artists, isNetworkLoading);
+  });
+
+  retainedArtistsStream?.addListener((artists) => {
+    updateArtists(Array.from(artists), isNetworkLoading);
   });
 
   return template;
@@ -215,7 +267,9 @@ function createYearsListTemplate(
   scope: CarPlayScope,
   artist: Artist
 ): ListTemplate {
-  carplay_logger.info('createYearsListTemplate', { scope, artist: artist.uuid });
+  const artistUuid = artist.uuid;
+  const artistName = artist.name;
+  carplay_logger.info('createYearsListTemplate', { scope, artist: artistUuid });
   const behaviorOptions =
     scope === 'offline'
       ? { fetchStrategy: NetworkBackedBehaviorFetchStrategy.NetworkOnlyIfLocalIsNotShowable }
@@ -224,8 +278,9 @@ function createYearsListTemplate(
   const yearsBehavior = yearsNetworkBackedModelArrayBehavior(
     ctx.realm,
     scope === 'offline',
-    artist.uuid,
-    behaviorOptions
+    artistUuid,
+    behaviorOptions,
+    scope !== 'browse'
   );
   const executor = yearsBehavior.sharedExecutor(ctx.apiClient);
   const results = executor.start();
@@ -233,10 +288,10 @@ function createYearsListTemplate(
   ctx.addTeardown(() => executor.tearDown());
   ctx.addTeardown(() => results.tearDown());
 
-  const yearMap: ItemMap<Year> = new Map();
-  const showMap: ItemMap<Show> = new Map();
+  const yearUuids = new Set<string>();
+  const showUuids = new Set<string>();
   let currentMode: 'years' | 'shows' | 'today' = 'years';
-  let selectedYear: Year | undefined;
+  let selectedYearUuid: string | undefined;
   let detailExecutorTeardown: (() => void) | undefined;
   let detailResultsTeardown: (() => void) | undefined;
 
@@ -258,10 +313,15 @@ function createYearsListTemplate(
   const showYears = () => {
     clearDetailBehavior();
     currentMode = 'years';
-    selectedYear = undefined;
-    showMap.clear();
+    selectedYearUuid = undefined;
+    showUuids.clear();
 
-    const sorted = Array.from(yearMap.values()).sort((a, b) => a.year.localeCompare(b.year));
+    const sorted = Array.from(yearUuids)
+      .map((uuid) =>
+        selectedCatalogObjectForScope(ctx.realm, scope, Year, uuid, 'carplay.years.render-year')
+      )
+      .filter((year): year is Year => year !== undefined)
+      .sort((a, b) => a.year.localeCompare(b.year));
     const items = sorted.map((year) => ({
       id: year.uuid,
       text: year.year,
@@ -276,13 +336,13 @@ function createYearsListTemplate(
           {
             id: ARTIST_ACTION_ON_THIS_DAY,
             text: 'On This Day',
-            detailText: `Shows on this day by ${artist.name}.`,
+            detailText: `Shows on this day by ${artistName}.`,
             showsDisclosureIndicator: true,
           },
           {
             id: ARTIST_ACTION_RANDOM,
             text: 'Random Show',
-            detailText: `Play a random ${artist.name} show.`,
+            detailText: `Play a random ${artistName} show.`,
             showsDisclosureIndicator: true,
           },
         ],
@@ -297,23 +357,25 @@ function createYearsListTemplate(
   };
 
   const showShows = (year: Year) => {
+    const yearUuid = year.uuid;
+    const yearLabel = year.year;
     clearDetailBehavior();
     currentMode = 'shows';
-    selectedYear = year;
-    showMap.clear();
+    selectedYearUuid = yearUuid;
+    showUuids.clear();
 
     template.updateSections([
       {
-        header: year.year,
+        header: yearLabel,
         items: [
           {
             id: ACTION_SHOW_YEARS,
             text: 'Back to Years',
-            detailText: artist.name,
+            detailText: artistName,
             showsDisclosureIndicator: false,
           },
           {
-            id: `loading-${year.uuid}`,
+            id: `loading-${yearUuid}`,
             text: 'Loading shows...',
             showsDisclosureIndicator: false,
           },
@@ -329,8 +391,8 @@ function createYearsListTemplate(
 
     const showsBehavior = createYearShowsNetworkBackedBehavior(
       ctx.realm,
-      artist.uuid,
-      year.uuid,
+      artistUuid,
+      yearUuid,
       userFilters,
       behaviorOptions
     );
@@ -341,18 +403,19 @@ function createYearsListTemplate(
     detailResultsTeardown = () => showsResults.tearDown();
 
     showsResults.addListener((nextValue) => {
-      if (currentMode !== 'shows' || selectedYear?.uuid !== year.uuid) {
+      if (currentMode !== 'shows' || selectedYearUuid !== yearUuid) {
         return;
       }
 
       const value: YearShowsResults = nextValue.data;
-      const shows = value?.shows ? Array.from(value.shows) : [];
+      const scopedShows = value?.shows ? catalogResultsForScope(scope, value.shows) : undefined;
+      const shows = scopedShows ? Array.from(scopedShows) : [];
       const filteredShows = shows.filter((show) => includeShowForScope(ctx, scope, show));
       const sortedShows = filteredShows.sort((a, b) => a.displayDate.localeCompare(b.displayDate));
 
-      showMap.clear();
+      showUuids.clear();
       for (const show of sortedShows) {
-        showMap.set(show.uuid, show);
+        showUuids.add(show.uuid);
       }
 
       template.updateSections([
@@ -362,7 +425,7 @@ function createYearsListTemplate(
             {
               id: ACTION_SHOW_YEARS,
               text: 'Back to Years',
-              detailText: year.year,
+              detailText: yearLabel,
               showsDisclosureIndicator: false,
             },
           ],
@@ -374,12 +437,12 @@ function createYearsListTemplate(
               ? sortedShows.map((show) => ({
                   id: show.uuid,
                   text: show.displayDate,
-                  detailText: formatShowDetail(show),
+                  detailText: formatShowDetail(show, scope),
                   showsDisclosureIndicator: true,
                 }))
               : [
                   {
-                    id: `empty-${year.uuid}`,
+                    id: `empty-${yearUuid}`,
                     text: 'No shows available',
                     detailText: 'Try another year.',
                     showsDisclosureIndicator: false,
@@ -393,8 +456,8 @@ function createYearsListTemplate(
   const showToday = () => {
     clearDetailBehavior();
     currentMode = 'today';
-    selectedYear = undefined;
-    showMap.clear();
+    selectedYearUuid = undefined;
+    showUuids.clear();
 
     template.updateSections([
       {
@@ -403,11 +466,11 @@ function createYearsListTemplate(
           {
             id: ACTION_SHOW_YEARS,
             text: 'Back to Years',
-            detailText: artist.name,
+            detailText: artistName,
             showsDisclosureIndicator: false,
           },
           {
-            id: `loading-today-${artist.uuid}`,
+            id: `loading-today-${artistUuid}`,
             text: 'Loading shows...',
             showsDisclosureIndicator: false,
           },
@@ -415,27 +478,40 @@ function createYearsListTemplate(
       },
     ]);
 
-    const todayBehavior = new TodayShowsNetworkBackedBehavior(ctx.realm, [artist.uuid], {
+    const todayBehavior = new TodayShowsNetworkBackedBehavior(ctx.realm, [artistUuid], {
       fetchStrategy: NetworkBackedBehaviorFetchStrategy.NetworkAlwaysFirst,
     });
     const todayExecutor = todayBehavior.sharedExecutor(ctx.apiClient);
     const todayResults = todayExecutor.start();
+    const retainedTodayStream =
+      scope === 'browse'
+        ? undefined
+        : new RealmQueryValueStream<Show>(
+            ctx.realm,
+            ctx.realm
+              .objects(Show)
+              .filtered('displayDate ENDSWITH $0', todayDisplayDateSuffix())
+              .filtered('artistUuid == $0', artistUuid)
+          );
 
     detailExecutorTeardown = () => todayExecutor.tearDown();
-    detailResultsTeardown = () => todayResults.tearDown();
+    detailResultsTeardown = () => {
+      todayResults.tearDown();
+      retainedTodayStream?.tearDown();
+    };
 
-    todayResults.addListener((nextValue) => {
+    const updateTodayShows = (nextShows: Show[]) => {
       if (currentMode !== 'today') {
         return;
       }
 
-      const shows = Array.from(nextValue.data || []).sort(
-        (a, b) => b.date.getTime() - a.date.getTime()
-      );
+      const shows = nextShows
+        .filter((show) => includeShowForScope(ctx, scope, show))
+        .sort((a, b) => b.date.getTime() - a.date.getTime());
 
-      showMap.clear();
+      showUuids.clear();
       for (const show of shows) {
-        showMap.set(show.uuid, show);
+        showUuids.add(show.uuid);
       }
 
       template.updateSections([
@@ -445,7 +521,7 @@ function createYearsListTemplate(
             {
               id: ACTION_SHOW_YEARS,
               text: 'Back to Years',
-              detailText: artist.name,
+              detailText: artistName,
               showsDisclosureIndicator: false,
             },
           ],
@@ -457,12 +533,12 @@ function createYearsListTemplate(
               ? shows.map((show) => ({
                   id: show.uuid,
                   text: show.displayDate,
-                  detailText: formatShowDetail(show),
+                  detailText: formatShowDetail(show, scope),
                   showsDisclosureIndicator: true,
                 }))
               : [
                   {
-                    id: `empty-today-${artist.uuid}`,
+                    id: `empty-today-${artistUuid}`,
                     text: 'No shows on this day',
                     detailText: 'Try another artist or check back later.',
                     showsDisclosureIndicator: false,
@@ -470,11 +546,26 @@ function createYearsListTemplate(
                 ],
         },
       ]);
+    };
+
+    todayResults.addListener((nextValue) => {
+      const scopedShows = nextValue.data
+        ? catalogResultsForScope(scope, nextValue.data)
+        : undefined;
+      const shows =
+        scope === 'browse'
+          ? Array.from(scopedShows || [])
+          : Array.from(retainedTodayStream?.currentValue || []);
+      updateTodayShows(shows);
+    });
+
+    retainedTodayStream?.addListener((shows) => {
+      updateTodayShows(Array.from(shows));
     });
   };
 
   const template = new ListTemplate({
-    title: artist.name,
+    title: artistName,
     tabTitle: SCOPE_META[scope].tabTitle,
     tabSystemImageName: 'music.pages.fill',
     async onItemSelect({ id }: { templateId: string; index: number; id: string }) {
@@ -486,14 +577,37 @@ function createYearsListTemplate(
 
         carplay_logger.info('show selected', {
           id,
-          artist: artist.uuid,
-          year: selectedYear?.uuid,
+          artist: artistUuid,
+          year: selectedYearUuid,
           scope,
         });
-        const show = showMap.get(String(id));
-        if (!show) return;
+        const showUuid = String(id);
+        if (!showUuids.has(showUuid)) return;
 
-        const sourcesTemplate = createSourcesListTemplate(ctx, scope, artist, show);
+        const show = selectedCatalogObjectForScope(
+          ctx.realm,
+          scope,
+          Show,
+          showUuid,
+          'carplay.years.show-selection'
+        );
+        const selectedArtist = selectedCatalogObjectForScope(
+          ctx.realm,
+          scope,
+          Artist,
+          artistUuid,
+          'carplay.years.show-selection-artist'
+        );
+        if (
+          !show ||
+          !selectedArtist ||
+          !includeShowForScope(ctx, scope, show) ||
+          !includeArtistForScope(ctx, scope, selectedArtist)
+        ) {
+          return;
+        }
+
+        const sourcesTemplate = createSourcesListTemplate(ctx, scope, selectedArtist, show);
         CarPlay.pushTemplate(sourcesTemplate, true);
         return;
       }
@@ -504,22 +618,49 @@ function createYearsListTemplate(
       }
 
       if (id === ARTIST_ACTION_RANDOM) {
-        const randomShow = await ctx.apiClient.randomShow(artist.uuid);
+        const randomShow = await ctx.apiClient.randomShow(artistUuid);
 
         if (randomShow?.data?.uuid) {
-          const show = upsertShowWithSources(ctx.realm, randomShow.data);
+          const upsertedShow = upsertShowWithSources(ctx.realm, randomShow.data);
+          const show = upsertedShow
+            ? selectedCatalogObjectForScope(
+                ctx.realm,
+                scope,
+                Show,
+                upsertedShow.uuid,
+                'carplay.years.random-show'
+              )
+            : undefined;
+          const showArtist = show
+            ? selectedCatalogObjectForScope(
+                ctx.realm,
+                scope,
+                Artist,
+                show.artistUuid,
+                'carplay.years.random-show-artist'
+              )
+            : undefined;
 
-          if (show && show.artist) {
-            const sourcesTemplate = createSourcesListTemplate(ctx, scope, show.artist, show);
+          if (show && showArtist) {
+            const sourcesTemplate = createSourcesListTemplate(ctx, scope, showArtist, show);
             CarPlay.pushTemplate(sourcesTemplate, true);
           }
         }
         return;
       }
 
-      carplay_logger.info('year selected', { id, artist: artist.uuid, scope });
-      const year = yearMap.get(String(id));
-      if (!year) return;
+      carplay_logger.info('year selected', { id, artist: artistUuid, scope });
+      const yearUuid = String(id);
+      if (!yearUuids.has(yearUuid)) return;
+
+      const year = selectedCatalogObjectForScope(
+        ctx.realm,
+        scope,
+        Year,
+        yearUuid,
+        'carplay.years.year-selection'
+      );
+      if (!year || !includeYearForScope(ctx, scope, year)) return;
 
       showShows(year);
     },
@@ -528,13 +669,14 @@ function createYearsListTemplate(
   });
 
   results.addListener((nextValue) => {
-    const years = Array.from(nextValue.data || []);
+    const scopedYears = nextValue.data ? catalogResultsForScope(scope, nextValue.data) : undefined;
+    const years = Array.from(scopedYears || []);
     const filtered = years.filter((year) => includeYearForScope(ctx, scope, year));
     const sorted = filtered.sort((a, b) => a.year.localeCompare(b.year));
 
-    yearMap.clear();
+    yearUuids.clear();
     for (const year of sorted) {
-      yearMap.set(year.uuid, year);
+      yearUuids.add(year.uuid);
     }
 
     if (currentMode === 'years') {
@@ -542,7 +684,7 @@ function createYearsListTemplate(
       return;
     }
 
-    if (selectedYear && !yearMap.has(selectedYear.uuid)) {
+    if (selectedYearUuid && !yearUuids.has(selectedYearUuid)) {
       showYears();
     }
   });
@@ -551,39 +693,51 @@ function createYearsListTemplate(
 }
 
 function includeArtistForScope(ctx: RelistenCarPlayContext, scope: CarPlayScope, artist: Artist) {
+  let included = true;
+
   if (scope === 'offline') {
-    return ctx.libraryIndex.artistHasOfflineTracks(artist.uuid);
+    included = ctx.libraryIndex.artistHasOfflineTracks(artist.uuid);
+  } else if (scope === 'library') {
+    included = ctx.libraryIndex.artistIsInLibrary(artist.uuid);
   }
 
-  if (scope === 'library') {
-    return ctx.libraryIndex.artistIsInLibrary(artist.uuid);
+  if (included && scope !== 'browse') {
+    readRetainedCatalogObject(artist, 'carplay.artists.scoped-artist');
   }
 
-  return true;
+  return included;
 }
 
 function includeYearForScope(ctx: RelistenCarPlayContext, scope: CarPlayScope, year: Year) {
+  let included = true;
+
   if (scope === 'offline') {
-    return ctx.libraryIndex.yearHasOfflineTracks(year.uuid);
+    included = ctx.libraryIndex.yearHasOfflineTracks(year.uuid);
+  } else if (scope === 'library') {
+    included = ctx.libraryIndex.yearIsInLibrary(year.uuid);
   }
 
-  if (scope === 'library') {
-    return ctx.libraryIndex.yearIsInLibrary(year.uuid);
+  if (included && scope !== 'browse') {
+    readRetainedCatalogObject(year, 'carplay.years.scoped-year');
   }
 
-  return true;
+  return included;
 }
 
 function includeShowForScope(ctx: RelistenCarPlayContext, scope: CarPlayScope, show: Show) {
+  let included = true;
+
   if (scope === 'offline') {
-    return ctx.libraryIndex.showHasOfflineTracks(show.uuid);
+    included = ctx.libraryIndex.showHasOfflineTracks(show.uuid);
+  } else if (scope === 'library') {
+    included = ctx.libraryIndex.showIsInLibrary(show.uuid);
   }
 
-  if (scope === 'library') {
-    return ctx.libraryIndex.showIsInLibrary(show.uuid);
+  if (included && scope !== 'browse') {
+    readRetainedCatalogObject(show, 'carplay.shows.scoped-show');
   }
 
-  return true;
+  return included;
 }
 
 function artistListItem(artist: Artist) {
@@ -593,4 +747,11 @@ function artistListItem(artist: Artist) {
     detailText: `${artist.showCount} ${plur('show', artist.showCount)} • ${artist.sourceCount} ${plur('tape', artist.sourceCount)}`,
     showsDisclosureIndicator: true,
   };
+}
+
+function todayDisplayDateSuffix() {
+  const now = new Date();
+  const month = (now.getMonth() + 1).toFixed(0).padStart(2, '0');
+  const day = now.getDate().toFixed(0).padStart(2, '0');
+  return `-${month}-${day}`;
 }

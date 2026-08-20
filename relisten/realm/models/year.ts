@@ -6,6 +6,10 @@ import { checkIfOfflineSourceTrackExists } from '../realm_filters';
 import { SourceTrack } from './source_track';
 import { Popularity } from './popularity';
 import type { LibraryIndex } from '@/relisten/realm/library_index';
+import {
+  CATALOG_RETIREMENT_SCHEMA_PROPERTIES,
+  CatalogRetirementState,
+} from '@/relisten/realm/catalog_retirement_schema';
 
 export interface YearRequiredProperties extends RelistenObjectRequiredProperties {
   artistUuid: string;
@@ -20,7 +24,7 @@ export interface YearRequiredProperties extends RelistenObjectRequiredProperties
 
 export class Year
   extends Realm.Object<Year, keyof YearRequiredProperties>
-  implements YearRequiredProperties
+  implements YearRequiredProperties, CatalogRetirementState
 {
   static schema: Realm.ObjectSchema = {
     name: 'Year',
@@ -29,6 +33,7 @@ export class Year
       uuid: 'string',
       createdAt: 'date',
       updatedAt: 'date',
+      ...CATALOG_RETIREMENT_SCHEMA_PROPERTIES,
       artistUuid: { type: 'string', indexed: true },
       showCount: 'int',
       sourceCount: 'int',
@@ -49,6 +54,8 @@ export class Year
   uuid!: string;
   createdAt!: Date;
   updatedAt!: Date;
+  retiredAt?: Date;
+  retirementReason?: string;
   artistUuid!: string;
   showCount!: Realm.Types.Int;
   sourceCount!: Realm.Types.Int;

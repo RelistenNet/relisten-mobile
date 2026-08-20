@@ -5,6 +5,7 @@ import RowTitle from '@/relisten/components/row_title';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { SourceTrackSucceededIndicator } from '@/relisten/components/source/source_track_offline_indicator';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
+import { readRetainedCatalogObject } from '@/relisten/realm/catalog_retirement';
 import { ShowLink } from '@/relisten/util/push_show';
 import React, { PropsWithChildren } from 'react';
 import { View } from 'react-native';
@@ -15,22 +16,42 @@ export function TrackWithArtist({
   offlineIndicator,
   indicatorComponent,
   subtitleColumn,
+  retainedAccessSite = 'history.track-row',
 }: PropsWithChildren<{
   offlineIndicator?: boolean;
   sourceTrack: SourceTrack;
   indicatorComponent?: React.ReactNode;
   subtitleColumn?: boolean;
+  retainedAccessSite?: string;
 }>) {
   if (offlineIndicator === undefined) {
     offlineIndicator = true;
   }
 
+  const retainedSourceTrack = readRetainedCatalogObject(
+    sourceTrack,
+    `${retainedAccessSite}.source-track`
+  );
+  const artist = readRetainedCatalogObject(
+    retainedSourceTrack?.artist,
+    `${retainedAccessSite}.artist`
+  );
+  const show = readRetainedCatalogObject(retainedSourceTrack?.show, `${retainedAccessSite}.show`);
+  const source = readRetainedCatalogObject(
+    retainedSourceTrack?.source,
+    `${retainedAccessSite}.source`
+  );
+
+  if (!retainedSourceTrack || !artist || !show || !source) {
+    return null;
+  }
+
   return (
     <ShowLink
       show={{
-        artist: sourceTrack.artist,
-        showUuid: sourceTrack.show.uuid,
-        sourceUuid: sourceTrack.source.uuid,
+        artist,
+        showUuid: show.uuid,
+        sourceUuid: source.uuid,
       }}
       asChild
     >
@@ -38,27 +59,27 @@ export function TrackWithArtist({
         <Flex className="flex items-center justify-between" full>
           <Flex className="flex-1 pr-2" column>
             <Flex className="items-center" style={{ gap: 8 }}>
-              <RowTitle>{sourceTrack.title}</RowTitle>
-              {sourceTrack.source.isSoundboard && (
+              <RowTitle>{retainedSourceTrack.title}</RowTitle>
+              {source.isSoundboard && (
                 <RelistenText className="text-xs font-bold text-relisten-blue-600">
                   SBD
                 </RelistenText>
               )}
-              {offlineIndicator && sourceTrack.offlineInfo?.isPlayableOffline() && (
+              {offlineIndicator && retainedSourceTrack.offlineInfo?.isPlayableOffline() && (
                 <SourceTrackSucceededIndicator />
               )}
               <View className="grow" />
             </Flex>
             <SubtitleRow {...{ column: !!subtitleColumn }}>
               <SubtitleText>
-                {sourceTrack.artist.name}
+                {artist.name}
                 &nbsp;&middot;&nbsp;
-                {sourceTrack.show.displayDate}
+                {show.displayDate}
               </SubtitleText>
               {children}
             </SubtitleRow>
           </Flex>
-          <SubtitleText>{sourceTrack.humanizedDuration}</SubtitleText>
+          <SubtitleText>{retainedSourceTrack.humanizedDuration}</SubtitleText>
 
           {indicatorComponent}
         </Flex>

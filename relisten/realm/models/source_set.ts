@@ -4,6 +4,10 @@ import { SourceSet as ApiSourceSet } from '../../api/models/source_set';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import dayjs from 'dayjs';
 import type { SourceTrack } from './source_track';
+import {
+  CATALOG_RETIREMENT_SCHEMA_PROPERTIES,
+  CatalogRetirementState,
+} from '@/relisten/realm/catalog_retirement_schema';
 
 export interface SourceSetRequiredProperties extends RelistenObjectRequiredProperties {
   uuid: string;
@@ -20,7 +24,7 @@ export interface SourceSetRequiredProperties extends RelistenObjectRequiredPrope
 
 export class SourceSet
   extends Realm.Object<SourceSet, keyof SourceSetRequiredProperties>
-  implements SourceSetRequiredProperties
+  implements SourceSetRequiredProperties, CatalogRetirementState
 {
   static schema: Realm.ObjectSchema = {
     name: 'SourceSet',
@@ -29,6 +33,7 @@ export class SourceSet
       uuid: 'string',
       createdAt: 'date',
       updatedAt: 'date',
+      ...CATALOG_RETIREMENT_SCHEMA_PROPERTIES,
       artistUuid: { type: 'string', indexed: true },
       sourceUuid: { type: 'string', indexed: true },
 
@@ -43,6 +48,8 @@ export class SourceSet
   uuid!: string;
   createdAt!: Date;
   updatedAt!: Date;
+  retiredAt?: Date;
+  retirementReason?: string;
 
   artistUuid!: string;
   sourceUuid!: string;

@@ -2,12 +2,16 @@ import Realm, { AnyRealmObject } from 'realm';
 import { RelistenApiUpdatableObject, Repository } from '@/relisten/realm/repository';
 import { RelistenObjectRequiredProperties } from '@/relisten/realm/relisten_object';
 import { RelistenApiClient, RelistenApiResponse } from '@/relisten/api/client';
-import { RealmObjectValueStream, ValueStream } from '@/relisten/realm/value_streams';
+import { ActiveCatalogObjectValueStream, ValueStream } from '@/relisten/realm/value_streams';
 import { NetworkBackedBehaviorOptions } from '@/relisten/realm/network_backed_behavior';
 import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_network_backed_behavior';
+import { CatalogRetirementState } from '@/relisten/realm/catalog_retirement_schema';
 
 export class NetworkBackedModelBehavior<
-  TModel extends AnyRealmObject & RequiredProperties & RequiredRelationships,
+  TModel extends AnyRealmObject &
+    RequiredProperties &
+    RequiredRelationships &
+    CatalogRetirementState,
   TApi extends RelistenApiUpdatableObject,
   RequiredProperties extends RelistenObjectRequiredProperties,
   RequiredRelationships extends object,
@@ -34,14 +38,19 @@ export class NetworkBackedModelBehavior<
 
   override createLocalUpdatingResults(): ValueStream<TModel | null> {
     const [type, primaryKey] = this.fetchFromRealm();
-    return new RealmObjectValueStream<TModel>(this.realm, type, primaryKey);
+    return new ActiveCatalogObjectValueStream<TModel>(
+      this.realm,
+      type,
+      String(primaryKey),
+      'network-backed-model.root'
+    );
   }
 
   isLocalDataShowable(localData: TModel | null): boolean {
     return localData !== null;
   }
 
-  override upsert(localData: TModel, apiData: TApi): void {
-    this.repository.upsert(this.realm, apiData, localData);
+  override upsert(localData: TModel | null, apiData: TApi): void {
+    this.repository.upsert(this.realm, apiData, localData ?? undefined);
   }
 }

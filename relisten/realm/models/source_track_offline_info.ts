@@ -1,6 +1,8 @@
 import Realm from 'realm';
 import type { SourceTrack } from '@/relisten/realm/models/source_track';
 
+export const ACTIVE_SOURCE_TRACK_OFFLINE_INFO_QUERY = 'deletedAt == nil';
+
 export enum SourceTrackOfflineInfoStatus {
   UNKNOWN,
   Queued,
@@ -34,6 +36,7 @@ export class SourceTrackOfflineInfo extends Realm.Object<SourceTrackOfflineInfo>
       percent: { type: 'double', default: 0 },
 
       errorInfo: 'string?',
+      deletedAt: { type: 'date', optional: true, indexed: true },
 
       sourceTracks: {
         type: 'linkingObjects',
@@ -60,6 +63,7 @@ export class SourceTrackOfflineInfo extends Realm.Object<SourceTrackOfflineInfo>
   percent!: number;
 
   errorInfo?: string;
+  deletedAt?: Date;
 
   sourceTracks!: Realm.List<SourceTrack>;
 
@@ -68,6 +72,6 @@ export class SourceTrackOfflineInfo extends Realm.Object<SourceTrackOfflineInfo>
   }
 
   isPlayableOffline() {
-    return this.status == SourceTrackOfflineInfoStatus.Succeeded;
+    return !this.deletedAt && this.status == SourceTrackOfflineInfoStatus.Succeeded;
   }
 }

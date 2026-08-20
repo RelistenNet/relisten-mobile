@@ -13,13 +13,17 @@ import { NetworkBackedBehaviorOptions } from '../network_backed_behavior';
 import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
 import { Show } from './show';
 import { Source } from './source';
+import { SourceTrack } from './source_track';
 import { venueRepo } from './venue_repo';
+import { tourRepo } from './tour_repo';
+import { Venue } from './venue';
+import { Tour } from './tour';
 import { Artist } from './artist';
 import { Year } from './year';
-import { useObject, useRealm } from '@/relisten/realm/schema';
+import { useQuery, useRealm } from '@/relisten/realm/schema';
 import {
+  ActiveCatalogObjectValueStream,
   CombinedValueStream,
-  RealmObjectValueStream,
   RealmQueryValueStream,
   ValueStream,
 } from '@/relisten/realm/value_streams';
@@ -27,6 +31,13 @@ import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_netwo
 import { LibraryIndex } from '@/relisten/realm/library_index';
 import { useOfflineAvailabilityIndex } from '@/relisten/realm/root_services';
 import { attachShowArtists } from '@/relisten/realm/models/show_artist_relationships';
+import {
+  activeCatalogObjectForPrimaryKey,
+  activeCatalogResults,
+  restoreCatalogObject,
+} from '@/relisten/realm/catalog_retirement';
+import { reportCatalogMaintenance } from '@/relisten/realm/catalog_access_monitor';
+import { ensureShowResponseCatalogIntegrity } from '@/relisten/realm/catalog_integrity';
 
 export const showRepo = new Repository(Show);
 
@@ -104,7 +115,12 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
 
   override createLocalUpdatingResults(): ValueStream<ShowWithSources> {
     if (this.sourceUuid !== undefined && this.showUuid === undefined) {
-      const source = this.realm.objectForPrimaryKey(Source, this.sourceUuid);
+      const source = activeCatalogObjectForPrimaryKey(
+        this.realm,
+        Source,
+        this.sourceUuid,
+        'show-detail.source-route-resolution'
+      );
 
       if (source) {
         this.showUuid = source.showUuid;
@@ -113,10 +129,15 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
 
     const showUuid = this.showUuid || '__no_show_sentinel__';
 
-    const showResults = new RealmObjectValueStream(this.realm, Show, showUuid);
+    const showResults = new ActiveCatalogObjectValueStream(
+      this.realm,
+      Show,
+      showUuid,
+      'show-detail.root'
+    );
     const sourcesResults = new RealmQueryValueStream<Source>(
       this.realm,
-      this.realm.objects(Source).filtered('showUuid == $0', showUuid)
+      activeCatalogResults(this.realm.objects(Source)).filtered('showUuid == $0', showUuid)
     );
 
     return new CombinedValueStream(showResults, sourcesResults, (show, sources) => {
@@ -125,7 +146,7 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
   }
 
   isLocalDataShowable(localData: ShowWithSources): boolean {
-    return localData.show !== null && localData.sources.length > 0;
+    return localData.show != null && localData.sources.length > 0;
   }
 
   override upsert(localData: ShowWithSources, apiData: ApiShowWithSources): void {
@@ -135,48 +156,61 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
     const apiSourceTracks = R.flatMap(apiSourceSets, (s) => s.tracks);
     const apiSourceSetsBySource = R.groupBy(apiSourceSets, (s) => s.source_uuid);
     const apiSourceTracksBySet = R.groupBy(apiSourceTracks, (s) => s.source_set_uuid);
+    let restoredArtists = 0;
+    let restoredYears = 0;
+    const reconciledSources: Source[] = [];
+    const reconciledSourceTracks: SourceTrack[] = [];
 
     this.realm.write(() => {
+      if (artist && restoreCatalogObject(artist)) restoredArtists += 1;
+      if (year && restoreCatalogObject(year)) restoredYears += 1;
+
       // TODO: maybe should be inside if statement?
       // it broke doing that, but worth reivisiting
-      const {
-        createdModels: [createdShow],
-        updatedModels: [updatedShow],
-      } = showRepo.upsert(this.realm, apiData, localData.show);
-
-      if (createdShow) {
-        createdShow.artist = artist!;
-      }
-
-      if (!localData.show) {
-        localData.show = updatedShow || createdShow;
-      }
+      const { allModels: showModels } = showRepo.upsert(this.realm, apiData, localData.show);
+      localData.show = showModels[0];
 
       if (localData.show) {
+        if (artist) localData.show.artist = artist;
         attachShowArtists(this.realm, [localData.show]);
       }
 
-      if (localData.show && apiData.venue) {
+      if (localData.show && localData.show.venueUuid && apiData.venue) {
         let venueToUpdate = localData.show.venue;
 
-        if (venueToUpdate && venueToUpdate.uuid !== apiData.venue.uuid) {
+        if (venueToUpdate && venueToUpdate.uuid !== localData.show.venueUuid) {
           venueToUpdate = undefined;
         }
 
-        const { createdModels: createdVenues, updatedModels: updatedVenues } = venueRepo.upsert(
+        const { allModels: venueModels } = venueRepo.upsert(
           this.realm,
           apiData.venue,
-          venueToUpdate,
-          true
+          venueToUpdate
         );
+        localData.show.venue =
+          venueModels[0]?.uuid === localData.show.venueUuid ? venueModels[0] : undefined;
+      } else if (localData.show) {
+        const venue = localData.show.venueUuid
+          ? this.realm.objectForPrimaryKey(Venue, localData.show.venueUuid)
+          : undefined;
+        localData.show.venue = venue && venue.retiredAt == null ? venue : undefined;
+      }
 
-        if (createdVenues.length > 0) {
-          localData.show.venue = createdVenues[0];
+      if (localData.show && localData.show.tourUuid && apiData.tour) {
+        let tourToUpdate = localData.show.tour;
+
+        if (tourToUpdate && tourToUpdate.uuid !== localData.show.tourUuid) {
+          tourToUpdate = undefined;
         }
 
-        if (updatedVenues.length > 0) {
-          localData.show.venue = updatedVenues[0];
-        }
+        const { allModels: tourModels } = tourRepo.upsert(this.realm, apiData.tour, tourToUpdate);
+        localData.show.tour =
+          tourModels[0]?.uuid === localData.show.tourUuid ? tourModels[0] : undefined;
+      } else if (localData.show) {
+        const tour = localData.show.tourUuid
+          ? this.realm.objectForPrimaryKey(Tour, localData.show.tourUuid)
+          : undefined;
+        localData.show.tour = tour && tour.retiredAt == null ? tour : undefined;
       }
 
       // These child objects have global primary keys, but the local lists here are only scoped to
@@ -185,48 +219,70 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
       const { allModels: sourceModels } = sourceRepo.upsertMultiple(
         this.realm,
         apiData.sources,
-        localData.sources,
-        true,
-        true
+        localData.sources
       );
+      reconciledSources.push(...sourceModels);
 
       for (const source of sourceModels) {
-        source.artist = artist!;
+        if (artist) source.artist = artist;
 
-        const { allModels: sourceSets } = sourceSetRepo.upsertMultiple(
-          this.realm,
-          apiSourceSetsBySource[source.uuid] || [],
-          source.sourceSets,
-          true,
-          true
-        );
+        const { allModels: sourceSets, retiredModels: retiredSourceSets } =
+          sourceSetRepo.upsertMultiple(
+            this.realm,
+            apiSourceSetsBySource[source.uuid] || [],
+            source.sourceSets
+          );
 
         // Rebuild the parent list from allModels rather than only appending createdModels. When
         // queryForModel finds an existing row elsewhere in Realm, it must still be reattached to
         // this parent list and stale children must be removed.
-        source.sourceSets.splice(0, source.sourceSets.length, ...sourceSets);
+        source.sourceSets.splice(
+          0,
+          source.sourceSets.length,
+          ...sourceSets,
+          ...retiredSourceSets.sort((a, b) => a.index - b.index)
+        );
 
         for (const sourceSet of sourceSets) {
-          const { allModels: sourceTracks } = sourceTrackRepo.upsertMultiple(
-            this.realm,
-            apiSourceTracksBySet[sourceSet.uuid] || [],
-            sourceSet.sourceTracks,
-            true,
-            true
-          );
+          const { allModels: sourceTracks, retiredModels: retiredSourceTracks } =
+            sourceTrackRepo.upsertMultiple(
+              this.realm,
+              apiSourceTracksBySet[sourceSet.uuid] || [],
+              sourceSet.sourceTracks
+            );
 
           // Same reconciliation rule for tracks: the payload is authoritative for membership and
           // order, even when some rows were found by global lookup instead of being newly created.
-          sourceSet.sourceTracks.splice(0, sourceSet.sourceTracks.length, ...sourceTracks);
+          sourceSet.sourceTracks.splice(
+            0,
+            sourceSet.sourceTracks.length,
+            ...sourceTracks,
+            ...retiredSourceTracks.sort((a, b) => a.trackPosition - b.trackPosition)
+          );
 
           sourceTracks.forEach((st) => {
-            st.artist = artist!;
-            st.year = year!;
-            st.show = localData.show!;
+            if (artist) st.artist = artist;
+            if (year) st.year = year;
+            if (localData.show) st.show = localData.show;
             st.source = source;
           });
+          reconciledSourceTracks.push(...sourceTracks);
         }
       }
+
+      ensureShowResponseCatalogIntegrity(
+        this.realm,
+        localData.show,
+        reconciledSources,
+        reconciledSourceTracks
+      );
+    });
+
+    reportCatalogMaintenance('restored', 'Artist', restoredArtists, {
+      reason: 'referenced-by-show-response',
+    });
+    reportCatalogMaintenance('restored', 'Year', restoredYears, {
+      reason: 'referenced-by-show-response',
     });
   }
 }
@@ -246,10 +302,13 @@ export function useFullShowWithSelectedSource(showUuid: string, selectedSourceUu
   const results = useFullShow(String(showUuid));
   const show = results.data?.show;
   const sources = results.data?.sources;
-  const fallbackArtist = useObject(
+  const fallbackArtistUuid = show?.artistUuid ?? sources?.[0]?.artistUuid ?? '__missing__';
+  const fallbackArtists = useQuery(
     Artist,
-    show?.artistUuid ?? sources?.[0]?.artistUuid ?? '__missing__'
+    (query) => query.filtered('uuid == $0 AND retiredAt == nil', fallbackArtistUuid),
+    [fallbackArtistUuid]
   );
+  const fallbackArtist = fallbackArtists[0];
   const libraryIndex = useOfflineAvailabilityIndex();
 
   const sortedSources = useMemo(() => {
@@ -258,14 +317,10 @@ export function useFullShowWithSelectedSource(showUuid: string, selectedSourceUu
     return sortSources(sources, libraryIndex);
   }, [libraryIndex, sources]);
 
-  // default sourceUuid is initial which will just fall back to sortedSources[0]
   const selectedSource =
-    sortedSources.find(
-      (source) =>
-        source.uuid === selectedSourceUuid ||
-        // Prioritize favorited sources by default
-        (selectedSourceUuid === 'initial' && source.isFavorite)
-    ) ?? sortedSources[0];
+    selectedSourceUuid === 'initial'
+      ? (sortedSources.find((source) => source.isFavorite) ?? sortedSources[0])
+      : sortedSources.find((source) => source.uuid === selectedSourceUuid);
 
   return {
     results,
@@ -281,10 +336,18 @@ export function upsertShowWithSources(
   apiData: ApiShowWithSources
 ): Show | undefined {
   const existingShow = realm.objectForPrimaryKey(Show, apiData.uuid) || undefined;
-  const existingSources = realm.objects(Source).filtered('showUuid == $0', apiData.uuid);
+  const existingSources = activeCatalogResults(realm.objects(Source)).filtered(
+    'showUuid == $0',
+    apiData.uuid
+  );
   const behavior = new ShowWithFullSourcesNetworkBackedBehavior(realm, apiData.uuid);
 
   behavior.upsert({ show: existingShow, sources: existingSources }, apiData);
 
-  return realm.objectForPrimaryKey(Show, apiData.uuid) || existingShow;
+  return activeCatalogObjectForPrimaryKey(
+    realm,
+    Show,
+    apiData.uuid,
+    'show-repository.imperative-upsert'
+  );
 }

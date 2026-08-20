@@ -15,6 +15,7 @@ import {
   NetworkBackedBehaviorOptions,
 } from '@/relisten/realm/network_backed_behavior';
 import { RealmQueryValueStream } from '@/relisten/realm/value_streams';
+import { activeCatalogObjects } from '@/relisten/realm/catalog_retirement';
 
 class ShowsByMomentumNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavior {
   constructor(
@@ -37,7 +38,7 @@ class ShowsByMomentumNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBe
   }
 
   override createLocalUpdatingResults(): RealmQueryValueStream<Show> {
-    let query = this.realm.objects(Show).filtered('popularity != nil');
+    let query = activeCatalogObjects(this.realm, Show).filtered('popularity != nil');
 
     if (this.artistUuids.length > 0) {
       query = query.filtered('artistUuid in $0', this.artistUuids);

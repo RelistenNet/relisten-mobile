@@ -10,6 +10,11 @@ import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { Artist } from '@/relisten/realm/models/artist';
 import { Show } from '@/relisten/realm/models/show';
 import { Source } from '@/relisten/realm/models/source';
+import {
+  activePlaybackHistoryEntries,
+  activePlaybackHistoryEntryForPrimaryKey,
+  readRetainedPlaybackHistoryCatalogLinks,
+} from '@/relisten/realm/models/history/playback_history_lifecycle';
 
 const logger = log.extend('playback-history-reporter');
 
@@ -58,18 +63,24 @@ export class PlaybackHistoryReporter {
   }
 
   recordPlayback(playback: PlaybackHistoryReportable): PlaybackHistoryEntry | undefined {
-    const artist = this.realm.objectForPrimaryKey(Artist, playback.sourceTrack.artistUuid);
-    const show = this.realm.objectForPrimaryKey(Show, playback.sourceTrack.showUuid);
-    const source = this.realm.objectForPrimaryKey(Source, playback.sourceTrack.sourceUuid);
+    const sourceTrack = playback.sourceTrack;
+    const artist = this.realm.objectForPrimaryKey(Artist, sourceTrack.artistUuid);
+    const show = this.realm.objectForPrimaryKey(Show, sourceTrack.showUuid);
+    const source = this.realm.objectForPrimaryKey(Source, sourceTrack.sourceUuid);
 
     if (!artist || !show || !source) {
       logger.warn(
-        `Unable to record playback for sourceTrack=${playback.sourceTrack.sourceUuid}. ` +
-          `artist=${playback.sourceTrack.artistUuid}, show=${playback.sourceTrack.showUuid}, ` +
-          `source=${playback.sourceTrack.sourceUuid}`
+        `Unable to record playback for sourceTrack=${sourceTrack.sourceUuid}. ` +
+          `artist=${sourceTrack.artistUuid}, show=${sourceTrack.showUuid}, ` +
+          `source=${sourceTrack.sourceUuid}`
       );
       return;
     }
+
+    const catalogLinks = readRetainedPlaybackHistoryCatalogLinks(
+      { sourceTrack, artist, show, source },
+      'history.recordPlayback'
+    );
 
     const entry = this.realm.write(() => {
       return new PlaybackHistoryEntry(this.realm, {
@@ -82,29 +93,36 @@ export class PlaybackHistoryReporter {
             ? PlaybackFlags.NetworkAvailable
             : PlaybackFlags.NetworkUnavailable),
         playbackStartedAt: playback.playbackStartedAt,
-        sourceTrack: playback.sourceTrack,
-        artist: artist,
-        show: show,
-        source: source,
+        sourceTrack: catalogLinks.sourceTrack,
+        artist: catalogLinks.artist,
+        show: catalogLinks.show,
+        source: catalogLinks.source,
       });
     });
 
     // fire and forget report -- async job will pick it up if it doesn't succeed
     if (this.networkAvailable) {
-      this.attemptReport(entry).then(() => {});
+      this.attemptReport(entry.uuid, catalogLinks.sourceTrack.uuid).then(() => {});
     }
 
     return entry;
   }
 
-  private async attemptReport(entry: PlaybackHistoryEntry): Promise<RelistenApiResponse<unknown>> {
-    const res = await this.apiClient.recordPlayback(entry.sourceTrack.uuid);
+  private async attemptReport(
+    entryUuid: string,
+    sourceTrackUuid: string
+  ): Promise<RelistenApiResponse<unknown>> {
+    const res = await this.apiClient.recordPlayback(sourceTrackUuid);
 
     if (!res.error) {
-      logger.info(`Reported playback ${entry.uuid} for sourceTrack=${entry.sourceTrack.uuid}`);
-      this.realm.write(() => {
-        entry.publishedAt = new Date();
-      });
+      logger.info(`Reported playback ${entryUuid} for sourceTrack=${sourceTrackUuid}`);
+      const entry = activePlaybackHistoryEntryForPrimaryKey(this.realm, entryUuid);
+
+      if (entry) {
+        this.realm.write(() => {
+          entry.publishedAt = new Date();
+        });
+      }
     }
 
     return res;
@@ -116,9 +134,19 @@ export class PlaybackHistoryReporter {
       this.retryTimer = undefined;
     }
 
-    const entriesToPublish = this.realm
-      .objects(PlaybackHistoryEntry)
-      .filtered('publishedAt == null');
+    const entriesToPublish = Array.from(
+      activePlaybackHistoryEntries(this.realm).filtered('publishedAt == nil'),
+      (entry) => {
+        const { sourceTrack } = readRetainedPlaybackHistoryCatalogLinks(
+          entry,
+          'history.reporting.pending'
+        );
+        return {
+          entryUuid: entry.uuid,
+          sourceTrackUuid: sourceTrack.uuid,
+        };
+      }
+    );
 
     if (entriesToPublish.length === 0) {
       logger.info('No playback history entries to publish');
@@ -128,11 +156,11 @@ export class PlaybackHistoryReporter {
     logger.info(`Reporting ${entriesToPublish.length} playback history entries`);
 
     for (const entry of entriesToPublish) {
-      const res = await this.attemptReport(entry);
+      const res = await this.attemptReport(entry.entryUuid, entry.sourceTrackUuid);
 
       if (res.error) {
         logger.warn(
-          `Error reporting ${entry.uuid}. Will try again in 30s; ${JSON.stringify(res.error)}`
+          `Error reporting ${entry.entryUuid}. Will try again in 30s; ${JSON.stringify(res.error)}`
         );
 
         this.retryTimer = setTimeout(() => {

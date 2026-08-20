@@ -4,6 +4,7 @@ import {
   SourceTrack,
 } from '@/relisten/realm/models/source_track';
 import {
+  ACTIVE_SOURCE_TRACK_OFFLINE_INFO_QUERY,
   SourceTrackOfflineInfo,
   SourceTrackOfflineInfoStatus,
   SourceTrackOfflineInfoType,
@@ -33,6 +34,7 @@ const logger = log.extend('offline');
 
 interface DownloadTask {
   id: string;
+  generation: number;
   promise: StatefulPromise<FetchBlobResponse>;
 }
 
@@ -60,31 +62,52 @@ export class DownloadManager {
       return;
     }
 
-    if (sourceTrack.offlineInfo) {
-      if (sourceTrack.offlineInfo.type === SourceTrackOfflineInfoType.StreamingCache) {
+    if (!sourceTrack.isValid()) {
+      logger.warn('downloadTrack: Ignoring an invalid source track.');
+      return;
+    }
+
+    let offlineInfo = this.activeOfflineInfo(sourceTrack);
+
+    if (offlineInfo) {
+      if (offlineInfo.type === SourceTrackOfflineInfoType.StreamingCache) {
         // Upgrade streaming cache to user download
         realm.write(() => {
-          sourceTrack.offlineInfo!.type = SourceTrackOfflineInfoType.UserInitiated;
+          offlineInfo!.type = SourceTrackOfflineInfoType.UserInitiated;
         });
 
         return;
-      } else if (sourceTrack.offlineInfo.status !== SourceTrackOfflineInfoStatus.Failed) {
-        logger.warn(
-          `Source track already has offline info; skipping... ${sourceTrack.offlineInfo.status}`
-        );
+      } else if (offlineInfo.status !== SourceTrackOfflineInfoStatus.Failed) {
+        logger.warn(`Source track already has offline info; skipping... ${offlineInfo.status}`);
       }
     }
 
-    let offlineInfo: SourceTrackOfflineInfo | undefined = sourceTrack.offlineInfo;
-
     if (!offlineInfo) {
       realm.write(() => {
-        offlineInfo = new SourceTrackOfflineInfo(realm!, {
-          sourceTrackUuid: sourceTrack.uuid,
-          queuedAt: new Date(),
-          status: SourceTrackOfflineInfoStatus.Queued,
-          type: SourceTrackOfflineInfoType.UserInitiated,
-        });
+        const existing = realm!.objectForPrimaryKey(SourceTrackOfflineInfo, sourceTrack.uuid);
+        const queuedAt = new Date();
+
+        if (existing) {
+          existing.deletedAt = undefined;
+          existing.queuedAt = queuedAt;
+          existing.status = SourceTrackOfflineInfoStatus.Queued;
+          existing.type = SourceTrackOfflineInfoType.UserInitiated;
+          existing.startedAt = undefined;
+          existing.completedAt = undefined;
+          existing.downloadedBytes = 0;
+          existing.totalBytes = 0;
+          existing.percent = 0;
+          existing.errorInfo = undefined;
+          offlineInfo = existing;
+        } else {
+          offlineInfo = new SourceTrackOfflineInfo(realm!, {
+            sourceTrackUuid: sourceTrack.uuid,
+            queuedAt,
+            status: SourceTrackOfflineInfoStatus.Queued,
+            type: SourceTrackOfflineInfoType.UserInitiated,
+            deletedAt: undefined,
+          });
+        }
 
         sourceTrack.offlineInfo = offlineInfo;
       });
@@ -105,27 +128,54 @@ export class DownloadManager {
       return;
     }
 
-    let offlineInfo: SourceTrackOfflineInfo | undefined = sourceTrack.offlineInfo;
+    if (!sourceTrack.isValid()) {
+      logger.warn('markCachedFileAsAvailableOffline: Ignoring an invalid source track.');
+      return;
+    }
+
+    let offlineInfo = this.activeOfflineInfo(sourceTrack);
+    const activeDownloadTask = this.downloadTaskById(sourceTrack.uuid);
+    if (activeDownloadTask) {
+      activeDownloadTask.promise.cancel();
+    }
 
     realm.write(() => {
       const d = new Date();
 
       if (!offlineInfo) {
-        offlineInfo = new SourceTrackOfflineInfo(realm!, {
-          sourceTrackUuid: sourceTrack.uuid,
-          type: SourceTrackOfflineInfoType.StreamingCache,
-          queuedAt: d,
-          status: SourceTrackOfflineInfoStatus.Succeeded,
-          totalBytes,
-          downloadedBytes: totalBytes,
-          percent: 1,
-          completedAt: d,
-        });
+        const existing = realm!.objectForPrimaryKey(SourceTrackOfflineInfo, sourceTrack.uuid);
+
+        if (existing) {
+          existing.deletedAt = undefined;
+          existing.type = SourceTrackOfflineInfoType.StreamingCache;
+          existing.queuedAt = d;
+          existing.status = SourceTrackOfflineInfoStatus.Succeeded;
+          existing.totalBytes = totalBytes;
+          existing.downloadedBytes = totalBytes;
+          existing.percent = 1;
+          existing.startedAt = undefined;
+          existing.completedAt = d;
+          existing.errorInfo = undefined;
+          offlineInfo = existing;
+        } else {
+          offlineInfo = new SourceTrackOfflineInfo(realm!, {
+            sourceTrackUuid: sourceTrack.uuid,
+            type: SourceTrackOfflineInfoType.StreamingCache,
+            queuedAt: d,
+            status: SourceTrackOfflineInfoStatus.Succeeded,
+            totalBytes,
+            downloadedBytes: totalBytes,
+            percent: 1,
+            completedAt: d,
+            deletedAt: undefined,
+          });
+        }
 
         sourceTrack.offlineInfo = offlineInfo;
       } else if (offlineInfo.status !== SourceTrackOfflineInfoStatus.Succeeded) {
         // if it had been previously queued but streaming cache completed it mark it as completed
         offlineInfo.status = SourceTrackOfflineInfoStatus.Succeeded;
+        offlineInfo.startedAt = undefined;
         offlineInfo.totalBytes = totalBytes;
         offlineInfo.downloadedBytes = totalBytes;
         offlineInfo.percent = 1;
@@ -166,6 +216,16 @@ export class DownloadManager {
     return false;
   }
 
+  private activeOfflineInfo(sourceTrack: SourceTrack) {
+    const offlineInfo = sourceTrack.offlineInfo;
+
+    if (!offlineInfo?.isValid() || offlineInfo.deletedAt) {
+      return undefined;
+    }
+
+    return offlineInfo;
+  }
+
   private availableDownloadSlots() {
     return (
       DownloadManager.MAX_CONCURRENT_DOWNLOADS -
@@ -188,17 +248,29 @@ export class DownloadManager {
 
     const queuedDownloads = realm
       .objects(SourceTrackOfflineInfo)
-      .filtered('status == $0', SourceTrackOfflineInfoStatus.Queued)
+      .filtered(
+        `${ACTIVE_SOURCE_TRACK_OFFLINE_INFO_QUERY} AND status == $0`,
+        SourceTrackOfflineInfoStatus.Queued
+      )
       .sorted('queuedAt')
       .slice(0, this.availableDownloadSlots());
 
     for (const queuedDownload of queuedDownloads) {
-      if (this.isPendingOrDownloading(queuedDownload.sourceTrack)) {
-        logger.debug(`${queuedDownload.sourceTrack.uuid} is already pending or downloading`);
+      const sourceTrack = queuedDownload.sourceTrack;
+
+      if (!sourceTrack) {
+        realm.write(() => {
+          queuedDownload.deletedAt = new Date();
+        });
         continue;
       }
 
-      const task = await this.createDownloadTask(queuedDownload.sourceTrack, queuedDownload);
+      if (this.isPendingOrDownloading(sourceTrack)) {
+        logger.debug(`${sourceTrack.uuid} is already pending or downloading`);
+        continue;
+      }
+
+      const task = await this.createDownloadTask(sourceTrack, queuedDownload);
 
       createdTasks.add(task.id);
     }
@@ -233,6 +305,7 @@ export class DownloadManager {
 
     const task = {
       id: sourceTrack.uuid,
+      generation: Math.max(Date.now(), (offlineInfo.startedAt?.getTime() ?? 0) + 1),
       promise: ReactNativeBlobUtil.config({
         fileCache: true,
         Progress: { interval: 500, count: 10 },
@@ -254,7 +327,7 @@ export class DownloadManager {
       );
 
       offlineInfo.status = SourceTrackOfflineInfoStatus.Downloading;
-      offlineInfo.startedAt = new Date();
+      offlineInfo.startedAt = new Date(task.generation);
     });
 
     this.attachDownloadHandlers(realm!, sourceTrack, offlineInfo!, task);
@@ -273,11 +346,30 @@ export class DownloadManager {
     if (realm) {
       const offlineInfos = realm
         .objects(SourceTrackOfflineInfo)
-        .filtered('status != $0', SourceTrackOfflineInfoStatus.Succeeded);
+        .filtered(
+          `${ACTIVE_SOURCE_TRACK_OFFLINE_INFO_QUERY} AND status != $0`,
+          SourceTrackOfflineInfoStatus.Succeeded
+        )
+        .snapshot();
+      const removals: Promise<void>[] = [];
 
       for (const offlineInfo of offlineInfos) {
-        await this.removeDownload(offlineInfo.sourceTrack);
+        const sourceTrack = offlineInfo.sourceTrack;
+
+        if (sourceTrack) {
+          // Calling the async method starts its synchronous cancellation and
+          // tombstoning work immediately. Await the group only after every
+          // active row has been retired so cancellation callbacks cannot race
+          // ahead and rewrite a still-active row.
+          removals.push(this.removeDownload(sourceTrack));
+        } else {
+          realm.write(() => {
+            offlineInfo.deletedAt = new Date();
+          });
+        }
       }
+
+      await Promise.all(removals);
     }
   }
 
@@ -285,11 +377,25 @@ export class DownloadManager {
     await this.removeAllPendingDownloads();
 
     if (realm) {
-      const offlineInfos = realm.objects(SourceTrackOfflineInfo);
+      const offlineInfos = realm
+        .objects(SourceTrackOfflineInfo)
+        .filtered(ACTIVE_SOURCE_TRACK_OFFLINE_INFO_QUERY)
+        .snapshot();
+      const removals: Promise<void>[] = [];
 
       for (const offlineInfo of offlineInfos) {
-        await this.removeDownload(offlineInfo.sourceTrack);
+        const sourceTrack = offlineInfo.sourceTrack;
+
+        if (sourceTrack) {
+          removals.push(this.removeDownload(sourceTrack));
+        } else {
+          realm.write(() => {
+            offlineInfo.deletedAt = new Date();
+          });
+        }
       }
+
+      await Promise.all(removals);
     }
   }
 
@@ -317,7 +423,11 @@ export class DownloadManager {
     if (realm) {
       const offlineInfos = realm
         .objects(SourceTrackOfflineInfo)
-        .filtered('status == $0', SourceTrackOfflineInfoStatus.Failed);
+        .filtered(
+          `${ACTIVE_SOURCE_TRACK_OFFLINE_INFO_QUERY} AND status == $0`,
+          SourceTrackOfflineInfoStatus.Failed
+        )
+        .snapshot();
 
       realm.write(() => {
         for (const offlineInfo of offlineInfos) {
@@ -331,50 +441,71 @@ export class DownloadManager {
   }
 
   async removeDownload(sourceTrack: SourceTrack) {
-    if (this.removingDownloadTasks.has(sourceTrack.uuid)) {
-      logger.debug(`${sourceTrack.uuid} is already being removed`);
+    if (!sourceTrack.isValid()) {
+      logger.warn('removeDownload: Ignoring an invalid source track.');
       return;
     }
 
-    this.removingDownloadTasks.add(sourceTrack.uuid);
+    const sourceTrackUuid = sourceTrack.uuid;
+    const activeRealm = realm;
+
+    if (!activeRealm) {
+      logger.warn(`${sourceTrackUuid}: cannot remove download without an active Realm`);
+      return;
+    }
+
+    if (this.removingDownloadTasks.has(sourceTrackUuid)) {
+      logger.debug(`${sourceTrackUuid} is already being removed`);
+      return;
+    }
+
+    this.removingDownloadTasks.add(sourceTrackUuid);
 
     try {
       // remove task, if it exists
-      const task = this.downloadTaskById(sourceTrack.uuid);
+      const task = this.downloadTaskById(sourceTrackUuid);
 
       if (task) {
         task.promise.cancel();
       }
 
       // delete file, if it exists
+      const downloadedFileLocation = sourceTrack.downloadedFileLocation();
+      let fileCleanupSucceeded = false;
       try {
-        const downloadedFile = new File(sourceTrack.downloadedFileLocation());
+        const downloadedFile = new File(downloadedFileLocation);
         if (downloadedFile.exists) {
           downloadedFile.delete();
         }
-      } catch {
-        /* empty */
+
+        fileCleanupSucceeded = !new File(downloadedFileLocation).exists;
+      } catch (error) {
+        logger.warn(
+          `${sourceTrackUuid}: retaining offline info because its downloaded file could not be removed`,
+          error
+        );
+      }
+
+      if (!fileCleanupSucceeded) {
+        return;
       }
 
       // remove SourceTrackOfflineInfo
-      const activeRealm = realm;
-      if (activeRealm) {
-        activeRealm.write(() => {
-          if (!sourceTrack.isValid()) {
-            return;
-          }
+      activeRealm.write(() => {
+        if (!sourceTrack.isValid()) {
+          return;
+        }
 
-          const offlineInfo = sourceTrack.offlineInfo;
+        const offlineInfo = this.activeOfflineInfo(sourceTrack);
 
-          sourceTrack.offlineInfo = undefined;
-          if (offlineInfo?.isValid()) {
-            activeRealm.delete(offlineInfo);
-          }
-        });
-      }
+        sourceTrack.offlineInfo = undefined;
+        if (offlineInfo) {
+          offlineInfo.deletedAt = new Date();
+        }
+      });
     } finally {
       this.emitRemainingDownloadsChanged();
-      this.removingDownloadTasks.delete(sourceTrack.uuid);
+      this.removingDownloadTasks.delete(sourceTrackUuid);
     }
   }
 
@@ -387,7 +518,11 @@ export class DownloadManager {
     // these are downloads that were in progress when the app was killed
     const stuckDownloads = realm
       .objects(SourceTrackOfflineInfo)
-      .filtered('status == $0', SourceTrackOfflineInfoStatus.Downloading);
+      .filtered(
+        `${ACTIVE_SOURCE_TRACK_OFFLINE_INFO_QUERY} AND status == $0`,
+        SourceTrackOfflineInfoStatus.Downloading
+      )
+      .snapshot();
 
     if (stuckDownloads.length > 0) {
       this.statsig.logEvent(downloadsResumedEvent(stuckDownloads.length));
@@ -429,6 +564,10 @@ export class DownloadManager {
     downloadTask: DownloadTask,
     { bytesDownloaded, bytesTotal }: { bytesDownloaded: number; bytesTotal: number }
   ) {
+    if (!offlineInfo.isValid() || offlineInfo.deletedAt) {
+      return;
+    }
+
     const percent = bytesDownloaded / bytesTotal;
 
     if (percent - offlineInfo.percent >= 0.1) {
@@ -476,22 +615,28 @@ export class DownloadManager {
     downloadTask: DownloadTask
   ) {
     let offlineInfoRef = offlineInfo;
+    const sourceTrackUuid = sourceTrack.uuid;
+    const destinationPath = sourceTrack.downloadedFileLocation().replace('file://', '');
 
     const refreshOfflineInfo = () => {
       if (!offlineInfoRef.isValid()) {
         const newOfflineInfo = realm.objectForPrimaryKey<SourceTrackOfflineInfo>(
           SourceTrackOfflineInfo,
-          sourceTrack.uuid
+          sourceTrackUuid
         );
 
-        if (newOfflineInfo) {
+        if (newOfflineInfo && !newOfflineInfo.deletedAt) {
           offlineInfoRef = newOfflineInfo;
         } else {
           return;
         }
       }
 
-      if (offlineInfoRef.status !== SourceTrackOfflineInfoStatus.Downloading) {
+      if (
+        offlineInfoRef.deletedAt ||
+        offlineInfoRef.status !== SourceTrackOfflineInfoStatus.Downloading ||
+        offlineInfoRef.startedAt?.getTime() !== downloadTask.generation
+      ) {
         return;
       }
 
@@ -512,19 +657,38 @@ export class DownloadManager {
         });
       })
       .then(async (res) => {
-        const dest = sourceTrack.downloadedFileLocation().replace('file://', '');
+        const dest = destinationPath;
         const path = res.path().replace('file://', '');
         let validationResult: DownloadValidationResult;
 
         try {
+          if (!refreshOfflineInfo()) {
+            return;
+          }
+
           validationResult = await validateCompletedDownloadResponse(res, path);
+
+          if (!refreshOfflineInfo()) {
+            return;
+          }
 
           log.info(`${downloadTask.id}: copying ${path} to ${dest}`);
 
-          if (await ReactNativeBlobUtil.fs.exists(dest)) {
-            await ReactNativeBlobUtil.fs.unlink(dest);
+          if (!refreshOfflineInfo()) {
+            return;
           }
-          await ReactNativeBlobUtil.fs.mv(path, dest);
+
+          // The destination is cleared before this attempt starts. If another
+          // writer recreated it while this request was in flight (notably the
+          // native streaming cache), preserve that newer file instead of
+          // unlinking it from an older completion callback.
+          if (!(await ReactNativeBlobUtil.fs.exists(dest))) {
+            if (!refreshOfflineInfo()) {
+              return;
+            }
+
+            await ReactNativeBlobUtil.fs.mv(path, dest);
+          }
         } finally {
           // if we encounter an error, clean up the temporary file
           try {
@@ -554,18 +718,16 @@ export class DownloadManager {
 
         this.statsig.logEvent(trackDownloadCompletedEvent(sourceTrack));
         this.logTrackDownloadIntegrityAsync(sourceTrack, dest, validationResult);
-
-        this.runningDownloadTasks.splice(this.runningDownloadTasks.indexOf(downloadTask), 1);
-        this.maybeStartQueuedDownloads().then(() => {});
       })
       .catch((error) => {
-        log.warn(`error downloading ${downloadTask.id}`, error);
-
         const oi = refreshOfflineInfo();
 
         if (!oi) {
+          logger.debug(`${downloadTask.id}: stopped after its offline info was deleted`);
           return;
         }
+
+        log.warn(`error downloading ${downloadTask.id}`, error);
 
         realm.write(() => {
           const errorInfo = stringifyDownloadError(error);
@@ -585,8 +747,14 @@ export class DownloadManager {
         });
 
         this.statsig.logEvent(trackDownloadFailureEvent(sourceTrack, oi));
+      })
+      .finally(() => {
+        const taskIndex = this.runningDownloadTasks.indexOf(downloadTask);
+        if (taskIndex >= 0) {
+          this.runningDownloadTasks.splice(taskIndex, 1);
+        }
 
-        this.runningDownloadTasks.splice(this.runningDownloadTasks.indexOf(downloadTask), 1);
+        this.emitRemainingDownloadsChanged();
         this.maybeStartQueuedDownloads().then(() => {});
       });
   }
