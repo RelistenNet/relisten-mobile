@@ -210,6 +210,13 @@ ensure_expo_token() {
   fi
 }
 
+ensure_local_env_for_ota() {
+  if [[ ! -f ".env.local" || ! -r ".env.local" ]]; then
+    echo "Missing or unreadable .env.local for OTA export."
+    exit 1
+  fi
+}
+
 ensure_android_java_home() {
   local detected_major=""
 
@@ -275,11 +282,35 @@ configure_ota_runtime_versions() {
 }
 
 run_eoas() {
+  local eoas_command=()
+
   if [[ -n "$EOAS_BIN" ]]; then
-    "$EOAS_BIN" "$@"
+    eoas_command=("$EOAS_BIN")
   else
-    npx eoas "$@"
+    eoas_command=(npx eoas)
   fi
+
+  # eoas disables Expo's automatic dotenv loading during export. Load every
+  # .env.local entry with Expo's parser, preserving explicit release variables,
+  # then pass the merged environment only to the eoas subprocess.
+  node - "${eoas_command[@]}" "$@" <<'NODE'
+const { spawnSync } = require("node:child_process");
+const { loadEnvFiles } = require("@expo/env");
+
+loadEnvFiles([".env.local"], { force: true, silent: true });
+
+const [command, ...args] = process.argv.slice(2);
+const result = spawnSync(command, args, {
+  env: process.env,
+  stdio: "inherit",
+});
+
+if (result.error) {
+  throw result.error;
+}
+
+process.exit(result.status ?? 1);
+NODE
 }
 
 build_ios() {
@@ -324,6 +355,7 @@ publish_ota() {
   fi
 
   configure_ota_runtime_versions
+  ensure_local_env_for_ota
   ensure_expo_token
 
   echo "Publishing OTA to branch '$branch' (ios+android)..."

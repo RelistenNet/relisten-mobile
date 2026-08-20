@@ -91,6 +91,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.29.0",
+    "@expo/env": "~2.4.0",
     "@switz/eslint-config": "^12.3.3",
     "@types/react": "~19.2.10",
     "@types/uuid": "^11.0.0",
