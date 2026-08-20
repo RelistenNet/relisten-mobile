@@ -23,15 +23,37 @@ const loggingMiddleware: ConfiguredMiddleware = (next) => (url, opts) => {
   return next(url, opts);
 };
 
-function calculateEtag(objs: Array<RelistenObject & RelistenUpdatableObject>): Promise<string> {
-  let str = '';
-
-  for (const obj of objs) {
-    str += obj.uuid;
-    str += obj.updated_at;
+function collectEtagFields(obj: unknown, parts: string[]): void {
+  if (obj === null || obj === undefined || typeof obj !== 'object') {
+    return;
   }
 
-  return digestStringAsync(CryptoDigestAlgorithm.MD5, str);
+  if (Array.isArray(obj)) {
+    for (const item of obj) {
+      collectEtagFields(item, parts);
+    }
+    return;
+  }
+
+  const record = obj as Record<string, unknown>;
+  if (typeof record.uuid === 'string') {
+    parts.push(record.uuid);
+  }
+  if (typeof record.updated_at === 'string') {
+    parts.push(record.updated_at);
+  }
+
+  for (const value of Object.values(record)) {
+    if (typeof value === 'object' && value !== null) {
+      collectEtagFields(value, parts);
+    }
+  }
+}
+
+function calculateEtag(objs: Array<RelistenObject & RelistenUpdatableObject>): Promise<string> {
+  const parts: string[] = [];
+  collectEtagFields(objs, parts);
+  return digestStringAsync(CryptoDigestAlgorithm.MD5, parts.join(''));
 }
 
 export enum RelistenApiResponseType {
