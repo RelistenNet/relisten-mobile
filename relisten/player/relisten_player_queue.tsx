@@ -719,11 +719,14 @@ ${indentString(tracks)}
       this._nextTrack = undefined;
       this._nextTrackIndex = undefined;
 
-      if (playerState.elapsed != null && playerState.duration != null) {
+      const restoredElapsed = Number.isFinite(playerState.elapsed) ? playerState.elapsed : null;
+      const restoredDuration = Number.isFinite(playerState.duration) ? playerState.duration : null;
+
+      if (restoredElapsed != null && restoredDuration != null) {
         const restoredProgress = {
-          elapsed: playerState.elapsed,
-          duration: playerState.duration,
-          percent: playerState.duration > 0 ? playerState.elapsed / playerState.duration : 0,
+          elapsed: restoredElapsed,
+          duration: restoredDuration,
+          percent: restoredDuration > 0 ? restoredElapsed / restoredDuration : 0,
         };
 
         logger.debug('restoring player progress', {
