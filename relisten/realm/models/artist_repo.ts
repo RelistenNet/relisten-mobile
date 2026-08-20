@@ -70,9 +70,7 @@ export function artistsNetworkBackedBehavior(
       });
 
       if (!includeAutomaticallyCreated) {
-        q = q.filtered(
-          `featured != ${ArtistFeaturedFlags.AutoCreated} OR isFavorite == true`
-        );
+        q = q.filtered(`featured != ${ArtistFeaturedFlags.AutoCreated} OR isFavorite == true`);
       }
 
       return q;
