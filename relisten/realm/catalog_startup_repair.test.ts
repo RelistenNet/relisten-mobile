@@ -92,12 +92,12 @@ function createYear(realm: Realm) {
   });
 }
 
-function createShow(realm: Realm, artist?: Artist) {
+function createShow(realm: Realm, artist?: Artist, uuid = 'show', artistUuid = 'artist') {
   return realm.create(Show, {
-    uuid: 'show',
+    uuid,
     createdAt: now,
     updatedAt: now,
-    artistUuid: 'artist',
+    artistUuid,
     yearUuid: 'year',
     date: now,
     avgRating: 0,
@@ -155,13 +155,15 @@ function createSourceTrack(
     show: Show;
     source: Source;
     offlineInfo?: SourceTrackOfflineInfo;
-  }
+  },
+  uuid = 'track',
+  artistUuid = 'artist'
 ) {
   return realm.create(SourceTrack, {
-    uuid: 'track',
+    uuid,
     createdAt: now,
     updatedAt: now,
-    artistUuid: 'artist',
+    artistUuid,
     sourceUuid: 'source',
     sourceSetUuid: 'source-set',
     showUuid: 'show',
@@ -183,7 +185,7 @@ function createOfflineInfo(realm: Realm) {
   });
 }
 
-function createSong(realm: Realm, show: Show) {
+function createSong(realm: Realm, shows: Show | Show[]) {
   return realm.create(Song, {
     uuid: 'song',
     createdAt: now,
@@ -194,7 +196,7 @@ function createSong(realm: Realm, show: Show) {
     upstreamIdentifier: 'song',
     sortName: 'Song',
     showsPlayedAt: 1,
-    shows: [show],
+    shows: Array.isArray(shows) ? shows : [shows],
   });
 }
 
@@ -334,5 +336,50 @@ describe('catalog startup repair', () => {
       deletedLeafRows: 0,
       removedQueueEntries: 0,
     });
+  });
+
+  it('removes multiple damaged memberships without removing healthy rows', () => {
+    let sourceSet!: SourceSet;
+    let song!: Song;
+
+    realm.write(() => {
+      const artist = createArtist(realm);
+      const year = createYear(realm);
+      const healthyShow = createShow(realm, artist);
+      const source = createSource(realm, artist);
+      sourceSet = createSourceSet(realm);
+      const healthyTrack = createSourceTrack(realm, {
+        artist,
+        year,
+        show: healthyShow,
+        source,
+      });
+      const damagedShow1 = createShow(realm, undefined, 'damaged-show-1', 'missing-artist');
+      const damagedShow2 = createShow(realm, undefined, 'damaged-show-2', 'missing-artist');
+      const damagedTrack1 = createSourceTrack(
+        realm,
+        undefined,
+        'damaged-track-1',
+        'missing-artist'
+      );
+      const damagedTrack2 = createSourceTrack(
+        realm,
+        undefined,
+        'damaged-track-2',
+        'missing-artist'
+      );
+
+      sourceSet.sourceTracks.push(damagedTrack1, damagedTrack2, healthyTrack);
+      song = createSong(realm, [damagedShow1, healthyShow, damagedShow2]);
+    });
+
+    expect(repairCatalogAtStartup(realm)).toEqual({
+      repairedLinks: 0,
+      tombstonedRows: 4,
+      deletedLeafRows: 0,
+      removedQueueEntries: 0,
+    });
+    expect(Array.from(sourceSet.sourceTracks, (track) => track.uuid)).toEqual(['track']);
+    expect(Array.from(song.shows, (show) => show.uuid)).toEqual(['show']);
   });
 });

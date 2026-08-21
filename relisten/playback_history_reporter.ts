@@ -130,17 +130,24 @@ export class PlaybackHistoryReporter {
 
     const entriesToPublish = this.realm
       .objects(PlaybackHistoryEntry)
-      .filtered('publishedAt == null');
+      .filtered('publishedAt == null')
+      .snapshot();
 
     if (entriesToPublish.length === 0) {
       logger.info('No playback history entries to publish');
       return;
     }
 
-    const entryUuidsToPublish = Array.from(entriesToPublish, (entry) => entry.uuid);
-    logger.info(`Reporting ${entryUuidsToPublish.length} playback history entries`);
+    const entryCount = entriesToPublish.length;
+    logger.info(`Reporting ${entryCount} playback history entries`);
 
-    for (const entryUuid of entryUuidsToPublish) {
+    for (let index = 0; index < entryCount; index += 1) {
+      // Read only the scalar before awaiting. Clearing history turns a deleted snapshot slot null.
+      const entryUuid = (entriesToPublish[index] as PlaybackHistoryEntry | null)?.uuid;
+      if (!entryUuid) {
+        continue;
+      }
+
       const res = await this.attemptReport(entryUuid);
 
       if (res?.error) {
@@ -156,6 +163,6 @@ export class PlaybackHistoryReporter {
       }
     }
 
-    logger.info(`Successfully processed ${entryUuidsToPublish.length} playback history entries`);
+    logger.info(`Successfully processed ${entryCount} playback history entries`);
   }
 }

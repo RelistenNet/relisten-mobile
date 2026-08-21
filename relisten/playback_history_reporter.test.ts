@@ -76,6 +76,29 @@ const config: Realm.Configuration = {
   schema: [TestSourceTrack, TestArtist, TestShow, TestSource, PlaybackHistoryEntry],
 };
 
+function createHistoryEntries(realm: Realm, uuids: string[]): PlaybackHistoryEntry[] {
+  return realm.write(() => {
+    const sourceTrack = realm.create(TestSourceTrack, { uuid: 'track' });
+    const artist = realm.create(TestArtist, { uuid: 'artist' });
+    const show = realm.create(TestShow, { uuid: 'show' });
+    const source = realm.create(TestSource, { uuid: 'source' });
+
+    return uuids.map(
+      (uuid) =>
+        realm.create('PlaybackHistoryEntry', {
+          uuid,
+          playbackFlags: 0,
+          createdAt: now,
+          playbackStartedAt: now,
+          sourceTrack,
+          artist,
+          show,
+          source,
+        }) as unknown as PlaybackHistoryEntry
+    );
+  });
+}
+
 describe('PlaybackHistoryReporter', () => {
   let realm: Realm;
 
@@ -102,24 +125,7 @@ describe('PlaybackHistoryReporter', () => {
         })
     );
     const reporter = new PlaybackHistoryReporter({ recordPlayback } as never, realm);
-    let entry!: PlaybackHistoryEntry;
-
-    realm.write(() => {
-      const sourceTrack = realm.create(TestSourceTrack, { uuid: 'track' });
-      const artist = realm.create(TestArtist, { uuid: 'artist' });
-      const show = realm.create(TestShow, { uuid: 'show' });
-      const source = realm.create(TestSource, { uuid: 'source' });
-      entry = realm.create('PlaybackHistoryEntry', {
-        uuid: 'history',
-        playbackFlags: 0,
-        createdAt: now,
-        playbackStartedAt: now,
-        sourceTrack,
-        artist,
-        show,
-        source,
-      }) as unknown as PlaybackHistoryEntry;
-    });
+    const [entry] = createHistoryEntries(realm, ['history']);
 
     const reportPromise = (
       reporter as unknown as {
@@ -133,5 +139,30 @@ describe('PlaybackHistoryReporter', () => {
 
     await expect(reportPromise).resolves.toBeDefined();
     expect(realm.objects(PlaybackHistoryEntry)).toHaveLength(0);
+  });
+
+  it('skips snapshot entries deleted while publishing', async () => {
+    let resolveRequest!: (response: { error?: unknown }) => void;
+    const recordPlayback = vi.fn(
+      () =>
+        new Promise<{ error?: unknown }>((resolve) => {
+          resolveRequest = resolve;
+        })
+    );
+    const reporter = new PlaybackHistoryReporter({ recordPlayback } as never, realm);
+    createHistoryEntries(realm, ['history-1', 'history-2']);
+
+    const reportPromise = (
+      reporter as unknown as {
+        reportPlaybackHistory(): Promise<void>;
+      }
+    ).reportPlaybackHistory();
+
+    expect(recordPlayback).toHaveBeenCalledTimes(1);
+    realm.write(() => realm.delete(realm.objects(PlaybackHistoryEntry)));
+    resolveRequest({});
+
+    await expect(reportPromise).resolves.toBeUndefined();
+    expect(recordPlayback).toHaveBeenCalledTimes(1);
   });
 });

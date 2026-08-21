@@ -31,23 +31,43 @@ function tombstoneIrreparableRow(row: RepairableFavorite, deletedAt: Date) {
   return newlyTombstoned;
 }
 
-function removeTrackFromCurrentMembership(realm: Realm, track: SourceTrack) {
-  const sourceSets = realm.objects(SourceSet).filtered('ANY sourceTracks.uuid == $0', track.uuid);
+function removeIrreparableTracksFromSourceSets(realm: Realm, trackUuids: ReadonlySet<string>) {
+  if (trackUuids.size === 0) {
+    return;
+  }
 
-  for (const sourceSet of sourceSets) {
+  const matchingSourceSets = realm
+    .objects(SourceSet)
+    .filtered('ANY sourceTracks.uuid IN $0', [...trackUuids])
+    .snapshot();
+
+  // One native query finds every affected parent. Mutate each matching List backwards so Realm
+  // never has to reinsert its healthy members.
+  for (const sourceSet of matchingSourceSets) {
     for (let index = sourceSet.sourceTracks.length - 1; index >= 0; index -= 1) {
-      if (sourceSet.sourceTracks[index].uuid === track.uuid) {
-        sourceSet.sourceTracks.splice(index, 1);
+      if (trackUuids.has(sourceSet.sourceTracks[index].uuid)) {
+        sourceSet.sourceTracks.remove(index);
       }
     }
   }
 }
 
-function removeShowFromSongMembership(realm: Realm, show: Show) {
-  const songs = realm.objects(Song).filtered('ANY shows.uuid == $0', show.uuid);
+function removeIrreparableShowsFromSongs(realm: Realm, showUuids: ReadonlySet<string>) {
+  if (showUuids.size === 0) {
+    return;
+  }
 
-  for (const song of songs) {
-    song.shows.delete(show);
+  const showUuidList = [...showUuids];
+  const matchingSongs = realm
+    .objects(Song)
+    .filtered('ANY shows.uuid IN $0', showUuidList)
+    .snapshot();
+
+  for (const song of matchingSongs) {
+    const showsToRemove = song.shows.filtered('uuid IN $0', showUuidList).snapshot();
+    for (const show of showsToRemove) {
+      song.shows.delete(show);
+    }
   }
 }
 
@@ -72,8 +92,11 @@ export function repairCatalogAtStartup(realm: Realm): CatalogRepairSummary {
     const irreparableTrackUuids = new Set<string>();
     const offlineInfoUuidsToDelete = new Set<string>();
 
-    // Snapshot each broken-row query because the repair removes rows from the live result set.
-    for (const show of Array.from(realm.objects(Show).filtered('artist == nil'))) {
+    // Tombstones are permanent, so startup repair only processes active legacy damage once.
+    // Snapshot each query because repaired rows leave its live result set.
+    for (const show of Array.from(
+      realm.objects(Show).filtered('deletedAt == nil AND artist == nil')
+    )) {
       const artist = realm.objectForPrimaryKey(Artist, show.artistUuid);
       if (artist) {
         show.artist = artist;
@@ -83,11 +106,12 @@ export function repairCatalogAtStartup(realm: Realm): CatalogRepairSummary {
           summary.tombstonedRows += 1;
         }
         irreparableShowUuids.add(show.uuid);
-        removeShowFromSongMembership(realm, show);
       }
     }
 
-    for (const source of Array.from(realm.objects(Source).filtered('artist == nil'))) {
+    for (const source of Array.from(
+      realm.objects(Source).filtered('deletedAt == nil AND artist == nil')
+    )) {
       const artist = realm.objectForPrimaryKey(Artist, source.artistUuid);
       if (artist) {
         source.artist = artist;
@@ -103,7 +127,9 @@ export function repairCatalogAtStartup(realm: Realm): CatalogRepairSummary {
     const sourceTracksWithMissingLinks = Array.from(
       realm
         .objects(SourceTrack)
-        .filtered('artist == nil OR year == nil OR show == nil OR source == nil')
+        .filtered(
+          'deletedAt == nil AND (artist == nil OR year == nil OR show == nil OR source == nil)'
+        )
     );
 
     for (const track of sourceTracksWithMissingLinks) {
@@ -120,7 +146,6 @@ export function repairCatalogAtStartup(realm: Realm): CatalogRepairSummary {
         if (track.offlineInfo) {
           offlineInfoUuidsToDelete.add(track.offlineInfo.sourceTrackUuid);
         }
-        removeTrackFromCurrentMembership(realm, track);
         continue;
       }
 
@@ -141,6 +166,9 @@ export function repairCatalogAtStartup(realm: Realm): CatalogRepairSummary {
         summary.repairedLinks += 1;
       }
     }
+
+    removeIrreparableShowsFromSongs(realm, irreparableShowUuids);
+    removeIrreparableTracksFromSourceSets(realm, irreparableTrackUuids);
 
     const malformedHistory = realm
       .objects(PlaybackHistoryEntry)
