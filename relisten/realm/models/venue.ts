@@ -30,6 +30,7 @@ export class Venue
       uuid: 'string',
       createdAt: 'date',
       updatedAt: 'date',
+      deletedAt: { type: 'date', optional: true, indexed: true },
       artistUuid: 'string',
       latitude: 'double?',
       longitude: 'double?',
@@ -47,6 +48,7 @@ export class Venue
   uuid!: string;
   createdAt!: Date;
   updatedAt!: Date;
+  deletedAt?: Date;
   artistUuid!: string;
   latitude?: number;
   longitude?: number;

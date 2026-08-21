@@ -40,13 +40,13 @@ The implementation may keep stale catalog rows when the API does not provide a c
 
 ## Progress
 
-- [x] (2026-08-20) Start `codex/permanent-catalog-tombstones` from `origin/main` at `e588385`.
+- [x] (2026-08-20) Start `codex/permanent-catalog-tombstones` from `origin/main`.
 - [x] (2026-08-20) Audit Realm deletion sites, catalog relationships, read sites, and startup paths on the fresh branch.
 - [x] (2026-08-20) Write the first plan. No production code changed.
 - [x] (2026-08-20) Simplify the plan after design review. Keep the current repository API and membership behavior. Replace read-time graph validation with startup repair.
 - [x] (2026-08-20) Complete consistency, crash-invariant, and minimality reviews of the revised plan.
-- [ ] Approve this plan before implementation.
-- [ ] Add catalog tombstones and change repository deletion behavior.
+- [x] (2026-08-21 01:18Z) Approve the revised plan and start implementation from `origin/main` at `7c1b74d`.
+- [x] (2026-08-21 01:22Z) Add catalog tombstones, repository soft deletion and resurrection, and four focused real-Realm tests.
 - [ ] Add active filters at normal catalog query roots.
 - [ ] Add startup repair and focused leaf-consumer safety fixes.
 - [ ] Add focused tests, run repository checks, and complete manual crash scenarios.
@@ -62,6 +62,7 @@ The implementation may keep stale catalog rows when the API does not provide a c
 - Observation: Realm object links can become `nil` after an older build physically deleted their target, even when TypeScript treats the property as required. A `deletedAt` migration cannot restore those links.
 - Observation: `PlaybackHistoryReporter` reads a managed history entry after an `await`. History clear can physically delete that leaf entry during the request. This boundary needs a plain UUID snapshot and a fresh lookup after the request.
 - Observation: the React Realm provider and the non-React `openRealm()` path can expose Realm. Both paths must run the same idempotent startup repair before returning consumers.
+- Observation: a managed optional Realm date reads as `null` when empty, although the TypeScript model uses an optional property. Evidence: the real-Realm repository tests pass by using `== null` in lifecycle code and asserting `null` at the managed read boundary.
 
 ## Decision Log
 
@@ -240,7 +241,7 @@ Run all commands from `/Users/alecgorge/code/relisten/relisten-mobile` with the 
    git rev-parse origin/main
    ```
 
-   Expected branch: `codex/permanent-catalog-tombstones`. Before implementation, `HEAD` and `origin/main` are both `e588385`.
+   Expected branch: `codex/permanent-catalog-tombstones`. The implementation base is `origin/main` at `7c1b74d`.
 
 2. Add a small Vitest harness with real Realm. Keep tests close to the Realm lifecycle modules. Run Realm tests in one worker and call `Realm.shutdown()` after the suite.
 
@@ -317,6 +318,13 @@ Keep these artifacts with the implementation:
 - the final `realm.delete` audit;
 - a short manual record for playback, queue restoration, startup repair, retained history, and in-flight history clear.
 
+Repository checkpoint evidence from Node 22.21.1:
+
+    Test Files  1 passed (1)
+         Tests  4 passed (4)
+    yarn ts:check: passed
+    focused ESLint: passed
+
 ## Interfaces and Dependencies
 
 Do not add a catalog lifecycle service or a general read API.
@@ -351,3 +359,7 @@ function repairCatalogAtStartup(realm: Realm): CatalogRepairSummary;
 ```
 
 Add only one development dependency: Vitest. Do not add a runtime dependency.
+
+Plan revision note, 2026-08-21: implementation started after the user approved the simplified design. The recorded base commit was updated to the current `origin/main`; the lifecycle design did not change.
+
+Plan revision note, 2026-08-21 01:22Z: the schema and repository milestone is complete. Real Realm tests now prove tombstoning, stable links, same-timestamp resurrection, merge-only behavior, and the additive schema migration.

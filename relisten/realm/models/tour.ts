@@ -27,6 +27,7 @@ export class Tour
     properties: {
       createdAt: 'date',
       updatedAt: 'date',
+      deletedAt: { type: 'date', optional: true, indexed: true },
       artistUuid: 'string',
       startDate: 'date',
       endDate: 'date',
@@ -41,6 +42,7 @@ export class Tour
   uuid!: string;
   createdAt!: Date;
   updatedAt!: Date;
+  deletedAt?: Date;
   artistUuid!: string;
   startDate!: Date;
   endDate!: Date;

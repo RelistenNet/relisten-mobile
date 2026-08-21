@@ -29,6 +29,7 @@ export class SourceSet
       uuid: 'string',
       createdAt: 'date',
       updatedAt: 'date',
+      deletedAt: { type: 'date', optional: true, indexed: true },
       artistUuid: { type: 'string', indexed: true },
       sourceUuid: { type: 'string', indexed: true },
 
@@ -43,6 +44,7 @@ export class SourceSet
   uuid!: string;
   createdAt!: Date;
   updatedAt!: Date;
+  deletedAt?: Date;
 
   artistUuid!: string;
   sourceUuid!: string;

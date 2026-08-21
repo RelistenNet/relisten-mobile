@@ -45,6 +45,7 @@ export class Show
       tourUuid: { type: 'string', optional: true, indexed: true },
       createdAt: 'date',
       updatedAt: 'date',
+      deletedAt: { type: 'date', optional: true, indexed: true },
       date: { type: 'date', indexed: true },
       avgRating: 'float',
       avgDuration: 'float?',
@@ -74,6 +75,7 @@ export class Show
   uuid!: string;
   createdAt!: Date;
   updatedAt!: Date;
+  deletedAt?: Date;
   artistUuid!: string;
   yearUuid!: string;
   venueUuid?: string;
