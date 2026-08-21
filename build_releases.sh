@@ -293,13 +293,13 @@ run_eoas() {
   # eoas disables Expo's automatic dotenv loading during export. Load every
   # .env.local entry with Expo's parser, preserving explicit release variables,
   # then pass the merged environment only to the eoas subprocess.
-  node - "${eoas_command[@]}" "$@" <<'NODE'
+  node -e '
 const { spawnSync } = require("node:child_process");
 const { loadEnvFiles } = require("@expo/env");
 
 loadEnvFiles([".env.local"], { force: true, silent: true });
 
-const [command, ...args] = process.argv.slice(2);
+const [command, ...args] = process.argv.slice(1);
 const result = spawnSync(command, args, {
   env: process.env,
   stdio: "inherit",
@@ -310,7 +310,7 @@ if (result.error) {
 }
 
 process.exit(result.status ?? 1);
-NODE
+' "${eoas_command[@]}" "$@"
 }
 
 build_ios() {
@@ -364,7 +364,7 @@ publish_ota() {
   export RELISTEN_IOS_RUNTIME_VERSION="$OTA_IOS_RUNTIME_VERSION"
   export RELISTEN_ANDROID_RUNTIME_VERSION="$OTA_ANDROID_RUNTIME_VERSION"
 
-  run_eoas publish --branch "$branch" --platform all
+  run_eoas publish --branch "$branch" --platform all --nonInteractive
 }
 
 case "$TARGET" in
