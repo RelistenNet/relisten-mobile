@@ -50,8 +50,9 @@ The implementation may keep stale catalog rows when the API does not provide a c
 - [x] (2026-08-21 01:29Z) Add active filters at normal catalog query roots while keeping owned and historical routes retained.
 - [x] (2026-08-21 01:36Z) Add the shared startup repair gate and writer-side required-link enforcement.
 - [x] (2026-08-21 01:40Z) Make the confirmed asynchronous history leaf holders safe.
-- [ ] Add focused tests, run repository checks, and complete manual crash scenarios.
-- [ ] Review the implementation, then simplify the changed code without changing behavior.
+- [x] (2026-08-21 01:48Z) Add focused tests, run the repository checks, and audit every physical Realm deletion.
+- [x] (2026-08-21 01:48Z) Review and simplify the changed code. Keep structurally incomplete Tracks out of current SourceSet membership.
+- [ ] Run the manual crash scenarios on a simulator database at schema version 13. The configured simulator currently contains a schema version 14 Realm from another development build, so Realm rejects this branch's version 13 schema before startup runs. Its data was not reset.
 
 ## Surprises & Discoveries
 
@@ -67,6 +68,8 @@ The implementation may keep stale catalog rows when the API does not provide a c
 - Observation: active detail queries can hide the local tombstone that a positive API response must restore. Evidence: Show, Venue, Tour, and Song detail writers previously received only the displayed root object. They now use the repository's existing `queryForModel` flag so refresh reuses the hidden primary-key row.
 - Observation: the React provider can open Realm without using `openRealm()`. Evidence: `app/_layout.tsx` mounts `RealmProvider` directly, while early CarPlay setup may call `openRealm()`. Both paths now run the same idempotent repair before installing consumers.
 - Observation: the top-played history scan also crossed an asynchronous boundary by keeping a live Realm result across `setTimeout()` chunks. Evidence: it cached the result length and later indexed the same live collection. It now snapshots UUIDs and resolves each leaf immediately before reading it.
+- Observation: the full Show writer could tombstone a Track with a missing required dependency and still add that Track to the current SourceSet membership. Evidence: relationship attachment and list replacement happened in separate steps. The writer now builds the current list only from structurally complete Tracks; the tombstone remains available for later repair or resurrection.
+- Observation: the configured iPhone 17 simulator already contains a Realm at schema version 14 from another development build. Realm correctly rejects this fresh-main branch's version 13 schema as a downgrade. The simulator data was preserved.
 
 ## Decision Log
 
@@ -78,10 +81,17 @@ The implementation may keep stale catalog rows when the API does not provide a c
 - Decision: filter `deletedAt` only at normal catalog query roots. Do not wrap Realm objects or inspect every linked object. Rationale: tombstoned links remain valid and may show stale metadata without crashing. Date: 2026-08-20.
 - Decision: keep physical deletion for history, offline metadata, Last.fm queue rows, and `PlayerState`. Rationale: these are leaf or singleton records. Known asynchronous holders must copy identifiers before deletion can occur. Date: 2026-08-20.
 - Decision: do not add catalog garbage collection, reference counting, graph traversal, per-access telemetry, proxies, or a persistent repair-state table. Rationale: none is required to stop catalog invalidation. Date: 2026-08-20.
+- Decision: exclude a structurally incomplete Track from current SourceSet membership at write time. Keep its row as a tombstone. Rationale: normal playback code traverses membership directly and should never receive a Track that failed the writer invariant. Date: 2026-08-21.
 
 ## Outcomes & Retrospective
 
-Implementation is in progress. Catalog writes, active query roots, and startup repair are complete. Async leaf safety, final review, and manual scenarios remain.
+The implementation is complete. Catalog rows are now permanent Realm objects with a reversible `deletedAt` marker. Normal catalog roots hide tombstones, while history, queue, offline, favorites, and My Library retain the old metadata they need. One startup transaction repairs legacy links or removes unsafe leaf entry points before consumers mount. Confirmed asynchronous history code now carries UUIDs rather than deletable managed leaf objects.
+
+The final implementation keeps the existing repository and query structure. It adds no catalog garbage collector, generic graph validator, read wrapper, access telemetry system, or second reconciliation API. The low-level repair and reconciliation paths contain comments where the lifecycle rule is not obvious from the code.
+
+Automated validation passes with real Realm files: 3 test files and 7 tests, plus full lint and TypeScript checks. The deletion audit found no production path that physically deletes a catalog row. The remaining manual verification gap is environmental: the configured simulator contains a schema version 14 Realm, so this branch's version 13 schema cannot open it without deleting or replacing that data. The simulator was not reset.
+
+Permanent tombstones intentionally allow catalog storage to grow. The startup repair handles the known required links in this schema; a future required relationship must be added to the same explicit repair transaction and its focused test.
 
 ## Context and Orientation
 
@@ -210,7 +220,7 @@ Also delete legacy leaf rows that are already malformed:
 
 Do not create placeholder catalog rows to preserve malformed leaf data.
 
-Log one summary after repair. Include counts by model and action. Do not log one event per row. Do not add read-time tombstone diagnostics.
+Log one summary after repair with aggregate counts by action. Do not log one event per row. Do not add read-time tombstone diagnostics.
 
 Replace the current `RealmBridge` with a small `RealmStartupGate` inside the React `RealmProvider` in `app/_layout.tsx`. It runs the synchronous repair, sets the shared Realm reference, and only then mounts `RootServicesProvider` and the other consumers.
 
@@ -289,7 +299,7 @@ Use real Realm tests for these behaviors:
 10. Running startup repair twice produces no further changes on the second run.
 11. Clearing history during an in-flight report does not access the deleted history object after the request completes.
 
-Run these manual scenarios on the iPhone 17 simulator:
+When a clean schema version 13 simulator database is available, run these manual scenarios on the iPhone 17 simulator:
 
 - Start playback. Refresh the full Show so the current SourceTrack is omitted. Confirm playback and queue rendering continue.
 - Restore a queue that contains a tombstoned SourceTrack. Confirm the track remains playable when its media is available.
@@ -299,7 +309,7 @@ Run these manual scenarios on the iPhone 17 simulator:
 - Open a copied Realm with an irreparable SourceTrack. Confirm the app removes its leaf and queue entry points and does not crash.
 - Clear history while a report request is in flight. Confirm the request completion does not throw an invalid-object error.
 
-Acceptance requires `yarn test`, `yarn lint`, and `yarn ts:check` to pass. The final deletion audit must show no catalog `realm.delete()` call.
+Code acceptance requires `yarn test`, `yarn lint`, and `yarn ts:check` to pass. The final deletion audit must show no catalog `realm.delete()` call. Record manual scenarios separately because they require controlled API omissions and legacy database fixtures.
 
 ## Idempotence and Recovery
 
@@ -353,6 +363,22 @@ Async-leaf checkpoint evidence from Node 22.21.1:
     focused ESLint: passed
     git diff --check: passed
 
+Final simplification and correctness evidence from Node 22.21.1:
+
+    Test Files  3 passed (3)
+         Tests  7 passed (7)
+    yarn lint: passed
+    yarn ts:check: passed
+    git diff --check: passed
+    physical deletion audit: no production catalog realm.delete call
+
+Simulator startup check:
+
+    JavaScript bundle: built and loaded from the current branch
+    startup: stopped before Realm consumers mounted
+    reason: existing schema version 14 is newer than this branch's version 13
+    action: preserved the existing simulator database
+
 ## Interfaces and Dependencies
 
 Do not add a catalog lifecycle service or a general read API.
@@ -397,3 +423,5 @@ Plan revision note, 2026-08-21 01:29Z: normal catalog query roots now exclude to
 Plan revision note, 2026-08-21 01:36Z: one explicit startup transaction now repairs recoverable catalog links and quarantines irreparable rows before React or CarPlay consumers mount. Two production-schema Realm tests cover repair, legacy hard-delete damage, leaf cleanup, queue cleanup, and idempotence.
 
 Plan revision note, 2026-08-21 01:40Z: history reporting, chunked statistics, and CarPlay selection now cross asynchronous boundaries with UUIDs rather than managed history leaves. A focused real-Realm test clears a history row while its publish request is in flight.
+
+Plan revision note, 2026-08-21 01:48Z: the final review removed a needless per-row history deletion loop and fixed the full Show writer so an incomplete tombstoned Track cannot enter current membership. Automated checks are green. The configured simulator could not run the manual scenarios because its existing Realm schema is newer; its data was preserved.

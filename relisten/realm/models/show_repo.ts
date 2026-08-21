@@ -13,6 +13,7 @@ import { NetworkBackedBehaviorOptions } from '../network_backed_behavior';
 import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
 import { Show } from './show';
 import { Source } from './source';
+import { SourceTrack } from './source_track';
 import { venueRepo } from './venue_repo';
 import { Artist } from './artist';
 import { Year } from './year';
@@ -145,8 +146,6 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
     const apiSourceTracksBySet = R.groupBy(apiSourceTracks, (s) => s.source_set_uuid);
 
     this.realm.write(() => {
-      // TODO: maybe should be inside if statement?
-      // it broke doing that, but worth reivisiting
       const {
         createdModels: [createdShow],
         updatedModels: [updatedShow],
@@ -228,9 +227,7 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
             true
           );
 
-          // Same reconciliation rule for tracks: the payload is authoritative for membership and
-          // order, even when some rows were found by global lookup instead of being newly created.
-          sourceSet.sourceTracks.splice(0, sourceSet.sourceTracks.length, ...sourceTracks);
+          const currentSourceTracks: SourceTrack[] = [];
 
           for (const sourceTrack of sourceTracks) {
             if (artist) sourceTrack.artist = artist;
@@ -243,8 +240,14 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
               // playback graph. A later complete API response can restore the same object.
               sourceTrack.deletedAt ??= new Date();
               sourceTrack.isFavorite = false;
+            } else {
+              currentSourceTracks.push(sourceTrack);
             }
           }
+
+          // Current membership follows the API order, but never exposes an incomplete Track.
+          // The rejected row remains a tombstone and can recover on a later complete response.
+          sourceSet.sourceTracks.splice(0, sourceSet.sourceTracks.length, ...currentSourceTracks);
         }
       }
     });
