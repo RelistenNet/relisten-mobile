@@ -50,26 +50,42 @@ export function queueTracksFromSelection({
   return true;
 }
 
-export async function queuePlaybackHistoryEntry(
-  ctx: RelistenCarPlayContext,
-  scope: CarPlayScope,
-  entry: PlaybackHistoryEntry
-) {
-  const offlineMode = ctx.userSettings.offlineModeWithDefault();
-  let source = entry.source;
-  let artist = entry.artist;
+function resolvePlaybackHistorySelection(ctx: RelistenCarPlayContext, entryUuid: string) {
+  const entry = ctx.realm.objectForPrimaryKey(PlaybackHistoryEntry, entryUuid);
+  if (!entry) return;
 
-  if (!source || !artist) {
-    carplay_logger.warn('History entry missing source or artist', { id: entry.uuid });
+  if (!entry.source || !entry.artist) {
+    carplay_logger.warn('History entry missing source or artist', { id: entryUuid });
     return;
   }
 
+  return {
+    artist: entry.artist,
+    showUuid: entry.show.uuid,
+    source: entry.source,
+    sourceTrackUuid: entry.sourceTrack.uuid,
+  };
+}
+
+export async function queuePlaybackHistoryEntry(
+  ctx: RelistenCarPlayContext,
+  scope: CarPlayScope,
+  entryUuid: string
+) {
+  // Resolve the physical history leaf in a synchronous frame. Only permanent catalog objects and
+  // plain identifiers are kept after this point, so clearing history during the request is safe.
+  const selection = resolvePlaybackHistorySelection(ctx, entryUuid);
+  if (!selection) return;
+
+  const offlineMode = ctx.userSettings.offlineModeWithDefault();
+  let { source, artist } = selection;
+
   if (!source.sourceSets?.length) {
-    const response = await ctx.apiClient.showWithSources(entry.show.uuid);
+    const response = await ctx.apiClient.showWithSources(selection.showUuid);
 
     if (response?.data?.uuid) {
       const show = upsertShowWithSources(ctx.realm, response.data);
-      source = ctx.realm.objectForPrimaryKey(Source, entry.source.uuid) || source;
+      source = ctx.realm.objectForPrimaryKey(Source, source.uuid) || source;
       artist = show?.artist || artist;
     }
   }
@@ -86,7 +102,7 @@ export async function queuePlaybackHistoryEntry(
     ctx,
     scope,
     orderedTracks,
-    selectedTrackUuid: entry.sourceTrack.uuid,
+    selectedTrackUuid: selection.sourceTrackUuid,
     sourceUuid: source.uuid,
   });
 }

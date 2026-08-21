@@ -177,15 +177,16 @@ export function useTopPlayedArtistUuidsOnce(
         return;
       }
 
-      const entries = realm
-        .objects(PlaybackHistoryEntry)
-        .sorted('playbackStartedAt', /* reverse= */ true);
+      const entryUuids = Array.from(
+        realm.objects(PlaybackHistoryEntry).sorted('playbackStartedAt', /* reverse= */ true),
+        (entry) => entry.uuid
+      );
       const cutoffTime = Date.now() - EARLY_EXIT_DAYS_MS;
       const counts = new Map<string, number>();
       const sortNames = new Map<string, string>();
       let index = 0;
       let uniqueArtists = 0;
-      const total = entries.length;
+      const total = entryUuids.length;
 
       const finish = () => {
         const computed = rankTopPlayedArtistUuids(counts, sortNames, limit);
@@ -204,7 +205,11 @@ export function useTopPlayedArtistUuidsOnce(
         let shouldStop = false;
 
         while (index < end) {
-          const entry = entries[index];
+          const entry = realm.objectForPrimaryKey(PlaybackHistoryEntry, entryUuids[index]);
+          if (!entry) {
+            index += 1;
+            continue;
+          }
           const artist = entry.artist;
           const uuid = artist?.uuid;
 

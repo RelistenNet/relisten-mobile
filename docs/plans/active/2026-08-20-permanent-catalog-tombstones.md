@@ -49,7 +49,7 @@ The implementation may keep stale catalog rows when the API does not provide a c
 - [x] (2026-08-21 01:22Z) Add catalog tombstones, repository soft deletion and resurrection, and four focused real-Realm tests.
 - [x] (2026-08-21 01:29Z) Add active filters at normal catalog query roots while keeping owned and historical routes retained.
 - [x] (2026-08-21 01:36Z) Add the shared startup repair gate and writer-side required-link enforcement.
-- [ ] Make the confirmed asynchronous history leaf holders safe.
+- [x] (2026-08-21 01:40Z) Make the confirmed asynchronous history leaf holders safe.
 - [ ] Add focused tests, run repository checks, and complete manual crash scenarios.
 - [ ] Review the implementation, then simplify the changed code without changing behavior.
 
@@ -66,6 +66,7 @@ The implementation may keep stale catalog rows when the API does not provide a c
 - Observation: a managed optional Realm date reads as `null` when empty, although the TypeScript model uses an optional property. Evidence: the real-Realm repository tests pass by using `== null` in lifecycle code and asserting `null` at the managed read boundary.
 - Observation: active detail queries can hide the local tombstone that a positive API response must restore. Evidence: Show, Venue, Tour, and Song detail writers previously received only the displayed root object. They now use the repository's existing `queryForModel` flag so refresh reuses the hidden primary-key row.
 - Observation: the React provider can open Realm without using `openRealm()`. Evidence: `app/_layout.tsx` mounts `RealmProvider` directly, while early CarPlay setup may call `openRealm()`. Both paths now run the same idempotent repair before installing consumers.
+- Observation: the top-played history scan also crossed an asynchronous boundary by keeping a live Realm result across `setTimeout()` chunks. Evidence: it cached the result length and later indexed the same live collection. It now snapshots UUIDs and resolves each leaf immediately before reading it.
 
 ## Decision Log
 
@@ -344,6 +345,14 @@ Startup-repair checkpoint evidence from Node 22.21.1:
     focused ESLint: passed
     git diff --check: passed
 
+Async-leaf checkpoint evidence from Node 22.21.1:
+
+    Test Files  3 passed (3)
+         Tests  7 passed (7)
+    yarn ts:check: passed
+    focused ESLint: passed
+    git diff --check: passed
+
 ## Interfaces and Dependencies
 
 Do not add a catalog lifecycle service or a general read API.
@@ -386,3 +395,5 @@ Plan revision note, 2026-08-21 01:22Z: the schema and repository milestone is co
 Plan revision note, 2026-08-21 01:29Z: normal catalog query roots now exclude tombstones. Shared offline and My Library Artist, Year, Show, and Source readers remain retained, as do history, queue, download, and CarPlay ownership paths. No general query abstraction was added.
 
 Plan revision note, 2026-08-21 01:36Z: one explicit startup transaction now repairs recoverable catalog links and quarantines irreparable rows before React or CarPlay consumers mount. Two production-schema Realm tests cover repair, legacy hard-delete damage, leaf cleanup, queue cleanup, and idempotence.
+
+Plan revision note, 2026-08-21 01:40Z: history reporting, chunked statistics, and CarPlay selection now cross asynchronous boundaries with UUIDs rather than managed history leaves. A focused real-Realm test clears a history row while its publish request is in flight.
