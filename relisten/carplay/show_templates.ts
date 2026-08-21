@@ -26,7 +26,12 @@ export function createSourcesListTemplate(
   show: Show
 ): ListTemplate {
   carplay_logger.info('createSourcesListTemplate', { scope, artist: artist.uuid, show: show.uuid });
-  const behavior = new ShowWithFullSourcesNetworkBackedBehavior(ctx.realm, show.uuid);
+  const behavior = new ShowWithFullSourcesNetworkBackedBehavior(
+    ctx.realm,
+    show.uuid,
+    undefined,
+    scope !== 'browse'
+  );
   const executor = behavior.sharedExecutor(ctx.apiClient);
   const results = executor.start();
 

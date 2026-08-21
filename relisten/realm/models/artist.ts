@@ -38,6 +38,7 @@ export class Artist
       uuid: 'string',
       createdAt: 'date',
       updatedAt: 'date',
+      deletedAt: { type: 'date', optional: true, indexed: true },
       musicbrainzId: 'string',
       name: 'string',
       featured: 'int',
@@ -60,6 +61,7 @@ export class Artist
   uuid!: string;
   createdAt!: Date;
   updatedAt!: Date;
+  deletedAt?: Date;
   musicbrainzId!: string;
   name!: string;
   featured!: number;

@@ -46,6 +46,7 @@ export class Source
       uuid: 'string',
       createdAt: 'date',
       updatedAt: 'date',
+      deletedAt: { type: 'date', optional: true, indexed: true },
       artistUuid: { type: 'string', indexed: true },
       showUuid: { type: 'string', indexed: true },
       venueUuid: { type: 'string', optional: true, indexed: true },
@@ -85,6 +86,7 @@ export class Source
   uuid!: string;
   createdAt!: Date;
   updatedAt!: Date;
+  deletedAt?: Date;
   artistUuid!: string;
   venueUuid?: string;
   displayDate!: string;

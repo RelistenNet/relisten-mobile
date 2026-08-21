@@ -48,11 +48,11 @@ class SongShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
     const songResults = new RealmObjectValueStream(this.realm, Song, this.songUuid);
     const showsResults = new RealmQueryValueStream<Show>(
       this.realm,
-      this.realm.objects(Show).filtered('ANY songs.uuid == $0', this.songUuid)
+      this.realm.objects(Show).filtered('ANY songs.uuid == $0 && deletedAt == nil', this.songUuid)
     );
 
     return new CombinedValueStream(songResults, showsResults, (song, shows) => {
-      return { song, shows };
+      return { song: song?.deletedAt == null ? song : null, shows };
     });
   }
 
@@ -69,7 +69,8 @@ class SongShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
       const { createdModels, updatedModels } = songRepo.upsert(
         this.realm,
         { ...apiData, shows_played_at: apiData.shows.length },
-        localData.song || undefined
+        localData.song || undefined,
+        true
       );
 
       const allModels = [localData.song, ...createdModels, ...updatedModels].filter((s) => !!s);

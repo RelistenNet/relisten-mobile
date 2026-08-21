@@ -120,14 +120,12 @@ export function createRecentTemplate(ctx: RelistenCarPlayContext): ListTemplate 
 
   ctx.addTeardown(() => historyStream.tearDown());
 
-  const entryMap: Map<string, PlaybackHistoryEntry> = new Map();
-
   const template = new ListTemplate({
     title: 'Recently Played',
     tabTitle: 'Recent',
     tabSystemImageName: 'clock.arrow.circlepath',
     async onItemSelect({ id }: { templateId: string; index: number; id: string }) {
-      const entry = entryMap.get(String(id));
+      const entry = ctx.realm.objectForPrimaryKey(PlaybackHistoryEntry, String(id));
       if (!entry) return;
 
       const track = entry.sourceTrack;
@@ -141,18 +139,16 @@ export function createRecentTemplate(ctx: RelistenCarPlayContext): ListTemplate 
         return;
       }
 
-      await queuePlaybackHistoryEntry(ctx, 'browse', entry);
+      return queuePlaybackHistoryEntry(ctx, 'browse', String(id));
     },
     sections: [],
     emptyViewTitleVariants: ['Loading history...'],
   });
 
   const updateSections = () => {
-    entryMap.clear();
     const entries = Array.from(historyStream.currentValue || []).slice(0, 50);
 
     const items = entries.map((entry) => {
-      entryMap.set(entry.uuid, entry);
       const show = entry.show;
       const artist = entry.artist;
       const subtitle = [artist?.name, show?.displayDate].filter(Boolean).join(' • ');

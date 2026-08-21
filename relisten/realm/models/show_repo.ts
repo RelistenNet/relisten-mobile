@@ -13,6 +13,7 @@ import { NetworkBackedBehaviorOptions } from '../network_backed_behavior';
 import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
 import { Show } from './show';
 import { Source } from './source';
+import { SourceTrack } from './source_track';
 import { venueRepo } from './venue_repo';
 import { Artist } from './artist';
 import { Year } from './year';
@@ -27,6 +28,7 @@ import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_netwo
 import { LibraryIndex } from '@/relisten/realm/library_index';
 import { useOfflineAvailabilityIndex } from '@/relisten/realm/root_services';
 import { attachShowArtists } from '@/relisten/realm/models/show_artist_relationships';
+import { useGroupSegment } from '@/relisten/util/routes';
 
 export const showRepo = new Repository(Show);
 
@@ -86,6 +88,7 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
     realm: Realm.Realm,
     public showUuid?: string,
     public sourceUuid?: string,
+    private includeDeleted = false,
     options?: NetworkBackedBehaviorOptions
   ) {
     super(realm, options);
@@ -106,7 +109,7 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
     if (this.sourceUuid !== undefined && this.showUuid === undefined) {
       const source = this.realm.objectForPrimaryKey(Source, this.sourceUuid);
 
-      if (source) {
+      if (source && (this.includeDeleted || source.deletedAt == null)) {
         this.showUuid = source.showUuid;
       }
     }
@@ -114,18 +117,24 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
     const showUuid = this.showUuid || '__no_show_sentinel__';
 
     const showResults = new RealmObjectValueStream(this.realm, Show, showUuid);
+    const sourcePredicate = this.includeDeleted
+      ? 'showUuid == $0'
+      : 'showUuid == $0 && deletedAt == nil';
     const sourcesResults = new RealmQueryValueStream<Source>(
       this.realm,
-      this.realm.objects(Source).filtered('showUuid == $0', showUuid)
+      this.realm.objects(Source).filtered(sourcePredicate, showUuid)
     );
 
     return new CombinedValueStream(showResults, sourcesResults, (show, sources) => {
-      return { show: show || undefined, sources } as ShowWithSources;
+      return {
+        show: show && (this.includeDeleted || show.deletedAt == null) ? show : undefined,
+        sources,
+      };
     });
   }
 
   isLocalDataShowable(localData: ShowWithSources): boolean {
-    return localData.show !== null && localData.sources.length > 0;
+    return localData.show != null && localData.sources.length > 0;
   }
 
   override upsert(localData: ShowWithSources, apiData: ApiShowWithSources): void {
@@ -137,15 +146,13 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
     const apiSourceTracksBySet = R.groupBy(apiSourceTracks, (s) => s.source_set_uuid);
 
     this.realm.write(() => {
-      // TODO: maybe should be inside if statement?
-      // it broke doing that, but worth reivisiting
       const {
         createdModels: [createdShow],
         updatedModels: [updatedShow],
-      } = showRepo.upsert(this.realm, apiData, localData.show);
+      } = showRepo.upsert(this.realm, apiData, localData.show, true);
 
-      if (createdShow) {
-        createdShow.artist = artist!;
+      if (createdShow && artist) {
+        createdShow.artist = artist;
       }
 
       if (!localData.show) {
@@ -191,7 +198,12 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
       );
 
       for (const source of sourceModels) {
-        source.artist = artist!;
+        if (artist) {
+          source.artist = artist;
+        } else {
+          source.deletedAt ??= new Date();
+          source.isFavorite = false;
+        }
 
         const { allModels: sourceSets } = sourceSetRepo.upsertMultiple(
           this.realm,
@@ -215,16 +227,27 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
             true
           );
 
-          // Same reconciliation rule for tracks: the payload is authoritative for membership and
-          // order, even when some rows were found by global lookup instead of being newly created.
-          sourceSet.sourceTracks.splice(0, sourceSet.sourceTracks.length, ...sourceTracks);
+          const currentSourceTracks: SourceTrack[] = [];
 
-          sourceTracks.forEach((st) => {
-            st.artist = artist!;
-            st.year = year!;
-            st.show = localData.show!;
-            st.source = source;
-          });
+          for (const sourceTrack of sourceTracks) {
+            if (artist) sourceTrack.artist = artist;
+            if (year) sourceTrack.year = year;
+            if (localData.show) sourceTrack.show = localData.show;
+            sourceTrack.source = source;
+
+            if (!artist || !year || !localData.show) {
+              // The row stays valid in Realm, but active queries must not expose an incomplete
+              // playback graph. A later complete API response can restore the same object.
+              sourceTrack.deletedAt ??= new Date();
+              sourceTrack.isFavorite = false;
+            } else {
+              currentSourceTracks.push(sourceTrack);
+            }
+          }
+
+          // Current membership follows the API order, but never exposes an incomplete Track.
+          // The rejected row remains a tombstone and can recover on a later complete response.
+          sourceSet.sourceTracks.splice(0, sourceSet.sourceTracks.length, ...currentSourceTracks);
         }
       }
     });
@@ -235,9 +258,10 @@ export function useFullShow(
   showUuid: string | undefined
 ): NetworkBackedResults<ShowWithSources | undefined> {
   const realm = useRealm();
+  const includeDeleted = useGroupSegment() !== '(artists)';
   const behavior = useMemo(() => {
-    return new ShowWithFullSourcesNetworkBackedBehavior(realm, showUuid);
-  }, [realm, showUuid]);
+    return new ShowWithFullSourcesNetworkBackedBehavior(realm, showUuid, undefined, includeDeleted);
+  }, [realm, showUuid, includeDeleted]);
 
   return useNetworkBackedBehavior(behavior);
 }
@@ -282,7 +306,13 @@ export function upsertShowWithSources(
 ): Show | undefined {
   const existingShow = realm.objectForPrimaryKey(Show, apiData.uuid) || undefined;
   const existingSources = realm.objects(Source).filtered('showUuid == $0', apiData.uuid);
-  const behavior = new ShowWithFullSourcesNetworkBackedBehavior(realm, apiData.uuid);
+  // Writer lookups are retained so a positive response can restore the existing primary-key row.
+  const behavior = new ShowWithFullSourcesNetworkBackedBehavior(
+    realm,
+    apiData.uuid,
+    undefined,
+    true
+  );
 
   behavior.upsert({ show: existingShow, sources: existingSources }, apiData);
 

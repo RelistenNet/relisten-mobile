@@ -1,8 +1,9 @@
-import { StatsigEvent } from '@statsig/client-core/src/StatsigEvent';
-import { SourceTrack } from '@/relisten/realm/models/source_track';
+import type { StatsigEvent } from '@statsig/client-core/src/StatsigEvent';
+import type { SourceTrack } from '@/relisten/realm/models/source_track';
 import { LogLevel, StatsigClientExpo } from '@statsig/expo-bindings';
-import { SourceTrackOfflineInfo } from '@/relisten/realm/models/source_track_offline_info';
-import { RelistenPlaybackError } from '@/modules/relisten-audio-player';
+import type { SourceTrackOfflineInfo } from '@/relisten/realm/models/source_track_offline_info';
+import type { RelistenPlaybackError } from '@/modules/relisten-audio-player';
+import type { CatalogRepairSummary } from '@/relisten/realm/catalog_startup_repair';
 
 export const STATSIG_CLIENT_KEY = 'client-b2bL7VM28cjEBr7aVFNv8wOqa1STKtLyXD5MoCxA94f';
 
@@ -29,6 +30,30 @@ export enum Events {
   TrackDownloadFailure = 'track_download_failure',
   TrackDownloadIntegrity = 'track_download_integrity',
   DownloadsResumed = 'downloads_resumed',
+  CatalogStartupRepair = 'catalog_startup_repair',
+}
+
+export function catalogStartupRepairEvent(
+  summary: CatalogRepairSummary,
+  durationMs: number,
+  repairVersion: number
+): StatsigEvent {
+  return {
+    eventName: Events.CatalogStartupRepair,
+    value:
+      summary.repairedLinks +
+      summary.tombstonedRows +
+      summary.deletedLeafRows +
+      summary.removedQueueEntries,
+    metadata: {
+      repairedLinks: summary.repairedLinks.toString(),
+      tombstonedRows: summary.tombstonedRows.toString(),
+      deletedLeafRows: summary.deletedLeafRows.toString(),
+      removedQueueEntries: summary.removedQueueEntries.toString(),
+      durationMs: durationMs.toString(),
+      repairVersion: repairVersion.toString(),
+    },
+  };
 }
 
 export function trackPlaybackEvent(sourceTrack: SourceTrack): StatsigEvent {

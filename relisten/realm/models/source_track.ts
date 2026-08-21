@@ -57,6 +57,7 @@ export class SourceTrack
       uuid: 'string',
       createdAt: 'date',
       updatedAt: 'date',
+      deletedAt: { type: 'date', optional: true, indexed: true },
       artistUuid: { type: 'string', indexed: true },
       sourceUuid: { type: 'string', indexed: true },
       sourceSetUuid: { type: 'string', indexed: true },
@@ -85,6 +86,7 @@ export class SourceTrack
   uuid!: string;
   createdAt!: Date;
   updatedAt!: Date;
+  deletedAt?: Date;
 
   sourceUuid!: string;
   sourceSetUuid!: string;

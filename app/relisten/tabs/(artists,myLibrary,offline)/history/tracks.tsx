@@ -70,12 +70,8 @@ export default function Page() {
       confirmLabel: 'Clear History',
       message: 'This will permanently delete your listening history.',
       onConfirm: () => {
-        const history = realm.objects(PlaybackHistoryEntry);
-
         realm.write(() => {
-          for (const entry of history) {
-            realm.delete(entry);
-          }
+          realm.delete(realm.objects(PlaybackHistoryEntry));
         });
       },
       title: 'Clear Listening History?',

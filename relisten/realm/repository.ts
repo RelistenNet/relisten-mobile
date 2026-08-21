@@ -160,6 +160,13 @@ export class Repository<
       }
 
       const shouldUpdateFromApi = this.klass.shouldUpdateFromApi?.(model, api) ?? false;
+      const restored = model.deletedAt != null;
+
+      // A positive API response always restores the existing Realm object. Do this before the
+      // timestamp check because the server may return the same updated_at value after deletion.
+      if (restored) {
+        model.deletedAt = undefined;
+      }
 
       if (getUpdatedAt(api).toDate() > model.updatedAt || shouldUpdateFromApi) {
         this.updateObjectFromApi(realm, model, api);
@@ -170,6 +177,17 @@ export class Repository<
           deleted: 0,
           updatedModels: [model],
           createdModels: [],
+          allModels: [model],
+        };
+      }
+
+      if (restored) {
+        return {
+          created: 0,
+          updated: 1,
+          deleted: 0,
+          createdModels: [],
+          updatedModels: [model],
           allModels: [model],
         };
       }
@@ -231,8 +249,13 @@ export class Repository<
           if (shouldPreserve?.(model)) {
             continue;
           }
-          realm.delete(model);
-          acc.deleted += 1;
+
+          // Catalog rows are permanent. A tombstone hides a row without invalidating managed
+          // references held by React, the player, CarPlay, or asynchronous callbacks.
+          if (model.deletedAt == null) {
+            model.deletedAt = new Date();
+            acc.deleted += 1;
+          }
         }
       }
 

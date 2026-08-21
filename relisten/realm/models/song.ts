@@ -27,6 +27,7 @@ export class Song
     properties: {
       createdAt: 'date',
       updatedAt: 'date',
+      deletedAt: { type: 'date', optional: true, indexed: true },
       artistUuid: 'string',
       name: 'string',
       slug: 'string',
@@ -45,6 +46,7 @@ export class Song
   uuid!: string;
   createdAt!: Date;
   updatedAt!: Date;
+  deletedAt?: Date;
   artistUuid!: string;
   name!: string;
   slug!: string;

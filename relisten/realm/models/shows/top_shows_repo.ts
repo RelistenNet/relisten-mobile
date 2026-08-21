@@ -49,7 +49,7 @@ class TopShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavior 
       this.realm,
       this.realm
         .objects(Show)
-        .filtered('artistUuid == $0', this.artistUuid)
+        .filtered('artistUuid == $0 && deletedAt == nil', this.artistUuid)
         .sorted('avgRating', true)
     );
   }

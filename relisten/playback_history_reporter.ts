@@ -1,4 +1,4 @@
-import { RelistenApiClient, RelistenApiResponse } from '@/relisten/api/client';
+import type { RelistenApiClient, RelistenApiResponse } from '@/relisten/api/client';
 import Realm from 'realm';
 import {
   PlaybackFlags,
@@ -91,20 +91,32 @@ export class PlaybackHistoryReporter {
 
     // fire and forget report -- async job will pick it up if it doesn't succeed
     if (this.networkAvailable) {
-      this.attemptReport(entry).then(() => {});
+      this.attemptReport(entry.uuid).then(() => {});
     }
 
     return entry;
   }
 
-  private async attemptReport(entry: PlaybackHistoryEntry): Promise<RelistenApiResponse<unknown>> {
-    const res = await this.apiClient.recordPlayback(entry.sourceTrack.uuid);
+  private async attemptReport(
+    entryUuid: string
+  ): Promise<RelistenApiResponse<unknown> | undefined> {
+    const entry = this.realm.objectForPrimaryKey(PlaybackHistoryEntry, entryUuid);
+    if (!entry) {
+      return;
+    }
+
+    // History rows are physical leaves and may be cleared while the request is in flight.
+    const sourceTrackUuid = entry.sourceTrack.uuid;
+    const res = await this.apiClient.recordPlayback(sourceTrackUuid);
 
     if (!res.error) {
-      logger.info(`Reported playback ${entry.uuid} for sourceTrack=${entry.sourceTrack.uuid}`);
-      this.realm.write(() => {
-        entry.publishedAt = new Date();
-      });
+      logger.info(`Reported playback ${entryUuid} for sourceTrack=${sourceTrackUuid}`);
+      const currentEntry = this.realm.objectForPrimaryKey(PlaybackHistoryEntry, entryUuid);
+      if (currentEntry) {
+        this.realm.write(() => {
+          currentEntry.publishedAt = new Date();
+        });
+      }
     }
 
     return res;
@@ -118,21 +130,29 @@ export class PlaybackHistoryReporter {
 
     const entriesToPublish = this.realm
       .objects(PlaybackHistoryEntry)
-      .filtered('publishedAt == null');
+      .filtered('publishedAt == null')
+      .snapshot();
 
     if (entriesToPublish.length === 0) {
       logger.info('No playback history entries to publish');
       return;
     }
 
-    logger.info(`Reporting ${entriesToPublish.length} playback history entries`);
+    const entryCount = entriesToPublish.length;
+    logger.info(`Reporting ${entryCount} playback history entries`);
 
-    for (const entry of entriesToPublish) {
-      const res = await this.attemptReport(entry);
+    for (let index = 0; index < entryCount; index += 1) {
+      // Read only the scalar before awaiting. Clearing history turns a deleted snapshot slot null.
+      const entryUuid = (entriesToPublish[index] as PlaybackHistoryEntry | null)?.uuid;
+      if (!entryUuid) {
+        continue;
+      }
 
-      if (res.error) {
+      const res = await this.attemptReport(entryUuid);
+
+      if (res?.error) {
         logger.warn(
-          `Error reporting ${entry.uuid}. Will try again in 30s; ${JSON.stringify(res.error)}`
+          `Error reporting ${entryUuid}. Will try again in 30s; ${JSON.stringify(res.error)}`
         );
 
         this.retryTimer = setTimeout(() => {
@@ -143,6 +163,6 @@ export class PlaybackHistoryReporter {
       }
     }
 
-    logger.info(`Successfully reported ${entriesToPublish.length} playback history entries`);
+    logger.info(`Successfully processed ${entryCount} playback history entries`);
   }
 }

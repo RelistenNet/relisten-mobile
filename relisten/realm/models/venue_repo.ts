@@ -17,7 +17,10 @@ export function useVenues(artistUuid: string, options?: NetworkBackedBehaviorOpt
     return new NetworkBackedModelArrayBehavior(
       realm,
       venueRepo,
-      (realm) => realm.objects(Venue).filtered('artistUuid == $0 && showsAtVenue > 0', artistUuid),
+      (realm) =>
+        realm
+          .objects(Venue)
+          .filtered('artistUuid == $0 && showsAtVenue > 0 && deletedAt == nil', artistUuid),
       (api) => api.venues(artistUuid),
       options
     );

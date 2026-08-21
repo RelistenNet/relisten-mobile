@@ -179,7 +179,8 @@ export function useTopPlayedArtistUuidsOnce(
 
       const entries = realm
         .objects(PlaybackHistoryEntry)
-        .sorted('playbackStartedAt', /* reverse= */ true);
+        .sorted('playbackStartedAt', /* reverse= */ true)
+        .snapshot();
       const cutoffTime = Date.now() - EARLY_EXIT_DAYS_MS;
       const counts = new Map<string, number>();
       const sortNames = new Map<string, string>();
@@ -204,7 +205,12 @@ export function useTopPlayedArtistUuidsOnce(
         let shouldStop = false;
 
         while (index < end) {
-          const entry = entries[index];
+          // Snapshot membership is stable, but clearing history turns deleted slots into null.
+          const entry = entries[index] as PlaybackHistoryEntry | null;
+          if (!entry) {
+            index += 1;
+            continue;
+          }
           const artist = entry.artist;
           const uuid = artist?.uuid;
 

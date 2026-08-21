@@ -29,6 +29,7 @@ export class Year
       uuid: 'string',
       createdAt: 'date',
       updatedAt: 'date',
+      deletedAt: { type: 'date', optional: true, indexed: true },
       artistUuid: { type: 'string', indexed: true },
       showCount: 'int',
       sourceCount: 'int',
@@ -49,6 +50,7 @@ export class Year
   uuid!: string;
   createdAt!: Date;
   updatedAt!: Date;
+  deletedAt?: Date;
   artistUuid!: string;
   showCount!: Realm.Types.Int;
   sourceCount!: Realm.Types.Int;

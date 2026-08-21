@@ -45,6 +45,7 @@ export function createArtistsListTemplate(
     ctx.realm,
     scope === 'offline',
     false,
+    scope !== 'browse',
     behaviorOptions
   );
   const executor = artistsBehavior.sharedExecutor(ctx.apiClient);
@@ -225,6 +226,7 @@ function createYearsListTemplate(
     ctx.realm,
     scope === 'offline',
     artist.uuid,
+    scope !== 'browse',
     behaviorOptions
   );
   const executor = yearsBehavior.sharedExecutor(ctx.apiClient);
@@ -332,6 +334,7 @@ function createYearsListTemplate(
       artist.uuid,
       year.uuid,
       userFilters,
+      scope !== 'browse',
       behaviorOptions
     );
     const showsExecutor = showsBehavior.sharedExecutor(ctx.apiClient);

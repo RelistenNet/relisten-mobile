@@ -48,11 +48,11 @@ class VenueShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
     const venueResults = new RealmObjectValueStream(this.realm, Venue, this.venueUuid);
     const showsResults = new RealmQueryValueStream<Show>(
       this.realm,
-      this.realm.objects(Show).filtered('venueUuid == $0', this.venueUuid)
+      this.realm.objects(Show).filtered('venueUuid == $0 && deletedAt == nil', this.venueUuid)
     );
 
     return new CombinedValueStream(venueResults, showsResults, (venue, shows) => {
-      return { venue, shows };
+      return { venue: venue?.deletedAt == null ? venue : null, shows };
     });
   }
 
@@ -76,7 +76,7 @@ class VenueShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
         },
       });
 
-      venueRepo.upsert(this.realm, apiData, localData.venue || undefined);
+      venueRepo.upsert(this.realm, apiData, localData.venue || undefined, true);
     });
   }
 }

@@ -17,7 +17,7 @@ export function useSongs(artistUuid: string, options?: NetworkBackedBehaviorOpti
     return new NetworkBackedModelArrayBehavior(
       realm,
       songRepo,
-      (realm) => realm.objects(Song).filtered('artistUuid == $0', artistUuid),
+      (realm) => realm.objects(Song).filtered('artistUuid == $0 && deletedAt == nil', artistUuid),
       (api) => api.songs(artistUuid),
       options
     );

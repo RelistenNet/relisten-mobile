@@ -63,7 +63,10 @@ class RecentShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavi
 
     return new RealmQueryValueStream<Show>(
       this.realm,
-      this.realm.objects(Show).filtered('artistUuid == $0', this.artistUuid).sorted(sortKey, true)
+      this.realm
+        .objects(Show)
+        .filtered('artistUuid == $0 && deletedAt == nil', this.artistUuid)
+        .sorted(sortKey, true)
     );
   }
 }

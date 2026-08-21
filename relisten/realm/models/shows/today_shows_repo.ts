@@ -38,7 +38,10 @@ export class TodayShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBacked
 
     let query = this.realm
       .objects(Show)
-      .filtered('displayDate ENDSWITH $0', `-${formattedMonth}-${formattedDay}`);
+      .filtered(
+        'displayDate ENDSWITH $0 && deletedAt == nil',
+        `-${formattedMonth}-${formattedDay}`
+      );
 
     if (this.artistUuids) {
       query = query.filtered('artistUuid in $0', this.artistUuids);

@@ -8,19 +8,24 @@ function attachShowsToArtists(
   shows: Iterable<Show>,
   artistsByUuid: Record<string, Artist>
 ): number {
-  const showsWithAvailableArtists = Array.from(shows).filter(
-    (show) => !show.artist && artistsByUuid[show.artistUuid]
-  );
+  const showsNeedingArtists = Array.from(shows).filter((show) => !show.artist);
   let attached = 0;
 
-  if (showsWithAvailableArtists.length === 0) {
+  if (showsNeedingArtists.length === 0) {
     return attached;
   }
 
   const writeHandler = () => {
-    for (const show of showsWithAvailableArtists) {
-      show.artist = artistsByUuid[show.artistUuid];
-      attached += 1;
+    for (const show of showsNeedingArtists) {
+      const artist = artistsByUuid[show.artistUuid];
+      if (artist) {
+        show.artist = artist;
+        attached += 1;
+      } else {
+        // Do not publish a positive API row with a required link still missing.
+        show.deletedAt ??= new Date();
+        show.isFavorite = false;
+      }
     }
   };
 
@@ -50,10 +55,15 @@ export function attachShowArtists(realm: Realm, shows: Iterable<Show>): number {
 
 export function attachArtistsToExistingShows(realm: Realm, artists: Iterable<Artist>): number {
   const artistsByUuid = groupByUuid(Array.from(artists));
+  const artistUuids = Object.keys(artistsByUuid);
 
-  if (Object.keys(artistsByUuid).length === 0) {
+  if (artistUuids.length === 0) {
     return 0;
   }
 
-  return attachShowsToArtists(realm, realm.objects(Show).filtered('artist == nil'), artistsByUuid);
+  return attachShowsToArtists(
+    realm,
+    realm.objects(Show).filtered('artist == nil AND artistUuid IN $0', artistUuids),
+    artistsByUuid
+  );
 }
