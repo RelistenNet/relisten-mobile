@@ -2,7 +2,7 @@ import { Repository } from '../repository';
 import { useQuery, useRealm } from '../schema';
 import { Year } from './year';
 
-import { useIsOfflineTab } from '@/relisten/util/routes';
+import { useGroupSegment, useIsOfflineTab } from '@/relisten/util/routes';
 import { useMemo } from 'react';
 import Realm from 'realm';
 import { RelistenApiClient, RelistenApiResponse } from '../../api/client';
@@ -29,16 +29,25 @@ export function yearsNetworkBackedModelArrayBehavior(
   realm: Realm.Realm,
   isOfflineTab: boolean,
   artistUuid: string,
+  includeDeleted: boolean,
   options?: NetworkBackedBehaviorOptions
 ) {
   return new NetworkBackedModelArrayBehavior(
     realm,
     yearRepo,
     (realm) =>
-      filterForUser<Year>(realm.objects(Year).filtered('artistUuid == $0', artistUuid), {
-        isFavorite: null,
-        isPlayableOffline: isOfflineTab ? true : null,
-      }),
+      filterForUser<Year>(
+        realm
+          .objects(Year)
+          .filtered(
+            includeDeleted ? 'artistUuid == $0' : 'artistUuid == $0 && deletedAt == nil',
+            artistUuid
+          ),
+        {
+          isFavorite: null,
+          isPlayableOffline: isOfflineTab ? true : null,
+        }
+      ),
     (api) => api.years(artistUuid),
     options
   );
@@ -47,10 +56,17 @@ export function yearsNetworkBackedModelArrayBehavior(
 export function useYears(artistUuid: string, options?: NetworkBackedBehaviorOptions) {
   const realm = useRealm();
   const isOfflineTab = useIsOfflineTab();
+  const includeDeleted = useGroupSegment() !== '(artists)';
 
   const behavior = useMemo(() => {
-    return yearsNetworkBackedModelArrayBehavior(realm, isOfflineTab, artistUuid, options);
-  }, [realm, isOfflineTab, artistUuid, options]);
+    return yearsNetworkBackedModelArrayBehavior(
+      realm,
+      isOfflineTab,
+      artistUuid,
+      includeDeleted,
+      options
+    );
+  }, [realm, isOfflineTab, artistUuid, includeDeleted, options]);
 
   return useNetworkBackedBehavior(behavior);
 }
@@ -83,6 +99,7 @@ export class YearShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavi
     public artistUuid: string,
     public yearUuid: string,
     private userFilters: UserFilters,
+    private includeDeleted: boolean,
     options?: NetworkBackedBehaviorOptions
   ) {
     super(realm, options);
@@ -97,16 +114,22 @@ export class YearShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavi
 
   override createLocalUpdatingResults(): ValueStream<YearShows> {
     const yearResults = new RealmObjectValueStream(this.realm, Year, this.yearUuid);
+    const showPredicate = this.includeDeleted
+      ? 'yearUuid == $0'
+      : 'yearUuid == $0 && deletedAt == nil';
     const showsResults = new RealmQueryValueStream<Show>(
       this.realm,
       filterForUser(
-        this.realm.objects(Show).filtered('yearUuid == $0', this.yearUuid),
+        this.realm.objects(Show).filtered(showPredicate, this.yearUuid),
         this.userFilters
       )
     );
 
     return new CombinedValueStream(yearResults, showsResults, (year, shows) => {
-      return { year, shows };
+      return {
+        year: year && (this.includeDeleted || year.deletedAt == null) ? year : null,
+        shows,
+      };
     });
   }
 
@@ -134,9 +157,17 @@ export function createYearShowsNetworkBackedBehavior(
   artistUuid: string,
   yearUuid: string,
   userFilters: UserFilters,
+  includeDeleted: boolean,
   options?: NetworkBackedBehaviorOptions
 ) {
-  return new YearShowsNetworkBackedBehavior(realm, artistUuid, yearUuid, userFilters, options);
+  return new YearShowsNetworkBackedBehavior(
+    realm,
+    artistUuid,
+    yearUuid,
+    userFilters,
+    includeDeleted,
+    options
+  );
 }
 
 export function useYearShows(
@@ -145,13 +176,20 @@ export function useYearShows(
 ): NetworkBackedResults<YearShows> {
   const realm = useRealm();
   const isOfflineTab = useIsOfflineTab();
+  const includeDeleted = useGroupSegment() !== '(artists)';
 
   const behavior = useMemo(() => {
-    return new YearShowsNetworkBackedBehavior(realm, artistUuid, yearUuid, {
-      isPlayableOffline: isOfflineTab ? true : null,
-      isFavorite: null,
-    });
-  }, [realm, artistUuid, yearUuid, isOfflineTab]);
+    return new YearShowsNetworkBackedBehavior(
+      realm,
+      artistUuid,
+      yearUuid,
+      {
+        isPlayableOffline: isOfflineTab ? true : null,
+        isFavorite: null,
+      },
+      includeDeleted
+    );
+  }, [realm, artistUuid, yearUuid, isOfflineTab, includeDeleted]);
 
   return useNetworkBackedBehavior(behavior);
 }

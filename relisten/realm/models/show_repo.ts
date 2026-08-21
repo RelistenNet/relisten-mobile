@@ -27,6 +27,7 @@ import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_netwo
 import { LibraryIndex } from '@/relisten/realm/library_index';
 import { useOfflineAvailabilityIndex } from '@/relisten/realm/root_services';
 import { attachShowArtists } from '@/relisten/realm/models/show_artist_relationships';
+import { useGroupSegment } from '@/relisten/util/routes';
 
 export const showRepo = new Repository(Show);
 
@@ -86,6 +87,7 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
     realm: Realm.Realm,
     public showUuid?: string,
     public sourceUuid?: string,
+    private includeDeleted = false,
     options?: NetworkBackedBehaviorOptions
   ) {
     super(realm, options);
@@ -106,7 +108,7 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
     if (this.sourceUuid !== undefined && this.showUuid === undefined) {
       const source = this.realm.objectForPrimaryKey(Source, this.sourceUuid);
 
-      if (source) {
+      if (source && (this.includeDeleted || source.deletedAt == null)) {
         this.showUuid = source.showUuid;
       }
     }
@@ -114,18 +116,24 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
     const showUuid = this.showUuid || '__no_show_sentinel__';
 
     const showResults = new RealmObjectValueStream(this.realm, Show, showUuid);
+    const sourcePredicate = this.includeDeleted
+      ? 'showUuid == $0'
+      : 'showUuid == $0 && deletedAt == nil';
     const sourcesResults = new RealmQueryValueStream<Source>(
       this.realm,
-      this.realm.objects(Source).filtered('showUuid == $0', showUuid)
+      this.realm.objects(Source).filtered(sourcePredicate, showUuid)
     );
 
     return new CombinedValueStream(showResults, sourcesResults, (show, sources) => {
-      return { show: show || undefined, sources } as ShowWithSources;
+      return {
+        show: show && (this.includeDeleted || show.deletedAt == null) ? show : undefined,
+        sources,
+      };
     });
   }
 
   isLocalDataShowable(localData: ShowWithSources): boolean {
-    return localData.show !== null && localData.sources.length > 0;
+    return localData.show != null && localData.sources.length > 0;
   }
 
   override upsert(localData: ShowWithSources, apiData: ApiShowWithSources): void {
@@ -142,7 +150,7 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
       const {
         createdModels: [createdShow],
         updatedModels: [updatedShow],
-      } = showRepo.upsert(this.realm, apiData, localData.show);
+      } = showRepo.upsert(this.realm, apiData, localData.show, true);
 
       if (createdShow) {
         createdShow.artist = artist!;
@@ -235,9 +243,10 @@ export function useFullShow(
   showUuid: string | undefined
 ): NetworkBackedResults<ShowWithSources | undefined> {
   const realm = useRealm();
+  const includeDeleted = useGroupSegment() !== '(artists)';
   const behavior = useMemo(() => {
-    return new ShowWithFullSourcesNetworkBackedBehavior(realm, showUuid);
-  }, [realm, showUuid]);
+    return new ShowWithFullSourcesNetworkBackedBehavior(realm, showUuid, undefined, includeDeleted);
+  }, [realm, showUuid, includeDeleted]);
 
   return useNetworkBackedBehavior(behavior);
 }
@@ -282,7 +291,13 @@ export function upsertShowWithSources(
 ): Show | undefined {
   const existingShow = realm.objectForPrimaryKey(Show, apiData.uuid) || undefined;
   const existingSources = realm.objects(Source).filtered('showUuid == $0', apiData.uuid);
-  const behavior = new ShowWithFullSourcesNetworkBackedBehavior(realm, apiData.uuid);
+  // Writer lookups are retained so a positive response can restore the existing primary-key row.
+  const behavior = new ShowWithFullSourcesNetworkBackedBehavior(
+    realm,
+    apiData.uuid,
+    undefined,
+    true
+  );
 
   behavior.upsert({ show: existingShow, sources: existingSources }, apiData);
 

@@ -17,7 +17,7 @@ export function useTours(artistUuid: string, options?: NetworkBackedBehaviorOpti
     return new NetworkBackedModelArrayBehavior(
       realm,
       tourRepo,
-      (realm) => realm.objects(Tour).filtered('artistUuid == $0', artistUuid),
+      (realm) => realm.objects(Tour).filtered('artistUuid == $0 && deletedAt == nil', artistUuid),
       (api) => api.tours(artistUuid),
       options
     );

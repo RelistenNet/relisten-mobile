@@ -37,7 +37,7 @@ class ShowsByMomentumNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBe
   }
 
   override createLocalUpdatingResults(): RealmQueryValueStream<Show> {
-    let query = this.realm.objects(Show).filtered('popularity != nil');
+    let query = this.realm.objects(Show).filtered('popularity != nil && deletedAt == nil');
 
     if (this.artistUuids.length > 0) {
       query = query.filtered('artistUuid in $0', this.artistUuids);

@@ -48,11 +48,11 @@ class TourShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
     const tourResults = new RealmObjectValueStream(this.realm, Tour, this.tourUuid);
     const showsResults = new RealmQueryValueStream<Show>(
       this.realm,
-      this.realm.objects(Show).filtered('tourUuid == $0', this.tourUuid)
+      this.realm.objects(Show).filtered('tourUuid == $0 && deletedAt == nil', this.tourUuid)
     );
 
     return new CombinedValueStream(tourResults, showsResults, (tour, shows) => {
-      return { tour, shows };
+      return { tour: tour?.deletedAt == null ? tour : null, shows };
     });
   }
 
@@ -76,7 +76,7 @@ class TourShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
         },
       });
 
-      tourRepo.upsert(this.realm, apiData, localData.tour || undefined);
+      tourRepo.upsert(this.realm, apiData, localData.tour || undefined, true);
     });
   }
 }

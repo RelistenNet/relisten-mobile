@@ -47,7 +47,7 @@ The implementation may keep stale catalog rows when the API does not provide a c
 - [x] (2026-08-20) Complete consistency, crash-invariant, and minimality reviews of the revised plan.
 - [x] (2026-08-21 01:18Z) Approve the revised plan and start implementation from `origin/main` at `7c1b74d`.
 - [x] (2026-08-21 01:22Z) Add catalog tombstones, repository soft deletion and resurrection, and four focused real-Realm tests.
-- [ ] Add active filters at normal catalog query roots.
+- [x] (2026-08-21 01:29Z) Add active filters at normal catalog query roots while keeping owned and historical routes retained.
 - [ ] Add startup repair and focused leaf-consumer safety fixes.
 - [ ] Add focused tests, run repository checks, and complete manual crash scenarios.
 - [ ] Review the implementation, then simplify the changed code without changing behavior.
@@ -63,6 +63,7 @@ The implementation may keep stale catalog rows when the API does not provide a c
 - Observation: `PlaybackHistoryReporter` reads a managed history entry after an `await`. History clear can physically delete that leaf entry during the request. This boundary needs a plain UUID snapshot and a fresh lookup after the request.
 - Observation: the React Realm provider and the non-React `openRealm()` path can expose Realm. Both paths must run the same idempotent startup repair before returning consumers.
 - Observation: a managed optional Realm date reads as `null` when empty, although the TypeScript model uses an optional property. Evidence: the real-Realm repository tests pass by using `== null` in lifecycle code and asserting `null` at the managed read boundary.
+- Observation: active detail queries can hide the local tombstone that a positive API response must restore. Evidence: Show, Venue, Tour, and Song detail writers previously received only the displayed root object. They now use the repository's existing `queryForModel` flag so refresh reuses the hidden primary-key row.
 
 ## Decision Log
 
@@ -325,6 +326,14 @@ Repository checkpoint evidence from Node 22.21.1:
     yarn ts:check: passed
     focused ESLint: passed
 
+Active-query checkpoint evidence from Node 22.21.1:
+
+    Test Files  1 passed (1)
+         Tests  4 passed (4)
+    yarn ts:check: passed
+    focused ESLint: passed
+    git diff --check: passed
+
 ## Interfaces and Dependencies
 
 Do not add a catalog lifecycle service or a general read API.
@@ -363,3 +372,5 @@ Add only one development dependency: Vitest. Do not add a runtime dependency.
 Plan revision note, 2026-08-21: implementation started after the user approved the simplified design. The recorded base commit was updated to the current `origin/main`; the lifecycle design did not change.
 
 Plan revision note, 2026-08-21 01:22Z: the schema and repository milestone is complete. Real Realm tests now prove tombstoning, stable links, same-timestamp resurrection, merge-only behavior, and the additive schema migration.
+
+Plan revision note, 2026-08-21 01:29Z: normal catalog query roots now exclude tombstones. Shared offline and My Library Artist, Year, Show, and Source readers remain retained, as do history, queue, download, and CarPlay ownership paths. No general query abstraction was added.

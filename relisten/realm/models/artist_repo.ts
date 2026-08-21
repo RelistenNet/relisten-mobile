@@ -12,7 +12,7 @@ import { useQuery, useRealm } from '../schema';
 import { Artist, ArtistFeaturedFlags, ArtistRequiredProperties } from './artist';
 import { ArtistWithCounts } from '@/relisten/api/models/artist';
 
-import { useIsOfflineTab } from '@/relisten/util/routes';
+import { useGroupSegment, useIsOfflineTab } from '@/relisten/util/routes';
 import { filterForUser, useRealmTabsFilter } from '../realm_filters';
 import { Show } from './show';
 import { Source } from './source';
@@ -47,13 +47,19 @@ export function artistsNetworkBackedBehavior(
   realm: Realm.Realm,
   availableOfflineOnly: boolean,
   includeAutomaticallyCreated: boolean,
+  includeDeleted: boolean,
   options?: NetworkBackedBehaviorOptions
 ) {
   return new ArtistsNetworkBackedBehavior(
     realm,
     artistRepo,
     (realm) => {
-      let q = filterForUser(realm.objects<Artist>(Artist), {
+      let catalogArtists = realm.objects<Artist>(Artist);
+      if (!includeDeleted) {
+        catalogArtists = catalogArtists.filtered('deletedAt == nil');
+      }
+
+      let q = filterForUser(catalogArtists, {
         isFavorite: null,
         isPlayableOffline: availableOfflineOnly ? availableOfflineOnly : null,
       });
@@ -73,10 +79,11 @@ export function artistsNetworkBackedBehavior(
 export function useArtists(options?: NetworkBackedBehaviorOptions) {
   const realm = useRealm();
   const isOfflineTab = useIsOfflineTab();
+  const includeDeleted = useGroupSegment() !== '(artists)';
 
   const behavior = useMemo(() => {
-    return artistsNetworkBackedBehavior(realm, isOfflineTab, false, options);
-  }, [realm, options, isOfflineTab]);
+    return artistsNetworkBackedBehavior(realm, isOfflineTab, false, includeDeleted, options);
+  }, [realm, options, isOfflineTab, includeDeleted]);
 
   return useNetworkBackedBehavior(behavior);
 }
@@ -85,7 +92,7 @@ export function useAllArtists(options?: NetworkBackedBehaviorOptions) {
   const realm = useRealm();
 
   const behavior = useMemo(() => {
-    return artistsNetworkBackedBehavior(realm, false, true, options);
+    return artistsNetworkBackedBehavior(realm, false, true, false, options);
   }, [realm, options]);
 
   return useNetworkBackedBehavior(behavior);
@@ -215,14 +222,20 @@ export function useArtist(
     };
   }, [options]);
   const realm = useRealm();
+  const includeDeleted = useGroupSegment() !== '(artists)';
   const behavior = useMemo(() => {
     return new ArtistBootstrapNetworkBackedBehavior(
       realm,
       (currentRealm) =>
-        currentRealm.objects(Artist).filtered('uuid == $0', artistUuid ?? '__missing__'),
+        currentRealm
+          .objects(Artist)
+          .filtered(
+            includeDeleted ? 'uuid == $0' : 'uuid == $0 && deletedAt == nil',
+            artistUuid ?? '__missing__'
+          ),
       memoOptions
     );
-  }, [artistUuid, memoOptions, realm]);
+  }, [artistUuid, includeDeleted, memoOptions, realm]);
 
   return useNetworkBackedBehavior(behavior);
 }
@@ -238,14 +251,20 @@ export function useArtistBySlug(
     };
   }, [options]);
   const realm = useRealm();
+  const includeDeleted = useGroupSegment() !== '(artists)';
   const behavior = useMemo(() => {
     return new ArtistBootstrapNetworkBackedBehavior(
       realm,
       (currentRealm) =>
-        currentRealm.objects(Artist).filtered('slug == $0', artistSlug ?? '__missing__'),
+        currentRealm
+          .objects(Artist)
+          .filtered(
+            includeDeleted ? 'slug == $0' : 'slug == $0 && deletedAt == nil',
+            artistSlug ?? '__missing__'
+          ),
       memoOptions
     );
-  }, [artistSlug, memoOptions, realm]);
+  }, [artistSlug, includeDeleted, memoOptions, realm]);
 
   return useNetworkBackedBehavior(behavior);
 }

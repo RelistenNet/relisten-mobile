@@ -123,6 +123,8 @@ describe('Repository catalog tombstones', () => {
     expect(deletedAt).toBeInstanceOf(Date);
     expect(model.isValid()).toBe(true);
     expect(model.parent?.uuid).toBe('parent');
+    expect(realm.objects(TestCatalog).filtered('deletedAt == nil')).toHaveLength(0);
+    expect(realm.objectForPrimaryKey(TestCatalog, model.uuid)?.uuid).toBe(model.uuid);
 
     const repeated = repository.upsertMultiple(realm, [], realm.objects(TestCatalog), true);
     expect(repeated.deleted).toBe(0);

@@ -67,7 +67,8 @@ export class LegacyDataMigrator {
     const sourceBehavior = new ShowWithFullSourcesNetworkBackedBehavior(
       this.realm,
       undefined,
-      sourceUuid
+      sourceUuid,
+      true
     );
     const result = await NetworkBackedBehaviorExecutor.executeUntilMatches(
       sourceBehavior,
@@ -190,7 +191,12 @@ export class LegacyDataMigrator {
   }
 
   public async migrateFavoriteShow(showUuid: string): Promise<LegacyDataMigrationResult> {
-    const showBehavior = new ShowWithFullSourcesNetworkBackedBehavior(this.realm, showUuid);
+    const showBehavior = new ShowWithFullSourcesNetworkBackedBehavior(
+      this.realm,
+      showUuid,
+      undefined,
+      true
+    );
     const result = await NetworkBackedBehaviorExecutor.executeUntilMatches(
       showBehavior,
       this.api,
@@ -205,7 +211,8 @@ export class LegacyDataMigrator {
       const yearsBehavior = yearsNetworkBackedModelArrayBehavior(
         this.realm,
         false,
-        show.artistUuid
+        show.artistUuid,
+        true
       );
       await NetworkBackedBehaviorExecutor.executeUntilMatches(yearsBehavior, this.api, (result) => {
         return (result.errors?.length ?? 0) > 0 || yearsBehavior.isLocalDataShowable(result.data);
@@ -254,7 +261,8 @@ export class LegacyDataMigrator {
     const sourceBehavior = new ShowWithFullSourcesNetworkBackedBehavior(
       this.realm,
       legacySource.show_uuid,
-      sourceUuid
+      sourceUuid,
+      true
     );
     const result = await NetworkBackedBehaviorExecutor.executeUntilMatches(
       sourceBehavior,
@@ -318,7 +326,7 @@ export class LegacyDataMigrator {
   }
 
   public async migrateFavoriteArtists(artistUuids: string[]): Promise<LegacyDataMigrationResult[]> {
-    const artistsBehavior = artistsNetworkBackedBehavior(this.realm, false, true);
+    const artistsBehavior = artistsNetworkBackedBehavior(this.realm, false, true, true);
     const { data: artists } = await NetworkBackedBehaviorExecutor.executeToFirstShowableData(
       artistsBehavior,
       this.api
