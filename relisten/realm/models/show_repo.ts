@@ -152,8 +152,8 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
         updatedModels: [updatedShow],
       } = showRepo.upsert(this.realm, apiData, localData.show, true);
 
-      if (createdShow) {
-        createdShow.artist = artist!;
+      if (createdShow && artist) {
+        createdShow.artist = artist;
       }
 
       if (!localData.show) {
@@ -199,7 +199,12 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
       );
 
       for (const source of sourceModels) {
-        source.artist = artist!;
+        if (artist) {
+          source.artist = artist;
+        } else {
+          source.deletedAt ??= new Date();
+          source.isFavorite = false;
+        }
 
         const { allModels: sourceSets } = sourceSetRepo.upsertMultiple(
           this.realm,
@@ -227,12 +232,19 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
           // order, even when some rows were found by global lookup instead of being newly created.
           sourceSet.sourceTracks.splice(0, sourceSet.sourceTracks.length, ...sourceTracks);
 
-          sourceTracks.forEach((st) => {
-            st.artist = artist!;
-            st.year = year!;
-            st.show = localData.show!;
-            st.source = source;
-          });
+          for (const sourceTrack of sourceTracks) {
+            if (artist) sourceTrack.artist = artist;
+            if (year) sourceTrack.year = year;
+            if (localData.show) sourceTrack.show = localData.show;
+            sourceTrack.source = source;
+
+            if (!artist || !year || !localData.show) {
+              // The row stays valid in Realm, but active queries must not expose an incomplete
+              // playback graph. A later complete API response can restore the same object.
+              sourceTrack.deletedAt ??= new Date();
+              sourceTrack.isFavorite = false;
+            }
+          }
         }
       }
     });
