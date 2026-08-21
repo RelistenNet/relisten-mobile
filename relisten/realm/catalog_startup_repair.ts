@@ -10,6 +10,7 @@ import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { SourceTrackOfflineInfo } from '@/relisten/realm/models/source_track_offline_info';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { PlayerState } from '@/relisten/realm/models/player_state';
+import { catalogStartupRepairEvent, sharedStatsigClient } from '@/relisten/events';
 
 const logger = log.extend('catalog-startup-repair');
 
@@ -18,6 +19,22 @@ export interface CatalogRepairSummary {
   tombstonedRows: number;
   deletedLeafRows: number;
   removedQueueEntries: number;
+}
+
+export const CATALOG_STARTUP_REPAIR_VERSION = 1;
+
+export class CatalogStartupRepairState extends Realm.Object<CatalogStartupRepairState> {
+  static schema: Realm.ObjectSchema = {
+    name: 'CatalogStartupRepairState',
+    primaryKey: 'version',
+    properties: {
+      version: 'int',
+      completedAt: 'date',
+    },
+  };
+
+  version!: number;
+  completedAt!: Date;
 }
 
 type RepairableFavorite = Show | Source | SourceTrack;
@@ -84,6 +101,11 @@ export function repairCatalogAtStartup(realm: Realm): CatalogRepairSummary {
     deletedLeafRows: 0,
     removedQueueEntries: 0,
   };
+  if (realm.objectForPrimaryKey(CatalogStartupRepairState, CATALOG_STARTUP_REPAIR_VERSION)) {
+    return summary;
+  }
+
+  const startedAt = Date.now();
   const repairDate = new Date();
 
   realm.write(() => {
@@ -244,8 +266,28 @@ export function repairCatalogAtStartup(realm: Realm): CatalogRepairSummary {
         summary.removedQueueEntries += removedTrackUuids.size;
       }
     }
+
+    // The version row is the completion flag. Keeping it in this transaction ensures a failed
+    // repair is retried on the next launch instead of being mistaken for a successful run.
+    realm.create(CatalogStartupRepairState, {
+      version: CATALOG_STARTUP_REPAIR_VERSION,
+      completedAt: repairDate,
+    });
   });
 
-  logger.info('Catalog startup repair complete', summary);
+  const durationMs = Date.now() - startedAt;
+
+  if (Object.values(summary).some((count) => count > 0)) {
+    try {
+      sharedStatsigClient().logEvent(
+        catalogStartupRepairEvent(summary, durationMs, CATALOG_STARTUP_REPAIR_VERSION)
+      );
+    } catch (error) {
+      // Repair has already committed. Best-effort telemetry must never block app startup.
+      logger.warn('Unable to log catalog startup repair', error);
+    }
+  }
+
+  logger.info('Catalog startup repair complete', { ...summary, durationMs });
   return summary;
 }

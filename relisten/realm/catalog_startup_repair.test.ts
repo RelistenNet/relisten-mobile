@@ -3,7 +3,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 
 vi.mock('@/relisten/util/logging', () => ({
   log: {
-    extend: () => ({ info: vi.fn() }),
+    extend: () => ({ info: vi.fn(), warn: vi.fn() }),
   },
 }));
 
@@ -14,11 +14,22 @@ vi.mock('expo-file-system', () => ({
   },
 }));
 
+const logStatsigEvent = vi.hoisted(() => vi.fn());
+
 vi.mock('@/relisten/events', () => ({
-  sharedStatsigClient: vi.fn(),
+  catalogStartupRepairEvent: (
+    summary: Record<string, number>,
+    durationMs: number,
+    repairVersion: number
+  ) => ({ eventName: 'catalog_startup_repair', summary, durationMs, repairVersion }),
+  sharedStatsigClient: () => ({ logEvent: logStatsigEvent }),
 }));
 
-import { repairCatalogAtStartup } from '@/relisten/realm/catalog_startup_repair';
+import {
+  CATALOG_STARTUP_REPAIR_VERSION,
+  CatalogStartupRepairState,
+  repairCatalogAtStartup,
+} from '@/relisten/realm/catalog_startup_repair';
 import { Artist } from '@/relisten/realm/models/artist';
 import { Year } from '@/relisten/realm/models/year';
 import { Show } from '@/relisten/realm/models/show';
@@ -60,6 +71,7 @@ const config: Realm.Configuration = {
     Popularity,
     PopularityWindow,
     PopularityWindows,
+    CatalogStartupRepairState,
   ],
 };
 
@@ -236,6 +248,7 @@ describe('catalog startup repair', () => {
   let realm: Realm;
 
   beforeEach(() => {
+    logStatsigEvent.mockClear();
     if (Realm.exists(config)) Realm.deleteFile(config);
     realm = new Realm(config);
   });
@@ -274,12 +287,21 @@ describe('catalog startup repair', () => {
     expect(track.year.uuid).toBe('year');
     expect(track.show.uuid).toBe('show');
     expect(track.source.uuid).toBe('source');
+    expect(
+      realm.objectForPrimaryKey(CatalogStartupRepairState, CATALOG_STARTUP_REPAIR_VERSION)
+    ).not.toBeNull();
+    expect(logStatsigEvent).toHaveBeenCalledTimes(1);
+
+    realm.close();
+    realm = new Realm(config);
+
     expect(repairCatalogAtStartup(realm)).toEqual({
       repairedLinks: 0,
       tombstonedRows: 0,
       deletedLeafRows: 0,
       removedQueueEntries: 0,
     });
+    expect(logStatsigEvent).toHaveBeenCalledTimes(1);
   });
 
   it('quarantines irreparable catalog rows and deletes their leaf entry points', () => {
@@ -308,11 +330,18 @@ describe('catalog startup repair', () => {
       realm.delete(artist);
     });
 
-    expect(repairCatalogAtStartup(realm)).toEqual({
+    const summary = repairCatalogAtStartup(realm);
+    expect(summary).toEqual({
       repairedLinks: 0,
       tombstonedRows: 3,
       deletedLeafRows: 2,
       removedQueueEntries: 1,
+    });
+    expect(logStatsigEvent).toHaveBeenCalledWith({
+      eventName: 'catalog_startup_repair',
+      summary,
+      durationMs: expect.any(Number),
+      repairVersion: CATALOG_STARTUP_REPAIR_VERSION,
     });
     expect(show.deletedAt).toBeInstanceOf(Date);
     expect(source.deletedAt).toBeInstanceOf(Date);
@@ -381,5 +410,35 @@ describe('catalog startup repair', () => {
     });
     expect(Array.from(sourceSet.sourceTracks, (track) => track.uuid)).toEqual(['track']);
     expect(Array.from(song.shows, (show) => show.uuid)).toEqual(['show']);
+  });
+
+  it('marks a clean Realm complete without emitting repair telemetry', () => {
+    expect(repairCatalogAtStartup(realm)).toEqual({
+      repairedLinks: 0,
+      tombstonedRows: 0,
+      deletedLeafRows: 0,
+      removedQueueEntries: 0,
+    });
+    expect(
+      realm.objectForPrimaryKey(CatalogStartupRepairState, CATALOG_STARTUP_REPAIR_VERSION)
+    ).not.toBeNull();
+    expect(logStatsigEvent).not.toHaveBeenCalled();
+  });
+
+  it('does not fail startup when repair telemetry throws', () => {
+    realm.write(() => {
+      createArtist(realm);
+      createYear(realm);
+      createShow(realm);
+    });
+    logStatsigEvent.mockImplementationOnce(() => {
+      throw new Error('Statsig unavailable');
+    });
+
+    expect(() => repairCatalogAtStartup(realm)).not.toThrow();
+    expect(
+      realm.objectForPrimaryKey(CatalogStartupRepairState, CATALOG_STARTUP_REPAIR_VERSION)
+    ).not.toBeNull();
+    expect(realm.objectForPrimaryKey(Show, 'show')?.artist.uuid).toBe('artist');
   });
 });

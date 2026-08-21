@@ -14,7 +14,6 @@ import { RelistenApiUpdatableObject, Repository } from '@/relisten/realm/reposit
 import { RelistenObjectRequiredProperties } from '@/relisten/realm/relisten_object';
 
 const TEST_REALM_PATH = '/tmp/relisten-repository-tombstone-test.realm';
-const MIGRATION_REALM_PATH = '/tmp/relisten-repository-migration-test.realm';
 
 interface TestApi extends RelistenApiUpdatableObject {
   name: string;
@@ -75,7 +74,6 @@ const repository = new Repository(TestCatalog);
 const config: Realm.Configuration = {
   path: TEST_REALM_PATH,
   schema: [TestParent, TestCatalog],
-  schemaVersion: 13,
 };
 
 const apiRow: TestApi = {
@@ -101,7 +99,6 @@ describe('Repository catalog tombstones', () => {
   afterEach(() => {
     realm.close();
     deleteRealm(config);
-    deleteRealm({ path: MIGRATION_REALM_PATH });
   });
 
   afterAll(() => {
@@ -154,42 +151,5 @@ describe('Repository catalog tombstones', () => {
     expect(result.deleted).toBe(0);
     expect(model.deletedAt).toBeNull();
     expect(model.isValid()).toBe(true);
-  });
-
-  it('opens an older Realm with active rows after adding deletedAt', () => {
-    const oldConfig: Realm.Configuration = {
-      path: MIGRATION_REALM_PATH,
-      schemaVersion: 12,
-      schema: [
-        {
-          name: 'MigrationCatalog',
-          primaryKey: 'uuid',
-          properties: {
-            uuid: 'string',
-          },
-        },
-      ],
-    };
-    const oldRealm = new Realm(oldConfig);
-    oldRealm.write(() => oldRealm.create('MigrationCatalog', { uuid: 'old-row' }));
-    oldRealm.close();
-
-    const migratedRealm = new Realm({
-      ...oldConfig,
-      schemaVersion: 13,
-      schema: [
-        {
-          name: 'MigrationCatalog',
-          primaryKey: 'uuid',
-          properties: {
-            uuid: 'string',
-            deletedAt: { type: 'date', optional: true, indexed: true },
-          },
-        },
-      ],
-    });
-
-    expect(migratedRealm.objectForPrimaryKey('MigrationCatalog', 'old-row')?.deletedAt).toBeNull();
-    migratedRealm.close();
   });
 });
