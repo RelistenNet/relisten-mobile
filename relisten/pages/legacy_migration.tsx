@@ -347,7 +347,7 @@ export class LegacyDataMigrator {
   }
 
   public async migrateFavoriteArtists(artistUuids: string[]): Promise<LegacyDataMigrationResult[]> {
-    const artistsBehavior = artistsNetworkBackedBehavior(this.realm, false, true, true);
+    const artistsBehavior = artistsNetworkBackedBehavior(this.realm, false, true, true, 'all');
     const { data: artists } = await NetworkBackedBehaviorExecutor.executeToFirstShowableData(
       artistsBehavior,
       this.api
