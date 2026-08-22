@@ -24,6 +24,7 @@ import { Artist } from '@/relisten/realm/models/artist';
 import dayjs from 'dayjs';
 import { useSourceHasOfflineTracks } from '@/relisten/realm/root_services';
 import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
+import { useFavorite } from '@/relisten/library/favorite_hooks';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -131,6 +132,7 @@ export const SourceDetail: FC<{
   artist: Artist;
 }> = memo(({ show, source, artist, idx }) => {
   const hasOfflineTracks = useSourceHasOfflineTracks(source.uuid);
+  const favorite = useFavorite('source', source.uuid);
   return (
     <View>
       <View className="w-full">
@@ -139,7 +141,7 @@ export const SourceDetail: FC<{
           {source.isSoundboard && (
             <RelistenText cn="ml-1 text-xs font-bold text-relisten-blue-600">SBD</RelistenText>
           )}
-          {source.isFavorite && (
+          {favorite.isFavorite && (
             <View className="ml-1">
               <MaterialCommunityIcons name="cards-heart" color={colors.blue['200']} />
             </View>

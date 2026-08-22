@@ -14,6 +14,11 @@ import { SongWithPlayCount, SongWithShows } from './models/song';
 import { Show } from './models/show';
 import { Platform } from 'react-native';
 import { OnRetryFunctionResponse, retry } from './retry_middleware';
+import { catalogApiBase } from '@/relisten/api/catalog_config';
+import {
+  CatalogReferenceRequest,
+  CatalogResolveResponse,
+} from '@/relisten/api/models/catalog_resolve';
 
 const logger = log.extend('network');
 
@@ -82,8 +87,7 @@ export function errorDisplayString(err?: RelistenApiClientError): string {
 }
 
 export class RelistenApiClient {
-  static API_BASE = 'https://api.relisten.net/api';
-  // static API_BASE = 'http://192.168.6.100:3823/api';
+  static API_BASE = catalogApiBase();
 
   private api = wretch(RelistenApiClient.API_BASE).middlewares([
     loggingMiddleware,
@@ -309,6 +313,15 @@ export class RelistenApiClient {
       bypassEtagCaching: true,
       bypassRateLimit: true,
     };
+  }
+
+  public resolveCatalogReferences(
+    references: CatalogReferenceRequest[]
+  ): Promise<RelistenApiResponse<CatalogResolveResponse>> {
+    return this.postJson('/v3/catalog/resolve', {
+      contract_version: 1,
+      references,
+    });
   }
 
   public artists(

@@ -2,6 +2,8 @@ import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
 import { Stack } from 'expo-router';
 
 type SourceActionsToolbarProps = {
+  canDownload: boolean;
+  canPlay: boolean;
   isFavorite: boolean;
   isRemovingDownloads: boolean;
   onDownload: () => void;
@@ -13,6 +15,8 @@ type SourceActionsToolbarProps = {
 };
 
 export function SourceActionsToolbar({
+  canDownload,
+  canPlay,
   isFavorite,
   isRemovingDownloads,
   onDownload,
@@ -25,7 +29,7 @@ export function SourceActionsToolbar({
   return (
     <Stack.Toolbar placement="right">
       <Stack.Toolbar.Menu accessibilityLabel="Show actions" icon={nativeMenuIcons.more}>
-        <Stack.Toolbar.MenuAction icon={nativeMenuIcons.play} onPress={onPlay}>
+        <Stack.Toolbar.MenuAction disabled={!canPlay} icon={nativeMenuIcons.play} onPress={onPlay}>
           Play Show
         </Stack.Toolbar.MenuAction>
         <Stack.Toolbar.MenuAction
@@ -35,7 +39,11 @@ export function SourceActionsToolbar({
         >
           Favorite
         </Stack.Toolbar.MenuAction>
-        <Stack.Toolbar.MenuAction icon={nativeMenuIcons.download} onPress={onDownload}>
+        <Stack.Toolbar.MenuAction
+          disabled={!canDownload}
+          icon={nativeMenuIcons.download}
+          onPress={onDownload}
+        >
           Download Entire Show
         </Stack.Toolbar.MenuAction>
         <Stack.Toolbar.MenuAction

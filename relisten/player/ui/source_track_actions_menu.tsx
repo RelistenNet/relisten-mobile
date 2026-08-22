@@ -11,12 +11,14 @@ import {
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { useCallback, useMemo } from 'react';
 import { Platform, Share } from 'react-native';
+import { useFavorite } from '@/relisten/library/favorite_hooks';
 
 export type PlayShow = (sourceTrack?: SourceTrack) => void;
 
 const ACTION_IDS = {
   addToQueue: 'add-to-queue',
   download: 'download',
+  favorite: 'favorite',
   playNext: 'play-next',
   playNow: 'play-now',
   removeDownload: 'remove-download',
@@ -29,10 +31,12 @@ function downloadActionFor(sourceTrack: SourceTrack): MenuAction {
   const offlineInfo = sourceTrack.offlineInfo;
 
   if (!offlineInfo || offlineInfo.type === SourceTrackOfflineInfoType.StreamingCache) {
+    const canDownload = sourceTrack.supportsOfflineDownload();
     return {
       id: ACTION_IDS.download,
       image: nativeMenuIcons.download,
-      title: 'Download',
+      title: canDownload ? 'Download' : 'Download unavailable',
+      attributes: canDownload ? undefined : { disabled: true },
     };
   }
 
@@ -69,6 +73,7 @@ type SourceTrackActionsMenuProps = {
 
 export function SourceTrackActionsMenu({ playShow, sourceTrack }: SourceTrackActionsMenuProps) {
   const player = useRelistenPlayer();
+  const favorite = useFavorite('source_track', sourceTrack.uuid);
   const queueTrack = useMemo(() => PlayerQueueTrack.fromSourceTrack(sourceTrack), [sourceTrack]);
   const offlineStatus = sourceTrack.offlineInfo?.status;
   const offlineType = sourceTrack.offlineInfo?.type;
@@ -89,6 +94,12 @@ export function SourceTrackActionsMenu({ playShow, sourceTrack }: SourceTrackAct
         image: nativeMenuIcons.addToQueue,
         title: 'Add to End of Queue',
       },
+      {
+        id: ACTION_IDS.favorite,
+        image: nativeMenuIcons.favorite,
+        title: favorite.isFavorite ? 'Remove from My Library' : 'Add to My Library',
+        state: favorite.isFavorite ? 'on' : 'off',
+      },
       downloadActionFor(sourceTrack),
       {
         id: ACTION_IDS.share,
@@ -96,7 +107,7 @@ export function SourceTrackActionsMenu({ playShow, sourceTrack }: SourceTrackAct
         title: 'Share Track',
       },
     ],
-    [offlineStatus, offlineType, sourceTrack]
+    [favorite.isFavorite, offlineStatus, offlineType, sourceTrack]
   );
 
   const handleAction = useCallback(
@@ -110,6 +121,9 @@ export function SourceTrackActionsMenu({ playShow, sourceTrack }: SourceTrackAct
           break;
         case ACTION_IDS.addToQueue:
           player.queue.addTrackToEndOfQueue([queueTrack]);
+          break;
+        case ACTION_IDS.favorite:
+          favorite.toggleFavorite();
           break;
         case ACTION_IDS.download:
           await DownloadManager.SHARED_INSTANCE.downloadTrack(sourceTrack);
@@ -129,7 +143,7 @@ export function SourceTrackActionsMenu({ playShow, sourceTrack }: SourceTrackAct
         }
       }
     },
-    [playShow, player, queueTrack, sourceTrack]
+    [favorite, playShow, player, queueTrack, sourceTrack]
   );
 
   return (

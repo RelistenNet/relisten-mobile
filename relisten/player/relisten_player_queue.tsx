@@ -95,13 +95,25 @@ export class PlayerQueueTrack {
       forceStreaming?: boolean;
     }
   ): RelistenStreamable {
-    let url = this.sourceTrack.streamingUrl();
+    let url: string;
     let downloadDestination: string | undefined = undefined;
 
     if (!options?.forceStreaming && this.sourceTrack.offlineInfo?.isPlayableOffline()) {
       url = this.sourceTrack.downloadedFileLocation();
-    } else if (!options?.forceStreaming && allowStreamingCache) {
-      downloadDestination = this.sourceTrack.downloadedFileLocation();
+    } else {
+      const streamingUrl = this.sourceTrack.streamingUrl();
+      if (!streamingUrl) {
+        throw new Error(`Source track ${this.sourceTrack.uuid} has no playable audio URL.`);
+      }
+      url = streamingUrl;
+
+      if (
+        !options?.forceStreaming &&
+        allowStreamingCache &&
+        this.sourceTrack.supportsOfflineDownload()
+      ) {
+        downloadDestination = this.sourceTrack.downloadedFileLocation();
+      }
     }
 
     return {
@@ -431,7 +443,12 @@ ${indentString(tracks)}
 
     if (newNextTrack?.identifier !== prevNextTrack?.identifier) {
       if (newNextTrack) {
-        this.player.setNextStream(newNextTrack.toStreamable(this.player.enableStreamingCache));
+        try {
+          this.player.setNextStream(newNextTrack.toStreamable(this.player.enableStreamingCache));
+        } catch (error) {
+          logger.warn('Next queue track has no playable URL; clearing native preload.', error);
+          this.player.setNextStream(undefined);
+        }
       } else {
         this.player.setNextStream(undefined);
       }

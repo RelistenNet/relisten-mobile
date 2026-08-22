@@ -1,4 +1,3 @@
-import { Repository } from '../repository';
 import { useMemo } from 'react';
 import Realm from 'realm';
 import * as R from 'remeda';
@@ -26,11 +25,12 @@ import {
 } from '@/relisten/realm/value_streams';
 import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_network_backed_behavior';
 import { LibraryIndex } from '@/relisten/realm/library_index';
-import { useOfflineAvailabilityIndex } from '@/relisten/realm/root_services';
+import { useLibraryMembershipRevision, useRootLibraryIndex } from '@/relisten/realm/root_services';
 import { attachShowArtists } from '@/relisten/realm/models/show_artist_relationships';
 import { useGroupSegment } from '@/relisten/util/routes';
+import { showRepo } from '@/relisten/realm/models/show_repository';
 
-export const showRepo = new Repository(Show);
+export { showRepo } from '@/relisten/realm/models/show_repository';
 
 export interface ShowWithSources {
   show: Show | undefined;
@@ -50,13 +50,15 @@ export interface ShowWithSources {
 // https://github.com/RelistenNet/relisten-web/blob/69e05607c0a0699b5ccb0b3711a3ec17faf3a855/src/redux/modules/tapes.js#L63
 export const sortSources = (
   sources: Realm.Results<Source>,
-  libraryIndex?: Pick<LibraryIndex, 'sourceHasOfflineTracks'>
+  libraryIndex?: Pick<LibraryIndex, 'sourceHasOfflineTracks' | 'isFavorite'>
 ) => {
   const sortedSources = sources
     ? Array.from(sources).sort(
         firstBy(
           // sort first if favorited or downloaded
-          (t: Source) => t.isFavorite || t.hasOfflineTracks(libraryIndex),
+          (source: Source) =>
+            !!libraryIndex?.isFavorite('source', source.uuid) ||
+            source.hasOfflineTracks(libraryIndex),
           'desc'
         )
           .thenBy((t: Source) => t.isSoundboard, 'desc')
@@ -99,7 +101,10 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
     forcedRefresh: boolean
   ): Promise<RelistenApiResponse<ApiShowWithSources | undefined>> {
     if (!this.showUuid) {
-      return Promise.resolve({ type: RelistenApiResponseType.Offline, data: undefined });
+      return Promise.resolve({
+        type: RelistenApiResponseType.Offline,
+        data: undefined,
+      });
     }
 
     return api.showWithSources(this.showUuid, api.refreshOptions(forcedRefresh));
@@ -274,13 +279,14 @@ export function useFullShowWithSelectedSource(showUuid: string, selectedSourceUu
     Artist,
     show?.artistUuid ?? sources?.[0]?.artistUuid ?? '__missing__'
   );
-  const libraryIndex = useOfflineAvailabilityIndex();
+  const libraryIndex = useRootLibraryIndex();
+  const libraryMembershipRevision = useLibraryMembershipRevision();
 
   const sortedSources = useMemo(() => {
     if (!sources) return [];
 
     return sortSources(sources, libraryIndex);
-  }, [libraryIndex, sources]);
+  }, [libraryIndex, libraryMembershipRevision, sources]);
 
   // default sourceUuid is initial which will just fall back to sortedSources[0]
   const selectedSource =
@@ -288,7 +294,7 @@ export function useFullShowWithSelectedSource(showUuid: string, selectedSourceUu
       (source) =>
         source.uuid === selectedSourceUuid ||
         // Prioritize favorited sources by default
-        (selectedSourceUuid === 'initial' && source.isFavorite)
+        (selectedSourceUuid === 'initial' && libraryIndex.isFavorite('source', source.uuid))
     ) ?? sortedSources[0];
 
   return {

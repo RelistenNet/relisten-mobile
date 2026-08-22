@@ -20,7 +20,7 @@ import { Artist } from '@/relisten/realm/models/artist';
 import { useArtists, useOfflineArtistMetadataMap } from '@/relisten/realm/models/artist_repo';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { Link, useFocusEffect, useRouter } from 'expo-router';
-import { useEffect, useMemo, useCallback, type ReactElement } from 'react';
+import { useEffect, useMemo, useCallback, useReducer, type ReactElement } from 'react';
 import { ScrollView, TouchableOpacity, View } from 'react-native';
 import Realm from 'realm';
 import { ArtistShowsOnThisDayTray } from '@/relisten/pages/artist/artist_shows_on_this_day_tray';
@@ -32,7 +32,10 @@ import { LegacyDataMigrationModal } from '@/relisten/pages/legacy_migration';
 import { ARTIST_SORT_FILTERS, ArtistSortKey } from '@/relisten/components/artist_filters';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
 import { useTopPlayedArtistUuidsOnce } from '@/relisten/realm/models/history/playback_history_entry_repo';
-import { useRemainingDownloadsCount } from '@/relisten/realm/root_services';
+import {
+  useFavoriteCatalogUuids,
+  useRemainingDownloadsCount,
+} from '@/relisten/realm/root_services';
 import { logTabRootDebug } from '@/relisten/util/profile_logging';
 
 const FavoritesSectionHeader = ({ favorites }: { favorites: Artist[] }) => {
@@ -128,15 +131,27 @@ const OnlineArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> 
   const router = useRouter();
   const groupSegment = useGroupSegment();
   const { filter } = useFilters<ArtistSortKey, Artist>();
+  const favoriteArtistUuids = useFavoriteCatalogUuids('artist');
+  const [focusRevision, refreshAfterFocus] = useReducer((revision: number) => revision + 1, 0);
+
+  useFocusEffect(
+    useCallback(() => {
+      // This stack freezes its root while artist details are visible. Refreshing
+      // on focus makes it re-read external-store changes received while frozen.
+      refreshAfterFocus();
+    }, [])
+  );
 
   const allArtistsRoute = `/relisten/tabs/${groupSegment}/all`;
 
   const { all, favorites, featured } = useMemo(() => {
     const allSorted = [...artists].sort((a, b) => a.sortName.localeCompare(b.sortName));
     const favoritesSorted = allSorted
-      .filter((a) => a.isFavorite)
+      .filter((artist) => favoriteArtistUuids.has(artist.uuid))
       .sort((a, b) => a.sortName.localeCompare(b.sortName));
-    const featuredAll = allSorted.filter((a) => !a.isAutomaticallyCreated() && !a.isFavorite);
+    const featuredAll = allSorted.filter(
+      (artist) => !artist.isAutomaticallyCreated() && !favoriteArtistUuids.has(artist.uuid)
+    );
     const hasPopularity = featuredAll.some(
       (artist) => artist.popularity?.windows?.days30d?.plays !== undefined
     );
@@ -156,7 +171,7 @@ const OnlineArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> 
       favorites: favoritesSorted,
       featured: featuredSorted,
     };
-  }, [artists, filter]);
+  }, [artists, favoriteArtistUuids, filter, focusRevision]);
 
   const shouldSuggestFavorites = favorites.length < 3;
   const topPlayedArtistUuids = useTopPlayedArtistUuidsOnce(6, shouldSuggestFavorites);
@@ -179,6 +194,10 @@ const OnlineArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> 
   const favoritesForSection = useMemo(
     () => (favorites.length < 3 ? [...favorites, ...suggestedFavorites] : favorites),
     [favorites, suggestedFavorites]
+  );
+  const listExtraData = useMemo(
+    () => ({ favoriteArtistUuids, focusRevision }),
+    [favoriteArtistUuids, focusRevision]
   );
 
   const sectionedArtists = useMemo<RelistenSectionData<Artist>>(() => {
@@ -210,6 +229,7 @@ const OnlineArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> 
   return (
     <RelistenSectionList
       data={sectionedArtists}
+      extraData={listExtraData}
       renderItem={({ item }) => {
         return <ArtistListItem artist={item} />;
       }}

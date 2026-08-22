@@ -11,7 +11,10 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "scheme": "relisten",
+    "scheme": [
+      "relisten",
+      "net.relisten.mobile"
+    ],
     "assetBundlePatterns": [
       "**/*"
     ],
