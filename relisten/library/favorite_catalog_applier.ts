@@ -37,7 +37,12 @@ export function applyResolvedCatalogEntities(realm: Realm, response: CatalogReso
       // Resolver sources intentionally omit link details. Preserve a richer row
       // already loaded by the normal show endpoint; a fresh shallow row is still
       // enough to render the favorite and navigate to that full endpoint.
-      if (!realm.objectForPrimaryKey(Source, source.uuid)) {
+      const existingSource = realm.objectForPrimaryKey(Source, source.uuid);
+      if (existingSource?.deletedAt != null) {
+        // A resolver hit is authoritative evidence that this UUID is active.
+        // Restore its tombstone without replacing richer source metadata.
+        existingSource.deletedAt = undefined;
+      } else if (!existingSource) {
         sourceRepo.upsert(realm, source, undefined);
       }
     },

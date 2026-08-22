@@ -46,6 +46,7 @@ export function createArtistsListTemplate(
     scope === 'offline',
     false,
     scope !== 'browse',
+    'all',
     behaviorOptions
   );
   const executor = artistsBehavior.sharedExecutor(ctx.apiClient);
@@ -578,7 +579,7 @@ function includeArtistForScope(ctx: RelistenCarPlayContext, scope: CarPlayScope,
     return ctx.libraryIndex.artistIsInLibrary(artist.uuid);
   }
 
-  return true;
+  return !artist.isAutomaticallyCreated() || ctx.libraryIndex.isFavorite('artist', artist.uuid);
 }
 
 function includeYearForScope(ctx: RelistenCarPlayContext, scope: CarPlayScope, year: Year) {
