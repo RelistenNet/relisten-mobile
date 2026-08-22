@@ -20,12 +20,9 @@ import { NetworkBackedModelArrayBehavior } from '@/relisten/realm/network_backed
 import { RealmQueryValueStream, ValueStream } from '@/relisten/realm/value_streams';
 import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_network_backed_behavior';
 import { attachArtistsToExistingShows } from '@/relisten/realm/models/show_artist_relationships';
+import { useFavoriteCatalogUuids } from '@/relisten/realm/root_services';
 
 export const artistRepo = new Repository(Artist);
-
-function artistHasUserInteraction(artist: Artist): boolean {
-  return artist.isFavorite || artist.hasOfflineTracks();
-}
 
 class ArtistsNetworkBackedBehavior extends NetworkBackedModelArrayBehavior<
   Artist,
@@ -33,21 +30,43 @@ class ArtistsNetworkBackedBehavior extends NetworkBackedModelArrayBehavior<
   ArtistRequiredProperties,
   object
 > {
+  constructor(
+    realm: Realm.Realm,
+    private readonly responseIncludesAutomaticallyCreated: boolean,
+    fetchFromRealm: (realm: Realm.Realm) => Realm.Results<Artist>,
+    options?: NetworkBackedBehaviorOptions
+  ) {
+    super(
+      realm,
+      artistRepo,
+      fetchFromRealm,
+      (api, forcedRefresh) =>
+        api.artists(responseIncludesAutomaticallyCreated, api.refreshOptions(forcedRefresh)),
+      options
+    );
+  }
+
   override upsert(localData: Realm.Results<Artist>, apiData: ArtistWithCounts[]): void {
     this.realm.write(() => {
+      // The filtered artists endpoint intentionally omits auto-created artists. Do not treat that
+      // omission as a catalog deletion; the endpoint is authoritative only for its visible slice.
+      const authoritativeLocalData = this.responseIncludesAutomaticallyCreated
+        ? localData
+        : localData.filtered(`featured != ${ArtistFeaturedFlags.AutoCreated}`);
       const { allModels } = artistRepo.upsertMultiple(
         this.realm,
         apiData,
-        localData,
+        authoritativeLocalData,
         true,
-        true,
-        artistHasUserInteraction
+        true
       );
 
       attachArtistsToExistingShows(this.realm, allModels);
     });
   }
 }
+
+type AutomaticallyCreatedArtistVisibility = ReadonlySet<string> | 'all';
 
 export interface ArtistMetadataSummary {
   shows: number | undefined;
@@ -59,11 +78,12 @@ export function artistsNetworkBackedBehavior(
   availableOfflineOnly: boolean,
   includeAutomaticallyCreated: boolean,
   includeDeleted: boolean,
+  automaticallyCreatedVisibility: AutomaticallyCreatedArtistVisibility,
   options?: NetworkBackedBehaviorOptions
 ) {
   return new ArtistsNetworkBackedBehavior(
     realm,
-    artistRepo,
+    includeAutomaticallyCreated,
     (realm) => {
       let catalogArtists = realm.objects<Artist>(Artist);
       if (!includeDeleted) {
@@ -74,14 +94,14 @@ export function artistsNetworkBackedBehavior(
         isPlayableOffline: availableOfflineOnly ? availableOfflineOnly : null,
       });
 
-      if (!includeAutomaticallyCreated) {
-        q = q.filtered(`featured != ${ArtistFeaturedFlags.AutoCreated} OR isFavorite == true`);
+      if (automaticallyCreatedVisibility !== 'all') {
+        q = q.filtered(`featured != ${ArtistFeaturedFlags.AutoCreated} OR uuid IN $0`, [
+          ...automaticallyCreatedVisibility,
+        ]);
       }
 
       return q;
     },
-    (api, forcedRefresh) =>
-      api.artists(includeAutomaticallyCreated, api.refreshOptions(forcedRefresh)),
     options
   );
 }
@@ -90,10 +110,18 @@ export function useArtists(options?: NetworkBackedBehaviorOptions) {
   const realm = useRealm();
   const isOfflineTab = useIsOfflineTab();
   const includeDeleted = useGroupSegment() !== '(artists)';
+  const favoriteArtistUuids = useFavoriteCatalogUuids('artist');
 
   const behavior = useMemo(() => {
-    return artistsNetworkBackedBehavior(realm, isOfflineTab, false, includeDeleted, options);
-  }, [realm, options, isOfflineTab, includeDeleted]);
+    return artistsNetworkBackedBehavior(
+      realm,
+      isOfflineTab,
+      false,
+      includeDeleted,
+      favoriteArtistUuids,
+      options
+    );
+  }, [realm, options, isOfflineTab, includeDeleted, favoriteArtistUuids]);
 
   return useNetworkBackedBehavior(behavior);
 }
@@ -102,7 +130,7 @@ export function useAllArtists(options?: NetworkBackedBehaviorOptions) {
   const realm = useRealm();
 
   const behavior = useMemo(() => {
-    return artistsNetworkBackedBehavior(realm, false, true, false, options);
+    return artistsNetworkBackedBehavior(realm, false, true, false, 'all', options);
   }, [realm, options]);
 
   return useNetworkBackedBehavior(behavior);

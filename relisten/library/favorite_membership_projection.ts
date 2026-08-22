@@ -8,6 +8,7 @@ type Listener = () => void;
 interface ShowProjection extends Realm.Object<ShowProjection> {
   artistUuid?: string | null;
   yearUuid?: string | null;
+  artist?: Realm.Object | null;
 }
 
 interface SourceProjection extends Realm.Object<SourceProjection> {
@@ -191,12 +192,17 @@ export class FavoriteMembershipProjection {
       return;
     }
 
-    this.libraryShowUuids.add(showUuid);
     const show = this.realm.objectForPrimaryKey<ShowProjection>('Show', showUuid);
-    if (show) {
-      this.addLibraryArtist(show.artistUuid);
-      increment(this.favoriteContentByYear, show.yearUuid);
+    if (!show?.artist) {
+      // Keep the favorite, but do not expose a Show that My Library cannot
+      // render. Realm notifications rebuild this projection after hydration
+      // restores the required catalog relationship.
+      return;
     }
+
+    this.libraryShowUuids.add(showUuid);
+    this.addLibraryArtist(show.artistUuid);
+    increment(this.favoriteContentByYear, show.yearUuid);
   }
 
   private addLibraryArtist(artistUuid?: string | null) {
