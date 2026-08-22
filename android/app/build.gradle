@@ -99,8 +99,8 @@ android {
         applicationId 'net.relisten.android'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 6047
-        versionName "6.1.4"
+        versionCode 6048
+        versionName "6.2.0"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
