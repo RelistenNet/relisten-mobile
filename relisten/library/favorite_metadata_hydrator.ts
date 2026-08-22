@@ -134,40 +134,50 @@ export class FavoriteMetadataHydrator {
     // partial local catalog has the favorite but not the graph it projects to.
     if (reference.catalogType === 'source') {
       const source = realm.objectForPrimaryKey(Source, reference.catalogUuid);
-      return !!source && this.hasShowMetadata(source.showUuid);
+      return isActiveCatalogObject(source) && this.hasShowMetadata(source.showUuid);
     }
     if (reference.catalogType === 'source_track') {
       const track = realm.objectForPrimaryKey(SourceTrack, reference.catalogUuid);
-      return !!track && this.hasShowMetadata(track.showUuid);
+      return isActiveCatalogObject(track) && this.hasShowMetadata(track.showUuid);
     }
     if (reference.catalogType === 'show') {
       return this.hasShowMetadata(reference.catalogUuid);
     }
     if (reference.catalogType === 'song') {
       const song = realm.objectForPrimaryKey(Song, reference.catalogUuid);
-      return !!song && !!realm.objectForPrimaryKey(Artist, song.artistUuid);
+      return isActiveCatalogObject(song) && this.hasArtistMetadata(song.artistUuid);
     }
     if (reference.catalogType === 'tour') {
       const tour = realm.objectForPrimaryKey(Tour, reference.catalogUuid);
-      return !!tour && !!realm.objectForPrimaryKey(Artist, tour.artistUuid);
+      return isActiveCatalogObject(tour) && this.hasArtistMetadata(tour.artistUuid);
     }
     if (reference.catalogType === 'venue') {
       const venue = realm.objectForPrimaryKey(Venue, reference.catalogUuid);
-      return !!venue && !!realm.objectForPrimaryKey(Artist, venue.artistUuid);
+      return isActiveCatalogObject(venue) && this.hasArtistMetadata(venue.artistUuid);
     }
 
-    return !!realm.objectForPrimaryKey(Artist, reference.catalogUuid);
+    return this.hasArtistMetadata(reference.catalogUuid);
   }
 
   private hasShowMetadata(showUuid: string) {
     const realm = this.repository.realm;
     const show = realm.objectForPrimaryKey(Show, showUuid);
     return (
-      !!show &&
-      !!realm.objectForPrimaryKey(Artist, show.artistUuid) &&
-      !!realm.objectForPrimaryKey(Year, show.yearUuid)
+      isActiveCatalogObject(show) &&
+      this.hasArtistMetadata(show.artistUuid) &&
+      isActiveCatalogObject(realm.objectForPrimaryKey(Year, show.yearUuid))
     );
   }
+
+  private hasArtistMetadata(artistUuid: string) {
+    return isActiveCatalogObject(this.repository.realm.objectForPrimaryKey(Artist, artistUuid));
+  }
+}
+
+function isActiveCatalogObject<T extends { deletedAt?: Date }>(object: T | null): object is T {
+  // Tombstones retain their primary keys. Treat them as missing metadata so an
+  // authoritative resolver upsert can restore the same object by UUID.
+  return object != null && object.deletedAt == null;
 }
 
 function validateResponse(

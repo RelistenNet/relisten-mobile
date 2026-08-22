@@ -3,7 +3,7 @@ import { createUuidV7 } from '@/relisten/util/uuid_v7';
 import { FavoriteCatalogType, UserFavorite } from '@/relisten/realm/models/library';
 import { ANONYMOUS_ACCOUNT_SCOPE_ID } from '@/relisten/realm/models/accounts';
 
-// Schema 13 belongs to the released audio-EQ TestFlight.
+// Scoped favorites are the single schema step after main's schema 13 catalog tombstones.
 export const FAVORITES_SCHEMA_VERSION = 14;
 
 const LEGACY_FAVORITE_MODELS: ReadonlyArray<{
