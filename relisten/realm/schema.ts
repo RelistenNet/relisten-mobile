@@ -34,10 +34,7 @@ import {
 } from '@/relisten/realm/catalog_startup_repair';
 import { ACCOUNT_REALM_MODELS } from '@/relisten/realm/models/accounts';
 import { FAVORITE_REALM_MODELS } from '@/relisten/realm/models/library';
-import {
-  FAVORITES_SCHEMA_VERSION,
-  migrateLegacyFavoritesToAnonymous,
-} from '@/relisten/realm/migrations/favorite_migration';
+import { migrateLegacyFavoritesToAnonymous } from '@/relisten/realm/migrations/favorite_migration';
 
 if (isVerboseProfileLoggingEnabled()) {
   Realm.setLogger(({ category, level, message }) => {
@@ -77,7 +74,7 @@ const realmConfig: Realm.Configuration = {
     ...ACCOUNT_REALM_MODELS,
     ...FAVORITE_REALM_MODELS,
   ],
-  schemaVersion: FAVORITES_SCHEMA_VERSION,
+  schemaVersion: 15,
   onMigration: (oldRealm, newRealm) => {
     migratePlayerState(oldRealm, newRealm);
     migrateLegacyFavoritesToAnonymous(oldRealm, newRealm);
