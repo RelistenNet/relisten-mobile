@@ -16,15 +16,9 @@ export type BrowserAuthorizationResult =
 export class NativeAuthFlow {
   constructor(private readonly authClient: AccountAuthClient) {}
 
-  async open(
-    provider: AccountProvider,
-    forceAccountSelection: boolean
-  ): Promise<BrowserAuthorizationResult> {
+  async open(provider: AccountProvider): Promise<BrowserAuthorizationResult> {
     try {
-      const authorization = await this.authClient.prepareAuthorization(
-        provider,
-        forceAccountSelection
-      );
+      const authorization = await this.authClient.prepareAuthorization(provider);
       await writePendingAuthTransaction(authorization.transaction);
       const result = await WebBrowser.openAuthSessionAsync(
         authorization.authorizationUrl,
