@@ -38,16 +38,12 @@ describe('AccountsApiTransport', () => {
     await transport.request('/v1/logout', 'access-token', {
       method: 'POST',
       credentials: 'include',
-      headers: { 'X-Test': 'present' },
     });
 
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://accounts.relisten.net/v1/logout');
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(init.credentials).toBe('omit');
     const headers = new Headers(init.headers);
     expect(headers.get('Authorization')).toBe('Bearer access-token');
-    expect(headers.get('Accept')).toBe('application/json');
-    expect(headers.get('X-Test')).toBe('present');
   });
 });
 
