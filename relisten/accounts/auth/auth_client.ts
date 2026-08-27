@@ -10,7 +10,7 @@ import {
   refreshAsync,
 } from 'expo-auth-session';
 import { getRandomBytesAsync } from 'expo-crypto';
-import { AccountRuntimeConfig } from '@/relisten/accounts/account_config';
+import type { AccountRuntimeConfig } from '@/relisten/accounts/account_config';
 import { createUuidV7 } from '@/relisten/util/uuid_v7';
 import {
   AccountProvider,
@@ -116,10 +116,7 @@ export class AccountAuthClient {
 
   constructor(readonly config: AccountRuntimeConfig) {}
 
-  async prepareAuthorization(
-    provider: AccountProvider,
-    forceAccountSelection: boolean
-  ): Promise<PreparedAuthorization> {
+  async prepareAuthorization(provider: AccountProvider): Promise<PreparedAuthorization> {
     const discovery = await this.discovery();
     const nonce = await randomBase64Url(32);
     const request = new AuthRequest({
@@ -129,7 +126,7 @@ export class AccountAuthClient {
       scopes: ACCOUNT_SCOPES,
       usePKCE: true,
       codeChallengeMethod: CodeChallengeMethod.S256,
-      prompt: forceAccountSelection ? Prompt.SelectAccount : undefined,
+      prompt: Prompt.SelectAccount,
       extraParams: { nonce, provider },
     });
     await request.getAuthRequestConfigAsync();
