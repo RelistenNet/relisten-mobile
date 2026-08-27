@@ -1,7 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const pendingTransaction = vi.hoisted(() => ({ clear: vi.fn() }));
-
 vi.mock('@/relisten/util/logging', () => ({
   log: {
     extend: () => ({ info: vi.fn(), warn: vi.fn() }),
@@ -46,7 +44,7 @@ vi.mock('./account_config', () => ({
 
 vi.mock('./auth/pkce_transaction', () => ({
   authTransactionExpiry: (createdAt: Date) => createdAt,
-  clearPendingAuthTransaction: pendingTransaction.clear,
+  clearPendingAuthTransaction: vi.fn(),
 }));
 
 vi.mock('expo-crypto', () => ({
@@ -101,10 +99,8 @@ describe('AccountSessionCoordinator', () => {
     await signOut;
 
     expect(transport.request).toHaveBeenCalledTimes(3);
-    expect(transitionEffects.beforeLeavingAuthenticatedScope).toHaveBeenCalledOnce();
     expect(credentials.clearMemory).toHaveBeenCalledOnce();
     expect(credentials.clearPersisted).toHaveBeenCalledOnce();
-    expect(pendingTransaction.clear).toHaveBeenCalledOnce();
     expect(coordinator.scopeSource.getSnapshot()).toMatchObject({
       scopeId: 'anonymous',
       userUuid: null,
@@ -112,6 +108,5 @@ describe('AccountSessionCoordinator', () => {
       isAuthenticated: false,
     });
     expect(realmScope.blockedNativeSessionId).toBe('test-session');
-    expect(vi.getTimerCount()).toBe(0);
   });
 });

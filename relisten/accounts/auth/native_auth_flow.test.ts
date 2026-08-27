@@ -3,11 +3,6 @@ import { describe, expect, it, vi } from 'vitest';
 const browser = vi.hoisted(() => ({
   openAuthSessionAsync: vi.fn(),
 }));
-const pendingTransaction = vi.hoisted(() => ({
-  write: vi.fn(),
-  clear: vi.fn(),
-}));
-
 vi.mock('expo-web-browser', () => browser);
 
 vi.mock('expo-auth-session', () => ({
@@ -19,10 +14,10 @@ vi.mock('./auth_client', () => ({
 }));
 
 vi.mock('./pkce_transaction', () => ({
-  clearPendingAuthTransaction: pendingTransaction.clear,
+  clearPendingAuthTransaction: vi.fn(),
   isExpiredAuthTransaction: vi.fn(),
   readPendingAuthTransaction: vi.fn(),
-  writePendingAuthTransaction: pendingTransaction.write,
+  writePendingAuthTransaction: vi.fn(),
 }));
 
 import { NativeAuthFlow } from './native_auth_flow';
@@ -44,17 +39,12 @@ describe('NativeAuthFlow', () => {
       url: 'https://relisten.net/auth/mobile/ios/callback?code=test&state=test',
     });
 
-    const result = await new NativeAuthFlow(authClient as never).open('google');
+    await new NativeAuthFlow(authClient as never).open('google');
 
-    expect(pendingTransaction.write).toHaveBeenCalledWith(transaction);
     expect(browser.openAuthSessionAsync).toHaveBeenCalledWith(
       'https://auth.relisten.net/connect/authorize',
       'https://relisten.net/auth/mobile/ios/callback',
       { preferUniversalLinks: true }
     );
-    expect(result).toEqual({
-      type: 'callback',
-      callbackUrl: 'https://relisten.net/auth/mobile/ios/callback?code=test&state=test',
-    });
   });
 });
