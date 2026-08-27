@@ -59,8 +59,8 @@ describe('AccountAuthClient', () => {
         issuer: 'https://auth.relisten.net',
         accountsOrigin: 'https://accounts.relisten.net',
         clientId: 'relisten-mobile-ios',
-        redirectUri: 'net.relisten.mobile:/oauth2redirect/ios',
-        useUniversalLinkCallback: false,
+        redirectUri: 'https://relisten.net/auth/mobile/ios/callback',
+        useUniversalLinkCallback: true,
       });
 
       const authorization = await client.prepareAuthorization(provider);
@@ -68,6 +68,7 @@ describe('AccountAuthClient', () => {
       expect(authSession.requestConfigs).toHaveLength(1);
       expect(authSession.requestConfigs[0]).toMatchObject({
         clientId: 'relisten-mobile-ios',
+        redirectUri: 'https://relisten.net/auth/mobile/ios/callback',
         prompt: 'select_account',
         responseType: 'code',
         usePKCE: true,
@@ -77,6 +78,9 @@ describe('AccountAuthClient', () => {
         },
       });
       expect(authorization.transaction.provider).toBe(provider);
+      expect(authorization.transaction.redirectUri).toBe(
+        'https://relisten.net/auth/mobile/ios/callback'
+      );
     }
   );
 });

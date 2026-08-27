@@ -274,13 +274,13 @@ Future shipped slices start from schema 14 and increment the schema only when th
 
 ### Authorization flow
 
-The initial production iOS login uses the collision-resistant OAuth-only callback:
+Production iOS login uses the claimed HTTPS callback:
 
-- iOS: `net.relisten.mobile:/oauth2redirect/ios`
+- iOS: `https://relisten.net/auth/mobile/ios/callback`
 
-Development uses the same collision-resistant scheme with `/ios` or `/android`. Keep `relisten://` for ordinary app navigation. Android production login remains deferred and keeps its planned claimed HTTPS callback until its own server client and app-link routing ship.
+Development uses the collision-resistant private scheme with `/ios` or `/android`. Keep `relisten://` for ordinary app navigation. Android production login remains deferred and keeps its planned claimed HTTPS callback until its own server client and app-link routing ship. During the iOS transition, the authorization server registers both production callbacks. The app requests the HTTPS callback. Keep `net.relisten.mobile` for one rollback interval, then remove the private iOS callback after the release-signed app proves the claimed callback and adoption is sufficient.
 
-On the current iOS 18 minimum and Expo SDK 57, call `WebBrowser.openAuthSessionAsync` with the custom redirect and `preferUniversalLinks: false`. This still uses `ASWebAuthenticationSession`; the callback returns directly to the installed app without requiring a `relisten.net` web route. A later universal-link release registers both redirects server-side, proves the claimed callback on a physical device, and retains the custom scheme for one rollback release.
+On the current iOS 18 minimum and Expo SDK 57, call `WebBrowser.openAuthSessionAsync` with the HTTPS redirect and `preferUniversalLinks: true`. This still uses `ASWebAuthenticationSession`. The `relisten.net` association file limits the callback to the release-signed Relisten app.
 
 ```mermaid
 sequenceDiagram
@@ -298,7 +298,7 @@ sequenceDiagram
     A->>P: Provider authorization
     P-->>A: Provider callback
     A-->>B: Redirect with one-time code and state
-    B-->>M: OAuth custom-scheme callback
+    B-->>M: OAuth claimed HTTPS callback
     M->>M: Restore protected attempt and validate TTL, state, nonce, callback
     M->>A: Exchange code + PKCE verifier
     A-->>M: Candidate access token + rotating refresh token
