@@ -342,7 +342,7 @@ Refresh is single-flight. Callers waiting for an access token share one refresh 
 
 On `invalid_grant`, reuse detection, revoked session, or security-version mismatch, the coordinator signs out once; independent requests do not race to clear state. SecureStore replacement must finish before the in-memory client exposes the rotated access token to waiters. If the process dies in the server/SecureStore crash gap, the next refresh fails and the listener signs in again. This accepted re-login keeps launch recovery to one credential envelope while preserving strict refresh-token reuse detection. Scoped Realm data remains intact.
 
-SecureStore can be unavailable before first device unlock. A previously selected account keeps its cached profile and scoped library visible offline while cloud sync waits; a device with no cached account opens anonymously. The app retries credential restoration after it becomes active and never treats a temporarily unreadable keychain or retryable network failure as deliberate logout.
+SecureStore can be unavailable before first device unlock. A previously selected account keeps its cached profile and scoped library visible offline while cloud sync waits; a device with no cached account opens anonymously. The app retries credential restoration after it becomes active and never treats a temporarily unreadable keychain or retryable network failure as deliberate logout. On iOS, the `AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY` keychain item normally survives an uninstall and reinstall on the same device. The item does not migrate through Quick Start or a backup restore. The app rotates the restored refresh envelope and validates it with the User Service before it selects the account.
 
 ### Generation guard
 
@@ -382,7 +382,7 @@ sequenceDiagram
     T-->>L: Transition complete
 ```
 
-Sign-out and switch freeze sync, stop local/Cast playback, clear local queue/control state, and make one bounded server-revocation attempt while the old credential is still available. They then delete that SecureStore token and atomically clear the active scope while advancing `accountGeneration`, even when the server is unreachable. A crash before token deletion may leave the listener signed in and they can retry; a crash after deletion is recovered as anonymous on startup. Do not retain an old refresh token solely to retry logout.
+Sign-out and switch freeze sync, stop local/Cast playback, and clear local queue/control state. The app then makes at most three server-revocation attempts while the old credential is available. Each attempt has a four-second timeout. The app retries only a network failure, HTTP 408, HTTP 429, or HTTP 5xx. It waits 250 milliseconds before the second attempt and 750 milliseconds before the third attempt. The app then deletes the SecureStore token and clears the active scope even when revocation is unconfirmed. A crash before token deletion may leave the listener signed in so they can retry. A crash after deletion recovers as anonymous on startup. Do not retain an old refresh token solely to retry logout.
 
 Late callbacks cannot write because repositories compare their captured generation. Server-side sessions and Sonos handles that were not reached remain valid only until their normal expiry; the device has discarded their credentials and controls. A disconnected speaker may finish buffered audio, so the UI reports that remote stop was unconfirmed. Download rows and files are outside this transition and remain available.
 
