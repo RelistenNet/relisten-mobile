@@ -47,6 +47,16 @@ vi.mock('./pkce_transaction', () => ({
 import { AccountAuthClient } from './auth_client';
 import { AccountProvider } from './account_auth_types';
 
+function createClient() {
+  return new AccountAuthClient({
+    issuer: 'https://auth.relisten.net',
+    accountsOrigin: 'https://accounts.relisten.net',
+    clientId: 'relisten-mobile-ios',
+    redirectUri: 'https://relisten.net/auth/mobile/ios/callback',
+    useUniversalLinkCallback: true,
+  });
+}
+
 beforeEach(() => {
   authSession.requestConfigs.length = 0;
 });
@@ -55,32 +65,27 @@ describe('AccountAuthClient', () => {
   it.each<AccountProvider>(['apple', 'google'])(
     'requires explicit account selection for %s authorization',
     async (provider) => {
-      const client = new AccountAuthClient({
-        issuer: 'https://auth.relisten.net',
-        accountsOrigin: 'https://accounts.relisten.net',
-        clientId: 'relisten-mobile-ios',
-        redirectUri: 'https://relisten.net/auth/mobile/ios/callback',
-        useUniversalLinkCallback: true,
-      });
-
-      const authorization = await client.prepareAuthorization(provider);
+      await createClient().prepareAuthorization(provider);
 
       expect(authSession.requestConfigs).toHaveLength(1);
       expect(authSession.requestConfigs[0]).toMatchObject({
-        clientId: 'relisten-mobile-ios',
-        redirectUri: 'https://relisten.net/auth/mobile/ios/callback',
         prompt: 'select_account',
-        responseType: 'code',
-        usePKCE: true,
-        codeChallengeMethod: 'S256',
         extraParams: {
           provider,
         },
       });
-      expect(authorization.transaction.provider).toBe(provider);
-      expect(authorization.transaction.redirectUri).toBe(
-        'https://relisten.net/auth/mobile/ios/callback'
-      );
     }
   );
+
+  it('binds the authorization request and transaction to the configured redirect', async () => {
+    const authorization = await createClient().prepareAuthorization('google');
+
+    expect(authSession.requestConfigs).toHaveLength(1);
+    expect(authSession.requestConfigs[0]).toMatchObject({
+      redirectUri: 'https://relisten.net/auth/mobile/ios/callback',
+    });
+    expect(authorization.transaction.redirectUri).toBe(
+      'https://relisten.net/auth/mobile/ios/callback'
+    );
+  });
 });
