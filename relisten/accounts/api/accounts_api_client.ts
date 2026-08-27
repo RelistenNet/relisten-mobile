@@ -57,6 +57,7 @@ export class AccountsApiTransport {
     try {
       response = await fetch(`${this.origin}${path}`, {
         ...options,
+        credentials: 'omit',
         headers,
       });
     } catch {

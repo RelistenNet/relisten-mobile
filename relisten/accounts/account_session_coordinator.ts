@@ -156,12 +156,12 @@ export class AccountSessionCoordinator {
       throw new Error('Use switchAccount while another Relisten account is active.');
     }
 
-    return this.openSignIn(provider, false);
+    return this.openSignIn(provider);
   };
 
   switchAccount = async (provider: AccountProvider): Promise<AccountSignInResult> => {
     await this.signOut();
-    return this.openSignIn(provider, true);
+    return this.openSignIn(provider);
   };
 
   signOut = (): Promise<void> => {
@@ -374,10 +374,7 @@ export class AccountSessionCoordinator {
     }
   }
 
-  private async openSignIn(
-    provider: AccountProvider,
-    forceAccountSelection: boolean
-  ): Promise<AccountSignInResult> {
+  private async openSignIn(provider: AccountProvider): Promise<AccountSignInResult> {
     if (this.transitioning) {
       throw new Error('An account transition is already in progress.');
     }
@@ -388,7 +385,7 @@ export class AccountSessionCoordinator {
     let callbackStarted = false;
 
     try {
-      const result = await this.nativeAuthFlow.open(provider, forceAccountSelection);
+      const result = await this.nativeAuthFlow.open(provider);
 
       if (result.type === 'cancelled') {
         this.publish({ status: 'signedOut', profile: null, error: null });
