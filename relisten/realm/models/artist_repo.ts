@@ -23,6 +23,10 @@ import { attachArtistsToExistingShows } from '@/relisten/realm/models/show_artis
 
 export const artistRepo = new Repository(Artist);
 
+function artistHasUserInteraction(artist: Artist): boolean {
+  return artist.isFavorite || artist.hasOfflineTracks();
+}
+
 class ArtistsNetworkBackedBehavior extends NetworkBackedModelArrayBehavior<
   Artist,
   ArtistWithCounts,
@@ -31,7 +35,14 @@ class ArtistsNetworkBackedBehavior extends NetworkBackedModelArrayBehavior<
 > {
   override upsert(localData: Realm.Results<Artist>, apiData: ArtistWithCounts[]): void {
     this.realm.write(() => {
-      const { allModels } = artistRepo.upsertMultiple(this.realm, apiData, localData, true, true);
+      const { allModels } = artistRepo.upsertMultiple(
+        this.realm,
+        apiData,
+        localData,
+        true,
+        true,
+        artistHasUserInteraction
+      );
 
       attachArtistsToExistingShows(this.realm, allModels);
     });

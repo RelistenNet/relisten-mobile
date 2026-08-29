@@ -41,11 +41,13 @@ export function catalogStartupRepairEvent(
   return {
     eventName: Events.CatalogStartupRepair,
     value:
+      summary.restoredArtists +
       summary.repairedLinks +
       summary.tombstonedRows +
       summary.deletedLeafRows +
       summary.removedQueueEntries,
     metadata: {
+      restoredArtists: summary.restoredArtists.toString(),
       repairedLinks: summary.repairedLinks.toString(),
       tombstonedRows: summary.tombstonedRows.toString(),
       deletedLeafRows: summary.deletedLeafRows.toString(),
