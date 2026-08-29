@@ -12,14 +12,14 @@ import { aggregateBy } from '@/relisten/util/group_by';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { tw } from '@/relisten/util/tw';
 import { Link, useFocusEffect } from 'expo-router';
-import { PropsWithChildren, ReactNode, useCallback, useEffect, useMemo } from 'react';
+import { PropsWithChildren, ReactNode, useCallback, useEffect, useMemo, useReducer } from 'react';
 import { TouchableOpacity, View, ViewProps } from 'react-native';
 import {
-  SourceTrackOfflineInfoStatus,
-  SourceTrackOfflineInfoType,
-} from '@/relisten/realm/models/source_track_offline_info';
-import { useRemainingDownloadsCount } from '@/relisten/realm/root_services';
+  useLibraryShowCatalogUuids,
+  useRemainingDownloadsCount,
+} from '@/relisten/realm/root_services';
 import { logTabRootDebug } from '@/relisten/util/profile_logging';
+import { AccountEntryCard } from '@/relisten/accounts/ui/account_entry_card';
 
 function MyLibrarySectionHeader({ children, className, ...props }: PropsWithChildren<ViewProps>) {
   return (
@@ -73,21 +73,29 @@ function RecentlyPlayedShows() {
 
 function FavoriteShows({ topContent }: { topContent?: ReactNode }) {
   const showFilters = useShowFilters();
-  const favoriteShowsQuery = useQuery(
-    {
-      type: Show,
-      query: (query) =>
-        query.filtered(
-          'isFavorite == true OR SUBQUERY(sourceTracks, $item, $item.offlineInfo.status == $0 AND $item.offlineInfo.type == $1).@count > 0',
-          SourceTrackOfflineInfoStatus.Succeeded,
-          SourceTrackOfflineInfoType.UserInitiated
-        ),
-    },
-    []
+  const allShows = useQuery(Show);
+  const libraryShowUuids = useLibraryShowCatalogUuids();
+  const [focusRevision, refreshAfterFocus] = useReducer((revision: number) => revision + 1, 0);
+
+  useFocusEffect(
+    useCallback(() => {
+      // Tab roots are frozen while another tab or a pushed detail screen is
+      // active. Re-read the external index on focus because React can suppress
+      // the render that accompanied a Realm notification while this tree froze.
+      refreshAfterFocus();
+    }, [])
   );
 
-  const favoriteShowsByArtist: RelistenSectionData<Show> = useMemo(() => {
-    const showsByArtistUuid = aggregateBy([...favoriteShowsQuery], (s) => s.artistUuid);
+  // Realm Results have a stable identity, so include the library set snapshot
+  // and focus revision explicitly. React Compiler can then see both reasons
+  // this derived array must be rebuilt.
+  const favoriteShows = useMemo(
+    () => [...allShows].filter((show) => libraryShowUuids.has(show.uuid)),
+    [allShows, focusRevision, libraryShowUuids]
+  );
+
+  const favoriteShowsByArtist = useMemo<RelistenSectionData<Show>>(() => {
+    const showsByArtistUuid = aggregateBy(favoriteShows, (s) => s.artistUuid);
 
     return Object.keys(showsByArtistUuid)
       .sort((a, b) => {
@@ -103,7 +111,11 @@ function FavoriteShows({ topContent }: { topContent?: ReactNode }) {
           data: shows,
         };
       });
-  }, [favoriteShowsQuery]);
+  }, [favoriteShows]);
+  const listExtraData = useMemo(
+    () => ({ focusRevision, libraryShowUuids }),
+    [focusRevision, libraryShowUuids]
+  );
 
   const nonIdealState = {
     noData: {
@@ -126,11 +138,12 @@ function FavoriteShows({ topContent }: { topContent?: ReactNode }) {
     <RefreshContextProvider>
       <ShowListContainer
         data={favoriteShowsByArtist}
+        extraData={listExtraData}
         ListHeaderComponent={
           <View className="pt-4">
             {topContent}
             <MyLibrarySectionHeader>
-              <Plur word="Show" count={favoriteShowsQuery.length} /> in My Library
+              <Plur word="Show" count={favoriteShows.length} /> in My Library
             </MyLibrarySectionHeader>
           </View>
         }
@@ -198,6 +211,7 @@ export default function MyLibraryTabRootPage() {
       <FavoriteShows
         topContent={
           <>
+            <AccountEntryCard />
             <ActiveDownloads />
             <RecentlyPlayedShows />
             <Link

@@ -28,12 +28,13 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>relisten</string>
+          <string>net.relisten.mobile</string>
           <string>com.alecgorge.ios.Listen-to-the-Dead</string>
         </array>
       </dict>
     </array>
     <key>CFBundleVersion</key>
-    <string>6048</string>
+    <string>6049</string>
     <key>LSApplicationQueriesSchemes</key>
     <array>
       <string>mailto</string>

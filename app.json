@@ -11,7 +11,10 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "scheme": "relisten",
+    "scheme": [
+      "relisten",
+      "net.relisten.mobile"
+    ],
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -27,7 +30,7 @@
           "audio"
         ]
       },
-      "buildNumber": "6048"
+      "buildNumber": "6049"
     },
     "android": {
       "playStoreUrl": "https://play.google.com/store/apps/details?id=net.relisten.android",
@@ -60,7 +63,7 @@
       },
       "icon": "./assets/ic_playstore.png",
       "package": "net.relisten.android",
-      "versionCode": 6048
+      "versionCode": 6049
     },
     "web": {
       "favicon": "./assets/favicon.png"
