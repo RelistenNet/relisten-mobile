@@ -30,7 +30,7 @@ import {
   CatalogStartupRepairState,
   repairCatalogAtStartup,
 } from '@/relisten/realm/catalog_startup_repair';
-import { Artist } from '@/relisten/realm/models/artist';
+import { Artist, ArtistFeaturedFlags } from '@/relisten/realm/models/artist';
 import { Year } from '@/relisten/realm/models/year';
 import { Show } from '@/relisten/realm/models/show';
 import { Venue } from '@/relisten/realm/models/venue';
@@ -75,20 +75,35 @@ const config: Realm.Configuration = {
   ],
 };
 
-function createArtist(realm: Realm) {
+function createArtist(
+  realm: Realm,
+  {
+    uuid = 'artist',
+    featured = ArtistFeaturedFlags.None,
+    isFavorite = false,
+    deletedAt,
+  }: {
+    uuid?: string;
+    featured?: number;
+    isFavorite?: boolean;
+    deletedAt?: Date;
+  } = {}
+) {
   return realm.create(Artist, {
-    uuid: 'artist',
+    uuid,
     createdAt: now,
     updatedAt: now,
+    deletedAt,
     musicbrainzId: '',
-    name: 'Artist',
-    featured: 0,
-    slug: 'artist',
-    sortName: 'Artist',
+    name: uuid,
+    featured,
+    slug: uuid,
+    sortName: uuid,
     featuresRaw: '{}',
     upstreamSourcesRaw: '[]',
     showCount: 1,
     sourceCount: 1,
+    isFavorite,
   });
 }
 
@@ -276,6 +291,7 @@ describe('catalog startup repair', () => {
     });
 
     expect(repairCatalogAtStartup(realm)).toEqual({
+      restoredArtists: 0,
       repairedLinks: 6,
       tombstonedRows: 0,
       deletedLeafRows: 0,
@@ -296,6 +312,7 @@ describe('catalog startup repair', () => {
     realm = new Realm(config);
 
     expect(repairCatalogAtStartup(realm)).toEqual({
+      restoredArtists: 0,
       repairedLinks: 0,
       tombstonedRows: 0,
       deletedLeafRows: 0,
@@ -332,6 +349,7 @@ describe('catalog startup repair', () => {
 
     const summary = repairCatalogAtStartup(realm);
     expect(summary).toEqual({
+      restoredArtists: 0,
       repairedLinks: 0,
       tombstonedRows: 3,
       deletedLeafRows: 2,
@@ -360,6 +378,7 @@ describe('catalog startup repair', () => {
     expect(playerState.activeSourceTrackIndex).toBeNull();
     expect(playerState.activeSourceTrackShuffledIndex).toBeNull();
     expect(repairCatalogAtStartup(realm)).toEqual({
+      restoredArtists: 0,
       repairedLinks: 0,
       tombstonedRows: 0,
       deletedLeafRows: 0,
@@ -403,6 +422,7 @@ describe('catalog startup repair', () => {
     });
 
     expect(repairCatalogAtStartup(realm)).toEqual({
+      restoredArtists: 0,
       repairedLinks: 0,
       tombstonedRows: 4,
       deletedLeafRows: 0,
@@ -412,8 +432,74 @@ describe('catalog startup repair', () => {
     expect(Array.from(song.shows, (show) => show.uuid)).toEqual(['show']);
   });
 
+  it('restores only tombstoned auto-created artists with user interaction', () => {
+    let favoriteArtist!: Artist;
+    let offlineArtist!: Artist;
+    let untouchedAutoCreatedArtist!: Artist;
+    let ordinaryFavoriteArtist!: Artist;
+
+    realm.write(() => {
+      realm.create(CatalogStartupRepairState, {
+        version: 1,
+        completedAt: now,
+      });
+
+      offlineArtist = createArtist(realm, {
+        featured: ArtistFeaturedFlags.Featured | ArtistFeaturedFlags.AutoCreated,
+        deletedAt: now,
+      });
+      const year = createYear(realm);
+      const show = createShow(realm, offlineArtist);
+      const source = createSource(realm, offlineArtist);
+      const offlineInfo = createOfflineInfo(realm);
+      createSourceTrack(realm, { artist: offlineArtist, year, show, source, offlineInfo });
+
+      favoriteArtist = createArtist(realm, {
+        uuid: 'favorite-auto-created',
+        featured: ArtistFeaturedFlags.AutoCreated,
+        isFavorite: true,
+        deletedAt: now,
+      });
+      untouchedAutoCreatedArtist = createArtist(realm, {
+        uuid: 'untouched-auto-created',
+        featured: ArtistFeaturedFlags.AutoCreated,
+        deletedAt: now,
+      });
+      ordinaryFavoriteArtist = createArtist(realm, {
+        uuid: 'ordinary-favorite',
+        isFavorite: true,
+        deletedAt: now,
+      });
+    });
+
+    const summary = repairCatalogAtStartup(realm);
+
+    expect(summary).toEqual({
+      restoredArtists: 2,
+      repairedLinks: 0,
+      tombstonedRows: 0,
+      deletedLeafRows: 0,
+      removedQueueEntries: 0,
+    });
+    expect(favoriteArtist.deletedAt).toBeNull();
+    expect(offlineArtist.deletedAt).toBeNull();
+    expect(untouchedAutoCreatedArtist.deletedAt).toBeInstanceOf(Date);
+    expect(ordinaryFavoriteArtist.deletedAt).toBeInstanceOf(Date);
+    expect(realm.objectForPrimaryKey(CatalogStartupRepairState, 1)).not.toBeNull();
+    expect(
+      realm.objectForPrimaryKey(CatalogStartupRepairState, CATALOG_STARTUP_REPAIR_VERSION)
+    ).not.toBeNull();
+    expect(logStatsigEvent).toHaveBeenCalledWith({
+      eventName: 'catalog_startup_repair',
+      summary,
+      durationMs: expect.any(Number),
+      repairVersion: CATALOG_STARTUP_REPAIR_VERSION,
+    });
+  });
+
   it('marks a clean Realm complete without emitting repair telemetry', () => {
     expect(repairCatalogAtStartup(realm)).toEqual({
+      restoredArtists: 0,
       repairedLinks: 0,
       tombstonedRows: 0,
       deletedLeafRows: 0,

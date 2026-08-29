@@ -7,7 +7,10 @@ import { Song } from '@/relisten/realm/models/song';
 import { Source } from '@/relisten/realm/models/source';
 import { SourceSet } from '@/relisten/realm/models/source_set';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
-import { SourceTrackOfflineInfo } from '@/relisten/realm/models/source_track_offline_info';
+import {
+  SourceTrackOfflineInfo,
+  SourceTrackOfflineInfoStatus,
+} from '@/relisten/realm/models/source_track_offline_info';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { PlayerState } from '@/relisten/realm/models/player_state';
 import { catalogStartupRepairEvent, sharedStatsigClient } from '@/relisten/events';
@@ -15,13 +18,14 @@ import { catalogStartupRepairEvent, sharedStatsigClient } from '@/relisten/event
 const logger = log.extend('catalog-startup-repair');
 
 export interface CatalogRepairSummary {
+  restoredArtists: number;
   repairedLinks: number;
   tombstonedRows: number;
   deletedLeafRows: number;
   removedQueueEntries: number;
 }
 
-export const CATALOG_STARTUP_REPAIR_VERSION = 1;
+export const CATALOG_STARTUP_REPAIR_VERSION = 2;
 
 export class CatalogStartupRepairState extends Realm.Object<CatalogStartupRepairState> {
   static schema: Realm.ObjectSchema = {
@@ -96,6 +100,7 @@ function removeIrreparableShowsFromSongs(realm: Realm, showUuids: ReadonlySet<st
  */
 export function repairCatalogAtStartup(realm: Realm): CatalogRepairSummary {
   const summary: CatalogRepairSummary = {
+    restoredArtists: 0,
     repairedLinks: 0,
     tombstonedRows: 0,
     deletedLeafRows: 0,
@@ -109,6 +114,21 @@ export function repairCatalogAtStartup(realm: Realm): CatalogRepairSummary {
   const repairDate = new Date();
 
   realm.write(() => {
+    const userInteractedDeletedArtists = realm
+      .objects(Artist)
+      .filtered(
+        'deletedAt != nil AND (isFavorite == true OR SUBQUERY(sourceTracks, $track, $track.offlineInfo.status == $0).@count > 0)',
+        SourceTrackOfflineInfoStatus.Succeeded
+      )
+      .snapshot();
+
+    for (const artist of userInteractedDeletedArtists) {
+      if (artist.isAutomaticallyCreated()) {
+        artist.deletedAt = undefined;
+        summary.restoredArtists += 1;
+      }
+    }
+
     const irreparableShowUuids = new Set<string>();
     const irreparableSourceUuids = new Set<string>();
     const irreparableTrackUuids = new Set<string>();
