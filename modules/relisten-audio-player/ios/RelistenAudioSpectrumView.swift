@@ -5,7 +5,7 @@ final class RelistenAudioSpectrumView: ExpoView {
     private static let staleFrameInterval: TimeInterval = 0.15
 
     private let barLayer = CAShapeLayer()
-    private let centerLineLayer = CAShapeLayer()
+    private let baselineLayer = CAShapeLayer()
     private let snapshotStore = SpectrumSnapshotStore.shared
     private var displayLink: CADisplayLink?
     private var isApplicationActive = UIApplication.shared.applicationState == .active
@@ -49,15 +49,14 @@ final class RelistenAudioSpectrumView: ExpoView {
         ]
         layer.addSublayer(barLayer)
 
-        centerLineLayer.fillColor = nil
-        centerLineLayer.lineDashPattern = [1, 3]
-        centerLineLayer.lineWidth = 0.75
-        centerLineLayer.opacity = 0.3
-        centerLineLayer.actions = [
+        baselineLayer.fillColor = nil
+        baselineLayer.lineCap = .round
+        baselineLayer.opacity = 0.3
+        baselineLayer.actions = [
             "path": NSNull(),
             "strokeColor": NSNull(),
         ]
-        layer.addSublayer(centerLineLayer)
+        layer.addSublayer(baselineLayer)
 
         updateLayerColors()
         NotificationCenter.default.addObserver(
@@ -101,7 +100,7 @@ final class RelistenAudioSpectrumView: ExpoView {
     override func layoutSubviews() {
         super.layoutSubviews()
         barLayer.frame = bounds
-        centerLineLayer.frame = bounds
+        baselineLayer.frame = bounds
         updatePaths()
     }
 
@@ -206,7 +205,7 @@ final class RelistenAudioSpectrumView: ExpoView {
 
     private func updateLayerColors() {
         barLayer.strokeColor = spectrumColor.cgColor
-        centerLineLayer.strokeColor = spectrumColor.cgColor
+        baselineLayer.strokeColor = spectrumColor.cgColor
     }
 
     private func resetSpectrum() {
@@ -219,23 +218,30 @@ final class RelistenAudioSpectrumView: ExpoView {
 
         let bandCount = smoother.values.count
         let horizontalStep = bounds.width / CGFloat(bandCount)
-        let centerY = bounds.midY
-        let maximumHalfHeight = bounds.height * 0.46
+        let strokeWidth = min(max(horizontalStep * 0.28, 1.5), 2)
+        let baselineY = bounds.height - strokeWidth / 2
+        let maximumHeight = max(0, bounds.height - strokeWidth)
         let barsPath = UIBezierPath()
 
         for (index, amplitude) in smoother.values.enumerated() where amplitude > 0.001 {
             let x = (CGFloat(index) + 0.5) * horizontalStep
-            let halfHeight = max(CGFloat(amplitude) * maximumHalfHeight, 0.75)
-            barsPath.move(to: CGPoint(x: x, y: centerY - halfHeight))
-            barsPath.addLine(to: CGPoint(x: x, y: centerY + halfHeight))
+            let barHeight = max(CGFloat(amplitude) * maximumHeight, 0.75)
+            barsPath.move(to: CGPoint(x: x, y: baselineY))
+            barsPath.addLine(to: CGPoint(x: x, y: baselineY - barHeight))
         }
 
-        let centerPath = UIBezierPath()
-        centerPath.move(to: CGPoint(x: 0, y: centerY))
-        centerPath.addLine(to: CGPoint(x: bounds.width, y: centerY))
+        let baselinePath = UIBezierPath()
+        // Resting dots share the bars' centers; an independent dashed line
+        // produces stray marks beside each live bar.
+        for index in 0..<bandCount {
+            let x = (CGFloat(index) + 0.5) * horizontalStep
+            baselinePath.move(to: CGPoint(x: x, y: baselineY))
+            baselinePath.addLine(to: CGPoint(x: x, y: baselineY - 0.01))
+        }
 
-        barLayer.lineWidth = min(max(horizontalStep * 0.34, 1), 3)
+        barLayer.lineWidth = strokeWidth
+        baselineLayer.lineWidth = strokeWidth
         barLayer.path = barsPath.cgPath
-        centerLineLayer.path = centerPath.cgPath
+        baselineLayer.path = baselinePath.cgPath
     }
 }
