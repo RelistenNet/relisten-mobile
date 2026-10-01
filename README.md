@@ -10,15 +10,6 @@ To keep the code base clean, use the steps below to run locally and verify your 
 
 React Compiler is enabled repo-wide, and compiler diagnostics are treated as hard failures. If you hit new React Compiler issues while iterating, run `npx react-compiler-healthcheck@latest` to get a repo-level inventory in addition to `yarn lint`.
 
-### Tests
-
-Run `nvm use`, `yarn test`, `yarn lint`, and `yarn ts:check` before submitting changes.
-Queue regressions can be run with `yarn test relisten/player`.
-The drag tests execute callbacks from the installed `react-native-reorderable-list`
-and Reanimated sources. Install with `yarn install --frozen-lockfile` so the
-`patch-package` postinstall applies the canceled-animation fix. When upgrading
-either dependency, verify the patch and rerun these regressions.
-
 ### Running the app locally
 
 #### Mac + iOS Simulator

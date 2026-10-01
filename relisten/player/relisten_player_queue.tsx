@@ -188,19 +188,6 @@ export class RelistenPlayerQueue {
   }
 
   moveQueueTrack(from: number, to: number) {
-    const trackCount = this.orderedTracks.length;
-    if (
-      from === to ||
-      !Number.isInteger(from) ||
-      !Number.isInteger(to) ||
-      from < 0 ||
-      to < 0 ||
-      from >= trackCount ||
-      to >= trackCount
-    ) {
-      return;
-    }
-
     function reorderItems<T>(data: T[], from: number, to: number): T[] {
       const newData = [...data];
       newData.splice(to, 0, newData.splice(from, 1)[0]);

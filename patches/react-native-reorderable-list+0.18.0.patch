@@ -1,91 +1,50 @@
 diff --git a/node_modules/react-native-reorderable-list/lib/commonjs/components/ReorderableListCore.js b/node_modules/react-native-reorderable-list/lib/commonjs/components/ReorderableListCore.js
-index 2e5bea3..bf906e5 100644
+index 2e5bea3..c2fdb27 100644
 --- a/node_modules/react-native-reorderable-list/lib/commonjs/components/ReorderableListCore.js
 +++ b/node_modules/react-native-reorderable-list/lib/commonjs/components/ReorderableListCore.js
-@@ -315,6 +315,9 @@ const ReorderableListCore = ({
-   };
-   const reorder = (fromIndex, toIndex) => {
-     (0, _reactNativeReanimated.runOnUI)(resetSharedValues)();
-+    if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex) || fromIndex < 0 || toIndex < 0 || fromIndex >= data.length || toIndex >= data.length) {
-+      return;
-+    }
-     if (fromIndex !== toIndex) {
-       markCells(fromIndex, toIndex);
-       onReorder({
-@@ -435,8 +438,11 @@ const ReorderableListCore = ({
+@@ -435,8 +435,10 @@ const ReorderableListCore = ({
          dragXY.value = (0, _reactNativeReanimated.withTiming)(newPositionXY, {
            duration: animationDurationProp.value,
            easing: _reactNativeReanimated.Easing.out(_reactNativeReanimated.Easing.ease)
 -        }, () => {
 -          (0, _reactNativeReanimated.runOnJS)(reorder)(draggedIndex.value, currentIndex.value);
 +        }, finished => {
-+          // Resetting dragXY can cancel an already completed animation.
 +          if (finished) {
-+            (0, _reactNativeReanimated.runOnJS)(reorder)(e.from, e.to);
++            (0, _reactNativeReanimated.runOnJS)(reorder)(draggedIndex.value, currentIndex.value);
 +          }
          });
        } else {
          // User might drag and release the item without moving it so,
 diff --git a/node_modules/react-native-reorderable-list/lib/module/components/ReorderableListCore.js b/node_modules/react-native-reorderable-list/lib/module/components/ReorderableListCore.js
-index 3b394e7..8fbcf8e 100644
+index 3b394e7..30a31cc 100644
 --- a/node_modules/react-native-reorderable-list/lib/module/components/ReorderableListCore.js
 +++ b/node_modules/react-native-reorderable-list/lib/module/components/ReorderableListCore.js
-@@ -307,6 +307,9 @@ const ReorderableListCore = ({
-   };
-   const reorder = (fromIndex, toIndex) => {
-     runOnUI(resetSharedValues)();
-+    if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex) || fromIndex < 0 || toIndex < 0 || fromIndex >= data.length || toIndex >= data.length) {
-+      return;
-+    }
-     if (fromIndex !== toIndex) {
-       markCells(fromIndex, toIndex);
-       onReorder({
-@@ -427,8 +430,11 @@ const ReorderableListCore = ({
+@@ -427,8 +427,10 @@ const ReorderableListCore = ({
          dragXY.value = withTiming(newPositionXY, {
            duration: animationDurationProp.value,
            easing: Easing.out(Easing.ease)
 -        }, () => {
 -          runOnJS(reorder)(draggedIndex.value, currentIndex.value);
 +        }, finished => {
-+          // Resetting dragXY can cancel an already completed animation.
 +          if (finished) {
-+            runOnJS(reorder)(e.from, e.to);
++            runOnJS(reorder)(draggedIndex.value, currentIndex.value);
 +          }
          });
        } else {
          // User might drag and release the item without moving it so,
 diff --git a/node_modules/react-native-reorderable-list/src/components/ReorderableListCore.tsx b/node_modules/react-native-reorderable-list/src/components/ReorderableListCore.tsx
-index 908155c..0affa3d 100644
+index 908155c..31d5e81 100644
 --- a/node_modules/react-native-reorderable-list/src/components/ReorderableListCore.tsx
 +++ b/node_modules/react-native-reorderable-list/src/components/ReorderableListCore.tsx
-@@ -511,6 +511,17 @@ const ReorderableListCore = <T,>(
-   const reorder = (fromIndex: number, toIndex: number) => {
-     runOnUI(resetSharedValues)();
- 
-+    if (
-+      !Number.isInteger(fromIndex) ||
-+      !Number.isInteger(toIndex) ||
-+      fromIndex < 0 ||
-+      toIndex < 0 ||
-+      fromIndex >= data.length ||
-+      toIndex >= data.length
-+    ) {
-+      return;
-+    }
-+
-     if (fromIndex !== toIndex) {
-       markCells(fromIndex, toIndex);
-       onReorder({from: fromIndex, to: toIndex});
-@@ -694,8 +705,11 @@ const ReorderableListCore = <T,>(
+@@ -694,8 +694,10 @@ const ReorderableListCore = <T,>(
                duration: animationDurationProp.value,
                easing: Easing.out(Easing.ease),
              },
 -            () => {
 -              runOnJS(reorder)(draggedIndex.value, currentIndex.value);
 +            finished => {
-+              // Resetting dragXY can cancel an already completed animation.
 +              if (finished) {
-+                runOnJS(reorder)(e.from, e.to);
++                runOnJS(reorder)(draggedIndex.value, currentIndex.value);
 +              }
              },
            );
