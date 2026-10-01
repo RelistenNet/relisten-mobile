@@ -16,7 +16,7 @@ export function AudioAdjustmentsSettingsSection() {
       <Flex column className="gap-4 p-4 pr-8">
         <RowWithAction
           title="Audio Equalizer"
-          subtitle="Use equalizer presets or make Relisten quieter than the system volume allows."
+          subtitle="Shape the sound with equalizer presets, or cut and boost playback volume."
         >
           <Link href="/relisten/audio-adjustments" asChild>
             <RelistenButton intent="outline">Open</RelistenButton>

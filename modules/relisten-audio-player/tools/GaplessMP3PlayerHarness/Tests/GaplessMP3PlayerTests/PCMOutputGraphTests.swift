@@ -38,6 +38,24 @@ final class PCMOutputGraphTests: XCTestCase {
         }
     }
 
+    func testSignedGainReachesNativeEqualizerWithoutClampingAtUnity() throws {
+        let queue = DispatchQueue(label: "PCMOutputGraphTests.signed-gain")
+        try queue.sync {
+            let graph = try PCMOutputGraph(sampleRate: 44_100, channelCount: 2, ownerQueue: queue)
+            for gain in [-30.0, 0, 6, 12] {
+                let configuration = try AudioAdjustmentConfiguration.validated(
+                    specVersion: 1, enabled: true,
+                    bandGainsDb: Array(repeating: 0, count: 10),
+                    extraVolumeReductionDb: gain
+                )
+                graph.applyAudioAdjustmentConfiguration(configuration, animated: false)
+                XCTAssertEqual(graph.equalizerGlobalGainDb, Float(gain))
+                XCTAssertFalse(graph.isEqualizerBypassed)
+                XCTAssertTrue(graph.isEngineRunning)
+            }
+        }
+    }
+
     func testAnimatedDisableFinishesBypassingEqualizer() throws {
         let queue = DispatchQueue(label: "PCMOutputGraphTests.equalizer-disable")
         let finished = expectation(description: "animated equalizer disable")

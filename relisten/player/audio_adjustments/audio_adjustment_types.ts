@@ -6,8 +6,8 @@ export const AUDIO_ADJUSTMENT_FREQUENCIES_HZ = [
 
 export const AUDIO_ADJUSTMENT_BAND_GAIN_MIN_DB = -12;
 export const AUDIO_ADJUSTMENT_BAND_GAIN_MAX_DB = 12;
-export const AUDIO_ADJUSTMENT_VOLUME_REDUCTION_MIN_DB = -30;
-export const AUDIO_ADJUSTMENT_VOLUME_REDUCTION_MAX_DB = 0;
+export const AUDIO_ADJUSTMENT_VOLUME_GAIN_MIN_DB = -30;
+export const AUDIO_ADJUSTMENT_VOLUME_GAIN_MAX_DB = 12;
 
 export type AudioAdjustmentBandGains = [
   number,
@@ -29,6 +29,7 @@ export const FLAT_AUDIO_ADJUSTMENT_BAND_GAINS: AudioAdjustmentBandGains = [
 export type AudioAdjustmentConfiguration = {
   bandGainsDb: AudioAdjustmentBandGains;
   enabled: boolean;
+  // Legacy storage/bridge key: signed overall gain, including positive boost.
   extraVolumeReductionDb: number;
   specVersion: number;
 };
@@ -45,6 +46,7 @@ export type AudioAdjustmentCapabilities = {
 
 export type AudioAdjustmentPreset = {
   bandGainsDb: AudioAdjustmentBandGains;
+  // Legacy storage/bridge key: signed overall gain, including positive boost.
   extraVolumeReductionDb: number;
   id: string;
   name: string;
@@ -58,8 +60,8 @@ export function unsupportedAudioAdjustmentCapabilities(): AudioAdjustmentCapabil
     frequenciesHz: [...AUDIO_ADJUSTMENT_FREQUENCIES_HZ],
     specVersion: AUDIO_ADJUSTMENT_SPEC_VERSION,
     supported: false,
-    volumeReductionMaximumDb: AUDIO_ADJUSTMENT_VOLUME_REDUCTION_MAX_DB,
-    volumeReductionMinimumDb: AUDIO_ADJUSTMENT_VOLUME_REDUCTION_MIN_DB,
+    volumeReductionMaximumDb: AUDIO_ADJUSTMENT_VOLUME_GAIN_MAX_DB,
+    volumeReductionMinimumDb: AUDIO_ADJUSTMENT_VOLUME_GAIN_MIN_DB,
   };
 }
 
@@ -93,10 +95,10 @@ export function normalizeAudioAdjustmentConfiguration(configuration: {
     typeof requestedVolumeReductionDb === 'number' && Number.isFinite(requestedVolumeReductionDb)
       ? clamp(
           requestedVolumeReductionDb,
-          AUDIO_ADJUSTMENT_VOLUME_REDUCTION_MIN_DB,
-          AUDIO_ADJUSTMENT_VOLUME_REDUCTION_MAX_DB
+          AUDIO_ADJUSTMENT_VOLUME_GAIN_MIN_DB,
+          AUDIO_ADJUSTMENT_VOLUME_GAIN_MAX_DB
         )
-      : AUDIO_ADJUSTMENT_VOLUME_REDUCTION_MAX_DB;
+      : 0;
 
   return {
     bandGainsDb: normalizeAudioAdjustmentBandGains(configuration.bandGainsDb),

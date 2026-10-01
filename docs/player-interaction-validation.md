@@ -171,3 +171,11 @@ Evidence is in the task workspace `evidence/`: `expanded-clean-final.png`,
 VoiceOver, accessibility font sizes, reduced-motion behavior, physical-device
 memory/lifecycle stress, and natural track advancement during an active reorder
 remain manual coverage gaps. No commit, push, merge, or deployment was performed.
+
+## Signed EQ gain follow-up
+
+Volume Gain now spans -30 to +12 dB, with 0 dB at the physical center and integer dB adjustment. The legacy `extraVolumeReductionDb` storage/bridge key retains old settings and presets. Native EQ global gain is the chosen gain minus existing automatic band headroom; there is no limiter and boost can distort loud recordings. Android still reports EQ unsupported.
+
+Validated with four TypeScript tests including real Realm settings/preset persistence, 12 native configuration/output-graph tests, TypeScript, lint, and a fresh iOS simulator build. One existing native animation test hit its one-second timeout while compiling; all 12 passed on rerun after compilation. Actual simulator interaction reached both endpoints, saved/reopened positive gain, crossed zero during advancing playback, and reset to 0 dB while retaining the enabled state. Independent code and screenshot reviews completed. Final screenshots: +5 dB, 0 dB, -13 dB.
+
+The previously exported 6.2.0 (6050) TestFlight IPA predates this EQ change. It remains unuploaded and must be rebuilt before distributing these changes. No OTA was published.
