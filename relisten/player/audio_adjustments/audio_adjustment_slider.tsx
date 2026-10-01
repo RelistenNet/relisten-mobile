@@ -1,9 +1,14 @@
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import Slider from '@react-native-community/slider';
 import colors from 'tailwindcss/colors';
+import { View } from 'react-native';
+import {
+  decibelsToSliderPosition,
+  sliderPositionToDecibels,
+} from './audio_adjustment_slider_scale';
 
 type AudioAdjustmentSliderProps = {
-  activeTrackDirection?: 'maximum' | 'minimum';
+  centered?: boolean;
   accessibilityLabel: string;
   accessibilityText: string;
   disabled: boolean;
@@ -14,12 +19,8 @@ type AudioAdjustmentSliderProps = {
   valueDb: number;
 };
 
-function clamp(value: number, minimum: number, maximum: number) {
-  return Math.min(Math.max(value, minimum), maximum);
-}
-
 export function AudioAdjustmentSlider({
-  activeTrackDirection = 'minimum',
+  centered = false,
   accessibilityLabel,
   accessibilityText,
   disabled,
@@ -30,31 +31,65 @@ export function AudioAdjustmentSlider({
   valueDb,
 }: AudioAdjustmentSliderProps) {
   const rangeDb = maximumDb - minimumDb;
-  const normalizedValue = clamp((valueDb - minimumDb) / rangeDb, 0, 1);
+  const normalizedValue = decibelsToSliderPosition(valueDb, minimumDb, maximumDb, centered);
 
   return (
-    <Slider
-      accessibilityLabel={accessibilityLabel}
-      accessibilityValue={{
-        max: maximumDb,
-        min: minimumDb,
-        now: valueDb,
-        text: accessibilityText,
-      }}
-      disabled={disabled}
-      maximumTrackTintColor={
-        activeTrackDirection === 'maximum' ? RelistenBlue[300] : RelistenBlue[800]
-      }
-      maximumValue={1}
-      minimumTrackTintColor={
-        activeTrackDirection === 'minimum' ? RelistenBlue[300] : RelistenBlue[800]
-      }
-      minimumValue={0}
-      onSlidingComplete={onSlidingComplete}
-      onValueChange={(value) => onValueChange(minimumDb + Math.round(value * rangeDb))}
-      step={1 / rangeDb}
-      thumbTintColor={colors.gray[50]}
-      value={normalizedValue}
-    />
+    <View style={{ height: 40, justifyContent: 'center' }}>
+      {centered && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: 14,
+            right: 14,
+            height: 2,
+            backgroundColor: RelistenBlue[800],
+          }}
+        >
+          <View
+            style={{
+              position: 'absolute',
+              height: 2,
+              left: `${Math.min(0.5, normalizedValue) * 100}%`,
+              width: `${Math.abs(normalizedValue - 0.5) * 100}%`,
+              backgroundColor: RelistenBlue[300],
+            }}
+          />
+          <View
+            style={{
+              position: 'absolute',
+              left: '50%',
+              top: -4,
+              width: 2,
+              height: 10,
+              marginLeft: -1,
+              backgroundColor: RelistenBlue[200],
+            }}
+          />
+        </View>
+      )}
+      <Slider
+        style={{ height: 40 }}
+        accessibilityLabel={accessibilityLabel}
+        accessibilityValue={{
+          max: maximumDb,
+          min: minimumDb,
+          now: valueDb,
+          text: accessibilityText,
+        }}
+        disabled={disabled}
+        maximumTrackTintColor={centered ? 'transparent' : RelistenBlue[800]}
+        maximumValue={1}
+        minimumTrackTintColor={centered ? 'transparent' : RelistenBlue[300]}
+        minimumValue={0}
+        onSlidingComplete={onSlidingComplete}
+        onValueChange={(value) =>
+          onValueChange(sliderPositionToDecibels(value, minimumDb, maximumDb, centered))
+        }
+        step={centered ? 0 : 1 / rangeDb}
+        thumbTintColor={colors.gray[50]}
+        value={normalizedValue}
+      />
+    </View>
   );
 }

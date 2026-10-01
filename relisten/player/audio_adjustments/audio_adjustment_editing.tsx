@@ -33,7 +33,7 @@ type AudioAdjustmentEditingContextValue = {
   selectPreset: (preset: AudioAdjustmentPreset) => void;
   setBandGain: (index: number, gainDb: number) => void;
   setEnabled: (enabled: boolean) => void;
-  setExtraVolumeReduction: (reductionDb: number) => void;
+  setVolumeGain: (gainDb: number) => void;
 };
 
 const AudioAdjustmentEditingContext = createContext<AudioAdjustmentEditingContextValue | null>(
@@ -309,7 +309,7 @@ export function AudioAdjustmentEditingProvider({ children }: PropsWithChildren) 
         });
       },
       setEnabled,
-      setExtraVolumeReduction: (extraVolumeReductionDb) => {
+      setVolumeGain: (extraVolumeReductionDb) => {
         if (latestConfigurationRef.current.extraVolumeReductionDb === extraVolumeReductionDb) {
           return;
         }
