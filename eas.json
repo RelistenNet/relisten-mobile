@@ -32,6 +32,14 @@
       "env": {
         "RELEASE_CHANNEL": "testflight"
       }
+    },
+    "testflight-accounts-favorites": {
+      "extends": "testflight",
+      "channel": "accounts-favorites-mobile",
+      "env": {
+        "RELEASE_CHANNEL": "accounts-favorites-mobile",
+        "EXPO_PUBLIC_RELISTEN_CATALOG_ORIGIN": "https://api.relisten.net"
+      }
     }
   },
   "submit": {
