@@ -26,6 +26,32 @@ final class AudioAdjustmentConfigurationTests: XCTestCase {
         XCTAssertEqual(configuration.effectiveGlobalGainDb, -18)
     }
 
+    func testSignedGainAndHeadroom() throws {
+        for gain in [-30.0, 0, 6, 12] {
+            let configuration = try AudioAdjustmentConfiguration.validated(
+                specVersion: 1, enabled: true,
+                bandGainsDb: Array(repeating: 0, count: 10),
+                extraVolumeReductionDb: gain
+            )
+            XCTAssertEqual(configuration.effectiveGlobalGainDb, Float(gain))
+        }
+        let boostedCurve = try AudioAdjustmentConfiguration.validated(
+            specVersion: 1, enabled: true,
+            bandGainsDb: [6] + Array(repeating: 0, count: 9),
+            extraVolumeReductionDb: 12
+        )
+        XCTAssertEqual(boostedCurve.automaticHeadroomDb, 7)
+        XCTAssertEqual(boostedCurve.effectiveGlobalGainDb, 5)
+        XCTAssertEqual(AudioAdjustmentConfiguration.capabilitiesDictionary["volumeReductionMaximumDb"] as? Double, 12)
+        for invalid in [13.0, -31, .nan, .infinity] {
+            XCTAssertThrowsError(try AudioAdjustmentConfiguration.validated(
+                specVersion: 1, enabled: true,
+                bandGainsDb: Array(repeating: 0, count: 10),
+                extraVolumeReductionDb: invalid
+            ))
+        }
+    }
+
     func testRejectsUnsupportedSpecVersion() {
         XCTAssertThrowsError(
             try AudioAdjustmentConfiguration.validated(
