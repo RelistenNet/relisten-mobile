@@ -18,7 +18,7 @@ OTA_RUNTIME_OVERRIDE_REQUESTED=0
 usage() {
   cat <<USAGE
 Usage:
-  $0 [testflight|appstore|ota-testflight|ota-production] [options]
+  $0 [testflight|testflight-accounts-favorites|appstore|ota-testflight|ota-production] [options]
   $0 android-env -- COMMAND [ARGS...]
 
 Options:
@@ -195,7 +195,7 @@ ensure_sentry_token() {
   if [[ -z "$SENTRY_AUTH_TOKEN" ]]; then
     # Needed so Sentry sourcemaps are uploaded during release builds
     SENTRY_AUTH_TOKEN="$(op read "op://Private/Relisten Sentry SaaS/CI org auth token")"
-    echo "Sentry auth token: $(echo "$SENTRY_AUTH_TOKEN" | cut -c1-10)..."
+    echo "Loaded Sentry auth token."
   fi
 }
 
@@ -370,6 +370,13 @@ publish_ota() {
 case "$TARGET" in
 android-env)
   run_with_android_env "${ANDROID_ENV_COMMAND[@]}"
+  ;;
+testflight-accounts-favorites)
+  if [[ "$PLATFORM" != "ios" ]]; then
+    echo "The accounts/favorites TestFlight profile requires --platform ios."
+    exit 1
+  fi
+  build_ios testflight-accounts-favorites
   ;;
 testflight)
   build_target testflight
