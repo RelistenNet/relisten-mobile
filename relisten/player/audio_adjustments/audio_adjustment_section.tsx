@@ -15,7 +15,7 @@ export function AudioAdjustmentCard({ children }: PropsWithChildren) {
 
 export function AudioAdjustmentSection({ children, title }: PropsWithChildren<{ title: string }>) {
   return (
-    <View className="gap-2">
+    <View style={{ gap: 8 }}>
       <RelistenText
         className="text-[13px] font-bold tracking-[1.5px] text-relisten-blue-200"
         selectable={false}
