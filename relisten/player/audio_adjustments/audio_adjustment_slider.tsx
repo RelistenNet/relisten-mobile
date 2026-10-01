@@ -1,3 +1,4 @@
+import { RelistenText } from '@/relisten/components/relisten_text';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import Slider from '@react-native-community/slider';
 import colors from 'tailwindcss/colors';
@@ -40,16 +41,18 @@ export function AudioAdjustmentSlider({
           pointerEvents="none"
           style={{
             position: 'absolute',
-            left: 14,
-            right: 14,
-            height: 2,
+            left: 0,
+            right: 0,
+            height: 6,
+            borderRadius: 3,
             backgroundColor: RelistenBlue[800],
           }}
         >
           <View
             style={{
               position: 'absolute',
-              height: 2,
+              height: 6,
+              borderRadius: 3,
               left: `${Math.min(0.5, normalizedValue) * 100}%`,
               width: `${Math.abs(normalizedValue - 0.5) * 100}%`,
               backgroundColor: RelistenBlue[300],
@@ -59,7 +62,7 @@ export function AudioAdjustmentSlider({
             style={{
               position: 'absolute',
               left: '50%',
-              top: -4,
+              top: -2,
               width: 2,
               height: 10,
               marginLeft: -1,
@@ -90,6 +93,29 @@ export function AudioAdjustmentSlider({
         thumbTintColor={colors.gray[50]}
         value={normalizedValue}
       />
+    </View>
+  );
+}
+
+export function AudioAdjustmentSliderRow(props: AudioAdjustmentSliderProps) {
+  return (
+    <View style={{ padding: 14, gap: 2, opacity: props.disabled ? 0.45 : 1 }}>
+      <View
+        style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}
+      >
+        <RelistenText className="font-semibold" selectable={false}>
+          {props.accessibilityLabel}
+        </RelistenText>
+        <RelistenText
+          className="text-relisten-blue-200"
+          style={{ minWidth: 64, textAlign: 'right' }}
+          selectable={false}
+        >
+          {props.valueDb > 0 ? '+' : ''}
+          {props.valueDb} dB
+        </RelistenText>
+      </View>
+      <AudioAdjustmentSlider {...props} />
     </View>
   );
 }

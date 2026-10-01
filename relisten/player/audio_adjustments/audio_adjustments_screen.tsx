@@ -3,7 +3,7 @@ import { useRelistenCastStatus } from '@/relisten/casting/cast_ui';
 import { AudioAdjustmentSection } from '@/relisten/player/audio_adjustments/audio_adjustment_section';
 import { useAudioAdjustmentEditing } from '@/relisten/player/audio_adjustments/audio_adjustment_editing';
 import { AudioAdjustmentPresetMenu } from '@/relisten/player/audio_adjustments/audio_adjustment_preset_menu';
-import { AudioAdjustmentSlider } from '@/relisten/player/audio_adjustments/audio_adjustment_slider';
+import { AudioAdjustmentSliderRow } from '@/relisten/player/audio_adjustments/audio_adjustment_slider';
 import { EqualizerResponseCurve } from '@/relisten/player/audio_adjustments/equalizer_response_curve';
 import {
   AUDIO_ADJUSTMENT_VOLUME_GAIN_MAX_DB,
@@ -95,34 +95,38 @@ export function AudioAdjustmentsScreen() {
         </AudioAdjustmentSection>
 
         <AudioAdjustmentSection title="Volume">
-          <View className={tw('gap-1.5 p-3.5', isCasting && 'opacity-45')}>
-            <View className="flex-row justify-between gap-3">
-              <RelistenText className="min-w-0 flex-1 font-semibold" selectable={false}>
-                Volume Gain
-              </RelistenText>
-              <RelistenText className="shrink-0 text-relisten-blue-200" selectable={false}>
-                {gainLabel(configuration.extraVolumeReductionDb)}
-              </RelistenText>
-            </View>
-            <AudioAdjustmentSlider
-              centered
-              accessibilityLabel="Volume Gain"
-              accessibilityText={gainLabel(configuration.extraVolumeReductionDb)}
-              disabled={isCasting}
-              maximumDb={AUDIO_ADJUSTMENT_VOLUME_GAIN_MAX_DB}
-              minimumDb={AUDIO_ADJUSTMENT_VOLUME_GAIN_MIN_DB}
-              onSlidingComplete={finishAdjustment}
-              onValueChange={setVolumeGain}
-              valueDb={configuration.extraVolumeReductionDb}
-            />
-            <View className="flex-row justify-between px-1">
-              <RelistenText className="text-xs text-gray-400" selectable={false}>
+          <AudioAdjustmentSliderRow
+            centered
+            accessibilityLabel="Volume Gain"
+            accessibilityText={gainLabel(configuration.extraVolumeReductionDb)}
+            disabled={isCasting}
+            maximumDb={AUDIO_ADJUSTMENT_VOLUME_GAIN_MAX_DB}
+            minimumDb={AUDIO_ADJUSTMENT_VOLUME_GAIN_MIN_DB}
+            onSlidingComplete={finishAdjustment}
+            onValueChange={setVolumeGain}
+            valueDb={configuration.extraVolumeReductionDb}
+          />
+          <View style={{ paddingHorizontal: 14, paddingBottom: 14, opacity: isCasting ? 0.45 : 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <RelistenText
+                className="text-xs text-gray-400"
+                style={{ flex: 1 }}
+                selectable={false}
+              >
                 −30 dB
               </RelistenText>
-              <RelistenText className="text-xs text-gray-300" selectable={false}>
+              <RelistenText
+                className="text-xs text-gray-300"
+                style={{ flex: 1, textAlign: 'center' }}
+                selectable={false}
+              >
                 0 dB
               </RelistenText>
-              <RelistenText className="text-xs text-gray-400" selectable={false}>
+              <RelistenText
+                className="text-xs text-gray-400"
+                style={{ flex: 1, textAlign: 'right' }}
+                selectable={false}
+              >
                 +12 dB
               </RelistenText>
             </View>
