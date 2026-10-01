@@ -12,7 +12,7 @@ import {
 import { Animated, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
 
 type StickyHeaderChildProps = {
-  item?: { kind?: string };
+  item?: { kind?: string; id?: string };
   onLayout?: (event: LayoutChangeEvent) => void;
   style?: StyleProp<ViewStyle>;
 };
@@ -34,6 +34,8 @@ type PlayerTimelineStickyHeaderLayout = {
   y: number;
 };
 
+const QueueHeaderInsetContext = createContext(0);
+
 const NowPlayingStickyLayoutContext = createContext<
   ((layout: PlayerTimelineStickyHeaderLayout) => void) | undefined
 >(undefined);
@@ -41,13 +43,17 @@ const NowPlayingStickyLayoutContext = createContext<
 export function PlayerTimelineStickyHeaderProvider({
   children,
   onNowPlayingLayout,
+  queueHeaderInset,
 }: {
   children: ReactElement;
+  queueHeaderInset: number;
   onNowPlayingLayout: (layout: PlayerTimelineStickyHeaderLayout) => void;
 }) {
   return (
     <NowPlayingStickyLayoutContext.Provider value={onNowPlayingLayout}>
-      {children}
+      <QueueHeaderInsetContext.Provider value={queueHeaderInset}>
+        {children}
+      </QueueHeaderInsetContext.Provider>
     </NowPlayingStickyLayoutContext.Provider>
   );
 }
@@ -71,30 +77,34 @@ export const PlayerTimelineStickyHeader = forwardRef<
   const [nextHeaderLayoutY, setNextHeaderLayoutY] = useState(initialNextHeaderLayoutY);
   const isNowPlaying = children.props.item?.kind === 'now-playing';
   const onNowPlayingLayout = useContext(NowPlayingStickyLayoutContext);
+  const queueHeaderInset = useContext(QueueHeaderInsetContext);
+  const inset = children.props.item?.id === 'up-next' ? queueHeaderInset : 0;
 
   useImperativeHandle(ref, () => ({ setNextHeaderY: setNextHeaderLayoutY }), []);
 
   const translateY = useMemo(() => {
-    if (!layout) {
+    // Keep the wrapper for its absolute content measurement, but never pin the
+    // player behind queue rows. Its actual position now matches hit testing and
+    // accessibility, including the empty space left by a lifted queue row.
+    if (!layout || isNowPlaying) {
       return scrollAnimatedValue.interpolate({
         inputRange: [-1, 0],
         outputRange: [0, 0],
       });
     }
 
-    const inputRange = [-1, 0, layout.y, layout.y + 1];
+    const start = Math.max(0, layout.y - inset);
+    const inputRange = [-1, 0, start, start + 1];
     const outputRange = [0, 0, 0, 1];
 
-    if (!isNowPlaying) {
-      const collisionPoint = (nextHeaderLayoutY ?? 0) - layout.height;
-      if (collisionPoint >= layout.y + 1) {
-        inputRange.push(collisionPoint, collisionPoint + 1);
-        outputRange.push(collisionPoint - layout.y, collisionPoint - layout.y);
-      }
+    const collisionPoint = (nextHeaderLayoutY ?? 0) - layout.height - inset;
+    if (collisionPoint >= start + 1) {
+      inputRange.push(collisionPoint, collisionPoint + 1);
+      outputRange.push(collisionPoint - start, collisionPoint - start);
     }
 
     return scrollAnimatedValue.interpolate({ inputRange, outputRange });
-  }, [isNowPlaying, layout, nextHeaderLayoutY, scrollAnimatedValue]);
+  }, [inset, isNowPlaying, layout, nextHeaderLayoutY, scrollAnimatedValue]);
 
   const handleLayout = useCallback(
     (event: LayoutChangeEvent) => {

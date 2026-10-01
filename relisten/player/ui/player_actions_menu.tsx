@@ -14,7 +14,7 @@ const SUPPORTS_AUDIO_ADJUSTMENTS = audioAdjustmentNative.capabilities().supporte
 type PlayerActionId = CurrentTrackNavigationActionId | typeof AUDIO_ADJUSTMENTS_ACTION_ID;
 type PlayerAction = MenuAction & { id: PlayerActionId };
 
-function usePlayerActions(onBeforeNavigate?: () => void) {
+function usePlayerActions(onBeforeNavigate?: (navigate: () => void) => void) {
   const { actions: navigationActions, handleAction: handleNavigationAction } =
     useCurrentTrackNavigation(onBeforeNavigate);
   const actions = useMemo<PlayerAction[]>(
@@ -50,7 +50,7 @@ function usePlayerActions(onBeforeNavigate?: () => void) {
 
 type PlayerActionsMenuProps = {
   children: ReactNode;
-  onBeforeNavigate?: () => void;
+  onBeforeNavigate?: (navigate: () => void) => void;
 };
 
 export function PlayerActionsMenu({ children, onBeforeNavigate }: PlayerActionsMenuProps) {

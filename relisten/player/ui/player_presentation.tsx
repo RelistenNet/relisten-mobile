@@ -3,18 +3,20 @@ import {
   createContext,
   useCallback,
   useContext,
-  useRef,
+  useEffect,
+  useMemo,
   useState,
 } from 'react';
 import { cancelAnimation, makeMutable, runOnJS, withSpring } from 'react-native-reanimated';
+import { createPlayerCloseCompletion } from './player_close_completion';
 
 export const playerPresentationProgress = makeMutable(0);
 
 const PRESENTATION_SPRING = {
-  damping: 30,
-  mass: 0.82,
-  overshootClamping: true,
-  stiffness: 300,
+  damping: 32,
+  mass: 0.65,
+  overshootClamping: false,
+  stiffness: 600,
 } as const;
 
 type PlayerPresentationContextValue = {
@@ -34,18 +36,19 @@ const PlayerPresentationContext = createContext<PlayerPresentationContextValue |
 
 export function PlayerPresentationProvider({ children }: PropsWithChildren) {
   const [presentationState, setPresentationState] = useState<PlayerPresentationState>('idle');
-  const afterCloseRef = useRef<(() => void) | undefined>(undefined);
+  const closeCompletion = useMemo(
+    () => createPlayerCloseCompletion(() => setPresentationState('idle')),
+    []
+  );
+  const cancelPendingClose = closeCompletion.cancel;
 
-  const cancelPendingClose = useCallback(() => {
-    afterCloseRef.current = undefined;
-  }, []);
-
-  const finishClosing = useCallback(() => {
-    const afterClose = afterCloseRef.current;
-    afterCloseRef.current = undefined;
-    setPresentationState('idle');
-    afterClose?.();
-  }, []);
+  useEffect(
+    () => () => {
+      closeCompletion.cancel();
+      cancelAnimation(playerPresentationProgress);
+    },
+    [closeCompletion]
+  );
 
   const beginInteractivePresentation = useCallback(() => {
     cancelPendingClose();
@@ -62,17 +65,20 @@ export function PlayerPresentationProvider({ children }: PropsWithChildren) {
 
   const closePlayer = useCallback(
     (afterClose?: () => void) => {
-      afterCloseRef.current = afterClose;
+      closeCompletion.cancel();
       cancelAnimation(playerPresentationProgress);
+      // A fresh JS function per animation avoids reusing a remote function ID
+      // after Worklets has released the previous animation's callback proxy.
+      const completeClose = closeCompletion.begin(afterClose);
       playerPresentationProgress.set(
         withSpring(0, PRESENTATION_SPRING, (finished) => {
           if (finished) {
-            runOnJS(finishClosing)();
+            runOnJS(completeClose)();
           }
         })
       );
     },
-    [finishClosing]
+    [closeCompletion]
   );
 
   const resetPlayerPresentation = useCallback(() => {
