@@ -6,8 +6,8 @@ import { AudioAdjustmentPresetMenu } from '@/relisten/player/audio_adjustments/a
 import { AudioAdjustmentSlider } from '@/relisten/player/audio_adjustments/audio_adjustment_slider';
 import { EqualizerResponseCurve } from '@/relisten/player/audio_adjustments/equalizer_response_curve';
 import {
-  AUDIO_ADJUSTMENT_VOLUME_REDUCTION_MAX_DB,
-  AUDIO_ADJUSTMENT_VOLUME_REDUCTION_MIN_DB,
+  AUDIO_ADJUSTMENT_VOLUME_GAIN_MAX_DB,
+  AUDIO_ADJUSTMENT_VOLUME_GAIN_MIN_DB,
 } from '@/relisten/player/audio_adjustments/audio_adjustment_types';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,19 +15,13 @@ import { router, Stack } from 'expo-router';
 import { Alert, Pressable, ScrollView, Switch, View } from 'react-native';
 import { tw } from '@/relisten/util/tw';
 
-function reductionLabel(value: number) {
-  return value === 0 ? 'Off' : `${value} dB`;
+function gainLabel(value: number) {
+  return `${value > 0 ? '+' : ''}${value} dB`;
 }
 
 export function AudioAdjustmentsScreen() {
-  const {
-    configuration,
-    finishAdjustment,
-    requestClose,
-    reset,
-    setEnabled,
-    setExtraVolumeReduction,
-  } = useAudioAdjustmentEditing();
+  const { configuration, finishAdjustment, requestClose, reset, setEnabled, setVolumeGain } =
+    useAudioAdjustmentEditing();
   const { deviceName, isCasting } = useRelistenCastStatus();
 
   return (
@@ -104,26 +98,37 @@ export function AudioAdjustmentsScreen() {
           <View className={tw('gap-1.5 p-3.5', isCasting && 'opacity-45')}>
             <View className="flex-row justify-between gap-3">
               <RelistenText className="min-w-0 flex-1 font-semibold" selectable={false}>
-                Extra Volume Reduction
+                Volume Gain
               </RelistenText>
               <RelistenText className="shrink-0 text-relisten-blue-200" selectable={false}>
-                {reductionLabel(configuration.extraVolumeReductionDb)}
+                {gainLabel(configuration.extraVolumeReductionDb)}
               </RelistenText>
             </View>
             <AudioAdjustmentSlider
-              activeTrackDirection="maximum"
-              accessibilityLabel="Extra Volume Reduction"
-              accessibilityText={reductionLabel(configuration.extraVolumeReductionDb)}
+              centered
+              accessibilityLabel="Volume Gain"
+              accessibilityText={gainLabel(configuration.extraVolumeReductionDb)}
               disabled={isCasting}
-              maximumDb={AUDIO_ADJUSTMENT_VOLUME_REDUCTION_MAX_DB}
-              minimumDb={AUDIO_ADJUSTMENT_VOLUME_REDUCTION_MIN_DB}
+              maximumDb={AUDIO_ADJUSTMENT_VOLUME_GAIN_MAX_DB}
+              minimumDb={AUDIO_ADJUSTMENT_VOLUME_GAIN_MIN_DB}
               onSlidingComplete={finishAdjustment}
-              onValueChange={setExtraVolumeReduction}
+              onValueChange={setVolumeGain}
               valueDb={configuration.extraVolumeReductionDb}
             />
-            <RelistenText className="text-sm text-gray-400" selectable={false}>
-              Makes Relisten quieter than the iPhone volume control allows. This affects Relisten
-              only.
+            <View className="flex-row justify-between px-1">
+              <RelistenText className="text-xs text-gray-400" selectable={false}>
+                −30 dB
+              </RelistenText>
+              <RelistenText className="text-xs text-gray-300" selectable={false}>
+                0 dB
+              </RelistenText>
+              <RelistenText className="text-xs text-gray-400" selectable={false}>
+                +12 dB
+              </RelistenText>
+            </View>
+            <RelistenText className="mt-2 text-sm text-gray-400" selectable={false}>
+              Cut or boost Relisten’s volume. Boost can distort loud recordings; lower the gain if
+              you hear distortion.
             </RelistenText>
           </View>
         </AudioAdjustmentSection>
@@ -135,7 +140,7 @@ export function AudioAdjustmentsScreen() {
           onPress={() =>
             Alert.alert(
               'Reset Equalizer?',
-              'This selects Flat, sets every band to 0 dB, and turns Extra Volume Reduction off. Audio Equalizer will keep its current On or Off state.',
+              'This selects Flat, sets every band to 0 dB, and returns Volume Gain to 0 dB. Audio Equalizer will keep its current On or Off state.',
               [
                 { text: 'Cancel', style: 'cancel' },
                 { text: 'Reset', style: 'destructive', onPress: reset },
