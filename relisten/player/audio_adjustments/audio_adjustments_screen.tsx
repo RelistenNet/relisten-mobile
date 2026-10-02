@@ -147,42 +147,35 @@ export function AudioAdjustmentsScreen() {
                 </RelistenText>
               </View>
               <RelistenText className="text-sm text-gray-400" selectable={false}>
-                Cut or boost Relisten’s volume. Boost can distort loud recordings; lower the gain if
-                you hear distortion.
+                Boost can distort loud recordings
               </RelistenText>
             </View>
           </AudioAdjustmentSliderRow>
         </AudioAdjustmentSection>
 
-        <View style={{ gap: 8 }}>
-          <Pressable
-            accessibilityRole="button"
-            className="min-h-12 items-center justify-center rounded-xl border border-relisten-blue-200/25 px-3.5 py-3"
-            disabled={isCasting}
-            onPress={() =>
-              Alert.alert(
-                'Reset Equalizer?',
-                'This selects Flat, sets every band to 0 dB, and returns Volume Gain to 0 dB. Audio Equalizer will keep its current On or Off state.',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Reset', style: 'destructive', onPress: reset },
-                ]
-              )
-            }
-            style={({ pressed }) => ({
-              borderCurve: 'continuous',
-              opacity: isCasting ? 0.45 : pressed ? 0.7 : 1,
-            })}
-          >
-            <RelistenText className="font-semibold" selectable={false}>
-              Reset Equalizer…
-            </RelistenText>
-          </Pressable>
-
-          <RelistenText selectable={false} className="text-center text-xs text-gray-500">
-            Changes apply immediately and are saved on this iPhone.
+        <Pressable
+          accessibilityRole="button"
+          className="min-h-12 items-center justify-center rounded-xl border border-relisten-blue-200/25 px-3.5 py-3"
+          disabled={isCasting}
+          onPress={() =>
+            Alert.alert(
+              'Reset Equalizer?',
+              'This selects Flat, sets every band to 0 dB, and returns Volume Gain to 0 dB. Audio Equalizer will keep its current On or Off state.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Reset', style: 'destructive', onPress: reset },
+              ]
+            )
+          }
+          style={({ pressed }) => ({
+            borderCurve: 'continuous',
+            opacity: isCasting ? 0.45 : pressed ? 0.7 : 1,
+          })}
+        >
+          <RelistenText className="font-semibold" selectable={false}>
+            Reset Equalizer…
           </RelistenText>
-        </View>
+        </Pressable>
       </ScrollView>
 
       <Stack.Screen.Title>Audio Equalizer</Stack.Screen.Title>
