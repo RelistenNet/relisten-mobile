@@ -12,11 +12,12 @@ import { createPlayerCloseCompletion } from './player_close_completion';
 
 export const playerPresentationProgress = makeMutable(0);
 
-const PRESENTATION_SPRING = {
-  damping: 32,
-  mass: 0.65,
-  overshootClamping: false,
-  stiffness: 600,
+// Whole-player transitions are independent of the native timeline snap motion.
+const MODAL_PRESENTATION_SPRING = {
+  damping: 30,
+  mass: 0.82,
+  overshootClamping: true,
+  stiffness: 300,
 } as const;
 
 type PlayerPresentationContextValue = {
@@ -60,7 +61,7 @@ export function PlayerPresentationProvider({ children }: PropsWithChildren) {
     cancelPendingClose();
     cancelAnimation(playerPresentationProgress);
     setPresentationState('active');
-    playerPresentationProgress.set(withSpring(1, PRESENTATION_SPRING));
+    playerPresentationProgress.set(withSpring(1, MODAL_PRESENTATION_SPRING));
   }, [cancelPendingClose]);
 
   const closePlayer = useCallback(
@@ -71,7 +72,7 @@ export function PlayerPresentationProvider({ children }: PropsWithChildren) {
       // after Worklets has released the previous animation's callback proxy.
       const completeClose = closeCompletion.begin(afterClose);
       playerPresentationProgress.set(
-        withSpring(0, PRESENTATION_SPRING, (finished) => {
+        withSpring(0, MODAL_PRESENTATION_SPRING, (finished) => {
           if (finished) {
             runOnJS(completeClose)();
           }
