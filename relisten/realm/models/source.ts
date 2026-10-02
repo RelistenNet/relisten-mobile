@@ -11,6 +11,7 @@ import { checkIfOfflineSourceTrackExists } from '@/relisten/realm/realm_filters'
 import type { LibraryIndex } from '@/relisten/realm/library_index';
 
 export interface SourceRequiredProperties extends RelistenObjectRequiredProperties {
+  sourceId?: number;
   artistUuid: string;
   venueUuid?: string;
   displayDate: string;
@@ -44,6 +45,7 @@ export class Source
     primaryKey: 'uuid',
     properties: {
       uuid: 'string',
+      sourceId: 'int?',
       createdAt: 'date',
       updatedAt: 'date',
       deletedAt: { type: 'date', optional: true, indexed: true },
@@ -84,6 +86,7 @@ export class Source
   };
 
   uuid!: string;
+  sourceId?: number;
   createdAt!: Date;
   updatedAt!: Date;
   deletedAt?: Date;
@@ -163,6 +166,7 @@ export class Source
   static propertiesFromApi(relistenObj: SourceFull): SourceRequiredProperties {
     return {
       uuid: relistenObj.uuid,
+      sourceId: relistenObj.id != null ? Number(relistenObj.id) : undefined,
       createdAt: dayjs(relistenObj.created_at).toDate(),
       updatedAt: dayjs(relistenObj.updated_at).toDate(),
       artistUuid: relistenObj.artist_uuid,

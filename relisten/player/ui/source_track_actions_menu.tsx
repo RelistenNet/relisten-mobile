@@ -119,7 +119,7 @@ export function SourceTrackActionsMenu({ playShow, sourceTrack }: SourceTrackAct
           break;
         case ACTION_IDS.share: {
           const [year, month, day] = sourceTrack.show.displayDate.split('-');
-          const url = `https://relisten.net/${sourceTrack.artist.slug}/${year}/${month}/${day}/${sourceTrack.slug}?source=${sourceTrack.source.uuid}`;
+          const url = `https://relisten.net/${sourceTrack.artist.slug}/${year}/${month}/${day}/${sourceTrack.slug}?source=${sourceTrack.source.sourceId ?? sourceTrack.source.uuid}`;
 
           await Share.share({
             message: `Check out ${sourceTrack.title} (${sourceTrack.humanizedDuration}) from ${sourceTrack.show.displayDate} by ${sourceTrack.artist?.name} on @relistenapp${Platform.OS === 'ios' ? '' : `: ${url}`}`,
