@@ -101,8 +101,9 @@ export function AudioAdjustmentSlider({
 
 export function AudioAdjustmentSliderRow({
   children,
+  description,
   ...props
-}: PropsWithChildren<AudioAdjustmentSliderProps>) {
+}: PropsWithChildren<AudioAdjustmentSliderProps & { description?: string }>) {
   return (
     <View
       style={{
@@ -112,20 +113,27 @@ export function AudioAdjustmentSliderRow({
         opacity: props.disabled ? 0.45 : 1,
       }}
     >
-      <View
-        style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}
-      >
-        <RelistenText className="font-semibold" selectable={false}>
-          {props.accessibilityLabel}
-        </RelistenText>
-        <RelistenText
-          className="text-relisten-blue-200"
-          style={{ minWidth: 64, textAlign: 'right' }}
-          selectable={false}
+      <View style={{ gap: 2 }}>
+        <View
+          style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}
         >
-          {props.valueDb > 0 ? '+' : ''}
-          {props.valueDb} dB
-        </RelistenText>
+          <RelistenText className="font-semibold" selectable={false}>
+            {props.accessibilityLabel}
+          </RelistenText>
+          <RelistenText
+            className="text-relisten-blue-200"
+            style={{ minWidth: 64, textAlign: 'right' }}
+            selectable={false}
+          >
+            {props.valueDb > 0 ? '+' : ''}
+            {props.valueDb} dB
+          </RelistenText>
+        </View>
+        {description && (
+          <RelistenText className="text-sm text-gray-400" selectable={false}>
+            {description}
+          </RelistenText>
+        )}
       </View>
       <AudioAdjustmentSlider {...props} />
       {children}

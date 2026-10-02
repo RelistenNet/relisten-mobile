@@ -113,6 +113,7 @@ export function AudioAdjustmentsScreen() {
         <AudioAdjustmentSection title="Volume">
           <AudioAdjustmentSliderRow
             centered
+            description="Boost can distort loud recordings"
             accessibilityLabel="Volume Gain"
             accessibilityText={gainLabel(configuration.extraVolumeReductionDb)}
             disabled={isCasting}
@@ -122,32 +123,27 @@ export function AudioAdjustmentsScreen() {
             onValueChange={setVolumeGain}
             valueDb={configuration.extraVolumeReductionDb}
           >
-            <View style={{ gap: 8 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <RelistenText
-                  className="text-xs text-gray-400"
-                  style={{ flex: 1 }}
-                  selectable={false}
-                >
-                  −30 dB
-                </RelistenText>
-                <RelistenText
-                  className="text-xs text-gray-300"
-                  style={{ flex: 1, textAlign: 'center' }}
-                  selectable={false}
-                >
-                  0 dB
-                </RelistenText>
-                <RelistenText
-                  className="text-xs text-gray-400"
-                  style={{ flex: 1, textAlign: 'right' }}
-                  selectable={false}
-                >
-                  +12 dB
-                </RelistenText>
-              </View>
-              <RelistenText className="text-sm text-gray-400" selectable={false}>
-                Boost can distort loud recordings
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <RelistenText
+                className="text-xs text-gray-400"
+                style={{ flex: 1 }}
+                selectable={false}
+              >
+                −30 dB
+              </RelistenText>
+              <RelistenText
+                className="text-xs text-gray-300"
+                style={{ flex: 1, textAlign: 'center' }}
+                selectable={false}
+              >
+                0 dB
+              </RelistenText>
+              <RelistenText
+                className="text-xs text-gray-400"
+                style={{ flex: 1, textAlign: 'right' }}
+                selectable={false}
+              >
+                +12 dB
               </RelistenText>
             </View>
           </AudioAdjustmentSliderRow>
