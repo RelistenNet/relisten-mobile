@@ -1,6 +1,7 @@
 import { useIsPlayerBottomBarVisible } from '@/relisten/player/ui/player_bar_layout';
 import {
   playerPresentationProgress,
+  playerPresentationContentReady,
   usePlayerPresentation,
 } from '@/relisten/player/ui/player_presentation';
 import { PlayerScreen } from '@/relisten/player/ui/player_screen';
@@ -43,7 +44,7 @@ export function PlayerPresentationOverlay() {
       Extrapolation.CLAMP
     ),
     opacity: interpolate(
-      playerPresentationProgress.value,
+      playerPresentationContentReady.value ? playerPresentationProgress.value : 0,
       [0, 0.1, 0.28],
       [0, 0.7, 1],
       Extrapolation.CLAMP

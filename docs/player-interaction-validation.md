@@ -211,3 +211,32 @@ change does not alter list mounting.
 
 This fix is local source only; the delivered 6050 binary was not replaced and
 no OTA or additional build was published.
+
+## Reveal the player only after its timeline is ready
+
+The empty background reproduced after a cold simulator launch and on reopen,
+without hot reload. The overlay started its spring as soon as presentation was
+requested, while the timeline stayed at opacity zero until its measured
+Now Playing offset had been applied across native layout commits. Both the
+conditional mount and the hidden-until-anchored timeline existed before
+`fd9e183`; restoring the spring did not introduce that sequence.
+
+The presentation provider now waits for the timeline's visible-content commit
+before starting a requested open spring. A shared readiness flag also keeps
+the empty overlay hidden and the mini-player visible during an initial drag.
+Once ready, the gesture continues to own progress. Close, reset, and unmount
+cancel pending opening so a late readiness notification cannot reopen the sheet.
+The timeline still unmounts on close; no hidden persistent player or duplicate
+playback controls were added. The tradeoff is a preparation interval before
+the opening motion instead of an empty sheet during that interval.
+
+Cold-launch before/after recordings and `ready-reopens-and-gestures.mp4` cover
+repeated tap-open, header dismissal, short-dismiss return, swipe-open, Queue
+snap, and return to Now Playing. All eight gesture endpoint accessibility
+checks passed. Reviewed extracted motion frames show content throughout the
+entrance after readiness. The simulator is a development build; no claim is
+made about exact production preparation latency.
+
+All 39 focused player tests, TypeScript, lint, and diff checks passed. The
+original modal spring and fast native list deceleration remain unchanged.
+No new binary, OTA, or upload was produced.

@@ -6,6 +6,7 @@ import {
   useRelistenPlayerQueueOrderedTracks,
 } from '@/relisten/player/relisten_player_queue_hooks';
 import { PlayerHistoryItem } from '@/relisten/player/ui/player_history_item';
+import { usePlayerPresentation } from '@/relisten/player/ui/player_presentation';
 import { PlayerNowPlaying } from '@/relisten/player/ui/player_now_playing';
 import { PlayerPanelRow } from '@/relisten/player/ui/player_panel_row';
 import {
@@ -230,6 +231,10 @@ export function PlayerQueueSheet({
   const focusGenerationRef = useRef(0);
   const [returnArrival, setReturnArrival] = useState(0);
   const [isAnchorReady, setIsAnchorReady] = useState(false);
+  const { markPlayerContentReady } = usePlayerPresentation();
+  useEffect(() => {
+    if (isPresentedOverlay && isAnchorReady) markPlayerContentReady();
+  }, [isAnchorReady, isPresentedOverlay, markPlayerContentReady]);
   const [isDragging, setIsDragging] = useState(false);
   const [isPivotOffscreen, setIsPivotOffscreen] = useState(false);
   const [isQueueVisible, setIsQueueVisible] = useState(false);

@@ -26,6 +26,7 @@ vi.mock('react', async (importOriginal) => {
     ...actual,
     useCallback: (callback: unknown) => callback,
     useMemo: (factory: () => unknown) => factory(),
+    useRef: (current: unknown) => ({ current }),
     useState: (initial: unknown) => [initial, harness.state],
     useEffect: (effect: () => void | (() => void)) => {
       const cleanup = effect();
@@ -35,7 +36,12 @@ vi.mock('react', async (importOriginal) => {
 });
 vi.mock('react-native-reanimated', () => ({
   cancelAnimation: harness.cancel,
-  makeMutable: () => ({ set: vi.fn() }),
+  makeMutable: (initial: unknown) => ({
+    value: initial,
+    set(value: unknown) {
+      this.value = value;
+    },
+  }),
   withSpring: (target: number, config: unknown, finish?: (finished: boolean) => void) => {
     harness.springs.push({ target, config, finish });
     return target;
@@ -58,13 +64,14 @@ vi.mock('@/relisten/util/push_show', () => ({
 vi.mock('@/relisten/util/routes', () => ({ useGroupSegment: () => '(artists)' }));
 
 import { useCurrentTrackNavigation } from './current_track_navigation_menu';
-import { PlayerPresentationProvider } from './player_presentation';
+import { PlayerPresentationProvider, playerPresentationContentReady } from './player_presentation';
 
 function mountPlayer() {
   const element = PlayerPresentationProvider({ children: null });
   const presentation = element.props.value;
   const menu = useCurrentTrackNavigation(presentation.closePlayer);
   presentation.openPlayer();
+  presentation.markPlayerContentReady();
   return { presentation, menu };
 }
 
@@ -80,6 +87,7 @@ function deliverCallbacks() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  playerPresentationContentReady.set(false);
   harness.cleanups.length = 0;
   harness.springs.length = 0;
   harness.queuedCallbacks.length = 0;
@@ -87,6 +95,45 @@ beforeEach(() => {
 });
 
 describe('player presentation and menu navigation contract', () => {
+  it('waits for committed timeline content on every fresh open', () => {
+    const presentation = PlayerPresentationProvider({ children: null }).props.value;
+    for (let cycle = 0; cycle < 3; cycle += 1) {
+      harness.springs.length = 0;
+      presentation.openPlayer();
+      expect(harness.springs).toHaveLength(0);
+      expect(playerPresentationContentReady.value).toBe(false);
+      presentation.markPlayerContentReady();
+      expect(harness.springs.map(({ target }) => target)).toEqual([1]);
+      expect(playerPresentationContentReady.value).toBe(true);
+      presentation.closePlayer();
+      finishLatestClose();
+      deliverCallbacks();
+    }
+  });
+
+  it('does not reopen when content becomes ready after an early close or reset', () => {
+    const presentation = PlayerPresentationProvider({ children: null }).props.value;
+    presentation.openPlayer();
+    presentation.closePlayer();
+    presentation.markPlayerContentReady();
+    expect(harness.springs.map(({ target }) => target)).toEqual([0]);
+    expect(playerPresentationContentReady.value).toBe(false);
+    presentation.openPlayer();
+    presentation.resetPlayerPresentation();
+    presentation.markPlayerContentReady();
+    expect(harness.springs.map(({ target }) => target)).toEqual([0]);
+  });
+
+  it('reveals an active drag without starting an automatic open spring', () => {
+    const presentation = PlayerPresentationProvider({ children: null }).props.value;
+    presentation.beginInteractivePresentation();
+    presentation.markPlayerContentReady();
+    expect(playerPresentationContentReady.value).toBe(true);
+    expect(harness.springs).toHaveLength(0);
+    presentation.openPlayer();
+    expect(harness.springs.map(({ target }) => target)).toEqual([1]);
+  });
+
   it('keeps the original modal spring for opening, closing, and returning from a dismiss drag', () => {
     const { presentation } = mountPlayer();
     presentation.closePlayer();
@@ -177,6 +224,7 @@ describe('player presentation and menu navigation contract', () => {
     finishLatestClose();
     deliverCallbacks();
     presentation.openPlayer();
+    presentation.markPlayerContentReady();
     menu.handleAction('show');
     finishLatestClose();
     expect(harness.bridgedCallbacks[1]).not.toBe(harness.bridgedCallbacks[0]);
