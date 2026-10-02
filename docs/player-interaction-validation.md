@@ -179,3 +179,11 @@ Volume Gain now spans -30 to +12 dB, with 0 dB at the physical center and intege
 Validated with four TypeScript tests including real Realm settings/preset persistence, 12 native configuration/output-graph tests, TypeScript, lint, and a fresh iOS simulator build. One existing native animation test hit its one-second timeout while compiling; all 12 passed on rerun after compilation. Actual simulator interaction reached both endpoints, saved/reopened positive gain, crossed zero during advancing playback, and reset to 0 dB while retaining the enabled state. Independent code and screenshot reviews completed. Final screenshots: +5 dB, 0 dB, -13 dB.
 
 The previously exported 6.2.0 (6050) TestFlight IPA predates this EQ change. It remains unuploaded and must be rebuilt before distributing these changes. No OTA was published.
+
+## EQ sheet spacing review
+
+The follow-up uses consistent 14-point card padding, 16-point section spacing, a compact overview curve, and safe-area-aware bottom content padding. The gain range labels and help text share the gain row's padding; Reset and its footer have an 8-point gap. Horizontal gain/band alignment remains unchanged.
+
+Checked the complete initial sheet and bottom scroll limit on iPhone 17 (402 x 874) and iPhone 17e (390 x 844). Reset and footer fit initially at standard text size. With accessibility-medium text on the smaller phone, content wraps and scrolls to a fully visible Reset and footer. A cold launch was needed after changing Dynamic Type because live changes initially left stale text measurements. Main-phone gain screenshots cover positive, zero, and negative values. Some captures had incomplete text; final review captures were taken after reopening the sheet.
+
+Actual Reset taps opened confirmation at standard and accessibility sizes. After changing volume gain and the 31 Hz band to +5 dB, confirming Reset restored Flat, gain 0 dB, and all ten band accessibility values to 0 dB while retaining enabled state. Four gain/persistence tests, TypeScript, lint, and diff checks passed. The smaller simulator was restored to standard text size and shut down afterward.

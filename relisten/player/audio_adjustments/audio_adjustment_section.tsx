@@ -2,6 +2,8 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import type { PropsWithChildren } from 'react';
 import { View } from 'react-native';
 
+export const AUDIO_ADJUSTMENT_CARD_PADDING = 14;
+
 export function AudioAdjustmentCard({ children }: PropsWithChildren) {
   return (
     <View

@@ -1,3 +1,4 @@
+import { AUDIO_ADJUSTMENT_CARD_PADDING } from './audio_adjustment_section';
 import { NativeMenuView, type MenuAction } from '@/relisten/components/menus/native_menu_view';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { BUILTIN_AUDIO_ADJUSTMENT_PRESETS } from '@/relisten/player/audio_adjustments/audio_adjustment_presets';
@@ -83,11 +84,11 @@ export function AudioAdjustmentPresetMenu({ disabled = false }: { disabled?: boo
       <Pressable
         accessibilityLabel={`Preset, ${currentName}`}
         accessibilityRole="button"
-        className="min-h-[52px] flex-row items-center px-4"
+        className="min-h-[52px] flex-row items-center"
         disabled={disabled}
-        style={({ pressed }) => ({ opacity: disabled ? 0.45 : pressed ? 0.7 : 1 })}
+        style={{ padding: AUDIO_ADJUSTMENT_CARD_PADDING, opacity: disabled ? 0.45 : 1 }}
       >
-        <View className="flex-1 gap-0.5 py-2.5">
+        <View style={{ flex: 1, gap: 2 }}>
           <RelistenText className="font-semibold" selectable={false}>
             Preset
           </RelistenText>
