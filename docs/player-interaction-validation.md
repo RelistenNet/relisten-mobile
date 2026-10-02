@@ -187,3 +187,27 @@ The follow-up uses consistent 14-point card padding, 16-point section spacing, a
 Checked the complete initial sheet and bottom scroll limit on iPhone 17 (402 x 874) and iPhone 17e (390 x 844). Reset and footer fit initially at standard text size. With accessibility-medium text on the smaller phone, content wraps and scrolls to a fully visible Reset and footer. A cold launch was needed after changing Dynamic Type because live changes initially left stale text measurements. Main-phone gain screenshots cover positive, zero, and negative values. Some captures had incomplete text; final review captures were taken after reopening the sheet.
 
 Actual Reset taps opened confirmation at standard and accessibility sizes. After changing volume gain and the 31 Hz band to +5 dB, confirming Reset restored Flat, gain 0 dB, and all ten band accessibility values to 0 dB while retaining enabled state. Four gain/persistence tests, TypeScript, lint, and diff checks passed. The smaller simulator was restored to standard text size and shut down afterward.
+
+## Restore whole-player modal motion after 6050
+
+Restored the exact spring from `fd9e183^`: stiffness 300, damping 30, mass
+0.82, and overshoot clamping enabled. The iteration had changed these to
+600, 32, 0.65, and no clamping. These are physics parameters, not a fixed
+millisecond duration. `MODAL_PRESENTATION_SPRING` applies to tap-open, completed
+dismissals, and returning from incomplete or cancelled presentation gestures.
+The existing close-completion safeguards remain intact.
+
+Internal History / Now Playing / Queue snaps still use native scrolling with
+`decelerationRate="fast"`; no timeline offsets or scroll settings changed.
+
+Validation: 24 focused presentation/navigation, close-completion, and timeline
+tests passed, along with TypeScript, lint, and diff checks. The iPhone 17 video
+`restored-modal-motion.mp4` records header dismissal, tap-open, a short header
+drag returning to open, Queue and History transitions, and dismissal from
+History. Extracted motion frames confirm the return settles without overshoot
+and internal positions remain reachable. The first recorded reopen also shows
+a brief empty player background before list content appears; this timing-only
+change does not alter list mounting.
+
+This fix is local source only; the delivered 6050 binary was not replaced and
+no OTA or additional build was published.
