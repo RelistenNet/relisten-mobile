@@ -5,12 +5,14 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { cancelAnimation, makeMutable, runOnJS, withSpring } from 'react-native-reanimated';
 import { createPlayerCloseCompletion } from './player_close_completion';
 
 export const playerPresentationProgress = makeMutable(0);
+export const playerPresentationContentReady = makeMutable(false);
 
 // Whole-player transitions are independent of the native timeline snap motion.
 const MODAL_PRESENTATION_SPRING = {
@@ -26,6 +28,7 @@ type PlayerPresentationContextValue = {
   isPresentationActive: boolean;
   isPresentationMounted: boolean;
   openPlayer: () => void;
+  markPlayerContentReady: () => void;
   resetPlayerPresentation: () => void;
 };
 
@@ -37,8 +40,14 @@ const PlayerPresentationContext = createContext<PlayerPresentationContextValue |
 
 export function PlayerPresentationProvider({ children }: PropsWithChildren) {
   const [presentationState, setPresentationState] = useState<PlayerPresentationState>('idle');
+  const presentationRequested = useRef(false);
+  const pendingOpen = useRef(false);
   const closeCompletion = useMemo(
-    () => createPlayerCloseCompletion(() => setPresentationState('idle')),
+    () =>
+      createPlayerCloseCompletion(() => {
+        playerPresentationContentReady.set(false);
+        setPresentationState('idle');
+      }),
     []
   );
   const cancelPendingClose = closeCompletion.cancel;
@@ -46,6 +55,9 @@ export function PlayerPresentationProvider({ children }: PropsWithChildren) {
   useEffect(
     () => () => {
       closeCompletion.cancel();
+      presentationRequested.current = false;
+      pendingOpen.current = false;
+      playerPresentationContentReady.set(false);
       cancelAnimation(playerPresentationProgress);
     },
     [closeCompletion]
@@ -54,18 +66,36 @@ export function PlayerPresentationProvider({ children }: PropsWithChildren) {
   const beginInteractivePresentation = useCallback(() => {
     cancelPendingClose();
     cancelAnimation(playerPresentationProgress);
+    presentationRequested.current = true;
+    pendingOpen.current = false;
     setPresentationState('active');
   }, [cancelPendingClose]);
 
   const openPlayer = useCallback(() => {
     cancelPendingClose();
     cancelAnimation(playerPresentationProgress);
+    presentationRequested.current = true;
+    pendingOpen.current = !playerPresentationContentReady.value;
     setPresentationState('active');
-    playerPresentationProgress.set(withSpring(1, MODAL_PRESENTATION_SPRING));
+    if (!pendingOpen.current) {
+      playerPresentationProgress.set(withSpring(1, MODAL_PRESENTATION_SPRING));
+    }
   }, [cancelPendingClose]);
+
+  const markPlayerContentReady = useCallback(() => {
+    if (!presentationRequested.current) return;
+    // Called after the anchored timeline has committed its visible content.
+    playerPresentationContentReady.set(true);
+    if (pendingOpen.current) {
+      pendingOpen.current = false;
+      playerPresentationProgress.set(withSpring(1, MODAL_PRESENTATION_SPRING));
+    }
+  }, []);
 
   const closePlayer = useCallback(
     (afterClose?: () => void) => {
+      presentationRequested.current = false;
+      pendingOpen.current = false;
       closeCompletion.cancel();
       cancelAnimation(playerPresentationProgress);
       // A fresh JS function per animation avoids reusing a remote function ID
@@ -85,6 +115,9 @@ export function PlayerPresentationProvider({ children }: PropsWithChildren) {
   const resetPlayerPresentation = useCallback(() => {
     cancelPendingClose();
     cancelAnimation(playerPresentationProgress);
+    presentationRequested.current = false;
+    pendingOpen.current = false;
+    playerPresentationContentReady.set(false);
     playerPresentationProgress.set(0);
     setPresentationState('idle');
   }, [cancelPendingClose]);
@@ -97,6 +130,7 @@ export function PlayerPresentationProvider({ children }: PropsWithChildren) {
         isPresentationActive: presentationState === 'active',
         isPresentationMounted: presentationState === 'active',
         openPlayer,
+        markPlayerContentReady,
         resetPlayerPresentation,
       }}
     >
