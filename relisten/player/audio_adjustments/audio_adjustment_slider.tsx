@@ -105,7 +105,12 @@ export function AudioAdjustmentSliderRow({
 }: PropsWithChildren<AudioAdjustmentSliderProps>) {
   return (
     <View
-      style={{ padding: AUDIO_ADJUSTMENT_CARD_PADDING, gap: 2, opacity: props.disabled ? 0.45 : 1 }}
+      style={{
+        paddingHorizontal: AUDIO_ADJUSTMENT_CARD_PADDING,
+        paddingVertical: props.centered ? 20 : AUDIO_ADJUSTMENT_CARD_PADDING,
+        gap: props.centered ? 10 : 2,
+        opacity: props.disabled ? 0.45 : 1,
+      }}
     >
       <View
         style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}
