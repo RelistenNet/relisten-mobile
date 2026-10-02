@@ -18,7 +18,7 @@ OTA_RUNTIME_OVERRIDE_REQUESTED=0
 usage() {
   cat <<USAGE
 Usage:
-  $0 [testflight|testflight-accounts-favorites|appstore|ota-testflight|ota-production] [options]
+  $0 [testflight|testflight-accounts-favorites|appstore|ota-testflight|ota-production|ota-accounts-favorites] [options]
   $0 android-env -- COMMAND [ARGS...]
 
 Options:
@@ -367,6 +367,30 @@ publish_ota() {
   run_eoas publish --branch "$branch" --platform all --nonInteractive
 }
 
+publish_accounts_favorites_ios() {
+  if [[ "$PLATFORM" != "ios" ]]; then
+    echo "The accounts/favorites OTA requires --platform ios."
+    exit 1
+  fi
+
+  # Bound this update to the reviewed native binary delivered to TestFlight.
+  node -e '
+const app = require("./app.json").expo;
+if (app.version !== "6.2.0" || String(app.ios.buildNumber) !== "6050") {
+  throw new Error("The accounts/favorites OTA requires the delivered 6.2.0 (6050) binary.");
+}
+'
+  ensure_local_env_for_ota
+  # eoas supports an existing Expo login when EXPO_TOKEN is not supplied.
+  # Do not require an interactive 1Password unlock for this bounded target.
+  export EXPO_TOKEN
+  export RELEASE_CHANNEL="accounts-favorites-mobile"
+  export RELISTEN_IOS_RUNTIME_VERSION="6.2.0+ios.6050"
+  export EXPO_PUBLIC_RELISTEN_CATALOG_ORIGIN="https://api.relisten.net"
+  echo "Publishing iOS only: accounts-favorites-mobile / 6.2.0+ios.6050"
+  run_eoas publish --branch accounts-favorites-mobile --platform ios --nonInteractive --outputDir dist/accounts-favorites-mobile-ios
+}
+
 case "$TARGET" in
 android-env)
   run_with_android_env "${ANDROID_ENV_COMMAND[@]}"
@@ -383,6 +407,9 @@ testflight)
   ;;
 appstore)
   build_target production
+  ;;
+ota-accounts-favorites)
+  publish_accounts_favorites_ios
   ;;
 ota-testflight)
   publish_ota testflight
