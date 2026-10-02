@@ -4,7 +4,6 @@ import { RelistenCarPlayContext } from '@/relisten/carplay/relisten_car_play_con
 import { carplay_logger } from '@/relisten/carplay/carplay_logger';
 import { RealmQueryValueStream } from '@/relisten/realm/value_streams';
 import { Show } from '@/relisten/realm/models/show';
-import { filterForUser } from '@/relisten/realm/realm_filters';
 import { createSourcesListTemplate } from '@/relisten/carplay/show_templates';
 import { OfflineModeSetting } from '@/relisten/realm/models/user_settings';
 import plur from 'plur';
@@ -14,14 +13,7 @@ import { queuePlaybackHistoryEntry } from '@/relisten/carplay/queue_helpers';
 export function createLibraryTemplate(ctx: RelistenCarPlayContext): ListTemplate {
   carplay_logger.info('createLibraryTemplate');
 
-  const showsStream = new RealmQueryValueStream(
-    ctx.realm,
-    filterForUser(ctx.realm.objects(Show), {
-      isFavorite: true,
-      isPlayableOffline: true,
-      operator: 'OR',
-    })
-  );
+  const showsStream = new RealmQueryValueStream(ctx.realm, ctx.realm.objects(Show));
 
   ctx.addTeardown(() => showsStream.tearDown());
 
@@ -47,7 +39,9 @@ export function createLibraryTemplate(ctx: RelistenCarPlayContext): ListTemplate
 
   const updateSections = () => {
     showMap.clear();
-    const shows = Array.from(showsStream.currentValue || []);
+    const shows = Array.from(showsStream.currentValue || []).filter((show) =>
+      ctx.libraryIndex.showIsInLibrary(show.uuid)
+    );
 
     const sections: ListSection[] = [];
 
@@ -106,6 +100,7 @@ export function createLibraryTemplate(ctx: RelistenCarPlayContext): ListTemplate
   };
 
   showsStream.addListener(updateSections);
+  ctx.addTeardown(ctx.libraryIndex.subscribeLibraryMembership(updateSections));
 
   return template;
 }

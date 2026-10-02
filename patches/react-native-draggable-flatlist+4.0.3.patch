@@ -1,8 +1,121 @@
+diff --git a/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx b/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx
+index e4e861a..a720413 100644
+--- a/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx
++++ b/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx
+@@ -34,7 +34,7 @@ function CellRendererComponent<T>(props: Props<T>) {
+   const viewRef = useRef<Animated.View>(null);
+   const { cellDataRef, propsRef, containerRef } = useRefs<T>();
+
+-  const { horizontalAnim, scrollOffset } = useAnimatedValues();
++  const { activeIndexAnim, horizontalAnim, scrollOffset } = useAnimatedValues();
+   const {
+     activeKey,
+     keyExtractor,
+@@ -60,14 +60,20 @@ function CellRendererComponent<T>(props: Props<T>) {
+     // the animated style may apply before the next paint, causing a flicker.
+     // Solution is to hold over the last animated value until the next onLayout.
+     // (Not required in web)
+-    if (translate.value && !isWeb) {
++    // Cancellation does not reorder data or trigger onLayout. Do not retain
++    // the previous drag transform after its active index has been cleared.
++    if (activeIndexAnim.value < 0) {
++      heldTanslate.value = 0;
++    } else if (translate.value && !isWeb) {
+       heldTanslate.value = translate.value;
+     }
+-    const t = activeKey ? translate.value : heldTanslate.value;
++    const t = activeIndexAnim.value < 0
++      ? 0
++      : activeKey ? translate.value : heldTanslate.value;
+     return {
+       transform: [horizontalAnim.value ? { translateX: t } : { translateY: t }],
+     };
+-  }, [translate, activeKey]);
++  }, [activeIndexAnim, translate, activeKey]);
+
+   const updateCellMeasurements = useStableCallback(() => {
+     const onSuccess: MeasureLayoutOnSuccessCallback = (x, y, w, h) => {
 diff --git a/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx b/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
-index 7c88afc..bd71dab 100644
+index 7c88afc..3d6fdd0 100644
 --- a/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
 +++ b/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
-@@ -336,14 +336,9 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+@@ -7,6 +7,7 @@ import React, {
+   useState,
+ } from "react";
+ import {
++  AppState,
+   ListRenderItem,
+   FlatListProps,
+   LayoutChangeEvent,
+@@ -234,6 +235,21 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+     }
+   );
+
++  useEffect(() => {
++    const subscription = AppState.addEventListener("change", (state) => {
++      if (state === "active" || !activeKey) return;
++      const from = activeIndexAnim.value;
++      if (from < 0) return;
++      // iOS can background a held press before the pan recognizer finalizes.
++      activeIndexAnim.value = -1;
++      isTouchActiveNative.value = false;
++      touchTranslate.value = 0;
++      disabled.value = false;
++      onDragEnd({ from, to: from });
++    });
++    return () => subscription.remove();
++  }, [activeKey, activeIndexAnim, disabled, isTouchActiveNative, onDragEnd, touchTranslate]);
++
+   const onPlaceholderIndexChange = useStableCallback((index: number) => {
+     props.onPlaceholderIndexChange?.(index);
+   });
+@@ -286,8 +302,8 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+         : evt.translationY;
+       touchTranslate.value = translation;
+     })
+-    .onEnd((evt) => {
+-      if (gestureDisabled.value) return;
++    .onEnd((evt, success) => {
++      if (!success || gestureDisabled.value) return;
+       // Set touch val to current translate val
+       isTouchActiveNative.value = false;
+       const translation = horizontalAnim.value
+@@ -305,7 +321,8 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+       touchTranslate.value = withSpring(
+         springTo,
+         animationConfigRef.value,
+-        () => {
++        (finished) => {
++          if (!finished) return;
+           runOnJS(onDragEnd)({
+             from: activeIndexAnim.value,
+             to: spacerIndexAnim.value,
+@@ -314,6 +331,21 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+         }
+       );
+     })
++    .onFinalize((evt, success) => {
++      if (success || gestureDisabled.value) return;
++      // Cancellation (for example app backgrounding) has no onTouchesUp/onEnd.
++      // Release the lifted row without applying the current placeholder index.
++      const activeIndex = activeIndexAnim.value;
++      activeIndexAnim.value = -1;
++      isTouchActiveNative.value = false;
++      touchTranslate.value = 0;
++      panGestureState.value = evt.state;
++      if (activeIndex >= 0) {
++        disabled.value = false;
++        runOnJS(onRelease)(activeIndex);
++        runOnJS(onDragEnd)({ from: activeIndex, to: activeIndex });
++      }
++    })
+     .onTouchesDown(() => {
+       runOnJS(onContainerTouchStart)();
+     })
+@@ -333,17 +365,12 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+     }
+   }
+
 -  const onScroll = useStableCallback((scrollOffset: number) => {
 -    props.onScrollOffsetChange?.(scrollOffset);
 -  });

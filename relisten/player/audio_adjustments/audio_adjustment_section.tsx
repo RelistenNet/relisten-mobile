@@ -2,6 +2,8 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import type { PropsWithChildren } from 'react';
 import { View } from 'react-native';
 
+export const AUDIO_ADJUSTMENT_CARD_PADDING = 14;
+
 export function AudioAdjustmentCard({ children }: PropsWithChildren) {
   return (
     <View
@@ -15,7 +17,7 @@ export function AudioAdjustmentCard({ children }: PropsWithChildren) {
 
 export function AudioAdjustmentSection({ children, title }: PropsWithChildren<{ title: string }>) {
   return (
-    <View className="gap-2">
+    <View style={{ gap: 8 }}>
       <RelistenText
         className="text-[13px] font-bold tracking-[1.5px] text-relisten-blue-200"
         selectable={false}

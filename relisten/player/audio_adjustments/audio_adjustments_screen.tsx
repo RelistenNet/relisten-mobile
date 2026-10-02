@@ -1,40 +1,43 @@
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { useRelistenCastStatus } from '@/relisten/casting/cast_ui';
-import { AudioAdjustmentSection } from '@/relisten/player/audio_adjustments/audio_adjustment_section';
+import {
+  AUDIO_ADJUSTMENT_CARD_PADDING,
+  AudioAdjustmentSection,
+} from '@/relisten/player/audio_adjustments/audio_adjustment_section';
 import { useAudioAdjustmentEditing } from '@/relisten/player/audio_adjustments/audio_adjustment_editing';
 import { AudioAdjustmentPresetMenu } from '@/relisten/player/audio_adjustments/audio_adjustment_preset_menu';
-import { AudioAdjustmentSlider } from '@/relisten/player/audio_adjustments/audio_adjustment_slider';
+import { AudioAdjustmentSliderRow } from '@/relisten/player/audio_adjustments/audio_adjustment_slider';
 import { EqualizerResponseCurve } from '@/relisten/player/audio_adjustments/equalizer_response_curve';
 import {
-  AUDIO_ADJUSTMENT_VOLUME_REDUCTION_MAX_DB,
-  AUDIO_ADJUSTMENT_VOLUME_REDUCTION_MIN_DB,
+  AUDIO_ADJUSTMENT_VOLUME_GAIN_MAX_DB,
+  AUDIO_ADJUSTMENT_VOLUME_GAIN_MIN_DB,
 } from '@/relisten/player/audio_adjustments/audio_adjustment_types';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { Alert, Pressable, ScrollView, Switch, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tw } from '@/relisten/util/tw';
 
-function reductionLabel(value: number) {
-  return value === 0 ? 'Off' : `${value} dB`;
+function gainLabel(value: number) {
+  return `${value > 0 ? '+' : ''}${value} dB`;
 }
 
 export function AudioAdjustmentsScreen() {
-  const {
-    configuration,
-    finishAdjustment,
-    requestClose,
-    reset,
-    setEnabled,
-    setExtraVolumeReduction,
-  } = useAudioAdjustmentEditing();
+  const { configuration, finishAdjustment, requestClose, reset, setEnabled, setVolumeGain } =
+    useAudioAdjustmentEditing();
   const { deviceName, isCasting } = useRelistenCastStatus();
+  const insets = useSafeAreaInsets();
 
   return (
     <>
       <ScrollView
         className="flex-1 bg-relisten-blue-950"
-        contentContainerStyle={{ gap: 20, padding: 16, paddingBottom: 36 }}
+        contentContainerStyle={{
+          gap: 16,
+          padding: 16,
+          paddingBottom: Math.max(insets.bottom, 16) + 16,
+        }}
         contentInsetAdjustmentBehavior="automatic"
       >
         {isCasting && (
@@ -55,9 +58,10 @@ export function AudioAdjustmentsScreen() {
 
         <AudioAdjustmentSection title="Playback">
           <View
-            className={tw('min-h-[58px] flex-row items-center px-4', isCasting && 'opacity-45')}
+            className={tw('min-h-[58px] flex-row items-center', isCasting && 'opacity-45')}
+            style={{ padding: AUDIO_ADJUSTMENT_CARD_PADDING }}
           >
-            <View className="flex-1 gap-0.5 py-2.5">
+            <View style={{ flex: 1, gap: 2 }}>
               <RelistenText className="font-semibold" selectable={false}>
                 Audio Equalizer
               </RelistenText>
@@ -80,8 +84,14 @@ export function AudioAdjustmentsScreen() {
         <AudioAdjustmentSection title="Equalizer">
           <AudioAdjustmentPresetMenu disabled={isCasting} />
           <View className="h-px bg-relisten-blue-200/10" />
-          <View className={tw('gap-2 p-3.5', isCasting && 'opacity-45')}>
-            <EqualizerResponseCurve gains={configuration.bandGainsDb} />
+          <View
+            style={{
+              padding: AUDIO_ADJUSTMENT_CARD_PADDING,
+              gap: 8,
+              opacity: isCasting ? 0.45 : 1,
+            }}
+          >
+            <EqualizerResponseCurve compact gains={configuration.bandGainsDb} />
             <Pressable
               accessibilityRole="button"
               className="min-h-12 flex-row items-center rounded-xl border border-relisten-blue-200/25 px-3.5 py-3"
@@ -101,31 +111,42 @@ export function AudioAdjustmentsScreen() {
         </AudioAdjustmentSection>
 
         <AudioAdjustmentSection title="Volume">
-          <View className={tw('gap-1.5 p-3.5', isCasting && 'opacity-45')}>
-            <View className="flex-row justify-between gap-3">
-              <RelistenText className="min-w-0 flex-1 font-semibold" selectable={false}>
-                Extra Volume Reduction
+          <AudioAdjustmentSliderRow
+            centered
+            description="Boost can distort loud recordings"
+            accessibilityLabel="Volume Gain"
+            accessibilityText={gainLabel(configuration.extraVolumeReductionDb)}
+            disabled={isCasting}
+            maximumDb={AUDIO_ADJUSTMENT_VOLUME_GAIN_MAX_DB}
+            minimumDb={AUDIO_ADJUSTMENT_VOLUME_GAIN_MIN_DB}
+            onSlidingComplete={finishAdjustment}
+            onValueChange={setVolumeGain}
+            valueDb={configuration.extraVolumeReductionDb}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <RelistenText
+                className="text-xs text-gray-400"
+                style={{ flex: 1 }}
+                selectable={false}
+              >
+                −30 dB
               </RelistenText>
-              <RelistenText className="shrink-0 text-relisten-blue-200" selectable={false}>
-                {reductionLabel(configuration.extraVolumeReductionDb)}
+              <RelistenText
+                className="text-xs text-gray-300"
+                style={{ flex: 1, textAlign: 'center' }}
+                selectable={false}
+              >
+                0 dB
+              </RelistenText>
+              <RelistenText
+                className="text-xs text-gray-400"
+                style={{ flex: 1, textAlign: 'right' }}
+                selectable={false}
+              >
+                +12 dB
               </RelistenText>
             </View>
-            <AudioAdjustmentSlider
-              activeTrackDirection="maximum"
-              accessibilityLabel="Extra Volume Reduction"
-              accessibilityText={reductionLabel(configuration.extraVolumeReductionDb)}
-              disabled={isCasting}
-              maximumDb={AUDIO_ADJUSTMENT_VOLUME_REDUCTION_MAX_DB}
-              minimumDb={AUDIO_ADJUSTMENT_VOLUME_REDUCTION_MIN_DB}
-              onSlidingComplete={finishAdjustment}
-              onValueChange={setExtraVolumeReduction}
-              valueDb={configuration.extraVolumeReductionDb}
-            />
-            <RelistenText className="text-sm text-gray-400" selectable={false}>
-              Makes Relisten quieter than the iPhone volume control allows. This affects Relisten
-              only.
-            </RelistenText>
-          </View>
+          </AudioAdjustmentSliderRow>
         </AudioAdjustmentSection>
 
         <Pressable
@@ -135,7 +156,7 @@ export function AudioAdjustmentsScreen() {
           onPress={() =>
             Alert.alert(
               'Reset Equalizer?',
-              'This selects Flat, sets every band to 0 dB, and turns Extra Volume Reduction off. Audio Equalizer will keep its current On or Off state.',
+              'This selects Flat, sets every band to 0 dB, and returns Volume Gain to 0 dB. Audio Equalizer will keep its current On or Off state.',
               [
                 { text: 'Cancel', style: 'cancel' },
                 { text: 'Reset', style: 'destructive', onPress: reset },
@@ -151,10 +172,6 @@ export function AudioAdjustmentsScreen() {
             Reset Equalizer…
           </RelistenText>
         </Pressable>
-
-        <RelistenText selectable={false} className="text-center text-xs text-gray-500">
-          Changes apply immediately and are saved on this iPhone.
-        </RelistenText>
       </ScrollView>
 
       <Stack.Screen.Title>Audio Equalizer</Stack.Screen.Title>

@@ -24,6 +24,7 @@ import { legacyDatabaseExists } from '@/relisten/realm/old_ios_schema';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LegacyDataMigrationModal, SEEN_MODAL_KEY } from '@/relisten/pages/legacy_migration';
 import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
+import { AccountSettingsSection } from '@/relisten/accounts/ui/account_settings_section';
 
 const sizeFormatter = new Intl.NumberFormat([], {
   style: 'unit',
@@ -197,6 +198,7 @@ export default function Page() {
     <ScrollScreen>
       <ScrollView className="" {...playerBottomScrollViewProps}>
         <Flex column>
+          <AccountSettingsSection />
           <Flex column className="gap-4 p-4 pr-8">
             <RowWithAction
               title="Recently Played"

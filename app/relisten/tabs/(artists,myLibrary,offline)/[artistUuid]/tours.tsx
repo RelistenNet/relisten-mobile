@@ -20,8 +20,10 @@ import {
 } from '@/relisten/components/filtering/filters';
 import { Tour } from '@/relisten/realm/models/tour';
 import dayjs from 'dayjs';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useGroupSegment } from '@/relisten/util/routes';
+import { useLibraryMembershipRevision, useRootLibraryIndex } from '@/relisten/realm/root_services';
+import { FavoriteObjectButton } from '@/relisten/components/favorite_icon_button';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -40,7 +42,9 @@ export default function Page() {
       <DisappearingHeaderScreen
         ScrollableComponent={TourList}
         tours={Array.from(data.tours)}
-        filterOptions={{ persistence: { key: ['artists', artistUuid, 'tours'].join('/') } }}
+        filterOptions={{
+          persistence: { key: ['artists', artistUuid, 'tours'].join('/') },
+        }}
       />
     </RefreshContextProvider>
   );
@@ -67,13 +71,16 @@ const TourListItem = ({ tour }: TourListItemProps) => {
       asChild
     >
       <SectionedListItem>
-        <Flex column>
-          <RowTitle>{tour.name}</RowTitle>
-          <SubtitleRow>
-            <SubtitleText>
-              {startDate} - {endDate}
-            </SubtitleText>
-          </SubtitleRow>
+        <Flex className="items-center justify-between" full>
+          <Flex className="min-w-0 flex-1 pr-3" column>
+            <RowTitle>{tour.name}</RowTitle>
+            <SubtitleRow>
+              <SubtitleText>
+                {startDate} - {endDate}
+              </SubtitleText>
+            </SubtitleRow>
+          </Flex>
+          <FavoriteObjectButton object={tour} />
         </Flex>
       </SectionedListItem>
     </Link>
@@ -105,12 +112,12 @@ export enum TourFilterKey {
   Name = 'name',
 }
 
-const TOUR_FILTERS: Filter<TourFilterKey, Tour>[] = [
+const tourFilters = (isFavorite: (uuid: string) => boolean): Filter<TourFilterKey, Tour>[] => [
   {
     persistenceKey: TourFilterKey.Library,
     title: 'My Library',
     active: false,
-    filter: (y) => y.isFavorite,
+    filter: (tour) => isFavorite(tour.uuid),
   },
   {
     persistenceKey: TourFilterKey.Name,
@@ -131,8 +138,15 @@ const TourList = ({
   tours,
   filterOptions,
 }: TourListProps & Omit<FilterableListProps<Tour>, 'data' | 'renderItem'>) => {
+  const libraryIndex = useRootLibraryIndex();
+  const libraryMembershipRevision = useLibraryMembershipRevision();
+  const filters = useMemo(
+    () => tourFilters((uuid) => libraryIndex.isFavorite('tour', uuid)),
+    [libraryIndex, libraryMembershipRevision]
+  );
+
   return (
-    <FilteringProvider filters={TOUR_FILTERS} options={filterOptions}>
+    <FilteringProvider filters={filters} options={filterOptions}>
       <FilterableList
         ListHeaderComponent={<TourHeader tours={tours} />}
         data={[{ data: tours }]}

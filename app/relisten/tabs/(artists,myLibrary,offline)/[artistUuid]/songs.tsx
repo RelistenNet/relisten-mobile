@@ -20,7 +20,9 @@ import {
 } from '@/relisten/components/filtering/filters';
 import { Song } from '@/relisten/realm/models/song';
 import { useGroupSegment } from '@/relisten/util/routes';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
+import { useLibraryMembershipRevision, useRootLibraryIndex } from '@/relisten/realm/root_services';
+import { FavoriteObjectButton } from '@/relisten/components/favorite_icon_button';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -39,7 +41,9 @@ export default function Page() {
       <DisappearingHeaderScreen
         ScrollableComponent={SongList}
         songs={Array.from(data.songs)}
-        filterOptions={{ persistence: { key: ['artists', artistUuid, 'songs'].join('/') } }}
+        filterOptions={{
+          persistence: { key: ['artists', artistUuid, 'songs'].join('/') },
+        }}
       />
     </RefreshContextProvider>
   );
@@ -64,14 +68,17 @@ const SongListItem = ({ song }: SongListItemProps) => {
       asChild
     >
       <SectionedListItem>
-        <Flex column>
-          <RowTitle>{song.name}</RowTitle>
-          <SubtitleRow>
-            <SubtitleText>
-              {'Played at '}
-              <Plur word="show" count={song.showsPlayedAt} />
-            </SubtitleText>
-          </SubtitleRow>
+        <Flex className="items-center justify-between" full>
+          <Flex className="min-w-0 flex-1 pr-3" column>
+            <RowTitle>{song.name}</RowTitle>
+            <SubtitleRow>
+              <SubtitleText>
+                {'Played at '}
+                <Plur word="show" count={song.showsPlayedAt} />
+              </SubtitleText>
+            </SubtitleRow>
+          </Flex>
+          <FavoriteObjectButton object={song} />
         </Flex>
       </SectionedListItem>
     </Link>
@@ -105,12 +112,14 @@ export enum SongFilterPersistenceKey {
   Search = 'search',
 }
 
-const SONG_FILTERS: Filter<SongFilterPersistenceKey, Song>[] = [
+const songFilters = (
+  isFavorite: (uuid: string) => boolean
+): Filter<SongFilterPersistenceKey, Song>[] => [
   {
     persistenceKey: SongFilterPersistenceKey.Library,
     title: 'My Library',
     active: false,
-    filter: (y) => y.isFavorite,
+    filter: (song) => isFavorite(song.uuid),
   },
   {
     persistenceKey: SongFilterPersistenceKey.Name,
@@ -149,8 +158,15 @@ const SongList = ({
   songs,
   filterOptions,
 }: SongListProps & Omit<FilterableListProps<Song>, 'data' | 'renderItem'>) => {
+  const libraryIndex = useRootLibraryIndex();
+  const libraryMembershipRevision = useLibraryMembershipRevision();
+  const filters = useMemo(
+    () => songFilters((uuid) => libraryIndex.isFavorite('song', uuid)),
+    [libraryIndex, libraryMembershipRevision]
+  );
+
   return (
-    <FilteringProvider filters={SONG_FILTERS} options={filterOptions}>
+    <FilteringProvider filters={filters} options={filterOptions}>
       <FilterableList
         ListHeaderComponent={<SongHeader songs={songs} />}
         data={[{ data: songs }]}

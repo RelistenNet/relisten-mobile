@@ -107,23 +107,22 @@ function ShowIdentity({ visualizerActive }: { visualizerActive: boolean }) {
         {venue && (
           <View className="mt-0.5 w-full items-center">
             <View className="w-full flex-row items-center gap-4 px-7">
-              <View className="h-px flex-1 bg-relisten-blue-700/60" />
+              <View className="h-px min-w-4 flex-1 bg-relisten-blue-700/60" />
               <RelistenText
-                adjustsFontSizeToFit
                 allowFontScaling={false}
-                className="min-w-0 shrink text-center font-semibold uppercase text-relisten-blue-200/70"
-                minimumFontScale={0.72}
+                className="shrink text-center font-light uppercase text-relisten-blue-200"
                 numberOfLines={2}
                 selectable={false}
                 style={{
-                  fontSize: 13 * posterScale,
+                  fontSize: 14 * posterScale,
                   letterSpacing: 3 * posterScale,
-                  lineHeight: 18 * posterScale,
+                  lineHeight: 22 * posterScale,
+                  maxWidth: '78%',
                 }}
               >
                 {venue.name}
               </RelistenText>
-              <View className="h-px flex-1 bg-relisten-blue-700/60" />
+              <View className="h-px min-w-4 flex-1 bg-relisten-blue-700/60" />
             </View>
             <RelistenText
               adjustsFontSizeToFit
@@ -141,7 +140,7 @@ function ShowIdentity({ visualizerActive }: { visualizerActive: boolean }) {
             </RelistenText>
           </View>
         )}
-        <View className="mb-2 mt-5 w-full px-3">
+        <View className="mb-1 mt-6 w-full px-5">
           <PlayerAudioVisualizer active={visualizerActive} />
         </View>
       </View>
@@ -156,7 +155,7 @@ function CurrentTrackInfo({
 }: {
   castStatus: ReturnType<typeof useRelistenCastStatus>;
   headingRef?: Ref<View>;
-  onBeforeNavigate: () => void;
+  onBeforeNavigate: (navigate: () => void) => void;
 }) {
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
   const { isCasting, deviceName } = castStatus;
@@ -205,16 +204,16 @@ function CurrentTrackInfo({
   );
 
   const actionButtons = (
-    <View className="flex-row items-center gap-2 py-1">
+    <View className="flex-row items-center gap-2">
       {shareButton}
       <View className="h-11 w-11">
         <PlayerActionsMenu onBeforeNavigate={onBeforeNavigate}>
-          {/* The iOS menu host offsets its child 8pt left and 4pt up. */}
+          {/* The iOS menu host offsets its child 8pt left. */}
           <View
             accessible
             accessibilityLabel="Player actions"
             accessibilityRole="button"
-            className="h-11 w-11 translate-x-2 translate-y-1 items-center justify-center rounded-full border border-white/25 bg-white/5"
+            className="h-11 w-11 translate-x-2 items-center justify-center rounded-full border border-white/25 bg-white/5"
             collapsable={false}
           >
             <Ionicons color="white" name="ellipsis-horizontal" size={22} />
@@ -225,26 +224,34 @@ function CurrentTrackInfo({
   );
 
   const trackDetails = (
-    <View
-      ref={headingRef}
-      accessible
-      accessibilityLabel={accessibilityLabel}
-      accessibilityRole="header"
-      className={isAccessibilityLayout ? 'min-w-0' : 'min-w-0 flex-1'}
-    >
+    <View>
+      <View>
+        <View
+          ref={headingRef}
+          accessible
+          accessibilityLabel={accessibilityLabel}
+          accessibilityRole="header"
+          className={isAccessibilityLayout ? 'min-w-0' : 'min-h-11 min-w-0 justify-center pr-28'}
+        >
+          <RelistenText
+            className="text-2xl font-bold leading-tight"
+            numberOfLines={fontScale < 1.4 ? 2 : undefined}
+            selectable={false}
+          >
+            {displayTitle}
+          </RelistenText>
+        </View>
+        <View className={isAccessibilityLayout ? 'mt-2' : 'absolute right-0 top-0'}>
+          {actionButtons}
+        </View>
+      </View>
       <RelistenText
-        className="text-2xl font-bold leading-tight"
-        numberOfLines={fontScale < 1.4 ? 2 : undefined}
-        selectable={false}
-      >
-        {displayTitle}
-      </RelistenText>
-      <RelistenText
-        className="mt-2 text-lg"
+        className="mt-1 text-lg"
         numberOfLines={fontScale < 1.4 ? 1 : undefined}
         selectable={false}
       >
-        {artist.name} · {playerDisplayDate(show.displayDate)}
+        {artist.name}
+        {isAccessibilityLayout ? ` · ${playerDisplayDate(show.displayDate)}` : ''}
       </RelistenText>
       {show.venue ? (
         <RelistenText
@@ -267,52 +274,49 @@ function CurrentTrackInfo({
     </View>
   );
 
-  return (
-    <View className="px-6">
-      {isAccessibilityLayout ? (
-        <View className="gap-2">
-          {trackDetails}
-          <View className="items-end">{actionButtons}</View>
-        </View>
-      ) : (
-        <View className="flex-row items-center justify-between gap-3">
-          {trackDetails}
-          {actionButtons}
-        </View>
-      )}
-    </View>
-  );
+  return <View className="px-5">{trackDetails}</View>;
 }
 
-function PlayerControls() {
+export function PlayerControls({ compact = false }: { compact?: boolean }) {
   const player = useRelistenPlayer();
   const playbackState = useRelistenPlayerPlaybackState();
 
-  let playbackStateIcon = <MaterialIcons color="white" name="play-arrow" size={46} />;
+  let playbackStateIcon = (
+    <MaterialIcons color="white" name="play-arrow" size={compact ? 28 : 46} />
+  );
   let playbackLabel = 'Play';
 
   if (playbackState === RelistenPlaybackState.Playing) {
-    playbackStateIcon = <MaterialIcons color="white" name="pause" size={46} />;
+    playbackStateIcon = <MaterialIcons color="white" name="pause" size={compact ? 28 : 46} />;
     playbackLabel = 'Pause';
   } else if (playbackState === RelistenPlaybackState.Stalled) {
-    playbackStateIcon = <Progress.CircleSnail color="white" indeterminate size={34} />;
+    playbackStateIcon = (
+      <Progress.CircleSnail color="white" indeterminate size={compact ? 24 : 34} />
+    );
     playbackLabel = 'Buffering';
   }
 
   return (
-    <View className="flex-row items-center justify-between px-12">
+    <View
+      className={
+        compact ? 'flex-row items-center gap-2' : 'flex-row items-center justify-between px-12'
+      }
+    >
       <TouchableOpacity
         accessibilityLabel="Previous track"
         accessibilityRole="button"
         className="min-h-11 min-w-11 items-center justify-center"
         onPress={() => player.back()}
       >
-        <MaterialCommunityIcons color="white" name="skip-backward" size={34} />
+        <MaterialCommunityIcons color="white" name="skip-backward" size={compact ? 24 : 34} />
       </TouchableOpacity>
       <TouchableOpacity
         accessibilityLabel={playbackLabel}
         accessibilityRole="button"
-        className="h-16 w-16 items-center justify-center rounded-full border border-white/30 bg-white/5"
+        className={tw(
+          'items-center justify-center rounded-full border border-white/30 bg-white/5',
+          compact ? 'h-11 w-11' : 'h-16 w-16'
+        )}
         onPress={() => player.togglePauseResume()}
       >
         {playbackStateIcon}
@@ -328,7 +332,7 @@ function PlayerControls() {
         disabled={player.queue.isCurrentTrackLast}
         onPress={() => player.next()}
       >
-        <MaterialCommunityIcons color="white" name="skip-forward" size={34} />
+        <MaterialCommunityIcons color="white" name="skip-forward" size={compact ? 24 : 34} />
       </TouchableOpacity>
     </View>
   );
@@ -440,14 +444,16 @@ function PlayerSecondaryControls() {
 
 type PlayerNowPlayingProps = {
   headingRef?: Ref<View>;
-  onBeforeNavigate: () => void;
+  onBeforeNavigate: (navigate: () => void) => void;
   visualizerActive?: boolean;
+  onScrubbingChange?: (scrubbing: boolean) => void;
 };
 
 export function PlayerNowPlaying({
   headingRef,
   onBeforeNavigate,
   visualizerActive = true,
+  onScrubbingChange,
 }: PlayerNowPlayingProps) {
   const currentTrack = useRelistenPlayerCurrentTrack();
   const castStatus = useRelistenCastStatus();
@@ -465,24 +471,24 @@ export function PlayerNowPlaying({
   }
 
   return (
-    <View className={tw('pb-6', showDecorativeIdentity ? 'pt-6' : 'pt-7')}>
+    <View className={tw('pb-4', showDecorativeIdentity ? 'pt-6' : 'pt-7')}>
       {showDecorativeIdentity && (
         <ShowIdentity visualizerActive={visualizerActive && !castStatus.isCasting} />
       )}
-      <View className={showDecorativeIdentity ? 'mt-5' : undefined}>
+      <View className={showDecorativeIdentity ? 'mt-3' : undefined}>
         <CurrentTrackInfo
           castStatus={castStatus}
           headingRef={headingRef}
           onBeforeNavigate={onBeforeNavigate}
         />
       </View>
-      <View className="mt-5 px-6">
-        <ScrubberRow subduedCache />
+      <View className="mt-4 px-5">
+        <ScrubberRow subduedCache onScrubbingChange={onScrubbingChange} />
       </View>
       <View className="mt-1">
         <PlayerControls />
       </View>
-      <View className="mt-6 pb-4 pt-2">
+      <View className="mt-4 pb-2 pt-1">
         <PlayerSecondaryControls />
       </View>
     </View>

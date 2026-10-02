@@ -31,6 +31,9 @@ import {
   CatalogStartupRepairState,
   repairCatalogAtStartup,
 } from '@/relisten/realm/catalog_startup_repair';
+import { ACCOUNT_REALM_MODELS } from '@/relisten/realm/models/accounts';
+import { FAVORITE_REALM_MODELS } from '@/relisten/realm/models/library';
+import { migrateLegacyFavoritesToAnonymous } from '@/relisten/realm/migrations/favorite_migration';
 
 if (isVerboseProfileLoggingEnabled()) {
   Realm.setLogger(({ category, level, message }) => {
@@ -67,8 +70,11 @@ const realmConfig: Realm.Configuration = {
     PopularityWindow,
     PopularityWindows,
     CatalogStartupRepairState,
+    ...ACCOUNT_REALM_MODELS,
+    ...FAVORITE_REALM_MODELS,
   ],
-  schemaVersion: 13,
+  schemaVersion: 15,
+  onMigration: migrateLegacyFavoritesToAnonymous,
   // As to not conflict with the prior versions default.realm that isn't readable with this version of the SDK
   path: './relisten.realm',
 };

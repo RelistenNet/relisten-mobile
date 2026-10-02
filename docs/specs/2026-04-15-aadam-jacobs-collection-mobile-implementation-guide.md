@@ -733,7 +733,7 @@ Steps:
 - Add all new schemas with stable primary keys and indexed fields used by collection queries.
 - Add `SyncCursor.sourceKey` for the ingested bundled artist cache key.
 - Add `ArtistFeaturedFlags.CollectionDerived = 1 << 2`.
-- Bump Realm schema version from `12` to `13`.
+- Bump Realm by one from the schema version current when this work begins; schema 13 is owned by audio EQ and schema 14 by account/favorites.
 - Keep the migration additive. New models do not require backfilling existing rows.
 - Run `yarn ts:check`.
 

@@ -2,7 +2,7 @@ import dayjs from 'dayjs';
 import { FlacType, Link, SourceFull } from '../../api/models/source';
 import Realm from 'realm';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
-import { FavoritableObject } from '../favoritable_object';
+import { LegacyFavoriteMirror } from '../legacy_favorite_mirror';
 import type { SourceSet } from './source_set';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { Artist } from '@/relisten/realm/models/artist';
@@ -37,7 +37,7 @@ export interface SourceRequiredProperties extends RelistenObjectRequiredProperti
 
 export class Source
   extends Realm.Object<Source, keyof SourceRequiredProperties>
-  implements SourceRequiredProperties, FavoritableObject
+  implements SourceRequiredProperties, LegacyFavoriteMirror
 {
   static schema: Realm.ObjectSchema = {
     name: 'Source',
@@ -79,6 +79,7 @@ export class Source
       },
       artist: 'Artist?',
 
+      // Deprecated compatibility mirror. Canonical membership is in UserFavorite.
       isFavorite: { type: 'bool', default: false },
     },
   };
@@ -110,6 +111,7 @@ export class Source
   reviewCount!: number;
   linksRaw!: string;
 
+  /** @deprecated Use `useFavorite` or `LibraryIndex` for active-account membership. */
   isFavorite!: boolean;
 
   sourceSets!: Realm.List<SourceSet>;
@@ -117,9 +119,11 @@ export class Source
   artist!: Artist;
 
   private _links?: Link[];
+  private _cachedLinksRaw?: string;
   links() {
-    if (!this._links) {
+    if (!this._links || this._cachedLinksRaw !== this.linksRaw) {
       this._links = JSON.parse(this.linksRaw);
+      this._cachedLinksRaw = this.linksRaw;
     }
     return this._links!;
   }
@@ -189,5 +193,12 @@ export class Source
       reviewCount: relistenObj.review_count,
       linksRaw: JSON.stringify(relistenObj.links),
     };
+  }
+
+  static shouldUpdateFromApi(model: Source, relistenObj: SourceFull) {
+    // A resolver-hydrated source has the catalog's current updated_at but an
+    // intentionally empty link sidecar. Let the ordinary full-show response
+    // enrich it even when the underlying source timestamp has not changed.
+    return model.linksRaw !== JSON.stringify(relistenObj.links);
   }
 }

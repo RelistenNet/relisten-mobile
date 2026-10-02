@@ -58,8 +58,8 @@ export function ManageAudioPresetsScreen() {
                     </RelistenText>
                     <RelistenText className="text-sm text-gray-400" selectable={false}>
                       {preset.extraVolumeReductionDb === 0
-                        ? 'No extra volume reduction'
-                        : `${preset.extraVolumeReductionDb} dB volume reduction`}
+                        ? '0 dB volume gain'
+                        : `${preset.extraVolumeReductionDb > 0 ? '+' : ''}${preset.extraVolumeReductionDb} dB volume gain`}
                     </RelistenText>
                   </View>
                   <NativeMenuView

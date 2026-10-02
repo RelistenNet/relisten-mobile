@@ -38,7 +38,6 @@ export class Year
       avgRating: 'double?',
       year: 'string',
       popularity: 'Popularity?',
-      // isFavorite: { type: 'bool', default: false },
       sourceTracks: {
         type: 'linkingObjects',
         objectType: 'SourceTrack',
@@ -59,8 +58,6 @@ export class Year
   avgRating?: Realm.Types.Float;
   year!: string;
   popularity?: Popularity;
-  // isFavorite!: boolean;
-
   sourceTracks!: Realm.List<SourceTrack>;
 
   hasOfflineTracks(libraryIndex?: Pick<LibraryIndex, 'yearHasOfflineTracks'>) {

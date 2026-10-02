@@ -9,7 +9,7 @@ import { RelistenBlue } from '@/relisten/relisten_blue';
 import { trackDuration } from '@/relisten/util/duration';
 import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useRef } from 'react';
-import { Text } from 'react-native';
+import { Text, View } from 'react-native';
 import { HapticModeEnum, Slider } from 'react-native-awesome-slider';
 import { useSharedValue } from 'react-native-reanimated';
 import { useRelistenCastStatus } from '@/relisten/casting/cast_ui';
@@ -17,9 +17,14 @@ import { useRelistenCastStatus } from '@/relisten/casting/cast_ui';
 type ScrubberRowProps = {
   showTimes?: boolean;
   subduedCache?: boolean;
+  onScrubbingChange?: (scrubbing: boolean) => void;
 };
 
-export function ScrubberRow({ showTimes = true, subduedCache = false }: ScrubberRowProps) {
+export function ScrubberRow({
+  showTimes = true,
+  subduedCache = false,
+  onScrubbingChange,
+}: ScrubberRowProps) {
   'use no memo';
 
   const progressObj = useNativePlaybackProgress();
@@ -86,46 +91,56 @@ export function ScrubberRow({ showTimes = true, subduedCache = false }: Scrubber
     cache.value = cacheValue;
   }, [cacheValue]);
 
+  // Touch cancellation must release the list lock too; the slider's pan
+  // onSlidingComplete callback alone does not cover interrupted gestures.
+  useEffect(() => () => onScrubbingChange?.(false), [onScrubbingChange]);
+
   return (
-    <Flex column>
-      <Slider
-        progress={progress}
-        minimumValue={min}
-        maximumValue={max}
-        cache={cache}
-        isScrubbing={isScrubbing}
-        hapticMode={HapticModeEnum.BOTH}
-        onHapticFeedback={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        }}
-        onSlidingComplete={doSeek}
-        theme={{
-          minimumTrackTintColor: RelistenBlue['400'],
-          maximumTrackTintColor: subduedCache ? 'rgba(255, 255, 255, 0.52)' : undefined,
-          cacheTrackTintColor: subduedCache ? 'rgba(255, 255, 255, 0.52)' : RelistenBlue['600'],
-          bubbleBackgroundColor: RelistenBlue['900'],
-        }}
-        bubble={(value) => trackDuration(value)}
-        bubbleTextStyle={{ fontVariant: ['tabular-nums'], textAlign: 'center' }}
-      />
-      {showTimes && (
-        <Flex className="mt-2 min-h-5 justify-between">
-          <Text
-            className="font-semibold leading-5 text-gray-300 tabular-nums"
-            maxFontSizeMultiplier={1.8}
-            selectable={false}
-          >
-            {trackDuration(progressObj?.elapsed ?? 0)}
-          </Text>
-          <Text
-            className="font-semibold leading-5 text-gray-300 tabular-nums"
-            maxFontSizeMultiplier={1.8}
-            selectable={false}
-          >
-            {trackDuration(progressObj?.duration ?? 0)}
-          </Text>
-        </Flex>
-      )}
-    </Flex>
+    <View
+      onTouchStart={() => onScrubbingChange?.(true)}
+      onTouchEnd={() => onScrubbingChange?.(false)}
+      onTouchCancel={() => onScrubbingChange?.(false)}
+    >
+      <Flex column>
+        <Slider
+          progress={progress}
+          minimumValue={min}
+          maximumValue={max}
+          cache={cache}
+          isScrubbing={isScrubbing}
+          hapticMode={HapticModeEnum.BOTH}
+          onHapticFeedback={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }}
+          onSlidingComplete={doSeek}
+          theme={{
+            minimumTrackTintColor: RelistenBlue['400'],
+            maximumTrackTintColor: subduedCache ? 'rgba(255, 255, 255, 0.52)' : undefined,
+            cacheTrackTintColor: subduedCache ? 'rgba(255, 255, 255, 0.52)' : RelistenBlue['600'],
+            bubbleBackgroundColor: RelistenBlue['900'],
+          }}
+          bubble={(value) => trackDuration(value)}
+          bubbleTextStyle={{ fontVariant: ['tabular-nums'], textAlign: 'center' }}
+        />
+        {showTimes && (
+          <Flex className="mt-2 min-h-5 justify-between">
+            <Text
+              className="font-semibold leading-5 text-gray-300 tabular-nums"
+              maxFontSizeMultiplier={1.8}
+              selectable={false}
+            >
+              {trackDuration(progressObj?.elapsed ?? 0)}
+            </Text>
+            <Text
+              className="font-semibold leading-5 text-gray-300 tabular-nums"
+              maxFontSizeMultiplier={1.8}
+              selectable={false}
+            >
+              {trackDuration(progressObj?.duration ?? 0)}
+            </Text>
+          </Flex>
+        )}
+      </Flex>
+    </View>
   );
 }

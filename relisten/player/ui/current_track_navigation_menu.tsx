@@ -5,6 +5,7 @@ import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { router, useNavigation } from 'expo-router';
 import { type ReactNode, useCallback, useMemo } from 'react';
+import { InteractionManager } from 'react-native';
 
 const ACTION_IDS = {
   artist: 'artist',
@@ -14,7 +15,7 @@ const ACTION_IDS = {
 export type CurrentTrackNavigationActionId = (typeof ACTION_IDS)[keyof typeof ACTION_IDS];
 type CurrentTrackNavigationAction = MenuAction & { id: CurrentTrackNavigationActionId };
 
-export function useCurrentTrackNavigation(onBeforeNavigate?: () => void) {
+export function useCurrentTrackNavigation(onBeforeNavigate?: (navigate: () => void) => void) {
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
   const groupSegment = useGroupSegment();
   const { pushShow } = usePushShowRespectingUserSettings();
@@ -48,21 +49,23 @@ export function useCurrentTrackNavigation(onBeforeNavigate?: () => void) {
         return;
       }
 
-      onBeforeNavigate?.();
-
-      if (actionId === ACTION_IDS.artist) {
-        router.push({
-          pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/`,
-          params: { artistUuid: artist.uuid },
-        });
-      } else if (actionId === ACTION_IDS.show) {
-        pushShow({
-          artist,
-          showUuid: show.uuid,
-          sourceUuid: source?.uuid,
-          overrideGroupSegment: '(artists)',
-        });
-      }
+      const navigate = () => {
+        if (actionId === ACTION_IDS.artist) {
+          router.push({
+            pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/`,
+            params: { artistUuid: artist.uuid },
+          });
+        } else if (actionId === ACTION_IDS.show) {
+          pushShow({
+            artist,
+            showUuid: show.uuid,
+            sourceUuid: source?.uuid,
+            overrideGroupSegment: '(artists)',
+          });
+        }
+      };
+      if (onBeforeNavigate) onBeforeNavigate(navigate);
+      else navigate();
     },
     [artist, groupSegment, onBeforeNavigate, pushShow, show, source]
   );
@@ -73,7 +76,7 @@ export function useCurrentTrackNavigation(onBeforeNavigate?: () => void) {
 type CurrentTrackNavigationMenuProps = {
   children: ReactNode;
   dismissOnNavigate?: boolean;
-  onBeforeNavigate?: () => void;
+  onBeforeNavigate?: (navigate: () => void) => void;
 };
 
 export function CurrentTrackNavigationMenu({
@@ -82,16 +85,19 @@ export function CurrentTrackNavigationMenu({
   onBeforeNavigate,
 }: CurrentTrackNavigationMenuProps) {
   const navigation = useNavigation();
-  const handleBeforeNavigate = useCallback(() => {
-    if (onBeforeNavigate) {
-      onBeforeNavigate();
-      return;
-    }
-
-    if (dismissOnNavigate) {
-      navigation.goBack();
-    }
-  }, [dismissOnNavigate, navigation, onBeforeNavigate]);
+  const handleBeforeNavigate = useCallback(
+    (navigate: () => void) => {
+      if (onBeforeNavigate) {
+        onBeforeNavigate(navigate);
+      } else if (dismissOnNavigate) {
+        navigation.goBack();
+        void InteractionManager.runAfterInteractions(navigate);
+      } else {
+        navigate();
+      }
+    },
+    [dismissOnNavigate, navigation, onBeforeNavigate]
+  );
   const { actions, handleAction } = useCurrentTrackNavigation(handleBeforeNavigate);
 
   if (actions.length === 0) {
