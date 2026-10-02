@@ -381,9 +381,13 @@ if (app.version !== "6.2.0" || String(app.ios.buildNumber) !== "6050") {
 }
 '
   ensure_local_env_for_ota
-  # eoas supports an existing Expo login when EXPO_TOKEN is not supplied.
-  # Do not require an interactive 1Password unlock for this bounded target.
-  export EXPO_TOKEN
+  # Preserve an explicit token, but let .env.local supply it when absent.
+  # Exporting an empty value would prevent Expo's dotenv loader from filling it.
+  if [[ -n "$EXPO_TOKEN" ]]; then
+    export EXPO_TOKEN
+  else
+    unset EXPO_TOKEN
+  fi
   export RELEASE_CHANNEL="accounts-favorites-mobile"
   export RELISTEN_IOS_RUNTIME_VERSION="6.2.0+ios.6050"
   export EXPO_PUBLIC_RELISTEN_CATALOG_ORIGIN="https://api.relisten.net"
