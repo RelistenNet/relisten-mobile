@@ -3,6 +3,8 @@ import { RelistenBlue } from '@/relisten/relisten_blue';
 import Slider from '@react-native-community/slider';
 import colors from 'tailwindcss/colors';
 import { View } from 'react-native';
+import type { PropsWithChildren } from 'react';
+import { AUDIO_ADJUSTMENT_CARD_PADDING } from './audio_adjustment_section';
 import {
   decibelsToSliderPosition,
   sliderPositionToDecibels,
@@ -97,9 +99,14 @@ export function AudioAdjustmentSlider({
   );
 }
 
-export function AudioAdjustmentSliderRow(props: AudioAdjustmentSliderProps) {
+export function AudioAdjustmentSliderRow({
+  children,
+  ...props
+}: PropsWithChildren<AudioAdjustmentSliderProps>) {
   return (
-    <View style={{ padding: 14, gap: 2, opacity: props.disabled ? 0.45 : 1 }}>
+    <View
+      style={{ padding: AUDIO_ADJUSTMENT_CARD_PADDING, gap: 2, opacity: props.disabled ? 0.45 : 1 }}
+    >
       <View
         style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}
       >
@@ -116,6 +123,7 @@ export function AudioAdjustmentSliderRow(props: AudioAdjustmentSliderProps) {
         </RelistenText>
       </View>
       <AudioAdjustmentSlider {...props} />
+      {children}
     </View>
   );
 }
