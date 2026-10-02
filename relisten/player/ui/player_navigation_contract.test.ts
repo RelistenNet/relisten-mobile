@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // completion delivery. This checks their wiring, not Worklets memory safety.
 const harness = vi.hoisted(() => ({
   cleanups: [] as (() => void)[],
-  springs: [] as { target: number; finish?: (finished: boolean) => void }[],
+  springs: [] as { target: number; config: unknown; finish?: (finished: boolean) => void }[],
   queuedCallbacks: [] as (() => void)[],
   bridgedCallbacks: [] as (() => void)[],
   state: vi.fn(),
@@ -36,8 +36,8 @@ vi.mock('react', async (importOriginal) => {
 vi.mock('react-native-reanimated', () => ({
   cancelAnimation: harness.cancel,
   makeMutable: () => ({ set: vi.fn() }),
-  withSpring: (target: number, _config: unknown, finish?: (finished: boolean) => void) => {
-    harness.springs.push({ target, finish });
+  withSpring: (target: number, config: unknown, finish?: (finished: boolean) => void) => {
+    harness.springs.push({ target, config, finish });
     return target;
   },
   runOnJS: (callback: () => void) => {
@@ -87,6 +87,25 @@ beforeEach(() => {
 });
 
 describe('player presentation and menu navigation contract', () => {
+  it('keeps the original modal spring for opening, closing, and returning from a dismiss drag', () => {
+    const { presentation } = mountPlayer();
+    presentation.closePlayer();
+    presentation.beginInteractivePresentation();
+    presentation.openPlayer();
+    presentation.beginInteractivePresentation();
+    presentation.closePlayer();
+
+    expect(harness.springs.map(({ target }) => target)).toEqual([1, 0, 1, 0]);
+    for (const { config } of harness.springs) {
+      expect(config).toEqual({
+        damping: 30,
+        mass: 0.82,
+        overshootClamping: true,
+        stiffness: 300,
+      });
+    }
+  });
+
   it.each(['artist', 'show'] as const)(
     'defers the %s destination until closing completes',
     (action) => {
