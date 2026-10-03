@@ -1,6 +1,8 @@
 import { defineConfig } from 'vitest/config';
+import reactNative from '@wojtekmaj/vitest-react-native/testing-library';
 
 export default defineConfig({
+  plugins: [reactNative()],
   resolve: {
     alias: {
       '@': new URL('.', import.meta.url).pathname,
@@ -9,7 +11,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     fileParallelism: false,
-    include: ['relisten/**/*.test.ts'],
+    include: ['{app,relisten,modules}/**/*.{test,spec}.{ts,tsx}'],
     maxWorkers: 1,
   },
 });

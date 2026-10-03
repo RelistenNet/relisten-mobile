@@ -20,6 +20,7 @@
     }
   },
   "include": [
+    "vitest.config.mts",
     "./relisten/**/*.ts",
     "./relisten/**/*.tsx",
     "./relisten/**/*.d.ts",
