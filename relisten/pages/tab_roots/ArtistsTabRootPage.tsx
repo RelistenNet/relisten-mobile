@@ -34,6 +34,7 @@ import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
 import { useTopPlayedArtistUuidsOnce } from '@/relisten/realm/models/history/playback_history_entry_repo';
 import { useRemainingDownloadsCount } from '@/relisten/realm/root_services';
 import { logTabRootDebug } from '@/relisten/util/profile_logging';
+import { selectFeaturedArtists } from '@/relisten/pages/tab_roots/featured_artists';
 
 const FavoritesSectionHeader = ({ favorites }: { favorites: Artist[] }) => {
   const { apiClient } = useRelistenApi();
@@ -136,20 +137,7 @@ const OnlineArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> 
     const favoritesSorted = allSorted
       .filter((a) => a.isFavorite)
       .sort((a, b) => a.sortName.localeCompare(b.sortName));
-    const featuredAll = allSorted.filter((a) => !a.isAutomaticallyCreated() && !a.isFavorite);
-    const hasPopularity = featuredAll.some(
-      (artist) => artist.popularity?.windows?.days30d?.plays !== undefined
-    );
-    const featuredCandidates = hasPopularity
-      ? [...featuredAll]
-          .sort(
-            (a, b) =>
-              (b.popularity?.windows?.days30d?.plays ?? 0) -
-              (a.popularity?.windows?.days30d?.plays ?? 0)
-          )
-          .slice(0, 100)
-      : featuredAll;
-    const featuredSorted = filter(featuredCandidates, undefined);
+    const featuredSorted = filter(selectFeaturedArtists(allSorted), undefined);
 
     return {
       all: allSorted,
