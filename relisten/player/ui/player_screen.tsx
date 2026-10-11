@@ -187,7 +187,7 @@ function CurrentTrackInfo({ dismissOnNavigate }: CurrentTrackInfoProps) {
 
   const onShare = () => {
     const [year, month, day] = show.displayDate.split('-');
-    const url = `https://relisten.net/${artist.slug}/${year}/${month}/${day}/${track.slug}?source=${source.uuid}`;
+    const url = `https://relisten.net/${artist.slug}/${year}/${month}/${day}/${track.slug}?source=${source.sourceId ?? source.uuid}`;
     Share.share({
       message: `Check out ${track.title} (${track.humanizedDuration}) by ${artist.name} (${show.displayDate}) on @relistenapp${Platform.OS === 'ios' ? '' : `: ${url}`}`,
       url: url,
