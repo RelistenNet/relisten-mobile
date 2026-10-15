@@ -2,6 +2,7 @@
 
 package net.relisten.android.audio_player
 
+import android.app.ActivityManager
 import android.app.PendingIntent
 import android.content.Intent
 import android.util.Log
@@ -22,8 +23,14 @@ class RelistenPlaybackService : MediaLibraryService() {
     override fun onCreate() {
         super.onCreate()
 
+        val activityManager = getSystemService(ActivityManager::class.java)
         val player = ExoPlayer.Builder(this)
-            .setLoadControl(RelistenLoadControl())
+            .setLoadControl(
+                RelistenLoadControl(
+                    maxHeapBytes = Runtime.getRuntime().maxMemory(),
+                    isLowRamDevice = activityManager?.isLowRamDevice ?: true
+                )
+            )
             .setHandleAudioBecomingNoisy(true)
             .build()
         player.setAudioAttributes(relistenAudioAttributes(), true)
