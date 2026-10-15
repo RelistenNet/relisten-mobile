@@ -3,6 +3,7 @@
   "compilerOptions": {
     "strict": true,
     "experimentalDecorators": true,
+    "useDefineForClassFields": false,
     "skipLibCheck": true,
     "paths": {
       "@/relisten/*": [

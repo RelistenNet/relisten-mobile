@@ -1,4 +1,3 @@
-import { Repository } from '../repository';
 import { useQuery, useRealm } from '../schema';
 import { Year } from './year';
 
@@ -22,8 +21,9 @@ import {
 } from '@/relisten/realm/value_streams';
 import { NetworkBackedModelArrayBehavior } from '@/relisten/realm/network_backed_model_array_behavior';
 import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_network_backed_behavior';
+import { yearRepo } from './year_repository';
 
-export const yearRepo = new Repository(Year);
+export { yearRepo } from './year_repository';
 
 export function yearsNetworkBackedModelArrayBehavior(
   realm: Realm.Realm,

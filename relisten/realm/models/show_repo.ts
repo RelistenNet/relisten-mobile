@@ -17,6 +17,7 @@ import { SourceTrack } from './source_track';
 import { venueRepo } from './venue_repo';
 import { Artist } from './artist';
 import { Year } from './year';
+import { yearRepo } from './year_repository';
 import { useObject, useRealm } from '@/relisten/realm/schema';
 import {
   CombinedValueStream,
@@ -139,13 +140,17 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
 
   override upsert(localData: ShowWithSources, apiData: ApiShowWithSources): void {
     const artist = this.realm.objectForPrimaryKey(Artist, apiData.artist_uuid);
-    const year = this.realm.objectForPrimaryKey(Year, apiData.year_uuid);
     const apiSourceSets = R.flatMap(apiData.sources, (s) => s.sets);
     const apiSourceTracks = R.flatMap(apiSourceSets, (s) => s.tracks);
     const apiSourceSetsBySource = R.groupBy(apiSourceSets, (s) => s.source_uuid);
     const apiSourceTracksBySet = R.groupBy(apiSourceTracks, (s) => s.source_set_uuid);
 
     this.realm.write(() => {
+      const existingYear = this.realm.objectForPrimaryKey(Year, apiData.year_uuid) ?? undefined;
+      const year = apiData.year
+        ? yearRepo.upsert(this.realm, apiData.year, existingYear, true).allModels[0]
+        : existingYear;
+
       const {
         createdModels: [createdShow],
         updatedModels: [updatedShow],
