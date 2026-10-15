@@ -7,10 +7,12 @@ import {
   playerPresentationProgress,
   usePlayerPresentation,
 } from '@/relisten/player/ui/player_presentation';
-import { useWindowDimensions, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS, useSharedValue } from 'react-native-reanimated';
 
+/** Keeps dismissal available above the scrolling player, by button or grabber drag. */
 export function PlayerOverlayHeader({ interactive }: { interactive: boolean }) {
   'use no memo';
 
@@ -20,6 +22,8 @@ export function PlayerOverlayHeader({ interactive }: { interactive: boolean }) {
   const gestureStartProgress = useSharedValue(1);
   const gestureDistance = playerDismissGestureDistance(height);
 
+  // Activate only after downward movement, so tapping the chevron remains a
+  // normal button press and an upward drag can pass back to the player list.
   const collapseGesture = Gesture.Pan()
     .enabled(interactive)
     .manualActivation(true)
@@ -47,7 +51,13 @@ export function PlayerOverlayHeader({ interactive }: { interactive: boolean }) {
         Math.min(1, gestureStartProgress.value - event.translationY / gestureDistance)
       );
     })
-    .onEnd((event) => {
+    .onEnd((event, success) => {
+      // onEnd runs only for an activated drag, including cancellation. A tap
+      // never activates the pan and must not undo the chevron's close action.
+      if (!success) {
+        runOnJS(openPlayer)();
+        return;
+      }
       if (
         shouldFinishPlayerDismiss(
           playerPresentationProgress.value,
@@ -59,22 +69,27 @@ export function PlayerOverlayHeader({ interactive }: { interactive: boolean }) {
       } else {
         runOnJS(openPlayer)();
       }
-    })
-    .onFinalize((_event, success) => {
-      if (!success && playerPresentationProgress.value < 1) {
-        runOnJS(openPlayer)();
-      }
     });
 
   return (
     <GestureDetector gesture={collapseGesture}>
-      <View
-        accessibilityElementsHidden
-        className="min-h-14 items-center justify-end pb-2 pt-3"
-        collapsable={false}
-        importantForAccessibility="no-hide-descendants"
-      >
-        <View className="h-1 w-9 rounded-full bg-relisten-blue-200/80" />
+      <View className="min-h-[56px] items-center justify-end pb-2 pt-3" collapsable={false}>
+        <TouchableOpacity
+          accessibilityLabel="Collapse player"
+          accessibilityRole="button"
+          accessibilityElementsHidden={!interactive}
+          importantForAccessibility={interactive ? 'auto' : 'no-hide-descendants'}
+          className="absolute left-3 top-1.5 h-11 w-11 items-center justify-center"
+          disabled={!interactive}
+          onPress={() => closePlayer()}
+        >
+          <Ionicons color="rgba(255, 255, 255, 0.8)" name="chevron-down" size={25} />
+        </TouchableOpacity>
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          className="h-1 w-9 rounded-full bg-relisten-blue-200/80"
+        />
       </View>
     </GestureDetector>
   );

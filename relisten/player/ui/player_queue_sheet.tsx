@@ -22,6 +22,7 @@ import {
 import { ReturnToNowPlayingButton } from '@/relisten/player/ui/return_to_now_playing_button';
 import { isQueueReorderCurrent } from '@/relisten/player/ui/player_queue_reorder';
 import { PlayerQueueTransport } from '@/relisten/player/ui/player_queue_transport';
+import { playerTransportTransition } from '@/relisten/player/ui/player_transport_transition';
 import {
   playerTimelineFooterHeight,
   playerTimelineSnapOffsets,
@@ -49,8 +50,6 @@ import DraggableFlatList, {
   type RenderItemParams,
 } from 'react-native-draggable-flatlist';
 import Animated, {
-  Extrapolation,
-  interpolate,
   useAnimatedStyle,
   runOnJS,
   type SharedValue,
@@ -108,7 +107,8 @@ function PlayerTimelinePivotObserver({
       }
 
       const relativeOffset = scrollOffset.value - pivotOffset.value;
-      if (relativeOffset >= (nowPlayingHeight.value - compactHeight) * 0.85 - 1) return 1;
+      const progress = relativeOffset / Math.max(1, nowPlayingHeight.value - compactHeight);
+      if (playerTransportTransition(progress).compactOwnsControls) return 1;
       return relativeOffset <= -viewportHeight + 1 ? -1 : 0;
     },
     (visibility, previousVisibility) => {
@@ -247,10 +247,19 @@ export function PlayerQueueSheet({
   const nowPlayingHeight = useSharedValue(0);
   const anchorReady = useSharedValue(false);
   const expandedPlayerStyle = useAnimatedStyle(() => ({
-    // Preserve its measured height, but finish fading before compact appears.
-    // Otherwise the lower utility buttons peek out below the compact header.
-    opacity: interpolate(queueProgress.value, [0.2, 0.5], [1, 0], Extrapolation.CLAMP),
+    opacity: playerTransportTransition(queueProgress.value).expandedOpacity,
   }));
+  const expandedPlayerMaskStyle = useAnimatedStyle(() => {
+    const transition = playerTransportTransition(queueProgress.value);
+    const offset = Math.max(0, effectiveScrollOffset.value - pivotOffset.value);
+    const clippedHeight =
+      Math.max(0, nowPlayingHeight.value - offset - transportHeight) *
+      transition.expandedClipProgress;
+
+    // Mask instead of changing layout height: snapping and queue anchors must
+    // stay fixed, and longer track titles must still measure at natural height.
+    return { height: clippedHeight };
+  });
   useDerivedValue(() => {
     if (!anchorReady.value) {
       queueProgress.value = 0;
@@ -759,6 +768,13 @@ export function PlayerQueueSheet({
                 onScrubbingChange={handleScrubbingChange}
                 visualizerActive={visualizerActive && !isPivotOffscreen}
               />
+              <Animated.View
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+                pointerEvents="none"
+                className="absolute inset-x-0 bottom-0 z-10 bg-relisten-blue-900"
+                style={expandedPlayerMaskStyle}
+              />
             </Animated.View>
           );
         case 'up-next':
@@ -792,6 +808,7 @@ export function PlayerQueueSheet({
     [
       isPivotOffscreen,
       expandedPlayerStyle,
+      expandedPlayerMaskStyle,
       measureQueueItem,
       handleScrubbingChange,
       openQueue,

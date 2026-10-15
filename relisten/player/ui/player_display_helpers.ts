@@ -61,6 +61,7 @@ export function playerDisplayTitle(title: string) {
   return title.replace(/\s*>\s*/g, ' > ');
 }
 
+/** Metadata used by history rows; player queue rows reserve a separate show-date label. */
 export function playerTrackMetadata(sourceTrack: SourceTrack) {
   return [
     sourceTrack.artist.name,
@@ -69,4 +70,17 @@ export function playerTrackMetadata(sourceTrack: SourceTrack) {
   ]
     .filter(Boolean)
     .join(' · ');
+}
+
+/** Names a performance for spoken controls, including same-title songs in a mixed-show queue. */
+export function playerTrackAccessibilityLabel(sourceTrack: SourceTrack) {
+  return [
+    playerDisplayTitle(sourceTrack.title),
+    sourceTrack.artist.name,
+    playerQueueDate(sourceTrack.show.displayDate),
+    sourceTrack.show.venue?.name,
+    sourceTrack.show.venue?.location,
+  ]
+    .filter(Boolean)
+    .join(', ');
 }
