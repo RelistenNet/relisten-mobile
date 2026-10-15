@@ -131,7 +131,7 @@ export function createSourcesListTemplate(
     emptyViewTitleVariants: ['Loading sources...'],
   });
 
-  results.addListener((nextValue) => {
+  const updateSources = (nextValue: typeof results.currentValue) => {
     const data = nextValue.data;
     const sources = data?.sources ? sortSources(data.sources, ctx.libraryIndex) : [];
     const { displaySources: nextDisplaySources, autoSelectSource } = resolveSourcesForScope(
@@ -161,7 +161,12 @@ export function createSourcesListTemplate(
     }
 
     showSources();
-  });
+  };
+
+  results.addListener(updateSources);
+  ctx.addTeardown(
+    ctx.libraryIndex.subscribeLibraryMembership(() => updateSources(results.currentValue))
+  );
 
   return template;
 }

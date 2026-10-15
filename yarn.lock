@@ -5173,6 +5173,18 @@ expo-asset@~58.0.16:
     "@expo/image-utils" "^0.12.5"
     expo-constants "~58.0.12"
 
+expo-auth-session@~58.0.12:
+  version "58.0.12"
+  resolved "https://registry.yarnpkg.com/expo-auth-session/-/expo-auth-session-58.0.12.tgz#9c660898f443ad9c5d26fa4628c3f9653b25b6d5"
+  integrity sha512-a+bN2bzGfUsUUlPjYFQFTgE48fiUMK9iN+kKe/brseJ83YZOvr2tM1JoMXLQr5eUb9sCiNwnxYcZhMXtNpYJjg==
+  dependencies:
+    expo-application "~58.1.1"
+    expo-constants "~58.0.12"
+    expo-crypto "~58.0.6"
+    expo-linking "~58.0.13"
+    expo-web-browser "~58.0.6"
+    invariant "^2.2.4"
+
 expo-build-properties@~58.0.10:
   version "58.0.10"
   resolved "https://registry.yarnpkg.com/expo-build-properties/-/expo-build-properties-58.0.10.tgz#93d23d3b3b3215f0b39cd9946c2c9d08bb9c3b26"
@@ -10505,6 +10517,11 @@ uuid@*:
   version "13.0.0"
   resolved "https://registry.yarnpkg.com/uuid/-/uuid-13.0.0.tgz#263dc341b19b4d755eb8fe36b78d95a6b65707e8"
   integrity sha512-XQegIaBTVUjSHliKqcnFqYypAd4S+WCYt5NIeRs6w/UAry7z8Y9j5ZwRRL4kzq9U3sD6v+85er9FvkEaBpji2w==
+
+uuid@^14.0.1:
+  version "14.0.3"
+  resolved "https://registry.yarnpkg.com/uuid/-/uuid-14.0.3.tgz#48c9b0dcf5a42d983c23162399eeb9af8b2cc617"
+  integrity sha512-Sc5u1VVln93y1Xnz4R+CunOZc7R9LUcTmhj7Rc7Eg3HVcf7rVn2FOoa812fe0W8p3jD7xeoGSYbfqCGGH2B6xw==
 
 uuid@^7.0.3:
   version "7.0.3"

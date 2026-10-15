@@ -95,13 +95,25 @@ export class PlayerQueueTrack {
       forceStreaming?: boolean;
     }
   ): RelistenStreamable {
-    let url = this.sourceTrack.streamingUrl();
+    let url: string;
     let downloadDestination: string | undefined = undefined;
 
     if (!options?.forceStreaming && this.sourceTrack.offlineInfo?.isPlayableOffline()) {
       url = this.sourceTrack.downloadedFileLocation();
-    } else if (!options?.forceStreaming && allowStreamingCache) {
-      downloadDestination = this.sourceTrack.downloadedFileLocation();
+    } else {
+      const streamingUrl = this.sourceTrack.streamingUrl();
+      if (!streamingUrl) {
+        throw new Error(`Source track ${this.sourceTrack.uuid} has no playable audio URL.`);
+      }
+      url = streamingUrl;
+
+      if (
+        !options?.forceStreaming &&
+        allowStreamingCache &&
+        this.sourceTrack.supportsOfflineDownload()
+      ) {
+        downloadDestination = this.sourceTrack.downloadedFileLocation();
+      }
     }
 
     return {
@@ -431,7 +443,12 @@ ${indentString(tracks)}
 
     if (newNextTrack?.identifier !== prevNextTrack?.identifier) {
       if (newNextTrack) {
-        this.player.setNextStream(newNextTrack.toStreamable(this.player.enableStreamingCache));
+        try {
+          this.player.setNextStream(newNextTrack.toStreamable(this.player.enableStreamingCache));
+        } catch (error) {
+          logger.warn('Next queue track has no playable URL; clearing native preload.', error);
+          this.player.setNextStream(undefined);
+        }
       } else {
         this.player.setNextStream(undefined);
       }
@@ -592,6 +609,7 @@ ${indentString(tracks)}
 
     this.playerStateDebounce = setTimeout(() => {
       if (realm) {
+        const progress = this.currentTrack ? this.player.progress : undefined;
         const state = {
           queueShuffleState: this.shuffleState,
           queueRepeatState: this.repeatState,
@@ -600,9 +618,9 @@ ${indentString(tracks)}
           activeSourceTrackIndex: this.originalTracksCurrentIndex,
           activeSourceTrackShuffledIndex: this.shuffledTracksCurrentIndex,
           lastUpdatedAt: new Date(),
-          progress: this.player.progress?.percent,
-          duration: this.player.progress?.duration,
-          elapsed: this.player.progress?.elapsed,
+          progress: progress?.percent,
+          duration: progress?.duration,
+          elapsed: progress?.elapsed,
         };
         logger.debug('writing player state progress', {
           activeSourceTrackIndex: state.activeSourceTrackIndex,
@@ -737,10 +755,18 @@ ${indentString(tracks)}
       this._nextTrack = undefined;
       this._nextTrackIndex = undefined;
 
-      const restoredElapsed = Number.isFinite(playerState.elapsed) ? playerState.elapsed : null;
-      const restoredDuration = Number.isFinite(playerState.duration) ? playerState.duration : null;
+      // Older saves can contain the previous track's duration. Use catalog duration until native
+      // timing arrives, retaining the saved seek within the selected track's bounds.
+      const restoredDuration = this.currentTrack?.sourceTrack.duration ?? playerState.duration;
+      const savedElapsed = playerState.elapsed;
 
-      if (restoredElapsed != null && restoredDuration != null) {
+      if (
+        savedElapsed != null &&
+        Number.isFinite(savedElapsed) &&
+        restoredDuration != null &&
+        Number.isFinite(restoredDuration)
+      ) {
+        const restoredElapsed = Math.max(0, Math.min(restoredDuration, savedElapsed));
         const restoredProgress = {
           elapsed: restoredElapsed,
           duration: restoredDuration,

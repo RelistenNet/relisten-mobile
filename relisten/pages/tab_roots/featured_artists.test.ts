@@ -57,4 +57,22 @@ describe('selectFeaturedArtists', () => {
 
     expect(selected.map((item) => item.uuid)).toEqual(['regular', 'approved-automatic']);
   });
+
+  it('uses scoped library membership for both popular and approved artists', () => {
+    const libraryFavorites = new Set(['popular-favorite', 'approved-favorite']);
+    const selected = selectFeaturedArtists(
+      [
+        artist('popular-favorite', { plays: 1000 }),
+        artist('approved-favorite', { approved: true, automatic: true }),
+        artist('former-favorite', { plays: 100, favorite: true }),
+        artist('approved-former-favorite', { approved: true, automatic: true, favorite: true }),
+      ],
+      (artist) => libraryFavorites.has(artist.uuid)
+    );
+
+    expect(selected.map((item) => item.uuid)).toEqual([
+      'former-favorite',
+      'approved-former-favorite',
+    ]);
+  });
 });

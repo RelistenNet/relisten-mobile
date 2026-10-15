@@ -3,14 +3,19 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
 import { cancelAnimation, makeMutable, runOnJS, withSpring } from 'react-native-reanimated';
+import { createPlayerCloseCompletion } from './player_close_completion';
 
 export const playerPresentationProgress = makeMutable(0);
+export const playerPresentationContentReady = makeMutable(false);
 
-const PRESENTATION_SPRING = {
+// Whole-player transitions are independent of the native timeline snap motion.
+const MODAL_PRESENTATION_SPRING = {
   damping: 30,
   mass: 0.82,
   overshootClamping: true,
@@ -23,6 +28,7 @@ type PlayerPresentationContextValue = {
   isPresentationActive: boolean;
   isPresentationMounted: boolean;
   openPlayer: () => void;
+  markPlayerContentReady: () => void;
   resetPlayerPresentation: () => void;
 };
 
@@ -34,50 +40,84 @@ const PlayerPresentationContext = createContext<PlayerPresentationContextValue |
 
 export function PlayerPresentationProvider({ children }: PropsWithChildren) {
   const [presentationState, setPresentationState] = useState<PlayerPresentationState>('idle');
-  const afterCloseRef = useRef<(() => void) | undefined>(undefined);
+  const presentationRequested = useRef(false);
+  const pendingOpen = useRef(false);
+  const closeCompletion = useMemo(
+    () =>
+      createPlayerCloseCompletion(() => {
+        playerPresentationContentReady.set(false);
+        setPresentationState('idle');
+      }),
+    []
+  );
+  const cancelPendingClose = closeCompletion.cancel;
 
-  const cancelPendingClose = useCallback(() => {
-    afterCloseRef.current = undefined;
-  }, []);
-
-  const finishClosing = useCallback(() => {
-    const afterClose = afterCloseRef.current;
-    afterCloseRef.current = undefined;
-    setPresentationState('idle');
-    afterClose?.();
-  }, []);
+  useEffect(
+    () => () => {
+      closeCompletion.cancel();
+      presentationRequested.current = false;
+      pendingOpen.current = false;
+      playerPresentationContentReady.set(false);
+      cancelAnimation(playerPresentationProgress);
+    },
+    [closeCompletion]
+  );
 
   const beginInteractivePresentation = useCallback(() => {
     cancelPendingClose();
     cancelAnimation(playerPresentationProgress);
+    presentationRequested.current = true;
+    pendingOpen.current = false;
     setPresentationState('active');
   }, [cancelPendingClose]);
 
   const openPlayer = useCallback(() => {
     cancelPendingClose();
     cancelAnimation(playerPresentationProgress);
+    presentationRequested.current = true;
+    pendingOpen.current = !playerPresentationContentReady.value;
     setPresentationState('active');
-    playerPresentationProgress.set(withSpring(1, PRESENTATION_SPRING));
+    if (!pendingOpen.current) {
+      playerPresentationProgress.set(withSpring(1, MODAL_PRESENTATION_SPRING));
+    }
   }, [cancelPendingClose]);
+
+  const markPlayerContentReady = useCallback(() => {
+    if (!presentationRequested.current) return;
+    // Called after the anchored timeline has committed its visible content.
+    playerPresentationContentReady.set(true);
+    if (pendingOpen.current) {
+      pendingOpen.current = false;
+      playerPresentationProgress.set(withSpring(1, MODAL_PRESENTATION_SPRING));
+    }
+  }, []);
 
   const closePlayer = useCallback(
     (afterClose?: () => void) => {
-      afterCloseRef.current = afterClose;
+      presentationRequested.current = false;
+      pendingOpen.current = false;
+      closeCompletion.cancel();
       cancelAnimation(playerPresentationProgress);
+      // A fresh JS function per animation avoids reusing a remote function ID
+      // after Worklets has released the previous animation's callback proxy.
+      const completeClose = closeCompletion.begin(afterClose);
       playerPresentationProgress.set(
-        withSpring(0, PRESENTATION_SPRING, (finished) => {
+        withSpring(0, MODAL_PRESENTATION_SPRING, (finished) => {
           if (finished) {
-            runOnJS(finishClosing)();
+            runOnJS(completeClose)();
           }
         })
       );
     },
-    [finishClosing]
+    [closeCompletion]
   );
 
   const resetPlayerPresentation = useCallback(() => {
     cancelPendingClose();
     cancelAnimation(playerPresentationProgress);
+    presentationRequested.current = false;
+    pendingOpen.current = false;
+    playerPresentationContentReady.set(false);
     playerPresentationProgress.set(0);
     setPresentationState('idle');
   }, [cancelPendingClose]);
@@ -90,6 +130,7 @@ export function PlayerPresentationProvider({ children }: PropsWithChildren) {
         isPresentationActive: presentationState === 'active',
         isPresentationMounted: presentationState === 'active',
         openPlayer,
+        markPlayerContentReady,
         resetPlayerPresentation,
       }}
     >

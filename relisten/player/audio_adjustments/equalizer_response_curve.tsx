@@ -13,9 +13,9 @@ const HORIZONTAL_PADDING = 12;
 const VERTICAL_PADDING = 12;
 const GAIN_RANGE_DB = AUDIO_ADJUSTMENT_BAND_GAIN_MAX_DB - AUDIO_ADJUSTMENT_BAND_GAIN_MIN_DB;
 
-function responsePath(gains: AudioAdjustmentBandGains) {
+function responsePath(gains: AudioAdjustmentBandGains, viewboxHeight: number) {
   const drawableWidth = VIEWBOX_WIDTH - HORIZONTAL_PADDING * 2;
-  const drawableHeight = VIEWBOX_HEIGHT - VERTICAL_PADDING * 2;
+  const drawableHeight = viewboxHeight - VERTICAL_PADDING * 2;
   const points = gains.map((gain, index) => ({
     x: HORIZONTAL_PADDING + (index / (gains.length - 1)) * drawableWidth,
     y:
@@ -26,9 +26,16 @@ function responsePath(gains: AudioAdjustmentBandGains) {
   return points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
 }
 
-export function EqualizerResponseCurve({ gains }: { gains: AudioAdjustmentBandGains }) {
+export function EqualizerResponseCurve({
+  gains,
+  compact = false,
+}: {
+  gains: AudioAdjustmentBandGains;
+  compact?: boolean;
+}) {
+  const viewboxHeight = compact ? 88 : VIEWBOX_HEIGHT;
   const drawableWidth = VIEWBOX_WIDTH - HORIZONTAL_PADDING * 2;
-  const drawableHeight = VIEWBOX_HEIGHT - VERTICAL_PADDING * 2;
+  const drawableHeight = viewboxHeight - VERTICAL_PADDING * 2;
   const points = gains.map((gain, index) => ({
     x: HORIZONTAL_PADDING + (index / (gains.length - 1)) * drawableWidth,
     y:
@@ -39,18 +46,18 @@ export function EqualizerResponseCurve({ gains }: { gains: AudioAdjustmentBandGa
   return (
     <View
       accessibilityElementsHidden
-      className="aspect-[2.5] w-full"
+      style={{ width: '100%', aspectRatio: VIEWBOX_WIDTH / viewboxHeight }}
       importantForAccessibility="no-hide-descendants"
     >
-      <Svg height="100%" viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`} width="100%">
+      <Svg height="100%" viewBox={`0 0 ${VIEWBOX_WIDTH} ${viewboxHeight}`} width="100%">
         <Line
           stroke={RelistenBlue[700]}
           strokeOpacity={0.65}
           strokeWidth={1}
           x1={HORIZONTAL_PADDING}
           x2={VIEWBOX_WIDTH - HORIZONTAL_PADDING}
-          y1={VIEWBOX_HEIGHT / 2}
-          y2={VIEWBOX_HEIGHT / 2}
+          y1={viewboxHeight / 2}
+          y2={viewboxHeight / 2}
         />
         {points.map((point) => (
           <Line
@@ -60,11 +67,11 @@ export function EqualizerResponseCurve({ gains }: { gains: AudioAdjustmentBandGa
             x1={point.x}
             x2={point.x}
             y1={VERTICAL_PADDING}
-            y2={VIEWBOX_HEIGHT - VERTICAL_PADDING}
+            y2={viewboxHeight - VERTICAL_PADDING}
           />
         ))}
         <Path
-          d={responsePath(gains)}
+          d={responsePath(gains, viewboxHeight)}
           fill="none"
           stroke={RelistenBlue[300]}
           strokeLinecap="round"

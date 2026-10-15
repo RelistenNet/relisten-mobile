@@ -9,6 +9,7 @@ import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player
 import { useNativePlaybackProgress } from '@/relisten/player/native_playback_state_hooks';
 import {
   playerPresentationProgress,
+  playerPresentationContentReady,
   usePlayerPresentation,
 } from '@/relisten/player/ui/player_presentation';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -282,7 +283,7 @@ export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBa
 
   const barStyle = useAnimatedStyle(() => ({
     opacity: interpolate(
-      playerPresentationProgress.value,
+      playerPresentationContentReady.value ? playerPresentationProgress.value : 0,
       [0, 0.025, 0.14],
       [1, 0.6, 0],
       Extrapolation.CLAMP
@@ -290,7 +291,7 @@ export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBa
     transform: [
       {
         translateY: interpolate(
-          playerPresentationProgress.value,
+          playerPresentationContentReady.value ? playerPresentationProgress.value : 0,
           [0, 1],
           [0, Math.min(playerBottomBarHeight * 0.38, 24)],
           Extrapolation.CLAMP
@@ -298,7 +299,7 @@ export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBa
       },
       {
         scale: interpolate(
-          playerPresentationProgress.value,
+          playerPresentationContentReady.value ? playerPresentationProgress.value : 0,
           [0, 1],
           [1, 0.96],
           Extrapolation.CLAMP
