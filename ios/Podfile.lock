@@ -3095,7 +3095,7 @@ SPEC CHECKSUMS:
   ReactCommon: 145a14b942b19fc2fe38927f261955ada56978aa
   ReactNativeDependencies: d3b7423ba1e52525e42085c8470109abde583d2e
   RealmJS: 1c37c6bdfe060f4caa0f9175aa0eedb962622ee1
-  RelistenAudioPlayer: c2f2979b11f4b082c772e9aad81238af6cd569df
+  RelistenAudioPlayer: bf123bc4d85a55d1b3bc7a8a64b9f55718fc4077
   RNCAsyncStorage: 47ffec1d3f091c4a21881654bbd5e2e7f62efbc9
   RNCMaskedView: a9c7c7992c85d8073707286fb59a857bc786cbd5
   RNGestureHandler: ddbdf3f293a498368803f8181ff157271ac05c48
