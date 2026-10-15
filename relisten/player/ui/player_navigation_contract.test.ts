@@ -1,3 +1,4 @@
+import { type JSX } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Execute the actual provider and navigation hook with controllable native
@@ -55,6 +56,9 @@ vi.mock('react-native', () => ({ InteractionManager: { runAfterInteractions: vi.
 vi.mock('expo-router', () => ({ router: { push: harness.push }, useNavigation: vi.fn() }));
 vi.mock('@/relisten/components/menus/native_menu_icons', () => ({ nativeMenuIcons: {} }));
 vi.mock('@/relisten/components/menus/native_menu_view', () => ({ NativeMenuView: vi.fn() }));
+vi.mock('@/relisten/player/audio_adjustments/audio_adjustment_native', () => ({
+  audioAdjustmentNative: { capabilities: () => ({ supported: true }) },
+}));
 vi.mock('@/relisten/player/relisten_player_queue_hooks', () => ({
   useRelistenPlayerCurrentTrack: () => harness.track,
 }));
@@ -63,6 +67,7 @@ vi.mock('@/relisten/util/push_show', () => ({
 }));
 vi.mock('@/relisten/util/routes', () => ({ useGroupSegment: () => '(artists)' }));
 
+import { PlayerActionsMenu } from './player_actions_menu';
 import { useCurrentTrackNavigation } from './current_track_navigation_menu';
 import { PlayerPresentationProvider, playerPresentationContentReady } from './player_presentation';
 
@@ -182,6 +187,41 @@ describe('player presentation and menu navigation contract', () => {
       }
     }
   );
+
+  it.each(['artist', 'show'] as const)(
+    'dispatches the grouped More menu %s action after closing',
+    (actionId) => {
+      const { presentation } = mountPlayer();
+      const element = PlayerActionsMenu({
+        children: null,
+        onBeforeNavigate: presentation.closePlayer,
+      }) as JSX.Element;
+      const action = element.props.actions
+        .flatMap((section: { subactions: { id: string }[] }) => section.subactions)
+        .find(({ id }: { id: string }) => id === actionId);
+      element.props.onPressAction({ nativeEvent: { event: action.id } });
+      expect(harness.push).not.toHaveBeenCalled();
+      expect(harness.pushShow).not.toHaveBeenCalled();
+      finishLatestClose();
+      deliverCallbacks();
+      expect(actionId === 'artist' ? harness.push : harness.pushShow).toHaveBeenCalledOnce();
+    }
+  );
+
+  it('opens the equalizer from the grouped More menu without dismissing the player', () => {
+    const { presentation } = mountPlayer();
+    const element = PlayerActionsMenu({
+      children: null,
+      onBeforeNavigate: presentation.closePlayer,
+    }) as JSX.Element;
+    const action = element.props.actions
+      .flatMap((section: { subactions: { id: string }[] }) => section.subactions)
+      .find(({ id }: { id: string }) => id === 'audio-adjustments');
+    const springCount = harness.springs.length;
+    element.props.onPressAction({ nativeEvent: { event: action.id } });
+    expect(harness.push).toHaveBeenCalledWith('/relisten/audio-adjustments');
+    expect(harness.springs).toHaveLength(springCount);
+  });
 
   it.each(['openPlayer', 'beginInteractivePresentation', 'resetPlayerPresentation'] as const)(
     '%s invalidates a close callback already queued for JS delivery',

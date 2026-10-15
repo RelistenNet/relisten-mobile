@@ -11,6 +11,7 @@ import {
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { useCallback, useMemo } from 'react';
 import { Platform, Share } from 'react-native';
+import { playerTrackAccessibilityLabel } from './player_display_helpers';
 import { useFavorite } from '@/relisten/library/favorite_hooks';
 
 export type PlayShow = (sourceTrack?: SourceTrack) => void;
@@ -153,7 +154,9 @@ export function SourceTrackActionsMenu({ playShow, sourceTrack }: SourceTrackAct
         void handleAction(nativeEvent.event as SourceTrackActionId);
       }}
     >
-      <OverflowMenuTrigger accessibilityLabel={`Actions for ${sourceTrack.title}`} />
+      <OverflowMenuTrigger
+        accessibilityLabel={`Actions for ${playerTrackAccessibilityLabel(sourceTrack)}`}
+      />
     </NativeMenuView>
   );
 }

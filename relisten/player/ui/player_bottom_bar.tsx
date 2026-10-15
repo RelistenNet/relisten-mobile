@@ -21,14 +21,12 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { PlayerOutputRoute } from './player_output_route';
 import { ScrubberRow } from './player_scrubber';
+import { playerQueueDate, playerTrackAccessibilityLabel } from './player_display_helpers';
 import * as Progress from 'react-native-progress';
 import AirPlayButton from 'react-native-airplay-button';
-import {
-  RelistenCastButton,
-  useShouldRenderCastButton,
-  useRelistenCastStatus,
-} from '@/relisten/casting/cast_ui';
+import { RelistenCastButton, useShouldRenderCastButton } from '@/relisten/casting/cast_ui';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import {
   useIsPlayerBottomBarVisible,
@@ -105,7 +103,6 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
   const player = useRelistenPlayer();
   const { height } = useWindowDimensions();
   const { beginInteractivePresentation, closePlayer, openPlayer } = usePlayerPresentation();
-  const { isCasting, deviceName } = useRelistenCastStatus();
   const shouldRenderCastButton = useShouldRenderCastButton();
   const gesturePresentationStarted = useSharedValue(false);
   const gestureStartProgress = useSharedValue(0);
@@ -118,7 +115,6 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
   const track = currentTrack.sourceTrack;
   const isAccessory = placementBackend === 'nativeTabsAccessory';
   const playbackIconSize = isAccessory ? 26 : 30;
-  const utilityIconClassName = isAccessory ? 'h-[18] w-[18]' : 'h-[20] w-[20]';
   const rootContainerCn = isAccessory ? '' : 'flex-1';
   const headerRowCn = isAccessory ? 'min-h-[38px] items-center' : 'items-center';
   const titleClassName = isAccessory
@@ -127,17 +123,18 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
   const subtitleClassName = isAccessory ? 'text-xs text-slate-200' : 'text-sm text-slate-200';
   const castingClassName = isAccessory ? 'text-[11px] text-slate-300' : 'text-xs text-slate-300';
   const transportButtonClassName = isAccessory
-    ? 'h-9 w-9 items-center justify-center rounded-full bg-white/15'
+    ? 'h-11 w-11 items-center justify-center rounded-full bg-white/15'
     : 'h-11 w-11 items-center justify-center rounded-full bg-white/10';
-  const utilityButtonShellClassName = isAccessory
-    ? 'ml-1.5 h-[30px] w-[30px] items-center justify-center rounded-full bg-white/10'
-    : 'ml-2 h-9 w-9 items-center justify-center rounded-full bg-white/10';
+  const utilityButtonShellClassName = 'h-11 w-11 items-center justify-center';
 
+  let playbackLabel = 'Play';
   let playbackStateIcon = <MaterialIcons name="play-arrow" size={playbackIconSize} color="white" />;
 
   if (playbackState == RelistenPlaybackState.Playing) {
+    playbackLabel = 'Pause';
     playbackStateIcon = <MaterialIcons name="pause" size={playbackIconSize} color="white" />;
   } else if (playbackState == RelistenPlaybackState.Stalled) {
+    playbackLabel = 'Buffering';
     playbackStateIcon = (
       <Progress.CircleSnail indeterminate={true} size={isAccessory ? 22 : 28} color="white" />
     );
@@ -195,6 +192,8 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
     <Flex column cn={rootContainerCn}>
       <Flex cn={headerRowCn}>
         <TouchableOpacity
+          accessibilityLabel={`${playbackLabel} ${playerTrackAccessibilityLabel(track)}`}
+          accessibilityRole="button"
           className={transportButtonClassName}
           onPress={() => {
             player.togglePauseResume();
@@ -205,7 +204,7 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
         <GestureDetector gesture={metadataGesture}>
           <Animated.View
             accessible
-            accessibilityLabel={`Open player for ${track.title}`}
+            accessibilityLabel={`Open player for ${playerTrackAccessibilityLabel(track)}`}
             accessibilityRole="button"
             className={`${isAccessory ? 'ml-2' : 'ml-3'} min-w-0 flex-1`}
             onAccessibilityTap={openPlayer}
@@ -214,14 +213,17 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
               <RelistenText className={titleClassName} numberOfLines={1}>
                 {track?.title ?? ''}
               </RelistenText>
-              <RelistenText className={subtitleClassName} numberOfLines={1}>
-                {currentTrack.subtitle ?? ''}
-              </RelistenText>
-              {isCasting && (
-                <RelistenText className={castingClassName} numberOfLines={1}>
-                  Casting{deviceName ? ` to ${deviceName}` : ''}
+              {/* Reserve space for the date even when the artist name is long. */}
+              <View className="min-w-0 flex-row items-baseline">
+                <RelistenText className={`${subtitleClassName} min-w-0 shrink`} numberOfLines={1}>
+                  {track.artist.name}
                 </RelistenText>
-              )}
+                <RelistenText className={`${subtitleClassName} shrink-0`} numberOfLines={1}>
+                  {' · '}
+                  {playerQueueDate(track.show.displayDate)}
+                </RelistenText>
+              </View>
+              <PlayerOutputRoute className={castingClassName} />
             </Flex>
           </Animated.View>
         </GestureDetector>
@@ -232,16 +234,13 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
                 activeTintColor="white"
                 tintColor="rgba(226, 232, 240, 0.72)"
                 prioritizesVideoDevices={false}
-                className={utilityIconClassName}
+                className="h-11 w-11"
               />
             </View>
           )}
           {shouldRenderCastButton && (
             <View className={utilityButtonShellClassName}>
-              <RelistenCastButton
-                tintColor="rgba(226, 232, 240, 0.78)"
-                className={utilityIconClassName}
-              />
+              <RelistenCastButton tintColor="rgba(226, 232, 240, 0.78)" className="h-11 w-11" />
             </View>
           )}
         </Flex>

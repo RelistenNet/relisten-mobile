@@ -24,12 +24,15 @@ import {
   playerDisplayDate,
   playerDisplayTitle,
   playerPosterDate,
+  playerTrackAccessibilityLabel,
 } from '@/relisten/player/ui/player_display_helpers';
+import { PlayerOutputRoute } from './player_output_route';
 import { ScrubberRow } from '@/relisten/player/ui/player_scrubber';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { tw } from '@/relisten/util/tw';
 import { Ionicons, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { type Ref } from 'react';
 import {
   Platform,
@@ -114,7 +117,7 @@ function ShowIdentity({ visualizerActive }: { visualizerActive: boolean }) {
         {venue && (
           <View className="mt-0.5 w-full items-center">
             <View className="w-full flex-row items-center gap-4 px-7">
-              <View className="h-px min-w-4 flex-1 bg-relisten-blue-700/60" />
+              <View className="h-px min-w-[16px] flex-1 bg-relisten-blue-700/60" />
               <RelistenText
                 allowFontScaling={false}
                 className="shrink text-center font-light uppercase text-relisten-blue-200"
@@ -129,7 +132,7 @@ function ShowIdentity({ visualizerActive }: { visualizerActive: boolean }) {
               >
                 {venue.name}
               </RelistenText>
-              <View className="h-px min-w-4 flex-1 bg-relisten-blue-700/60" />
+              <View className="h-px min-w-[16px] flex-1 bg-relisten-blue-700/60" />
             </View>
             <RelistenText
               adjustsFontSizeToFit
@@ -147,7 +150,7 @@ function ShowIdentity({ visualizerActive }: { visualizerActive: boolean }) {
             </RelistenText>
           </View>
         )}
-        <View className="mb-1 mt-6 w-full px-5">
+        <View className="mb-1 mt-4 w-full px-5">
           <PlayerAudioVisualizer active={visualizerActive} />
         </View>
       </View>
@@ -156,16 +159,13 @@ function ShowIdentity({ visualizerActive }: { visualizerActive: boolean }) {
 }
 
 function CurrentTrackInfo({
-  castStatus,
   headingRef,
   onBeforeNavigate,
 }: {
-  castStatus: ReturnType<typeof useRelistenCastStatus>;
   headingRef?: Ref<ViewInstance>;
   onBeforeNavigate: (navigate: () => void) => void;
 }) {
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
-  const { isCasting, deviceName } = castStatus;
   const { fontScale } = useWindowDimensions();
   const isAccessibilityLayout = fontScale >= 1.4;
 
@@ -201,9 +201,9 @@ function CurrentTrackInfo({
 
   const shareButton = (
     <TouchableOpacity
-      accessibilityLabel="Share current track"
+      accessibilityLabel={`Share ${playerTrackAccessibilityLabel(track)}`}
       accessibilityRole="button"
-      className="h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-white/5"
+      className="h-11 w-11 items-center justify-center"
       onPress={onShare}
     >
       <MaterialIcons color="white" name={Platform.OS === 'ios' ? 'ios-share' : 'share'} size={21} />
@@ -218,9 +218,9 @@ function CurrentTrackInfo({
           {/* The iOS menu host offsets its child 8pt left. */}
           <View
             accessible
-            accessibilityLabel="Player actions"
+            accessibilityLabel={`Actions for ${playerTrackAccessibilityLabel(track)}`}
             accessibilityRole="button"
-            className="h-11 w-11 translate-x-2 items-center justify-center rounded-full border border-white/25 bg-white/5"
+            className="h-11 w-11 translate-x-2 items-center justify-center"
             collapsable={false}
           >
             <Ionicons color="white" name="ellipsis-horizontal" size={22} />
@@ -238,7 +238,9 @@ function CurrentTrackInfo({
           accessible
           accessibilityLabel={accessibilityLabel}
           accessibilityRole="header"
-          className={isAccessibilityLayout ? 'min-w-0' : 'min-h-11 min-w-0 justify-center pr-28'}
+          className={
+            isAccessibilityLayout ? 'min-w-0' : 'min-h-[44px] min-w-0 justify-center pr-28'
+          }
         >
           <RelistenText
             className="text-2xl font-bold leading-tight"
@@ -269,24 +271,18 @@ function CurrentTrackInfo({
           {show.venue.name} · {show.venue.location}
         </RelistenText>
       ) : null}
-      {isCasting && (
-        <RelistenText
-          className="mt-1 text-sm text-relisten-blue-200"
-          numberOfLines={1}
-          selectable={false}
-        >
-          Casting{deviceName ? ` to ${deviceName}` : ''}
-        </RelistenText>
-      )}
+      <PlayerOutputRoute className="mt-1 text-sm text-relisten-blue-200" />
     </View>
   );
 
   return <View className="px-5">{trackDetails}</View>;
 }
 
+/** Shared transport for the expanded player and its compact scrolling header. */
 export function PlayerControls({ compact = false }: { compact?: boolean }) {
   const player = useRelistenPlayer();
   const playbackState = useRelistenPlayerPlaybackState();
+  const track = useRelistenPlayerCurrentTrack()?.sourceTrack;
 
   let playbackStateIcon = (
     <MaterialIcons color="white" name="play-arrow" size={compact ? 28 : 46} />
@@ -312,13 +308,15 @@ export function PlayerControls({ compact = false }: { compact?: boolean }) {
       <TouchableOpacity
         accessibilityLabel="Previous track"
         accessibilityRole="button"
-        className="min-h-11 min-w-11 items-center justify-center"
+        className="min-h-[44px] min-w-[44px] items-center justify-center"
         onPress={() => player.back()}
       >
         <MaterialCommunityIcons color="white" name="skip-backward" size={compact ? 24 : 34} />
       </TouchableOpacity>
       <TouchableOpacity
-        accessibilityLabel={playbackLabel}
+        accessibilityLabel={
+          track ? `${playbackLabel} ${playerTrackAccessibilityLabel(track)}` : playbackLabel
+        }
         accessibilityRole="button"
         className={tw(
           'items-center justify-center rounded-full border border-white/30 bg-white/5',
@@ -333,7 +331,7 @@ export function PlayerControls({ compact = false }: { compact?: boolean }) {
         accessibilityRole="button"
         accessibilityState={{ disabled: player.queue.isCurrentTrackLast }}
         className={tw(
-          'min-h-11 min-w-11 items-center justify-center',
+          'min-h-[44px] min-w-[44px] items-center justify-center',
           player.queue.isCurrentTrackLast && 'opacity-40'
         )}
         disabled={player.queue.isCurrentTrackLast}
@@ -345,7 +343,7 @@ export function PlayerControls({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function PlayerSecondaryControls() {
+function PlayerSecondaryControls({ isCasting }: { isCasting: boolean }) {
   const queue = useRelistenPlayerQueue();
   const [shuffleState] = useRelistenPlayerShuffleState();
   const [repeatState] = useRelistenPlayerRepeatState();
@@ -364,6 +362,7 @@ function PlayerSecondaryControls() {
     queue.setShuffleState(
       isShuffleOn ? PlayerShuffleState.SHUFFLE_OFF : PlayerShuffleState.SHUFFLE_ON
     );
+    void Haptics.selectionAsync();
   };
 
   const toggleRepeat = () => {
@@ -375,6 +374,7 @@ function PlayerSecondaryControls() {
           : PlayerRepeatState.REPEAT_OFF;
 
     queue.setRepeatState(nextRepeatState);
+    void Haptics.selectionAsync();
   };
 
   return (
@@ -386,28 +386,28 @@ function PlayerSecondaryControls() {
         className="h-11 w-11 items-center justify-center"
         onPress={toggleShuffle}
       >
-        <View className="h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-white/5">
-          <MaterialCommunityIcons
-            color={isShuffleOn ? RelistenBlue['300'] : inactiveColor}
-            name="shuffle"
-            size={20}
-          />
-        </View>
+        <MaterialCommunityIcons
+          color={isShuffleOn ? RelistenBlue['300'] : inactiveColor}
+          name="shuffle"
+          size={20}
+        />
       </TouchableOpacity>
       <TouchableOpacity
-        accessibilityLabel="Change repeat mode"
+        accessibilityLabel="Repeat"
+        accessibilityValue={{
+          text: isRepeatTrack ? 'One track' : isRepeatQueue ? 'All tracks' : 'Off',
+        }}
+        accessibilityHint="Cycles through all tracks, one track, and off."
         accessibilityRole="button"
         accessibilityState={{ selected: isRepeatOn }}
         className="h-11 w-11 items-center justify-center"
         onPress={toggleRepeat}
       >
-        <View className="h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-white/5">
-          <MaterialCommunityIcons
-            color={isRepeatOn ? RelistenBlue['300'] : inactiveColor}
-            name={isRepeatTrack ? 'repeat-once' : 'repeat'}
-            size={20}
-          />
-        </View>
+        <MaterialCommunityIcons
+          color={isRepeatOn ? RelistenBlue['300'] : inactiveColor}
+          name={isRepeatTrack ? 'repeat-once' : 'repeat'}
+          size={20}
+        />
       </TouchableOpacity>
       {supportsAudioEqualizer && (
         <TouchableOpacity
@@ -417,33 +417,27 @@ function PlayerSecondaryControls() {
           className="h-11 w-11 items-center justify-center"
           onPress={() => router.push('/relisten/audio-adjustments')}
         >
-          <View className="h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-white/5">
-            <MaterialCommunityIcons
-              color={isAudioEqualizerOn ? RelistenBlue['300'] : inactiveColor}
-              name="equalizer"
-              size={20}
-            />
-          </View>
+          <MaterialCommunityIcons
+            color={isAudioEqualizerOn ? RelistenBlue['300'] : inactiveColor}
+            name="equalizer"
+            size={20}
+          />
         </TouchableOpacity>
       )}
+      {/* These frames belong to the native controls, so the full 44pt area responds. */}
       {shouldRenderCastButton && (
-        <View className="h-11 w-11 items-center justify-center">
-          <View className="h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-white/5">
-            <RelistenCastButton className="h-5 w-5" tintColor={inactiveColor} />
-          </View>
-        </View>
+        <RelistenCastButton
+          className="h-11 w-11"
+          tintColor={isCasting ? RelistenBlue['300'] : inactiveColor}
+        />
       )}
       {Platform.OS === 'ios' && (
-        <View className="h-11 w-11 items-center justify-center">
-          <View className="h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-white/5">
-            <AirPlayButton
-              activeTintColor="white"
-              className="h-5 w-5"
-              prioritizesVideoDevices={false}
-              tintColor={inactiveColor}
-            />
-          </View>
-        </View>
+        <AirPlayButton
+          activeTintColor={RelistenBlue['300']}
+          className="h-11 w-11"
+          prioritizesVideoDevices={false}
+          tintColor={inactiveColor}
+        />
       )}
     </View>
   );
@@ -478,16 +472,12 @@ export function PlayerNowPlaying({
   }
 
   return (
-    <View className={tw('pb-4', showDecorativeIdentity ? 'pt-6' : 'pt-7')}>
+    <View className={tw('pb-4', showDecorativeIdentity ? 'pt-4' : 'pt-7')}>
       {showDecorativeIdentity && (
         <ShowIdentity visualizerActive={visualizerActive && !castStatus.isCasting} />
       )}
       <View className={showDecorativeIdentity ? 'mt-3' : undefined}>
-        <CurrentTrackInfo
-          castStatus={castStatus}
-          headingRef={headingRef}
-          onBeforeNavigate={onBeforeNavigate}
-        />
+        <CurrentTrackInfo headingRef={headingRef} onBeforeNavigate={onBeforeNavigate} />
       </View>
       <View className="mt-4 px-5">
         <ScrubberRow subduedCache onScrubbingChange={onScrubbingChange} />
@@ -495,8 +485,8 @@ export function PlayerNowPlaying({
       <View className="mt-1">
         <PlayerControls />
       </View>
-      <View className="mt-4 pb-2 pt-1">
-        <PlayerSecondaryControls />
+      <View className="mt-3 pb-1 pt-1">
+        <PlayerSecondaryControls isCasting={castStatus.isCasting} />
       </View>
     </View>
   );

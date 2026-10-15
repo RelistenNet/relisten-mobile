@@ -5,7 +5,7 @@ import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
 import {
   playerDisplayTitle,
   playerQueueDate,
-  playerTrackMetadata,
+  playerTrackAccessibilityLabel,
 } from '@/relisten/player/ui/player_display_helpers';
 import { PlayerPanelRow } from '@/relisten/player/ui/player_panel_row';
 import { PlayerQueueActionsMenu } from '@/relisten/player/ui/player_queue_actions_menu';
@@ -20,11 +20,11 @@ export type QueueTimelineEntry = {
   queueTrack: PlayerQueueTrack;
 };
 
-function QueueDragHandle({ drag, title }: { drag: () => void; title: string }) {
+function QueueDragHandle({ drag, label }: { drag: () => void; label: string }) {
   return (
     <TouchableOpacity
       accessibilityHint="Double tap and hold, then drag to reorder."
-      accessibilityLabel={`Reorder ${title}`}
+      accessibilityLabel={`Reorder ${label}`}
       accessibilityRole="button"
       delayLongPress={250}
       className="h-11 w-11 items-center justify-center"
@@ -51,15 +51,14 @@ function QueueTrackRow({
   const { isFirst, isLast, queueIndex, queueTrack } = entry;
   const sourceTrack = queueTrack.sourceTrack;
   const displayTitle = playerDisplayTitle(sourceTrack.title);
-  const metadata = playerTrackMetadata(sourceTrack);
-  const compactMetadata = `${sourceTrack.artist.name} · ${playerQueueDate(sourceTrack.show.displayDate)}`;
+  const performanceLabel = playerTrackAccessibilityLabel(sourceTrack);
 
   return (
     <PlayerPanelRow isFirst={isFirst} isLast={isLast}>
       <View className="min-h-[62px] flex-row items-center py-1 pl-3">
         <TouchableOpacity
           accessibilityHint={playbackHint}
-          accessibilityLabel={`${displayTitle}, ${metadata}, ${sourceTrack.humanizedDuration}`}
+          accessibilityLabel={`${performanceLabel}, ${sourceTrack.humanizedDuration}`}
           accessibilityRole="button"
           className="min-w-0 flex-1 py-1"
           onPress={() => player.playTrackAtIndex(queueIndex)}
@@ -74,13 +73,20 @@ function QueueTrackRow({
             </RelistenText>
             <SourceTrackOfflineIndicator offlineInfo={sourceTrack.offlineInfo} />
           </View>
-          <RelistenText
-            className="mt-[3px] text-sm text-gray-300/70"
-            numberOfLines={fontScale <= 1.2 ? 1 : undefined}
-            selectable={false}
-          >
-            {compactMetadata}
-          </RelistenText>
+          {/* Keep the show date visible when a long artist name must truncate. */}
+          <View className="mt-[3px] min-w-0 flex-row items-baseline">
+            <RelistenText
+              className="min-w-0 shrink text-sm text-gray-300/70"
+              numberOfLines={fontScale <= 1.2 ? 1 : undefined}
+              selectable={false}
+            >
+              {sourceTrack.artist.name}
+            </RelistenText>
+            <RelistenText className="shrink-0 text-sm text-gray-300/70" selectable={false}>
+              {' · '}
+              {playerQueueDate(sourceTrack.show.displayDate)}
+            </RelistenText>
+          </View>
         </TouchableOpacity>
         <RelistenText
           className="ml-2.5 min-w-[42px] text-right text-gray-300 tabular-nums"
@@ -114,7 +120,10 @@ export function UpNextQueueItem({ drag, entry }: { drag: () => void; entry: Queu
             index={entry.queueIndex}
             queueTrack={entry.queueTrack}
           />
-          <QueueDragHandle drag={drag} title={entry.queueTrack.sourceTrack.title} />
+          <QueueDragHandle
+            drag={drag}
+            label={playerTrackAccessibilityLabel(entry.queueTrack.sourceTrack)}
+          />
         </>
       }
       entry={entry}

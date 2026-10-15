@@ -12,21 +12,36 @@ const AUDIO_ADJUSTMENTS_ACTION_ID = 'audio-adjustments';
 const SUPPORTS_AUDIO_ADJUSTMENTS = audioAdjustmentNative.capabilities().supported;
 
 type PlayerActionId = CurrentTrackNavigationActionId | typeof AUDIO_ADJUSTMENTS_ACTION_ID;
-type PlayerAction = MenuAction & { id: PlayerActionId };
 
 function usePlayerActions(onBeforeNavigate?: (navigate: () => void) => void) {
   const { actions: navigationActions, handleAction: handleNavigationAction } =
     useCurrentTrackNavigation(onBeforeNavigate);
-  const actions = useMemo<PlayerAction[]>(
+  const actions = useMemo<MenuAction[]>(
     () => [
-      ...navigationActions,
+      ...(navigationActions.length
+        ? [
+            {
+              id: 'performance',
+              title: 'Artist and Show',
+              displayInline: true,
+              subactions: navigationActions,
+            },
+          ]
+        : []),
       ...(SUPPORTS_AUDIO_ADJUSTMENTS
         ? [
             {
-              id: AUDIO_ADJUSTMENTS_ACTION_ID,
-              image: nativeMenuIcons.audioAdjustments,
-              title: 'Audio Equalizer',
-            } as const,
+              id: 'listening',
+              title: 'Listening',
+              displayInline: true,
+              subactions: [
+                {
+                  id: AUDIO_ADJUSTMENTS_ACTION_ID,
+                  image: nativeMenuIcons.audioAdjustments,
+                  title: 'Audio Equalizer',
+                },
+              ],
+            },
           ]
         : []),
     ],
