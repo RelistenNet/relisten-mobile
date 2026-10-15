@@ -2,14 +2,25 @@ import {
   cloneElement,
   createContext,
   forwardRef,
+  isValidElement,
   useCallback,
   useContext,
   useImperativeHandle,
   useMemo,
+  useRef,
   useState,
+  type ComponentPropsWithoutRef,
+  type ComponentRef,
   type ReactElement,
 } from 'react';
-import { Animated, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  Animated,
+  type LayoutChangeEvent,
+  type ScrollViewProps,
+  type StyleProp,
+  type ViewInstance,
+  type ViewStyle,
+} from 'react-native';
 
 type StickyHeaderChildProps = {
   item?: { kind?: string };
@@ -17,17 +28,9 @@ type StickyHeaderChildProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-type PlayerTimelineStickyHeaderProps = {
-  children: ReactElement<StickyHeaderChildProps>;
-  nativeID?: string;
-  nextHeaderLayoutY?: number | null;
-  onLayout: (event: LayoutChangeEvent) => void;
-  scrollAnimatedValue: Animated.Value;
-};
-
-type StickyHeaderHandle = {
-  setNextHeaderY: (value: number) => void;
-};
+type NativeStickyHeader = NonNullable<ScrollViewProps['StickyHeaderComponent']>;
+type PlayerTimelineStickyHeaderProps = ComponentPropsWithoutRef<NativeStickyHeader>;
+type StickyHeaderHandle = ComponentRef<NativeStickyHeader>;
 
 type PlayerTimelineStickyHeaderLayout = {
   height: number;
@@ -69,10 +72,17 @@ export const PlayerTimelineStickyHeader = forwardRef<
 ) {
   const [layout, setLayout] = useState<{ height: number; y: number }>();
   const [nextHeaderLayoutY, setNextHeaderLayoutY] = useState(initialNextHeaderLayoutY);
-  const isNowPlaying = children.props.item?.kind === 'now-playing';
+  const headerRef = useRef<ViewInstance>(null);
+  const child = isValidElement<StickyHeaderChildProps>(children) ? children : undefined;
+  const childProps = child?.props;
+  const isNowPlaying = childProps?.item?.kind === 'now-playing';
   const onNowPlayingLayout = useContext(NowPlayingStickyLayoutContext);
 
-  useImperativeHandle(ref, () => ({ setNextHeaderY: setNextHeaderLayoutY }), []);
+  useImperativeHandle(
+    ref,
+    () => Object.assign(headerRef.current!, { setNextHeaderY: setNextHeaderLayoutY }),
+    []
+  );
 
   const translateY = useMemo(() => {
     if (!layout) {
@@ -104,19 +114,20 @@ export const PlayerTimelineStickyHeader = forwardRef<
       );
       if (isNowPlaying) onNowPlayingLayout?.({ height, y });
       onLayout(event);
-      children.props.onLayout?.(event);
+      childProps?.onLayout?.(event);
     },
-    [children.props, isNowPlaying, onLayout, onNowPlayingLayout]
+    [childProps, isNowPlaying, onLayout, onNowPlayingLayout]
   );
 
   return (
     <Animated.View
       collapsable={false}
       nativeID={nativeID}
+      ref={headerRef}
       onLayout={handleLayout}
-      style={[children.props.style, { transform: [{ translateY }], zIndex: isNowPlaying ? 0 : 10 }]}
+      style={[childProps?.style, { transform: [{ translateY }], zIndex: isNowPlaying ? 0 : 10 }]}
     >
-      {cloneElement(children, { onLayout: undefined, style: { flex: 1 } })}
+      {child ? cloneElement(child, { onLayout: undefined, style: { flex: 1 } }) : children}
     </Animated.View>
   );
 });

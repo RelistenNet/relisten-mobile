@@ -4,7 +4,6 @@ import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_h
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { router } from 'expo-router';
 import { useCallback } from 'react';
-import { InteractionManager } from 'react-native';
 
 export default function Page() {
   const { pushShow } = usePushShowRespectingUserSettings();
@@ -12,7 +11,7 @@ export default function Page() {
   const viewShow = useCallback(
     (entry: PlaybackHistoryEntry) => {
       router.back();
-      void InteractionManager.runAfterInteractions(() => {
+      requestIdleCallback(() => {
         closePlayer(() => {
           pushShow({
             artist: entry.artist,

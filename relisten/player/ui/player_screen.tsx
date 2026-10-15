@@ -6,7 +6,7 @@ import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_h
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { router, useNavigation, usePathname } from 'expo-router';
 import { useCallback, useEffect } from 'react';
-import { BackHandler, InteractionManager, Platform, View } from 'react-native';
+import { BackHandler, Platform, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export type PlayerScreenVariant = 'modal' | 'embedded' | 'overlay';
@@ -57,7 +57,7 @@ export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) 
         closePresentedPlayer(navigate);
       } else if (variant === 'modal') {
         closePlayer();
-        void InteractionManager.runAfterInteractions(navigate);
+        requestIdleCallback(navigate);
       } else {
         navigate();
       }
