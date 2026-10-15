@@ -317,8 +317,9 @@ export class RelistenPlayer {
       this.initialPlaybackStarted &&
       this.state == RelistenPlaybackState.Playing
     ) {
-      logger.debug('Requested track matches current track, seeking back to the start');
-      const request: Promise<void> = this.seekTo(0.0)
+      logger.debug('Requested track matches current track, seeking within the current item');
+      const seek = seekToTime === undefined ? this.seekTo(0) : this.seekToTime(seekToTime);
+      const request: Promise<void> = seek
         .then(() => this.finishPlayRequest(request))
         .catch((error) => {
           this.finishPlayRequest(request);
@@ -534,17 +535,33 @@ export class RelistenPlayer {
   /** Publish the seek and report whether the active driver can apply it now. */
   private prepareSeek(elapsed: number, duration: number): boolean {
     const progress = { elapsed, duration, percent: duration > 0 ? elapsed / duration : 0 };
+    const pendingIdentifier = this.nativePlayRequest?.identifier;
+    if (pendingIdentifier !== undefined) {
+      const pendingIndex = this.queue.orderedTracks.findIndex(
+        (track) => track.identifier === pendingIdentifier
+      );
+      const hasNewerSelection =
+        this.nextPlayRequest !== undefined && this.nextPlayRequest.identifier !== pendingIdentifier;
+      if (pendingIndex < 0 || hasNewerSelection) {
+        return false;
+      }
+
+      // The pending pause/play can overwrite a direct seek, even after track confirmation.
+      // Let the command owner finish before applying the latest position to its target.
+      sharedStateProgress.setState(progress);
+      this.playTrackAtIndex(pendingIndex, elapsed);
+      return false;
+    }
+
     const identifier = this.queue.currentTrack?.identifier;
     if (this.state === RelistenPlaybackState.Stopped && identifier) {
       this.seekIntent = { identifier, time: elapsed };
     }
 
     sharedStateProgress.setState(progress);
-    // A requested track can preview its timing before native confirms its identity.
-    if (!this.nativePlayRequest || this.nativePlayRequest.identifier === identifier) {
-      this.progress = progress;
-      this.queue.savePlayerState(true);
-    }
+    // An explicit seek is a checkpoint even when native progress is suppressed while buffering.
+    this.progress = progress;
+    this.queue.savePlayerState(true);
 
     if (shouldStartStalledTimerForSeek(this.state)) {
       this.startStalledTimer();
@@ -912,7 +929,12 @@ ${indentString(this.queue.debugState(true))}
       playRequestVersion: this.playRequestVersion,
     });
 
-    this.maybeStartNextPlayRequest();
+    // A snapshot publishes identity before its timing. Finish after that observation so a
+    // queued seek cannot be overwritten by the confirming snapshot's earlier position.
+    const request = this.currentlyProcessingPlayRequest;
+    if (request) {
+      void Promise.resolve().then(() => this.finishPlayRequest(request));
+    }
   };
 
   private onRemoteControlEvent = (event: RelistenRemoteControlEvent) => {

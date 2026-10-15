@@ -808,7 +808,9 @@ describe('seeking', () => {
       expect(player.state).toBe(RelistenPlaybackState.Stopped);
       expect(progress.lastState()).toEqual({ elapsed: 205, duration: 410, percent: 0.5 });
       expect(scenario.savedCheckpoint).toEqual({
-        entryId: 'B', elapsedSeconds: 205, durationSeconds: 410,
+        entryId: 'B',
+        elapsedSeconds: 205,
+        durationSeconds: 410,
       });
       expect(mocks.native.seekTo).not.toHaveBeenCalled();
       expect(mocks.native.seekToTime).not.toHaveBeenCalled();
@@ -832,8 +834,121 @@ describe('seeking', () => {
     expect(progress.lastState()).toEqual({ elapsed: 205, duration: 410, percent: 0.5 });
     expect(player.progress).toMatchObject({ elapsed: 120, duration: 381 });
     expect(scenario.savedCheckpoint).toMatchObject({
-      entryId: minglewood.identifier, elapsedSeconds: 120, durationSeconds: 381,
+      entryId: minglewood.identifier,
+      elapsedSeconds: 120,
+      durationSeconds: 381,
     });
+  });
+
+  it('starts a pending entry at the latest seek without seeking the preceding native item', async () => {
+    scenario.startPlayingQueue();
+    const pause = deferredOperation();
+    mocks.native.pause.mockImplementationOnce(() => pause.promise);
+
+    player.next();
+    await player.seekTo(0.25);
+    await player.seekToTime(205);
+    scenario.emit({ elapsed: 121, duration: 381 });
+
+    expect(mocks.native.seekTo).not.toHaveBeenCalled();
+    expect(mocks.native.seekToTime).not.toHaveBeenCalled();
+    expect(progress.lastState()).toMatchObject({ elapsed: 205, duration: 410 });
+    expect(player.progress).toMatchObject({ elapsed: 121, duration: 381 });
+
+    pause.complete();
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+    expect(scenario.lastNativePlay).toMatchObject({
+      entryId: loser.identifier,
+      startTimeMs: 205000,
+    });
+  });
+
+  it('retains a seek while the first play is still stopped', async () => {
+    await scenario.restore();
+    player.playTrackAtIndex(1);
+    await player.seekTo(0.5);
+
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+    expect(scenario.lastNativePlay).toMatchObject({ entryId: 'B', startTimeMs: 205000 });
+    expect(mocks.native.seekTo).not.toHaveBeenCalled();
+    expect(mocks.native.seekToTime).not.toHaveBeenCalled();
+  });
+
+  it.each(['before', 'after'] as const)(
+    'serializes a seek when native confirmation arrives %s the play promise settles',
+    async (confirmationOrder) => {
+      scenario.startPlayingQueue();
+      const play = deferredOperation();
+      mocks.native.play.mockImplementationOnce(() => play.promise);
+      player.next();
+      await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+      await player.seekToTime(205);
+
+      expect(mocks.native.seekToTime).not.toHaveBeenCalled();
+      if (confirmationOrder === 'before') {
+        scenario.emit({ identifier: loser.identifier, elapsed: 0, duration: 410 });
+      }
+      play.complete();
+      if (confirmationOrder === 'after') {
+        await vi.advanceTimersByTimeAsync(0);
+        expect(mocks.native.seekToTime).not.toHaveBeenCalled();
+        scenario.emit({ identifier: loser.identifier, elapsed: 0, duration: 410 });
+      }
+
+      await vi.waitFor(() => expect(mocks.native.seekToTime).toHaveBeenCalledWith(205000));
+      expect(mocks.native.play).toHaveBeenCalledTimes(1);
+      expect(scenario.savedCheckpoint).toMatchObject({
+        entryId: loser.identifier,
+        elapsedSeconds: 205,
+        durationSeconds: 410,
+      });
+    }
+  );
+
+  it('preserves a newer queued selection when seeking an older preview', async () => {
+    scenario.startPlayingQueue();
+    player.queue.addTrackToEndOfQueue([track('third', 430)]);
+    const third = player.queue.orderedTracks[2];
+    const pause = deferredOperation();
+    mocks.native.pause.mockImplementationOnce(() => pause.promise);
+
+    player.next();
+    player.playTrackAtIndex(2);
+    await player.seekTo(0.5);
+    pause.complete();
+
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+    expect(scenario.lastNativePlay).toMatchObject({
+      entryId: third.identifier,
+      startTimeMs: undefined,
+    });
+    expect(mocks.native.seekTo).not.toHaveBeenCalled();
+    expect(mocks.native.seekToTime).not.toHaveBeenCalled();
+  });
+
+  it('applies a seek after auto-advance without releasing an unresolved pause', async () => {
+    scenario.startPlayingQueue();
+    const pause = deferredOperation();
+    mocks.native.pause.mockImplementationOnce(() => pause.promise);
+
+    player.next();
+    scenario.emit({ identifier: loser.identifier, elapsed: 0, duration: 410 });
+    await player.seekTo(0.5);
+    expect(mocks.native.seekToTime).not.toHaveBeenCalled();
+    pause.complete();
+
+    await vi.waitFor(() => expect(mocks.native.seekToTime).toHaveBeenCalledWith(205000));
+    expect(mocks.native.play).not.toHaveBeenCalled();
+    expect(player.progress).toMatchObject({ elapsed: 205, duration: 410 });
+  });
+
+  it('honors an explicit time when replaying the current playing entry', async () => {
+    scenario.startPlayingQueue();
+    player.playTrackAtIndex(0, 205);
+
+    await vi.waitFor(() => expect(mocks.native.seekToTime).toHaveBeenCalledWith(205000));
+    expect(mocks.native.seekTo).not.toHaveBeenCalled();
+    expect(mocks.native.play).not.toHaveBeenCalled();
   });
 
   it('keeps the fractional and absolute driver contracts without resuming paused playback', async () => {
