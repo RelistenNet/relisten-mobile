@@ -10,6 +10,24 @@ To keep the code base clean, use the steps below to run locally and verify your 
 
 React Compiler is enabled repo-wide, and compiler diagnostics are treated as hard failures. If you hit new React Compiler issues while iterating, run `npx react-compiler-healthcheck@latest` to get a repo-level inventory in addition to `yarn lint`.
 
+### Expo native module builds
+
+Use Expo's default precompiled modules on iOS. After an Expo SDK upgrade or a
+change between source and precompiled builds, use `expo run:ios --no-build-cache`
+for the first rebuild so Xcode does not reuse incompatible build products.
+
+Android builds `expo-application` 58.1.1, `expo-crypto` 58.0.6, and
+`expo-haptics` 58.0.6 from source through `expo.autolinking.android.buildFromSource`
+in `package.json`. Their published Android libraries use `Promise` in generated
+async calls, while the installed Expo runtime expects `PromiseHandle`. Fresh
+package downloads reproduce the mismatch. Other eligible Expo modules and Core's
+C++ library remain precompiled.
+
+When upgrading these three packages, recheck their precompiled async calls before
+removing an exception: Application installation/update times, Crypto SHA-256,
+and Haptics selection/impact. A successful build alone does not exercise those
+calls.
+
 ### Running the app locally
 
 #### Mac + iOS Simulator

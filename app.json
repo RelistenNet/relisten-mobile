@@ -81,7 +81,6 @@
           },
           "ios": {
             "deploymentTarget": "18.0",
-            "usePrecompiledModules": false,
             "useFrameworks": "static"
           }
         }

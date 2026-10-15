@@ -107,7 +107,7 @@
   "expo": {
     "autolinking": {
       "android": {
-        "buildFromSource": [".*"]
+        "buildFromSource": ["expo-application", "expo-crypto", "expo-haptics"]
       }
     },
     "doctor": {
