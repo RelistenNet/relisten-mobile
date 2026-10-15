@@ -434,7 +434,8 @@ function PlayerSecondaryControls({ isCasting }: { isCasting: boolean }) {
       {Platform.OS === 'ios' && (
         <AirPlayButton
           activeTintColor={RelistenBlue['300']}
-          className="h-11 w-11"
+          // UIKit insets its internal button vertically; leave room for a 44pt target.
+          className="h-12 w-11"
           prioritizesVideoDevices={false}
           tintColor={inactiveColor}
         />
