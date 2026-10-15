@@ -32,6 +32,7 @@ import {
   type LayoutChangeEvent,
   useWindowDimensions,
   View,
+  type ViewInstance,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DraggableFlatList, {
@@ -162,7 +163,7 @@ export function PlayerQueueSheet({
   const orderedQueueTracks = useRelistenPlayerQueueOrderedTracks();
   const currentTrack = useRelistenPlayerCurrentTrack();
   const listRef = useRef<FlatList<TimelineItem>>(null);
-  const nowPlayingHeadingRef = useRef<View>(null);
+  const nowPlayingHeadingRef = useRef<ViewInstance>(null);
   const hasAnchored = useRef(false);
   const anchorRevealScheduled = useRef(false);
   const anchorAttemptStarted = useRef(false);
