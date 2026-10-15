@@ -135,7 +135,13 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
   }
 
   isLocalDataShowable(localData: ShowWithSources): boolean {
-    return localData.show != null && localData.sources.length > 0;
+    // Cached headers can outlive quarantined tracks; force a fresh payload for that partial graph.
+    return (
+      localData.show != null &&
+      localData.sources.some((source) =>
+        source.sourceSets.some((set) => set.sourceTracks.some((track) => track.deletedAt == null))
+      )
+    );
   }
 
   override upsert(localData: ShowWithSources, apiData: ApiShowWithSources): void {

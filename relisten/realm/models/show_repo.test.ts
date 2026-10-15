@@ -10,6 +10,12 @@ vi.mock('expo-file-system', () => ({
 vi.mock('@/relisten/events', () => ({ sharedStatsigClient: vi.fn() }));
 vi.mock('@/relisten/api/client', () => ({
   RelistenApiResponseType: { Offline: 0, OnlineRequestCompleted: 3 },
+  RelistenApiClient: class {
+    refreshOptions = vi.fn((forcedRefresh: boolean) =>
+      forcedRefresh ? { bypassEtagCaching: true, bypassRateLimit: true } : undefined
+    );
+    showWithSources = vi.fn();
+  },
 }));
 vi.mock('@/relisten/api/context', () => ({}));
 vi.mock('@/relisten/realm/models/artist_repo', () => ({}));
@@ -19,6 +25,7 @@ vi.mock('@/relisten/util/routes', () => ({}));
 vi.mock('@/relisten/realm/network_backed_behavior_hooks', () => ({}));
 
 import { FlacType, ShowWithSources as ApiShowWithSources } from '@/relisten/api/models/source';
+import { RelistenApiClient, RelistenApiResponseType } from '@/relisten/api/client';
 import { ShowWithFullSourcesNetworkBackedBehavior } from './show_repo';
 import { Artist } from './artist';
 import { Year } from './year';
@@ -172,13 +179,14 @@ describe('ShowWithFullSourcesNetworkBackedBehavior year hydration', () => {
   afterAll(() => Realm.shutdown());
 
   function ingest(payload: ApiShowWithSources) {
-    behavior.upsert(
-      {
-        show: realm.objectForPrimaryKey(Show, 'show') ?? undefined,
-        sources: realm.objects(Source).filtered('showUuid == $0', 'show'),
-      },
-      payload
-    );
+    behavior.upsert(localShow(), payload);
+  }
+
+  function localShow() {
+    return {
+      show: realm.objectForPrimaryKey(Show, 'show') ?? undefined,
+      sources: realm.objects(Source).filtered('showUuid == $0', 'show'),
+    };
   }
 
   function expectPlayableGraph() {
@@ -247,6 +255,46 @@ describe('ShowWithFullSourcesNetworkBackedBehavior year hydration', () => {
     expect(realm.objects(SourceTrack)).toHaveLength(2);
     for (const track of realm.objects(SourceTrack)) {
       expect(track.deletedAt).toBeInstanceOf(Date);
+    }
+  });
+
+  it('keeps a cached show with active track membership showable', () => {
+    ingest(showPayload());
+
+    expect(behavior.isLocalDataShowable(localShow())).toBe(true);
+  });
+
+  it('requires repair for quarantined track membership even after its year is cached', () => {
+    ingest({ ...showPayload(), year: undefined });
+    realm.write(() => realm.create(Year, Year.propertiesFromApi(showPayload().year!)));
+
+    expect(behavior.isLocalDataShowable(localShow())).toBe(false);
+  });
+
+  it('automatically bypasses the request cache and restores quarantined tracks on remount', async () => {
+    const payload = showPayload();
+    ingest({ ...payload, year: undefined });
+    realm.write(() => realm.create(Year, Year.propertiesFromApi(payload.year!)));
+    const api = new RelistenApiClient();
+    const showRequest = vi.spyOn(api, 'showWithSources').mockResolvedValue({
+      type: RelistenApiResponseType.OnlineRequestCompleted,
+      data: payload,
+    });
+    const executor = behavior.sharedExecutor(api);
+
+    try {
+      const output = executor.start();
+      await output.firstMatch((result) => !result.isNetworkLoading);
+
+      expect(api.refreshOptions).toHaveBeenCalledWith(true);
+      expect(showRequest).toHaveBeenCalledWith('show', {
+        bypassEtagCaching: true,
+        bypassRateLimit: true,
+      });
+      expectPlayableGraph();
+      expect(realm.objects(SourceTrack)).toHaveLength(2);
+    } finally {
+      executor.tearDown();
     }
   });
 });
