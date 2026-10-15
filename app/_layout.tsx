@@ -42,11 +42,9 @@ import {
   useRootLibraryIndex,
   useRootUserSettingsStore,
 } from '@/relisten/realm/root_services';
-import { routingQueue } from 'expo-router/build/global-state/routing';
 import {
   createRouteDebugSignature,
   describeNavigationStack,
-  describeRoutingQueueAction,
   isVerboseProfileLoggingEnabled,
   logRouteDebug,
 } from '@/relisten/util/profile_logging';
@@ -132,13 +130,8 @@ function TabLayout() {
   const [hasRootViewLayoutFinished, setHasRootViewLayoutFinished] = useState(false);
   const previousRouteSignatureRef = useRef<string | null>(null);
   const previousRouteLabelRef = useRef<string | null>(null);
-  const pathnameRef = useRef(pathname);
 
   const isAppReady = useCacheAssets();
-
-  useEffect(() => {
-    pathnameRef.current = pathname;
-  }, [pathname]);
 
   // https://docs.expo.dev/versions/latest/sdk/splash-screen/#usage
   const onLayoutRootView = useCallback(async () => {
@@ -177,27 +170,6 @@ function TabLayout() {
     previousRouteSignatureRef.current = routeSignature;
     previousRouteLabelRef.current = pathname;
   }, [navigation, pathname]);
-
-  useEffect(() => {
-    if (!isVerboseProfileLoggingEnabled()) {
-      return;
-    }
-
-    const originalAdd = routingQueue.add.bind(routingQueue);
-
-    routingQueue.add = (action: Parameters<typeof originalAdd>[0]) => {
-      logRouteDebug(
-        `dispatch from=${pathnameRef.current} stack=${describeNavigationStack(
-          navigation.getRootState()
-        )} action=${describeRoutingQueueAction(action)}`
-      );
-      return originalAdd(action);
-    };
-
-    return () => {
-      routingQueue.add = originalAdd;
-    };
-  }, [navigation]);
 
   return (
     <RealmProvider realmRef={realmRef} closeOnUnmount={false}>

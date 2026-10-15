@@ -1,4 +1,4 @@
-import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { NativeTabs } from 'expo-router/native-tabs';
 import { BottomTabBar, Tabs, type BottomTabBarProps } from 'expo-router/js-tabs';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
@@ -24,7 +24,7 @@ import {
   useRelistenPlayerBottomBarContext,
 } from '@/relisten/player/ui/player_bar_layout';
 import { useCallback } from 'react';
-import { type ColorValue, Image, type LayoutChangeEvent, Platform, View } from 'react-native';
+import { Image, type LayoutChangeEvent, Platform, View } from 'react-native';
 
 const ACTIVE_TINT = '#009DC1';
 const INACTIVE_TINT = 'gray';
@@ -35,7 +35,7 @@ function renderTabIcon({
   routeName,
   size,
 }: {
-  color: ColorValue;
+  color: string;
   focused: boolean;
   routeName: string;
   size: number;
@@ -106,8 +106,13 @@ export default function TabLayout() {
             headerShown: false,
             tabBarActiveTintColor: ACTIVE_TINT,
             tabBarInactiveTintColor: INACTIVE_TINT,
-            tabBarIcon: ({ color, focused, size }) =>
-              renderTabIcon({ color, focused, routeName: route.name, size }),
+            tabBarIcon: ({ focused, size }) =>
+              renderTabIcon({
+                color: focused ? ACTIVE_TINT : INACTIVE_TINT,
+                focused,
+                routeName: route.name,
+                size,
+              }),
           })}
         >
           <Tabs.Screen name="(artists)" options={{ lazy: false, title: 'Artists' }} />

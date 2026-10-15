@@ -1,7 +1,6 @@
 import { useQuery, useRealm } from '@/relisten/realm/schema';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { InteractionManager } from 'react-native';
 
 export function useTotalListeningTime(): number {
   const allEntries = useQuery(
@@ -167,7 +166,7 @@ export function useTopPlayedArtistUuidsOnce(
     scheduledRef.current = true;
     let cancelled = false;
 
-    const task = InteractionManager.runAfterInteractions(() => {
+    const task = requestIdleCallback(() => {
       if (cancelled) {
         return;
       }
@@ -256,9 +255,7 @@ export function useTopPlayedArtistUuidsOnce(
 
     return () => {
       cancelled = true;
-      if (typeof task?.cancel === 'function') {
-        task.cancel();
-      }
+      cancelIdleCallback(task);
     };
   }, [enabled, limit, realm]);
 

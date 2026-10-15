@@ -8,7 +8,7 @@ import { useEffect } from 'react';
 import { DownloadManager } from '@/relisten/offline/download_manager';
 
 export const unstable_settings = {
-  initialRouteName: 'tabs',
+  anchor: 'tabs',
 };
 
 export default function TabLayout() {

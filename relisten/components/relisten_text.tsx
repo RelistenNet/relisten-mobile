@@ -8,11 +8,7 @@ export const RelistenText: React.FC<PropsWithChildren<TextProps> & { cn?: string
   className,
   ...props
 }) => {
-  const fontProps: StyleProp<TextStyle> = {};
-
-  if (Platform.OS === 'android') {
-    fontProps['fontFamily'] = 'Roboto';
-  }
+  const fontProps: StyleProp<TextStyle> = Platform.OS === 'android' ? { fontFamily: 'Roboto' } : {};
 
   return (
     <Text

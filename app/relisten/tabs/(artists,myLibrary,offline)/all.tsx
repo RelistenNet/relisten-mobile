@@ -21,12 +21,12 @@ import {
 } from '@/relisten/realm/models/artist_repo';
 import { useNavigation } from 'expo-router';
 import { type ReactElement, useEffect, useMemo, useRef } from 'react';
-import { Keyboard, ScrollView, TextInput, View } from 'react-native';
+import { Keyboard, ScrollView, TextInputInstance, View } from 'react-native';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
 import { useIsOfflineTab } from '@/relisten/util/routes';
 
 const AllArtistsHeader = ({ artists }: { artists?: Realm.Results<Artist> }) => {
-  const searchInputRef = useRef<TextInput>(null);
+  const searchInputRef = useRef<TextInputInstance>(null);
   const { filters, onFilterButtonPress, onSearchTextChanged, searchText } = useFilters<
     ArtistSortKey,
     Artist

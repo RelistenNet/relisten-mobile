@@ -1,5 +1,4 @@
-import { FlatList, ListRenderItem, RefreshControl } from 'react-native';
-import { FlatListProps } from 'react-native/Libraries/Lists/FlatList';
+import { FlatList, FlatListProps, ListRenderItem, RefreshControl } from 'react-native';
 import { ItemSeparator } from './item_separator';
 import { useRefreshContext } from './refresh_context';
 import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';

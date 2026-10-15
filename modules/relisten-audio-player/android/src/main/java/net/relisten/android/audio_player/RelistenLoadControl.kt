@@ -6,6 +6,9 @@ import androidx.media3.exoplayer.upstream.DefaultAllocator
 
 private const val MIN_BUFFER_MS = 15 * 60_000
 private const val MAX_BUFFER_MS = 30 * 60_000
+// Keep the existing startup/rebuffer thresholds when Media3 defaults change.
+private const val BUFFER_FOR_PLAYBACK_MS = 2_500
+private const val BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 5_000
 private const val MIB = 1024 * 1024
 
 internal class RelistenLoadControl(
@@ -15,11 +18,16 @@ internal class RelistenLoadControl(
     DefaultAllocator(true, C.DEFAULT_BUFFER_SEGMENT_SIZE),
     // Preserve substantial read-ahead for unreliable servers; the byte budget may stop it sooner.
     MIN_BUFFER_MS,
+    MIN_BUFFER_MS,
     MAX_BUFFER_MS,
-    DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
-    DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS,
+    MAX_BUFFER_MS,
+    BUFFER_FOR_PLAYBACK_MS,
+    BUFFER_FOR_PLAYBACK_MS,
+    BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS,
+    BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS,
     targetBufferBytes(maxHeapBytes, isLowRamDevice),
     // Enforce the byte budget even before the 15-minute minimum is reached.
+    false,
     false,
     DefaultLoadControl.DEFAULT_BACK_BUFFER_DURATION_MS,
     DefaultLoadControl.DEFAULT_RETAIN_BACK_BUFFER_FROM_KEYFRAME

@@ -6,7 +6,7 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import RelistenWhite from '@/assets/relisten_white.png';
 
 export const unstable_settings = {
-  initialRouteName: 'index',
+  anchor: 'index',
 };
 
 const TITLES = {

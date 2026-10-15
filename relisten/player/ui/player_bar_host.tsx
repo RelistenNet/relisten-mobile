@@ -1,4 +1,4 @@
-import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { NativeTabs } from 'expo-router/native-tabs';
 import { PlayerBottomBar } from './player_bottom_bar';
 import { PlayerBarPlacementBackend, usePlayerBarPlacementBackend } from './player_bar_layout';
 

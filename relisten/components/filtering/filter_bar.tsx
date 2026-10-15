@@ -1,5 +1,5 @@
-import { LegacyRef, PropsWithChildren, useEffect, useRef, useState } from 'react';
-import { ScrollView, TextInput, TouchableOpacity, View } from 'react-native';
+import { PropsWithChildren, Ref, useEffect, useRef, useState } from 'react';
+import { ScrollView, TextInput, TextInputInstance, TouchableOpacity, View } from 'react-native';
 import { FilterBarButtons } from '@/relisten/components/filtering/filter_bar_buttons';
 import { RelistenObject } from '@/relisten/api/models/relisten';
 import { FilterControl, useFilters } from '@/relisten/components/filtering/filters';
@@ -38,7 +38,7 @@ export function SearchFilterBar({
 }: {
   search: (input: string) => void;
   exitSearch: () => void;
-  innerRef: LegacyRef<TextInput>;
+  innerRef: Ref<TextInputInstance>;
   searchText?: string;
 }) {
   const onChangeText = (input: string) => {
@@ -69,7 +69,7 @@ export function FilterBar<K extends string, T extends RelistenObject>({
 }: PropsWithChildren) {
   const { filters, onFilterButtonPress, onSearchTextChanged, searchText } = useFilters<K, T>();
   const [isTextFiltering, setIsTextFiltering] = useState(false);
-  const searchInputRef = useRef<TextInput>(null);
+  const searchInputRef = useRef<TextInputInstance>(null);
 
   useEffect(() => {
     if (isTextFiltering) {

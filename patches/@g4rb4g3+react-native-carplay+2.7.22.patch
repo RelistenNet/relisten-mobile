@@ -42,3 +42,13 @@ index d2fba5d..768ef92 100644
          self.rootView?.removeFromSuperview()
          self.rootView = nil
          self.dashboardController = nil
+diff --git a/node_modules/@g4rb4g3/react-native-carplay/android/src/main/java/org/birkir/carplay/parser/BitmapCache.kt b/node_modules/@g4rb4g3/react-native-carplay/android/src/main/java/org/birkir/carplay/parser/BitmapCache.kt
+--- a/node_modules/@g4rb4g3/react-native-carplay/android/src/main/java/org/birkir/carplay/parser/BitmapCache.kt
++++ b/node_modules/@g4rb4g3/react-native-carplay/android/src/main/java/org/birkir/carplay/parser/BitmapCache.kt
+@@ -52,5 +52,5 @@ object BitmapCache {
+         val result =
+             DataSources.waitForFinalResult(dataSource) as CloseableReference<CloseableBitmap>
+-        val bitmap = result.get().underlyingBitmap.copy(Bitmap.Config.ARGB_8888, false)
++        val bitmap = checkNotNull(result.get().underlyingBitmap).copy(Bitmap.Config.ARGB_8888, false)
+
+         CloseableReference.closeSafely(result)

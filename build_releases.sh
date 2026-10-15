@@ -178,6 +178,18 @@ pick_android_java_home() {
     fi
   done
 
+  # Homebrew JDKs are keg-only and may not be registered with java_home.
+  for candidate in /opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home \
+    /usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home; do
+    if [[ -x "$candidate/bin/java" ]]; then
+      detected_major="$(java_major_version "$candidate")"
+      if [[ "$detected_major" == "21" ]]; then
+        echo "$candidate"
+        return
+      fi
+    fi
+  done
+
   # Fallback to system-discovered JDK, but only accept exact major 21 or 17.
   for java_version in 21 17; do
     candidate="$(/usr/libexec/java_home -v "$java_version" 2>/dev/null || true)"

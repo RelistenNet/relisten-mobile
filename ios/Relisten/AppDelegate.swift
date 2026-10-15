@@ -8,8 +8,8 @@ import GoogleCast
 import React
 import ReactAppDependencyProvider
 
-@UIApplicationMain
-class AppDelegate: ExpoAppDelegate {
+@main
+class AppDelegate: ExpoAppDelegate, ExpoReactNativeFactoryProvider {
   var reactNativeDelegate: ExpoReactNativeFactoryDelegate?
   var reactNativeFactory: RCTReactNativeFactory?
   var launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil

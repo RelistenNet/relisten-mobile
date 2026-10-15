@@ -1,5 +1,4 @@
 import { consoleTransport, sentryTransport, logger } from 'react-native-logs';
-import { InteractionManager } from 'react-native';
 import * as Sentry from '@sentry/react-native';
 
 export const log = logger.createLogger({
@@ -12,5 +11,5 @@ export const log = logger.createLogger({
   },
   severity: __DEV__ ? 'debug' : 'info',
   async: true,
-  asyncFunc: InteractionManager.runAfterInteractions,
+  asyncFunc: requestIdleCallback,
 });

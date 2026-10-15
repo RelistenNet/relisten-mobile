@@ -26,32 +26,6 @@ export function logLibraryIndexDebug(message: string) {
   logVerboseProfileDebug('LibraryIndexDebug', message);
 }
 
-export function describeRoutingQueueAction(action: unknown) {
-  if (!action || typeof action !== 'object' || !('type' in action)) {
-    return String(action);
-  }
-
-  const type = typeof action.type === 'string' ? action.type : 'unknown';
-  const payload =
-    'payload' in action && action.payload && typeof action.payload === 'object'
-      ? action.payload
-      : undefined;
-
-  if (type === 'ROUTER_LINK') {
-    const href =
-      payload && 'href' in payload && typeof payload.href === 'string' ? payload.href : undefined;
-    const options = payload && 'options' in payload ? safeStringify(payload.options) : undefined;
-
-    return [type, href ? `href=${href}` : undefined, options ? `options=${options}` : undefined]
-      .filter(Boolean)
-      .join(' ');
-  }
-
-  const details = payload ? safeStringify(payload) : undefined;
-
-  return [type, details ? `payload=${details}` : undefined].filter(Boolean).join(' ');
-}
-
 export function createRouteDebugSignature(pathname: string, stack: string) {
   return `${pathname}::${stack}`;
 }
@@ -80,16 +54,4 @@ function logVerboseProfileDebug(prefix: string, message: string) {
   }
 
   console.log(`[${prefix}] ${message}`);
-}
-
-function safeStringify(value: unknown) {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return '[unserializable]';
-  }
 }

@@ -1,8 +1,11 @@
 package net.relisten.android.audio_player
 
 import androidx.media3.common.C
-import androidx.media3.common.Timeline
+import androidx.media3.common.MediaItem
+import androidx.media3.exoplayer.LoadControl
+import androidx.media3.exoplayer.analytics.PlayerId
 import androidx.media3.exoplayer.source.MediaSource.MediaPeriodId
+import androidx.media3.exoplayer.source.SinglePeriodTimeline
 import androidx.media3.exoplayer.source.TrackGroupArray
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -12,7 +15,9 @@ import org.junit.Test
 private const val MIB = 1024 * 1024
 
 class RelistenLoadControlTest {
-    private val periodId = MediaPeriodId(Any())
+    private val playerId = PlayerId("relisten-test")
+    private val timeline = SinglePeriodTimeline(C.TIME_UNSET, true, false, false, null, MediaItem.EMPTY)
+    private val periodId = MediaPeriodId(timeline.getUidOfPeriod(0))
     private val loadControl = newLoadControl()
 
     @Test
@@ -44,20 +49,20 @@ class RelistenLoadControlTest {
         assertTrue(startPlayback(2_500, rebuffering = false))
         assertFalse(startPlayback(4_999, rebuffering = true))
         assertTrue(startPlayback(5_000, rebuffering = true))
-        assertEquals(0L, loadControl.backBufferDurationUs)
-        assertFalse(loadControl.retainBackBufferFromKeyframe())
+        assertEquals(0L, loadControl.getBackBufferDurationUs(playerId))
+        assertFalse(loadControl.retainBackBufferFromKeyframe(playerId))
     }
 
     private fun newLoadControl(
         maxHeapMiB: Int = 256,
         isLowRamDevice: Boolean = false
     ): RelistenLoadControl = RelistenLoadControl(maxHeapMiB.toLong() * MIB, isLowRamDevice).apply {
-        onPrepared()
-        onTracksSelected(Timeline.EMPTY, periodId, emptyArray(), TrackGroupArray.EMPTY, emptyArray())
+        onPrepared(playerId)
+        onTracksSelected(parameters(0), TrackGroupArray.EMPTY, emptyArray())
     }
 
     private fun assertByteBudget(control: RelistenLoadControl, expectedBytes: Int) {
-        val allocator = control.allocator
+        val allocator = control.getAllocator(playerId)
         val allocations = List(expectedBytes / allocator.individualAllocationLength - 1) {
             allocator.allocate()
         }
@@ -70,14 +75,25 @@ class RelistenLoadControlTest {
         allocator.release(finalAllocation)
         assertTrue(continueLoading(control, 5_000))
         allocations.forEach { allocator.release(it) }
-        control.onStopped()
+        control.onStopped(playerId)
     }
 
     private fun continueLoading(control: RelistenLoadControl, bufferedMs: Long): Boolean =
-        control.shouldContinueLoading(0, bufferedMs * 1_000, 1f)
+        control.shouldContinueLoading(parameters(bufferedMs))
 
     private fun startPlayback(bufferedMs: Long, rebuffering: Boolean): Boolean =
-        loadControl.shouldStartPlayback(
-            Timeline.EMPTY, periodId, bufferedMs * 1_000, 1f, rebuffering, C.TIME_UNSET
-        )
+        loadControl.shouldStartPlayback(parameters(bufferedMs, rebuffering))
+
+    private fun parameters(bufferedMs: Long, rebuffering: Boolean = false) = LoadControl.Parameters(
+        playerId,
+        timeline,
+        periodId,
+        0,
+        bufferedMs * 1_000,
+        1f,
+        true,
+        rebuffering,
+        C.TIME_UNSET,
+        C.TIME_UNSET
+    )
 }

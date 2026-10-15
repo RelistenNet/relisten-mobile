@@ -27,7 +27,7 @@
           "audio"
         ]
       },
-      "buildNumber": "6047"
+      "buildNumber": "6051"
     },
     "android": {
       "playStoreUrl": "https://play.google.com/store/apps/details?id=net.relisten.android",
@@ -60,7 +60,7 @@
       },
       "icon": "./assets/ic_playstore.png",
       "package": "net.relisten.android",
-      "versionCode": 6047
+      "versionCode": 6051
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -75,12 +75,13 @@
         "expo-build-properties",
         {
           "android": {
-            "compileSdkVersion": 36,
+            "compileSdkVersion": 37,
             "minSdkVersion": 30,
             "targetSdkVersion": 36
           },
           "ios": {
             "deploymentTarget": "18.0",
+            "usePrecompiledModules": false,
             "useFrameworks": "static"
           }
         }

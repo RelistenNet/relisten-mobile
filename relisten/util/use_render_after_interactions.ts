@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { InteractionManager } from 'react-native';
 
 export function useRenderAfterInteractions(): boolean {
   const [shouldRender, setShouldRender] = useState(false);
@@ -7,7 +6,7 @@ export function useRenderAfterInteractions(): boolean {
   useEffect(() => {
     let cancelled = false;
 
-    const task = InteractionManager.runAfterInteractions(() => {
+    const task = requestIdleCallback(() => {
       if (!cancelled) {
         setShouldRender(true);
       }
@@ -15,9 +14,7 @@ export function useRenderAfterInteractions(): boolean {
 
     return () => {
       cancelled = true;
-      if (typeof task?.cancel === 'function') {
-        task.cancel();
-      }
+      cancelIdleCallback(task);
     };
   }, []);
 

@@ -49,3 +49,54 @@ index 908155c..31d5e81 100644
              },
            );
          } else {
+diff --git a/node_modules/react-native-reorderable-list/src/types/props.ts b/node_modules/react-native-reorderable-list/src/types/props.ts
+index cc69dcb..0bef1ea 100644
+--- a/node_modules/react-native-reorderable-list/src/types/props.ts
++++ b/node_modules/react-native-reorderable-list/src/types/props.ts
+@@ -1,19 +1,6 @@
+ import type {
+   FlatListProps,
+-  MatrixTransform,
+-  PerspectiveTransform,
+-  RotateTransform,
+-  RotateXTransform,
+-  RotateYTransform,
+-  RotateZTransform,
+-  ScaleTransform,
+-  ScaleXTransform,
+-  ScaleYTransform,
+   ScrollViewProps,
+-  SkewXTransform,
+-  SkewYTransform,
+-  TranslateXTransform,
+-  TranslateYTransform,
+   ViewStyle,
+ } from 'react-native';
+
+@@ -189,19 +176,13 @@ export interface ReorderableListProps<T>
+   renderDropIndicator?: ReorderableListRenderItem<T>;
+ }
+
+-export type Transforms = PerspectiveTransform &
+-  RotateTransform &
+-  RotateXTransform &
+-  RotateYTransform &
+-  RotateZTransform &
+-  ScaleTransform &
+-  ScaleXTransform &
+-  ScaleYTransform &
+-  TranslateXTransform &
+-  TranslateYTransform &
+-  SkewXTransform &
+-  SkewYTransform &
+-  MatrixTransform;
++// Derive transform keys from the public style type; RN 0.88 no longer exports
++// the individual transform interfaces.
++type Transform = Exclude<ViewStyle['transform'], string | undefined>[number];
++export type Transforms = {
++  [Key in Transform extends infer T ? T extends object ? keyof T : never : never]:
++    Extract<Transform, Record<Key, unknown>>[Key];
++};
+
+ export type ReorderableListCellAnimatedStyles = Omit<
+   {

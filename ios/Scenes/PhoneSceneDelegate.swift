@@ -8,11 +8,10 @@ import Foundation
 import UIKit
 import SwiftUI
 import React
+internal import Expo
 
-class PhoneSceneDelegate: UIResponder, UIWindowSceneDelegate {
-  var window: UIWindow?
-  
-  func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
+class PhoneSceneDelegate: ExpoAppSceneDelegate {
+  override func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
     print("[carplay-debug] Class: \(type(of: self)), Method: \(#function) role=\(session.role)")
 
     if session.role != .windowApplication {
@@ -23,6 +22,20 @@ class PhoneSceneDelegate: UIResponder, UIWindowSceneDelegate {
       let appDelegate = (UIApplication.shared.delegate as? AppDelegate),
       let windowScene = (scene as? UIWindowScene)
     else { return }
+
+    // Scene connection options carry cold-start links. React Native reads these
+    // from launch options before JS can receive a Linking event.
+    var launchOptions = appDelegate.launchOptions ?? [:]
+    if let url = connectionOptions.urlContexts.first?.url {
+      launchOptions[UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsURLKey")] = url
+    }
+    if let activity = connectionOptions.userActivities.first(where: { $0.activityType == NSUserActivityTypeBrowsingWeb }) {
+      launchOptions[UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsUserActivityDictionaryKey")] = [
+        "UIApplicationLaunchOptionsUserActivityTypeKey": activity.activityType,
+        "UIApplicationLaunchOptionsUserActivityKey": activity,
+      ]
+    }
+    appDelegate.launchOptions = launchOptions.isEmpty ? nil : launchOptions
 
     let window: UIWindow
 
@@ -52,28 +65,12 @@ class PhoneSceneDelegate: UIResponder, UIWindowSceneDelegate {
     // variants over CarPlay's vehicle-managed (often light) backgrounds.
     window.overrideUserInterfaceStyle = .dark
 
-    // Forward universal links received on cold start
+    // Keep our shared phone/CarPlay root, and use Expo's scene forwarding for
+    // subscribers and React Native's scene-based Linking APIs.
     for userActivity in connectionOptions.userActivities {
-      RCTLinkingManager.application(
-        UIApplication.shared,
-        continue: userActivity,
-        restorationHandler: { _ in }
-      )
+      super.scene(scene, continue: userActivity)
     }
 
-    // Forward custom URL scheme links received on cold start
-    for urlContext in connectionOptions.urlContexts {
-      RCTLinkingManager.application(
-        UIApplication.shared,
-        open: urlContext.url,
-        options: [:]
-      )
-    }
-  }
-  
-  func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
-    print("[carplay-debug] Class: \(type(of: self)), Method: \(#function)")
-
-    RCTLinkingManager.application(UIApplication.shared, continue: userActivity, restorationHandler: { restoring in })
+    super.scene(scene, openURLContexts: connectionOptions.urlContexts)
   }
 }

@@ -1,4 +1,4 @@
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState } from 'react-native';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   CastState,
@@ -49,7 +49,7 @@ export function useRelistenCastSession(player: RelistenPlayer) {
     autoplay: boolean;
     options?: { force?: boolean; useLocalElapsed?: boolean };
   } | null>(null);
-  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const appStateRef = useRef(AppState.currentState);
   const castStateRef = useRef(castState);
   const disconnectTimeoutRef = useRef<number | undefined>(undefined);
   const isCastingRef = useRef(isCasting);

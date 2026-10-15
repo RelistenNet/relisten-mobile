@@ -1,8 +1,15 @@
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { Show } from '@/relisten/realm/models/show';
 import { tw } from '@/relisten/util/tw';
-import React, { LegacyRef, memo, PropsWithChildren, useState } from 'react';
-import { LayoutChangeEvent, Pressable, useWindowDimensions, View, ViewProps } from 'react-native';
+import React, { Ref, memo, PropsWithChildren, useState } from 'react';
+import {
+  LayoutChangeEvent,
+  Pressable,
+  useWindowDimensions,
+  View,
+  ViewInstance,
+  ViewProps,
+} from 'react-native';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import Plur from './plur';
 import { ShowLink } from '@/relisten/util/push_show';
@@ -17,7 +24,7 @@ export function ShowCardContainer({
 }: {
   cn?: string;
   className?: string;
-  innerRef?: LegacyRef<View> | undefined;
+  innerRef?: Ref<ViewInstance>;
 } & ViewProps &
   PropsWithChildren) {
   const { fontScale } = useWindowDimensions();
@@ -42,7 +49,7 @@ export interface ShowCardContentsProps {
   details?: ReadonlyArray<string>;
   footer?: React.ReactNode;
   textClassName?: string;
-  innerRef?: LegacyRef<View> | undefined;
+  innerRef?: Ref<ViewInstance>;
 }
 export function ShowCardTitle({
   children,
