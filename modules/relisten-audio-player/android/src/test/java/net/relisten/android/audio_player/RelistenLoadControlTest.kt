@@ -9,39 +9,33 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+private const val MIB = 1024 * 1024
+
 class RelistenLoadControlTest {
     private val periodId = MediaPeriodId(Any())
-    private val loadControl = RelistenLoadControl().apply {
-        onPrepared()
-        onTracksSelected(Timeline.EMPTY, periodId, emptyArray(), TrackGroupArray.EMPTY, emptyArray())
+    private val loadControl = newLoadControl()
+
+    @Test
+    fun stopsAtThirtyMinutesAndRefillsBelowFifteenMinutes() {
+        assertTrue(continueLoading(loadControl, 0))
+        assertTrue(continueLoading(loadControl, 1_799_999))
+        assertFalse(continueLoading(loadControl, 1_800_000))
+        assertFalse(continueLoading(loadControl, 1_200_000))
+        assertFalse(continueLoading(loadControl, 900_000))
+        assertTrue(continueLoading(loadControl, 899_999))
+        assertTrue(continueLoading(loadControl, 1_200_000))
     }
 
     @Test
-    fun stopsAtTwoMinutesAndRefillsBelowOneMinute() {
-        assertTrue(continueLoading(0))
-        assertTrue(continueLoading(119_999))
-        assertFalse(continueLoading(120_000))
-        assertFalse(continueLoading(90_000))
-        assertFalse(continueLoading(60_000))
-        assertTrue(continueLoading(59_999))
-        assertTrue(continueLoading(90_000))
+    fun byteBudgetStopsLoadingBelowTimeMinimumEvenOnLargeHeaps() {
+        assertByteBudget(newLoadControl(maxHeapMiB = 1024), 32 * MIB)
     }
 
     @Test
-    fun byteTargetStopsLoadingEvenBelowMinimumDuration() {
-        val allocator = loadControl.allocator
-        val allocations = List(8 * 1024 * 1024 / allocator.individualAllocationLength - 1) {
-            allocator.allocate()
-        }
-        assertTrue(continueLoading(5_000))
-
-        val finalAllocation = allocator.allocate()
-        assertEquals(8 * 1024 * 1024, allocator.totalBytesAllocated)
-        assertFalse(continueLoading(5_000))
-
-        allocator.release(finalAllocation)
-        assertTrue(continueLoading(5_000))
-        allocations.forEach { allocator.release(it) }
+    fun smallerHeapsAndLowRamDevicesUseSmallerByteBudgets() {
+        assertByteBudget(newLoadControl(maxHeapMiB = 128), 16 * MIB)
+        assertByteBudget(newLoadControl(maxHeapMiB = 256, isLowRamDevice = true), 16 * MIB)
+        assertByteBudget(newLoadControl(maxHeapMiB = 64), 8 * MIB)
     }
 
     @Test
@@ -54,8 +48,33 @@ class RelistenLoadControlTest {
         assertFalse(loadControl.retainBackBufferFromKeyframe())
     }
 
-    private fun continueLoading(bufferedMs: Long): Boolean =
-        loadControl.shouldContinueLoading(0, bufferedMs * 1_000, 1f)
+    private fun newLoadControl(
+        maxHeapMiB: Int = 256,
+        isLowRamDevice: Boolean = false
+    ): RelistenLoadControl = RelistenLoadControl(maxHeapMiB.toLong() * MIB, isLowRamDevice).apply {
+        onPrepared()
+        onTracksSelected(Timeline.EMPTY, periodId, emptyArray(), TrackGroupArray.EMPTY, emptyArray())
+    }
+
+    private fun assertByteBudget(control: RelistenLoadControl, expectedBytes: Int) {
+        val allocator = control.allocator
+        val allocations = List(expectedBytes / allocator.individualAllocationLength - 1) {
+            allocator.allocate()
+        }
+        assertTrue(continueLoading(control, 5_000))
+
+        val finalAllocation = allocator.allocate()
+        assertEquals(expectedBytes, allocator.totalBytesAllocated)
+        assertFalse(continueLoading(control, 5_000))
+
+        allocator.release(finalAllocation)
+        assertTrue(continueLoading(control, 5_000))
+        allocations.forEach { allocator.release(it) }
+        control.onStopped()
+    }
+
+    private fun continueLoading(control: RelistenLoadControl, bufferedMs: Long): Boolean =
+        control.shouldContinueLoading(0, bufferedMs * 1_000, 1f)
 
     private fun startPlayback(bufferedMs: Long, rebuffering: Boolean): Boolean =
         loadControl.shouldStartPlayback(
