@@ -27,7 +27,7 @@ export function PlayerTimelineSectionHeader({
       accessibilityRole={onPress ? 'button' : 'header'}
       accessibilityHint={onPress ? 'Opens the queue.' : undefined}
       onPress={onPress}
-      className="z-10 min-h-12 flex-row items-center gap-2 border-b border-relisten-blue-500/15 bg-relisten-blue-900 px-6 pb-3 pt-2.5"
+      className="z-10 min-h-[48px] flex-row items-center gap-2 border-b border-relisten-blue-500/15 bg-relisten-blue-900 px-6 pb-3 pt-2.5"
     >
       <MaterialIcons color="rgba(101, 226, 255, 0.78)" name={icon} size={19} />
       <RelistenText

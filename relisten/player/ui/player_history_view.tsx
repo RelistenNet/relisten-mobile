@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function PlayerHistorySummary({ totalCount }: { totalCount: number }) {
   return (
-    <View className="min-h-14 flex-row items-center border-b border-relisten-blue-500/15 bg-relisten-blue-950 px-5 py-3">
+    <View className="min-h-[56px] flex-row items-center border-b border-relisten-blue-500/15 bg-relisten-blue-950 px-5 py-3">
       <RelistenText className="text-gray-300" selectable={false}>
         <Plur count={totalCount} word="track" /> played
       </RelistenText>
@@ -24,7 +24,7 @@ function PlayerHistorySectionHeader({ title }: { title: string }) {
   return (
     <View
       accessibilityRole="header"
-      className="min-h-11 justify-center border-b border-relisten-blue-500/15 bg-relisten-blue-900 px-5 py-2"
+      className="min-h-[44px] justify-center border-b border-relisten-blue-500/15 bg-relisten-blue-900 px-5 py-2"
     >
       <RelistenText className="text-sm font-semibold text-relisten-blue-100/90" selectable={false}>
         {title}
