@@ -5,7 +5,6 @@ import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { router, useNavigation } from 'expo-router';
 import { type ReactNode, useCallback, useMemo } from 'react';
-import { InteractionManager } from 'react-native';
 
 const ACTION_IDS = {
   artist: 'artist',
@@ -91,7 +90,7 @@ export function CurrentTrackNavigationMenu({
         onBeforeNavigate(navigate);
       } else if (dismissOnNavigate) {
         navigation.goBack();
-        void InteractionManager.runAfterInteractions(navigate);
+        requestIdleCallback(navigate);
       } else {
         navigate();
       }
