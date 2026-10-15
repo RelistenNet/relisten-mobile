@@ -84,7 +84,7 @@ export const PlayerTimelineStickyHeader = forwardRef<
   const isNowPlaying = childProps?.item?.kind === 'now-playing';
   const onNowPlayingLayout = useContext(NowPlayingStickyLayoutContext);
   const queueHeaderInset = useContext(QueueHeaderInsetContext);
-  const inset = children.props.item?.id === 'up-next' ? queueHeaderInset : 0;
+  const inset = childProps?.item?.id === 'up-next' ? queueHeaderInset : 0;
 
   useImperativeHandle(
     ref,
