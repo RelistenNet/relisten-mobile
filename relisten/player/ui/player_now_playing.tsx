@@ -31,7 +31,14 @@ import { tw } from '@/relisten/util/tw';
 import { Ionicons, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { type Ref } from 'react';
-import { Platform, Share, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import {
+  Platform,
+  Share,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+  type ViewInstance,
+} from 'react-native';
 import AirPlayButton from 'react-native-airplay-button';
 import * as Progress from 'react-native-progress';
 
@@ -155,7 +162,7 @@ function CurrentTrackInfo({
   onBeforeNavigate,
 }: {
   castStatus: ReturnType<typeof useRelistenCastStatus>;
-  headingRef?: Ref<View>;
+  headingRef?: Ref<ViewInstance>;
   onBeforeNavigate: () => void;
 }) {
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
@@ -439,7 +446,7 @@ function PlayerSecondaryControls() {
 }
 
 type PlayerNowPlayingProps = {
-  headingRef?: Ref<View>;
+  headingRef?: Ref<ViewInstance>;
   onBeforeNavigate: () => void;
   visualizerActive?: boolean;
 };
