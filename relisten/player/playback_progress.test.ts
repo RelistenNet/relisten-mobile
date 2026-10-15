@@ -792,6 +792,78 @@ describe('checkpoint persistence and queue edits', () => {
   });
 });
 
+describe('seeking', () => {
+  it.each(['fraction', 'seconds'] as const)(
+    'saves a stopped %s seek and starts the restored entry at that position',
+    async (unit) => {
+      await scenario.restore();
+
+      if (unit === 'fraction') {
+        await player.seekTo(0.5);
+      } else {
+        await player.seekToTime(205);
+      }
+      vi.advanceTimersByTime(1000);
+
+      expect(player.state).toBe(RelistenPlaybackState.Stopped);
+      expect(progress.lastState()).toEqual({ elapsed: 205, duration: 410, percent: 0.5 });
+      expect(scenario.savedCheckpoint).toEqual({
+        entryId: 'B', elapsedSeconds: 205, durationSeconds: 410,
+      });
+      expect(mocks.native.seekTo).not.toHaveBeenCalled();
+      expect(mocks.native.seekToTime).not.toHaveBeenCalled();
+      expect(mocks.native.play).not.toHaveBeenCalled();
+
+      player.resume();
+      await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+      expect(scenario.lastNativePlay).toMatchObject({ entryId: 'B', startTimeMs: 205000 });
+    }
+  );
+
+  it('keeps a pending entry seek preview out of the confirmed checkpoint', async () => {
+    scenario.startPlayingQueue();
+    const pause = deferredOperation();
+    mocks.native.pause.mockImplementationOnce(() => pause.promise);
+
+    player.next();
+    await player.seekTo(0.5);
+    vi.advanceTimersByTime(1000);
+
+    expect(progress.lastState()).toEqual({ elapsed: 205, duration: 410, percent: 0.5 });
+    expect(player.progress).toMatchObject({ elapsed: 120, duration: 381 });
+    expect(scenario.savedCheckpoint).toMatchObject({
+      entryId: minglewood.identifier, elapsedSeconds: 120, durationSeconds: 381,
+    });
+  });
+
+  it('keeps the fractional and absolute driver contracts without resuming paused playback', async () => {
+    scenario.startPlayingQueue();
+    scenario.emit({ playbackState: RelistenPlaybackState.Paused });
+    const driver = {
+      name: 'cast',
+      isActive: () => true,
+      play: vi.fn(async () => {}),
+      pause: vi.fn(async () => {}),
+      resume: vi.fn(async () => {}),
+      stop: vi.fn(async () => {}),
+      seekTo: vi.fn(async () => {}),
+      seekToTime: vi.fn(async () => {}),
+      setNextStream: vi.fn(),
+    };
+    player.setPlaybackDriver(driver);
+
+    await player.seekTo(0.5);
+    await player.seekToTime(500);
+    vi.advanceTimersByTime(1000);
+
+    expect(driver.seekTo).toHaveBeenCalledWith(0.5);
+    expect(driver.seekToTime).toHaveBeenCalledWith(500000);
+    expect(driver.resume).not.toHaveBeenCalled();
+    expect(player.state).toBe(RelistenPlaybackState.Paused);
+    expect(progress.lastState()?.elapsed).toBe(500);
+  });
+});
+
 describe('saved queue restoration', () => {
   it('does not transfer a removed restored entry seek to the next entry', async () => {
     await scenario.restore({

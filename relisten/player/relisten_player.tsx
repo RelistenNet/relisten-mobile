@@ -503,49 +503,53 @@ export class RelistenPlayer {
     nativePlayer.prepareAudioSession();
   }
 
+  /** Seek to a fraction (0-1), preserving pause and retaining a stopped track's position. */
   seekTo(pct: number): Promise<void> {
     this.addPlayerListeners();
-
-    const playbackState = this.state;
-
-    // We cannot seek if we aren't playing. Save this for when attempt to play.
-    if (playbackState == RelistenPlaybackState.Stopped) {
-      return Promise.resolve();
-    }
-
-    const currentTrack = this.queue.currentTrack;
-
-    if (currentTrack) {
-      const duration = this.progress?.duration ?? currentTrack.sourceTrack.duration ?? 100;
-
-      // optimistically update the UI
-      sharedStateProgress.setState({
-        elapsed: pct * duration,
-        duration,
-        percent: pct,
-      });
-    }
-
-    if (shouldStartStalledTimerForSeek(playbackState)) {
-      this.startStalledTimer();
-    }
-
-    return this.playbackDriver.seekTo(pct);
+    const duration = this.seekDuration;
+    const percent = Math.max(0, Math.min(1, pct));
+    return this.prepareSeek(percent * duration, duration)
+      ? this.playbackDriver.seekTo(percent)
+      : Promise.resolve();
   }
 
+  /** Seek in seconds without resuming. The next Play uses a stopped track's selected position. */
   seekToTime(time: number): Promise<void> {
     this.addPlayerListeners();
+    // Restore and Cast handoff can supply a position before native duration is known.
+    const elapsed = Math.max(0, time);
+    return this.prepareSeek(elapsed, this.seekDuration)
+      ? this.playbackDriver.seekToTime(elapsed * 1000.0)
+      : Promise.resolve();
+  }
 
-    // We cannot seek if we aren't playing. Save this for when attempt to play.
-    if (this.state == RelistenPlaybackState.Stopped) {
-      const identifier = this._queue.currentTrack?.identifier;
-      if (identifier) {
-        this.seekIntent = { identifier, time };
-      }
-      return Promise.resolve();
+  private get seekDuration() {
+    return (
+      sharedStateProgress.lastState()?.duration ??
+      this.queue.currentTrack?.sourceTrack.duration ??
+      100
+    );
+  }
+
+  /** Publish the seek and report whether the active driver can apply it now. */
+  private prepareSeek(elapsed: number, duration: number): boolean {
+    const progress = { elapsed, duration, percent: duration > 0 ? elapsed / duration : 0 };
+    const identifier = this.queue.currentTrack?.identifier;
+    if (this.state === RelistenPlaybackState.Stopped && identifier) {
+      this.seekIntent = { identifier, time: elapsed };
     }
 
-    return this.playbackDriver.seekToTime(time * 1000.0);
+    sharedStateProgress.setState(progress);
+    // A requested track can preview its timing before native confirms its identity.
+    if (!this.nativePlayRequest || this.nativePlayRequest.identifier === identifier) {
+      this.progress = progress;
+      this.queue.savePlayerState(true);
+    }
+
+    if (shouldStartStalledTimerForSeek(this.state)) {
+      this.startStalledTimer();
+    }
+    return this.state !== RelistenPlaybackState.Stopped;
   }
 
   debugState() {
