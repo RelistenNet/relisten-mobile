@@ -229,12 +229,13 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
         </GestureDetector>
         <Flex cn={isAccessory ? 'ml-2 items-center self-center' : 'ml-2 items-center'}>
           {Platform.OS === 'ios' && (
-            <View className={utilityButtonShellClassName}>
+            <View className="h-12 w-11 items-center justify-center">
               <AirPlayButton
                 activeTintColor="white"
                 tintColor="rgba(226, 232, 240, 0.72)"
                 prioritizesVideoDevices={false}
-                className="h-11 w-11"
+                // UIKit's internal route button is shorter than the native view.
+                className="h-12 w-11"
               />
             </View>
           )}
