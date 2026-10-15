@@ -71,7 +71,7 @@ final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
     /// play/restart paths can explicitly warm it before scheduling resumes.
     func reset(timelineOffset: TimeInterval, startEngine: Bool) throws {
         dispatchPrecondition(condition: .onQueue(ownerQueue))
-        updateLastKnownTime()
+        // The new session's explicit offset replaces the old clock, including on backward seeks.
         self.timelineOffset = timelineOffset
         self.lastKnownTime = timelineOffset
         self.pendingBufferCount = 0
@@ -137,19 +137,31 @@ final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
         decodeFinished = true
     }
 
-    /// Returns a monotonic timeline time even across pauses and graph resets.
-    ///
-    /// `AVAudioPlayerNode` time queries can temporarily return nil around resets, so we
-    /// cache the last known timeline value instead of letting callers observe time going
-    /// backwards.
+    /// Returns a monotonic time within the current output timeline. Reset establishes
+    /// a new timeline at the requested offset, which may be earlier after a backward seek.
+    /// Unavailable or invalid render timestamps leave the cached time unchanged.
     func currentTime() -> TimeInterval {
         dispatchPrecondition(condition: .onQueue(ownerQueue))
-        if let renderTime = playerNode.lastRenderTime,
-           let playerTime = playerNode.playerTime(forNodeTime: renderTime) {
-            let elapsed = Double(playerTime.sampleTime) / playerTime.sampleRate
+        if let elapsed = Self.elapsedTime(
+            for: playerNode.lastRenderTime,
+            playerTime: { playerNode.playerTime(forNodeTime: $0) }
+        ) {
             lastKnownTime = max(timelineOffset + elapsed, lastKnownTime)
         }
         return lastKnownTime
+    }
+
+    static func elapsedTime(
+        for renderTime: AVAudioTime?,
+        playerTime: (AVAudioTime) -> AVAudioTime?
+    ) -> TimeInterval? {
+        // A non-nil AVAudioTime can have neither clock valid during engine transitions.
+        // Passing it to playerTime(forNodeTime:) raises an NSException (RELISTEN-MOBILE-26Z).
+        guard let renderTime, renderTime.isSampleTimeValid || renderTime.isHostTimeValid,
+              let time = playerTime(renderTime), time.isSampleTimeValid,
+              time.sampleRate.isFinite, time.sampleRate > 0 else { return nil }
+        let elapsed = Double(time.sampleTime) / time.sampleRate
+        return elapsed.isFinite ? elapsed : nil
     }
 
     private func updateLastKnownTime() {
