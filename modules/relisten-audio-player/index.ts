@@ -25,6 +25,7 @@ const emitter = new EventEmitter<{
   onTrackChanged: (event: RelistenTrackChangedEvent) => void;
   onRemoteControl: (event: RelistenRemoteControlEvent) => void;
   onTrackStreamingCacheComplete: (event: RelistenTrackStreamingCacheCompleteEvent) => void;
+  onAudioOutputRouteChanged: (event: AudioOutputRoute) => void;
 }>(RelistenAudioPlayerModule);
 
 export interface RelistenStreamable {
@@ -133,7 +134,23 @@ export interface PlaybackProgress {
   activeTrackDownloadProgress: RelistenDownloadProgressChangedEvent;
 }
 
+/** iOS system output. Local speaker/receiver output has an empty name. */
+export interface AudioOutputRoute {
+  name: string;
+  isExternal: boolean;
+}
+
 class RelistenGaplessPlayer {
+  /** iOS only. Read the route without starting playback or activating the audio session. */
+  getAudioOutputRoute(): AudioOutputRoute {
+    return RelistenAudioPlayerModule.getAudioOutputRoute();
+  }
+
+  /** iOS only. Observe route snapshots, including changes while playback is paused. */
+  addAudioOutputRouteListener(listener: (route: AudioOutputRoute) => void): EventSubscription {
+    return emitter.addListener('onAudioOutputRouteChanged', listener);
+  }
+
   addErrorListener(listener: (event: RelistenErrorEvent) => void): EventSubscription {
     return emitter.addListener('onError', listener);
   }
