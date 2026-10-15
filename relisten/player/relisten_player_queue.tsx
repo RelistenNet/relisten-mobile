@@ -609,6 +609,7 @@ ${indentString(tracks)}
 
     this.playerStateDebounce = setTimeout(() => {
       if (realm) {
+        const progress = this.currentTrack ? this.player.progress : undefined;
         const state = {
           queueShuffleState: this.shuffleState,
           queueRepeatState: this.repeatState,
@@ -617,9 +618,9 @@ ${indentString(tracks)}
           activeSourceTrackIndex: this.originalTracksCurrentIndex,
           activeSourceTrackShuffledIndex: this.shuffledTracksCurrentIndex,
           lastUpdatedAt: new Date(),
-          progress: this.player.progress?.percent,
-          duration: this.player.progress?.duration,
-          elapsed: this.player.progress?.elapsed,
+          progress: progress?.percent,
+          duration: progress?.duration,
+          elapsed: progress?.elapsed,
         };
         logger.debug('writing player state progress', {
           activeSourceTrackIndex: state.activeSourceTrackIndex,
@@ -754,10 +755,18 @@ ${indentString(tracks)}
       this._nextTrack = undefined;
       this._nextTrackIndex = undefined;
 
-      const restoredElapsed = Number.isFinite(playerState.elapsed) ? playerState.elapsed : null;
-      const restoredDuration = Number.isFinite(playerState.duration) ? playerState.duration : null;
+      // Older saves can contain the previous track's duration. Use catalog duration until native
+      // timing arrives, retaining the saved seek within the selected track's bounds.
+      const restoredDuration = this.currentTrack?.sourceTrack.duration ?? playerState.duration;
+      const savedElapsed = playerState.elapsed;
 
-      if (restoredElapsed != null && restoredDuration != null) {
+      if (
+        savedElapsed != null &&
+        Number.isFinite(savedElapsed) &&
+        restoredDuration != null &&
+        Number.isFinite(restoredDuration)
+      ) {
+        const restoredElapsed = Math.max(0, Math.min(restoredDuration, savedElapsed));
         const restoredProgress = {
           elapsed: restoredElapsed,
           duration: restoredDuration,
