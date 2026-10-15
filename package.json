@@ -105,6 +105,11 @@
     "vitest": "^4.1.11"
   },
   "expo": {
+    "autolinking": {
+      "android": {
+        "buildFromSource": [".*"]
+      }
+    },
     "doctor": {
       "appConfigFieldsNotSyncedCheck": {
         "enabled": false
