@@ -309,7 +309,10 @@ export function PlayerControls({ compact = false }: { compact?: boolean }) {
         accessibilityLabel="Previous track"
         accessibilityRole="button"
         className="min-h-[44px] min-w-[44px] items-center justify-center"
-        onPress={() => player.back()}
+        onPress={() => {
+          player.back();
+          void Haptics.selectionAsync();
+        }}
       >
         <MaterialCommunityIcons color="white" name="skip-backward" size={compact ? 24 : 34} />
       </TouchableOpacity>
@@ -335,7 +338,10 @@ export function PlayerControls({ compact = false }: { compact?: boolean }) {
           player.queue.isCurrentTrackLast && 'opacity-40'
         )}
         disabled={player.queue.isCurrentTrackLast}
-        onPress={() => player.next()}
+        onPress={() => {
+          player.next();
+          void Haptics.selectionAsync();
+        }}
       >
         <MaterialCommunityIcons color="white" name="skip-forward" size={compact ? 24 : 34} />
       </TouchableOpacity>

@@ -12,6 +12,7 @@ const harness = vi.hoisted(() => ({
   cancel: vi.fn(),
   push: vi.fn(),
   pushShow: vi.fn(),
+  hapticImpact: vi.fn(),
   track: {
     sourceTrack: {
       artist: { uuid: 'artist-id', name: 'Phish' },
@@ -53,6 +54,10 @@ vi.mock('react-native-reanimated', () => ({
   },
 }));
 vi.mock('react-native', () => ({ InteractionManager: { runAfterInteractions: vi.fn() } }));
+vi.mock('expo-haptics', () => ({
+  impactAsync: harness.hapticImpact,
+  ImpactFeedbackStyle: { Light: 'light' },
+}));
 vi.mock('expo-router', () => ({ router: { push: harness.push }, useNavigation: vi.fn() }));
 vi.mock('@/relisten/components/menus/native_menu_icons', () => ({ nativeMenuIcons: {} }));
 vi.mock('@/relisten/components/menus/native_menu_view', () => ({ NativeMenuView: vi.fn() }));
@@ -100,6 +105,40 @@ beforeEach(() => {
 });
 
 describe('player presentation and menu navigation contract', () => {
+  it('gives one haptic for each committed endpoint, including gesture-driven changes', () => {
+    const presentation = PlayerPresentationProvider({ children: null }).props.value;
+    presentation.beginInteractivePresentation();
+    expect(harness.hapticImpact).not.toHaveBeenCalled();
+    presentation.openPlayer();
+    presentation.markPlayerContentReady();
+    presentation.openPlayer();
+    expect(harness.hapticImpact).toHaveBeenCalledTimes(1);
+
+    presentation.beginInteractivePresentation();
+    presentation.closePlayer();
+    presentation.closePlayer();
+    expect(harness.hapticImpact).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps cancelled drags, lifecycle resets, and unmount cleanup silent', () => {
+    const presentation = PlayerPresentationProvider({ children: null }).props.value;
+    presentation.beginInteractivePresentation();
+    presentation.closePlayer();
+    expect(harness.hapticImpact).not.toHaveBeenCalled();
+
+    presentation.openPlayer();
+    presentation.beginInteractivePresentation();
+    presentation.openPlayer();
+    expect(harness.hapticImpact).toHaveBeenCalledTimes(1);
+
+    presentation.resetPlayerPresentation();
+    expect(harness.hapticImpact).toHaveBeenCalledTimes(1);
+    presentation.openPlayer();
+    expect(harness.hapticImpact).toHaveBeenCalledTimes(2);
+    harness.cleanups.forEach((cleanup) => cleanup());
+    expect(harness.hapticImpact).toHaveBeenCalledTimes(2);
+  });
+
   it('waits for committed timeline content on every fresh open', () => {
     const presentation = PlayerPresentationProvider({ children: null }).props.value;
     for (let cycle = 0; cycle < 3; cycle += 1) {

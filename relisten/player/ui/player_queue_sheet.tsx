@@ -50,6 +50,7 @@ import DraggableFlatList, {
   type RenderItemParams,
 } from 'react-native-draggable-flatlist';
 import Animated, {
+  interpolateColor,
   useAnimatedStyle,
   runOnJS,
   type SharedValue,
@@ -248,6 +249,11 @@ export function PlayerQueueSheet({
   const anchorReady = useSharedValue(false);
   const expandedPlayerStyle = useAnimatedStyle(() => ({
     opacity: playerTransportTransition(queueProgress.value).expandedOpacity,
+  }));
+  // At rest Up Next continues the poster background. As it becomes sticky,
+  // match the queue backdrop so moving rows cannot show through its labels.
+  const upNextHeaderStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(backdropProgress.value, [0, 1], ['#001D2400', '#001D24']),
   }));
   const expandedPlayerMaskStyle = useAnimatedStyle(() => {
     const transition = playerTransportTransition(queueProgress.value);
@@ -727,7 +733,9 @@ export function PlayerQueueSheet({
           );
         case 'section-header':
           return (
-            <View
+            <Animated.View
+              className={item.id === 'up-next' ? undefined : 'bg-relisten-blue-900'}
+              style={item.id === 'up-next' ? upNextHeaderStyle : undefined}
               onLayout={
                 item.id === 'up-next'
                   ? (event) =>
@@ -741,7 +749,7 @@ export function PlayerQueueSheet({
                 label={item.label}
                 onPress={item.id === 'up-next' ? openQueue : undefined}
               />
-            </View>
+            </Animated.View>
           );
         case 'sticky-reset':
           return (
@@ -808,6 +816,7 @@ export function PlayerQueueSheet({
     [
       isPivotOffscreen,
       expandedPlayerStyle,
+      upNextHeaderStyle,
       expandedPlayerMaskStyle,
       measureQueueItem,
       handleScrubbingChange,

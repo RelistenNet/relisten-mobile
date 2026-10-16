@@ -4,6 +4,7 @@ import { OverflowMenuTrigger } from '@/relisten/components/menus/overflow_menu_t
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
 import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
 import { playerTrackAccessibilityLabel } from './player_display_helpers';
+import * as Haptics from 'expo-haptics';
 import { useCallback } from 'react';
 
 const ACTION_IDS = {
@@ -63,6 +64,7 @@ export function PlayerQueueActionsMenu({
       switch (actionId) {
         case ACTION_IDS.playNow:
           player.playTrackAtIndex(index);
+          void Haptics.selectionAsync();
           break;
         case ACTION_IDS.playNext:
           player.queue.queueNextTrack([PlayerQueueTrack.fromSourceTrack(queueTrack.sourceTrack)]);
