@@ -72,11 +72,11 @@ function NativeTabsAccessoryProgress() {
       : 0;
 
   return (
-    <View className="mx-1.5 h-[3px] overflow-hidden rounded-full bg-slate-400/20">
-      <View
-        className="h-full rounded-full bg-cyan-400"
-        style={{ width: `${percent * 100}%`, opacity: percent < 0.01 ? 0 : 1 }}
-      />
+    <View
+      pointerEvents="none"
+      className="absolute bottom-px left-5 right-5 h-[2px] overflow-hidden rounded-full bg-slate-400/20"
+    >
+      <View className="h-full rounded-full bg-cyan-400" style={{ width: `${percent * 100}%` }} />
     </View>
   );
 }
@@ -118,7 +118,9 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
   // Keep its text at the designed size; the expanded player supports Dynamic Type.
   const metadataFontSizeLimit = isAccessory ? 1 : undefined;
   const playbackIconSize = isAccessory ? 26 : 30;
-  const rootContainerCn = isAccessory ? '' : 'flex-1';
+  // UIKit owns the accessory height. Keep progress inside that frame instead of
+  // adding its height below the native route control.
+  const rootContainerCn = isAccessory ? 'h-full justify-center' : 'flex-1';
   const headerRowCn = isAccessory ? 'min-h-[38px] items-center' : 'items-center';
   const titleClassName = isAccessory
     ? 'text-[15px] font-semibold text-white'
@@ -212,7 +214,7 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
             className={`${isAccessory ? 'ml-2' : 'ml-3'} min-w-0 flex-1`}
             onAccessibilityTap={openPlayer}
           >
-            <Flex column cn="flex-1 min-w-0">
+            <Flex column cn="min-w-0">
               <RelistenText
                 className={titleClassName}
                 maxFontSizeMultiplier={metadataFontSizeLimit}
@@ -333,9 +335,9 @@ export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBa
   }
 
   const isOverlay = placementBackend === 'overlay';
-  const containerClassName = isOverlay ? 'absolute w-full' : 'w-full';
-  const contentContainerClassName = isOverlay ? 'w-full flex-1 px-3 pb-2' : 'w-full px-1.5';
-  const mainSurfaceClassName = isOverlay ? 'px-3 pb-3 pt-2.5' : 'py-0';
+  const containerClassName = isOverlay ? 'absolute w-full' : 'h-full w-full';
+  const contentContainerClassName = isOverlay ? 'w-full flex-1 px-3 pb-2' : 'h-full w-full px-1.5';
+  const mainSurfaceClassName = isOverlay ? 'px-3 pb-3 pt-2.5' : 'h-full';
   const shellChromeStyle =
     Platform.OS === 'ios'
       ? { boxShadow: '0 10px 22px rgba(2, 6, 23, 0.22)' }

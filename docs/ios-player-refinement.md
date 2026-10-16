@@ -24,7 +24,11 @@ context so recordings with the same title remain distinguishable.
   observation also runs while paused and does not activate the audio session.
 - Queue metadata stacks at larger text sizes. The native tab accessory has a
   fixed height, so its metadata uses bounded text scaling and no vertical
-  padding. The expanded player retains its existing Dynamic Type behavior.
+  padding. Controls and progress fill UIKit's actual accessory frame. Progress
+  sits inside its bottom edge; stacking it below the 48-point AirPlay view clips
+  it on a 48-point accessory. Metadata uses its natural height so the row can
+  center the text beside the controls. The expanded player retains its existing
+  Dynamic Type behavior.
 
 ## Verification
 
@@ -34,6 +38,10 @@ termination, slow scroll and reversal, compact time-display synchronization,
 chevron dismissal, a cancelled short drag, More-to-Equalizer navigation, and
 repeat mode changes. Long artist names and output labels were checked using
 temporary display-only samples; those samples are removed from the source.
+The dismissed native mini-player was rechecked after correcting its vertical
+alignment and clipped progress: paused and playing progress, repeated opening
+and dismissal, and a longer artist name with an output label. Simulator frames
+show a 44-by-44-point Play button and a 44-by-46.3-point AirPlay button.
 Accessibility Large was checked last, then normal text size was restored.
 
 The iOS native build, production Hermes export, TypeScript, lint, 139 app tests,
