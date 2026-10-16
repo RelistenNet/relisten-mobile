@@ -25,9 +25,12 @@ context so recordings with the same title remain distinguishable.
   display vertically. Frequency order and amplitudes remain unchanged.
 - Light impact feedback marks a committed open or close. Selection feedback
   marks manual Next, Previous, queue-row playback, and queue-menu Play Now.
-  Cancelled drags, repeated endpoint requests, resets, autoplay, and individual
-  scroll updates stay silent. Simulator tests verify these calls, not how the
-  feedback feels on an iPhone.
+  A selection response also marks scrolling that settles at a different expanded
+  or compact player breakpoint. It follows native scroll completion, including
+  deliberate Up Next and Return to Now Playing actions. Passing through a
+  breakpoint, returning to the same breakpoint, cancelled drags, repeated
+  endpoint requests, layout corrections, resets, and autoplay stay silent.
+  Simulator tests verify these calls, not how the feedback feels on an iPhone.
 - The right time label switches between duration and remaining time. Both
   headers share one persisted installation preference.
 - Cast and AirPlay use native frames large enough for a 44-point button. AirPlay
@@ -56,7 +59,13 @@ and dismissal, and a longer artist name with an output label. Simulator frames
 show a 44-by-44-point Play button and a 44-by-46.3-point AirPlay button.
 Accessibility Large was checked last, then normal text size was restored.
 
-The iOS native build, production Hermes export, TypeScript, lint, 141 app tests,
+Breakpoint feedback was checked through the running iOS callbacks: Up Next and
+Return to Now Playing, slow drags in both directions, and an exact stationary
+release each produce one request on arrival. A short drag back to its origin,
+a scroll past the compact breakpoint into the queue, and reopening the player
+produce none. Temporary callback diagnostics were removed.
+
+The iOS native build, production Hermes export, TypeScript, lint, 147 app tests,
 and 12 favorites tests pass. Playback tests exercise the actual player and queue
 through driver calls, saved progress, and native event ordering.
 
