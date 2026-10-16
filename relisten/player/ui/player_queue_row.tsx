@@ -48,6 +48,7 @@ function QueueTrackRow({
 }) {
   const player = useRelistenPlayer();
   const { fontScale } = useWindowDimensions();
+  const stackMetadata = fontScale > 1.2;
   const { isFirst, isLast, queueIndex, queueTrack } = entry;
   const sourceTrack = queueTrack.sourceTrack;
   const displayTitle = playerDisplayTitle(sourceTrack.title);
@@ -66,24 +67,24 @@ function QueueTrackRow({
           <View className="min-w-0 flex-row items-start">
             <RelistenText
               className="flex-1 shrink text-lg font-semibold"
-              numberOfLines={fontScale <= 1.2 ? 2 : undefined}
+              numberOfLines={stackMetadata ? undefined : 2}
               selectable={false}
             >
               {displayTitle}
             </RelistenText>
             <SourceTrackOfflineIndicator offlineInfo={sourceTrack.offlineInfo} />
           </View>
-          {/* Keep the show date visible when a long artist name must truncate. */}
-          <View className="mt-[3px] min-w-0 flex-row items-baseline">
+          {/* Reserve the date at normal sizes; stack it when both labels need room to wrap. */}
+          <View className={`mt-[3px] min-w-0 ${stackMetadata ? '' : 'flex-row items-baseline'}`}>
             <RelistenText
               className="min-w-0 shrink text-sm text-gray-300/70"
-              numberOfLines={fontScale <= 1.2 ? 1 : undefined}
+              numberOfLines={stackMetadata ? undefined : 1}
               selectable={false}
             >
               {sourceTrack.artist.name}
             </RelistenText>
             <RelistenText className="shrink-0 text-sm text-gray-300/70" selectable={false}>
-              {' · '}
+              {stackMetadata ? '' : ' · '}
               {playerQueueDate(sourceTrack.show.displayDate)}
             </RelistenText>
           </View>

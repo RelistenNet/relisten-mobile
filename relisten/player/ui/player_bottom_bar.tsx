@@ -114,6 +114,9 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
 
   const track = currentTrack.sourceTrack;
   const isAccessory = placementBackend === 'nativeTabsAccessory';
+  // The fixed-height native accessory must fit controls and up to three metadata lines.
+  // Keep its text at the designed size; the expanded player supports Dynamic Type.
+  const metadataFontSizeLimit = isAccessory ? 1 : undefined;
   const playbackIconSize = isAccessory ? 26 : 30;
   const rootContainerCn = isAccessory ? '' : 'flex-1';
   const headerRowCn = isAccessory ? 'min-h-[38px] items-center' : 'items-center';
@@ -210,20 +213,35 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
             onAccessibilityTap={openPlayer}
           >
             <Flex column cn="flex-1 min-w-0">
-              <RelistenText className={titleClassName} numberOfLines={1}>
+              <RelistenText
+                className={titleClassName}
+                maxFontSizeMultiplier={metadataFontSizeLimit}
+                numberOfLines={1}
+              >
                 {track?.title ?? ''}
               </RelistenText>
               {/* Reserve space for the date even when the artist name is long. */}
               <View className="min-w-0 flex-row items-baseline">
-                <RelistenText className={`${subtitleClassName} min-w-0 shrink`} numberOfLines={1}>
+                <RelistenText
+                  className={`${subtitleClassName} min-w-0 shrink`}
+                  maxFontSizeMultiplier={metadataFontSizeLimit}
+                  numberOfLines={1}
+                >
                   {track.artist.name}
                 </RelistenText>
-                <RelistenText className={`${subtitleClassName} shrink-0`} numberOfLines={1}>
+                <RelistenText
+                  className={`${subtitleClassName} shrink-0`}
+                  maxFontSizeMultiplier={metadataFontSizeLimit}
+                  numberOfLines={1}
+                >
                   {' · '}
                   {playerQueueDate(track.show.displayDate)}
                 </RelistenText>
               </View>
-              <PlayerOutputRoute className={castingClassName} />
+              <PlayerOutputRoute
+                className={castingClassName}
+                maxFontSizeMultiplier={metadataFontSizeLimit}
+              />
             </Flex>
           </Animated.View>
         </GestureDetector>
@@ -317,7 +335,7 @@ export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBa
   const isOverlay = placementBackend === 'overlay';
   const containerClassName = isOverlay ? 'absolute w-full' : 'w-full';
   const contentContainerClassName = isOverlay ? 'w-full flex-1 px-3 pb-2' : 'w-full px-1.5';
-  const mainSurfaceClassName = isOverlay ? 'px-3 pb-3 pt-2.5' : 'pb-2 pt-1.5';
+  const mainSurfaceClassName = isOverlay ? 'px-3 pb-3 pt-2.5' : 'py-0';
   const shellChromeStyle =
     Platform.OS === 'ios'
       ? { boxShadow: '0 10px 22px rgba(2, 6, 23, 0.22)' }
