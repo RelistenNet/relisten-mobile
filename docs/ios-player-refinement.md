@@ -97,3 +97,14 @@ Verified the manifest signature against the app certificate and downloaded the
 launch asset with the native client's platform, runtime, and channel headers.
 Its SHA-256 matches the manifest. These checks confirm server delivery; they do
 not confirm installation or haptic feel on a physical iPhone.
+
+### Breakpoint feedback OTA
+
+Published on October 16, 2026 at 06:01 UTC to the same iOS channel and runtime.
+Update ID: `04a6a30d-e73f-c0d1-c1ed-9fb2ac664c67`.
+Published source: `71db230`.
+
+Adds settled expanded/compact breakpoint feedback to TestFlight 6052. The
+manifest signature and downloaded launch-asset SHA-256 were verified after
+publication. Physical feedback still needs confirmation on an iPhone; the
+native visualizer centering remains outside this OTA.
