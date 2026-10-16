@@ -32,7 +32,14 @@ export function usePlayerOutputRoute(): string | null {
 }
 
 /** Compact route feedback shared by the expanded player and mini-player. */
-export function PlayerOutputRoute({ className }: { className?: string }) {
+export function PlayerOutputRoute({
+  className,
+  maxFontSizeMultiplier,
+}: {
+  className?: string;
+  /** Bounds the label in fixed-height containers such as the native tab accessory. */
+  maxFontSizeMultiplier?: number;
+}) {
   const name = usePlayerOutputRoute();
   if (!name) {
     return null;
@@ -41,6 +48,7 @@ export function PlayerOutputRoute({ className }: { className?: string }) {
   return (
     <RelistenText
       className={className}
+      maxFontSizeMultiplier={maxFontSizeMultiplier}
       numberOfLines={1}
       selectable={false}
       accessibilityLabel={`Audio output: ${name}`}
