@@ -71,3 +71,20 @@ The output-route API adds native iOS code. Distribute this JavaScript with a new
 iOS binary and its matching runtime. Do not publish it as an OTA update targeting
 an older binary that lacks the new bridge methods. Use the repository's
 `build_releases.sh` workflow when preparing a release.
+
+### TestFlight 6052 OTA
+
+Published on October 15, 2026 at 22:41 PDT to iOS only, branch
+`accounts-favorites-mobile`, runtime `6.2.0+ios.6052`.
+Update ID: `632c5fea-689a-1f50-5b75-ce52f011257c`.
+Published source: `af2e0eb`.
+
+Build 6052 already includes the output-route bridge used by this JavaScript.
+The OTA includes the dismissed mini-player repair, single dismissal chevron,
+Up Next background transition, and haptic feedback. Native visualizer centering
+is not part of the OTA and still requires a new binary.
+
+Verified the manifest signature against the app certificate and downloaded the
+launch asset with the native client's platform, runtime, and channel headers.
+Its SHA-256 matches the manifest. These checks confirm server delivery; they do
+not confirm installation or haptic feel on a physical iPhone.
