@@ -12,7 +12,7 @@ import { TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS, useSharedValue } from 'react-native-reanimated';
 
-/** Keeps dismissal available above the scrolling player, by button or grabber drag. */
+/** One visible dismissal control; the surrounding header also accepts a downward drag. */
 export function PlayerOverlayHeader({ interactive }: { interactive: boolean }) {
   'use no memo';
 
@@ -73,23 +73,18 @@ export function PlayerOverlayHeader({ interactive }: { interactive: boolean }) {
 
   return (
     <GestureDetector gesture={collapseGesture}>
-      <View className="min-h-[56px] items-center justify-end pb-2 pt-3" collapsable={false}>
+      <View className="h-14 items-center justify-center" collapsable={false}>
         <TouchableOpacity
           accessibilityLabel="Collapse player"
           accessibilityRole="button"
           accessibilityElementsHidden={!interactive}
           importantForAccessibility={interactive ? 'auto' : 'no-hide-descendants'}
-          className="absolute left-3 top-1.5 h-11 w-11 items-center justify-center"
+          className="h-11 w-11 items-center justify-center"
           disabled={!interactive}
           onPress={() => closePlayer()}
         >
           <Ionicons color="rgba(255, 255, 255, 0.8)" name="chevron-down" size={25} />
         </TouchableOpacity>
-        <View
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-          className="h-1 w-9 rounded-full bg-relisten-blue-200/80"
-        />
       </View>
     </GestureDetector>
   );

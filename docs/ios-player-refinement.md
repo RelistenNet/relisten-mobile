@@ -15,7 +15,19 @@ context so recordings with the same title remain distinguishable.
 - Expanded and compact controls overlap during collapse. Visibility and input
   ownership share one transition policy. The outgoing header is masked without
   changing the measured scroll anchors. Existing snap behavior and presentation
-  springs are unchanged.
+  springs are unchanged. The section-header background follows the queue backdrop:
+  transparent against the resting poster, opaque before rows scroll beneath it.
+  Earlier queue and listening-history headers stay opaque while pinned.
+- One centered downward chevron dismisses the player. The surrounding header
+  also accepts a downward drag; there is no separate decorative grabber.
+- Native visualizer bars expand equally above and below a fixed centerline.
+  Resting dots use the same centerline, so amplitude changes do not shift the
+  display vertically. Frequency order and amplitudes remain unchanged.
+- Light impact feedback marks a committed open or close. Selection feedback
+  marks manual Next, Previous, queue-row playback, and queue-menu Play Now.
+  Cancelled drags, repeated endpoint requests, resets, autoplay, and individual
+  scroll updates stay silent. Simulator tests verify these calls, not how the
+  feedback feels on an iPhone.
 - The right time label switches between duration and remaining time. Both
   headers share one persisted installation preference.
 - Cast and AirPlay use native frames large enough for a 44-point button. AirPlay
@@ -44,7 +56,7 @@ and dismissal, and a longer artist name with an output label. Simulator frames
 show a 44-by-44-point Play button and a 44-by-46.3-point AirPlay button.
 Accessibility Large was checked last, then normal text size was restored.
 
-The iOS native build, production Hermes export, TypeScript, lint, 139 app tests,
+The iOS native build, production Hermes export, TypeScript, lint, 141 app tests,
 and 12 favorites tests pass. Playback tests exercise the actual player and queue
 through driver calls, saved progress, and native event ordering.
 

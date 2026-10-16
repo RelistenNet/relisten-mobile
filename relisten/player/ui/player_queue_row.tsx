@@ -10,6 +10,7 @@ import {
 import { PlayerPanelRow } from '@/relisten/player/ui/player_panel_row';
 import { PlayerQueueActionsMenu } from '@/relisten/player/ui/player_queue_actions_menu';
 import { MaterialIcons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { type ReactNode } from 'react';
 import { TouchableOpacity, useWindowDimensions, View } from 'react-native';
 
@@ -62,7 +63,10 @@ function QueueTrackRow({
           accessibilityLabel={`${performanceLabel}, ${sourceTrack.humanizedDuration}`}
           accessibilityRole="button"
           className="min-w-0 flex-1 py-1"
-          onPress={() => player.playTrackAtIndex(queueIndex)}
+          onPress={() => {
+            player.playTrackAtIndex(queueIndex);
+            void Haptics.selectionAsync();
+          }}
         >
           <View className="min-w-0 flex-row items-start">
             <RelistenText
