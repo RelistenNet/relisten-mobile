@@ -41,8 +41,8 @@ export function PlayerAudioVisualizer({
               strokeWidth="1.1"
               x1={x}
               x2={x}
-              y1={57 - height}
-              y2={57}
+              y1={29 - height / 2}
+              y2={29 + height / 2}
             />
           );
         })}

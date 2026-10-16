@@ -219,15 +219,16 @@ final class RelistenAudioSpectrumView: ExpoView {
         let bandCount = smoother.values.count
         let horizontalStep = bounds.width / CGFloat(bandCount)
         let strokeWidth = min(max(horizontalStep * 0.28, 1.5), 2)
-        let baselineY = bounds.height - strokeWidth / 2
+        // A fixed midline keeps changing amplitudes and resting dots vertically aligned.
+        let baselineY = bounds.midY
         let maximumHeight = max(0, bounds.height - strokeWidth)
         let barsPath = UIBezierPath()
 
         for (index, amplitude) in smoother.values.enumerated() where amplitude > 0.001 {
             let x = (CGFloat(index) + 0.5) * horizontalStep
             let barHeight = max(CGFloat(amplitude) * maximumHeight, 0.75)
-            barsPath.move(to: CGPoint(x: x, y: baselineY))
-            barsPath.addLine(to: CGPoint(x: x, y: baselineY - barHeight))
+            barsPath.move(to: CGPoint(x: x, y: baselineY - barHeight / 2))
+            barsPath.addLine(to: CGPoint(x: x, y: baselineY + barHeight / 2))
         }
 
         let baselinePath = UIBezierPath()
@@ -235,8 +236,8 @@ final class RelistenAudioSpectrumView: ExpoView {
         // produces stray marks beside each live bar.
         for index in 0..<bandCount {
             let x = (CGFloat(index) + 0.5) * horizontalStep
-            baselinePath.move(to: CGPoint(x: x, y: baselineY))
-            baselinePath.addLine(to: CGPoint(x: x, y: baselineY - 0.01))
+            baselinePath.move(to: CGPoint(x: x, y: baselineY - 0.005))
+            baselinePath.addLine(to: CGPoint(x: x, y: baselineY + 0.005))
         }
 
         barLayer.lineWidth = strokeWidth
