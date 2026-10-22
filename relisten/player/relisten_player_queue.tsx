@@ -574,6 +574,7 @@ ${indentString(tracks)}
 
     this.playerStateDebounce = setTimeout(() => {
       if (realm) {
+        const progress = this.currentTrack ? this.player.progress : undefined;
         const state = {
           queueShuffleState: this.shuffleState,
           queueRepeatState: this.repeatState,
@@ -582,9 +583,9 @@ ${indentString(tracks)}
           activeSourceTrackIndex: this.originalTracksCurrentIndex,
           activeSourceTrackShuffledIndex: this.shuffledTracksCurrentIndex,
           lastUpdatedAt: new Date(),
-          progress: this.player.progress?.percent,
-          duration: this.player.progress?.duration,
-          elapsed: this.player.progress?.elapsed,
+          progress: progress?.percent,
+          duration: progress?.duration,
+          elapsed: progress?.elapsed,
         };
         logger.debug('writing player state progress', {
           activeSourceTrackIndex: state.activeSourceTrackIndex,
@@ -719,10 +720,50 @@ ${indentString(tracks)}
       this._nextTrack = undefined;
       this._nextTrackIndex = undefined;
 
-      const restoredElapsed = Number.isFinite(playerState.elapsed) ? playerState.elapsed : null;
-      const restoredDuration = Number.isFinite(playerState.duration) ? playerState.duration : null;
+      // Older saves can contain the previous track's duration. Use catalog duration until native
+      // timing arrives. Stale previous-track timing is detected below.
+      const catalogDuration = this.currentTrack?.sourceTrack.duration;
+      const restoredDuration =
+        catalogDuration != null && Number.isFinite(catalogDuration) && catalogDuration > 0
+          ? catalogDuration
+          : playerState.duration;
+      const savedDuration = playerState.duration;
+      let savedElapsed = playerState.elapsed;
 
-      if (restoredElapsed != null && restoredDuration != null) {
+      // A legacy save from the transition race pairs the new track with the previous track's
+      // duration and elapsed time. If the saved duration belongs to another queued track, the
+      // saved position is stale too, so resume the selected track from the beginning.
+      if (
+        catalogDuration != null &&
+        catalogDuration > 0 &&
+        savedDuration != null &&
+        Number.isFinite(savedDuration) &&
+        savedDuration > 0 &&
+        Math.abs(savedDuration - catalogDuration) > 5 &&
+        this.orderedTracks.some(
+          (track) =>
+            track.identifier !== this.currentTrack?.identifier &&
+            track.sourceTrack.duration != null &&
+            Math.abs(track.sourceTrack.duration - savedDuration) <= 2
+        )
+      ) {
+        logger.debug('discarding stale saved timing from another queue track', {
+          currentTrackUuid: this.currentTrack?.sourceTrack.uuid,
+          catalogDuration,
+          savedDuration,
+          savedElapsed,
+        });
+        savedElapsed = 0;
+      }
+
+      if (
+        savedElapsed != null &&
+        Number.isFinite(savedElapsed) &&
+        restoredDuration != null &&
+        Number.isFinite(restoredDuration) &&
+        restoredDuration > 0
+      ) {
+        const restoredElapsed = Math.max(0, Math.min(restoredDuration, savedElapsed));
         const restoredProgress = {
           elapsed: restoredElapsed,
           duration: restoredDuration,
