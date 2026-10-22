@@ -127,6 +127,19 @@ describe('player progress track identity', () => {
     );
   });
 
+  it('follows an unexpected native transition after the play request is issued', async () => {
+    const third = track('third', 430);
+    player.queue.addTrackToEndOfQueue([third]);
+
+    player.next();
+    await vi.waitFor(() => expect(harness.native.play).toHaveBeenCalledTimes(1));
+
+    harness.nativeTrack?.({ currentIdentifier: third.identifier });
+
+    expect(player.queue.currentTrack).toBe(third);
+    expect(progress.lastState()).toEqual({ elapsed: 0, duration: 430, percent: 0 });
+  });
+
   it('saves the new track with its own progress when paused before native progress arrives', async () => {
     player.next();
     await Promise.resolve();

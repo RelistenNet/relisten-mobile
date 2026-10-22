@@ -678,14 +678,38 @@ ${indentString(this.queue.debugState(true))}
   };
 
   private onNativeTrackChanged = (event: RelistenTrackChangedEvent) => {
-    if (
-      playbackSource.lastState() === PlaybackSource.Cast ||
-      (this.activeNativePlayRequestIdentifier !== undefined &&
-        event.currentIdentifier !== this.activeNativePlayRequestIdentifier)
-    ) {
+    if (playbackSource.lastState() === PlaybackSource.Cast) {
       return;
     }
+
+    let supersededRequest = false;
+
+    if (
+      this.activeNativePlayRequestIdentifier !== undefined &&
+      event.currentIdentifier !== this.activeNativePlayRequestIdentifier
+    ) {
+      // Before native accepts our request, only the requested track may complete it.
+      if (this.activeNativePlayRequestVersion === undefined) {
+        return;
+      }
+
+      // Once the native play has been issued, an unexpected transition means the request was
+      // superseded. Follow native instead of filtering every future event behind that request.
+      logger.debug('native track changed away from active play request', {
+        requestedIdentifier: this.activeNativePlayRequestIdentifier,
+        currentIdentifier: event.currentIdentifier,
+      });
+      this.activeNativePlayRequestIdentifier = undefined;
+      this.activeNativePlayRequestVersion = undefined;
+      this.requestedTrackIndex = undefined;
+      supersededRequest = true;
+    }
+
     currentTrackIdentifier.setState(event.currentIdentifier);
+
+    if (supersededRequest) {
+      this.maybeStartNextPlayRequest();
+    }
   };
 
   private onNativePlayerStateChanged = (newState: RelistenPlaybackState) => {
