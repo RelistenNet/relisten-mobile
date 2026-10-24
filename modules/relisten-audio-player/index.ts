@@ -19,6 +19,7 @@ function normalizeNativeTimeMs(value: number | undefined): number | undefined {
 const emitter = new EventEmitter<{
   onError: (event: RelistenErrorEvent) => void;
   onPlaybackStateChanged: (event: RelistenPlaybackStateChangedEvent) => void;
+  onPlaybackSnapshot: (event: RelistenPlaybackSnapshot) => void;
   onPlaybackProgressChanged: (event: RelistenPlaybackProgressChangedEvent) => void;
   onDownloadProgressChanged: (event: RelistenDownloadProgressChangedEvent) => void;
   onTrackChanged: (event: RelistenTrackChangedEvent) => void;
@@ -88,6 +89,20 @@ export interface RelistenPlaybackProgressChangedEvent {
   duration: number | undefined;
 }
 
+/** One native observation, stamped before async bridge delivery. Requires a native rebuild. */
+export interface RelistenPlaybackSnapshot {
+  sessionId: string;
+  sequence: number;
+  identifier: string;
+  sourceTrackUuid: string;
+  elapsed?: number;
+  duration?: number;
+  capturedAt: number;
+  playbackState: RelistenPlaybackState;
+  trackChanged: boolean;
+  checkpoint: boolean;
+}
+
 export interface RelistenDownloadProgressChangedEvent {
   forActiveTrack: boolean;
   downloadedBytes: number;
@@ -128,6 +143,22 @@ class RelistenGaplessPlayer {
     listener: (event: RelistenPlaybackProgressChangedEvent) => void
   ): EventSubscription {
     return emitter.addListener('onPlaybackProgressChanged', listener);
+  }
+
+  supportsPlaybackSnapshots(): boolean {
+    return typeof RelistenAudioPlayerModule.lastPlaybackCheckpoint === 'function';
+  }
+
+  addPlaybackSnapshotListener(listener: (event: RelistenPlaybackSnapshot) => void): EventSubscription {
+    return emitter.addListener('onPlaybackSnapshot', listener);
+  }
+
+  lastPlaybackCheckpoint(): RelistenPlaybackSnapshot | undefined {
+    return RelistenAudioPlayerModule.lastPlaybackCheckpoint?.() ?? undefined;
+  }
+
+  checkpointPlayback(): void {
+    RelistenAudioPlayerModule.checkpointPlayback?.();
   }
 
   addDownloadProgressListener(

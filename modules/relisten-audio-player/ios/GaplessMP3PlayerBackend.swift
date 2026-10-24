@@ -41,6 +41,8 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
     let delegateQueue = DispatchQueue(label: "net.relisten.ios.native-backend-delegate-queue", qos: .userInteractive)
     let snapshotStore = BackendLockedValue(GaplessBackendSnapshot())
     let teardownRequested = BackendLockedValue(false)
+    let checkpointStore = PlaybackCheckpointStore.applicationStore()
+    var lastCheckpointIdentifier: String?
     let backendInstanceID = UUID().uuidString
     let player: GaplessMP3Player
     let audioSessionController = AudioSessionController()
@@ -68,6 +70,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
 
     init(player: GaplessMP3Player = GaplessMP3Player()) {
         self.player = player
+        checkpointStore.activate(sessionId: backendInstanceID)
         backendLifecycleLog.info(
             "created",
             "backend instance",
@@ -93,6 +96,14 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             playbackLogField("id", backendInstanceID)
         )
     }
+
+    func enqueueCheckpoint() {
+        backendQueue.async {
+            self.emitCheckpoint(self.snapshotStore.get(), force: true)
+        }
+    }
+
+    func lastPlaybackCheckpoint() -> PlaybackCheckpoint? { checkpointStore.read() }
 
     func enqueuePrepareAudioSession() {
         backendQueue.async {
@@ -195,6 +206,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
         guard didStartTeardown else { return }
 
         backendQueue.async {
+            self.emitCheckpoint(self.snapshotStore.get(), force: true)
             self.stopOnQueue(emitTrackChanged: false, stopPlayer: false)
             self.hasInstalledAudioSessionHandlers = false
             self.hasReportedAudioSessionSetup = false
@@ -479,6 +491,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             playbackLogIntegerField("gen", snapshotStore.get().generation)
         )
         let previous = snapshotStore.get()
+        emitCheckpoint(previous, force: true)
         let previousStreamable = previous.currentStreamable
         snapshotStore.withValue { snapshot in
             if shouldInvalidateGeneration {

@@ -34,6 +34,7 @@ class PlaybackUpdates internal constructor(private val player: RelistenGaplessAu
             val activeStream = player.activeStream
 
             if ((activeStream == null)) {
+                startedUpdates = false
                 return@launch
             }
 
@@ -62,6 +63,10 @@ class PlaybackUpdates internal constructor(private val player: RelistenGaplessAu
 
             if (prevState != player.currentState) {
                 sendStateChanged = true
+            }
+
+            if (sendPlaybackChanged || sendStateChanged) {
+                player.emitCheckpoint(force = thisState != net.relisten.android.audio_player.gapless.RelistenPlaybackState.Playing)
             }
 
             if (sendPlaybackChanged) {

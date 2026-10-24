@@ -13,7 +13,35 @@ extension GaplessMP3PlayerBackend {
         emitStateIfNeeded(previous: previous.currentState, current: current.currentState)
         emitProgressIfNeeded(previous: previous, current: current)
         emitDownloadProgressIfNeeded(previous: previous, current: current)
+        if previous.currentStreamable?.identifier != current.currentStreamable?.identifier ||
+           previous.elapsed != current.elapsed || previous.currentDuration != current.currentDuration ||
+           previous.currentState != current.currentState || freezeAfterUpdate {
+            emitCheckpoint(current.currentStreamable == nil ? previous : current,
+                           force: freezeAfterUpdate || current.currentState == .Paused || current.currentState == .Stopped)
+        }
         return current
+    }
+
+    /// Capture identity and timing together on backendQueue, never by rereading mutable state
+    /// from a delayed delegate callback. This also journals interruption snapshots when JS sleeps.
+    func emitCheckpoint(_ snapshot: GaplessBackendSnapshot, force: Bool) {
+        guard let streamable = snapshot.currentStreamable else { return }
+        guard !snapshot.isPreparingCurrentTrack || snapshot.elapsed != nil else { return }
+        let checkpointSequence = checkpointStore.nextSequence()
+        let changed = lastCheckpointIdentifier != streamable.identifier
+        lastCheckpointIdentifier = streamable.identifier
+        let checkpoint = PlaybackCheckpoint(
+            sessionId: backendInstanceID, sequence: checkpointSequence,
+            identifier: streamable.identifier, sourceTrackUuid: streamable.cacheKey,
+            elapsed: snapshot.elapsed.flatMap { $0.isFinite ? max(0, $0) : nil },
+            duration: snapshot.currentDuration.flatMap { $0.isFinite && $0 > 0 ? $0 : nil },
+            capturedAt: Date().timeIntervalSince1970 * 1000,
+            playbackState: snapshot.currentState.rawValue, trackChanged: changed,
+            checkpoint: force
+        )
+        do { try checkpointStore.write(checkpoint) }
+        catch { backendErrorLog.error("failed", "playback checkpoint write", playbackLogErrorField(String(describing: error))) }
+        delegateQueue.async { self.delegate?.playbackSnapshot(checkpoint) }
     }
 
     func emitRemoteControl(_ method: String) {

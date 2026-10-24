@@ -3,6 +3,8 @@ package net.relisten.android.audio_player.gapless
 import net.relisten.android.audio_player.gapless.internal.RelistenPlaybackError
 
 interface RelistenGaplessAudioPlayerDelegate {
+    fun playbackSnapshot(player: RelistenGaplessAudioPlayer, snapshot: Map<String, Any?>)
+
     fun errorStartingStream(
             player: RelistenGaplessAudioPlayer,
             error: RelistenPlaybackError,

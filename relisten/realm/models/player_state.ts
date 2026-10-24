@@ -9,6 +9,11 @@ export interface PlayerStateProps {
   queueSourceTrackShuffledUuids: string[];
   activeSourceTrackIndex?: number;
   activeSourceTrackShuffledIndex?: number;
+  queueTrackIdentifiers?: string[];
+  queueTrackShuffledIdentifiers?: string[];
+  nativeSequence?: number;
+  nativeCheckpointEnabled?: boolean;
+  activeSourceTrackUuid?: string;
   lastUpdatedAt: Date;
   duration?: number;
   progress?: number;
@@ -27,6 +32,11 @@ export class PlayerState extends Realm.Object<PlayerState> implements PlayerStat
       queueSourceTrackShuffledUuids: 'string[]',
       activeSourceTrackIndex: 'int?',
       activeSourceTrackShuffledIndex: 'int?',
+      queueTrackIdentifiers: 'string[]',
+      queueTrackShuffledIdentifiers: 'string[]',
+      nativeSequence: 'int?',
+      nativeCheckpointEnabled: 'bool?',
+      activeSourceTrackUuid: 'string?',
       lastUpdatedAt: 'date',
       progress: 'float?',
       duration: 'float?',
@@ -41,6 +51,11 @@ export class PlayerState extends Realm.Object<PlayerState> implements PlayerStat
   queueSourceTrackShuffledUuids!: string[];
   activeSourceTrackIndex?: number;
   activeSourceTrackShuffledIndex?: number;
+  queueTrackIdentifiers!: string[];
+  queueTrackShuffledIdentifiers!: string[];
+  nativeSequence?: number;
+  nativeCheckpointEnabled?: boolean;
+  activeSourceTrackUuid?: string;
   lastUpdatedAt!: Date;
   progress?: number;
   duration?: number;
@@ -61,6 +76,11 @@ export class PlayerState extends Realm.Object<PlayerState> implements PlayerStat
         obj.queueSourceTrackShuffledUuids = props.queueSourceTrackShuffledUuids;
         obj.activeSourceTrackIndex = props.activeSourceTrackIndex;
         obj.activeSourceTrackShuffledIndex = props.activeSourceTrackShuffledIndex;
+        obj.queueTrackIdentifiers = props.queueTrackIdentifiers ?? [];
+        obj.queueTrackShuffledIdentifiers = props.queueTrackShuffledIdentifiers ?? [];
+        obj.nativeSequence = props.nativeSequence;
+        obj.nativeCheckpointEnabled = props.nativeCheckpointEnabled;
+        obj.activeSourceTrackUuid = props.activeSourceTrackUuid;
         obj.lastUpdatedAt = props.lastUpdatedAt;
         obj.duration = Number.isFinite(props.duration) ? props.duration : undefined;
         obj.progress = Number.isFinite(props.progress) ? props.progress : undefined;

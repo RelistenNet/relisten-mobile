@@ -2,6 +2,7 @@ import {
   nativePlayer,
   RelistenErrorEvent,
   RelistenPlaybackState,
+  RelistenPlaybackSnapshot,
   RelistenRemoteControlEvent,
   RelistenTrackStreamingCacheCompleteEvent,
 } from '@/modules/relisten-audio-player';
@@ -10,8 +11,9 @@ import {
   currentTrackIdentifier,
   latestError,
   PlaybackContextProgress,
+  PlaybackSource,
+  playbackSource,
   progress as sharedStateProgress,
-  progress,
   remoteControlEvent,
   state,
   trackStreamingCacheComplete,
@@ -38,12 +40,15 @@ export interface RelistenPlayerReportTrackEvent {
   playerQueueTrack: PlayerQueueTrack;
 }
 
+// Coordinates queue selection and native playback requests. Track and timing events
+// are checked against the active request before they reach shared UI state.
 export class RelistenPlayer {
   static DEFAULT_INSTANCE = new RelistenPlayer();
 
   constructor() {}
 
   dispose() {
+    this.queue.savePlayerState(true);
     this.removePlayerListeners();
   }
 
@@ -52,11 +57,16 @@ export class RelistenPlayer {
   private _state: RelistenPlaybackState = RelistenPlaybackState.Stopped;
   private _stalledTimer: number | undefined = undefined;
   private seekIntent: number | undefined = undefined;
-  private updateSavedStateOnNextProgress: boolean = false;
 
   private nativeDriver = new NativePlaybackDriver();
   private playbackDriver: PlaybackDriver = this.nativeDriver;
+  private nativeCheckpointEligible = true;
 
+  get allowsNativeCheckpoint() {
+    return this.playbackDriver === this.nativeDriver && this.nativeCheckpointEligible;
+  }
+
+  /** Timing for the confirmed queue track. Shared UI progress can preview a requested track. */
   public progress: PlaybackContextProgress | undefined = undefined;
 
   // region Public API
@@ -87,6 +97,8 @@ export class RelistenPlayer {
 
     logger.debug(`Switching playback driver to ${driver.name}`);
     this.playbackDriver = driver;
+    this.nativeCheckpointEligible = false;
+    this.queue.savePlayerState(true);
   }
 
   getNativePlaybackDriver() {
@@ -129,7 +141,8 @@ export class RelistenPlayer {
 
     this.clearStalledTimer();
     state.setState(RelistenPlaybackState.Paused);
-    this.playbackDriver.pause().then(() => {});
+    this.queue.savePlayerState(true);
+    this.playbackDriver.pause().then(() => this.queue.savePlayerState(true));
   }
 
   private currentlyProcessingPlayRequest: Promise<void> | undefined = undefined;
@@ -226,7 +239,8 @@ export class RelistenPlayer {
       return;
     }
 
-    // Only update the visible metadata once this request becomes the active transition.
+    // Record the target before publishing its timing, so late events from the previous track are rejected.
+    this.activeNativePlayRequestIdentifier = track.identifier;
     this.optimisticallyUpdateCurrentTrack(track, seekToTime);
 
     let pausePromise = Promise.resolve();
@@ -277,8 +291,8 @@ export class RelistenPlayer {
           queueLength: queueContext.orderedTracks.length,
           startIndex: queueContext.startIndex,
         });
+        // An automatic track change during pause must not complete a request we have not issued.
         this.activeNativePlayRequestVersion = playRequestVersion;
-        this.activeNativePlayRequestIdentifier = track.identifier;
         return this.playbackDriver.play(
           track.toStreamable(this.enableStreamingCache),
           queueContext
@@ -310,15 +324,12 @@ export class RelistenPlayer {
         throw error;
       });
 
-    if (seekToTime !== undefined) {
-      this.updateSavedStateOnNextProgress = true;
-    }
-
     // no need to recalculateNextTrack because currentTrackIdentifier.setState listeners will handle that
   }
 
   async stop() {
     this.addPlayerListeners();
+    this.queue.savePlayerState(true);
     this.cancelPendingPlayRequests('stop');
     this.clearStalledTimer();
 
@@ -417,7 +428,7 @@ export class RelistenPlayer {
     const currentTrack = this.queue.currentTrack;
 
     if (currentTrack) {
-      const duration = currentTrack.sourceTrack.duration ?? 100;
+      const duration = this.progress?.duration ?? currentTrack.sourceTrack.duration ?? 100;
 
       // optimistically update the UI
       sharedStateProgress.setState({
@@ -458,17 +469,21 @@ ${indentString(this.queue.debugState(true))}
   // endregion
 
   private optimisticallyUpdateCurrentTrack(track: PlayerQueueTrack, seekToTime?: number) {
-    // Do NOT use onCurrentTrackIdentifierChanged because that will also recalculate the next track
-    this.queue.onCurrentTrackChanged.dispatch(track);
-
     const elapsed = seekToTime ?? 0;
-    const duration = track.sourceTrack.duration ?? 100;
+    const catalogDuration = track.sourceTrack.duration;
+    const duration =
+      (track.identifier === this.queue.currentTrack?.identifier
+        ? this.progress?.duration
+        : undefined) ?? (catalogDuration != null && catalogDuration > 0 ? catalogDuration : 100);
 
     sharedStateProgress.setState({
       elapsed,
       duration,
-      percent: elapsed / duration,
+      percent: duration > 0 ? elapsed / duration : 0,
     });
+
+    // Do NOT use onCurrentTrackIdentifierChanged because that will also recalculate the next track.
+    this.queue.onCurrentTrackChanged.dispatch(track);
 
     activeTrackDownloadProgress.setState({
       downloadedBytes: 0,
@@ -503,7 +518,18 @@ ${indentString(this.queue.debugState(true))}
 
   // region Player event handling
   private addedPlayerListeners = false;
-
+  private nativeSnapshotListener?: ReturnType<typeof nativePlayer.addPlaybackSnapshotListener>;
+  private legacyProgressListener?: ReturnType<typeof nativePlayer.addPlaybackProgressListener>;
+  private legacyTrackListener?: ReturnType<typeof nativePlayer.addTrackChangedListener>;
+  private legacySequence = 0;
+  public get checkpointSequence() {
+    return this.nativeSequence;
+  }
+  private nativeSessionId?: string;
+  private retiredNativeSessions = new Set<string>();
+  private nativeSequence = -1;
+  private confirmedTrackIdentifier?: string;
+  /** Register once per player; dispose removes these listeners. */
   private addPlayerListeners() {
     if (this.addedPlayerListeners) {
       return;
@@ -514,9 +540,44 @@ ${indentString(this.queue.debugState(true))}
     latestError.addListener(this.onNativePlayerError);
     remoteControlEvent.addListener(this.onRemoteControlEvent);
     trackStreamingCacheComplete.addListener(this.onTrackStreamingCacheComplete);
-    progress.addListener(this.onProgress);
+    sharedStateProgress.addListener(this.onProgress);
+    this._queue.onCurrentTrackChanged.addListener(this.onQueueTrackChanged);
     this._queue.addPlayerListeners();
     currentTrackIdentifier.addListener(this.onCurrentTrackIdentifierChanged);
+    // UI hooks read shared state directly, so reject stale native events before publishing them.
+    if (nativePlayer.supportsPlaybackSnapshots?.() !== false) {
+      this.nativeSnapshotListener = nativePlayer.addPlaybackSnapshotListener(this.onNativeSnapshot);
+    } else {
+      // Older installed binaries can receive newer JS. Keep their existing path working;
+      // without native identity/journaling they cannot provide the full native guarantee.
+      const legacySnapshot = (
+        identifier: string | undefined,
+        elapsed?: number,
+        duration?: number,
+        changed = false
+      ) => {
+        const track = this._queue.orderedTracks.find((track) => track.identifier === identifier);
+        if (track)
+          this.onNativeSnapshot({
+            sessionId: 'legacy',
+            sequence: ++this.legacySequence,
+            identifier: track.identifier,
+            sourceTrackUuid: track.sourceTrack.uuid,
+            elapsed,
+            duration,
+            capturedAt: Date.now(),
+            playbackState: this._state,
+            checkpoint: false,
+            trackChanged: changed,
+          });
+      };
+      this.legacyTrackListener = nativePlayer.addTrackChangedListener((event) =>
+        legacySnapshot(event.currentIdentifier, undefined, undefined, true)
+      );
+      this.legacyProgressListener = nativePlayer.addPlaybackProgressListener((event) =>
+        legacySnapshot(currentTrackIdentifier.lastState(), event.elapsed, event.duration)
+      );
+    }
 
     this.addedPlayerListeners = true;
   }
@@ -530,16 +591,24 @@ ${indentString(this.queue.debugState(true))}
     latestError.removeListener(this.onNativePlayerError);
     remoteControlEvent.removeListener(this.onRemoteControlEvent);
     trackStreamingCacheComplete.removeListener(this.onTrackStreamingCacheComplete);
-    progress.removeListener(this.onProgress);
+    sharedStateProgress.removeListener(this.onProgress);
+    this._queue.onCurrentTrackChanged.removeListener(this.onQueueTrackChanged);
     currentTrackIdentifier.removeListener(this.onCurrentTrackIdentifierChanged);
     this._queue.removePlayerListeners();
+    this.nativeSnapshotListener?.remove();
+    this.legacyProgressListener?.remove();
+    this.legacyTrackListener?.remove();
 
     this.addedPlayerListeners = false;
   }
 
   private onProgress = (progress: PlaybackContextProgress) => {
-    if (this._stalledTimer !== undefined) {
-      // if we are waiting on a stall we've created an intent to play something
+    // Keep the confirmed timing while buffering or displaying an unconfirmed request.
+    if (
+      this._stalledTimer !== undefined ||
+      (this.activeNativePlayRequestIdentifier !== undefined &&
+        this.activeNativePlayRequestIdentifier !== this._queue.currentTrack?.identifier)
+    ) {
       return;
     }
 
@@ -557,13 +626,104 @@ ${indentString(this.queue.debugState(true))}
       }
     }
 
-    // save state based on playback every 5 seconds
-    if (this.updateSavedStateOnNextProgress || Math.floor(progress.elapsed) % 5 === 0) {
-      this.updateSavedStateOnNextProgress = false;
-      this.queue.savePlayerState();
+    this.progress = progress;
+
+    this.queue.savePlayerState();
+  };
+
+  private onQueueTrackChanged = (track?: PlayerQueueTrack) => {
+    // The UI can announce a requested track before native playback selects it.
+    if (!track || track.identifier !== this._queue.currentTrack?.identifier) {
+      return;
     }
 
-    this.progress = progress;
+    if (track.identifier === this.activeNativePlayRequestIdentifier) {
+      // The queue confirmed the request, so the timing shown in the UI can now be saved.
+      this.progress = sharedStateProgress.lastState();
+    } else if (track.identifier !== this.confirmedTrackIdentifier) {
+      // An automatic track change starts at zero. Duplicate notifications keep existing timing.
+      const catalogDuration = track.sourceTrack.duration;
+      this.progress = {
+        elapsed: 0,
+        duration: catalogDuration != null && catalogDuration > 0 ? catalogDuration : 100,
+        percent: 0,
+      };
+      sharedStateProgress.setState(this.progress);
+    }
+    this.confirmedTrackIdentifier = track.identifier;
+  };
+
+  /** Only confirmed identity can supply timing to a persisted queue selection. */
+  checkpointProgress(identifier: string) {
+    return identifier === this.confirmedTrackIdentifier ? this.progress : undefined;
+  }
+
+  private onNativeSnapshot = (event: RelistenPlaybackSnapshot) => {
+    if (
+      playbackSource.lastState() === PlaybackSource.Cast ||
+      !Number.isSafeInteger(event.sequence) ||
+      event.sequence < 0 ||
+      !event.sessionId ||
+      this.retiredNativeSessions.has(event.sessionId)
+    )
+      return;
+    const track = this._queue.orderedTracks.find(
+      (track) =>
+        track.identifier === event.identifier && track.sourceTrack.uuid === event.sourceTrackUuid
+    );
+    if (!track) return;
+    if (this.nativeSessionId !== event.sessionId) {
+      if (this.nativeSessionId && this.activeNativePlayRequestIdentifier !== event.identifier)
+        return;
+      if (this.nativeSessionId) this.retiredNativeSessions.add(this.nativeSessionId);
+      this.nativeSessionId = event.sessionId;
+      this.nativeSequence = -1;
+    }
+    if (event.sequence <= this.nativeSequence) return;
+    const changed = event.identifier !== this._queue.currentTrack?.identifier;
+    if (
+      changed &&
+      !event.trackChanged &&
+      event.identifier !== this.activeNativePlayRequestIdentifier
+    )
+      return;
+    let supersededRequest = false;
+    if (
+      changed &&
+      this.activeNativePlayRequestIdentifier &&
+      event.identifier !== this.activeNativePlayRequestIdentifier
+    ) {
+      if (this.activeNativePlayRequestVersion === undefined) return;
+      this.activeNativePlayRequestIdentifier = undefined;
+      this.activeNativePlayRequestVersion = undefined;
+      this.requestedTrackIndex = undefined;
+      supersededRequest = true;
+    }
+    this._queue.applyPlaybackCheckpoint(() => {
+      this.nativeSequence = event.sequence;
+      this.nativeCheckpointEligible = true;
+      if (changed) currentTrackIdentifier.setState(event.identifier);
+      // A preview can still show an unconfirmed request. Persist native timing independently.
+      this.confirmedTrackIdentifier = event.identifier;
+      const previous = changed ? undefined : this.progress;
+      const duration =
+        Number.isFinite(event.duration) && (event.duration ?? 0) > 0
+          ? event.duration!
+          : (previous?.duration ?? (track.sourceTrack.duration || 100));
+      const elapsed = Math.max(
+        0,
+        Number.isFinite(event.elapsed) ? event.elapsed! : (previous?.elapsed ?? 0)
+      );
+      const progress = { elapsed, duration, percent: duration > 0 ? elapsed / duration : 0 };
+      if (
+        !this.activeNativePlayRequestIdentifier ||
+        this.activeNativePlayRequestIdentifier === event.identifier
+      ) {
+        sharedStateProgress.setState(progress);
+      }
+      this.progress = progress;
+    }, changed || event.checkpoint);
+    if (supersededRequest) this.maybeStartNextPlayRequest();
   };
 
   private onNativePlayerStateChanged = (newState: RelistenPlaybackState) => {
@@ -576,6 +736,10 @@ ${indentString(this.queue.debugState(true))}
 
     if (!this.initialPlaybackStarted && newState == RelistenPlaybackState.Playing) {
       this.initialPlaybackStarted = true;
+    }
+
+    if (newState === RelistenPlaybackState.Paused || newState === RelistenPlaybackState.Stopped) {
+      this.queue.savePlayerState(true);
     }
 
     if (this._state != newState) {
