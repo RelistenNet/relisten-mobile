@@ -37,7 +37,9 @@ final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
         self.format = format
         engine.attach(playerNode)
         engine.connect(playerNode, to: engine.mainMixerNode, format: format)
-        try engine.start()
+        // Preparing a source (including after media-services reset) does not
+        // grant session ownership. Start only from the activated play path.
+        engine.prepare()
     }
 
     var isPlaying: Bool {

@@ -48,7 +48,9 @@ final class AudioSessionController {
     func configurePlaybackSession(shouldActivate: Bool) throws {
         let session = AVAudioSession.sharedInstance()
         try session.setCategory(.playback, mode: .default, policy: .longFormAudio)
-        try session.setActive(shouldActivate)
+        // Installing handlers/category must not deactivate an existing session
+        // (CarPlay bootstrap may run while audio is already playing).
+        if shouldActivate { try session.setActive(true) }
     }
 
     func configureRemoteCommands(

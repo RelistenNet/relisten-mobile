@@ -2,30 +2,36 @@ import AVFAudio
 import Foundation
 
 extension GaplessMP3PlayerBackend {
-    func prepareAudioSessionOnQueue() {
-        prepareAudioSessionOnQueue(shouldActivate: !AVAudioSession.sharedInstance().secondaryAudioShouldBeSilencedHint)
-    }
-
-    func prepareAudioSessionOnQueue(shouldActivate: Bool) {
-        guard !teardownRequested.get() else { return }
-        let generation = snapshotStore.get().generation
-        backendCommandLog.debug(
-            "entered",
-            "prepareAudioSession command",
-            playbackLogBoolField("shouldActivate", shouldActivate),
-            playbackLogIntegerField("gen", generation)
-        )
-
+    func prepareAudioSessionOnQueue(shouldActivate: Bool) throws {
+        guard !teardownRequested.get() else { throw CancellationError() }
+        installAudioSessionHandlersIfNeededOnQueue()
         do {
             try audioSessionController.configurePlaybackSession(shouldActivate: shouldActivate)
-            installAudioSessionHandlersIfNeededOnQueue()
         } catch {
             backendErrorLog.error(
-                "failed",
-                "audio session setup",
-                playbackLogIntegerField("gen", generation),
+                "failed", "audio session setup",
+                playbackLogIntegerField("gen", snapshotStore.get().generation),
                 playbackLogErrorField(String(describing: error))
             )
+            let nsError = error as NSError
+            throw GaplessPlaybackFailure(
+                kind: .audioPipeline,
+                message: "Could not configure the audio session",
+                description: nsError.localizedDescription,
+                isRetryable: true,
+                platformCode: nsError.code,
+                platformName: nsError.domain
+            )
+        }
+        guard !hasReportedAudioSessionSetup else { return }
+        hasReportedAudioSessionSetup = true
+        backendStateLog.info(
+            "succeeded",
+            "audio session setup",
+            playbackLogIntegerField("gen", snapshotStore.get().generation)
+        )
+        delegateQueue.async {
+            self.delegate?.audioSessionWasSetup()
         }
     }
 
@@ -59,16 +65,7 @@ extension GaplessMP3PlayerBackend {
         guard !teardownRequested.get() else { return }
         audioSessionController.beginReceivingRemoteControlEvents()
         hasInstalledAudioSessionHandlers = true
-        guard !hasReportedAudioSessionSetup else { return }
-        hasReportedAudioSessionSetup = true
-        backendStateLog.info(
-            "succeeded",
-            "audio session setup",
-            playbackLogIntegerField("gen", snapshotStore.get().generation)
-        )
-        delegateQueue.async {
-            self.delegate?.audioSessionWasSetup()
-        }
+
     }
 
     private func handleRouteChangeOnQueue(_ event: RouteChangeEvent) {
@@ -105,7 +102,6 @@ extension GaplessMP3PlayerBackend {
 
     private func handleInterruptionOnQueue(_ event: AudioInterruptionEvent) {
         let snapshot = snapshotStore.get()
-        secondaryAudioSilenceHintActive = event.secondaryAudioShouldBeSilenced
         backendStateLog.info(
             "received",
             "audio interruption",
@@ -132,121 +128,78 @@ extension GaplessMP3PlayerBackend {
 
     private func handleInterruptionBeganOnQueue(_ event: AudioInterruptionEvent) {
         let previous = snapshotStore.get()
-        wasPlayingWhenInterrupted = previous.desiredTransport == .playing ||
-            previous.currentState == .Playing ||
-            previous.currentState == .Stalled
+        let action = snapshotStore.withValue { $0.presentation.interruptionBegan() }
+        guard action == .pause else { return }
         player.pause()
-        snapshotStore.withValue {
-            // Do not turn a system interruption into user intent. Desired
-            // transport stays as-is so an ended interruption can resume only
-            // when iOS grants .shouldResume and the user has not paused.
-            $0.presentation.beginTemporaryInterruption()
-        }
         let current = applyPresentationAndEmit(previous: previous, freezeAfterUpdate: true)
         snapshotStore.withValue {
-            // After the final interrupted snapshot, freeze subsequent writes
-            // while classification is ambiguous. A phone call can later resume;
-            // Spotify/external media can later suppress and clear.
-            guard $0.generation == current.generation,
-                  $0.systemSuspension == .temporaryInterruption,
-                  $0.mediaCenterWriteMode == .active else {
-                return
-            }
+            guard $0.generation == current.generation else { return }
             $0.presentation.freezeWritesForInterruption()
         }
     }
 
     private func handleInterruptionEndedOnQueue(_ event: AudioInterruptionEvent) {
-        let snapshot = snapshotStore.get()
-        let shouldResume = event.options.contains(.shouldResume)
-        let wasInterruptedPlaying = wasPlayingWhenInterrupted
-        let shouldAutoResume = shouldResume &&
-            wasInterruptedPlaying &&
-            snapshot.desiredTransport == .playing &&
-            snapshot.systemSuspension != .externalMedia &&
-            !event.secondaryAudioShouldBeSilenced &&
-            !secondaryAudioSilenceHintActive
-        wasPlayingWhenInterrupted = false
-
-        if shouldAutoResume {
-            // iOS explicitly allowed resume and the user still wants playback,
-            // so unfreeze writes before going through the normal resume path.
-            snapshotStore.withValue {
-                $0.presentation.clearSuspension()
-            }
+        let previous = snapshotStore.get()
+        let action = snapshotStore.withValue {
+            $0.presentation.interruptionEnded(
+                shouldResume: event.options.contains(.shouldResume),
+                silenced: event.secondaryAudioShouldBeSilenced
+            )
+        }
+        if action == .resume {
             resumeOnQueue()
-            return
-        }
-
-        if snapshot.systemSuspension == .externalMedia ||
-            snapshot.mediaCenterWriteMode == .suppressed ||
-            event.secondaryAudioShouldBeSilenced ||
-            secondaryAudioSilenceHintActive ||
-            (!shouldResume && wasInterruptedPlaying && snapshot.desiredTransport == .playing) {
-            // No-resume for a previously playing session is treated as yielding
-            // rather than user pause. That lets Spotify or another primary app
-            // replace Relisten on the lock screen.
-            suppressForExternalMediaOnQueue(reason: "interruptionEnded")
-            return
-        }
-
-        player.pause()
-        updateSnapshotOnQueue {
-            $0.presentation.pause()
-            $0.currentState = .Paused
+        } else {
+            if action == .yield {
+                player.pause()
+                snapshotStore.withValue {
+                    if $0.currentState != .Stopped { $0.currentState = .Paused }
+                    $0.progressPollingGeneration = nil
+                }
+            }
+            applyPresentationAndEmit(previous: previous)
+            scheduleInterruptionRecoveryCheckIfNeededOnQueue()
         }
     }
 
     private func handleSilenceSecondaryAudioHintOnQueue(_ event: SilenceSecondaryAudioHintEvent) {
-        secondaryAudioSilenceHintActive = event.secondaryAudioShouldBeSilenced
-        let snapshot = snapshotStore.get()
         backendStateLog.info(
-            "received",
-            "silence secondary audio hint",
+            "received", "silence secondary audio hint",
             playbackLogField("type", silenceHintTypeDescription(event.type)),
-            playbackLogBoolField("secondarySilenced", event.secondaryAudioShouldBeSilenced),
-            playbackLogField("write", snapshot.mediaCenterWriteMode.rawValue),
-            playbackLogField("desired", snapshot.desiredTransport.rawValue),
-            playbackLogIntegerField("gen", snapshot.generation)
+            playbackLogBoolField("secondarySilenced", event.secondaryAudioShouldBeSilenced)
         )
-
+        let action: PlaybackInterruptionAction
         switch event.type {
         case .begin:
-            if snapshot.systemSuspension == .temporaryInterruption ||
-                snapshot.currentState != .Playing ||
-                !snapshot.renderIsPlaying {
-                // A silence hint while interrupted or not actively rendering is
-                // strong evidence another primary app has taken over.
-                suppressForExternalMediaOnQueue(reason: "silenceHintBegin")
-            }
+            action = snapshotStore.withValue { $0.presentation.silenceHint(began: true) }
         case .end:
-            break
+            action = snapshotStore.withValue { $0.presentation.silenceHint(began: false) }
         @unknown default:
-            break
+            return
         }
+        if action == .resume { resumeOnQueue() }
     }
 
-    private func suppressForExternalMediaOnQueue(reason: String) {
-        let previous = snapshotStore.get()
-        backendStateLog.info(
-            "suppressed",
-            "external media presentation",
-            playbackLogField("reason", reason),
-            playbackLogField("src", previous.currentStreamable?.identifier),
-            playbackLogIntegerField("gen", previous.generation)
-        )
-        player.pause()
-        snapshotStore.withValue {
-            // Keep current metadata in memory for an explicit Relisten resume,
-            // but suppress all Media Center writes so another app can own the
-            // lock screen without polling/artwork resurrecting us.
-            $0.presentation.suppressForExternalMedia()
-            if $0.currentState != .Stopped {
-                $0.currentState = .Paused
+    private func scheduleInterruptionRecoveryCheckIfNeededOnQueue() {
+        guard !teardownRequested.get(),
+              snapshotStore.get().presentation.recovery.needsHintReconciliation,
+              !interruptionRecoveryCheckScheduled else { return }
+        interruptionRecoveryCheckScheduled = true
+        backendQueue.asyncAfter(deadline: .now() + .milliseconds(250)) { [weak self] in
+            guard let self else { return }
+            self.interruptionRecoveryCheckScheduled = false
+            let snapshot = self.snapshotStore.get()
+            // Consult current permission, not the track generation: a media
+            // services reset rebuilds that generation while retaining recovery.
+            guard !self.teardownRequested.get(),
+                  snapshot.presentation.recovery.needsHintReconciliation else { return }
+            let silenced = AVAudioSession.sharedInstance().secondaryAudioShouldBeSilencedHint
+            let action = self.snapshotStore.withValue { $0.presentation.silenceHint(began: silenced) }
+            if action == .resume {
+                self.resumeOnQueue()
+            } else {
+                self.scheduleInterruptionRecoveryCheckIfNeededOnQueue()
             }
-            $0.progressPollingGeneration = nil
         }
-        applyPresentationAndEmit(previous: previous)
     }
 
     private func handleMediaServicesOnQueue(_ kind: AudioMediaServicesEventKind) {
@@ -313,7 +266,6 @@ extension GaplessMP3PlayerBackend {
         installAudioSessionHandlersIfNeededOnQueue()
 
         let nextStreamable = snapshot.desiredNextStreamable ?? snapshot.nextStreamable
-        let shouldResume = snapshot.desiredTransport == .playing && snapshot.systemSuspension != .externalMedia
         let resumeTime = snapshot.elapsed ?? 0
         let previous = snapshot
         let (generation, sessionID) = snapshotStore.withValue { snapshot in
@@ -346,8 +298,6 @@ extension GaplessMP3PlayerBackend {
 
             do {
                 guard self.shouldContinueAsyncWork(for: generation) else { return }
-                try self.audioSessionController.configurePlaybackSession(shouldActivate: true)
-                guard self.shouldContinueAsyncWork(for: generation) else { return }
                 await self.player.stop()
                 guard self.shouldContinueAsyncWork(for: generation) else { return }
                 try await self.player.prepare(
@@ -359,33 +309,18 @@ extension GaplessMP3PlayerBackend {
                     try await self.player.seek(to: seekTime)
                     guard self.shouldContinueAsyncWork(for: generation) else { return }
                 }
-                if shouldResume && self.snapshotStore.get().desiredTransport == .playing {
-                    guard self.shouldContinueAsyncWork(for: generation) else { return }
-                    _ = self.player.play()
-                }
-
+                let statusRevision = self.snapshotStore.get().presentation.transportRevision
                 let status = await self.player.status()
                 self.backendQueue.async {
                     guard self.shouldContinueAsyncWork(for: generation) else { return }
-                    self.snapshotStore.withValue {
-                        $0.isPreparingCurrentTrack = false
-                        if shouldResume,
-                           $0.desiredTransport == .playing,
-                           $0.systemSuspension != .externalMedia {
-                            // Re-enter normal startup semantics only after the
-                            // graph is prepared again; otherwise reset would
-                            // pretend playback resumed before it can.
-                            $0.presentation.beginPlayback(
-                                now: ProcessInfo.processInfo.systemUptime,
-                                renderStatus: .preparing
-                            )
-                        } else if $0.systemSuspension == .temporaryInterruption {
-                            $0.presentation.clearSuspension()
-                        }
-                    }
-                    self.applyStatus(status)
+                    self.snapshotStore.withValue { $0.isPreparingCurrentTrack = false }
+                    self.applyStatus(status, transportRevision: statusRevision)
+                    let previous = self.snapshotStore.get()
+                    let shouldResume = self.snapshotStore.withValue { $0.presentation.completeMediaServicesReset() }
                     if shouldResume {
-                        self.scheduleResumeGraceExpirationIfNeededOnQueue(for: generation)
+                        self.resumeOnQueue()
+                    } else {
+                        self.applyPresentationAndEmit(previous: previous)
                     }
                     self.applyLatestDesiredNextIfNeededOnQueue(for: generation)
                 }

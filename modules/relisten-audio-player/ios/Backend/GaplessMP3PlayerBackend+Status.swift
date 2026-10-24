@@ -4,6 +4,7 @@ extension GaplessMP3PlayerBackend {
     func refreshStatusOnQueue(for generation: UInt64) {
         Task { [weak self] in
             guard let self else { return }
+            let statusRevision = self.snapshotStore.get().presentation.transportRevision
             let status = await self.player.status()
             self.backendQueue.async {
                 let snapshot = self.snapshotStore.get()
@@ -16,7 +17,7 @@ extension GaplessMP3PlayerBackend {
                     self.logIgnoredStatusDuringSuppression(snapshot: snapshot)
                     return
                 }
-                self.applyStatus(status)
+                self.applyStatus(status, transportRevision: statusRevision)
             }
         }
     }
@@ -34,8 +35,9 @@ extension GaplessMP3PlayerBackend {
         setNextOnQueue(snapshot.desiredNextStreamable)
     }
 
-    func applyStatus(_ status: GaplessMP3PlayerStatus, seekCompletion: SeekCommandExecution? = nil) {
+    func applyStatus(_ status: GaplessMP3PlayerStatus, seekCompletion: SeekCommandExecution? = nil, transportRevision: UInt64? = nil) {
         let previous = snapshotStore.get()
+        if let transportRevision, !previous.presentation.acceptsStatus(revision: transportRevision) { return }
         guard !shouldIgnoreStatus(for: previous) else {
             // The native player may still have a source prepared after Spotify
             // or another app takes over. Do not let that prepared status
@@ -81,7 +83,8 @@ extension GaplessMP3PlayerBackend {
             snapshot.presentation.applyRenderStatus(
                 renderStatus: seekProjection?.renderStatus ?? renderStatus,
                 renderIsPlaying: seekProjection?.renderIsPlaying ?? status.isPlaying,
-                hasCurrentSource: status.currentSource != nil
+                hasCurrentSource: status.currentSource != nil,
+                revision: transportRevision
             )
             snapshot.currentStreamable = status.currentSource == nil ? nil : currentStreamable
             snapshot.nextStreamable = status.nextSource == nil ? nil : nextStreamable
@@ -155,12 +158,12 @@ extension GaplessMP3PlayerBackend {
         }
     }
 
-    func updateSnapshotOnQueue(_ mutate: (inout GaplessBackendSnapshot) -> Void) {
+    func updateSnapshotOnQueue(forceStateEmission: Bool = false, _ mutate: (inout GaplessBackendSnapshot) -> Void) {
         let previous = snapshotStore.get()
         snapshotStore.withValue { snapshot in
             mutate(&snapshot)
         }
-        applyPresentationAndEmit(previous: previous)
+        applyPresentationAndEmit(previous: previous, forceStateEmission: forceStateEmission)
     }
 
     func scheduleResumeGraceExpirationIfNeededOnQueue(for generation: UInt64) {
@@ -277,6 +280,7 @@ extension GaplessMP3PlayerBackend {
 
         Task { [weak self] in
             guard let self else { return }
+            let statusRevision = self.snapshotStore.get().presentation.transportRevision
             let status = await self.player.status()
             self.backendQueue.async {
                 let current = self.snapshotStore.get()
@@ -289,7 +293,7 @@ extension GaplessMP3PlayerBackend {
                     return
                 }
 
-                self.applyStatus(status)
+                self.applyStatus(status, transportRevision: statusRevision)
                 if self.snapshotStore.get().progressPollingGeneration == generation {
                     self.scheduleProgressPollingTickOnQueue(for: generation)
                 }

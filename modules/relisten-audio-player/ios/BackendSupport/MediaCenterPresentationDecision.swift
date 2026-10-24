@@ -125,9 +125,9 @@ struct MediaCenterPresentationState: Equatable {
 
      From any visible state:
        interruptionBegan -> [Temporary Interruption] -> freeze writes
-       interruptionEnded + shouldResume + userIntentPlaying -> [Playing Intent + Grace]
+       interruptionEnded + shouldResume + userIntentPlaying -> [Resume Awaiting Render]
        interruptionEnded without resume/external audio -> [External Media Suppressed]
-       externalMediaSuppressed + explicit Relisten resume -> [Playing Intent + Grace]
+       externalMediaSuppressed + accepted explicit resume -> [Resume Awaiting Render]
 
      The FSM owns desired transport, system suspension, write ownership,
      render status, and presentation grace. Callers still own the engine
@@ -139,6 +139,13 @@ struct MediaCenterPresentationState: Equatable {
     var renderStatus: MediaCenterRenderStatus = .stopped
     var renderIsPlaying = false
     var grace: MediaCenterPresentationGrace = .none
+    var recovery = PlaybackInterruptionRecovery()
+    var awaitingResumeRender = false
+    var transportRevision: UInt64 = 0
+
+    func acceptsStatus(revision: UInt64) -> Bool {
+        revision == transportRevision
+    }
 
     var isSuppressed: Bool {
         writeMode == .suppressed || systemSuspension == .externalMedia
@@ -157,6 +164,9 @@ struct MediaCenterPresentationState: Equatable {
     }
 
     mutating func beginPlayback(now: TimeInterval, renderStatus: MediaCenterRenderStatus = .preparing) {
+        transportRevision &+= 1
+        recovery = PlaybackInterruptionRecovery()
+        awaitingResumeRender = false
         desiredTransport = .playing
         systemSuspension = .none
         writeMode = .active
@@ -166,6 +176,9 @@ struct MediaCenterPresentationState: Equatable {
     }
 
     mutating func pause() {
+        transportRevision &+= 1
+        recovery.cancelResume()
+        awaitingResumeRender = false
         desiredTransport = .paused
         systemSuspension = .none
         writeMode = .active
@@ -175,6 +188,9 @@ struct MediaCenterPresentationState: Equatable {
     }
 
     mutating func stop(renderStatus: MediaCenterRenderStatus = .stopped) {
+        transportRevision &+= 1
+        recovery = PlaybackInterruptionRecovery()
+        awaitingResumeRender = false
         desiredTransport = .stopped
         systemSuspension = .none
         writeMode = .active
@@ -184,6 +200,8 @@ struct MediaCenterPresentationState: Equatable {
     }
 
     mutating func failRender() {
+        transportRevision &+= 1
+        awaitingResumeRender = false
         renderStatus = .failed
         renderIsPlaying = false
         grace = .none
@@ -195,6 +213,8 @@ struct MediaCenterPresentationState: Equatable {
     }
 
     mutating func beginTemporaryInterruption(renderStatus: MediaCenterRenderStatus = .paused) {
+        transportRevision &+= 1
+        awaitingResumeRender = false
         // Do not change desiredTransport. A phone-call-style interruption can
         // later resume only if iOS says shouldResume and the user still wants
         // playback.
@@ -217,6 +237,9 @@ struct MediaCenterPresentationState: Equatable {
     }
 
     mutating func suppressForExternalMedia() {
+        transportRevision &+= 1
+        recovery.cancelResume()
+        awaitingResumeRender = false
         desiredTransport = .paused
         systemSuspension = .externalMedia
         writeMode = .suppressed
@@ -228,12 +251,15 @@ struct MediaCenterPresentationState: Equatable {
     mutating func applyRenderStatus(
         renderStatus: MediaCenterRenderStatus,
         renderIsPlaying: Bool,
-        hasCurrentSource: Bool
+        hasCurrentSource: Bool,
+        revision: UInt64? = nil
     ) {
+        if let revision, !acceptsStatus(revision: revision) { return }
         self.renderStatus = renderStatus
         self.renderIsPlaying = renderIsPlaying
 
         if renderIsPlaying, renderStatus == .playing {
+            awaitingResumeRender = false
             grace = .none
         } else if desiredTransport != .playing || renderStatus == .stopped || !hasCurrentSource {
             grace = .none
@@ -267,6 +293,13 @@ struct MediaCenterPresentationInput {
     let hasCurrentMetadata: Bool
     let presentation: MediaCenterPresentationState
     let isWithinPresentationGraceWindow: Bool
+
+    var shouldTogglePause: Bool {
+        if case .update(let update) = resolve() {
+            return update.mediaCenterPlaybackState == .playing
+        }
+        return false
+    }
 
     init(
         hasCurrentMetadata: Bool,
@@ -372,6 +405,16 @@ struct MediaCenterPresentationInput {
     }
 
     private func resolveDesiredPlayback() -> MediaCenterPresentationDecision {
+        if presentation.awaitingResumeRender {
+            return .update(
+                MediaCenterPresentationUpdate(
+                    reason: .awaitingRender,
+                    appState: .stalled,
+                    mediaCenterPlaybackState: .paused,
+                    playbackRate: 0.0
+                )
+            )
+        }
         // GaplessPlaybackPhase.playing only means the native engine has entered
         // its playback phase. The output graph can still be silent while startup
         // buffering catches up, so renderIsPlaying is the only render-confirmed

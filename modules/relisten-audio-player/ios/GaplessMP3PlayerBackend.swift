@@ -45,8 +45,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
     let player: GaplessMP3Player
     let audioSessionController = AudioSessionController()
     let presentationCoordinator = GaplessBackendPresentationCoordinator()
-    var wasPlayingWhenInterrupted = false
-    var secondaryAudioSilenceHintActive = AVAudioSession.sharedInstance().secondaryAudioShouldBeSilencedHint
+    var interruptionRecoveryCheckScheduled = false
     var hasInstalledAudioSessionHandlers = false
     var hasReportedAudioSessionSetup = false
     lazy var remoteCommandController = GaplessBackendRemoteCommandController(
@@ -56,7 +55,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             self?.emitRemoteControl(method)
         },
         resumeOnQueue: { [weak self] in
-            self?.resumeOnQueue()
+            self?.resumeOnQueue() ?? false
         },
         pauseOnQueue: { [weak self] in
             self?.pauseOnQueue()
@@ -96,7 +95,8 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
 
     func enqueuePrepareAudioSession() {
         backendQueue.async {
-            self.prepareAudioSessionOnQueue()
+            // Observers are installed without claiming another app's session.
+            try? self.prepareAudioSessionOnQueue(shouldActivate: false)
         }
     }
 
@@ -219,7 +219,12 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             playbackLogField("startMs", startingAtMs.map { String($0) }),
             playbackLogIntegerField("gen", entryGeneration)
         )
-        prepareAudioSessionOnQueue(shouldActivate: true)
+        do {
+            try prepareAudioSessionOnQueue(shouldActivate: true)
+        } catch {
+            handleResumeFailureOnQueue(error, streamable: streamable)
+            return
+        }
 
         let snapshot = snapshotStore.get()
         let previousStreamable = snapshot.currentStreamable
@@ -325,13 +330,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
                 }
 
                 guard self.shouldContinueAsyncWork(for: generation) else { return }
-                if self.snapshotStore.get().desiredTransport == .playing {
-                    _ = self.player.play()
-                    self.backendQueue.async {
-                        guard self.shouldContinueAsyncWork(for: generation) else { return }
-                        self.startProgressPollingIfNeededOnQueue(for: generation)
-                    }
-                }
+                let statusRevision = self.snapshotStore.get().presentation.transportRevision
                 let status = await self.player.status()
                 self.backendQueue.async {
                     guard self.shouldContinueAsyncWork(for: generation) else { return }
@@ -351,7 +350,10 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
                             )
                         }
                     }
-                    self.applyStatus(status)
+                    self.applyStatus(status, transportRevision: statusRevision)
+                    if self.snapshotStore.get().presentation.canStartPlayback {
+                        self.resumeOnQueue()
+                    }
                     self.applyLatestDesiredNextIfNeededOnQueue(for: generation)
                 }
             } catch {
@@ -407,6 +409,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             do {
                 guard self.snapshotStore.get().generation == generation else { return }
                 try await self.player.setNext(streamable.map(self.makePlaybackSource(from:)))
+                let statusRevision = self.snapshotStore.get().presentation.transportRevision
                 let status = await self.player.status()
                 self.backendQueue.async {
                     guard self.snapshotStore.get().generation == generation else { return }
@@ -415,7 +418,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
                         return
                     }
                     self.snapshotStore.withValue { $0.nextStreamable = streamable }
-                    self.applyStatus(status)
+                    self.applyStatus(status, transportRevision: statusRevision)
                 }
             } catch {
                 self.backendQueue.async {
@@ -428,29 +431,39 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
         }
     }
 
-    func resumeOnQueue() {
-        backendCommandLog.debug(
-            "entered",
-            "resume command",
-            playbackLogIntegerField("gen", snapshotStore.get().generation)
-        )
+    @discardableResult
+    func resumeOnQueue() -> Bool {
         let entrySnapshot = snapshotStore.get()
-        ResumeCommandState(
-            isStopped: entrySnapshot.currentState == .Stopped || entrySnapshot.currentStreamable == nil
-        ).perform(
-            prepareAudioSession: { self.prepareAudioSessionOnQueue(shouldActivate: true) },
-            play: { self.player.play() },
-            updateStateToPlaying: {
-                self.updateSnapshotOnQueue {
-                    $0.presentation.beginPlayback(
-                        now: ProcessInfo.processInfo.systemUptime,
-                        renderStatus: .paused
-                    )
+        guard entrySnapshot.currentState != .Stopped, entrySnapshot.currentStreamable != nil else { return false }
+        do {
+            let accepted = try ResumeCommandState(isStopped: false).perform(
+                prepareAudioSession: { try self.prepareAudioSessionOnQueue(shouldActivate: true) },
+                play: { entrySnapshot.isPreparingCurrentTrack || self.player.play() },
+                onPlayAccepted: {
+                    self.updateSnapshotOnQueue(forceStateEmission: true) { $0.presentation.beginResume() }
+                    self.startProgressPollingIfNeededOnQueue(for: self.snapshotStore.get().generation)
                 }
-                self.scheduleResumeGraceExpirationIfNeededOnQueue(for: self.snapshotStore.get().generation)
-                self.startProgressPollingIfNeededOnQueue(for: self.snapshotStore.get().generation)
+            )
+            guard accepted else {
+                handleResumeFailureOnQueue(GaplessMP3PlayerError.sourceNotPrepared)
+                return false
             }
-        )
+            return true
+        } catch {
+            handleResumeFailureOnQueue(error)
+            return false
+        }
+    }
+
+    private func handleResumeFailureOnQueue(_ error: Error, streamable: RelistenGaplessStreamable? = nil) {
+        player.pause()
+        updateSnapshotOnQueue(forceStateEmission: true) {
+            $0.presentation.resumeFailed()
+            if $0.currentStreamable == nil { $0.presentation.stop() }
+        }
+        if let streamable = streamable ?? snapshotStore.get().currentStreamable {
+            emitError(error, for: streamable)
+        }
     }
 
     private func pauseOnQueue() {
@@ -637,6 +650,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             seekSequence: execution.seekSequence
         )
 
+        let statusRevision = snapshotStore.get().presentation.transportRevision
         Task { [weak self] in
             guard let self else { return }
             await execution.perform(
@@ -653,7 +667,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
                             activeGeneration: snapshot.generation,
                             currentSeekSequence: snapshot.seekSequence
                         ) else { return }
-                        self.applyStatus(status, seekCompletion: execution)
+                        self.applyStatus(status, seekCompletion: execution, transportRevision: statusRevision)
                     }
                 },
                 emitError: { error in

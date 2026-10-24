@@ -3,14 +3,16 @@ import Foundation
 struct ResumeCommandState {
     let isStopped: Bool
 
+    @discardableResult
     func perform(
-        prepareAudioSession: () -> Void,
+        prepareAudioSession: () throws -> Void,
         play: () -> Bool,
-        updateStateToPlaying: () -> Void
-    ) {
-        guard !isStopped else { return }
-        prepareAudioSession()
-        guard play() else { return }
-        updateStateToPlaying()
+        onPlayAccepted: () -> Void
+    ) rethrows -> Bool {
+        guard !isStopped else { return false }
+        try prepareAudioSession()
+        guard play() else { return false }
+        onPlayAccepted()
+        return true
     }
 }
