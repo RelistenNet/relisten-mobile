@@ -585,6 +585,11 @@ ${indentString(tracks)}
   private checkpointDepth = 0;
   private lastWrittenState?: string;
 
+  /** Lifecycle notifications before startup restore must not erase a saved queue. */
+  public flushPlayerState() {
+    if (this.originalTracks.length > 0) this.savePlayerState(true);
+  }
+
   /** Selection, timing and native acknowledgment must cross the Realm boundary together. */
   public applyPlaybackCheckpoint(apply: () => void, immediate: boolean) {
     this.checkpointDepth += 1;
@@ -638,6 +643,7 @@ ${indentString(tracks)}
   }
 
   public async restorePlayerState(realm: Realm) {
+    this.player.prepareForPlayerStateRestore();
     const playerState = PlayerState.defaultObject(realm);
 
     if (!playerState) {

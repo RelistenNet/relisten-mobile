@@ -48,7 +48,7 @@ export class RelistenPlayer {
   constructor() {}
 
   dispose() {
-    this.queue.savePlayerState(true);
+    this.queue.flushPlayerState();
     this.removePlayerListeners();
   }
 
@@ -84,6 +84,24 @@ export class RelistenPlayer {
     return this._state;
   }
 
+  get canRestorePlayerState() {
+    const state = this.state;
+    return (
+      this._queue.orderedTracks.length === 0 &&
+      !this.playbackIntentStarted &&
+      !this.initialPlaybackStarted &&
+      (state === RelistenPlaybackState.Stopped || state === RelistenPlaybackState.Paused)
+    );
+  }
+
+  prepareForPlayerStateRestore() {
+    if (this.canRestorePlayerState && this._state === RelistenPlaybackState.Paused) {
+      // An empty native player can announce Paused before JS restores its queue.
+      // Restored seek intent must start a stream, rather than resume a nonexistent one.
+      state.setState(RelistenPlaybackState.Stopped);
+    }
+  }
+
   get queue() {
     this.addPlayerListeners();
 
@@ -98,7 +116,7 @@ export class RelistenPlayer {
     logger.debug(`Switching playback driver to ${driver.name}`);
     this.playbackDriver = driver;
     this.nativeCheckpointEligible = false;
-    this.queue.savePlayerState(true);
+    this.queue.flushPlayerState();
   }
 
   getNativePlaybackDriver() {
@@ -141,8 +159,8 @@ export class RelistenPlayer {
 
     this.clearStalledTimer();
     state.setState(RelistenPlaybackState.Paused);
-    this.queue.savePlayerState(true);
-    this.playbackDriver.pause().then(() => this.queue.savePlayerState(true));
+    this.queue.flushPlayerState();
+    this.playbackDriver.pause().then(() => this.queue.flushPlayerState());
   }
 
   private currentlyProcessingPlayRequest: Promise<void> | undefined = undefined;
@@ -329,7 +347,7 @@ export class RelistenPlayer {
 
   async stop() {
     this.addPlayerListeners();
-    this.queue.savePlayerState(true);
+    this.queue.flushPlayerState();
     this.cancelPendingPlayRequests('stop');
     this.clearStalledTimer();
 
@@ -739,7 +757,7 @@ ${indentString(this.queue.debugState(true))}
     }
 
     if (newState === RelistenPlaybackState.Paused || newState === RelistenPlaybackState.Stopped) {
-      this.queue.savePlayerState(true);
+      this.queue.flushPlayerState();
     }
 
     if (this._state != newState) {

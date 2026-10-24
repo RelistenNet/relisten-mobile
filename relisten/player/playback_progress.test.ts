@@ -661,4 +661,60 @@ describe('player progress track identity', () => {
     expect(player.queue.currentTrack?.sourceTrack.uuid).toBe('loser');
     expect(player.progress).toMatchObject({ elapsed: 0, duration: 410 });
   });
+  it('does not erase a saved queue when native pause arrives before startup restore', () => {
+    player.dispose();
+    harness.save.mockClear();
+    player = new RelistenPlayer();
+    void player.state;
+    state.setState(RelistenPlaybackState.Paused);
+    player.queue.flushPlayerState();
+    expect(harness.save).not.toHaveBeenCalled();
+    expect(player.canRestorePlayerState).toBe(true);
+  });
+  it.each([
+    [RelistenPlaybackState.Stopped, true],
+    [RelistenPlaybackState.Paused, true],
+    [RelistenPlaybackState.Playing, false],
+    [RelistenPlaybackState.Stalled, false],
+  ])(
+    'only restores an untouched empty player in stopped/paused state: %s',
+    (playbackState, allowed) => {
+      player.dispose();
+      state.setState(RelistenPlaybackState.Stopped);
+      player = new RelistenPlayer();
+      void player.state;
+      state.setState(playbackState);
+      expect(player.canRestorePlayerState).toBe(allowed);
+      player.playbackIntentStarted = true;
+      expect(player.canRestorePlayerState).toBe(false);
+    }
+  );
+  it('starts the restored stream and seek intent after an unsolicited startup pause', async () => {
+    player.dispose();
+    state.setState(RelistenPlaybackState.Stopped);
+    player = new RelistenPlayer();
+    void player.state;
+    state.setState(RelistenPlaybackState.Paused);
+    harness.state.mockReturnValue({
+      queueShuffleState: 1,
+      queueRepeatState: 1,
+      queueSourceTrackUuids: ['minglewood', 'loser'],
+      queueSourceTrackShuffledUuids: ['minglewood', 'loser'],
+      activeSourceTrackIndex: 1,
+      activeSourceTrackShuffledIndex: 1,
+      elapsed: 120,
+      duration: 410,
+    });
+    const cachedRealm = {
+      objects: () => ({ filtered: () => [first.sourceTrack, second.sourceTrack] }),
+    } as unknown as Realm;
+    await player.queue.restorePlayerState(cachedRealm);
+    expect(player.state).toBe(RelistenPlaybackState.Stopped);
+    player.resume();
+    await vi.waitFor(() => expect(harness.native.play).toHaveBeenCalled());
+    expect(harness.native.play).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cacheKey: 'loser' }),
+      120000
+    );
+  });
 });
