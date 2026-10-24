@@ -13,11 +13,11 @@ After a native automatic or explicit track transition, interruption, or app rest
 - [x] Ported confirmed timing, explicit-request sequencing, and restore validation.
 - [x] Added native atomic identity/timing snapshots and native checkpoint journals.
 - [x] Regression matrix, code simplification and independent two-pass review; all three validated concerns fixed.
-- [x] 64 Vitest tests, 38 Swift support tests, 14 Android tests and unsigned iOS simulator build passed.
+- [x] 70 Vitest tests, 38 Swift support tests, 14 Android tests and unsigned iOS simulator build passed.
 - [x] Combined source merge with #159 ac3e44b has no conflicts; 70 Swift tests and unsigned iOS simulator build passed.
-- [x] Final aggregate checks on committed source: 64 Vitest tests, lint, types.
-- [x] Actual no-commit Git merge in /tmp/relisten-persistence-integration against #159 ac3e44b: no conflicts; 64 Vitest, lint/types, 70 Swift and 14 Android tests passed. Native sources match the successful combined iOS simulator build byte-for-byte.
-- [ ] Draft PR and exact-head remote/CI verification.
+- [x] Final aggregate checks on committed source: 70 Vitest tests, lint, types.
+- [x] Actual no-commit Git merge in /tmp/relisten-persistence-integration-final against #159 ac3e44b: no conflicts; 70 Vitest, lint/types, 70 Swift and 14 Android tests passed. Native sources match the successful combined iOS simulator build byte-for-byte.
+- [x] Draft PR https://github.com/RelistenNet/relisten-mobile/pull/160 opened and linked to companion #159. Exact pushed head and reported check status are verified separately after publishing; no CI is configured in the inspected base.
 
 ## Context and Orientation
 
@@ -37,6 +37,8 @@ Commands from the worktree: `nvm use`, `yarn test`, `yarn lint`, `yarn ts:check`
 
 ## Surprises & Discoveries
 
+Unsolicited startup Paused notifications require an empty-player restore path: lifecycle flush must not erase disk data, and restored seek intent must start a new stream instead of resuming a nonexistent one. The startup regression covers both persistence and restore/resume.
+
 The earlier timing patches did not address the suspended-JS gap. Emitting a final native event is insufficient by itself. A bounded native journal can recover timing only for queue entries already durably represented by Realm; it is not a second owner of queue contents.
 
 ## Decision Log
@@ -55,4 +57,4 @@ Tests use isolated fake clocks or temporary journal paths. No production data, r
 
 ## Outcomes & Retrospective
 
-The persistence implementation and combined validation are complete. The actual integration checkout combines persistence source commit 5f96b9b73db1c36eb7416f7b0ce0adc0da3bdd9b with companion #159 ac3e44b7bace18c4fa0d35b48fecddd0f63ef0cd. There are no merge conflicts and no required source changes to #159. Either merge order works; prefer #159 first for review organization. Native binaries and a schema-compatible OTA runtime/channel are required before release. Hardware listening/interruption coverage remains outstanding; the original several-track and Peter reports are not claimed reproduced. No CI workflows are configured in the inspected base; local passing checks are not described as green CI.
+The persistence implementation and combined validation are complete. The actual integration checkout combines persistence source commit 4a0f2f815fec0796261c79c2efc0a2935e86f499 with companion #159 ac3e44b7bace18c4fa0d35b48fecddd0f63ef0cd. There are no merge conflicts and no required source changes to #159. Either merge order works; prefer #159 first for review organization. Native binaries and a schema-compatible OTA runtime/channel are required before release. Hardware listening/interruption coverage remains outstanding; the original several-track and Peter reports are not claimed reproduced. No CI workflows are configured in the inspected base; local passing checks are not described as green CI.
