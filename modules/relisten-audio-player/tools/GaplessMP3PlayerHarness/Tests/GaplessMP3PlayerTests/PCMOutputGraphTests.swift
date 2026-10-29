@@ -67,6 +67,11 @@ final class PCMOutputGraphTests: XCTestCase {
 
         try queue.sync {
             let graph = try PCMOutputGraph(sampleRate: 44_100, channelCount: 2, ownerQueue: queue)
+            let chunk = PCMChunk.silence(sampleRate: 44_100, channelCount: 2, frameCount: 44_100)
+            try graph.schedule(chunk, playedBack: nil)
+            try graph.requestPlay()
+            XCTAssertTrue(graph.isEngineRunning)
+
             let configuration = try AudioAdjustmentConfiguration.validated(
                 specVersion: 1,
                 enabled: true,
