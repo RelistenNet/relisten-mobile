@@ -1037,6 +1037,51 @@ describe('terminal playback', () => {
     expect(player.state).toBe(RelistenPlaybackState.Stopped);
   });
 
+  it.each(['Next', 'Stop/Resume'] as const)(
+    'restores the confirmed UI and remains stopped after failed preparation through %s',
+    async (action) => {
+      const selection = vi.fn();
+      player.queue.onCurrentTrackChanged.addListener(selection);
+      let requestedTrack = loser;
+      if (action === 'Next') {
+        player.next();
+      } else {
+        await player.stop();
+        player.resume();
+        requestedTrack = minglewood;
+      }
+      await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+      expect(selection).toHaveBeenLastCalledWith(requestedTrack);
+
+      scenario.emit({
+        identifier: undefined,
+        sourceTrackUuid: undefined,
+        playbackState: RelistenPlaybackState.Stopped,
+        checkpoint: true,
+      });
+      latestError.setState({
+        identifier: requestedTrack.identifier,
+        error: {
+          kind: RelistenPlaybackErrorKind.NetworkUnavailable,
+          message: 'Requested stream could not be prepared',
+          isRetryable: true,
+          platform: 'ios',
+        },
+      });
+
+      expect(selection).toHaveBeenLastCalledWith(minglewood);
+      expect(progress.lastState()?.elapsed).toBe(120);
+      await vi.advanceTimersByTimeAsync(300);
+      expect(player.state).toBe(RelistenPlaybackState.Stopped);
+      player.togglePauseResume();
+      await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(2));
+      expect(scenario.lastNativePlay).toMatchObject({
+        entryId: minglewood.identifier,
+        startTimeMs: 120000,
+      });
+    }
+  );
+
   it('prepares the successor again after stopping and resuming the same entry', async () => {
     await player.stop();
     mocks.native.setNextStream.mockClear();

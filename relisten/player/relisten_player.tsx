@@ -262,7 +262,12 @@ export class RelistenPlayer {
 
   /** A completion may release only the processing slot that it originally owned. */
   private finishPlayRequest(request: Promise<void>) {
-    if (this.currentlyProcessingPlayRequest === request) {
+    if (this.currentlyProcessingPlayRequest !== request) {
+      return;
+    }
+    if (this.nativePlayRequest?.failed && !this.nextPlayRequest) {
+      this.cancelPendingPlayRequests('failedPlay');
+    } else {
       this.maybeStartNextPlayRequest();
     }
   }
@@ -731,7 +736,7 @@ ${indentString(this.queue.debugState(true))}
       // An empty native player retains the selected queue entry for the next Play.
       this.nativeSequence = snapshot.sequence;
       this._queue.forgetPreparedNextTrack();
-      state.setState(snapshot.playbackState);
+      this.publishNativeState(snapshot.playbackState);
       this._queue.flushPlayerState();
     }
   };
@@ -854,7 +859,15 @@ ${indentString(this.queue.debugState(true))}
     if (saveImmediately || elapsedSecondChanged || durationChanged || playbackStateChanged) {
       sharedStateProgress.setState(progress);
     }
-    state.setState(snapshot.playbackState);
+    this.publishNativeState(snapshot.playbackState);
+  }
+
+  private publishNativeState(playbackState: RelistenPlaybackState) {
+    // Native completion ends buffering even when SharedState deduplicates the state value.
+    if (playbackState !== RelistenPlaybackState.Stalled) {
+      this.clearStalledTimer();
+    }
+    state.setState(playbackState);
   }
 
   private onNativePlayerStateChanged = (newState: RelistenPlaybackState) => {
