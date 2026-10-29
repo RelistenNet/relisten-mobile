@@ -22,7 +22,7 @@ flowchart LR
 
 Each slice can go to TestFlight after its API, local persistence, and UI work together. A feature included in a build is on; there is no mobile feature-flag service or Statsig dependency. Keep an unfinished button or route out of the build. A narrow server emergency switch may pause a dangerous external write during an incident, but it is not a per-user rollout mechanism.
 
-The released audio-EQ TestFlight owns Realm schema 13. The first account build includes authentication and favorites in schema 14. Its callback supports both the schema-12 App Store build and the schema-13 TestFlight build; there are no intermediate account/favorite migrations. History, playlists, and Queue V2 add only the models they need in later schema versions.
+The combined accounts/player build uses Realm schema 16. Its callback supports main's schema-13 UUID arrays, main's schema-14 embedded player state, and accounts' schema-14/15 UUID arrays with scoped favorites. It selects conversions from the old models and properties, preserving queue identities and existing scoped data. Schema-12 installs can also upgrade directly. Lower player and EQ branches remain at schema 14; history, playlists, and Queue V2 advance from 16 only when their persisted models change.
 
 ## Existing navigation to preserve
 
