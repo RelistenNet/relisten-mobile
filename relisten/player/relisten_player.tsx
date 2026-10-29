@@ -36,7 +36,7 @@ import { shouldStartStalledTimerForSeek } from '@/relisten/player/seek_stall_pol
 const logger = log.extend('player');
 
 enum NativePlayRequestPhase {
-  WaitingForPause,
+  WaitingToIssue,
   Issued,
 }
 
@@ -265,7 +265,7 @@ export class RelistenPlayer {
     this.nativePlayRequest = {
       identifier: track.identifier,
       version: playRequestVersion,
-      phase: NativePlayRequestPhase.WaitingForPause,
+      phase: NativePlayRequestPhase.WaitingToIssue,
     };
     this.optimisticallyUpdateCurrentTrack(track, seekToTime);
 
@@ -717,7 +717,7 @@ ${indentString(this.queue.debugState(true))}
       selectionChanged && request !== undefined && track.identifier !== request.identifier;
 
     // Auto-advance during pause must not complete a Play that has not been issued yet.
-    if (unexpectedTrack && request.phase === NativePlayRequestPhase.WaitingForPause) {
+    if (unexpectedTrack && request.phase === NativePlayRequestPhase.WaitingToIssue) {
       return;
     }
     if (unexpectedTrack) {

@@ -20,6 +20,10 @@ Saved duration takes precedence over catalog duration; absent duration falls bac
 
 An unsolicited startup Paused event does not erase the saved queue or prevent resume from starting the restored stream at its saved position. Native confirmation compares against the last published native identifier, independently of the restored queue selection. This completes the initial Play request and prepares the next stream even when native playback selects the already-restored entry.
 
+The native observation handler separates delivery ordering, request reconciliation, confirmed timing, and UI publication. A named `NativePlayRequest` records whether Play is waiting to be issued or has reached native playback. Identity confirmation, progress conversion, and publication run inside one queue checkpoint boundary. Restore separately loads catalog tracks, restores order and modes, then applies selection and timing.
+
+The player tests are grouped by observable behavior. `PlaybackScenario` owns mocked native delivery and persistence access; each case shows the action and its result directly. Restore tests start with an empty player, and actual Realm tests own their file and connections for the duration of one test.
+
 Native timing updates the internal confirmed progress on every accepted observation. UI progress publishes once per elapsed second, or when duration, selection, or playback state changes. Immediate checkpoints also publish. Save timing and listening-history thresholds use the latest confirmed sample even between UI updates.
 
 ## Scope decision
@@ -32,9 +36,9 @@ This design makes no suspended-JS durability guarantee. If JS cannot receive the
 
 Focused regressions exercise the player and queue through native observations and inspect persisted state: pause immediately after advance, stale/repeated observations, terminal stop, fixed save deadline, cancellation of pending writes, reordered/removed/replaced entries, duplicate occurrence restore and advance followed by shuffle-off, missing selected sources, measured duration, UI progress throttling, listening-history thresholds between UI updates, and startup pause/restore/resume. The schema test opens an actual schema-13 Realm file at schema 14.
 
-The embedded-schema implementation passes 74 Vitest tests, lint, and TypeScript checks. Both independent review passes have no remaining actionable findings after the native-confirmation and unknown-duration fixes.
+The embedded-schema implementation passes 75 Vitest tests, lint, and TypeScript checks. Both independent review passes have no remaining actionable findings after the native-confirmation and unknown-duration fixes.
 
-Prior checks of the unchanged native code passed 33 Swift support tests and 12 Android tests with Kotlin compilation. The combined iOS sources with #159 passed a Debug simulator build and install. This redesign changes JavaScript and Realm records, so it uses that matching native binary.
+The readability pass also expands compressed native snapshot construction without changing its payload or emission conditions. All 33 Swift support tests, 12 Android tests, and Kotlin compilation pass. The combined iOS sources with #159 pass a Debug simulator rebuild.
 
 A fresh iPhone 17 simulator restored the selected entry at 17.674 seconds after a cold relaunch. Resume requested that native seek, completed native confirmation, and prepared the next stream. Next then played Jack Straw and prepared Dire Wolf. Physical-device background, navigation, call and CarPlay coverage remains outstanding.
 
