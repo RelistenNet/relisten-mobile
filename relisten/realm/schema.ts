@@ -74,7 +74,8 @@ const realmConfig: Realm.Configuration = {
     ...ACCOUNT_REALM_MODELS,
     ...FAVORITE_REALM_MODELS,
   ],
-  schemaVersion: 15,
+  // Existing accounts builds used 15 with the UUID/index player format.
+  schemaVersion: 16,
   onMigration: (oldRealm, newRealm) => {
     migratePlayerState(oldRealm, newRealm);
     migrateLegacyFavoritesToAnonymous(oldRealm, newRealm);
