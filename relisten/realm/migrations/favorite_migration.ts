@@ -3,9 +3,6 @@ import { createUuidV7 } from '@/relisten/util/uuid_v7';
 import { FavoriteCatalogType, UserFavorite } from '@/relisten/realm/models/library';
 import { ANONYMOUS_ACCOUNT_SCOPE_ID } from '@/relisten/realm/models/accounts';
 
-// Scoped favorites are the single schema step after main's schema 13 catalog tombstones.
-export const FAVORITES_SCHEMA_VERSION = 14;
-
 const LEGACY_FAVORITE_MODELS: ReadonlyArray<{
   modelName: string;
   catalogType: FavoriteCatalogType;
@@ -20,7 +17,7 @@ const LEGACY_FAVORITE_MODELS: ReadonlyArray<{
 ];
 
 /**
- * Schema 14 replaces catalog-owned favorite flags with scoped UserFavorite rows.
+ * Copy catalog-owned favorite flags into scoped UserFavorite rows.
  * Existing flags belong to the anonymous scope because older app versions had
  * no account ownership information.
  */
@@ -29,11 +26,12 @@ export function migrateLegacyFavoritesToAnonymous(
   newRealm: Realm,
   migratedAt = new Date()
 ) {
-  if (oldRealm.schemaVersion >= FAVORITES_SCHEMA_VERSION) {
+  const oldModelNames = new Set(oldRealm.schema.map((model) => model.name));
+  // Main's schema 14 still owns catalog flags; accounts' schema 14 already has
+  // scoped favorites. Reimporting its compatibility flags would duplicate them.
+  if (oldModelNames.has('UserFavorite')) {
     return;
   }
-
-  const oldModelNames = new Set(oldRealm.schema.map((model) => model.name));
 
   for (const { modelName, catalogType } of LEGACY_FAVORITE_MODELS) {
     if (!oldModelNames.has(modelName)) {

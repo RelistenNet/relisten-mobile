@@ -28,7 +28,9 @@ interface LegacySourceTrack {
 
 /** Convert the shipped UUID/index format to stable queue occurrence IDs. */
 export function migratePlayerState(oldRealm: Realm, newRealm: Realm): void {
-  if (oldRealm.schemaVersion >= 14) {
+  // Main and accounts builds used different player formats at schema 14.
+  const oldPlayerSchema = oldRealm.schema.find((schema) => schema.name === 'PlayerState');
+  if (!oldPlayerSchema?.properties.queueSourceTrackUuids) {
     return;
   }
 
