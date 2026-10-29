@@ -822,6 +822,24 @@ describe('seeking', () => {
     }
   );
 
+  it('resumes from confirmed progress after explicitly playing a previously sought entry', async () => {
+    await scenario.restore();
+    await player.seekToTime(205);
+
+    player.playTrackAtIndex(1);
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+    scenario.emit({ identifier: 'B', elapsed: 20, duration: 410 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(player.progress).toMatchObject({ elapsed: 20, duration: 410 });
+
+    await player.stop();
+    expect(scenario.savedCheckpoint).toMatchObject({ entryId: 'B', elapsedSeconds: 20 });
+    player.resume();
+
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(2));
+    expect(scenario.lastNativePlay).toMatchObject({ entryId: 'B', startTimeMs: 20000 });
+  });
+
   it('keeps a pending entry seek preview out of the confirmed checkpoint', async () => {
     scenario.startPlayingQueue();
     const pause = deferredOperation();

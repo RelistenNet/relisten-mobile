@@ -53,11 +53,6 @@ interface QueuedPlayRequest {
   seekToTime?: number;
 }
 
-interface SeekIntent {
-  identifier: string;
-  time: number;
-}
-
 export interface RelistenPlayerReportTrackEvent {
   playbackStartedAt: Date;
   playerQueueTrack: PlayerQueueTrack;
@@ -77,7 +72,6 @@ export class RelistenPlayer {
 
   private _state: RelistenPlaybackState = RelistenPlaybackState.Stopped;
   private _stalledTimer: number | undefined = undefined;
-  private seekIntent?: SeekIntent;
 
   private nativeDriver = new NativePlaybackDriver();
   private playbackDriver: PlaybackDriver = this.nativeDriver;
@@ -112,7 +106,7 @@ export class RelistenPlayer {
   prepareForPlayerStateRestore() {
     if (this.canRestorePlayerState && this._state === RelistenPlaybackState.Paused) {
       // An empty native player can announce Paused before JS restores its queue.
-      // Restored seek intent must start a stream, rather than resume a nonexistent one.
+      // The restored position must start a stream, rather than resume a nonexistent one.
       state.setState(RelistenPlaybackState.Stopped);
     }
   }
@@ -159,12 +153,8 @@ export class RelistenPlayer {
       const index = this.queue.currentIndex ?? 0;
       const track = this.queue.orderedTracks[index];
       if (track) {
-        let seekToTime = this.checkpointProgress(track.identifier)?.elapsed;
-        if (this.seekIntent?.identifier === track.identifier) {
-          seekToTime = this.seekIntent.time;
-        }
+        const seekToTime = this.checkpointProgress(track.identifier)?.elapsed;
         this.playTrackAtIndex(index, seekToTime);
-        this.seekIntent = undefined;
       }
 
       return;
@@ -551,11 +541,6 @@ export class RelistenPlayer {
       sharedStateProgress.setState(progress);
       this.playTrackAtIndex(pendingIndex, elapsed);
       return false;
-    }
-
-    const identifier = this.queue.currentTrack?.identifier;
-    if (this.state === RelistenPlaybackState.Stopped && identifier) {
-      this.seekIntent = { identifier, time: elapsed };
     }
 
     sharedStateProgress.setState(progress);
