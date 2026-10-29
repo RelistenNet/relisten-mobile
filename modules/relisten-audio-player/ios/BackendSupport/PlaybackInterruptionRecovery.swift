@@ -54,8 +54,13 @@ extension MediaCenterPresentationState {
 
     mutating func interruptionBegan() -> PlaybackInterruptionAction {
         let action = recovery.began(wantsPlayback: desiredTransport == .playing && !isSuppressed)
-        if action == .pause, !isSuppressed {
-            beginTemporaryInterruption()
+        if action == .pause {
+            if isSuppressed {
+                // Invalidate earlier preparation without claiming presentation.
+                transportRevision &+= 1
+            } else {
+                beginTemporaryInterruption()
+            }
         }
         return action
     }

@@ -42,6 +42,23 @@ final class PlaybackInterruptionRecoveryTests: XCTestCase {
         }
     }
 
+    func testNewInterruptionInvalidatesSuppressedPreparationWithoutReclaimingOwnership() {
+        var state = playing()
+        state.suppressForExternalMedia()
+        state.beginPreparation()
+        let preparationRevision = state.transportRevision
+
+        XCTAssertEqual(state.interruptionBegan(), .pause)
+        XCTAssertFalse(state.acceptsStatus(revision: preparationRevision))
+        XCTAssertFalse(state.canStartPlayback)
+        XCTAssertEqual(decision(state), .clear(reason: .externalMedia))
+
+        let interruptedRevision = state.transportRevision
+        XCTAssertEqual(state.interruptionBegan(), .none)
+        XCTAssertEqual(state.transportRevision, interruptedRevision)
+        XCTAssertTrue(state.isSuppressed)
+    }
+
     private func playing() -> MediaCenterPresentationState {
         var state = MediaCenterPresentationState()
         state.beginResume()
