@@ -69,7 +69,7 @@ export function ScrubberRow({ showTimes = true }: { showTimes?: boolean }) {
 
   const doSeek = useCallback(
     (value: number) => {
-      if (progressObj?.duration === undefined) {
+      if (!progressObj || progressObj.duration <= 0) {
         return;
       }
 

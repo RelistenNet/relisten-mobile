@@ -591,6 +591,7 @@ ${indentString(tracks)}
     if (!realm) return;
     const track = this.currentTrack;
     const progress = track ? this.player.checkpointProgress(track.identifier) : undefined;
+    const duration = progress?.duration ?? track?.sourceTrack.duration;
     const state: Omit<PlayerStateProps, 'lastUpdatedAt'> = {
       queueEntries: this.originalTracks.map((track) => ({
         id: track.identifier,
@@ -605,7 +606,7 @@ ${indentString(tracks)}
         ? {
             entryId: track.identifier,
             elapsedSeconds: progress?.elapsed ?? 0,
-            durationSeconds: progress?.duration ?? track.sourceTrack.duration,
+            durationSeconds: duration != null && duration > 0 ? duration : null,
           }
         : null,
     };
@@ -690,14 +691,17 @@ ${indentString(tracks)}
         selectedEntry ? checkpoint?.durationSeconds : undefined,
         restoredTrack?.sourceTrack.duration,
       ].find((duration) => duration != null && Number.isFinite(duration) && duration > 0);
-      if (restoredTrack && restoredDuration != null) {
+      if (restoredTrack) {
         // A missing selected source cannot transfer its timing to the fallback entry.
         const savedElapsed = selectedEntry ? checkpoint!.elapsedSeconds : 0;
-        const restoredElapsed = Math.max(0, Math.min(restoredDuration, savedElapsed));
+        const restoredElapsed = Math.max(
+          0,
+          restoredDuration == null ? savedElapsed : Math.min(restoredDuration, savedElapsed)
+        );
         const restoredProgress = {
           elapsed: restoredElapsed,
-          duration: restoredDuration,
-          percent: restoredElapsed / restoredDuration,
+          duration: restoredDuration ?? 0,
+          percent: restoredDuration != null ? restoredElapsed / restoredDuration : 0,
         };
         void this.player.seekToTime(restoredElapsed);
         this.player.progress = restoredProgress;

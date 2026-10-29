@@ -358,6 +358,7 @@ describe('player progress track identity', () => {
     { catalog: 410, saved: undefined, elapsed: 120, duration: 410, restoredElapsed: 120 },
     { catalog: 0, saved: 381, elapsed: 120, duration: 381, restoredElapsed: 120 },
     { catalog: undefined, saved: 381, elapsed: 120, duration: 381, restoredElapsed: 120 },
+    { catalog: undefined, saved: undefined, elapsed: 120, duration: 0, restoredElapsed: 120 },
   ])(
     'restores checkpoint with catalog $catalog, saved $saved, elapsed $elapsed',
     async ({ catalog, saved, elapsed, duration, restoredElapsed }) => {
@@ -380,18 +381,24 @@ describe('player progress track identity', () => {
       expect(player.progress).toEqual({
         duration,
         elapsed: restoredElapsed,
-        percent: restoredElapsed / duration,
+        percent: duration > 0 ? restoredElapsed / duration : 0,
       });
       expect(harness.save).toHaveBeenLastCalledWith(
         expect.anything(),
         expect.objectContaining({
           checkpoint: expect.objectContaining({
-            durationSeconds: duration,
+            durationSeconds: duration > 0 ? duration : null,
             elapsedSeconds: restoredElapsed,
           }),
         })
       );
       expect(harness.native.play).not.toHaveBeenCalled();
+      player.resume();
+      await vi.waitFor(() => expect(harness.native.play).toHaveBeenCalled());
+      expect(harness.native.play).toHaveBeenLastCalledWith(
+        expect.objectContaining({ identifier: 'B' }),
+        restoredElapsed * 1000
+      );
     }
   );
   it('commits an interruption snapshot immediately and cancels older pending work', () => {
