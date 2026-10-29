@@ -60,12 +60,6 @@ export class RelistenPlayer {
 
   private nativeDriver = new NativePlaybackDriver();
   private playbackDriver: PlaybackDriver = this.nativeDriver;
-  private nativeCheckpointEligible = true;
-
-  get allowsNativeCheckpoint() {
-    return this.playbackDriver === this.nativeDriver && this.nativeCheckpointEligible;
-  }
-
   /** Timing for the confirmed queue track. Shared UI progress can preview a requested track. */
   public progress: PlaybackContextProgress | undefined = undefined;
 
@@ -115,7 +109,6 @@ export class RelistenPlayer {
 
     logger.debug(`Switching playback driver to ${driver.name}`);
     this.playbackDriver = driver;
-    this.nativeCheckpointEligible = false;
     this.queue.flushPlayerState();
   }
 
@@ -537,12 +530,6 @@ ${indentString(this.queue.debugState(true))}
   // region Player event handling
   private addedPlayerListeners = false;
   private nativeSnapshotListener?: ReturnType<typeof nativePlayer.addPlaybackSnapshotListener>;
-  private legacyProgressListener?: ReturnType<typeof nativePlayer.addPlaybackProgressListener>;
-  private legacyTrackListener?: ReturnType<typeof nativePlayer.addTrackChangedListener>;
-  private legacySequence = 0;
-  public get checkpointSequence() {
-    return this.nativeSequence;
-  }
   private nativeSessionId?: string;
   private retiredNativeSessions = new Set<string>();
   private nativeSequence = -1;
@@ -562,40 +549,8 @@ ${indentString(this.queue.debugState(true))}
     this._queue.onCurrentTrackChanged.addListener(this.onQueueTrackChanged);
     this._queue.addPlayerListeners();
     currentTrackIdentifier.addListener(this.onCurrentTrackIdentifierChanged);
-    // UI hooks read shared state directly, so reject stale native events before publishing them.
-    if (nativePlayer.supportsPlaybackSnapshots?.() !== false) {
-      this.nativeSnapshotListener = nativePlayer.addPlaybackSnapshotListener(this.onNativeSnapshot);
-    } else {
-      // Older installed binaries can receive newer JS. Keep their existing path working;
-      // without native identity/journaling they cannot provide the full native guarantee.
-      const legacySnapshot = (
-        identifier: string | undefined,
-        elapsed?: number,
-        duration?: number,
-        changed = false
-      ) => {
-        const track = this._queue.orderedTracks.find((track) => track.identifier === identifier);
-        if (track)
-          this.onNativeSnapshot({
-            sessionId: 'legacy',
-            sequence: ++this.legacySequence,
-            identifier: track.identifier,
-            sourceTrackUuid: track.sourceTrack.uuid,
-            elapsed,
-            duration,
-            capturedAt: Date.now(),
-            playbackState: this._state,
-            checkpoint: false,
-            trackChanged: changed,
-          });
-      };
-      this.legacyTrackListener = nativePlayer.addTrackChangedListener((event) =>
-        legacySnapshot(event.currentIdentifier, undefined, undefined, true)
-      );
-      this.legacyProgressListener = nativePlayer.addPlaybackProgressListener((event) =>
-        legacySnapshot(currentTrackIdentifier.lastState(), event.elapsed, event.duration)
-      );
-    }
+    // This listener publishes state, selection and timing from the same native observation.
+    this.nativeSnapshotListener = nativePlayer.addPlaybackSnapshotListener(this.onNativeSnapshot);
 
     this.addedPlayerListeners = true;
   }
@@ -614,8 +569,6 @@ ${indentString(this.queue.debugState(true))}
     currentTrackIdentifier.removeListener(this.onCurrentTrackIdentifierChanged);
     this._queue.removePlayerListeners();
     this.nativeSnapshotListener?.remove();
-    this.legacyProgressListener?.remove();
-    this.legacyTrackListener?.remove();
 
     this.addedPlayerListeners = false;
   }
@@ -685,11 +638,14 @@ ${indentString(this.queue.debugState(true))}
       this.retiredNativeSessions.has(event.sessionId)
     )
       return;
-    const track = this._queue.orderedTracks.find(
-      (track) =>
-        track.identifier === event.identifier && track.sourceTrack.uuid === event.sourceTrackUuid
-    );
-    if (!track) return;
+    const track = event.identifier
+      ? this._queue.orderedTracks.find(
+          (track) =>
+            track.identifier === event.identifier &&
+            track.sourceTrack.uuid === event.sourceTrackUuid
+        )
+      : undefined;
+    if (event.identifier && !track) return;
     if (this.nativeSessionId !== event.sessionId) {
       if (this.nativeSessionId && this.activeNativePlayRequestIdentifier !== event.identifier)
         return;
@@ -698,13 +654,14 @@ ${indentString(this.queue.debugState(true))}
       this.nativeSequence = -1;
     }
     if (event.sequence <= this.nativeSequence) return;
-    const changed = event.identifier !== this._queue.currentTrack?.identifier;
-    if (
-      changed &&
-      !event.trackChanged &&
-      event.identifier !== this.activeNativePlayRequestIdentifier
-    )
+    if (!track) {
+      // Terminal observations retain the last selected entry and its confirmed timing.
+      this.nativeSequence = event.sequence;
+      state.setState(event.playbackState);
+      this._queue.flushPlayerState();
       return;
+    }
+    const changed = event.identifier !== this._queue.currentTrack?.identifier;
     let supersededRequest = false;
     if (
       changed &&
@@ -717,30 +674,35 @@ ${indentString(this.queue.debugState(true))}
       this.requestedTrackIndex = undefined;
       supersededRequest = true;
     }
-    this._queue.applyPlaybackCheckpoint(() => {
-      this.nativeSequence = event.sequence;
-      this.nativeCheckpointEligible = true;
-      if (changed) currentTrackIdentifier.setState(event.identifier);
-      // A preview can still show an unconfirmed request. Persist native timing independently.
-      this.confirmedTrackIdentifier = event.identifier;
-      const previous = changed ? undefined : this.progress;
-      const duration =
-        Number.isFinite(event.duration) && (event.duration ?? 0) > 0
-          ? event.duration!
-          : (previous?.duration ?? (track.sourceTrack.duration || 100));
-      const elapsed = Math.max(
-        0,
-        Number.isFinite(event.elapsed) ? event.elapsed! : (previous?.elapsed ?? 0)
-      );
-      const progress = { elapsed, duration, percent: duration > 0 ? elapsed / duration : 0 };
-      if (
-        !this.activeNativePlayRequestIdentifier ||
-        this.activeNativePlayRequestIdentifier === event.identifier
-      ) {
-        sharedStateProgress.setState(progress);
-      }
-      this.progress = progress;
-    }, changed || event.checkpoint);
+    this._queue.applyPlaybackCheckpoint(
+      () => {
+        this.nativeSequence = event.sequence;
+        if (changed) currentTrackIdentifier.setState(event.identifier);
+        // A preview can still show an unconfirmed request. Persist native timing independently.
+        this.confirmedTrackIdentifier = event.identifier;
+        const previous = changed ? undefined : this.progress;
+        const duration =
+          Number.isFinite(event.duration) && (event.duration ?? 0) > 0
+            ? event.duration!
+            : (previous?.duration ?? (track.sourceTrack.duration || 100));
+        const elapsed = Math.max(
+          0,
+          Number.isFinite(event.elapsed) ? event.elapsed! : (previous?.elapsed ?? 0)
+        );
+        const progress = { elapsed, duration, percent: duration > 0 ? elapsed / duration : 0 };
+        // A pending request can preview B while native A finishes pausing.
+        const canPublish =
+          !this.activeNativePlayRequestIdentifier ||
+          this.activeNativePlayRequestIdentifier === event.identifier;
+        if (canPublish) sharedStateProgress.setState(progress);
+        this.progress = progress;
+        if (canPublish) state.setState(event.playbackState);
+      },
+      changed ||
+        event.checkpoint ||
+        event.playbackState === RelistenPlaybackState.Paused ||
+        event.playbackState === RelistenPlaybackState.Stopped
+    );
     if (supersededRequest) this.maybeStartNextPlayRequest();
   };
 

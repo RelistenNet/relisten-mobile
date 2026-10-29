@@ -24,7 +24,6 @@ describe('queue checkpoint write boundaries', () => {
         return progress;
       },
       checkpointProgress: () => progress,
-      checkpointSequence: 1,
       setNextStream: vi.fn(),
       cancelPendingPlayRequests: vi.fn(),
     };

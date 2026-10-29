@@ -13,7 +13,7 @@ afterEach(() => {
 });
 
 describe('Realm checkpoint schema compatibility', () => {
-  it('migrates schema 13 data without native checkpoint fields and writes a coherent schema 14 record', async () => {
+  it('migrates schema 13 data without queue entry identities and writes a coherent schema 14 record', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'relisten-checkpoint-'));
     directories.push(directory);
     const path = join(directory, 'player.realm');
@@ -21,8 +21,6 @@ describe('Realm checkpoint schema compatibility', () => {
     delete properties.queueTrackIdentifiers;
     delete properties.queueTrackShuffledIdentifiers;
     delete properties.activeSourceTrackUuid;
-    delete properties.nativeSequence;
-    delete properties.nativeCheckpointEnabled;
     const old = await Realm.open({
       path,
       schemaVersion: 13,
@@ -48,7 +46,6 @@ describe('Realm checkpoint schema compatibility', () => {
     try {
       const restored = PlayerState.defaultObject(realm)!;
       expect(restored.queueTrackIdentifiers.length).toBe(0);
-      expect(restored.nativeSequence == null).toBe(true);
       expect(restored.elapsed).toBe(120);
       PlayerState.upsert(realm, {
         queueShuffleState: 1,
@@ -60,8 +57,6 @@ describe('Realm checkpoint schema compatibility', () => {
         activeSourceTrackIndex: 1,
         activeSourceTrackShuffledIndex: 0,
         activeSourceTrackUuid: 'B',
-        nativeSequence: 99,
-        nativeCheckpointEnabled: true,
         lastUpdatedAt: new Date(),
         elapsed: 12,
         duration: 410,
@@ -70,7 +65,6 @@ describe('Realm checkpoint schema compatibility', () => {
       expect(restored.activeSourceTrackUuid).toBe('B');
       expect(restored.queueTrackIdentifiers[restored.activeSourceTrackIndex!]).toBe('entry-B');
       expect(restored.elapsed).toBe(12);
-      expect(restored.nativeSequence).toBe(99);
     } finally {
       realm.close();
     }

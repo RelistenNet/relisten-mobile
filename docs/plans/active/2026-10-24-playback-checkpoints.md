@@ -1,60 +1,33 @@
-# Preserve coherent playback checkpoints across interruptions
+# Save coherent playback state at native transitions and pause
 
-This ExecPlan is a living document. It records the implementation brief and proof for issue #158.
+## Outcome
 
-## Purpose / Big Picture
+Issue [#158](https://github.com/RelistenNet/relisten-mobile/issues/158) reports lost playback position. Separate track and progress events could pair the next queue entry with the previous entry's timing. A trailing save timer could also disappear before writing a pause. This change fixes those established mechanisms. It does not reproduce the reported loss across several tracks.
 
-After a native automatic or explicit track transition, interruption, or app restart, restore a queue entry and timing observed for that same entry. Avoid losing the last confirmed checkpoint merely because a trailing JavaScript timer or bridge callback did not run. This fixes established mechanisms; it does not claim to reproduce the reporter's several-track loss or Peter's CarPlay report.
+## Design
 
-## Progress
+The native player captures entry identity, source UUID, elapsed, duration, and playback state in one live observation before asynchronous delivery. `RelistenPlaybackSnapshot` documents the bridge contract. Timing uses seconds; a backend session and increasing sequence reject delayed observations. Sequence is local to that backend instance and is never persisted. Each queue occurrence has its own identity, so repeated source tracks remain distinct.
 
-- [x] Inspected upstream main 2bd727e, Alec's 30ffd2f, and zcmack's 0da784d / 457be48.
-- [x] Isolated codex/fix-playback-checkpoints from unrelated player/UI branches.
-- [x] Ported confirmed timing, explicit-request sequencing, and restore validation.
-- [x] Added native atomic identity/timing snapshots and native checkpoint journals.
-- [x] Regression matrix, code simplification and independent two-pass review; all three validated concerns fixed.
-- [x] 70 Vitest tests, 38 Swift support tests, 14 Android tests and unsigned iOS simulator build passed.
-- [x] Combined source merge with #159 ac3e44b has no conflicts; 70 Swift tests and unsigned iOS simulator build passed.
-- [x] Final aggregate checks on committed source: 70 Vitest tests, lint, types.
-- [x] Actual no-commit Git merge in /tmp/relisten-persistence-integration-final against #159 ac3e44b: no conflicts; 70 Vitest, lint/types, 70 Swift and 14 Android tests passed. Native sources match the successful combined iOS simulator build byte-for-byte.
-- [x] Draft PR https://github.com/RelistenNet/relisten-mobile/pull/160 opened and linked to companion #159. Exact pushed head and reported check status are verified separately after publishing; no CI is configured in the inspected base.
+`RelistenPlayer` accepts the observation before publishing selection, timing, and state. The queue suppresses intermediate saves while those fields change, then writes the completed observation. A terminal observation reports current Stopped state with no native track; it preserves the last selected queue entry and its confirmed timing. Native preparation does not confirm a requested selection before the renderer has prepared it. A pending request can preview a new entry without allowing the old entry's pause to overwrite that preview's state.
 
-## Context and Orientation
+Realm is the only playback persistence store. Queue transitions, edits, pause, stop, and background notifications save immediately. A fixed five-second timer saves normal progress; further updates cannot postpone it. Identical persisted records do not cause another write. Native background handling captures a current observation, whose checkpoint flag requests an immediate Realm save when JS receives it. The JS AppState callback also flushes the latest already-delivered observation.
 
-`relisten/player/relisten_player.tsx` owns native confirmation and the pending explicit request. `relisten_player_queue.tsx` owns queue entries and Realm checkpoint transactions. `modules/relisten-audio-player` bridges the iOS backend and Android MediaController. Each native observation carries an entry identifier, stable source UUID, native session, and sequence allocated at capture, before asynchronous delivery. Replacing a queue renews entry identifiers; reordering preserves them. Realm schema 14 stores original/shuffled entry identities so repeated source tracks remain distinguishable.
+Restore uses saved occurrence identities for selection and shuffled order, including duplicates. It filters missing catalog entries before selecting a surviving entry. Timing belongs to the identified entry; measured native duration takes precedence over catalog duration. Legacy records preserve elapsed, clamped to catalog duration when available. An unsolicited startup Paused event does not erase the saved queue or prevent resume from starting the restored stream at its saved position.
 
-## Invariants and Plan of Work
+## Scope decision
 
-Persist index, stable identity, and timing in one Realm transaction. Only matching confirmed native identity supplies timing. Reject older sequence numbers, mismatched source/entry identity, removed entries, and retired native sessions. Reset timing before publishing a newly confirmed queue entry; accept duration-only corrections. Preserve optimistic UI requests without allowing their timing to contaminate the confirmed checkpoint.
+The earlier implementation added native journals and reconciled them with Realm at startup. That feature and its cross-store sequence acknowledgments have been removed. No device reproduction or controlled experiment demonstrated a failure that requires a second persistent store. The review found that acknowledgment deduplication could itself restore an older native journal position after a backward seek.
 
-Normal Realm progress writes use a fixed five-second deadline that subsequent events cannot postpone. Structural queue changes and final saves run synchronously and cancel the pending timer. Deduplicate identical snapshots. Native journals write at most every five seconds during continuous playback, immediately for transitions and pause/interruption/background boundaries, and before teardown when callbacks execute. iOS uses an atomic file replacement; Android uses a synchronous SharedPreferences commit. On cold restore, accept a native journal only if its original queue-entry/source identity exists in persisted queue metadata and its capture sequence is newer than the Realm acknowledgment. Wall-clock timestamps are diagnostic only.
+This design makes no suspended-JS durability guarantee. If JS cannot receive the native pause/background observation before termination, Realm can retain an earlier position. Demonstrating that failure on a supported device would justify evaluating native persistence separately. Native legacy events remain outputs for older JavaScript; this JavaScript requires the new coherent bridge and has no legacy-event adapter.
 
-## Validation and Acceptance
+## Validation
 
-Regression matrix: auto/explicit advances; immediate pause/focus loss; interleaved native pause snapshots; repeated/out-of-order prior-track progress; duplicate transitions; duration-only updates; reorder/removal/replacement/clear; duplicate source entries; cold restore; old data without new fields; native session changes; stale/delayed journal writes; fixed write deadlines; write failure/retry; older native API fallback.
+Focused regressions exercise the player and queue through native observations and inspect persisted state: pause immediately after advance, stale/repeated observations, terminal stop, fixed save deadline, cancellation of pending writes, reordered/removed/replaced entries, duplicate occurrence restore, measured duration, and startup pause/restore/resume. The schema test opens an actual schema-13 Realm file at schema 14.
 
-Commands from the worktree: `nvm use`, `yarn test`, `yarn lint`, `yarn ts:check`; `swift test --package-path modules/relisten-audio-player --scratch-path /tmp/relisten-persistence-swift`; Android `JAVA_HOME=/opt/homebrew/opt/openjdk@21 ANDROID_HOME=$HOME/Library/Android/sdk ./gradlew :relisten-audio-player:testDebugUnitTest --offline --no-daemon` from android/. Run the shared pause-snapshot integration test and verify the companion diff applies without conflicts. Save actual results in this plan before publishing a draft.
+Local validation of the simplified source passed 63 Vitest tests, 33 Swift support tests, 12 Android tests plus native Kotlin compilation, lint, and TypeScript. Earlier journal-suite and combined-build results do not validate this revised implementation; the new combined iOS build is still pending. Physical-device background, navigation, call and CarPlay coverage remains outstanding.
 
-## Surprises & Discoveries
+## Release and rollback
 
-Unsolicited startup Paused notifications require an empty-player restore path: lifecycle flush must not erase disk data, and restored seek intent must start a new stream instead of resuming a nonexistent one. The startup regression covers both persistence and restore/resume.
+The change requires new iOS and Android binaries with matching JavaScript. Do not deliver it as an OTA update to an older binary. Realm advances from schema 13 to 14 for queue occurrence identities and timing ownership. Rollback must retain schema-14 support; exclude schema-13 JavaScript from the new runtime's OTA channel.
 
-The earlier timing patches did not address the suspended-JS gap. Emitting a final native event is insufficient by itself. A bounded native journal can recover timing only for queue entries already durably represented by Realm; it is not a second owner of queue contents.
-
-## Decision Log
-
-Use upstream main as the independent PR base. Remove the duration-similarity legacy reset after independent review: legacy data lacks identity to justify discarding elapsed. Identified modern records retain measured duration. Apply native identity, timing and acknowledgment inside one save-suppression transaction so no intermediate transition record reaches Realm. Reuse useful logic from Alec and zcmack without cherry-picking unrelated branch foundations. Replace timestamp-based reconciliation with sequence and queue-entry identity checks. Keep all interruption classification, resume intent, audio activation, and remote-command result policy in the companion PR.
-
-## Guarantees and Release Requirements
-
-Full identity validation and native-journal recovery require new iOS and Android binaries plus this JavaScript. Do not publish this as an OTA-only fix to old runtimes. When APIs are absent, use the legacy event path and shared final-save/bounded-timer improvements; old binaries cannot provide native identity or suspended-JS recovery. Old JavaScript continues receiving the unchanged legacy events from new native code. Realm schema advances from 13 to 14; rollback to JavaScript that opens schema 13 after migration is unsupported and must be excluded from the new runtime's OTA channel.
-
-There is no unconditional losslessness promise: sudden process/device failure can precede any callback, scheduled persistence, or filesystem completion. The journal stores the latest native observation, not a sample taken after a suspended renderer has stopped. Continuous native sampling and successful writes bound ordinary lag to roughly five seconds plus sampling/scheduling delays; pause/background callbacks attempt an immediate final checkpoint. File replacement prevents partial JSON records; no physical-power-loss fsync guarantee is claimed.
-
-## Idempotence and Recovery
-
-Tests use isolated fake clocks or temporary journal paths. No production data, release channel, or deployment is touched. Revert the branch commits to undo code changes; do not downgrade an already migrated Realm file.
-
-## Outcomes & Retrospective
-
-The persistence implementation and combined validation are complete. The actual integration checkout combines persistence source commit 4a0f2f815fec0796261c79c2efc0a2935e86f499 with companion #159 ac3e44b7bace18c4fa0d35b48fecddd0f63ef0cd. There are no merge conflicts and no required source changes to #159. Either merge order works; prefer #159 first for review organization. Native binaries and a schema-compatible OTA runtime/channel are required before release. Hardware listening/interruption coverage remains outstanding; the original several-track and Peter reports are not claimed reproduced. No CI workflows are configured in the inspected base; local passing checks are not described as green CI.
+PR [#159](https://github.com/RelistenNet/relisten-mobile/pull/159) separately controls iOS interruption permission and audio-session activation. When combining the PRs, an explicit resume outcome must force a coherent snapshot even if native state has not changed, so it corrects JavaScript's optimistic Play state. The combined source and native build need verification after that integration.

@@ -89,17 +89,22 @@ export interface RelistenPlaybackProgressChangedEvent {
   duration: number | undefined;
 }
 
-/** One native observation, stamped before async bridge delivery. Requires a native rebuild. */
+/**
+ * One live native observation, captured before asynchronous delivery. Requires a matching binary.
+ * sessionId identifies a backend instance; sequence increases within that instance, not across launches.
+ * Identity names one queue occurrence and its source. Absent identity means no active native track;
+ * the listener keeps its last queue selection while applying the reported transport state.
+ * elapsed/duration are seconds. Missing timing retains the same entry's confirmed timing, or uses
+ * zero/catalog duration for a newly selected entry. checkpoint requests an immediate Realm save.
+ */
 export interface RelistenPlaybackSnapshot {
   sessionId: string;
   sequence: number;
-  identifier: string;
-  sourceTrackUuid: string;
+  identifier?: string;
+  sourceTrackUuid?: string;
   elapsed?: number;
   duration?: number;
-  capturedAt: number;
   playbackState: RelistenPlaybackState;
-  trackChanged: boolean;
   checkpoint: boolean;
 }
 
@@ -145,20 +150,8 @@ class RelistenGaplessPlayer {
     return emitter.addListener('onPlaybackProgressChanged', listener);
   }
 
-  supportsPlaybackSnapshots(): boolean {
-    return typeof RelistenAudioPlayerModule.lastPlaybackCheckpoint === 'function';
-  }
-
   addPlaybackSnapshotListener(listener: (event: RelistenPlaybackSnapshot) => void): EventSubscription {
     return emitter.addListener('onPlaybackSnapshot', listener);
-  }
-
-  lastPlaybackCheckpoint(): RelistenPlaybackSnapshot | undefined {
-    return RelistenAudioPlayerModule.lastPlaybackCheckpoint?.() ?? undefined;
-  }
-
-  checkpointPlayback(): void {
-    RelistenAudioPlayerModule.checkpointPlayback?.();
   }
 
   addDownloadProgressListener(

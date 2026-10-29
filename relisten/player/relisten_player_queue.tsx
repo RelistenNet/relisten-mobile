@@ -590,7 +590,7 @@ ${indentString(tracks)}
     if (this.originalTracks.length > 0) this.savePlayerState(true);
   }
 
-  /** Selection, timing and native acknowledgment must cross the Realm boundary together. */
+  /** Selection and timing must cross the Realm boundary together. */
   public applyPlaybackCheckpoint(apply: () => void, immediate: boolean) {
     this.checkpointDepth += 1;
     try {
@@ -627,8 +627,6 @@ ${indentString(tracks)}
       queueSourceTrackShuffledUuids: this.shuffledTracks.map((t) => t.sourceTrack.uuid),
       queueTrackIdentifiers: this.originalTracks.map((t) => t.identifier),
       queueTrackShuffledIdentifiers: this.shuffledTracks.map((t) => t.identifier),
-      nativeSequence: this.player.checkpointSequence,
-      nativeCheckpointEnabled: this.player.allowsNativeCheckpoint,
       activeSourceTrackUuid: track?.sourceTrack.uuid,
       activeSourceTrackIndex: this.originalTracksCurrentIndex,
       activeSourceTrackShuffledIndex: this.shuffledTracksCurrentIndex,
@@ -636,7 +634,7 @@ ${indentString(tracks)}
       duration: progress?.duration ?? track?.sourceTrack.duration,
       elapsed: progress?.elapsed ?? (track ? 0 : undefined),
     };
-    const fingerprint = JSON.stringify({ ...state, nativeSequence: undefined });
+    const fingerprint = JSON.stringify(state);
     if (fingerprint === this.lastWrittenState) return;
     PlayerState.upsert(realm, { ...state, lastUpdatedAt: new Date() });
     this.lastWrittenState = fingerprint;
@@ -753,22 +751,7 @@ ${indentString(tracks)}
               playerState.queueSourceTrackShuffledUuids,
               playerState.activeSourceTrackShuffledIndex
             );
-      const nativeCheckpoint = nativePlayer.lastPlaybackCheckpoint?.();
-      const nativeIndex = nativeCheckpoint
-        ? [...(playerState.queueTrackIdentifiers ?? [])].indexOf(nativeCheckpoint.identifier)
-        : -1;
-      const useNativeCheckpoint =
-        nativeCheckpoint &&
-        playerState.nativeCheckpointEnabled !== false &&
-        nativeIndex >= 0 &&
-        restoredEntries.has(nativeCheckpoint.identifier) &&
-        nativeCheckpoint.sourceTrackUuid === playerState.queueSourceTrackUuids[nativeIndex] &&
-        Number.isFinite(nativeCheckpoint.capturedAt) &&
-        Number.isSafeInteger(nativeCheckpoint.sequence) &&
-        nativeCheckpoint.sequence > (playerState.nativeSequence ?? -1) &&
-        sourceTracksByUuid[nativeCheckpoint.sourceTrackUuid];
       const requestedRestoredTrackUuid =
-        (useNativeCheckpoint ? nativeCheckpoint.sourceTrackUuid : undefined) ??
         playerState.activeSourceTrackUuid ??
         preferredRestoredTrackUuid ??
         fallbackRestoredTrackUuid ??
@@ -779,9 +762,8 @@ ${indentString(tracks)}
       )
         ? requestedRestoredTrackUuid
         : this.originalTracks[0]?.sourceTrack.uuid;
-      const restoredIdentifier = useNativeCheckpoint
-        ? nativeCheckpoint.identifier
-        : playerState.queueTrackIdentifiers?.[playerState.activeSourceTrackIndex ?? -1];
+      const restoredIdentifier =
+        playerState.queueTrackIdentifiers?.[playerState.activeSourceTrackIndex ?? -1];
       const restoredEntry = restoredIdentifier
         ? restoredEntries.get(restoredIdentifier)
         : undefined;
@@ -804,24 +786,17 @@ ${indentString(tracks)}
       this._nextTrackIndex = undefined;
 
       const catalogDuration = this.currentTrack?.sourceTrack.duration;
-      const measuredDuration = useNativeCheckpoint
-        ? nativeCheckpoint.duration
-        : playerState.duration;
+      const measuredDuration = playerState.duration;
       const identifiedTiming =
-        useNativeCheckpoint ||
-        (this.currentTrack &&
-          playerState.activeSourceTrackUuid === this.currentTrack.sourceTrack.uuid);
+        this.currentTrack &&
+        playerState.activeSourceTrackUuid === this.currentTrack.sourceTrack.uuid;
       // Modern records identify their timing. Legacy records can only prefer catalog duration;
       // duration similarity to another track cannot prove the saved position is corrupt.
       const restoredDuration = (
         identifiedTiming ? [measuredDuration, catalogDuration] : [catalogDuration, measuredDuration]
       ).find((duration) => duration != null && Number.isFinite(duration) && duration > 0);
       const savedElapsed =
-        restoredTrackUuid !== requestedRestoredTrackUuid
-          ? 0
-          : useNativeCheckpoint
-            ? (nativeCheckpoint.elapsed ?? 0)
-            : playerState.elapsed;
+        restoredTrackUuid !== requestedRestoredTrackUuid ? 0 : playerState.elapsed;
 
       if (
         savedElapsed != null &&

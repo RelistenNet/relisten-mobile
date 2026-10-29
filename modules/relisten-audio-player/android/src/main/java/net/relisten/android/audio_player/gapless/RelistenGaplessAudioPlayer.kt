@@ -11,12 +11,8 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import net.relisten.android.audio_player.gapless.internal.ExoPlayerLifecycle
 import net.relisten.android.audio_player.gapless.internal.PlaybackUpdates
-import net.relisten.android.audio_player.gapless.internal.PlaybackCheckpointPolicy
 import net.relisten.android.audio_player.gapless.internal.StreamManagement
-import org.json.JSONObject
-import android.os.SystemClock
 import java.util.UUID
-import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.FutureTask
 
@@ -36,7 +32,7 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
     internal val streamManagement = StreamManagement(this)
     internal val playbackUpdates = PlaybackUpdates(this)
 
-    private val checkpointSessionId = UUID.randomUUID().toString()
+    private val snapshotSessionId = UUID.randomUUID().toString()
 
     init {
         if (appContext.reactContext == null) {
@@ -44,56 +40,27 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
         }
 
         reactContext = appContext.reactContext!!
-        activeCheckpointSessionId = checkpointSessionId
         exoplayerLifecycle.setupExoPlayer()
     }
 
-    companion object {
-        private val checkpointSequence = AtomicLong(0)
-        @Volatile private var activeCheckpointSessionId: String? = null
-    }
-    private var lastCheckpointIdentifier: String? = null
-    private val checkpointPolicy = PlaybackCheckpointPolicy()
-    private val checkpointPreferences by lazy {
-        reactContext.getSharedPreferences("relisten-playback-checkpoint", Context.MODE_PRIVATE)
-    }
+    private var snapshotSequence = 0L
 
-    fun lastPlaybackCheckpoint(): Map<String, Any?>? {
-        val json = checkpointPreferences.getString("snapshot", null) ?: return null
-        return try {
-            val record = JSONObject(json)
-            record.keys().asSequence().associateWith { key -> record.get(key).takeUnless { it == JSONObject.NULL } }
-        } catch (_: Exception) { null }
-    }
+    fun requestPlaybackSnapshot() { runOnControllerThread { emitPlaybackSnapshot(checkpoint = true) } }
 
-    fun checkpointPlayback() { runOnControllerThread { emitCheckpoint(force = true) } }
-
-    /** Sample the MediaController on its application looper, including identity. */
-    internal fun emitCheckpoint(force: Boolean = false) {
-        if (activeCheckpointSessionId != checkpointSessionId) return
+    /** Capture identity, seconds and transport state together on the controller looper. */
+    internal fun emitPlaybackSnapshot(checkpoint: Boolean = false) {
         val controller = exoPlayer ?: return
-        val identifier = controller.currentMediaItem?.mediaId ?: return
-        val stream = listOfNotNull(activeStream, nextStream).firstOrNull { it.streamable.identifier == identifier } ?: return
-        val changed = lastCheckpointIdentifier != identifier
-        lastCheckpointIdentifier = identifier
-        val persistedSequence = lastPlaybackCheckpoint()?.get("sequence") as? Number
-        checkpointSequence.updateAndGet { maxOf(it, persistedSequence?.toLong() ?: 0) }
+        val identifier = controller.currentMediaItem?.mediaId
+        val stream = listOfNotNull(activeStream, nextStream).firstOrNull { it.streamable.identifier == identifier }
         val snapshot = mapOf<String, Any?>(
-            "sessionId" to checkpointSessionId, "sequence" to checkpointSequence.incrementAndGet(),
-            "identifier" to identifier, "sourceTrackUuid" to stream.streamable.cacheKey,
-            "elapsed" to (controller.currentPosition / 1000.0).coerceAtLeast(0.0),
-            "duration" to (controller.duration / 1000.0).takeIf { it.isFinite() && it > 0 },
-            "capturedAt" to System.currentTimeMillis(),
+            "sessionId" to snapshotSessionId, "sequence" to ++snapshotSequence,
+            "identifier" to stream?.streamable?.identifier,
+            "sourceTrackUuid" to stream?.streamable?.cacheKey,
+            "elapsed" to stream?.let { (controller.currentPosition / 1000.0).coerceAtLeast(0.0) },
+            "duration" to stream?.let { (controller.duration / 1000.0).takeIf { it.isFinite() && it > 0 } },
             "playbackState" to relistenPlaybackStateFromPlayer(controller).toString(),
-            "trackChanged" to changed, "checkpoint" to force
+            "checkpoint" to checkpoint
         )
-        val fingerprint = listOf(snapshot["identifier"], snapshot["elapsed"], snapshot["duration"], snapshot["playbackState"]).toString()
-        val now = SystemClock.elapsedRealtime()
-        if (checkpointPolicy.shouldWrite(checkpointSequence.get(), fingerprint, now, force || changed)) {
-            if (checkpointPreferences.edit().putString("snapshot", JSONObject(snapshot).toString()).commit()) {
-                checkpointPolicy.committed(checkpointSequence.get(), fingerprint, now)
-            } else Log.e("relisten-audio-player", "Failed to write playback checkpoint")
-        }
         delegate?.playbackSnapshot(this, snapshot)
     }
 
@@ -191,7 +158,7 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
             _currentState = newValue
 
             if (dispatchUpdate) {
-                emitCheckpoint(force = newValue != RelistenPlaybackState.Playing)
+                emitPlaybackSnapshot(checkpoint = newValue != RelistenPlaybackState.Playing)
                 delegate?.playbackStateChanged(this@RelistenGaplessAudioPlayer, newValue)
             }
         }
@@ -265,7 +232,7 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
         if (exoPlayer != null) {
             scope.launch {
                 exoPlayer?.pause()
-                emitCheckpoint(force = true)
+                emitPlaybackSnapshot(checkpoint = true)
             }
         }
     }
@@ -273,7 +240,7 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
     fun stop() {
         if (exoPlayer != null) {
             scope.launch {
-                emitCheckpoint(force = true)
+                emitPlaybackSnapshot(checkpoint = true)
                 exoPlayer?.stop()
                 // Next stream must always be called first
                 maybeTearDownNextStream()
@@ -284,7 +251,7 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
 
     fun teardown() {
         scope.launch {
-            emitCheckpoint(force = true)
+            emitPlaybackSnapshot(checkpoint = true)
             exoplayerLifecycle.maybeTearDownExoPlayer()
         }
     }

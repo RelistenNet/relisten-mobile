@@ -11,8 +11,6 @@ export interface PlayerStateProps {
   activeSourceTrackShuffledIndex?: number;
   queueTrackIdentifiers?: string[];
   queueTrackShuffledIdentifiers?: string[];
-  nativeSequence?: number;
-  nativeCheckpointEnabled?: boolean;
   activeSourceTrackUuid?: string;
   lastUpdatedAt: Date;
   duration?: number;
@@ -34,8 +32,6 @@ export class PlayerState extends Realm.Object<PlayerState> implements PlayerStat
       activeSourceTrackShuffledIndex: 'int?',
       queueTrackIdentifiers: 'string[]',
       queueTrackShuffledIdentifiers: 'string[]',
-      nativeSequence: 'int?',
-      nativeCheckpointEnabled: 'bool?',
       activeSourceTrackUuid: 'string?',
       lastUpdatedAt: 'date',
       progress: 'float?',
@@ -53,8 +49,6 @@ export class PlayerState extends Realm.Object<PlayerState> implements PlayerStat
   activeSourceTrackShuffledIndex?: number;
   queueTrackIdentifiers!: string[];
   queueTrackShuffledIdentifiers!: string[];
-  nativeSequence?: number;
-  nativeCheckpointEnabled?: boolean;
   activeSourceTrackUuid?: string;
   lastUpdatedAt!: Date;
   progress?: number;
@@ -78,8 +72,6 @@ export class PlayerState extends Realm.Object<PlayerState> implements PlayerStat
         obj.activeSourceTrackShuffledIndex = props.activeSourceTrackShuffledIndex;
         obj.queueTrackIdentifiers = props.queueTrackIdentifiers ?? [];
         obj.queueTrackShuffledIdentifiers = props.queueTrackShuffledIdentifiers ?? [];
-        obj.nativeSequence = props.nativeSequence;
-        obj.nativeCheckpointEnabled = props.nativeCheckpointEnabled;
         obj.activeSourceTrackUuid = props.activeSourceTrackUuid;
         obj.lastUpdatedAt = props.lastUpdatedAt;
         obj.duration = Number.isFinite(props.duration) ? props.duration : undefined;

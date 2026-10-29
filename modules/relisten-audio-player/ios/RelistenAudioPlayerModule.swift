@@ -75,10 +75,7 @@ public class RelistenAudioPlayerModule: Module {
             "onTrackStreamingCacheComplete"
         )
 
-        OnAppEntersBackground { player?.enqueueCheckpoint() }
-
-        Function("checkpointPlayback") { player?.enqueueCheckpoint() }
-        Function("lastPlaybackCheckpoint") { player?.lastPlaybackCheckpoint()?.payload }
+        OnAppEntersBackground { player?.enqueuePlaybackSnapshot() }
 
         Function("currentDuration") {
             return player?.currentDurationSnapshot
@@ -255,7 +252,7 @@ extension RelistenAudioPlayerModule: PlaybackBackendDelegate {
         ])
     }
 
-    func playbackSnapshot(_ snapshot: PlaybackCheckpoint) {
+    func playbackSnapshot(_ snapshot: PlaybackSnapshot) {
         sendEvent("onPlaybackSnapshot", snapshot.payload)
     }
 

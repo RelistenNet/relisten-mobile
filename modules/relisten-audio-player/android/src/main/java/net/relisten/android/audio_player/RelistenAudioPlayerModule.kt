@@ -91,9 +91,7 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
 
         Events("onPlaybackSnapshot", "onError", "onPlaybackStateChanged", "onPlaybackProgressChanged", "onDownloadProgressChanged", "onTrackChanged", "onRemoteControl")
 
-        OnActivityEntersBackground { player?.checkpointPlayback() }
-        Function("checkpointPlayback") { player?.checkpointPlayback() }
-        Function("lastPlaybackCheckpoint") { player?.lastPlaybackCheckpoint() }
+        OnActivityEntersBackground { player?.requestPlaybackSnapshot() }
 
         Function("currentDuration") {
             return@Function player?.currentDuration

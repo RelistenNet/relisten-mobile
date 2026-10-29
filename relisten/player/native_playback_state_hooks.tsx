@@ -4,7 +4,6 @@ import {
   nativePlayer,
   RelistenDownloadProgressChangedEvent,
   RelistenErrorEvent,
-  RelistenPlaybackStateChangedEvent,
   RelistenRemoteControlEvent,
   RelistenTrackStreamingCacheCompleteEvent,
 } from '@/modules/relisten-audio-player';
@@ -48,14 +47,6 @@ export function addPlayerListeners() {
     }
   );
 
-  const playback = nativePlayer.addPlaybackStateListener(
-    (playbackState: RelistenPlaybackStateChangedEvent) => {
-      if (shouldUseNativeUpdates()) {
-        sharedStates.state.setState(playbackState.newPlaybackState);
-      }
-    }
-  );
-
   const remoteControlListener = nativePlayer.addRemoteControlListener(
     (event: RelistenRemoteControlEvent) => {
       sharedStates.remoteControlEvent.setState(event);
@@ -78,7 +69,6 @@ export function addPlayerListeners() {
 
   return () => {
     download.remove();
-    playback.remove();
     latestErrorListener.remove();
     remoteControlListener.remove();
     trackStreamingCacheCompleteListener.remove();

@@ -1,5 +1,4 @@
 import { AppState } from 'react-native';
-import { nativePlayer } from '@/modules/relisten-audio-player';
 import React, { PropsWithChildren, useContext, useEffect, useState } from 'react';
 import { RelistenPlayer, RelistenPlayerReportTrackEvent } from '@/relisten/player/relisten_player';
 import { useRealm } from '@/relisten/realm/schema';
@@ -36,7 +35,6 @@ export const RelistenPlayerProvider = ({ children }: PropsWithChildren<object>) 
     const subscription = AppState.addEventListener('change', (nextState) => {
       if (nextState !== 'active') {
         player.queue.flushPlayerState();
-        nativePlayer.checkpointPlayback();
       }
     });
     return () => {

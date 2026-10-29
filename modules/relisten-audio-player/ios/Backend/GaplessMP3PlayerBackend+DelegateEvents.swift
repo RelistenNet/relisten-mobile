@@ -2,7 +2,7 @@ import Foundation
 
 extension GaplessMP3PlayerBackend {
     @discardableResult
-    func applyPresentationAndEmit(previous: GaplessBackendSnapshot, freezeAfterUpdate: Bool = false) -> GaplessBackendSnapshot {
+    func applyPresentationAndEmit(previous: GaplessBackendSnapshot, freezeAfterUpdate: Bool = false, forceStateEmission: Bool = false) -> GaplessBackendSnapshot {
         // Presentation is the only place that translates native renderer facts
         // into both JS state and Media Center state. Keeping delegate emission
         // adjacent to that write makes the two surfaces easier to reason about.
@@ -10,38 +10,33 @@ extension GaplessMP3PlayerBackend {
             snapshotStore: snapshotStore,
             freezeAfterUpdate: freezeAfterUpdate
         )
-        emitStateIfNeeded(previous: previous.currentState, current: current.currentState)
+        emitStateIfNeeded(previous: previous.currentState, current: current.currentState, force: forceStateEmission)
         emitProgressIfNeeded(previous: previous, current: current)
         emitDownloadProgressIfNeeded(previous: previous, current: current)
         if previous.currentStreamable?.identifier != current.currentStreamable?.identifier ||
            previous.elapsed != current.elapsed || previous.currentDuration != current.currentDuration ||
-           previous.currentState != current.currentState || freezeAfterUpdate {
-            emitCheckpoint(current.currentStreamable == nil ? previous : current,
-                           force: freezeAfterUpdate || current.currentState == .Paused || current.currentState == .Stopped)
+           previous.currentState != current.currentState || freezeAfterUpdate || forceStateEmission {
+            emitPlaybackSnapshot(current,
+                                 checkpoint: forceStateEmission || freezeAfterUpdate || current.currentState == .Paused || current.currentState == .Stopped)
         }
         return current
     }
 
-    /// Capture identity and timing together on backendQueue, never by rereading mutable state
-    /// from a delayed delegate callback. This also journals interruption snapshots when JS sleeps.
-    func emitCheckpoint(_ snapshot: GaplessBackendSnapshot, force: Bool) {
-        guard let streamable = snapshot.currentStreamable else { return }
+    /// Capture current state and timing together on backendQueue before bridge delivery.
+    /// Stopping emits nil identity with Stopped, never a replay of the preceding Playing state.
+    func emitPlaybackSnapshot(_ snapshot: GaplessBackendSnapshot, checkpoint: Bool) {
+        // Preparing metadata is not confirmation that the renderer selected the requested track.
         guard !snapshot.isPreparingCurrentTrack || snapshot.elapsed != nil else { return }
-        let checkpointSequence = checkpointStore.nextSequence()
-        let changed = lastCheckpointIdentifier != streamable.identifier
-        lastCheckpointIdentifier = streamable.identifier
-        let checkpoint = PlaybackCheckpoint(
-            sessionId: backendInstanceID, sequence: checkpointSequence,
-            identifier: streamable.identifier, sourceTrackUuid: streamable.cacheKey,
+        playbackSnapshotSequence += 1
+        let observation = PlaybackSnapshot(
+            sessionId: backendInstanceID, sequence: playbackSnapshotSequence,
+            identifier: snapshot.currentStreamable?.identifier,
+            sourceTrackUuid: snapshot.currentStreamable?.cacheKey,
             elapsed: snapshot.elapsed.flatMap { $0.isFinite ? max(0, $0) : nil },
             duration: snapshot.currentDuration.flatMap { $0.isFinite && $0 > 0 ? $0 : nil },
-            capturedAt: Date().timeIntervalSince1970 * 1000,
-            playbackState: snapshot.currentState.rawValue, trackChanged: changed,
-            checkpoint: force
+            playbackState: snapshot.currentState.rawValue, checkpoint: checkpoint
         )
-        do { try checkpointStore.write(checkpoint) }
-        catch { backendErrorLog.error("failed", "playback checkpoint write", playbackLogErrorField(String(describing: error))) }
-        delegateQueue.async { self.delegate?.playbackSnapshot(checkpoint) }
+        delegateQueue.async { self.delegate?.playbackSnapshot(observation) }
     }
 
     func emitRemoteControl(_ method: String) {
@@ -71,8 +66,8 @@ extension GaplessMP3PlayerBackend {
         }
     }
 
-    private func emitStateIfNeeded(previous: PlaybackState, current: PlaybackState) {
-        guard previous != current else { return }
+    private func emitStateIfNeeded(previous: PlaybackState, current: PlaybackState, force: Bool) {
+        guard force || previous != current else { return }
         delegateQueue.async {
             self.delegate?.playbackStateChanged(newPlaybackState: current)
         }
