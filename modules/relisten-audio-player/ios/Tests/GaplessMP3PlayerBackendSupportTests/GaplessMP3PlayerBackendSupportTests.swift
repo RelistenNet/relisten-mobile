@@ -146,7 +146,7 @@ final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
                 sideEffects.append("play")
                 return true
             },
-            updateStateToPlaying: { sideEffects.append("updateStateToPlaying") }
+            onPlayAccepted: { sideEffects.append("onPlayAccepted") }
         )
 
         XCTAssertEqual(sideEffects, [])
@@ -162,12 +162,12 @@ final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
                 sideEffects.append("play")
                 return true
             },
-            updateStateToPlaying: { sideEffects.append("updateStateToPlaying") }
+            onPlayAccepted: { sideEffects.append("onPlayAccepted") }
         )
 
         XCTAssertEqual(
             sideEffects,
-            ["prepareAudioSession", "play", "updateStateToPlaying"]
+            ["prepareAudioSession", "play", "onPlayAccepted"]
         )
     }
 
@@ -181,7 +181,7 @@ final class GaplessMP3PlayerBackendSupportTests: XCTestCase {
                 sideEffects.append("play")
                 return false
             },
-            updateStateToPlaying: { sideEffects.append("updateStateToPlaying") }
+            onPlayAccepted: { sideEffects.append("onPlayAccepted") }
         )
 
         XCTAssertEqual(sideEffects, ["prepareAudioSession", "play"])

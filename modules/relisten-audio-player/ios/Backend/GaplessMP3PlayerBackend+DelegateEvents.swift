@@ -2,7 +2,7 @@ import Foundation
 
 extension GaplessMP3PlayerBackend {
     @discardableResult
-    func applyPresentationAndEmit(previous: GaplessBackendSnapshot, freezeAfterUpdate: Bool = false) -> GaplessBackendSnapshot {
+    func applyPresentationAndEmit(previous: GaplessBackendSnapshot, freezeAfterUpdate: Bool = false, forceStateEmission: Bool = false) -> GaplessBackendSnapshot {
         // Presentation is the only place that translates native renderer facts
         // into both JS state and Media Center state. Keeping delegate emission
         // adjacent to that write makes the two surfaces easier to reason about.
@@ -10,7 +10,7 @@ extension GaplessMP3PlayerBackend {
             snapshotStore: snapshotStore,
             freezeAfterUpdate: freezeAfterUpdate
         )
-        emitStateIfNeeded(previous: previous.currentState, current: current.currentState)
+        emitStateIfNeeded(previous: previous.currentState, current: current.currentState, force: forceStateEmission)
         emitProgressIfNeeded(previous: previous, current: current)
         emitDownloadProgressIfNeeded(previous: previous, current: current)
         return current
@@ -43,8 +43,8 @@ extension GaplessMP3PlayerBackend {
         }
     }
 
-    private func emitStateIfNeeded(previous: PlaybackState, current: PlaybackState) {
-        guard previous != current else { return }
+    private func emitStateIfNeeded(previous: PlaybackState, current: PlaybackState, force: Bool) {
+        guard force || previous != current else { return }
         delegateQueue.async {
             self.delegate?.playbackStateChanged(newPlaybackState: current)
         }
