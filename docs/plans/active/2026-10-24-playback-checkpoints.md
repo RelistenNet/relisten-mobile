@@ -6,7 +6,7 @@ Issue [#158](https://github.com/RelistenNet/relisten-mobile/issues/158) reports 
 
 ## Design
 
-The native player captures entry identity, source UUID, elapsed, duration, and playback state in one live observation before asynchronous delivery. `RelistenPlaybackSnapshot` documents the bridge contract. Timing uses seconds; a backend session and increasing sequence reject delayed observations. Sequence is local to that backend instance and is never persisted. Each queue occurrence has its own identity, so repeated source tracks remain distinct.
+The native player captures entry identity, source UUID, elapsed, duration, and playback state in one live observation before asynchronous delivery. `RelistenPlaybackSnapshot` documents the bridge contract. Timing uses seconds; a backend session and increasing sequence reject delayed observations. Sequence is local to that backend instance and is never persisted. Each queue occurrence has its own identity, so repeated source tracks remain distinct. Queue insertion copies each input into a fresh occurrence and shares that occurrence between original and shuffled order. Re-enqueuing an existing entry therefore keeps its current native identity and creates a separate identity for the added occurrence.
 
 `RelistenPlayer` accepts the observation before publishing selection, timing, and state. The queue suppresses intermediate saves while those fields change, then writes the completed observation. A terminal observation reports current Stopped state with no native track; it preserves the last selected queue entry and its confirmed timing. Android emits that observation when the controller loses its last media item, even when an already-paused transport does not emit another state change. Play can then start the selected stream instead of resuming an empty controller. Native preparation does not confirm a requested selection before the renderer has prepared it. A pending request can preview a new entry without allowing the old entry's pause to overwrite that preview's state.
 
@@ -36,7 +36,7 @@ This design makes no suspended-JS durability guarantee. If JS cannot receive the
 
 Focused regressions exercise the player and queue through native observations and inspect persisted state: pause immediately after advance, stale/repeated observations, terminal stop, fixed save deadline, cancellation of pending writes, reordered/removed/replaced entries, duplicate occurrence restore and advance followed by shuffle-off, missing selected sources, measured duration, UI progress throttling, listening-history thresholds between UI updates, and startup pause/restore/resume. The schema test opens an actual schema-13 Realm file at schema 14.
 
-The embedded-schema implementation passes 75 Vitest tests, lint, and TypeScript checks. Both independent review passes have no remaining actionable findings after the native-confirmation and unknown-duration fixes.
+The embedded-schema implementation passes 77 Vitest tests, lint, and TypeScript checks. Both independent review passes have no remaining actionable findings after the native-confirmation and unknown-duration fixes.
 
 The readability pass also expands compressed native snapshot construction without changing its payload or emission conditions. All 33 Swift support tests, 12 Android tests, and Kotlin compilation pass. The combined iOS sources with #159 pass a Debug simulator rebuild.
 

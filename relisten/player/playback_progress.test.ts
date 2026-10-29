@@ -183,8 +183,8 @@ describe('native requests and confirmation', () => {
   beforeEach(() => scenario.startPlayingQueue());
 
   it('queues the next request when native auto-advance arrives before the pending pause resolves', async () => {
-    const third = track('third', 430);
-    player.queue.addTrackToEndOfQueue([third]);
+    player.queue.addTrackToEndOfQueue([track('third', 430)]);
+    const third = player.queue.orderedTracks[2];
     let finishPause!: () => void;
     const pendingPause = new Promise<void>((resolve) => {
       finishPause = resolve;
@@ -209,8 +209,8 @@ describe('native requests and confirmation', () => {
   });
 
   it('follows an unexpected native transition after the play request is issued', async () => {
-    const third = track('third', 430);
-    player.queue.addTrackToEndOfQueue([third]);
+    player.queue.addTrackToEndOfQueue([track('third', 430)]);
+    const third = player.queue.orderedTracks[2];
 
     player.next();
     await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
@@ -396,6 +396,47 @@ describe('progress publication and listening history', () => {
 
 describe('checkpoint persistence and queue edits', () => {
   beforeEach(() => scenario.startPlayingQueue());
+
+  it.each(['Play Next', 'Add to End'] as const)(
+    'preserves re-enqueued occurrences and the playing checkpoint after restore: %s',
+    async (action) => {
+      const playingIdentifier = minglewood.identifier;
+      player.queue.setShuffleState(PlayerShuffleState.SHUFFLE_ON);
+
+      // Queue menus can pass the same existing entry on every invocation.
+      if (action === 'Play Next') {
+        player.queue.queueNextTrack([minglewood, minglewood]);
+      } else {
+        player.queue.addTrackToEndOfQueue([minglewood, minglewood]);
+      }
+      // Exercise a playback order that differs from the original order.
+      player.queue.moveQueueTrack(1, 3);
+      const expectedOrder = player.queue.orderedTracks.map((entry) => entry.identifier);
+      const saved = scenario.savedState;
+      expect(player.queue.currentTrack).toBe(minglewood);
+      expect(minglewood.identifier).toBe(playingIdentifier);
+      expect(scenario.savedCheckpoint).toMatchObject({
+        entryId: playingIdentifier,
+        elapsedSeconds: 120,
+      });
+
+      scenario.dispose();
+      scenario = new PlaybackScenario();
+      player = scenario.player;
+      await scenario.restore(saved);
+
+      expect(player.queue.orderedTracks).toHaveLength(4);
+      expect(player.queue.orderedTracks.map((entry) => entry.identifier)).toEqual(expectedOrder);
+      expect(new Set(expectedOrder).size).toBe(4);
+      expect(player.queue.currentTrack?.identifier).toBe(playingIdentifier);
+      expect(player.progress?.elapsed).toBe(120);
+
+      player.queue.setShuffleState(PlayerShuffleState.SHUFFLE_OFF);
+      expect(player.queue.orderedTracks.map((entry) => entry.identifier)).toEqual(
+        saved.queueEntries.map((entry) => entry.id)
+      );
+    }
+  );
 
   it('saves the new track with its own progress when paused before native progress arrives', async () => {
     player.next();

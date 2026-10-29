@@ -70,6 +70,18 @@ export class PlayerQueueTrack {
     this.identifier = nextQueueTrackId();
   }
 
+  /** Copy playback metadata into a fresh occurrence without changing this entry. */
+  newOccurrence(): PlayerQueueTrack {
+    return new PlayerQueueTrack(
+      this.sourceTrack,
+      this.title,
+      this.artist,
+      this.subtitle,
+      this.albumTitle,
+      this.albumArt
+    );
+  }
+
   static fromSourceTrack(sourceTrack: SourceTrack) {
     const artist = sourceTrack.artist;
     const source = sourceTrack.source;
@@ -150,11 +162,12 @@ export class RelistenPlayerQueue {
   public prevNextTrackIndexIntentOffset = 0;
 
   queueNextTrack(queueTracks: PlayerQueueTrack[]) {
+    const newEntries = queueTracks.map((track) => track.newOccurrence());
     function insertNext(arr: PlayerQueueTrack[], currentIndex: number | undefined) {
       const targetIndex = currentIndex !== undefined ? currentIndex + 1 : 0;
       const arrCopy = [...arr];
 
-      arrCopy.splice(targetIndex, 0, ...queueTracks);
+      arrCopy.splice(targetIndex, 0, ...newEntries);
 
       return arrCopy;
     }
@@ -168,8 +181,9 @@ export class RelistenPlayerQueue {
   }
 
   addTrackToEndOfQueue(queueTracks: PlayerQueueTrack[]) {
-    this.originalTracks = [...this.originalTracks, ...queueTracks];
-    this.shuffledTracks = [...this.shuffledTracks, ...queueTracks];
+    const newEntries = queueTracks.map((track) => track.newOccurrence());
+    this.originalTracks = [...this.originalTracks, ...newEntries];
+    this.shuffledTracks = [...this.shuffledTracks, ...newEntries];
 
     this.recalculateNextTrack();
     this.onOrderedTracksChanged.dispatch(this.orderedTracks);
