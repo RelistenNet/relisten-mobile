@@ -26,6 +26,7 @@ export interface PlayerStateProps {
   /** Null disables shuffle; an order contains each queue entry ID once. */
   shuffleOrder: PlayerShuffleOrderProps | null;
   repeatMode: PlayerRepeatState;
+  /** Null preserves a queue without selecting an entry. */
   checkpoint: PlayerCheckpointProps | null;
   lastUpdatedAt: Date;
 }
@@ -125,22 +126,22 @@ export class PlayerState extends Realm.Object<PlayerState> {
         repeatMode: props.repeatMode,
         lastUpdatedAt: props.lastUpdatedAt,
       };
-      if (
+      const queueChanged =
         current.queueEntries.length !== props.queueEntries.length ||
         current.queueEntries.some(
           (entry, index) =>
             entry.id !== props.queueEntries[index].id ||
             entry.sourceTrackUuid !== props.queueEntries[index].sourceTrackUuid
-        )
-      ) {
+        );
+      if (queueChanged) {
         updates.queueEntries = props.queueEntries;
       }
       const oldOrder = current.shuffleOrder?.entryIds;
       const newOrder = props.shuffleOrder?.entryIds;
-      if (
+      const shuffleChanged =
         oldOrder?.length !== newOrder?.length ||
-        oldOrder?.some((id, index) => id !== newOrder?.[index])
-      ) {
+        oldOrder?.some((id, index) => id !== newOrder?.[index]);
+      if (shuffleChanged) {
         updates.shuffleOrder = props.shuffleOrder;
       }
       if (current.checkpoint && props.checkpoint) {
@@ -160,7 +161,9 @@ export class PlayerState extends Realm.Object<PlayerState> {
 
   static clear(realm: Realm) {
     const current = this.defaultObject(realm);
-    if (current) realm.write(() => realm.delete(current));
+    if (current) {
+      realm.write(() => realm.delete(current));
+    }
   }
 
   debugState() {

@@ -1,5 +1,5 @@
 /// <reference types="node" />
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import Realm from 'realm';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -44,162 +44,189 @@ interface LegacyStateFixture {
   activeSourceTrackShuffledIndex: number | null;
 }
 
-const directories: string[] = [];
-const openedRealms: Realm[] = [];
-afterEach(() => {
-  for (const realm of openedRealms.splice(0)) if (!realm.isClosed) realm.close();
-  for (const directory of directories.splice(0))
-    rmSync(directory, { recursive: true, force: true });
-});
-
-function realmPath() {
-  const directory = mkdtempSync(join(tmpdir(), 'relisten-checkpoint-'));
-  directories.push(directory);
-  return join(directory, 'player.realm');
+interface LegacyRealmContents {
+  playerState?: Partial<LegacyStateFixture>;
+  catalogDuration?: number;
 }
 
-async function openCurrent(path: string) {
-  const realm = await Realm.open({
-    path,
-    schemaVersion: 14,
-    schema: [...PLAYER_STATE_SCHEMAS, sourceTrack],
-    onMigration: migratePlayerState,
-  });
-  openedRealms.push(realm);
-  return realm;
-}
+/** Each test owns one actual Realm file and every connection opened against it. */
+class PlayerStateRealmFile {
+  private directory = mkdtempSync(join(tmpdir(), 'relisten-checkpoint-'));
+  private path = join(this.directory, 'player.realm');
+  private connections: Realm[] = [];
 
-async function createLegacy(
-  path: string,
-  fixture: Partial<LegacyStateFixture> = {},
-  catalogDuration?: number
-) {
-  const realm = await Realm.open({
-    path,
-    schemaVersion: 13,
-    schema: [legacyPlayerState, sourceTrack],
-  });
-  openedRealms.push(realm);
-  realm.write(() => {
-    realm.create('PlayerState', {
-      id: PLAYER_STATE_SENTINEL,
-      queueShuffleState: PlayerShuffleState.SHUFFLE_OFF,
-      queueRepeatState: PlayerRepeatState.REPEAT_QUEUE,
-      queueSourceTrackUuids: ['A', 'B'],
-      queueSourceTrackShuffledUuids: ['B', 'A'],
-      activeSourceTrackIndex: 0,
-      activeSourceTrackShuffledIndex: 1,
-      lastUpdatedAt: new Date('2026-10-20T12:00:00Z'),
-      elapsed: 180,
-      duration: 150,
-      progress: 1,
-      ...fixture,
+  async writeLegacy(contents: LegacyRealmContents = {}) {
+    const realm = await Realm.open({
+      path: this.path,
+      schemaVersion: 13,
+      schema: [legacyPlayerState, sourceTrack],
     });
-    if (catalogDuration !== undefined)
-      realm.create('SourceTrack', { uuid: 'A', duration: catalogDuration });
-  });
-  realm.close();
+    this.connections.push(realm);
+    realm.write(() => {
+      realm.create('PlayerState', {
+        id: PLAYER_STATE_SENTINEL,
+        queueShuffleState: PlayerShuffleState.SHUFFLE_OFF,
+        queueRepeatState: PlayerRepeatState.REPEAT_QUEUE,
+        queueSourceTrackUuids: ['A', 'B'],
+        queueSourceTrackShuffledUuids: ['B', 'A'],
+        activeSourceTrackIndex: 0,
+        activeSourceTrackShuffledIndex: 1,
+        lastUpdatedAt: new Date('2026-10-20T12:00:00Z'),
+        elapsed: 180,
+        duration: 150,
+        progress: 1,
+        ...contents.playerState,
+      });
+      if (contents.catalogDuration !== undefined) {
+        realm.create('SourceTrack', { uuid: 'A', duration: contents.catalogDuration });
+      }
+    });
+    realm.close();
+  }
+
+  async openCurrent() {
+    const realm = await Realm.open({
+      path: this.path,
+      schemaVersion: 14,
+      schema: [...PLAYER_STATE_SCHEMAS, sourceTrack],
+      onMigration: migratePlayerState,
+    });
+    this.connections.push(realm);
+    return realm;
+  }
+
+  dispose() {
+    for (const realm of this.connections) {
+      if (!realm.isClosed) {
+        realm.close();
+      }
+    }
+    rmSync(this.directory, { recursive: true, force: true });
+  }
+}
+
+function duplicateQueueState(): PlayerStateProps {
+  return {
+    queueEntries: [
+      { id: 'first-A', sourceTrackUuid: 'A' },
+      { id: 'second-A', sourceTrackUuid: 'A' },
+    ],
+    shuffleOrder: { entryIds: ['second-A', 'first-A'] },
+    repeatMode: PlayerRepeatState.REPEAT_TRACK,
+    checkpoint: { entryId: 'second-A', elapsedSeconds: 10, durationSeconds: 300 },
+    lastUpdatedAt: new Date(),
+  };
 }
 
 describe('Realm playback checkpoints', () => {
-  it('migrates duplicate queue occurrences and preserves the selected original/shuffled pair after reopening', async () => {
-    const path = realmPath();
-    await createLegacy(
-      path,
-      {
+  let file: PlayerStateRealmFile;
+
+  beforeEach(() => {
+    file = new PlayerStateRealmFile();
+  });
+  afterEach(() => {
+    file.dispose();
+  });
+
+  it('preserves the selected duplicate occurrence in both orders after migration and reopen', async () => {
+    await file.writeLegacy({
+      playerState: {
         queueSourceTrackUuids: ['A', 'B', 'A', 'C'],
         queueSourceTrackShuffledUuids: ['A', 'A', 'C', 'B'],
         queueShuffleState: PlayerShuffleState.SHUFFLE_ON,
         activeSourceTrackIndex: 2,
         activeSourceTrackShuffledIndex: 0,
       },
-      300
-    );
-    const migrated = await openCurrent(path);
+      catalogDuration: 300,
+    });
+
+    const migrated = await file.openCurrent();
     const state = PlayerState.defaultObject(migrated)!;
-    const ids = state.queueEntries.map((entry) => entry.id);
+    const [firstA, trackB, secondA, trackC] = state.queueEntries;
+    const occurrenceIds = state.queueEntries.map((entry) => entry.id);
     expect(state.queueEntries.map((entry) => entry.sourceTrackUuid)).toEqual(['A', 'B', 'A', 'C']);
-    expect(state.shuffleOrder?.entryIds.slice()).toEqual([ids[2], ids[0], ids[3], ids[1]]);
-    expect(state.checkpoint?.entryId).toBe(ids[2]);
-    expect(state.checkpoint?.elapsedSeconds).toBe(180);
-    expect(state.checkpoint?.durationSeconds).toBe(300);
+    expect(state.shuffleOrder?.entryIds.slice()).toEqual([
+      secondA.id,
+      firstA.id,
+      trackC.id,
+      trackB.id,
+    ]);
+    expect(state.checkpoint).toMatchObject({
+      entryId: secondA.id,
+      elapsedSeconds: 180,
+      durationSeconds: 300,
+    });
     expect(state.repeatMode).toBe(PlayerRepeatState.REPEAT_QUEUE);
     migrated.close();
 
-    const reopened = PlayerState.defaultObject(await openCurrent(path))!;
-    expect(reopened.queueEntries.map((entry) => entry.id)).toEqual(ids);
+    const reopened = PlayerState.defaultObject(await file.openCurrent())!;
+    expect(reopened.queueEntries.map((entry) => entry.id)).toEqual(occurrenceIds);
     expect(reopened.shuffleOrder?.entryIds[0]).toBe(reopened.checkpoint?.entryId);
     expect(reopened.checkpoint?.elapsedSeconds).toBe(180);
   });
 
   it.each([
-    { catalogDuration: 100, expected: 100 },
-    { catalogDuration: undefined, expected: 150 },
-  ])(
-    'clamps legacy elapsed to catalog duration or saved duration: $expected',
-    async ({ catalogDuration, expected }) => {
-      const path = realmPath();
-      await createLegacy(path, {}, catalogDuration);
-      const state = PlayerState.defaultObject(await openCurrent(path))!;
-      expect(state.checkpoint?.elapsedSeconds).toBe(expected);
-      expect(state.checkpoint?.durationSeconds).toBe(expected);
-      expect(state.shuffleOrder).toBeNull();
-    }
-  );
+    { name: 'catalog duration', catalogDuration: 100, expected: 100 },
+    { name: 'saved duration when the catalog has none', catalogDuration: undefined, expected: 150 },
+  ])('clamps legacy elapsed to $name', async ({ catalogDuration, expected }) => {
+    await file.writeLegacy({ catalogDuration });
+
+    const state = PlayerState.defaultObject(await file.openCurrent())!;
+    expect(state.checkpoint).toMatchObject({
+      elapsedSeconds: expected,
+      durationSeconds: expected,
+    });
+    expect(state.shuffleOrder).toBeNull();
+  });
 
   it('preserves a queue without a selected entry', async () => {
-    const path = realmPath();
-    await createLegacy(path, {
-      activeSourceTrackIndex: null,
-      activeSourceTrackShuffledIndex: null,
+    await file.writeLegacy({
+      playerState: { activeSourceTrackIndex: null, activeSourceTrackShuffledIndex: null },
     });
-    const state = PlayerState.defaultObject(await openCurrent(path))!;
-    expect(state.queueEntries.length).toBe(2);
+
+    const state = PlayerState.defaultObject(await file.openCurrent())!;
+    expect(state.queueEntries).toHaveLength(2);
     expect(state.checkpoint).toBeNull();
   });
 
-  it('updates progress without replacing the embedded queue, then saves removal and selection atomically', async () => {
-    const path = realmPath();
-    const realm = await openCurrent(path);
-    const props: PlayerStateProps = {
-      queueEntries: [
-        { id: 'first', sourceTrackUuid: 'A' },
-        { id: 'second', sourceTrackUuid: 'A' },
-      ],
-      shuffleOrder: { entryIds: ['second', 'first'] },
-      repeatMode: PlayerRepeatState.REPEAT_TRACK,
-      checkpoint: {
-        entryId: 'second',
-        elapsedSeconds: 10,
-        durationSeconds: 300,
-      },
-      lastUpdatedAt: new Date(),
-    };
-    const state = PlayerState.upsert(realm, props);
-    const entry = state.queueEntries[0];
-    const order = state.shuffleOrder!;
-    const checkpoint = state.checkpoint!;
-    PlayerState.upsert(realm, {
-      ...props,
-      checkpoint: { entryId: 'second', elapsedSeconds: 11 },
-    });
-    expect(entry.isValid()).toBe(true);
-    expect(order.isValid()).toBe(true);
-    expect(checkpoint.isValid()).toBe(true);
-    expect(checkpoint.elapsedSeconds).toBe(11);
-    expect(checkpoint.durationSeconds).toBeNull();
+  it('updates progress in place without replacing embedded queue records', async () => {
+    const realm = await file.openCurrent();
+    const initial = duplicateQueueState();
+    const state = PlayerState.upsert(realm, initial);
+    const originalEntry = state.queueEntries[0];
+    const originalOrder = state.shuffleOrder!;
+    const originalCheckpoint = state.checkpoint!;
 
     PlayerState.upsert(realm, {
-      ...props,
-      queueEntries: [props.queueEntries[0]],
+      ...initial,
+      checkpoint: { entryId: 'second-A', elapsedSeconds: 11 },
+    });
+
+    expect(originalEntry.isValid()).toBe(true);
+    expect(originalOrder.isValid()).toBe(true);
+    expect(originalCheckpoint.isValid()).toBe(true);
+    expect(originalCheckpoint).toMatchObject({ elapsedSeconds: 11, durationSeconds: null });
+  });
+
+  it('saves queue removal, shuffle off, and cleared selection together across reopen', async () => {
+    const realm = await file.openCurrent();
+    const initial = duplicateQueueState();
+    const state = PlayerState.upsert(realm, initial);
+    const originalOrder = state.shuffleOrder!;
+    const originalCheckpoint = state.checkpoint!;
+
+    PlayerState.upsert(realm, {
+      ...initial,
+      queueEntries: [initial.queueEntries[0]],
       shuffleOrder: null,
       checkpoint: null,
     });
-    expect(order.isValid()).toBe(false);
-    expect(checkpoint.isValid()).toBe(false);
+    expect(originalOrder.isValid()).toBe(false);
+    expect(originalCheckpoint.isValid()).toBe(false);
     realm.close();
-    const reopened = PlayerState.defaultObject(await openCurrent(path))!;
-    expect(reopened.queueEntries.map((entry) => entry.id)).toEqual(['first']);
+
+    const reopened = PlayerState.defaultObject(await file.openCurrent())!;
+    expect(reopened.queueEntries.map((entry) => entry.id)).toEqual(['first-A']);
     expect(reopened.shuffleOrder).toBeNull();
     expect(reopened.checkpoint).toBeNull();
   });

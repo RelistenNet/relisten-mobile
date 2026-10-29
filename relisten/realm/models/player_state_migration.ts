@@ -1,6 +1,12 @@
 import Realm from 'realm';
 import { PlayerRepeatState, PlayerShuffleState } from '@/relisten/player/player_modes';
-import { PlayerQueueEntryProps, PlayerState, PlayerStateProps } from './player_state';
+import {
+  PlayerCheckpointProps,
+  PlayerQueueEntryProps,
+  PlayerShuffleOrderProps,
+  PlayerState,
+  PlayerStateProps,
+} from './player_state';
 
 interface LegacyPlayerState {
   id: string;
@@ -22,43 +28,28 @@ interface LegacySourceTrack {
 
 /** Convert the shipped UUID/index format to stable queue occurrence IDs. */
 export function migratePlayerState(oldRealm: Realm, newRealm: Realm): void {
-  if (oldRealm.schemaVersion >= 14) return;
+  if (oldRealm.schemaVersion >= 14) {
+    return;
+  }
 
-  const hasSourceTracks = oldRealm.schema.some((schema) => schema.name === 'SourceTrack');
   for (const legacy of oldRealm.objects<LegacyPlayerState>('PlayerState')) {
     const entries: PlayerQueueEntryProps[] = legacy.queueSourceTrackUuids.map(
-      (sourceTrackUuid, index) => ({
-        id: `${legacy.id}:${index}`,
-        sourceTrackUuid,
-      })
+      (sourceTrackUuid, index) => ({ id: `${legacy.id}:${index}`, sourceTrackUuid })
     );
-    const originalActive = entries[legacy.activeSourceTrackIndex ?? -1];
-    const shuffled = legacy.queueShuffleState === PlayerShuffleState.SHUFFLE_ON;
-    const shuffleEntries = shuffled ? migrateShuffleOrder(legacy, entries) : null;
-    const activeEntry = shuffled
-      ? shuffleEntries?.[legacy.activeSourceTrackShuffledIndex ?? -1]
-      : originalActive;
-
-    const catalogDuration =
-      activeEntry && hasSourceTracks
-        ? oldRealm.objectForPrimaryKey<LegacySourceTrack>(
-            'SourceTrack',
-            activeEntry.sourceTrackUuid
-          )?.duration
-        : null;
-    const duration = positiveDuration(catalogDuration) ?? positiveDuration(legacy.duration);
-    const elapsed = Number.isFinite(legacy.elapsed) ? Math.max(0, legacy.elapsed ?? 0) : 0;
+    let playbackOrder = entries;
+    let activeIndex = legacy.activeSourceTrackIndex;
+    let shuffleOrder: PlayerShuffleOrderProps | null = null;
+    if (legacy.queueShuffleState === PlayerShuffleState.SHUFFLE_ON) {
+      playbackOrder = migrateShuffleOrder(legacy, entries);
+      activeIndex = legacy.activeSourceTrackShuffledIndex;
+      shuffleOrder = { entryIds: playbackOrder.map((entry) => entry.id) };
+    }
+    const activeEntry = playbackOrder[activeIndex ?? -1];
     const props: PlayerStateProps = {
       queueEntries: entries,
-      shuffleOrder: shuffleEntries ? { entryIds: shuffleEntries.map((entry) => entry.id) } : null,
+      shuffleOrder,
       repeatMode: legacy.queueRepeatState,
-      checkpoint: activeEntry
-        ? {
-            entryId: activeEntry.id,
-            elapsedSeconds: duration === null ? elapsed : Math.min(elapsed, duration),
-            durationSeconds: duration,
-          }
-        : null,
+      checkpoint: migrateCheckpoint(oldRealm, legacy, activeEntry),
       lastUpdatedAt: legacy.lastUpdatedAt,
     };
     newRealm.create(
@@ -69,10 +60,44 @@ export function migratePlayerState(oldRealm: Realm, newRealm: Realm): void {
   }
 }
 
+function migrateCheckpoint(
+  oldRealm: Realm,
+  legacy: LegacyPlayerState,
+  activeEntry: PlayerQueueEntryProps | undefined
+): PlayerCheckpointProps | null {
+  if (!activeEntry) {
+    return null;
+  }
+
+  let catalogDuration: number | null | undefined;
+  const hasSourceTracks = oldRealm.schema.some((schema) => schema.name === 'SourceTrack');
+  if (hasSourceTracks) {
+    catalogDuration = oldRealm.objectForPrimaryKey<LegacySourceTrack>(
+      'SourceTrack',
+      activeEntry.sourceTrackUuid
+    )?.duration;
+  }
+  // Legacy timing did not identify its entry. Keep its catalog-first clamp policy.
+  const duration = positiveDuration(catalogDuration) ?? positiveDuration(legacy.duration);
+  let elapsed = 0;
+  if (Number.isFinite(legacy.elapsed)) {
+    elapsed = Math.max(0, legacy.elapsed ?? 0);
+  }
+  if (duration !== null) {
+    elapsed = Math.min(elapsed, duration);
+  }
+  return {
+    entryId: activeEntry.id,
+    elapsedSeconds: elapsed,
+    durationSeconds: duration,
+  };
+}
+
 function positiveDuration(duration: number | null | undefined): number | null {
-  return duration !== null && duration !== undefined && Number.isFinite(duration) && duration > 0
-    ? duration
-    : null;
+  if (duration == null || !Number.isFinite(duration) || duration <= 0) {
+    return null;
+  }
+  return duration;
 }
 
 function migrateShuffleOrder(
@@ -83,21 +108,25 @@ function migrateShuffleOrder(
   const active = entries[legacy.activeSourceTrackIndex ?? -1];
   const activeShuffleIndex = legacy.activeSourceTrackShuffledIndex;
   const knownActivePair =
-    active &&
+    active !== undefined &&
     activeShuffleIndex !== null &&
     legacy.queueSourceTrackShuffledUuids[activeShuffleIndex] === active.sourceTrackUuid;
-  if (knownActivePair) available.delete(active);
+  if (knownActivePair) {
+    available.delete(active);
+  }
 
-  // UUIDs cannot recover every duplicate's historical identity. Preserve the known
-  // active pair, then assign the remaining occurrences in original queue order.
+  // UUIDs cannot recover every duplicate's historical identity. Reserve the known
+  // active pair, then assign remaining occurrences in original queue order.
   const order: PlayerQueueEntryProps[] = [];
   legacy.queueSourceTrackShuffledUuids.forEach((uuid, index) => {
-    const entry =
-      knownActivePair && index === activeShuffleIndex
-        ? active
-        : entries.find(
-            (candidate) => available.has(candidate) && candidate.sourceTrackUuid === uuid
-          );
+    let entry: PlayerQueueEntryProps | undefined;
+    if (knownActivePair && index === activeShuffleIndex) {
+      entry = active;
+    } else {
+      entry = entries.find(
+        (candidate) => available.has(candidate) && candidate.sourceTrackUuid === uuid
+      );
+    }
     if (entry) {
       order.push(entry);
       available.delete(entry);
