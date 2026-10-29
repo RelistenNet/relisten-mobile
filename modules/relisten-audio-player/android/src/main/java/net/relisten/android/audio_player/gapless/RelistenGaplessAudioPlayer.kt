@@ -45,21 +45,35 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
 
     private var snapshotSequence = 0L
 
-    fun requestPlaybackSnapshot() { runOnControllerThread { emitPlaybackSnapshot(checkpoint = true) } }
+    fun requestPlaybackSnapshot() {
+        runOnControllerThread {
+            emitPlaybackSnapshot(checkpoint = true)
+        }
+    }
 
     /** Capture identity, seconds and transport state together on the controller looper. */
     internal fun emitPlaybackSnapshot(checkpoint: Boolean = false) {
         val controller = exoPlayer ?: return
         val identifier = controller.currentMediaItem?.mediaId
-        val stream = listOfNotNull(activeStream, nextStream).firstOrNull { it.streamable.identifier == identifier }
+        val stream = listOfNotNull(activeStream, nextStream)
+            .firstOrNull { it.streamable.identifier == identifier }
+        val elapsed = stream?.let { (controller.currentPosition / 1000.0).coerceAtLeast(0.0) }
+        val duration = stream?.let {
+            (controller.duration / 1000.0).takeIf { it.isFinite() && it > 0 }
+        }
+        val playbackState = if (identifier == null) {
+            RelistenPlaybackState.Stopped
+        } else {
+            relistenPlaybackStateFromPlayer(controller)
+        }
         val snapshot = mapOf<String, Any?>(
-            "sessionId" to snapshotSessionId, "sequence" to ++snapshotSequence,
+            "sessionId" to snapshotSessionId,
+            "sequence" to ++snapshotSequence,
             "identifier" to stream?.streamable?.identifier,
             "sourceTrackUuid" to stream?.streamable?.cacheKey,
-            "elapsed" to stream?.let { (controller.currentPosition / 1000.0).coerceAtLeast(0.0) },
-            "duration" to stream?.let { (controller.duration / 1000.0).takeIf { it.isFinite() && it > 0 } },
-            "playbackState" to (if (identifier == null) RelistenPlaybackState.Stopped
-                else relistenPlaybackStateFromPlayer(controller)).toString(),
+            "elapsed" to elapsed,
+            "duration" to duration,
+            "playbackState" to playbackState.toString(),
             "checkpoint" to checkpoint
         )
         delegate?.playbackSnapshot(this, snapshot)

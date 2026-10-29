@@ -246,7 +246,9 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
     }
 
     override fun playbackSnapshot(player: RelistenGaplessAudioPlayer, snapshot: Map<String, Any?>) {
-        if (this.player != null) sendEvent("onPlaybackSnapshot", snapshot)
+        if (this.player != null) {
+            sendEvent("onPlaybackSnapshot", snapshot)
+        }
     }
 
     override fun playbackStateChanged(

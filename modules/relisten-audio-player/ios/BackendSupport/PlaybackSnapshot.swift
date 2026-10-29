@@ -14,13 +14,23 @@ struct PlaybackSnapshot: Sendable {
 
     var payload: [String: Any] {
         var result: [String: Any] = [
-            "sessionId": sessionId, "sequence": sequence,
-            "playbackState": playbackState, "checkpoint": checkpoint
+            "sessionId": sessionId,
+            "sequence": sequence,
+            "playbackState": playbackState,
+            "checkpoint": checkpoint
         ]
-        if let identifier { result["identifier"] = identifier }
-        if let sourceTrackUuid { result["sourceTrackUuid"] = sourceTrackUuid }
-        if let elapsed, elapsed.isFinite { result["elapsed"] = elapsed }
-        if let duration, duration.isFinite { result["duration"] = duration }
+        if let identifier {
+            result["identifier"] = identifier
+        }
+        if let sourceTrackUuid {
+            result["sourceTrackUuid"] = sourceTrackUuid
+        }
+        if let elapsed, elapsed.isFinite {
+            result["elapsed"] = elapsed
+        }
+        if let duration, duration.isFinite {
+            result["duration"] = duration
+        }
         return result
     }
 }

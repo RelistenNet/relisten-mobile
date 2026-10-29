@@ -2,7 +2,11 @@ import Foundation
 
 extension GaplessMP3PlayerBackend {
     @discardableResult
-    func applyPresentationAndEmit(previous: GaplessBackendSnapshot, freezeAfterUpdate: Bool = false, forceStateEmission: Bool = false) -> GaplessBackendSnapshot {
+    func applyPresentationAndEmit(
+        previous: GaplessBackendSnapshot,
+        freezeAfterUpdate: Bool = false,
+        forceStateEmission: Bool = false
+    ) -> GaplessBackendSnapshot {
         // Presentation is the only place that translates native renderer facts
         // into both JS state and Media Center state. Keeping delegate emission
         // adjacent to that write makes the two surfaces easier to reason about.
@@ -10,14 +14,22 @@ extension GaplessMP3PlayerBackend {
             snapshotStore: snapshotStore,
             freezeAfterUpdate: freezeAfterUpdate
         )
-        emitStateIfNeeded(previous: previous.currentState, current: current.currentState, force: forceStateEmission)
+        emitStateIfNeeded(
+            previous: previous.currentState,
+            current: current.currentState,
+            force: forceStateEmission
+        )
         emitProgressIfNeeded(previous: previous, current: current)
         emitDownloadProgressIfNeeded(previous: previous, current: current)
-        if previous.currentStreamable?.identifier != current.currentStreamable?.identifier ||
-           previous.elapsed != current.elapsed || previous.currentDuration != current.currentDuration ||
-           previous.currentState != current.currentState || freezeAfterUpdate || forceStateEmission {
-            emitPlaybackSnapshot(current,
-                                 checkpoint: forceStateEmission || freezeAfterUpdate || current.currentState == .Paused || current.currentState == .Stopped)
+        let playbackChanged =
+            previous.currentStreamable?.identifier != current.currentStreamable?.identifier ||
+            previous.elapsed != current.elapsed ||
+            previous.currentDuration != current.currentDuration ||
+            previous.currentState != current.currentState
+        let forceSnapshot = freezeAfterUpdate || forceStateEmission
+        if playbackChanged || forceSnapshot {
+            let checkpoint = forceSnapshot || current.currentState == .Paused || current.currentState == .Stopped
+            emitPlaybackSnapshot(current, checkpoint: checkpoint)
         }
         return current
     }
@@ -26,17 +38,23 @@ extension GaplessMP3PlayerBackend {
     /// Stopping emits nil identity with Stopped, never a replay of the preceding Playing state.
     func emitPlaybackSnapshot(_ snapshot: GaplessBackendSnapshot, checkpoint: Bool) {
         // Preparing metadata is not confirmation that the renderer selected the requested track.
-        guard !snapshot.isPreparingCurrentTrack || snapshot.elapsed != nil else { return }
+        guard !snapshot.isPreparingCurrentTrack || snapshot.elapsed != nil else {
+            return
+        }
         playbackSnapshotSequence += 1
         let observation = PlaybackSnapshot(
-            sessionId: backendInstanceID, sequence: playbackSnapshotSequence,
+            sessionId: backendInstanceID,
+            sequence: playbackSnapshotSequence,
             identifier: snapshot.currentStreamable?.identifier,
             sourceTrackUuid: snapshot.currentStreamable?.cacheKey,
             elapsed: snapshot.elapsed.flatMap { $0.isFinite ? max(0, $0) : nil },
             duration: snapshot.currentDuration.flatMap { $0.isFinite && $0 > 0 ? $0 : nil },
-            playbackState: snapshot.currentState.rawValue, checkpoint: checkpoint
+            playbackState: snapshot.currentState.rawValue,
+            checkpoint: checkpoint
         )
-        delegateQueue.async { self.delegate?.playbackSnapshot(observation) }
+        delegateQueue.async {
+            self.delegate?.playbackSnapshot(observation)
+        }
     }
 
     func emitRemoteControl(_ method: String) {

@@ -4,6 +4,7 @@ import android.util.Log
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import net.relisten.android.audio_player.gapless.RelistenGaplessAudioPlayer
+import net.relisten.android.audio_player.gapless.RelistenPlaybackState
 import kotlin.math.floor
 
 class PlaybackUpdates internal constructor(private val player: RelistenGaplessAudioPlayer) {
@@ -66,7 +67,7 @@ class PlaybackUpdates internal constructor(private val player: RelistenGaplessAu
             }
 
             if (sendPlaybackChanged || sendStateChanged) {
-                player.emitPlaybackSnapshot(checkpoint = thisState != net.relisten.android.audio_player.gapless.RelistenPlaybackState.Playing)
+                player.emitPlaybackSnapshot(checkpoint = thisState != RelistenPlaybackState.Playing)
             }
 
             if (sendPlaybackChanged) {
