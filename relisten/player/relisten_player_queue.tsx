@@ -161,7 +161,8 @@ export class RelistenPlayerQueue {
   public currentTrackPlaybackStartedAt: Date | undefined = undefined;
   public prevNextTrackIndexIntentOffset = 0;
 
-  queueNextTrack(queueTracks: PlayerQueueTrack[]) {
+  /** Inserts fresh occurrences after the current track and returns those queue entries. */
+  queueNextTrack(queueTracks: PlayerQueueTrack[]): PlayerQueueTrack[] {
     const newEntries = queueTracks.map((track) => track.newOccurrence());
     function insertNext(arr: PlayerQueueTrack[], currentIndex: number | undefined) {
       const targetIndex = currentIndex !== undefined ? currentIndex + 1 : 0;
@@ -178,9 +179,11 @@ export class RelistenPlayerQueue {
     this.recalculateNextTrack();
     this.onOrderedTracksChanged.dispatch(this.orderedTracks);
     this.savePlayerState(true);
+    return newEntries;
   }
 
-  addTrackToEndOfQueue(queueTracks: PlayerQueueTrack[]) {
+  /** Appends fresh occurrences and returns those queue entries for later actions such as Undo. */
+  addTrackToEndOfQueue(queueTracks: PlayerQueueTrack[]): PlayerQueueTrack[] {
     const newEntries = queueTracks.map((track) => track.newOccurrence());
     this.originalTracks = [...this.originalTracks, ...newEntries];
     this.shuffledTracks = [...this.shuffledTracks, ...newEntries];
@@ -188,6 +191,7 @@ export class RelistenPlayerQueue {
     this.recalculateNextTrack();
     this.onOrderedTracksChanged.dispatch(this.orderedTracks);
     this.savePlayerState(true);
+    return newEntries;
   }
 
   reorderQueue(newQueue: PlayerQueueTrack[]) {

@@ -59,21 +59,20 @@ export function HistoryTrackActionsMenu({
   const addToQueue = useCallback(
     (placement: 'next' | 'end') => {
       const queueTrack = PlayerQueueTrack.fromSourceTrack(sourceTrack);
-      if (placement === 'next') {
-        player.queue.queueNextTrack([queueTrack]);
-      } else {
-        player.queue.addTrackToEndOfQueue([queueTrack]);
-      }
+      const [queuedTrack] =
+        placement === 'next'
+          ? player.queue.queueNextTrack([queueTrack])
+          : player.queue.addTrackToEndOfQueue([queueTrack]);
 
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       showHistoryQueueConfirmation({
         message:
           placement === 'next' ? `Playing ${sourceTrack.title} next` : `Added ${sourceTrack.title}`,
         onUndo: (): HistoryQueueUndoResult => {
-          if (player.queue.currentTrack?.identifier === queueTrack.identifier) {
+          if (player.queue.currentTrack?.identifier === queuedTrack.identifier) {
             return 'already-playing';
           }
-          return player.queue.removeTrackWithIdentifier(queueTrack.identifier)
+          return player.queue.removeTrackWithIdentifier(queuedTrack.identifier)
             ? 'removed'
             : 'missing';
         },

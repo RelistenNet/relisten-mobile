@@ -531,6 +531,29 @@ describe('progress publication and listening history', () => {
 describe('checkpoint persistence and queue edits', () => {
   beforeEach(() => scenario.startPlayingQueue());
 
+  it.each(['queueNextTrack', 'addTrackToEndOfQueue'] as const)(
+    'can undo one returned occurrence after adding the same track twice: %s',
+    (insert) => {
+      player.queue.setShuffleState(PlayerShuffleState.SHUFFLE_ON);
+      const [firstAdded, secondAdded] = player.queue[insert]([minglewood, minglewood]);
+
+      expect(firstAdded.identifier).not.toBe(minglewood.identifier);
+      expect(secondAdded.identifier).not.toBe(firstAdded.identifier);
+      expect(player.queue.removeTrackWithIdentifier(firstAdded.identifier)).toBe(true);
+
+      for (const shuffleState of [PlayerShuffleState.SHUFFLE_ON, PlayerShuffleState.SHUFFLE_OFF]) {
+        player.queue.setShuffleState(shuffleState);
+        expect(player.queue.orderedTracks).toHaveLength(3);
+        expect(player.queue.orderedTracks).toContain(minglewood);
+        expect(player.queue.orderedTracks).toContain(secondAdded);
+        expect(player.queue.orderedTracks).not.toContain(firstAdded);
+        expect(player.queue.currentTrack).toBe(minglewood);
+      }
+      expect(player.state).toBe(RelistenPlaybackState.Playing);
+      expect(mocks.native.stop).not.toHaveBeenCalled();
+    }
+  );
+
   it.each(['Play Next', 'Add to End'] as const)(
     'preserves re-enqueued occurrences and the playing checkpoint after restore: %s',
     async (action) => {
