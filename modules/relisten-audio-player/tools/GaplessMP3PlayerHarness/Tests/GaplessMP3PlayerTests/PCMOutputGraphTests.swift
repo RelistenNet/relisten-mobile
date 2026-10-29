@@ -4,6 +4,16 @@ import XCTest
 @testable import GaplessMP3Player
 
 final class PCMOutputGraphTests: XCTestCase {
+    func testPreparingGraphDoesNotStartAudioEngine() throws {
+        let queue = DispatchQueue(label: "PCMOutputGraphTests.cold-prepare")
+        try queue.sync {
+            let graph = try PCMOutputGraph(sampleRate: 44_100, channelCount: 2, ownerQueue: queue)
+            XCTAssertFalse(graph.isEngineRunning)
+            try graph.reset(timelineOffset: 0, startEngine: false)
+            XCTAssertFalse(graph.isEngineRunning)
+        }
+    }
+
     func testUnavailableRenderTimeNeverReachesPlayerTimeConversion() {
         let invalidTime = AVAudioTime()
         XCTAssertFalse(invalidTime.isSampleTimeValid)
@@ -59,7 +69,7 @@ final class PCMOutputGraphTests: XCTestCase {
             let graph = try PCMOutputGraph(sampleRate: 44_100, channelCount: 2, ownerQueue: queue)
             let chunk = PCMChunk.silence(sampleRate: 44_100, channelCount: 2, frameCount: 44_100)
 
-            XCTAssertTrue(graph.isEngineRunning)
+            XCTAssertFalse(graph.isEngineRunning)
 
             try graph.schedule(chunk, playedBack: nil)
             try graph.requestPlay()

@@ -1,8 +1,54 @@
 import Foundation
 import XCTest
 @testable import GaplessMP3Player
+@testable import GaplessMP3PlayerBackendSupport
 
 final class GaplessMP3PlayerTests: XCTestCase {
+    func testPreparedReplacementSurvivesActivationRejectionAndPlaysOnRetry() async throws {
+        enum ActivationFailure: Error { case rejected }
+        let outputGraph = TestOutputGraph()
+        let player = makePlayer(outputGraph: outputGraph)
+        let previous = fixtureSource(id: "previous", fixtureName: "gd77-s2t07-first-5s.mp3")
+        let requested = fixtureSource(id: "requested", fixtureName: "gd77-s2t05-first-5s.mp3")
+
+        try await player.prepare(current: previous, next: nil)
+        await player.stop()
+        try await player.prepare(current: requested, next: nil)
+
+        let prepared = await player.status()
+        XCTAssertEqual(prepared.currentSource, requested)
+        XCTAssertEqual(prepared.playbackPhase, .paused)
+        XCTAssertFalse(prepared.isPlaying)
+
+        var presentation = MediaCenterPresentationState()
+        presentation.beginPreparation()
+        let resume = ResumeCommandState(isStopped: false)
+        XCTAssertThrowsError(try resume.perform(
+            prepareAudioSession: { throw ActivationFailure.rejected },
+            play: { player.play() },
+            onPlayAccepted: { presentation.beginResume() }
+        ))
+        player.pause()
+        presentation.resumeFailed()
+
+        let rejected = await player.status()
+        XCTAssertEqual(rejected.currentSource, requested)
+        XCTAssertEqual(rejected.playbackPhase, .paused)
+        XCTAssertFalse(rejected.isPlaying)
+        XCTAssertEqual(presentation.desiredTransport, .paused)
+
+        XCTAssertTrue(resume.perform(
+            prepareAudioSession: {},
+            play: { player.play() },
+            onPlayAccepted: { presentation.beginResume() }
+        ))
+        let retried = await player.status()
+        XCTAssertEqual(retried.currentSource, requested)
+        XCTAssertEqual(retried.playbackPhase, .playing)
+        XCTAssertTrue(retried.isPlaying)
+        await player.teardown()
+    }
+
     func testPrepareAllowsMixedSampleRatesUsingFixedSessionOutputFormat() async throws {
         let outputGraph = TestOutputGraph()
         let player = makePlayer(outputGraph: outputGraph)
@@ -1368,7 +1414,7 @@ final class GaplessMP3PlayerTests: XCTestCase {
     }
 
     private func fixtureSource(id: String, fixtureName: String) -> GaplessPlaybackSource {
-        let url = Bundle.module.bundleURL
+        let url = Bundle.module.resourceURL!
             .appendingPathComponent("Fixtures")
             .appendingPathComponent(fixtureName)
         return GaplessPlaybackSource(
@@ -1461,7 +1507,7 @@ final class GaplessMP3PlayerTests: XCTestCase {
     }
 
     private func httpFixtureData(named fixtureName: String) throws -> Data {
-        let url = Bundle.module.bundleURL
+        let url = Bundle.module.resourceURL!
             .appendingPathComponent("Fixtures")
             .appendingPathComponent(fixtureName)
         return try Data(contentsOf: url)

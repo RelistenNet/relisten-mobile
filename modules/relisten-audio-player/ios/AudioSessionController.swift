@@ -21,11 +21,6 @@ struct RouteChangeEvent {
     let currentOutputs: [AudioRouteOutput]
 }
 
-struct SilenceSecondaryAudioHintEvent {
-    let type: AVAudioSession.SilenceSecondaryAudioHintType
-    let secondaryAudioShouldBeSilenced: Bool
-}
-
 enum AudioMediaServicesEventKind: String {
     case lost
     case reset
@@ -41,14 +36,15 @@ final class AudioSessionController {
     private var previousTrackCommandTarget: Any?
     private var routeChangeObserver: NSObjectProtocol?
     private var interruptionObserver: NSObjectProtocol?
-    private var silenceSecondaryAudioHintObserver: NSObjectProtocol?
     private var mediaServicesResetObserver: NSObjectProtocol?
     private var mediaServicesLostObserver: NSObjectProtocol?
 
     func configurePlaybackSession(shouldActivate: Bool) throws {
         let session = AVAudioSession.sharedInstance()
         try session.setCategory(.playback, mode: .default, policy: .longFormAudio)
-        try session.setActive(shouldActivate)
+        // Installing handlers/category must not deactivate an existing session
+        // (CarPlay bootstrap may run while audio is already playing).
+        if shouldActivate { try session.setActive(true) }
     }
 
     func configureRemoteCommands(
@@ -112,7 +108,6 @@ final class AudioSessionController {
     func configureSessionObservers(
         onRouteChange: @escaping (RouteChangeEvent) -> Void,
         onInterruption: @escaping (AudioInterruptionEvent) -> Void,
-        onSilenceSecondaryAudioHint: @escaping (SilenceSecondaryAudioHintEvent) -> Void,
         onMediaServices: @escaping (AudioMediaServicesEventKind) -> Void
     ) {
         clearSessionObservers()
@@ -161,25 +156,6 @@ final class AudioSessionController {
                     type: interruptionType,
                     options: options,
                     reason: reason,
-                    secondaryAudioShouldBeSilenced: session.secondaryAudioShouldBeSilencedHint
-                )
-            )
-        }
-
-        silenceSecondaryAudioHintObserver = center.addObserver(
-            forName: AVAudioSession.silenceSecondaryAudioHintNotification,
-            object: session,
-            queue: nil
-        ) { notification in
-            guard let userInfo = notification.userInfo,
-                  let typeValue = userInfo[AVAudioSessionSilenceSecondaryAudioHintTypeKey] as? UInt,
-                  let type = AVAudioSession.SilenceSecondaryAudioHintType(rawValue: typeValue) else {
-                return
-            }
-
-            onSilenceSecondaryAudioHint(
-                SilenceSecondaryAudioHintEvent(
-                    type: type,
                     secondaryAudioShouldBeSilenced: session.secondaryAudioShouldBeSilencedHint
                 )
             )
@@ -263,10 +239,6 @@ final class AudioSessionController {
         if let interruptionObserver {
             center.removeObserver(interruptionObserver)
             self.interruptionObserver = nil
-        }
-        if let silenceSecondaryAudioHintObserver {
-            center.removeObserver(silenceSecondaryAudioHintObserver)
-            self.silenceSecondaryAudioHintObserver = nil
         }
         if let mediaServicesResetObserver {
             center.removeObserver(mediaServicesResetObserver)

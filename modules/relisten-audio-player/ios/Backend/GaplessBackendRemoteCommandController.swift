@@ -8,7 +8,7 @@ final class GaplessBackendRemoteCommandController {
     private let backendQueue: DispatchQueue
     private let backendQueueSpecificValue = UUID().uuidString
     private let emitRemoteControl: (String) -> Void
-    private let resumeOnQueue: () -> Void
+    private let resumeOnQueue: () -> Bool
     private let pauseOnQueue: () -> Void
     private let seekToTimeOnQueue: (Int64) -> Void
 
@@ -16,7 +16,7 @@ final class GaplessBackendRemoteCommandController {
         snapshotStore: BackendLockedValue<GaplessBackendSnapshot>,
         backendQueue: DispatchQueue,
         emitRemoteControl: @escaping (String) -> Void,
-        resumeOnQueue: @escaping () -> Void,
+        resumeOnQueue: @escaping () -> Bool,
         pauseOnQueue: @escaping () -> Void,
         seekToTimeOnQueue: @escaping (Int64) -> Void
     ) {
@@ -42,15 +42,14 @@ final class GaplessBackendRemoteCommandController {
 
     private func handleResumeRemoteCommand(_ event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
         let snapshot = snapshotStore.get()
-        logRemoteCommand("resume", result: snapshot.currentStreamable == nil ? .commandFailed : .success, snapshot: snapshot)
         guard snapshot.currentStreamable != nil else {
             return .commandFailed
         }
         emitRemoteControl("resume")
-        performNativeCommandSynchronously {
-            resumeOnQueue()
-        }
-        return .success
+        let accepted = performNativeCommandSynchronously { resumeOnQueue() }
+        let result: MPRemoteCommandHandlerStatus = accepted ? .success : .commandFailed
+        logRemoteCommand("resume", result: result, snapshot: snapshotStore.get())
+        return result
     }
 
     private func handlePauseRemoteCommand(_ event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
@@ -68,16 +67,17 @@ final class GaplessBackendRemoteCommandController {
         guard snapshot.currentStreamable != nil else {
             return .commandFailed
         }
-        performNativeCommandSynchronously {
+        let accepted = performNativeCommandSynchronously {
             let shouldPause = shouldRemoteTogglePause(snapshot: snapshotStore.get())
             emitRemoteControl(shouldPause ? "pause" : "resume")
             if shouldPause {
                 pauseOnQueue()
+                return true
             } else {
-                resumeOnQueue()
+                return resumeOnQueue()
             }
         }
-        return .success
+        return accepted ? .success : .commandFailed
     }
 
     private func handleSeekRemoteCommand(_ event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
@@ -114,20 +114,26 @@ final class GaplessBackendRemoteCommandController {
     }
 
     private func shouldRemoteTogglePause(snapshot: GaplessBackendSnapshot) -> Bool {
-        snapshot.desiredTransport == .playing && snapshot.systemSuspension == .none
+        MediaCenterPresentationInput(
+            hasCurrentMetadata: snapshot.currentStreamable != nil,
+            presentation: snapshot.presentation,
+            isWithinPresentationGraceWindow: snapshot.presentation.isWithinGraceWindow(
+                now: ProcessInfo.processInfo.systemUptime,
+                interval: resumePresentationGraceInterval
+            )
+        ).shouldTogglePause
     }
 
-    private func performNativeCommandSynchronously(_ command: () -> Void) {
+    private func performNativeCommandSynchronously<T>(_ command: () -> T) -> T {
         // MediaRemote decides the immediate Control Center state from the
         // command response plus the latest Now Playing snapshot. For native-owned
         // commands, mutate the player and write the Now Playing dictionary before
         // returning success so pause/play cannot acknowledge against stale
         // rate=1 metadata.
         if DispatchQueue.getSpecific(key: Self.backendQueueSpecificKey) == backendQueueSpecificValue {
-            command()
-            return
+            return command()
         } else {
-            backendQueue.sync(execute: command)
+            return backendQueue.sync(execute: command)
         }
     }
 
