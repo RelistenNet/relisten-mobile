@@ -40,7 +40,7 @@ The embedded-schema implementation passes 75 Vitest tests, lint, and TypeScript 
 
 The readability pass also expands compressed native snapshot construction without changing its payload or emission conditions. All 33 Swift support tests, 12 Android tests, and Kotlin compilation pass. The combined iOS sources with #159 pass a Debug simulator rebuild.
 
-A fresh iPhone 17 simulator restored the selected entry at 17.674 seconds after a cold relaunch. Resume requested that native seek, completed native confirmation, and prepared the next stream. Next then played Jack Straw and prepared Dire Wolf. Physical-device background, navigation, call and CarPlay coverage remains outstanding.
+The rebuilt iPhone 17 simulator restored Jack Straw at 16.820 seconds after a cold relaunch. Resume requested that native seek, completed native confirmation, and prepared Dire Wolf. Next played Dire Wolf and prepared Looks Like Rain; Pause worked and left the player paused. Physical-device background, navigation, call and CarPlay coverage remains outstanding.
 
 ## Release and rollback
 
