@@ -166,23 +166,6 @@ extension GaplessMP3PlayerBackend {
         applyPresentationAndEmit(previous: previous, forceStateEmission: forceStateEmission)
     }
 
-    func scheduleResumeGraceExpirationIfNeededOnQueue(for generation: UInt64) {
-        backendQueue.asyncAfter(deadline: .now() + resumePresentationGraceInterval) { [weak self] in
-            guard let self else { return }
-            let previous = self.snapshotStore.get()
-            guard previous.generation == generation,
-                  previous.presentation.hasStartupGrace(),
-                  previous.desiredTransport == .playing,
-                  previous.systemSuspension == .none else {
-                return
-            }
-            // No renderer event may arrive exactly when grace expires. Reapply
-            // the decision so app state can move from startup .Playing to
-            // stalled/buffering while Media Center keeps desired-play semantics.
-            self.applyPresentationAndEmit(previous: previous)
-        }
-    }
-
     func scheduleSeekGraceExpirationIfNeededOnQueue(for generation: UInt64, seekSequence: UInt64) {
         backendQueue.asyncAfter(deadline: .now() + resumePresentationGraceInterval) { [weak self] in
             guard let self else { return }

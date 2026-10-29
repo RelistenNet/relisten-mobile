@@ -259,7 +259,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
         }
 
         let previous = snapshot
-        let (generation, sessionID) = snapshotStore.withValue { snapshot in
+        let (generation, sessionID, preparationRevision) = snapshotStore.withValue { snapshot in
             // A new generation is the backend's boundary for stale async status,
             // progress, and presentation work. It does not cancel the lower
             // level player operation by itself; every await below re-checks this
@@ -270,7 +270,7 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             snapshot.generation = generation
             snapshot.seekSequence = 0
             snapshot.currentSessionID = sessionID
-            snapshot.presentation.beginPlayback(now: ProcessInfo.processInfo.systemUptime)
+            snapshot.presentation.beginPreparation()
             snapshot.currentStreamable = streamable
             snapshot.nextStreamable = nil
             snapshot.desiredNextStreamable = nil
@@ -286,11 +286,10 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             }
             snapshot.isPreparingCurrentTrack = true
             snapshot.progressPollingGeneration = nil
-            return (generation, sessionID)
+            return (generation, sessionID, snapshot.presentation.transportRevision)
         }
         player.sessionID = sessionID
         applyPresentationAndEmit(previous: previous)
-        scheduleResumeGraceExpirationIfNeededOnQueue(for: generation)
         backendCommandLog.info(
             "accepted",
             "playback request",
@@ -348,7 +347,10 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
                         }
                     }
                     self.applyStatus(status, transportRevision: statusRevision)
-                    if self.snapshotStore.get().presentation.canStartPlayback {
+                    let presentation = self.snapshotStore.get().presentation
+                    // An unchanged explicit request may attempt activation while
+                    // suppressed. Newer transport events retain recovery policy.
+                    if presentation.acceptsStatus(revision: preparationRevision) || presentation.canStartPlayback {
                         self.resumeOnQueue()
                     }
                     self.applyLatestDesiredNextIfNeededOnQueue(for: generation)

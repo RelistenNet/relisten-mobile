@@ -3,6 +3,45 @@ import XCTest
 @testable import GaplessMP3PlayerBackendSupport
 
 final class PlaybackInterruptionRecoveryTests: XCTestCase {
+    func testPreparingReplacementCannotReclaimOwnershipBeforeActivationSucceeds() {
+        var state = playing()
+        state.suppressForExternalMedia()
+        state.beginPreparation()
+        XCTAssertTrue(state.isSuppressed)
+        XCTAssertEqual(decision(state), .clear(reason: .externalMedia))
+
+        state.resumeFailed()
+        XCTAssertTrue(state.isSuppressed)
+        XCTAssertEqual(state.desiredTransport, .paused)
+        XCTAssertEqual(decision(state), .clear(reason: .externalMedia))
+
+        state.beginResume()
+        XCTAssertFalse(state.isSuppressed)
+        guard case .update(let accepted) = decision(state) else { return XCTFail("Expected accepted resume") }
+        XCTAssertEqual(accepted.appState, .stalled)
+        XCTAssertEqual(accepted.playbackRate, 0)
+    }
+
+    func testPreparingSourceDoesNotAdvertisePlaybackAndNewTransportEventsCancelItsPermission() {
+        var state = MediaCenterPresentationState()
+        state.beginPreparation()
+        let preparationRevision = state.transportRevision
+        guard case .update(let preparing) = decision(state) else { return XCTFail("Expected preparation") }
+        XCTAssertEqual(preparing.appState, .stalled)
+        XCTAssertEqual(preparing.playbackRate, 0)
+
+        for event in ["pause", "takeover", "interruption"] {
+            var cancelled = state
+            switch event {
+            case "pause": cancelled.pause()
+            case "takeover": cancelled.suppressForExternalMedia()
+            default: _ = cancelled.interruptionBegan()
+            }
+            XCTAssertFalse(cancelled.acceptsStatus(revision: preparationRevision), event)
+            XCTAssertFalse(cancelled.canStartPlayback, event)
+        }
+    }
+
     private func playing() -> MediaCenterPresentationState {
         var state = MediaCenterPresentationState()
         state.beginPlayback(now: 0)

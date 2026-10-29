@@ -175,6 +175,17 @@ struct MediaCenterPresentationState: Equatable {
         grace = .startup(startedAtUptime: now)
     }
 
+    mutating func beginPreparation() {
+        // Selecting a source is not audio-session ownership. Keep suppression
+        // and interruption permission until activation accepts the new source.
+        transportRevision &+= 1
+        desiredTransport = .playing
+        renderStatus = .preparing
+        renderIsPlaying = false
+        awaitingResumeRender = true
+        grace = .none
+    }
+
     mutating func pause() {
         transportRevision &+= 1
         recovery.cancelResume()

@@ -21,7 +21,7 @@ final class GaplessMP3PlayerTests: XCTestCase {
         XCTAssertFalse(prepared.isPlaying)
 
         var presentation = MediaCenterPresentationState()
-        presentation.beginPlayback(now: 0)
+        presentation.beginPreparation()
         let resume = ResumeCommandState(isStopped: false)
         XCTAssertThrowsError(try resume.perform(
             prepareAudioSession: { throw ActivationFailure.rejected },
