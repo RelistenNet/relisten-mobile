@@ -685,7 +685,10 @@ ${indentString(this.queue.debugState(true))}
       event.playbackState === RelistenPlaybackState.Stopped;
     this._queue.applyPlaybackCheckpoint(() => {
       this.nativeSequence = event.sequence;
-      if (changed) currentTrackIdentifier.setState(event.identifier);
+      // Restore selects a queue entry before native playback confirms it.
+      if (currentTrackIdentifier.lastState() !== event.identifier) {
+        currentTrackIdentifier.setState(event.identifier);
+      }
       // A preview can still show an unconfirmed request. Persist native timing independently.
       this.confirmedTrackIdentifier = event.identifier;
       const previous = changed ? undefined : this.progress;

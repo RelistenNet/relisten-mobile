@@ -676,6 +676,36 @@ describe('player progress track identity', () => {
       120000
     );
   });
+
+  it('confirms a restored selection so native preparation and later Next requests can proceed', async () => {
+    player.dispose();
+    currentTrackIdentifier.setState(undefined);
+    state.setState(RelistenPlaybackState.Stopped);
+    player = new RelistenPlayer();
+    harness.state.mockReturnValue(
+      savedState({ checkpoint: { entryId: 'A', elapsedSeconds: 120, durationSeconds: 381 } })
+    );
+    const cachedRealm = {
+      objects: () => ({ filtered: () => [first.sourceTrack, second.sourceTrack] }),
+    } as unknown as Realm;
+    await player.queue.restorePlayerState(cachedRealm);
+    expect(player.queue.nextTrack).toBeUndefined();
+
+    player.resume();
+    await vi.waitFor(() => expect(harness.native.play).toHaveBeenCalledTimes(1));
+    harness.nativeSnapshot?.(snapshot({ identifier: 'A', elapsed: 120, duration: 381 }));
+    expect(harness.native.setNextStream).toHaveBeenLastCalledWith(
+      expect.objectContaining({ identifier: 'B' })
+    );
+
+    player.next();
+    await vi.waitFor(() => expect(harness.native.play).toHaveBeenCalledTimes(2));
+    expect(harness.native.play).toHaveBeenLastCalledWith(
+      expect.objectContaining({ identifier: 'B' }),
+      undefined
+    );
+  });
+
   it('applies pause, identity and timing from one observation before the final save', () => {
     harness.nativeSnapshot?.(
       snapshot({
