@@ -14,7 +14,11 @@ Realm is the only playback persistence store. Queue transitions, edits, pause, s
 
 Realm stores one original-order `queueEntries` list of embedded `PlayerQueueEntry` objects. The property name avoids Realm.Object's reserved `entries()` method. Each entry contains its occurrence ID and source-track UUID. An optional embedded `PlayerShuffleOrder` contains the permutation of those entry IDs; null means shuffle is off. The nullable `PlayerCheckpoint` contains the selected entry ID, elapsed seconds, and optional duration seconds. `PlayerRepeatState` names the persisted numeric repeat mode. Selection, timing, and queue edits are written in one transaction. Progress-only writes retain the existing queue and shuffle objects.
 
-Restore preserves the saved entry IDs, so duplicate tracks keep their association with both orders. The checkpoint identifies an entry before missing catalog sources are filtered. If that entry cannot be restored, the first surviving entry in playback order is selected at zero seconds. A null checkpoint preserves a queue without a selection. Saved duration takes precedence over catalog duration; absent duration falls back to the catalog. The schema-13 migration preserves elapsed and uses catalog duration when available because legacy timing did not identify its entry. An unsolicited startup Paused event does not erase the saved queue or prevent resume from starting the restored stream at its saved position.
+Restore preserves the saved entry IDs, so duplicate tracks keep their association with both orders. The checkpoint identifies an entry before missing catalog sources are filtered. If that entry cannot be restored, the first surviving entry in playback order is selected at zero seconds. A null checkpoint preserves a queue without a selection.
+
+Saved duration takes precedence over catalog duration; absent duration falls back to the catalog. If neither duration is known, restore retains the elapsed position without clamping it and waits for native timing before allowing fractional scrubs. The schema-13 migration preserves elapsed and uses catalog duration when available because legacy timing did not identify its entry.
+
+An unsolicited startup Paused event does not erase the saved queue or prevent resume from starting the restored stream at its saved position. Native confirmation compares against the last published native identifier, independently of the restored queue selection. This completes the initial Play request and prepares the next stream even when native playback selects the already-restored entry.
 
 Native timing updates the internal confirmed progress on every accepted observation. UI progress publishes once per elapsed second, or when duration, selection, or playback state changes. Immediate checkpoints also publish. Save timing and listening-history thresholds use the latest confirmed sample even between UI updates.
 
@@ -28,7 +32,11 @@ This design makes no suspended-JS durability guarantee. If JS cannot receive the
 
 Focused regressions exercise the player and queue through native observations and inspect persisted state: pause immediately after advance, stale/repeated observations, terminal stop, fixed save deadline, cancellation of pending writes, reordered/removed/replaced entries, duplicate occurrence restore and advance followed by shuffle-off, missing selected sources, measured duration, UI progress throttling, listening-history thresholds between UI updates, and startup pause/restore/resume. The schema test opens an actual schema-13 Realm file at schema 14.
 
-Local validation of the embedded-schema source passed 72 Vitest tests, 33 Swift support tests, 12 Android tests plus native Kotlin compilation, lint, and TypeScript. The combined iOS sources from this PR at `6fcd1c6` and #159 at `8cb7891` passed the Debug simulator build and install; combined Swift support tests passed 67 cases. The later Android terminal-state fix does not change those iOS sources. Earlier journal-suite results do not validate this revised implementation. Physical-device background, navigation, call and CarPlay coverage remains outstanding.
+The embedded-schema implementation passes 74 Vitest tests, lint, and TypeScript checks. Both independent review passes have no remaining actionable findings after the native-confirmation and unknown-duration fixes.
+
+Prior checks of the unchanged native code passed 33 Swift support tests and 12 Android tests with Kotlin compilation. The combined iOS sources with #159 passed a Debug simulator build and install. This redesign changes JavaScript and Realm records, so it uses that matching native binary.
+
+A fresh iPhone 17 simulator restored the selected entry at 17.674 seconds after a cold relaunch. Resume requested that native seek, completed native confirmation, and prepared the next stream. Next then played Jack Straw and prepared Dire Wolf. Physical-device background, navigation, call and CarPlay coverage remains outstanding.
 
 ## Release and rollback
 
