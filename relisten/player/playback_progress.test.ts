@@ -1,40 +1,28 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { RelistenPlaybackSnapshot } from '@/modules/relisten-audio-player';
+import type { RelistenPlaybackSnapshot, RelistenStreamable } from '@/modules/relisten-audio-player';
 
-const harness = vi.hoisted(() => ({
+const mocks = vi.hoisted(() => ({
   save: vi.fn(),
   state: vi.fn(),
-  progressListenerRemove: vi.fn(),
-  trackListenerRemove: vi.fn(),
-  nativeProgress: undefined as
-    | ((event: {
-        elapsed?: number;
-        duration?: number;
-        identifier?: string;
-        sequence?: number;
-        checkpoint?: boolean;
-      }) => void)
-    | undefined,
-  nativeSnapshot: undefined as ((event: RelistenPlaybackSnapshot) => void) | undefined,
-  nativeTrack: undefined as ((event: { currentIdentifier?: string }) => void) | undefined,
+  snapshotListenerRemove: vi.fn(),
   native: {
-    play: vi.fn(async () => {}),
+    play: vi.fn<(stream: RelistenStreamable, startTimeMs?: number) => Promise<void>>(
+      async () => {}
+    ),
     pause: vi.fn(async () => {}),
     resume: vi.fn(async () => {}),
     stop: vi.fn(async () => {}),
     seekTo: vi.fn(async () => {}),
     seekToTime: vi.fn(async () => {}),
-    setNextStream: vi.fn(),
+    setNextStream: vi.fn<(stream?: RelistenStreamable) => void>(),
     setShuffleMode: vi.fn(),
     setRepeatMode: vi.fn(),
-    addPlaybackProgressListener: vi.fn(),
     addPlaybackSnapshotListener: vi.fn(),
-    addTrackChangedListener: vi.fn(),
   },
 }));
 vi.mock('@/modules/relisten-audio-player', () => ({
-  nativePlayer: harness.native,
+  nativePlayer: mocks.native,
   RelistenPlaybackState: {
     Stopped: 'Stopped',
     Playing: 'Playing',
@@ -45,7 +33,7 @@ vi.mock('@/modules/relisten-audio-player', () => ({
 vi.mock('@/relisten/player/native_playback_state_hooks', () => ({ addPlayerListeners: vi.fn() }));
 vi.mock('@/relisten/realm/schema', () => ({ realm: {} }));
 vi.mock('@/relisten/realm/models/player_state', () => ({
-  PlayerState: { upsert: harness.save, defaultObject: harness.state, clear: vi.fn() },
+  PlayerState: { upsert: mocks.save, defaultObject: mocks.state, clear: vi.fn() },
 }));
 vi.mock('@/relisten/realm/models/source_track', () => ({ SourceTrack: class {} }));
 vi.mock('@/relisten/offline/download_manager', () => ({ DownloadManager: {} }));
@@ -62,6 +50,7 @@ import type { PlayerStateProps } from '@/relisten/realm/models/player_state';
 import { currentTrackIdentifier, progress, state } from './shared_state';
 import type { SourceTrack } from '@/relisten/realm/models/source_track';
 import type Realm from 'realm';
+import { PlayerRepeatState } from './player_modes';
 
 function track(uuid: string, duration: number) {
   const sourceTrack = {
@@ -78,71 +67,120 @@ function track(uuid: string, duration: number) {
   return new PlayerQueueTrack(sourceTrack, uuid, 'Artist', 'Show', 'Album', 'art');
 }
 
-function savedState(overrides: Partial<PlayerStateProps> = {}) {
-  const props: PlayerStateProps = {
+function savedState(overrides: Partial<PlayerStateProps> = {}): PlayerStateProps {
+  return {
     queueEntries: [
       { id: 'A', sourceTrackUuid: 'minglewood' },
       { id: 'B', sourceTrackUuid: 'loser' },
     ],
     shuffleOrder: null,
-    repeatMode: 1,
+    repeatMode: PlayerRepeatState.REPEAT_OFF,
     checkpoint: { entryId: 'B', elapsedSeconds: 120, durationSeconds: 410 },
     lastUpdatedAt: new Date(),
     ...overrides,
   };
-  return props;
 }
 
-describe('player progress track identity', () => {
-  let player: RelistenPlayer;
-  let first: PlayerQueueTrack;
-  let second: PlayerQueueTrack;
-  let sequence = 0;
-  let nativeIdentifier: string;
-  function snapshot(event: Partial<RelistenPlaybackSnapshot>) {
-    const identifier = event.identifier ?? nativeIdentifier;
-    const track = player.queue.orderedTracks.find((track) => track.identifier === identifier);
-    return {
-      sessionId: 'native-test',
-      sequence: ++sequence,
-      identifier,
-      sourceTrackUuid: track?.sourceTrack.uuid ?? 'removed',
-      playbackState: RelistenPlaybackState.Playing,
-      checkpoint: false,
-      ...event,
-    };
-  }
+/** Native delivery and persistence are mocked; the player and queue run unchanged. */
+class PlaybackScenario {
+  player: RelistenPlayer;
+  readonly minglewood = track('minglewood', 381);
+  readonly loser = track('loser', 410);
+  private sequence = 0;
+  private nativeIdentifier: string | undefined;
+  private listener!: (snapshot: RelistenPlaybackSnapshot) => void;
 
-  beforeEach(() => {
+  constructor() {
     vi.useFakeTimers();
     vi.clearAllMocks();
-    harness.state.mockReset();
-    sequence = 0;
-    harness.native.addPlaybackSnapshotListener.mockImplementation((listener) => {
-      harness.nativeSnapshot = listener;
-      harness.nativeTrack = (event) => {
-        nativeIdentifier = event.currentIdentifier!;
-        listener(snapshot({ identifier: nativeIdentifier }));
-      };
-      harness.nativeProgress = (event) => listener(snapshot(event));
-      return { remove: harness.progressListenerRemove };
+    mocks.state.mockReset();
+    mocks.native.addPlaybackSnapshotListener.mockImplementation((listener) => {
+      this.listener = listener;
+      return { remove: mocks.snapshotListenerRemove };
     });
     currentTrackIdentifier.setState(undefined);
     state.setState(RelistenPlaybackState.Stopped);
-    player = new RelistenPlayer();
-    first = track('minglewood', 381);
-    second = track('loser', 410);
-    player.queue.replaceQueue([first, second], undefined);
-    harness.nativeTrack?.({ currentIdentifier: first.identifier });
-    state.setState(RelistenPlaybackState.Playing);
-    harness.nativeProgress?.({ elapsed: 120, duration: 381 });
-  });
+    this.player = new RelistenPlayer();
+    void this.player.state;
+  }
 
-  afterEach(() => {
-    player.dispose();
+  startPlayingQueue() {
+    this.player.queue.replaceQueue([this.minglewood, this.loser], undefined);
+    this.emit({ identifier: this.minglewood.identifier, elapsed: 120, duration: 381 });
+  }
+
+  capture(overrides: Partial<RelistenPlaybackSnapshot> = {}): RelistenPlaybackSnapshot {
+    const identifier = overrides.identifier ?? this.nativeIdentifier;
+    const selectedTrack = this.player.queue.orderedTracks.find(
+      (track) => track.identifier === identifier
+    );
+    return {
+      sessionId: 'native-test',
+      sequence: ++this.sequence,
+      identifier,
+      sourceTrackUuid: selectedTrack?.sourceTrack.uuid,
+      playbackState: RelistenPlaybackState.Playing,
+      checkpoint: false,
+      ...overrides,
+    };
+  }
+
+  emit(overrides: Partial<RelistenPlaybackSnapshot>) {
+    const snapshot = this.capture(overrides);
+    this.nativeIdentifier = snapshot.identifier;
+    this.deliver(snapshot);
+  }
+
+  // Captured events can be delivered later to exercise stale and reordered callbacks.
+  deliver(snapshot: RelistenPlaybackSnapshot) {
+    this.listener(snapshot);
+  }
+
+  restore(
+    overrides: Partial<PlayerStateProps> = {},
+    catalog = [this.minglewood.sourceTrack, this.loser.sourceTrack]
+  ) {
+    mocks.state.mockReturnValue(savedState(overrides));
+    const cachedRealm = {
+      objects: () => ({ filtered: () => catalog }),
+    } as unknown as Realm;
+    return this.player.queue.restorePlayerState(cachedRealm);
+  }
+
+  get savedState(): PlayerStateProps {
+    return mocks.save.mock.lastCall![1];
+  }
+
+  get savedCheckpoint() {
+    return this.savedState.checkpoint;
+  }
+
+  get lastNativePlay() {
+    const [stream, startTimeMs] = mocks.native.play.mock.lastCall!;
+    return { entryId: stream.identifier, sourceTrackUuid: stream.cacheKey, startTimeMs };
+  }
+
+  dispose() {
+    this.player.dispose();
     vi.clearAllTimers();
     vi.useRealTimers();
-  });
+  }
+}
+
+let scenario: PlaybackScenario;
+let player: RelistenPlayer;
+let minglewood: PlayerQueueTrack;
+let loser: PlayerQueueTrack;
+
+beforeEach(() => {
+  scenario = new PlaybackScenario();
+  ({ player, minglewood, loser } = scenario);
+});
+
+afterEach(() => scenario.dispose());
+
+describe('native requests and confirmation', () => {
+  beforeEach(() => scenario.startPlayingQueue());
 
   it('queues the next request when native auto-advance arrives before the pending pause resolves', async () => {
     const third = track('third', 430);
@@ -151,23 +189,23 @@ describe('player progress track identity', () => {
     const pendingPause = new Promise<void>((resolve) => {
       finishPause = resolve;
     });
-    harness.native.pause.mockImplementationOnce(() => pendingPause);
+    mocks.native.pause.mockImplementationOnce(() => pendingPause);
 
     player.next();
-    expect(harness.native.pause).toHaveBeenCalledTimes(1);
-    expect(harness.native.play).not.toHaveBeenCalled();
+    expect(mocks.native.pause).toHaveBeenCalledTimes(1);
+    expect(mocks.native.play).not.toHaveBeenCalled();
 
     // Native reaches the requested track before its pause and play request have run.
-    harness.nativeTrack?.({ currentIdentifier: second.identifier });
+    scenario.emit({ identifier: loser.identifier });
     player.playTrackAtIndex(2);
-    expect(harness.native.pause).toHaveBeenCalledTimes(1);
+    expect(mocks.native.pause).toHaveBeenCalledTimes(1);
 
     finishPause();
-    await vi.waitFor(() => expect(harness.native.play).toHaveBeenCalledTimes(1));
-    expect(harness.native.play).toHaveBeenLastCalledWith(
-      expect.objectContaining({ identifier: third.identifier }),
-      undefined
-    );
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+    expect(scenario.lastNativePlay).toMatchObject({
+      entryId: third.identifier,
+      startTimeMs: undefined,
+    });
   });
 
   it('follows an unexpected native transition after the play request is issued', async () => {
@@ -175,363 +213,420 @@ describe('player progress track identity', () => {
     player.queue.addTrackToEndOfQueue([third]);
 
     player.next();
-    await vi.waitFor(() => expect(harness.native.play).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
 
-    harness.nativeTrack?.({ currentIdentifier: third.identifier });
+    scenario.emit({ identifier: third.identifier });
 
     expect(player.queue.currentTrack).toBe(third);
     expect(progress.lastState()).toEqual({ elapsed: 0, duration: 430, percent: 0 });
   });
 
-  it('saves the new track with its own progress when paused before native progress arrives', async () => {
-    player.next();
-    await Promise.resolve();
-    harness.nativeTrack?.({ currentIdentifier: second.identifier });
-    state.setState(RelistenPlaybackState.Playing);
-    player.pause();
-    vi.advanceTimersByTime(1000);
-
-    expect(harness.save).toHaveBeenLastCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        checkpoint: expect.objectContaining({
-          entryId: second.identifier,
-          durationSeconds: 410,
-          elapsedSeconds: 0,
-        }),
-      })
-    );
-  });
-
   it('resets progress for a native automatic track change', () => {
-    harness.nativeTrack?.({ currentIdentifier: second.identifier });
+    scenario.emit({ identifier: loser.identifier });
     vi.advanceTimersByTime(1000);
 
-    expect(harness.save).toHaveBeenLastCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        checkpoint: expect.objectContaining({
-          entryId: second.identifier,
-          durationSeconds: 410,
-          elapsedSeconds: 0,
-        }),
-      })
-    );
+    expect(scenario.savedCheckpoint).toMatchObject({
+      entryId: loser.identifier,
+      durationSeconds: 410,
+      elapsedSeconds: 0,
+    });
   });
 
   it('ignores a duplicated previous-track progress event after an automatic change', () => {
-    const stale = snapshot({ elapsed: 121, duration: 381, identifier: first.identifier });
-    harness.nativeTrack?.({ currentIdentifier: second.identifier });
+    const stale = scenario.capture({
+      elapsed: 121,
+      duration: 381,
+      identifier: minglewood.identifier,
+    });
+    scenario.emit({ identifier: loser.identifier });
 
     // The final progress event from the previous track arrives after the transition.
-    harness.nativeSnapshot?.(stale);
+    scenario.deliver(stale);
     expect(progress.lastState()).toEqual({ elapsed: 0, duration: 410, percent: 0 });
     expect(player.progress).toMatchObject({ elapsed: 0, duration: 410 });
 
-    harness.nativeProgress?.({ elapsed: 1, duration: 410 });
+    scenario.emit({ elapsed: 1, duration: 410 });
     expect(progress.lastState()).toEqual({ elapsed: 1, duration: 410, percent: 1 / 410 });
   });
 
   it('uses a fallback duration when an automatic track has no catalog duration', () => {
-    second.sourceTrack.duration = 0;
-    harness.nativeTrack?.({ currentIdentifier: second.identifier });
+    loser.sourceTrack.duration = 0;
+    scenario.emit({ identifier: loser.identifier });
 
     expect(progress.lastState()).toEqual({ elapsed: 0, duration: 100, percent: 0 });
   });
 
   it('accepts identified current-track progress after an automatic change', () => {
-    harness.nativeTrack?.({ currentIdentifier: second.identifier });
+    scenario.emit({ identifier: loser.identifier });
     vi.advanceTimersByTime(5001);
 
-    harness.nativeProgress?.({ elapsed: 121, duration: 381 });
+    scenario.emit({ elapsed: 121, duration: 381 });
     expect(progress.lastState()).toEqual({ elapsed: 121, duration: 381, percent: 121 / 381 });
   });
 
   it('preserves confirmed native timing on repeated same-track notifications', () => {
-    harness.nativeProgress?.({ elapsed: 130, duration: 382.25 });
-    player.queue.onCurrentTrackIdentifierChanged(first.identifier);
+    scenario.emit({ elapsed: 130, duration: 382.25 });
+    player.queue.onCurrentTrackIdentifierChanged(minglewood.identifier);
     vi.advanceTimersByTime(1000);
 
     expect(player.progress).toMatchObject({ elapsed: 130, duration: 382.25 });
-    expect(harness.save).toHaveBeenLastCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        checkpoint: expect.objectContaining({
-          entryId: first.identifier,
-          durationSeconds: 382.25,
-          elapsedSeconds: 130,
-        }),
-      })
-    );
+    expect(scenario.savedCheckpoint).toMatchObject({
+      entryId: minglewood.identifier,
+      durationSeconds: 382.25,
+      elapsedSeconds: 130,
+    });
   });
+
+  it('removes native event listeners when disposed', () => {
+    player.dispose();
+
+    expect(mocks.snapshotListenerRemove).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores previous-track callbacks and progress while a new track is pending', () => {
+    player.next();
+    scenario.emit({ identifier: minglewood.identifier });
+    state.setState(RelistenPlaybackState.Playing);
+    scenario.emit({ elapsed: 121, duration: 381 });
+
+    expect(player.progress).toMatchObject({ duration: 381, elapsed: 121 });
+    expect(progress.lastState()).toMatchObject({ duration: 410, elapsed: 0 });
+    scenario.emit({ identifier: loser.identifier });
+    state.setState(RelistenPlaybackState.Playing);
+    player.pause();
+    vi.advanceTimersByTime(1000);
+
+    expect(scenario.savedCheckpoint).toMatchObject({
+      entryId: loser.identifier,
+      durationSeconds: 410,
+      elapsedSeconds: 0,
+    });
+  });
+
+  it('commits an interruption snapshot immediately and cancels older pending work', () => {
+    scenario.emit({ elapsed: 121, duration: 381 });
+    const final = scenario.capture({
+      elapsed: 122.75,
+      duration: 382,
+      checkpoint: true,
+      playbackState: RelistenPlaybackState.Paused,
+    });
+    scenario.deliver(final);
+    expect(scenario.savedCheckpoint).toMatchObject({
+      elapsedSeconds: 122.75,
+      durationSeconds: 382,
+    });
+    const count = mocks.save.mock.calls.length;
+    vi.advanceTimersByTime(10000);
+    expect(mocks.save).toHaveBeenCalledTimes(count);
+  });
+
+  it('does not let a previous native session overwrite a newer explicit playback session', async () => {
+    const old = scenario.capture({ elapsed: 300, duration: 381 });
+    player.next();
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+    scenario.emit({
+      identifier: loser.identifier,
+      elapsed: 10,
+      duration: 410,
+      sessionId: 'new-session',
+      sequence: 1,
+    });
+    scenario.deliver({ ...old, sequence: 999 });
+    expect(player.queue.currentTrack).toBe(loser);
+    expect(player.progress?.elapsed).toBe(10);
+  });
+});
+
+describe('progress publication and listening history', () => {
+  beforeEach(() => scenario.startPlayingQueue());
 
   it('publishes corrected native duration at the same paused elapsed time', () => {
     player.pause();
-    harness.nativeProgress?.({ elapsed: 120, duration: 382.25 });
+    scenario.emit({ elapsed: 120, duration: 382.25, playbackState: RelistenPlaybackState.Paused });
 
     expect(progress.lastState()).toEqual({ elapsed: 120, duration: 382.25, percent: 120 / 382.25 });
     expect(player.progress).toEqual(progress.lastState());
   });
 
   it('keeps current native timing for immediate saves while publishing progress once per second', () => {
-    harness.nativeProgress?.({ elapsed: 120.1, duration: 381, checkpoint: true });
-    harness.nativeProgress?.({ elapsed: 120.35, duration: 381 });
-    harness.nativeProgress?.({ elapsed: 120.8, duration: 381 });
+    scenario.emit({ elapsed: 120.1, duration: 381, checkpoint: true });
+    scenario.emit({ elapsed: 120.35, duration: 381 });
+    scenario.emit({ elapsed: 120.8, duration: 381 });
     expect(progress.lastState()?.elapsed).toBe(120.1);
     expect(player.progress?.elapsed).toBe(120.8);
     player.pause();
-    expect(harness.save.mock.calls.at(-1)?.[1].checkpoint.elapsedSeconds).toBe(120.8);
-    harness.nativeProgress?.({ elapsed: 121.1, duration: 381 });
+    expect(scenario.savedCheckpoint?.elapsedSeconds).toBe(120.8);
+    scenario.emit({ elapsed: 121.1, duration: 381 });
     expect(progress.lastState()?.elapsed).toBe(121.1);
   });
 
   it('reports a listening threshold crossed between UI progress updates', () => {
     const report = vi.fn();
     player.onShouldReportTrack.addListener(report);
-    harness.nativeProgress?.({ elapsed: 185.2, duration: 371.2 });
-    harness.nativeProgress?.({ elapsed: 185.8, duration: 371.2 });
+    // Halfway is 185.6 seconds, between two samples in the same displayed second.
+    scenario.emit({ elapsed: 185.2, duration: 371.2 });
+    scenario.emit({ elapsed: 185.8, duration: 371.2 });
     expect(progress.lastState()?.elapsed).toBe(185.2);
     expect(report).toHaveBeenCalledTimes(1);
-    harness.nativeProgress?.({ elapsed: 186.1, duration: 371.2 });
+    scenario.emit({ elapsed: 186.1, duration: 371.2 });
     expect(report).toHaveBeenCalledTimes(1);
   });
 
   it('keeps confirmed timing when native reports a transient invalid duration', () => {
     player.pause();
-    harness.nativeProgress?.({ elapsed: 120, duration: undefined });
+    scenario.emit({
+      elapsed: 120,
+      duration: undefined,
+      playbackState: RelistenPlaybackState.Paused,
+    });
 
     expect(progress.lastState()).toEqual({ elapsed: 120, duration: 381, percent: 120 / 381 });
     expect(player.progress).toEqual(progress.lastState());
   });
 
-  it('removes native event listeners when disposed', () => {
-    player.dispose();
-
-    expect(harness.progressListenerRemove).toHaveBeenCalledTimes(1);
-    expect(harness.trackListenerRemove).not.toHaveBeenCalled();
+  it('preserves reporting when confirmed playback crosses its eligibility threshold', () => {
+    const report = vi.fn();
+    player.onShouldReportTrack.addListener(report);
+    scenario.emit({ elapsed: 200, duration: 381 });
+    expect(report).toHaveBeenCalledTimes(1);
+    expect(report.mock.calls[0][0].playerQueueTrack).toBe(minglewood);
   });
+});
 
-  it('ignores previous-track callbacks and progress while a new track is pending', () => {
+describe('checkpoint persistence and queue edits', () => {
+  beforeEach(() => scenario.startPlayingQueue());
+
+  it('saves the new track with its own progress when paused before native progress arrives', async () => {
     player.next();
-    harness.nativeTrack?.({ currentIdentifier: first.identifier });
-    state.setState(RelistenPlaybackState.Playing);
-    harness.nativeProgress?.({ elapsed: 121, duration: 381 });
-
-    expect(player.progress).toMatchObject({ duration: 381, elapsed: 121 });
-    expect(progress.lastState()).toMatchObject({ duration: 410, elapsed: 0 });
-    harness.nativeTrack?.({ currentIdentifier: second.identifier });
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+    scenario.emit({ identifier: loser.identifier });
     state.setState(RelistenPlaybackState.Playing);
     player.pause();
     vi.advanceTimersByTime(1000);
 
-    expect(harness.save).toHaveBeenLastCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        checkpoint: expect.objectContaining({
-          entryId: second.identifier,
-          durationSeconds: 410,
-          elapsedSeconds: 0,
-        }),
-      })
-    );
+    expect(scenario.savedCheckpoint).toMatchObject({
+      entryId: loser.identifier,
+      durationSeconds: 410,
+      elapsedSeconds: 0,
+    });
   });
 
   it('keeps confirmed track progress coherent when a save fires before the next track is confirmed', () => {
     player.next();
     vi.advanceTimersByTime(5000);
 
-    expect(harness.save).toHaveBeenLastCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        checkpoint: expect.objectContaining({
-          entryId: first.identifier,
-          durationSeconds: 381,
-          elapsedSeconds: 120,
-        }),
-      })
-    );
-  });
-
-  it.each([
-    { catalog: 410, saved: 381, elapsed: 120, duration: 381, restoredElapsed: 120 },
-    { catalog: 410, saved: 381, elapsed: 500, duration: 381, restoredElapsed: 381 },
-    { catalog: 410, saved: undefined, elapsed: 120, duration: 410, restoredElapsed: 120 },
-    { catalog: 0, saved: 381, elapsed: 120, duration: 381, restoredElapsed: 120 },
-    { catalog: undefined, saved: 381, elapsed: 120, duration: 381, restoredElapsed: 120 },
-    { catalog: undefined, saved: undefined, elapsed: 120, duration: 0, restoredElapsed: 120 },
-  ])(
-    'restores checkpoint with catalog $catalog, saved $saved, elapsed $elapsed',
-    async ({ catalog, saved, elapsed, duration, restoredElapsed }) => {
-      player.dispose();
-      player = new RelistenPlayer();
-      second.sourceTrack.duration = catalog;
-      harness.state.mockReturnValue(
-        savedState({
-          checkpoint: { entryId: 'B', elapsedSeconds: elapsed, durationSeconds: saved },
-        })
-      );
-      const cachedRealm = {
-        objects: () => ({ filtered: () => [first.sourceTrack, second.sourceTrack] }),
-      } as unknown as Realm;
-
-      await player.queue.restorePlayerState(cachedRealm);
-      vi.advanceTimersByTime(1000);
-
-      expect(player.queue.currentTrack?.sourceTrack.uuid).toBe('loser');
-      expect(player.progress).toEqual({
-        duration,
-        elapsed: restoredElapsed,
-        percent: duration > 0 ? restoredElapsed / duration : 0,
-      });
-      expect(harness.save).toHaveBeenLastCalledWith(
-        expect.anything(),
-        expect.objectContaining({
-          checkpoint: expect.objectContaining({
-            durationSeconds: duration > 0 ? duration : null,
-            elapsedSeconds: restoredElapsed,
-          }),
-        })
-      );
-      expect(harness.native.play).not.toHaveBeenCalled();
-      player.resume();
-      await vi.waitFor(() => expect(harness.native.play).toHaveBeenCalled());
-      expect(harness.native.play).toHaveBeenLastCalledWith(
-        expect.objectContaining({ identifier: 'B' }),
-        restoredElapsed * 1000
-      );
-    }
-  );
-  it('commits an interruption snapshot immediately and cancels older pending work', () => {
-    harness.nativeProgress?.({ elapsed: 121, duration: 381 });
-    const final = snapshot({
-      elapsed: 122.75,
-      duration: 382,
-      checkpoint: true,
-      playbackState: RelistenPlaybackState.Paused,
+    expect(scenario.savedCheckpoint).toMatchObject({
+      entryId: minglewood.identifier,
+      durationSeconds: 381,
+      elapsedSeconds: 120,
     });
-    harness.nativeSnapshot?.(final);
-    expect(harness.save).toHaveBeenLastCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        checkpoint: expect.objectContaining({ elapsedSeconds: 122.75, durationSeconds: 382 }),
-      })
-    );
-    const count = harness.save.mock.calls.length;
-    vi.advanceTimersByTime(10000);
-    expect(harness.save).toHaveBeenCalledTimes(count);
   });
 
   it('rejects repeated and out-of-order progress and transition snapshots', () => {
-    const stale = snapshot({ elapsed: 121, duration: 381 });
-    harness.nativeTrack?.({ currentIdentifier: second.identifier });
-    harness.nativeProgress?.({ elapsed: 4, duration: 410, checkpoint: true });
-    const saved = harness.save.mock.calls.at(-1)?.[1];
-    harness.nativeSnapshot?.(stale);
-    harness.nativeSnapshot?.({ ...stale, sequence: 100, sourceTrackUuid: second.sourceTrack.uuid });
-    expect(player.queue.currentTrack).toBe(second);
+    const stale = scenario.capture({ elapsed: 121, duration: 381 });
+    scenario.emit({ identifier: loser.identifier });
+    scenario.emit({ elapsed: 4, duration: 410, checkpoint: true });
+    const saved = scenario.savedState;
+    scenario.deliver(stale);
+    scenario.deliver({ ...stale, sequence: 100, sourceTrackUuid: loser.sourceTrack.uuid });
+    expect(player.queue.currentTrack).toBe(loser);
     expect(player.progress).toMatchObject({ elapsed: 4, duration: 410 });
-    expect(harness.save.mock.calls.at(-1)?.[1]).toEqual(saved);
+    expect(scenario.savedState).toEqual(saved);
   });
 
   it('bounds progress persistence to five seconds without postponing the deadline', () => {
-    harness.save.mockClear();
+    mocks.save.mockClear();
     for (let elapsed = 121; elapsed <= 125; elapsed++) {
-      harness.nativeProgress?.({ elapsed, duration: 381 });
+      scenario.emit({ elapsed, duration: 381 });
       vi.advanceTimersByTime(1000);
     }
-    expect(harness.save).toHaveBeenCalledTimes(1);
-    expect(harness.save).toHaveBeenLastCalledWith(
-      expect.anything(),
-      expect.objectContaining({ checkpoint: expect.objectContaining({ elapsedSeconds: 125 }) })
-    );
+    expect(mocks.save).toHaveBeenCalledTimes(1);
+    expect(scenario.savedCheckpoint).toMatchObject({ elapsedSeconds: 125 });
   });
 
   it('keeps the selected entry and its timing through reorder and removal before it', () => {
-    harness.nativeTrack?.({ currentIdentifier: second.identifier });
-    harness.nativeProgress?.({ elapsed: 42, duration: 410 });
+    scenario.emit({ identifier: loser.identifier });
+    scenario.emit({ elapsed: 42, duration: 410 });
     player.queue.moveQueueTrack(1, 0);
-    expect(player.queue.currentTrack).toBe(second);
-    expect(harness.save).toHaveBeenLastCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        checkpoint: expect.objectContaining({ entryId: second.identifier, elapsedSeconds: 42 }),
-      })
-    );
+    expect(player.queue.currentTrack).toBe(loser);
+    expect(scenario.savedCheckpoint).toMatchObject({
+      entryId: loser.identifier,
+      elapsedSeconds: 42,
+    });
     player.queue.moveQueueTrack(0, 1);
     player.queue.removeTrackAtIndex(0);
-    expect(player.queue.currentTrack).toBe(second);
-    expect(harness.save).toHaveBeenLastCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        checkpoint: expect.objectContaining({ entryId: second.identifier, elapsedSeconds: 42 }),
-      })
-    );
+    expect(player.queue.currentTrack).toBe(loser);
+    expect(scenario.savedCheckpoint).toMatchObject({
+      entryId: loser.identifier,
+      elapsedSeconds: 42,
+    });
   });
 
   it('invalidates callbacks from a replaced queue even when entries are reused', () => {
-    const stale = snapshot({ elapsed: 300, duration: 381 });
-    player.queue.replaceQueue([first, second], undefined);
-    harness.nativeSnapshot?.({ ...stale, sequence: 100 });
+    const stale = scenario.capture({ elapsed: 300, duration: 381 });
+    player.queue.replaceQueue([minglewood, loser], undefined);
+    scenario.deliver({ ...stale, sequence: 100 });
     expect(player.queue.currentTrack).toBeUndefined();
-    expect(harness.save.mock.calls.at(-1)?.[1].checkpoint).toBeNull();
+    expect(scenario.savedCheckpoint).toBeNull();
   });
 
-  it('does not let a previous native session overwrite a newer explicit playback session', async () => {
-    const old = snapshot({ elapsed: 300, duration: 381 });
-    player.next();
-    await Promise.resolve();
-    await Promise.resolve();
-    harness.nativeSnapshot?.({
-      ...snapshot({
-        identifier: second.identifier,
-        sourceTrackUuid: second.sourceTrack.uuid,
-        elapsed: 10,
-        duration: 410,
-      }),
-      sessionId: 'new-session',
-      sequence: 1,
+  it('does not rewrite identical repeated native pause snapshots', () => {
+    scenario.emit({ elapsed: 122, duration: 381, checkpoint: true });
+    const count = mocks.save.mock.calls.length;
+    scenario.emit({ elapsed: 122, duration: 381, checkpoint: true });
+    scenario.emit({ elapsed: 122, duration: 381, checkpoint: true });
+    expect(mocks.save).toHaveBeenCalledTimes(count);
+  });
+
+  it('persists exactly one complete transition observation', () => {
+    mocks.save.mockClear();
+    const event = scenario.capture({
+      identifier: loser.identifier,
+      sourceTrackUuid: loser.sourceTrack.uuid,
+      elapsed: 42,
+      duration: 410,
+      checkpoint: true,
     });
-    harness.nativeSnapshot?.({ ...old, sequence: 999 });
-    expect(player.queue.currentTrack).toBe(second);
-    expect(player.progress?.elapsed).toBe(10);
+    scenario.deliver(event);
+    expect(mocks.save).toHaveBeenCalledTimes(1);
+    expect(scenario.savedState).toMatchObject({
+      checkpoint: { entryId: loser.identifier, elapsedSeconds: 42, durationSeconds: 410 },
+    });
+  });
+
+  it('applies pause, identity and timing from one observation before the final save', () => {
+    scenario.emit({
+      identifier: loser.identifier,
+      elapsed: 7,
+      duration: 410,
+      playbackState: RelistenPlaybackState.Paused,
+    });
+    expect(player.state).toBe(RelistenPlaybackState.Paused);
+    expect(player.queue.currentTrack).toBe(loser);
+    expect(scenario.savedState).toMatchObject({
+      checkpoint: { entryId: loser.identifier, elapsedSeconds: 7, durationSeconds: 410 },
+    });
+  });
+});
+
+describe('saved queue restoration', () => {
+  it.each([
+    {
+      reason: 'prefers saved native duration',
+      catalogDuration: 410,
+      savedDuration: 381,
+      savedElapsed: 120,
+      expectedDuration: 381,
+      expectedElapsed: 120,
+    },
+    {
+      reason: 'clamps elapsed to known duration',
+      catalogDuration: 410,
+      savedDuration: 381,
+      savedElapsed: 500,
+      expectedDuration: 381,
+      expectedElapsed: 381,
+    },
+    {
+      reason: 'uses catalog duration when saved duration is absent',
+      catalogDuration: 410,
+      savedDuration: undefined,
+      savedElapsed: 120,
+      expectedDuration: 410,
+      expectedElapsed: 120,
+    },
+    {
+      reason: 'keeps saved duration when catalog duration is zero',
+      catalogDuration: 0,
+      savedDuration: 381,
+      savedElapsed: 120,
+      expectedDuration: 381,
+      expectedElapsed: 120,
+    },
+    {
+      reason: 'keeps saved duration when catalog duration is absent',
+      catalogDuration: undefined,
+      savedDuration: 381,
+      savedElapsed: 120,
+      expectedDuration: 381,
+      expectedElapsed: 120,
+    },
+  ])(
+    '$reason',
+    async ({ catalogDuration, savedDuration, savedElapsed, expectedDuration, expectedElapsed }) => {
+      loser.sourceTrack.duration = catalogDuration;
+
+      await scenario.restore({
+        checkpoint: { entryId: 'B', elapsedSeconds: savedElapsed, durationSeconds: savedDuration },
+      });
+
+      expect(player.queue.currentTrack?.sourceTrack.uuid).toBe('loser');
+      expect(player.progress).toEqual({
+        duration: expectedDuration,
+        elapsed: expectedElapsed,
+        percent: expectedElapsed / expectedDuration,
+      });
+      expect(scenario.savedCheckpoint).toMatchObject({
+        durationSeconds: expectedDuration,
+        elapsedSeconds: expectedElapsed,
+      });
+      expect(mocks.native.play).not.toHaveBeenCalled();
+
+      player.resume();
+      await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalled());
+      expect(scenario.lastNativePlay).toMatchObject({
+        entryId: 'B',
+        startTimeMs: expectedElapsed * 1000,
+      });
+    }
+  );
+
+  it('preserves position and resumes there when neither duration is known', async () => {
+    loser.sourceTrack.duration = undefined;
+
+    await scenario.restore({
+      checkpoint: { entryId: 'B', elapsedSeconds: 120, durationSeconds: null },
+    });
+
+    expect(player.progress).toEqual({ elapsed: 120, duration: 0, percent: 0 });
+    expect(scenario.savedCheckpoint).toEqual({
+      entryId: 'B',
+      elapsedSeconds: 120,
+      durationSeconds: null,
+    });
+
+    player.resume();
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalled());
+    expect(scenario.lastNativePlay).toMatchObject({ entryId: 'B', startTimeMs: 120000 });
   });
 
   it('retains the duplicate queue occurrence and shuffled order from Realm', async () => {
-    harness.state.mockReturnValue(
-      savedState({
-        queueEntries: [
-          { id: 'A1', sourceTrackUuid: 'minglewood' },
-          { id: 'A2', sourceTrackUuid: 'minglewood' },
-          { id: 'B', sourceTrackUuid: 'loser' },
-        ],
-        shuffleOrder: { entryIds: ['B', 'A2', 'A1'] },
-        checkpoint: { entryId: 'A2', elapsedSeconds: 222, durationSeconds: 381 },
-      })
-    );
-    const cachedRealm = {
-      objects: () => ({ filtered: () => [first.sourceTrack, second.sourceTrack] }),
-    } as unknown as Realm;
-    await player.queue.restorePlayerState(cachedRealm);
+    await scenario.restore({
+      queueEntries: [
+        { id: 'A1', sourceTrackUuid: 'minglewood' },
+        { id: 'A2', sourceTrackUuid: 'minglewood' },
+        { id: 'B', sourceTrackUuid: 'loser' },
+      ],
+      shuffleOrder: { entryIds: ['B', 'A2', 'A1'] },
+      checkpoint: { entryId: 'A2', elapsedSeconds: 222, durationSeconds: 381 },
+    });
     expect(player.queue.currentIndex).toBe(1);
     expect(player.queue.orderedTracks.map((track) => track.sourceTrack.uuid)).toEqual([
       'loser',
       'minglewood',
       'minglewood',
     ]);
-    expect(harness.save).toHaveBeenLastCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        checkpoint: expect.objectContaining({
-          entryId: 'A2',
-          elapsedSeconds: 222,
-        }),
-      })
-    );
+    expect(scenario.savedCheckpoint).toMatchObject({
+      entryId: 'A2',
+      elapsedSeconds: 222,
+    });
   });
+
   it('keeps duplicate occurrences linked to original order after shuffled restore and advance', async () => {
     const third = track('third', 430);
-    harness.state.mockReturnValue(
-      savedState({
+    await scenario.restore(
+      {
         queueEntries: [
           { id: 'A1', sourceTrackUuid: 'minglewood' },
           { id: 'B', sourceTrackUuid: 'loser' },
@@ -540,21 +635,16 @@ describe('player progress track identity', () => {
         ],
         shuffleOrder: { entryIds: ['A1', 'C', 'A2', 'B'] },
         checkpoint: { entryId: 'A1', elapsedSeconds: 222, durationSeconds: 381 },
-      })
+      },
+      [minglewood.sourceTrack, loser.sourceTrack, third.sourceTrack]
     );
-    const cachedRealm = {
-      objects: () => ({
-        filtered: () => [first.sourceTrack, second.sourceTrack, third.sourceTrack],
-      }),
-    } as unknown as Realm;
-    await player.queue.restorePlayerState(cachedRealm);
     expect(player.queue.orderedTracks.map((track) => track.identifier)).toEqual([
       'A1',
       'C',
       'A2',
       'B',
     ]);
-    harness.nativeTrack?.({ currentIdentifier: 'A2' });
+    scenario.emit({ identifier: 'A2' });
     player.queue.setShuffleState(PlayerShuffleState.SHUFFLE_OFF);
     expect(player.queue.currentIndex).toBe(2);
     expect(player.queue.currentTrack?.identifier).toBe('A2');
@@ -562,63 +652,24 @@ describe('player progress track identity', () => {
   });
 
   it('restores a queue without inventing a selection when its checkpoint is null', async () => {
-    harness.state.mockReturnValue(savedState({ checkpoint: null }));
-    const cachedRealm = {
-      objects: () => ({ filtered: () => [first.sourceTrack, second.sourceTrack] }),
-    } as unknown as Realm;
-    await player.queue.restorePlayerState(cachedRealm);
+    await scenario.restore({ checkpoint: null });
     expect(player.queue.orderedTracks.map((track) => track.identifier)).toEqual(['A', 'B']);
     expect(player.queue.currentTrack).toBeUndefined();
-    expect(harness.save.mock.calls.at(-1)?.[1].checkpoint).toBeNull();
-    expect(harness.native.play).not.toHaveBeenCalled();
-  });
-
-  it('does not rewrite identical repeated native pause snapshots', () => {
-    harness.nativeProgress?.({ elapsed: 122, duration: 381, checkpoint: true });
-    const count = harness.save.mock.calls.length;
-    harness.nativeProgress?.({ elapsed: 122, duration: 381, checkpoint: true });
-    harness.nativeProgress?.({ elapsed: 122, duration: 381, checkpoint: true });
-    expect(harness.save).toHaveBeenCalledTimes(count);
-  });
-  it('persists exactly one complete transition observation', () => {
-    harness.save.mockClear();
-    const event = snapshot({
-      identifier: second.identifier,
-      sourceTrackUuid: second.sourceTrack.uuid,
-      elapsed: 42,
-      duration: 410,
-      checkpoint: true,
-    });
-    harness.nativeSnapshot?.(event);
-    expect(harness.save).toHaveBeenCalledTimes(1);
-    expect(harness.save.mock.calls[0][1]).toMatchObject({
-      checkpoint: { entryId: second.identifier, elapsedSeconds: 42, durationSeconds: 410 },
-    });
+    expect(scenario.savedCheckpoint).toBeNull();
+    expect(mocks.native.play).not.toHaveBeenCalled();
   });
 
   it('retains measured duration/position from identified Realm state', async () => {
-    harness.state.mockReturnValue(
-      savedState({
-        checkpoint: { entryId: 'B', elapsedSeconds: 420, durationSeconds: 430 },
-      })
-    );
-    const cachedRealm = {
-      objects: () => ({ filtered: () => [first.sourceTrack, second.sourceTrack] }),
-    } as unknown as Realm;
-    await player.queue.restorePlayerState(cachedRealm);
+    await scenario.restore({
+      checkpoint: { entryId: 'B', elapsedSeconds: 420, durationSeconds: 430 },
+    });
     expect(player.progress).toMatchObject({ elapsed: 420, duration: 430 });
   });
-  it('preserves reporting when confirmed playback crosses its eligibility threshold', () => {
-    const report = vi.fn();
-    player.onShouldReportTrack.addListener(report);
-    harness.nativeProgress?.({ elapsed: 200, duration: 381 });
-    expect(report).toHaveBeenCalledTimes(1);
-    expect(report.mock.calls[0][0].playerQueueTrack).toBe(first);
-  });
+
   it('does not apply a missing catalog entry timing to the remaining fallback track', async () => {
     const third = track('third', 430);
-    harness.state.mockReturnValue(
-      savedState({
+    await scenario.restore(
+      {
         queueEntries: [
           { id: 'A', sourceTrackUuid: 'minglewood' },
           { id: 'B', sourceTrackUuid: 'loser' },
@@ -626,26 +677,21 @@ describe('player progress track identity', () => {
         ],
         shuffleOrder: { entryIds: ['C', 'A', 'B'] },
         checkpoint: { entryId: 'A', elapsedSeconds: 120, durationSeconds: 381 },
-      })
+      },
+      [loser.sourceTrack, third.sourceTrack]
     );
-    const cachedRealm = {
-      objects: () => ({ filtered: () => [second.sourceTrack, third.sourceTrack] }),
-    } as unknown as Realm;
-    await player.queue.restorePlayerState(cachedRealm);
     expect(player.queue.currentTrack?.identifier).toBe('C');
     expect(player.progress).toMatchObject({ elapsed: 0, duration: 430 });
-    expect(harness.save.mock.calls.at(-1)?.[1].shuffleOrder.entryIds).toEqual(['C', 'B']);
+    expect(scenario.savedState.shuffleOrder?.entryIds).toEqual(['C', 'B']);
   });
+
   it('does not erase a saved queue when native pause arrives before startup restore', () => {
-    player.dispose();
-    harness.save.mockClear();
-    player = new RelistenPlayer();
-    void player.state;
     state.setState(RelistenPlaybackState.Paused);
     player.queue.flushPlayerState();
-    expect(harness.save).not.toHaveBeenCalled();
+    expect(mocks.save).not.toHaveBeenCalled();
     expect(player.canRestorePlayerState).toBe(true);
   });
+
   it.each([
     [RelistenPlaybackState.Stopped, true],
     [RelistenPlaybackState.Paused, true],
@@ -654,130 +700,89 @@ describe('player progress track identity', () => {
   ])(
     'only restores an untouched empty player in stopped/paused state: %s',
     (playbackState, allowed) => {
-      player.dispose();
-      state.setState(RelistenPlaybackState.Stopped);
-      player = new RelistenPlayer();
-      void player.state;
       state.setState(playbackState);
       expect(player.canRestorePlayerState).toBe(allowed);
       player.playbackIntentStarted = true;
       expect(player.canRestorePlayerState).toBe(false);
     }
   );
+
   it('starts the restored stream and seek intent after an unsolicited startup pause', async () => {
-    player.dispose();
-    state.setState(RelistenPlaybackState.Stopped);
-    player = new RelistenPlayer();
-    void player.state;
     state.setState(RelistenPlaybackState.Paused);
-    harness.state.mockReturnValue(savedState());
-    const cachedRealm = {
-      objects: () => ({ filtered: () => [first.sourceTrack, second.sourceTrack] }),
-    } as unknown as Realm;
-    await player.queue.restorePlayerState(cachedRealm);
+    await scenario.restore();
     expect(player.state).toBe(RelistenPlaybackState.Stopped);
     player.resume();
-    await vi.waitFor(() => expect(harness.native.play).toHaveBeenCalled());
-    expect(harness.native.play).toHaveBeenLastCalledWith(
-      expect.objectContaining({ cacheKey: 'loser' }),
-      120000
-    );
-  });
-
-  it('confirms a restored selection so native preparation and later Next requests can proceed', async () => {
-    player.dispose();
-    currentTrackIdentifier.setState(undefined);
-    state.setState(RelistenPlaybackState.Stopped);
-    player = new RelistenPlayer();
-    harness.state.mockReturnValue(
-      savedState({ checkpoint: { entryId: 'A', elapsedSeconds: 120, durationSeconds: 381 } })
-    );
-    const cachedRealm = {
-      objects: () => ({ filtered: () => [first.sourceTrack, second.sourceTrack] }),
-    } as unknown as Realm;
-    await player.queue.restorePlayerState(cachedRealm);
-    expect(player.queue.nextTrack).toBeUndefined();
-
-    player.resume();
-    await vi.waitFor(() => expect(harness.native.play).toHaveBeenCalledTimes(1));
-    harness.nativeSnapshot?.(snapshot({ identifier: 'A', elapsed: 120, duration: 381 }));
-    expect(harness.native.setNextStream).toHaveBeenLastCalledWith(
-      expect.objectContaining({ identifier: 'B' })
-    );
-
-    player.next();
-    await vi.waitFor(() => expect(harness.native.play).toHaveBeenCalledTimes(2));
-    expect(harness.native.play).toHaveBeenLastCalledWith(
-      expect.objectContaining({ identifier: 'B' }),
-      undefined
-    );
-  });
-
-  it('applies pause, identity and timing from one observation before the final save', () => {
-    harness.nativeSnapshot?.(
-      snapshot({
-        identifier: second.identifier,
-        sourceTrackUuid: second.sourceTrack.uuid,
-        elapsed: 7,
-        duration: 410,
-        playbackState: RelistenPlaybackState.Paused,
-      })
-    );
-    expect(player.state).toBe(RelistenPlaybackState.Paused);
-    expect(player.queue.currentTrack).toBe(second);
-    expect(harness.save.mock.calls.at(-1)![1]).toMatchObject({
-      checkpoint: { entryId: second.identifier, elapsedSeconds: 7, durationSeconds: 410 },
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalled());
+    expect(scenario.lastNativePlay).toMatchObject({
+      sourceTrackUuid: 'loser',
+      startTimeMs: 120000,
     });
   });
 
+  it('confirms a restored selection so native preparation and later Next requests can proceed', async () => {
+    await scenario.restore({
+      checkpoint: { entryId: 'A', elapsedSeconds: 120, durationSeconds: 381 },
+    });
+    expect(player.queue.nextTrack).toBeUndefined();
+
+    player.resume();
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+    scenario.emit({ identifier: 'A', elapsed: 120, duration: 381 });
+    const [preparedStream] = mocks.native.setNextStream.mock.lastCall!;
+    expect(preparedStream?.identifier).toBe('B');
+
+    player.next();
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(2));
+    expect(scenario.lastNativePlay).toMatchObject({ entryId: 'B', startTimeMs: undefined });
+  });
+});
+
+describe('terminal playback', () => {
+  beforeEach(() => scenario.startPlayingQueue());
+
   it('applies a terminal stop without replacing the selected entry or its timing', () => {
-    const stopped = snapshot({
+    const stopped = scenario.capture({
       identifier: undefined,
       sourceTrackUuid: undefined,
       elapsed: undefined,
       duration: undefined,
       playbackState: RelistenPlaybackState.Stopped,
     });
-    harness.nativeSnapshot?.(stopped);
+    scenario.deliver(stopped);
     expect(player.state).toBe(RelistenPlaybackState.Stopped);
-    expect(player.queue.currentTrack).toBe(first);
+    expect(player.queue.currentTrack).toBe(minglewood);
     expect(player.progress?.elapsed).toBe(120);
-    expect(harness.save.mock.calls.at(-1)![1]).toMatchObject({
-      checkpoint: { entryId: first.identifier, elapsedSeconds: 120 },
+    expect(scenario.savedState).toMatchObject({
+      checkpoint: { entryId: minglewood.identifier, elapsedSeconds: 120 },
     });
-    harness.nativeSnapshot?.({
+    scenario.deliver({
       ...stopped,
       sequence: stopped.sequence - 1,
       playbackState: RelistenPlaybackState.Playing,
     });
     expect(player.state).toBe(RelistenPlaybackState.Stopped);
   });
+
   it('starts the selected stream after Android clears an already-paused controller', async () => {
-    harness.nativeSnapshot?.(snapshot({ playbackState: RelistenPlaybackState.Paused }));
-    harness.native.stop.mockImplementationOnce(async () => {
+    scenario.emit({ playbackState: RelistenPlaybackState.Paused });
+    mocks.native.stop.mockImplementationOnce(async () => {
       // Android first captures the paused position, then reports the empty controller.
-      harness.nativeSnapshot?.(
-        snapshot({ playbackState: RelistenPlaybackState.Paused, checkpoint: true })
-      );
-      harness.nativeSnapshot?.(
-        snapshot({
-          identifier: undefined,
-          sourceTrackUuid: undefined,
-          elapsed: undefined,
-          duration: undefined,
-          playbackState: RelistenPlaybackState.Stopped,
-          checkpoint: true,
-        })
-      );
+      scenario.emit({ playbackState: RelistenPlaybackState.Paused, checkpoint: true });
+      scenario.emit({
+        identifier: undefined,
+        sourceTrackUuid: undefined,
+        playbackState: RelistenPlaybackState.Stopped,
+        checkpoint: true,
+      });
     });
     await player.stop();
     expect(player.state).toBe(RelistenPlaybackState.Stopped);
     player.resume();
-    await vi.waitFor(() => expect(harness.native.play).toHaveBeenCalled());
-    expect(harness.native.play).toHaveBeenLastCalledWith(
-      expect.objectContaining({ identifier: first.identifier }),
-      undefined
-    );
-    expect(harness.native.resume).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalled());
+    expect(scenario.lastNativePlay).toMatchObject({
+      entryId: minglewood.identifier,
+      startTimeMs: undefined,
+    });
+    expect(mocks.native.resume).not.toHaveBeenCalled();
   });
 });

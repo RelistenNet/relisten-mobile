@@ -681,7 +681,10 @@ ${indentString(this.queue.debugState(true))}
     }
   };
 
-  /** Retire old backends so delayed events cannot rewind the accepted native sequence. */
+  /**
+   * A replacement backend must match the pending target, including no selection when idle.
+   * Applying the observation below advances the sequence; this check only adopts its session.
+   */
   private acceptNativeSession(snapshot: RelistenPlaybackSnapshot): boolean {
     const validSequence = Number.isSafeInteger(snapshot.sequence) && snapshot.sequence >= 0;
     if (
@@ -731,7 +734,8 @@ ${indentString(this.queue.debugState(true))}
     this._queue.applyPlaybackCheckpoint(() => {
       this.nativeSequence = snapshot.sequence;
       this.confirmNativeTrack(track);
-      this.applyNativeProgress(snapshot, track, selectionChanged, saveImmediately);
+      const progress = this.progressFromNativeSnapshot(snapshot, track, selectionChanged);
+      this.applyNativePlayback(snapshot, progress, saveImmediately);
     }, saveImmediately);
 
     if (unexpectedTrack) {
@@ -772,15 +776,14 @@ ${indentString(this.queue.debugState(true))}
     return { elapsed, duration, percent: duration > 0 ? elapsed / duration : 0 };
   }
 
-  private applyNativeProgress(
+  private applyNativePlayback(
     snapshot: RelistenPlaybackSnapshot,
-    track: PlayerQueueTrack,
-    selectionChanged: boolean,
+    progress: PlaybackContextProgress,
     saveImmediately: boolean
   ) {
-    const progress = this.progressFromNativeSnapshot(snapshot, track, selectionChanged);
     const request = this.nativePlayRequest;
-    const previewingAnotherTrack = request !== undefined && request.identifier !== track.identifier;
+    const previewingAnotherTrack =
+      request !== undefined && request.identifier !== snapshot.identifier;
     const published = sharedStateProgress.lastState();
     const elapsedSecondChanged =
       !published || Math.floor(published.elapsed) !== Math.floor(progress.elapsed);
