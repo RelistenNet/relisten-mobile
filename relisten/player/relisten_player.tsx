@@ -38,12 +38,14 @@ const logger = log.extend('player');
 enum NativePlayRequestPhase {
   WaitingToIssue,
   Issued,
+  AwaitingConfirmation,
 }
 
 interface NativePlayRequest {
   identifier: string;
   version: number;
   phase: NativePlayRequestPhase;
+  failed: boolean;
 }
 
 interface QueuedPlayRequest {
@@ -175,7 +177,10 @@ export class RelistenPlayer {
   pause() {
     this.addPlayerListeners();
 
-    if (this.nativePlayRequest?.phase === NativePlayRequestPhase.Issued) {
+    if (
+      this.nativePlayRequest &&
+      this.nativePlayRequest.phase !== NativePlayRequestPhase.WaitingToIssue
+    ) {
       // An issued stream may still confirm; Pause cancels only the queued successor.
       this.nextPlayRequest = undefined;
       this.requestedTrackIdentifier = this.nativePlayRequest.identifier;
@@ -323,6 +328,7 @@ export class RelistenPlayer {
       identifier: track.identifier,
       version: playRequestVersion,
       phase: NativePlayRequestPhase.WaitingToIssue,
+      failed: false,
     };
     this.optimisticallyUpdateCurrentTrack(track, seekToTime);
 
@@ -371,6 +377,7 @@ export class RelistenPlayer {
           identifier: track.identifier,
           version: playRequestVersion,
           phase: NativePlayRequestPhase.Issued,
+          failed: false,
         };
         // Even a stopped selection needs a new confirmation to prepare its successor.
         currentTrackIdentifier.setState(undefined);
@@ -382,10 +389,15 @@ export class RelistenPlayer {
       .then(() => {
         if (
           this.currentlyProcessingPlayRequest === request &&
-          this.nativePlayRequest?.version === playRequestVersion &&
-          this.nativePlayRequest.identifier === currentTrackIdentifier.lastState()
+          this.nativePlayRequest?.version === playRequestVersion
         ) {
-          this.finishPlayRequest(request);
+          this.nativePlayRequest.phase = NativePlayRequestPhase.AwaitingConfirmation;
+          if (
+            this.nativePlayRequest.failed ||
+            this.nativePlayRequest.identifier === currentTrackIdentifier.lastState()
+          ) {
+            this.finishPlayRequest(request);
+          }
         }
       })
       .catch((error) => {
@@ -870,7 +882,8 @@ ${indentString(this.queue.debugState(true))}
   private onCurrentTrackIdentifierChanged = (newIdentifier?: string) => {
     if (
       !newIdentifier ||
-      this.nativePlayRequest?.phase !== NativePlayRequestPhase.Issued ||
+      !this.nativePlayRequest ||
+      this.nativePlayRequest.phase === NativePlayRequestPhase.WaitingToIssue ||
       newIdentifier !== this.nativePlayRequest.identifier
     ) {
       return;
@@ -922,10 +935,16 @@ ${indentString(this.queue.debugState(true))}
     const request = this.currentlyProcessingPlayRequest;
     if (
       request &&
-      this.nativePlayRequest?.phase === NativePlayRequestPhase.Issued &&
+      this.nativePlayRequest &&
+      this.nativePlayRequest.phase !== NativePlayRequestPhase.WaitingToIssue &&
       this.nativePlayRequest.identifier === error.identifier
     ) {
-      this.finishPlayRequest(request);
+      // Occurrence IDs survive Stop/Resume. An error alone cannot acknowledge
+      // a new command for the same occurrence; wait for that command's result.
+      this.nativePlayRequest.failed = true;
+      if (this.nativePlayRequest.phase === NativePlayRequestPhase.AwaitingConfirmation) {
+        this.finishPlayRequest(request);
+      }
     }
 
     sharedStatsigClient().logEvent(

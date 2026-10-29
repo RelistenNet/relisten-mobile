@@ -431,6 +431,31 @@ describe('commands interrupted by later user actions', () => {
     expect(scenario.lastNativePlay.entryId).toBe(third.identifier);
   });
 
+  it('does not let an old error for a restarted entry release its unfinished command', async () => {
+    await player.stop();
+    const restartedPlay = deferredOperation();
+    mocks.native.play.mockReturnValueOnce(restartedPlay.promise);
+    player.resume();
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+
+    latestError.setState({
+      identifier: minglewood.identifier,
+      error: {
+        kind: RelistenPlaybackErrorKind.NetworkUnavailable,
+        message: 'Delayed failure for the same queue occurrence',
+        isRetryable: true,
+        platform: 'ios',
+      },
+    });
+    player.next();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mocks.native.play).toHaveBeenCalledTimes(1);
+
+    restartedPlay.complete();
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(2));
+    expect(scenario.lastNativePlay.entryId).toBe(loser.identifier);
+  });
+
   it('keeps a queued Play target through drag reordering', async () => {
     player.queue.addTrackToEndOfQueue([track('third', 430)]);
     const third = player.queue.orderedTracks[2];
