@@ -115,6 +115,8 @@ class ExoPlayerLifecycle internal constructor(private val player: RelistenGaples
                 previousStreamable = null,
                 currentStreamable = null
             )
+            // Removing the last item need not change the cached transport state.
+            player.emitPlaybackSnapshot(checkpoint = true)
         } else if (previousStream?.mediaItem == mediaItem) {
             player.delegate?.trackChanged(
                 player,

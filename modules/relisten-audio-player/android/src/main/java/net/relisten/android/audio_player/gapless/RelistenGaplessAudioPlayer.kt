@@ -58,7 +58,8 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
             "sourceTrackUuid" to stream?.streamable?.cacheKey,
             "elapsed" to stream?.let { (controller.currentPosition / 1000.0).coerceAtLeast(0.0) },
             "duration" to stream?.let { (controller.duration / 1000.0).takeIf { it.isFinite() && it > 0 } },
-            "playbackState" to relistenPlaybackStateFromPlayer(controller).toString(),
+            "playbackState" to (if (identifier == null) RelistenPlaybackState.Stopped
+                else relistenPlaybackStateFromPlayer(controller)).toString(),
             "checkpoint" to checkpoint
         )
         delegate?.playbackSnapshot(this, snapshot)

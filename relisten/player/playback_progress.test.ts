@@ -643,4 +643,32 @@ describe('player progress track identity', () => {
     });
     expect(player.state).toBe(RelistenPlaybackState.Stopped);
   });
+  it('starts the selected stream after Android clears an already-paused controller', async () => {
+    harness.nativeSnapshot?.(snapshot({ playbackState: RelistenPlaybackState.Paused }));
+    harness.native.stop.mockImplementationOnce(async () => {
+      // Android first captures the paused position, then reports the empty controller.
+      harness.nativeSnapshot?.(
+        snapshot({ playbackState: RelistenPlaybackState.Paused, checkpoint: true })
+      );
+      harness.nativeSnapshot?.(
+        snapshot({
+          identifier: undefined,
+          sourceTrackUuid: undefined,
+          elapsed: undefined,
+          duration: undefined,
+          playbackState: RelistenPlaybackState.Stopped,
+          checkpoint: true,
+        })
+      );
+    });
+    await player.stop();
+    expect(player.state).toBe(RelistenPlaybackState.Stopped);
+    player.resume();
+    await vi.waitFor(() => expect(harness.native.play).toHaveBeenCalled());
+    expect(harness.native.play).toHaveBeenLastCalledWith(
+      expect.objectContaining({ identifier: first.identifier }),
+      undefined
+    );
+    expect(harness.native.resume).not.toHaveBeenCalled();
+  });
 });
