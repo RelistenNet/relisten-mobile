@@ -22,6 +22,7 @@ public enum PlaybackState: String, Enumerable {
 
 protocol PlaybackBackendDelegate: AnyObject {
     func errorStartingStream(error: PlaybackStreamError, forStreamable: RelistenGaplessStreamable)
+    func playbackSnapshot(_ snapshot: PlaybackSnapshot)
     func playbackStateChanged(newPlaybackState: PlaybackState)
     func playbackProgressChanged(elapsed: TimeInterval?, duration: TimeInterval?)
     func downloadProgressChanged(forActiveTrack: Bool, downloadedBytes: UInt64, totalBytes: UInt64)
@@ -46,6 +47,7 @@ protocol PlaybackBackend: AnyObject {
     var elapsedSnapshot: TimeInterval? { get }
     var volume: Float { get set }
 
+    func enqueuePlaybackSnapshot()
     func enqueuePrepareAudioSession()
     func requestPlaybackProgress(_ completion: @escaping (PlaybackBackendProgressSnapshot) -> Void)
     func enqueuePlay(_ streamable: RelistenGaplessStreamable, startingAtMs: Int64?, completion: @escaping () -> Void)

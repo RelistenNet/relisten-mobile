@@ -89,7 +89,9 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
             player = null
         }
 
-        Events("onError", "onPlaybackStateChanged", "onPlaybackProgressChanged", "onDownloadProgressChanged", "onTrackChanged", "onRemoteControl")
+        Events("onPlaybackSnapshot", "onError", "onPlaybackStateChanged", "onPlaybackProgressChanged", "onDownloadProgressChanged", "onTrackChanged", "onRemoteControl")
+
+        OnActivityEntersBackground { player?.requestPlaybackSnapshot() }
 
         Function("currentDuration") {
             return@Function player?.currentDuration
@@ -241,6 +243,12 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
                 "identifier" to forStreamable.identifier,
             )
         )
+    }
+
+    override fun playbackSnapshot(player: RelistenGaplessAudioPlayer, snapshot: Map<String, Any?>) {
+        if (this.player != null) {
+            sendEvent("onPlaybackSnapshot", snapshot)
+        }
     }
 
     override fun playbackStateChanged(

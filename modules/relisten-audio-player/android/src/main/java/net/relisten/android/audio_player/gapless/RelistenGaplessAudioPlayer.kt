@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 import net.relisten.android.audio_player.gapless.internal.ExoPlayerLifecycle
 import net.relisten.android.audio_player.gapless.internal.PlaybackUpdates
 import net.relisten.android.audio_player.gapless.internal.StreamManagement
+import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.FutureTask
 
@@ -31,6 +32,8 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
     internal val streamManagement = StreamManagement(this)
     internal val playbackUpdates = PlaybackUpdates(this)
 
+    private val snapshotSessionId = UUID.randomUUID().toString()
+
     init {
         if (appContext.reactContext == null) {
             throw Exception("appContext.reactContext is null! (this shouldn't happen?)")
@@ -38,6 +41,42 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
 
         reactContext = appContext.reactContext!!
         exoplayerLifecycle.setupExoPlayer()
+    }
+
+    private var snapshotSequence = 0L
+
+    fun requestPlaybackSnapshot() {
+        runOnControllerThread {
+            emitPlaybackSnapshot(checkpoint = true)
+        }
+    }
+
+    /** Capture identity, seconds and transport state together on the controller looper. */
+    internal fun emitPlaybackSnapshot(checkpoint: Boolean = false) {
+        val controller = exoPlayer ?: return
+        val identifier = controller.currentMediaItem?.mediaId
+        val stream = listOfNotNull(activeStream, nextStream)
+            .firstOrNull { it.streamable.identifier == identifier }
+        val elapsed = stream?.let { (controller.currentPosition / 1000.0).coerceAtLeast(0.0) }
+        val duration = stream?.let {
+            (controller.duration / 1000.0).takeIf { it.isFinite() && it > 0 }
+        }
+        val playbackState = if (identifier == null) {
+            RelistenPlaybackState.Stopped
+        } else {
+            relistenPlaybackStateFromPlayer(controller)
+        }
+        val snapshot = mapOf<String, Any?>(
+            "sessionId" to snapshotSessionId,
+            "sequence" to ++snapshotSequence,
+            "identifier" to stream?.streamable?.identifier,
+            "sourceTrackUuid" to stream?.streamable?.cacheKey,
+            "elapsed" to elapsed,
+            "duration" to duration,
+            "playbackState" to playbackState.toString(),
+            "checkpoint" to checkpoint
+        )
+        delegate?.playbackSnapshot(this, snapshot)
     }
 
     private val controllerHandler by lazy { Handler(reactContext.mainLooper) }
@@ -134,6 +173,7 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
             _currentState = newValue
 
             if (dispatchUpdate) {
+                emitPlaybackSnapshot(checkpoint = newValue != RelistenPlaybackState.Playing)
                 delegate?.playbackStateChanged(this@RelistenGaplessAudioPlayer, newValue)
             }
         }
@@ -207,6 +247,7 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
         if (exoPlayer != null) {
             scope.launch {
                 exoPlayer?.pause()
+                emitPlaybackSnapshot(checkpoint = true)
             }
         }
     }
@@ -214,6 +255,7 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
     fun stop() {
         if (exoPlayer != null) {
             scope.launch {
+                emitPlaybackSnapshot(checkpoint = true)
                 exoPlayer?.stop()
                 // Next stream must always be called first
                 maybeTearDownNextStream()
@@ -224,6 +266,7 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
 
     fun teardown() {
         scope.launch {
+            emitPlaybackSnapshot(checkpoint = true)
             exoplayerLifecycle.maybeTearDownExoPlayer()
         }
     }

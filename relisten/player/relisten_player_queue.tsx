@@ -9,24 +9,21 @@ import {
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { EventSource } from '@/relisten/util/event_source';
 import { realm } from '@/relisten/realm/schema';
-import { PlayerState } from '@/relisten/realm/models/player_state';
+import {
+  PlayerCheckpointProps,
+  PlayerState,
+  PlayerStateProps,
+} from '@/relisten/realm/models/player_state';
+import { PlayerRepeatState, PlayerShuffleState } from '@/relisten/player/player_modes';
 import { log } from '@/relisten/util/logging';
 import { groupByUuid } from '@/relisten/util/group_by';
 import { Realm } from '@realm/react';
+import { v4 as uuid } from 'uuid';
 import { indentString } from '@/relisten/util/string_indent';
 
+export { PlayerRepeatState, PlayerShuffleState } from '@/relisten/player/player_modes';
+
 const logger = log.extend('player-queue');
-
-export enum PlayerShuffleState {
-  SHUFFLE_OFF = 1,
-  SHUFFLE_ON,
-}
-
-export enum PlayerRepeatState {
-  REPEAT_OFF = 1,
-  REPEAT_TRACK,
-  REPEAT_QUEUE,
-}
 
 function shuffleArray<T>(arr: T[]) {
   // ye old fisher-yates
@@ -40,6 +37,7 @@ function shuffleArray<T>(arr: T[]) {
   return arr;
 }
 
+const queueInstanceId = uuid();
 let queueTrackId = 0;
 // This caps the max tracks in queue at 100B
 const MAX_QUEUE_TRACK_ID = 100_000_000_000;
@@ -51,11 +49,15 @@ function nextQueueTrackId() {
     queueTrackId = 0;
   }
 
-  return 'relistenQueueId_' + queueTrackId.toFixed(0);
+  return queueInstanceId + '_' + queueTrackId.toFixed(0);
 }
 
 export class PlayerQueueTrack {
-  public readonly identifier: string;
+  public identifier: string;
+
+  renewIdentifier() {
+    this.identifier = nextQueueTrackId();
+  }
 
   constructor(
     public readonly sourceTrack: SourceTrack,
@@ -66,6 +68,18 @@ export class PlayerQueueTrack {
     public readonly albumArt: string
   ) {
     this.identifier = nextQueueTrackId();
+  }
+
+  /** Copy playback metadata into a fresh occurrence without changing this entry. */
+  newOccurrence(): PlayerQueueTrack {
+    return new PlayerQueueTrack(
+      this.sourceTrack,
+      this.title,
+      this.artist,
+      this.subtitle,
+      this.albumTitle,
+      this.albumArt
+    );
   }
 
   static fromSourceTrack(sourceTrack: SourceTrack) {
@@ -148,11 +162,12 @@ export class RelistenPlayerQueue {
   public prevNextTrackIndexIntentOffset = 0;
 
   queueNextTrack(queueTracks: PlayerQueueTrack[]) {
+    const newEntries = queueTracks.map((track) => track.newOccurrence());
     function insertNext(arr: PlayerQueueTrack[], currentIndex: number | undefined) {
       const targetIndex = currentIndex !== undefined ? currentIndex + 1 : 0;
       const arrCopy = [...arr];
 
-      arrCopy.splice(targetIndex, 0, ...queueTracks);
+      arrCopy.splice(targetIndex, 0, ...newEntries);
 
       return arrCopy;
     }
@@ -162,29 +177,29 @@ export class RelistenPlayerQueue {
 
     this.recalculateNextTrack();
     this.onOrderedTracksChanged.dispatch(this.orderedTracks);
-    this.savePlayerState();
+    this.savePlayerState(true);
   }
 
   addTrackToEndOfQueue(queueTracks: PlayerQueueTrack[]) {
-    this.originalTracks = [...this.originalTracks, ...queueTracks];
-    this.shuffledTracks = [...this.shuffledTracks, ...queueTracks];
+    const newEntries = queueTracks.map((track) => track.newOccurrence());
+    this.originalTracks = [...this.originalTracks, ...newEntries];
+    this.shuffledTracks = [...this.shuffledTracks, ...newEntries];
 
     this.recalculateNextTrack();
     this.onOrderedTracksChanged.dispatch(this.orderedTracks);
-    this.savePlayerState();
+    this.savePlayerState(true);
   }
 
   reorderQueue(newQueue: PlayerQueueTrack[]) {
+    const currentIdentifier = this.currentTrack?.identifier;
     this.originalTracks = [...newQueue];
     this.reshuffleTracks();
 
-    if (this.currentTrack !== undefined) {
-      this.recalculateTrackIndexes(this.currentTrack.identifier);
-    }
+    if (currentIdentifier) this.recalculateTrackIndexes(currentIdentifier);
 
     this.recalculateNextTrack();
     this.onOrderedTracksChanged.dispatch(this.orderedTracks);
-    this.savePlayerState();
+    this.savePlayerState(true);
   }
 
   moveQueueTrack(from: number, to: number) {
@@ -194,6 +209,7 @@ export class RelistenPlayerQueue {
       return newData;
     }
 
+    const currentIdentifier = this.currentTrack?.identifier;
     // if in a shuffled state,
     if (this.shuffleState == PlayerShuffleState.SHUFFLE_ON) {
       this.shuffledTracks = reorderItems(this.shuffledTracks, from, to);
@@ -201,9 +217,10 @@ export class RelistenPlayerQueue {
       this.originalTracks = reorderItems(this.originalTracks, from, to);
     }
 
+    if (currentIdentifier) this.recalculateTrackIndexes(currentIdentifier);
     this.recalculateNextTrack();
     this.onOrderedTracksChanged.dispatch(this.orderedTracks);
-    this.savePlayerState();
+    this.savePlayerState(true);
   }
 
   replaceQueue(
@@ -212,6 +229,8 @@ export class RelistenPlayerQueue {
     options?: { resetShuffle?: boolean }
   ) {
     this.player.cancelPendingPlayRequests('replaceQueue');
+    // Replacing a queue invalidates native callbacks, including reused entry objects.
+    for (const track of newQueue) track.renewIdentifier();
     this.originalTracks = [...newQueue];
     this.originalTracksCurrentIndex = undefined;
 
@@ -237,29 +256,34 @@ export class RelistenPlayerQueue {
     }
 
     this.onOrderedTracksChanged.dispatch(this.orderedTracks);
-    this.savePlayerState();
+    this.savePlayerState(true);
   }
 
   removeTrackAtIndex(index: number) {
-    const originalCopy = [...this.originalTracks];
-    const [removed] = originalCopy.splice(index, 1);
+    // Queue rows use playback order; the original order can differ while shuffled.
+    const removed = this.orderedTracks[index];
+    const currentIdentifier = this.currentTrack?.identifier;
 
-    this.originalTracks = originalCopy;
-
-    const shuffledCopy = [...this.shuffledTracks];
-
-    for (let i = 0; i < this.shuffledTracks.length; i++) {
-      if (this.shuffledTracks[i].identifier === removed.identifier) {
-        shuffledCopy.splice(i, 1);
-        break;
+    this.applyPlaybackCheckpoint(() => {
+      const stoppedPlayback = this.player.onQueueTrackRemoving(removed.identifier);
+      this.originalTracks = this.originalTracks.filter(
+        (entry) => entry.identifier !== removed.identifier
+      );
+      this.shuffledTracks = this.shuffledTracks.filter(
+        (entry) => entry.identifier !== removed.identifier
+      );
+      if (currentIdentifier) {
+        this.recalculateTrackIndexes(currentIdentifier);
       }
-    }
 
-    this.shuffledTracks = shuffledCopy;
-
-    this.recalculateNextTrack();
-    this.onOrderedTracksChanged.dispatch(this.orderedTracks);
-    this.savePlayerState();
+      if (!stoppedPlayback) {
+        this.recalculateNextTrack();
+      }
+      this.onOrderedTracksChanged.dispatch(this.orderedTracks);
+      if (removed.identifier === currentIdentifier) {
+        this.onCurrentTrackChanged.dispatch(undefined);
+      }
+    }, true);
   }
 
   get shuffleState() {
@@ -337,7 +361,7 @@ export class RelistenPlayerQueue {
       this.recalculateNextTrack();
       this.onShuffleStateChanged.dispatch(shuffleState);
       this.onOrderedTracksChanged.dispatch(this.orderedTracks);
-      this.savePlayerState();
+      this.savePlayerState(true);
       nativePlayer.setShuffleMode(shuffleState);
     }
   }
@@ -348,7 +372,7 @@ export class RelistenPlayerQueue {
 
       this.recalculateNextTrack();
       this.onRepeatStateChanged.dispatch(repeatState);
-      this.savePlayerState();
+      this.savePlayerState(true);
       nativePlayer.setRepeatMode(repeatState);
     }
   }
@@ -399,6 +423,12 @@ ${indentString(tracks)}
   // endregion
 
   // region Next track management
+  /** Drop cached lookahead when the backend queue is stopped or cleared. */
+  public forgetPreparedNextTrack() {
+    this._nextTrack = undefined;
+    this._nextTrackIndex = undefined;
+  }
+
   public recalculateNextTrack() {
     const prevNextTrack = this._nextTrack;
     const newNextTrackIndex = this.calculateNextTrackIndex();
@@ -517,10 +547,11 @@ ${indentString(tracks)}
 
     this.recalculateNextTrack();
     this.onCurrentTrackChanged.dispatch(this.currentTrack);
-    this.savePlayerState();
+    this.savePlayerState(true);
   };
 
   private recalculateTrackIndexes(newIdentifier: string) {
+    this.clearCurrentTrack();
     for (let i = 0; i < this.originalTracks.length; i++) {
       const originalTrack = this.originalTracks[i];
       const shuffledTrack = this.shuffledTracks[i];
@@ -541,69 +572,86 @@ ${indentString(tracks)}
       }
     }
   }
-
-  private restoreTrackIndexesBySourceTrackUuid(sourceTrackUuid: string) {
-    this.clearCurrentTrack();
-
-    // Queue item identifiers are regenerated on cold start, so restore has to re-anchor by
-    // stable SourceTrack UUID and then recover both original/shuffled indexes from that identity.
-    this.originalTracksCurrentIndex = this.originalTracks.findIndex(
-      (track) => track.sourceTrack.uuid === sourceTrackUuid
-    );
-    this.shuffledTracksCurrentIndex = this.shuffledTracks.findIndex(
-      (track) => track.sourceTrack.uuid === sourceTrackUuid
-    );
-
-    if (this.originalTracksCurrentIndex < 0) {
-      this.originalTracksCurrentIndex = undefined;
-    }
-
-    if (this.shuffledTracksCurrentIndex < 0) {
-      this.shuffledTracksCurrentIndex = undefined;
-    }
-  }
   // endregion
 
   // region Player state serialization
-  private playerStateDebounce: number | undefined = undefined;
+  private checkpointTimer: ReturnType<typeof setTimeout> | undefined;
+  private restoring = false;
+  private checkpointDepth = 0;
+  private lastWrittenState?: string;
 
-  public savePlayerState() {
-    if (this.playerStateDebounce) {
-      clearTimeout(this.playerStateDebounce);
+  /** Lifecycle notifications before startup restore must not erase a saved queue. */
+  public flushPlayerState() {
+    if (this.originalTracks.length > 0) {
+      this.savePlayerState(true);
     }
+  }
 
-    this.playerStateDebounce = setTimeout(() => {
-      if (realm) {
-        const state = {
-          queueShuffleState: this.shuffleState,
-          queueRepeatState: this.repeatState,
-          queueSourceTrackUuids: this.originalTracks.map((t) => t.sourceTrack.uuid),
-          queueSourceTrackShuffledUuids: this.shuffledTracks.map((t) => t.sourceTrack.uuid),
-          activeSourceTrackIndex: this.originalTracksCurrentIndex,
-          activeSourceTrackShuffledIndex: this.shuffledTracksCurrentIndex,
-          lastUpdatedAt: new Date(),
-          progress: this.player.progress?.percent,
-          duration: this.player.progress?.duration,
-          elapsed: this.player.progress?.elapsed,
-        };
-        logger.debug('writing player state progress', {
-          activeSourceTrackIndex: state.activeSourceTrackIndex,
-          activeSourceTrackShuffledIndex: state.activeSourceTrackShuffledIndex,
-          currentTrackUuid: this.currentTrack?.sourceTrack.uuid,
-          duration: state.duration,
-          elapsed: state.elapsed,
-          progress: state.progress,
-          shuffleState: state.queueShuffleState,
-        });
-        PlayerState.upsert(realm, state);
-        logger.debug('wrote player state');
-      } else {
-        logger.warn('Not writing player state -- realm is not available.');
+  /** Selection and timing must cross the Realm boundary together. */
+  public applyPlaybackCheckpoint(apply: () => void, immediate: boolean) {
+    this.checkpointDepth += 1;
+    try {
+      apply();
+    } finally {
+      this.checkpointDepth -= 1;
+    }
+    this.savePlayerState(immediate);
+  }
+
+  public savePlayerState(immediate = false) {
+    if (this.restoring || this.checkpointDepth > 0) {
+      return;
+    }
+    if (immediate) {
+      if (this.checkpointTimer !== undefined) {
+        clearTimeout(this.checkpointTimer);
       }
-    }, 1000) as unknown as number;
+      this.checkpointTimer = undefined;
+      this.writePlayerState();
+    } else if (this.checkpointTimer === undefined) {
+      // Never postpone an existing deadline when more progress or queue edits arrive.
+      this.checkpointTimer = setTimeout(() => {
+        this.checkpointTimer = undefined;
+        this.writePlayerState();
+      }, 5000);
+    }
+  }
+
+  private writePlayerState() {
+    if (!realm) {
+      return;
+    }
+    const track = this.currentTrack;
+    const progress = track ? this.player.checkpointProgress(track.identifier) : undefined;
+    const duration = progress?.duration ?? track?.sourceTrack.duration;
+    const state: Omit<PlayerStateProps, 'lastUpdatedAt'> = {
+      queueEntries: this.originalTracks.map((track) => ({
+        id: track.identifier,
+        sourceTrackUuid: track.sourceTrack.uuid,
+      })),
+      shuffleOrder:
+        this.shuffleState === PlayerShuffleState.SHUFFLE_ON
+          ? { entryIds: this.shuffledTracks.map((track) => track.identifier) }
+          : null,
+      repeatMode: this.repeatState,
+      checkpoint: track
+        ? {
+            entryId: track.identifier,
+            elapsedSeconds: progress?.elapsed ?? 0,
+            durationSeconds: duration != null && duration > 0 ? duration : null,
+          }
+        : null,
+    };
+    const fingerprint = JSON.stringify(state);
+    if (fingerprint === this.lastWrittenState) {
+      return;
+    }
+    PlayerState.upsert(realm, { ...state, lastUpdatedAt: new Date() });
+    this.lastWrittenState = fingerprint;
   }
 
   public async restorePlayerState(realm: Realm) {
+    this.player.prepareForPlayerStateRestore();
     const playerState = PlayerState.defaultObject(realm);
 
     if (!playerState) {
@@ -611,155 +659,118 @@ ${indentString(tracks)}
       return;
     }
 
+    this.restoring = true;
     try {
-      logger.debug('read player state for restore', {
-        activeSourceTrackIndex: playerState.activeSourceTrackIndex,
-        activeSourceTrackShuffledIndex: playerState.activeSourceTrackShuffledIndex,
-        duration: playerState.duration,
-        elapsed: playerState.elapsed,
-        progress: playerState.progress,
-        queueLength: playerState.queueSourceTrackUuids.length,
-        queueShuffleState: playerState.queueShuffleState,
-      });
+      const tracksByEntryId = this.loadSavedQueueTracks(realm, playerState);
+      this.restoreQueueOrder(playerState, tracksByEntryId);
+      this.restoreSelection(playerState.checkpoint, tracksByEntryId);
 
-      const sourceTracksByUuid = groupByUuid([
-        ...realm
-          .objects(SourceTrack)
-          .filtered('uuid in $0', [...playerState.queueSourceTrackUuids]),
-      ]);
-      let droppedInvalidTrack = false;
-
-      const makeQueue = (uuids: string[]) => {
-        return uuids
-          .map((u) => {
-            const sourceTrack = sourceTracksByUuid[u];
-
-            if (!sourceTrack) {
-              droppedInvalidTrack = true;
-              return;
-            }
-
-            try {
-              return PlayerQueueTrack.fromSourceTrack(sourceTrack);
-            } catch (error) {
-              droppedInvalidTrack = true;
-              logger.warn('Skipping invalid persisted queue track during restore', {
-                error,
-                sourceTrackUuid: u,
-              });
-              return;
-            }
-          })
-          .filter((t) => !!t) as PlayerQueueTrack[];
-      };
-
-      this.setShuffleState(playerState.queueShuffleState);
-      this.setRepeatState(playerState.queueRepeatState);
-
-      const unshuffledQueue = makeQueue(playerState.queueSourceTrackUuids);
-      const shuffledQueue = [...unshuffledQueue];
-
-      shuffledQueue.sort((a, b) => {
-        const aOrder = playerState.queueSourceTrackShuffledUuids.indexOf(a.sourceTrack.uuid);
-        const bOrder = playerState.queueSourceTrackShuffledUuids.indexOf(b.sourceTrack.uuid);
-
-        return aOrder - bOrder;
-      });
-
-      this.replaceQueue(unshuffledQueue, undefined);
-      this.shuffledTracks = shuffledQueue;
-      this.onOrderedTracksChanged.dispatch(this.orderedTracks);
-
-      const restoreTrackUuidFromIndex = (
-        tracks: PlayerQueueTrack[],
-        maybeIndex: number | null | undefined
-      ) => {
-        if (maybeIndex == null || maybeIndex < 0 || maybeIndex >= tracks.length) {
-          return undefined;
-        }
-
-        return tracks[maybeIndex]?.sourceTrack.uuid;
-      };
-
-      const preferredRestoredTrackUuid =
-        this.shuffleState === PlayerShuffleState.SHUFFLE_ON
-          ? restoreTrackUuidFromIndex(
-              this.shuffledTracks,
-              playerState.activeSourceTrackShuffledIndex
-            )
-          : restoreTrackUuidFromIndex(this.originalTracks, playerState.activeSourceTrackIndex);
-      const fallbackRestoredTrackUuid =
-        this.shuffleState === PlayerShuffleState.SHUFFLE_ON
-          ? restoreTrackUuidFromIndex(this.originalTracks, playerState.activeSourceTrackIndex)
-          : restoreTrackUuidFromIndex(
-              this.shuffledTracks,
-              playerState.activeSourceTrackShuffledIndex
-            );
-      const restoredTrackUuid =
-        preferredRestoredTrackUuid ??
-        fallbackRestoredTrackUuid ??
-        this.originalTracks[0]?.sourceTrack.uuid;
-
-      if (restoredTrackUuid) {
-        this.restoreTrackIndexesBySourceTrackUuid(restoredTrackUuid);
-      }
-
-      if (this.currentTrack) {
-        this.onCurrentTrackChanged.dispatch(this.currentTrack);
-      }
-
-      logger.debug('resolved player state restore target', {
-        currentTrackUuid: this.currentTrack?.sourceTrack.uuid,
-        originalTracksCurrentIndex: this.originalTracksCurrentIndex,
-        restoredTrackUuid,
-        shuffledTracksCurrentIndex: this.shuffledTracksCurrentIndex,
-        shuffleState: this.shuffleState,
-      });
-
-      this._nextTrack = undefined;
-      this._nextTrackIndex = undefined;
-
-      const restoredElapsed = Number.isFinite(playerState.elapsed) ? playerState.elapsed : null;
-      const restoredDuration = Number.isFinite(playerState.duration) ? playerState.duration : null;
-
-      if (restoredElapsed != null && restoredDuration != null) {
-        const restoredProgress = {
-          elapsed: restoredElapsed,
-          duration: restoredDuration,
-          percent: restoredDuration > 0 ? restoredElapsed / restoredDuration : 0,
-        };
-
-        logger.debug('restoring player progress', {
-          currentTrackUuid: this.currentTrack?.sourceTrack.uuid,
-          duration: restoredProgress.duration,
-          elapsed: restoredProgress.elapsed,
-          percent: restoredProgress.percent,
-        });
-
-        this.player.seekToTime(restoredProgress.elapsed).then(() => {});
-        this.player.progress = restoredProgress;
-        sharedStateProgress.setState(restoredProgress);
-      } else {
-        logger.debug('player state restore did not contain persisted progress', {
-          currentTrackUuid: this.currentTrack?.sourceTrack.uuid,
-          duration: playerState.duration,
-          elapsed: playerState.elapsed,
-          progress: playerState.progress,
-        });
-      }
-
-      if (droppedInvalidTrack) {
+      if (tracksByEntryId.size < playerState.queueEntries.length) {
         logger.warn(
           'Persisted player state referenced invalid queue tracks; rewriting sanitized state'
         );
       }
-
-      this.savePlayerState();
     } catch (error) {
       logger.warn('Failed to restore persisted player state; clearing saved queue', error);
       PlayerState.clear(realm);
       this.replaceQueue([], undefined);
+    } finally {
+      this.restoring = false;
+      this.savePlayerState(true);
     }
+  }
+
+  private loadSavedQueueTracks(realm: Realm, saved: PlayerState) {
+    const sourceUuids = saved.queueEntries.map((entry) => entry.sourceTrackUuid);
+    const catalog = groupByUuid([
+      ...realm.objects(SourceTrack).filtered('uuid in $0', sourceUuids),
+    ]);
+    const tracksByEntryId = new Map<string, PlayerQueueTrack>();
+
+    for (const entry of saved.queueEntries) {
+      const sourceTrack = catalog[entry.sourceTrackUuid];
+      if (!sourceTrack) {
+        continue;
+      }
+      try {
+        const track = PlayerQueueTrack.fromSourceTrack(sourceTrack);
+        track.identifier = entry.id;
+        tracksByEntryId.set(entry.id, track);
+      } catch (error) {
+        logger.warn('Skipping invalid persisted queue track during restore', {
+          error,
+          sourceTrackUuid: entry.sourceTrackUuid,
+        });
+      }
+    }
+    return tracksByEntryId;
+  }
+
+  private restoreQueueOrder(saved: PlayerState, tracksByEntryId: Map<string, PlayerQueueTrack>) {
+    // Restore keeps occurrence IDs; replacing a queue renews them to reject old callbacks.
+    this.player.cancelPendingPlayRequests('restorePlayerState');
+    this.originalTracks = [...tracksByEntryId.values()];
+    this.shuffledTracks = [...this.originalTracks];
+    this._shuffleState = PlayerShuffleState.SHUFFLE_OFF;
+    if (saved.shuffleOrder) {
+      this.shuffledTracks = saved.shuffleOrder.entryIds
+        .map((id) => tracksByEntryId.get(id))
+        .filter((track): track is PlayerQueueTrack => track !== undefined);
+      this._shuffleState = PlayerShuffleState.SHUFFLE_ON;
+    }
+    this._repeatState = saved.repeatMode;
+    this.clearCurrentTrack();
+    this.prevNextTrackIndexIntentOffset = 0;
+
+    this.onShuffleStateChanged.dispatch(this.shuffleState);
+    this.onRepeatStateChanged.dispatch(this.repeatState);
+    nativePlayer.setShuffleMode(this.shuffleState);
+    nativePlayer.setRepeatMode(this.repeatState);
+    this.onOrderedTracksChanged.dispatch(this.orderedTracks);
+  }
+
+  private restoreSelection(
+    checkpoint: PlayerCheckpointProps | null,
+    tracksByEntryId: Map<string, PlayerQueueTrack>
+  ) {
+    if (!checkpoint) {
+      // A saved queue can intentionally have no selection.
+      this.forgetPreparedNextTrack();
+      return;
+    }
+
+    const selectedTrack = tracksByEntryId.get(checkpoint.entryId);
+    const track = selectedTrack ?? this.orderedTracks[0];
+    if (track) {
+      this.recalculateTrackIndexes(track.identifier);
+      this.onCurrentTrackChanged.dispatch(track);
+    }
+
+    // Selection listeners must not prepare a native stream before an explicit Play.
+    this.forgetPreparedNextTrack();
+    if (!track) {
+      return;
+    }
+
+    // A missing selected source cannot transfer its timing to the fallback entry.
+    let elapsed = 0;
+    let savedDuration: number | null | undefined;
+    if (selectedTrack) {
+      elapsed = Math.max(0, checkpoint.elapsedSeconds);
+      savedDuration = checkpoint.durationSeconds;
+    }
+    const duration = [savedDuration, track.sourceTrack.duration].find(
+      (candidate) => candidate != null && Number.isFinite(candidate) && candidate > 0
+    );
+    let percent = 0;
+    if (duration != null) {
+      elapsed = Math.min(elapsed, duration);
+      percent = elapsed / duration;
+    }
+    const progress = { elapsed, duration: duration ?? 0, percent };
+    void this.player.seekToTime(elapsed);
+    this.player.progress = progress;
+    sharedStateProgress.setState(progress);
   }
   // endregion
 }

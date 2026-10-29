@@ -68,11 +68,14 @@ public class RelistenAudioPlayerModule: Module {
             "onError",
             "onPlaybackStateChanged",
             "onPlaybackProgressChanged",
+            "onPlaybackSnapshot",
             "onDownloadProgressChanged",
             "onTrackChanged",
             "onRemoteControl",
             "onTrackStreamingCacheComplete"
         )
+
+        OnAppEntersBackground { player?.enqueuePlaybackSnapshot() }
 
         Function("currentDuration") {
             return player?.currentDurationSnapshot
@@ -247,6 +250,10 @@ extension RelistenAudioPlayerModule: PlaybackBackendDelegate {
             "error": error.eventPayload,
             "identifier": forStreamable.identifier
         ])
+    }
+
+    func playbackSnapshot(_ snapshot: PlaybackSnapshot) {
+        sendEvent("onPlaybackSnapshot", snapshot.payload)
     }
 
     public func playbackStateChanged(newPlaybackState playbackState: PlaybackState) {

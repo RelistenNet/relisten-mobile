@@ -19,6 +19,7 @@ function normalizeNativeTimeMs(value: number | undefined): number | undefined {
 const emitter = new EventEmitter<{
   onError: (event: RelistenErrorEvent) => void;
   onPlaybackStateChanged: (event: RelistenPlaybackStateChangedEvent) => void;
+  onPlaybackSnapshot: (event: RelistenPlaybackSnapshot) => void;
   onPlaybackProgressChanged: (event: RelistenPlaybackProgressChangedEvent) => void;
   onDownloadProgressChanged: (event: RelistenDownloadProgressChangedEvent) => void;
   onTrackChanged: (event: RelistenTrackChangedEvent) => void;
@@ -88,6 +89,25 @@ export interface RelistenPlaybackProgressChangedEvent {
   duration: number | undefined;
 }
 
+/**
+ * One live native observation, captured before asynchronous delivery. Requires a matching binary.
+ * sessionId identifies a backend instance; sequence increases within that instance, not across launches.
+ * Identity names one queue occurrence and its source. Absent identity means no active native track;
+ * the listener keeps its last queue selection while applying the reported transport state.
+ * elapsed/duration are seconds. Missing timing retains the same entry's confirmed timing, or uses
+ * zero/catalog duration for a newly selected entry. checkpoint requests an immediate Realm save.
+ */
+export interface RelistenPlaybackSnapshot {
+  sessionId: string;
+  sequence: number;
+  identifier?: string;
+  sourceTrackUuid?: string;
+  elapsed?: number;
+  duration?: number;
+  playbackState: RelistenPlaybackState;
+  checkpoint: boolean;
+}
+
 export interface RelistenDownloadProgressChangedEvent {
   forActiveTrack: boolean;
   downloadedBytes: number;
@@ -128,6 +148,10 @@ class RelistenGaplessPlayer {
     listener: (event: RelistenPlaybackProgressChangedEvent) => void
   ): EventSubscription {
     return emitter.addListener('onPlaybackProgressChanged', listener);
+  }
+
+  addPlaybackSnapshotListener(listener: (event: RelistenPlaybackSnapshot) => void): EventSubscription {
+    return emitter.addListener('onPlaybackSnapshot', listener);
   }
 
   addDownloadProgressListener(

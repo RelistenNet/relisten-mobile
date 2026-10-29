@@ -1,11 +1,10 @@
+// Bridges native notifications to shared playback state and exposes React hooks.
+// RelistenPlayer checks track and progress events against pending play requests before publication.
 import {
   nativePlayer,
   RelistenDownloadProgressChangedEvent,
   RelistenErrorEvent,
-  RelistenPlaybackProgressChangedEvent,
-  RelistenPlaybackStateChangedEvent,
   RelistenRemoteControlEvent,
-  RelistenTrackChangedEvent,
   RelistenTrackStreamingCacheCompleteEvent,
 } from '@/modules/relisten-audio-player';
 import { PlaybackSource, sharedStates } from '@/relisten/player/shared_state';
@@ -24,6 +23,7 @@ function clampPercent(numerator: number, denominator: number) {
   return Math.max(0, Math.min(1, numerator / denominator));
 }
 
+/** Register once for the process; playback hooks may call this repeatedly. */
 export function addPlayerListeners() {
   if (listenersRegisters) {
     return;
@@ -33,12 +33,8 @@ export function addPlayerListeners() {
   const shouldUseNativeUpdates = () =>
     sharedStates.playbackSource.lastState() !== PlaybackSource.Cast;
 
-  // console.log('[playback state] adding playback event listeners');
-
   const download = nativePlayer.addDownloadProgressListener(
     (download: RelistenDownloadProgressChangedEvent) => {
-      // console.info('got download progress', download);
-
       // only update download progress for active track for now
       // later we may want to have data for the next track
       if (download.forActiveTrack && shouldUseNativeUpdates()) {
@@ -51,70 +47,13 @@ export function addPlayerListeners() {
     }
   );
 
-  const listener = nativePlayer.addPlaybackProgressListener(
-    (progress: RelistenPlaybackProgressChangedEvent) => {
-      // console.info('got playback progress', progress);
-
-      if (!shouldUseNativeUpdates()) {
-        return;
-      }
-
-      const elapsed =
-        typeof progress.elapsed === 'number' && Number.isFinite(progress.elapsed)
-          ? progress.elapsed
-          : 0;
-      const duration =
-        typeof progress.duration === 'number' && Number.isFinite(progress.duration)
-          ? progress.duration
-          : 0;
-      const newProgress = {
-        elapsed,
-        duration,
-        percent: duration > 0 ? elapsed / duration : 0,
-      };
-
-      const lastProgress = sharedStates.progress.lastState();
-
-      if (
-        lastProgress === undefined ||
-        Math.floor(lastProgress.elapsed) !== Math.floor(newProgress.elapsed)
-      ) {
-        sharedStates.progress.setState(newProgress);
-      }
-    }
-  );
-
-  const playback = nativePlayer.addPlaybackStateListener(
-    (playbackState: RelistenPlaybackStateChangedEvent) => {
-      // console.info('got playbackState', playbackState);
-
-      if (shouldUseNativeUpdates()) {
-        sharedStates.state.setState(playbackState.newPlaybackState);
-      }
-    }
-  );
-
-  const trackChangedListener = nativePlayer.addTrackChangedListener(
-    (trackChanged: RelistenTrackChangedEvent) => {
-      // console.info('got trackChanged', trackChanged);
-
-      if (shouldUseNativeUpdates()) {
-        sharedStates.currentTrackIdentifier.setState(trackChanged.currentIdentifier);
-      }
-    }
-  );
-
   const remoteControlListener = nativePlayer.addRemoteControlListener(
     (event: RelistenRemoteControlEvent) => {
-      // console.info('got remoteControl', event.method);
-
       sharedStates.remoteControlEvent.setState(event);
     }
   );
 
   const latestErrorListener = nativePlayer.addErrorListener((latestError: RelistenErrorEvent) => {
-    // logger.error('ERROR!', latestError);
-
     if (shouldUseNativeUpdates()) {
       sharedStates.latestError.setState(latestError);
     }
@@ -122,8 +61,6 @@ export function addPlayerListeners() {
 
   const trackStreamingCacheCompleteListener = nativePlayer.addTrackStreamingCacheCompleteListener(
     (event: RelistenTrackStreamingCacheCompleteEvent) => {
-      // console.info('got trackStreamingCacheComplete', event);
-
       if (shouldUseNativeUpdates()) {
         sharedStates.trackStreamingCacheComplete.setState(event);
       }
@@ -132,9 +69,6 @@ export function addPlayerListeners() {
 
   return () => {
     download.remove();
-    listener.remove();
-    playback.remove();
-    trackChangedListener.remove();
     latestErrorListener.remove();
     remoteControlListener.remove();
     trackStreamingCacheCompleteListener.remove();
@@ -163,7 +97,9 @@ function createPlaybackHook<T>(sharedState: SharedState<T>) {
   };
 }
 
+/** Reads progress published by the player or the active Cast driver. */
 export const useNativePlaybackProgress = createPlaybackHook(sharedStates.progress);
+/** Reads download progress for the active track, excluding prebuffered tracks. */
 export const useNativeActiveTrackDownloadProgress = createPlaybackHook(
   sharedStates.activeTrackDownloadProgress
 );
