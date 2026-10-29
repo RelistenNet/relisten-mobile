@@ -105,14 +105,14 @@ A contributor should be able to find one owner for each concern. Authentication 
 
 These are constraints observed in the repository after the account and favorites work:
 
-- The App Store build uses Realm schema 12, and the released audio-EQ TestFlight uses schema 13. This branch uses schema 14 for account and favorite state.
+- Main's schema 13 used UUID-array player state; schema 14 uses embedded queue entries and checkpoints. This accounts branch uses schema 16 to combine that player format with scoped favorites and preserve data from accounts schemas 14 and 15. Lower player and EQ branches remain at schema 14.
 - Catalog models use UUID primary keys, and `Repository.forUuids()` already performs a batched UUID lookup with Realm's `uuid in $0` query.
 - `UserFavorite` is authoritative for favorite membership. `LibraryIndex`, hooks, and CarPlay query the active account or anonymous scope; legacy catalog `isFavorite` fields remain only as migration inputs and compatibility fields.
 - `SourceTrackOfflineInfo` is device-global and keyed by `sourceTrackUuid`. Its relationship to `SourceTrack` assumes catalog metadata remains available.
 - `PlaybackHistoryEntry` is device-global, links directly to catalog Realm objects, and uses a random legacy UUID.
 - `relisten_player.tsx` can emit the history signal from absolute media position; the new recorder must make that position monotonic per playback instance and use the percentage branch only with its one valid pinned catalog duration.
 - The existing reporter sends `/v2/live/play` and marks a local history row published; signed-in history must replace that parallel popularity write.
-- `PlayerState` persists arrays of source-track UUIDs and array indexes. `PlayerQueueTrack` uses a process-local counter for identity, so duplicate occurrences cannot be restored reliably.
+- `PlayerState` persists embedded queue entries with stable occurrence IDs, shuffle order, and a checkpoint that identifies the selected occurrence. Duplicate queue entries retain their identities after restart.
 - Cast already forces remote streaming URLs instead of local file URLs. This is the correct boundary to preserve.
 - CarPlay favorites use the active scope plus device-global downloads. Its history query still needs account scoping when history sync ships.
 - Expo already includes `expo-web-browser`, `expo-linking`, `expo-secure-store`, a `relisten` scheme, and associated HTTPS links for `relisten.net`. The claimed paths are broader than the auth design requires and must be narrowed.
@@ -266,9 +266,11 @@ Existing catalog UUIDs remain valid. Before uploading an eligible legacy playbac
 
 ### Realm schema upgrade
 
-The released audio-EQ TestFlight owns schema 13. The account and favorites work on this unreleased branch is one further Realm change at schema 14. Its migration copies legacy catalog `isFavorite` values into anonymous `UserFavorite` rows while preserving audio settings, catalog data, downloads, and unrelated rows. Account and favorite models are otherwise added by Realm from their final schemas. A schema-12 App Store install may upgrade directly to 14; a schema-13 TestFlight install upgrades only the account/favorite step. There are no supported branch-only account/favorite versions or post-open migration phases.
+Main's schema 13 persisted player UUID arrays and indexes; schema 14 replaces them with embedded queue entries, shuffle order, and a checkpoint. Accounts builds at schemas 14 and 15 retained the UUID-array player format and added scoped account and favorite models. The combined accounts/player schema is 16 so existing accounts-15 files can migrate without deleting data.
 
-Future shipped slices start from schema 14 and increment the schema only when they add or change persisted models. A large future conversion may use bounded, resumable post-open work, but account and favorites do not need that machinery. History converts only the rows a listener chooses to import. Queue V2 converts the persisted queue only when playlists or Sonos require stable duplicate-occurrence identity.
+The migration callback selects conversions from the old schema's models and properties because version 14 has two formats. It converts player state only when `PlayerState` has `queueSourceTrackUuids`. It copies catalog `isFavorite` flags into anonymous `UserFavorite` rows only when the old schema lacks `UserFavorite`. Queue IDs and checkpoints from main schema 14 remain intact. Existing accounts' scopes, favorites, pending mutations, and sync cursors also remain intact. Realm adds the remaining models while preserving catalog data, audio settings, downloads, and unrelated rows. Schema-12 and schema-13 installs can upgrade directly to 16. No post-open migration phase is needed.
+
+Lower player and EQ branches stay at schema 14 until they include accounts. Future account slices start from schema 16 and increment only when persisted models change. A large future conversion may use bounded, resumable post-open work. History converts only the rows a listener chooses to import. Queue V2 later adds account scope and playlist context to the existing stable queue occurrences.
 
 ## Authentication and account transitions
 
@@ -729,9 +731,9 @@ Storage cleanup operates on global offline-media rows and files. It must not cas
 
 ### Why the current queue must change
 
-The current queue persists source-track UUID arrays and indexes while using a process-local counter as runtime identity. It cannot distinguish repeated instances of one track after restart, and it cannot preserve playlist segments for shuffle or history context.
+The current queue preserves duplicate occurrences after restart through persisted entry IDs. Queue V2 still needs to add account ownership and playlist segments for shuffle and history context.
 
-Queue V2 is introduced when private playlists need stable duplicate occurrences or when Sonos handoff needs an immutable queue snapshot. Authentication, favorites, and history do not wait for this migration. The history slice adds one small persisted `playbackInstanceId` and qualification row beside the existing player state. Queue V2 later reuses that identity rather than replacing it.
+Queue V2 is introduced when private playlists need scoped segment metadata or when Sonos handoff needs an immutable queue snapshot. Authentication, favorites, and history do not wait for this migration. The history slice adds one small persisted `playbackInstanceId` and qualification row beside the existing player state. Queue V2 later reuses that identity rather than replacing it.
 
 Queue V2 gives every queued occurrence a stable UUIDv7. A queue occurrence contains:
 
@@ -1143,7 +1145,7 @@ Ship seven mobile slices in this order. The [cross-repository delivery plan](../
 
 There is no mobile feature-flag service and no Statsig dependency. Code included in a TestFlight or App Store build is on. Keep an unfinished entry point out of the build until its vertical slice works. A narrow server configuration switch may pause a dangerous external write such as Sonos handoff during an incident; it defaults on after launch and returns a stable retryable capability response. It is not a per-user rollout system.
 
-Use a minimum app version only when an additive server response cannot protect an old client. Audio EQ owns schema 13; the unreleased authentication and favorites work shares one schema-14 migration. Later Realm migrations ship with the slice that owns them. Do not publish an older JavaScript bundle against a Realm schema it cannot read.
+Use a minimum app version only when an additive server response cannot protect an old client. The combined accounts/player build uses Realm schema 16 and supports both earlier main and accounts formats. Later Realm migrations ship with the slice that owns them. Do not publish an older JavaScript bundle against a Realm schema it cannot read.
 
 ## Decisions future work must preserve
 
@@ -1157,7 +1159,7 @@ Use a minimum app version only when an additive server response cannot protect a
 - Serialized account transition, best-effort old-session revocation, local credential deletion, and generation validation before every scoped write.
 - Prominent resumable username review immediately after first Apple/Google sign-in; the generated lowercase default is already the real public attribution and never restricts the session, Keep or first rename starts no cooldown, later rename is limited to once per 30 days, and voluntarily abandoned names are held for 30 days.
 - Globally unique case-insensitive usernames use 3–30 lowercase ASCII letters, numbers, or underscores plus a server denylist; only `@username` is public attribution and it is never a login identifier or directory surface.
-- Audio EQ remains schema 13 because that build reached TestFlight. The current account/favorites branch has one schema 13-to-14 migration; later shipped model changes advance from 14.
+- Keep lower player and EQ branches at schema 14. Accounts uses schema 16 with format-based migrations for main schemas 13/14 and accounts schemas 14/15; future account model changes advance from 16.
 - Domain-specific sync rather than a universal replication abstraction.
 - Scope-qualified playlist and queue child rows, explicit stable segments, duplicate occurrence UUIDs, server-canonical two-level fractional ranks, and versioned operation-log convergence.
 - Explicit UUIDv7 favorite row identities with natural uniqueness and canonical-ID remapping after an offline collision.
