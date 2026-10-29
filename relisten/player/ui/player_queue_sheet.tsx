@@ -606,8 +606,6 @@ export function PlayerQueueSheet({
     ]
   );
 
-  if (!currentTrack) return <View className="flex-1" />;
-
   return (
     <View className="flex-1" collapsable={false} onLayout={handleListContainerLayout}>
       <PlayerTimelineStickyHeaderProvider onNowPlayingLayout={handleNowPlayingStickyLayout}>
