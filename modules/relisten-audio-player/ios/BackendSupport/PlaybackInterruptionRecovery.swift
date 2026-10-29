@@ -9,17 +9,10 @@ enum PlaybackInterruptionAction: Equatable {
 
 struct PlaybackInterruptionRecovery: Equatable {
     private(set) var interruptionActive = false
-    private(set) var silenceHintActive = false
     private var eligibleToResume = false
-    private var pendingResume = false
-
-    var needsHintReconciliation: Bool {
-        pendingResume && !interruptionActive && silenceHintActive
-    }
 
     mutating func cancelResume() {
         eligibleToResume = false
-        pendingResume = false
     }
 
     mutating func began(wantsPlayback: Bool) -> PlaybackInterruptionAction {
@@ -28,52 +21,32 @@ struct PlaybackInterruptionRecovery: Equatable {
         guard !interruptionActive else { return .none }
         interruptionActive = true
         eligibleToResume = wantsPlayback
-        pendingResume = false
         return .pause
     }
 
-    mutating func ended(shouldResume: Bool, silenced: Bool, wantsPlayback: Bool) -> PlaybackInterruptionAction {
+    mutating func ended(shouldResume: Bool, wantsPlayback: Bool) -> PlaybackInterruptionAction {
         guard interruptionActive else { return .none }
         interruptionActive = false
-        // Hint-end delivery is limited to foreground, active audio sessions.
-        // Reconcile the current property as well as the hint notifications.
-        silenceHintActive = silenced
+        defer { cancelResume() }
         guard eligibleToResume, wantsPlayback else {
-            cancelResume()
             return .none
         }
-        guard shouldResume else {
-            cancelResume()
-            return .yield
-        }
-        pendingResume = true
-        return takeResumeIfReady()
-    }
-
-    mutating func silenceHint(began: Bool) -> PlaybackInterruptionAction {
-        silenceHintActive = began
-        // A hint alone concerns secondary audio, not ownership of this music
-        // player's session. It only defers an already-permitted recovery.
-        return takeResumeIfReady()
-    }
-
-    private mutating func takeResumeIfReady() -> PlaybackInterruptionAction {
-        guard pendingResume, !interruptionActive, !silenceHintActive else { return .none }
-        cancelResume()
-        return .resume
+        // Relisten's music is primary audio, so secondary-audio hints do not
+        // defer recovery. Activation still decides whether playback can start.
+        return shouldResume ? .resume : .yield
     }
 }
 
 extension MediaCenterPresentationState {
     var canStartPlayback: Bool {
         desiredTransport == .playing && !isSuppressed &&
-            !recovery.interruptionActive && !recovery.needsHintReconciliation
+            !recovery.interruptionActive
     }
 
     mutating func completeMediaServicesReset() -> Bool {
         if canStartPlayback { return true }
         if systemSuspension == .temporaryInterruption,
-           !recovery.interruptionActive, !recovery.needsHintReconciliation {
+           !recovery.interruptionActive {
             clearSuspension()
         }
         return false
@@ -87,19 +60,17 @@ extension MediaCenterPresentationState {
         return action
     }
 
-    mutating func interruptionEnded(shouldResume: Bool, silenced: Bool) -> PlaybackInterruptionAction {
-        let action = recovery.ended(shouldResume: shouldResume, silenced: silenced,
-                                    wantsPlayback: desiredTransport == .playing && !isSuppressed)
+    mutating func interruptionEnded(shouldResume: Bool) -> PlaybackInterruptionAction {
+        let action = recovery.ended(
+            shouldResume: shouldResume,
+            wantsPlayback: desiredTransport == .playing && !isSuppressed
+        )
         if action == .yield {
             suppressForExternalMedia()
         } else if !recovery.interruptionActive, desiredTransport != .playing, !isSuppressed {
             clearSuspension()
         }
         return action
-    }
-
-    mutating func silenceHint(began: Bool) -> PlaybackInterruptionAction {
-        recovery.silenceHint(began: began)
     }
 
     mutating func beginResume() {

@@ -45,7 +45,6 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
     let player: GaplessMP3Player
     let audioSessionController = AudioSessionController()
     let presentationCoordinator = GaplessBackendPresentationCoordinator()
-    var interruptionRecoveryCheckScheduled = false
     var hasInstalledAudioSessionHandlers = false
     var hasReportedAudioSessionSetup = false
     lazy var remoteCommandController = GaplessBackendRemoteCommandController(

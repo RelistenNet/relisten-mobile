@@ -44,7 +44,7 @@ final class PlaybackInterruptionRecoveryTests: XCTestCase {
 
     private func playing() -> MediaCenterPresentationState {
         var state = MediaCenterPresentationState()
-        state.beginPlayback(now: 0)
+        state.beginResume()
         state.applyRenderStatus(renderStatus: .playing, renderIsPlaying: true, hasCurrentSource: true)
         return state
     }
@@ -54,135 +54,35 @@ final class PlaybackInterruptionRecoveryTests: XCTestCase {
                                      isWithinPresentationGraceWindow: state.grace.isActive).resolve()
     }
 
-    func testHintClearsBeforeInterruptionEndsWithoutLosingIntent() {
+    func testInterruptionEndImmediatelyAuthorizesOneResumeWithoutAnotherEvent() {
         var state = playing()
         XCTAssertEqual(state.interruptionBegan(), .pause)
-        XCTAssertEqual(state.silenceHint(began: true), .none)
-        XCTAssertEqual(state.silenceHint(began: false), .none)
-        XCTAssertEqual(state.interruptionEnded(shouldResume: true, silenced: false), .resume)
+        XCTAssertEqual(state.interruptionEnded(shouldResume: true), .resume)
         XCTAssertEqual(state.desiredTransport, .playing)
+        XCTAssertEqual(state.interruptionEnded(shouldResume: true), .none)
     }
 
-    func testHintClearsAfterInterruptionEndsAndResumesOnlyOnce() {
-        var state = playing()
-        _ = state.interruptionBegan()
-        _ = state.silenceHint(began: true)
-        XCTAssertEqual(state.interruptionEnded(shouldResume: true, silenced: true), .none)
-        XCTAssertEqual(state.systemSuspension, .temporaryInterruption)
-        XCTAssertEqual(state.desiredTransport, .playing)
-        XCTAssertEqual(state.silenceHint(began: false), .resume)
-        XCTAssertEqual(state.silenceHint(began: false), .none)
-    }
-
-    func testHintBeginningBeforeInterruptionDoesNotPausePrimaryAudio() {
-        var state = playing()
-        XCTAssertEqual(state.silenceHint(began: true), .none)
-        XCTAssertEqual(state.systemSuspension, .none)
-        XCTAssertTrue(state.renderIsPlaying)
-        _ = state.interruptionBegan()
-        XCTAssertEqual(state.interruptionEnded(shouldResume: true, silenced: true), .none)
-        XCTAssertEqual(state.silenceHint(began: false), .resume)
-    }
-
-    func testHintOnlyFlowsDoNotResumeOrSuppressPrimaryAudio() {
-        for initiallyPlaying in [false, true] {
-            var state = playing()
-            if !initiallyPlaying { state.pause() }
-            let original = state
-            for began in [true, true, false, false] {
-                XCTAssertEqual(state.silenceHint(began: began), .none)
-                XCTAssertEqual(state.desiredTransport, original.desiredTransport)
-                XCTAssertEqual(state.systemSuspension, original.systemSuspension)
-                XCTAssertEqual(state.writeMode, original.writeMode)
-                XCTAssertEqual(state.renderIsPlaying, original.renderIsPlaying)
-            }
-        }
-    }
-
-    func testHintStartsBeforeInterruptionAndEndsBeforeInterruptionEnd() {
-        var state = playing()
-        _ = state.silenceHint(began: true)
-        _ = state.interruptionBegan()
-        _ = state.silenceHint(began: false)
-        XCTAssertEqual(state.interruptionEnded(shouldResume: true, silenced: false), .resume)
-    }
-
-    func testLateHintAfterPermittedResumeDoesNotInterruptPrimaryAudio() {
-        var state = playing()
-        _ = state.interruptionBegan()
-        XCTAssertEqual(state.interruptionEnded(shouldResume: true, silenced: false), .resume)
-        state.beginResume()
-        XCTAssertEqual(state.silenceHint(began: true), .none)
-        XCTAssertEqual(state.silenceHint(began: false), .none)
-        XCTAssertEqual(state.desiredTransport, .playing)
-        XCTAssertEqual(state.systemSuspension, .none)
-    }
-
-    func testCompletedHintBeforeInterruptionCannotChangeItsResumePermission() {
-        var state = playing()
-        _ = state.silenceHint(began: true)
-        _ = state.silenceHint(began: false)
-        _ = state.interruptionBegan()
-        XCTAssertEqual(state.interruptionEnded(shouldResume: true, silenced: false), .resume)
-    }
-
-    func testCurrentHintPropertyRecoversWhenHintEndNotificationWasNotDelivered() {
-        var state = playing()
-        _ = state.silenceHint(began: true)
-        _ = state.interruptionBegan()
-        XCTAssertEqual(state.interruptionEnded(shouldResume: true, silenced: false), .resume)
-    }
-
-    func testLiveHintReconciliationRecoversWithoutHintEndNotification() {
-        var state = playing()
-        _ = state.interruptionBegan()
-        _ = state.interruptionEnded(shouldResume: true, silenced: true)
-        XCTAssertTrue(state.recovery.needsHintReconciliation)
-        XCTAssertEqual(state.silenceHint(began: true), .none)
-        XCTAssertEqual(state.silenceHint(began: false), .resume)
-        XCTAssertFalse(state.recovery.needsHintReconciliation)
-        XCTAssertEqual(state.silenceHint(began: false), .none)
-    }
-
-    func testMediaServicesResetMayNotResumeAnActiveInterruptionOrPendingHint() {
+    func testMediaServicesResetCannotResumeUntilActiveInterruptionEnds() {
         var state = playing()
         XCTAssertTrue(state.canStartPlayback)
         _ = state.interruptionBegan()
         state.beginTemporaryInterruption(renderStatus: .preparing)
         XCTAssertFalse(state.canStartPlayback)
-        _ = state.interruptionEnded(shouldResume: true, silenced: true)
-        XCTAssertFalse(state.canStartPlayback)
-        XCTAssertEqual(state.silenceHint(began: false), .resume)
-        XCTAssertTrue(state.canStartPlayback)
+        XCTAssertFalse(state.completeMediaServicesReset())
+        XCTAssertEqual(state.interruptionEnded(shouldResume: true), .resume)
+        XCTAssertTrue(state.completeMediaServicesReset())
     }
 
     func testPreparedTrackWaitsForInterruptionPermissionBeforeStarting() {
         var state = MediaCenterPresentationState()
-        state.beginPlayback(now: 0)
+        state.beginPreparation()
         _ = state.interruptionBegan()
         // Preparation can finish before the interruption ends. Neither a
         // prepared renderer nor preserved intent grants playback permission.
         state.applyRenderStatus(renderStatus: .paused, renderIsPlaying: false, hasCurrentSource: true)
         XCTAssertFalse(state.canStartPlayback)
-        XCTAssertEqual(state.interruptionEnded(shouldResume: true, silenced: false), .resume)
+        XCTAssertEqual(state.interruptionEnded(shouldResume: true), .resume)
         XCTAssertTrue(state.canStartPlayback)
-    }
-
-    func testPermittedResumeBeforePreparationFinishesStillRequiresActivationWhenReady() throws {
-        var state = MediaCenterPresentationState()
-        state.beginPlayback(now: 0)
-        _ = state.interruptionBegan()
-        XCTAssertEqual(state.interruptionEnded(shouldResume: true, silenced: false), .resume)
-        state.beginResume()
-        var effects: [String] = []
-        XCTAssertTrue(state.canStartPlayback)
-        ResumeCommandState(isStopped: false).perform(
-            prepareAudioSession: { effects.append("activation") },
-            play: { effects.append("play"); return true },
-            onPlayAccepted: { state.beginResume() }
-        )
-        XCTAssertEqual(effects, ["activation", "play"])
-        XCTAssertTrue(state.awaitingResumeRender)
     }
 
     func testMediaServicesResetCannotRestorePausedOrYieldedIntent() {
@@ -197,18 +97,17 @@ final class PlaybackInterruptionRecoveryTests: XCTestCase {
         var state = playing()
         state.beginTemporaryInterruption(renderStatus: .preparing)
         _ = state.interruptionBegan()
-        XCTAssertEqual(state.interruptionEnded(shouldResume: false, silenced: true), .yield)
+        XCTAssertEqual(state.interruptionEnded(shouldResume: false), .yield)
         XCTAssertFalse(state.completeMediaServicesReset())
         XCTAssertTrue(state.isSuppressed)
         XCTAssertEqual(decision(state), .clear(reason: .externalMedia))
-        XCTAssertEqual(state.silenceHint(began: false), .none)
     }
 
     func testDelayedPreInterruptionPlayingStatusCannotConfirmANewResume() {
         var state = playing()
         let oldRevision = state.transportRevision
         _ = state.interruptionBegan()
-        _ = state.interruptionEnded(shouldResume: true, silenced: false)
+        _ = state.interruptionEnded(shouldResume: true)
         state.beginResume()
         XCTAssertFalse(state.acceptsStatus(revision: oldRevision))
         state.applyRenderStatus(renderStatus: .playing, renderIsPlaying: true,
@@ -223,50 +122,31 @@ final class PlaybackInterruptionRecoveryTests: XCTestCase {
         XCTAssertTrue(state.renderIsPlaying)
     }
 
-    func testNoResumePermissionYieldsAndHintEndCannotTakeOwnershipBack() {
+    func testNoResumePermissionYieldsAndDuplicateEndCannotTakeOwnershipBack() {
         var state = playing()
         _ = state.interruptionBegan()
-        XCTAssertEqual(state.interruptionEnded(shouldResume: false, silenced: true), .yield)
+        XCTAssertEqual(state.interruptionEnded(shouldResume: false), .yield)
         XCTAssertEqual(state.desiredTransport, .paused)
         XCTAssertEqual(state.writeMode, .suppressed)
-        XCTAssertEqual(state.silenceHint(began: false), .none)
-        XCTAssertEqual(state.interruptionEnded(shouldResume: true, silenced: false), .none)
+        XCTAssertEqual(state.interruptionEnded(shouldResume: true), .none)
         XCTAssertEqual(decision(state), .clear(reason: .externalMedia))
     }
 
-    func testUserPauseDuringInterruptionCancelsAutoResume() {
+    func testUserPauseOrDeviceLossDuringInterruptionCancelsAutoResume() {
         var state = playing()
         _ = state.interruptionBegan()
+        // User pause and oldDeviceUnavailable share this cancellation transition.
         state.pause()
-        XCTAssertEqual(state.interruptionEnded(shouldResume: true, silenced: false), .none)
+        XCTAssertEqual(state.interruptionEnded(shouldResume: true), .none)
         XCTAssertEqual(state.desiredTransport, .paused)
         XCTAssertEqual(state.systemSuspension, .none)
     }
 
-    func testUserPauseWhileWaitingForHintEndCancelsAutoResume() {
+    func testExternalTakeoverDuringInterruptionCancelsRecovery() {
         var state = playing()
         _ = state.interruptionBegan()
-        _ = state.interruptionEnded(shouldResume: true, silenced: true)
-        state.pause()
-        XCTAssertEqual(state.silenceHint(began: false), .none)
-        XCTAssertEqual(state.desiredTransport, .paused)
-    }
-
-    func testRouteLossUsesPauseToCancelPendingRecovery() {
-        var state = playing()
-        _ = state.interruptionBegan()
-        _ = state.interruptionEnded(shouldResume: true, silenced: true)
-        // The backend's oldDeviceUnavailable handler calls this same method.
-        state.pause()
-        XCTAssertEqual(state.silenceHint(began: false), .none)
-    }
-
-    func testExplicitExternalTakeoverCancelsPendingRecovery() {
-        var state = playing()
-        _ = state.interruptionBegan()
-        _ = state.interruptionEnded(shouldResume: true, silenced: true)
         state.suppressForExternalMedia()
-        XCTAssertEqual(state.silenceHint(began: false), .none)
+        XCTAssertEqual(state.interruptionEnded(shouldResume: true), .none)
         XCTAssertTrue(state.isSuppressed)
     }
 
@@ -276,26 +156,17 @@ final class PlaybackInterruptionRecoveryTests: XCTestCase {
         state.freezeWritesForInterruption()
         XCTAssertEqual(state.interruptionBegan(), .none)
         XCTAssertEqual(state.writeMode, .frozen)
-        XCTAssertEqual(state.interruptionEnded(shouldResume: true, silenced: false), .resume)
+        XCTAssertEqual(state.interruptionEnded(shouldResume: true), .resume)
         state.beginResume()
-        XCTAssertEqual(state.interruptionEnded(shouldResume: false, silenced: true), .none)
+        XCTAssertEqual(state.interruptionEnded(shouldResume: false), .none)
         XCTAssertEqual(state.desiredTransport, .playing)
-    }
-
-    func testASecondInterruptionWhileWaitingRequiresItsOwnResumePermission() {
-        var state = playing()
-        _ = state.interruptionBegan()
-        _ = state.interruptionEnded(shouldResume: true, silenced: true)
-        XCTAssertEqual(state.interruptionBegan(), .pause)
-        XCTAssertEqual(state.silenceHint(began: false), .none)
-        XCTAssertEqual(state.interruptionEnded(shouldResume: false, silenced: false), .yield)
     }
 
     func testRepeatedSeparateInterruptionsCanEachResume() {
         var state = playing()
         for _ in 0..<3 {
             XCTAssertEqual(state.interruptionBegan(), .pause)
-            XCTAssertEqual(state.interruptionEnded(shouldResume: true, silenced: false), .resume)
+            XCTAssertEqual(state.interruptionEnded(shouldResume: true), .resume)
             state.beginResume()
             state.applyRenderStatus(renderStatus: .playing, renderIsPlaying: true, hasCurrentSource: true)
         }
@@ -304,16 +175,16 @@ final class PlaybackInterruptionRecoveryTests: XCTestCase {
     func testExplicitPlayCanReclaimAnOngoingExternalInterruptionIfActivationSucceeds() {
         var state = playing()
         _ = state.interruptionBegan()
-        var effects: [String] = []
+        var playCalls = 0
         ResumeCommandState(isStopped: false).perform(
-            prepareAudioSession: { effects.append("activation") },
-            play: { effects.append("play"); return true },
+            prepareAudioSession: {},
+            play: { playCalls += 1; return true },
             onPlayAccepted: { state.beginResume() }
         )
-        XCTAssertEqual(effects, ["activation", "play"])
+        XCTAssertEqual(playCalls, 1)
         XCTAssertFalse(state.recovery.interruptionActive)
         XCTAssertTrue(state.awaitingResumeRender)
-        XCTAssertEqual(state.interruptionEnded(shouldResume: true, silenced: false), .none)
+        XCTAssertEqual(state.interruptionEnded(shouldResume: true), .none)
     }
 
     func testRejectedExplicitPlayDuringCallPreservesPreCallIntentUntilPermissionArrives() {
@@ -323,16 +194,7 @@ final class PlaybackInterruptionRecoveryTests: XCTestCase {
         XCTAssertTrue(state.recovery.interruptionActive)
         XCTAssertEqual(state.desiredTransport, .playing)
         XCTAssertEqual(state.systemSuspension, .temporaryInterruption)
-        XCTAssertEqual(state.interruptionEnded(shouldResume: true, silenced: false), .resume)
-    }
-
-    func testExplicitPlayAfterYieldCanRetryEvenWithAnAdvisoryHint() {
-        var state = playing()
-        _ = state.interruptionBegan()
-        _ = state.interruptionEnded(shouldResume: false, silenced: true)
-        state.beginResume()
-        XCTAssertEqual(state.desiredTransport, .playing)
-        XCTAssertFalse(state.isSuppressed)
+        XCTAssertEqual(state.interruptionEnded(shouldResume: true), .resume)
     }
 
     func testInterruptionOfPausedOrStoppedPlaybackNeverAutoResumes() {
@@ -340,15 +202,16 @@ final class PlaybackInterruptionRecoveryTests: XCTestCase {
             var state = playing()
             if stopped { state.stop() } else { state.pause() }
             _ = state.interruptionBegan()
-            XCTAssertEqual(state.interruptionEnded(shouldResume: true, silenced: false), .none)
+            XCTAssertEqual(state.interruptionEnded(shouldResume: true), .none)
             XCTAssertNotEqual(state.desiredTransport, .playing)
         }
     }
 
-    func testActivationRejectionNeverCallsPlayOrAdvertisesPlayingAndAllowsExplicitRetry() throws {
+    func testRejectedAutomaticActivationNeverPlaysOrRetriesWithoutExplicitCommand() throws {
         enum ActivationFailure: Error { case rejected }
         var state = playing()
-        state.pause()
+        _ = state.interruptionBegan()
+        XCTAssertEqual(state.interruptionEnded(shouldResume: true), .resume)
         var playCalls = 0
         var activationRejected = true
         let resume = ResumeCommandState(isStopped: false)
@@ -361,6 +224,7 @@ final class PlaybackInterruptionRecoveryTests: XCTestCase {
         state.resumeFailed()
         XCTAssertEqual(playCalls, 0)
         XCTAssertEqual(state.desiredTransport, .paused)
+        XCTAssertEqual(state.interruptionEnded(shouldResume: true), .none)
         guard case .update(let failed) = decision(state) else { return XCTFail("Expected paused presentation") }
         XCTAssertEqual(failed.appState, .paused)
         XCTAssertEqual(failed.playbackRate, 0)
@@ -376,15 +240,6 @@ final class PlaybackInterruptionRecoveryTests: XCTestCase {
         guard case .update(let rendered) = decision(state) else { return XCTFail("Expected playing presentation") }
         XCTAssertEqual(rendered.appState, .playing)
         XCTAssertEqual(rendered.playbackRate, 1)
-    }
-
-    func testFailedAutomaticResumeCannotRetryFromDuplicateHintEnd() {
-        var state = playing()
-        _ = state.interruptionBegan()
-        XCTAssertEqual(state.interruptionEnded(shouldResume: true, silenced: false), .resume)
-        state.resumeFailed()
-        XCTAssertEqual(state.silenceHint(began: false), .none)
-        XCTAssertEqual(state.desiredTransport, .paused)
     }
 
     func testFailedExplicitResumeDoesNotReclaimExternalMediaPresentation() {
@@ -418,7 +273,7 @@ final class PlaybackInterruptionRecoveryTests: XCTestCase {
         XCTAssertTrue(togglePauses())
         _ = state.interruptionBegan()
         XCTAssertFalse(togglePauses())
-        _ = state.interruptionEnded(shouldResume: true, silenced: false)
+        _ = state.interruptionEnded(shouldResume: true)
         state.beginResume()
         XCTAssertFalse(togglePauses())
         state.applyRenderStatus(renderStatus: .playing, renderIsPlaying: true, hasCurrentSource: true)

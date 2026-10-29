@@ -212,6 +212,10 @@ extension GaplessMP3PlayerBackend {
     private func shouldKeepProgressPolling(for snapshot: GaplessBackendSnapshot) -> Bool {
         guard snapshot.currentStreamable != nil else { return false }
         guard !shouldIgnoreStatus(for: snapshot) else { return false }
+        // The pending tick owns its generation marker and will clear it on
+        // exit. A quick resume reuses that tick instead of starting a second loop.
+        guard !snapshot.presentation.recovery.interruptionActive,
+              snapshot.systemSuspension != .temporaryInterruption else { return false }
 
         switch snapshot.currentState {
         case .Playing, .Paused, .Stalled:

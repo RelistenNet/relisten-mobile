@@ -51,11 +51,6 @@ extension GaplessMP3PlayerBackend {
                     self?.handleInterruptionOnQueue(event)
                 }
             },
-            onSilenceSecondaryAudioHint: { [weak self] event in
-                self?.backendQueue.async {
-                    self?.handleSilenceSecondaryAudioHintOnQueue(event)
-                }
-            },
             onMediaServices: { [weak self] kind in
                 self?.backendQueue.async {
                     self?.handleMediaServicesOnQueue(kind)
@@ -142,8 +137,7 @@ extension GaplessMP3PlayerBackend {
         let previous = snapshotStore.get()
         let action = snapshotStore.withValue {
             $0.presentation.interruptionEnded(
-                shouldResume: event.options.contains(.shouldResume),
-                silenced: event.secondaryAudioShouldBeSilenced
+                shouldResume: event.options.contains(.shouldResume)
             )
         }
         if action == .resume {
@@ -153,53 +147,11 @@ extension GaplessMP3PlayerBackend {
                 player.pause()
                 snapshotStore.withValue {
                     if $0.currentState != .Stopped { $0.currentState = .Paused }
-                    $0.progressPollingGeneration = nil
                 }
             }
             applyPresentationAndEmit(previous: previous)
-            scheduleInterruptionRecoveryCheckIfNeededOnQueue()
         }
-    }
-
-    private func handleSilenceSecondaryAudioHintOnQueue(_ event: SilenceSecondaryAudioHintEvent) {
-        backendStateLog.info(
-            "received", "silence secondary audio hint",
-            playbackLogField("type", silenceHintTypeDescription(event.type)),
-            playbackLogBoolField("secondarySilenced", event.secondaryAudioShouldBeSilenced)
-        )
-        let action: PlaybackInterruptionAction
-        switch event.type {
-        case .begin:
-            action = snapshotStore.withValue { $0.presentation.silenceHint(began: true) }
-        case .end:
-            action = snapshotStore.withValue { $0.presentation.silenceHint(began: false) }
-        @unknown default:
-            return
-        }
-        if action == .resume { resumeOnQueue() }
-    }
-
-    private func scheduleInterruptionRecoveryCheckIfNeededOnQueue() {
-        guard !teardownRequested.get(),
-              snapshotStore.get().presentation.recovery.needsHintReconciliation,
-              !interruptionRecoveryCheckScheduled else { return }
-        interruptionRecoveryCheckScheduled = true
-        backendQueue.asyncAfter(deadline: .now() + .milliseconds(250)) { [weak self] in
-            guard let self else { return }
-            self.interruptionRecoveryCheckScheduled = false
-            let snapshot = self.snapshotStore.get()
-            // Consult current permission, not the track generation: a media
-            // services reset rebuilds that generation while retaining recovery.
-            guard !self.teardownRequested.get(),
-                  snapshot.presentation.recovery.needsHintReconciliation else { return }
-            let silenced = AVAudioSession.sharedInstance().secondaryAudioShouldBeSilencedHint
-            let action = self.snapshotStore.withValue { $0.presentation.silenceHint(began: silenced) }
-            if action == .resume {
-                self.resumeOnQueue()
-            } else {
-                self.scheduleInterruptionRecoveryCheckIfNeededOnQueue()
-            }
-        }
+        startProgressPollingIfNeededOnQueue(for: snapshotStore.get().generation)
     }
 
     private func handleMediaServicesOnQueue(_ kind: AudioMediaServicesEventKind) {
@@ -413,14 +365,4 @@ extension GaplessMP3PlayerBackend {
         }
     }
 
-    private func silenceHintTypeDescription(_ type: AVAudioSession.SilenceSecondaryAudioHintType) -> String {
-        switch type {
-        case .begin:
-            return "begin"
-        case .end:
-            return "end"
-        @unknown default:
-            return "unknownDefault"
-        }
-    }
 }
