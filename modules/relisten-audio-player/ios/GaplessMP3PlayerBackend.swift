@@ -219,12 +219,9 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
             playbackLogField("startMs", startingAtMs.map { String($0) }),
             playbackLogIntegerField("gen", entryGeneration)
         )
-        do {
-            try prepareAudioSessionOnQueue(shouldActivate: true)
-        } catch {
-            handleResumeFailureOnQueue(error, streamable: streamable)
-            return
-        }
+        // Commit and prepare the requested source before activation. If iOS
+        // rejects playback, resume must retry this source rather than the old one.
+        installAudioSessionHandlersIfNeededOnQueue()
 
         let snapshot = snapshotStore.get()
         let previousStreamable = snapshot.currentStreamable
@@ -455,13 +452,13 @@ final class GaplessMP3PlayerBackend: PlaybackBackend, @unchecked Sendable {
         }
     }
 
-    private func handleResumeFailureOnQueue(_ error: Error, streamable: RelistenGaplessStreamable? = nil) {
+    private func handleResumeFailureOnQueue(_ error: Error) {
         player.pause()
         updateSnapshotOnQueue(forceStateEmission: true) {
             $0.presentation.resumeFailed()
             if $0.currentStreamable == nil { $0.presentation.stop() }
         }
-        if let streamable = streamable ?? snapshotStore.get().currentStreamable {
+        if let streamable = snapshotStore.get().currentStreamable {
             emitError(error, for: streamable)
         }
     }

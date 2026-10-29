@@ -14,6 +14,7 @@ let package = Package(
             targets: ["GaplessMP3PlayerHarness"]
         ),
     ],
+    dependencies: [.package(path: "../..")],
     targets: [
         .target(
             name: "GaplessMP3Player",
@@ -25,7 +26,10 @@ let package = Package(
         ),
         .testTarget(
             name: "GaplessMP3PlayerTests",
-            dependencies: ["GaplessMP3Player"],
+            dependencies: [
+                "GaplessMP3Player",
+                .product(name: "GaplessMP3PlayerBackendSupport", package: "relisten-audio-player"),
+            ],
             resources: [
                 .copy("Fixtures"),
             ]
