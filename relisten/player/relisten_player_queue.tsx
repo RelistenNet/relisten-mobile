@@ -260,30 +260,30 @@ export class RelistenPlayerQueue {
   }
 
   removeTrackAtIndex(index: number) {
+    // Queue rows use playback order; the original order can differ while shuffled.
+    const removed = this.orderedTracks[index];
     const currentIdentifier = this.currentTrack?.identifier;
-    const originalCopy = [...this.originalTracks];
-    const [removed] = originalCopy.splice(index, 1);
 
-    this.originalTracks = originalCopy;
-
-    const shuffledCopy = [...this.shuffledTracks];
-
-    for (let i = 0; i < this.shuffledTracks.length; i++) {
-      if (this.shuffledTracks[i].identifier === removed.identifier) {
-        shuffledCopy.splice(i, 1);
-        break;
+    this.applyPlaybackCheckpoint(() => {
+      const stoppedPlayback = this.player.onQueueTrackRemoving(removed.identifier);
+      this.originalTracks = this.originalTracks.filter(
+        (entry) => entry.identifier !== removed.identifier
+      );
+      this.shuffledTracks = this.shuffledTracks.filter(
+        (entry) => entry.identifier !== removed.identifier
+      );
+      if (currentIdentifier) {
+        this.recalculateTrackIndexes(currentIdentifier);
       }
-    }
 
-    this.shuffledTracks = shuffledCopy;
-
-    if (currentIdentifier) {
-      this.clearCurrentTrack();
-      this.recalculateTrackIndexes(currentIdentifier);
-    }
-    this.recalculateNextTrack();
-    this.onOrderedTracksChanged.dispatch(this.orderedTracks);
-    this.savePlayerState(true);
+      if (!stoppedPlayback) {
+        this.recalculateNextTrack();
+      }
+      this.onOrderedTracksChanged.dispatch(this.orderedTracks);
+      if (removed.identifier === currentIdentifier) {
+        this.onCurrentTrackChanged.dispatch(undefined);
+      }
+    }, true);
   }
 
   get shuffleState() {
@@ -423,6 +423,12 @@ ${indentString(tracks)}
   // endregion
 
   // region Next track management
+  /** Drop cached lookahead when the backend queue is stopped or cleared. */
+  public forgetPreparedNextTrack() {
+    this._nextTrack = undefined;
+    this._nextTrackIndex = undefined;
+  }
+
   public recalculateNextTrack() {
     const prevNextTrack = this._nextTrack;
     const newNextTrackIndex = this.calculateNextTrackIndex();
@@ -729,8 +735,7 @@ ${indentString(tracks)}
   ) {
     if (!checkpoint) {
       // A saved queue can intentionally have no selection.
-      this._nextTrack = undefined;
-      this._nextTrackIndex = undefined;
+      this.forgetPreparedNextTrack();
       return;
     }
 
@@ -742,8 +747,7 @@ ${indentString(tracks)}
     }
 
     // Selection listeners must not prepare a native stream before an explicit Play.
-    this._nextTrack = undefined;
-    this._nextTrackIndex = undefined;
+    this.forgetPreparedNextTrack();
     if (!track) {
       return;
     }

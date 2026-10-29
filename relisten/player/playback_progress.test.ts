@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('@/modules/relisten-audio-player', () => ({
   nativePlayer: mocks.native,
+  RelistenPlaybackErrorKind: { NetworkUnavailable: 'networkUnavailable' },
   RelistenPlaybackState: {
     Stopped: 'Stopped',
     Playing: 'Playing',
@@ -37,17 +38,20 @@ vi.mock('@/relisten/realm/models/player_state', () => ({
 }));
 vi.mock('@/relisten/realm/models/source_track', () => ({ SourceTrack: class {} }));
 vi.mock('@/relisten/offline/download_manager', () => ({ DownloadManager: {} }));
-vi.mock('@/relisten/events', () => ({ sharedStatsigClient: vi.fn() }));
+vi.mock('@/relisten/events', () => ({
+  sharedStatsigClient: () => ({ logEvent: vi.fn() }),
+  trackPlaybackErrorEvent: vi.fn(),
+}));
 vi.mock('@/relisten/util/logging', () => ({
   log: { debug: vi.fn(), extend: () => ({ debug: vi.fn(), warn: vi.fn() }) },
 }));
 vi.mock('react-native-flash-message', () => ({ showMessage: vi.fn() }));
 
-import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
+import { RelistenPlaybackErrorKind, RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import { RelistenPlayer } from './relisten_player';
 import { PlayerQueueTrack, PlayerShuffleState } from './relisten_player_queue';
 import type { PlayerStateProps } from '@/relisten/realm/models/player_state';
-import { currentTrackIdentifier, progress, state } from './shared_state';
+import { currentTrackIdentifier, latestError, progress, state } from './shared_state';
 import type { SourceTrack } from '@/relisten/realm/models/source_track';
 import type Realm from 'realm';
 import { PlayerRepeatState } from './player_modes';
@@ -165,6 +169,14 @@ class PlaybackScenario {
     vi.clearAllTimers();
     vi.useRealTimers();
   }
+}
+
+function deferredOperation() {
+  let complete!: () => void;
+  const promise = new Promise<void>((resolve) => {
+    complete = resolve;
+  });
+  return { promise, complete };
 }
 
 let scenario: PlaybackScenario;
@@ -338,6 +350,103 @@ describe('native requests and confirmation', () => {
   });
 });
 
+describe('commands interrupted by later user actions', () => {
+  beforeEach(() => scenario.startPlayingQueue());
+
+  it.each(['pause', 'togglePauseResume'] as const)(
+    'honors Pause through %s while Next is still waiting for native pause',
+    async (action) => {
+      const pause = deferredOperation();
+      mocks.native.pause.mockReturnValueOnce(pause.promise);
+      const selection = vi.fn();
+      const playbackState = vi.fn();
+      player.queue.onCurrentTrackChanged.addListener(selection);
+      player.onStateChanged.addListener(playbackState);
+      player.next();
+      expect(selection).toHaveBeenLastCalledWith(loser);
+
+      player[action]();
+      expect(playbackState).toHaveBeenLastCalledWith(RelistenPlaybackState.Paused);
+      expect(selection).toHaveBeenLastCalledWith(minglewood);
+      expect(progress.lastState()?.elapsed).toBe(120);
+      pause.complete();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(player.state).toBe(RelistenPlaybackState.Paused);
+      expect(mocks.native.play).not.toHaveBeenCalled();
+      player.resume();
+      expect(mocks.native.resume).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it('does not let a canceled pause completion release a newer Play request', async () => {
+    const oldPause = deferredOperation();
+    mocks.native.pause.mockReturnValueOnce(oldPause.promise);
+    player.next();
+    await player.stop();
+
+    const newPlay = deferredOperation();
+    mocks.native.play.mockReturnValueOnce(newPlay.promise);
+    player.resume();
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+
+    oldPause.complete();
+    await vi.advanceTimersByTimeAsync(0);
+    player.next();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mocks.native.play).toHaveBeenCalledTimes(1);
+
+    scenario.emit({ identifier: minglewood.identifier });
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(2));
+    expect(scenario.lastNativePlay.entryId).toBe(loser.identifier);
+    newPlay.complete();
+  });
+
+  it('keeps the pending target when a different entry reports a native error', async () => {
+    player.queue.addTrackToEndOfQueue([track('third', 430)]);
+    const third = player.queue.orderedTracks[2];
+    const pause = deferredOperation();
+    mocks.native.pause.mockReturnValueOnce(pause.promise);
+    player.next();
+    const failure = {
+      identifier: minglewood.identifier,
+      error: {
+        kind: RelistenPlaybackErrorKind.NetworkUnavailable,
+        message: 'Previous stream failed',
+        isRetryable: true,
+        platform: 'ios' as const,
+      },
+    };
+    latestError.setState(failure);
+    pause.complete();
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+    expect(scenario.lastNativePlay.entryId).toBe(loser.identifier);
+
+    latestError.setState({ ...failure });
+    player.playTrackAtIndex(2);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mocks.native.play).toHaveBeenCalledTimes(1);
+    scenario.emit({ identifier: loser.identifier });
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(2));
+    expect(scenario.lastNativePlay.entryId).toBe(third.identifier);
+  });
+
+  it('keeps a queued Play target through drag reordering', async () => {
+    player.queue.addTrackToEndOfQueue([track('third', 430)]);
+    const third = player.queue.orderedTracks[2];
+    const pause = deferredOperation();
+    mocks.native.pause.mockReturnValueOnce(pause.promise);
+    player.next();
+    player.playTrackAtIndex(2);
+
+    player.queue.moveQueueTrack(2, 0);
+    pause.complete();
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+
+    expect(scenario.lastNativePlay.entryId).toBe(third.identifier);
+  });
+});
+
 describe('progress publication and listening history', () => {
   beforeEach(() => scenario.startPlayingQueue());
 
@@ -437,6 +546,90 @@ describe('checkpoint persistence and queue edits', () => {
       );
     }
   );
+
+  it.each([RelistenPlaybackState.Playing, RelistenPlaybackState.Paused])(
+    'stops native playback when the selected entry is removed while %s',
+    async (playbackState) => {
+      scenario.emit({ playbackState });
+      const removedSnapshot = scenario.capture({ elapsed: 121, duration: 381 });
+
+      player.queue.removeTrackAtIndex(0);
+      expect(mocks.native.stop).toHaveBeenCalledTimes(1);
+      expect(player.state).toBe(RelistenPlaybackState.Stopped);
+      expect(player.queue.currentTrack).toBeUndefined();
+      expect(player.queue.orderedTracks).toEqual([loser]);
+      expect(player.queue.nextTrack).toBeUndefined();
+      expect(scenario.savedCheckpoint).toBeNull();
+      scenario.deliver(removedSnapshot);
+      expect(player.state).toBe(RelistenPlaybackState.Stopped);
+
+      player.resume();
+      await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+      expect(scenario.lastNativePlay).toMatchObject({
+        entryId: loser.identifier,
+        startTimeMs: undefined,
+      });
+      scenario.emit({ identifier: loser.identifier, elapsed: 3, duration: 410 });
+      expect(player.progress?.elapsed).toBe(3);
+    }
+  );
+
+  it('removes the displayed occurrence when shuffled order differs from original order', () => {
+    player.queue.addTrackToEndOfQueue([track('third', 430)]);
+    const third = player.queue.orderedTracks[2];
+    player.queue.setShuffleState(PlayerShuffleState.SHUFFLE_ON);
+    const thirdIndex = player.queue.orderedTracks.indexOf(third);
+    player.queue.moveQueueTrack(thirdIndex, 1);
+
+    player.queue.removeTrackAtIndex(1);
+    expect(player.queue.orderedTracks).toEqual([minglewood, loser]);
+    expect(player.queue.currentTrack).toBe(minglewood);
+    expect(mocks.native.stop).not.toHaveBeenCalled();
+    player.queue.setShuffleState(PlayerShuffleState.SHUFFLE_OFF);
+    expect(player.queue.orderedTracks).toEqual([minglewood, loser]);
+  });
+
+  it('cancels a removed pending target and can resume the retained entry and its successor', async () => {
+    player.queue.addTrackToEndOfQueue([track('third', 430)]);
+    const third = player.queue.orderedTracks[2];
+    const pause = deferredOperation();
+    mocks.native.pause.mockReturnValueOnce(pause.promise);
+    player.next();
+
+    player.queue.removeTrackAtIndex(1);
+    pause.complete();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mocks.native.play).not.toHaveBeenCalled();
+    expect(mocks.native.stop).toHaveBeenCalledTimes(1);
+    expect(player.state).toBe(RelistenPlaybackState.Stopped);
+    expect(player.queue.currentTrack).toBe(minglewood);
+
+    player.resume();
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+    expect(scenario.lastNativePlay).toMatchObject({
+      entryId: minglewood.identifier,
+      startTimeMs: 120000,
+    });
+    scenario.emit({ identifier: minglewood.identifier, elapsed: 120, duration: 381 });
+    const [preparedStream] = mocks.native.setNextStream.mock.lastCall!;
+    expect(preparedStream?.identifier).toBe(third.identifier);
+    player.next();
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(2));
+    expect(scenario.lastNativePlay.entryId).toBe(third.identifier);
+  });
+
+  it('stops and persists an empty queue when its last selected entry is removed', () => {
+    player.queue.removeTrackAtIndex(1);
+    player.queue.removeTrackAtIndex(0);
+
+    expect(mocks.native.stop).toHaveBeenCalledTimes(1);
+    expect(player.state).toBe(RelistenPlaybackState.Stopped);
+    expect(player.queue.orderedTracks).toEqual([]);
+    expect(scenario.savedState.queueEntries).toEqual([]);
+    expect(scenario.savedCheckpoint).toBeNull();
+    player.resume();
+    expect(mocks.native.play).not.toHaveBeenCalled();
+  });
 
   it('saves the new track with its own progress when paused before native progress arrives', async () => {
     player.next();
@@ -552,6 +745,21 @@ describe('checkpoint persistence and queue edits', () => {
 });
 
 describe('saved queue restoration', () => {
+  it('does not transfer a removed restored entry seek to the next entry', async () => {
+    await scenario.restore({
+      checkpoint: { entryId: 'A', elapsedSeconds: 120, durationSeconds: 381 },
+    });
+    player.queue.removeTrackAtIndex(0);
+
+    player.resume();
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+    expect(scenario.lastNativePlay).toEqual({
+      entryId: 'B',
+      sourceTrackUuid: 'loser',
+      startTimeMs: undefined,
+    });
+  });
+
   it.each([
     {
       reason: 'prefers saved native duration',
@@ -804,6 +1012,18 @@ describe('terminal playback', () => {
     expect(player.state).toBe(RelistenPlaybackState.Stopped);
   });
 
+  it('prepares the successor again after stopping and resuming the same entry', async () => {
+    await player.stop();
+    mocks.native.setNextStream.mockClear();
+
+    player.resume();
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+    scenario.emit({ identifier: minglewood.identifier, elapsed: 120, duration: 381 });
+
+    const [preparedStream] = mocks.native.setNextStream.mock.lastCall!;
+    expect(preparedStream?.identifier).toBe(loser.identifier);
+  });
+
   it('starts the selected stream after Android clears an already-paused controller', async () => {
     scenario.emit({ playbackState: RelistenPlaybackState.Paused });
     mocks.native.stop.mockImplementationOnce(async () => {
@@ -822,7 +1042,7 @@ describe('terminal playback', () => {
     await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalled());
     expect(scenario.lastNativePlay).toMatchObject({
       entryId: minglewood.identifier,
-      startTimeMs: undefined,
+      startTimeMs: 120000,
     });
     expect(mocks.native.resume).not.toHaveBeenCalled();
   });
