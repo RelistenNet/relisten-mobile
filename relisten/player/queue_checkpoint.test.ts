@@ -55,7 +55,7 @@ describe('queue checkpoint write boundaries', () => {
     queue.savePlayerState(true);
     expect(harness.save).toHaveBeenLastCalledWith(
       expect.anything(),
-      expect.objectContaining({ elapsed: 123 })
+      expect.objectContaining({ checkpoint: expect.objectContaining({ elapsedSeconds: 123 }) })
     );
   });
   it('does not postpone normal persistence under a stream of updates', () => {
@@ -68,7 +68,7 @@ describe('queue checkpoint write boundaries', () => {
     expect(harness.save).toHaveBeenCalledTimes(1);
     expect(harness.save).toHaveBeenLastCalledWith(
       expect.anything(),
-      expect.objectContaining({ elapsed: 125 })
+      expect.objectContaining({ checkpoint: expect.objectContaining({ elapsedSeconds: 125 }) })
     );
   });
   it('cancels the pending timer after a final write', () => {
@@ -81,7 +81,7 @@ describe('queue checkpoint write boundaries', () => {
     expect(harness.save).toHaveBeenCalledTimes(count);
     expect(harness.save).toHaveBeenLastCalledWith(
       expect.anything(),
-      expect.objectContaining({ elapsed: 123 })
+      expect.objectContaining({ checkpoint: expect.objectContaining({ elapsedSeconds: 123 }) })
     );
   });
 });

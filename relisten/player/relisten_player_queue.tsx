@@ -9,25 +9,17 @@ import {
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { EventSource } from '@/relisten/util/event_source';
 import { realm } from '@/relisten/realm/schema';
-import { PlayerState } from '@/relisten/realm/models/player_state';
+import { PlayerState, PlayerStateProps } from '@/relisten/realm/models/player_state';
+import { PlayerRepeatState, PlayerShuffleState } from '@/relisten/player/player_modes';
 import { log } from '@/relisten/util/logging';
 import { groupByUuid } from '@/relisten/util/group_by';
 import { Realm } from '@realm/react';
 import { v4 as uuid } from 'uuid';
 import { indentString } from '@/relisten/util/string_indent';
 
+export { PlayerRepeatState, PlayerShuffleState } from '@/relisten/player/player_modes';
+
 const logger = log.extend('player-queue');
-
-export enum PlayerShuffleState {
-  SHUFFLE_OFF = 1,
-  SHUFFLE_ON,
-}
-
-export enum PlayerRepeatState {
-  REPEAT_OFF = 1,
-  REPEAT_TRACK,
-  REPEAT_QUEUE,
-}
 
 function shuffleArray<T>(arr: T[]) {
   // ye old fisher-yates
@@ -556,27 +548,6 @@ ${indentString(tracks)}
       }
     }
   }
-
-  private restoreTrackIndexesBySourceTrackUuid(sourceTrackUuid: string) {
-    this.clearCurrentTrack();
-
-    // Queue item identifiers are regenerated on cold start, so restore has to re-anchor by
-    // stable SourceTrack UUID and then recover both original/shuffled indexes from that identity.
-    this.originalTracksCurrentIndex = this.originalTracks.findIndex(
-      (track) => track.sourceTrack.uuid === sourceTrackUuid
-    );
-    this.shuffledTracksCurrentIndex = this.shuffledTracks.findIndex(
-      (track) => track.sourceTrack.uuid === sourceTrackUuid
-    );
-
-    if (this.originalTracksCurrentIndex < 0) {
-      this.originalTracksCurrentIndex = undefined;
-    }
-
-    if (this.shuffledTracksCurrentIndex < 0) {
-      this.shuffledTracksCurrentIndex = undefined;
-    }
-  }
   // endregion
 
   // region Player state serialization
@@ -620,19 +591,23 @@ ${indentString(tracks)}
     if (!realm) return;
     const track = this.currentTrack;
     const progress = track ? this.player.checkpointProgress(track.identifier) : undefined;
-    const state = {
-      queueShuffleState: this.shuffleState,
-      queueRepeatState: this.repeatState,
-      queueSourceTrackUuids: this.originalTracks.map((t) => t.sourceTrack.uuid),
-      queueSourceTrackShuffledUuids: this.shuffledTracks.map((t) => t.sourceTrack.uuid),
-      queueTrackIdentifiers: this.originalTracks.map((t) => t.identifier),
-      queueTrackShuffledIdentifiers: this.shuffledTracks.map((t) => t.identifier),
-      activeSourceTrackUuid: track?.sourceTrack.uuid,
-      activeSourceTrackIndex: this.originalTracksCurrentIndex,
-      activeSourceTrackShuffledIndex: this.shuffledTracksCurrentIndex,
-      progress: progress?.percent,
-      duration: progress?.duration ?? track?.sourceTrack.duration,
-      elapsed: progress?.elapsed ?? (track ? 0 : undefined),
+    const state: Omit<PlayerStateProps, 'lastUpdatedAt'> = {
+      queueEntries: this.originalTracks.map((track) => ({
+        id: track.identifier,
+        sourceTrackUuid: track.sourceTrack.uuid,
+      })),
+      shuffleOrder:
+        this.shuffleState === PlayerShuffleState.SHUFFLE_ON
+          ? { entryIds: this.shuffledTracks.map((track) => track.identifier) }
+          : null,
+      repeatMode: this.repeatState,
+      checkpoint: track
+        ? {
+            entryId: track.identifier,
+            elapsedSeconds: progress?.elapsed ?? 0,
+            durationSeconds: progress?.duration ?? track.sourceTrack.duration,
+          }
+        : null,
     };
     const fingerprint = JSON.stringify(state);
     if (fingerprint === this.lastWrittenState) return;
@@ -651,184 +626,82 @@ ${indentString(tracks)}
 
     this.restoring = true;
     try {
-      logger.debug('read player state for restore', {
-        activeSourceTrackIndex: playerState.activeSourceTrackIndex,
-        activeSourceTrackShuffledIndex: playerState.activeSourceTrackShuffledIndex,
-        duration: playerState.duration,
-        elapsed: playerState.elapsed,
-        progress: playerState.progress,
-        queueLength: playerState.queueSourceTrackUuids.length,
-        queueShuffleState: playerState.queueShuffleState,
-      });
-
       const sourceTracksByUuid = groupByUuid([
-        ...realm
-          .objects(SourceTrack)
-          .filtered('uuid in $0', [...playerState.queueSourceTrackUuids]),
+        ...realm.objects(SourceTrack).filtered(
+          'uuid in $0',
+          playerState.queueEntries.map((entry) => entry.sourceTrackUuid)
+        ),
       ]);
-      let droppedInvalidTrack = false;
-
       const restoredEntries = new Map<string, PlayerQueueTrack>();
-      const makeQueue = (uuids: string[]) => {
-        return uuids
-          .map((u, index) => {
-            const sourceTrack = sourceTracksByUuid[u];
-
-            if (!sourceTrack) {
-              droppedInvalidTrack = true;
-              return;
-            }
-
-            try {
-              const track = PlayerQueueTrack.fromSourceTrack(sourceTrack);
-              const oldIdentifier = playerState.queueTrackIdentifiers?.[index];
-              if (oldIdentifier) restoredEntries.set(oldIdentifier, track);
-              return track;
-            } catch (error) {
-              droppedInvalidTrack = true;
-              logger.warn('Skipping invalid persisted queue track during restore', {
-                error,
-                sourceTrackUuid: u,
-              });
-              return;
-            }
-          })
-          .filter((t) => !!t) as PlayerQueueTrack[];
-      };
-
-      this.setShuffleState(playerState.queueShuffleState);
-      this.setRepeatState(playerState.queueRepeatState);
-
-      const unshuffledQueue = makeQueue(playerState.queueSourceTrackUuids);
-      const savedShuffledEntries = [...(playerState.queueTrackShuffledIdentifiers ?? [])]
-        .map((id) => restoredEntries.get(id))
-        .filter((track): track is PlayerQueueTrack => !!track);
-      const shuffledQueue =
-        savedShuffledEntries.length === unshuffledQueue.length
-          ? savedShuffledEntries
-          : [...unshuffledQueue];
-
-      if (savedShuffledEntries.length !== unshuffledQueue.length)
-        shuffledQueue.sort((a, b) => {
-          const aOrder = playerState.queueSourceTrackShuffledUuids.indexOf(a.sourceTrack.uuid);
-          const bOrder = playerState.queueSourceTrackShuffledUuids.indexOf(b.sourceTrack.uuid);
-
-          return aOrder - bOrder;
-        });
-
-      this.replaceQueue(unshuffledQueue, undefined);
-      this.shuffledTracks = shuffledQueue;
-      this.onOrderedTracksChanged.dispatch(this.orderedTracks);
-
-      const restoreTrackUuidFromIndex = (
-        tracks: readonly string[],
-        maybeIndex: number | null | undefined
-      ) => {
-        if (maybeIndex == null || maybeIndex < 0 || maybeIndex >= tracks.length) {
-          return undefined;
+      let droppedInvalidTrack = false;
+      for (const entry of playerState.queueEntries) {
+        const sourceTrack = sourceTracksByUuid[entry.sourceTrackUuid];
+        if (!sourceTrack) {
+          droppedInvalidTrack = true;
+          continue;
         }
-
-        return tracks[maybeIndex];
-      };
-
-      const preferredRestoredTrackUuid =
-        this.shuffleState === PlayerShuffleState.SHUFFLE_ON
-          ? restoreTrackUuidFromIndex(
-              playerState.queueSourceTrackShuffledUuids,
-              playerState.activeSourceTrackShuffledIndex
-            )
-          : restoreTrackUuidFromIndex(
-              playerState.queueSourceTrackUuids,
-              playerState.activeSourceTrackIndex
-            );
-      const fallbackRestoredTrackUuid =
-        this.shuffleState === PlayerShuffleState.SHUFFLE_ON
-          ? restoreTrackUuidFromIndex(
-              playerState.queueSourceTrackUuids,
-              playerState.activeSourceTrackIndex
-            )
-          : restoreTrackUuidFromIndex(
-              playerState.queueSourceTrackShuffledUuids,
-              playerState.activeSourceTrackShuffledIndex
-            );
-      const requestedRestoredTrackUuid =
-        playerState.activeSourceTrackUuid ??
-        preferredRestoredTrackUuid ??
-        fallbackRestoredTrackUuid ??
-        this.originalTracks[0]?.sourceTrack.uuid;
-
-      const restoredTrackUuid = this.originalTracks.some(
-        (track) => track.sourceTrack.uuid === requestedRestoredTrackUuid
-      )
-        ? requestedRestoredTrackUuid
-        : this.originalTracks[0]?.sourceTrack.uuid;
-      const restoredIdentifier =
-        playerState.queueTrackIdentifiers?.[playerState.activeSourceTrackIndex ?? -1];
-      const restoredEntry = restoredIdentifier
-        ? restoredEntries.get(restoredIdentifier)
-        : undefined;
-      if (restoredEntry) this.recalculateTrackIndexes(restoredEntry.identifier);
-      else if (restoredTrackUuid) this.restoreTrackIndexesBySourceTrackUuid(restoredTrackUuid);
-
-      if (this.currentTrack) {
-        this.onCurrentTrackChanged.dispatch(this.currentTrack);
+        try {
+          const track = PlayerQueueTrack.fromSourceTrack(sourceTrack);
+          track.identifier = entry.id;
+          restoredEntries.set(entry.id, track);
+        } catch (error) {
+          droppedInvalidTrack = true;
+          logger.warn('Skipping invalid persisted queue track during restore', {
+            error,
+            sourceTrackUuid: entry.sourceTrackUuid,
+          });
+        }
       }
 
-      logger.debug('resolved player state restore target', {
-        currentTrackUuid: this.currentTrack?.sourceTrack.uuid,
-        originalTracksCurrentIndex: this.originalTracksCurrentIndex,
-        restoredTrackUuid,
-        shuffledTracksCurrentIndex: this.shuffledTracksCurrentIndex,
-        shuffleState: this.shuffleState,
-      });
+      // Restore keeps occurrence IDs. A user replacing the queue still renews them to reject
+      // delayed native callbacks from the queue it replaced.
+      this.player.cancelPendingPlayRequests('restorePlayerState');
+      this.originalTracks = [...restoredEntries.values()];
+      this.shuffledTracks = playerState.shuffleOrder
+        ? playerState.shuffleOrder.entryIds
+            .map((id) => restoredEntries.get(id))
+            .filter((track): track is PlayerQueueTrack => !!track)
+        : [...this.originalTracks];
+      this.clearCurrentTrack();
+      this.prevNextTrackIndexIntentOffset = 0;
+      this._shuffleState = playerState.shuffleOrder
+        ? PlayerShuffleState.SHUFFLE_ON
+        : PlayerShuffleState.SHUFFLE_OFF;
+      this._repeatState = playerState.repeatMode;
+      this.onShuffleStateChanged.dispatch(this.shuffleState);
+      this.onRepeatStateChanged.dispatch(this.repeatState);
+      nativePlayer.setShuffleMode(this.shuffleState);
+      nativePlayer.setRepeatMode(this.repeatState);
+      this.onOrderedTracksChanged.dispatch(this.orderedTracks);
 
+      const checkpoint = playerState.checkpoint;
+      const selectedEntry = checkpoint ? restoredEntries.get(checkpoint.entryId) : undefined;
+      const restoredTrack = selectedEntry ?? (checkpoint ? this.orderedTracks[0] : undefined);
+      if (restoredTrack) {
+        this.recalculateTrackIndexes(restoredTrack.identifier);
+        this.onCurrentTrackChanged.dispatch(restoredTrack);
+      }
+
+      // Restoring a selection must not prepare a native stream before an explicit Play.
       this._nextTrack = undefined;
       this._nextTrackIndex = undefined;
 
-      const catalogDuration = this.currentTrack?.sourceTrack.duration;
-      const measuredDuration = playerState.duration;
-      const identifiedTiming =
-        this.currentTrack &&
-        playerState.activeSourceTrackUuid === this.currentTrack.sourceTrack.uuid;
-      // Modern records identify their timing. Legacy records can only prefer catalog duration;
-      // duration similarity to another track cannot prove the saved position is corrupt.
-      const restoredDuration = (
-        identifiedTiming ? [measuredDuration, catalogDuration] : [catalogDuration, measuredDuration]
-      ).find((duration) => duration != null && Number.isFinite(duration) && duration > 0);
-      const savedElapsed =
-        restoredTrackUuid !== requestedRestoredTrackUuid ? 0 : playerState.elapsed;
-
-      if (
-        savedElapsed != null &&
-        Number.isFinite(savedElapsed) &&
-        restoredDuration != null &&
-        Number.isFinite(restoredDuration) &&
-        restoredDuration > 0
-      ) {
+      const restoredDuration = [
+        selectedEntry ? checkpoint?.durationSeconds : undefined,
+        restoredTrack?.sourceTrack.duration,
+      ].find((duration) => duration != null && Number.isFinite(duration) && duration > 0);
+      if (restoredTrack && restoredDuration != null) {
+        // A missing selected source cannot transfer its timing to the fallback entry.
+        const savedElapsed = selectedEntry ? checkpoint!.elapsedSeconds : 0;
         const restoredElapsed = Math.max(0, Math.min(restoredDuration, savedElapsed));
         const restoredProgress = {
           elapsed: restoredElapsed,
           duration: restoredDuration,
-          percent: restoredDuration > 0 ? restoredElapsed / restoredDuration : 0,
+          percent: restoredElapsed / restoredDuration,
         };
-
-        logger.debug('restoring player progress', {
-          currentTrackUuid: this.currentTrack?.sourceTrack.uuid,
-          duration: restoredProgress.duration,
-          elapsed: restoredProgress.elapsed,
-          percent: restoredProgress.percent,
-        });
-
-        this.player.seekToTime(restoredProgress.elapsed).then(() => {});
+        void this.player.seekToTime(restoredElapsed);
         this.player.progress = restoredProgress;
         sharedStateProgress.setState(restoredProgress);
-      } else {
-        logger.debug('player state restore did not contain persisted progress', {
-          currentTrackUuid: this.currentTrack?.sourceTrack.uuid,
-          duration: playerState.duration,
-          elapsed: playerState.elapsed,
-          progress: playerState.progress,
-        });
       }
 
       if (droppedInvalidTrack) {

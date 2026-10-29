@@ -41,7 +41,12 @@ import { SourceSet } from '@/relisten/realm/models/source_set';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { SourceTrackOfflineInfo } from '@/relisten/realm/models/source_track_offline_info';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
-import { PlayerState, PLAYER_STATE_SENTINEL } from '@/relisten/realm/models/player_state';
+import {
+  PlayerState,
+  PLAYER_STATE_SCHEMAS,
+  PLAYER_STATE_SENTINEL,
+} from '@/relisten/realm/models/player_state';
+import { PlayerRepeatState } from '@/relisten/player/player_modes';
 import {
   Popularity,
   PopularityWindow,
@@ -54,7 +59,7 @@ const now = new Date('2026-08-20T00:00:00.000Z');
 
 const config: Realm.Configuration = {
   path: TEST_REALM_PATH,
-  schemaVersion: 13,
+  schemaVersion: 14,
   schema: [
     Artist,
     Year,
@@ -67,7 +72,7 @@ const config: Realm.Configuration = {
     SourceTrack,
     SourceTrackOfflineInfo,
     PlaybackHistoryEntry,
-    PlayerState,
+    ...PLAYER_STATE_SCHEMAS,
     Popularity,
     PopularityWindow,
     PopularityWindows,
@@ -247,14 +252,12 @@ function createHistory(
 }
 
 function createPlayerState(realm: Realm) {
-  return realm.create(PlayerState, {
+  return realm.create(PlayerState.schema.name, {
     id: PLAYER_STATE_SENTINEL,
-    queueShuffleState: 0,
-    queueRepeatState: 0,
-    queueSourceTrackUuids: ['track'],
-    queueSourceTrackShuffledUuids: ['track'],
-    activeSourceTrackIndex: 0,
-    activeSourceTrackShuffledIndex: 0,
+    queueEntries: [{ id: 'entry', sourceTrackUuid: 'track' }],
+    shuffleOrder: { entryIds: ['entry'] },
+    repeatMode: PlayerRepeatState.REPEAT_OFF,
+    checkpoint: { entryId: 'entry', elapsedSeconds: 30 },
     lastUpdatedAt: now,
   });
 }
@@ -373,10 +376,9 @@ describe('catalog startup repair', () => {
     expect(realm.objects(SourceTrackOfflineInfo)).toHaveLength(0);
 
     const playerState = PlayerState.defaultObject(realm)!;
-    expect(playerState.queueSourceTrackUuids).toHaveLength(0);
-    expect(playerState.queueSourceTrackShuffledUuids).toHaveLength(0);
-    expect(playerState.activeSourceTrackIndex).toBeNull();
-    expect(playerState.activeSourceTrackShuffledIndex).toBeNull();
+    expect(playerState.queueEntries).toHaveLength(0);
+    expect(playerState.shuffleOrder?.entryIds).toHaveLength(0);
+    expect(playerState.checkpoint).toBeNull();
     expect(repairCatalogAtStartup(realm)).toEqual({
       restoredArtists: 0,
       repairedLinks: 0,
@@ -419,6 +421,19 @@ describe('catalog startup repair', () => {
 
       sourceSet.sourceTracks.push(damagedTrack1, damagedTrack2, healthyTrack);
       song = createSong(realm, [damagedShow1, healthyShow, damagedShow2]);
+      realm.create(PlayerState.schema.name, {
+        id: PLAYER_STATE_SENTINEL,
+        queueEntries: [
+          { id: 'bad-first', sourceTrackUuid: damagedTrack1.uuid },
+          { id: 'healthy', sourceTrackUuid: healthyTrack.uuid },
+          { id: 'bad-duplicate', sourceTrackUuid: damagedTrack1.uuid },
+          { id: 'bad-second', sourceTrackUuid: damagedTrack2.uuid },
+        ],
+        shuffleOrder: { entryIds: ['bad-second', 'healthy', 'bad-duplicate', 'bad-first'] },
+        repeatMode: PlayerRepeatState.REPEAT_OFF,
+        checkpoint: { entryId: 'healthy', elapsedSeconds: 30 },
+        lastUpdatedAt: now,
+      });
     });
 
     expect(repairCatalogAtStartup(realm)).toEqual({
@@ -426,10 +441,15 @@ describe('catalog startup repair', () => {
       repairedLinks: 0,
       tombstonedRows: 4,
       deletedLeafRows: 0,
-      removedQueueEntries: 0,
+      removedQueueEntries: 3,
     });
     expect(Array.from(sourceSet.sourceTracks, (track) => track.uuid)).toEqual(['track']);
     expect(Array.from(song.shows, (show) => show.uuid)).toEqual(['show']);
+    const playerState = PlayerState.defaultObject(realm)!;
+    expect(Array.from(playerState.queueEntries, (entry) => entry.id)).toEqual(['healthy']);
+    expect(Array.from(playerState.shuffleOrder!.entryIds)).toEqual(['healthy']);
+    expect(playerState.checkpoint?.entryId).toBe('healthy');
+    expect(playerState.checkpoint?.elapsedSeconds).toBe(30);
   });
 
   it('restores only tombstoned auto-created artists with user interaction', () => {

@@ -583,6 +583,10 @@ ${indentString(this.queue.debugState(true))}
       return;
     }
 
+    this.updateConfirmedProgress(progress);
+  };
+
+  private updateConfirmedProgress(progress: PlaybackContextProgress) {
     if (this.progress && this.queue.currentTrack) {
       const wasEligible = this.progress.elapsed >= 240 || this.progress.percent >= 0.5;
       const nowEligible = progress.elapsed >= 240 || progress.percent >= 0.5;
@@ -600,7 +604,7 @@ ${indentString(this.queue.debugState(true))}
     this.progress = progress;
 
     this.queue.savePlayerState();
-  };
+  }
 
   private onQueueTrackChanged = (track?: PlayerQueueTrack) => {
     // The UI can announce a requested track before native playback selects it.
@@ -674,35 +678,47 @@ ${indentString(this.queue.debugState(true))}
       this.requestedTrackIndex = undefined;
       supersededRequest = true;
     }
-    this._queue.applyPlaybackCheckpoint(
-      () => {
-        this.nativeSequence = event.sequence;
-        if (changed) currentTrackIdentifier.setState(event.identifier);
-        // A preview can still show an unconfirmed request. Persist native timing independently.
-        this.confirmedTrackIdentifier = event.identifier;
-        const previous = changed ? undefined : this.progress;
-        const duration =
-          Number.isFinite(event.duration) && (event.duration ?? 0) > 0
-            ? event.duration!
-            : (previous?.duration ?? (track.sourceTrack.duration || 100));
-        const elapsed = Math.max(
-          0,
-          Number.isFinite(event.elapsed) ? event.elapsed! : (previous?.elapsed ?? 0)
-        );
-        const progress = { elapsed, duration, percent: duration > 0 ? elapsed / duration : 0 };
-        // A pending request can preview B while native A finishes pausing.
-        const canPublish =
-          !this.activeNativePlayRequestIdentifier ||
-          this.activeNativePlayRequestIdentifier === event.identifier;
-        if (canPublish) sharedStateProgress.setState(progress);
-        this.progress = progress;
-        if (canPublish) state.setState(event.playbackState);
-      },
+    const immediate =
       changed ||
-        event.checkpoint ||
-        event.playbackState === RelistenPlaybackState.Paused ||
-        event.playbackState === RelistenPlaybackState.Stopped
-    );
+      event.checkpoint ||
+      event.playbackState === RelistenPlaybackState.Paused ||
+      event.playbackState === RelistenPlaybackState.Stopped;
+    this._queue.applyPlaybackCheckpoint(() => {
+      this.nativeSequence = event.sequence;
+      if (changed) currentTrackIdentifier.setState(event.identifier);
+      // A preview can still show an unconfirmed request. Persist native timing independently.
+      this.confirmedTrackIdentifier = event.identifier;
+      const previous = changed ? undefined : this.progress;
+      const duration =
+        Number.isFinite(event.duration) && (event.duration ?? 0) > 0
+          ? event.duration!
+          : (previous?.duration ?? (track.sourceTrack.duration || 100));
+      const elapsed = Math.max(
+        0,
+        Number.isFinite(event.elapsed) ? event.elapsed! : (previous?.elapsed ?? 0)
+      );
+      const progress = { elapsed, duration, percent: duration > 0 ? elapsed / duration : 0 };
+      // A pending request can preview B while native A finishes pausing.
+      const canPublish =
+        !this.activeNativePlayRequestIdentifier ||
+        this.activeNativePlayRequestIdentifier === event.identifier;
+      const published = sharedStateProgress.lastState();
+      // Retain every native sample for final saves and listening history;
+      // ordinary UI progress still updates once per elapsed second.
+      this.updateConfirmedProgress(progress);
+      if (canPublish) {
+        if (
+          immediate ||
+          event.playbackState !== this._state ||
+          !published ||
+          Math.floor(published.elapsed) !== Math.floor(progress.elapsed) ||
+          published.duration !== progress.duration
+        ) {
+          sharedStateProgress.setState(progress);
+        }
+        state.setState(event.playbackState);
+      }
+    }, immediate);
     if (supersededRequest) this.maybeStartNextPlayRequest();
   };
 

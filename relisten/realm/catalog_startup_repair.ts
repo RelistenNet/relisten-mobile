@@ -263,27 +263,31 @@ export function repairCatalogAtStartup(realm: Realm): CatalogRepairSummary {
 
     if (irreparableTrackUuids.size > 0) {
       for (const playerState of realm.objects(PlayerState)) {
-        const removedTrackUuids = new Set(
-          [
-            ...playerState.queueSourceTrackUuids,
-            ...playerState.queueSourceTrackShuffledUuids,
-          ].filter((uuid) => irreparableTrackUuids.has(uuid))
+        const removedEntryIds = new Set(
+          playerState.queueEntries
+            .filter((entry) => irreparableTrackUuids.has(entry.sourceTrackUuid))
+            .map((entry) => entry.id)
         );
 
-        if (removedTrackUuids.size === 0) {
+        if (removedEntryIds.size === 0) {
           continue;
         }
 
-        playerState.queueSourceTrackUuids = playerState.queueSourceTrackUuids.filter(
-          (uuid) => !irreparableTrackUuids.has(uuid)
-        );
-        playerState.queueSourceTrackShuffledUuids =
-          playerState.queueSourceTrackShuffledUuids.filter(
-            (uuid) => !irreparableTrackUuids.has(uuid)
-          );
-        playerState.activeSourceTrackIndex = undefined;
-        playerState.activeSourceTrackShuffledIndex = undefined;
-        summary.removedQueueEntries += removedTrackUuids.size;
+        for (let index = playerState.queueEntries.length - 1; index >= 0; index--) {
+          if (removedEntryIds.has(playerState.queueEntries[index].id)) {
+            playerState.queueEntries.splice(index, 1);
+          }
+        }
+        const order = playerState.shuffleOrder?.entryIds;
+        if (order) {
+          for (let index = order.length - 1; index >= 0; index--) {
+            if (removedEntryIds.has(order[index])) order.splice(index, 1);
+          }
+        }
+        if (playerState.checkpoint && removedEntryIds.has(playerState.checkpoint.entryId)) {
+          playerState.checkpoint = null;
+        }
+        summary.removedQueueEntries += removedEntryIds.size;
       }
     }
 
