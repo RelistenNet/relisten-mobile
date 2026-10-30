@@ -8,9 +8,12 @@ interface BrowseArtist {
 
 const POPULAR_ARTIST_LIMIT = 50;
 
-export function selectFeaturedArtists<T extends BrowseArtist>(artists: ReadonlyArray<T>): T[] {
+export function selectFeaturedArtists<T extends BrowseArtist>(
+  artists: ReadonlyArray<T>,
+  isFavorite: (artist: T) => boolean = (artist) => artist.isFavorite
+): T[] {
   const candidates = artists.filter(
-    (artist) => !artist.isFavorite && !artist.isAutomaticallyCreated()
+    (artist) => !isFavorite(artist) && !artist.isAutomaticallyCreated()
   );
   const hasPopularity = candidates.some(
     (artist) => artist.popularity?.windows?.days30d?.plays !== undefined
@@ -27,7 +30,7 @@ export function selectFeaturedArtists<T extends BrowseArtist>(artists: ReadonlyA
 
   const selected = new Map(popular.map((artist) => [artist.uuid, artist]));
   for (const artist of artists) {
-    if (!artist.isFavorite && artist.isFeatured()) {
+    if (!isFavorite(artist) && artist.isFeatured()) {
       selected.set(artist.uuid, artist);
     }
   }

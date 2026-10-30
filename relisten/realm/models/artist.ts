@@ -1,7 +1,7 @@
 import dayjs from 'dayjs';
 import Realm from 'realm';
 import { ArtistUpstreamSource, ArtistWithCounts, Features } from '../../api/models/artist';
-import { FavoritableObject } from '../favoritable_object';
+import { LegacyFavoriteMirror } from '../legacy_favorite_mirror';
 import { checkIfOfflineSourceTrackExists } from '../realm_filters';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import { SourceTrack } from './source_track';
@@ -29,7 +29,7 @@ export enum ArtistFeaturedFlags {
 
 export class Artist
   extends Realm.Object<Artist, keyof ArtistRequiredProperties>
-  implements ArtistRequiredProperties, FavoritableObject
+  implements ArtistRequiredProperties, LegacyFavoriteMirror
 {
   static schema: Realm.ObjectSchema = {
     name: 'Artist',
@@ -49,6 +49,7 @@ export class Artist
       upstreamSourcesRaw: 'string',
       showCount: 'int',
       sourceCount: 'int',
+      // Deprecated compatibility mirror. Canonical membership is in UserFavorite.
       isFavorite: { default: false, type: 'bool' },
       sourceTracks: {
         type: 'linkingObjects',
@@ -72,6 +73,7 @@ export class Artist
   upstreamSourcesRaw!: string;
   showCount!: number;
   sourceCount!: number;
+  /** @deprecated Use `useFavorite` or `LibraryIndex` for active-account membership. */
   isFavorite!: boolean;
   sourceTracks!: Realm.List<SourceTrack>;
 

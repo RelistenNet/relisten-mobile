@@ -9,9 +9,7 @@ import { Show } from '@/relisten/realm/models/show';
 import { useFullShowWithSelectedSource } from '@/relisten/realm/models/show_repo';
 import { Source } from '@/relisten/realm/models/source';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
-import { useRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
-import { useForceUpdate } from '@/relisten/util/forced_update';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Link, Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { PropsWithChildren, useEffect, useRef, useState } from 'react';
@@ -52,6 +50,7 @@ import {
   SourceTrackOfflineInfoStatus,
   SourceTrackOfflineInfoType,
 } from '@/relisten/realm/models/source_track_offline_info';
+import { useFavorite } from '@/relisten/library/favorite_hooks';
 
 const logger = log.extend('source screen');
 
@@ -64,31 +63,16 @@ function getQueueableSourceTracks(
   isOfflineTab: boolean,
   offlineMode: OfflineModeSetting
 ) {
-  const queueOfflineOnly = shouldQueueOfflineTracksOnly(isOfflineTab, offlineMode);
+  const tracks = source.allSourceTracks();
+  if (!shouldQueueOfflineTracksOnly(isOfflineTab, offlineMode)) {
+    return tracks;
+  }
 
-  return source.allSourceTracks().filter((track) => {
-    return queueOfflineOnly ? track.playable(false) : true;
-  });
+  return tracks.filter((track) => track.offlineInfo?.isPlayableOffline() === true);
 }
 
-function toggleSourceFavorite(
-  realm: ReturnType<typeof useRealm>,
-  source: Source,
-  show: Show,
-  forceUpdate: () => void
-) {
-  realm.write(() => {
-    const nextFavorite = !(source.isFavorite || show.isFavorite);
-    source.isFavorite = nextFavorite;
-    show.isFavorite = nextFavorite;
-    forceUpdate();
-  });
-}
-
-function toggleSelectedSourceFavorite(realm: ReturnType<typeof useRealm>, source: Source) {
-  realm.write(() => {
-    source.isFavorite = !source.isFavorite;
-  });
+function sourceHasDownloadableTrack(source: Source) {
+  return source.allSourceTracks().some((track) => track.supportsOfflineDownload());
 }
 
 export const SourceList = ({ sources }: { sources: Source[] }) => {
@@ -104,7 +88,6 @@ export const SourceList = ({ sources }: { sources: Source[] }) => {
 };
 
 export default function Page() {
-  const realm = useRealm();
   const player = useRelistenPlayer();
   const { showUuid, sourceUuid, playTrackUuid } = useLocalSearchParams();
   const router = useRouter();
@@ -121,11 +104,12 @@ export default function Page() {
     String(showUuid),
     String(sourceUuid)
   );
+  const selectedSourceFavorite = useFavorite('source', selectedSource?.uuid ?? '__missing__');
 
   const playShow = ((sourceTrack?: SourceTrack) => {
-    if (!sourceTrack || !sourceTrack.streamingUrl() || !sourceTrack.uuid || !selectedSource) {
+    if (!sourceTrack || !sourceTrack.uuid || !selectedSource) {
       logger.warn(
-        `Missing value when trying to play source track: sourceTrack=${sourceTrack} sourceUuid=${sourceUuid} mp3Url=${sourceTrack?.streamingUrl()} uuid=${sourceTrack?.uuid} artist=${artist} show=${show} selectedSource=${selectedSource}`
+        `Missing value when trying to play source track: sourceTrack=${sourceTrack} sourceUuid=${sourceUuid} uuid=${sourceTrack?.uuid} artist=${artist} show=${show} selectedSource=${selectedSource}`
       );
       return;
     }
@@ -257,15 +241,24 @@ export default function Page() {
     show,
   ]);
 
+  const canPlaySelectedSource =
+    !!selectedSource &&
+    getQueueableSourceTracks(selectedSource, isOfflineTab, offlineMode).length > 0;
+  const canDownloadSelectedSource = selectedSource
+    ? sourceHasDownloadableTrack(selectedSource)
+    : false;
+
   return (
     <>
       <Stack.Screen options={{ title: show?.displayDate ?? '' }} />
       {show && selectedSource && (
         <SourceActionsToolbar
-          isFavorite={selectedSource.isFavorite}
+          isFavorite={selectedSourceFavorite.isFavorite}
           isRemovingDownloads={isRemovingDownloads}
+          canDownload={canDownloadSelectedSource}
+          canPlay={canPlaySelectedSource}
           onDownload={downloadShow}
-          onFavorite={() => toggleSelectedSourceFavorite(realm, selectedSource)}
+          onFavorite={selectedSourceFavorite.toggleFavorite}
           onPlay={playEntireShow}
           onRemoveDownloads={confirmRemoveDownloads}
           onShare={shareShow}
@@ -344,6 +337,7 @@ const SourceComponent = ({
     isOfflineTab,
     userSettings.offlineModeWithDefault()
   )[0];
+  const hasDownloadableTrack = sourceHasDownloadableTrack(selectedSource);
 
   return (
     <Animated.ScrollView style={{ flex: 1 }} {...props} {...playerBottomScrollViewProps}>
@@ -355,6 +349,7 @@ const SourceComponent = ({
         playShow={playShow}
         artist={artist}
         initialTrackToPlay={initialTrackToPlay}
+        hasDownloadableTrack={hasDownloadableTrack}
       />
       <SourceSets source={selectedSource} playShow={playShow} />
       <SourceFooter source={selectedSource} />
@@ -377,6 +372,7 @@ export const SourceHeader = ({
   playShow,
   downloadShow,
   initialTrackToPlay,
+  hasDownloadableTrack,
 }: {
   source: Source;
   show: Show;
@@ -384,10 +380,10 @@ export const SourceHeader = ({
   artist: Artist;
   downloadShow: () => void;
   initialTrackToPlay?: SourceTrack;
+  hasDownloadableTrack: boolean;
 }) => {
-  const realm = useRealm();
   const router = useRouter();
-  const forceUpdate = useForceUpdate();
+  const sourceFavorite = useFavorite('source', source.uuid);
   const groupSegment = useGroupSegment();
   const { fontScale } = useWindowDimensions();
 
@@ -474,7 +470,7 @@ export const SourceHeader = ({
             }
           }}
           disabled={!initialTrackToPlay}
-          disabledPopoverText="No playable offline tracks are available for this source"
+          disabledPopoverText="No playable tracks are available for this source"
         >
           Play
         </RelistenButton>
@@ -482,22 +478,24 @@ export const SourceHeader = ({
           className="shrink basis-1/4"
           textClassName="text-l"
           onPress={() => downloadShow()}
-          disabled={isFullyDownloaded}
-          disabledPopoverText="This show is already fully downloaded"
+          disabled={isFullyDownloaded || !hasDownloadableTrack}
+          disabledPopoverText={
+            isFullyDownloaded
+              ? 'This show is already fully downloaded'
+              : 'This source is no longer available for download'
+          }
         >
           <MaterialIcons name="file-download" size={20 * fontScale} color="white" />
         </RelistenButton>
         <RelistenButton
           className="shrink basis-1/4"
           textClassName="text-l"
-          onPress={() => {
-            toggleSourceFavorite(realm, source, show, forceUpdate);
-          }}
+          onPress={sourceFavorite.toggleFavorite}
         >
           <MaterialIcons
-            name={source.isFavorite || show.isFavorite ? 'favorite' : 'favorite-outline'}
+            name={sourceFavorite.isFavorite ? 'favorite' : 'favorite-outline'}
             size={20 * fontScale}
-            color={source.isFavorite || show.isFavorite ? 'red' : 'white'}
+            color={sourceFavorite.isFavorite ? 'red' : 'white'}
           />
         </RelistenButton>
         <RelistenButton

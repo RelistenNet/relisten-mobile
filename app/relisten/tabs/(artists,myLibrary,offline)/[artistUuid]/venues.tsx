@@ -20,8 +20,10 @@ import {
   searchForSubstring,
   SortDirection,
 } from '@/relisten/components/filtering/filters';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useGroupSegment } from '@/relisten/util/routes';
+import { useLibraryMembershipRevision, useRootLibraryIndex } from '@/relisten/realm/root_services';
+import { FavoriteObjectButton } from '@/relisten/components/favorite_icon_button';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -40,7 +42,9 @@ export default function Page() {
       <DisappearingHeaderScreen
         ScrollableComponent={VenueList}
         venues={Array.from(data.venues)}
-        filterOptions={{ persistence: { key: ['artists', artistUuid, 'venues'].join('/') } }}
+        filterOptions={{
+          persistence: { key: ['artists', artistUuid, 'venues'].join('/') },
+        }}
       />
     </RefreshContextProvider>
   );
@@ -65,14 +69,17 @@ const VenueListItem = ({ venue }: VenueListItemProps) => {
       asChild
     >
       <SectionedListItem>
-        <Flex column>
-          <RowTitle>{venue.name}</RowTitle>
-          <SubtitleRow>
-            <SubtitleText>{venue.location}</SubtitleText>
-            <SubtitleText>
-              <Plur word="show" count={venue.showsAtVenue} />
-            </SubtitleText>
-          </SubtitleRow>
+        <Flex className="items-center justify-between" full>
+          <Flex className="min-w-0 flex-1 pr-3" column>
+            <RowTitle>{venue.name}</RowTitle>
+            <SubtitleRow>
+              <SubtitleText>{venue.location}</SubtitleText>
+              <SubtitleText>
+                <Plur word="show" count={venue.showsAtVenue} />
+              </SubtitleText>
+            </SubtitleRow>
+          </Flex>
+          <FavoriteObjectButton object={venue} />
         </Flex>
       </SectionedListItem>
     </Link>
@@ -106,12 +113,12 @@ export enum VenueFilterKey {
   Search = 'search',
 }
 
-const VENUE_FILTERS: Filter<VenueFilterKey, Venue>[] = [
+const venueFilters = (isFavorite: (uuid: string) => boolean): Filter<VenueFilterKey, Venue>[] => [
   {
     persistenceKey: VenueFilterKey.Library,
     title: 'My Library',
     active: false,
-    filter: (y) => y.isFavorite,
+    filter: (venue) => isFavorite(venue.uuid),
   },
   {
     persistenceKey: VenueFilterKey.Name,
@@ -154,8 +161,15 @@ const VenueList = ({
   venues,
   filterOptions,
 }: VenueListProps & Omit<FilterableListProps<Venue>, 'data' | 'renderItem'>) => {
+  const libraryIndex = useRootLibraryIndex();
+  const libraryMembershipRevision = useLibraryMembershipRevision();
+  const filters = useMemo(
+    () => venueFilters((uuid) => libraryIndex.isFavorite('venue', uuid)),
+    [libraryIndex, libraryMembershipRevision]
+  );
+
   return (
-    <FilteringProvider filters={VENUE_FILTERS} options={filterOptions}>
+    <FilteringProvider filters={filters} options={filterOptions}>
       <FilterableList
         ListHeaderComponent={<VenueHeader venues={venues} />}
         data={[{ data: venues }]}

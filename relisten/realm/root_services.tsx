@@ -10,10 +10,22 @@ import { useRealm } from '@/relisten/realm/schema';
 import { LibraryIndex } from '@/relisten/realm/library_index';
 import { UserSettingsStore } from '@/relisten/realm/user_settings_store';
 import { DownloadManager } from '@/relisten/offline/download_manager';
+import { useAccountScopeSource, useAccountsApiClient } from '@/relisten/accounts/account_context';
+import { FavoriteRepository } from '@/relisten/library/favorite_repository';
+import { FavoriteSyncAdapter } from '@/relisten/library/favorite_sync_adapter';
+import { FavoriteSyncService } from '@/relisten/library/favorite_sync_service';
+import { AnonymousLibraryImportService } from '@/relisten/library/anonymous_library_import';
+import { FavoriteMetadataHydrator } from '@/relisten/library/favorite_metadata_hydrator';
+import { RelistenApiClient } from '@/relisten/api/client';
 import { AudioAdjustmentStore } from '@/relisten/player/audio_adjustments/audio_adjustment_store';
+import type { FavoriteCatalogType } from '@/relisten/realm/models/library';
 
 export interface RootServices {
   libraryIndex: LibraryIndex;
+  favoriteRepository: FavoriteRepository;
+  favoriteSyncAdapter: FavoriteSyncAdapter;
+  favoriteSyncService: FavoriteSyncService;
+  anonymousLibraryImportService: AnonymousLibraryImportService;
   userSettingsStore: UserSettingsStore;
   audioAdjustmentStore: AudioAdjustmentStore;
 }
@@ -22,17 +34,36 @@ const RootServicesContext = createContext<RootServices | undefined>(undefined);
 
 export function RootServicesProvider({ children }: PropsWithChildren) {
   const realm = useRealm();
+  const accountScopeSource = useAccountScopeSource();
+  const accountsApi = useAccountsApiClient();
 
   const services = useMemo<RootServices>(() => {
+    const favoriteRepository = new FavoriteRepository(realm, accountScopeSource);
+    const favoriteSyncAdapter = new FavoriteSyncAdapter(favoriteRepository);
+    const favoriteMetadataHydrator = new FavoriteMetadataHydrator(
+      favoriteRepository,
+      new RelistenApiClient()
+    );
+
     return {
-      libraryIndex: new LibraryIndex(realm),
+      libraryIndex: new LibraryIndex(realm, accountScopeSource),
+      favoriteRepository,
+      favoriteSyncAdapter,
+      favoriteSyncService: new FavoriteSyncService(
+        favoriteRepository,
+        favoriteSyncAdapter,
+        accountsApi,
+        favoriteMetadataHydrator
+      ),
+      anonymousLibraryImportService: new AnonymousLibraryImportService(favoriteRepository),
       userSettingsStore: new UserSettingsStore(realm),
       audioAdjustmentStore: new AudioAdjustmentStore(realm),
     };
-  }, [realm]);
+  }, [accountScopeSource, accountsApi, realm]);
 
   useEffect(() => {
     return () => {
+      services.favoriteSyncService.stop();
       services.libraryIndex.tearDown();
       services.userSettingsStore.tearDown();
     };
@@ -86,6 +117,62 @@ export function useLibraryMembershipIndex() {
   );
 
   return libraryIndex;
+}
+
+export function useLibraryMembershipRevision() {
+  const { libraryIndex } = useRootServices();
+
+  return useSyncExternalStore(
+    libraryIndex.subscribeLibraryMembership,
+    libraryIndex.getLibraryMembershipSnapshot,
+    libraryIndex.getLibraryMembershipSnapshot
+  );
+}
+
+/**
+ * Returns the immutable-by-convention set snapshot for one favorite type.
+ * LibraryIndex replaces the set before notifying, which gives React a useful
+ * identity change instead of asking list code to depend on a mutable service.
+ */
+export function useFavoriteCatalogUuids(catalogType: FavoriteCatalogType) {
+  const { libraryIndex } = useRootServices();
+
+  return useSyncExternalStore(
+    libraryIndex.subscribeLibraryMembership,
+    () => libraryIndex.favoriteCatalogUuids(catalogType),
+    () => libraryIndex.favoriteCatalogUuids(catalogType)
+  );
+}
+
+/** Exact show UUIDs rendered by My Library, including source-derived membership. */
+export function useLibraryShowCatalogUuids() {
+  const { libraryIndex } = useRootServices();
+
+  return useSyncExternalStore(
+    libraryIndex.subscribeLibraryMembership,
+    () => libraryIndex.libraryShowCatalogUuids(),
+    () => libraryIndex.libraryShowCatalogUuids()
+  );
+}
+
+export function useFavoriteRepository() {
+  return useRootServices().favoriteRepository;
+}
+
+export function useFavoriteSyncAdapter() {
+  return useRootServices().favoriteSyncAdapter;
+}
+
+export function useFavoriteSyncService() {
+  return useRootServices().favoriteSyncService;
+}
+
+export function useAnonymousLibraryImportService() {
+  return useRootServices().anonymousLibraryImportService;
+}
+
+export function useAudioAdjustmentStore() {
+  return useRootServices().audioAdjustmentStore;
 }
 
 export function useOfflineAvailabilityIndex() {
@@ -214,8 +301,4 @@ export function useRootLibraryIndex() {
 
 export function useRootUserSettingsStore() {
   return useRootServices().userSettingsStore;
-}
-
-export function useAudioAdjustmentStore() {
-  return useRootServices().audioAdjustmentStore;
 }
