@@ -45,8 +45,8 @@ import {
 } from '@/relisten/components/source/source_components';
 import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
 import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
-import { OfflineModeSetting } from '@/relisten/realm/models/user_settings';
 import { Artist } from '@/relisten/realm/models/artist';
+import { getQueueableSourceTracks } from '@/relisten/util/queueable_source_tracks';
 import { DisclosureIndicator } from '@/relisten/components/disclosure_indicator';
 import {
   SourceTrackOfflineInfoStatus,
@@ -54,22 +54,6 @@ import {
 } from '@/relisten/realm/models/source_track_offline_info';
 
 const logger = log.extend('source screen');
-
-function shouldQueueOfflineTracksOnly(isOfflineTab: boolean, offlineMode: OfflineModeSetting) {
-  return isOfflineTab || offlineMode === OfflineModeSetting.AlwaysOffline;
-}
-
-function getQueueableSourceTracks(
-  source: Source,
-  isOfflineTab: boolean,
-  offlineMode: OfflineModeSetting
-) {
-  const queueOfflineOnly = shouldQueueOfflineTracksOnly(isOfflineTab, offlineMode);
-
-  return source.allSourceTracks().filter((track) => {
-    return queueOfflineOnly ? track.playable(false) : true;
-  });
-}
 
 function toggleSourceFavorite(
   realm: ReturnType<typeof useRealm>,
@@ -208,6 +192,18 @@ export default function Page() {
     );
   };
 
+  const addShowToEndOfQueue = () => {
+    if (!selectedSource) {
+      return;
+    }
+
+    player.queue.addTrackToEndOfQueue(
+      getQueueableSourceTracks(selectedSource, isOfflineTab, offlineMode).map((track) =>
+        PlayerQueueTrack.fromSourceTrack(track)
+      )
+    );
+  };
+
   const switchSource = () => {
     if (!show) {
       return;
@@ -264,6 +260,7 @@ export default function Page() {
         <SourceActionsToolbar
           isFavorite={selectedSource.isFavorite}
           isRemovingDownloads={isRemovingDownloads}
+          onAddToQueue={addShowToEndOfQueue}
           onDownload={downloadShow}
           onFavorite={() => toggleSelectedSourceFavorite(realm, selectedSource)}
           onPlay={playEntireShow}
