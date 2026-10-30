@@ -65,6 +65,7 @@ class ExoPlayerLifecycle internal constructor(private val player: RelistenGaples
     private fun updatePlaybackState() {
         val exoPlayer = player.exoPlayer ?: return
         player.currentState = relistenPlaybackStateFromPlayer(exoPlayer)
+        player.persistPlayerState(force = true)
     }
 
     override fun onPlaybackStateChanged(playbackState: @Player.State Int) {
@@ -140,5 +141,7 @@ class ExoPlayerLifecycle internal constructor(private val player: RelistenGaples
                 "nextStream.mediaItem ${nextStream?.mediaItem} and previousStream.mediaItem ${previousStream?.mediaItem} doesn't match onMediaItemTransition mediaItem ${mediaItem}"
             )
         }
+
+        player.persistPlayerState(force = true)
     }
 }

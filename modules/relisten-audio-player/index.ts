@@ -99,6 +99,14 @@ export interface RelistenTrackChangedEvent {
   currentIdentifier?: string;
 }
 
+export interface RelistenPersistedPlayerState {
+  trackUuid?: string;
+  elapsed?: number;
+  duration?: number;
+  playbackState?: string;
+  updatedAtMillis?: number;
+}
+
 export interface RelistenRemoteControlEvent {
   method?: string;
 }
@@ -155,6 +163,15 @@ class RelistenGaplessPlayer {
   get currentState(): `${RelistenPlaybackState}` {
     logger.debug('get currentState called');
     return RelistenAudioPlayerModule.currentStateStr();
+  }
+
+  persistedPlayerState(): RelistenPersistedPlayerState | undefined {
+    try {
+      return RelistenAudioPlayerModule.persistedPlayerState?.();
+    } catch (error) {
+      logger.warn('persistedPlayerState unavailable', error);
+      return undefined;
+    }
   }
 
   get currentDuration(): number | undefined {

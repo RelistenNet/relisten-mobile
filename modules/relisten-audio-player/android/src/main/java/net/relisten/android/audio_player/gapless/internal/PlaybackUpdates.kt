@@ -42,6 +42,11 @@ class PlaybackUpdates internal constructor(private val player: RelistenGaplessAu
 
             val bufferedPercentage = player.activeTrackDownloadedBytes ?: 0L
 
+            player.persistPlayerState(
+                elapsedSecondsOverride = thisElapsed,
+                durationSecondsOverride = thisDuration
+            )
+
             var sendPlaybackChanged = false
             var sendDownloadChanged = false
             var sendStateChanged = false

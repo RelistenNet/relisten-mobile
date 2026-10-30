@@ -724,6 +724,13 @@ ${indentString(this.queue.debugState(true))}
       this.initialPlaybackStarted = true;
     }
 
+    if (
+      (newState === RelistenPlaybackState.Paused || newState === RelistenPlaybackState.Stopped) &&
+      this.queue.orderedTracks.length > 0
+    ) {
+      this.queue.flushPlayerState();
+    }
+
     if (this._state != newState) {
       this._state = newState;
       this.onStateChanged.dispatch(newState);

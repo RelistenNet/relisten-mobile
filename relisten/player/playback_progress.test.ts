@@ -283,6 +283,19 @@ describe('player progress track identity', () => {
     );
   });
 
+  it('flushes state immediately when playback pauses', () => {
+    player.pause();
+
+    expect(harness.save).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        activeSourceTrackIndex: 0,
+        duration: 381,
+        elapsed: 120,
+      })
+    );
+  });
+
   it.each([
     { catalog: 410, saved: 381, elapsed: 120, duration: 410, restoredElapsed: 0 },
     { catalog: 410, saved: 381, elapsed: 500, duration: 410, restoredElapsed: 0 },
@@ -328,4 +341,80 @@ describe('player progress track identity', () => {
       expect(harness.native.play).not.toHaveBeenCalled();
     }
   );
+
+  it('restores a newer native snapshot over stale realm state', async () => {
+    player.dispose();
+    player = new RelistenPlayer();
+    harness.state.mockReturnValue({
+      queueShuffleState: 1,
+      queueRepeatState: 1,
+      queueSourceTrackUuids: ['minglewood', 'loser'],
+      queueSourceTrackShuffledUuids: ['minglewood', 'loser'],
+      activeSourceTrackIndex: 0,
+      activeSourceTrackShuffledIndex: 0,
+      lastUpdatedAt: new Date(1_000),
+      duration: 381,
+      elapsed: 120,
+    });
+    const cachedRealm = {
+      objects: () => ({ filtered: () => [first.sourceTrack, second.sourceTrack] }),
+    } as unknown as Realm;
+
+    await player.queue.restorePlayerState(cachedRealm, {
+      trackUuid: 'loser',
+      elapsed: 250,
+      duration: 410,
+      updatedAtMillis: 2_000,
+    });
+    vi.advanceTimersByTime(1000);
+
+    expect(player.queue.currentTrack?.sourceTrack.uuid).toBe('loser');
+    expect(player.progress).toEqual({
+      duration: 410,
+      elapsed: 250,
+      percent: 250 / 410,
+    });
+    expect(harness.save).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        activeSourceTrackIndex: 1,
+        duration: 410,
+        elapsed: 250,
+      })
+    );
+  });
+
+  it('ignores a native snapshot older than the realm state', async () => {
+    player.dispose();
+    player = new RelistenPlayer();
+    harness.state.mockReturnValue({
+      queueShuffleState: 1,
+      queueRepeatState: 1,
+      queueSourceTrackUuids: ['minglewood', 'loser'],
+      queueSourceTrackShuffledUuids: ['minglewood', 'loser'],
+      activeSourceTrackIndex: 1,
+      activeSourceTrackShuffledIndex: 1,
+      lastUpdatedAt: new Date(3_000),
+      duration: 410,
+      elapsed: 100,
+    });
+    const cachedRealm = {
+      objects: () => ({ filtered: () => [first.sourceTrack, second.sourceTrack] }),
+    } as unknown as Realm;
+
+    await player.queue.restorePlayerState(cachedRealm, {
+      trackUuid: 'minglewood',
+      elapsed: 50,
+      duration: 381,
+      updatedAtMillis: 2_000,
+    });
+    vi.advanceTimersByTime(1000);
+
+    expect(player.queue.currentTrack?.sourceTrack.uuid).toBe('loser');
+    expect(player.progress).toEqual({
+      duration: 410,
+      elapsed: 100,
+      percent: 100 / 410,
+    });
+  });
 });

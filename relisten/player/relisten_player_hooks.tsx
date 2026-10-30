@@ -1,10 +1,11 @@
 import React, { PropsWithChildren, useContext, useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 import { RelistenPlayer, RelistenPlayerReportTrackEvent } from '@/relisten/player/relisten_player';
 import { useRealm } from '@/relisten/realm/schema';
 import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
 import { AutocacheStreamedMusicSetting } from '@/relisten/realm/models/user_settings';
 import { PlaybackSource, sharedStates } from '@/relisten/player/shared_state';
-import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
+import { nativePlayer, RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import { log } from '@/relisten/util/logging';
 
 const logger = log.extend('player-hooks');
@@ -30,12 +31,24 @@ export const RelistenPlayerProvider = ({ children }: PropsWithChildren<object>) 
         player.initialPlaybackStarted;
 
       if (!hasActivePlayback) {
-        player.queue.restorePlayerState(realm).catch((error) => {
-          logger.warn('Failed to restore player state during startup', error);
-        });
+        player.queue
+          .restorePlayerState(realm, nativePlayer.persistedPlayerState())
+          .catch((error) => {
+            logger.warn('Failed to restore player state during startup', error);
+          });
       }
     }
   }, [player, realm]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState !== 'active' && player.queue.orderedTracks.length > 0) {
+        player.queue.flushPlayerState();
+      }
+    });
+
+    return () => subscription.remove();
+  }, [player]);
 
   useEffect(() => {
     sharedStates.playbackSource.setState(PlaybackSource.Native);

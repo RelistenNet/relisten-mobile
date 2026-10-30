@@ -9,6 +9,7 @@ import androidx.media3.common.Player
 import expo.modules.kotlin.AppContext
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
+import net.relisten.android.audio_player.PlayerStateSnapshotStore
 import net.relisten.android.audio_player.gapless.internal.ExoPlayerLifecycle
 import net.relisten.android.audio_player.gapless.internal.PlaybackUpdates
 import net.relisten.android.audio_player.gapless.internal.StreamManagement
@@ -30,6 +31,8 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
     internal val exoplayerLifecycle = ExoPlayerLifecycle(this)
     internal val streamManagement = StreamManagement(this)
     internal val playbackUpdates = PlaybackUpdates(this)
+    private val persistedStateStore by lazy { PlayerStateSnapshotStore(reactContext) }
+    private var lastPersistedStateAtMillis = 0L
 
     init {
         if (appContext.reactContext == null) {
@@ -80,6 +83,37 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
                 it.currentPosition / 1000.0
             }
         }
+
+    fun persistedPlayerState(): Map<String, Any?>? {
+        return persistedStateStore.read()
+    }
+
+    internal fun persistPlayerState(
+        elapsedSecondsOverride: Double? = null,
+        durationSecondsOverride: Double? = null,
+        force: Boolean = false
+    ) {
+        val activeStream = activeStream ?: return
+        val now = System.currentTimeMillis()
+
+        if (!force && now - lastPersistedStateAtMillis < PLAYER_STATE_PERSIST_INTERVAL_MILLIS) {
+            return
+        }
+
+        val elapsedSeconds = (elapsedSecondsOverride ?: elapsed)
+            ?.takeIf { it.isFinite() && it >= 0.0 }
+        val durationSeconds = (durationSecondsOverride ?: currentDuration)
+            ?.takeIf { it.isFinite() && it > 0.0 }
+
+        persistedStateStore.save(
+            trackUuid = activeStream.streamable.cacheKey,
+            elapsedSeconds = elapsedSeconds,
+            durationSeconds = durationSeconds,
+            playbackState = currentState.toString(),
+            updatedAtMillis = now
+        )
+        lastPersistedStateAtMillis = now
+    }
 
     val activeTrackDownloadedBytes: Long?
         get() {
@@ -332,5 +366,9 @@ class RelistenGaplessAudioPlayer(internal val appContext: AppContext) {
 
             playbackUpdates.startUpdates()
         }
+    }
+
+    private companion object {
+        const val PLAYER_STATE_PERSIST_INTERVAL_MILLIS = 5_000L
     }
 }

@@ -107,6 +107,10 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
             return@Function player?.elapsed
         }
 
+        Function("persistedPlayerState") {
+            return@Function player?.persistedPlayerState()
+        }
+
         Function("volume") {
             return@Function player?.volume ?: 0.0
         }

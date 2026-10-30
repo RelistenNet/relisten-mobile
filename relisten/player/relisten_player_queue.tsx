@@ -1,4 +1,4 @@
-import { RelistenStreamable } from '@/modules/relisten-audio-player';
+import { RelistenPersistedPlayerState, RelistenStreamable } from '@/modules/relisten-audio-player';
 import { nativePlayer } from '@/modules/relisten-audio-player';
 import { addPlayerListeners } from '@/relisten/player/native_playback_state_hooks';
 import { RelistenPlayer } from '@/relisten/player/relisten_player';
@@ -573,38 +573,50 @@ ${indentString(tracks)}
     }
 
     this.playerStateDebounce = setTimeout(() => {
-      if (realm) {
-        const progress = this.currentTrack ? this.player.progress : undefined;
-        const state = {
-          queueShuffleState: this.shuffleState,
-          queueRepeatState: this.repeatState,
-          queueSourceTrackUuids: this.originalTracks.map((t) => t.sourceTrack.uuid),
-          queueSourceTrackShuffledUuids: this.shuffledTracks.map((t) => t.sourceTrack.uuid),
-          activeSourceTrackIndex: this.originalTracksCurrentIndex,
-          activeSourceTrackShuffledIndex: this.shuffledTracksCurrentIndex,
-          lastUpdatedAt: new Date(),
-          progress: progress?.percent,
-          duration: progress?.duration,
-          elapsed: progress?.elapsed,
-        };
-        logger.debug('writing player state progress', {
-          activeSourceTrackIndex: state.activeSourceTrackIndex,
-          activeSourceTrackShuffledIndex: state.activeSourceTrackShuffledIndex,
-          currentTrackUuid: this.currentTrack?.sourceTrack.uuid,
-          duration: state.duration,
-          elapsed: state.elapsed,
-          progress: state.progress,
-          shuffleState: state.queueShuffleState,
-        });
-        PlayerState.upsert(realm, state);
-        logger.debug('wrote player state');
-      } else {
-        logger.warn('Not writing player state -- realm is not available.');
-      }
+      this.playerStateDebounce = undefined;
+      this.flushPlayerState();
     }, 1000) as unknown as number;
   }
 
-  public async restorePlayerState(realm: Realm) {
+  public flushPlayerState() {
+    if (this.playerStateDebounce) {
+      clearTimeout(this.playerStateDebounce);
+      this.playerStateDebounce = undefined;
+    }
+
+    if (!realm) {
+      logger.warn('Not writing player state -- realm is not available.');
+      return;
+    }
+
+    const progress = this.currentTrack ? this.player.progress : undefined;
+    const state = {
+      queueShuffleState: this.shuffleState,
+      queueRepeatState: this.repeatState,
+      queueSourceTrackUuids: this.originalTracks.map((t) => t.sourceTrack.uuid),
+      queueSourceTrackShuffledUuids: this.shuffledTracks.map((t) => t.sourceTrack.uuid),
+      activeSourceTrackIndex: this.originalTracksCurrentIndex,
+      activeSourceTrackShuffledIndex: this.shuffledTracksCurrentIndex,
+      lastUpdatedAt: new Date(),
+      progress: progress?.percent,
+      duration: progress?.duration,
+      elapsed: progress?.elapsed,
+    };
+
+    logger.debug('writing player state progress', {
+      activeSourceTrackIndex: state.activeSourceTrackIndex,
+      activeSourceTrackShuffledIndex: state.activeSourceTrackShuffledIndex,
+      currentTrackUuid: this.currentTrack?.sourceTrack.uuid,
+      duration: state.duration,
+      elapsed: state.elapsed,
+      progress: state.progress,
+      shuffleState: state.queueShuffleState,
+    });
+    PlayerState.upsert(realm, state);
+    logger.debug('wrote player state');
+  }
+
+  public async restorePlayerState(realm: Realm, nativeState?: RelistenPersistedPlayerState) {
     const playerState = PlayerState.defaultObject(realm);
 
     if (!playerState) {
@@ -618,6 +630,7 @@ ${indentString(tracks)}
         activeSourceTrackShuffledIndex: playerState.activeSourceTrackShuffledIndex,
         duration: playerState.duration,
         elapsed: playerState.elapsed,
+        nativeState,
         progress: playerState.progress,
         queueLength: playerState.queueSourceTrackUuids.length,
         queueShuffleState: playerState.queueShuffleState,
@@ -696,10 +709,24 @@ ${indentString(tracks)}
               this.shuffledTracks,
               playerState.activeSourceTrackShuffledIndex
             );
+      const persistedUpdatedAt = playerState.lastUpdatedAt?.getTime?.() ?? 0;
+      const nativeUpdatedAt = nativeState?.updatedAtMillis;
+      // Native playback can outlive the JS runtime while the app is backgrounded. Prefer its
+      // snapshot when it is newer than the last Realm write and still belongs to this queue.
+      const nativeTrackUuid =
+        nativeState?.trackUuid &&
+        nativeUpdatedAt != null &&
+        Number.isFinite(nativeUpdatedAt) &&
+        nativeUpdatedAt > persistedUpdatedAt
+          ? this.originalTracks.find((track) => track.sourceTrack.uuid === nativeState.trackUuid)
+              ?.sourceTrack.uuid
+          : undefined;
       const restoredTrackUuid =
+        nativeTrackUuid ??
         preferredRestoredTrackUuid ??
         fallbackRestoredTrackUuid ??
         this.originalTracks[0]?.sourceTrack.uuid;
+      const usingNativeTiming = nativeTrackUuid != null;
 
       if (restoredTrackUuid) {
         this.restoreTrackIndexesBySourceTrackUuid(restoredTrackUuid);
@@ -711,10 +738,12 @@ ${indentString(tracks)}
 
       logger.debug('resolved player state restore target', {
         currentTrackUuid: this.currentTrack?.sourceTrack.uuid,
+        nativeTrackUuid,
         originalTracksCurrentIndex: this.originalTracksCurrentIndex,
         restoredTrackUuid,
         shuffledTracksCurrentIndex: this.shuffledTracksCurrentIndex,
         shuffleState: this.shuffleState,
+        usingNativeTiming,
       });
 
       this._nextTrack = undefined;
@@ -723,17 +752,28 @@ ${indentString(tracks)}
       // Older saves can contain the previous track's duration. Use catalog duration until native
       // timing arrives. Stale previous-track timing is detected below.
       const catalogDuration = this.currentTrack?.sourceTrack.duration;
+      const nativeElapsed = nativeState?.elapsed;
+      const nativeDuration = nativeState?.duration;
+      const savedDuration = usingNativeTiming
+        ? Number.isFinite(nativeDuration)
+          ? nativeDuration
+          : playerState.duration
+        : playerState.duration;
+      let savedElapsed = usingNativeTiming
+        ? Number.isFinite(nativeElapsed)
+          ? nativeElapsed
+          : 0
+        : playerState.elapsed;
       const restoredDuration =
         catalogDuration != null && Number.isFinite(catalogDuration) && catalogDuration > 0
           ? catalogDuration
-          : playerState.duration;
-      const savedDuration = playerState.duration;
-      let savedElapsed = playerState.elapsed;
+          : savedDuration;
 
       // A legacy save from the transition race pairs the new track with the previous track's
       // duration and elapsed time. If the saved duration belongs to another queued track, the
       // saved position is stale too, so resume the selected track from the beginning.
       if (
+        !usingNativeTiming &&
         catalogDuration != null &&
         catalogDuration > 0 &&
         savedDuration != null &&
