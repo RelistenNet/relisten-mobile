@@ -1,5 +1,5 @@
 import Realm from 'realm';
-import type { FavoriteCatalogType } from './favorite_catalog_type';
+import type { FavoriteTargetKind } from './favorite_catalog_type';
 
 export enum FavoriteMutationState {
   Pending = 'pending',
@@ -10,13 +10,13 @@ export enum FavoriteMutationState {
 export class FavoriteMutation extends Realm.Object<FavoriteMutation> {
   static schema: Realm.ObjectSchema = {
     name: 'FavoriteMutation',
-    primaryKey: 'mutationUuid',
+    primaryKey: 'mutationId',
     properties: {
-      mutationUuid: 'string',
+      mutationId: 'string',
       scopeId: { type: 'string', indexed: true },
-      favoriteUuid: { type: 'string', indexed: true },
-      catalogType: { type: 'string', indexed: true },
-      catalogUuid: { type: 'string', indexed: true },
+      favoriteId: { type: 'string', indexed: true },
+      targetKind: { type: 'string', indexed: true },
+      targetId: { type: 'string', indexed: true },
       desiredPresent: 'bool',
       localSequence: { type: 'int', indexed: true },
       state: { type: 'string', indexed: true },
@@ -31,11 +31,11 @@ export class FavoriteMutation extends Realm.Object<FavoriteMutation> {
     },
   };
 
-  mutationUuid!: string;
+  mutationId!: string;
   scopeId!: string;
-  favoriteUuid!: string;
-  catalogType!: FavoriteCatalogType;
-  catalogUuid!: string;
+  favoriteId!: string;
+  targetKind!: FavoriteTargetKind;
+  targetId!: string;
   desiredPresent!: boolean;
   localSequence!: number;
   state!: FavoriteMutationState;

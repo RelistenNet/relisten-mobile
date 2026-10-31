@@ -1,8 +1,8 @@
 import { AccountProfileResponse } from './account_contract';
-import { isUuidV7 } from '@/relisten/util/uuid_v7';
+import { isUuidV7TypedId } from '@/relisten/util/typed_uuid_id';
 
 export interface AccountProfileSnapshot {
-  userUuid: string;
+  userId: string;
   username: string;
   usernameVersion: number;
   usernameReviewNeeded: boolean;
@@ -22,14 +22,12 @@ function requiredString(value: unknown, field: string): string {
   return value;
 }
 
-function requiredUuid(value: unknown, field: string): string {
-  const uuid = requiredString(value, field);
-
-  if (!isUuidV7(uuid)) {
+function requiredAccountId(value: unknown, prefix: string, field: string): string {
+  if (!isUuidV7TypedId(value, prefix)) {
     throw new Error(`Accounts response has an invalid ${field}`);
   }
 
-  return uuid.toLowerCase();
+  return value;
 }
 
 function requiredInteger(value: unknown, field: string): number {
@@ -76,7 +74,7 @@ export function parseAccountProfileResponse(value: unknown): AccountProfileSnaps
   }
 
   return {
-    userUuid: requiredUuid(response.user_uuid, 'user_uuid'),
+    userId: requiredAccountId(response.user_id, 'user', 'user_id'),
     username,
     usernameVersion: requiredInteger(response.username_version, 'username_version'),
     usernameReviewNeeded: response.username_review_needed,
@@ -85,7 +83,7 @@ export function parseAccountProfileResponse(value: unknown): AccountProfileSnaps
       response.username_change_available_at,
       'username_change_available_at'
     ),
-    nativeSessionId: requiredUuid(response.native_session_uuid, 'native_session_uuid'),
+    nativeSessionId: requiredAccountId(response.native_session_id, 'session', 'native_session_id'),
     lastSyncedAt: new Date(),
   };
 }

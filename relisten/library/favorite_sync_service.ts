@@ -41,7 +41,7 @@ export interface FavoriteSyncEnvironment {
 const INITIAL_ENVIRONMENT: FavoriteSyncEnvironment = {
   account: {
     scopeId: 'anonymous',
-    userUuid: null,
+    userId: null,
     generation: 0,
     nativeSessionId: null,
     isAuthenticated: false,

@@ -23,10 +23,10 @@ import { AccountScopeCapture } from './account_scope_store';
 import { AccountsApiError } from './api/accounts_api_client';
 
 const capture: AccountScopeCapture = Object.freeze({
-  scopeId: 'user:test-user',
-  userUuid: 'test-user',
+  scopeId: 'user_01hx3x56tafay8vvr14d2pf2db',
+  userId: 'user_01hx3x56tafay8vvr14d2pf2db',
   generation: 1,
-  nativeSessionId: 'test-session',
+  nativeSessionId: 'session_01hx3x56tbfay8vvr14d2pf2db',
   isAuthenticated: true,
 });
 
@@ -38,7 +38,9 @@ describe('AccountAccessTokenSource', () => {
     });
     const credentials = {
       freshAccessToken: vi.fn(() => null),
-      activeEnvelope: vi.fn(() => ({ nativeSessionId: 'test-session' })),
+      activeEnvelope: vi.fn(() => ({
+        nativeSessionId: 'session_01hx3x56tbfay8vvr14d2pf2db',
+      })),
       rotate: vi.fn(() => refresh),
       activate: vi.fn(),
     };
@@ -68,7 +70,7 @@ describe('AccountAccessTokenSource', () => {
     expect(results.map((result) => result.status)).toEqual(['rejected', 'rejected']);
     expect(credentials.rotate).toHaveBeenCalledOnce();
     expect(lifecycle.sessionExpired).toHaveBeenCalledOnce();
-    expect(lifecycle.sessionExpired).toHaveBeenCalledWith('test-session');
+    expect(lifecycle.sessionExpired).toHaveBeenCalledWith('session_01hx3x56tbfay8vvr14d2pf2db');
     expect(scopeStore.updateProfile).not.toHaveBeenCalled();
     expect(credentials.activate).not.toHaveBeenCalled();
     expect(lifecycle.profileRefreshed).not.toHaveBeenCalled();

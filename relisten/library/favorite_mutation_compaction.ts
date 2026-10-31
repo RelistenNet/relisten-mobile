@@ -7,7 +7,7 @@ export interface FavoriteMutationCompactionCandidate {
 /**
  * Only an operation that has never started a request is safe to replace with a
  * newer local intent. Once an attempt begins, the server may have committed it
- * even if the client never received the response, so its operation UUID must
+ * even if the client never received the response, so its operation ID must
  * stay in the outbox for an idempotent retry.
  */
 export function isTrulyUnsentFavoriteMutation(mutation: FavoriteMutationCompactionCandidate) {

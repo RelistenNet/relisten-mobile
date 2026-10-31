@@ -3,12 +3,18 @@ import { ANONYMOUS_ACCOUNT_SCOPE_ID } from '@/relisten/realm/models/accounts';
 import {
   AnonymousFavoriteImport,
   AnonymousFavoriteImportState,
-  FavoriteCatalogType,
   FavoriteMutation,
   FavoriteMutationState,
   FavoriteSyncState,
   UserFavorite,
 } from '@/relisten/realm/models/library';
+import {
+  FavoriteTarget,
+  catalogReferenceForFavoriteTarget,
+  favoriteTargetKey,
+  isFavoriteTarget,
+} from '@/relisten/library/favorite_catalog_target';
+import { createUuidV7TypedId } from '@/relisten/util/typed_uuid_id';
 import { createUuidV7 } from '@/relisten/util/uuid_v7';
 import {
   importUuidsSettledByCompaction,
@@ -26,11 +32,6 @@ export interface FavoriteAccountScopeSource {
   isCurrent(capture: FavoriteAccountScopeCapture): boolean;
 }
 
-export interface FavoriteTarget {
-  catalogType: FavoriteCatalogType;
-  catalogUuid: string;
-}
-
 export interface DesiredFavoriteChange extends FavoriteTarget {
   isFavorite: boolean;
 }
@@ -43,10 +44,10 @@ export interface SetFavoriteOptions {
 
 export interface SetFavoritesResult {
   changed: boolean;
-  mutationUuids: string[];
+  mutationIds: string[];
 }
 
-const LEGACY_MODEL_BY_CATALOG_TYPE: Record<FavoriteCatalogType, string> = {
+const LEGACY_MODEL_BY_CATALOG_TYPE = {
   artist: 'Artist',
   show: 'Show',
   source: 'Source',
@@ -93,10 +94,10 @@ export class FavoriteRepository {
     return this.realm
       .objects(UserFavorite)
       .filtered(
-        'scopeId == $0 AND catalogType == $1 AND catalogUuid == $2',
+        'scopeId == $0 AND targetKind == $1 AND targetId == $2',
         scopeId,
-        target.catalogType,
-        target.catalogUuid
+        target.kind,
+        target.id
       )[0];
   }
 
@@ -117,19 +118,19 @@ export class FavoriteRepository {
     const normalizedChanges = uniqueChanges(changes);
 
     return write(this.realm, () => {
-      const mutationUuids: string[] = [];
+      const mutationIds: string[] = [];
       let changed = false;
       const anonymousCapture = { scopeId: ANONYMOUS_ACCOUNT_SCOPE_ID, generation: 0 };
 
       for (const change of normalizedChanges) {
         const result = this.setFavoriteWithinWrite(anonymousCapture, change, now);
         changed ||= result.changed;
-        if (result.mutationUuid) {
-          mutationUuids.push(result.mutationUuid);
+        if (result.mutationId) {
+          mutationIds.push(result.mutationId);
         }
       }
 
-      return { changed, mutationUuids };
+      return { changed, mutationIds };
     });
   }
 
@@ -141,7 +142,7 @@ export class FavoriteRepository {
     this.assertCurrent(capture);
 
     if (changes.length === 0) {
-      return { changed: false, mutationUuids: [] };
+      return { changed: false, mutationIds: [] };
     }
 
     const normalizedChanges = uniqueChanges(changes);
@@ -150,18 +151,18 @@ export class FavoriteRepository {
     return write(this.realm, () => {
       this.assertCurrent(capture);
 
-      const mutationUuids: string[] = [];
+      const mutationIds: string[] = [];
       let changed = false;
 
       for (const change of normalizedChanges) {
         const result = this.setFavoriteWithinWrite(capture, change, now, options.importUuid);
         changed ||= result.changed;
-        if (result.mutationUuid) {
-          mutationUuids.push(result.mutationUuid);
+        if (result.mutationId) {
+          mutationIds.push(result.mutationId);
         }
       }
 
-      return { changed, mutationUuids };
+      return { changed, mutationIds };
     });
   }
 
@@ -234,7 +235,8 @@ export class FavoriteRepository {
       const count = rejected.length;
 
       for (const mutation of rejected) {
-        affectedTargets.set(targetKey(mutation), mutation);
+        const target = targetForMutation(mutation);
+        affectedTargets.set(favoriteTargetKey(target), target);
         if (mutation.importUuid) {
           affectedImports.add(mutation.importUuid);
         }
@@ -277,10 +279,10 @@ export class FavoriteRepository {
     const newestMutation = this.realm
       .objects(FavoriteMutation)
       .filtered(
-        'scopeId == $0 AND catalogType == $1 AND catalogUuid == $2 SORT(localSequence DESC) LIMIT(1)',
+        'scopeId == $0 AND targetKind == $1 AND targetId == $2 SORT(localSequence DESC) LIMIT(1)',
         favorite.scopeId,
-        favorite.catalogType,
-        favorite.catalogUuid
+        favorite.targetKind,
+        favorite.targetId
       )[0];
 
     favorite.effectivePresent = newestMutation?.desiredPresent ?? favorite.acknowledgedPresent;
@@ -307,10 +309,10 @@ export class FavoriteRepository {
 
     if (!favorite) {
       favorite = this.realm.create(UserFavorite, {
-        favoriteUuid: createUuidV7(),
+        favoriteId: createUuidV7TypedId('favorite'),
         scopeId: capture.scopeId,
-        catalogType: change.catalogType,
-        catalogUuid: change.catalogUuid,
+        targetKind: change.kind,
+        targetId: change.id,
         acknowledgedPresent: false,
         effectivePresent: false,
         acknowledgedRevision: undefined,
@@ -336,10 +338,10 @@ export class FavoriteRepository {
       ...this.realm
         .objects(FavoriteMutation)
         .filtered(
-          'scopeId == $0 AND catalogType == $1 AND catalogUuid == $2 AND state == $3',
+          'scopeId == $0 AND targetKind == $1 AND targetId == $2 AND state == $3',
           capture.scopeId,
-          change.catalogType,
-          change.catalogUuid,
+          change.kind,
+          change.id,
           FavoriteMutationState.Pending
         ),
     ].filter(isTrulyUnsentFavoriteMutation);
@@ -357,17 +359,17 @@ export class FavoriteRepository {
     }
 
     const syncState = this.syncState(capture.scopeId, now);
-    const mutationUuid = createUuidV7();
+    const mutationId = createUuidV7TypedId('mutation');
     const localSequence = syncState.nextLocalSequence;
     syncState.nextLocalSequence += 1;
     syncState.updatedAt = now;
 
     this.realm.create(FavoriteMutation, {
-      mutationUuid,
+      mutationId,
       scopeId: capture.scopeId,
-      favoriteUuid: favorite.favoriteUuid,
-      catalogType: change.catalogType,
-      catalogUuid: change.catalogUuid,
+      favoriteId: favorite.favoriteId,
+      targetKind: change.kind,
+      targetId: change.id,
       desiredPresent: change.isFavorite,
       localSequence,
       state: FavoriteMutationState.Pending,
@@ -385,7 +387,7 @@ export class FavoriteRepository {
     favorite.lastLocalSequence = localSequence;
     favorite.updatedAt = now;
 
-    return { changed: true, mutationUuid };
+    return { changed: true, mutationId };
   }
 
   /**
@@ -394,12 +396,17 @@ export class FavoriteRepository {
    * represent active-account membership.
    */
   private updateLegacyAnonymousFavoriteMirror(change: DesiredFavoriteChange) {
-    const modelName = LEGACY_MODEL_BY_CATALOG_TYPE[change.catalogType];
+    const catalogReference = catalogReferenceForFavoriteTarget(change);
+    if (!catalogReference) {
+      return;
+    }
+
+    const modelName = LEGACY_MODEL_BY_CATALOG_TYPE[catalogReference.catalog_type];
     if (!this.realm.schema.some((model) => model.name === modelName)) {
       return;
     }
 
-    const catalogObject = this.realm.objectForPrimaryKey(modelName, change.catalogUuid);
+    const catalogObject = this.realm.objectForPrimaryKey(modelName, catalogReference.catalog_uuid);
     if (catalogObject && 'isFavorite' in catalogObject) {
       catalogObject.isFavorite = change.isFavorite;
     }
@@ -430,17 +437,17 @@ function uniqueChanges(changes: ReadonlyArray<DesiredFavoriteChange>) {
   const byTarget = new Map<string, DesiredFavoriteChange>();
 
   for (const change of changes) {
-    if (!change.catalogUuid) {
-      throw new Error('A favorite catalog UUID is required.');
+    if (!isFavoriteTarget(change)) {
+      throw new Error('A valid typed favorite target is required.');
     }
-    byTarget.set(`${change.catalogType}:${change.catalogUuid}`, change);
+    byTarget.set(favoriteTargetKey(change), change);
   }
 
   return [...byTarget.values()];
 }
 
-function targetKey(target: FavoriteTarget) {
-  return `${target.catalogType}:${target.catalogUuid}`;
+function targetForMutation(mutation: FavoriteMutation): FavoriteTarget {
+  return { kind: mutation.targetKind, id: mutation.targetId };
 }
 
 export function write<T>(realm: Realm, callback: () => T): T {

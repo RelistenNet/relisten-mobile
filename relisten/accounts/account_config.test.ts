@@ -39,10 +39,19 @@ describe('getAccountRuntimeConfig', () => {
     vi.stubGlobal('__DEV__', true);
 
     expect(getAccountRuntimeConfig()).toMatchObject({
+      issuer: 'https://auth.relisten.localhost:5443',
+      accountsOrigin: 'https://accounts.relisten.localhost:5443',
       clientId: 'relisten-mobile-ios-dev',
       redirectUri: 'net.relisten.mobile:/oauth2redirect/ios',
       useUniversalLinkCallback: false,
     });
+  });
+
+  it('rejects plaintext account origins in development', () => {
+    vi.stubGlobal('__DEV__', true);
+    vi.stubEnv('EXPO_PUBLIC_RELISTEN_ACCOUNTS_ORIGIN', 'http://localhost:5443');
+
+    expect(() => getAccountRuntimeConfig()).toThrow('Relisten accounts origin must use HTTPS');
   });
 
   it('does not enable universal-link preference for production Android', () => {

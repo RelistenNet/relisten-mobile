@@ -9,10 +9,10 @@ import { PLAYER_STATE_SCHEMAS, PlayerState } from '../models/player_state';
 import { migratePlayerState } from '../models/player_state_migration';
 import {
   ACCOUNT_REALM_MODELS,
-  ACTIVE_ACCOUNT_SCOPE_ID,
   ANONYMOUS_ACCOUNT_SCOPE_ID,
   ActiveAccountScope,
 } from '../models/accounts';
+import { AccountIdentityUpgradeState } from '../models/accounts/account_identity_upgrade_state';
 import {
   FAVORITE_REALM_MODELS,
   FavoriteMutation,
@@ -21,10 +21,21 @@ import {
   UserFavorite,
 } from '../models/library';
 import { migrateLegacyFavoritesToAnonymous } from './favorite_migration';
+import {
+  stageLegacyAccountIdentityFields,
+  upgradeTypedAccountIdentity,
+} from '../account_identity_upgrade';
+import { formatUuidTypedId } from '@/relisten/util/typed_uuid_id';
 
 // Supply the platform CSPRNG through Node; Realm and both migrations run normally.
 vi.mock('expo-crypto', () => ({
   getRandomValues: (bytes: Uint8Array<ArrayBuffer>) => globalThis.crypto.getRandomValues(bytes),
+}));
+vi.mock('@/relisten/accounts/auth/secure_tokens', () => ({
+  clearRefreshTokenEnvelope: vi.fn(),
+}));
+vi.mock('@/relisten/accounts/auth/pkce_transaction', () => ({
+  clearPendingAuthTransaction: vi.fn(),
 }));
 
 const savedAt = new Date('2026-10-20T12:00:00Z');
@@ -75,14 +86,16 @@ class MigrationRealmFile {
 
   async migrateAndReopen() {
     const configuration: Omit<Realm.Configuration, 'path'> = {
-      schemaVersion: 16,
-      schema: [...PLAYER_STATE_SCHEMAS, catalogTrack, ...scopedModels],
+      schemaVersion: 17,
+      schema: [...PLAYER_STATE_SCHEMAS, catalogTrack, AccountIdentityUpgradeState, ...scopedModels],
       onMigration: (oldRealm, newRealm) => {
         migratePlayerState(oldRealm, newRealm);
+        stageLegacyAccountIdentityFields(oldRealm, newRealm);
         migrateLegacyFavoritesToAnonymous(oldRealm, newRealm);
       },
     };
     const migrated = await this.open(configuration);
+    await upgradeTypedAccountIdentity(migrated, () => Promise.resolve());
     migrated.close();
     return this.open(configuration);
   }
@@ -108,6 +121,7 @@ describe('player and accounts Realm upgrades', () => {
   });
 
   it('keeps main schema 14 queue identities and imports its catalog favorites', async () => {
+    const favoriteTrackUuid = '00000000-0000-0000-0000-00000000000a';
     const main = await file.open({
       schemaVersion: 14,
       schema: [
@@ -117,8 +131,8 @@ describe('player and accounts Realm upgrades', () => {
     });
     const savedPlayer = {
       queueEntries: [
-        { id: 'first-A', sourceTrackUuid: 'A' },
-        { id: 'second-A', sourceTrackUuid: 'A' },
+        { id: 'first-A', sourceTrackUuid: favoriteTrackUuid },
+        { id: 'second-A', sourceTrackUuid: favoriteTrackUuid },
       ],
       shuffleOrder: { entryIds: ['second-A', 'first-A'] },
       repeatMode: PlayerRepeatState.REPEAT_TRACK,
@@ -128,7 +142,7 @@ describe('player and accounts Realm upgrades', () => {
     PlayerState.upsert(main, savedPlayer);
     main.write(() => {
       main.create('SourceTrack', {
-        uuid: 'A',
+        uuid: favoriteTrackUuid,
         mp3Url: 'https://example.com/A.mp3',
         isFavorite: true,
       });
@@ -143,16 +157,17 @@ describe('player and accounts Realm upgrades', () => {
     });
     expect(reopened.objects(UserFavorite)).toHaveLength(1);
     expect(reopened.objects(UserFavorite)[0]).toMatchObject({
+      favoriteId: expect.stringMatching(/^favorite_/),
       scopeId: ANONYMOUS_ACCOUNT_SCOPE_ID,
-      catalogType: 'source_track',
-      catalogUuid: 'A',
+      targetKind: 'track',
+      targetId: formatUuidTypedId('track', '00000000-0000-0000-0000-00000000000a'),
       acknowledgedPresent: true,
       effectivePresent: true,
     });
   });
 
   it.each([14, 15])(
-    'migrates accounts schema %i playback without duplicating favorites or losing pending work',
+    'migrates accounts schema %i playback while discarding private-alpha account work',
     async (schemaVersion) => {
       const accounts = await file.open({
         schemaVersion,
@@ -174,17 +189,17 @@ describe('player and accounts Realm upgrades', () => {
         // Accounts permits FLAC-only rows and keeps flags as compatibility mirrors.
         accounts.create('SourceTrack', { uuid: 'A', mp3Url: null, isFavorite: true });
         accounts.create(ActiveAccountScope, {
-          id: ACTIVE_ACCOUNT_SCOPE_ID,
+          id: '__ACTIVE_ACCOUNT_SCOPE__',
           scopeId: accountScopeId,
-          userUuid: 'user-A',
+          userId: 'user-A',
           generation: 5,
           updatedAt: savedAt,
         });
         accounts.create(UserFavorite, {
-          favoriteUuid: 'favorite-A',
+          favoriteId: 'favorite-A',
           scopeId: accountScopeId,
-          catalogType: 'source_track',
-          catalogUuid: 'A',
+          targetKind: 'track',
+          targetId: 'A',
           acknowledgedPresent: false,
           effectivePresent: true,
           lastLocalSequence: 7,
@@ -192,11 +207,11 @@ describe('player and accounts Realm upgrades', () => {
           updatedAt: savedAt,
         });
         accounts.create(FavoriteMutation, {
-          mutationUuid: 'mutation-A',
+          mutationId: 'mutation-A',
           scopeId: accountScopeId,
-          favoriteUuid: 'favorite-A',
-          catalogType: 'source_track',
-          catalogUuid: 'A',
+          favoriteId: 'favorite-A',
+          targetKind: 'track',
+          targetId: 'A',
           desiredPresent: true,
           localSequence: 7,
           state: FavoriteMutationState.Pending,
@@ -212,10 +227,6 @@ describe('player and accounts Realm upgrades', () => {
           updatedAt: savedAt,
         });
       });
-      const savedScope = accounts.objects(ActiveAccountScope)[0].toJSON();
-      const savedFavorite = accounts.objects(UserFavorite)[0].toJSON();
-      const savedMutation = accounts.objects(FavoriteMutation)[0].toJSON();
-      const savedSync = accounts.objects(FavoriteSyncState)[0].toJSON();
       accounts.close();
 
       const reopened = await file.migrateAndReopen();
@@ -230,11 +241,10 @@ describe('player and accounts Realm upgrades', () => {
         durationSeconds: 300,
       });
       expect(player.repeatMode).toBe(PlayerRepeatState.REPEAT_QUEUE);
-      expect(reopened.objects(ActiveAccountScope)[0].toJSON()).toEqual(savedScope);
-      expect(reopened.objects(UserFavorite)).toHaveLength(1);
-      expect(reopened.objects(UserFavorite)[0].toJSON()).toEqual(savedFavorite);
-      expect(reopened.objects(FavoriteMutation)[0].toJSON()).toEqual(savedMutation);
-      expect(reopened.objects(FavoriteSyncState)[0].toJSON()).toEqual(savedSync);
+      expect(reopened.objects(ActiveAccountScope)).toHaveLength(0);
+      expect(reopened.objects(UserFavorite)).toHaveLength(0);
+      expect(reopened.objects(FavoriteMutation)).toHaveLength(0);
+      expect(reopened.objects(FavoriteSyncState)).toHaveLength(0);
       expect(reopened.objectForPrimaryKey('SourceTrack', 'A')?.mp3Url).toBeNull();
     }
   );

@@ -6,7 +6,7 @@ export const ANONYMOUS_ACCOUNT_SCOPE_ID = 'anonymous';
 export class ActiveAccountScope extends Realm.Object<ActiveAccountScope> {
   id!: string;
   scopeId!: string;
-  userUuid?: string;
+  userId?: string;
   generation!: number;
   nativeSessionId?: string;
   blockedNativeSessionId?: string;
@@ -18,7 +18,7 @@ export class ActiveAccountScope extends Realm.Object<ActiveAccountScope> {
     properties: {
       id: 'string',
       scopeId: 'string',
-      userUuid: 'string?',
+      userId: 'string?',
       generation: { type: 'int', default: 0 },
       nativeSessionId: 'string?',
       blockedNativeSessionId: 'string?',

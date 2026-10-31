@@ -1,4 +1,5 @@
 import type { PendingAuthTransaction } from './account_auth_types';
+import { isUuidV7TypedId } from '@/relisten/util/typed_uuid_id';
 
 export class AuthFlowError extends Error {
   constructor(
@@ -76,12 +77,16 @@ export function validateInitialIdToken(
     throw new AuthFlowError('The identity token has expired.', 'invalid_id_token');
   }
 
-  if (typeof claims.sub !== 'string' || claims.sub.length === 0) {
+  if (!isUuidV7TypedId(claims.sub, 'user')) {
     throw new AuthFlowError('The identity token subject is invalid.', 'invalid_id_token');
+  }
+
+  if (claims.sid !== undefined && !isUuidV7TypedId(claims.sid, 'session')) {
+    throw new AuthFlowError('The identity token session is invalid.', 'invalid_id_token');
   }
 
   return {
     subject: claims.sub,
-    nativeSessionId: typeof claims.sid === 'string' ? claims.sid : null,
+    nativeSessionId: claims.sid ?? null,
   };
 }

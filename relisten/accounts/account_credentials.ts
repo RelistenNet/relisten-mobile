@@ -12,7 +12,7 @@ import {
 interface InMemoryAccessToken {
   value: string;
   expiresAt: Date;
-  userUuid: string;
+  userId: string;
   nativeSessionId: string;
 }
 
@@ -57,7 +57,7 @@ export class AccountCredentials {
     if (
       !capture.isAuthenticated ||
       !envelope ||
-      envelope.userUuid !== capture.userUuid ||
+      envelope.userId !== capture.userId ||
       envelope.nativeSessionId !== capture.nativeSessionId
     ) {
       return null;
@@ -78,7 +78,7 @@ export class AccountCredentials {
   freshAccessToken(capture: AccountScopeCapture, refreshMarginMs: number): string | null {
     if (
       this.accessToken &&
-      this.accessToken.userUuid === capture.userUuid &&
+      this.accessToken.userId === capture.userId &&
       this.accessToken.nativeSessionId === capture.nativeSessionId &&
       this.accessToken.expiresAt.getTime() - Date.now() > refreshMarginMs
     ) {
@@ -104,28 +104,31 @@ export class AccountCredentials {
     this.refreshEnvelope = rotatedEnvelope;
     await this.mutate(() => writeRefreshTokenEnvelope(rotatedEnvelope));
 
-    return this.validate(candidate, envelope.userUuid);
+    return this.validate(candidate, envelope.userId);
   }
 
   async validate(
     candidate: CandidateTokenSet,
-    expectedUserUuid: string | null
+    expectedUserId: string
   ): Promise<ValidatedCredentials> {
     const value = await this.transport.request<unknown>('/v1/me', candidate.accessToken, {
       method: 'GET',
     });
     const profile = parseAccountProfileResponse(value);
 
-    if (expectedUserUuid && profile.userUuid !== expectedUserUuid) {
+    if (profile.userId !== expectedUserId) {
       throw new AuthFlowError(
         'The account identity does not match the token subject.',
         'subject_mismatch'
       );
     }
 
-    if (candidate.nativeSessionId && candidate.nativeSessionId !== profile.nativeSessionId) {
+    if (
+      candidate.nativeSessionId !== null &&
+      candidate.nativeSessionId !== profile.nativeSessionId
+    ) {
       throw new AuthFlowError(
-        'The account session does not match the identity token.',
+        'The account session does not match the token session.',
         'session_mismatch'
       );
     }
@@ -138,7 +141,7 @@ export class AccountCredentials {
         refreshToken: candidate.refreshToken,
         issuer: this.authClient.config.issuer,
         clientId: this.authClient.config.clientId,
-        userUuid: profile.userUuid,
+        userId: profile.userId,
         nativeSessionId: profile.nativeSessionId,
       },
     };
@@ -154,7 +157,7 @@ export class AccountCredentials {
     this.accessToken = {
       value: candidate.accessToken,
       expiresAt: candidate.accessTokenExpiresAt,
-      userUuid: profile.userUuid,
+      userId: profile.userId,
       nativeSessionId: profile.nativeSessionId,
     };
   }

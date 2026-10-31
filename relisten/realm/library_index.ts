@@ -2,7 +2,7 @@ import Realm from 'realm';
 import { FavoriteAccountScopeSource } from '@/relisten/library/favorite_repository';
 import { FavoriteMembershipProjection } from '@/relisten/library/favorite_membership_projection';
 import { OfflineAvailabilityProjection } from '@/relisten/library/offline_availability_projection';
-import { FavoriteCatalogType, FAVORITE_CATALOG_TYPES } from '@/relisten/realm/models/library';
+import { FavoriteTargetKind, FAVORITE_TARGET_KINDS } from '@/relisten/realm/models/library';
 import {
   SourceTrackOfflineInfo,
   SourceTrackOfflineInfoStatus,
@@ -114,10 +114,10 @@ export class LibraryIndex {
     subscribeSet(this.sliceListeners['remaining-downloads'], listener);
   getRemainingDownloadsSnapshot = () => this.remainingDownloadsCount();
 
-  subscribeFavorite = (catalogType: FavoriteCatalogType, catalogUuid: string, listener: Listener) =>
-    this.subscribeKey('favorite', favoriteKey(catalogType, catalogUuid), listener);
-  getFavoriteSnapshot = (catalogType: FavoriteCatalogType, catalogUuid: string) =>
-    this.keyVersion('favorite', favoriteKey(catalogType, catalogUuid));
+  subscribeFavorite = (targetKind: FavoriteTargetKind, catalogUuid: string, listener: Listener) =>
+    this.subscribeKey('favorite', favoriteKey(targetKind, catalogUuid), listener);
+  getFavoriteSnapshot = (targetKind: FavoriteTargetKind, catalogUuid: string) =>
+    this.keyVersion('favorite', favoriteKey(targetKind, catalogUuid));
 
   subscribeArtistLibrary = (uuid: string, listener: Listener) =>
     this.subscribeKey('artist-library', uuid, listener);
@@ -141,12 +141,12 @@ export class LibraryIndex {
     this.subscribeKey('source-offline', uuid, listener);
   getSourceOfflineTracksSnapshot = (uuid: string) => this.keyVersion('source-offline', uuid);
 
-  isFavorite(catalogType: FavoriteCatalogType, catalogUuid?: string | null) {
-    return !!catalogUuid && this.favoriteUuids[catalogType].has(catalogUuid);
+  isFavorite(targetKind: FavoriteTargetKind, catalogUuid?: string | null) {
+    return !!catalogUuid && this.favoriteUuids[targetKind].has(catalogUuid);
   }
 
-  favoriteCatalogUuids(catalogType: FavoriteCatalogType): ReadonlySet<string> {
-    return this.favoriteUuids[catalogType];
+  favoriteCatalogUuids(targetKind: FavoriteTargetKind): ReadonlySet<string> {
+    return this.favoriteUuids[targetKind];
   }
 
   libraryShowCatalogUuids(): ReadonlySet<string> {
@@ -209,12 +209,12 @@ export class LibraryIndex {
     this.replaceLibrarySets();
 
     this.queueSlice('library-membership');
-    for (const catalogType of FAVORITE_CATALOG_TYPES) {
+    for (const targetKind of FAVORITE_TARGET_KINDS) {
       this.queueChangedKeys(
         'favorite',
-        previousFavorites[catalogType],
-        this.favoriteUuids[catalogType],
-        (uuid) => favoriteKey(catalogType, uuid)
+        previousFavorites[targetKind],
+        this.favoriteUuids[targetKind],
+        (uuid) => favoriteKey(targetKind, uuid)
       );
     }
     this.queueLibraryChanges(previousLibrary);
@@ -250,7 +250,7 @@ export class LibraryIndex {
   };
 
   private replaceFavoriteSets() {
-    for (const type of FAVORITE_CATALOG_TYPES) {
+    for (const type of FAVORITE_TARGET_KINDS) {
       this.favoriteUuids[type] = new Set(this.favoriteProjection.favoriteUuids(type));
     }
   }
@@ -418,18 +418,18 @@ function createPendingKeyRecord() {
 
 function createFavoriteSetRecord() {
   return Object.fromEntries(
-    FAVORITE_CATALOG_TYPES.map((type) => [type, new Set<string>()])
-  ) as Record<FavoriteCatalogType, Set<string>>;
+    FAVORITE_TARGET_KINDS.map((type) => [type, new Set<string>()])
+  ) as Record<FavoriteTargetKind, Set<string>>;
 }
 
-function cloneFavoriteSets(source: Record<FavoriteCatalogType, Set<string>>) {
+function cloneFavoriteSets(source: Record<FavoriteTargetKind, Set<string>>) {
   return Object.fromEntries(
-    FAVORITE_CATALOG_TYPES.map((type) => [type, new Set(source[type])])
-  ) as Record<FavoriteCatalogType, Set<string>>;
+    FAVORITE_TARGET_KINDS.map((type) => [type, new Set(source[type])])
+  ) as Record<FavoriteTargetKind, Set<string>>;
 }
 
-function favoriteKey(catalogType: FavoriteCatalogType, catalogUuid: string) {
-  return `${catalogType}:${catalogUuid}`;
+function favoriteKey(targetKind: FavoriteTargetKind, catalogUuid: string) {
+  return `${targetKind}:${catalogUuid}`;
 }
 
 function union(a: ReadonlySet<string>, b: ReadonlySet<string>) {

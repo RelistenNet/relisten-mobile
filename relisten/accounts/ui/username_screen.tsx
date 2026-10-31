@@ -37,7 +37,7 @@ export function UsernameScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const profileIdentity = account.profile
-    ? `${account.profile.userUuid}:${account.profile.usernameVersion}`
+    ? `${account.profile.userId}:${account.profile.usernameVersion}`
     : null;
   const previousProfileIdentity = useRef(profileIdentity);
 

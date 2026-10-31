@@ -15,7 +15,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Realm } from '@realm/react';
 
 import { RelistenApiProvider, useRelistenApi } from '@/relisten/api/context';
-import { RealmProvider, setRealm, useRealm } from '@/relisten/realm/schema';
+import { prepareRealmForUse, RealmProvider, setRealm, useRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { StatusBar } from 'expo-status-bar';
 
@@ -36,7 +36,7 @@ import { LastFmAuthListener } from '@/relisten/lastfm/lastfm_auth_listener';
 import * as Sentry from '@sentry/react-native';
 import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
 import { enableFreeze } from 'react-native-screens';
-import { LogBox, View } from 'react-native';
+import { AppState, LogBox, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useCarPlaySetup } from '@/relisten/carplay/useCarPlaySetup';
 import {
@@ -52,9 +52,9 @@ import {
   isVerboseProfileLoggingEnabled,
   logRouteDebug,
 } from '@/relisten/util/profile_logging';
-import { repairCatalogAtStartup } from '@/relisten/realm/catalog_startup_repair';
 import { PlaybackAccountTransitionEffects } from '@/relisten/player/playback_account_transition_effects';
 import { RelistenPlayer } from '@/relisten/player/relisten_player';
+import { createStartupPreparationRunner } from '@/relisten/realm/startup_preparation_runner';
 
 // c.f. https://github.com/meliorence/react-native-render-html/issues/661#issuecomment-2453476566
 LogBox.ignoreLogs([/Support for defaultProps will be removed/]);
@@ -99,12 +99,26 @@ function RealmStartupGate({ children }: PropsWithChildren) {
   const [readyRealm, setReadyRealm] = useState<Realm>();
 
   useEffect(() => {
-    // Root services install live Realm listeners, so repair must finish before they mount.
-    repairCatalogAtStartup(realm);
-    setRealm(realm);
-    setReadyRealm(realm);
+    const preparation = createStartupPreparationRunner({
+      prepare: () => prepareRealmForUse(realm).then(() => undefined),
+      onReady: () => setReadyRealm(realm),
+      onError: (error) => {
+        console.warn('Realm startup preparation is waiting to retry', error);
+      },
+    });
+
+    // Root services install live Realm listeners, so repairs and the account reset must
+    // finish before they mount. A protected-storage failure retries after device unlock.
+    preparation.request();
+    const appStateSubscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        preparation.request();
+      }
+    });
 
     return () => {
+      preparation.dispose();
+      appStateSubscription.remove();
       // React Strict Mode runs effect cleanup during the initial mount cycle in development.
       // Keep the realm reference stable there to avoid transient startup churn.
       if (!__DEV__) {
