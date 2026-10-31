@@ -37,6 +37,7 @@
     "expo-application": "~58.1.1",
     "expo-asset": "~58.0.16",
     "expo-auth-session": "~58.0.12",
+    "expo-blur": "~58.0.5",
     "expo-build-properties": "~58.0.10",
     "expo-constants": "~58.0.12",
     "expo-crypto": "~58.0.6",

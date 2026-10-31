@@ -271,7 +271,7 @@ function CurrentTrackInfo({
           {show.venue.name} · {show.venue.location}
         </RelistenText>
       ) : null}
-      <PlayerOutputRoute className="mt-1 text-sm text-relisten-blue-200" />
+      <PlayerOutputRoute cn="mt-1 text-sm text-relisten-blue-200" />
     </View>
   );
 

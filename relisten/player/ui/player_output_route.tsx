@@ -33,10 +33,11 @@ export function usePlayerOutputRoute(): string | null {
 
 /** Compact route feedback shared by the expanded player and mini-player. */
 export function PlayerOutputRoute({
-  className,
+  cn,
   maxFontSizeMultiplier,
 }: {
-  className?: string;
+  /** `cn`, not `className`: NativeWind v2 rewrites className on custom components into style. */
+  cn?: string;
   /** Bounds the label in fixed-height containers such as the native tab accessory. */
   maxFontSizeMultiplier?: number;
 }) {
@@ -47,7 +48,7 @@ export function PlayerOutputRoute({
 
   return (
     <RelistenText
-      className={className}
+      cn={cn}
       maxFontSizeMultiplier={maxFontSizeMultiplier}
       numberOfLines={1}
       selectable={false}

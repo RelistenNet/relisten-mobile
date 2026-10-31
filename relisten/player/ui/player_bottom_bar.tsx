@@ -13,6 +13,7 @@ import {
   usePlayerPresentation,
 } from '@/relisten/player/ui/player_presentation';
 import { MaterialIcons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { useCallback } from 'react';
 import {
   LayoutChangeEvent,
@@ -241,7 +242,7 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
                 </RelistenText>
               </View>
               <PlayerOutputRoute
-                className={castingClassName}
+                cn={castingClassName}
                 maxFontSizeMultiplier={metadataFontSizeLimit}
               />
             </Flex>
@@ -336,13 +337,13 @@ export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBa
 
   const isOverlay = placementBackend === 'overlay';
   const containerClassName = isOverlay ? 'absolute w-full' : 'h-full w-full';
-  const contentContainerClassName = isOverlay ? 'w-full flex-1 px-3 pb-2' : 'h-full w-full px-1.5';
+  const contentContainerClassName = isOverlay ? 'w-full flex-1 px-6 pb-2' : 'h-full w-full px-1.5';
   const mainSurfaceClassName = isOverlay ? 'px-3 pb-3 pt-2.5' : 'h-full';
   const shellChromeStyle =
     Platform.OS === 'ios'
       ? { boxShadow: '0 10px 22px rgba(2, 6, 23, 0.22)' }
       : { elevation: 10, shadowColor: '#020617' };
-  const shellSurfaceClassName = `overflow-hidden rounded-3xl border bg-[rgba(8,18,31,0.95)] ${
+  const shellSurfaceClassName = `overflow-hidden rounded-3xl border ${
     Platform.OS === 'ios' ? 'border-white/15' : 'border-white/10'
   }`;
   const body = (
@@ -367,7 +368,13 @@ export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBa
       <View className={contentContainerClassName}>
         {isOverlay ? (
           <View className="rounded-3xl" style={shellChromeStyle}>
-            <View className={shellSurfaceClassName}>{body}</View>
+            <BlurView
+              className={shellSurfaceClassName}
+              intensity={20}
+              tint="systemChromeMaterialDark"
+            >
+              {body}
+            </BlurView>
           </View>
         ) : (
           body
