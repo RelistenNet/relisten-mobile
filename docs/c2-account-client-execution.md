@@ -175,3 +175,17 @@ The post-relaunch proof is
 
 No API or web service was deployed, no production data was changed, and v4
 catalog adoption remains outside C2.
+
+## Simplicity review
+
+The follow-up cleanup moved all 12 standalone Node favorite tests into
+`relisten/library/favorite_sync_invariants.test.ts`. They now run and typecheck
+with the normal suite; the separate `test:favorites` command was removed.
+The historical verification above records the commands used before that move.
+
+The cleanup also removed two forwarding canonicalization methods, a redundant
+target-kind list, repeated migration field copying, an unused batch-state
+parameter, and revision calculations already guaranteed by response validation.
+The upgrade test no longer creates an unrelated dummy audio file: its existence
+could not prove offline-file preservation. The retained-simulator file/hash
+comparison above supplies that evidence.

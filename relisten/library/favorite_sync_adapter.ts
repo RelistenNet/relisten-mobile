@@ -151,7 +151,7 @@ export class FavoriteSyncAdapter {
     nextAttemptAt: Date,
     now = new Date()
   ) {
-    this.updateMutationBatch(capture, mutationIds, FavoriteMutationState.InFlight, (mutation) => {
+    this.updateMutationBatch(capture, mutationIds, (mutation) => {
       mutation.state = FavoriteMutationState.Pending;
       mutation.nextAttemptAt = nextAttemptAt;
       mutation.lastErrorCode = failure.code;
@@ -166,7 +166,7 @@ export class FavoriteSyncAdapter {
     failure: FavoriteSyncFailure,
     now = new Date()
   ) {
-    this.updateMutationBatch(capture, mutationIds, FavoriteMutationState.InFlight, (mutation) => {
+    this.updateMutationBatch(capture, mutationIds, (mutation) => {
       mutation.state = FavoriteMutationState.NeedsAttention;
       mutation.nextAttemptAt = undefined;
       mutation.lastErrorCode = failure.code;
@@ -194,7 +194,6 @@ export class FavoriteSyncAdapter {
   private updateMutationBatch(
     capture: FavoriteAccountScopeCapture,
     mutationIds: ReadonlyArray<string>,
-    expectedState: FavoriteMutationState,
     update: (mutation: FavoriteMutation) => void
   ) {
     this.assertCurrent(capture);
@@ -204,7 +203,11 @@ export class FavoriteSyncAdapter {
       this.assertCurrent(capture);
       for (const mutationId of mutationIds) {
         const mutation = realm.objectForPrimaryKey(FavoriteMutation, mutationId);
-        if (!mutation || mutation.scopeId !== capture.scopeId || mutation.state !== expectedState) {
+        if (
+          !mutation ||
+          mutation.scopeId !== capture.scopeId ||
+          mutation.state !== FavoriteMutationState.InFlight
+        ) {
           continue;
         }
 

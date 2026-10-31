@@ -10,8 +10,7 @@
     "lint": "eslint app relisten",
     "pods": "npx pod-install",
     "postinstall": "patch-package",
-    "store:screenshots": "swift tooling/store-screenshots/generate-store-screenshots.swift",
-    "test:favorites": "node --experimental-strip-types --test tooling/favorite_sync.test.ts"
+    "store:screenshots": "swift tooling/store-screenshots/generate-store-screenshots.swift"
   },
   "dependencies": {
     "@expo/material-symbols": "^0.1.1",

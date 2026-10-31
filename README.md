@@ -10,6 +10,9 @@ To keep the code base clean, use the steps below to run locally and verify your 
 
 React Compiler is enabled repo-wide, and compiler diagnostics are treated as hard failures. If you hit new React Compiler issues while iterating, run `npx react-compiler-healthcheck@latest` to get a repo-level inventory in addition to `yarn lint`.
 
+Run `yarn test` for the Vitest suite, including the account and favorite-sync
+invariants. To run one file, use `yarn test relisten/library/favorite_sync_invariants.test.ts`.
+
 ### Expo native module builds
 
 Use Expo's default precompiled modules on iOS. After an Expo SDK upgrade or a

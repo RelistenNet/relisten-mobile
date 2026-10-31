@@ -120,18 +120,23 @@ function migrateRealmAccountState(realm: Realm, completedAt: Date) {
   const anonymousFavorites = realm
     .objects(UserFavorite)
     .filtered('scopeId == $0', ANONYMOUS_ACCOUNT_SCOPE_ID)
-    .map((favorite) => ({
-      favoriteId: formatUuidTypedId('favorite', favorite.favoriteId),
-      target: typedTarget(favorite.targetKind as StagedFavoriteKind, favorite.targetId),
-      acknowledgedPresent: favorite.acknowledgedPresent,
-      effectivePresent: favorite.effectivePresent,
-      acknowledgedRevision: favorite.acknowledgedRevision,
-      lastLocalSequence: favorite.lastLocalSequence,
-      serverCreatedAt: favorite.serverCreatedAt,
-      serverUpdatedAt: favorite.serverUpdatedAt,
-      createdAt: favorite.createdAt,
-      updatedAt: favorite.updatedAt,
-    }));
+    .map((favorite) => {
+      const target = typedTarget(favorite.targetKind as StagedFavoriteKind, favorite.targetId);
+      return {
+        favoriteId: formatUuidTypedId('favorite', favorite.favoriteId),
+        scopeId: ANONYMOUS_ACCOUNT_SCOPE_ID,
+        targetKind: target.kind,
+        targetId: target.id,
+        acknowledgedPresent: favorite.acknowledgedPresent,
+        effectivePresent: favorite.effectivePresent,
+        acknowledgedRevision: favorite.acknowledgedRevision,
+        lastLocalSequence: favorite.lastLocalSequence,
+        serverCreatedAt: favorite.serverCreatedAt,
+        serverUpdatedAt: favorite.serverUpdatedAt,
+        createdAt: favorite.createdAt,
+        updatedAt: favorite.updatedAt,
+      };
+    });
 
   realm.delete(realm.objects(UserFavorite));
   realm.delete(realm.objects(FavoriteMutation));
@@ -141,20 +146,7 @@ function migrateRealmAccountState(realm: Realm, completedAt: Date) {
   realm.delete(realm.objects(PendingUsernameCommand));
 
   for (const favorite of anonymousFavorites) {
-    realm.create(UserFavorite, {
-      favoriteId: favorite.favoriteId,
-      scopeId: ANONYMOUS_ACCOUNT_SCOPE_ID,
-      targetKind: favorite.target.kind,
-      targetId: favorite.target.id,
-      acknowledgedPresent: favorite.acknowledgedPresent,
-      effectivePresent: favorite.effectivePresent,
-      acknowledgedRevision: favorite.acknowledgedRevision,
-      lastLocalSequence: favorite.lastLocalSequence,
-      serverCreatedAt: favorite.serverCreatedAt,
-      serverUpdatedAt: favorite.serverUpdatedAt,
-      createdAt: favorite.createdAt,
-      updatedAt: favorite.updatedAt,
-    });
+    realm.create(UserFavorite, favorite);
   }
 
   for (const receipt of [...realm.objects(AnonymousFavoriteImport)]) {
@@ -226,10 +218,6 @@ async function performUpgrade(
   realm: Realm,
   clearSecureStorage: ClearLegacyAccountStorage
 ): Promise<void> {
-  if (hasCompletedUpgrade(realm)) {
-    return;
-  }
-
   await clearSecureStorage();
 
   if (hasCompletedUpgrade(realm)) {
