@@ -36,7 +36,10 @@ class RelistenPlaybackService : MediaLibraryService() {
                 )
             )
             .setHandleAudioBecomingNoisy(true)
-            .setWakeMode(C.WAKE_MODE_NETWORK)
+            // Headless JS enables background timers; the CPU wake lock keeps playback
+            // and JS queue/checkpoint work runnable with the screen off. ExoPlayer
+            // releases it on pause/stop. LOCAL avoids an unnecessary Wi-Fi lock.
+            .setWakeMode(C.WAKE_MODE_LOCAL)
             .build()
         player.addListener(object : Player.Listener {
             override fun onEvents(player: Player, events: Player.Events) {

@@ -8,7 +8,10 @@ import com.facebook.react.bridge.ReactContext
 import com.facebook.react.jstasks.HeadlessJsTaskConfig
 import com.facebook.react.jstasks.HeadlessJsTaskContext
 
-/** Keeps timers running in the app's existing JS runtime while the service plays. */
+/**
+ * Activity pause normally stops React Native timers. Keep scheduling active in the
+ * existing runtime while playing/buffering; ExoPlayer separately owns the CPU wake lock.
+ */
 internal class RelistenPlaybackTask(private val reactHost: ReactHost) : ReactInstanceEventListener {
     private var playbackActive = false
     private var taskContext: ReactContext? = null
@@ -21,6 +24,7 @@ internal class RelistenPlaybackTask(private val reactHost: ReactHost) : ReactIns
     fun update(active: Boolean) {
         playbackActive = active
         if (!active) {
+            // Paused/stopped playback must not keep app timers running in the background.
             finishTask()
             return
         }
