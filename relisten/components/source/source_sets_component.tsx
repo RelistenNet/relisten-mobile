@@ -58,7 +58,7 @@ export const SourceSetComponent = ({ source, sourceSet, playShow }: SourceSetPro
     <View>
       {source.sourceSets.length > 1 && <SectionHeader title={sourceSet.name} />}
       {sortTracksByPosition(sourceSet.sourceTracks).map((t, idx) => {
-        const playable = queueOfflineOnly ? t.playable(false) : true;
+        const playable = !queueOfflineOnly || t.offlineInfo?.isPlayableOffline() === true;
 
         return (
           <SourceTrackComponent
@@ -66,9 +66,7 @@ export const SourceSetComponent = ({ source, sourceSet, playShow }: SourceSetPro
             sourceTrack={t}
             isLastTrackInSet={idx == sourceSet.sourceTracks.length - 1}
             onPress={playable ? playShow : undefined}
-            actions={
-              playable ? <SourceTrackActionsMenu sourceTrack={t} playShow={playShow} /> : null
-            }
+            actions={<SourceTrackActionsMenu sourceTrack={t} playShow={playShow} />}
             disabled={!playable}
           />
         );

@@ -1,5 +1,4 @@
 import { RelistenBlue } from '@/relisten/relisten_blue';
-import { type FunctionComponent } from 'react';
 import { View } from 'react-native';
 import Svg, { Line } from 'react-native-svg';
 
@@ -11,12 +10,17 @@ const WAVEFORM_BARS = Array.from({ length: WAVEFORM_BAR_COUNT }, (_, index) => {
   return 7 + Math.round(envelope * detail * 48);
 });
 
-export const PlayerAudioVisualizer: FunctionComponent<{ active?: boolean }> = () => {
+export function PlayerAudioVisualizer({
+  compact = false,
+}: {
+  active?: boolean;
+  compact?: boolean;
+}) {
   return (
     <View
       accessible={false}
       accessibilityElementsHidden
-      className="aspect-[5.5] w-full"
+      style={compact ? { height: 10, width: '100%' } : { height: 16, width: '100%' }}
       importantForAccessibility="no-hide-descendants"
     >
       <Svg
@@ -25,16 +29,6 @@ export const PlayerAudioVisualizer: FunctionComponent<{ active?: boolean }> = ()
         viewBox={`0 0 ${WAVEFORM_BAR_COUNT * 2} 58`}
         width="100%"
       >
-        <Line
-          opacity={0.3}
-          stroke={RelistenBlue['200']}
-          strokeDasharray="0.5 1.5"
-          strokeWidth="0.6"
-          x1="0"
-          x2={WAVEFORM_BAR_COUNT * 2}
-          y1="29"
-          y2="29"
-        />
         {WAVEFORM_BARS.map((height, index) => {
           const x = index * 2 + 1;
 
@@ -44,15 +38,15 @@ export const PlayerAudioVisualizer: FunctionComponent<{ active?: boolean }> = ()
               opacity={0.55 + (index % 4) * 0.1}
               stroke={RelistenBlue['200']}
               strokeLinecap="round"
-              strokeWidth="1"
+              strokeWidth="1.1"
               x1={x}
               x2={x}
-              y1={29 - height / 2}
-              y2={29 + height / 2}
+              y1={57 - height}
+              y2={57}
             />
           );
         })}
       </Svg>
     </View>
   );
-};
+}

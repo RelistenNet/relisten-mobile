@@ -15,7 +15,7 @@ enum AudioAdjustmentConfigurationError: Error, LocalizedError {
         case let .invalidBandGain(gain):
             return "Invalid audio adjustment band gain: \(gain)"
         case let .invalidVolumeReduction(reduction):
-            return "Invalid extra volume reduction: \(reduction)"
+            return "Invalid volume gain: \(reduction)"
         }
     }
 }
@@ -28,7 +28,7 @@ struct AudioAdjustmentConfiguration: Sendable, Equatable {
     static let minimumBandGainDb: Float = -12
     static let maximumBandGainDb: Float = 12
     static let minimumVolumeReductionDb: Float = -30
-    static let maximumVolumeReductionDb: Float = 0
+    static let maximumVolumeReductionDb: Float = 12
 
     static let disabled = AudioAdjustmentConfiguration(
         enabled: false,
@@ -38,6 +38,7 @@ struct AudioAdjustmentConfiguration: Sendable, Equatable {
 
     let enabled: Bool
     let bandGainsDb: [Float]
+    // Retain the persisted bridge key; this is signed gain, not only reduction.
     let extraVolumeReductionDb: Float
 
     init(

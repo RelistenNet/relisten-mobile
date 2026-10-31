@@ -40,6 +40,9 @@ import { NetworkBackedBehaviorExecutor } from '@/relisten/realm/network_backed_b
 import { useRelistenApi } from '@/relisten/api/context';
 import { yearsNetworkBackedModelArrayBehavior } from '@/relisten/realm/models/year_repo';
 import RelistenWhite from '@/assets/relisten_white.png';
+import { FavoriteRepository } from '@/relisten/library/favorite_repository';
+import { useFavoriteRepository } from '@/relisten/realm/root_services';
+import { ANONYMOUS_ACCOUNT_SCOPE_ID } from '@/relisten/realm/models/accounts';
 
 const logger = log.extend('LegacyDataMigrationModal');
 
@@ -56,7 +59,8 @@ export interface LegacyDataMigrationResult {
 export class LegacyDataMigrator {
   constructor(
     private api: RelistenApiClient,
-    private realm: Realm
+    private realm: Realm,
+    private favoriteRepository: FavoriteRepository
   ) {}
 
   public async migrateOfflineTrack(
@@ -130,6 +134,17 @@ export class LegacyDataMigrator {
           identifier: offlineTrack.track_uuid,
           success: true,
           migrated: false,
+        });
+        continue;
+      }
+
+      if (!sourceTrack.mp3Url) {
+        results.push({
+          type: 'offline_track',
+          identifier: offlineTrack.track_uuid,
+          success: false,
+          migrated: false,
+          message: 'Source track has no MP3 URL for legacy filename matching',
         });
         continue;
       }
@@ -218,12 +233,15 @@ export class LegacyDataMigrator {
         return (result.errors?.length ?? 0) > 0 || yearsBehavior.isLocalDataShowable(result.data);
       });
 
-      const alreadyMigrated = show.isFavorite === true;
+      const alreadyMigrated = this.favoriteRepository.isFavorite(
+        { catalogType: 'show', catalogUuid: show.uuid },
+        ANONYMOUS_ACCOUNT_SCOPE_ID
+      );
 
       if (!alreadyMigrated) {
-        this.realm.write(() => {
-          show.isFavorite = true;
-        });
+        this.favoriteRepository.setAnonymousFavorites([
+          { catalogType: 'show', catalogUuid: show.uuid, isFavorite: true },
+        ]);
       }
 
       return {
@@ -298,13 +316,16 @@ export class LegacyDataMigrator {
     const source = sources[0];
 
     if (show && source) {
-      const alreadyMigrated = source.isFavorite === true;
+      const alreadyMigrated = this.favoriteRepository.isFavorite(
+        { catalogType: 'source', catalogUuid: source.uuid },
+        ANONYMOUS_ACCOUNT_SCOPE_ID
+      );
 
       if (!alreadyMigrated) {
-        this.realm.write(() => {
-          show.isFavorite = true;
-          source.isFavorite = true;
-        });
+        this.favoriteRepository.setAnonymousFavorites([
+          { catalogType: 'show', catalogUuid: show.uuid, isFavorite: true },
+          { catalogType: 'source', catalogUuid: source.uuid, isFavorite: true },
+        ]);
       }
 
       return {
@@ -326,7 +347,7 @@ export class LegacyDataMigrator {
   }
 
   public async migrateFavoriteArtists(artistUuids: string[]): Promise<LegacyDataMigrationResult[]> {
-    const artistsBehavior = artistsNetworkBackedBehavior(this.realm, false, true, true);
+    const artistsBehavior = artistsNetworkBackedBehavior(this.realm, false, true, true, 'all');
     const { data: artists } = await NetworkBackedBehaviorExecutor.executeToFirstShowableData(
       artistsBehavior,
       this.api
@@ -334,31 +355,34 @@ export class LegacyDataMigrator {
 
     const artistByUuid = groupByUuid([...artists]);
 
-    const results: LegacyDataMigrationResult[] = this.realm.write(() => {
-      return artistUuids.map((uuid) => {
-        const artist = artistByUuid[uuid];
+    const results: LegacyDataMigrationResult[] = artistUuids.map((uuid) => {
+      const artist = artistByUuid[uuid];
 
-        if (artist) {
-          const alreadyMigrated = artist.isFavorite === true;
-          artist.isFavorite = true;
+      if (artist) {
+        const alreadyMigrated = this.favoriteRepository.isFavorite(
+          { catalogType: 'artist', catalogUuid: artist.uuid },
+          ANONYMOUS_ACCOUNT_SCOPE_ID
+        );
+        this.favoriteRepository.setAnonymousFavorites([
+          { catalogType: 'artist', catalogUuid: artist.uuid, isFavorite: true },
+        ]);
 
-          return {
-            type: 'artist',
-            identifier: artist.uuid,
-            success: true,
-            migrated: !alreadyMigrated,
-            message: artist.name,
-          };
-        } else {
-          return {
-            type: 'artist',
-            identifier: uuid,
-            success: false,
-            migrated: false,
-            message: 'Artist not found',
-          };
-        }
-      });
+        return {
+          type: 'artist',
+          identifier: artist.uuid,
+          success: true,
+          migrated: !alreadyMigrated,
+          message: artist.name,
+        };
+      } else {
+        return {
+          type: 'artist',
+          identifier: uuid,
+          success: false,
+          migrated: false,
+          message: 'Artist not found',
+        };
+      }
     });
 
     return results;
@@ -377,6 +401,7 @@ export function LegacyDataMigrationModal({
   const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
   const { apiClient } = useRelistenApi();
   const realm = useRealm();
+  const favoriteRepository = useFavoriteRepository();
 
   useEffect(() => {
     (async () => {
@@ -444,7 +469,7 @@ export function LegacyDataMigrationModal({
     }
 
     addProgress('Starting migration');
-    const migrator = new LegacyDataMigrator(apiClient, realm);
+    const migrator = new LegacyDataMigrator(apiClient, realm, favoriteRepository);
 
     if (legacyData.artistUuids.length > 0) {
       addProgress('Migrating artists...');

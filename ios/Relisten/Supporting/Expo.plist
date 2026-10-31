@@ -40,7 +40,7 @@ DkwMR+jRkQ==&#xD;
     <key>EXUpdatesRequestHeaders</key>
     <dict>
       <key>expo-channel-name</key>
-      <string>production</string>
+      <string>accounts-favorites-mobile</string>
     </dict>
     <key>EXUpdatesRuntimeVersion</key>
     <string>6.2.0+ios.6051</string>

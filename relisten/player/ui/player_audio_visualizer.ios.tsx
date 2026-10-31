@@ -13,7 +13,13 @@ type NativeSpectrumViewProps = ViewProps & {
 const NativeSpectrumView: ComponentType<NativeSpectrumViewProps> =
   requireNativeViewManager('RelistenAudioPlayer');
 
-export function PlayerAudioVisualizer({ active = true }: { active?: boolean }) {
+export function PlayerAudioVisualizer({
+  active = true,
+  compact = false,
+}: {
+  active?: boolean;
+  compact?: boolean;
+}) {
   const playbackState = useRelistenPlayerPlaybackState();
 
   return (
@@ -23,7 +29,7 @@ export function PlayerAudioVisualizer({ active = true }: { active?: boolean }) {
       active={active && playbackState === RelistenPlaybackState.Playing}
       color={RelistenBlue['200']}
       importantForAccessibility="no-hide-descendants"
-      style={{ aspectRatio: 5.5, width: '100%' }}
+      style={{ height: compact ? 10 : 16, width: '100%' }}
     />
   );
 }

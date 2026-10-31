@@ -7,7 +7,7 @@ export const BUILTIN_AUDIO_ADJUSTMENT_PRESETS = [
   {
     id: 'builtin:flat',
     name: 'Flat',
-    subtitle: 'No equalization or extra volume reduction',
+    subtitle: 'No equalization or volume adjustment',
     bandGainsDb: FLAT_AUDIO_ADJUSTMENT_BAND_GAINS,
     extraVolumeReductionDb: 0,
   },

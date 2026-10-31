@@ -46,6 +46,7 @@ export function createArtistsListTemplate(
     scope === 'offline',
     false,
     scope !== 'browse',
+    'all',
     behaviorOptions
   );
   const executor = artistsBehavior.sharedExecutor(ctx.apiClient);
@@ -103,7 +104,7 @@ export function createArtistsListTemplate(
 
   ctx.addTeardown(() => results.tearDown());
 
-  results.addListener((nextValue) => {
+  const updateSections = (nextValue: typeof results.currentValue) => {
     const isLoading = nextValue.isNetworkLoading;
     const artists = Array.from(nextValue.data || []);
 
@@ -136,7 +137,7 @@ export function createArtistsListTemplate(
       return;
     }
 
-    const favorites = sorted.filter((a) => a.isFavorite);
+    const favorites = sorted.filter((artist) => ctx.libraryIndex.isFavorite('artist', artist.uuid));
     const offline = sorted.filter((a) => ctx.libraryIndex.artistHasOfflineTracks(a.uuid));
     favoriteArtists = favorites;
 
@@ -206,7 +207,12 @@ export function createArtistsListTemplate(
     }
 
     template.updateSections(sections);
-  });
+  };
+
+  results.addListener(updateSections);
+  ctx.addTeardown(
+    ctx.libraryIndex.subscribeLibraryMembership(() => updateSections(results.currentValue))
+  );
 
   return template;
 }
@@ -241,6 +247,7 @@ function createYearsListTemplate(
   let selectedYear: Year | undefined;
   let detailExecutorTeardown: (() => void) | undefined;
   let detailResultsTeardown: (() => void) | undefined;
+  let detailLibraryIndexTeardown: (() => void) | undefined;
 
   const clearDetailBehavior = () => {
     if (detailResultsTeardown) {
@@ -251,6 +258,11 @@ function createYearsListTemplate(
     if (detailExecutorTeardown) {
       detailExecutorTeardown();
       detailExecutorTeardown = undefined;
+    }
+
+    if (detailLibraryIndexTeardown) {
+      detailLibraryIndexTeardown();
+      detailLibraryIndexTeardown = undefined;
     }
   };
 
@@ -324,9 +336,7 @@ function createYearsListTemplate(
     ]);
 
     const userFilters = {
-      isPlayableOffline: scope === 'offline' || scope === 'library' ? true : null,
-      isFavorite: scope === 'library' ? true : null,
-      operator: 'OR' as const,
+      isPlayableOffline: scope === 'offline' ? true : null,
     };
 
     const showsBehavior = createYearShowsNetworkBackedBehavior(
@@ -343,7 +353,7 @@ function createYearsListTemplate(
     detailExecutorTeardown = () => showsExecutor.tearDown();
     detailResultsTeardown = () => showsResults.tearDown();
 
-    showsResults.addListener((nextValue) => {
+    const updateShows = (nextValue: typeof showsResults.currentValue) => {
       if (currentMode !== 'shows' || selectedYear?.uuid !== year.uuid) {
         return;
       }
@@ -390,7 +400,14 @@ function createYearsListTemplate(
                 ],
         },
       ]);
-    });
+    };
+
+    showsResults.addListener(updateShows);
+    if (scope === 'library') {
+      detailLibraryIndexTeardown = ctx.libraryIndex.subscribeLibraryMembership(() =>
+        updateShows(showsResults.currentValue)
+      );
+    }
   };
 
   const showToday = () => {
@@ -562,7 +579,7 @@ function includeArtistForScope(ctx: RelistenCarPlayContext, scope: CarPlayScope,
     return ctx.libraryIndex.artistIsInLibrary(artist.uuid);
   }
 
-  return true;
+  return !artist.isAutomaticallyCreated() || ctx.libraryIndex.isFavorite('artist', artist.uuid);
 }
 
 function includeYearForScope(ctx: RelistenCarPlayContext, scope: CarPlayScope, year: Year) {

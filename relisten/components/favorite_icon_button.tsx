@@ -1,10 +1,15 @@
-import { LayoutAnimation, StyleSheet, TouchableOpacity, TouchableOpacityProps } from 'react-native';
+import {
+  type GestureResponderEvent,
+  LayoutAnimation,
+  StyleSheet,
+  TouchableOpacity,
+  TouchableOpacityProps,
+} from 'react-native';
 import React, { useCallback } from 'react';
-import { FavoritableObject } from '../realm/favoritable_object';
 import { DefaultLayoutAnimationConfig } from '../layout_animation_config';
-import { useRealm } from '../realm/schema';
-import { useForceUpdate } from '../util/forced_update';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import type { FavoriteCatalogType } from '@/relisten/realm/models/library';
+import { useFavorite } from '@/relisten/library/favorite_hooks';
 
 const styles = StyleSheet.create({
   container: {
@@ -21,18 +26,6 @@ const styles = StyleSheet.create({
   },
 });
 
-function toggleFavoriteObject<T extends FavoritableObject>(
-  realm: ReturnType<typeof useRealm>,
-  object: T,
-  forceUpdate: () => void
-) {
-  LayoutAnimation.configureNext(DefaultLayoutAnimationConfig);
-  realm.write(() => {
-    object.isFavorite = !object.isFavorite;
-    forceUpdate();
-  });
-}
-
 export const FavoriteIconButton: React.FC<{ isFavorited: boolean } & TouchableOpacityProps> = ({
   isFavorited,
   ...props
@@ -48,18 +41,56 @@ export const FavoriteIconButton: React.FC<{ isFavorited: boolean } & TouchableOp
   );
 };
 
-export const FavoriteObjectButton = <T extends FavoritableObject>({
+export const FavoriteObjectButton = <T extends { uuid: string }>({
   object,
+  catalogType,
+  onPress,
   ...props
-}: { object: T } & TouchableOpacityProps) => {
-  const realm = useRealm();
-  const forceUpdate = useForceUpdate();
+}: { object: T; catalogType?: FavoriteCatalogType } & TouchableOpacityProps) => {
+  const resolvedCatalogType = catalogType ?? catalogTypeForObject(object);
+  const favorite = useFavorite(resolvedCatalogType, object.uuid);
 
-  const favoriteOnPress = useCallback(() => {
-    toggleFavoriteObject(realm, object, forceUpdate);
-  }, [forceUpdate, object, realm]);
+  const favoriteOnPress = useCallback(
+    (event: GestureResponderEvent) => {
+      // Favorite controls usually live inside a navigable row. Keep a library
+      // change from also opening that row's destination.
+      event.stopPropagation();
+      LayoutAnimation.configureNext(DefaultLayoutAnimationConfig);
+      favorite.toggleFavorite();
+      onPress?.(event);
+    },
+    [favorite, onPress]
+  );
 
   return (
-    <FavoriteIconButton isFavorited={object.isFavorite} onPressOut={favoriteOnPress} {...props} />
+    <FavoriteIconButton
+      accessibilityLabel={favorite.isFavorite ? 'Remove from My Library' : 'Add to My Library'}
+      accessibilityRole="button"
+      accessibilityState={{ selected: favorite.isFavorite }}
+      hitSlop={8}
+      {...props}
+      isFavorited={favorite.isFavorite}
+      onPress={favoriteOnPress}
+    />
   );
 };
+
+const CATALOG_TYPE_BY_MODEL_NAME: Record<string, FavoriteCatalogType> = {
+  Artist: 'artist',
+  Show: 'show',
+  Source: 'source',
+  SourceTrack: 'source_track',
+  Song: 'song',
+  Tour: 'tour',
+  Venue: 'venue',
+};
+
+function catalogTypeForObject(object: { constructor: unknown }) {
+  const constructor = object.constructor as { name?: string; schema?: { name?: string } };
+  const modelName = constructor.schema?.name ?? constructor.name ?? '';
+  const catalogType = CATALOG_TYPE_BY_MODEL_NAME[modelName];
+  if (!catalogType) {
+    throw new Error(`FavoriteObjectButton does not support Realm model ${modelName}.`);
+  }
+  return catalogType;
+}
