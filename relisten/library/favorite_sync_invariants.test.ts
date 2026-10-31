@@ -1,24 +1,22 @@
+/// <reference types="node" />
 import assert from 'node:assert/strict';
-import test from 'node:test';
-import { sendFavoriteMutationBatchWithIsolation } from '../relisten/library/favorite_mutation_batch_isolation.ts';
+import { test } from 'vitest';
+import { sendFavoriteMutationBatchWithIsolation } from './favorite_mutation_batch_isolation';
 import {
   importUuidsSettledByCompaction,
   isTrulyUnsentFavoriteMutation,
-} from '../relisten/library/favorite_mutation_compaction.ts';
-import { earliestFutureRetryAt } from '../relisten/library/favorite_retry_schedule.ts';
+} from './favorite_mutation_compaction';
+import { earliestFutureRetryAt } from './favorite_retry_schedule';
 import {
   favoriteSyncPresentationState,
   resumedFavoriteSyncRunStatus,
-} from '../relisten/library/favorite_sync_presentation.ts';
-import { preferNewerUsernameProfile } from '../relisten/accounts/username_profile_monotonicity.ts';
-import { isPostgresUuid } from '../relisten/util/postgres_uuid.ts';
-import { anonymousFavoriteSourceFingerprint } from '../relisten/library/anonymous_favorite_import_fingerprint.ts';
-import { anonymousFavoriteImportState } from '../relisten/library/anonymous_favorite_import_state.ts';
-import { upsertResolvedCatalogDtos } from '../relisten/library/resolved_catalog_dto_updater.ts';
-import {
-  favoriteSyncStateSnapshot,
-  favoriteSyncStateView,
-} from '../relisten/library/favorite_sync_state_snapshot.ts';
+} from './favorite_sync_presentation';
+import { preferNewerUsernameProfile } from '@/relisten/accounts/username_profile_monotonicity';
+import { isPostgresUuid } from '@/relisten/util/postgres_uuid';
+import { anonymousFavoriteSourceFingerprint } from './anonymous_favorite_import_fingerprint';
+import { anonymousFavoriteImportState } from './anonymous_favorite_import_state';
+import { upsertResolvedCatalogDtos } from './resolved_catalog_dto_updater';
+import { favoriteSyncStateSnapshot, favoriteSyncStateView } from './favorite_sync_state_snapshot';
 
 test('favorite sync snapshots change when a live Realm object is mutated in place', () => {
   const state = {
@@ -322,7 +320,7 @@ function accountProfile(usernameVersion: number, username: string) {
     usernameReviewNeeded: false,
     usernameReviewedAt: new Date('2026-07-19T12:00:00Z'),
     usernameChangeAvailableAt: null,
-    nativeSessionId: '019b6ce0-d644-7000-8000-000000000002',
+    nativeSessionId: 'session_01kdpw1nj4e008000000000002',
     lastSyncedAt: new Date('2026-07-19T12:00:00Z'),
   };
 }

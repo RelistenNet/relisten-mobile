@@ -10,18 +10,6 @@ export interface FavoriteTarget {
   id: string;
 }
 
-export const CATALOG_FAVORITE_TARGET_KINDS = [
-  'artist',
-  'show',
-  'source',
-  'track',
-  'imported_song',
-  'imported_venue',
-  'tour',
-] as const satisfies readonly FavoriteTargetKind[];
-
-export type CatalogFavoriteTargetKind = (typeof CATALOG_FAVORITE_TARGET_KINDS)[number];
-
 export type V3FavoriteCatalogType =
   | 'artist'
   | 'show'
@@ -36,7 +24,7 @@ export interface V3FavoriteCatalogReference {
   catalog_uuid: string;
 }
 
-const V3_TYPE_BY_TARGET_KIND: Record<CatalogFavoriteTargetKind, V3FavoriteCatalogType> = {
+const V3_TYPE_BY_TARGET_KIND = {
   artist: 'artist',
   show: 'show',
   source: 'source',
@@ -44,7 +32,9 @@ const V3_TYPE_BY_TARGET_KIND: Record<CatalogFavoriteTargetKind, V3FavoriteCatalo
   imported_song: 'song',
   imported_venue: 'venue',
   tour: 'tour',
-};
+} as const satisfies Partial<Record<FavoriteTargetKind, V3FavoriteCatalogType>>;
+
+export type CatalogFavoriteTargetKind = keyof typeof V3_TYPE_BY_TARGET_KIND;
 
 const TARGET_KIND_BY_V3_TYPE: Record<V3FavoriteCatalogType, CatalogFavoriteTargetKind> = {
   artist: 'artist',
@@ -117,7 +107,7 @@ export function favoriteTargetKey(target: FavoriteTarget) {
 }
 
 function isCatalogFavoriteTargetKind(kind: FavoriteTargetKind): kind is CatalogFavoriteTargetKind {
-  return CATALOG_FAVORITE_TARGET_KINDS.includes(kind as CatalogFavoriteTargetKind);
+  return Object.hasOwn(V3_TYPE_BY_TARGET_KIND, kind);
 }
 
 function isShortTargetId(value: string, expectedKind: 'song' | 'venue') {

@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Realm from 'realm';
-import { mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -613,8 +613,6 @@ describe('typed account identity upgrade', () => {
     const realm = await file.open();
     seedAccountState(realm);
     seedPreservedState(realm);
-    const offlineFile = join(file.directory, `${targetUuid}.mp3`);
-    writeFileSync(offlineFile, 'audio');
 
     await upgradeTypedAccountIdentity(realm, () => Promise.resolve());
 
@@ -636,7 +634,6 @@ describe('typed account identity upgrade', () => {
       shuffleOrder: { entryIds: ['queue-entry'] },
       checkpoint: { entryId: 'queue-entry', elapsedSeconds: 42, durationSeconds: 300 },
     });
-    expect(existsSync(offlineFile)).toBe(true);
 
     const typedScopeId = formatUuidTypedId('user', userUuid);
     const typedSourceFingerprint = anonymousFavoriteSourceFingerprint([

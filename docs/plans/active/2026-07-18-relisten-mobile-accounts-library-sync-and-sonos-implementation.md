@@ -65,7 +65,7 @@ Public playlist URLs are stable identifiers and may be copied normally. Private 
 - Observation: the app already depends on `expo-web-browser`, `expo-linking`, `expo-secure-store`, and claims `relisten.net`, but its Android intent filter currently captures every path on every Relisten subdomain. Consequence: the native pieces exist, but callback ownership must be narrowed before authentication ships.
 - Observation: Last.fm has its own initial-link, warm-link, and foreground listener. Consequence: add one typed deep-link router and route Last.fm through it instead of adding another competing listener.
 - Observation: Cast already forces remote streaming URLs and loads a queue snapshot, and CarPlay reads Realm and `LibraryIndex` directly. Consequence: both integrations can consume the new scope and queue boundaries without becoming separate sync implementations.
-- Observation: focused favorite invariants run through Node's built-in test runner as `yarn test:favorites`. Consequence: keep adding tests only where they protect an expensive contract or persistence failure.
+- Observation: favorite invariants run beside the feature in the shared Vitest suite through `yarn test`. Consequence: keep adding tests only where they protect an expensive contract or persistence failure.
 - Observation: there is no Sonos Control or Sonos account code in this repository. The only Sonos string in playback is an album-art hostname. Consequence: implement Sonos as a new narrow integration rather than adapting an imaginary existing controller.
 
 ## Decision Log
@@ -253,7 +253,7 @@ The full database backup/restore rehearsal remains a broad-public-rollout gate. 
 The implemented account and catalog-resolver clients use explicit checked-in TypeScript contracts. Add generation only when the repository has a real generator and source schema. The current automated gates are:
 
 ```bash
-yarn test:favorites
+yarn test
 yarn ts:check
 yarn lint
 git diff --check
@@ -714,7 +714,7 @@ yarn add uuid
 Run the implemented account/favorite slice's narrow proof first:
 
 ```bash
-yarn test:favorites
+yarn test
 yarn ts:check
 yarn lint
 git diff --check
@@ -854,7 +854,7 @@ These are product invariants, not a demand for one automated test per bullet. Ap
 ### Quality gates
 
 ```bash
-yarn test:favorites
+yarn test
 yarn ts:check
 yarn lint
 git diff --check

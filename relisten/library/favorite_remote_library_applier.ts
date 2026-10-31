@@ -16,7 +16,6 @@ import {
   FavoriteLibrarySnapshot,
   FavoriteMutationBatchRequest,
   FavoriteMutationBatchResponse,
-  FavoriteSnapshotItem,
   parseFavoriteServerDate,
   validateFavoriteChanges,
   validateFavoriteMutationResponse,
@@ -48,9 +47,9 @@ export class FavoriteRemoteLibraryApplier {
           throw new Error('A favorite mutation disappeared before its receipt was applied.');
         }
 
-        const favorite = this.canonicalizeFavorite(
+        const favorite = this.ensureCanonicalFavorite(
           capture.scopeId,
-          mutation,
+          { kind: mutation.targetKind, id: mutation.targetId },
           result.canonical_favorite_id ?? mutation.favoriteId,
           now
         );
@@ -79,11 +78,6 @@ export class FavoriteRemoteLibraryApplier {
         for (const importUuid of importUuids) {
           this.completeImportWhenSettled(importUuid, now);
         }
-
-        syncState.highestObservedLibraryRevision = Math.max(
-          syncState.highestObservedLibraryRevision,
-          result.library_revision
-        );
       }
 
       syncState.highestObservedLibraryRevision = Math.max(
@@ -118,7 +112,12 @@ export class FavoriteRemoteLibraryApplier {
       }
 
       for (const item of snapshot.favorites) {
-        const favorite = this.canonicalizeSnapshotItem(capture.scopeId, item, now);
+        const favorite = this.ensureCanonicalFavorite(
+          capture.scopeId,
+          item.target,
+          item.favorite_id,
+          now
+        );
         if ((favorite.acknowledgedRevision ?? -1) <= snapshot.library_revision) {
           favorite.acknowledgedPresent = true;
           favorite.acknowledgedRevision = snapshot.library_revision;
@@ -163,7 +162,6 @@ export class FavoriteRemoteLibraryApplier {
           capture.scopeId,
           target,
           change.favorite_id,
-          this.repository.favoriteForTarget(capture.scopeId, target),
           now
         );
 
@@ -179,50 +177,20 @@ export class FavoriteRemoteLibraryApplier {
       syncState.libraryCursor = page.next_cursor;
       syncState.highestObservedLibraryRevision = Math.max(
         syncState.highestObservedLibraryRevision,
-        page.library_revision,
-        ...orderedChanges.map((change) => change.revision)
+        page.library_revision
       );
       syncState.lastSuccessfulSyncAt = now;
       syncState.updatedAt = now;
     });
   }
 
-  private canonicalizeSnapshotItem(scopeId: string, item: FavoriteSnapshotItem, now: Date) {
-    const target = item.target;
-    return this.ensureCanonicalFavorite(
-      scopeId,
-      target,
-      item.favorite_id,
-      this.repository.favoriteForTarget(scopeId, target),
-      now
-    );
-  }
-
-  private canonicalizeFavorite(
-    scopeId: string,
-    mutation: FavoriteMutation,
-    canonicalFavoriteId: string,
-    now: Date
-  ) {
-    return this.ensureCanonicalFavorite(
-      scopeId,
-      { kind: mutation.targetKind, id: mutation.targetId },
-      canonicalFavoriteId,
-      this.repository.favoriteForTarget(scopeId, {
-        kind: mutation.targetKind,
-        id: mutation.targetId,
-      }),
-      now
-    );
-  }
-
   private ensureCanonicalFavorite(
     scopeId: string,
     target: FavoriteTarget,
     canonicalFavoriteId: string,
-    naturalFavorite: UserFavorite | undefined,
     now: Date
   ) {
+    const naturalFavorite = this.repository.favoriteForTarget(scopeId, target);
     const realm = this.repository.realm;
     let canonical = realm.objectForPrimaryKey(UserFavorite, canonicalFavoriteId) ?? undefined;
 
