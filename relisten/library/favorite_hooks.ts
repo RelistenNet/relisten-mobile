@@ -3,13 +3,16 @@ import { useAccountScope } from '@/relisten/accounts/account_context';
 import { requireInstallationUuid } from '@/relisten/accounts/auth/installation_id';
 import {
   AnonymousFavoriteImport,
-  FavoriteCatalogType,
   FavoriteMutation,
   FavoriteMutationState,
   FavoriteSyncRunStatus,
   FavoriteSyncState,
   UserFavorite,
 } from '@/relisten/realm/models/library';
+import {
+  CatalogFavoriteTargetKind,
+  favoriteTargetForCatalogUuid,
+} from '@/relisten/library/favorite_catalog_target';
 import { ANONYMOUS_ACCOUNT_SCOPE_ID } from '@/relisten/realm/models/accounts';
 import { useQuery } from '@/relisten/realm/schema';
 import {
@@ -36,28 +39,30 @@ export interface FavoriteState {
   toggleFavorite(): void;
 }
 
-export function useFavorite(catalogType: FavoriteCatalogType, catalogUuid: string): FavoriteState {
+export function useFavorite(
+  targetKind: CatalogFavoriteTargetKind,
+  catalogUuid: string
+): FavoriteState {
   const repository = useFavoriteRepository();
   const libraryIndex = useRootLibraryIndex();
 
   const subscribe = useCallback(
-    (listener: () => void) => libraryIndex.subscribeFavorite(catalogType, catalogUuid, listener),
-    [catalogType, catalogUuid, libraryIndex]
+    (listener: () => void) => libraryIndex.subscribeFavorite(targetKind, catalogUuid, listener),
+    [targetKind, catalogUuid, libraryIndex]
   );
   const getSnapshot = useCallback(
-    () => libraryIndex.isFavorite(catalogType, catalogUuid),
-    [catalogType, catalogUuid, libraryIndex]
+    () => libraryIndex.isFavorite(targetKind, catalogUuid),
+    [targetKind, catalogUuid, libraryIndex]
   );
   const isFavorite = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const setFavorite = useCallback(
     (nextFavorite: boolean) => {
       repository.setFavorite({
-        catalogType,
-        catalogUuid,
+        ...favoriteTargetForCatalogUuid(targetKind, catalogUuid),
         isFavorite: nextFavorite,
       });
     },
-    [catalogType, catalogUuid, repository]
+    [targetKind, catalogUuid, repository]
   );
   const toggleFavorite = useCallback(() => {
     setFavorite(!isFavorite);

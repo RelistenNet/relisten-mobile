@@ -5,6 +5,7 @@ import {
   SecureValueResult,
   writeSecureJson,
 } from './secure_storage';
+import { isUuidV7TypedId } from '@/relisten/util/typed_uuid_id';
 
 const REFRESH_TOKEN_STORAGE_KEY = 'relisten.account.refresh-token.v1';
 
@@ -20,8 +21,8 @@ function isRefreshTokenEnvelope(value: unknown): value is RefreshTokenEnvelope {
     candidate.refreshToken.length > 0 &&
     typeof candidate.issuer === 'string' &&
     typeof candidate.clientId === 'string' &&
-    typeof candidate.userUuid === 'string' &&
-    typeof candidate.nativeSessionId === 'string'
+    isUuidV7TypedId(candidate.userId, 'user') &&
+    isUuidV7TypedId(candidate.nativeSessionId, 'session')
   );
 }
 
@@ -33,7 +34,6 @@ export async function readRefreshTokenEnvelope(): Promise<SecureValueResult<Refr
   }
 
   if (!isRefreshTokenEnvelope(result.value)) {
-    await clearRefreshTokenEnvelope();
     return { state: 'missing' };
   }
 

@@ -164,7 +164,7 @@ const VenueList = ({
   const libraryIndex = useRootLibraryIndex();
   const libraryMembershipRevision = useLibraryMembershipRevision();
   const filters = useMemo(
-    () => venueFilters((uuid) => libraryIndex.isFavorite('venue', uuid)),
+    () => venueFilters((uuid) => libraryIndex.isFavorite('imported_venue', uuid)),
     [libraryIndex, libraryMembershipRevision]
   );
 

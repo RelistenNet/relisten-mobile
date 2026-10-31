@@ -2,7 +2,7 @@ import Realm from 'realm';
 
 export class AccountProfile extends Realm.Object<AccountProfile> {
   scopeId!: string;
-  userUuid!: string;
+  userId!: string;
   username!: string;
   usernameVersion!: number;
   usernameReviewNeeded!: boolean;
@@ -16,7 +16,7 @@ export class AccountProfile extends Realm.Object<AccountProfile> {
     primaryKey: 'scopeId',
     properties: {
       scopeId: 'string',
-      userUuid: 'string',
+      userId: 'string',
       username: 'string',
       usernameVersion: 'int',
       usernameReviewNeeded: 'bool',

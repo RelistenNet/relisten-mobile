@@ -7,8 +7,8 @@ const PRESENTED_KEY_PREFIX = 'relisten.account.initial-username-review.v1';
  * This installation marker distinguishes the first post-sign-in presentation from the
  * reminder card, including when the app is relaunched into a cold OAuth callback.
  */
-export async function claimInitialUsernameReviewPresentation(userUuid: string) {
-  const key = `${PRESENTED_KEY_PREFIX}.${userUuid}`;
+export async function claimInitialUsernameReviewPresentation(userId: string) {
+  const key = `${PRESENTED_KEY_PREFIX}.${userId}`;
 
   try {
     if (await AsyncStorage.getItem(key)) {

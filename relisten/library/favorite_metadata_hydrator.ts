@@ -9,8 +9,12 @@ import {
   FavoriteAccountScopeCapture,
   FavoriteRepository,
 } from '@/relisten/library/favorite_repository';
+import {
+  catalogReferenceForFavoriteTarget,
+  favoriteTargetForCatalogReference,
+} from '@/relisten/library/favorite_catalog_target';
 import { Artist } from '@/relisten/realm/models/artist';
-import { FavoriteCatalogType, UserFavorite } from '@/relisten/realm/models/library';
+import { UserFavorite } from '@/relisten/realm/models/library';
 import { Show } from '@/relisten/realm/models/show';
 import { Song } from '@/relisten/realm/models/song';
 import { Source } from '@/relisten/realm/models/source';
@@ -79,11 +83,12 @@ export class FavoriteMetadataHydrator {
       .filtered('scopeId == $0 AND effectivePresent == true', capture.scopeId);
 
     for (const favorite of favorites) {
-      if (!this.hasRequiredMetadata(favorite)) {
-        references.set(targetKey(favorite), {
-          catalog_type: favorite.catalogType,
-          catalog_uuid: favorite.catalogUuid,
-        });
+      const reference = catalogReferenceForFavoriteTarget({
+        kind: favorite.targetKind,
+        id: favorite.targetId,
+      });
+      if (reference && !this.hasRequiredMetadata(reference)) {
+        references.set(targetKey(reference), reference);
       }
     }
 
@@ -95,10 +100,10 @@ export class FavoriteMetadataHydrator {
     reference: CatalogReferenceRequest
   ) {
     return (
-      this.repository.favoriteForTarget(capture.scopeId, {
-        catalogType: reference.catalog_type,
-        catalogUuid: reference.catalog_uuid,
-      })?.effectivePresent === true
+      this.repository.favoriteForTarget(
+        capture.scopeId,
+        favoriteTargetForCatalogReference(reference)
+      )?.effectivePresent === true
     );
   }
 
@@ -123,40 +128,37 @@ export class FavoriteMetadataHydrator {
     });
   }
 
-  private hasRequiredMetadata(reference: {
-    catalogType: FavoriteCatalogType;
-    catalogUuid: string;
-  }) {
+  private hasRequiredMetadata(reference: CatalogReferenceRequest) {
     const realm = this.repository.realm;
 
     // A child row by itself is not enough to render My Library. Resolver
     // responses include these shallow parents, so ask again when an older or
     // partial local catalog has the favorite but not the graph it projects to.
-    if (reference.catalogType === 'source') {
-      const source = realm.objectForPrimaryKey(Source, reference.catalogUuid);
+    if (reference.catalog_type === 'source') {
+      const source = realm.objectForPrimaryKey(Source, reference.catalog_uuid);
       return isActiveCatalogObject(source) && this.hasShowMetadata(source.showUuid);
     }
-    if (reference.catalogType === 'source_track') {
-      const track = realm.objectForPrimaryKey(SourceTrack, reference.catalogUuid);
+    if (reference.catalog_type === 'source_track') {
+      const track = realm.objectForPrimaryKey(SourceTrack, reference.catalog_uuid);
       return isActiveCatalogObject(track) && this.hasShowMetadata(track.showUuid);
     }
-    if (reference.catalogType === 'show') {
-      return this.hasShowMetadata(reference.catalogUuid);
+    if (reference.catalog_type === 'show') {
+      return this.hasShowMetadata(reference.catalog_uuid);
     }
-    if (reference.catalogType === 'song') {
-      const song = realm.objectForPrimaryKey(Song, reference.catalogUuid);
+    if (reference.catalog_type === 'song') {
+      const song = realm.objectForPrimaryKey(Song, reference.catalog_uuid);
       return isActiveCatalogObject(song) && this.hasArtistMetadata(song.artistUuid);
     }
-    if (reference.catalogType === 'tour') {
-      const tour = realm.objectForPrimaryKey(Tour, reference.catalogUuid);
+    if (reference.catalog_type === 'tour') {
+      const tour = realm.objectForPrimaryKey(Tour, reference.catalog_uuid);
       return isActiveCatalogObject(tour) && this.hasArtistMetadata(tour.artistUuid);
     }
-    if (reference.catalogType === 'venue') {
-      const venue = realm.objectForPrimaryKey(Venue, reference.catalogUuid);
+    if (reference.catalog_type === 'venue') {
+      const venue = realm.objectForPrimaryKey(Venue, reference.catalog_uuid);
       return isActiveCatalogObject(venue) && this.hasArtistMetadata(venue.artistUuid);
     }
 
-    return this.hasArtistMetadata(reference.catalogUuid);
+    return this.hasArtistMetadata(reference.catalog_uuid);
   }
 
   private hasShowMetadata(showUuid: string) {
@@ -206,13 +208,8 @@ function validateResponse(
   }
 }
 
-function targetKey(reference: {
-  catalogType?: FavoriteCatalogType;
-  catalogUuid?: string;
-  catalog_type?: FavoriteCatalogType;
-  catalog_uuid?: string;
-}) {
-  return `${reference.catalogType ?? reference.catalog_type}:${reference.catalogUuid ?? reference.catalog_uuid}`;
+function targetKey(reference: CatalogReferenceRequest) {
+  return `${reference.catalog_type}:${reference.catalog_uuid}`;
 }
 
 function errorName(error: unknown) {

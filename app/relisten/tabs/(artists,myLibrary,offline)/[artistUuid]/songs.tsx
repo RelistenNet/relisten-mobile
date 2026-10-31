@@ -161,7 +161,7 @@ const SongList = ({
   const libraryIndex = useRootLibraryIndex();
   const libraryMembershipRevision = useLibraryMembershipRevision();
   const filters = useMemo(
-    () => songFilters((uuid) => libraryIndex.isFavorite('song', uuid)),
+    () => songFilters((uuid) => libraryIndex.isFavorite('imported_song', uuid)),
     [libraryIndex, libraryMembershipRevision]
   );
 

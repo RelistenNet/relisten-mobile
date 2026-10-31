@@ -2,7 +2,7 @@ import Realm from 'realm';
 
 export class PendingUsernameCommand extends Realm.Object<PendingUsernameCommand> {
   scopeId!: string;
-  commandUuid!: string;
+  commandId!: string;
   expectedUsernameVersion!: number;
   username!: string;
   createdAt!: Date;
@@ -12,7 +12,7 @@ export class PendingUsernameCommand extends Realm.Object<PendingUsernameCommand>
     primaryKey: 'scopeId',
     properties: {
       scopeId: 'string',
-      commandUuid: 'string',
+      commandId: 'string',
       expectedUsernameVersion: 'int',
       username: 'string',
       createdAt: 'date',

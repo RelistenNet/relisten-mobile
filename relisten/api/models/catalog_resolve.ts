@@ -7,12 +7,9 @@ import type { SourceTrack } from '@/relisten/api/models/source_tracks';
 import type { TourWithShowCount } from '@/relisten/api/models/tour';
 import type { VenueWithShowCounts } from '@/relisten/api/models/venue';
 import type { Year } from '@/relisten/api/models/year';
-import type { FavoriteCatalogType } from '@/relisten/realm/models/library';
+import type { V3FavoriteCatalogReference } from '@/relisten/library/favorite_catalog_target';
 
-export interface CatalogReferenceRequest {
-  catalog_type: FavoriteCatalogType;
-  catalog_uuid: string;
-}
+export type CatalogReferenceRequest = V3FavoriteCatalogReference;
 
 export interface CatalogResolveRequest {
   contract_version: 1;

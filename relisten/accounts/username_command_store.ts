@@ -1,11 +1,11 @@
 import Realm from 'realm';
 import { AccountScopeCapture, StaleAccountScopeError } from './account_scope_store';
 import { PendingUsernameCommand } from '@/relisten/realm/models/accounts';
-import { createUuidV7 } from '@/relisten/util/uuid_v7';
+import { createUuidV7TypedId } from '@/relisten/util/typed_uuid_id';
 
 export interface UsernameCommandSnapshot {
   scopeId: string;
-  commandUuid: string;
+  commandId: string;
   expectedUsernameVersion: number;
   username: string;
 }
@@ -13,7 +13,7 @@ export interface UsernameCommandSnapshot {
 function snapshot(command: PendingUsernameCommand): UsernameCommandSnapshot {
   return {
     scopeId: command.scopeId,
-    commandUuid: command.commandUuid,
+    commandId: command.commandId,
     expectedUsernameVersion: command.expectedUsernameVersion,
     username: command.username,
   };
@@ -34,7 +34,7 @@ export class UsernameCommandStore {
 
     const command: UsernameCommandSnapshot = {
       scopeId: capture.scopeId,
-      commandUuid: createUuidV7(),
+      commandId: createUuidV7TypedId('command'),
       expectedUsernameVersion: expectedVersion,
       username,
     };
@@ -52,7 +52,7 @@ export class UsernameCommandStore {
   clear(command: UsernameCommandSnapshot) {
     const stored = this.realm.objectForPrimaryKey(PendingUsernameCommand, command.scopeId);
 
-    if (!stored || stored.commandUuid !== command.commandUuid) {
+    if (!stored || stored.commandId !== command.commandId) {
       return;
     }
 

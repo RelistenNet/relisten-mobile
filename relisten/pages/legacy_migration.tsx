@@ -41,6 +41,7 @@ import { useRelistenApi } from '@/relisten/api/context';
 import { yearsNetworkBackedModelArrayBehavior } from '@/relisten/realm/models/year_repo';
 import RelistenWhite from '@/assets/relisten_white.png';
 import { FavoriteRepository } from '@/relisten/library/favorite_repository';
+import { favoriteTargetForCatalogUuid } from '@/relisten/library/favorite_catalog_target';
 import { useFavoriteRepository } from '@/relisten/realm/root_services';
 import { ANONYMOUS_ACCOUNT_SCOPE_ID } from '@/relisten/realm/models/accounts';
 
@@ -234,13 +235,13 @@ export class LegacyDataMigrator {
       });
 
       const alreadyMigrated = this.favoriteRepository.isFavorite(
-        { catalogType: 'show', catalogUuid: show.uuid },
+        favoriteTargetForCatalogUuid('show', show.uuid),
         ANONYMOUS_ACCOUNT_SCOPE_ID
       );
 
       if (!alreadyMigrated) {
         this.favoriteRepository.setAnonymousFavorites([
-          { catalogType: 'show', catalogUuid: show.uuid, isFavorite: true },
+          { ...favoriteTargetForCatalogUuid('show', show.uuid), isFavorite: true },
         ]);
       }
 
@@ -317,14 +318,14 @@ export class LegacyDataMigrator {
 
     if (show && source) {
       const alreadyMigrated = this.favoriteRepository.isFavorite(
-        { catalogType: 'source', catalogUuid: source.uuid },
+        favoriteTargetForCatalogUuid('source', source.uuid),
         ANONYMOUS_ACCOUNT_SCOPE_ID
       );
 
       if (!alreadyMigrated) {
         this.favoriteRepository.setAnonymousFavorites([
-          { catalogType: 'show', catalogUuid: show.uuid, isFavorite: true },
-          { catalogType: 'source', catalogUuid: source.uuid, isFavorite: true },
+          { ...favoriteTargetForCatalogUuid('show', show.uuid), isFavorite: true },
+          { ...favoriteTargetForCatalogUuid('source', source.uuid), isFavorite: true },
         ]);
       }
 
@@ -360,11 +361,11 @@ export class LegacyDataMigrator {
 
       if (artist) {
         const alreadyMigrated = this.favoriteRepository.isFavorite(
-          { catalogType: 'artist', catalogUuid: artist.uuid },
+          favoriteTargetForCatalogUuid('artist', artist.uuid),
           ANONYMOUS_ACCOUNT_SCOPE_ID
         );
         this.favoriteRepository.setAnonymousFavorites([
-          { catalogType: 'artist', catalogUuid: artist.uuid, isFavorite: true },
+          { ...favoriteTargetForCatalogUuid('artist', artist.uuid), isFavorite: true },
         ]);
 
         return {

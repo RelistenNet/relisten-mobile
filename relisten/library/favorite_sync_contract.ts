@@ -1,21 +1,22 @@
-import type { FavoriteCatalogType } from '@/relisten/realm/models/library';
-import { isPostgresUuid } from '@/relisten/util/postgres_uuid';
-import { isUuidV7 } from '@/relisten/util/uuid_v7';
+import {
+  FavoriteTarget,
+  favoriteTargetKey,
+  isFavoriteTarget,
+} from '@/relisten/library/favorite_catalog_target';
+import { isUuidV7TypedId } from '@/relisten/util/typed_uuid_id';
 
 export type FavoriteDesiredState = 'favorite' | 'not_favorite';
 
 export type FavoriteMutationRequestItem =
   | {
-      mutation_uuid: string;
-      catalog_type: FavoriteCatalogType;
-      catalog_uuid: string;
+      mutation_id: string;
+      target: FavoriteTarget;
       desired_state: 'favorite';
-      favorite_uuid: string;
+      favorite_id: string;
     }
   | {
-      mutation_uuid: string;
-      catalog_type: FavoriteCatalogType;
-      catalog_uuid: string;
+      mutation_id: string;
+      target: FavoriteTarget;
       desired_state: 'not_favorite';
     };
 
@@ -25,13 +26,12 @@ export interface FavoriteMutationBatchRequest {
 }
 
 export interface FavoriteMutationResult {
-  mutation_uuid: string;
-  catalog_type: FavoriteCatalogType;
-  catalog_uuid: string;
+  mutation_id: string;
+  target: FavoriteTarget;
   desired_state: FavoriteDesiredState;
   changed: boolean;
-  submitted_favorite_uuid: string | null;
-  canonical_favorite_uuid: string | null;
+  submitted_favorite_id: string | null;
+  canonical_favorite_id: string | null;
   library_revision: number;
 }
 
@@ -42,9 +42,8 @@ export interface FavoriteMutationBatchResponse {
 }
 
 export interface FavoriteSnapshotItem {
-  favorite_uuid: string;
-  catalog_type: FavoriteCatalogType;
-  catalog_uuid: string;
+  favorite_id: string;
+  target: FavoriteTarget;
   created_at: string;
   updated_at: string;
 }
@@ -57,12 +56,11 @@ export interface FavoriteLibrarySnapshot {
 }
 
 export interface FavoriteLibraryChange {
-  change_uuid: string;
+  change_id: string;
   revision: number;
   change_type: 'favorite_added' | 'favorite_removed';
-  favorite_uuid: string;
-  catalog_type: FavoriteCatalogType;
-  catalog_uuid: string;
+  favorite_id: string;
+  target: FavoriteTarget;
   changed_at: string;
 }
 
@@ -74,20 +72,10 @@ export interface FavoriteLibraryChanges {
   has_more: boolean;
 }
 
-const CATALOG_TYPES = new Set<FavoriteCatalogType>([
-  'artist',
-  'show',
-  'source',
-  'source_track',
-  'song',
-  'tour',
-  'venue',
-]);
-
 /**
  * Network responses are untrusted even though the request client is generic.
  * These checks protect the durable outbox from accepting a partial receipt or
- * applying a server row to a different catalog target.
+ * applying a server row to a different exact target.
  */
 export function validateFavoriteMutationResponse(
   request: FavoriteMutationBatchRequest,
@@ -96,54 +84,54 @@ export function validateFavoriteMutationResponse(
   assertContractVersion(response.contract_version);
   assertRevision(response.library_revision);
 
-  if (response.results.length !== request.mutations.length) {
+  if (!Array.isArray(response.results) || response.results.length !== request.mutations.length) {
     throw new Error('The favorite response does not contain one receipt per mutation.');
   }
 
   const expected = new Map(
     request.mutations.map((mutation) => {
-      assertUserDataUuid(mutation.mutation_uuid);
+      assertAccountId(mutation.mutation_id, 'mutation');
+      assertTarget(mutation.target);
       if (mutation.desired_state === 'favorite') {
-        assertUserDataUuid(mutation.favorite_uuid);
+        assertAccountId(mutation.favorite_id, 'favorite');
       }
-      return [mutation.mutation_uuid, mutation];
+      return [mutation.mutation_id, mutation];
     })
   );
   const seen = new Set<string>();
 
   for (const result of response.results) {
-    const mutation = expected.get(result.mutation_uuid);
-    if (!mutation || seen.has(result.mutation_uuid)) {
-      throw new Error('The favorite response contains an unknown or duplicate mutation UUID.');
+    const mutation = expected.get(result.mutation_id);
+    if (!mutation || seen.has(result.mutation_id)) {
+      throw new Error('The favorite response contains an unknown or duplicate mutation ID.');
     }
-    seen.add(result.mutation_uuid);
-    assertCatalogTarget(result.catalog_type, result.catalog_uuid);
+    seen.add(result.mutation_id);
+    assertTarget(result.target);
     assertRevision(result.library_revision);
     if (typeof result.changed !== 'boolean') {
       throw new Error('The favorite response contains an invalid changed value.');
     }
-    if (result.submitted_favorite_uuid !== null) {
-      assertUserDataUuid(result.submitted_favorite_uuid);
+    if (result.submitted_favorite_id !== null) {
+      assertAccountId(result.submitted_favorite_id, 'favorite');
     }
-    if (result.canonical_favorite_uuid !== null) {
-      assertUserDataUuid(result.canonical_favorite_uuid);
+    if (result.canonical_favorite_id !== null) {
+      assertAccountId(result.canonical_favorite_id, 'favorite');
     }
 
     if (
-      mutation.catalog_type !== result.catalog_type ||
-      mutation.catalog_uuid !== result.catalog_uuid ||
+      favoriteTargetKey(mutation.target) !== favoriteTargetKey(result.target) ||
       mutation.desired_state !== result.desired_state
     ) {
       throw new Error('The favorite response does not match its submitted mutation.');
     }
     if (
       mutation.desired_state === 'favorite' &&
-      (result.submitted_favorite_uuid !== mutation.favorite_uuid || !result.canonical_favorite_uuid)
+      (result.submitted_favorite_id !== mutation.favorite_id || !result.canonical_favorite_id)
     ) {
-      throw new Error('A favorite receipt is missing its submitted or canonical favorite UUID.');
+      throw new Error('A favorite receipt is missing its submitted or canonical favorite ID.');
     }
-    if (mutation.desired_state === 'not_favorite' && result.submitted_favorite_uuid !== null) {
-      throw new Error('A favorite removal receipt contains a submitted favorite UUID.');
+    if (mutation.desired_state === 'not_favorite' && result.submitted_favorite_id !== null) {
+      throw new Error('A favorite removal receipt contains a submitted favorite ID.');
     }
     if (result.library_revision > response.library_revision) {
       throw new Error('A favorite receipt revision exceeds the response revision.');
@@ -155,20 +143,23 @@ export function validateFavoriteSnapshot(snapshot: FavoriteLibrarySnapshot) {
   assertContractVersion(snapshot.contract_version);
   assertRevision(snapshot.library_revision);
   assertCursor(snapshot.next_cursor);
+  if (!Array.isArray(snapshot.favorites)) {
+    throw new Error('The favorite snapshot is missing its memberships.');
+  }
 
   const targets = new Set<string>();
-  const favoriteUuids = new Set<string>();
+  const favoriteIds = new Set<string>();
   for (const item of snapshot.favorites) {
-    assertCatalogTarget(item.catalog_type, item.catalog_uuid);
-    assertUserDataUuid(item.favorite_uuid);
+    assertTarget(item.target);
+    assertAccountId(item.favorite_id, 'favorite');
     parseFavoriteServerDate(item.created_at);
     parseFavoriteServerDate(item.updated_at);
-    const key = favoriteTargetKey(item.catalog_type, item.catalog_uuid);
-    if (targets.has(key) || favoriteUuids.has(item.favorite_uuid)) {
+    const key = favoriteTargetKey(item.target);
+    if (targets.has(key) || favoriteIds.has(item.favorite_id)) {
       throw new Error('The favorite snapshot contains duplicate membership.');
     }
     targets.add(key);
-    favoriteUuids.add(item.favorite_uuid);
+    favoriteIds.add(item.favorite_id);
   }
 }
 
@@ -176,16 +167,19 @@ export function validateFavoriteChanges(page: FavoriteLibraryChanges) {
   assertContractVersion(page.contract_version);
   assertRevision(page.library_revision);
   assertCursor(page.next_cursor);
+  if (!Array.isArray(page.changes)) {
+    throw new Error('The favorite changes page is missing its changes.');
+  }
   if (typeof page.has_more !== 'boolean') {
     throw new Error('The favorite changes page contains an invalid has_more value.');
   }
 
-  const changeUuids = new Set<string>();
+  const changeIds = new Set<string>();
   const revisions = new Set<number>();
   for (const change of page.changes) {
-    assertCatalogTarget(change.catalog_type, change.catalog_uuid);
-    assertUserDataUuid(change.change_uuid);
-    assertUserDataUuid(change.favorite_uuid);
+    assertTarget(change.target);
+    assertAccountId(change.change_id, 'library_change');
+    assertAccountId(change.favorite_id, 'favorite');
     assertRevision(change.revision);
     parseFavoriteServerDate(change.changed_at);
     if (change.change_type !== 'favorite_added' && change.change_type !== 'favorite_removed') {
@@ -194,16 +188,12 @@ export function validateFavoriteChanges(page: FavoriteLibraryChanges) {
     if (change.revision > page.library_revision) {
       throw new Error('A favorite change revision exceeds the page revision.');
     }
-    if (changeUuids.has(change.change_uuid) || revisions.has(change.revision)) {
+    if (changeIds.has(change.change_id) || revisions.has(change.revision)) {
       throw new Error('The favorite changes page contains duplicate changes.');
     }
-    changeUuids.add(change.change_uuid);
+    changeIds.add(change.change_id);
     revisions.add(change.revision);
   }
-}
-
-export function favoriteTargetKey(catalogType: FavoriteCatalogType, catalogUuid: string) {
-  return `${catalogType}:${catalogUuid}`;
 }
 
 export function parseFavoriteServerDate(value: unknown) {
@@ -235,14 +225,14 @@ function assertCursor(cursor: string) {
   }
 }
 
-function assertCatalogTarget(catalogType: FavoriteCatalogType, catalogUuid: string) {
-  if (!CATALOG_TYPES.has(catalogType) || !isPostgresUuid(catalogUuid)) {
+function assertTarget(target: unknown): asserts target is FavoriteTarget {
+  if (!isFavoriteTarget(target)) {
     throw new Error('The favorite response contains an invalid catalog target.');
   }
 }
 
-function assertUserDataUuid(value: unknown) {
-  if (!isUuidV7(value)) {
-    throw new Error('The favorite response contains an invalid UUIDv7 identity.');
+function assertAccountId(value: unknown, prefix: 'favorite' | 'library_change' | 'mutation') {
+  if (!isUuidV7TypedId(value, prefix)) {
+    throw new Error(`The favorite response contains an invalid ${prefix} ID.`);
   }
 }

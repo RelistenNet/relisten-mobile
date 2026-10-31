@@ -8,7 +8,7 @@ import {
 import React, { useCallback } from 'react';
 import { DefaultLayoutAnimationConfig } from '../layout_animation_config';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import type { FavoriteCatalogType } from '@/relisten/realm/models/library';
+import type { CatalogFavoriteTargetKind } from '@/relisten/library/favorite_catalog_target';
 import { useFavorite } from '@/relisten/library/favorite_hooks';
 
 const styles = StyleSheet.create({
@@ -43,12 +43,12 @@ export const FavoriteIconButton: React.FC<{ isFavorited: boolean } & TouchableOp
 
 export const FavoriteObjectButton = <T extends { uuid: string }>({
   object,
-  catalogType,
+  targetKind,
   onPress,
   ...props
-}: { object: T; catalogType?: FavoriteCatalogType } & TouchableOpacityProps) => {
-  const resolvedCatalogType = catalogType ?? catalogTypeForObject(object);
-  const favorite = useFavorite(resolvedCatalogType, object.uuid);
+}: { object: T; targetKind?: CatalogFavoriteTargetKind } & TouchableOpacityProps) => {
+  const resolvedTargetKind = targetKind ?? targetKindForObject(object);
+  const favorite = useFavorite(resolvedTargetKind, object.uuid);
 
   const favoriteOnPress = useCallback(
     (event: GestureResponderEvent) => {
@@ -75,22 +75,22 @@ export const FavoriteObjectButton = <T extends { uuid: string }>({
   );
 };
 
-const CATALOG_TYPE_BY_MODEL_NAME: Record<string, FavoriteCatalogType> = {
+const TARGET_KIND_BY_MODEL_NAME: Record<string, CatalogFavoriteTargetKind> = {
   Artist: 'artist',
   Show: 'show',
   Source: 'source',
-  SourceTrack: 'source_track',
-  Song: 'song',
+  SourceTrack: 'track',
+  Song: 'imported_song',
   Tour: 'tour',
-  Venue: 'venue',
+  Venue: 'imported_venue',
 };
 
-function catalogTypeForObject(object: { constructor: unknown }) {
+function targetKindForObject(object: { constructor: unknown }) {
   const constructor = object.constructor as { name?: string; schema?: { name?: string } };
   const modelName = constructor.schema?.name ?? constructor.name ?? '';
-  const catalogType = CATALOG_TYPE_BY_MODEL_NAME[modelName];
-  if (!catalogType) {
+  const targetKind = TARGET_KIND_BY_MODEL_NAME[modelName];
+  if (!targetKind) {
     throw new Error(`FavoriteObjectButton does not support Realm model ${modelName}.`);
   }
-  return catalogType;
+  return targetKind;
 }

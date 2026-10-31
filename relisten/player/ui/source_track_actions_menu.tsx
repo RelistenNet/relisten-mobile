@@ -74,7 +74,7 @@ type SourceTrackActionsMenuProps = {
 
 export function SourceTrackActionsMenu({ playShow, sourceTrack }: SourceTrackActionsMenuProps) {
   const player = useRelistenPlayer();
-  const favorite = useFavorite('source_track', sourceTrack.uuid);
+  const favorite = useFavorite('track', sourceTrack.uuid);
   const queueTrack = useMemo(() => PlayerQueueTrack.fromSourceTrack(sourceTrack), [sourceTrack]);
   const offlineStatus = sourceTrack.offlineInfo?.status;
   const offlineType = sourceTrack.offlineInfo?.type;

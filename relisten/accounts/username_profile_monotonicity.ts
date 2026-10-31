@@ -11,7 +11,7 @@ export function preferNewerUsernameProfile(
 ) {
   if (
     cachedProfile &&
-    cachedProfile.userUuid === commandResult.userUuid &&
+    cachedProfile.userId === commandResult.userId &&
     cachedProfile.nativeSessionId === commandResult.nativeSessionId &&
     cachedProfile.usernameVersion > commandResult.usernameVersion
   ) {

@@ -5,7 +5,7 @@ export interface RefreshTokenEnvelope {
   refreshToken: string;
   issuer: string;
   clientId: string;
-  userUuid: string;
+  userId: string;
   nativeSessionId: string;
 }
 

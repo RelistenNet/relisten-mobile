@@ -19,7 +19,6 @@ function withoutTrailingSlash(value: string) {
 
 function assertSecureOrigin(value: string, label: string) {
   const parsed = new URL(value);
-  const isLoopback = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
 
   if (
     parsed.username ||
@@ -31,8 +30,8 @@ function assertSecureOrigin(value: string, label: string) {
     throw new Error(`${label} must be an origin without a path, query, or fragment`);
   }
 
-  if (parsed.protocol !== 'https:' && !(__DEV__ && isLoopback && parsed.protocol === 'http:')) {
-    throw new Error(`${label} must use HTTPS (development loopback may use HTTP)`);
+  if (parsed.protocol !== 'https:') {
+    throw new Error(`${label} must use HTTPS`);
   }
 }
 
@@ -42,7 +41,8 @@ export function getAccountRuntimeConfig(): AccountRuntimeConfig {
   }
 
   const platform = Platform.OS;
-  const localIssuer = 'http://localhost:5443';
+  const localIssuer = 'https://auth.relisten.localhost:5443';
+  const localAccountsOrigin = 'https://accounts.relisten.localhost:5443';
   const productionIssuer = 'https://auth.relisten.net';
   const productionAccountsOrigin = 'https://accounts.relisten.net';
   const issuer = withoutTrailingSlash(
@@ -54,7 +54,7 @@ export function getAccountRuntimeConfig(): AccountRuntimeConfig {
   const accountsOrigin = withoutTrailingSlash(
     configuredValue(
       process.env.EXPO_PUBLIC_RELISTEN_ACCOUNTS_ORIGIN,
-      __DEV__ ? localIssuer : productionAccountsOrigin
+      __DEV__ ? localAccountsOrigin : productionAccountsOrigin
     )
   );
   const clientId = configuredValue(

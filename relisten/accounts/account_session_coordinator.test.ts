@@ -67,10 +67,10 @@ afterEach(() => {
 describe('AccountSessionCoordinator', () => {
   it('clears the local session after remote logout retries are exhausted', async () => {
     const realmScope = {
-      scopeId: 'user:test-user',
-      userUuid: 'test-user',
+      scopeId: 'user_01hx3x56tafay8vvr14d2pf2db',
+      userId: 'user_01hx3x56tafay8vvr14d2pf2db',
       generation: 1,
-      nativeSessionId: 'test-session',
+      nativeSessionId: 'session_01hx3x56tbfay8vvr14d2pf2db',
       blockedNativeSessionId: undefined as string | undefined,
       updatedAt: new Date(),
     };
@@ -83,7 +83,9 @@ describe('AccountSessionCoordinator', () => {
     };
     const coordinator = new AccountSessionCoordinator(realm as never, transitionEffects);
     const credentials = {
-      activeEnvelope: vi.fn(() => ({ nativeSessionId: 'test-session' })),
+      activeEnvelope: vi.fn(() => ({
+        nativeSessionId: 'session_01hx3x56tbfay8vvr14d2pf2db',
+      })),
       accessTokenForLogout: vi.fn().mockResolvedValue('access-token'),
       clearMemory: vi.fn(),
       clearPersisted: vi.fn().mockResolvedValue(undefined),
@@ -103,10 +105,10 @@ describe('AccountSessionCoordinator', () => {
     expect(credentials.clearPersisted).toHaveBeenCalledOnce();
     expect(coordinator.scopeSource.getSnapshot()).toMatchObject({
       scopeId: 'anonymous',
-      userUuid: null,
+      userId: null,
       nativeSessionId: null,
       isAuthenticated: false,
     });
-    expect(realmScope.blockedNativeSessionId).toBe('test-session');
+    expect(realmScope.blockedNativeSessionId).toBe('session_01hx3x56tbfay8vvr14d2pf2db');
   });
 });
