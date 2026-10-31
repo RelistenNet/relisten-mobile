@@ -648,6 +648,7 @@ ${indentString(tracks)}
     }
     PlayerState.upsert(realm, { ...state, lastUpdatedAt: new Date() });
     this.lastWrittenState = fingerprint;
+    logger.debug('Saved playback checkpoint', JSON.stringify(state.checkpoint));
   }
 
   public async restorePlayerState(realm: Realm) {

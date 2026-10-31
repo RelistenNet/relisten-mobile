@@ -8,21 +8,25 @@ import android.content.Intent
 import android.util.Log
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.util.EventLogger
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession
 import androidx.media3.session.MediaSession
+import com.facebook.react.ReactApplication
 
 // Keep this service as wiring only; Android Auto browse behavior lives in RelistenMediaLibrary.
 class RelistenPlaybackService : MediaLibraryService() {
     private var mediaSession: MediaLibrarySession? = null
+    private var playbackTask: RelistenPlaybackTask? = null
     var exoPlayer: ExoPlayer? = null
 
     override fun onCreate() {
         super.onCreate()
 
+        playbackTask = RelistenPlaybackTask(checkNotNull((application as ReactApplication).reactHost))
         val activityManager = getSystemService(ActivityManager::class.java)
         val player = ExoPlayer.Builder(this)
             .setLoadControl(
@@ -32,7 +36,17 @@ class RelistenPlaybackService : MediaLibraryService() {
                 )
             )
             .setHandleAudioBecomingNoisy(true)
+            .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
+        player.addListener(object : Player.Listener {
+            override fun onEvents(player: Player, events: Player.Events) {
+                playbackTask?.update(
+                    player.playWhenReady &&
+                        (player.playbackState == Player.STATE_READY ||
+                            player.playbackState == Player.STATE_BUFFERING)
+                )
+            }
+        })
         player.setAudioAttributes(relistenAudioAttributes(), true)
         player.addAnalyticsListener(EventLogger())
 
@@ -68,6 +82,8 @@ class RelistenPlaybackService : MediaLibraryService() {
     }
 
     override fun onDestroy() {
+        playbackTask?.close()
+        playbackTask = null
         mediaSession?.run {
             player.release()
             release()
