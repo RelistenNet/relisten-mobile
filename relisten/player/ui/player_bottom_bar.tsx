@@ -14,8 +14,9 @@ import {
 } from '@/relisten/player/ui/player_presentation';
 import { MaterialIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
+  AccessibilityInfo,
   LayoutChangeEvent,
   Platform,
   TouchableOpacity,
@@ -278,11 +279,37 @@ interface PlayerBottomBarProps {
 
 const OFFLINE_OVERLAY_MIN_HEIGHT = 104;
 const OFFLINE_ACCESSORY_MIN_HEIGHT = 96;
+// With Reduce Transparency on, Liquid Glass (tab bar, native accessory) renders as an
+// opaque fill. BlurView's material falls back to a different grey, so match glass instead.
+const REDUCED_TRANSPARENCY_GLASS_COLOR = '#101617';
+
+function useIsReduceTransparencyEnabled() {
+  const [isEnabled, setIsEnabled] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    void AccessibilityInfo.isReduceTransparencyEnabled().then((enabled) => {
+      if (isMounted) setIsEnabled(enabled);
+    });
+    const subscription = AccessibilityInfo.addEventListener(
+      'reduceTransparencyChanged',
+      setIsEnabled
+    );
+
+    return () => {
+      isMounted = false;
+      subscription.remove();
+    };
+  }, []);
+
+  return isEnabled;
+}
 
 export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBarProps) {
   'use no memo';
 
   const isOnline = useShouldMakeNetworkRequests();
+  const isReduceTransparencyEnabled = useIsReduceTransparencyEnabled();
   const { playerBottomBarHeight, setPlayerBottomBarHeight } = useRelistenPlayerBottomBarContext();
   const placementOffset = usePlayerBarPlacementOffset();
   const { isPresentationActive } = usePlayerPresentation();
@@ -368,13 +395,22 @@ export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBa
       <View className={contentContainerClassName}>
         {isOverlay ? (
           <View className="rounded-3xl" style={shellChromeStyle}>
-            <BlurView
-              className={shellSurfaceClassName}
-              intensity={20}
-              tint="systemChromeMaterialDark"
-            >
-              {body}
-            </BlurView>
+            {isReduceTransparencyEnabled ? (
+              <View
+                className={shellSurfaceClassName}
+                style={{ backgroundColor: REDUCED_TRANSPARENCY_GLASS_COLOR }}
+              >
+                {body}
+              </View>
+            ) : (
+              <BlurView
+                className={shellSurfaceClassName}
+                intensity={30}
+                tint="systemChromeMaterialDark"
+              >
+                {body}
+              </BlurView>
+            )}
           </View>
         ) : (
           body
