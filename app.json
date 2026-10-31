@@ -77,7 +77,8 @@
           "android": {
             "compileSdkVersion": 37,
             "minSdkVersion": 30,
-            "targetSdkVersion": 36
+            "targetSdkVersion": 36,
+            "kotlinVersion": "2.4.20"
           },
           "ios": {
             "deploymentTarget": "18.0",
