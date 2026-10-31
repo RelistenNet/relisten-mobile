@@ -92,9 +92,7 @@ repositories {
 
 dependencies {
   implementation project(':expo-modules-core')
-
-  //noinspection GradleDynamicVersion
-  //implementation "com.facebook.react:react-native:+"
+  implementation "com.facebook.react:react-android"
 
   implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:${getKotlinVersion()}"
   testImplementation "junit:junit:4.13.2"

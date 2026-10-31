@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- ExoPlayer's playback CPU wake lock requires this permission. Declare it here
+         so the audio module owns its permission requirement. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application>
         <!--
