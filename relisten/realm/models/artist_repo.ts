@@ -42,7 +42,7 @@ class ArtistsNetworkBackedBehavior extends NetworkBackedModelArrayBehavior<
       fetchFromRealm,
       (api, forcedRefresh) =>
         api.usesV4Catalog()
-          ? api.refreshV4Artists<ArtistWithCounts[]>(forcedRefresh)
+          ? api.refreshV4Artists(forcedRefresh)
           : api.artists(responseIncludesAutomaticallyCreated, api.refreshOptions(forcedRefresh)),
       options
     );
@@ -182,7 +182,7 @@ class ArtistBootstrapNetworkBackedBehavior extends ThrottledNetworkBackedBehavio
 
   override fetchFromApi(api: RelistenApiClient, forcedRefresh: boolean) {
     if (api.usesV4Catalog()) {
-      return api.refreshV4Artists<ArtistWithCounts[]>(forcedRefresh);
+      return api.refreshV4Artists(forcedRefresh);
     }
 
     return api.artists(true, api.refreshOptions(forcedRefresh));

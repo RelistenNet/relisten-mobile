@@ -39,14 +39,7 @@ import { Venue } from './venue';
 import { Tour } from './tour';
 import { Song } from './song';
 import { Popularity, PopularityWindow, PopularityWindows } from './popularity';
-import {
-  ArtistVenue,
-  NormalizedSong,
-  NormalizedVenue,
-  NormalizedVenueName,
-  TrackNormalization,
-  TrackNormalizationPart,
-} from './v4_catalog';
+import { V4_CATALOG_REALM_MODELS } from './v4_catalog';
 
 const timestamp = '2026-08-20T00:00:00.000Z';
 const timestamps = { created_at: timestamp, updated_at: timestamp };
@@ -66,12 +59,7 @@ const config: Realm.Configuration = {
     Popularity,
     PopularityWindow,
     PopularityWindows,
-    NormalizedVenueName,
-    NormalizedVenue,
-    ArtistVenue,
-    NormalizedSong,
-    TrackNormalizationPart,
-    TrackNormalization,
+    ...V4_CATALOG_REALM_MODELS,
   ],
 };
 

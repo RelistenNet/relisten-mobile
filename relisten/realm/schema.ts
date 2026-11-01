@@ -40,7 +40,7 @@ import {
   stageLegacyAccountIdentityFields,
   upgradeTypedAccountIdentity,
 } from '@/relisten/realm/account_identity_upgrade';
-import { V4_CATALOG_REALM_MODELS } from '@/relisten/realm/models/v4_catalog';
+import { CatalogQueryState, V4_CATALOG_REALM_MODELS } from '@/relisten/realm/models/v4_catalog';
 
 if (isVerboseProfileLoggingEnabled()) {
   Realm.setLogger(({ category, level, message }) => {
@@ -52,7 +52,7 @@ if (isVerboseProfileLoggingEnabled()) {
   Realm.setLogLevel('debug', 'Realm.Storage.Notification');
 }
 
-export const REALM_SCHEMA_VERSION = 18;
+export const REALM_SCHEMA_VERSION = 19;
 
 export const REALM_SCHEMA = [
   Artist,
@@ -86,12 +86,19 @@ export const REALM_SCHEMA = [
 
 export const realmConfig: Realm.Configuration = {
   schema: REALM_SCHEMA,
-  // Schema 18 adds v4 catalog overlays without changing imported UUID identities.
+  // Schema 19 removes the unreleased full-artist snapshot while retaining granular v4 state.
   schemaVersion: REALM_SCHEMA_VERSION,
   onMigration: (oldRealm, newRealm) => {
     migratePlayerState(oldRealm, newRealm);
     stageLegacyAccountIdentityFields(oldRealm, newRealm);
     migrateLegacyFavoritesToAnonymous(oldRealm, newRealm);
+
+    if (oldRealm.schemaVersion < 19) {
+      const legacyCatalogQueryKey = /^GET \/artists\/artist_[^/]+\/catalog$/;
+      for (const state of Array.from(newRealm.objects(CatalogQueryState))) {
+        if (legacyCatalogQueryKey.test(state.key)) newRealm.delete(state);
+      }
+    }
   },
   // As to not conflict with the prior versions default.realm that isn't readable with this version of the SDK
   path: './relisten.realm',

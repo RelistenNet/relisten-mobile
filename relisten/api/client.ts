@@ -20,13 +20,11 @@ import {
   CatalogResolveResponse,
 } from '@/relisten/api/models/catalog_resolve';
 import type Realm from 'realm';
-import type { AccountScopeSource } from '@/relisten/accounts/account_scope_store';
 import {
   catalogTransport as configuredCatalogTransport,
   type CatalogTransport,
 } from '@/relisten/api/catalog_config';
 import { CatalogV4Client } from '@/relisten/api/v4/catalog_client';
-import type { CatalogV4RefreshResult } from '@/relisten/api/v4/catalog_coordinator';
 
 const logger = log.extend('network');
 
@@ -73,9 +71,8 @@ export interface RelistenApiClientError {
   message?: string;
 }
 
-export interface RelistenApiClientOptions {
+interface RelistenApiClientOptions {
   realm?: Realm;
-  accountScope?: AccountScopeSource;
   catalogTransport?: CatalogTransport;
 }
 
@@ -103,7 +100,6 @@ export function errorDisplayString(err?: RelistenApiClientError): string {
 export class RelistenApiClient {
   static API_BASE = catalogApiBase();
 
-  private readonly selectedCatalogTransport: CatalogTransport;
   private readonly v4Catalog?: CatalogV4Client;
 
   private api = wretch(RelistenApiClient.API_BASE).middlewares([
@@ -143,47 +139,45 @@ export class RelistenApiClient {
   constructor(options: RelistenApiClientOptions = {}) {
     // Utility clients without Realm (for example legacy favorite hydration) retain
     // the legacy catalog even while the app's primary client is opted into v4.
-    this.selectedCatalogTransport =
+    const selectedCatalogTransport =
       options.catalogTransport ?? (options.realm ? configuredCatalogTransport() : 'v3');
-    if (this.selectedCatalogTransport === 'v4') {
+    if (selectedCatalogTransport === 'v4') {
       if (!options.realm) {
         throw new Error('The v4 catalog client requires Realm persistence');
       }
-      this.v4Catalog = new CatalogV4Client(options.realm, {
-        accountScope: options.accountScope,
-      });
+      this.v4Catalog = new CatalogV4Client(options.realm);
     }
   }
 
   public usesV4Catalog() {
-    return this.selectedCatalogTransport === 'v4';
+    return this.v4Catalog !== undefined;
   }
 
-  public refreshV4Artists<T>(force: boolean): Promise<RelistenApiResponse<T>> {
+  public refreshV4Artists(force: boolean): Promise<RelistenApiResponse<never>> {
     return this.v4RefreshResponse(this.requireV4Catalog().refreshArtists(force));
   }
 
-  public refreshV4ArtistCatalog<T>(
+  public refreshV4ArtistYears(
     artistUuid: string,
     force: boolean
-  ): Promise<RelistenApiResponse<T>> {
-    return this.v4RefreshResponse(this.requireV4Catalog().refreshArtistCatalog(artistUuid, force));
+  ): Promise<RelistenApiResponse<never>> {
+    return this.v4RefreshResponse(this.requireV4Catalog().refreshArtistYears(artistUuid, force));
   }
 
-  public refreshV4Show<T>(showUuid: string, force: boolean): Promise<RelistenApiResponse<T>> {
+  public refreshV4Year(
+    artistUuid: string,
+    yearUuid: string,
+    force: boolean
+  ): Promise<RelistenApiResponse<never>> {
+    return this.v4RefreshResponse(this.requireV4Catalog().refreshYear(artistUuid, yearUuid, force));
+  }
+
+  public refreshV4Show(showUuid: string, force: boolean): Promise<RelistenApiResponse<never>> {
     return this.v4RefreshResponse(this.requireV4Catalog().refreshShow(showUuid, force));
   }
 
-  public refreshV4Source<T>(sourceUuid: string, force: boolean): Promise<RelistenApiResponse<T>> {
-    return this.v4RefreshResponse(this.requireV4Catalog().refreshSource(sourceUuid, force));
-  }
-
-  public refreshV4Track<T>(trackUuid: string, force: boolean): Promise<RelistenApiResponse<T>> {
-    return this.v4RefreshResponse(this.requireV4Catalog().refreshTrack(trackUuid, force));
-  }
-
   public onCatalogNetworkAvailable() {
-    return this.v4Catalog?.onNetworkAvailable() ?? Promise.resolve();
+    return this.v4Catalog?.onNetworkAvailable();
   }
 
   private requireV4Catalog() {
@@ -193,9 +187,7 @@ export class RelistenApiClient {
     return this.v4Catalog;
   }
 
-  private async v4RefreshResponse<T>(
-    refresh: Promise<CatalogV4RefreshResult>
-  ): Promise<RelistenApiResponse<T>> {
+  private async v4RefreshResponse(refresh: Promise<void>): Promise<RelistenApiResponse<never>> {
     try {
       await refresh;
       // The v4 coordinator already committed the Realm payload and validator.

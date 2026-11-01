@@ -3,7 +3,6 @@ import { RelistenApiClient } from './client';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { PlaybackHistoryReporter } from '@/relisten/playback_history_reporter';
 import { useRealm } from '@/relisten/realm/schema';
-import { useAccountScopeSource } from '@/relisten/accounts/account_context';
 
 export const RelistenApiContext = React.createContext<
   { apiClient: RelistenApiClient; playbackHistoryReporter: PlaybackHistoryReporter } | undefined
@@ -11,11 +10,7 @@ export const RelistenApiContext = React.createContext<
 
 export const RelistenApiProvider: React.FC<PropsWithChildren> = ({ children }) => {
   const realm = useRealm();
-  const accountScope = useAccountScopeSource();
-  const apiClient = useMemo(
-    () => new RelistenApiClient({ realm, accountScope }),
-    [accountScope, realm]
-  );
+  const apiClient = useMemo(() => new RelistenApiClient({ realm }), [realm]);
   const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
 
   const playbackHistoryReporter = useMemo(() => {

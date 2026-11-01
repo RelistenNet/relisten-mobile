@@ -1,9 +1,5 @@
-/// <reference types="node" />
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import Realm from 'realm';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type Realm from 'realm';
 
 const testDoubles = vi.hoisted(() => {
   const fetch = vi.fn();
@@ -54,38 +50,16 @@ vi.mock('@/relisten/util/logging', () => ({
 }));
 
 import { RelistenApiClient, RelistenApiResponseType } from './client';
-import { CatalogQueryState } from '@/relisten/realm/models/v4_catalog';
 
 describe('RelistenApiClient catalog transport selection', () => {
-  let directory: string;
-  let realm: Realm;
+  const realm = {} as Realm;
 
   beforeEach(() => {
-    directory = mkdtempSync(join(tmpdir(), 'relisten-v3-fallback-'));
-    realm = new Realm({
-      path: join(directory, 'catalog.realm'),
-      schema: [CatalogQueryState],
-    });
-    realm.write(() => {
-      realm.create(CatalogQueryState, {
-        key: 'GET /artists/artist_fixture/catalog',
-        etag: 'W/"v4-applied"',
-        hasAppliedData: true,
-        retryPending: false,
-        resultIds: ['fixture'],
-      });
-    });
-
     testDoubles.fetch.mockReset();
     testDoubles.constructV4.mockReset();
   });
 
-  afterEach(() => {
-    if (!realm.isClosed) realm.close();
-    rmSync(directory, { force: true, recursive: true });
-  });
-
-  it('uses the legacy v3 route without constructing v4 or deleting additive v4 state', async () => {
+  it('uses the legacy v3 route without constructing v4', async () => {
     testDoubles.fetch.mockReturnValue({
       res: async () =>
         new Response(
@@ -98,7 +72,7 @@ describe('RelistenApiClient catalog transport selection', () => {
           { status: 200 }
         ),
     });
-    const client = new RelistenApiClient({ realm, catalogTransport: 'v3' });
+    const client = new RelistenApiClient({ catalogTransport: 'v3' });
 
     const response = await client.artists(true);
 
@@ -110,17 +84,12 @@ describe('RelistenApiClient catalog transport selection', () => {
       undefined
     );
     expect(response.type).toBe(RelistenApiResponseType.OnlineRequestCompleted);
-    expect(
-      realm.objectForPrimaryKey(CatalogQueryState, 'GET /artists/artist_fixture/catalog')
-    ).toMatchObject({ etag: 'W/"v4-applied"', hasAppliedData: true });
   });
 
   it('constructs the explicit v4 client only when v4 is selected with Realm', () => {
     const client = new RelistenApiClient({ realm, catalogTransport: 'v4' });
 
     expect(client.usesV4Catalog()).toBe(true);
-    expect(testDoubles.constructV4).toHaveBeenCalledWith(realm, {
-      accountScope: undefined,
-    });
+    expect(testDoubles.constructV4).toHaveBeenCalledWith(realm);
   });
 });

@@ -1,7 +1,6 @@
 import { catalogApiBase } from '@/relisten/api/catalog_config';
 
 export interface CatalogV4RequestMetrics {
-  bodyBytes: number;
   downloadMilliseconds: number;
   parseMilliseconds: number;
   totalMilliseconds: number;
@@ -69,7 +68,6 @@ export interface CatalogV4TransportOptions {
 }
 
 const emptyMetrics = (totalMilliseconds: number): CatalogV4RequestMetrics => ({
-  bodyBytes: 0,
   downloadMilliseconds: 0,
   parseMilliseconds: 0,
   totalMilliseconds,
@@ -149,7 +147,6 @@ export class CatalogV4Transport {
       data,
       etag,
       metrics: {
-        bodyBytes: new TextEncoder().encode(responseBody).byteLength,
         downloadMilliseconds: parseStartedAt - downloadStartedAt,
         parseMilliseconds: completedAt - parseStartedAt,
         totalMilliseconds: completedAt - startedAt,

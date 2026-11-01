@@ -19,7 +19,7 @@ describe('CatalogV4Transport', () => {
     await expect(transport.getJson('/artists', 'W/"catalog"')).resolves.toMatchObject({
       status: 'not_modified',
       etag: 'W/"catalog"',
-      metrics: { bodyBytes: 0, parseMilliseconds: 0 },
+      metrics: { parseMilliseconds: 0 },
     });
 
     expect(fetch).toHaveBeenCalledOnce();
@@ -29,7 +29,7 @@ describe('CatalogV4Transport', () => {
     expect(new Headers(request!.headers).get('If-None-Match')).toBe('W/"catalog"');
   });
 
-  it('parses a direct response and records decompressed JSON bytes and timings', async () => {
+  it('parses a direct response and records request timings', async () => {
     const clocks = [10, 20, 24, 27];
     const transport = new CatalogV4Transport({
       apiBase: 'https://catalog.test/api',
@@ -46,7 +46,6 @@ describe('CatalogV4Transport', () => {
       data: { name: 'Beyoncé' },
       etag: 'W/"artist"',
       metrics: {
-        bodyBytes: 19,
         downloadMilliseconds: 4,
         parseMilliseconds: 3,
         totalMilliseconds: 17,

@@ -1,17 +1,12 @@
 import Realm from 'realm';
 
 import type {
-  V4ArtistCatalogResource,
   V4ArtistResource,
-  V4ArtistSongEntryResource,
-  V4ArtistVenueEntryResource,
   V4ArtistVenueResource,
-  V4ImportedSongResource,
   V4ImportedVenueResource,
   V4PopularityResource,
   V4ShowResource,
   V4ShowSummaryResource,
-  V4SongDetailResource,
   V4SongResource,
   V4SourceResource,
   V4SourceSetResource,
@@ -20,36 +15,23 @@ import type {
   V4TrackResource,
   V4VenueResource,
   V4YearResource,
+  V4YearWithShowsResource,
 } from '@/relisten/api/v4/wire_types';
 import { decodeV4UuidCatalogId, retainV4ShortCatalogId } from '@/relisten/api/v4/catalog_identity';
 import { Artist } from '@/relisten/realm/models/artist';
 import { Show } from '@/relisten/realm/models/show';
-import { Song } from '@/relisten/realm/models/song';
 import { Source } from '@/relisten/realm/models/source';
 import { SourceSet } from '@/relisten/realm/models/source_set';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { Tour } from '@/relisten/realm/models/tour';
 import { Venue } from '@/relisten/realm/models/venue';
-import {
-  ArtistCatalogSnapshot,
-  ArtistSongBrowseEntry,
-  ArtistVenue,
-  ArtistVenueBrowseEntry,
-  NormalizedSong,
-  NormalizedVenue,
-} from '@/relisten/realm/models/v4_catalog';
+import { ArtistVenue, NormalizedSong, NormalizedVenue } from '@/relisten/realm/models/v4_catalog';
 import { Year } from '@/relisten/realm/models/year';
 
 export class V4CatalogApplyError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'V4CatalogApplyError';
-  }
-}
-
-function assertWriteTransaction(realm: Realm) {
-  if (!realm.isInTransaction) {
-    throw new V4CatalogApplyError('V4 catalog apply must run inside one Realm transaction.');
   }
 }
 
@@ -63,12 +45,6 @@ function requiredDate(value: string, field: string) {
 
 function optionalDate(value: string | null, field: string) {
   return value === null ? null : requiredDate(value, field);
-}
-
-// Realm skips `undefined` during create/update. `null` is the authoritative wire
-// value for clearing nullable properties, including a prior tombstone.
-function realmNullable<T>(value: T | null | undefined): T | undefined {
-  return value == null ? (null as unknown as undefined) : value;
 }
 
 function popularityProperties(popularity: V4PopularityResource | null) {
@@ -281,36 +257,14 @@ function applyImportedVenue(realm: Realm, resource: V4ImportedVenueResource) {
   );
 }
 
-function applyImportedSong(realm: Realm, resource: V4ImportedSongResource) {
-  const uuid = decodeV4UuidCatalogId(resource.id, 'imported_song');
-  const artistUuid = decodeV4UuidCatalogId(resource.artist_id, 'artist');
-  return realm.create(
-    Song,
-    {
-      uuid,
-      artistUuid,
-      createdAt: requiredDate(resource.created_at, 'imported_song.created_at'),
-      updatedAt: requiredDate(resource.updated_at, 'imported_song.updated_at'),
-      deletedAt: null,
-      name: resource.name,
-      slug: resource.slug,
-      upstreamIdentifier: resource.upstream_identifier,
-      sortName: resource.name,
-      showsPlayedAt: resource.setlist_show_count,
-    } as unknown as Realm.Unmanaged<Song>,
-    Realm.UpdateMode.Modified
-  );
-}
-
 function applyNormalizedVenue(realm: Realm, resource: V4VenueResource) {
   const id = retainV4ShortCatalogId(resource.id, 'venue');
   const parentId = resource.parent_id
     ? retainV4ShortCatalogId(resource.parent_id, 'venue')
     : undefined;
-  const existing = realm.objectForPrimaryKey(NormalizedVenue, id);
-
-  if (!existing) {
-    return realm.create(NormalizedVenue, {
+  return realm.create(
+    NormalizedVenue,
+    {
       id,
       globalShowCount: resource.global_show_count,
       name: resource.name,
@@ -323,25 +277,9 @@ function applyNormalizedVenue(realm: Realm, resource: V4VenueResource) {
       longitude: resource.longitude,
       coordinatePrecision: resource.coordinate_precision,
       names: resource.names,
-    } as unknown as Realm.Unmanaged<NormalizedVenue>);
-  }
-
-  existing.globalShowCount = resource.global_show_count;
-  existing.name = resource.name;
-  existing.kind = resource.kind;
-  existing.parentId = realmNullable(parentId);
-  existing.city = realmNullable(resource.city);
-  existing.region = realmNullable(resource.region);
-  existing.country = realmNullable(resource.country);
-  existing.latitude = realmNullable(resource.latitude);
-  existing.longitude = realmNullable(resource.longitude);
-  existing.coordinatePrecision = realmNullable(resource.coordinate_precision);
-  existing.names.splice(
-    0,
-    existing.names.length,
-    ...(resource.names as unknown as (typeof existing.names)[number][])
+    } as unknown as Realm.Unmanaged<NormalizedVenue>,
+    Realm.UpdateMode.Modified
   );
-  return existing;
 }
 
 function applyArtistVenue(realm: Realm, resource: V4ArtistVenueResource) {
@@ -368,35 +306,18 @@ function applyArtistVenue(realm: Realm, resource: V4ArtistVenueResource) {
 function applyNormalizedSongReference(realm: Realm, resource: V4SongResource) {
   const id = retainV4ShortCatalogId(resource.id, 'song');
   const artistUuid = decodeV4UuidCatalogId(resource.artist_id, 'artist');
-  const existing = realm.objectForPrimaryKey(NormalizedSong, id);
   const artist = requireObject(realm, Artist, artistUuid, 'artist');
-
-  if (!existing) {
-    return realm.create(NormalizedSong, {
+  return realm.create(
+    NormalizedSong,
+    {
       id,
       artistUuid,
       name: resource.name,
       kind: resource.kind,
-      aliases: [],
       artist,
-    } as unknown as Realm.Unmanaged<NormalizedSong>);
-  }
-
-  existing.artistUuid = artistUuid;
-  existing.name = resource.name;
-  existing.kind = realmNullable(resource.kind);
-  existing.artist = artist;
-  return existing;
-}
-
-function applyNormalizedSongDetail(realm: Realm, resource: V4SongDetailResource) {
-  const song = applyNormalizedSongReference(realm, resource);
-  song.slug = resource.slug;
-  song.originalArtist = realmNullable(resource.original_artist);
-  song.aliases.splice(0, song.aliases.length, ...resource.aliases);
-  song.matchedTrackCount = resource.matched_track_count;
-  song.matchedShowCount = resource.matched_show_count;
-  return song;
+    } as unknown as Realm.Unmanaged<NormalizedSong>,
+    Realm.UpdateMode.Modified
+  );
 }
 
 function applyShowSummary(realm: Realm, resource: V4ShowSummaryResource) {
@@ -684,47 +605,8 @@ function applySourceResource(realm: Realm, resource: V4SourceResource) {
   return source;
 }
 
-function venueEntryProperties(
-  realm: Realm,
-  resource: V4ArtistVenueEntryResource
-): Realm.Unmanaged<ArtistVenueBrowseEntry> {
-  if (resource.kind === 'artist_venue') {
-    return {
-      kind: resource.kind,
-      artistVenue: applyArtistVenue(realm, resource.artist_venue),
-      importedVenue: null,
-    } as unknown as Realm.Unmanaged<ArtistVenueBrowseEntry>;
-  }
-
-  return {
-    kind: resource.kind,
-    artistVenue: null,
-    importedVenue: applyImportedVenue(realm, resource.imported_venue),
-  } as unknown as Realm.Unmanaged<ArtistVenueBrowseEntry>;
-}
-
-function songEntryProperties(
-  realm: Realm,
-  resource: V4ArtistSongEntryResource
-): Realm.Unmanaged<ArtistSongBrowseEntry> {
-  if (resource.kind === 'song') {
-    return {
-      kind: resource.kind,
-      normalizedSong: applyNormalizedSongDetail(realm, resource.song),
-      importedSong: null,
-    } as unknown as Realm.Unmanaged<ArtistSongBrowseEntry>;
-  }
-
-  return {
-    kind: resource.kind,
-    normalizedSong: null,
-    importedSong: applyImportedSong(realm, resource.imported_song),
-  } as unknown as Realm.Unmanaged<ArtistSongBrowseEntry>;
-}
-
 /** Applies the exact artists query result without deleting catalog entity rows. */
 export function applyV4ArtistList(realm: Realm, resources: V4ArtistResource[]) {
-  assertWriteTransaction(realm);
   const artists = resources.map((resource) => applyArtist(realm, resource));
   return reconcileExactMembership(
     realm.objects(Artist),
@@ -734,142 +616,53 @@ export function applyV4ArtistList(realm: Realm, resources: V4ArtistResource[]) {
   );
 }
 
-/** Applies one complete artist snapshot and replaces only that snapshot's owned lists. */
-export function applyV4ArtistCatalog(realm: Realm, resource: V4ArtistCatalogResource) {
-  assertWriteTransaction(realm);
-  const artist = applyArtist(realm, resource.artist);
-
-  const years = resource.years.map((yearResource) => {
+/** Applies one artist's complete year list without changing other artist collections. */
+export function applyV4ArtistYears(realm: Realm, artistUuid: string, resources: V4YearResource[]) {
+  requireObject(realm, Artist, artistUuid, 'artist');
+  const years = resources.map((yearResource) => {
     const year = applyYear(realm, yearResource);
-    requireMatchingArtist(year.artistUuid, artist.uuid, `Year ${year.uuid}`);
+    requireMatchingArtist(year.artistUuid, artistUuid, `Year ${year.uuid}`);
     return year;
   });
-  const tours = resource.tours.map((tourResource) => {
-    const tour = applyTour(realm, tourResource);
-    requireMatchingArtist(tour.artistUuid, artist.uuid, `Tour ${tour.uuid}`);
-    return tour;
-  });
-  const importedVenues = resource.imported_venues.map((venueResource) => {
-    const venue = applyImportedVenue(realm, venueResource);
-    requireMatchingArtist(venue.artistUuid, artist.uuid, `Imported venue ${venue.uuid}`);
-    return venue;
-  });
-  const importedSongs = resource.imported_songs.map((songResource) => {
-    const song = applyImportedSong(realm, songResource);
-    requireMatchingArtist(song.artistUuid, artist.uuid, `Imported song ${song.uuid}`);
-    return song;
-  });
-  resource.venues.forEach((venue) => applyNormalizedVenue(realm, venue));
-  resource.songs.forEach((songResource) => {
-    const song = applyNormalizedSongDetail(realm, songResource);
-    requireMatchingArtist(song.artistUuid, artist.uuid, `Normalized song ${song.id}`);
-  });
-  resource.artist_venues.forEach((artistVenueResource) => {
-    const artistVenue = applyArtistVenue(realm, artistVenueResource);
-    requireMatchingArtist(artistVenue.artistUuid, artist.uuid, `Artist venue ${artistVenue.id}`);
-  });
+  return reconcileExactMembership(
+    realm.objects(Year).filtered('artistUuid == $0', artistUuid),
+    years,
+    `Artist ${artistUuid}'s year membership`,
+    new Date()
+  );
+}
+
+/** Applies one complete year's show summaries without changing other years. */
+export function applyV4Year(
+  realm: Realm,
+  artistUuid: string,
+  yearUuid: string,
+  resource: V4YearWithShowsResource
+) {
+  requireObject(realm, Artist, artistUuid, 'artist');
+  const year = applyYear(realm, resource);
+  if (year.uuid !== yearUuid) {
+    throw new V4CatalogApplyError(`Year ${year.uuid} does not match requested year ${yearUuid}.`);
+  }
+  requireMatchingArtist(year.artistUuid, artistUuid, `Year ${year.uuid}`);
   const shows = resource.shows.map((showResource) => {
     const show = applyShowSummary(realm, showResource);
-    requireMatchingArtist(show.artistUuid, artist.uuid, `Show ${show.uuid}`);
+    requireMatchingArtist(show.artistUuid, artistUuid, `Show ${show.uuid}`);
+    if (show.yearUuid !== yearUuid) {
+      throw new V4CatalogApplyError(`Show ${show.uuid} has an inconsistent year parent.`);
+    }
     return show;
   });
-  const venueEntries = resource.venue_entries.map((entry) => {
-    const properties = venueEntryProperties(realm, entry);
-    const entryArtistUuid =
-      properties.artistVenue?.artistUuid ?? properties.importedVenue?.artistUuid;
-    if (!entryArtistUuid) {
-      throw new V4CatalogApplyError('Artist venue browse entry has no linked venue.');
-    }
-    requireMatchingArtist(entryArtistUuid, artist.uuid, 'Artist venue browse entry');
-    return properties;
-  });
-  const songEntries = resource.song_entries.map((entry) => {
-    const properties = songEntryProperties(realm, entry);
-    const entryArtistUuid =
-      properties.normalizedSong?.artistUuid ?? properties.importedSong?.artistUuid;
-    if (!entryArtistUuid) {
-      throw new V4CatalogApplyError('Artist song browse entry has no linked song.');
-    }
-    requireMatchingArtist(entryArtistUuid, artist.uuid, 'Artist song browse entry');
-    return properties;
-  });
-  const eras = resource.eras.map((era) => ({ order: era.order, name: era.name }));
-
-  const tombstoneAt = new Date();
-  reconcileExactMembership(
-    realm.objects(Year).filtered('artistUuid == $0', artist.uuid),
-    years,
-    `Artist ${artist.uuid}'s year membership`,
-    tombstoneAt
-  );
-  reconcileExactMembership(
-    realm.objects(Show).filtered('artistUuid == $0', artist.uuid),
+  return reconcileExactMembership(
+    realm.objects(Show).filtered('artistUuid == $0 AND yearUuid == $1', artistUuid, yearUuid),
     shows,
-    `Artist ${artist.uuid}'s show membership`,
-    tombstoneAt
+    `Year ${yearUuid}'s show membership`,
+    new Date()
   );
-  reconcileExactMembership(
-    realm.objects(Tour).filtered('artistUuid == $0', artist.uuid),
-    tours,
-    `Artist ${artist.uuid}'s tour membership`,
-    tombstoneAt
-  );
-  reconcileExactMembership(
-    realm.objects(Venue).filtered('artistUuid == $0', artist.uuid),
-    importedVenues,
-    `Artist ${artist.uuid}'s imported venue membership`,
-    tombstoneAt
-  );
-  reconcileExactMembership(
-    realm.objects(Song).filtered('artistUuid == $0', artist.uuid),
-    importedSongs,
-    `Artist ${artist.uuid}'s imported song membership`,
-    tombstoneAt
-  );
-
-  const existing = realm.objectForPrimaryKey(ArtistCatalogSnapshot, artist.uuid);
-  if (!existing) {
-    realm.create(ArtistCatalogSnapshot, {
-      artistUuid: artist.uuid,
-      artist,
-      years,
-      shows,
-      tours,
-      importedVenues,
-      importedSongs,
-      venueEntries,
-      songEntries,
-      eras,
-    });
-  } else {
-    existing.artist = artist;
-    existing.years.splice(0, existing.years.length, ...years);
-    existing.shows.splice(0, existing.shows.length, ...shows);
-    existing.tours.splice(0, existing.tours.length, ...tours);
-    existing.importedVenues.splice(0, existing.importedVenues.length, ...importedVenues);
-    existing.importedSongs.splice(0, existing.importedSongs.length, ...importedSongs);
-    existing.venueEntries.splice(
-      0,
-      existing.venueEntries.length,
-      ...(venueEntries as unknown as (typeof existing.venueEntries)[number][])
-    );
-    existing.songEntries.splice(
-      0,
-      existing.songEntries.length,
-      ...(songEntries as unknown as (typeof existing.songEntries)[number][])
-    );
-    existing.eras.splice(
-      0,
-      existing.eras.length,
-      ...(eras as unknown as (typeof existing.eras)[number][])
-    );
-  }
-  return [artist.uuid];
 }
 
 /** Applies a full show and owns only this show's active source membership. */
 export function applyV4FullShow(realm: Realm, resource: V4ShowResource) {
-  assertWriteTransaction(realm);
   const show = applyShowSummary(realm, resource);
   requireUniqueIds(
     resource.sources.map((source) => decodeV4UuidCatalogId(source.id, 'source')),
@@ -908,13 +701,11 @@ export function applyV4FullShow(realm: Realm, resource: V4ShowResource) {
 
 /** Applies a full source and owns only this source's set/track membership. */
 export function applyV4FullSource(realm: Realm, resource: V4SourceResource) {
-  assertWriteTransaction(realm);
   return [applySourceResource(realm, resource).uuid];
 }
 
 /** Applies one complete track and repairs its single parent-set membership. */
 export function applyV4Track(realm: Realm, resource: V4TrackResource) {
-  assertWriteTransaction(realm);
   return [applyTrackResource(realm, resource).uuid];
 }
 
@@ -922,113 +713,30 @@ function isActive(row: { deletedAt?: Date } | null | undefined): row is { delete
   return row != null && row.deletedAt == null;
 }
 
-function hasExactActiveRows<T extends { uuid: string; artistUuid: string; deletedAt?: Date }>(
-  listedRows: Iterable<T>,
-  activeRows: Iterable<T>,
-  artistUuid: string
+function hasExactResultRows<T extends { uuid: string }>(
+  rows: Iterable<T>,
+  resultIds: Iterable<string>,
+  isValid: (row: T) => boolean
 ) {
-  const listed = Array.from(listedRows);
-  const active = Array.from(activeRows);
-  const listedIds = new Set(listed.map((row) => row.uuid));
+  const activeRows = Array.from(rows);
+  const listedIds = Array.from(resultIds);
+  const listedIdSet = new Set(listedIds);
   return (
-    listed.length === active.length &&
-    listedIds.size === listed.length &&
-    listed.every((row) => isActive(row) && row.artistUuid === artistUuid) &&
-    active.every((row) => listedIds.has(row.uuid))
+    listedIdSet.size === listedIds.length &&
+    activeRows.length === listedIds.length &&
+    activeRows.every((row) => listedIdSet.has(row.uuid) && isValid(row))
   );
 }
 
-export function hasV4ArtistCatalog(realm: Realm, artistUuid: string) {
-  const snapshot = realm.objectForPrimaryKey(ArtistCatalogSnapshot, artistUuid);
+export function hasV4ArtistYears(realm: Realm, artistUuid: string, resultIds: Iterable<string>) {
   const artist = realm.objectForPrimaryKey(Artist, artistUuid);
-  if (
-    snapshot === null ||
-    snapshot.artistUuid !== artistUuid ||
-    !isActive(artist) ||
-    snapshot.artist?.uuid !== artistUuid ||
-    snapshot.shows.length !== artist.showCount
-  ) {
-    return false;
-  }
+  if (!isActive(artist)) return false;
 
-  if (
-    !hasExactActiveRows(
-      snapshot.years,
-      realm.objects(Year).filtered('artistUuid == $0 AND deletedAt == nil', artistUuid),
-      artistUuid
-    ) ||
-    !hasExactActiveRows(
-      snapshot.shows,
-      realm.objects(Show).filtered('artistUuid == $0 AND deletedAt == nil', artistUuid),
-      artistUuid
-    ) ||
-    !hasExactActiveRows(
-      snapshot.tours,
-      realm.objects(Tour).filtered('artistUuid == $0 AND deletedAt == nil', artistUuid),
-      artistUuid
-    ) ||
-    !hasExactActiveRows(
-      snapshot.importedVenues,
-      realm.objects(Venue).filtered('artistUuid == $0 AND deletedAt == nil', artistUuid),
-      artistUuid
-    ) ||
-    !hasExactActiveRows(
-      snapshot.importedSongs,
-      realm.objects(Song).filtered('artistUuid == $0 AND deletedAt == nil', artistUuid),
-      artistUuid
-    )
-  ) {
-    return false;
-  }
-
-  const importedVenueIds = new Set(snapshot.importedVenues.map((venue) => venue.uuid));
-  const importedSongIds = new Set(snapshot.importedSongs.map((song) => song.uuid));
-  const venueEntriesAreValid = snapshot.venueEntries.every((entry) => {
-    if (entry.kind === 'artist_venue') {
-      const artistVenue = entry.artistVenue;
-      return (
-        artistVenue != null &&
-        entry.importedVenue == null &&
-        artistVenue.artistUuid === artistUuid &&
-        artistVenue.artist?.uuid === artistUuid &&
-        realm.objectForPrimaryKey(ArtistVenue, artistVenue.id)?.id === artistVenue.id &&
-        realm.objectForPrimaryKey(NormalizedVenue, artistVenue.venueId)?.id ===
-          artistVenue.venue?.id
-      );
-    }
-    if (entry.kind === 'imported_venue') {
-      return (
-        entry.artistVenue == null &&
-        isActive(entry.importedVenue) &&
-        entry.importedVenue.artistUuid === artistUuid &&
-        importedVenueIds.has(entry.importedVenue.uuid)
-      );
-    }
-    return false;
-  });
-  if (!venueEntriesAreValid) return false;
-
-  return snapshot.songEntries.every((entry) => {
-    if (entry.kind === 'song') {
-      const song = entry.normalizedSong;
-      return (
-        song != null &&
-        entry.importedSong == null &&
-        song.artistUuid === artistUuid &&
-        song.artist?.uuid === artistUuid &&
-        realm.objectForPrimaryKey(NormalizedSong, song.id)?.id === song.id
-      );
-    }
-    if (entry.kind === 'imported_song') {
-      return (
-        entry.normalizedSong == null &&
-        isActive(entry.importedSong) &&
-        entry.importedSong.artistUuid === artistUuid &&
-        importedSongIds.has(entry.importedSong.uuid)
-      );
-    }
-    return false;
-  });
+  return hasExactResultRows(
+    realm.objects(Year).filtered('artistUuid == $0 AND deletedAt == nil', artistUuid),
+    resultIds,
+    (year) => year.artistUuid === artistUuid
+  );
 }
 
 function hasActiveShowRowAndParents(realm: Realm, show: Show | null): show is Show {
@@ -1059,6 +767,31 @@ function hasActiveShowRowAndParents(realm: Realm, show: Show | null): show is Sh
   }
 
   return true;
+}
+
+export function hasV4Year(
+  realm: Realm,
+  artistUuid: string,
+  yearUuid: string,
+  resultIds: Iterable<string>
+) {
+  const artist = realm.objectForPrimaryKey(Artist, artistUuid);
+  const year = realm.objectForPrimaryKey(Year, yearUuid);
+  if (!isActive(artist) || !isActive(year) || year.artistUuid !== artistUuid) return false;
+
+  const listedIds = Array.from(resultIds);
+  if (year.showCount !== listedIds.length) return false;
+
+  return hasExactResultRows(
+    realm
+      .objects(Show)
+      .filtered('artistUuid == $0 AND yearUuid == $1 AND deletedAt == nil', artistUuid, yearUuid),
+    listedIds,
+    (show) =>
+      show.artistUuid === artistUuid &&
+      show.yearUuid === yearUuid &&
+      hasActiveShowRowAndParents(realm, show)
+  );
 }
 
 function hasActiveTrackGraph(
@@ -1157,11 +890,7 @@ export function hasV4Show(realm: Realm, showUuid: string) {
     activeSources.length === show.sourceCount &&
     activeSources.every((source) => hasActiveSourceGraph(realm, source)) &&
     activeSources.some((source) =>
-      source.sourceSets.some((sourceSet) =>
-        sourceSet.sourceTracks.some(
-          (track) => isActive(track) && (track.mp3Url != null || track.flacUrl != null)
-        )
-      )
+      source.sourceSets.some((sourceSet) => sourceSet.sourceTracks.length > 0)
     )
   );
 }

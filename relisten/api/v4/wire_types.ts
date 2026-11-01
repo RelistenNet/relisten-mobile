@@ -172,20 +172,6 @@ export interface V4ArtistVenueResource {
   venue: V4VenueResource;
 }
 
-export type V4VenueEntryKind = 'artist_venue' | 'imported_venue';
-
-export type V4ArtistVenueEntryResource =
-  | {
-      kind: 'artist_venue';
-      artist_venue: V4ArtistVenueResource;
-      imported_venue: null;
-    }
-  | {
-      kind: 'imported_venue';
-      artist_venue: null;
-      imported_venue: V4ImportedVenueResource;
-    };
-
 export type V4SongKind = 'song' | 'jam' | 'segment' | 'tuning' | 'banter' | 'other';
 
 export interface V4SongResource {
@@ -194,39 +180,6 @@ export interface V4SongResource {
   name: string;
   kind: V4SongKind | null;
 }
-
-export interface V4SongDetailResource extends V4SongResource {
-  slug: string;
-  original_artist: string | null;
-  aliases: string[];
-  matched_track_count: number;
-  matched_show_count: number;
-}
-
-export interface V4ImportedSongResource {
-  id: V4ImportedSongId;
-  artist_id: V4ArtistId;
-  name: string;
-  slug: string;
-  upstream_identifier: string;
-  setlist_show_count: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export type V4SongEntryKind = 'song' | 'imported_song';
-
-export type V4ArtistSongEntryResource =
-  | {
-      kind: 'song';
-      song: V4SongDetailResource;
-      imported_song: null;
-    }
-  | {
-      kind: 'imported_song';
-      song: null;
-      imported_song: V4ImportedSongResource;
-    };
 
 export type V4TrackNormalizationState = 'unavailable' | 'partial' | 'interpreted';
 export type V4TrackNormalizationUnavailableReason = 'disabled' | 'not_interpreted' | 'inconsistent';
@@ -363,17 +316,6 @@ export interface V4ShowResource extends V4ShowSummaryResource {
   sources: V4SourceResource[];
 }
 
-export interface V4ArtistCatalogResource {
-  artist: V4ArtistResource;
-  years: V4YearResource[];
+export interface V4YearWithShowsResource extends V4YearResource {
   shows: V4ShowSummaryResource[];
-  tours: V4TourResource[];
-  eras: V4EraResource[];
-  imported_venues: V4ImportedVenueResource[];
-  imported_songs: V4ImportedSongResource[];
-  venue_entries: V4ArtistVenueEntryResource[];
-  song_entries: V4ArtistSongEntryResource[];
-  artist_venues: V4ArtistVenueResource[];
-  venues: V4VenueResource[];
-  songs: V4SongDetailResource[];
 }

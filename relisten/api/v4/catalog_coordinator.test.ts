@@ -9,10 +9,6 @@ vi.mock('@/relisten/util/logging', () => ({
   log: { extend: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }) },
 }));
 
-import type {
-  AccountScopeCapture,
-  AccountScopeSource,
-} from '@/relisten/accounts/account_scope_store';
 import { CatalogV4Coordinator } from './catalog_coordinator';
 import { CatalogV4Transport, type CatalogV4GetResponse } from './catalog_transport';
 import { CatalogQueryState } from '@/relisten/realm/models/v4_catalog';
@@ -36,33 +32,7 @@ interface TestPayload {
   value: string;
 }
 
-class MutableAccountScope implements AccountScopeSource {
-  private captureValue: AccountScopeCapture = {
-    scopeId: 'anonymous',
-    userId: null,
-    generation: 0,
-    nativeSessionId: null,
-    isAuthenticated: false,
-  };
-
-  subscribe() {
-    return () => {};
-  }
-
-  getSnapshot = () => this.captureValue;
-  capture = () => this.captureValue;
-  isCurrent = (capture: AccountScopeCapture) => capture === this.captureValue;
-
-  advance() {
-    this.captureValue = {
-      ...this.captureValue,
-      generation: this.captureValue.generation + 1,
-    };
-  }
-}
-
 const metrics = {
-  bodyBytes: 100,
   downloadMilliseconds: 2,
   parseMilliseconds: 3,
   totalMilliseconds: 7,
@@ -81,9 +51,7 @@ describe('CatalogV4Coordinator', () => {
   let realm: Realm;
   let transport: CatalogV4Transport;
   let getJson: ReturnType<typeof vi.spyOn>;
-  let accountScope: MutableAccountScope;
   let currentTime: Date;
-  let monotonicTime: number;
   let coordinator: CatalogV4Coordinator;
 
   beforeEach(() => {
@@ -97,13 +65,9 @@ describe('CatalogV4Coordinator', () => {
       fetch: vi.fn(),
     });
     getJson = vi.spyOn(transport, 'getJson');
-    accountScope = new MutableAccountScope();
     currentTime = new Date('2026-10-31T12:00:00Z');
-    monotonicTime = 100;
     coordinator = new CatalogV4Coordinator(realm, transport, {
-      accountScope,
       now: () => currentTime,
-      nowMilliseconds: () => monotonicTime,
     });
   });
 
@@ -127,14 +91,12 @@ describe('CatalogV4Coordinator', () => {
       return [data.id];
     }
   ) {
-    const retry = () => run(false, apply);
     return coordinator.refresh<TestPayload>({
       queryKey: 'test:item',
       path: '/test/item',
       force,
       hasLocalData: () => item() !== null,
       apply,
-      retry,
     });
   }
 
@@ -155,11 +117,9 @@ describe('CatalogV4Coordinator', () => {
 
   it('commits the payload, exact result IDs, and ETag together', async () => {
     getJson.mockResolvedValue(ok({ id: 'item', value: 'applied' }, 'W/"new"'));
-    monotonicTime = 123;
 
-    const result = await run();
+    await run();
 
-    expect(result).toMatchObject({ status: 'applied', metrics });
     expect(item()?.value).toBe('applied');
     expect(queryState()).toMatchObject({
       etag: 'W/"new"',
@@ -205,9 +165,8 @@ describe('CatalogV4Coordinator', () => {
     seedAppliedState();
     getJson.mockResolvedValue(notModified('W/"old"'));
 
-    const result = await run();
+    await run();
 
-    expect(result.status).toBe('not_modified');
     expect(item()?.value).toBe('old');
     expect(queryState()?.etag).toBe('W/"old"');
     expect(queryState()?.lastCheckedAt).toEqual(currentTime);
@@ -229,9 +188,8 @@ describe('CatalogV4Coordinator', () => {
     const refresh = run();
     realm.write(() => realm.delete(item()!));
     release304();
-    const result = await refresh;
+    await refresh;
 
-    expect(result.status).toBe('applied');
     expect(item()?.value).toBe('restored');
     expect(queryState()?.etag).toBe('W/"restored"');
   });
@@ -240,15 +198,13 @@ describe('CatalogV4Coordinator', () => {
     seedAppliedState();
     currentTime = new Date('2026-10-31T11:05:00Z');
 
-    const cached = await run();
-    expect(cached.status).toBe('fresh');
+    await run();
     expect(item()?.value).toBe('old');
     expect(getJson).not.toHaveBeenCalled();
 
     getJson.mockResolvedValue(ok({ id: 'item', value: 'manual' }, 'W/"manual"'));
-    const refreshed = await run(true);
+    await run(true);
 
-    expect(refreshed.status).toBe('applied');
     expect(item()?.value).toBe('manual');
     expect(queryState()?.etag).toBe('W/"manual"');
   });
@@ -267,9 +223,9 @@ describe('CatalogV4Coordinator', () => {
 
     const oldRefresh = run();
     const newRefresh = run(true);
-    await expect(newRefresh).resolves.toMatchObject({ status: 'applied' });
+    await newRefresh;
     releaseOld();
-    await expect(oldRefresh).resolves.toEqual({ status: 'discarded' });
+    await oldRefresh;
 
     expect(item()?.value).toBe('new response');
     expect(queryState()?.etag).toBe('W/"new-response"');
@@ -285,83 +241,13 @@ describe('CatalogV4Coordinator', () => {
       .mockResolvedValueOnce(ok({ id: 'item', value: 'new response' }, 'W/"new-response"'));
 
     const oldRefresh = run();
-    await expect(run(true)).resolves.toMatchObject({ status: 'applied' });
+    await run(true);
     rejectOld(new Error('late transport failure'));
-    await expect(oldRefresh).resolves.toEqual({ status: 'discarded' });
+    await oldRefresh;
 
     expect(item()?.value).toBe('new response');
     expect(queryState()).toMatchObject({
       etag: 'W/"new-response"',
-      retryPending: false,
-    });
-  });
-
-  it('discards a completion from the previous transport generation', async () => {
-    let releaseOld!: () => void;
-    const oldGate = new Promise<void>((resolve) => {
-      releaseOld = resolve;
-    });
-    getJson.mockImplementationOnce(async () => {
-      await oldGate;
-      return ok({ id: 'item', value: 'old transport' }, 'W/"old-transport"');
-    });
-    const oldRefresh = run();
-
-    const replacement = new CatalogV4Transport({
-      apiBase: 'https://replacement.example/api',
-      fetch: vi.fn(),
-    });
-    vi.spyOn(replacement, 'getJson').mockResolvedValue(
-      ok({ id: 'item', value: 'replacement' }, 'W/"replacement"')
-    );
-    coordinator.replaceTransport(replacement);
-    await expect(run()).resolves.toMatchObject({ status: 'applied' });
-    releaseOld();
-    await expect(oldRefresh).resolves.toEqual({ status: 'discarded' });
-
-    expect(item()?.value).toBe('replacement');
-    expect(queryState()?.etag).toBe('W/"replacement"');
-  });
-
-  it('invalidates persisted freshness and validators when the transport changes', async () => {
-    seedAppliedState();
-    currentTime = new Date('2026-10-31T11:05:00Z');
-    const replacement = new CatalogV4Transport({
-      apiBase: 'https://replacement.example/api',
-      fetch: vi.fn(),
-    });
-    const replacementGetJson = vi
-      .spyOn(replacement, 'getJson')
-      .mockResolvedValue(ok({ id: 'item', value: 'replacement' }, 'W/"replacement"'));
-
-    coordinator.replaceTransport(replacement);
-    expect(queryState()).toMatchObject({ etag: null, lastCheckedAt: null });
-
-    await expect(run()).resolves.toMatchObject({ status: 'applied' });
-    expect(replacementGetJson).toHaveBeenCalledWith('/test/item', undefined);
-    expect(item()?.value).toBe('replacement');
-  });
-
-  it('discards an account-stale completion and retries it under the current scope', async () => {
-    let releaseResponse!: () => void;
-    const responseGate = new Promise<void>((resolve) => {
-      releaseResponse = resolve;
-    });
-    getJson
-      .mockImplementationOnce(async () => {
-        await responseGate;
-        return ok({ id: 'item', value: 'stale account' }, 'W/"stale-account"');
-      })
-      .mockResolvedValueOnce(ok({ id: 'item', value: 'current account' }, 'W/"current-account"'));
-
-    const refresh = run();
-    accountScope.advance();
-    releaseResponse();
-
-    await expect(refresh).resolves.toEqual({ status: 'discarded' });
-    await vi.waitFor(() => expect(item()?.value).toBe('current account'));
-    expect(queryState()).toMatchObject({
-      etag: 'W/"current-account"',
       retryPending: false,
     });
   });
