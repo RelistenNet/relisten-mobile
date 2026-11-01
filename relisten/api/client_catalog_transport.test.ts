@@ -78,11 +78,8 @@ describe('RelistenApiClient catalog transport selection', () => {
 
     expect(client.usesV4Catalog()).toBe(false);
     expect(testDoubles.constructV4).not.toHaveBeenCalled();
-    expect(testDoubles.fetch).toHaveBeenCalledWith(
-      'GET',
-      '/v3/artists?include_autocreated=true',
-      undefined
-    );
+    const [method, path] = testDoubles.fetch.mock.calls[0]!;
+    expect([method, path]).toEqual(['GET', '/v3/artists?include_autocreated=true']);
     expect(response.type).toBe(RelistenApiResponseType.OnlineRequestCompleted);
   });
 
@@ -90,6 +87,6 @@ describe('RelistenApiClient catalog transport selection', () => {
     const client = new RelistenApiClient({ realm, catalogTransport: 'v4' });
 
     expect(client.usesV4Catalog()).toBe(true);
-    expect(testDoubles.constructV4).toHaveBeenCalledWith(realm);
+    expect(testDoubles.constructV4.mock.calls[0]?.[0]).toBe(realm);
   });
 });

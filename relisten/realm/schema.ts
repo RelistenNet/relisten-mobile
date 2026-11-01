@@ -40,7 +40,7 @@ import {
   stageLegacyAccountIdentityFields,
   upgradeTypedAccountIdentity,
 } from '@/relisten/realm/account_identity_upgrade';
-import { CatalogQueryState, V4_CATALOG_REALM_MODELS } from '@/relisten/realm/models/v4_catalog';
+import { V4_CATALOG_REALM_MODELS } from '@/relisten/realm/models/v4_catalog';
 
 if (isVerboseProfileLoggingEnabled()) {
   Realm.setLogger(({ category, level, message }) => {
@@ -92,13 +92,6 @@ export const realmConfig: Realm.Configuration = {
     migratePlayerState(oldRealm, newRealm);
     stageLegacyAccountIdentityFields(oldRealm, newRealm);
     migrateLegacyFavoritesToAnonymous(oldRealm, newRealm);
-
-    if (oldRealm.schemaVersion < 19) {
-      const legacyCatalogQueryKey = /^GET \/artists\/artist_[^/]+\/catalog$/;
-      for (const state of Array.from(newRealm.objects(CatalogQueryState))) {
-        if (legacyCatalogQueryKey.test(state.key)) newRealm.delete(state);
-      }
-    }
   },
   // As to not conflict with the prior versions default.realm that isn't readable with this version of the SDK
   path: './relisten.realm',

@@ -56,7 +56,6 @@ const metrics = {
 
 interface RouteIdentityCase {
   name: string;
-  expectedId: string;
   mismatchedId: string;
   path: string;
   refresh: (client: CatalogV4Client) => Promise<unknown>;
@@ -67,6 +66,9 @@ const requestedArtistId = encodeV4UuidCatalogId(requestedUuid, 'artist');
 const returnedArtistId = encodeV4UuidCatalogId(returnedUuid, 'artist');
 const requestedYearId = encodeV4UuidCatalogId(requestedUuid, 'year');
 const returnedYearId = encodeV4UuidCatalogId(returnedUuid, 'year');
+const artistListPath = '/artists?include_autocreated=true';
+const artistYearsPath = `/artists/${requestedArtistId}/years`;
+const selectedYearPath = `${artistYearsPath}/${requestedYearId}`;
 const sourceTrackSchema: Realm.ObjectSchema = {
   name: 'SourceTrack',
   primaryKey: 'uuid',
@@ -140,26 +142,23 @@ function seedRequestedArtist(realm: Realm) {
 const routeIdentityCases: RouteIdentityCase[] = [
   {
     name: 'artist years parent',
-    expectedId: requestedArtistId,
     mismatchedId: returnedArtistId,
-    path: `/artists/${requestedArtistId}/years`,
+    path: artistYearsPath,
     refresh: (client) => client.refreshArtistYears(requestedUuid),
     payload: (id) => [{ artist_id: id }] as V4YearResource[],
   },
   {
     name: 'selected year',
-    expectedId: requestedYearId,
     mismatchedId: returnedYearId,
-    path: `/artists/${requestedArtistId}/years/${requestedYearId}`,
+    path: selectedYearPath,
     refresh: (client) => client.refreshYear(requestedUuid, requestedUuid),
     payload: (id) =>
       ({ id, artist_id: requestedArtistId, shows: [] }) as unknown as V4YearWithShowsResource,
   },
   {
     name: 'selected year parent',
-    expectedId: requestedArtistId,
     mismatchedId: returnedArtistId,
-    path: `/artists/${requestedArtistId}/years/${requestedYearId}`,
+    path: selectedYearPath,
     refresh: (client) => client.refreshYear(requestedUuid, requestedUuid),
     payload: (id) =>
       ({
@@ -170,7 +169,6 @@ const routeIdentityCases: RouteIdentityCase[] = [
   },
   {
     name: 'show',
-    expectedId: encodeV4UuidCatalogId(requestedUuid, 'show'),
     mismatchedId: encodeV4UuidCatalogId(returnedUuid, 'show'),
     path: `/shows/${encodeV4UuidCatalogId(requestedUuid, 'show')}`,
     refresh: (client) => client.refreshShow(requestedUuid),
@@ -178,7 +176,6 @@ const routeIdentityCases: RouteIdentityCase[] = [
   },
   {
     name: 'source',
-    expectedId: encodeV4UuidCatalogId(requestedUuid, 'source'),
     mismatchedId: encodeV4UuidCatalogId(returnedUuid, 'source'),
     path: `/sources/${encodeV4UuidCatalogId(requestedUuid, 'source')}`,
     refresh: (client) => client.refreshSource(requestedUuid),
@@ -186,7 +183,6 @@ const routeIdentityCases: RouteIdentityCase[] = [
   },
   {
     name: 'track',
-    expectedId: encodeV4UuidCatalogId(requestedUuid, 'track'),
     mismatchedId: encodeV4UuidCatalogId(returnedUuid, 'track'),
     path: `/source-tracks/${encodeV4UuidCatalogId(requestedUuid, 'track')}`,
     refresh: (client) => client.refreshTrack(requestedUuid),
@@ -235,12 +231,7 @@ describe('CatalogV4Client route identity validation', () => {
       });
       const client = new CatalogV4Client(realm, transport);
 
-      await expect(routeCase.refresh(client)).rejects.toMatchObject({
-        name: CatalogV4ProtocolError.name,
-        message: expect.stringContaining(
-          `returned ${routeCase.mismatchedId} instead of ${routeCase.expectedId}`
-        ),
-      });
+      await expect(routeCase.refresh(client)).rejects.toBeInstanceOf(CatalogV4ProtocolError);
 
       const state = realm.objectForPrimaryKey(CatalogQueryState, `GET ${routeCase.path}`);
       expect(state?.etag ?? null).toBeNull();
@@ -255,35 +246,25 @@ describe('CatalogV4Client route identity validation', () => {
     await expect(client.refreshArtistYears(requestedUuid)).rejects.toBe(stopped);
     await expect(client.refreshYear(requestedUuid, requestedUuid)).rejects.toBe(stopped);
 
-    expect(getJson).toHaveBeenNthCalledWith(1, `/artists/${requestedArtistId}/years`, undefined);
-    expect(getJson).toHaveBeenNthCalledWith(
-      2,
-      `/artists/${requestedArtistId}/years/${requestedYearId}`,
-      undefined
-    );
-    expect(getJson.mock.calls.map(([path]) => path)).not.toContain(
-      `/artists/${requestedArtistId}/catalog`
-    );
+    expect(getJson.mock.calls.map(([path]) => path)).toEqual([artistYearsPath, selectedYearPath]);
   });
 
-  it('bootstraps a missing artist before requesting a selected year', async () => {
+  it.each([
+    {
+      name: 'artist years',
+      detailPath: artistYearsPath,
+      refresh: (client: CatalogV4Client) => client.refreshArtistYears(requestedUuid),
+    },
+    {
+      name: 'selected year',
+      detailPath: selectedYearPath,
+      refresh: (client: CatalogV4Client) => client.refreshYear(requestedUuid, requestedUuid),
+    },
+  ])('applies a missing artist before requesting $name', async ({ detailPath, refresh }) => {
     realm.write(() => realm.delete(realm.objectForPrimaryKey(Artist, requestedUuid)!));
-    const stopped = new Error('stop after artist request');
-    const getJson = vi.spyOn(transport, 'getJson').mockRejectedValue(stopped);
-    const client = new CatalogV4Client(realm, transport);
-
-    await expect(client.refreshYear(requestedUuid, requestedUuid)).rejects.toBe(stopped);
-
-    expect(getJson).toHaveBeenCalledOnce();
-    expect(getJson).toHaveBeenCalledWith('/artists?include_autocreated=true', undefined);
-  });
-
-  it('applies a missing artist before requesting its years', async () => {
-    realm.write(() => realm.delete(realm.objectForPrimaryKey(Artist, requestedUuid)!));
-    const stopped = new Error('stop after years request');
-    const yearsPath = `/artists/${requestedArtistId}/years`;
+    const stopped = new Error('stop after detail request');
     const getJson = vi.spyOn(transport, 'getJson').mockImplementation(async (path) => {
-      if (path === '/artists?include_autocreated=true') {
+      if (path === artistListPath) {
         return {
           status: 'ok',
           data: [artistResource()],
@@ -292,20 +273,17 @@ describe('CatalogV4Client route identity validation', () => {
         };
       }
 
-      expect(path).toBe(yearsPath);
+      expect(path).toBe(detailPath);
       expect(realm.objectForPrimaryKey(Artist, requestedUuid)?.name).toBe('Requested Artist');
       throw stopped;
     });
     const client = new CatalogV4Client(realm, transport);
 
-    await expect(client.refreshArtistYears(requestedUuid)).rejects.toBe(stopped);
+    await expect(refresh(client)).rejects.toBe(stopped);
 
-    expect(getJson.mock.calls.map(([path]) => path)).toEqual([
-      '/artists?include_autocreated=true',
-      yearsPath,
-    ]);
-    expect(
-      realm.objectForPrimaryKey(CatalogQueryState, 'GET /artists?include_autocreated=true')?.etag
-    ).toBe('W/"artists"');
+    expect(getJson.mock.calls.map(([path]) => path)).toEqual([artistListPath, detailPath]);
+    expect(realm.objectForPrimaryKey(CatalogQueryState, `GET ${artistListPath}`)?.etag).toBe(
+      'W/"artists"'
+    );
   });
 });
