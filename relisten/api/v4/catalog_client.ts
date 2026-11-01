@@ -96,7 +96,19 @@ export class CatalogV4Client {
       apply: (resource) => {
         assertExpectedResourceId(path, yearId, resource.id);
         assertExpectedResourceId(path, artistId, resource.artist_id);
-        return applyV4Year(this.realm, artistUuid, yearUuid, resource);
+        const showUuids = applyV4Year(this.realm, artistUuid, yearUuid, resource);
+
+        // A year summary can overwrite fields from a cached full show. Drop only
+        // that validator so the next show read repairs the shared row.
+        for (const show of resource.shows) {
+          const showState = this.realm.objectForPrimaryKey(
+            CatalogQueryState,
+            `GET /shows/${show.id}`
+          );
+          if (showState) this.realm.delete(showState);
+        }
+
+        return showUuids;
       },
     });
   }
