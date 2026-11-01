@@ -51,7 +51,7 @@ const TAP_EQUIVALENT_DISTANCE = 8;
 
 function OfflineBanner() {
   return (
-    <View className="flex flex-row items-center justify-center bg-red-900/85 px-3 py-2">
+    <View className="flex flex-row items-center justify-center px-3 py-2 pb-0">
       <View className="mr-1">
         <MaterialIcons name="cloud-off" size={20} color="white" />
       </View>
@@ -123,7 +123,7 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
   // UIKit owns the accessory height. Keep progress inside that frame instead of
   // adding its height below the native route control.
   const rootContainerCn = isAccessory ? 'h-full justify-center' : 'flex-1';
-  const headerRowCn = isAccessory ? 'min-h-[38px] items-center' : 'items-center';
+  const headerRowCn = isAccessory ? 'min-h-[38px] items-center' : 'items-center mb-1.5';
   const titleClassName = isAccessory
     ? 'text-[15px] font-semibold text-white'
     : 'text-base font-semibold text-white';
@@ -131,7 +131,7 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
   const castingClassName = isAccessory ? 'text-[11px] text-slate-300' : 'text-xs text-slate-300';
   const transportButtonClassName = isAccessory
     ? 'h-11 w-11 items-center justify-center rounded-full bg-white/15'
-    : 'h-11 w-11 items-center justify-center rounded-full bg-white/10';
+    : 'h-10 w-10 items-center justify-center rounded-full bg-white/10';
   const utilityButtonShellClassName = 'h-11 w-11 items-center justify-center';
 
   let playbackLabel = 'Play';
@@ -365,13 +365,15 @@ export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBa
   const isOverlay = placementBackend === 'overlay';
   const containerClassName = isOverlay ? 'absolute w-full' : 'h-full w-full';
   const contentContainerClassName = isOverlay ? 'w-full flex-1 px-6 pb-2' : 'h-full w-full px-1.5';
-  const mainSurfaceClassName = isOverlay ? 'px-3 pb-3 pt-2.5' : 'h-full';
+  const mainSurfaceClassName = isOverlay ? 'px-3 pb-3 pt-2' : 'h-full';
   const shellChromeStyle =
     Platform.OS === 'ios'
       ? { boxShadow: '0 10px 22px rgba(2, 6, 23, 0.22)' }
       : { elevation: 10, shadowColor: '#020617' };
   const shellSurfaceClassName = `overflow-hidden rounded-3xl border ${
-    Platform.OS === 'ios' ? 'border-white/15' : 'border-white/10'
+    Platform.OS === 'ios' && !isReduceTransparencyEnabled
+      ? 'border-relisten-blue/30'
+      : 'border-white/10'
   }`;
   const body = (
     <>
