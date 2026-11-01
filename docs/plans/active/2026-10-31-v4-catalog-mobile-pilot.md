@@ -38,11 +38,11 @@ pilot.
   `/artists/{artistId}/catalog` route and its dedicated server implementation
   are removed.
 - [x] (2026-11-01) Replaced the mobile full-artist request with the years list
-  and selected-year detail routes. Delete snapshot-only wire, apply, Realm, and
+  and selected-year detail routes. Deleted snapshot-only wire, apply, Realm, and
   test code.
-- [x] (2026-11-01) Ran focused and full automated checks, then repeated the real
-  artist -> years -> year -> show -> source journey on iPhone 17. Record the
-  final counts and commit hashes here.
+- [ ] Repeat the real artist -> years -> year -> show -> source journey, source
+  switching, and offline restart on iPhone 17 after the overlap fix. Then record
+  the accepted checkpoint and final commit hashes here.
 
 ## Surprises & Discoveries
 
@@ -65,12 +65,12 @@ pilot.
 - Artist and year routes can mount before their parent artist bootstrap
   finishes. Both artist-owned v4 reads now coalesce with that bootstrap and
   force it once only if the parent is still missing or tombstoned.
-- Removing one large request does not order writes from different remaining
-  query keys. Selected-year and show-detail responses can both update shared
-  `Show` summary fields. An older full-show response could also reactivate a
-  show that a newer selected-year membership omitted, and embedded year data
-  can similarly overlap the years list. Same-query fencing still applies, but
-  this correction does not claim to solve cross-query ownership ordering.
+- Removing one large request does not order writes from different query keys. A
+  reproduced older selected-year response overwrote a newer full-show rating;
+  the still-valid show ETag then returned 304 and made the stale value durable.
+  The client now drops only the affected show-detail validator, so the next show
+  read repairs that shared row. Other cross-query ownership questions remain
+  outside this narrow fix.
 - RocketSim network conditioning was unavailable during the first review. The
   offline restart instead used Always Offline Mode and an unreachable loopback
   catalog origin. That proved catalog independence and local-file playback,
@@ -106,8 +106,10 @@ pilot.
   imported title is the listener-facing label. Realm may retain normalization
   for catalog behavior and future screens with a defined listener need.
 - Decision: retain per-query same-request fencing. Do not describe the removal
-  of the combined endpoint as a fix for cross-query shared-entity races. Record
-  a reproduced overlap separately if one affects this journey.
+  of the combined endpoint as a general fix for cross-query shared-entity races.
+  When a selected-year response rewrites a returned show summary, invalidate
+  only that show's detail validator in the same transaction. Do not add a
+  dependency graph, global revision, or broad invalidation framework.
 
 ## Outcomes & Retrospective
 
@@ -133,13 +135,15 @@ implementation must preserve:
   track `High Beams` without normalization.
 
 The corrected mobile implementation deletes the full-snapshot DTO, Realm
-models, apply/freshness code, and snapshot-only tests. Realm schema 19 removed
-those development-only types and only the legacy full-catalog query state; the
-existing simulator database opened with its player state intact.
+models, apply/freshness code, and snapshot-only tests. Realm drops the
+development-only types when schema 19 opens. No explicit migration remains for
+the obsolete full-catalog query state because current code cannot address that
+unreleased endpoint key.
 
-The final automated pass ran 48 files and 324 tests successfully. `yarn
-ts:check`, `yarn lint`, and `git diff --check` also passed. The retained iPhone
-17 then issued this sequence while navigating real screens:
+The current automated pass ran 48 files and 324 tests successfully. `yarn
+ts:check`, `yarn lint`, and `git diff --check` also passed. Before the final
+overlap fix, the retained iPhone 17 issued this sequence while navigating real
+screens:
 
 - `GET /artists/artist_3qmp7zjbg1rpebhtyfy43096vj/years`
 - `GET /artists/artist_3qmp7zjbg1rpebhtyfy43096vj/years/year_59t8nz8n0m6e4c2ej2aq9dbkb9`
@@ -151,12 +155,14 @@ rows. `Feel Like A Stranger` became the public player title and played; the row
 had no listener-facing normalization subtitle. The RocketSim live preview was
 `http://127.0.0.1:4996/?token=8901ea4a7975421a9af5b56deca04301`.
 The earlier offline/download/source-switching evidence was not repeated because
-this correction did not change their identities or player code; schema and
-apply regressions retained that coverage.
+the first route correction did not change their identities or player code. The
+final C3 review must repeat them after the overlap fix before this checkpoint is
+accepted.
 
 The corrected catalog implementation is commit `d90c779`; the listener-facing
-track-row cleanup is commit `4205563`. This plan record is committed separately
-after those implementation commits.
+track-row cleanup is commit `4205563`; the overlap repair is `4456a60`; and the
+final scaffolding deletion is `097ea26`. C3 remains open until the native rerun
+above is complete.
 
 ## Context and Orientation
 
@@ -239,6 +245,8 @@ Automated evidence must show:
 - route artist/year mismatches commit neither payload nor ETag;
 - selected-year summary refresh preserves source/set/track graphs, download
   state, and shows belonging to another year;
+- an older selected-year response cannot leave a newer full-show correction
+  hidden behind a stale detail validator;
 - payload, endpoint membership, and ETag commit or roll back together;
 - a 304 is accepted only with matching applied state and usable local data;
 - manual refresh bypasses freshness, reconnect retries failure, and an older
