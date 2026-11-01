@@ -12,10 +12,11 @@ import { duration } from '@/relisten/util/duration';
 import type { Song } from '@/relisten/realm/models/song';
 import { Popularity } from './popularity';
 import type { LibraryIndex } from '@/relisten/realm/library_index';
+import type { ArtistVenue } from '@/relisten/realm/models/v4_catalog';
 
 export interface ShowRequiredProperties extends RelistenObjectRequiredProperties {
   artistUuid: string;
-  yearUuid: string;
+  yearUuid?: string;
   venueUuid?: string;
   tourUuid?: string;
   createdAt: Date;
@@ -40,7 +41,7 @@ export class Show
     properties: {
       uuid: 'string',
       artistUuid: { type: 'string', indexed: true },
-      yearUuid: { type: 'string', indexed: true },
+      yearUuid: { type: 'string', optional: true, indexed: true },
       venueUuid: { type: 'string', optional: true, indexed: true },
       tourUuid: { type: 'string', optional: true, indexed: true },
       createdAt: 'date',
@@ -70,6 +71,7 @@ export class Show
       },
       tour: 'Tour?',
       artist: 'Artist?',
+      artistVenue: 'ArtistVenue?',
     },
   };
 
@@ -78,7 +80,7 @@ export class Show
   updatedAt!: Date;
   deletedAt?: Date;
   artistUuid!: string;
-  yearUuid!: string;
+  yearUuid?: string;
   venueUuid?: string;
   tourUuid?: string;
   date!: Date;
@@ -96,6 +98,7 @@ export class Show
   songs!: Realm.Set<Song>;
   artist!: Artist;
   tour?: Tour;
+  artistVenue?: ArtistVenue;
 
   /** @deprecated Use `useFavorite` or `LibraryIndex` for active-account membership. */
   isFavorite!: boolean;

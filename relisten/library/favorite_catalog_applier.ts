@@ -122,7 +122,7 @@ function attachRelationships(realm: Realm, response: CatalogResolveResponse) {
 
     const artist = realm.objectForPrimaryKey(Artist, track.artistUuid);
     const show = realm.objectForPrimaryKey(Show, track.showUuid);
-    const year = show && realm.objectForPrimaryKey(Year, show.yearUuid);
+    const year = show?.yearUuid ? realm.objectForPrimaryKey(Year, show.yearUuid) : undefined;
     const source = realm.objectForPrimaryKey(Source, track.sourceUuid);
     const sourceSet = realm.objectForPrimaryKey(SourceSet, track.sourceSetUuid);
     if (!track.artist && artist) {
