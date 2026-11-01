@@ -11,7 +11,6 @@ import { type ReactNode } from 'react';
 import { TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { tw } from '@/relisten/util/tw';
 import { accessibleControlScale } from '@/relisten/util/accessible_control_scale';
-import { trackNormalizationSummary } from '@/relisten/components/source/track_normalization_summary';
 
 interface SourceTrackProps {
   actions?: ReactNode;
@@ -39,7 +38,6 @@ export const SourceTrackComponent = ({
   const isPlayingThisTrack = currentPlayerTrack?.sourceTrack.uuid === sourceTrack.uuid;
   const shouldShowTrackNumber = showTrackNumber ?? true;
   const PressableView = disabled ? View : TouchableOpacity;
-  const normalizationSummary = trackNormalizationSummary(sourceTrack.normalization);
 
   return (
     <View className={tw('pl-6 pr-4', { 'opacity-60': disabled })}>
@@ -65,30 +63,17 @@ export const SourceTrackComponent = ({
             </View>
           )}
 
-          <View className="min-w-0 flex-1 py-2">
-            <View className="min-w-0 flex-row items-center">
-              <RelistenText className="shrink pr-2 text-lg" selectable={false}>
-                {sourceTrack.title}
+          <View className="min-w-0 flex-1 flex-row items-center">
+            <RelistenText className="shrink py-2 pr-2 text-lg" selectable={false}>
+              {sourceTrack.title}
+            </RelistenText>
+            <View className="flex-1" />
+            <View className="shrink-0 flex-row items-center">
+              <SourceTrackOfflineIndicator offlineInfo={sourceTrack.offlineInfo} />
+              <RelistenText className="ml-2 text-right text-base text-gray-400" selectable={false}>
+                {sourceTrack.humanizedDuration}
               </RelistenText>
-              <View className="flex-1" />
-              <View className="shrink-0 flex-row items-center">
-                <SourceTrackOfflineIndicator offlineInfo={sourceTrack.offlineInfo} />
-                <RelistenText
-                  className="ml-2 text-right text-base text-gray-400"
-                  selectable={false}
-                >
-                  {sourceTrack.humanizedDuration}
-                </RelistenText>
-              </View>
             </View>
-            {normalizationSummary && (
-              <RelistenText
-                className="pr-2 pt-0.5 text-sm leading-5 text-gray-400"
-                selectable={false}
-              >
-                {normalizationSummary}
-              </RelistenText>
-            )}
           </View>
         </PressableView>
         {actions}
