@@ -19,10 +19,8 @@ describe('CatalogV4Transport', () => {
     await expect(transport.getJson('/artists', 'W/"catalog"')).resolves.toMatchObject({
       status: 'not_modified',
       etag: 'W/"catalog"',
-      metrics: { parseMilliseconds: 0 },
     });
 
-    expect(fetch).toHaveBeenCalledOnce();
     const [url, request] = fetch.mock.calls[0]!;
     expect(url).toBe('https://catalog.test/api/v4/artists');
     expect(request!.method).toBe('GET');

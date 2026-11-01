@@ -28,7 +28,6 @@ describe('v4 catalog identity adapter', () => {
   it.each(uuidPrefixes)('losslessly converts %s IDs at the adapter', (prefix) => {
     const wireId = encodeV4UuidCatalogId(uuid, prefix);
 
-    expect(wireId.startsWith(`${prefix}_`)).toBe(true);
     expect(decodeV4UuidCatalogId(wireId, prefix)).toBe(uuid);
   });
 

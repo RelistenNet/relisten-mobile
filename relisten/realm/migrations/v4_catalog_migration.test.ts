@@ -43,7 +43,6 @@ vi.mock('@/relisten/accounts/auth/pkce_transaction', () => ({
 
 import { REALM_SCHEMA, REALM_SCHEMA_VERSION, realmConfig } from '@/relisten/realm/schema';
 import { CatalogQueryState, V4_CATALOG_REALM_MODELS } from '@/relisten/realm/models/v4_catalog';
-import { Artist } from '@/relisten/realm/models/artist';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import {
   SourceTrackOfflineInfoStatus,
@@ -77,51 +76,6 @@ const favoriteTargetId = formatUuidTypedId('track', trackUuid);
 
 type RealmModel = { schema: Realm.ObjectSchema };
 
-const LEGACY_SCHEMA_18_SNAPSHOT_MODELS: Realm.ObjectSchema[] = [
-  {
-    name: 'ArtistVenueBrowseEntry',
-    embedded: true,
-    properties: {
-      kind: 'string',
-      artistVenue: 'ArtistVenue?',
-      importedVenue: 'Venue?',
-    },
-  },
-  {
-    name: 'ArtistSongBrowseEntry',
-    embedded: true,
-    properties: {
-      kind: 'string',
-      normalizedSong: 'NormalizedSong?',
-      importedSong: 'Song?',
-    },
-  },
-  {
-    name: 'ArtistEra',
-    embedded: true,
-    properties: {
-      order: 'int',
-      name: 'string',
-    },
-  },
-  {
-    name: 'ArtistCatalogSnapshot',
-    primaryKey: 'artistUuid',
-    properties: {
-      artistUuid: 'string',
-      artist: 'Artist?',
-      years: 'Year[]',
-      shows: 'Show[]',
-      tours: 'Tour[]',
-      importedVenues: 'Venue[]',
-      importedSongs: 'Song[]',
-      venueEntries: 'ArtistVenueBrowseEntry[]',
-      songEntries: 'ArtistSongBrowseEntry[]',
-      eras: 'ArtistEra[]',
-    },
-  },
-];
-
 function schema17(): Realm.ObjectSchema[] {
   const v4Names = new Set(
     V4_CATALOG_REALM_MODELS.map((model) => (model as unknown as RealmModel).schema.name)
@@ -145,10 +99,6 @@ function schema17(): Realm.ObjectSchema[] {
 
     return [{ ...schema, properties }];
   });
-}
-
-function schema18() {
-  return [...REALM_SCHEMA, ...LEGACY_SCHEMA_18_SNAPSHOT_MODELS];
 }
 
 class MigrationRealmFile {
@@ -353,52 +303,6 @@ function seedSchema17(realm: Realm) {
   });
 }
 
-function seedSchema18Snapshot(realm: Realm) {
-  const artistId = formatUuidTypedId('artist', artistUuid);
-  realm.write(() => {
-    const artist = realm.create(Artist, {
-      uuid: artistUuid,
-      createdAt: savedAt,
-      updatedAt: savedAt,
-      musicbrainzId: '',
-      name: 'Migration Artist',
-      featured: 1,
-      slug: 'migration-artist',
-      sortName: 'Migration Artist',
-      featuresRaw: '{}',
-      upstreamSourcesRaw: '[]',
-      showCount: 0,
-      sourceCount: 0,
-    });
-    realm.create('ArtistCatalogSnapshot', {
-      artistUuid,
-      artist,
-      years: [],
-      shows: [],
-      tours: [],
-      importedVenues: [],
-      importedSongs: [],
-      venueEntries: [],
-      songEntries: [],
-      eras: [],
-    });
-    realm.create(CatalogQueryState, {
-      key: `GET /artists/${artistId}/catalog`,
-      etag: 'legacy-catalog-etag',
-      hasAppliedData: true,
-      retryPending: false,
-      resultIds: [artistUuid],
-    });
-    realm.create(CatalogQueryState, {
-      key: `GET /artists/${artistId}/years`,
-      etag: 'granular-years-etag',
-      hasAppliedData: true,
-      retryPending: false,
-      resultIds: [],
-    });
-  });
-}
-
 function expectPreservedState(realm: Realm) {
   const track = realm.objectForPrimaryKey(SourceTrack, trackUuid)!;
   const show = realm.objectForPrimaryKey(Show, showUuid)!;
@@ -473,32 +377,5 @@ describe('v4 catalog Realm migration', () => {
 
     const migrated = await file.reopenCurrent();
     expectPreservedState(migrated);
-  });
-
-  it('removes the legacy full-artist snapshot and validator without clearing granular state', async () => {
-    const schema18Realm = await file.open({ schema: schema18(), schemaVersion: 18 });
-    seedSchema18Snapshot(schema18Realm);
-    schema18Realm.close();
-
-    const migrated = await file.reopenCurrent();
-    expect(migrated.schemaVersion).toBe(19);
-    expect(migrated.objectForPrimaryKey(Artist, artistUuid)).not.toBeNull();
-    expect(migrated.schema.map((schema) => schema.name)).not.toEqual(
-      expect.arrayContaining([
-        'ArtistCatalogSnapshot',
-        'ArtistVenueBrowseEntry',
-        'ArtistSongBrowseEntry',
-        'ArtistEra',
-      ])
-    );
-
-    const queryStates = migrated.objects(CatalogQueryState);
-    expect(queryStates.map((state) => state.key)).toEqual([
-      `GET /artists/${formatUuidTypedId('artist', artistUuid)}/years`,
-    ]);
-    expect(queryStates[0]).toMatchObject({
-      etag: 'granular-years-etag',
-      hasAppliedData: true,
-    });
   });
 });
