@@ -9,8 +9,9 @@ export type SourceReview = components['schemas']['SourceReview'];
 export interface Link {
   created_at: string;
   updated_at: string;
-  source_id: number;
-  upstream_source_id: number;
+  source_id: number | string;
+  upstream_source_id?: number;
+  provider?: string;
   for_reviews: boolean;
   for_ratings: boolean;
   for_source: boolean;
@@ -23,6 +24,7 @@ export enum FlacType {
   Flac16Bit = 'Flac16Bit',
   Flac24Bit = 'Flac24Bit',
   NoPlayableFlac = 'NoPlayableFlac',
+  Unknown = 'Unknown',
 }
 
 export interface SlimSource {

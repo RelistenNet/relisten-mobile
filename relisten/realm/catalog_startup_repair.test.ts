@@ -53,6 +53,14 @@ import {
   PopularityWindows,
 } from '@/relisten/realm/models/popularity';
 import { FlacType } from '@/relisten/api/models/source';
+import {
+  ArtistVenue,
+  NormalizedSong,
+  NormalizedVenue,
+  NormalizedVenueName,
+  TrackNormalization,
+  TrackNormalizationPart,
+} from '@/relisten/realm/models/v4_catalog';
 
 const TEST_REALM_PATH = '/tmp/relisten-catalog-startup-repair-test.realm';
 const now = new Date('2026-08-20T00:00:00.000Z');
@@ -77,6 +85,12 @@ const config: Realm.Configuration = {
     PopularityWindow,
     PopularityWindows,
     CatalogStartupRepairState,
+    NormalizedVenueName,
+    NormalizedVenue,
+    ArtistVenue,
+    NormalizedSong,
+    TrackNormalizationPart,
+    TrackNormalization,
   ],
 };
 
@@ -303,7 +317,7 @@ describe('catalog startup repair', () => {
     expect(show.artist.uuid).toBe('artist');
     expect(source.artist.uuid).toBe('artist');
     expect(track.artist.uuid).toBe('artist');
-    expect(track.year.uuid).toBe('year');
+    expect(track.year!.uuid).toBe('year');
     expect(track.show.uuid).toBe('show');
     expect(track.source.uuid).toBe('source');
     expect(

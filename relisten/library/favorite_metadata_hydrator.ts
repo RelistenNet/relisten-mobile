@@ -167,7 +167,7 @@ export class FavoriteMetadataHydrator {
     return (
       isActiveCatalogObject(show) &&
       this.hasArtistMetadata(show.artistUuid) &&
-      isActiveCatalogObject(realm.objectForPrimaryKey(Year, show.yearUuid))
+      (!show.yearUuid || isActiveCatalogObject(realm.objectForPrimaryKey(Year, show.yearUuid)))
     );
   }
 

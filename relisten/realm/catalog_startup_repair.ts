@@ -178,9 +178,10 @@ export function repairCatalogAtStartup(realm: Realm): CatalogRepairSummary {
       const artist = track.artist ?? realm.objectForPrimaryKey(Artist, track.artistUuid);
       const show = track.show ?? realm.objectForPrimaryKey(Show, track.showUuid);
       const source = track.source ?? realm.objectForPrimaryKey(Source, track.sourceUuid);
-      const year = track.year ?? (show && realm.objectForPrimaryKey(Year, show.yearUuid));
+      const year =
+        track.year ?? (show?.yearUuid ? realm.objectForPrimaryKey(Year, show.yearUuid) : undefined);
 
-      if (!artist || !show || !source || !year) {
+      if (!artist || !show || !source || (show.yearUuid && !year)) {
         if (tombstoneIrreparableRow(track, repairDate)) {
           summary.tombstonedRows += 1;
         }
@@ -203,7 +204,7 @@ export function repairCatalogAtStartup(realm: Realm): CatalogRepairSummary {
         track.source = source;
         summary.repairedLinks += 1;
       }
-      if (!track.year) {
+      if (!track.year && year) {
         track.year = year;
         summary.repairedLinks += 1;
       }

@@ -1,6 +1,6 @@
 import dayjs from 'dayjs';
 import Realm from 'realm';
-import { ArtistUpstreamSource, ArtistWithCounts, Features } from '../../api/models/artist';
+import { ArtistWithCounts, Features, StoredArtistUpstreamSource } from '../../api/models/artist';
 import { LegacyFavoriteMirror } from '../legacy_favorite_mirror';
 import { checkIfOfflineSourceTrackExists } from '../realm_filters';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
@@ -93,12 +93,12 @@ export class Artist
     return this._features as Features;
   }
 
-  private _upstreamSources?: ArtistUpstreamSource[];
-  upstreamSources() {
+  private _upstreamSources?: StoredArtistUpstreamSource[];
+  upstreamSources(): StoredArtistUpstreamSource[] {
     if (!this._upstreamSources) {
       this._upstreamSources = JSON.parse(this.upstreamSourcesRaw);
     }
-    return this._upstreamSources;
+    return this._upstreamSources!;
   }
 
   hasOfflineTracks(libraryIndex?: Pick<LibraryIndex, 'artistHasOfflineTracks'>) {

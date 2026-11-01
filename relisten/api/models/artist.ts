@@ -53,6 +53,17 @@ export interface ArtistUpstreamSource {
   upstream_source: UpstreamSource;
 }
 
+/** Provider metadata returned by the native v4 catalog. */
+export interface ArtistProviderSource {
+  provider: string;
+  upstream_identifier: string | null;
+  url: string | null;
+  description: string | null;
+  credit_line: string | null;
+}
+
+export type StoredArtistUpstreamSource = ArtistUpstreamSource | ArtistProviderSource;
+
 export interface UpstreamSource {
   name: string;
   url: string;
@@ -84,6 +95,7 @@ export interface Features {
   reviews_have_ratings: boolean;
   track_durations: boolean;
   can_have_flac: boolean;
+  normalization?: boolean;
 }
 
 export interface Popularity {

@@ -12,6 +12,7 @@ import { trackDuration } from '@/relisten/util/duration';
 import { Paths } from 'expo-file-system';
 import { sharedStatsigClient } from '@/relisten/events';
 import { LegacyFavoriteMirror } from '@/relisten/realm/legacy_favorite_mirror';
+import type { TrackNormalization } from '@/relisten/realm/models/v4_catalog';
 
 export const OFFLINE_DIRECTORY = Paths.join(Paths.document, 'offline');
 
@@ -82,6 +83,7 @@ export class SourceTrack
       year: 'Year?',
       show: 'Show?',
       source: 'Source?',
+      normalization: 'TrackNormalization?',
     },
   };
 
@@ -108,9 +110,10 @@ export class SourceTrack
 
   offlineInfo?: SourceTrackOfflineInfo;
   artist!: Artist;
-  year!: Year;
+  year?: Year;
   show!: Show;
   source!: Source;
+  normalization?: TrackNormalization;
 
   streamingUrl(): string | undefined {
     // MP3 remains the default because offline validation and storage are MP3
