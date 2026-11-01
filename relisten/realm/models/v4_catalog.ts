@@ -1,11 +1,6 @@
 import Realm from 'realm';
 
 import type { Artist } from './artist';
-import type { Show } from './show';
-import type { Song } from './song';
-import type { Tour } from './tour';
-import type { Venue } from './venue';
-import type { Year } from './year';
 
 export class NormalizedVenueName extends Realm.Object<NormalizedVenueName> {
   static schema: Realm.ObjectSchema = {
@@ -155,83 +150,6 @@ export class TrackNormalization extends Realm.Object<TrackNormalization> {
   parts!: Realm.List<TrackNormalizationPart>;
 }
 
-export class ArtistVenueBrowseEntry extends Realm.Object<ArtistVenueBrowseEntry> {
-  static schema: Realm.ObjectSchema = {
-    name: 'ArtistVenueBrowseEntry',
-    embedded: true,
-    properties: {
-      kind: 'string',
-      artistVenue: 'ArtistVenue?',
-      importedVenue: 'Venue?',
-    },
-  };
-
-  kind!: string;
-  artistVenue?: ArtistVenue;
-  importedVenue?: Venue;
-}
-
-export class ArtistSongBrowseEntry extends Realm.Object<ArtistSongBrowseEntry> {
-  static schema: Realm.ObjectSchema = {
-    name: 'ArtistSongBrowseEntry',
-    embedded: true,
-    properties: {
-      kind: 'string',
-      normalizedSong: 'NormalizedSong?',
-      importedSong: 'Song?',
-    },
-  };
-
-  kind!: string;
-  normalizedSong?: NormalizedSong;
-  importedSong?: Song;
-}
-
-export class ArtistEra extends Realm.Object<ArtistEra> {
-  static schema: Realm.ObjectSchema = {
-    name: 'ArtistEra',
-    embedded: true,
-    properties: {
-      order: 'int',
-      name: 'string',
-    },
-  };
-
-  order!: number;
-  name!: string;
-}
-
-/** Exact artist-owned memberships from the latest successfully applied snapshot. */
-export class ArtistCatalogSnapshot extends Realm.Object<ArtistCatalogSnapshot> {
-  static schema: Realm.ObjectSchema = {
-    name: 'ArtistCatalogSnapshot',
-    primaryKey: 'artistUuid',
-    properties: {
-      artistUuid: 'string',
-      artist: 'Artist?',
-      years: 'Year[]',
-      shows: 'Show[]',
-      tours: 'Tour[]',
-      importedVenues: 'Venue[]',
-      importedSongs: 'Song[]',
-      venueEntries: 'ArtistVenueBrowseEntry[]',
-      songEntries: 'ArtistSongBrowseEntry[]',
-      eras: 'ArtistEra[]',
-    },
-  };
-
-  artistUuid!: string;
-  artist?: Artist;
-  years!: Realm.List<Year>;
-  shows!: Realm.List<Show>;
-  tours!: Realm.List<Tour>;
-  importedVenues!: Realm.List<Venue>;
-  importedSongs!: Realm.List<Song>;
-  venueEntries!: Realm.List<ArtistVenueBrowseEntry>;
-  songEntries!: Realm.List<ArtistSongBrowseEntry>;
-  eras!: Realm.List<ArtistEra>;
-}
-
 /** Applied HTTP validator and exact result order for one endpoint/filter query. */
 export class CatalogQueryState extends Realm.Object<CatalogQueryState> {
   static schema: Realm.ObjectSchema = {
@@ -264,9 +182,5 @@ export const V4_CATALOG_REALM_MODELS = [
   NormalizedSong,
   TrackNormalizationPart,
   TrackNormalization,
-  ArtistVenueBrowseEntry,
-  ArtistSongBrowseEntry,
-  ArtistEra,
-  ArtistCatalogSnapshot,
   CatalogQueryState,
 ];

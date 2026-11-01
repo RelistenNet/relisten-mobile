@@ -53,10 +53,6 @@ export class Tour
   upstreamIdentifier!: string;
   showCount!: number;
 
-  get showsOnTour() {
-    return this.showCount;
-  }
-
   /** @deprecated Use `useFavorite` or `LibraryIndex` for active-account membership. */
   isFavorite!: boolean;
 
