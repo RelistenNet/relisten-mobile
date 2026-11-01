@@ -5,212 +5,206 @@ Decision Log, and Outcomes & Retrospective current while the pilot is built.
 
 ## Purpose / Big Picture
 
-The pilot must load a v4 artist snapshot, open a show, switch sources, and play
-the returned files through the existing Realm graph and player. It must preserve
-the imported UUIDs that name downloads, queue entries, and playback history.
-Normalized venue, song, and track interpretation data is additive: imported
-venue labels and track titles remain the facts shown during playback.
+The pilot must follow the app's existing browsing journey without downloading an
+artist's entire catalog. It loads artists, one artist's years, one selected
+year's show summaries, and then the selected show's recording detail. Source and
+track detail remain available for direct use, but venue, song, tour, and era
+collections load only when a screen needs them. Navigation must not replace the
+removed full-artist request with an eager fan-out across those lists.
 
-A reviewer should be able to run the local v4 API, opt the development app into
-the v4 transport, and exercise Grateful Dead's interpreted and partial tracks
-plus a raw Spafford show. The same downloaded track must play after an offline
-cold restart. This work stops after that C3 journey; it does not add the C5
-venue/song destinations or activate v4 for a release.
+The mobile adapter must preserve the imported UUIDs used by downloads, queue
+entries, playback history, favorites, and routes. Normalized venue, song, and
+track data remains additive and internal. Browsing and playback continue to show
+imported venue labels and track titles.
+
+A reviewer should be able to opt the development app into v4 and follow Artists
+-> Grateful Dead -> years -> 1985 -> show -> source -> playable track. The same
+downloaded track must remain playable after an offline cold restart. V3 remains
+the release default. Venue and song destination screens remain outside this
+pilot.
 
 ## Progress
 
-- [x] (2026-10-31) Read the current API handoff, qualification, endpoint
-  manifest, contracts, and C3 review checkpoint.
-- [x] (2026-10-31) Mapped the current v2/v3 client, Realm schema 17,
-  timestamp-guarded repositories, account generation fence, player queue, and
-  native artist-to-source journey.
-- [x] (2026-10-31) Added v4 wire identities, transport selection,
-  conditional GET handling, request fences, and reconnect retry.
-- [x] (2026-10-31) Added schema 18 normalized overlays, owned
-  artist-snapshot membership, and applied-query state without changing imported
-  primary keys.
-- [x] (2026-10-31) Applied artist/show/source/track responses and their
-  validators atomically, with focused correction, rollback, stale-result,
-  fallback, and migration tests.
-- [x] (2026-10-31) Added the small track-interpretation review surface while
-  retaining the imported title and one-file queue behavior.
-- [x] (2026-10-31) Measured the real 2,081-show Grateful Dead snapshot and
-  completed the iPhone 17 normalized, raw, source-switch, playback, and offline
-  restart journeys.
-- [x] (2026-10-31) Simplified the changed code, ran the full checks, recorded
-  evidence, and stopped at Alec's C3 review checkpoint.
+- [x] (2026-10-31) Added typed v4 identities, an explicit transport, conditional
+  GET handling, 15-minute freshness, same-query fencing, and reconnect retry.
+- [x] (2026-10-31) Added normalized Realm overlays without changing imported
+  primary keys, offline filenames, queue entries, history, or favorites.
+- [x] (2026-10-31) Kept track normalization internal after native review. Track
+  rows show one imported title and its duration, without `Interpreted`,
+  `Partial interpretation`, or a duplicate normalized title.
+- [x] (2026-10-31) Verified playback, source switching, download, and offline
+  restore on the retained iPhone 17 against the first pilot implementation.
+- [x] (2026-11-01) Confirmed the corrected API contract. The combined
+  `/artists/{artistId}/catalog` route and its dedicated server implementation
+  are removed.
+- [x] (2026-11-01) Replaced the mobile full-artist request with the years list
+  and selected-year detail routes. Delete snapshot-only wire, apply, Realm, and
+  test code.
+- [x] (2026-11-01) Ran focused and full automated checks, then repeated the real
+  artist -> years -> year -> show -> source journey on iPhone 17. Record the
+  final counts and commit hashes here.
 
 ## Surprises & Discoveries
 
-- Observation: `ThrottledNetworkBackedBehavior` declares a 15-minute default,
-  but the current executor never calls its freshness predicate. The legacy
-  client's one-hour cooldown is the effective lower-level guard. V4 therefore
-  needs to enforce its own persisted 15-minute check.
-- Observation: the legacy client stores its synthetic validator before Realm
-  repositories apply the payload. Reusing that path would allow a failed apply
-  to commit a validator and would attempt to parse a bodyless 304.
-- Observation: the full Grateful Dead snapshot contains 2,081 shows but no
-  recording hierarchy. Show/source/track detail can remain lazy without another
-  repository family.
-- Observation: the existing source screen and queue already expose public
-  subscriber-visible playback state. A normalization summary under the imported
-  track title is enough for C3 review; the player does not need a new identity.
-- Observation: the real Grateful Dead snapshot is 6,984,020 bytes of JSON. On a
-  warm simulator fetch, receiving the body took 78.8 ms, parsing took 16.8 ms,
-  and the single Realm apply took 1,263.8 ms. Realm work, not JSON parsing, is
-  the dominant measured client cost for this payload.
-- Observation: RocketSim exposed the retained simulator and live preview, but
-  its CLI rejected network conditioning without a Pro subscription before
-  changing any state. The offline restart instead used Always Offline Mode and
-  a development bundle whose catalog origin was an unreachable loopback port.
-  This proves catalog independence and local-file playback, but not a
-  system-wide radio-loss condition.
+- `ThrottledNetworkBackedBehavior` declares a 15-minute default, but its
+  executor does not call the freshness predicate. The v4 coordinator therefore
+  owns a persisted 15-minute freshness check.
+- The legacy client writes its synthetic validator before Realm repositories
+  apply a payload. V4 cannot reuse that path because a failed apply must not
+  commit its validator, and a bodyless 304 must not be parsed as JSON.
+- The earlier API handoff prescribed one full-artist response. The corrected
+  server contract deliberately has no combined artist-catalog endpoint. Each
+  collection has its own route and replacement boundary.
+- The corrected Grateful Dead years response is 8,760 bytes. The selected 1985
+  response is 181,598 bytes. The removed full-artist response was historically
+  6,984,020 bytes. The comparison explains the route correction; the removed
+  response is not part of the mobile performance target.
+- The server replay compared 12 collection/detail responses before and after
+  removing the combined route. Their bodies and ETags were byte-identical, and
+  all 12 conditional reads returned bodyless 304 responses.
+- Artist and year routes can mount before their parent artist bootstrap
+  finishes. Both artist-owned v4 reads now coalesce with that bootstrap and
+  force it once only if the parent is still missing or tombstoned.
+- Removing one large request does not order writes from different remaining
+  query keys. Selected-year and show-detail responses can both update shared
+  `Show` summary fields. An older full-show response could also reactivate a
+  show that a newer selected-year membership omitted, and embedded year data
+  can similarly overlap the years list. Same-query fencing still applies, but
+  this correction does not claim to solve cross-query ownership ordering.
+- RocketSim network conditioning was unavailable during the first review. The
+  offline restart instead used Always Offline Mode and an unreachable loopback
+  catalog origin. That proved catalog independence and local-file playback,
+  not system-wide radio loss.
 
 ## Decision Log
 
-- Decision: keep v3 as the default transport and select v4 explicitly with
-  `EXPO_PUBLIC_RELISTEN_CATALOG_TRANSPORT=v4`. Rationale: C3 is a local pilot,
-  and merging its storage support must not itself activate release traffic.
-  The configured catalog origin remains pathless and keeps its existing HTTPS
-  validation. Date/Author: 2026-10-31, Codex.
-- Decision: add one v4 coordinator with explicit methods for artist list,
-  artist catalog, show, source, and track. Rationale: those five ownership
-  policies cover the pilot and share the real ETag/freshness/fencing boundary;
-  a manifest-driven sync engine would add scope without helping C3.
-- Decision: store exact artist-owned memberships in one additive
-  `ArtistCatalogSnapshot` row and store normalized resources separately.
-  Rationale: omitted snapshot members must not physically delete UUID rows that
-  downloads, queues, history, favorites, or other queries still reference.
-- Decision: update returned imported objects authoritatively in place rather
-  than manufacturing timestamps or passing v4 through v3 DTOs. Rationale: a
-  normalization-only correction may leave imported timestamps unchanged, while
-  in-place UUID updates preserve all player and offline identities.
-- Decision: a configured v4 failure does not silently fall through to v3 for
-  the same request. Rationale: automatic per-request mixing would weaken
-  response ownership and validator guarantees. The whole transport remains
-  selectable so the upgraded build can run entirely on v3.
-- Decision: treat a persisted validator as reusable only while its exact local
-  response graph remains active, linked, playable, and owned by the same query.
-  Also reject a detail payload whose top-level identity differs from the route.
-  Rationale: otherwise a valid 304 or internally consistent wrong resource could
-  preserve a blank screen and strand the matching ETag. Date/Author: 2026-10-31,
+- Decision: keep v3 as the default and select v4 only with
+  `EXPO_PUBLIC_RELISTEN_CATALOG_TRANSPORT=v4`. The pilot must not activate
+  release traffic by merging its storage support. Date/Author: 2026-10-31,
   Codex.
+- Decision: use `GET /artists`, `GET /artists/{artistId}/years`, and
+  `GET /artists/{artistId}/years/{yearId}` for navigation. Fetch the selected
+  show through `GET /shows/{showId}`. Do not call every artist collection during
+  artist or year navigation. Date/Author: 2026-11-01, Alec.
+- Decision: each complete endpoint replaces only its own membership, including
+  an empty list. The years endpoint owns that artist's year membership; year
+  detail owns that year's show membership; full show/source responses own only
+  their returned recording children. Retain imported rows and richer recording
+  data needed by offline playback, favorites, history, and other queries.
+  Date/Author: 2026-11-01, Alec.
+- Decision: persist the payload, endpoint membership, and ETag in one Realm
+  transaction. A failed fetch or apply keeps the previous graph and validator.
+  Do not add artist-wide invalidation or a generic synchronization framework.
+  Date/Author: 2026-11-01, Alec.
+- Decision: reject detail responses whose top-level artist, year, show, source,
+  or track identity does not match the requested route. Reuse a validator only
+  while the matching local response remains usable.
+- Decision: update returned imported objects in place. Normalization-only
+  corrections may retain imported timestamps, while stable UUID keys preserve
+  player and offline identity.
+- Decision: keep normalization state and parts out of the source-track row. The
+  imported title is the listener-facing label. Realm may retain normalization
+  for catalog behavior and future screens with a defined listener need.
+- Decision: retain per-query same-request fencing. Do not describe the removal
+  of the combined endpoint as a fix for cross-query shared-entity races. Record
+  a reproduced overlap separately if one affects this journey.
 
 ## Outcomes & Retrospective
 
-The C3 pilot is implemented with v3 still the default. Opting into v4 routes the
-artist list, artist catalog, show, source, and track reads through the new
-coordinator. It persists real ETags only with successful Realm transactions,
-enforces the 15-minute freshness policy, rejects stale request/account/transport
-completions, and retries recoverable work after reconnect or account changes.
-Schema 18 keeps imported UUIDs as the player, queue, history, favorite, and
-offline-file identities while adding exact snapshot ownership and normalized
-venue/song/track overlays.
+The server correction is complete. `GET /api/v4/artists/{artistId}/catalog`
+returns 404, its DTO and dedicated reader are deleted, and Swagger exposes the
+smaller collection and detail routes. The existing years, selected-year, show,
+source, and track response contracts and validators did not change.
 
-The final automated gate passed 49 test files and 324 tests. `yarn ts:check`,
-`yarn lint`, and `git diff --check` also passed. The coverage includes identity
-decoding, response/route mismatch rejection, correction and reactivation,
-exact membership, atomic rollback, damaged-graph 304 recovery, request races,
-account/transport fences, v3 selection, yearless shows, and an identity-
-preserving schema 17 -> 18 migration.
+The first native review established these behaviors, which the corrected route
+implementation must preserve:
 
-The preview API also returned a bodyless 304 when replayed with its matching
-ETag. The RocketSim live preview for the retained simulator is
+- `Mama Tried -> Me And My Uncle` remained one row, one queue item, and one
+  playable file. Both normalized parts remained internal.
+- Switching sources changed the source UUID, Archive.org URL, queue, and public
+  player title.
+- `Beat/It/On/Down/The/Line#` kept its imported title while retaining an
+  unresolved normalized part internally. Its download matched MD5 and used
+  `offline/eb36cd68-6ff7-7ee2-d064-eade0285b785.mp3`.
+- With the catalog origin set to unreachable `127.0.0.1:9`, cold launch restored
+  that track and its 10.230-second checkpoint in a stopped, ready-to-play state.
+  An explicit Play resumed the UUID-named local file.
+- A raw Spafford show used the same track-row presentation and played imported
+  track `High Beams` without normalization.
+
+The corrected mobile implementation deletes the full-snapshot DTO, Realm
+models, apply/freshness code, and snapshot-only tests. Realm schema 19 removed
+those development-only types and only the legacy full-catalog query state; the
+existing simulator database opened with its player state intact.
+
+The final automated pass ran 48 files and 324 tests successfully. `yarn
+ts:check`, `yarn lint`, and `git diff --check` also passed. The retained iPhone
+17 then issued this sequence while navigating real screens:
+
+- `GET /artists/artist_3qmp7zjbg1rpebhtyfy43096vj/years`
+- `GET /artists/artist_3qmp7zjbg1rpebhtyfy43096vj/years/year_59t8nz8n0m6e4c2ej2aq9dbkb9`
+- `GET /shows/show_0g6k9yvhk8v3ewbmxewrz0dby1`, only after selecting
+  an uncached show
+
+No `/catalog` request occurred. Selecting source 1 opened its 22 imported track
+rows. `Feel Like A Stranger` became the public player title and played; the row
+had no listener-facing normalization subtitle. The RocketSim live preview was
 `http://127.0.0.1:4996/?token=8901ea4a7975421a9af5b56deca04301`.
+The earlier offline/download/source-switching evidence was not repeated because
+this correction did not change their identities or player code; schema and
+apply regressions retained that coverage.
 
-The installed development client opened the existing Realm at schema 18 without
-a migration crash. The real Grateful Dead artist snapshot produced these active
-rows after apply:
-
-| Resource | Count |
-| --- | ---: |
-| Years | 31 |
-| Shows | 2,081 |
-| Tours | 9 |
-| Imported venues | 2,003 |
-| Imported songs | 557 |
-| Artist venue browse entries | 544 |
-| Artist song browse entries | 547 |
-| Artist venues / normalized venues | 479 / 479 |
-| Normalized songs | 402 |
-
-One representative warmed request measured 6,984,020 bytes, 78.8 ms to consume
-the response body, 16.8 ms to parse it, 1,263.8 ms to apply it, and 1,062.8 ms
-for request-plus-body work (`1,079.6 - 16.8`, correcting the earlier overlapping
-total label). The first apply into the retained Realm took 1,470.7 ms. These are
-development-build simulator measurements; peak heap was not instrumented.
-
-RocketSim confirmed the user journeys on iPhone 17:
-
-- `Mama Tried -> Me And My Uncle` remained one row and one queue item, retained
-  its imported title, rendered both interpreted parts, and played.
-- Switching sources changed the source UUID, Archive.org audio URL, queue, and
-  public player title.
-- `Beat/It/On/Down/The/Line#` retained its imported title and rendered the
-  unresolved middle `The` part. Its download completed with matching MD5 at
-  `offline/eb36cd68-6ff7-7ee2-d064-eade0285b785.mp3` (2,285,056 bytes).
-- With the catalog origin changed to unreachable `127.0.0.1:9`, a cold launch
-  restored that queue entry and its 10.230-second checkpoint, then resumed from
-  the UUID-named local file. RocketSim's network conditioner remained disabled;
-  this is not a system-wide network-loss result.
-- The raw Spafford show rendered no normalization line and played imported track
-  `High Beams` from the selected source.
-
-The work stops here for review. It does not add C5 normalized-song or venue
-destinations, change the release default, deploy, or publish a build. The app's
-existing v2/v3 home and discovery reads also remain outside the five C3 catalog
-routes.
+The corrected catalog implementation is commit `d90c779`; the listener-facing
+track-row cleanup is commit `4205563`. This plan record is committed separately
+after those implementation commits.
 
 ## Context and Orientation
 
-`relisten/api/client.ts` is the existing v2/v3 client. It computes timestamp
-hashes, writes `UrlRequestMetadata`, and applies a one-hour cooldown. V4 code
-will live under `relisten/api/v4/` and will not use that metadata path.
+`relisten/api/client.ts` is the existing v2/v3 client and the bridge to the v4
+coordinator. V4 transport and route ownership live under `relisten/api/v4/`.
+`CatalogQueryState` stores the ETag, freshness timestamps, retry state, and
+ordered result UUIDs for one exact endpoint.
 
-`relisten/realm/schema.ts` owns the single Realm configuration. Imported
-artists, years, shows, venues, songs, sources, sets, and tracks use raw UUID
-string primary keys. `SourceTrackOfflineInfo`, `PlayerState`, and
-`PlaybackHistoryEntry` point at those same keys or managed objects. Schema 18
-must add models and optional links without reminting or deleting any of them.
+`relisten/realm/models/artist_repo.ts`, `year_repo.ts`, and `show_repo.ts` feed
+the existing screens. The v4 branch of those repositories must update Realm;
+Realm streams then publish the result without a parallel repository family.
 
-`relisten/realm/models/artist_repo.ts`, `year_repo.ts`, and `show_repo.ts`
-currently feed the existing screens. The pilot will keep those hooks and make
-their network step select the v4 coordinator when configured. Realm streams then
-publish the coordinator's transaction without a parallel feature repository.
+Imported artists, years, shows, venues, songs, sources, sets, and tracks use raw
+UUID string primary keys. `SourceTrackOfflineInfo`, `PlayerState`, and
+`PlaybackHistoryEntry` refer to those keys or managed objects. Schema changes
+must not remint or delete imported identities.
 
-The current UI path is Artists -> artist years -> year shows -> source picker ->
-source tracks. `SourceTrack` becomes the existing `PlayerQueueTrack`; its UUID
-also determines `offline/<uuid>.mp3`. The only C3 presentation change belongs in
-the current source-track row.
+The authoritative API loading rules are in the sibling checkout:
+
+- `docs/plans/active/2026-10-29-v4-api/review/mobile-handoff.md`
+- `docs/plans/active/2026-10-29-v4-api/contracts.md#load-collections-as-needed`
+- `docs/plans/active/2026-10-29-v4-api/endpoints.json`
 
 ## Plan of Work
 
-1. Define the v4 wire resources used by the five pilot reads. Decode UUID-backed
-   `artist_`, `year_`, `show_`, `tour_`, `imported_venue_`, `imported_song_`,
-   `source_`, `source_set_`, and `track_` IDs at the adapter. Preserve short
-   `venue_`, `song_`, and `artist_venue_` values.
-2. Add an injected-fetch transport and one coordinator. The coordinator owns
-   exact query keys, 15-minute freshness, matching `If-None-Match`, bodyless
-   304 recovery, same-query sequence fences, transport/account generation
-   fences, and active-query reconnect retries. It invokes one Realm transaction
-   for payload, owned membership, and ETag.
-3. Add `CatalogQueryState`, `ArtistCatalogSnapshot`, normalized venue/song and
-   artist-venue rows, and embedded track normalization. Full snapshot lists
-   replace only their artist owner. Full show/source responses replace only
-   returned source/set/track membership. Shared normalized entities and compact
-   references patch supplied fields.
-4. Select v4 from the existing artist/year/show behaviors. Keep all legacy
-   methods and DTOs for configured v3 fallback. Render ordered interpretation
-   beneath the imported track title, including partial/unresolved state, without
-   adding navigation or changing queue construction.
-5. Prove identity-preserving schema migration and the apply failure modes in
-   Vitest. Then measure the real snapshot and use RocketSim on the retained
-   iPhone 17 for interpreted, partial, raw, source-switch, playback, download,
-   cold-restart, and offline playback evidence.
+1. Replace the full-artist wire type and client method with a year list resource
+   and a year-with-shows resource. Use the typed year-ID route because the
+   existing year screen already has that identity.
+2. Apply the years list by upserting returned years and replacing only that
+   artist's active year membership. Apply selected-year detail by upserting the
+   year and show summaries and replacing only that year's active show
+   membership. Preserve richer show/source/set/track and offline objects.
+3. Remove full-snapshot-only DTOs, Realm models, mapping helpers, freshness
+   checks, tests, and migration assertions. Keep shared artist, year, show,
+   venue, tour, normalized-song, source, and track mapping code.
+4. Remove the diagnostic UTF-8 copy used only to calculate response body bytes.
+   Keep download, parse, total, and apply timing where those measurements do not
+   require copying the response.
+5. Point the existing years and selected-year repositories at their matching v4
+   routes. Keep v3 methods and DTOs unchanged for configured fallback.
+6. Prove route identity, endpoint-local replacement, atomic ETag apply, damaged
+   cache recovery, imported identity preservation, and the absence of a
+   `/catalog` request. Then repeat the real iPhone 17 browsing and playback
+   journey.
 
 ## Concrete Steps
 
-Run all commands from `/Users/alecgorge/code/relisten/relisten-mobile` and begin
+Run commands from `/Users/alecgorge/code/relisten/relisten-mobile` and begin
 shell validation with `nvm use`.
 
 Focused checks during implementation:
@@ -222,75 +216,73 @@ Final checks:
     yarn test
     yarn ts:check
     yarn lint
+    git diff --check
 
-For simulator review, keep the already-running API on port 43823 and start Metro
-without restarting or reseeding that API:
+For simulator review, use the API on port 43823 and start Metro with:
 
     EXPO_PUBLIC_RELISTEN_CATALOG_ORIGIN=http://127.0.0.1:43823 EXPO_PUBLIC_RELISTEN_CATALOG_TRANSPORT=v4 npx expo start --dev-client
 
 Use the retained iPhone 17 simulator
-`063F4104-44E5-480E-94DD-847C0D024D4D`. The change is TypeScript/Realm schema
-only, so first try the installed development client; rebuild that same simulator
-only if the installed native bundle cannot open schema 18 or lacks the current
-JavaScript runtime.
+`063F4104-44E5-480E-94DD-847C0D024D4D`. Reinstall the app on that simulator if
+the schema correction requires fresh development data; do not create another
+simulator.
 
 ## Validation and Acceptance
 
 Automated evidence must show:
 
-- typed UUID decoding is lossless and short normalized IDs stay strings;
-- a normalization-only payload updates the overlay with unchanged imported
-  timestamps and does not change the imported title;
-- payload, exact owned membership, and ETag either all commit or all roll back;
-- a 304 is accepted only with its matching applied state and local graph;
-- manual refresh bypasses 15-minute freshness, and reconnect retries a failure;
-- older same-query, transport-generation, and account-generation completions do
-  not write;
-- shallow normalized references retain richer aliases/counts/detail;
-- schema 17 -> 18 preserves raw keys, download state/path, queue/checkpoint,
+- no production mobile call or wire DTO refers to `/artists/{id}/catalog`;
+- artist years use `/artists/{artistId}/years` and replace only that artist's
+  year membership, including an empty result;
+- selected-year shows use `/artists/{artistId}/years/{yearId}` and replace only
+  that year's show membership;
+- route artist/year mismatches commit neither payload nor ETag;
+- selected-year summary refresh preserves source/set/track graphs, download
+  state, and shows belonging to another year;
+- payload, endpoint membership, and ETag commit or roll back together;
+- a 304 is accepted only with matching applied state and usable local data;
+- manual refresh bypasses freshness, reconnect retries failure, and an older
+  same-query completion cannot overwrite a forced refresh;
+- shallow normalized references retain richer aliases and counts;
+- migration preserves raw imported keys, download state/path, queue/checkpoint,
   history links, and typed account/library identities;
-- configured v3 still uses the legacy client and leaves additive v4 rows intact.
+- configured v3 still uses the legacy client; and
+- transport parsing no longer makes a second UTF-8 copy solely to count bytes.
 
 Native evidence must show:
 
-- Grateful Dead `show_2jn80dqf5ntfxmmkwx11j27gdk`, source
-  `source_2wwgekk9qbskw2gp5v68znz9pa`, and medley
-  `track_3s1y1rg4yaxa7nqw31wk617b0d` as one playable item with two parts;
-- partial `track_7b6v6pgvzqfvhd0s7avr18bdw5` through its returned show/source,
-  with the unresolved middle part and imported title intact;
-- raw Spafford `show_3pdmj761gph53bb7ad3db8v4x4` browses and plays with
-  disabled normalization;
-- source switching changes the selected recording and public player state shows
-  the selected imported track title;
-- after downloading the partial track, terminating the app, disabling network,
-  and relaunching, the retained file plays and queue/history restore by UUID;
-- the real Grateful Dead snapshot's download, parse, apply, and row-count
-  measurements are recorded with their limitations.
+- the app requests artist years, then only the selected year's show summaries,
+  before requesting the selected show's detail;
+- the Grateful Dead medley and partial track remain one playable imported item
+  with no listener-facing normalization subtitle;
+- source switching changes the selected recording and public player state;
+- the raw Spafford show browses and plays without normalization; and
+- downloaded playback and queue/checkpoint restoration still use imported UUIDs
+  with the catalog origin unreachable.
 
 ## Idempotence and Recovery
 
-The API review database is read-only for this work. Do not restart, reseed,
-recalculate, import, or run workers. Correction behavior uses disposable local
-test fixtures only.
+The API review database is read-only for this work. Do not reseed, recalculate,
+import, or run workers. Correction tests use disposable Realm files.
 
-Realm schema 18 is additive. Reopening repeats guarded existing migrations and
-must leave the same objects. A failed v4 transaction keeps the old ETag and
-complete graph; the same request can be retried. Switching the configured
-transport back to v3 uses the existing paths and does not delete normalized rows.
+Reopening the current Realm schema must preserve imported and personal objects.
+A failed v4 transaction keeps the prior ETag and complete graph, so the same
+endpoint can retry. Switching the configured transport back to v3 uses existing
+paths and does not delete normalized rows.
 
-RocketSim network conditioning must be turned off after offline review. No EAS,
-OTA, TestFlight, production mutation, force push, or PR is part of this plan.
+No broad ETag invalidation, generic sync engine, EAS build, OTA, TestFlight,
+production mutation, force push, or PR is part of this plan.
 
 ## Artifacts and Notes
 
-Record final focused/full test counts, snapshot timing/size, RocketSim live
-preview URL, and any native limitations in Outcomes & Retrospective. Keep the
-two pre-existing untracked documents outside every commit.
+Record final focused/full test counts, corrected-route requests, schema result,
+RocketSim preview URL, and native limitations in Outcomes & Retrospective. Keep
+the two pre-existing untracked documents outside every commit.
 
 ## Interfaces and Dependencies
 
-The pilot depends on the existing `Realm`, `@realm/react`, NetInfo, Expo dev
-client, and global fetch implementation. It adds no cache, query library,
-database engine, player engine, or server route. The API contract is the native
-v4 endpoint set documented in the sibling `RelistenApi` checkout at
-`codex/v4-native-recordings` commit `8c119a9ae`.
+The pilot uses the existing `Realm`, `@realm/react`, NetInfo, Expo dev client,
+and global fetch implementation. It adds no cache library, database engine,
+player engine, server route, or generic synchronization layer. The corrected API
+contract is in `RelistenApi` commit `802e461df` on
+`codex/v4-native-recordings`.
