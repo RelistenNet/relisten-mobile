@@ -128,7 +128,11 @@ export const SourceFooter: React.FC<{ source: Source }> = ({ source }) => {
         Identifier: {source.upstreamIdentifier}
       </RelistenText>
       {source.links().map((l) => (
-        <SourceLink key={l.upstream_source_id} className="py-1" link={l} />
+        <SourceLink
+          key={`${l.upstream_source_id ?? l.provider ?? 'source'}:${l.url}`}
+          className="py-1"
+          link={l}
+        />
       ))}
     </View>
   );

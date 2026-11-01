@@ -56,8 +56,9 @@ interface TourListItemProps {
 
 const TourListItem = ({ tour }: TourListItemProps) => {
   const groupSegment = useGroupSegment();
-  const startDate = dayjs(tour.startDate).format('YYYY-MM-DD');
-  const endDate = dayjs(tour.endDate).format('YYYY-MM-DD');
+  const startDate = tour.startDate ? dayjs(tour.startDate).format('YYYY-MM-DD') : undefined;
+  const endDate = tour.endDate ? dayjs(tour.endDate).format('YYYY-MM-DD') : undefined;
+  const dateRange = startDate && endDate ? `${startDate} - ${endDate}` : (startDate ?? endDate);
 
   return (
     <Link
@@ -74,11 +75,11 @@ const TourListItem = ({ tour }: TourListItemProps) => {
         <Flex className="items-center justify-between" full>
           <Flex className="min-w-0 flex-1 pr-3" column>
             <RowTitle>{tour.name}</RowTitle>
-            <SubtitleRow>
-              <SubtitleText>
-                {startDate} - {endDate}
-              </SubtitleText>
-            </SubtitleRow>
+            {dateRange && (
+              <SubtitleRow>
+                <SubtitleText>{dateRange}</SubtitleText>
+              </SubtitleRow>
+            )}
           </Flex>
           <FavoriteObjectButton object={tour} />
         </Flex>
