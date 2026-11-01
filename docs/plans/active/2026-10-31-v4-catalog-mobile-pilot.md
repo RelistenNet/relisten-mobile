@@ -24,19 +24,21 @@ venue/song destinations or activate v4 for a release.
 - [x] (2026-10-31) Mapped the current v2/v3 client, Realm schema 17,
   timestamp-guarded repositories, account generation fence, player queue, and
   native artist-to-source journey.
-- [ ] Add v4 wire identities, transport selection, conditional GET handling,
-  request fences, and reconnect retry.
-- [ ] Add schema 18 normalized overlays, owned artist-snapshot membership, and
-  applied-query state without changing imported primary keys.
-- [ ] Apply artist/show/source/track responses and their validators atomically,
-  with focused correction, rollback, stale-result, fallback, and migration
-  tests.
-- [ ] Add the small track-interpretation review surface while retaining the
-  imported title and one-file queue behavior.
-- [ ] Measure the real 2,081-show Grateful Dead snapshot and complete the
-  iPhone 17 normalized/raw/source-switch/playback/offline-restart journeys.
-- [ ] Simplify the changed code, run the full checks, record evidence, and stop
-  at Alec's C3 review checkpoint.
+- [x] (2026-10-31) Added v4 wire identities, transport selection,
+  conditional GET handling, request fences, and reconnect retry.
+- [x] (2026-10-31) Added schema 18 normalized overlays, owned
+  artist-snapshot membership, and applied-query state without changing imported
+  primary keys.
+- [x] (2026-10-31) Applied artist/show/source/track responses and their
+  validators atomically, with focused correction, rollback, stale-result,
+  fallback, and migration tests.
+- [x] (2026-10-31) Added the small track-interpretation review surface while
+  retaining the imported title and one-file queue behavior.
+- [x] (2026-10-31) Measured the real 2,081-show Grateful Dead snapshot and
+  completed the iPhone 17 normalized, raw, source-switch, playback, and offline
+  restart journeys.
+- [x] (2026-10-31) Simplified the changed code, ran the full checks, recorded
+  evidence, and stopped at Alec's C3 review checkpoint.
 
 ## Surprises & Discoveries
 
@@ -53,6 +55,16 @@ venue/song destinations or activate v4 for a release.
 - Observation: the existing source screen and queue already expose public
   subscriber-visible playback state. A normalization summary under the imported
   track title is enough for C3 review; the player does not need a new identity.
+- Observation: the real Grateful Dead snapshot is 6,984,020 bytes of JSON. On a
+  warm simulator fetch, receiving the body took 78.8 ms, parsing took 16.8 ms,
+  and the single Realm apply took 1,263.8 ms. Realm work, not JSON parsing, is
+  the dominant measured client cost for this payload.
+- Observation: RocketSim exposed the retained simulator and live preview, but
+  its CLI rejected network conditioning without a Pro subscription before
+  changing any state. The offline restart instead used Always Offline Mode and
+  a development bundle whose catalog origin was an unreachable loopback port.
+  This proves catalog independence and local-file playback, but not a
+  system-wide radio-loss condition.
 
 ## Decision Log
 
@@ -77,10 +89,77 @@ venue/song destinations or activate v4 for a release.
   the same request. Rationale: automatic per-request mixing would weaken
   response ownership and validator guarantees. The whole transport remains
   selectable so the upgraded build can run entirely on v3.
+- Decision: treat a persisted validator as reusable only while its exact local
+  response graph remains active, linked, playable, and owned by the same query.
+  Also reject a detail payload whose top-level identity differs from the route.
+  Rationale: otherwise a valid 304 or internally consistent wrong resource could
+  preserve a blank screen and strand the matching ETag. Date/Author: 2026-10-31,
+  Codex.
 
 ## Outcomes & Retrospective
 
-Pending implementation and native review.
+The C3 pilot is implemented with v3 still the default. Opting into v4 routes the
+artist list, artist catalog, show, source, and track reads through the new
+coordinator. It persists real ETags only with successful Realm transactions,
+enforces the 15-minute freshness policy, rejects stale request/account/transport
+completions, and retries recoverable work after reconnect or account changes.
+Schema 18 keeps imported UUIDs as the player, queue, history, favorite, and
+offline-file identities while adding exact snapshot ownership and normalized
+venue/song/track overlays.
+
+The final automated gate passed 49 test files and 324 tests. `yarn ts:check`,
+`yarn lint`, and `git diff --check` also passed. The coverage includes identity
+decoding, response/route mismatch rejection, correction and reactivation,
+exact membership, atomic rollback, damaged-graph 304 recovery, request races,
+account/transport fences, v3 selection, yearless shows, and an identity-
+preserving schema 17 -> 18 migration.
+
+The preview API also returned a bodyless 304 when replayed with its matching
+ETag. The RocketSim live preview for the retained simulator is
+`http://127.0.0.1:4996/?token=8901ea4a7975421a9af5b56deca04301`.
+
+The installed development client opened the existing Realm at schema 18 without
+a migration crash. The real Grateful Dead artist snapshot produced these active
+rows after apply:
+
+| Resource | Count |
+| --- | ---: |
+| Years | 31 |
+| Shows | 2,081 |
+| Tours | 9 |
+| Imported venues | 2,003 |
+| Imported songs | 557 |
+| Artist venue browse entries | 544 |
+| Artist song browse entries | 547 |
+| Artist venues / normalized venues | 479 / 479 |
+| Normalized songs | 402 |
+
+One representative warmed request measured 6,984,020 bytes, 78.8 ms to consume
+the response body, 16.8 ms to parse it, 1,263.8 ms to apply it, and 1,062.8 ms
+for request-plus-body work (`1,079.6 - 16.8`, correcting the earlier overlapping
+total label). The first apply into the retained Realm took 1,470.7 ms. These are
+development-build simulator measurements; peak heap was not instrumented.
+
+RocketSim confirmed the user journeys on iPhone 17:
+
+- `Mama Tried -> Me And My Uncle` remained one row and one queue item, retained
+  its imported title, rendered both interpreted parts, and played.
+- Switching sources changed the source UUID, Archive.org audio URL, queue, and
+  public player title.
+- `Beat/It/On/Down/The/Line#` retained its imported title and rendered the
+  unresolved middle `The` part. Its download completed with matching MD5 at
+  `offline/eb36cd68-6ff7-7ee2-d064-eade0285b785.mp3` (2,285,056 bytes).
+- With the catalog origin changed to unreachable `127.0.0.1:9`, a cold launch
+  restored that queue entry and its 10.230-second checkpoint, then resumed from
+  the UUID-named local file. RocketSim's network conditioner remained disabled;
+  this is not a system-wide network-loss result.
+- The raw Spafford show rendered no normalization line and played imported track
+  `High Beams` from the selected source.
+
+The work stops here for review. It does not add C5 normalized-song or venue
+destinations, change the release default, deploy, or publish a build. The app's
+existing v2/v3 home and discovery reads also remain outside the five C3 catalog
+routes.
 
 ## Context and Orientation
 
