@@ -5,7 +5,7 @@ import { useGroupSegment, useIsOfflineTab } from '@/relisten/util/routes';
 import { useMemo } from 'react';
 import Realm from 'realm';
 import { RelistenApiClient, RelistenApiResponse } from '../../api/client';
-import { YearWithShows } from '../../api/models/year';
+import { Year as ApiYear, YearWithShows } from '../../api/models/year';
 import { NetworkBackedBehaviorOptions } from '../network_backed_behavior';
 import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
 import { mergeNetworkBackedResults, NetworkBackedResults } from '../network_backed_results';
@@ -47,7 +47,10 @@ export function yearsNetworkBackedModelArrayBehavior(
           isPlayableOffline: isOfflineTab ? true : null,
         }
       ),
-    (api) => api.years(artistUuid),
+    (api, forcedRefresh) =>
+      api.usesV4Catalog()
+        ? api.refreshV4ArtistCatalog<ApiYear[]>(artistUuid, forcedRefresh)
+        : api.years(artistUuid, api.refreshOptions(forcedRefresh)),
     options
   );
 }
@@ -108,6 +111,10 @@ export class YearShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavi
     api: RelistenApiClient,
     forcedRefresh: boolean
   ): Promise<RelistenApiResponse<YearWithShows>> {
+    if (api.usesV4Catalog()) {
+      return api.refreshV4ArtistCatalog<YearWithShows>(this.artistUuid, forcedRefresh);
+    }
+
     return api.year(this.artistUuid, this.yearUuid, api.refreshOptions(forcedRefresh));
   }
 

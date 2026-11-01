@@ -11,6 +11,7 @@ vi.mock('@/relisten/events', () => ({ sharedStatsigClient: vi.fn() }));
 vi.mock('@/relisten/api/client', () => ({
   RelistenApiResponseType: { Offline: 0, OnlineRequestCompleted: 3 },
   RelistenApiClient: class {
+    usesV4Catalog = vi.fn(() => false);
     refreshOptions = vi.fn((forcedRefresh: boolean) =>
       forcedRefresh ? { bypassEtagCaching: true, bypassRateLimit: true } : undefined
     );
@@ -38,6 +39,14 @@ import { Venue } from './venue';
 import { Tour } from './tour';
 import { Song } from './song';
 import { Popularity, PopularityWindow, PopularityWindows } from './popularity';
+import {
+  ArtistVenue,
+  NormalizedSong,
+  NormalizedVenue,
+  NormalizedVenueName,
+  TrackNormalization,
+  TrackNormalizationPart,
+} from './v4_catalog';
 
 const timestamp = '2026-08-20T00:00:00.000Z';
 const timestamps = { created_at: timestamp, updated_at: timestamp };
@@ -57,6 +66,12 @@ const config: Realm.Configuration = {
     Popularity,
     PopularityWindow,
     PopularityWindows,
+    NormalizedVenueName,
+    NormalizedVenue,
+    ArtistVenue,
+    NormalizedSong,
+    TrackNormalizationPart,
+    TrackNormalization,
   ],
 };
 
@@ -194,7 +209,7 @@ describe('ShowWithFullSourcesNetworkBackedBehavior year hydration', () => {
     expect(Array.from(set.sourceTracks, (track) => track.uuid)).toEqual(['track-2', 'track-1']);
     for (const track of set.sourceTracks) {
       expect(track.artist.uuid).toBe('artist');
-      expect(track.year.uuid).toBe('year');
+      expect(track.year!.uuid).toBe('year');
       expect(track.show.uuid).toBe('show');
       expect(track.source.uuid).toBe('source');
       expect(track.deletedAt).toBeNull();

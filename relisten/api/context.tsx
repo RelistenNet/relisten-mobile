@@ -3,14 +3,19 @@ import { RelistenApiClient } from './client';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { PlaybackHistoryReporter } from '@/relisten/playback_history_reporter';
 import { useRealm } from '@/relisten/realm/schema';
+import { useAccountScopeSource } from '@/relisten/accounts/account_context';
 
 export const RelistenApiContext = React.createContext<
   { apiClient: RelistenApiClient; playbackHistoryReporter: PlaybackHistoryReporter } | undefined
 >(undefined);
 
 export const RelistenApiProvider: React.FC<PropsWithChildren> = ({ children }) => {
-  const apiClient = useMemo(() => new RelistenApiClient(), []);
   const realm = useRealm();
+  const accountScope = useAccountScopeSource();
+  const apiClient = useMemo(
+    () => new RelistenApiClient({ realm, accountScope }),
+    [accountScope, realm]
+  );
   const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
 
   const playbackHistoryReporter = useMemo(() => {
@@ -20,10 +25,11 @@ export const RelistenApiProvider: React.FC<PropsWithChildren> = ({ children }) =
   useEffect(() => {
     if (shouldMakeNetworkRequests) {
       playbackHistoryReporter.onNetworkAvailable();
+      void apiClient.onCatalogNetworkAvailable();
     } else {
       playbackHistoryReporter.onNetworkUnavailable();
     }
-  }, [shouldMakeNetworkRequests]);
+  }, [apiClient, playbackHistoryReporter, shouldMakeNetworkRequests]);
 
   return (
     <RelistenApiContext.Provider value={{ apiClient, playbackHistoryReporter }}>

@@ -108,6 +108,10 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
       });
     }
 
+    if (api.usesV4Catalog()) {
+      return api.refreshV4Show<ApiShowWithSources | undefined>(this.showUuid, forcedRefresh);
+    }
+
     return api.showWithSources(this.showUuid, api.refreshOptions(forcedRefresh));
   }
 

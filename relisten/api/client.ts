@@ -19,6 +19,14 @@ import {
   CatalogReferenceRequest,
   CatalogResolveResponse,
 } from '@/relisten/api/models/catalog_resolve';
+import type Realm from 'realm';
+import type { AccountScopeSource } from '@/relisten/accounts/account_scope_store';
+import {
+  catalogTransport as configuredCatalogTransport,
+  type CatalogTransport,
+} from '@/relisten/api/catalog_config';
+import { CatalogV4Client } from '@/relisten/api/v4/catalog_client';
+import type { CatalogV4RefreshResult } from '@/relisten/api/v4/catalog_coordinator';
 
 const logger = log.extend('network');
 
@@ -65,6 +73,12 @@ export interface RelistenApiClientError {
   message?: string;
 }
 
+export interface RelistenApiClientOptions {
+  realm?: Realm;
+  accountScope?: AccountScopeSource;
+  catalogTransport?: CatalogTransport;
+}
+
 enum RelistenApiRequestMethod {
   GET = 'GET',
   POST = 'POST',
@@ -88,6 +102,9 @@ export function errorDisplayString(err?: RelistenApiClientError): string {
 
 export class RelistenApiClient {
   static API_BASE = catalogApiBase();
+
+  private readonly selectedCatalogTransport: CatalogTransport;
+  private readonly v4Catalog?: CatalogV4Client;
 
   private api = wretch(RelistenApiClient.API_BASE).middlewares([
     loggingMiddleware,
@@ -122,6 +139,80 @@ export class RelistenApiClient {
   ]);
 
   private inflightRequests: Map<string, Promise<RelistenApiResponse<unknown>>> = new Map();
+
+  constructor(options: RelistenApiClientOptions = {}) {
+    // Utility clients without Realm (for example legacy favorite hydration) retain
+    // the legacy catalog even while the app's primary client is opted into v4.
+    this.selectedCatalogTransport =
+      options.catalogTransport ?? (options.realm ? configuredCatalogTransport() : 'v3');
+    if (this.selectedCatalogTransport === 'v4') {
+      if (!options.realm) {
+        throw new Error('The v4 catalog client requires Realm persistence');
+      }
+      this.v4Catalog = new CatalogV4Client(options.realm, {
+        accountScope: options.accountScope,
+      });
+    }
+  }
+
+  public usesV4Catalog() {
+    return this.selectedCatalogTransport === 'v4';
+  }
+
+  public refreshV4Artists<T>(force: boolean): Promise<RelistenApiResponse<T>> {
+    return this.v4RefreshResponse(this.requireV4Catalog().refreshArtists(force));
+  }
+
+  public refreshV4ArtistCatalog<T>(
+    artistUuid: string,
+    force: boolean
+  ): Promise<RelistenApiResponse<T>> {
+    return this.v4RefreshResponse(this.requireV4Catalog().refreshArtistCatalog(artistUuid, force));
+  }
+
+  public refreshV4Show<T>(showUuid: string, force: boolean): Promise<RelistenApiResponse<T>> {
+    return this.v4RefreshResponse(this.requireV4Catalog().refreshShow(showUuid, force));
+  }
+
+  public refreshV4Source<T>(sourceUuid: string, force: boolean): Promise<RelistenApiResponse<T>> {
+    return this.v4RefreshResponse(this.requireV4Catalog().refreshSource(sourceUuid, force));
+  }
+
+  public refreshV4Track<T>(trackUuid: string, force: boolean): Promise<RelistenApiResponse<T>> {
+    return this.v4RefreshResponse(this.requireV4Catalog().refreshTrack(trackUuid, force));
+  }
+
+  public onCatalogNetworkAvailable() {
+    return this.v4Catalog?.onNetworkAvailable() ?? Promise.resolve();
+  }
+
+  private requireV4Catalog() {
+    if (!this.v4Catalog) {
+      throw new Error('The v4 catalog transport is not selected');
+    }
+    return this.v4Catalog;
+  }
+
+  private async v4RefreshResponse<T>(
+    refresh: Promise<CatalogV4RefreshResult>
+  ): Promise<RelistenApiResponse<T>> {
+    try {
+      await refresh;
+      // The v4 coordinator already committed the Realm payload and validator.
+      // Realm listeners publish it; returning no DTO prevents a second legacy apply.
+      return { type: RelistenApiResponseType.OnlineRequestCompleted };
+    } catch (error) {
+      const normalizedError = error instanceof Error ? error : new Error(String(error));
+      logger.warn(normalizedError.message);
+      return {
+        type: RelistenApiResponseType.OnlineRequestCompleted,
+        error: {
+          error: normalizedError,
+          message: normalizedError.message,
+        },
+      };
+    }
+  }
 
   private postJson<T>(url: string, body: object): Promise<RelistenApiResponse<T>> {
     return this.makeJsonRequest<T>(RelistenApiRequestMethod.POST, url, body);
