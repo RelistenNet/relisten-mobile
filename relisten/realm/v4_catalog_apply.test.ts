@@ -15,8 +15,13 @@ vi.mock('expo-crypto', () => ({
   getRandomValues: (bytes: Uint8Array<ArrayBuffer>) => globalThis.crypto.getRandomValues(bytes),
 }));
 vi.mock('@/relisten/events', () => ({ sharedStatsigClient: vi.fn() }));
+vi.mock('@/relisten/util/logging', () => ({
+  log: { extend: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }) },
+}));
 
 import { encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
+import { CatalogV4Client } from '@/relisten/api/v4/catalog_client';
+import { CatalogV4Transport } from '@/relisten/api/v4/catalog_transport';
 import type {
   V4ArtistFeaturesResource,
   V4ArtistResource,
@@ -33,11 +38,7 @@ import type {
   V4YearWithShowsResource,
 } from '@/relisten/api/v4/wire_types';
 import { Artist } from '@/relisten/realm/models/artist';
-import {
-  CatalogQueryState,
-  NormalizedSong,
-  V4_CATALOG_REALM_MODELS,
-} from '@/relisten/realm/models/v4_catalog';
+import { NormalizedSong, V4_CATALOG_REALM_MODELS } from '@/relisten/realm/models/v4_catalog';
 import {
   Popularity,
   PopularityWindow,
@@ -440,7 +441,7 @@ describe('v4 catalog Realm apply', () => {
       );
     });
 
-    const objectKey = realm.objectForPrimaryKey(SourceTrack, trackAUuid)!._objectKey();
+    const track = realm.objectForPrimaryKey(SourceTrack, trackAUuid)!;
 
     realm.write(() => {
       realm.objectForPrimaryKey(SourceTrack, trackAUuid)!.deletedAt = new Date(timestamp);
@@ -451,10 +452,9 @@ describe('v4 catalog Realm apply', () => {
       applyV4Track(realm, correctedTrack);
     });
 
-    const track = realm.objectForPrimaryKey(SourceTrack, trackAUuid)!;
     const song = realm.objectForPrimaryKey(NormalizedSong, 'song_00000003')!;
     expect(track.updatedAt.toISOString()).toBe(timestamp);
-    expect(track._objectKey()).toBe(objectKey);
+    expect(track.isValid()).toBe(true);
     expect(track.deletedAt).toBeNull();
     expect(track.duration).toBeNull();
     expect(track.title).toBe('Imported Track Title');
@@ -491,7 +491,7 @@ describe('v4 catalog Realm apply', () => {
       return resultIds;
     });
     expect(returnedYearIds).toEqual([yearUuid, otherYearUuid]);
-    const objectKey = realm.objectForPrimaryKey(Year, yearUuid)!._objectKey();
+    const firstYear = realm.objectForPrimaryKey(Year, yearUuid)!;
 
     realm.write(() => applyV4ArtistYears(realm, artistUuid, [secondYear]));
     expect(realm.objectForPrimaryKey(Year, yearUuid)?.deletedAt).toBeInstanceOf(Date);
@@ -500,8 +500,8 @@ describe('v4 catalog Realm apply', () => {
     expect(hasV4ArtistYears(realm, artistUuid, [otherYearUuid, otherYearUuid])).toBe(false);
 
     realm.write(() => applyV4ArtistYears(realm, artistUuid, [yearResource(), secondYear]));
-    expect(realm.objectForPrimaryKey(Year, yearUuid)!._objectKey()).toBe(objectKey);
-    expect(realm.objectForPrimaryKey(Year, yearUuid)?.deletedAt).toBeNull();
+    expect(firstYear.isValid()).toBe(true);
+    expect(firstYear.deletedAt).toBeNull();
   });
 
   it("replaces only one year's shows while preserving detail and offline descendants", () => {
@@ -540,7 +540,7 @@ describe('v4 catalog Realm apply', () => {
       });
       realm.objectForPrimaryKey(SourceTrack, trackAUuid)!.offlineInfo = offlineInfo;
     });
-    const objectKey = realm.objectForPrimaryKey(Show, showUuid)!._objectKey();
+    const firstShow = realm.objectForPrimaryKey(Show, showUuid)!;
 
     realm.write(() =>
       applyV4Year(
@@ -571,11 +571,71 @@ describe('v4 catalog Realm apply', () => {
     );
 
     expect(returnedShowIds).toEqual([showUuid]);
-    expect(realm.objectForPrimaryKey(Show, showUuid)!._objectKey()).toBe(objectKey);
+    expect(firstShow.isValid()).toBe(true);
+    expect(firstShow.deletedAt).toBeNull();
     expect(realm.objectForPrimaryKey(SourceTrack, trackAUuid)?.offlineInfo?.downloadedBytes).toBe(
       123
     );
     expect(hasV4Year(realm, artistUuid, yearUuid, [showUuid])).toBe(true);
+  });
+
+  it('refetches show detail after an overlapping year response rewrites its summary', async () => {
+    realm.write(() => seedArtistAndYear(realm));
+    const yearPath = `/artists/${artistId}/years/${encodeV4UuidCatalogId(yearUuid, 'year')}`;
+    const showPath = `/shows/${showId}`;
+    const correctedShow = fullShowResource([
+      sourceResource(sourceAId, [sourceSetResource(setAId, sourceAId, [trackResource()])]),
+    ]);
+    correctedShow.source_count = 1;
+    correctedShow.avg_rating = 4.75;
+    const olderYear = yearWithShowsResource(yearResource(), [
+      showSummaryResource({ sourceCount: 1 }),
+    ]);
+    let releaseOlderYear: ((response: Response) => void) | undefined;
+    let lastShowValidator: string | null | undefined;
+    const transport = new CatalogV4Transport({
+      apiBase: 'https://catalog.example/api',
+      fetch: async (input, init) => {
+        const path = new URL(String(input)).pathname.replace('/api/v4', '');
+        if (path === yearPath) {
+          return new Promise<Response>((resolve) => {
+            releaseOlderYear = resolve;
+          });
+        }
+        if (path === showPath) {
+          lastShowValidator = new Headers(init?.headers).get('If-None-Match');
+          if (lastShowValidator === 'W/"new-show"') {
+            return new Response(null, {
+              status: 304,
+              headers: { etag: 'W/"new-show"' },
+            });
+          }
+          return new Response(JSON.stringify(correctedShow), {
+            status: 200,
+            headers: { etag: 'W/"new-show"' },
+          });
+        }
+        throw new Error(`Unexpected request ${path}`);
+      },
+    });
+    const client = new CatalogV4Client(realm, transport);
+
+    const pendingYear = client.refreshYear(artistUuid, yearUuid, true);
+    await vi.waitFor(() => expect(releaseOlderYear).toBeDefined());
+    await client.refreshShow(showUuid, true);
+    expect(realm.objectForPrimaryKey(Show, showUuid)?.avgRating).toBe(4.75);
+
+    releaseOlderYear!(
+      new Response(JSON.stringify(olderYear), {
+        status: 200,
+        headers: { etag: 'W/"older-year"' },
+      })
+    );
+    await pendingYear;
+    await client.refreshShow(showUuid, true);
+
+    expect(lastShowValidator).toBeNull();
+    expect(realm.objectForPrimaryKey(Show, showUuid)?.avgRating).toBe(4.75);
   });
 
   it('rejects duplicate identities and membership from another parent', () => {
@@ -794,19 +854,18 @@ describe('v4 catalog Realm apply', () => {
     };
 
     realm.write(() => applyV4ArtistList(realm, [artistResource(), otherArtist]));
-    const objectKey = realm.objectForPrimaryKey(Artist, otherArtistUuid)!._objectKey();
+    const firstArtist = realm.objectForPrimaryKey(Artist, otherArtistUuid)!;
     realm.write(() => applyV4ArtistList(realm, [artistResource()]));
     expect(realm.objectForPrimaryKey(Artist, otherArtistUuid)?.deletedAt).toBeInstanceOf(Date);
 
     realm.write(() => applyV4ArtistList(realm, [otherArtist]));
-    const reactivated = realm.objectForPrimaryKey(Artist, otherArtistUuid)!;
-    expect(reactivated._objectKey()).toBe(objectKey);
-    expect(reactivated.updatedAt.toISOString()).toBe(timestamp);
-    expect(reactivated.deletedAt).toBeNull();
+    expect(firstArtist.isValid()).toBe(true);
+    expect(firstArtist.updatedAt.toISOString()).toBe(timestamp);
+    expect(firstArtist.deletedAt).toBeNull();
     expect(realm.objectForPrimaryKey(Artist, artistUuid)?.deletedAt).toBeInstanceOf(Date);
   });
 
-  it('rolls back prior row and query-state changes when a required parent is inconsistent', () => {
+  it('rolls back graph changes when a required parent is inconsistent', () => {
     realm.write(() => {
       seedArtistAndYear(realm);
       applyV4FullShow(
@@ -815,13 +874,6 @@ describe('v4 catalog Realm apply', () => {
           sourceResource(sourceAId, [sourceSetResource(setAId, sourceAId, [trackResource()])]),
         ])
       );
-      realm.create(CatalogQueryState, {
-        key: 'GET /shows/test',
-        etag: 'old-etag',
-        hasAppliedData: true,
-        retryPending: false,
-        resultIds: [showUuid],
-      });
     });
 
     const invalidSource = sourceResource(sourceBId, []);
@@ -835,15 +887,11 @@ describe('v4 catalog Realm apply', () => {
     changedShow.display_date = 'Changed but rolled back';
 
     expect(() => {
-      realm.write(() => {
-        realm.objectForPrimaryKey(CatalogQueryState, 'GET /shows/test')!.etag = 'new-etag';
-        applyV4FullShow(realm, changedShow);
-      });
+      realm.write(() => applyV4FullShow(realm, changedShow));
     }).toThrow(V4CatalogApplyError);
 
     expect(realm.objectForPrimaryKey(Show, showUuid)?.displayDate).toBe('2026-10-31');
     expect(realm.objectForPrimaryKey(SourceTrack, trackAUuid)?.title).toBe('Imported Track Title');
-    expect(realm.objectForPrimaryKey(CatalogQueryState, 'GET /shows/test')?.etag).toBe('old-etag');
     expect(realm.objectForPrimaryKey(Source, sourceBUuid)).toBeNull();
   });
 });
