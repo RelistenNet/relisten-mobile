@@ -1,4 +1,4 @@
-import { useArtistSongs } from '@/relisten/realm/models/song_repo';
+import { ArtistSongBrowseItem, useArtistSongs } from '@/relisten/realm/models/song_repo';
 import Flex from '@/relisten/components/flex';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
@@ -18,7 +18,6 @@ import {
   FilteringProvider,
   SortDirection,
 } from '@/relisten/components/filtering/filters';
-import { Song } from '@/relisten/realm/models/song';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { useEffect, useMemo } from 'react';
 import { useLibraryMembershipRevision, useRootLibraryIndex } from '@/relisten/realm/root_services';
@@ -40,7 +39,8 @@ export default function Page() {
     <RefreshContextProvider networkBackedResults={results}>
       <DisappearingHeaderScreen
         ScrollableComponent={SongList}
-        songs={Array.from(data.songs)}
+        isLoading={results.isNetworkLoading}
+        songs={data.songs}
         filterOptions={{
           persistence: { key: ['artists', artistUuid, 'songs'].join('/') },
         }}
@@ -50,10 +50,14 @@ export default function Page() {
 }
 
 interface SongListItemProps {
-  song: Song;
+  item: ArtistSongBrowseItem;
 }
 
-const SongListItem = ({ song }: SongListItemProps) => {
+const songName = (item: ArtistSongBrowseItem) => item.song.name.trim() || 'Unknown song';
+const songShowCount = (item: ArtistSongBrowseItem) =>
+  item.kind === 'song' ? (item.song.matchedShowCount ?? 0) : item.song.showsPlayedAt;
+
+const SongListItem = ({ item }: SongListItemProps) => {
   const groupSegment = useGroupSegment();
 
   return (
@@ -61,8 +65,9 @@ const SongListItem = ({ song }: SongListItemProps) => {
       href={{
         pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/song/[songUuid]/` as const,
         params: {
-          artistUuid: song.artistUuid,
-          songUuid: song.uuid,
+          artistUuid: item.song.artistUuid,
+          songUuid: item.routeId,
+          songKind: item.kind,
         },
       }}
       asChild
@@ -70,15 +75,14 @@ const SongListItem = ({ song }: SongListItemProps) => {
       <SectionedListItem>
         <Flex className="items-center justify-between" full>
           <Flex className="min-w-0 flex-1 pr-3" column>
-            <RowTitle>{song.name}</RowTitle>
+            <RowTitle>{songName(item)}</RowTitle>
             <SubtitleRow>
               <SubtitleText>
-                {'Played at '}
-                <Plur word="show" count={song.showsPlayedAt} />
+                <Plur word="show" count={songShowCount(item)} />
               </SubtitleText>
             </SubtitleRow>
           </Flex>
-          <FavoriteObjectButton object={song} />
+          <FavoriteObjectButton object={item.song} />
         </Flex>
       </SectionedListItem>
     </Link>
@@ -86,7 +90,7 @@ const SongListItem = ({ song }: SongListItemProps) => {
 };
 
 interface SongHeaderProps {
-  songs: Song[];
+  songs: ArtistSongBrowseItem[];
 }
 
 const SongHeader = ({ songs }: SongHeaderProps) => {
@@ -105,7 +109,7 @@ const SongHeader = ({ songs }: SongHeaderProps) => {
   );
 };
 
-export enum SongFilterPersistenceKey {
+enum SongFilterPersistenceKey {
   Library = 'library',
   Name = 'name',
   Plays = 'plays',
@@ -113,13 +117,13 @@ export enum SongFilterPersistenceKey {
 }
 
 const songFilters = (
-  isFavorite: (uuid: string) => boolean
-): Filter<SongFilterPersistenceKey, Song>[] => [
+  isFavorite: (item: ArtistSongBrowseItem) => boolean
+): Filter<SongFilterPersistenceKey, ArtistSongBrowseItem>[] => [
   {
     persistenceKey: SongFilterPersistenceKey.Library,
     title: 'My Library',
     active: false,
-    filter: (song) => isFavorite(song.uuid),
+    filter: isFavorite,
   },
   {
     persistenceKey: SongFilterPersistenceKey.Name,
@@ -127,15 +131,15 @@ const songFilters = (
     sortDirection: SortDirection.Ascending,
     active: true,
     isNumeric: false,
-    sort: (songs) => songs.sort((a, b) => a.name.localeCompare(b.name)),
+    sort: (songs) => songs.sort((a, b) => songName(a).localeCompare(songName(b))),
   },
   {
     persistenceKey: SongFilterPersistenceKey.Plays,
-    title: '# of Plays',
+    title: '# of Shows',
     sortDirection: SortDirection.Descending,
     active: false,
     isNumeric: true,
-    sort: (songs) => songs.sort((a, b) => a.showsPlayedAt - b.showsPlayedAt),
+    sort: (songs) => songs.sort((a, b) => songShowCount(a) - songShowCount(b)),
   },
   {
     persistenceKey: SongFilterPersistenceKey.Search,
@@ -144,33 +148,46 @@ const songFilters = (
     searchFilter: (song, searchText) => {
       const search = searchText.toLowerCase();
 
-      return song.name.toLowerCase().indexOf(search) !== -1;
+      return songName(song).toLowerCase().indexOf(search) !== -1;
     },
   },
 ];
 
 interface SongListProps {
-  songs: Song[];
+  songs: ArtistSongBrowseItem[];
   filterOptions: FilteringOptions<SongFilterPersistenceKey>;
 }
 
 const SongList = ({
   songs,
   filterOptions,
-}: SongListProps & Omit<FilterableListProps<Song>, 'data' | 'renderItem'>) => {
+  ...props
+}: SongListProps & Omit<FilterableListProps<ArtistSongBrowseItem>, 'data' | 'renderItem'>) => {
   const libraryIndex = useRootLibraryIndex();
   const libraryMembershipRevision = useLibraryMembershipRevision();
   const filters = useMemo(
-    () => songFilters((uuid) => libraryIndex.isFavorite('imported_song', uuid)),
+    () =>
+      songFilters((item) =>
+        item.kind === 'song'
+          ? libraryIndex.isFavorite('song', item.song.id)
+          : libraryIndex.isFavorite('imported_song', item.song.uuid)
+      ),
     [libraryIndex, libraryMembershipRevision]
   );
 
   return (
     <FilteringProvider filters={filters} options={filterOptions}>
       <FilterableList
+        {...props}
         ListHeaderComponent={<SongHeader songs={songs} />}
         data={[{ data: songs }]}
-        renderItem={({ item }: { item: Song; index: number }) => <SongListItem song={item} />}
+        renderItem={({ item }) => <SongListItem item={item} />}
+        nonIdealState={{
+          noData: {
+            title: 'No Songs',
+            description: 'No song information is available for this artist.',
+          },
+        }}
       />
     </FilteringProvider>
   );

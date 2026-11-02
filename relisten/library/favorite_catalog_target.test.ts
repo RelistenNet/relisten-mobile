@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('expo-crypto', () => ({ getRandomValues: (value: Uint8Array) => value }));
 import {
+  catalogIdForFavoriteTarget,
   catalogReferenceForFavoriteTarget,
+  favoriteTargetForCatalogId,
   favoriteTargetForCatalogReference,
   favoriteTargetForCatalogUuid,
   isFavoriteTarget,
@@ -39,6 +41,17 @@ describe('favorite catalog target boundary', () => {
     expect(isFavoriteTarget(venue)).toBe(true);
     expect(catalogReferenceForFavoriteTarget(song)).toBeNull();
     expect(catalogReferenceForFavoriteTarget(venue)).toBeNull();
+    expect(catalogIdForFavoriteTarget(song)).toBe(song.id);
+    expect(catalogIdForFavoriteTarget(venue)).toBe(venue.id);
+    expect(favoriteTargetForCatalogId('song', song.id)).toEqual(song);
+    expect(favoriteTargetForCatalogId('venue', venue.id)).toEqual(venue);
+  });
+
+  it('uses the decoded Realm UUID as the local ID for imported targets', () => {
+    const target = favoriteTargetForCatalogId('imported_venue', catalogUuid);
+
+    expect(target).toEqual(favoriteTargetForCatalogUuid('imported_venue', catalogUuid));
+    expect(catalogIdForFavoriteTarget(target)).toBe(catalogUuid);
   });
 
   it('rejects a raw UUID and a typed ID with the wrong target kind', () => {

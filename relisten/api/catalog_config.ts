@@ -4,8 +4,8 @@ const DEVELOPMENT_CATALOG_ORIGIN = 'http://localhost:3823';
 export type CatalogTransport = 'v3' | 'v4';
 
 /**
- * V4 remains an explicit pilot opt-in. Leaving the variable unset preserves the
- * released v2/v3 catalog behavior while allowing the same build to exercise v4.
+ * V4 remains an explicit build-time pilot opt-in. Leaving the variable unset
+ * preserves the released v2/v3 catalog behavior before the one-way cutover.
  */
 export function catalogTransport(): CatalogTransport {
   const configured = process.env.EXPO_PUBLIC_RELISTEN_CATALOG_TRANSPORT?.trim();

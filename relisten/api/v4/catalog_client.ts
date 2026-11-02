@@ -1,29 +1,53 @@
 import Realm from 'realm';
 
-import { encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
+import { encodeV4UuidCatalogId, retainV4ShortCatalogId } from '@/relisten/api/v4/catalog_identity';
 import { CatalogV4Coordinator } from '@/relisten/api/v4/catalog_coordinator';
 import { CatalogV4ProtocolError, CatalogV4Transport } from '@/relisten/api/v4/catalog_transport';
 import type {
+  V4ArtistSongEntryResource,
   V4ArtistResource,
+  V4ArtistVenueEntryResource,
+  V4ArtistVenueWithShowsResource,
+  V4ImportedSongWithShowsResource,
+  V4ImportedVenueWithShowsResource,
   V4ShowResource,
+  V4SongWithShowsResource,
+  V4SongWithTracksResource,
   V4SourceResource,
   V4TrackResource,
+  V4VenueWithShowsResource,
   V4YearResource,
   V4YearWithShowsResource,
 } from '@/relisten/api/v4/wire_types';
 import type { Artist } from '@/relisten/realm/models/artist';
 import { CatalogQueryState } from '@/relisten/realm/models/v4_catalog';
 import {
+  applyV4ArtistSongs,
+  applyV4ArtistVenue,
+  applyV4ArtistVenues,
   applyV4ArtistYears,
   applyV4ArtistList,
   applyV4FullShow,
   applyV4FullSource,
+  applyV4ImportedSong,
+  applyV4ImportedVenue,
+  applyV4Song,
+  applyV4SongTracks,
   applyV4Track,
+  applyV4Venue,
   applyV4Year,
+  hasV4ArtistSongs,
+  hasV4ArtistVenue,
+  hasV4ArtistVenues,
   hasV4ArtistYears,
+  hasV4ImportedSong,
+  hasV4ImportedVenue,
   hasV4Show,
+  hasV4Song,
+  hasV4SongTracks,
   hasV4Source,
   hasV4Track,
+  hasV4Venue,
   hasV4Year,
 } from '@/relisten/realm/v4_catalog_apply';
 
@@ -96,19 +120,134 @@ export class CatalogV4Client {
       apply: (resource) => {
         assertExpectedResourceId(path, yearId, resource.id);
         assertExpectedResourceId(path, artistId, resource.artist_id);
-        const showUuids = applyV4Year(this.realm, artistUuid, yearUuid, resource);
+        return applyV4Year(this.realm, artistUuid, yearUuid, resource);
+      },
+    });
+  }
 
-        // A year summary can overwrite fields from a cached full show. Drop only
-        // that validator so the next show read repairs the shared row.
-        for (const show of resource.shows) {
-          const showState = this.realm.objectForPrimaryKey(
-            CatalogQueryState,
-            `GET /shows/${show.id}`
-          );
-          if (showState) this.realm.delete(showState);
-        }
+  async refreshArtistVenues(artistUuid: string, force = false): Promise<void> {
+    await this.ensureArtist(artistUuid);
+    const artistId = encodeV4UuidCatalogId(artistUuid, 'artist');
+    const path = `/artists/${artistId}/venues`;
+    const queryKey = `GET ${path}`;
+    return this.coordinator.refresh<V4ArtistVenueEntryResource[]>({
+      queryKey,
+      path,
+      force,
+      hasLocalData: () => hasV4ArtistVenues(this.realm, artistUuid, this.resultIds(queryKey)),
+      apply: (resources) => applyV4ArtistVenues(this.realm, artistUuid, resources),
+    });
+  }
 
-        return showUuids;
+  async refreshArtistVenue(artistUuid: string, venueId: string, force = false): Promise<void> {
+    await this.ensureArtist(artistUuid);
+    const artistId = encodeV4UuidCatalogId(artistUuid, 'artist');
+    const retainedVenueId = retainV4ShortCatalogId(venueId, 'venue');
+    const path = `/artists/${artistId}/venues/${retainedVenueId}`;
+    const queryKey = `GET ${path}`;
+    return this.coordinator.refresh<V4ArtistVenueWithShowsResource>({
+      queryKey,
+      path,
+      force,
+      hasLocalData: () => hasV4ArtistVenue(this.realm, artistUuid, this.resultIds(queryKey)),
+      apply: (resource) => applyV4ArtistVenue(this.realm, artistUuid, resource),
+    });
+  }
+
+  async refreshImportedVenue(
+    artistUuid: string,
+    importedVenueUuid: string,
+    force = false
+  ): Promise<void> {
+    await this.ensureArtist(artistUuid);
+    const importedVenueId = encodeV4UuidCatalogId(importedVenueUuid, 'imported_venue');
+    const path = `/imported-venues/${importedVenueId}`;
+    const queryKey = `GET ${path}`;
+    return this.coordinator.refresh<V4ImportedVenueWithShowsResource>({
+      queryKey,
+      path,
+      force,
+      hasLocalData: () => hasV4ImportedVenue(this.realm, artistUuid, this.resultIds(queryKey)),
+      apply: (resource) => {
+        assertExpectedResourceId(path, importedVenueId, resource.id);
+        return applyV4ImportedVenue(this.realm, artistUuid, resource);
+      },
+    });
+  }
+
+  async refreshVenue(venueId: string, force = false): Promise<void> {
+    await this.refreshArtists(false);
+    const retainedVenueId = retainV4ShortCatalogId(venueId, 'venue');
+    const path = `/venues/${retainedVenueId}`;
+    const queryKey = `GET ${path}`;
+    return this.coordinator.refresh<V4VenueWithShowsResource>({
+      queryKey,
+      path,
+      force,
+      hasLocalData: () => hasV4Venue(this.realm, this.resultIds(queryKey)),
+      apply: (resource) => applyV4Venue(this.realm, resource),
+    });
+  }
+
+  async refreshArtistSongs(artistUuid: string, force = false): Promise<void> {
+    await this.ensureArtist(artistUuid);
+    const artistId = encodeV4UuidCatalogId(artistUuid, 'artist');
+    const path = `/artists/${artistId}/songs`;
+    const queryKey = `GET ${path}`;
+    return this.coordinator.refresh<V4ArtistSongEntryResource[]>({
+      queryKey,
+      path,
+      force,
+      hasLocalData: () => hasV4ArtistSongs(this.realm, artistUuid, this.resultIds(queryKey)),
+      apply: (resources) => applyV4ArtistSongs(this.realm, artistUuid, resources),
+    });
+  }
+
+  async refreshSong(artistUuid: string, songId: string, force = false): Promise<void> {
+    await this.ensureArtist(artistUuid);
+    const retainedSongId = retainV4ShortCatalogId(songId, 'song');
+    const path = `/songs/${retainedSongId}`;
+    const queryKey = `GET ${path}`;
+    return this.coordinator.refresh<V4SongWithShowsResource>({
+      queryKey,
+      path,
+      force,
+      hasLocalData: () => hasV4Song(this.realm, artistUuid, this.resultIds(queryKey)),
+      apply: (resource) => applyV4Song(this.realm, artistUuid, resource),
+    });
+  }
+
+  async refreshSongTracks(artistUuid: string, songId: string, force = false): Promise<void> {
+    await this.refreshSong(artistUuid, songId, false);
+    const retainedSongId = retainV4ShortCatalogId(songId, 'song');
+    const path = `/songs/${retainedSongId}/tracks`;
+    const queryKey = `GET ${path}`;
+    return this.coordinator.refresh<V4SongWithTracksResource>({
+      queryKey,
+      path,
+      force,
+      hasLocalData: () => hasV4SongTracks(this.realm, artistUuid, this.resultIds(queryKey)),
+      apply: (resource) => applyV4SongTracks(this.realm, artistUuid, resource),
+    });
+  }
+
+  async refreshImportedSong(
+    artistUuid: string,
+    importedSongUuid: string,
+    force = false
+  ): Promise<void> {
+    await this.ensureArtist(artistUuid);
+    const importedSongId = encodeV4UuidCatalogId(importedSongUuid, 'imported_song');
+    const path = `/imported-songs/${importedSongId}`;
+    const queryKey = `GET ${path}`;
+    return this.coordinator.refresh<V4ImportedSongWithShowsResource>({
+      queryKey,
+      path,
+      force,
+      hasLocalData: () => hasV4ImportedSong(this.realm, artistUuid, this.resultIds(queryKey)),
+      apply: (resource) => {
+        assertExpectedResourceId(path, importedSongId, resource.id);
+        return applyV4ImportedSong(this.realm, artistUuid, resource);
       },
     });
   }

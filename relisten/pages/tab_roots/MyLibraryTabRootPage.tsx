@@ -15,6 +15,7 @@ import { Link, useFocusEffect } from 'expo-router';
 import { PropsWithChildren, ReactNode, useCallback, useEffect, useMemo, useReducer } from 'react';
 import { TouchableOpacity, View, ViewProps } from 'react-native';
 import {
+  useFavoriteCatalogUuids,
   useLibraryShowCatalogUuids,
   useRemainingDownloadsCount,
 } from '@/relisten/realm/root_services';
@@ -147,7 +148,9 @@ function FavoriteShows({ topContent }: { topContent?: ReactNode }) {
             </MyLibrarySectionHeader>
           </View>
         }
-        filterOptions={{ persistence: { key: ['myLibrary', 'shows'].join('/') } }}
+        filterOptions={{
+          persistence: { key: ['myLibrary', 'shows'].join('/') },
+        }}
         // hide "My Library" filter since it's enabled by default here
         filters={showFilters.filter((sf) => sf.persistenceKey !== ShowFilterKey.Library)}
         nonIdealState={nonIdealState}
@@ -186,6 +189,25 @@ function ActiveDownloads() {
   );
 }
 
+function FavoriteVenuesLink() {
+  const favoriteVenueIds = useFavoriteCatalogUuids('venue');
+
+  return (
+    <Link
+      href={{
+        pathname: '/relisten/tabs/(myLibrary)/venues',
+      }}
+      asChild
+    >
+      <TouchableOpacity>
+        <MyLibrarySectionHeader>
+          <Plur word="Venue" count={favoriteVenueIds.size} /> in My Library&nbsp;›
+        </MyLibrarySectionHeader>
+      </TouchableOpacity>
+    </Link>
+  );
+}
+
 export default function MyLibraryTabRootPage() {
   // TODO: listening history that shows all tracks
   useEffect(() => {
@@ -214,6 +236,7 @@ export default function MyLibraryTabRootPage() {
             <AccountEntryCard />
             <ActiveDownloads />
             <RecentlyPlayedShows />
+            <FavoriteVenuesLink />
             <Link
               href={{
                 pathname: '/relisten/tabs/(myLibrary)/history/statistics',

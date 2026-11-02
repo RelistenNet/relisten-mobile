@@ -9,10 +9,8 @@ import {
   FavoriteSyncState,
   UserFavorite,
 } from '@/relisten/realm/models/library';
-import {
-  CatalogFavoriteTargetKind,
-  favoriteTargetForCatalogUuid,
-} from '@/relisten/library/favorite_catalog_target';
+import { favoriteTargetForCatalogId } from '@/relisten/library/favorite_catalog_target';
+import type { FavoriteTargetKind } from '@/relisten/realm/models/library/favorite_catalog_type';
 import { ANONYMOUS_ACCOUNT_SCOPE_ID } from '@/relisten/realm/models/accounts';
 import { useQuery } from '@/relisten/realm/schema';
 import {
@@ -39,30 +37,27 @@ export interface FavoriteState {
   toggleFavorite(): void;
 }
 
-export function useFavorite(
-  targetKind: CatalogFavoriteTargetKind,
-  catalogUuid: string
-): FavoriteState {
+export function useFavorite(targetKind: FavoriteTargetKind, catalogId: string): FavoriteState {
   const repository = useFavoriteRepository();
   const libraryIndex = useRootLibraryIndex();
 
   const subscribe = useCallback(
-    (listener: () => void) => libraryIndex.subscribeFavorite(targetKind, catalogUuid, listener),
-    [targetKind, catalogUuid, libraryIndex]
+    (listener: () => void) => libraryIndex.subscribeFavorite(targetKind, catalogId, listener),
+    [targetKind, catalogId, libraryIndex]
   );
   const getSnapshot = useCallback(
-    () => libraryIndex.isFavorite(targetKind, catalogUuid),
-    [targetKind, catalogUuid, libraryIndex]
+    () => libraryIndex.isFavorite(targetKind, catalogId),
+    [targetKind, catalogId, libraryIndex]
   );
   const isFavorite = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const setFavorite = useCallback(
     (nextFavorite: boolean) => {
       repository.setFavorite({
-        ...favoriteTargetForCatalogUuid(targetKind, catalogUuid),
+        ...favoriteTargetForCatalogId(targetKind, catalogId),
         isFavorite: nextFavorite,
       });
     },
-    [targetKind, catalogUuid, repository]
+    [targetKind, catalogId, repository]
   );
   const toggleFavorite = useCallback(() => {
     setFavorite(!isFavorite);

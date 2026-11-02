@@ -49,6 +49,29 @@ export class EmittableValueStream<T> extends ValueStream<T> {
   }
 }
 
+export class MappedValueStream<TSource, T> extends ValueStream<T> {
+  public currentValue: T;
+  private readonly tearDownSourceListener: () => void;
+
+  constructor(
+    private readonly source: ValueStream<TSource>,
+    private readonly transform: (value: TSource) => T
+  ) {
+    super();
+    this.currentValue = transform(source.currentValue);
+    this.tearDownSourceListener = source.addListener((value) => {
+      this.currentValue = this.transform(value);
+      this.emitCurrentValue();
+    });
+  }
+
+  override tearDown() {
+    super.tearDown();
+    this.tearDownSourceListener();
+    this.source.tearDown();
+  }
+}
+
 export class CombinedValueStream<T, A, B> extends ValueStream<T> {
   public currentValue!: T;
   private readonly tearDownA: () => void;

@@ -52,7 +52,7 @@ if (isVerboseProfileLoggingEnabled()) {
   Realm.setLogLevel('debug', 'Realm.Storage.Notification');
 }
 
-export const REALM_SCHEMA_VERSION = 19;
+export const REALM_SCHEMA_VERSION = 20;
 
 export const REALM_SCHEMA = [
   Artist,
@@ -86,7 +86,7 @@ export const REALM_SCHEMA = [
 
 export const realmConfig: Realm.Configuration = {
   schema: REALM_SCHEMA,
-  // Schema 19 removes the unreleased full-artist snapshot while retaining granular v4 state.
+  // Schema 20 adds canonical song show and recording memberships.
   schemaVersion: REALM_SCHEMA_VERSION,
   onMigration: (oldRealm, newRealm) => {
     migratePlayerState(oldRealm, newRealm);

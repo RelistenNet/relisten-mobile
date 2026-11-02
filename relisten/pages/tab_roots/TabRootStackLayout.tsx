@@ -74,6 +74,8 @@ export default function TabRootStackLayout() {
             title: '',
           }}
         />
+        <Stack.Screen name="venues" options={{ title: 'My Venues' }} />
+        <Stack.Screen name="venue/[venueId]/index" options={{ title: '' }} />
         <Stack.Screen
           name="[artistUuid]/year/[yearUuid]/index"
           options={{
@@ -99,6 +101,7 @@ export default function TabRootStackLayout() {
           }}
         />
         <Stack.Screen name="[artistUuid]/song/[songUuid]/index" options={{ title: '' }} />
+        <Stack.Screen name="[artistUuid]/song/[songUuid]/tracks" options={{ title: '' }} />
         <Stack.Screen name="history/tracks" options={{ title: 'My History' }} />
       </Stack>
     </View>
