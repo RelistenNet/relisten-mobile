@@ -20,8 +20,9 @@ imported venue labels and track titles.
 A reviewer should be able to opt the development app into v4 and follow Artists
 -> Grateful Dead -> years -> 1985 -> show -> source -> playable track. The same
 downloaded track must remain playable after an offline cold restart. V3 remains
-the release default. Venue and song destination screens remain outside this
-pilot.
+the release default. After accepting that checkpoint, the work now continues
+with on-demand venue and song destinations plus global canonical venue
+favorites; those screens must reuse the same endpoint-local ownership model.
 
 ## Progress
 
@@ -40,9 +41,19 @@ pilot.
 - [x] (2026-11-01) Replaced the mobile full-artist request with the years list
   and selected-year detail routes. Deleted snapshot-only wire, apply, Realm, and
   test code.
-- [ ] Repeat the real artist -> years -> year -> show -> source journey, source
-  switching, and offline restart on iPhone 17 after the overlap fix. Then record
-  the accepted checkpoint and final commit hashes here.
+- [x] (2026-11-01) Repeated the real artist -> years -> year -> show -> source
+  journey and source switching on the retained iPhone 17 after the overlap fix.
+  Source 2 exposed distinct transfer metadata and track ordering, and playback
+  changed to its `Tuning` track without a normalization-status label.
+- [x] (2026-11-01) Repeated the downloaded-track cold restart with Always
+  Offline Mode and catalog origin `127.0.0.1:9`. Cached UI rendered immediately,
+  restored `Beat/It/On/Down/The/Line#` stopped at 16 seconds, and explicit Play
+  advanced the UUID-named local MP3 to 26 seconds. Restored normal mode and the
+  review origin afterward.
+- [x] (2026-11-01) Added mixed venue browse/detail, mixed song browse/detail
+  with lazy matched recordings, and a separate My Library Venues destination
+  for global canonical venue favorites. The pre-cutover v3 path remains, with
+  no v4-to-v3 rollback support, and no eager artist-wide fan-out was added.
 
 ## Surprises & Discoveries
 
@@ -75,6 +86,26 @@ pilot.
   offline restart instead used Always Offline Mode and an unreachable loopback
   catalog origin. That proved catalog independence and local-file playback,
   not system-wide radio loss.
+- A shared normalized venue or song can arrive through browse and detail routes.
+  Invalidating detail on every compact upsert created a download loop. The
+  writer now invalidates only when a compact field it owns changes; unchanged
+  second opens make no song or recording request.
+- An active canonical song favorite may hydrate into an empty Realm that does
+  not yet contain its artist. Favorite hydration now performs the existing
+  artist bootstrap once, rechecks the captured account, and then applies the
+  song patch without changing membership.
+- Canonical venue and song detail routes do not preserve the requested ID across
+  a merge. They return the survivor. A strict mobile route-ID check would reject
+  a valid response: the review API returns `venue_jjc2sxek` for the retained
+  alias `venue_e9z3ebnb`. UUID-backed imported and playback routes still require
+  exact identity.
+- An applied query flag alone is not proof that its cached projection is intact.
+  Empty cached lists remain usable offline, but refresh errors are suppressed
+  only when the root and every exact query member still project successfully.
+- TypeScript and ESLint did not catch two React Compiler constraints: a
+  conditional default hook argument and memo dependencies the compiler could
+  not preserve. The native Metro pass did; both hooks now derive defaults in
+  their bodies and the unnecessary projection memos are gone.
 
 ## Decision Log
 
@@ -110,6 +141,35 @@ pilot.
   When a selected-year response rewrites a returned show summary, invalidate
   only that show's detail validator in the same transaction. Do not add a
   dependency graph, global revision, or broad invalidation framework.
+- Decision: venue and song browse screens consume the server's mixed canonical
+  and imported entries in returned order. The client does not choose entry type
+  from normalization state or artist feature flags. Detail and matched-track
+  collections load only after their destination is opened. Date/Author:
+  2026-11-01, Alec.
+- Decision: canonical venue favorites use the global `venue_` identity and a
+  separate My Library Venues destination. They do not imply artist, year, or
+  show favorites. Imported venue favorites keep their existing artist-scoped
+  behavior. Date/Author: 2026-11-01, Alec.
+- Decision: canonical song matches are navigation metadata, not replacement
+  listener labels. Browse/detail may show the canonical song, but recording rows
+  keep the imported track title and navigate through the existing source route
+  for queue and playback ownership. Date/Author: 2026-11-01, Alec.
+- Decision: keep mixed browse order in each endpoint's existing
+  `CatalogQueryState.resultIds`. Do not add venue/song browse Realm models,
+  redirect tables, or a generic invalidation graph. Date/Author: 2026-11-01,
+  Alec and Codex.
+- Decision: keep canonical venue favorites in the existing account-scoped
+  `UserFavorite` model. Hydration may patch available or redirected metadata,
+  but unavailable or retired results do not remove or rewrite the exact saved
+  target. Date/Author: 2026-11-01, Alec and Codex.
+- Decision: canonical detail reads accept a returned merge survivor and validate
+  the response's internal artist, venue, show, source, and song relationships.
+  Exact requested-ID checks remain only on identity-preserving UUID routes.
+  Date/Author: 2026-11-01, Codex.
+- Decision: rollout is one-way. Retain v3 only as the pre-cutover path while the
+  pilot is disabled; once an install uses v4, it is not required to switch back
+  to v3. Do not add reverse-transition routing or cache compatibility branches.
+  Date/Author: 2026-11-01, Alec.
 
 ## Outcomes & Retrospective
 
@@ -118,8 +178,8 @@ returns 404, its DTO and dedicated reader are deleted, and Swagger exposes the
 smaller collection and detail routes. The existing years, selected-year, show,
 source, and track response contracts and validators did not change.
 
-The first native review established these behaviors, which the corrected route
-implementation must preserve:
+The native reviews established these behaviors, which later catalog screens must
+preserve:
 
 - `Mama Tried -> Me And My Uncle` remained one row, one queue item, and one
   playable file. Both normalized parts remained internal.
@@ -128,19 +188,21 @@ implementation must preserve:
 - `Beat/It/On/Down/The/Line#` kept its imported title while retaining an
   unresolved normalized part internally. Its download matched MD5 and used
   `offline/eb36cd68-6ff7-7ee2-d064-eade0285b785.mp3`.
-- With the catalog origin set to unreachable `127.0.0.1:9`, cold launch restored
-  that track and its 10.230-second checkpoint in a stopped, ready-to-play state.
-  An explicit Play resumed the UUID-named local file.
+- With the catalog origin set to unreachable `127.0.0.1:9`, the final cold
+  launch rendered cached content and the offline banner without a blocking
+  loader. It restored that track at 16.352 seconds in a stopped, ready-to-play
+  state. Explicit Play advanced to 26 seconds from
+  `offline/eb36cd68-6ff7-7ee2-d064-eade0285b785.mp3`.
 - A raw Spafford show used the same track-row presentation and played imported
   track `High Beams` without normalization.
 
 The corrected mobile implementation deletes the full-snapshot DTO, Realm
 models, apply/freshness code, and snapshot-only tests. Realm drops the
-development-only types when schema 19 opens. No explicit migration remains for
+development-only types when schema 20 opens. No explicit migration remains for
 the obsolete full-catalog query state because current code cannot address that
 unreleased endpoint key.
 
-The current automated pass ran 48 files and 324 tests successfully. `yarn
+The final automated pass ran 50 files and 335 tests successfully. `yarn
 ts:check`, `yarn lint`, and `git diff --check` also passed. Before the final
 overlap fix, the retained iPhone 17 issued this sequence while navigating real
 screens:
@@ -154,15 +216,52 @@ No `/catalog` request occurred. Selecting source 1 opened its 22 imported track
 rows. `Feel Like A Stranger` became the public player title and played; the row
 had no listener-facing normalization subtitle. The RocketSim live preview was
 `http://127.0.0.1:4996/?token=8901ea4a7975421a9af5b56deca04301`.
-The earlier offline/download/source-switching evidence was not repeated because
-the first route correction did not change their identities or player code. The
-final C3 review must repeat them after the overlap fix before this checkpoint is
-accepted.
+The post-fix C3 review repeated source switching and the existing-file offline
+cold restart. Its RocketSim screenshots are
+`/tmp/relisten-c3-source-switch.png`,
+`/tmp/relisten-c3-offline-restored.png`, and
+`/tmp/relisten-c3-offline-playing.png`. The live preview was
+`http://127.0.0.1:4996/?token=d34dd9d6ccc549b9999ccaa1ca4dfa76`.
+Always Offline Mode proves catalog independence and local-file playback; it does
+not disable the simulator's radio.
 
 The corrected catalog implementation is commit `d90c779`; the listener-facing
 track-row cleanup is commit `4205563`; the overlap repair is `4456a60`; and the
-final scaffolding deletion is `097ea26`. C3 remains open until the native rerun
-above is complete.
+final scaffolding deletion is `097ea26`. C3 is accepted. Venue, song, and venue
+favorite implementation continued from that checkpoint and is commit
+`912d580`.
+
+The follow-on native pass established the completed feature behavior:
+
+- Grateful Dead venue browse returned 544 mixed entries. Artist-scoped Red Rocks
+  detail showed 20 shows; the global My Library detail showed 176 shows grouped
+  across artists. Favoriting and removing Red Rocks changed the venue library
+  only; the two existing show favorites were unchanged.
+- Imported venue fallback remained separate. Opening `Ace's Studio` showed its
+  imported name, locality, one-show membership, and ordinary artist-scoped
+  favorite action.
+- Grateful Dead song browse returned 547 ordered mixed entries: 402 canonical
+  songs and 145 imported songs. Imported `(I'm A) Road Runner` detail showed its
+  two shows without a canonical recordings action.
+- Canonical `China Cat Sunflower` showed 567 shows and exposed its 4,459 matched
+  recordings only after the recordings destination opened. Rows used imported
+  track titles, dates, imported venue labels, and duration; no normalization
+  status appeared.
+- Selecting `China Cat Sunflower \\>` opened the exact 1968-01-17 source and
+  started that imported track. The source page and mini-player retained the
+  imported title. The clean screenshot is
+  `/tmp/relisten-c5-song-recording-playing-clean.png`.
+- Joe Russo's Almost Dead has the legacy `songs` feature disabled, but its v4
+  Songs action remained enabled and opened 307 canonical songs.
+
+The live RocketSim preview for this pass is
+`http://127.0.0.1:4996/?token=d34dd9d6ccc549b9999ccaa1ca4dfa76`.
+
+The catalog transport is selected once when `RelistenApiClient` is constructed.
+There is no runtime switch, reverse migration, or v4-to-v3 cache adapter. The
+remaining dual repository branches exist only while the unreleased pilot is
+opted in; after the one-way cutover, the v3 catalog branch can be deleted in a
+separate cleanup.
 
 ## Context and Orientation
 
@@ -202,11 +301,24 @@ The authoritative API loading rules are in the sibling checkout:
    Keep download, parse, total, and apply timing where those measurements do not
    require copying the response.
 5. Point the existing years and selected-year repositories at their matching v4
-   routes. Keep v3 methods and DTOs unchanged for configured fallback.
+   routes. Leave v3 methods and DTOs unchanged for the pre-cutover release; do
+   not add a path back to them after v4 is enabled.
 6. Prove route identity, endpoint-local replacement, atomic ETag apply, damaged
    cache recovery, imported identity preservation, and the absence of a
    `/catalog` request. Then repeat the real iPhone 17 browsing and playback
    journey.
+7. Project venue and song browse entries from exact ordered query membership,
+   retaining separate canonical and imported route identities without new
+   browse tables.
+8. Load artist venue, global venue, imported venue, canonical song, imported
+   song, and canonical recording detail only when opened. Preserve cached empty
+   results while exposing damaged-cache refresh failures.
+9. Reuse account-scoped favorites for canonical venue membership and hydrate
+   missing metadata through the existing resolver without changing exact saved
+   targets.
+10. Prove mixed browsing, global venue favorites, lazy recordings, exact-track
+    playback, imported labels, and canonical redirects on the retained
+    simulator and real review API.
 
 ## Concrete Steps
 
@@ -254,8 +366,16 @@ Automated evidence must show:
 - shallow normalized references retain richer aliases and counts;
 - migration preserves raw imported keys, download state/path, queue/checkpoint,
   history links, and typed account/library identities;
-- configured v3 still uses the legacy client; and
+- pre-cutover configuration still uses the legacy client;
 - transport parsing no longer makes a second UTF-8 copy solely to count bytes.
+- venue and song browse preserve the server's ordered canonical/imported
+  membership and do not refetch unchanged detail;
+- canonical merge aliases open the returned survivor without weakening exact
+  UUID route checks;
+- applied-empty browse/detail remains visible after a stale offline refresh,
+  while incomplete cached projections still surface repair failures; and
+- canonical venue favorite hydration preserves exact membership across
+  available, redirected, unavailable, and retired resolver results.
 
 Native evidence must show:
 
@@ -275,8 +395,8 @@ import, or run workers. Correction tests use disposable Realm files.
 
 Reopening the current Realm schema must preserve imported and personal objects.
 A failed v4 transaction keeps the prior ETag and complete graph, so the same
-endpoint can retry. Switching the configured transport back to v3 uses existing
-paths and does not delete normalized rows.
+endpoint can retry. The configuration can remain on v3 before cutover. Once v4
+is enabled, reverse transition to v3 is not a supported recovery path.
 
 No broad ETag invalidation, generic sync engine, EAS build, OTA, TestFlight,
 production mutation, force push, or PR is part of this plan.
@@ -292,5 +412,5 @@ the two pre-existing untracked documents outside every commit.
 The pilot uses the existing `Realm`, `@realm/react`, NetInfo, Expo dev client,
 and global fetch implementation. It adds no cache library, database engine,
 player engine, server route, or generic synchronization layer. The corrected API
-contract is in `RelistenApi` commit `802e461df` on
+contract and public-request ownership are in `RelistenApi` commit `55ad6af1a` on
 `codex/v4-native-recordings`.
