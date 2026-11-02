@@ -1,6 +1,9 @@
 import Realm from 'realm';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('expo-crypto', () => ({
+  getRandomValues: (bytes: Uint8Array<ArrayBuffer>) => globalThis.crypto.getRandomValues(bytes),
+}));
 vi.mock('@/relisten/util/logging', () => ({
   log: { extend: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }) },
 }));

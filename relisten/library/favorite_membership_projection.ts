@@ -1,5 +1,5 @@
 import Realm from 'realm';
-import { catalogReferenceForFavoriteTarget } from '@/relisten/library/favorite_catalog_target';
+import { catalogIdForFavoriteTarget } from '@/relisten/library/favorite_catalog_target';
 import type { FavoriteAccountScopeSource } from '@/relisten/library/favorite_repository';
 import type { FavoriteTargetKind } from '@/relisten/realm/models/library/favorite_catalog_type';
 import { UserFavorite } from '@/relisten/realm/models/library/user_favorite';
@@ -32,6 +32,7 @@ export class FavoriteMembershipProjection {
   private readonly sources: Realm.Results<SourceProjection>;
   private readonly sourceTracks: Realm.Results<SourceTrackProjection>;
   private readonly songs: Realm.Results<ArtistChildProjection>;
+  private readonly normalizedSongs: Realm.Results<ArtistChildProjection>;
   private readonly tours: Realm.Results<ArtistChildProjection>;
   private readonly venues: Realm.Results<ArtistChildProjection>;
   private readonly favoriteUuidsByType = new Map<FavoriteTargetKind, Set<string>>();
@@ -55,6 +56,7 @@ export class FavoriteMembershipProjection {
     this.sources = realm.objects<SourceProjection>('Source');
     this.sourceTracks = realm.objects<SourceTrackProjection>('SourceTrack');
     this.songs = realm.objects<ArtistChildProjection>('Song');
+    this.normalizedSongs = realm.objects<ArtistChildProjection>('NormalizedSong');
     this.tours = realm.objects<ArtistChildProjection>('Tour');
     this.venues = realm.objects<ArtistChildProjection>('Venue');
 
@@ -68,6 +70,7 @@ export class FavoriteMembershipProjection {
     this.sources.addListener(this.handleDataChanged);
     this.sourceTracks.addListener(this.handleDataChanged);
     this.songs.addListener(this.handleDataChanged);
+    this.normalizedSongs.addListener(this.handleDataChanged);
     this.tours.addListener(this.handleDataChanged);
     this.venues.addListener(this.handleDataChanged);
     this.unsubscribeAccountScope = accountScopeSource.subscribe(this.handleDataChanged);
@@ -81,6 +84,7 @@ export class FavoriteMembershipProjection {
       this.sources.removeListener(this.handleDataChanged);
       this.sourceTracks.removeListener(this.handleDataChanged);
       this.songs.removeListener(this.handleDataChanged);
+      this.normalizedSongs.removeListener(this.handleDataChanged);
       this.tours.removeListener(this.handleDataChanged);
       this.venues.removeListener(this.handleDataChanged);
     }
@@ -150,11 +154,11 @@ export class FavoriteMembershipProjection {
         continue;
       }
 
-      const catalogReference = catalogReferenceForFavoriteTarget({
+      const catalogId = catalogIdForFavoriteTarget({
         kind: favorite.targetKind,
         id: favorite.targetId,
       });
-      if (!catalogReference) {
+      if (!catalogId) {
         continue;
       }
 
@@ -163,7 +167,7 @@ export class FavoriteMembershipProjection {
         typeFavorites = new Set<string>();
         this.favoriteUuidsByType.set(favorite.targetKind, typeFavorites);
       }
-      typeFavorites.add(catalogReference.catalog_uuid);
+      typeFavorites.add(catalogId);
     }
 
     for (const showUuid of this.favoriteUuids('show')) {
@@ -182,6 +186,11 @@ export class FavoriteMembershipProjection {
     for (const songUuid of this.favoriteUuids('imported_song')) {
       this.addLibraryArtist(
         this.realm.objectForPrimaryKey<ArtistChildProjection>('Song', songUuid)?.artistUuid
+      );
+    }
+    for (const songId of this.favoriteUuids('song')) {
+      this.addLibraryArtist(
+        this.realm.objectForPrimaryKey<ArtistChildProjection>('NormalizedSong', songId)?.artistUuid
       );
     }
     for (const tourUuid of this.favoriteUuids('tour')) {

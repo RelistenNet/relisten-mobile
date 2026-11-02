@@ -42,7 +42,7 @@ export function RootServicesProvider({ children }: PropsWithChildren) {
     const favoriteSyncAdapter = new FavoriteSyncAdapter(favoriteRepository);
     const favoriteMetadataHydrator = new FavoriteMetadataHydrator(
       favoriteRepository,
-      new RelistenApiClient()
+      new RelistenApiClient({ realm })
     );
 
     return {

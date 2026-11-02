@@ -51,6 +51,7 @@ import {
   SourceTrackOfflineInfoType,
 } from '@/relisten/realm/models/source_track_offline_info';
 import { useFavorite } from '@/relisten/library/favorite_hooks';
+import { normalizedVenueLocation } from '@/relisten/components/venue_presenters';
 
 const logger = log.extend('source screen');
 
@@ -386,6 +387,30 @@ export const SourceHeader = ({
   const sourceFavorite = useFavorite('source', source.uuid);
   const groupSegment = useGroupSegment();
   const { fontScale } = useWindowDimensions();
+  const displayVenueName = show.venue?.name ?? show.artistVenue?.venue.name;
+  const displayVenueLocation =
+    show.venue?.location ?? normalizedVenueLocation(show.artistVenue?.venue);
+
+  const pushVenue = () => {
+    if (show.artistVenue) {
+      router.push({
+        pathname: `/relisten/tabs/${groupSegment}/venue/[venueId]/` as const,
+        params: { venueId: show.artistVenue.venue.id },
+      });
+      return;
+    }
+
+    if (show.venueUuid) {
+      router.push({
+        pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/venue/[venueUuid]/` as const,
+        params: {
+          artistUuid: show.artistUuid,
+          venueUuid: show.venueUuid,
+          venueKind: 'imported_venue',
+        },
+      });
+    }
+  };
 
   const secondLine = R.filter(
     [
@@ -428,20 +453,11 @@ export const SourceHeader = ({
         >
           {show.displayDate}
         </RelistenText>
-        {show.venue && (
-          <TouchableOpacity
-            onPress={() =>
-              router.push({
-                pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/venue/[venueUuid]/`,
-                params: {
-                  artistUuid: show.artistUuid,
-                  venueUuid: show.venueUuid,
-                },
-              })
-            }
-          >
+        {displayVenueName && (
+          <TouchableOpacity onPress={pushVenue}>
             <RelistenText className="w-full pb-2 text-center text-xl" selectable={false}>
-              {show.venue.name}, {show.venue.location}&nbsp;›
+              {[displayVenueName, displayVenueLocation].filter(Boolean).join(', ')}
+              &nbsp;›
             </RelistenText>
           </TouchableOpacity>
         )}

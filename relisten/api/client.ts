@@ -25,6 +25,10 @@ import {
   type CatalogTransport,
 } from '@/relisten/api/catalog_config';
 import { CatalogV4Client } from '@/relisten/api/v4/catalog_client';
+import type {
+  V4CatalogReferenceRequest,
+  V4CatalogResolveResponse,
+} from '@/relisten/api/v4/catalog_resolve';
 
 const logger = log.extend('network');
 
@@ -172,8 +176,80 @@ export class RelistenApiClient {
     return this.v4RefreshResponse(this.requireV4Catalog().refreshYear(artistUuid, yearUuid, force));
   }
 
+  public refreshV4ArtistVenues(
+    artistUuid: string,
+    force: boolean
+  ): Promise<RelistenApiResponse<never>> {
+    return this.v4RefreshResponse(this.requireV4Catalog().refreshArtistVenues(artistUuid, force));
+  }
+
+  public refreshV4ArtistVenue(
+    artistUuid: string,
+    venueId: string,
+    force: boolean
+  ): Promise<RelistenApiResponse<never>> {
+    return this.v4RefreshResponse(
+      this.requireV4Catalog().refreshArtistVenue(artistUuid, venueId, force)
+    );
+  }
+
+  public refreshV4ImportedVenue(
+    artistUuid: string,
+    importedVenueUuid: string,
+    force: boolean
+  ): Promise<RelistenApiResponse<never>> {
+    return this.v4RefreshResponse(
+      this.requireV4Catalog().refreshImportedVenue(artistUuid, importedVenueUuid, force)
+    );
+  }
+
+  public refreshV4Venue(venueId: string, force: boolean): Promise<RelistenApiResponse<never>> {
+    return this.v4RefreshResponse(this.requireV4Catalog().refreshVenue(venueId, force));
+  }
+
+  public refreshV4ArtistSongs(
+    artistUuid: string,
+    force: boolean
+  ): Promise<RelistenApiResponse<never>> {
+    return this.v4RefreshResponse(this.requireV4Catalog().refreshArtistSongs(artistUuid, force));
+  }
+
+  public refreshV4Song(
+    artistUuid: string,
+    songId: string,
+    force: boolean
+  ): Promise<RelistenApiResponse<never>> {
+    return this.v4RefreshResponse(this.requireV4Catalog().refreshSong(artistUuid, songId, force));
+  }
+
+  public refreshV4SongTracks(
+    artistUuid: string,
+    songId: string,
+    force: boolean
+  ): Promise<RelistenApiResponse<never>> {
+    return this.v4RefreshResponse(
+      this.requireV4Catalog().refreshSongTracks(artistUuid, songId, force)
+    );
+  }
+
+  public refreshV4ImportedSong(
+    artistUuid: string,
+    importedSongUuid: string,
+    force: boolean
+  ): Promise<RelistenApiResponse<never>> {
+    return this.v4RefreshResponse(
+      this.requireV4Catalog().refreshImportedSong(artistUuid, importedSongUuid, force)
+    );
+  }
+
   public refreshV4Show(showUuid: string, force: boolean): Promise<RelistenApiResponse<never>> {
     return this.v4RefreshResponse(this.requireV4Catalog().refreshShow(showUuid, force));
+  }
+
+  public resolveV4CatalogReferences(
+    references: V4CatalogReferenceRequest[]
+  ): Promise<RelistenApiResponse<V4CatalogResolveResponse>> {
+    return this.postJson('/v4/catalog/resolve', { references });
   }
 
   public onCatalogNetworkAvailable() {
@@ -190,8 +266,6 @@ export class RelistenApiClient {
   private async v4RefreshResponse(refresh: Promise<void>): Promise<RelistenApiResponse<never>> {
     try {
       await refresh;
-      // The v4 coordinator already committed the Realm payload and validator.
-      // Realm listeners publish it; returning no DTO prevents a second legacy apply.
       return { type: RelistenApiResponseType.OnlineRequestCompleted };
     } catch (error) {
       const normalizedError = error instanceof Error ? error : new Error(String(error));

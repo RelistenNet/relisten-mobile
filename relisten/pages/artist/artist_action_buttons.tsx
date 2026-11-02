@@ -4,6 +4,7 @@ import { Link } from 'expo-router';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import React from 'react';
 import { tw } from '@/relisten/util/tw';
+import { useRelistenApi } from '@/relisten/api/context';
 
 export function ArtistActionButtons({
   currentRoute,
@@ -15,6 +16,7 @@ export function ArtistActionButtons({
   goToRandomShow: () => Promise<void>;
 }) {
   const { fontScale } = useWindowDimensions();
+  const { apiClient } = useRelistenApi();
 
   const rowCount = fontScale > 1.25 ? 3 : 2;
   const buttonsPerRow = rowCount === 3 ? 2 : 3;
@@ -72,7 +74,7 @@ export function ArtistActionButtons({
       <RelistenButton
         className={tw(`grow shrink`, basis)}
         textClassName="text-l"
-        disabled={!artist.features().songs}
+        disabled={!apiClient.usesV4Catalog() && !artist.features().songs}
         disabledPopoverText="Songs feature not available for this artist"
       >
         Songs

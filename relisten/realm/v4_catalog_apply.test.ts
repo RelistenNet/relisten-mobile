@@ -23,12 +23,16 @@ import { encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
 import { CatalogV4Client } from '@/relisten/api/v4/catalog_client';
 import { CatalogV4Transport } from '@/relisten/api/v4/catalog_transport';
 import type {
+  V4ArtistSongEntryResource,
   V4ArtistFeaturesResource,
   V4ArtistResource,
+  V4ArtistVenueEntryResource,
   V4ArtistVenueResource,
+  V4ImportedSongResource,
   V4ImportedVenueResource,
   V4ShowResource,
   V4ShowSummaryResource,
+  V4SongDetailResource,
   V4SourceResource,
   V4SourceSetResource,
   V4TrackNormalizationResource,
@@ -38,7 +42,12 @@ import type {
   V4YearWithShowsResource,
 } from '@/relisten/api/v4/wire_types';
 import { Artist } from '@/relisten/realm/models/artist';
-import { NormalizedSong, V4_CATALOG_REALM_MODELS } from '@/relisten/realm/models/v4_catalog';
+import {
+  CatalogQueryState,
+  NormalizedSong,
+  NormalizedVenue,
+  V4_CATALOG_REALM_MODELS,
+} from '@/relisten/realm/models/v4_catalog';
 import {
   Popularity,
   PopularityWindow,
@@ -58,16 +67,32 @@ import { Tour } from '@/relisten/realm/models/tour';
 import { Venue } from '@/relisten/realm/models/venue';
 import { Year } from '@/relisten/realm/models/year';
 import {
+  applyV4ArtistSongs,
+  applyV4ArtistVenue,
+  applyV4ArtistVenues,
   applyV4ArtistList,
   applyV4ArtistYears,
   applyV4FullShow,
   applyV4FullSource,
+  applyV4ImportedSong,
+  applyV4ImportedVenue,
+  applyV4Song,
+  applyV4SongTracks,
   applyV4Track,
+  applyV4Venue,
   applyV4Year,
+  hasV4ArtistSongs,
+  hasV4ArtistVenue,
+  hasV4ArtistVenues,
   hasV4ArtistYears,
+  hasV4ImportedSong,
+  hasV4ImportedVenue,
   hasV4Show,
+  hasV4Song,
+  hasV4SongTracks,
   hasV4Source,
   hasV4Track,
+  hasV4Venue,
   hasV4Year,
   V4CatalogApplyError,
 } from '@/relisten/realm/v4_catalog_apply';
@@ -88,6 +113,7 @@ const otherShowUuid = '00000000-0000-4000-8000-00000000000d';
 const otherYearUuid = '00000000-0000-4000-8000-00000000000e';
 const otherArtistUuid = '00000000-0000-4000-8000-000000000010';
 const otherArtistYearUuid = '00000000-0000-4000-8000-000000000011';
+const importedSongUuid = '00000000-0000-4000-8000-000000000012';
 
 const artistId = encodeV4UuidCatalogId(artistUuid, 'artist');
 const showId = encodeV4UuidCatalogId(showUuid, 'show');
@@ -99,6 +125,7 @@ const setBId = encodeV4UuidCatalogId(setBUuid, 'source_set');
 const trackAId = encodeV4UuidCatalogId(trackAUuid, 'track');
 const trackBId = encodeV4UuidCatalogId(trackBUuid, 'track');
 const trackCId = encodeV4UuidCatalogId(trackCUuid, 'track');
+const importedSongId = encodeV4UuidCatalogId(importedSongUuid, 'imported_song');
 
 const features: V4ArtistFeaturesResource = {
   descriptions: true,
@@ -209,6 +236,35 @@ function importedVenueResource(name = 'Imported Hall'): V4ImportedVenueResource 
     upstream_identifier: 'imported-hall',
     slug: 'imported-hall',
     past_names: null,
+    created_at: timestamp,
+    updated_at: timestamp,
+  };
+}
+
+function normalizedSongDetailResource(
+  id: V4SongDetailResource['id'] = 'song_00000003'
+): V4SongDetailResource {
+  return {
+    id,
+    artist_id: artistId,
+    name: 'Canonical Song',
+    kind: 'song',
+    slug: 'canonical-song',
+    original_artist: null,
+    aliases: ['Canon Song'],
+    matched_track_count: 8,
+    matched_show_count: 7,
+  };
+}
+
+function importedSongResource(name = 'Imported Song'): V4ImportedSongResource {
+  return {
+    id: importedSongId,
+    artist_id: artistId,
+    name,
+    slug: name ? 'imported-song' : '',
+    upstream_identifier: name ? 'imported-song' : '',
+    setlist_show_count: 9,
     created_at: timestamp,
     updated_at: timestamp,
   };
@@ -470,6 +526,262 @@ describe('v4 catalog Realm apply', () => {
     expect(song.matchedShowCount).toBe(5);
   });
 
+  it('applies ordered mixed venue and song browse membership without duplicating it', () => {
+    const venues: V4ArtistVenueEntryResource[] = [
+      {
+        kind: 'artist_venue',
+        artist_venue: artistVenueResource(),
+        imported_venue: null,
+      },
+      {
+        kind: 'imported_venue',
+        artist_venue: null,
+        imported_venue: importedVenueResource(),
+      },
+    ];
+    const songs: V4ArtistSongEntryResource[] = [
+      {
+        kind: 'song',
+        song: normalizedSongDetailResource(),
+        imported_song: null,
+      },
+      {
+        kind: 'imported_song',
+        song: null,
+        imported_song: importedSongResource(''),
+      },
+    ];
+
+    const [venueIds, songIds] = realm.write(() => {
+      applyV4ArtistList(realm, [artistResource()]);
+      return [
+        applyV4ArtistVenues(realm, artistUuid, venues),
+        applyV4ArtistSongs(realm, artistUuid, songs),
+      ];
+    });
+
+    expect(venueIds).toEqual(['artist_venue_00000002', importedVenueId]);
+    expect(songIds).toEqual(['song_00000003', importedSongId]);
+    expect(hasV4ArtistVenues(realm, artistUuid, venueIds)).toBe(true);
+    expect(hasV4ArtistSongs(realm, artistUuid, songIds)).toBe(true);
+    expect(realm.objectForPrimaryKey(Song, importedSongUuid)?.name).toBe('');
+
+    expect(() =>
+      realm.write(() => applyV4ArtistSongs(realm, artistUuid, [songs[0], songs[0]]))
+    ).toThrow('contains duplicate identities');
+    expect(() =>
+      realm.write(() =>
+        applyV4ArtistVenues(realm, artistUuid, [
+          {
+            kind: 'artist_venue',
+            artist_venue: null,
+            imported_venue: null,
+          } as unknown as V4ArtistVenueEntryResource,
+        ])
+      )
+    ).toThrow('inconsistent kind and target');
+  });
+
+  it('keeps venue and song detail memberships independent, including empty results', () => {
+    const show = showSummaryResource({ sourceCount: 0 });
+    const artistVenue = artistVenueResource();
+    const canonicalSong = normalizedSongDetailResource();
+    const importedSong = importedSongResource();
+
+    const resultIds = realm.write(() => {
+      seedArtistAndYear(realm);
+      return {
+        artistVenue: applyV4ArtistVenue(realm, artistUuid, {
+          ...artistVenue,
+          shows: [show],
+        }),
+        importedVenue: applyV4ImportedVenue(realm, artistUuid, {
+          ...importedVenueResource(),
+          shows: [show],
+        }),
+        venue: applyV4Venue(realm, {
+          ...normalizedVenueResource(),
+          shows: [show],
+        }),
+        song: applyV4Song(realm, artistUuid, {
+          ...canonicalSong,
+          shows: [show],
+        }),
+        importedSong: applyV4ImportedSong(realm, artistUuid, {
+          ...importedSong,
+          shows: [show],
+        }),
+      };
+    });
+
+    expect(hasV4ArtistVenue(realm, artistUuid, resultIds.artistVenue)).toBe(true);
+    expect(hasV4ImportedVenue(realm, artistUuid, resultIds.importedVenue)).toBe(true);
+    expect(hasV4Venue(realm, resultIds.venue)).toBe(true);
+    expect(hasV4Song(realm, artistUuid, resultIds.song)).toBe(true);
+    expect(hasV4ImportedSong(realm, artistUuid, resultIds.importedSong)).toBe(true);
+    expect(realm.objectForPrimaryKey(NormalizedSong, canonicalSong.id)?.shows).toHaveLength(1);
+    expect(realm.objectForPrimaryKey(Song, importedSongUuid)?.shows.size).toBe(1);
+
+    const emptyResult = realm.write(() =>
+      applyV4Song(realm, artistUuid, { ...canonicalSong, shows: [] })
+    );
+    expect(emptyResult).toEqual([canonicalSong.id]);
+    expect(hasV4Song(realm, artistUuid, emptyResult)).toBe(true);
+    expect(realm.objectForPrimaryKey(Show, showUuid)?.deletedAt).toBeNull();
+    expect(realm.objectForPrimaryKey(Song, importedSongUuid)?.shows.size).toBe(1);
+  });
+
+  it('applies shallow song tracks without taking source, set, or offline ownership', () => {
+    const fullShow = fullShowResource([
+      sourceResource(sourceAId, [sourceSetResource(setAId, sourceAId, [trackResource()])]),
+    ]);
+    fullShow.source_count = 1;
+
+    realm.write(() => {
+      seedArtistAndYear(realm);
+      applyV4FullShow(realm, fullShow);
+      const offlineInfo = realm.create(SourceTrackOfflineInfo, {
+        sourceTrackUuid: trackAUuid,
+        status: SourceTrackOfflineInfoStatus.Succeeded,
+        type: SourceTrackOfflineInfoType.UserInitiated,
+        queuedAt: new Date(timestamp),
+        startedAt: new Date(timestamp),
+        completedAt: new Date(timestamp),
+        downloadedBytes: 123,
+        totalBytes: 123,
+        percent: 1,
+      });
+      realm.objectForPrimaryKey(SourceTrack, trackAUuid)!.offlineInfo = offlineInfo;
+      for (const key of [
+        `GET /shows/${showId}`,
+        `GET /sources/${sourceAId}`,
+        `GET /source-tracks/${trackAId}`,
+      ]) {
+        realm.create(CatalogQueryState, {
+          key,
+          etag: 'W/"detail"',
+          hasAppliedData: true,
+          retryPending: false,
+          resultIds: [],
+        });
+      }
+      for (const [key, resultIds] of [
+        [`GET /songs/song_00000003`, ['song_00000003', showId]],
+        [`GET /songs/song_00000003/tracks`, ['song_00000003', trackAId]],
+      ] as const) {
+        realm.create(CatalogQueryState, {
+          key,
+          etag: 'W/"song-detail"',
+          hasAppliedData: true,
+          lastAppliedAt: new Date(timestamp),
+          lastCheckedAt: new Date(timestamp),
+          retryPending: false,
+          resultIds: [...resultIds],
+        });
+      }
+    });
+
+    const correctedTrack = trackResource({ title: 'Corrected Imported Title' });
+    const resultIds = realm.write(() =>
+      applyV4SongTracks(realm, artistUuid, {
+        ...normalizedSongDetailResource(),
+        tracks: [correctedTrack],
+      })
+    );
+
+    const track = realm.objectForPrimaryKey(SourceTrack, trackAUuid)!;
+    expect(resultIds).toEqual(['song_00000003', trackAId]);
+    expect(hasV4SongTracks(realm, artistUuid, resultIds)).toBe(true);
+    expect(track.title).toBe('Corrected Imported Title');
+    expect(track.offlineInfo?.downloadedBytes).toBe(123);
+    expect(track.source?.uuid).toBe(sourceAUuid);
+    expect(realm.objectForPrimaryKey(SourceSet, setAUuid)?.sourceTracks[0].uuid).toBe(trackAUuid);
+    expect(realm.objectForPrimaryKey(NormalizedSong, 'song_00000003')?.tracks[0].uuid).toBe(
+      trackAUuid
+    );
+    expect(realm.objectForPrimaryKey(CatalogQueryState, `GET /shows/${showId}`)).toBeNull();
+    expect(realm.objectForPrimaryKey(CatalogQueryState, `GET /sources/${sourceAId}`)).toBeNull();
+    expect(
+      realm.objectForPrimaryKey(CatalogQueryState, `GET /source-tracks/${trackAId}`)
+    ).toBeNull();
+    for (const key of ['GET /songs/song_00000003', 'GET /songs/song_00000003/tracks']) {
+      const state = realm.objectForPrimaryKey(CatalogQueryState, key)!;
+      expect(state.etag).toBeNull();
+      expect(state.lastCheckedAt).toBeNull();
+      expect(Array.from(state.resultIds)).toEqual(
+        key.endsWith('/tracks') ? ['song_00000003', trackAId] : ['song_00000003', showId]
+      );
+    }
+  });
+
+  it('keeps unchanged song detail and tracks fresh while repairing changed shared metadata', async () => {
+    realm.write(() => seedArtistAndYear(realm));
+    const songId = 'song_00000003';
+    const songPath = `/songs/${songId}`;
+    const tracksPath = `${songPath}/tracks`;
+    const matchedTrack = trackResource();
+    matchedTrack.normalization.parts[0].song!.kind = 'song';
+    const songPayload = {
+      ...normalizedSongDetailResource(),
+      shows: [showSummaryResource({ sourceCount: 0 })],
+    };
+    const tracksPayload = {
+      ...normalizedSongDetailResource(),
+      tracks: [matchedTrack],
+    };
+    let songRequests = 0;
+    let trackRequests = 0;
+    const transport = new CatalogV4Transport({
+      apiBase: 'https://catalog.example/api',
+      fetch: async (input) => {
+        const path = new URL(String(input)).pathname.replace('/api/v4', '');
+        if (path === songPath) {
+          songRequests += 1;
+          return new Response(JSON.stringify(songPayload), {
+            status: 200,
+            headers: { etag: `W/"song-${songRequests}"` },
+          });
+        }
+        if (path === tracksPath) {
+          trackRequests += 1;
+          return new Response(JSON.stringify(tracksPayload), {
+            status: 200,
+            headers: { etag: `W/"tracks-${trackRequests}"` },
+          });
+        }
+        throw new Error(`Unexpected request ${path}`);
+      },
+    });
+    const client = new CatalogV4Client(realm, transport);
+
+    await client.refreshSongTracks(artistUuid, songId, false);
+    await client.refreshSongTracks(artistUuid, songId, false);
+    expect([songRequests, trackRequests]).toEqual([1, 1]);
+
+    realm.write(() =>
+      applyV4ArtistSongs(realm, artistUuid, [
+        {
+          kind: 'song',
+          song: { ...normalizedSongDetailResource(), name: 'Older Canonical Song' },
+          imported_song: null,
+        },
+      ])
+    );
+    for (const key of [`GET ${songPath}`, `GET ${tracksPath}`]) {
+      const state = realm.objectForPrimaryKey(CatalogQueryState, key)!;
+      expect(state.hasAppliedData).toBe(true);
+      expect(state.resultIds.length).toBeGreaterThan(0);
+      expect(state.etag).toBeNull();
+      expect(state.lastCheckedAt).toBeNull();
+    }
+
+    await client.refreshSongTracks(artistUuid, songId, false);
+    await client.refreshSongTracks(artistUuid, songId, false);
+
+    expect([songRequests, trackRequests]).toEqual([2, 2]);
+    expect(realm.objectForPrimaryKey(NormalizedSong, songId)?.name).toBe('Canonical Song');
+  });
+
   it("replaces only one artist's year membership and reactivates retained rows in place", () => {
     const otherArtist: V4ArtistResource = {
       ...artistResource('Other Artist'),
@@ -636,6 +948,120 @@ describe('v4 catalog Realm apply', () => {
 
     expect(lastShowValidator).toBeNull();
     expect(realm.objectForPrimaryKey(Show, showUuid)?.avgRating).toBe(4.75);
+  });
+
+  it('refetches venue detail after an older artist browse rewrites shared metadata', async () => {
+    realm.write(() => {
+      seedArtistAndYear(realm);
+      realm.create(CatalogQueryState, {
+        key: 'GET /artists?include_autocreated=true',
+        etag: 'W/"artists"',
+        hasAppliedData: true,
+        lastAppliedAt: new Date(),
+        lastCheckedAt: new Date(),
+        retryPending: false,
+        resultIds: [artistUuid],
+      });
+    });
+
+    const venuePath = '/venues/venue_00000001';
+    const artistVenuesPath = `/artists/${artistId}/venues`;
+    let releaseOlderBrowse: ((response: Response) => void) | undefined;
+    let lastVenueValidator: string | null | undefined;
+    let venueRequests = 0;
+    const transport = new CatalogV4Transport({
+      apiBase: 'https://catalog.example/api',
+      fetch: async (input, init) => {
+        const path = new URL(String(input)).pathname.replace('/api/v4', '');
+        if (path === artistVenuesPath) {
+          return new Promise<Response>((resolve) => {
+            releaseOlderBrowse = resolve;
+          });
+        }
+        if (path === venuePath) {
+          venueRequests += 1;
+          lastVenueValidator = new Headers(init?.headers).get('If-None-Match');
+          if (lastVenueValidator === 'W/"new-venue"') {
+            return new Response(null, {
+              status: 304,
+              headers: { etag: 'W/"new-venue"' },
+            });
+          }
+          return new Response(
+            JSON.stringify({ ...normalizedVenueResource('Corrected Hall'), shows: [] }),
+            { status: 200, headers: { etag: 'W/"new-venue"' } }
+          );
+        }
+        throw new Error(`Unexpected request ${path}`);
+      },
+    });
+    const client = new CatalogV4Client(realm, transport);
+
+    const pendingBrowse = client.refreshArtistVenues(artistUuid, true);
+    await vi.waitFor(() => expect(releaseOlderBrowse).toBeDefined());
+    await client.refreshVenue('venue_00000001', true);
+    expect(realm.objectForPrimaryKey(NormalizedVenue, 'venue_00000001')?.name).toBe(
+      'Corrected Hall'
+    );
+    const artistVenuePath = `/artists/${artistId}/venues/venue_00000001`;
+    realm.write(() => {
+      realm.create(CatalogQueryState, {
+        key: `GET ${artistVenuePath}`,
+        etag: 'W/"new-artist-venue"',
+        hasAppliedData: true,
+        lastAppliedAt: new Date(),
+        lastCheckedAt: new Date(),
+        retryPending: false,
+        resultIds: ['artist_venue_00000002'],
+      });
+    });
+
+    releaseOlderBrowse!(
+      new Response(
+        JSON.stringify([
+          {
+            kind: 'artist_venue',
+            artist_venue: artistVenueResource('Older Hall'),
+            imported_venue: null,
+          },
+        ]),
+        { status: 200, headers: { etag: 'W/"older-browse"' } }
+      )
+    );
+    await pendingBrowse;
+
+    const invalidatedState = realm.objectForPrimaryKey(CatalogQueryState, `GET ${venuePath}`)!;
+    expect(invalidatedState.hasAppliedData).toBe(true);
+    expect(Array.from(invalidatedState.resultIds)).toEqual(['venue_00000001']);
+    expect(invalidatedState.etag).toBeNull();
+    expect(invalidatedState.lastCheckedAt).toBeNull();
+    expect(realm.objectForPrimaryKey(NormalizedVenue, 'venue_00000001')?.name).toBe('Older Hall');
+    const artistVenueState = realm.objectForPrimaryKey(
+      CatalogQueryState,
+      `GET ${artistVenuePath}`
+    )!;
+    expect(Array.from(artistVenueState.resultIds)).toEqual(['artist_venue_00000002']);
+    expect(artistVenueState.etag).toBeNull();
+    expect(artistVenueState.lastCheckedAt).toBeNull();
+
+    await client.refreshVenue('venue_00000001', false);
+
+    expect(lastVenueValidator).toBeNull();
+    expect(realm.objectForPrimaryKey(NormalizedVenue, 'venue_00000001')?.name).toBe(
+      'Corrected Hall'
+    );
+
+    realm.write(() =>
+      applyV4ArtistVenues(realm, artistUuid, [
+        {
+          kind: 'artist_venue',
+          artist_venue: artistVenueResource('Corrected Hall'),
+          imported_venue: null,
+        },
+      ])
+    );
+    await client.refreshVenue('venue_00000001', false);
+    expect(venueRequests).toBe(2);
   });
 
   it('rejects duplicate identities and membership from another parent', () => {

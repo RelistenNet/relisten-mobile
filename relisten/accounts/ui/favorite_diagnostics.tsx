@@ -18,7 +18,11 @@ import { Source } from '@/relisten/realm/models/source';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { Tour } from '@/relisten/realm/models/tour';
 import { Venue } from '@/relisten/realm/models/venue';
-import { catalogReferenceForFavoriteTarget } from '@/relisten/library/favorite_catalog_target';
+import {
+  catalogIdForFavoriteTarget,
+  catalogReferenceForFavoriteTarget,
+} from '@/relisten/library/favorite_catalog_target';
+import { NormalizedSong, NormalizedVenue } from '@/relisten/realm/models/v4_catalog';
 
 /**
  * Temporary production-visible counters for the first account-sync builds.
@@ -101,7 +105,19 @@ function favoriteCatalogObjectExists(
   targetKind: (typeof FAVORITE_TARGET_KINDS)[number],
   targetId: string
 ) {
-  const reference = catalogReferenceForFavoriteTarget({ kind: targetKind, id: targetId });
+  const target = { kind: targetKind, id: targetId };
+  const catalogId = catalogIdForFavoriteTarget(target);
+  if (!catalogId) {
+    return false;
+  }
+  if (targetKind === 'song') {
+    return !!realm.objectForPrimaryKey(NormalizedSong, catalogId);
+  }
+  if (targetKind === 'venue') {
+    return !!realm.objectForPrimaryKey(NormalizedVenue, catalogId);
+  }
+
+  const reference = catalogReferenceForFavoriteTarget(target);
   if (!reference) {
     return false;
   }

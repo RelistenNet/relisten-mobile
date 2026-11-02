@@ -8,7 +8,7 @@ import {
 import React, { useCallback } from 'react';
 import { DefaultLayoutAnimationConfig } from '../layout_animation_config';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import type { CatalogFavoriteTargetKind } from '@/relisten/library/favorite_catalog_target';
+import type { FavoriteTargetKind } from '@/relisten/realm/models/library/favorite_catalog_type';
 import { useFavorite } from '@/relisten/library/favorite_hooks';
 
 const styles = StyleSheet.create({
@@ -41,14 +41,16 @@ export const FavoriteIconButton: React.FC<{ isFavorited: boolean } & TouchableOp
   );
 };
 
-export const FavoriteObjectButton = <T extends { uuid: string }>({
-  object,
+export const FavoriteTargetButton = ({
   targetKind,
+  catalogId,
   onPress,
   ...props
-}: { object: T; targetKind?: CatalogFavoriteTargetKind } & TouchableOpacityProps) => {
-  const resolvedTargetKind = targetKind ?? targetKindForObject(object);
-  const favorite = useFavorite(resolvedTargetKind, object.uuid);
+}: {
+  targetKind: FavoriteTargetKind;
+  catalogId: string;
+} & TouchableOpacityProps) => {
+  const favorite = useFavorite(targetKind, catalogId);
 
   const favoriteOnPress = useCallback(
     (event: GestureResponderEvent) => {
@@ -75,8 +77,25 @@ export const FavoriteObjectButton = <T extends { uuid: string }>({
   );
 };
 
-const TARGET_KIND_BY_MODEL_NAME: Record<string, CatalogFavoriteTargetKind> = {
+export const FavoriteObjectButton = <T extends FavoriteObject>({
+  object,
+  targetKind,
+  ...props
+}: { object: T; targetKind?: FavoriteTargetKind } & TouchableOpacityProps) => {
+  const target = favoriteTargetForObject(object, targetKind);
+  return <FavoriteTargetButton {...props} {...target} />;
+};
+
+interface FavoriteObject {
+  uuid?: string;
+  id?: string;
+  constructor: unknown;
+}
+
+const TARGET_KIND_BY_MODEL_NAME: Record<string, FavoriteTargetKind> = {
   Artist: 'artist',
+  NormalizedSong: 'song',
+  NormalizedVenue: 'venue',
   Show: 'show',
   Source: 'source',
   SourceTrack: 'track',
@@ -85,12 +104,18 @@ const TARGET_KIND_BY_MODEL_NAME: Record<string, CatalogFavoriteTargetKind> = {
   Venue: 'imported_venue',
 };
 
-function targetKindForObject(object: { constructor: unknown }) {
+function favoriteTargetForObject(object: FavoriteObject, explicitTargetKind?: FavoriteTargetKind) {
   const constructor = object.constructor as { name?: string; schema?: { name?: string } };
   const modelName = constructor.schema?.name ?? constructor.name ?? '';
-  const targetKind = TARGET_KIND_BY_MODEL_NAME[modelName];
+  const targetKind = explicitTargetKind ?? TARGET_KIND_BY_MODEL_NAME[modelName];
   if (!targetKind) {
     throw new Error(`FavoriteObjectButton does not support Realm model ${modelName}.`);
   }
-  return targetKind;
+
+  const catalogId = targetKind === 'song' || targetKind === 'venue' ? object.id : object.uuid;
+  if (!catalogId) {
+    throw new Error(`FavoriteObjectButton could not read the ${targetKind} ID from ${modelName}.`);
+  }
+
+  return { targetKind, catalogId };
 }

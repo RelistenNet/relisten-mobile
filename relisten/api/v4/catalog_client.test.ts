@@ -32,6 +32,8 @@ import { CatalogV4ProtocolError, CatalogV4Transport } from './catalog_transport'
 import type {
   V4ArtistFeaturesResource,
   V4ArtistResource,
+  V4ImportedSongWithShowsResource,
+  V4ImportedVenueWithShowsResource,
   V4ShowResource,
   V4SourceResource,
   V4TrackResource,
@@ -153,7 +155,11 @@ const routeIdentityCases: RouteIdentityCase[] = [
     path: selectedYearPath,
     refresh: (client) => client.refreshYear(requestedUuid, requestedUuid),
     payload: (id) =>
-      ({ id, artist_id: requestedArtistId, shows: [] }) as unknown as V4YearWithShowsResource,
+      ({
+        id,
+        artist_id: requestedArtistId,
+        shows: [],
+      }) as unknown as V4YearWithShowsResource,
   },
   {
     name: 'selected year parent',
@@ -187,6 +193,20 @@ const routeIdentityCases: RouteIdentityCase[] = [
     path: `/source-tracks/${encodeV4UuidCatalogId(requestedUuid, 'track')}`,
     refresh: (client) => client.refreshTrack(requestedUuid),
     payload: (id) => ({ id }) as V4TrackResource,
+  },
+  {
+    name: 'imported venue',
+    mismatchedId: encodeV4UuidCatalogId(returnedUuid, 'imported_venue'),
+    path: `/imported-venues/${encodeV4UuidCatalogId(requestedUuid, 'imported_venue')}`,
+    refresh: (client) => client.refreshImportedVenue(requestedUuid, requestedUuid),
+    payload: (id) => ({ id }) as V4ImportedVenueWithShowsResource,
+  },
+  {
+    name: 'imported song',
+    mismatchedId: encodeV4UuidCatalogId(returnedUuid, 'imported_song'),
+    path: `/imported-songs/${encodeV4UuidCatalogId(requestedUuid, 'imported_song')}`,
+    refresh: (client) => client.refreshImportedSong(requestedUuid, requestedUuid),
+    payload: (id) => ({ id }) as V4ImportedSongWithShowsResource,
   },
 ];
 
@@ -247,6 +267,59 @@ describe('CatalogV4Client route identity validation', () => {
     await expect(client.refreshYear(requestedUuid, requestedUuid)).rejects.toBe(stopped);
 
     expect(getJson.mock.calls.map(([path]) => path)).toEqual([artistYearsPath, selectedYearPath]);
+  });
+
+  it('uses the explicit venue and song routes', async () => {
+    const stopped = new Error('stop before apply');
+    const getJson = vi.spyOn(transport, 'getJson').mockRejectedValue(stopped);
+    const client = new CatalogV4Client(realm, transport);
+    vi.spyOn(client, 'refreshArtists').mockResolvedValue();
+
+    const venueId = 'venue_00000001';
+    const songId = 'song_00000003';
+    const importedVenueId = encodeV4UuidCatalogId(requestedUuid, 'imported_venue');
+    const importedSongId = encodeV4UuidCatalogId(requestedUuid, 'imported_song');
+    const cases = [
+      {
+        path: `/artists/${requestedArtistId}/venues`,
+        refresh: () => client.refreshArtistVenues(requestedUuid),
+      },
+      {
+        path: `/artists/${requestedArtistId}/venues/${venueId}`,
+        refresh: () => client.refreshArtistVenue(requestedUuid, venueId),
+      },
+      {
+        path: `/imported-venues/${importedVenueId}`,
+        refresh: () => client.refreshImportedVenue(requestedUuid, requestedUuid),
+      },
+      {
+        path: `/venues/${venueId}`,
+        refresh: () => client.refreshVenue(venueId),
+      },
+      {
+        path: `/artists/${requestedArtistId}/songs`,
+        refresh: () => client.refreshArtistSongs(requestedUuid),
+      },
+      {
+        path: `/songs/${songId}`,
+        refresh: () => client.refreshSong(requestedUuid, songId),
+      },
+      {
+        path: `/imported-songs/${importedSongId}`,
+        refresh: () => client.refreshImportedSong(requestedUuid, requestedUuid),
+      },
+    ];
+
+    for (const routeCase of cases) {
+      await expect(routeCase.refresh()).rejects.toBe(stopped);
+    }
+    vi.spyOn(client, 'refreshSong').mockResolvedValue();
+    await expect(client.refreshSongTracks(requestedUuid, songId)).rejects.toBe(stopped);
+
+    expect(getJson.mock.calls.map(([path]) => path)).toEqual([
+      ...cases.map((routeCase) => routeCase.path),
+      `/songs/${songId}/tracks`,
+    ]);
   });
 
   it.each([
