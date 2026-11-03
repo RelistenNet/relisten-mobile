@@ -14,9 +14,10 @@
 - `yarn pods`: install or update CocoaPods for iOS.
 - `yarn lint`: run ESLint on `app/` and `relisten/`.
 - `yarn ts:check`: run TypeScript type checking.
+- `yarn test`: running vitest unit tests.
 - `./build_releases.sh`: source of truth for TestFlight/App Store/OTA release builds. It wraps EAS, loads required tokens, uses an Xcode-safe PATH, and chooses a compatible Android JDK.
 
-Always run `yarn lint` and `yarn ts:check` after making changes to ensure that keep the code clean.
+Always run `yarn lint`, `yarn test`, and `yarn ts:check` after making changes to ensure the code remains clean.
 
 ## Coding Style & Naming Conventions
 - TypeScript + React Native; keep files ASCII and prefer functional components.
@@ -27,9 +28,10 @@ Always run `yarn lint` and `yarn ts:check` after making changes to ensure that k
 - Linting is enforced by `eslint.config.mjs`; run `yarn lint` before PRs.
 
 ## Testing Guidelines
-- No test framework is configured in this repo today.
-- Use `yarn ts:check` and `yarn lint` as the default verification steps.
-- If you introduce tests, keep them close to the feature and document how to run them.
+- Vitest is configured for unit tests.
+- Run `yarn test` for the full test suite.
+- Keep tests close to the feature they cover.
+- Use `yarn lint` and `yarn ts:check` as required verification steps.
 
 ## Commit & Pull Request Guidelines
 - Recent commits are short and informal (e.g., “wip carplay”); there is no strict convention.
