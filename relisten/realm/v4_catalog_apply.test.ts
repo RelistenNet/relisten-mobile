@@ -103,8 +103,6 @@ import {
   hasV4Show,
   hasV4Song,
   hasV4SongTracks,
-  hasV4Source,
-  hasV4Track,
   hasV4Venue,
   hasV4Year,
   V4CatalogApplyError,
@@ -671,7 +669,14 @@ describe('v4 catalog Realm apply', () => {
     expect(hasV4Venue(realm, resultIds.venue)).toBe(true);
     expect(hasV4Song(realm, artistUuid, resultIds.song)).toBe(true);
     expect(hasV4ImportedSong(realm, artistUuid, resultIds.importedSong)).toBe(true);
-    expect(realm.objectForPrimaryKey(Song, importedSongUuid)?.shows.size).toBe(1);
+    expect(resultIds.importedSong).toEqual([importedSong.id, show.id]);
+    expect(hasV4ImportedSong(realm, otherArtistUuid, resultIds.importedSong)).toBe(false);
+    expect(
+      hasV4ImportedSong(realm, artistUuid, [
+        importedSong.id,
+        encodeV4UuidCatalogId(otherShowUuid, 'show'),
+      ])
+    ).toBe(false);
 
     const emptyResult = realm.write(() =>
       applyV4Song(realm, artistUuid, { ...canonicalSong, shows: [] })
@@ -679,7 +684,14 @@ describe('v4 catalog Realm apply', () => {
     expect(emptyResult).toEqual([canonicalSong.id]);
     expect(hasV4Song(realm, artistUuid, emptyResult)).toBe(true);
     expect(realm.objectForPrimaryKey(Show, showUuid)?.deletedAt).toBeNull();
-    expect(realm.objectForPrimaryKey(Song, importedSongUuid)?.shows.size).toBe(1);
+    expect(hasV4ImportedSong(realm, artistUuid, resultIds.importedSong)).toBe(true);
+
+    const emptyImportedResult = realm.write(() =>
+      applyV4ImportedSong(realm, artistUuid, { ...importedSong, shows: [] })
+    );
+    expect(emptyImportedResult).toEqual([importedSong.id]);
+    expect(hasV4ImportedSong(realm, artistUuid, emptyImportedResult)).toBe(true);
+    expect(realm.objectForPrimaryKey(Show, showUuid)?.deletedAt).toBeNull();
   });
 
   it('stores ordinary artist/year scores for existing sorts and clears corrected inactive scores', async () => {
@@ -1318,6 +1330,12 @@ describe('v4 catalog Realm apply', () => {
     const hydrator = new FavoriteMetadataHydrator(repository, api);
     await hydrator.hydrateMissing(capture);
     expect(realm.objectForPrimaryKey(SourceTrack, trackAUuid)?.show?.uuid).toBe(showUuid);
+    expect(
+      realm.objectForPrimaryKey(Source, sourceAUuid)?.sourceSets.map((row) => row.uuid)
+    ).toEqual([setAUuid]);
+    expect(
+      realm.objectForPrimaryKey(SourceSet, setAUuid)?.sourceTracks.map((row) => row.uuid)
+    ).toEqual([trackAUuid]);
     expect(realm.objectForPrimaryKey(NormalizedVenue, 'venue_00000001')?.name).toBe(
       'Canonical Hall'
     );
@@ -1747,20 +1765,14 @@ describe('v4 catalog Realm apply', () => {
       applyV4FullShow(realm, show);
     });
     expect(hasV4Show(realm, showUuid)).toBe(true);
-    expect(hasV4Source(realm, sourceAUuid)).toBe(true);
-    expect(hasV4Track(realm, trackAUuid)).toBe(true);
 
     realm.write(() => {
       realm.objectForPrimaryKey(SourceSet, setAUuid)!.sourceTracks.splice(0, 1);
     });
     expect(hasV4Show(realm, showUuid)).toBe(false);
-    expect(hasV4Source(realm, sourceAUuid)).toBe(false);
-    expect(hasV4Track(realm, trackAUuid)).toBe(false);
 
     realm.write(() => applyV4FullSource(realm, source));
     expect(hasV4Show(realm, showUuid)).toBe(true);
-    expect(hasV4Source(realm, sourceAUuid)).toBe(true);
-    expect(hasV4Track(realm, trackAUuid)).toBe(true);
 
     realm.write(() =>
       applyV4Year(
@@ -1772,8 +1784,6 @@ describe('v4 catalog Realm apply', () => {
     );
     expect(realm.objectForPrimaryKey(Show, showUuid)?.deletedAt).toBeInstanceOf(Date);
     expect(hasV4Show(realm, showUuid)).toBe(false);
-    expect(hasV4Source(realm, sourceAUuid)).toBe(false);
-    expect(hasV4Track(realm, trackAUuid)).toBe(false);
   });
 
   it('rejects a complete-looking show graph with no active playable tracks', () => {
@@ -1785,7 +1795,6 @@ describe('v4 catalog Realm apply', () => {
       applyV4FullShow(realm, show);
     });
 
-    expect(hasV4Source(realm, sourceAUuid)).toBe(true);
     expect(hasV4Show(realm, showUuid)).toBe(false);
   });
 
