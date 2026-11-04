@@ -1,9 +1,7 @@
 import Realm from 'realm';
-import { VenueWithShowCounts } from '../../api/models/venue';
 import { LegacyFavoriteMirror } from '../legacy_favorite_mirror';
 
 import { RelistenObjectRequiredProperties } from '../relisten_object';
-import dayjs from 'dayjs';
 
 export interface VenueRequiredProperties extends RelistenObjectRequiredProperties {
   createdAt: Date;
@@ -63,22 +61,4 @@ export class Venue
 
   /** @deprecated Use `useFavorite` or `LibraryIndex` for active-account membership. */
   isFavorite!: boolean;
-
-  static propertiesFromApi(relistenObj: VenueWithShowCounts): VenueRequiredProperties {
-    return {
-      uuid: relistenObj.uuid,
-      createdAt: dayjs(relistenObj.created_at).toDate(),
-      updatedAt: dayjs(relistenObj.updated_at).toDate(),
-      artistUuid: relistenObj.artist_uuid,
-      latitude: relistenObj.latitude || undefined,
-      longitude: relistenObj.longitude || undefined,
-      name: relistenObj.name,
-      location: relistenObj.location,
-      upstreamIdentifier: relistenObj.upstream_identifier,
-      slug: relistenObj.slug,
-      pastNames: relistenObj.past_names || undefined,
-      sortName: relistenObj.sortName,
-      showsAtVenue: relistenObj.shows_at_venue,
-    };
-  }
 }

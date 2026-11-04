@@ -1,8 +1,6 @@
 import Realm from 'realm';
 
-import { SourceSet as ApiSourceSet } from '../../api/models/source_set';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
-import dayjs from 'dayjs';
 import type { SourceTrack } from './source_track';
 
 export interface SourceSetRequiredProperties extends RelistenObjectRequiredProperties {
@@ -54,17 +52,4 @@ export class SourceSet
   name!: string;
 
   sourceTracks!: Realm.List<SourceTrack>;
-
-  static propertiesFromApi(relistenObj: ApiSourceSet): SourceSetRequiredProperties {
-    return {
-      uuid: relistenObj.uuid,
-      createdAt: dayjs(relistenObj.created_at).toDate(),
-      updatedAt: dayjs(relistenObj.updated_at).toDate(),
-      artistUuid: relistenObj.artist_uuid,
-      sourceUuid: relistenObj.source_uuid,
-      index: relistenObj.index,
-      isEncore: relistenObj.is_encore,
-      name: relistenObj.name,
-    };
-  }
 }

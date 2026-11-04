@@ -1,7 +1,5 @@
 import Realm from 'realm';
-import { TourWithShowCount } from '../../api/models/tour';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
-import dayjs from 'dayjs';
 import { LegacyFavoriteMirror } from '../legacy_favorite_mirror';
 
 export interface TourRequiredProperties extends RelistenObjectRequiredProperties {
@@ -55,19 +53,4 @@ export class Tour
 
   /** @deprecated Use `useFavorite` or `LibraryIndex` for active-account membership. */
   isFavorite!: boolean;
-
-  static propertiesFromApi(relistenObj: TourWithShowCount): TourRequiredProperties {
-    return {
-      uuid: relistenObj.uuid,
-      createdAt: dayjs(relistenObj.created_at).toDate(),
-      updatedAt: dayjs(relistenObj.updated_at).toDate(),
-      startDate: relistenObj.start_date ? dayjs(relistenObj.start_date).toDate() : undefined,
-      endDate: relistenObj.end_date ? dayjs(relistenObj.end_date).toDate() : undefined,
-      artistUuid: relistenObj.artist_uuid,
-      name: relistenObj.name,
-      upstreamIdentifier: relistenObj.upstream_identifier,
-      slug: relistenObj.slug,
-      showCount: relistenObj.shows_on_tour ?? 0,
-    };
-  }
 }

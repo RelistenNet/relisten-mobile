@@ -6,15 +6,12 @@ import Realm from 'realm';
 import { NetworkBackedBehavior, NetworkBackedBehaviorOptions } from '../network_backed_behavior';
 import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
 import { mergeNetworkBackedResults } from '../network_backed_results';
-import { Repository } from '../repository';
 import { useRealm } from '../schema';
 import { applyV4ArtistTours } from '../v4_catalog_apply';
 import { RealmQueryValueStream } from '../value_streams';
 import { ensureCatalogArtist, useArtist } from './artist_repo';
 import { Tour } from './tour';
 import { CatalogQueryState } from './v4_catalog';
-
-export const tourRepo = new Repository(Tour);
 
 export class ToursNetworkBackedBehavior extends NetworkBackedBehavior<
   Realm.Results<Tour>,

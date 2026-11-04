@@ -23,8 +23,6 @@ import { filterForUser, useRealmTabsFilter, UserFilters } from '../realm_filters
 import { useArtist } from './artist_repo';
 import { Show } from './show';
 
-export { yearRepo } from './year_repository';
-
 export function yearsNetworkBackedModelArrayBehavior(
   realm: Realm.Realm,
   isOfflineTab: boolean,

@@ -24,8 +24,6 @@ import { ensureCatalogArtist } from './artist_repo';
 import { Show } from './show';
 import { Source } from './source';
 
-export { showRepo } from '@/relisten/realm/models/show_repository';
-
 export interface ShowWithSources {
   show: Show | undefined;
   sources: Realm.Results<Source>;

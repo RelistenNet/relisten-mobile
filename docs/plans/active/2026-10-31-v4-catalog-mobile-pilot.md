@@ -528,3 +528,28 @@ existing calculator/store and the real aggregate snapshot captured on October 30
 debug check measured median 80 ms for all artists and 4 ms for Grateful Dead's
 years; this is not a production benchmark. No shipping harness, schema migration,
 new refresh job, schedule or lock was added.
+
+### November 4: remove the unused v3 writer
+
+Two fresh reviews, each rechecked and independently validated with Sol xhigh,
+compared the current code with the pre-v4 `codex/c2-account-client` path. V4 needs
+typed ID conversion, canonical overlays and shallow-versus-complete response
+handling. Those differences do not require keeping two persistence implementations.
+
+The old generic `Repository`, relationship utilities, writer singletons and model
+mapping hooks had no active product callers. Removing them deletes 899 net
+production lines without replacement code. All nine Realm model schemas and their
+surviving methods remain unchanged. The typed HTTP client and active repositories
+continue to own the same boundaries.
+
+The three tests deleted with the writer exercised only that obsolete implementation.
+Existing v4 payload/repository/Realm cases retain the user-visible guarantees:
+unchanged-timestamp corrections, tombstone restoration, downloads and retained
+rows, shallow favorite hydration, scoped membership, and atomic failure/retry.
+All 41 focused tests, TypeScript and lint passed for the deletion.
+
+Cross-endpoint invalidation and complete-graph checks remain a separate policy
+question. Removing invalidation can let an older response overwrite shared fields
+while an owning response continues to return 304; waiting 15 minutes alone does
+not repair those fields. Removing graph checks also gives up automatic recovery
+when playable rows are missing. Neither change is part of this deletion.
