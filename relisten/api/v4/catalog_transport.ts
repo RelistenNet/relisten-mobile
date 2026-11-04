@@ -75,13 +75,35 @@ const emptyMetrics = (totalMilliseconds: number): CatalogV4RequestMetrics => ({
 
 export class CatalogV4Transport {
   private readonly apiBase: string;
+
   private readonly fetch: CatalogFetch;
+
   private readonly now: () => number;
 
   constructor(options: CatalogV4TransportOptions = {}) {
     this.apiBase = (options.apiBase ?? catalogApiBase()).replace(/\/$/, '');
     this.fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
     this.now = options.now ?? (() => performance.now());
+  }
+
+  /** No-store endpoints and commands return their typed JSON without retaining it. */
+  async requestJson<T>(path: string, body?: object): Promise<T> {
+    if (!path.startsWith('/') || path.startsWith('//')) {
+      throw new CatalogV4ProtocolError('V4 catalog paths must be origin-relative');
+    }
+    const url = `${this.apiBase}/v4${path}`;
+    const response = await this.fetch(url, {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: {
+        Accept: 'application/json',
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    if (!response.ok) {
+      throw new CatalogV4HttpError(url, response.status, await response.text());
+    }
+    return response.json() as Promise<T>;
   }
 
   async getJson<T>(path: string, appliedEtag?: string): Promise<CatalogV4GetResponse<T>> {

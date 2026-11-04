@@ -1,11 +1,14 @@
 /// <reference types="node" />
-import Realm from 'realm';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import Realm from 'realm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { loggerWarn } = vi.hoisted(() => ({ loggerWarn: vi.fn() }));
+const { loggerWarn, ensureCatalogArtist } = vi.hoisted(() => ({
+  loggerWarn: vi.fn(),
+  ensureCatalogArtist: vi.fn(),
+}));
 
 vi.mock('expo-crypto', () => ({
   getRandomValues: (bytes: Uint8Array<ArrayBuffer>) => globalThis.crypto.getRandomValues(bytes),
@@ -18,14 +21,13 @@ vi.mock('expo-file-system', () => ({
 }));
 vi.mock('@/relisten/events', () => ({ sharedStatsigClient: vi.fn() }));
 vi.mock('@/relisten/api/client', () => ({ RelistenApiClient: class {} }));
+vi.mock('@/relisten/realm/models/artist_repo', () => ({ ensureCatalogArtist }));
 vi.mock('@/relisten/util/logging', () => ({
   log: { extend: () => ({ warn: loggerWarn }) },
 }));
 
 import type { RelistenApiClient } from '@/relisten/api/client';
 import type { V4CatalogReferenceRequest } from '@/relisten/api/v4/catalog_resolve';
-import type { FavoriteRepository } from './favorite_repository';
-import { FavoriteMetadataHydrator } from './favorite_metadata_hydrator';
 import { Artist } from '@/relisten/realm/models/artist';
 import { UserFavorite } from '@/relisten/realm/models/library';
 import {
@@ -40,6 +42,8 @@ import {
   NormalizedVenue,
   NormalizedVenueName,
 } from '@/relisten/realm/models/v4_catalog';
+import { FavoriteMetadataHydrator } from './favorite_metadata_hydrator';
+import type { FavoriteRepository } from './favorite_repository';
 
 const capture = { scopeId: 'scope-a', generation: 1 };
 const artistUuid = '77a58ff9-2e01-c59c-b8eb-cff106049b72';
@@ -74,7 +78,9 @@ describe('FavoriteMetadataHydrator canonical favorites', () => {
   });
 
   afterEach(() => {
-    if (!realm.isClosed) realm.close();
+    if (!realm.isClosed) {
+      realm.close();
+    }
     rmSync(directory, { recursive: true, force: true });
   });
 
@@ -107,7 +113,7 @@ describe('FavoriteMetadataHydrator canonical favorites', () => {
       });
     });
 
-    const resolveV4CatalogReferences = vi.fn(async (references: V4CatalogReferenceRequest[]) => {
+    const resolveCatalogReferences = vi.fn(async (references: V4CatalogReferenceRequest[]) => {
       expect(references).toHaveLength(4);
       return {
         type: 3,
@@ -151,6 +157,16 @@ describe('FavoriteMetadataHydrator canonical favorites', () => {
             },
           ],
           entities: {
+            artists: [],
+            years: [],
+            tours: [],
+            imported_venues: [],
+            imported_songs: [],
+            artist_venues: [],
+            shows: [],
+            sources: [],
+            source_sets: [],
+            tracks: [],
             venues: [
               {
                 id: 'venue_fp4h900f' as const,
@@ -184,8 +200,7 @@ describe('FavoriteMetadataHydrator canonical favorites', () => {
         },
       };
     });
-    const refreshV4Artists = vi.fn(async (force: boolean) => {
-      if (force) throw new Error('Favorite hydration must reuse ordinary artist freshness.');
+    ensureCatalogArtist.mockImplementation(async () => {
       realm.write(() =>
         realm.create(Artist, {
           uuid: artistUuid,
@@ -203,13 +218,9 @@ describe('FavoriteMetadataHydrator canonical favorites', () => {
           isFavorite: false,
         })
       );
-      return { type: 3 };
     });
     const catalogApi = {
-      usesV4Catalog: () => true,
-      resolveCatalogReferences: vi.fn(),
-      resolveV4CatalogReferences,
-      refreshV4Artists,
+      resolveCatalogReferences,
     } as unknown as RelistenApiClient;
     const repository = {
       realm,
@@ -227,12 +238,10 @@ describe('FavoriteMetadataHydrator canonical favorites', () => {
 
     await new FavoriteMetadataHydrator(repository, catalogApi).hydrateMissing(capture);
 
-    const requestedReferences = resolveV4CatalogReferences.mock.calls[0][0];
+    const requestedReferences = resolveCatalogReferences.mock.calls[0][0];
     expect(new Set(requestedReferences.map((reference) => reference.id))).toEqual(
       new Set(['venue_fp4h900f', 'venue_0abc5678', 'venue_0abc1234', 'song_hzk4tx63'])
     );
-    expect(refreshV4Artists).toHaveBeenCalledOnce();
-    expect(refreshV4Artists).toHaveBeenCalledWith(false);
     expect(loggerWarn).not.toHaveBeenCalled();
     expect(realm.objectForPrimaryKey(NormalizedVenue, 'venue_fp4h900f')?.name).toBe(
       'Red Rocks Amphitheatre'

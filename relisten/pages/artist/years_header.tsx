@@ -1,18 +1,19 @@
-import React, { useMemo } from 'react';
-import { Artist } from '@/relisten/realm/models/artist';
 import { useRelistenApi } from '@/relisten/api/context';
-import { useGroupSegment, useIsOfflineTab } from '@/relisten/util/routes';
+import { decodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
+import Plur from '@/relisten/components/plur';
+import { RelistenText } from '@/relisten/components/relisten_text';
+import { ArtistActionButtons } from '@/relisten/pages/artist/artist_action_buttons';
+import { ArtistShowsByMomentumTray } from '@/relisten/pages/artist/artist_shows_by_momentum_tray';
+import { ArtistShowsOnThisDayTray } from '@/relisten/pages/artist/artist_shows_on_this_day_tray';
+import { Artist } from '@/relisten/realm/models/artist';
 import {
   ArtistMetadataSummary,
   useOfflineArtistMetadata,
 } from '@/relisten/realm/models/artist_repo';
-import { View } from 'react-native';
-import { RelistenText } from '@/relisten/components/relisten_text';
-import Plur from '@/relisten/components/plur';
-import { ArtistActionButtons } from '@/relisten/pages/artist/artist_action_buttons';
-import { ArtistShowsOnThisDayTray } from '@/relisten/pages/artist/artist_shows_on_this_day_tray';
-import { ArtistShowsByMomentumTray } from '@/relisten/pages/artist/artist_shows_by_momentum_tray';
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
+import { useGroupSegment, useIsOfflineTab } from '@/relisten/util/routes';
+import React, { useMemo } from 'react';
+import { View } from 'react-native';
 
 export const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => {
   const { apiClient } = useRelistenApi();
@@ -35,8 +36,8 @@ export const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => 
       goToRandomShow={async () => {
         const randomShow = await apiClient.randomShow(artist.uuid);
 
-        if (randomShow?.data?.uuid) {
-          pushShow({ artist, showUuid: randomShow!.data!.uuid });
+        if (randomShow.data) {
+          pushShow({ artist, showUuid: decodeV4UuidCatalogId(randomShow.data.id, 'show') });
         }
       }}
     />

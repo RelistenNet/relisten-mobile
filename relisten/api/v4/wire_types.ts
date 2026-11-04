@@ -27,6 +27,15 @@ export type V4VenueId = V4ShortCatalogId<'venue'>;
 export type V4SongId = V4ShortCatalogId<'song'>;
 export type V4ArtistVenueId = V4ShortCatalogId<'artist_venue'>;
 
+/** Public activity is an online feed; sequence resumes polling without persisting catalog membership. */
+export interface V4LiveHistoryResource {
+  sequence: number;
+  played_at: string;
+  app_type: 'ios' | 'web' | 'sonos' | 'android';
+  track: V4TrackResource;
+  show: V4ShowSummaryResource;
+}
+
 export interface V4PopularityWindowResource {
   plays: number;
   hours: number;
@@ -385,4 +394,18 @@ export interface V4ShowResource extends V4ShowSummaryResource {
 
 export interface V4YearWithShowsResource extends V4YearResource {
   shows: V4ShowSummaryResource[];
+}
+
+export interface V4TourWithShowsResource extends V4TourResource {
+  shows: V4ShowSummaryResource[];
+}
+export interface V4SourceReviewResource {
+  id: string;
+  source_id: V4SourceId;
+  rating: number | null;
+  title: string | null;
+  review: string;
+  author: string | null;
+  created_at: string;
+  updated_at: string;
 }

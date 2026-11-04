@@ -1,10 +1,9 @@
-import { Artist } from '@/relisten/realm/models/artist';
-import { useWindowDimensions, View } from 'react-native';
-import { Link } from 'expo-router';
 import { RelistenButton } from '@/relisten/components/relisten_button';
-import React from 'react';
+import { Artist } from '@/relisten/realm/models/artist';
 import { tw } from '@/relisten/util/tw';
-import { useRelistenApi } from '@/relisten/api/context';
+import { Link } from 'expo-router';
+import React from 'react';
+import { useWindowDimensions, View } from 'react-native';
 
 export function ArtistActionButtons({
   currentRoute,
@@ -16,7 +15,6 @@ export function ArtistActionButtons({
   goToRandomShow: () => Promise<void>;
 }) {
   const { fontScale } = useWindowDimensions();
-  const { apiClient } = useRelistenApi();
 
   const rowCount = fontScale > 1.25 ? 3 : 2;
   const buttonsPerRow = rowCount === 3 ? 2 : 3;
@@ -74,7 +72,6 @@ export function ArtistActionButtons({
       <RelistenButton
         className={tw(`grow shrink`, basis)}
         textClassName="text-l"
-        disabled={!apiClient.usesV4Catalog() && !artist.features().songs}
         disabledPopoverText="Songs feature not available for this artist"
       >
         Songs

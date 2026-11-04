@@ -1,27 +1,27 @@
+import { encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
+import type { V4YearResource, V4YearWithShowsResource } from '@/relisten/api/v4/wire_types';
 import { useQuery, useRealm } from '../schema';
+import { applyV4ArtistYears, applyV4Year, hasV4ArtistYears, hasV4Year } from '../v4_catalog_apply';
+import { ensureCatalogArtist } from './artist_repo';
 import { Year } from './year';
 
-import { useGroupSegment, useIsOfflineTab } from '@/relisten/util/routes';
-import { useMemo } from 'react';
-import Realm from 'realm';
-import { RelistenApiClient, RelistenApiResponse } from '../../api/client';
-import { YearWithShows } from '../../api/models/year';
-import { NetworkBackedBehaviorOptions } from '../network_backed_behavior';
-import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
-import { mergeNetworkBackedResults, NetworkBackedResults } from '../network_backed_results';
-import { filterForUser, useRealmTabsFilter, UserFilters } from '../realm_filters';
-import { useArtist } from './artist_repo';
-import { Show } from './show';
-import { upsertShowList } from '@/relisten/realm/models/repo_utils';
+import { NetworkBackedBehavior } from '@/relisten/realm/network_backed_behavior';
 import {
   CombinedValueStream,
   RealmObjectValueStream,
   RealmQueryValueStream,
   ValueStream,
 } from '@/relisten/realm/value_streams';
-import { NetworkBackedModelArrayBehavior } from '@/relisten/realm/network_backed_model_array_behavior';
-import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_network_backed_behavior';
-import { yearRepo } from './year_repository';
+import { useGroupSegment, useIsOfflineTab } from '@/relisten/util/routes';
+import { useMemo } from 'react';
+import Realm from 'realm';
+import { RelistenApiClient } from '../../api/client';
+import { NetworkBackedBehaviorOptions } from '../network_backed_behavior';
+import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
+import { mergeNetworkBackedResults, NetworkBackedResults } from '../network_backed_results';
+import { filterForUser, useRealmTabsFilter, UserFilters } from '../realm_filters';
+import { useArtist } from './artist_repo';
+import { Show } from './show';
 
 export { yearRepo } from './year_repository';
 
@@ -32,9 +32,9 @@ export function yearsNetworkBackedModelArrayBehavior(
   includeDeleted: boolean,
   options?: NetworkBackedBehaviorOptions
 ) {
-  return new NetworkBackedModelArrayBehavior(
+  return new YearsNetworkBackedBehavior(
     realm,
-    yearRepo,
+    artistUuid,
     (realm) =>
       filterForUser<Year>(
         realm
@@ -47,12 +47,47 @@ export function yearsNetworkBackedModelArrayBehavior(
           isPlayableOffline: isOfflineTab ? true : null,
         }
       ),
-    (api, forcedRefresh) =>
-      api.usesV4Catalog()
-        ? api.refreshV4ArtistYears(artistUuid, forcedRefresh)
-        : api.years(artistUuid, api.refreshOptions(forcedRefresh)),
     options
   );
+}
+
+class YearsNetworkBackedBehavior extends NetworkBackedBehavior<
+  Realm.Results<Year>,
+  V4YearResource[]
+> {
+  constructor(
+    realm: Realm,
+    private readonly artistUuid: string,
+    private readonly localQuery: (realm: Realm) => Realm.Results<Year>,
+    options?: NetworkBackedBehaviorOptions
+  ) {
+    super(realm, options);
+  }
+
+  get queryKey() {
+    return `GET /artists/${encodeV4UuidCatalogId(this.artistUuid, 'artist')}/years`;
+  }
+
+  createLocalUpdatingResults() {
+    return new RealmQueryValueStream(this.realm, this.localQuery(this.realm));
+  }
+
+  async fetchFromApi(api: RelistenApiClient, _force: boolean, etag?: string) {
+    await ensureCatalogArtist(this.realm, api, this.artistUuid);
+    return api.years(this.artistUuid, { etag });
+  }
+
+  isLocalDataShowable(data: Realm.Results<Year>) {
+    return data.length > 0;
+  }
+
+  hasLocalData(_data: Realm.Results<Year>, ids: Iterable<string>) {
+    return hasV4ArtistYears(this.realm, this.artistUuid, ids);
+  }
+
+  upsert(_data: Realm.Results<Year>, resources: V4YearResource[]) {
+    return applyV4ArtistYears(this.realm, this.artistUuid, resources);
+  }
 }
 
 export function useYears(artistUuid: string, options?: NetworkBackedBehaviorOptions) {
@@ -92,9 +127,9 @@ export interface YearShows {
   shows: Realm.Results<Show>;
 }
 
-export class YearShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
+export class YearShowsNetworkBackedBehavior extends NetworkBackedBehavior<
   YearShows,
-  YearWithShows
+  V4YearWithShowsResource
 > {
   constructor(
     public realm: Realm.Realm,
@@ -107,15 +142,17 @@ export class YearShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavi
     super(realm, options);
   }
 
-  fetchFromApi(
-    api: RelistenApiClient,
-    forcedRefresh: boolean
-  ): Promise<RelistenApiResponse<YearWithShows>> {
-    if (api.usesV4Catalog()) {
-      return api.refreshV4Year(this.artistUuid, this.yearUuid, forcedRefresh);
-    }
+  get queryKey() {
+    return `GET /artists/${encodeV4UuidCatalogId(this.artistUuid, 'artist')}/years/${encodeV4UuidCatalogId(this.yearUuid, 'year')}`;
+  }
 
-    return api.year(this.artistUuid, this.yearUuid, api.refreshOptions(forcedRefresh));
+  async fetchFromApi(api: RelistenApiClient, _force: boolean, etag?: string) {
+    await ensureCatalogArtist(this.realm, api, this.artistUuid);
+    return api.year(this.artistUuid, this.yearUuid, { etag });
+  }
+
+  hasLocalData(_data: YearShows, ids: Iterable<string>) {
+    return hasV4Year(this.realm, this.artistUuid, this.yearUuid, ids);
   }
 
   override createLocalUpdatingResults(): ValueStream<YearShows> {
@@ -143,18 +180,8 @@ export class YearShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavi
     return localData.year !== null && localData.shows.length > 0;
   }
 
-  override upsert(localData: YearShows, apiData: YearWithShows): void {
-    if (!localData.shows.isValid()) {
-      return;
-    }
-
-    this.realm.write(() => {
-      upsertShowList(this.realm, apiData.shows, localData.shows, {
-        // we may not have all the shows here on initial load
-        performDeletes: false,
-        queryForModel: true, // we know this list of shows is authoritative
-      });
-    });
+  override upsert(_data: YearShows, resource: V4YearWithShowsResource) {
+    return applyV4Year(this.realm, this.artistUuid, this.yearUuid, resource);
   }
 }
 

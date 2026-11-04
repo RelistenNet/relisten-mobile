@@ -1,8 +1,9 @@
+import { PlaybackHistoryReporter } from '@/relisten/playback_history_reporter';
+import { retryCatalogRequests } from '@/relisten/realm/network_backed_behavior';
+import { useRealm } from '@/relisten/realm/schema';
+import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import React, { PropsWithChildren, useContext, useEffect, useMemo } from 'react';
 import { RelistenApiClient } from './client';
-import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
-import { PlaybackHistoryReporter } from '@/relisten/playback_history_reporter';
-import { useRealm } from '@/relisten/realm/schema';
 
 export const RelistenApiContext = React.createContext<
   { apiClient: RelistenApiClient; playbackHistoryReporter: PlaybackHistoryReporter } | undefined
@@ -10,7 +11,7 @@ export const RelistenApiContext = React.createContext<
 
 export const RelistenApiProvider: React.FC<PropsWithChildren> = ({ children }) => {
   const realm = useRealm();
-  const apiClient = useMemo(() => new RelistenApiClient({ realm }), [realm]);
+  const apiClient = useMemo(() => new RelistenApiClient(), []);
   const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
 
   const playbackHistoryReporter = useMemo(() => {
@@ -20,11 +21,11 @@ export const RelistenApiProvider: React.FC<PropsWithChildren> = ({ children }) =
   useEffect(() => {
     if (shouldMakeNetworkRequests) {
       playbackHistoryReporter.onNetworkAvailable();
-      void apiClient.onCatalogNetworkAvailable();
+      void retryCatalogRequests(realm);
     } else {
       playbackHistoryReporter.onNetworkUnavailable();
     }
-  }, [apiClient, playbackHistoryReporter, shouldMakeNetworkRequests]);
+  }, [playbackHistoryReporter, shouldMakeNetworkRequests, realm]);
 
   return (
     <RelistenApiContext.Provider value={{ apiClient, playbackHistoryReporter }}>

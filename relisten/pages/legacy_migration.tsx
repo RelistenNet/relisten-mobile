@@ -1,5 +1,39 @@
-import { useEffect, useState } from 'react';
+import RelistenWhite from '@/assets/relisten_white.png';
+import { errorDisplayString, RelistenApiClient } from '@/relisten/api/client';
+import { useRelistenApi } from '@/relisten/api/context';
+import Flex from '@/relisten/components/flex';
+import { RelistenButton } from '@/relisten/components/relisten_button';
+import { RelistenText } from '@/relisten/components/relisten_text';
+import { favoriteTargetForCatalogUuid } from '@/relisten/library/favorite_catalog_target';
+import { FavoriteRepository } from '@/relisten/library/favorite_repository';
+import { ANONYMOUS_ACCOUNT_SCOPE_ID } from '@/relisten/realm/models/accounts';
+import { artistsNetworkBackedBehavior } from '@/relisten/realm/models/artist_repo';
+import { ShowWithFullSourcesNetworkBackedBehavior } from '@/relisten/realm/models/show_repo';
+import { OFFLINE_DIRECTORY } from '@/relisten/realm/models/source_track';
+import {
+  SourceTrackOfflineInfo,
+  SourceTrackOfflineInfoStatus,
+  SourceTrackOfflineInfoType,
+} from '@/relisten/realm/models/source_track_offline_info';
+import { yearsNetworkBackedModelArrayBehavior } from '@/relisten/realm/models/year_repo';
+import { NetworkBackedBehaviorExecutor } from '@/relisten/realm/network_backed_behavior';
+import {
+  FavoritedSource,
+  LegacyDatabaseContents,
+  legacyDatabaseExists,
+  loadLegacyDatabaseContents,
+  OfflineTrack,
+} from '@/relisten/realm/old_ios_schema';
+import { useFavoriteRepository } from '@/relisten/realm/root_services';
+import { realm, useRealm } from '@/relisten/realm/schema';
+import { groupByUuid } from '@/relisten/util/group_by';
+import { log } from '@/relisten/util/logging';
+import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Realm } from '@realm/react';
+import { CryptoDigestAlgorithm, digestStringAsync } from 'expo-crypto';
+import { Directory, File } from 'expo-file-system';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -10,40 +44,6 @@ import {
   Text,
   View,
 } from 'react-native';
-import Flex from '@/relisten/components/flex';
-import { RelistenText } from '@/relisten/components/relisten_text';
-import { RelistenButton } from '@/relisten/components/relisten_button';
-import { log } from '@/relisten/util/logging';
-import {
-  FavoritedSource,
-  LegacyDatabaseContents,
-  legacyDatabaseExists,
-  loadLegacyDatabaseContents,
-  OfflineTrack,
-} from '@/relisten/realm/old_ios_schema';
-import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
-import { errorDisplayString, RelistenApiClient } from '@/relisten/api/client';
-import { Realm } from '@realm/react';
-import { artistsNetworkBackedBehavior } from '@/relisten/realm/models/artist_repo';
-import { groupByUuid } from '@/relisten/util/group_by';
-import { ShowWithFullSourcesNetworkBackedBehavior } from '@/relisten/realm/models/show_repo';
-import { CryptoDigestAlgorithm, digestStringAsync } from 'expo-crypto';
-import { Directory, File } from 'expo-file-system';
-import { realm, useRealm } from '@/relisten/realm/schema';
-import {
-  SourceTrackOfflineInfo,
-  SourceTrackOfflineInfoStatus,
-  SourceTrackOfflineInfoType,
-} from '@/relisten/realm/models/source_track_offline_info';
-import { OFFLINE_DIRECTORY } from '@/relisten/realm/models/source_track';
-import { NetworkBackedBehaviorExecutor } from '@/relisten/realm/network_backed_behavior';
-import { useRelistenApi } from '@/relisten/api/context';
-import { yearsNetworkBackedModelArrayBehavior } from '@/relisten/realm/models/year_repo';
-import RelistenWhite from '@/assets/relisten_white.png';
-import { FavoriteRepository } from '@/relisten/library/favorite_repository';
-import { favoriteTargetForCatalogUuid } from '@/relisten/library/favorite_catalog_target';
-import { useFavoriteRepository } from '@/relisten/realm/root_services';
-import { ANONYMOUS_ACCOUNT_SCOPE_ID } from '@/relisten/realm/models/accounts';
 
 const logger = log.extend('LegacyDataMigrationModal');
 
@@ -348,7 +348,7 @@ export class LegacyDataMigrator {
   }
 
   public async migrateFavoriteArtists(artistUuids: string[]): Promise<LegacyDataMigrationResult[]> {
-    const artistsBehavior = artistsNetworkBackedBehavior(this.realm, false, true, true, 'all');
+    const artistsBehavior = artistsNetworkBackedBehavior(this.realm, false, true, 'all');
     const { data: artists } = await NetworkBackedBehaviorExecutor.executeToFirstShowableData(
       artistsBehavior,
       this.api

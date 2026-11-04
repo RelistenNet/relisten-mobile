@@ -1,3 +1,7 @@
+import { useRelistenApi } from '@/relisten/api/context';
+import { decodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
+import { ARTIST_SORT_FILTERS, ArtistSortKey } from '@/relisten/components/artist_filters';
+import { ArtistListItem } from '@/relisten/components/artist_rows';
 import { NonSearchFilterBar } from '@/relisten/components/filtering/filter_bar';
 import {
   FilteringOptions,
@@ -5,39 +9,36 @@ import {
   SortDirection,
   useFilters,
 } from '@/relisten/components/filtering/filters';
+import { NonIdealState } from '@/relisten/components/non_ideal_state';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
+import { RelistenButton } from '@/relisten/components/relisten_button';
 import {
   RelistenSectionData,
   RelistenSectionList,
 } from '@/relisten/components/relisten_section_list';
-import { SectionHeader } from '@/relisten/components/section_header';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RowWithAction } from '@/relisten/components/row_with_action';
-import { NonIdealState } from '@/relisten/components/non_ideal_state';
-import { ArtistListItem } from '@/relisten/components/artist_rows';
+import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
+import { SectionHeader } from '@/relisten/components/section_header';
+import { ArtistShowsByMomentumTray } from '@/relisten/pages/artist/artist_shows_by_momentum_tray';
+import { ArtistShowsOnThisDayTray } from '@/relisten/pages/artist/artist_shows_on_this_day_tray';
+import { LegacyDataMigrationModal } from '@/relisten/pages/legacy_migration';
+import { selectFeaturedArtists } from '@/relisten/pages/tab_roots/featured_artists';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useArtists, useOfflineArtistMetadataMap } from '@/relisten/realm/models/artist_repo';
-import { useGroupSegment } from '@/relisten/util/routes';
-import { Link, useFocusEffect, useRouter } from 'expo-router';
-import { useEffect, useMemo, useCallback, useReducer, type ReactElement } from 'react';
-import { ScrollView, TouchableOpacity, View } from 'react-native';
-import Realm from 'realm';
-import { ArtistShowsOnThisDayTray } from '@/relisten/pages/artist/artist_shows_on_this_day_tray';
-import { ArtistShowsByMomentumTray } from '@/relisten/pages/artist/artist_shows_by_momentum_tray';
-import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
-import { useRelistenApi } from '@/relisten/api/context';
-import { sample } from 'remeda';
-import { LegacyDataMigrationModal } from '@/relisten/pages/legacy_migration';
-import { ARTIST_SORT_FILTERS, ArtistSortKey } from '@/relisten/components/artist_filters';
-import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
 import { useTopPlayedArtistUuidsOnce } from '@/relisten/realm/models/history/playback_history_entry_repo';
 import {
   useFavoriteCatalogUuids,
   useRemainingDownloadsCount,
 } from '@/relisten/realm/root_services';
 import { logTabRootDebug } from '@/relisten/util/profile_logging';
-import { selectFeaturedArtists } from '@/relisten/pages/tab_roots/featured_artists';
+import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
+import { useGroupSegment } from '@/relisten/util/routes';
+import { Link, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useReducer, type ReactElement } from 'react';
+import { ScrollView, TouchableOpacity, View } from 'react-native';
+import Realm from 'realm';
+import { sample } from 'remeda';
 
 const FavoritesSectionHeader = ({ favorites }: { favorites: Artist[] }) => {
   const { apiClient } = useRelistenApi();
@@ -47,10 +48,10 @@ const FavoritesSectionHeader = ({ favorites }: { favorites: Artist[] }) => {
     const randomFavorite = sample([...favorites], 1)[0]!;
     const randomShow = await apiClient.randomShow(randomFavorite.uuid);
 
-    if (randomShow?.data?.uuid) {
+    if (randomShow.data) {
       pushShow({
         artist: randomFavorite,
-        showUuid: randomShow!.data!.uuid,
+        showUuid: decodeV4UuidCatalogId(randomShow.data.id, 'show'),
         overrideGroupSegment: '(artists)',
       });
     }
