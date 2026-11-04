@@ -1,5 +1,4 @@
-import dayjs from 'dayjs';
-import { FlacType, Link, SourceFull } from '../../api/models/source';
+import { FlacType, Link } from '../../api/models/source';
 import Realm from 'realm';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import { LegacyFavoriteMirror } from '../legacy_favorite_mirror';
@@ -162,43 +161,5 @@ export class Source
     return libraryIndex
       ? libraryIndex.sourceHasOfflineTracks(this.uuid)
       : checkIfOfflineSourceTrackExists(this.sourceTracks);
-  }
-
-  static propertiesFromApi(relistenObj: SourceFull): SourceRequiredProperties {
-    return {
-      uuid: relistenObj.uuid,
-      createdAt: dayjs(relistenObj.created_at).toDate(),
-      updatedAt: dayjs(relistenObj.updated_at).toDate(),
-      artistUuid: relistenObj.artist_uuid,
-      venueUuid: relistenObj.venue_uuid || undefined,
-      showUuid: relistenObj.show_uuid,
-
-      displayDate: relistenObj.display_date,
-      isSoundboard: relistenObj.is_soundboard,
-      isRemaster: relistenObj.is_remaster,
-      hasJamcharts: relistenObj.has_jamcharts,
-      avgRating: relistenObj.avg_rating,
-      numReviews: relistenObj.num_reviews,
-      numRatings: relistenObj.num_ratings,
-      avgRatingWeighted: relistenObj.avg_rating_weighted,
-      duration: relistenObj.duration,
-      upstreamIdentifier: relistenObj.upstream_identifier,
-      description: relistenObj.description,
-      taperNotes: relistenObj.taper_notes,
-      source: relistenObj.source,
-      taper: relistenObj.taper,
-      transferrer: relistenObj.transferrer,
-      lineage: relistenObj.lineage,
-      flacType: relistenObj.flac_type,
-      reviewCount: relistenObj.review_count,
-      linksRaw: JSON.stringify(relistenObj.links),
-    };
-  }
-
-  static shouldUpdateFromApi(model: Source, relistenObj: SourceFull) {
-    // A resolver-hydrated source has the catalog's current updated_at but an
-    // intentionally empty link sidecar. Let the ordinary full-show response
-    // enrich it even when the underlying source timestamp has not changed.
-    return model.linksRaw !== JSON.stringify(relistenObj.links);
   }
 }

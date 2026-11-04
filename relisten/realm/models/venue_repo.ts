@@ -11,14 +11,10 @@ import { RealmObjectValueStream, ValueStream } from '@/relisten/realm/value_stre
 import { useMemo } from 'react';
 import Realm from 'realm';
 import { applyV4ArtistVenues, hasV4ArtistVenues } from '../v4_catalog_apply';
-
-import { Repository } from '../repository';
 import { useQuery, useRealm } from '../schema';
 import { ensureCatalogArtist, useArtist } from './artist_repo';
 import { ArtistVenue, CatalogQueryState } from './v4_catalog';
 import { Venue } from './venue';
-
-export const venueRepo = new Repository(Venue);
 
 export type ArtistVenueBrowseItem =
   | { uuid: string; kind: 'artist_venue'; artistVenue: ArtistVenue }

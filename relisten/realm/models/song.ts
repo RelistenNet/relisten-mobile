@@ -1,7 +1,5 @@
 import Realm from 'realm';
-import { SongWithPlayCount } from '../../api/models/song';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
-import dayjs from 'dayjs';
 import { LegacyFavoriteMirror } from '../legacy_favorite_mirror';
 import type { Show } from '@/relisten/realm/models/show';
 
@@ -59,18 +57,4 @@ export class Song
 
   /** @deprecated Use `useFavorite` or `LibraryIndex` for active-account membership. */
   isFavorite!: boolean;
-
-  static propertiesFromApi(relistenObj: SongWithPlayCount): SongRequiredProperties {
-    return {
-      uuid: relistenObj.uuid,
-      createdAt: dayjs(relistenObj.created_at).toDate(),
-      updatedAt: dayjs(relistenObj.updated_at).toDate(),
-      artistUuid: relistenObj.artist_uuid,
-      name: relistenObj.name,
-      upstreamIdentifier: relistenObj.upstream_identifier,
-      slug: relistenObj.slug,
-      sortName: relistenObj.sortName,
-      showsPlayedAt: relistenObj.shows_played_at,
-    };
-  }
 }

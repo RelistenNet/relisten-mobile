@@ -7,7 +7,6 @@ import {
 } from '@/relisten/realm/network_backed_behavior';
 import { useNetworkBackedBehavior } from '@/relisten/realm/network_backed_behavior_hooks';
 import { mergeNetworkBackedResults } from '@/relisten/realm/network_backed_results';
-import { Repository } from '@/relisten/realm/repository';
 import { useQuery, useRealm } from '@/relisten/realm/schema';
 import { RealmObjectValueStream, ValueStream } from '@/relisten/realm/value_streams';
 import { useMemo } from 'react';
@@ -17,8 +16,6 @@ import { applyV4ArtistSongs, hasV4ArtistSongs } from '../v4_catalog_apply';
 import { ensureCatalogArtist, useArtist } from './artist_repo';
 import { Song } from './song';
 import { CatalogQueryState, NormalizedSong } from './v4_catalog';
-
-export const songRepo = new Repository(Song);
 
 export type ArtistSongBrowseItem =
   | { uuid: string; routeId: string; kind: 'song'; song: NormalizedSong }
