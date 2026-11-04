@@ -1,8 +1,6 @@
 import Realm from 'realm';
 
 import type { Artist } from './artist';
-import type { Show } from './show';
-import type { SourceTrack } from './source_track';
 
 export class NormalizedVenueName extends Realm.Object<NormalizedVenueName> {
   static schema: Realm.ObjectSchema = {
@@ -96,8 +94,6 @@ export class NormalizedSong extends Realm.Object<NormalizedSong> {
       matchedTrackCount: 'int?',
       matchedShowCount: 'int?',
       artist: 'Artist?',
-      shows: 'Show[]',
-      tracks: 'SourceTrack[]',
     },
   };
 
@@ -111,8 +107,6 @@ export class NormalizedSong extends Realm.Object<NormalizedSong> {
   matchedTrackCount?: number;
   matchedShowCount?: number;
   artist?: Artist;
-  shows!: Realm.List<Show>;
-  tracks!: Realm.List<SourceTrack>;
 }
 
 export class TrackNormalizationPart extends Realm.Object<TrackNormalizationPart> {

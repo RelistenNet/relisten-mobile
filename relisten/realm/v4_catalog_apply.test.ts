@@ -619,7 +619,6 @@ describe('v4 catalog Realm apply', () => {
     expect(hasV4Venue(realm, resultIds.venue)).toBe(true);
     expect(hasV4Song(realm, artistUuid, resultIds.song)).toBe(true);
     expect(hasV4ImportedSong(realm, artistUuid, resultIds.importedSong)).toBe(true);
-    expect(realm.objectForPrimaryKey(NormalizedSong, canonicalSong.id)?.shows).toHaveLength(1);
     expect(realm.objectForPrimaryKey(Song, importedSongUuid)?.shows.size).toBe(1);
 
     const emptyResult = realm.write(() =>
@@ -696,9 +695,6 @@ describe('v4 catalog Realm apply', () => {
     expect(track.offlineInfo?.downloadedBytes).toBe(123);
     expect(track.source?.uuid).toBe(sourceAUuid);
     expect(realm.objectForPrimaryKey(SourceSet, setAUuid)?.sourceTracks[0].uuid).toBe(trackAUuid);
-    expect(realm.objectForPrimaryKey(NormalizedSong, 'song_00000003')?.tracks[0].uuid).toBe(
-      trackAUuid
-    );
     expect(realm.objectForPrimaryKey(CatalogQueryState, `GET /shows/${showId}`)).toBeNull();
     expect(realm.objectForPrimaryKey(CatalogQueryState, `GET /sources/${sourceAId}`)).toBeNull();
     expect(

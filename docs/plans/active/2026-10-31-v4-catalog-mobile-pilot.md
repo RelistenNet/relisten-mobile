@@ -414,3 +414,28 @@ and global fetch implementation. It adds no cache library, database engine,
 player engine, server route, or generic synchronization layer. The corrected API
 contract and public-request ownership are in `RelistenApi` commit `55ad6af1a` on
 `codex/v4-native-recordings`.
+
+## November 4 simplification execution
+
+Alec approved the one-way mobile v4 cutover, removal of duplicate canonical song
+memberships, and focused boundary tests. Keep conditional GETs, the 15-minute
+freshness interval, transactional application, retries, and overlap repair.
+
+Progress:
+- [ ] Remove duplicate NormalizedSong lists; consolidate the unreleased v4 schema as 18.
+- [ ] Make existing catalog repositories v4-only and wire remaining callers,
+  including cold CarPlay, discovery, tours, date links, reviews and telemetry.
+- [ ] Replace route-only assertions with successful payload/application checks.
+- [ ] Verify migration, empty/offline membership, playback and source switching;
+  run tests, TypeScript and lint, then review readability and simplicity.
+
+The query's ordered result IDs own membership. Shared records retain playback
+identity, downloads, queues, history and favorites. Do not add another cache or
+eagerly load unrelated collections. The server's existing v2/v3 support remains
+for older releases. This work changes the mobile build; it does not deploy it.
+
+Alec clarified that v4 normalization storage has never shipped. Do not keep
+migrations for intermediate pilot schemas18–20. Schema18 is the single final v4
+addition above the account client's schema17. Keep the existing schema17 upgrade
+preservation test. Reinstall the retained simulator app if its pilot database
+uses an intermediate layout; no compatibility code is needed for that database.

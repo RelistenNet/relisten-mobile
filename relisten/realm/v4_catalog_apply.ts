@@ -1118,13 +1118,9 @@ export function applyV4Venue(realm: Realm, resource: V4VenueWithShowsResource) {
 export function applyV4Song(realm: Realm, artistUuid: string, resource: V4SongWithShowsResource) {
   const song = applyNormalizedSongDetail(realm, resource);
   requireMatchingArtist(song.artistUuid, artistUuid, `Song ${song.id}`);
-  const shows = applyShowCollection(
-    realm,
-    resource.shows,
-    `Song ${song.id}'s show membership`,
-    (show) => requireMatchingArtist(show.artistUuid, artistUuid, `Show ${show.uuid}`)
+  applyShowCollection(realm, resource.shows, `Song ${song.id}'s show membership`, (show) =>
+    requireMatchingArtist(show.artistUuid, artistUuid, `Show ${show.uuid}`)
   );
-  song.shows.splice(0, song.shows.length, ...shows);
   return detailResultIds(resource.id, resource.shows);
 }
 
@@ -1139,8 +1135,9 @@ export function applyV4SongTracks(
     resource.tracks.map((track) => track.id),
     `Song ${song.id}'s track membership`
   );
-  const tracks = resource.tracks.map((track) => applySongTrackResource(realm, track, song));
-  song.tracks.splice(0, song.tracks.length, ...tracks);
+  for (const track of resource.tracks) {
+    applySongTrackResource(realm, track, song);
+  }
   return detailResultIds(resource.id, resource.tracks);
 }
 
@@ -1472,12 +1469,7 @@ export function hasV4Song(realm: Realm, artistUuid: string, resultIds: Iterable<
   const songId = rootId ? tryRetainShortId(rootId, 'song') : undefined;
   const song = songId ? realm.objectForPrimaryKey(NormalizedSong, songId) : undefined;
   if (!song || !hasNormalizedSong(realm, song.id, artistUuid)) return false;
-  const showUuids = showIds.map((id) => tryDecodeUuidId(id, 'show'));
-  if (showUuids.some((uuid) => !uuid) || song.shows.length !== showUuids.length) return false;
-  return (
-    song.shows.every((show, index) => show.uuid === showUuids[index]) &&
-    hasShowResults(realm, showIds, (show) => show.artistUuid === artistUuid)
-  );
+  return hasShowResults(realm, showIds, (show) => show.artistUuid === artistUuid);
 }
 
 export function hasV4SongTracks(realm: Realm, artistUuid: string, resultIds: Iterable<string>) {
@@ -1486,14 +1478,12 @@ export function hasV4SongTracks(realm: Realm, artistUuid: string, resultIds: Ite
   const song = songId ? realm.objectForPrimaryKey(NormalizedSong, songId) : undefined;
   if (!song || !hasNormalizedSong(realm, song.id, artistUuid)) return false;
   if (!hasUniqueResultIds(trackIds)) return false;
-  const trackUuids = trackIds.map((id) => tryDecodeUuidId(id, 'track'));
-  if (trackUuids.some((uuid) => !uuid) || song.tracks.length !== trackUuids.length) return false;
-
-  return song.tracks.every((track, index) => {
+  return trackIds.every((id) => {
+    const uuid = tryDecodeUuidId(id, 'track');
+    const track = uuid ? realm.objectForPrimaryKey(SourceTrack, uuid) : undefined;
+    if (!isActive(track)) return false;
     const show = realm.objectForPrimaryKey(Show, track.showUuid);
     return (
-      track.uuid === trackUuids[index] &&
-      isActive(track) &&
       track.artistUuid === artistUuid &&
       !!(track.mp3Url || track.flacUrl) &&
       hasActiveShowRowAndParents(realm, show) &&

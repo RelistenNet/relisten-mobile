@@ -52,7 +52,7 @@ if (isVerboseProfileLoggingEnabled()) {
   Realm.setLogLevel('debug', 'Realm.Storage.Notification');
 }
 
-export const REALM_SCHEMA_VERSION = 20;
+export const REALM_SCHEMA_VERSION = 18;
 
 export const REALM_SCHEMA = [
   Artist,
@@ -86,7 +86,7 @@ export const REALM_SCHEMA = [
 
 export const realmConfig: Realm.Configuration = {
   schema: REALM_SCHEMA,
-  // Schema 20 adds canonical song show and recording memberships.
+  // Schema 18 adds the final v4 overlays; query state owns ordered membership.
   schemaVersion: REALM_SCHEMA_VERSION,
   onMigration: (oldRealm, newRealm) => {
     migratePlayerState(oldRealm, newRealm);
