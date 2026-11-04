@@ -287,19 +287,12 @@ function removeTrackFromSet(sourceSet: SourceSet, trackUuid: string) {
   }
 }
 
-function reconcileTrackMembership(realm: Realm, track: SourceTrack, targetSet: SourceSet) {
+function unlinkTrackFromOtherSets(realm: Realm, track: SourceTrack, targetSet: SourceSet) {
   const linkedSets = realm.objects(SourceSet).filtered('ANY sourceTracks.uuid == $0', track.uuid);
   for (const sourceSet of Array.from(linkedSets)) {
     if (sourceSet.uuid !== targetSet.uuid) {
       removeTrackFromSet(sourceSet, track.uuid);
     }
-  }
-
-  if (!targetSet.sourceTracks.some((candidate) => candidate.uuid === track.uuid)) {
-    const orderedTracks = [...targetSet.sourceTracks, track].sort(
-      (left, right) => left.trackPosition - right.trackPosition
-    );
-    targetSet.sourceTracks.splice(0, targetSet.sourceTracks.length, ...orderedTracks);
   }
 }
 
@@ -311,19 +304,12 @@ function removeSetFromSource(source: Source, sourceSetUuid: string) {
   }
 }
 
-function reconcileSourceSetMembership(realm: Realm, sourceSet: SourceSet, targetSource: Source) {
+function unlinkSetFromOtherSources(realm: Realm, sourceSet: SourceSet, targetSource: Source) {
   const linkedSources = realm.objects(Source).filtered('ANY sourceSets.uuid == $0', sourceSet.uuid);
   for (const source of Array.from(linkedSources)) {
     if (source.uuid !== targetSource.uuid) {
       removeSetFromSource(source, sourceSet.uuid);
     }
-  }
-
-  if (!targetSource.sourceSets.some((candidate) => candidate.uuid === sourceSet.uuid)) {
-    const orderedSets = [...targetSource.sourceSets, sourceSet].sort(
-      (left, right) => left.index - right.index
-    );
-    targetSource.sourceSets.splice(0, targetSource.sourceSets.length, ...orderedSets);
   }
 }
 
@@ -796,7 +782,7 @@ function applyTrackResource(realm: Realm, resource: V4TrackResource) {
     } as unknown as Realm.Unmanaged<SourceTrack>,
     Realm.UpdateMode.Modified
   );
-  reconcileTrackMembership(realm, track, sourceSet);
+  unlinkTrackFromOtherSets(realm, track, sourceSet);
   return track;
 }
 
@@ -863,10 +849,16 @@ function applySourceSetResource(
     } as unknown as Realm.Unmanaged<SourceSet>,
     Realm.UpdateMode.Modified
   );
-  reconcileSourceSetMembership(realm, sourceSet, source);
+  unlinkSetFromOtherSources(realm, sourceSet, source);
 
   // A resolver set is a shallow parent, not a replacement of playable tracks.
   if (!resource.tracks) {
+    if (!source.sourceSets.some((candidate) => candidate.uuid === sourceSet.uuid)) {
+      const orderedSets = [...source.sourceSets, sourceSet].sort(
+        (left, right) => left.index - right.index
+      );
+      source.sourceSets.splice(0, source.sourceSets.length, ...orderedSets);
+    }
     return sourceSet;
   }
 
@@ -1085,7 +1077,7 @@ export function applyV4ResolvedEntities(
     applySourceSetResource(realm, resource);
   }
   for (const resource of entities.tracks) {
-    applyTrackResource(realm, resource);
+    applyV4Track(realm, resource);
   }
 }
 
@@ -1163,7 +1155,15 @@ export function applyV4FullSource(realm: Realm, resource: V4SourceResource) {
 
 /** Applies one complete track and repairs its single parent-set membership. */
 export function applyV4Track(realm: Realm, resource: V4TrackResource) {
-  return [applyTrackResource(realm, resource).uuid];
+  const track = applyTrackResource(realm, resource);
+  const sourceSet = requireObject(realm, SourceSet, track.sourceSetUuid, 'source set');
+  if (!sourceSet.sourceTracks.some((candidate) => candidate.uuid === track.uuid)) {
+    const orderedTracks = [...sourceSet.sourceTracks, track].sort(
+      (left, right) => left.trackPosition - right.trackPosition
+    );
+    sourceSet.sourceTracks.splice(0, sourceSet.sourceTracks.length, ...orderedTracks);
+  }
+  return [track.uuid];
 }
 
 function applyShowCollection(
@@ -1349,18 +1349,12 @@ export function applyV4ImportedSong(
 ) {
   const song = applyImportedSong(realm, resource);
   requireMatchingArtist(song.artistUuid, artistUuid, `Imported song ${song.uuid}`);
-  const shows = applyShowCollection(
+  applyShowCollection(
     realm,
     resource.shows,
     `Imported song ${song.uuid}'s show membership`,
     (show) => requireMatchingArtist(show.artistUuid, artistUuid, `Show ${show.uuid}`)
   );
-  for (const existing of Array.from(song.shows)) {
-    song.shows.delete(existing);
-  }
-  for (const show of shows) {
-    song.shows.add(show);
-  }
   return detailResultIds(resource.id, resource.shows);
 }
 
@@ -1463,17 +1457,15 @@ export function hasV4Year(
 
 function hasActiveTrackGraph(
   realm: Realm,
-  track: SourceTrack | null,
-  expectedSource?: Source,
-  expectedSet?: SourceSet
-): track is SourceTrack {
+  track: SourceTrack,
+  source: Source,
+  sourceSet: SourceSet
+) {
   if (!isActive(track) || (!track.mp3Url && !track.flacUrl)) {
     return false;
   }
 
   const show = realm.objectForPrimaryKey(Show, track.showUuid);
-  const source = expectedSource ?? realm.objectForPrimaryKey(Source, track.sourceUuid);
-  const sourceSet = expectedSet ?? realm.objectForPrimaryKey(SourceSet, track.sourceSetUuid);
   const artist = realm.objectForPrimaryKey(Artist, track.artistUuid);
   if (
     !hasActiveShowRowAndParents(realm, show) ||
@@ -1492,13 +1484,11 @@ function hasActiveTrackGraph(
     sourceSet.sourceUuid === track.sourceUuid &&
     track.artist?.uuid === artist.uuid &&
     track.show?.uuid === show.uuid &&
-    track.source?.uuid === source.uuid &&
-    source.sourceSets.some((candidate) => candidate.uuid === sourceSet.uuid) &&
-    sourceSet.sourceTracks.some((candidate) => candidate.uuid === track.uuid)
+    track.source?.uuid === source.uuid
   );
 }
 
-function hasActiveSourceGraph(realm: Realm, source: Source | null): source is Source {
+function hasActiveSourceGraph(realm: Realm, source: Source) {
   if (!isActive(source)) {
     return false;
   }
@@ -1570,14 +1560,6 @@ export function hasV4Show(realm: Realm, showUuid: string) {
       source.sourceSets.some((sourceSet) => sourceSet.sourceTracks.length > 0)
     )
   );
-}
-
-export function hasV4Source(realm: Realm, sourceUuid: string) {
-  return hasActiveSourceGraph(realm, realm.objectForPrimaryKey(Source, sourceUuid));
-}
-
-export function hasV4Track(realm: Realm, trackUuid: string) {
-  return hasActiveTrackGraph(realm, realm.objectForPrimaryKey(SourceTrack, trackUuid));
 }
 
 function tryDecodeUuidId<TPrefix extends V4UuidCatalogPrefix>(value: string, prefix: TPrefix) {
@@ -1758,13 +1740,5 @@ export function hasV4ImportedSong(realm: Realm, artistUuid: string, resultIds: I
   if (!isActive(song) || song.artistUuid !== artistUuid) {
     return false;
   }
-  const expectedShowUuids = showIds.map((id) => tryDecodeUuidId(id, 'show'));
-  if (expectedShowUuids.some((uuid) => !uuid) || song.shows.size !== expectedShowUuids.length) {
-    return false;
-  }
-  const expected = new Set(expectedShowUuids);
-  return (
-    Array.from(song.shows).every((show) => expected.has(show.uuid)) &&
-    hasShowResults(realm, showIds, (show) => show.artistUuid === artistUuid)
-  );
+  return hasShowResults(realm, showIds, (show) => show.artistUuid === artistUuid);
 }

@@ -553,3 +553,37 @@ question. Removing invalidation can let an older response overwrite shared field
 while an owning response continues to return 304; waiting 15 minutes alone does
 not repair those fields. Removing graph checks also gives up automatic recovery
 when playable rows are missing. Neither change is part of this deletion.
+
+### Assign complete recording lists once
+
+Complete sources and sets now assign their final ordered child lists once.
+Shared row application still unlinks an obsolete parent; standalone track and
+shallow resolver application attach the returned child where needed. This removes
+incremental insertion, sorting and replacement of lists that the enclosing
+complete response will replace anyway. No apply mode or new abstraction was added.
+
+Full-show health traversal no longer searches each track's containing set and
+source lists: the traversal itself establishes containment. The unused standalone
+`hasV4Source` and `hasV4Track` exports and optional lookup branches were removed.
+Checks for active rows, ownership, completeness and playable content remain.
+
+Imported-song details now use only ordered query IDs for membership, as canonical
+song details already do. They stop rewriting and auditing the unused `Song.shows`
+mirror. Its legacy schema field remains for existing startup repair; no schema or
+migration changed. Empty detail results still preserve shared show rows.
+
+In disposable desktop Realm experiments, a cold 40-track show went from 43 list
+rewrites carrying 862 references to two carrying 41. The redundant containment
+searches are gone; the review's 100-track example previously performed 5,050
+track comparisons. These are operation counts, not iPhone latency measurements.
+The experiments remain under `/tmp`, outside the shipping suite.
+
+All 316 surviving tests passed, plus TypeScript, lint and the real local
+API/client/repository/Realm check. Existing cases cover moved tracks, retained
+downloads, shallow favorites, missing playable data, overlapping responses,
+unchanged-timestamp corrections, empty lists and rollback/retry. The reduced test
+count comes from deleting the three obsolete generic-writer tests. Assertions now
+check full-show and resolver entry points instead of the deleted health exports.
+A temporary mutant that omitted standalone child attachment failed the cold
+favorite regression. Fresh Sol xhigh review and independent validation found no
+remaining issues in the actual combined diff.
