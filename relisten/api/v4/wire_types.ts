@@ -88,6 +88,7 @@ export interface V4ArtistProviderResource {
 }
 
 export interface V4ArtistResource {
+  popularity: V4PopularityResource | null;
   id: V4ArtistId;
   name: string;
   slug: string;
@@ -103,6 +104,7 @@ export interface V4ArtistResource {
 }
 
 export interface V4YearResource {
+  popularity: V4PopularityResource | null;
   id: V4YearId;
   artist_id: V4ArtistId;
   show_count: number;

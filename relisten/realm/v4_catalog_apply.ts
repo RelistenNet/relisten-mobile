@@ -17,6 +17,7 @@ import type {
   V4ImportedVenueResource,
   V4ImportedVenueWithShowsResource,
   V4PopularityResource,
+  V4PopularityWindowResource,
   V4ShortCatalogPrefix,
   V4ShowResource,
   V4ShowSummaryResource,
@@ -51,6 +52,7 @@ import {
 } from '@/relisten/realm/models/v4_catalog';
 import { Venue } from '@/relisten/realm/models/venue';
 import { Year } from '@/relisten/realm/models/year';
+import type { Popularity, PopularityWindow } from '@/relisten/realm/models/popularity';
 
 export class V4CatalogApplyError extends Error {
   constructor(message: string) {
@@ -97,6 +99,30 @@ function popularityProperties(popularity: V4PopularityResource | null) {
       },
     },
   };
+}
+
+function popularityWindowChanged(current: PopularityWindow, next: V4PopularityWindowResource) {
+  return (
+    current.plays !== next.plays ||
+    current.hours !== next.hours ||
+    current.hotScore !== next.hot_score
+  );
+}
+
+function popularityChanged(
+  current: Popularity | null | undefined,
+  next: V4PopularityResource | null
+) {
+  if (!current || !next) {
+    return Boolean(current) !== Boolean(next);
+  }
+  return (
+    current.momentumScore !== next.momentum_score ||
+    current.trendRatio !== next.trend_ratio ||
+    popularityWindowChanged(current.windows.hours48h, next.windows['48h']) ||
+    popularityWindowChanged(current.windows.days7d, next.windows['7d']) ||
+    popularityWindowChanged(current.windows.days30d, next.windows['30d'])
+  );
 }
 
 function requireObject<T extends object>(
@@ -155,6 +181,28 @@ function invalidateArtistVenueValidator(realm: Realm, artistUuid: string, venueI
 function invalidateSongValidators(realm: Realm, songId: string) {
   invalidateQueryValidator(realm, `GET /songs/${songId}`);
   invalidateQueryValidator(realm, `GET /songs/${songId}/tracks`);
+}
+
+function invalidateYearValidators(realm: Realm, artistUuid: string, yearUuid: string) {
+  const artistPath = `/artists/${encodeV4UuidCatalogId(artistUuid, 'artist')}`;
+  invalidateQueryValidator(realm, `GET ${artistPath}/years`);
+  invalidateQueryValidator(
+    realm,
+    `GET ${artistPath}/years/${encodeV4UuidCatalogId(yearUuid, 'year')}`
+  );
+
+  // Show responses and show collections embed this year. Their stored membership
+  // identifies the affected responses without retaining DTOs or a dependency table.
+  // Recording details use raw UUIDs; song/venue/tour collections use typed show IDs.
+  const showIds = realm
+    .objects(Show)
+    .filtered('yearUuid == $0', yearUuid)
+    .flatMap((show) => [show.uuid, encodeV4UuidCatalogId(show.uuid, 'show')]);
+  if (showIds.length > 0) {
+    for (const query of realm.objects(CatalogQueryState).filtered('ANY resultIds IN $0', showIds)) {
+      invalidateQueryValidator(realm, query.key);
+    }
+  }
 }
 
 function sameStrings(actual: Iterable<string>, expected: string[]) {
@@ -281,6 +329,10 @@ function reconcileSourceSetMembership(realm: Realm, sourceSet: SourceSet, target
 
 function applyArtist(realm: Realm, resource: V4ArtistResource) {
   const uuid = decodeV4UuidCatalogId(resource.id, 'artist');
+  const current = realm.objectForPrimaryKey(Artist, uuid);
+  if (current && popularityChanged(current.popularity, resource.popularity)) {
+    invalidateQueryValidator(realm, 'GET /artists?include_autocreated=true');
+  }
   return realm.create(
     Artist,
     {
@@ -295,6 +347,7 @@ function applyArtist(realm: Realm, resource: V4ArtistResource) {
       sortName: resource.sort_name ?? resource.name,
       featuresRaw: JSON.stringify(resource.features),
       upstreamSourcesRaw: JSON.stringify(resource.upstream_sources),
+      popularity: popularityProperties(resource.popularity),
       showCount: resource.show_count,
       sourceCount: resource.source_count,
     } as unknown as Realm.Unmanaged<Artist>,
@@ -305,6 +358,10 @@ function applyArtist(realm: Realm, resource: V4ArtistResource) {
 function applyYear(realm: Realm, resource: V4YearResource) {
   const uuid = decodeV4UuidCatalogId(resource.id, 'year');
   const artistUuid = decodeV4UuidCatalogId(resource.artist_id, 'artist');
+  const current = realm.objectForPrimaryKey(Year, uuid);
+  if (current && popularityChanged(current.popularity, resource.popularity)) {
+    invalidateYearValidators(realm, artistUuid, uuid);
+  }
   return realm.create(
     Year,
     {
@@ -319,6 +376,7 @@ function applyYear(realm: Realm, resource: V4YearResource) {
       avgDuration: resource.avg_duration,
       avgRating: resource.avg_rating,
       year: resource.year,
+      popularity: popularityProperties(resource.popularity),
     } as unknown as Realm.Unmanaged<Year>,
     Realm.UpdateMode.Modified
   );

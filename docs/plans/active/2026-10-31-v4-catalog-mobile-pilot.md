@@ -496,8 +496,35 @@ obsolete code. Native evidence is in `/tmp/v4-cutover-online-proof.log` and
 not a new shipping harness. CarPlay's bootstrap uses the same tested API/repo
 path; a connected CarPlay display was not exercised in this pass.
 
-Open contract decision: ordinary v4 artist/year resources omit popularity while
-the existing UI offers Popular/Trending sorts. A fresh install exposes this;
-retained legacy scores hid it. Alec is choosing between adding popularity to
-those resources and coordinating separate ranking reads on mobile. Do not claim
-the cutover is complete until that decision is implemented and verified.
+### Artist/year popularity: approved contract and verification
+
+Alec chose popularity on ordinary artist/year resources. Artists use global
+scores; years use artist-local scores, including embedded show parents and
+resolver results. Global ranking routes retain their own scores. The HTTP client
+returns typed resources; existing repositories apply the nullable fields. Popular
+and Trending sorts need no extra ranking request or persistent list.
+
+Score changes apply even when imported `updated_at` stays unchanged. Null clears
+an old score. When an overlapping response overwrites a shared artist/year score,
+invalidate only affected cached validators and freshness; retain their ordered
+membership and applied-data marker. Numeric comparisons avoid response copies
+and prevent identical scores from causing a refresh loop. The year lookup uses
+the existing indexed show relationship; no dependency table or schema was added.
+
+All 319 mobile tests, TypeScript and lint passed. Focused payload-through-client,
+repository and Realm cases cover score storage, null clearing, both directions
+of overlapping year responses, a song's embedded year and cold artist favorite
+resolution. The API passed 171 v4/popularity cases, including score-only ETags,
+local/global year separation and missing scores. Temporarily removing score
+assignment made the API regression fail. Independent review reproduced the
+overlap failures and confirmed their repair.
+
+The real API boundary check passed with all 31 Grateful Dead years scored. The
+retained simulator showed Popular and Trending artist/year orderings from those
+resources. Screenshots: `/tmp/v4-artist-popularity-review.png` and
+`/tmp/v4-year-popularity-review.png`. Local year scores were backfilled using the
+existing calculator/store and the real aggregate snapshot captured on October 30,
+2026, retaining its capture timestamp. Production was unchanged. A quiet local
+debug check measured median 80 ms for all artists and 4 ms for Grateful Dead's
+years; this is not a production benchmark. No shipping harness, schema migration,
+new refresh job, schedule or lock was added.
