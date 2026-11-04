@@ -39,6 +39,7 @@ import type {
   V4ArtistVenueResource,
   V4ImportedSongResource,
   V4ImportedVenueResource,
+  V4PopularityResource,
   V4ShowResource,
   V4ShowSummaryResource,
   V4SongDetailResource,
@@ -113,7 +114,10 @@ import { SongShowsNetworkBackedBehavior } from './models/shows/song_shows_repo';
 import { VenueShowsNetworkBackedBehavior } from './models/shows/venue_shows_repo';
 import { SongTracksNetworkBackedBehavior } from './models/song_tracks_repo';
 import { ArtistVenuesNetworkBackedBehavior } from './models/venue_repo';
-import { YearShowsNetworkBackedBehavior } from './models/year_repo';
+import {
+  YearShowsNetworkBackedBehavior,
+  yearsNetworkBackedModelArrayBehavior,
+} from './models/year_repo';
 import { ToursNetworkBackedBehavior } from './models/tour_repo';
 import { TourShowsNetworkBackedBehavior } from './models/shows/tour_shows_repo';
 import { FavoriteMetadataHydrator } from '../library/favorite_metadata_hydrator';
@@ -177,8 +181,21 @@ const features: V4ArtistFeaturesResource = {
   normalization: true,
 };
 
+function popularityResource(plays = 100): V4PopularityResource {
+  return {
+    momentum_score: 0.7,
+    trend_ratio: 2,
+    windows: {
+      '48h': { plays: 4, hours: 0.5, hot_score: 0.4 },
+      '7d': { plays: 10, hours: 1, hot_score: 0.5 },
+      '30d': { plays, hours: 10, hot_score: 0.8 },
+    },
+  };
+}
+
 function artistResource(name = 'Test Artist'): V4ArtistResource {
   return {
+    popularity: null,
     id: artistId,
     name,
     slug: 'test-artist',
@@ -206,6 +223,7 @@ function yearResource({
   year?: string;
 } = {}): V4YearResource {
   return {
+    popularity: null,
     id: encodeV4UuidCatalogId(uuid, 'year'),
     artist_id: encodeV4UuidCatalogId(ownerUuid, 'artist'),
     show_count: showCount,
@@ -662,6 +680,207 @@ describe('v4 catalog Realm apply', () => {
     expect(hasV4Song(realm, artistUuid, emptyResult)).toBe(true);
     expect(realm.objectForPrimaryKey(Show, showUuid)?.deletedAt).toBeNull();
     expect(realm.objectForPrimaryKey(Song, importedSongUuid)?.shows.size).toBe(1);
+  });
+
+  it('stores ordinary artist/year scores for existing sorts and clears corrected inactive scores', async () => {
+    const metrics = popularityResource();
+    let popularity: typeof metrics | null = metrics;
+    const api = new RelistenApiClient({
+      transport: new CatalogV4Transport({
+        apiBase: 'https://catalog.test/api',
+        fetch: async (input) =>
+          new Response(
+            JSON.stringify(
+              String(input).includes('/years')
+                ? [{ ...yearResource(), popularity }]
+                : [{ ...artistResource(), popularity }]
+            ),
+            { headers: { etag: popularity ? '"scored"' : '"inactive"' } }
+          ),
+      }),
+    });
+    const artists = artistsNetworkBackedBehavior(realm, false, false, 'all').sharedExecutor(api);
+    const years = yearsNetworkBackedModelArrayBehavior(
+      realm,
+      false,
+      artistUuid,
+      false
+    ).sharedExecutor(api);
+    executors.push(artists, years);
+    await artists.refresh();
+    await years.refresh();
+    expect(artists.currentResults().errors).toBeUndefined();
+    expect(years.currentResults().errors).toBeUndefined();
+    const artist = realm.objectForPrimaryKey(Artist, artistUuid)!;
+    const year = realm.objectForPrimaryKey(Year, yearUuid)!;
+    for (const model of [artist, year]) {
+      expect(model.popularity?.windows.days30d.hotScore).toBe(0.8);
+      expect(model.popularity?.momentumScore).toBe(0.7);
+      expect(model.popularity?.windows.hours48h.plays).toBe(4);
+    }
+    const updatedAt = year.updatedAt.getTime();
+
+    // A score correction has its own response/ETag, independent of imported timestamps.
+    popularity = null;
+    await artists.refresh(true);
+    await years.refresh(true);
+    expect(artist.popularity).toBeNull();
+    expect(year.popularity).toBeNull();
+    expect(year.updatedAt.getTime()).toBe(updatedAt);
+  });
+
+  it.each(['year_list', 'full_show', 'song_detail'] as const)(
+    'repairs overwritten year scores when reopening %s without dropping cached membership',
+    async (owner) => {
+      realm.write(() => seedArtistAndYear(realm));
+      const year = { ...yearResource(), popularity: popularityResource(100) };
+      const oldYear = { ...year, popularity: popularityResource(1) };
+      const fullShow = fullShowResource([
+        sourceResource(sourceAId, [sourceSetResource(setAId, sourceAId, [trackResource()])]),
+      ]);
+      fullShow.source_count = 1;
+      fullShow.year = year;
+      const yearPath = `/artists/${artistId}/years`;
+      const showPath = `/shows/${showId}`;
+      const songPath = '/songs/song_00000003';
+      const ownerPath =
+        owner === 'year_list' ? yearPath : owner === 'full_show' ? showPath : songPath;
+      const ownerBody =
+        owner === 'year_list'
+          ? [year]
+          : owner === 'full_show'
+            ? fullShow
+            : { ...normalizedSongDetailResource(), shows: [fullShow] };
+      const olderPath = owner === 'year_list' ? showPath : yearPath;
+      const olderBody = owner === 'year_list' ? { ...fullShow, year: oldYear } : [oldYear];
+      let ownerRequests = 0;
+      const api = new RelistenApiClient({
+        transport: new CatalogV4Transport({
+          apiBase: 'https://catalog.test/api',
+          fetch: async (input, options) => {
+            const path = new URL(String(input)).pathname.replace('/api/v4', '');
+            if (path === ownerPath) {
+              ownerRequests += 1;
+              return new Headers(options?.headers).has('If-None-Match')
+                ? new Response(null, { status: 304, headers: { etag: '"current"' } })
+                : new Response(JSON.stringify(ownerBody), { headers: { etag: '"current"' } });
+            }
+            if (path === olderPath) {
+              return new Response(JSON.stringify(olderBody), { headers: { etag: '"older"' } });
+            }
+            throw new Error(`Unexpected endpoint ${path}`);
+          },
+        }),
+      });
+      const years = yearsNetworkBackedModelArrayBehavior(
+        realm,
+        false,
+        artistUuid,
+        false
+      ).sharedExecutor(api);
+      const show = new ShowWithFullSourcesNetworkBackedBehavior(realm, showUuid).sharedExecutor(
+        api
+      );
+      const song = new SongShowsNetworkBackedBehavior(
+        realm,
+        artistUuid,
+        'song_00000003',
+        'song'
+      ).sharedExecutor(api);
+      executors.push(years, show, song);
+      const current = owner === 'year_list' ? years : owner === 'full_show' ? show : song;
+      await current.refresh();
+      const state = realm.objectForPrimaryKey(CatalogQueryState, `GET ${ownerPath}`)!;
+      const membership = [...state.resultIds];
+      await (owner === 'year_list' ? show : years).refresh();
+      expect(realm.objectForPrimaryKey(Year, yearUuid)?.popularity?.windows.days30d.plays).toBe(1);
+      expect([...state.resultIds]).toEqual(membership);
+      expect(state.hasAppliedData).toBe(true);
+
+      await current.refresh(true);
+      expect(current.currentResults().errors).toBeUndefined();
+      expect(realm.objectForPrimaryKey(Year, yearUuid)?.popularity?.windows.days30d.plays).toBe(
+        100
+      );
+      await current.refresh();
+      expect(ownerRequests).toBe(2); // Identical scores do not start another refresh loop.
+    }
+  );
+
+  it('repairs artist scores overwritten by cold favorite resolution', async () => {
+    const capture = { scopeId: 'test-account', generation: 1 };
+    realm.write(() =>
+      realm.create(UserFavorite, {
+        favoriteId: 'artist-favorite',
+        scopeId: capture.scopeId,
+        targetKind: 'artist',
+        targetId: artistId,
+        effectivePresent: true,
+        createdAt: new Date(timestamp),
+        updatedAt: new Date(timestamp),
+      })
+    );
+    const api = new RelistenApiClient({
+      transport: new CatalogV4Transport({
+        apiBase: 'https://catalog.test/api',
+        fetch: async (input, options) => {
+          if (new URL(String(input)).pathname.endsWith('/artists')) {
+            return new Headers(options?.headers).has('If-None-Match')
+              ? new Response(null, { status: 304, headers: { etag: '"artists"' } })
+              : new Response(
+                  JSON.stringify([{ ...artistResource(), popularity: popularityResource(100) }]),
+                  { headers: { etag: '"artists"' } }
+                );
+          }
+          return new Response(
+            JSON.stringify({
+              references: [
+                {
+                  kind: 'artist',
+                  scheme: 'v4',
+                  id: artistId,
+                  artist_id: null,
+                  availability: 'available',
+                  target: { kind: 'artist', id: artistId },
+                  reason: null,
+                },
+              ],
+              entities: {
+                artists: [{ ...artistResource(), popularity: popularityResource(1) }],
+                years: [],
+                tours: [],
+                imported_venues: [],
+                imported_songs: [],
+                artist_venues: [],
+                shows: [],
+                sources: [],
+                source_sets: [],
+                tracks: [],
+                venues: [],
+                songs: [],
+              },
+            })
+          );
+        },
+      }),
+    });
+    const repository = new FavoriteRepository(realm, {
+      capture: () => capture,
+      isCurrent: (candidate) => candidate === capture,
+      subscribe: () => () => {},
+    });
+    await new FavoriteMetadataHydrator(repository, api).hydrateMissing(capture);
+    expect(realm.objectForPrimaryKey(Artist, artistUuid)?.popularity?.windows.days30d.plays).toBe(
+      1
+    );
+    const artists = artistsNetworkBackedBehavior(realm, false, false, 'all').sharedExecutor(api);
+    executors.push(artists);
+    await artists.refresh(true);
+    expect(artists.currentResults().errors).toBeUndefined();
+    expect(realm.objectForPrimaryKey(Artist, artistUuid)?.popularity?.windows.days30d.plays).toBe(
+      100
+    );
+    expect(repository.isFavorite({ kind: 'artist', id: artistId })).toBe(true);
   });
 
   it('retains auto-created artists from the complete response while applying screen visibility locally', async () => {
