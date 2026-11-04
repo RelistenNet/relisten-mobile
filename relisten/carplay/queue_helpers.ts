@@ -1,12 +1,12 @@
-import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
 import { carplay_logger } from '@/relisten/carplay/carplay_logger';
 import { RelistenCarPlayContext } from '@/relisten/carplay/relisten_car_play_context';
 import { CarPlayScope } from '@/relisten/carplay/scope';
-import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { buildTrackSections, isTrackPlayableInScope } from '@/relisten/carplay/track_sections';
+import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { upsertShowWithSources } from '@/relisten/realm/models/show_repo';
 import { Source } from '@/relisten/realm/models/source';
+import { SourceTrack } from '@/relisten/realm/models/source_track';
 
 export function queueTracksFromSelection({
   ctx,
@@ -52,7 +52,9 @@ export function queueTracksFromSelection({
 
 function resolvePlaybackHistorySelection(ctx: RelistenCarPlayContext, entryUuid: string) {
   const entry = ctx.realm.objectForPrimaryKey(PlaybackHistoryEntry, entryUuid);
-  if (!entry) return;
+  if (!entry) {
+    return;
+  }
 
   if (!entry.source || !entry.artist) {
     carplay_logger.warn('History entry missing source or artist', { id: entryUuid });
@@ -75,7 +77,9 @@ export async function queuePlaybackHistoryEntry(
   // Resolve the physical history leaf in a synchronous frame. Only permanent catalog objects and
   // plain identifiers are kept after this point, so clearing history during the request is safe.
   const selection = resolvePlaybackHistorySelection(ctx, entryUuid);
-  if (!selection) return;
+  if (!selection) {
+    return;
+  }
 
   const offlineMode = ctx.userSettings.offlineModeWithDefault();
   let { source, artist } = selection;
@@ -83,7 +87,7 @@ export async function queuePlaybackHistoryEntry(
   if (!source.sourceSets?.length) {
     const response = await ctx.apiClient.showWithSources(selection.showUuid);
 
-    if (response?.data?.uuid) {
+    if (response.data) {
       const show = upsertShowWithSources(ctx.realm, response.data);
       source = ctx.realm.objectForPrimaryKey(Source, source.uuid) || source;
       artist = show?.artist || artist;

@@ -1,15 +1,20 @@
-import type { RelistenApiClient, RelistenApiResponse } from '@/relisten/api/client';
+import type { RelistenApiClient } from '@/relisten/api/client';
 import { decodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
-import { NetworkBackedBehaviorOptions } from '@/relisten/realm/network_backed_behavior';
+import {
+  NetworkBackedBehavior,
+  NetworkBackedBehaviorOptions,
+} from '@/relisten/realm/network_backed_behavior';
 import { useNetworkBackedBehavior } from '@/relisten/realm/network_backed_behavior_hooks';
 import { mergeNetworkBackedResults } from '@/relisten/realm/network_backed_results';
 import { useQuery, useRealm } from '@/relisten/realm/schema';
-import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_network_backed_behavior';
 import { RealmObjectValueStream, ValueStream } from '@/relisten/realm/value_streams';
 import { useMemo } from 'react';
 import Realm from 'realm';
 
-import { useArtist } from './artist_repo';
+import type { V4SongWithTracksResource } from '@/relisten/api/v4/wire_types';
+import { applyV4SongTracks, hasV4SongTracks } from '../v4_catalog_apply';
+import { ensureCatalogArtist, useArtist } from './artist_repo';
+import { SongShowsNetworkBackedBehavior } from './shows/song_shows_repo';
 import { SourceTrack } from './source_track';
 import { CatalogQueryState, NormalizedSong } from './v4_catalog';
 
@@ -61,9 +66,9 @@ function projectSongTracks(
   };
 }
 
-class SongTracksNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
+export class SongTracksNetworkBackedBehavior extends NetworkBackedBehavior<
   CatalogQueryState | null,
-  never
+  V4SongWithTracksResource
 > {
   constructor(
     realm: Realm,
@@ -74,11 +79,29 @@ class SongTracksNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
     super(realm, options);
   }
 
-  override fetchFromApi(
-    api: RelistenApiClient,
-    forcedRefresh: boolean
-  ): Promise<RelistenApiResponse<never>> {
-    return api.refreshV4SongTracks(this.artistUuid, this.songId, forcedRefresh);
+  get queryKey() {
+    return songTracksQueryKey(this.songId);
+  }
+
+  async fetchFromApi(api: RelistenApiClient, _force: boolean, etag?: string) {
+    await ensureCatalogArtist(this.realm, api, this.artistUuid);
+
+    // The recordings response carries show IDs, not show bodies. Resolve its
+    // parent collection through the show repo, including on a cold direct entry.
+    const shows = new SongShowsNetworkBackedBehavior(
+      this.realm,
+      this.artistUuid,
+      this.songId,
+      'song'
+    ).sharedExecutor(api);
+    await shows.refresh(false);
+    const errors = shows.currentResults().errors;
+    shows.tearDown();
+    if (errors?.length) {
+      throw errors[0].error ?? new Error(errors[0].message);
+    }
+
+    return api.songTracks(this.songId, { etag });
   }
 
   override createLocalUpdatingResults(): ValueStream<CatalogQueryState | null> {
@@ -93,8 +116,12 @@ class SongTracksNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
     return state?.hasAppliedData === true;
   }
 
-  override upsert(): void {
-    // The v4 coordinator owns the Realm transaction.
+  hasLocalData(_state: CatalogQueryState | null, resultIds: Iterable<string>) {
+    return hasV4SongTracks(this.realm, this.artistUuid, resultIds);
+  }
+
+  upsert(_state: CatalogQueryState | null, resource: V4SongWithTracksResource) {
+    return applyV4SongTracks(this.realm, this.artistUuid, resource);
   }
 }
 

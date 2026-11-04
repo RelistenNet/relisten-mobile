@@ -1,6 +1,10 @@
 /// <reference types="node" />
+import { preferNewerUsernameProfile } from '@/relisten/accounts/username_profile_monotonicity';
+import { isPostgresUuid } from '@/relisten/util/postgres_uuid';
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
+import { anonymousFavoriteSourceFingerprint } from './anonymous_favorite_import_fingerprint';
+import { anonymousFavoriteImportState } from './anonymous_favorite_import_state';
 import { sendFavoriteMutationBatchWithIsolation } from './favorite_mutation_batch_isolation';
 import {
   importUuidsSettledByCompaction,
@@ -11,11 +15,6 @@ import {
   favoriteSyncPresentationState,
   resumedFavoriteSyncRunStatus,
 } from './favorite_sync_presentation';
-import { preferNewerUsernameProfile } from '@/relisten/accounts/username_profile_monotonicity';
-import { isPostgresUuid } from '@/relisten/util/postgres_uuid';
-import { anonymousFavoriteSourceFingerprint } from './anonymous_favorite_import_fingerprint';
-import { anonymousFavoriteImportState } from './anonymous_favorite_import_state';
-import { upsertResolvedCatalogDtos } from './resolved_catalog_dto_updater';
 import { favoriteSyncStateSnapshot, favoriteSyncStateView } from './favorite_sync_state_snapshot';
 
 test('favorite sync snapshots change when a live Realm object is mutated in place', () => {
@@ -168,41 +167,6 @@ test('catalog UUID validation accepts legacy PostgreSQL UUID values', () => {
   assert.equal(isPostgresUuid('8bf22e27-11de-96e8-4653-964ff9faae2d'), true);
   assert.equal(isPostgresUuid('00000000-0000-0000-0000-000000000000'), false);
   assert.equal(isPostgresUuid('not-a-uuid'), false);
-});
-
-test('resolver omissions retain cached catalog DTOs', () => {
-  const cached = new Map([['cached', { uuid: 'cached', name: 'Cached metadata' }]]);
-
-  upsertResolvedCatalogDtos(
-    {
-      artists: [{ uuid: 'new', name: 'New metadata' }],
-      years: [],
-      venues: [],
-      tours: [],
-      shows: [],
-      sources: [],
-      source_sets: [],
-      source_tracks: [],
-      songs: [],
-    },
-    {
-      artists: (entity) => cached.set(entity.uuid, entity),
-      years: () => assert.fail('An omitted catalog group cannot be applied.'),
-      venues: () => assert.fail('An omitted catalog group cannot be applied.'),
-      tours: () => assert.fail('An omitted catalog group cannot be applied.'),
-      shows: () => assert.fail('An omitted catalog group cannot be applied.'),
-      sources: () => assert.fail('An omitted catalog group cannot be applied.'),
-      source_sets: () => assert.fail('An omitted catalog group cannot be applied.'),
-      source_tracks: () => assert.fail('An omitted catalog group cannot be applied.'),
-      songs: () => assert.fail('An omitted catalog group cannot be applied.'),
-    }
-  );
-
-  assert.deepEqual(cached.get('cached'), {
-    uuid: 'cached',
-    name: 'Cached metadata',
-  });
-  assert.deepEqual(cached.get('new'), { uuid: 'new', name: 'New metadata' });
 });
 
 test('a fresh or failed library read cannot be presented as saved', () => {

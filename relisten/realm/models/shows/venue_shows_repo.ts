@@ -1,31 +1,36 @@
-import { RelistenApiClient, RelistenApiResponse } from '@/relisten/api/client';
-import { useRelistenApi } from '@/relisten/api/context';
-import { VenueWithShows } from '@/relisten/api/models/venue';
+import { RelistenApiClient } from '@/relisten/api/client';
 import { decodeV4UuidCatalogId, encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
-import { NetworkBackedBehaviorOptions } from '@/relisten/realm/network_backed_behavior';
+import type {
+  V4ArtistVenueWithShowsResource,
+  V4ImportedVenueWithShowsResource,
+  V4VenueWithShowsResource,
+} from '@/relisten/api/v4/wire_types';
+import {
+  NetworkBackedBehavior,
+  NetworkBackedBehaviorOptions,
+} from '@/relisten/realm/network_backed_behavior';
 import { useNetworkBackedBehavior } from '@/relisten/realm/network_backed_behavior_hooks';
 import {
   mergeNetworkBackedResults,
   NetworkBackedResults,
 } from '@/relisten/realm/network_backed_results';
 import { useQuery, useRealm } from '@/relisten/realm/schema';
-import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_network_backed_behavior';
-import {
-  CombinedValueStream,
-  MappedValueStream,
-  RealmObjectValueStream,
-  RealmQueryValueStream,
-  ValueStream,
-} from '@/relisten/realm/value_streams';
+import { RealmObjectValueStream, ValueStream } from '@/relisten/realm/value_streams';
 import { useMemo } from 'react';
 import Realm from 'realm';
+import {
+  applyV4ArtistVenue,
+  applyV4ImportedVenue,
+  applyV4Venue,
+  hasV4ArtistVenue,
+  hasV4ImportedVenue,
+  hasV4Venue,
+} from '../../v4_catalog_apply';
 
-import { upsertShowList } from '../repo_utils';
-import { useArtist } from '../artist_repo';
+import { ensureCatalogArtist, useArtist } from '../artist_repo';
 import { Show } from '../show';
-import { Venue } from '../venue';
-import { venueRepo } from '../venue_repo';
 import { ArtistVenue, CatalogQueryState, NormalizedVenue } from '../v4_catalog';
+import { Venue } from '../venue';
 
 export type VenueDetailKind = 'artist_venue' | 'imported_venue' | 'venue';
 
@@ -38,15 +43,10 @@ export interface VenueShows {
   hasAppliedData: boolean;
 }
 
-interface LegacyVenueShows {
-  venue: Venue | null;
-  shows: Realm.Results<Show>;
-}
-
-interface VenueDetailLocalData {
-  queryState: CatalogQueryState | null;
-  legacy: LegacyVenueShows | null;
-}
+type VenueDetailResource =
+  | V4ArtistVenueWithShowsResource
+  | V4ImportedVenueWithShowsResource
+  | V4VenueWithShowsResource;
 
 function venueDetailQueryKey(
   kind: VenueDetailKind,
@@ -64,7 +64,6 @@ function venueDetailQueryKey(
 }
 
 function projectVenueDetail(
-  useV4: boolean,
   kind: VenueDetailKind,
   venueId: string,
   state: CatalogQueryState | null,
@@ -73,18 +72,6 @@ function projectVenueDetail(
   normalizedVenues: ReadonlyArray<NormalizedVenue>,
   allShows: ReadonlyArray<Show>
 ): VenueShows {
-  if (!useV4) {
-    const importedVenue = importedVenues.find(
-      (venue) => venue.uuid === venueId && venue.deletedAt == null
-    );
-    return {
-      kind: 'imported_venue',
-      importedVenue,
-      shows: allShows.filter((show) => show.deletedAt == null && show.venueUuid === venueId),
-      hasAppliedData: false,
-    };
-  }
-
   if (state?.hasAppliedData !== true || state.resultIds.length === 0) {
     return { kind, shows: [], hasAppliedData: false };
   }
@@ -162,13 +149,12 @@ function projectVenueDetail(
   };
 }
 
-class VenueShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
-  VenueDetailLocalData,
-  VenueWithShows
+export class VenueShowsNetworkBackedBehavior extends NetworkBackedBehavior<
+  CatalogQueryState | null,
+  VenueDetailResource
 > {
   constructor(
     realm: Realm,
-    private readonly useV4: boolean,
     private readonly kind: VenueDetailKind,
     private readonly artistUuid: string | undefined,
     private readonly venueId: string,
@@ -177,69 +163,59 @@ class VenueShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
     super(realm, options);
   }
 
-  override createLocalUpdatingResults(): ValueStream<VenueDetailLocalData> {
-    if (this.useV4) {
-      return new MappedValueStream<CatalogQueryState | null, VenueDetailLocalData>(
-        new RealmObjectValueStream(
-          this.realm,
-          CatalogQueryState,
-          venueDetailQueryKey(this.kind, this.artistUuid, this.venueId)
-        ),
-        (queryState) => ({ queryState, legacy: null })
-      );
-    }
-
-    return new MappedValueStream<LegacyVenueShows, VenueDetailLocalData>(
-      new CombinedValueStream(
-        new RealmObjectValueStream(this.realm, Venue, this.venueId),
-        new RealmQueryValueStream(
-          this.realm,
-          this.realm.objects(Show).filtered('venueUuid == $0 && deletedAt == nil', this.venueId)
-        ),
-        (venue, shows) => ({ venue: venue?.deletedAt == null ? venue : null, shows })
-      ),
-      (legacy) => ({ queryState: null, legacy })
-    );
+  get queryKey() {
+    return venueDetailQueryKey(this.kind, this.artistUuid, this.venueId);
   }
 
-  fetchFromApi(
-    api: RelistenApiClient,
-    forcedRefresh: boolean
-  ): Promise<RelistenApiResponse<VenueWithShows>> {
-    if (!this.useV4) {
-      return api.venue(this.artistUuid!, this.venueId, api.refreshOptions(forcedRefresh));
-    }
+  createLocalUpdatingResults(): ValueStream<CatalogQueryState | null> {
+    return new RealmObjectValueStream(this.realm, CatalogQueryState, this.queryKey);
+  }
 
+  async fetchFromApi(api: RelistenApiClient, _force: boolean, etag?: string) {
+    await ensureCatalogArtist(this.realm, api, this.artistUuid);
     switch (this.kind) {
       case 'artist_venue':
-        return api.refreshV4ArtistVenue(this.artistUuid!, this.venueId, forcedRefresh);
+        return api.artistVenue(this.artistUuid!, this.venueId, { etag });
       case 'imported_venue':
-        return api.refreshV4ImportedVenue(this.artistUuid!, this.venueId, forcedRefresh);
+        return api.importedVenue(this.venueId, { etag });
       case 'venue':
-        return api.refreshV4Venue(this.venueId, forcedRefresh);
+        return api.venue(this.venueId, { etag });
     }
   }
 
-  isLocalDataShowable(localData: VenueDetailLocalData): boolean {
-    if (this.useV4) return localData.queryState?.hasAppliedData === true;
-
-    return localData.legacy?.venue !== null && (localData.legacy?.shows.length ?? 0) > 0;
+  isLocalDataShowable(state: CatalogQueryState | null) {
+    return state?.hasAppliedData === true;
   }
 
-  override upsert(localData: VenueDetailLocalData, apiData: VenueWithShows): void {
-    if (this.useV4) return;
+  hasLocalData(_state: CatalogQueryState | null, resultIds: Iterable<string>) {
+    switch (this.kind) {
+      case 'artist_venue':
+        return hasV4ArtistVenue(this.realm, this.artistUuid!, resultIds);
+      case 'imported_venue':
+        return hasV4ImportedVenue(this.realm, this.artistUuid!, resultIds);
+      case 'venue':
+        return hasV4Venue(this.realm, resultIds);
+    }
+  }
 
-    const legacy = localData.legacy;
-    if (!legacy?.shows.isValid()) return;
+  upsert(_state: CatalogQueryState | null, resource: VenueDetailResource) {
+    if (this.kind === 'artist_venue' && 'venue' in resource) {
+      return applyV4ArtistVenue(this.realm, this.artistUuid!, resource);
+    }
 
-    this.realm.write(() => {
-      upsertShowList(this.realm, apiData.shows, legacy.shows, {
-        performDeletes: false,
-        queryForModel: true,
-        upsertModels: { venues: true },
-      });
-      venueRepo.upsert(this.realm, apiData, legacy.venue ?? undefined, true);
-    });
+    if (
+      this.kind === 'imported_venue' &&
+      'upstream_identifier' in resource &&
+      resource.id === encodeV4UuidCatalogId(this.venueId, 'imported_venue')
+    ) {
+      return applyV4ImportedVenue(this.realm, this.artistUuid!, resource);
+    }
+
+    if (this.kind === 'venue' && 'global_show_count' in resource) {
+      return applyV4Venue(this.realm, resource);
+    }
+
+    throw new Error('Unexpected venue detail identity or kind.');
   }
 }
 
@@ -249,8 +225,6 @@ function useVenueDetail(
   kind: VenueDetailKind
 ): NetworkBackedResults<VenueShows> {
   const realm = useRealm();
-  const { apiClient } = useRelistenApi();
-  const useV4 = apiClient.usesV4Catalog();
   const artistVenues = useQuery(
     ArtistVenue,
     (query) => (artistUuid ? query.filtered('artistUuid == $0', artistUuid) : query),
@@ -268,15 +242,14 @@ function useVenueDetail(
     [artistUuid]
   );
   const behavior = useMemo(
-    () => new VenueShowsNetworkBackedBehavior(realm, useV4, kind, artistUuid, venueId),
-    [artistUuid, kind, realm, useV4, venueId]
+    () => new VenueShowsNetworkBackedBehavior(realm, kind, artistUuid, venueId),
+    [artistUuid, kind, realm, venueId]
   );
   const results = useNetworkBackedBehavior(behavior);
   const data = projectVenueDetail(
-    useV4,
     kind,
     venueId,
-    results.data.queryState,
+    results.data,
     [...artistVenues],
     [...importedVenues],
     [...normalizedVenues],

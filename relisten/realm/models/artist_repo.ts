@@ -1,70 +1,82 @@
-import Realm from 'realm';
 import { RelistenApiClient } from '@/relisten/api/client';
+import type { V4ArtistResource } from '@/relisten/api/v4/wire_types';
 import {
   NetworkBackedBehaviorFetchStrategy,
   NetworkBackedBehaviorOptions,
 } from '@/relisten/realm/network_backed_behavior';
+import { applyV4ArtistList } from '@/relisten/realm/v4_catalog_apply';
 import { useMemo } from 'react';
+import Realm from 'realm';
 import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
 import { NetworkBackedResults } from '../network_backed_results';
-import { Repository } from '../repository';
 import { useQuery, useRealm } from '../schema';
-import { Artist, ArtistFeaturedFlags, ArtistRequiredProperties } from './artist';
-import { ArtistWithCounts } from '@/relisten/api/models/artist';
+import { Artist, ArtistFeaturedFlags } from './artist';
 
+import { NetworkBackedBehavior } from '@/relisten/realm/network_backed_behavior';
+import { useFavoriteCatalogUuids } from '@/relisten/realm/root_services';
+import { RealmQueryValueStream, ValueStream } from '@/relisten/realm/value_streams';
 import { useGroupSegment, useIsOfflineTab } from '@/relisten/util/routes';
 import { filterForUser, useRealmTabsFilter } from '../realm_filters';
 import { Show } from './show';
 import { Source } from './source';
-import { NetworkBackedModelArrayBehavior } from '@/relisten/realm/network_backed_model_array_behavior';
-import { RealmQueryValueStream, ValueStream } from '@/relisten/realm/value_streams';
-import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_network_backed_behavior';
-import { attachArtistsToExistingShows } from '@/relisten/realm/models/show_artist_relationships';
-import { useFavoriteCatalogUuids } from '@/relisten/realm/root_services';
 
-export const artistRepo = new Repository(Artist);
-
-class ArtistsNetworkBackedBehavior extends NetworkBackedModelArrayBehavior<
-  Artist,
-  ArtistWithCounts,
-  ArtistRequiredProperties,
-  object
+export class ArtistsNetworkBackedBehavior extends NetworkBackedBehavior<
+  Realm.Results<Artist>,
+  V4ArtistResource[]
 > {
-  constructor(
-    realm: Realm.Realm,
-    private readonly responseIncludesAutomaticallyCreated: boolean,
-    fetchFromRealm: (realm: Realm.Realm) => Realm.Results<Artist>,
-    options?: NetworkBackedBehaviorOptions
-  ) {
-    super(
-      realm,
-      artistRepo,
-      fetchFromRealm,
-      (api, forcedRefresh) =>
-        api.usesV4Catalog()
-          ? api.refreshV4Artists(forcedRefresh)
-          : api.artists(responseIncludesAutomaticallyCreated, api.refreshOptions(forcedRefresh)),
-      options
-    );
+  get queryKey() {
+    return 'GET /artists?include_autocreated=true';
   }
 
-  override upsert(localData: Realm.Results<Artist>, apiData: ArtistWithCounts[]): void {
-    this.realm.write(() => {
-      // The filtered artists endpoint intentionally omits auto-created artists. Do not treat that
-      // omission as a catalog deletion; the endpoint is authoritative only for its visible slice.
-      const authoritativeLocalData = this.responseIncludesAutomaticallyCreated
-        ? localData
-        : localData.filtered(`featured != ${ArtistFeaturedFlags.AutoCreated}`);
-      const { allModels } = artistRepo.upsertMultiple(
-        this.realm,
-        apiData,
-        authoritativeLocalData,
-        true,
-        true
-      );
+  constructor(
+    realm: Realm,
+    private readonly localQuery: (realm: Realm) => Realm.Results<Artist>,
+    options?: NetworkBackedBehaviorOptions
+  ) {
+    super(realm, options);
+  }
 
-      attachArtistsToExistingShows(this.realm, allModels);
+  createLocalUpdatingResults() {
+    return new RealmQueryValueStream(this.realm, this.localQuery(this.realm));
+  }
+
+  fetchFromApi(api: RelistenApiClient, _force: boolean, etag?: string) {
+    return api.artists({ etag });
+  }
+
+  isLocalDataShowable(data: Realm.Results<Artist>) {
+    return data.length > 0;
+  }
+
+  hasLocalData(_data: Realm.Results<Artist>, ids: Iterable<string>) {
+    return [...ids].every((id) => {
+      const artist = this.realm.objectForPrimaryKey(Artist, id);
+      return artist != null && artist.deletedAt == null;
     });
+  }
+
+  upsert(_data: Realm.Results<Artist>, resources: V4ArtistResource[]) {
+    return applyV4ArtistList(this.realm, resources);
+  }
+}
+
+/** Child repositories bootstrap only when their required artist is absent. */
+export async function ensureCatalogArtist(
+  realm: Realm,
+  api: RelistenApiClient,
+  artistUuid?: string
+) {
+  const artist = artistUuid ? realm.objectForPrimaryKey(Artist, artistUuid) : null;
+  if (artist && artist.deletedAt == null) {
+    return;
+  }
+  const behavior = new ArtistsNetworkBackedBehavior(realm, (r) => r.objects(Artist));
+  const executor = behavior.sharedExecutor(api);
+  await executor.refresh(false);
+  const errors = executor.currentResults().errors;
+  executor.tearDown();
+  if (errors?.length) {
+    throw errors[0].error ?? new Error(errors[0].message);
   }
 }
 
@@ -78,14 +90,12 @@ export interface ArtistMetadataSummary {
 export function artistsNetworkBackedBehavior(
   realm: Realm.Realm,
   availableOfflineOnly: boolean,
-  includeAutomaticallyCreated: boolean,
   includeDeleted: boolean,
   automaticallyCreatedVisibility: AutomaticallyCreatedArtistVisibility,
   options?: NetworkBackedBehaviorOptions
 ) {
   return new ArtistsNetworkBackedBehavior(
     realm,
-    includeAutomaticallyCreated,
     (realm) => {
       let catalogArtists = realm.objects<Artist>(Artist);
       if (!includeDeleted) {
@@ -118,7 +128,6 @@ export function useArtists(options?: NetworkBackedBehaviorOptions) {
     return artistsNetworkBackedBehavior(
       realm,
       isOfflineTab,
-      false,
       includeDeleted,
       favoriteArtistUuids,
       options
@@ -132,7 +141,7 @@ export function useAllArtists(options?: NetworkBackedBehaviorOptions) {
   const realm = useRealm();
 
   const behavior = useMemo(() => {
-    return artistsNetworkBackedBehavior(realm, false, true, false, 'all', options);
+    return artistsNetworkBackedBehavior(realm, false, false, 'all', options);
   }, [realm, options]);
 
   return useNetworkBackedBehavior(behavior);
@@ -140,7 +149,9 @@ export function useAllArtists(options?: NetworkBackedBehaviorOptions) {
 
 class SingleArtistValueStream extends ValueStream<Artist | null> {
   public currentValue: Artist | null;
+
   private readonly resultsStream: RealmQueryValueStream<Artist>;
+
   private readonly tearDownResultsListener: () => void;
 
   constructor(realm: Realm.Realm, query: Realm.Results<Artist>) {
@@ -165,13 +176,17 @@ class SingleArtistValueStream extends ValueStream<Artist | null> {
   }
 }
 
-class ArtistBootstrapNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
+class ArtistBootstrapNetworkBackedBehavior extends NetworkBackedBehavior<
   Artist | null,
-  ArtistWithCounts[]
+  V4ArtistResource[]
 > {
+  get queryKey() {
+    return 'GET /artists?include_autocreated=true';
+  }
+
   constructor(
-    realm: Realm.Realm,
-    private readonly localQueryFactory: (realm: Realm.Realm) => Realm.Results<Artist>,
+    realm: Realm,
+    private readonly localQueryFactory: (realm: Realm) => Realm.Results<Artist>,
     options?: NetworkBackedBehaviorOptions
   ) {
     super(realm, {
@@ -180,32 +195,20 @@ class ArtistBootstrapNetworkBackedBehavior extends ThrottledNetworkBackedBehavio
     });
   }
 
-  override fetchFromApi(api: RelistenApiClient, forcedRefresh: boolean) {
-    if (api.usesV4Catalog()) {
-      return api.refreshV4Artists(forcedRefresh);
-    }
-
-    return api.artists(true, api.refreshOptions(forcedRefresh));
+  fetchFromApi(api: RelistenApiClient, _force: boolean, etag?: string) {
+    return api.artists({ etag });
   }
 
-  override createLocalUpdatingResults(): ValueStream<Artist | null> {
+  createLocalUpdatingResults(): ValueStream<Artist | null> {
     return new SingleArtistValueStream(this.realm, this.localQueryFactory(this.realm));
   }
 
-  override isLocalDataShowable(localData: Artist | null): boolean {
-    return localData !== null;
+  isLocalDataShowable(data: Artist | null) {
+    return data !== null;
   }
 
-  override upsert(_localData: Artist | null, apiData: ArtistWithCounts[]): void {
-    if (apiData.length === 0) {
-      return;
-    }
-
-    this.realm.write(() => {
-      const { allModels } = artistRepo.upsertMultiple(this.realm, apiData, [], false, true);
-
-      attachArtistsToExistingShows(this.realm, allModels);
-    });
+  upsert(_data: Artist | null, resources: V4ArtistResource[]) {
+    return applyV4ArtistList(this.realm, resources);
   }
 }
 
