@@ -3,6 +3,25 @@
 This ExecPlan is a living document. Keep Progress, Surprises & Discoveries,
 Decision Log, and Outcomes & Retrospective current while the pilot is built.
 
+## Current implementation (November 4)
+
+The mobile catalog is v4-only. `RelistenApiClient` returns typed API resources;
+Realm repositories map them; the existing `NetworkBackedBehaviorExecutor` commits
+records, exact query membership and ETags together. The separate persistent v4
+client, coordinator, synthetic request cache and v3 repository branches are
+removed. The dated checkpoints below record the earlier pilot and do not
+re-enable those paths.
+
+Schema 18 is the final, unreleased v4 addition above account schema 17. Query state
+stores each canonical song's ordered show/file IDs once. `NormalizedSong` stores
+metadata only. Keep the schema 17 upgrade test; reinstall intermediate pilot
+simulator databases instead of adding migrations for schemas 18–20.
+
+Keep conditional GETs and the existing 15-minute freshness interval. A failed
+apply preserves old records and validator; reconnect retries it. An overlapping
+metadata correction invalidates the affected validator while retaining offline
+membership. No request body or duplicate membership list is cached in memory.
+
 ## Purpose / Big Picture
 
 The pilot must follow the app's existing browsing journey without downloading an
@@ -17,12 +36,11 @@ entries, playback history, favorites, and routes. Normalized venue, song, and
 track data remains additive and internal. Browsing and playback continue to show
 imported venue labels and track titles.
 
-A reviewer should be able to opt the development app into v4 and follow Artists
--> Grateful Dead -> years -> 1985 -> show -> source -> playable track. The same
-downloaded track must remain playable after an offline cold restart. V3 remains
-the release default. After accepting that checkpoint, the work now continues
-with on-demand venue and song destinations plus global canonical venue
-favorites; those screens must reuse the same endpoint-local ownership model.
+A reviewer should be able to run the development app and follow Artists ->
+Grateful Dead -> years -> show -> source -> playable track. The same downloaded
+track must remain playable after an offline cold restart. Venue and song details
+load on demand and share the same repositories and player. Older mobile releases
+keep using the server's existing v2/v3 APIs.
 
 ## Progress
 
@@ -257,22 +275,17 @@ The follow-on native pass established the completed feature behavior:
 The live RocketSim preview for this pass is
 `http://127.0.0.1:4996/?token=d34dd9d6ccc549b9999ccaa1ca4dfa76`.
 
-The catalog transport is selected once when `RelistenApiClient` is constructed.
-There is no runtime switch, reverse migration, or v4-to-v3 cache adapter. The
-remaining dual repository branches exist only while the unreleased pilot is
-opted in; after the one-way cutover, the v3 catalog branch can be deleted in a
-separate cleanup.
-
 ## Context and Orientation
 
-`relisten/api/client.ts` is the existing v2/v3 client and the bridge to the v4
-coordinator. V4 transport and route ownership live under `relisten/api/v4/`.
-`CatalogQueryState` stores the ETag, freshness timestamps, retry state, and
-ordered result UUIDs for one exact endpoint.
+`relisten/api/client.ts` performs HTTP requests and returns concrete v4 DTOs.
+`relisten/api/v4/catalog_transport.ts` handles HTTP/JSON and bodyless 304s.
+Repositories own DTO mapping in `v4_catalog_apply.ts`; they return ordered
+result IDs to the executor. `CatalogQueryState` stores those IDs, its ETag,
+freshness timestamps and retry state for one exact endpoint.
 
 `relisten/realm/models/artist_repo.ts`, `year_repo.ts`, and `show_repo.ts` feed
-the existing screens. The v4 branch of those repositories must update Realm;
-Realm streams then publish the result without a parallel repository family.
+the existing screens. These repositories update Realm; Realm streams publish
+the results. There is one catalog implementation.
 
 Imported artists, years, shows, venues, songs, sources, sets, and tracks use raw
 UUID string primary keys. `SourceTrackOfflineInfo`, `PlayerState`, and
@@ -300,9 +313,8 @@ The authoritative API loading rules are in the sibling checkout:
 4. Remove the diagnostic UTF-8 copy used only to calculate response body bytes.
    Keep download, parse, total, and apply timing where those measurements do not
    require copying the response.
-5. Point the existing years and selected-year repositories at their matching v4
-   routes. Leave v3 methods and DTOs unchanged for the pre-cutover release; do
-   not add a path back to them after v4 is enabled.
+5. Point the existing repositories and remaining catalog callers at v4. Delete
+   the mobile v3 branch and transport switch after the one-way cutover.
 6. Prove route identity, endpoint-local replacement, atomic ETag apply, damaged
    cache recovery, imported identity preservation, and the absence of a
    `/catalog` request. Then repeat the real iPhone 17 browsing and playback
@@ -395,8 +407,7 @@ import, or run workers. Correction tests use disposable Realm files.
 
 Reopening the current Realm schema must preserve imported and personal objects.
 A failed v4 transaction keeps the prior ETag and complete graph, so the same
-endpoint can retry. The configuration can remain on v3 before cutover. Once v4
-is enabled, reverse transition to v3 is not a supported recovery path.
+endpoint can retry. Reverse transition to v3 is not a supported recovery path.
 
 No broad ETag invalidation, generic sync engine, EAS build, OTA, TestFlight,
 production mutation, force push, or PR is part of this plan.
@@ -422,11 +433,12 @@ memberships, and focused boundary tests. Keep conditional GETs, the 15-minute
 freshness interval, transactional application, retries, and overlap repair.
 
 Progress:
-- [ ] Remove duplicate NormalizedSong lists; consolidate the unreleased v4 schema as 18.
-- [ ] Make existing catalog repositories v4-only and wire remaining callers,
+
+- [x] Remove duplicate NormalizedSong lists; consolidate the unreleased v4 schema as 18 (`24992d6`).
+- [x] Make existing catalog repositories v4-only and wire remaining callers,
   including cold CarPlay, discovery, tours, date links, reviews and telemetry.
-- [ ] Replace route-only assertions with successful payload/application checks.
-- [ ] Verify migration, empty/offline membership, playback and source switching;
+- [x] Replace route-only assertions with successful payload/application checks.
+- [x] Verify migration, empty/offline membership, playback and source switching;
   run tests, TypeScript and lint, then review readability and simplicity.
 
 The query's ordered result IDs own membership. Shared records retain playback
@@ -435,7 +447,57 @@ eagerly load unrelated collections. The server's existing v2/v3 support remains
 for older releases. This work changes the mobile build; it does not deploy it.
 
 Alec clarified that v4 normalization storage has never shipped. Do not keep
-migrations for intermediate pilot schemas18–20. Schema18 is the single final v4
-addition above the account client's schema17. Keep the existing schema17 upgrade
+migrations for intermediate pilot schemas 18–20. Schema 18 is the single final v4
+addition above the account client's schema 17. Keep the existing schema 17 upgrade
 preservation test. Reinstall the retained simulator app if its pilot database
 uses an intermediate layout; no compatibility code is needed for that database.
+
+### November 4 verification and review
+
+The API client has no Realm dependency and returns concrete resource/list types.
+Repositories own mapping and prerequisite loads. Cold song recordings load their
+parent shows through the song repository; a warm reopening reuses both cached
+responses. Favorite metadata uses one resolver path for every target kind and
+applies shallow parents without replacing richer child lists or favorite state.
+Artists always request `include_autocreated=true`; local favorite/visibility
+rules control which rows a screen shows. The old response-completeness flag is
+therefore redundant. A payload-through-repository test protects both retention
+and visibility.
+
+Focused tests cover mixed venue/song routes, cold recording entry, overwritten
+tour metadata, empty detail, cold track favorites, shallow child retention,
+atomic failure/retry, 304 repair, freshness, coalescing and stale completions.
+All 47 test files / 314 tests passed, plus TypeScript and lint. The schema 17 upgrade
+preservation case remains; no intermediate-pilot migration was added. A separate
+temporary test applied real local API responses through the production client
+and repositories, including a merged venue, cold song recordings and 304. No
+new shipping benchmark or fixture framework was added.
+
+The retained iPhone 17 loaded artist/year/show/source screens, played and paused
+imported tracks, switched sources and loaded real reviews. A downloaded Tune Up
+file passed MD5 validation. Against an unreachable catalog origin, a cold restart
+restored it stopped at 11.58 seconds; explicit Play used the UUID-named local MP3
+and advanced its checkpoint to 37.18 seconds. The Offline tab retained one show
+and one tape. The simulator radio stayed enabled; the file URL and unreachable
+catalog isolate this proof. Normal review origin was restored afterward.
+
+Native verification also caught two React Compiler restrictions missed by
+TypeScript; both were corrected. An initial October 15 debug artifact lacked the
+current playback-snapshot protocol. Rebuilding the existing app fixed that
+mismatch without compatibility code. The retained simulator was reinstalled as
+authorized; no other simulator was changed.
+
+Implementation: `24992d6` removes duplicate membership; `943bd36` restores typed
+HTTP results and repository ownership, completes mobile v4 routing and deletes
+obsolete code. Native evidence is in `/tmp/v4-cutover-online-proof.log` and
+`/tmp/v4-cutover-offline-metro.log`; screenshot:
+`/tmp/v4-cutover-offline-library.png`. The temporary real-API test lives under
+`/tmp/relisten-corrected-review/`. These local artifacts are review evidence,
+not a new shipping harness. CarPlay's bootstrap uses the same tested API/repo
+path; a connected CarPlay display was not exercised in this pass.
+
+Open contract decision: ordinary v4 artist/year resources omit popularity while
+the existing UI offers Popular/Trending sorts. A fresh install exposes this;
+retained legacy scores hid it. Alec is choosing between adding popularity to
+those resources and coordinating separate ranking reads on mobile. Do not claim
+the cutover is complete until that decision is implemented and verified.
