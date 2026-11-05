@@ -1,6 +1,7 @@
+import { detailRowUuids, orderedUuidRows, uuidRows } from '../../catalog_projection';
 import { Artist } from '../artist';
 import { RelistenApiClient } from '@/relisten/api/client';
-import { decodeV4UuidCatalogId, encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
+import { encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
 import type {
   V4ArtistVenueWithShowsResource,
   V4ImportedVenueWithShowsResource,
@@ -55,82 +56,6 @@ function venueDetailQueryKey(
     case 'venue':
       return `GET /venues/${venueId}`;
   }
-}
-
-function projectVenueDetail(
-  kind: VenueDetailKind,
-  venueId: string,
-  state: CatalogQueryState | null,
-  artistVenues: ReadonlyArray<ArtistVenue>,
-  importedVenues: ReadonlyArray<Venue>,
-  normalizedVenues: ReadonlyArray<NormalizedVenue>,
-  allShows: ReadonlyArray<Show>
-): VenueShows {
-  if (state?.hasAppliedData !== true || state.resultIds.length === 0) {
-    return { kind, shows: [], hasAppliedData: false };
-  }
-
-  const rootId = state.resultIds[0];
-  const showsById = new Map(allShows.map((show) => [show.uuid, show]));
-  const showIds = [...state.resultIds].slice(1);
-  const shows: Show[] = [];
-  let hasCompleteShowProjection = new Set(showIds).size === showIds.length;
-  for (const showId of showIds) {
-    let show: Show | undefined;
-    try {
-      show = showsById.get(decodeV4UuidCatalogId(showId, 'show'));
-    } catch {
-      hasCompleteShowProjection = false;
-      continue;
-    }
-
-    if (!show || show.deletedAt != null) {
-      hasCompleteShowProjection = false;
-      continue;
-    }
-    shows.push(show);
-  }
-
-  if (kind === 'artist_venue') {
-    const artistVenue = artistVenues.find((venue) => venue.id === rootId);
-    const hasCompleteProjection = hasCompleteShowProjection && artistVenue !== undefined;
-    return {
-      kind,
-      artistVenue,
-      normalizedVenue: artistVenue?.venue,
-      shows,
-      hasAppliedData: hasCompleteProjection,
-    };
-  }
-
-  if (kind === 'imported_venue') {
-    let importedVenueUuid: string | undefined;
-    try {
-      importedVenueUuid = decodeV4UuidCatalogId(rootId, 'imported_venue');
-    } catch {
-      // An incomplete cached projection must not hide a failed repair.
-    }
-    const importedVenue = importedVenues.find(
-      (venue) => venue.uuid === importedVenueUuid && venue.deletedAt == null
-    );
-    const hasCompleteProjection =
-      hasCompleteShowProjection && importedVenueUuid === venueId && importedVenue !== undefined;
-    return {
-      kind,
-      importedVenue,
-      shows,
-      hasAppliedData: hasCompleteProjection,
-    };
-  }
-
-  const normalizedVenue = normalizedVenues.find((venue) => venue.id === rootId);
-  const hasCompleteProjection = hasCompleteShowProjection && normalizedVenue !== undefined;
-  return {
-    kind,
-    normalizedVenue,
-    shows,
-    hasAppliedData: hasCompleteProjection,
-  };
 }
 
 export class VenueShowsNetworkBackedBehavior extends NetworkBackedBehavior<
@@ -216,36 +141,73 @@ function useVenueDetail(
   kind: VenueDetailKind
 ): NetworkBackedResults<VenueShows> {
   const realm = useRealm();
-  const artistVenues = useQuery(
-    ArtistVenue,
-    (query) => (artistUuid ? query.filtered('artistUuid == $0', artistUuid) : query),
-    [artistUuid]
-  );
-  const importedVenues = useQuery(
-    Venue,
-    (query) => (artistUuid ? query.filtered('artistUuid == $0', artistUuid) : query),
-    [artistUuid]
-  );
-  const normalizedVenues = useQuery(NormalizedVenue);
-  const shows = useQuery(
-    Show,
-    (query) => (artistUuid ? query.filtered('artistUuid == $0', artistUuid) : query),
-    [artistUuid]
-  );
   const behavior = useMemo(
     () => new VenueShowsNetworkBackedBehavior(realm, kind, artistUuid, venueId),
     [artistUuid, kind, realm, venueId]
   );
   const results = useNetworkBackedBehavior(behavior);
-  const data = projectVenueDetail(
-    kind,
-    venueId,
-    results.data,
-    [...artistVenues],
-    [...importedVenues],
-    [...normalizedVenues],
-    [...shows]
+  const rootId = results.data?.hasAppliedData ? results.data.resultIds[0] : undefined;
+  const artistVenues = useQuery(
+    ArtistVenue,
+    (query) => query.filtered('id == $0', kind === 'artist_venue' ? (rootId ?? '') : ''),
+    [kind, rootId]
   );
+  const artistVenue = artistVenues[0];
+  const importedVenues = useQuery(
+    Venue,
+    (query) =>
+      query.filtered(
+        'uuid == $0 AND deletedAt == nil',
+        kind === 'imported_venue' && rootId ? venueId : ''
+      ),
+    [kind, rootId, venueId]
+  );
+  const normalizedVenueId = kind === 'venue' ? rootId : artistVenue?.venueId;
+  const normalizedVenues = useQuery(
+    NormalizedVenue,
+    (query) => query.filtered('id == $0', normalizedVenueId ?? ''),
+    [normalizedVenueId]
+  );
+  const uuids = useMemo(() => detailRowUuids(results.data, 'show'), [results.data]);
+  const shows = useQuery(
+    Show,
+    (query) => {
+      const selected = uuidRows(query, uuids);
+      return artistUuid ? selected.filtered('artistUuid == $0', artistUuid) : selected;
+    },
+    [artistUuid, uuids]
+  );
+  const data = useMemo<VenueShows>(() => {
+    const ordered = orderedUuidRows(shows, uuids);
+    const hasAppliedData =
+      results.data?.hasAppliedData === true && ordered.length === results.data.resultIds.length - 1;
+    const importedVenue = importedVenues[0];
+    const normalizedVenue = normalizedVenues[0];
+    switch (kind) {
+      case 'artist_venue':
+        return {
+          kind,
+          artistVenue,
+          normalizedVenue,
+          shows: ordered,
+          hasAppliedData: hasAppliedData && artistVenue !== undefined,
+        };
+      case 'imported_venue':
+        return {
+          kind,
+          importedVenue,
+          shows: ordered,
+          hasAppliedData: hasAppliedData && importedVenue !== undefined,
+        };
+      case 'venue':
+        return {
+          kind,
+          normalizedVenue,
+          shows: ordered,
+          hasAppliedData: hasAppliedData && normalizedVenue !== undefined,
+        };
+    }
+  }, [artistVenue, importedVenues, kind, normalizedVenues, results.data, shows, uuids]);
 
   return { ...results, data };
 }

@@ -1,3 +1,4 @@
+import { indexRows, uuidRows } from '../catalog_projection';
 import { Artist } from './artist';
 import type { RelistenApiClient } from '@/relisten/api/client';
 import { decodeV4UuidCatalogId, encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
@@ -28,29 +29,31 @@ function artistSongsQueryKey(artistUuid: string) {
 
 function projectArtistSongBrowseItems(
   state: CatalogQueryState | null,
-  normalizedSongs: Iterable<NormalizedSong>,
-  importedSongs: Iterable<Song>
+  keys: readonly string[],
+  normalizedSongs: ArrayLike<NormalizedSong>,
+  importedSongs: ArrayLike<Song>
 ): ArtistSongBrowseItem[] {
   if (state?.hasAppliedData !== true) {
     return [];
   }
-
-  const normalizedById = new Map(Array.from(normalizedSongs, (song) => [song.id, song]));
-  const importedByUuid = new Map(Array.from(importedSongs, (song) => [song.uuid, song]));
-
-  return [...state.resultIds].flatMap((id): ArtistSongBrowseItem[] => {
+  const normalizedById = indexRows(normalizedSongs, (song) => song.id);
+  const importedByUuid = indexRows(importedSongs, (song) => song.uuid);
+  const items: ArtistSongBrowseItem[] = [];
+  for (let index = 0; index < keys.length; index += 1) {
+    const id = state.resultIds[index];
     if (id.startsWith('song_')) {
-      const song = normalizedById.get(id);
-      return song ? [{ uuid: id, routeId: id, kind: 'song', song }] : [];
+      const song = normalizedById.get(keys[index]);
+      if (song) {
+        items.push({ uuid: id, routeId: id, kind: 'song', song });
+      }
+    } else if (id.startsWith('imported_song_')) {
+      const song = importedByUuid.get(keys[index]);
+      if (song) {
+        items.push({ uuid: id, routeId: song.uuid, kind: 'imported_song', song });
+      }
     }
-
-    if (id.startsWith('imported_song_')) {
-      const song = importedByUuid.get(decodeV4UuidCatalogId(id, 'imported_song'));
-      return song ? [{ uuid: id, routeId: song.uuid, kind: 'imported_song', song }] : [];
-    }
-
-    return [];
-  });
+  }
+  return items;
 }
 
 export class ArtistSongsNetworkBackedBehavior extends NetworkBackedBehavior<
@@ -93,24 +96,37 @@ export class ArtistSongsNetworkBackedBehavior extends NetworkBackedBehavior<
 
 export function useSongs(artistUuid: string, options?: NetworkBackedBehaviorOptions) {
   const realm = useRealm();
-  const normalizedSongs = useQuery(
-    NormalizedSong,
-    (query) => query.filtered('artistUuid == $0', artistUuid),
-    [artistUuid]
-  );
-  const importedSongs = useQuery(
-    Song,
-    (query) => query.filtered('artistUuid == $0 && deletedAt == nil', artistUuid),
-    [artistUuid]
-  );
   const behavior = useMemo(
     () => new ArtistSongsNetworkBackedBehavior(realm, artistUuid, options),
     [artistUuid, options, realm]
   );
   const results = useNetworkBackedBehavior(behavior);
+  const keys = useMemo(() => {
+    const keys: string[] = [];
+    if (results.data?.hasAppliedData) {
+      const ids = results.data.resultIds;
+      for (let index = 0; index < ids.length; index += 1) {
+        const id = ids[index];
+        keys.push(
+          id.startsWith('imported_song_') ? decodeV4UuidCatalogId(id, 'imported_song') : id
+        );
+      }
+    }
+    return keys;
+  }, [results.data]);
+  const normalizedSongs = useQuery(
+    NormalizedSong,
+    (query) => query.filtered('id IN $0 AND artistUuid == $1', keys, artistUuid),
+    [artistUuid, keys]
+  );
+  const importedSongs = useQuery(
+    Song,
+    (query) => uuidRows(query, keys).filtered('artistUuid == $0', artistUuid),
+    [artistUuid, keys]
+  );
   const data = useMemo(
-    () => projectArtistSongBrowseItems(results.data, normalizedSongs, importedSongs),
-    [importedSongs, normalizedSongs, results.data]
+    () => projectArtistSongBrowseItems(results.data, keys, normalizedSongs, importedSongs),
+    [normalizedSongs, importedSongs, keys, results.data]
   );
 
   return useMemo(() => {
@@ -118,7 +134,6 @@ export function useSongs(artistUuid: string, options?: NetworkBackedBehaviorOpti
     const hasCompleteAppliedProjection =
       results.data?.hasAppliedData === true &&
       resultIds !== undefined &&
-      new Set(resultIds).size === resultIds.length &&
       data.length === resultIds.length;
 
     return {

@@ -1,6 +1,6 @@
+import { detailRowUuids, orderedUuidRows, uuidRows } from '../catalog_projection';
 import { Artist } from './artist';
 import type { RelistenApiClient } from '@/relisten/api/client';
-import { decodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
 import {
   NetworkBackedBehavior,
   NetworkBackedBehaviorOptions,
@@ -27,44 +27,6 @@ export interface SongTracks {
 
 function songTracksQueryKey(songId: string) {
   return `GET /songs/${songId}/tracks`;
-}
-
-function projectSongTracks(
-  state: CatalogQueryState | null,
-  normalizedSongs: Iterable<NormalizedSong>,
-  allTracks: Iterable<SourceTrack>
-): SongTracks {
-  if (state?.hasAppliedData !== true || state.resultIds.length === 0) {
-    return { song: null, tracks: [], hasAppliedData: false };
-  }
-
-  const song =
-    Array.from(normalizedSongs).find((candidate) => candidate.id === state.resultIds[0]) ?? null;
-  const tracksByUuid = new Map(Array.from(allTracks, (track) => [track.uuid, track]));
-  const trackIds = [...state.resultIds].slice(1);
-  const tracks: SourceTrack[] = [];
-  let hasCompleteTrackProjection = new Set(trackIds).size === trackIds.length;
-  for (const trackId of trackIds) {
-    let track: SourceTrack | undefined;
-    try {
-      track = tracksByUuid.get(decodeV4UuidCatalogId(trackId, 'track'));
-    } catch {
-      hasCompleteTrackProjection = false;
-      continue;
-    }
-
-    if (!track || track.deletedAt != null) {
-      hasCompleteTrackProjection = false;
-      continue;
-    }
-    tracks.push(track);
-  }
-
-  return {
-    song,
-    tracks,
-    hasAppliedData: hasCompleteTrackProjection && song !== null,
-  };
 }
 
 export class SongTracksNetworkBackedBehavior extends NetworkBackedBehavior<
@@ -137,22 +99,33 @@ export function useSongTracks(
   options?: NetworkBackedBehaviorOptions
 ) {
   const realm = useRealm();
-  const normalizedSongs = useQuery(
-    NormalizedSong,
-    (query) => query.filtered('artistUuid == $0', artistUuid),
-    [artistUuid]
-  );
-  const tracks = useQuery(
-    SourceTrack,
-    (query) => query.filtered('artistUuid == $0 && deletedAt == nil', artistUuid),
-    [artistUuid]
-  );
   const behavior = useMemo(
     () => new SongTracksNetworkBackedBehavior(realm, artistUuid, songId, options),
     [artistUuid, options, realm, songId]
   );
   const results = useNetworkBackedBehavior(behavior);
-  const data = projectSongTracks(results.data, normalizedSongs, tracks);
+  const rootId = results.data?.hasAppliedData ? results.data.resultIds[0] : undefined;
+  const songs = useQuery(NormalizedSong, (query) => query.filtered('id == $0', rootId ?? ''), [
+    rootId,
+  ]);
+  const uuids = useMemo(() => detailRowUuids(results.data, 'track'), [results.data]);
+  const tracks = useQuery(
+    SourceTrack,
+    (query) => uuidRows(query, uuids).filtered('artistUuid == $0', artistUuid),
+    [artistUuid, uuids]
+  );
+  const data = useMemo<SongTracks>(() => {
+    const ordered = orderedUuidRows(tracks, uuids);
+    const song = songs[0] ?? null;
+    return {
+      song,
+      tracks: ordered,
+      hasAppliedData:
+        results.data?.hasAppliedData === true &&
+        song !== null &&
+        ordered.length === results.data.resultIds.length - 1,
+    };
+  }, [results.data, songs, tracks, uuids]);
 
   return { ...results, data };
 }

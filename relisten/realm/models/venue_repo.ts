@@ -1,3 +1,4 @@
+import { indexRows, uuidRows } from '../catalog_projection';
 import { Artist } from './artist';
 import type { RelistenApiClient } from '@/relisten/api/client';
 import { decodeV4UuidCatalogId, encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
@@ -27,31 +28,31 @@ function artistVenuesQueryKey(artistUuid: string) {
 
 function projectArtistVenueBrowseItems(
   state: CatalogQueryState | null,
-  artistVenues: ReadonlyArray<ArtistVenue>,
-  importedVenues: ReadonlyArray<Venue>
+  keys: readonly string[],
+  artistVenues: ArrayLike<ArtistVenue>,
+  importedVenues: ArrayLike<Venue>
 ): ArtistVenueBrowseItem[] {
   if (state?.hasAppliedData !== true) {
     return [];
   }
-
-  const artistVenuesById = new Map(artistVenues.map((venue) => [venue.id, venue]));
-  const importedVenuesById = new Map(importedVenues.map((venue) => [venue.uuid, venue]));
-
-  return [...state.resultIds].flatMap((resultId): ArtistVenueBrowseItem[] => {
-    if (resultId.startsWith('artist_venue_')) {
-      const artistVenue = artistVenuesById.get(resultId);
-      return artistVenue ? [{ uuid: resultId, kind: 'artist_venue', artistVenue }] : [];
+  const artistVenuesById = indexRows(artistVenues, (venue) => venue.id);
+  const importedVenuesById = indexRows(importedVenues, (venue) => venue.uuid);
+  const items: ArtistVenueBrowseItem[] = [];
+  for (let index = 0; index < keys.length; index += 1) {
+    const id = state.resultIds[index];
+    if (id.startsWith('artist_venue_')) {
+      const artistVenue = artistVenuesById.get(keys[index]);
+      if (artistVenue) {
+        items.push({ uuid: id, kind: 'artist_venue', artistVenue });
+      }
+    } else if (id.startsWith('imported_venue_')) {
+      const importedVenue = importedVenuesById.get(keys[index]);
+      if (importedVenue) {
+        items.push({ uuid: id, kind: 'imported_venue', importedVenue });
+      }
     }
-
-    if (resultId.startsWith('imported_venue_')) {
-      const importedVenue = importedVenuesById.get(
-        decodeV4UuidCatalogId(resultId, 'imported_venue')
-      );
-      return importedVenue ? [{ uuid: resultId, kind: 'imported_venue', importedVenue }] : [];
-    }
-
-    return [];
-  });
+  }
+  return items;
 }
 
 export class ArtistVenuesNetworkBackedBehavior extends NetworkBackedBehavior<
@@ -94,24 +95,37 @@ export class ArtistVenuesNetworkBackedBehavior extends NetworkBackedBehavior<
 
 export function useVenues(artistUuid: string, options?: NetworkBackedBehaviorOptions) {
   const realm = useRealm();
-  const artistVenues = useQuery(
-    ArtistVenue,
-    (query) => query.filtered('artistUuid == $0', artistUuid),
-    [artistUuid]
-  );
-  const importedVenues = useQuery(
-    Venue,
-    (query) => query.filtered('artistUuid == $0 && deletedAt == nil', artistUuid),
-    [artistUuid]
-  );
   const behavior = useMemo(
     () => new ArtistVenuesNetworkBackedBehavior(realm, artistUuid, options),
     [realm, artistUuid, options]
   );
   const results = useNetworkBackedBehavior(behavior);
+  const keys = useMemo(() => {
+    const keys: string[] = [];
+    if (results.data?.hasAppliedData) {
+      const ids = results.data.resultIds;
+      for (let index = 0; index < ids.length; index += 1) {
+        const id = ids[index];
+        keys.push(
+          id.startsWith('imported_venue_') ? decodeV4UuidCatalogId(id, 'imported_venue') : id
+        );
+      }
+    }
+    return keys;
+  }, [results.data]);
+  const artistVenues = useQuery(
+    ArtistVenue,
+    (query) => query.filtered('id IN $0 AND artistUuid == $1', keys, artistUuid),
+    [artistUuid, keys]
+  );
+  const importedVenues = useQuery(
+    Venue,
+    (query) => uuidRows(query, keys).filtered('artistUuid == $0', artistUuid),
+    [artistUuid, keys]
+  );
   const data = useMemo(
-    () => projectArtistVenueBrowseItems(results.data, [...artistVenues], [...importedVenues]),
-    [artistVenues, importedVenues, results.data]
+    () => projectArtistVenueBrowseItems(results.data, keys, artistVenues, importedVenues),
+    [artistVenues, importedVenues, keys, results.data]
   );
 
   return useMemo(() => {
@@ -119,7 +133,6 @@ export function useVenues(artistUuid: string, options?: NetworkBackedBehaviorOpt
     const hasCompleteAppliedProjection =
       results.data?.hasAppliedData === true &&
       resultIds !== undefined &&
-      new Set(resultIds).size === resultIds.length &&
       data.length === resultIds.length;
 
     return {

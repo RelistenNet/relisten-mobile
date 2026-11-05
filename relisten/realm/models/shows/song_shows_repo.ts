@@ -1,6 +1,7 @@
+import { detailRowUuids, orderedUuidRows, uuidRows } from '../../catalog_projection';
 import { Artist } from '../artist';
 import type { RelistenApiClient } from '@/relisten/api/client';
-import { decodeV4UuidCatalogId, encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
+import { encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
 import type {
   V4ImportedSongWithShowsResource,
   V4SongWithShowsResource,
@@ -35,67 +36,6 @@ function songDetailQueryKey(kind: SongCatalogKind, songId: string) {
   return kind === 'song'
     ? `GET /songs/${songId}`
     : `GET /imported-songs/${encodeV4UuidCatalogId(songId, 'imported_song')}`;
-}
-
-function projectSongShows(
-  kind: SongCatalogKind,
-  songId: string,
-  state: CatalogQueryState | null,
-  normalizedSongs: Iterable<NormalizedSong>,
-  importedSongs: Iterable<Song>,
-  allShows: Iterable<Show>
-): SongShows {
-  if (state?.hasAppliedData !== true || state.resultIds.length === 0) {
-    return kind === 'song'
-      ? { kind, song: null, shows: [], hasAppliedData: false }
-      : { kind, song: null, shows: [], hasAppliedData: false };
-  }
-
-  const rootId = state.resultIds[0];
-  const showsByUuid = new Map(Array.from(allShows, (show) => [show.uuid, show]));
-  const showIds = [...state.resultIds].slice(1);
-  const shows: Show[] = [];
-  let hasCompleteShowProjection = new Set(showIds).size === showIds.length;
-  for (const showId of showIds) {
-    let show: Show | undefined;
-    try {
-      show = showsByUuid.get(decodeV4UuidCatalogId(showId, 'show'));
-    } catch {
-      hasCompleteShowProjection = false;
-      continue;
-    }
-
-    if (!show || show.deletedAt != null) {
-      hasCompleteShowProjection = false;
-      continue;
-    }
-    shows.push(show);
-  }
-
-  if (kind === 'song') {
-    const song = Array.from(normalizedSongs).find((candidate) => candidate.id === rootId) ?? null;
-    return {
-      kind,
-      song,
-      shows,
-      hasAppliedData: hasCompleteShowProjection && song !== null,
-    };
-  }
-
-  let importedSongUuid: string | undefined;
-  try {
-    importedSongUuid = decodeV4UuidCatalogId(rootId, 'imported_song');
-  } catch {
-    // An incomplete cached projection must not hide a failed repair.
-  }
-  const song =
-    Array.from(importedSongs).find((candidate) => candidate.uuid === importedSongUuid) ?? null;
-  return {
-    kind,
-    song,
-    shows,
-    hasAppliedData: hasCompleteShowProjection && importedSongUuid === songId && song !== null,
-  };
 }
 
 export class SongShowsNetworkBackedBehavior extends NetworkBackedBehavior<
@@ -170,34 +110,53 @@ export function useSongShows(
 ): NetworkBackedResults<SongShows> {
   const realm = useRealm();
   const effectiveKind = kind ?? (songId.startsWith('song_') ? 'song' : 'imported_song');
-  const normalizedSongs = useQuery(
-    NormalizedSong,
-    (query) => query.filtered('artistUuid == $0', artistUuid),
-    [artistUuid]
-  );
-  const importedSongs = useQuery(
-    Song,
-    (query) => query.filtered('artistUuid == $0 && deletedAt == nil', artistUuid),
-    [artistUuid]
-  );
-  const shows = useQuery(
-    Show,
-    (query) => query.filtered('artistUuid == $0 && deletedAt == nil', artistUuid),
-    [artistUuid]
-  );
   const behavior = useMemo(
     () => new SongShowsNetworkBackedBehavior(realm, artistUuid, songId, effectiveKind),
     [artistUuid, effectiveKind, realm, songId]
   );
   const results = useNetworkBackedBehavior(behavior);
-  const data = projectSongShows(
-    effectiveKind,
-    songId,
-    results.data,
-    normalizedSongs,
-    importedSongs,
-    shows
+  const rootId = results.data?.hasAppliedData ? results.data.resultIds[0] : undefined;
+  const normalizedSongs = useQuery(
+    NormalizedSong,
+    (query) => query.filtered('id == $0', effectiveKind === 'song' ? (rootId ?? '') : ''),
+    [effectiveKind, rootId]
   );
+  const importedSongs = useQuery(
+    Song,
+    (query) =>
+      query.filtered(
+        'uuid == $0 AND deletedAt == nil',
+        effectiveKind === 'imported_song' && rootId ? songId : ''
+      ),
+    [effectiveKind, rootId, songId]
+  );
+  const uuids = useMemo(() => detailRowUuids(results.data, 'show'), [results.data]);
+  const shows = useQuery(
+    Show,
+    (query) => uuidRows(query, uuids).filtered('artistUuid == $0', artistUuid),
+    [artistUuid, uuids]
+  );
+  const data = useMemo<SongShows>(() => {
+    const ordered = orderedUuidRows(shows, uuids);
+    const hasAppliedData =
+      results.data?.hasAppliedData === true && ordered.length === results.data.resultIds.length - 1;
+    if (effectiveKind === 'song') {
+      const song = normalizedSongs[0] ?? null;
+      return {
+        kind: effectiveKind,
+        song,
+        shows: ordered,
+        hasAppliedData: hasAppliedData && song !== null,
+      };
+    }
+    const song = importedSongs[0] ?? null;
+    return {
+      kind: effectiveKind,
+      song,
+      shows: ordered,
+      hasAppliedData: hasAppliedData && song !== null,
+    };
+  }, [effectiveKind, importedSongs, normalizedSongs, results.data, shows, uuids]);
 
   return { ...results, data };
 }

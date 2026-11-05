@@ -100,6 +100,8 @@ import { ShowWithFullSourcesNetworkBackedBehavior } from './models/show_repo';
 import { SongShowsNetworkBackedBehavior } from './models/shows/song_shows_repo';
 import { VenueShowsNetworkBackedBehavior } from './models/shows/venue_shows_repo';
 import { SongTracksNetworkBackedBehavior } from './models/song_tracks_repo';
+import { detailRowUuids, orderedUuidRows, uuidRows } from './catalog_projection';
+import { MappedValueStream, RealmQueryValueStream } from './value_streams';
 import { ArtistVenuesNetworkBackedBehavior } from './models/venue_repo';
 import {
   YearShowsNetworkBackedBehavior,
@@ -1022,6 +1024,62 @@ describe('v4 catalog Realm apply', () => {
     }
   });
 
+  it('preserves multipart song references and corrections while reusing the owning song', () => {
+    const song = normalizedSongDetailResource();
+    const matching = normalization(song.name);
+    matching.parts[0].song = {
+      id: song.id,
+      artist_id: song.artist_id,
+      name: song.name,
+      kind: song.kind,
+    };
+    matching.parts.push({
+      ...matching.parts[0],
+      ordinal: 1,
+      song: { ...matching.parts[0].song, id: 'song_00000004', name: 'Other Song' },
+    });
+    const matchingTrack = trackResource({ trackNormalization: matching });
+    const correctedTrack = trackResource({
+      id: trackBId,
+      trackNormalization: normalization('Corrected Song', ['reprise']),
+    });
+
+    realm.write(() => {
+      seedArtistAndYear(realm);
+      applyV4Song(realm, artistUuid, { ...song, shows: [showSummaryResource()] });
+      applyV4SongTracks(realm, artistUuid, { ...song, tracks: [matchingTrack, correctedTrack] });
+    });
+
+    const storedSong = realm.objectForPrimaryKey(NormalizedSong, song.id)!;
+    expect(storedSong.name).toBe('Corrected Song');
+    expect(storedSong.kind).toBeNull();
+    expect([...storedSong.aliases]).toEqual(song.aliases);
+    expect(storedSong.slug).toBe(song.slug);
+    expect(realm.objectForPrimaryKey(NormalizedSong, 'song_00000004')?.name).toBe('Other Song');
+    expect(
+      realm
+        .objectForPrimaryKey(SourceTrack, trackAUuid)
+        ?.normalization?.parts.map((part) => part.song?.id)
+    ).toEqual([song.id, 'song_00000004']);
+
+    // Later references in the same response still own scalar corrections.
+    realm.write(() =>
+      applyV4SongTracks(realm, artistUuid, { ...song, tracks: [correctedTrack, matchingTrack] })
+    );
+    expect(storedSong.name).toBe(song.name);
+    expect(storedSong.kind).toBe(song.kind);
+    expect([...storedSong.aliases]).toEqual(song.aliases);
+    expect(realm.objectForPrimaryKey(SourceTrack, trackBUuid)?.updatedAt.toISOString()).toBe(
+      timestamp
+    );
+
+    matching.parts[0].song!.artist_id = encodeV4UuidCatalogId(otherArtistUuid, 'artist');
+    expect(() =>
+      realm.write(() => applyV4SongTracks(realm, artistUuid, { ...song, tracks: [matchingTrack] }))
+    ).toThrow(V4CatalogApplyError);
+    expect(storedSong.name).toBe(song.name);
+  });
+
   it('keeps warm song recordings cached and refreshes new show parents on manual refresh', async () => {
     realm.write(() => applyV4ArtistList(realm, [artistResource()]));
     const songId = 'song_00000003';
@@ -1114,6 +1172,80 @@ describe('v4 catalog Realm apply', () => {
     expect([songRequests, trackRequests]).toEqual([2, 2]);
     expect(realm.objectForPrimaryKey(SourceTrack, trackBUuid)?.show?.uuid).toBe(otherShowUuid);
     expect(realm.objectForPrimaryKey(NormalizedSong, songId)?.name).toBe('Canonical Song');
+  });
+
+  it('projects only ordered song results and observes requested row updates and tombstones', async () => {
+    const first = trackResource();
+    const second = trackResource({ id: trackBId, title: 'Second recording' });
+    const unrelated = trackResource({
+      id: trackCId,
+      trackNormalization: { state: 'unavailable', reason: 'not_interpreted', parts: [] },
+    });
+    realm.write(() => {
+      seedArtistAndYear(realm);
+      applyV4FullShow(
+        realm,
+        fullShowResource([
+          sourceResource(sourceAId, [
+            sourceSetResource(setAId, sourceAId, [first, second, unrelated]),
+          ]),
+        ])
+      );
+    });
+    let matches = [second, first];
+    const corrected = { ...second, title: 'Updated recording' };
+    const api = new RelistenApiClient({
+      transport: new CatalogV4Transport({
+        apiBase: 'https://catalog.test/api',
+        fetch: async (input) => {
+          const path = new URL(String(input)).pathname;
+          const payload = path.includes('/source-tracks/')
+            ? corrected
+            : path.endsWith('/tracks')
+              ? { ...normalizedSongDetailResource(), tracks: matches }
+              : { ...normalizedSongDetailResource(), shows: [showSummaryResource()] };
+          return new Response(JSON.stringify(payload), { headers: { etag: '"recordings"' } });
+        },
+      }),
+    });
+    const behavior = new SongTracksNetworkBackedBehavior(realm, artistUuid, 'song_00000003');
+    const executor = behavior.sharedExecutor(api);
+    executors.push(executor);
+    await executor.refresh();
+    expect(executor.currentResults().errors).toBeUndefined();
+    const state = realm.objectForPrimaryKey(CatalogQueryState, behavior.queryKey)!;
+    const uuids = detailRowUuids(state, 'track');
+    const rows = new RealmQueryValueStream(realm, uuidRows(realm.objects(SourceTrack), uuids));
+    const projection = new MappedValueStream(rows, (selected) => orderedUuidRows(selected, uuids));
+    executors.push(projection);
+    expect(rows.currentValue).toHaveLength(2);
+    expect(projection.currentValue.map((track) => track.uuid)).toEqual([trackBUuid, trackAUuid]);
+    expect(orderedUuidRows(rows.currentValue, uuids)[0]).toBe(projection.currentValue[0]);
+    expect(realm.objects(SourceTrack)).toHaveLength(3);
+    const titles: string[][] = [];
+    projection.addListener((tracks) => titles.push(tracks.map((track) => track.title)));
+
+    const response = await api.track(trackBUuid);
+    realm.write(() => applyV4Track(realm, response.data!));
+    await vi.waitFor(() => expect(titles).toContainEqual(['Updated recording', first.title]));
+    realm.write(() => {
+      realm.objectForPrimaryKey(SourceTrack, trackBUuid)!.deletedAt = new Date();
+    });
+    await vi.waitFor(() =>
+      expect(projection.currentValue.map((track) => track.uuid)).toEqual([trackAUuid])
+    );
+    realm.write(() => applyV4Track(realm, response.data!));
+    await vi.waitFor(() =>
+      expect(projection.currentValue.map((track) => track.uuid)).toEqual([trackBUuid, trackAUuid])
+    );
+
+    matches = [];
+    await executor.refresh(true);
+    expect(executor.currentResults().errors).toBeUndefined();
+    const empty = detailRowUuids(state, 'track');
+    expect(orderedUuidRows(uuidRows(realm.objects(SourceTrack), empty), empty)).toEqual([]);
+    expect(state.hasAppliedData).toBe(true);
+    expect(realm.objects(SourceTrack)).toHaveLength(3);
   });
 
   it('retains tour membership after inventory writes and caches a complete empty detail', async () => {
