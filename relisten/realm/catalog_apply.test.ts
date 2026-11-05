@@ -101,7 +101,7 @@ import { SongShowsNetworkBackedBehavior } from './models/shows/song_shows_repo';
 import { VenueShowsNetworkBackedBehavior } from './models/shows/venue_shows_repo';
 import { SongTracksNetworkBackedBehavior } from './models/song_tracks_repo';
 import { detailRowUuids, orderedUuidRows, uuidRows } from './catalog_projection';
-import { MappedValueStream, RealmQueryValueStream } from './value_streams';
+import { RealmQueryValueStream } from './value_streams';
 import { ArtistVenuesNetworkBackedBehavior } from './models/venue_repo';
 import {
   YearShowsNetworkBackedBehavior,
@@ -1216,14 +1216,17 @@ describe('catalog Realm apply', () => {
     const state = realm.objectForPrimaryKey(CatalogQueryState, behavior.queryKey)!;
     const uuids = detailRowUuids(state, 'track');
     const rows = new RealmQueryValueStream(realm, uuidRows(realm.objects(SourceTrack), uuids));
-    const projection = new MappedValueStream(rows, (selected) => orderedUuidRows(selected, uuids));
-    executors.push(projection);
-    expect(rows.currentValue).toHaveLength(2);
-    expect(projection.currentValue.map((track) => track.uuid)).toEqual([trackBUuid, trackAUuid]);
-    expect(orderedUuidRows(rows.currentValue, uuids)[0]).toBe(projection.currentValue[0]);
-    expect(realm.objects(SourceTrack)).toHaveLength(3);
+    executors.push(rows);
+    let projected: SourceTrack[] = [];
     const titles: string[][] = [];
-    projection.addListener((tracks) => titles.push(tracks.map((track) => track.title)));
+    rows.addListener((selected) => {
+      projected = orderedUuidRows(selected, uuids);
+      titles.push(projected.map((track) => track.title));
+    });
+    expect(rows.currentValue).toHaveLength(2);
+    expect(projected.map((track) => track.uuid)).toEqual([trackBUuid, trackAUuid]);
+    expect(orderedUuidRows(rows.currentValue, uuids)[0]).toBe(projected[0]);
+    expect(realm.objects(SourceTrack)).toHaveLength(3);
 
     const response = await api.track(trackBUuid);
     realm.write(() => applyTrack(realm, response.data!));
@@ -1231,12 +1234,10 @@ describe('catalog Realm apply', () => {
     realm.write(() => {
       realm.objectForPrimaryKey(SourceTrack, trackBUuid)!.deletedAt = new Date();
     });
-    await vi.waitFor(() =>
-      expect(projection.currentValue.map((track) => track.uuid)).toEqual([trackAUuid])
-    );
+    await vi.waitFor(() => expect(projected.map((track) => track.uuid)).toEqual([trackAUuid]));
     realm.write(() => applyTrack(realm, response.data!));
     await vi.waitFor(() =>
-      expect(projection.currentValue.map((track) => track.uuid)).toEqual([trackBUuid, trackAUuid])
+      expect(projected.map((track) => track.uuid)).toEqual([trackBUuid, trackAUuid])
     );
 
     matches = [];
