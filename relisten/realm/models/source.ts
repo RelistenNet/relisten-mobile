@@ -1,4 +1,3 @@
-import { FlacType, Link } from '../../api/models/source';
 import Realm from 'realm';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import { LegacyFavoriteMirror } from '../legacy_favorite_mirror';
@@ -8,6 +7,28 @@ import { Artist } from '@/relisten/realm/models/artist';
 import { duration } from '@/relisten/util/duration';
 import { checkIfOfflineSourceTrackExists } from '@/relisten/realm/realm_filters';
 import type { LibraryIndex } from '@/relisten/realm/library_index';
+
+/** Stored links use numeric upstream IDs or provider names, depending on their source format. */
+export interface Link {
+  created_at: string;
+  updated_at: string;
+  source_id: number | string;
+  upstream_source_id?: number;
+  provider?: string;
+  for_reviews: boolean;
+  for_ratings: boolean;
+  for_source: boolean;
+  url: string;
+  label: string;
+}
+
+export enum FlacType {
+  NoFlac = 'NoFlac',
+  Flac16Bit = 'Flac16Bit',
+  Flac24Bit = 'Flac24Bit',
+  NoPlayableFlac = 'NoPlayableFlac',
+  Unknown = 'Unknown',
+}
 
 export interface SourceRequiredProperties extends RelistenObjectRequiredProperties {
   artistUuid: string;

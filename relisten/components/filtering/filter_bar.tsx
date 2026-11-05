@@ -1,7 +1,7 @@
 import { PropsWithChildren, Ref, useEffect, useRef, useState } from 'react';
 import { ScrollView, TextInput, TextInputInstance, TouchableOpacity, View } from 'react-native';
 import { FilterBarButtons } from '@/relisten/components/filtering/filter_bar_buttons';
-import { RelistenObject } from '@/relisten/api/models/relisten';
+import type { RelistenObject } from '@/relisten/realm/relisten_object';
 import { FilterControl, useFilters } from '@/relisten/components/filtering/filters';
 import { MaterialIcons } from '@expo/vector-icons';
 
