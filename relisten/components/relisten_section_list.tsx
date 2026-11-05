@@ -98,9 +98,13 @@ export const RelistenSectionList = <T extends RelistenObject>({
             sectionKey,
             sectionTitle: section.sectionTitle,
           });
-          internalData.push(...section.data.map((rawItem) => ({ rawItem, keyPrefix: sectionKey })));
-        } else {
-          internalData.push(...section.data.map((rawItem) => ({ rawItem })));
+        }
+
+        const keyPrefix = section.sectionTitle
+          ? (section.sectionKey ?? section.sectionTitle)
+          : undefined;
+        for (const rawItem of section.data) {
+          internalData.push({ rawItem, keyPrefix });
         }
       }
     }

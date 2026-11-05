@@ -27,8 +27,7 @@ describe('CatalogV4Transport', () => {
     expect(new Headers(request!.headers).get('If-None-Match')).toBe('W/"catalog"');
   });
 
-  it('parses a direct response and records request timings', async () => {
-    const clocks = [10, 20, 24, 27];
+  it('parses a direct response without changing Unicode text', async () => {
     const transport = new CatalogV4Transport({
       apiBase: 'https://catalog.test/api',
       fetch: async () =>
@@ -36,18 +35,12 @@ describe('CatalogV4Transport', () => {
           status: 200,
           headers: { ETag: 'W/"artist"' },
         }),
-      now: () => clocks.shift()!,
     });
 
     await expect(transport.getJson<{ name: string }>('/artists/artist_id')).resolves.toEqual({
       status: 'ok',
       data: { name: 'Beyoncé' },
       etag: 'W/"artist"',
-      metrics: {
-        downloadMilliseconds: 4,
-        parseMilliseconds: 3,
-        totalMilliseconds: 17,
-      },
     });
   });
 

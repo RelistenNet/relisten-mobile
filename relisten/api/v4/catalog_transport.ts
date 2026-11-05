@@ -1,22 +1,14 @@
 import { catalogApiBase } from '@/relisten/api/catalog_config';
 
-export interface CatalogV4RequestMetrics {
-  downloadMilliseconds: number;
-  parseMilliseconds: number;
-  totalMilliseconds: number;
-}
-
 export interface CatalogV4Response<T> {
   status: 'ok';
   data: T;
   etag: string;
-  metrics: CatalogV4RequestMetrics;
 }
 
 export interface CatalogV4NotModifiedResponse {
   status: 'not_modified';
   etag: string;
-  metrics: CatalogV4RequestMetrics;
 }
 
 export type CatalogV4GetResponse<T> = CatalogV4Response<T> | CatalogV4NotModifiedResponse;
@@ -64,26 +56,16 @@ export type CatalogFetch = (input: string | URL | Request, init?: RequestInit) =
 export interface CatalogV4TransportOptions {
   apiBase?: string;
   fetch?: CatalogFetch;
-  now?: () => number;
 }
-
-const emptyMetrics = (totalMilliseconds: number): CatalogV4RequestMetrics => ({
-  downloadMilliseconds: 0,
-  parseMilliseconds: 0,
-  totalMilliseconds,
-});
 
 export class CatalogV4Transport {
   private readonly apiBase: string;
 
   private readonly fetch: CatalogFetch;
 
-  private readonly now: () => number;
-
   constructor(options: CatalogV4TransportOptions = {}) {
     this.apiBase = (options.apiBase ?? catalogApiBase()).replace(/\/$/, '');
     this.fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
-    this.now = options.now ?? (() => performance.now());
   }
 
   /** No-store endpoints and commands return their typed JSON without retaining it. */
@@ -117,7 +99,6 @@ export class CatalogV4Transport {
       headers.set('If-None-Match', appliedEtag);
     }
 
-    const startedAt = this.now();
     let response: Response;
     try {
       response = await this.fetch(url, { headers, method: 'GET' });
@@ -134,7 +115,6 @@ export class CatalogV4Transport {
       return {
         status: 'not_modified',
         etag,
-        metrics: emptyMetrics(this.now() - startedAt),
       };
     }
 
@@ -153,26 +133,18 @@ export class CatalogV4Transport {
       throw new CatalogV4ProtocolError('A successful v4 catalog response must include an ETag');
     }
 
-    const downloadStartedAt = this.now();
     const responseBody = await response.text();
-    const parseStartedAt = this.now();
     let data: T;
     try {
       data = JSON.parse(responseBody) as T;
     } catch (error) {
       throw new CatalogV4ParseError(url, { cause: error });
     }
-    const completedAt = this.now();
 
     return {
       status: 'ok',
       data,
       etag,
-      metrics: {
-        downloadMilliseconds: parseStartedAt - downloadStartedAt,
-        parseMilliseconds: completedAt - parseStartedAt,
-        totalMilliseconds: completedAt - startedAt,
-      },
     };
   }
 }
