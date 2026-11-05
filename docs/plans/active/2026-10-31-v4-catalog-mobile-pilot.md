@@ -3,7 +3,13 @@
 This ExecPlan is a living document. Keep Progress, Surprises & Discoveries,
 Decision Log, and Outcomes & Retrospective current while the pilot is built.
 
-## Current implementation (November 4)
+The planned replacement for offline upgrade and merged-favorite handling is in
+[Simplify offline upgrades and ongoing favorite merges](2026-11-05-offline-upgrade-favorite-simplification.md).
+It supersedes the schema-19/20 compatibility and HTTP cache-seeding decisions
+below. That simplification is planned; the current code still contains the
+uncommitted implementation described here.
+
+## Current implementation (November 5)
 
 The mobile catalog uses `/api/v4`. Internal code has one catalog: resources,
 transport and identity types live in `relisten/api/catalog/`; Realm mapping lives
@@ -14,10 +20,15 @@ client, coordinator, synthetic request cache and v3 repository branches are
 removed. The dated checkpoints below record the earlier pilot and do not
 re-enable those paths.
 
-Schema 18 is the final, unreleased v4 addition above account schema 17. Query state
-stores each canonical song's ordered show/file IDs once. `NormalizedSong` stores
-metadata only. Keep the schema 17 upgrade test; reinstall intermediate pilot
-simulator databases instead of adding migrations for schemas 18–20.
+Schema 18 added the catalog overlays above account schema 17. Schema 20 adds
+catalog-owned redirects and seeds retained v3 song/venue browse and detail query
+membership during migration. No timestamps or ETags are invented: the cache is
+usable offline and the next online read fetches a body. The local schema-19
+favorite-resolution experiment migrates into the catalog redirect table; favorite
+records, targets and sync remain unchanged. Disk-backed schema 17, 18 and 19
+upgrades preserve account, download, history and player state. Query state stores
+each canonical song's ordered show/file IDs once; `NormalizedSong` stores metadata
+only.
 
 Keep conditional GETs and the existing 15-minute freshness interval. Manual
 refresh fetches a body without an ETag. A failed apply preserves old records and
@@ -703,3 +714,67 @@ For that manual check: Grateful Dead -> Songs -> Drums -> Recordings. Confirm
 refresh. Also verify the existing Offline -> 1966 -> January 8 -> Tune Up journey
 retains its download. Keep the local API at port 43823 and the existing Metro
 server; no catalog-wide prefetch is required.
+
+
+### November 5: adversarial review fixes and Drums experiments
+
+Retained imported song/venue lists and cached detail destinations become ordinary
+query membership once during migration from v3. Repositories use their existing
+single projection path. The first online response replaces that membership,
+including empty results. No imported rows or downloads are deleted during upgrade.
+
+Missing-artist prerequisites share bootstrap work and recheck the required owner.
+Refresh generations fence error/loading publication as well as resource writes.
+GETs retry transient HTTP/network failures up to three times after the initial
+attempt, with backoff and Retry-After handling; playback POSTs remain single-attempt.
+
+Favorite hydration stores merge redirects in the catalog, independently of the
+account and favorite ID. The favorite projection associates saved targets with the
+surviving metadata; the UI submits ordinary favorite commands against those saved
+targets. `FavoriteRepository`, remote application and the favorite model have no
+redirect-specific behavior. My Venues displays/navigates to surviving metadata
+while preserving the saved favorite target. Redirects survive account changes and
+server favorite-ID reconciliation because they are separate catalog records.
+
+No Realm dependency patch ships. The show screen selects its fallback artist with
+`useQuery`, avoiding `useObject`'s eager inverse-track read. The offline availability
+projection uses the known track primary key instead of an inverse relationship,
+and still requires the track's offline link before counting it as playable. With
+16,198 retained Drums tracks and 1,000 synthetic completed downloads, five desktop
+lookup samples had median 4.05 ms through backlinks versus 1.56 ms by primary key
+(about 2.6x faster for that lookup). The records and returned IDs were identical.
+This isolates removed work; it does not establish an end-to-end native speedup.
+
+A plain recording-row experiment added roughly 58–75 ms to materialize all rows
+on desktop and did not demonstrate improved native responsiveness. It was discarded.
+A second prototype moved the display conversion to the screen boundary and kept
+Realm objects out of refresh props as well. A paired cached cold-entry smoke test
+showed no useful difference: count visible at 4.88 seconds with current rows and
+5.32 seconds with display rows; back navigation at 2.03 versus 1.98 seconds. These
+single runs do not establish a latency distribution. Both prototypes were discarded.
+
+A temporary getter trace attributed remaining inverse reads to React Native's
+development performance logger: `logComponentRender` ->
+`addObjectDiffToProperties` -> the `Artist.sourceTracks` getter. The logger recursively
+compares component props and evaluates enumerable Realm relationships. No React or
+Realm instrumentation changes remain. This accounts for observed development-mode
+work; the five fixes do not establish complete native performance qualification.
+
+Temporary payloads, experiment variants and samples remain under
+`/tmp/v4-fixes-perf/`; they are not shipping code. Full Drums interaction latency
+remains open. No pagination, production deployment or native project edits were
+made for these fixes.
+
+Validation after simplification: 326 tests passed across 46 files, `yarn ts:check`
+and `yarn lint` passed, and Expo exported the iOS Hermes bundle. Both independent
+review passes found no actionable issue in these changes.
+
+The real simulator Realm opened at schema 20 and retained its completed download.
+Startup logs show the original playback checkpoint restored at 13:05:30. At
+13:05:41 the queue was cleared and the active scope became anonymous, consistent
+with existing account-transition cleanup. The exact credential failure is not
+logged. The transition/restorer implementation is unchanged from
+`codex/ios-player-refinement`; ordinary offline/transient failures preserve the
+cached scope. Whether involuntary authentication loss should clear a public-media
+queue is a separate product-policy concern, not an established catalog migration
+regression. No account-policy changes were made.
