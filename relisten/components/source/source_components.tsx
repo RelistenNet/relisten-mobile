@@ -2,10 +2,9 @@ import { TouchableOpacity, TouchableOpacityProps, View, ViewProps } from 'react-
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { Link } from 'expo-router';
 import React, { PropsWithChildren, ReactNode } from 'react';
-import { Source } from '@/relisten/realm/models/source';
+import { Source, type Link as SLink } from '@/relisten/realm/models/source';
 import { useGroupSegment } from '@/relisten/util/routes';
 import dayjs from 'dayjs';
-import { Link as SLink } from '@/relisten/api/models/source';
 import { openBrowserAsync } from 'expo-web-browser';
 import { RelistenLink } from '@/relisten/components/relisten_link';
 import { tw } from '@/relisten/util/tw';
