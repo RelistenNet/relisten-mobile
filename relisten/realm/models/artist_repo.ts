@@ -57,23 +57,44 @@ export class ArtistsNetworkBackedBehavior extends NetworkBackedBehavior<
   }
 }
 
-/** Child repositories bootstrap only when their required artist is absent. */
+const artistBootstraps = new WeakMap<Realm, Promise<void>>();
+
+function refreshArtistList(realm: Realm, api: RelistenApiClient, force: boolean) {
+  const pending = artistBootstraps.get(realm);
+  if (pending) return pending;
+  const executor = new ArtistsNetworkBackedBehavior(realm, (r) => r.objects(Artist)).sharedExecutor(
+    api
+  );
+  const request = executor
+    .refresh(force)
+    .then(() => {
+      const error = executor.currentResults().errors?.[0];
+      if (error) throw error.error ?? new Error(error.message);
+    })
+    .finally(() => {
+      executor.tearDown();
+      artistBootstraps.delete(realm);
+    });
+  artistBootstraps.set(realm, request);
+  return request;
+}
+
+/** Child repositories share bootstrap work and never release a missing required owner. */
 export async function ensureCatalogArtist(
   realm: Realm,
   api: RelistenApiClient,
   artistUuid?: string
 ) {
-  const artist = artistUuid ? realm.objectForPrimaryKey(Artist, artistUuid) : null;
-  if (artist && artist.deletedAt == null) {
-    return;
-  }
-  const behavior = new ArtistsNetworkBackedBehavior(realm, (r) => r.objects(Artist));
-  const executor = behavior.sharedExecutor(api);
-  await executor.refresh(artistUuid !== undefined);
-  const errors = executor.currentResults().errors;
-  executor.tearDown();
-  if (errors?.length) {
-    throw errors[0].error ?? new Error(errors[0].message);
+  const hasArtist = () => {
+    const artist = artistUuid ? realm.objectForPrimaryKey(Artist, artistUuid) : null;
+    return artist !== null && artist.deletedAt == null;
+  };
+  if (hasArtist()) return;
+  await refreshArtistList(realm, api, false);
+  if (artistUuid && !hasArtist()) {
+    // A fresh inventory can lack an owner required by a later response.
+    await refreshArtistList(realm, api, true);
+    if (!hasArtist()) throw new Error(`Missing artist ${artistUuid} after catalog refresh.`);
   }
 }
 

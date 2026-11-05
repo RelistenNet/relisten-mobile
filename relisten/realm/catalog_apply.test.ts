@@ -53,7 +53,7 @@ import type {
 } from '@/relisten/api/catalog/resources';
 import { Artist } from '@/relisten/realm/models/artist';
 import { ArtistFeaturedFlags } from '@/relisten/realm/models/artist';
-import { artistsNetworkBackedBehavior } from './models/artist_repo';
+import { ensureCatalogArtist, artistsNetworkBackedBehavior } from './models/artist_repo';
 import { ArtistSongsNetworkBackedBehavior } from './models/song_repo';
 import {
   Popularity,
@@ -1846,5 +1846,32 @@ describe('catalog Realm apply', () => {
     expect(realm.objectForPrimaryKey(Show, showUuid)?.displayDate).toBe('2026-10-31');
     expect(realm.objectForPrimaryKey(SourceTrack, trackAUuid)?.title).toBe('Imported Track Title');
     expect(realm.objectForPrimaryKey(Source, sourceBUuid)).toBeNull();
+  });
+  it('shares cold artist prerequisites and applies dependent years after their owner', async () => {
+    let finish!: (response: Response) => void;
+    const fetch = vi.fn(async (input: string | URL | Request) => {
+      if (String(input).includes('/artists?'))
+        return new Promise<Response>((resolve) => {
+          finish = resolve;
+        });
+      return new Response(JSON.stringify([yearResource()]), { headers: { etag: '"years"' } });
+    });
+    const api = new RelistenApiClient({
+      transport: new CatalogTransport({ apiBase: 'https://catalog.test/api', fetch }),
+    });
+    const executor = yearsNetworkBackedModelArrayBehavior(
+      realm,
+      false,
+      artistUuid,
+      false
+    ).sharedExecutor(api);
+    executors.push(executor);
+    const years = executor.refresh();
+    const prerequisite = ensureCatalogArtist(realm, api, artistUuid);
+    finish(new Response(JSON.stringify([artistResource()]), { headers: { etag: '"artists"' } }));
+    await Promise.all([years, prerequisite]);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(executor.currentResults().errors).toBeUndefined();
+    expect(executor.currentResults().data[0].artistUuid).toBe(artistUuid);
   });
 });
