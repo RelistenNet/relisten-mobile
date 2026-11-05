@@ -13,6 +13,7 @@ import {
 } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Realm } from '@realm/react';
+import NetInfo from '@react-native-community/netinfo';
 
 import { RelistenApiProvider, useRelistenApi } from '@/relisten/api/context';
 import { prepareRealmForUse, RealmProvider, setRealm, useRealm } from '@/relisten/realm/schema';
@@ -55,6 +56,9 @@ import {
 import { PlaybackAccountTransitionEffects } from '@/relisten/player/playback_account_transition_effects';
 import { RelistenPlayer } from '@/relisten/player/relisten_player';
 import { createStartupPreparationRunner } from '@/relisten/realm/startup_preparation_runner';
+
+// Relisten uses connection type and isConnected, so HTTP reachability probes are unnecessary.
+NetInfo.configure({ reachabilityShouldRun: () => false });
 
 // c.f. https://github.com/meliorence/react-native-render-html/issues/661#issuecomment-2453476566
 LogBox.ignoreLogs([/Support for defaultProps will be removed/]);

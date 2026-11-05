@@ -1,18 +1,8 @@
-import Realm from 'realm';
-import { RelistenApiClient } from '@/relisten/api/client';
-import {
+import type { RelistenApiClient } from '@/relisten/api/client';
+import type {
   CatalogReferenceRequest,
-  CatalogResolveRequest,
   CatalogResolveResponse,
-} from '@/relisten/api/models/catalog_resolve';
-import {
-  FavoriteAccountScopeCapture,
-  FavoriteRepository,
-} from '@/relisten/library/favorite_repository';
-import {
-  catalogReferenceForFavoriteTarget,
-  favoriteTargetForCatalogReference,
-} from '@/relisten/library/favorite_catalog_target';
+} from '@/relisten/api/catalog/resolve';
 import { Artist } from '@/relisten/realm/models/artist';
 import { UserFavorite } from '@/relisten/realm/models/library';
 import { Show } from '@/relisten/realm/models/show';
@@ -20,16 +10,22 @@ import { Song } from '@/relisten/realm/models/song';
 import { Source } from '@/relisten/realm/models/source';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { Tour } from '@/relisten/realm/models/tour';
+import { NormalizedSong, NormalizedVenue } from '@/relisten/realm/models/catalog';
 import { Venue } from '@/relisten/realm/models/venue';
 import { Year } from '@/relisten/realm/models/year';
+import { applyResolvedEntities } from '@/relisten/realm/catalog_apply';
 import { log } from '@/relisten/util/logging';
+import {
+  catalogIdForFavoriteTarget,
+  isFavoriteTarget,
+  type FavoriteTarget,
+} from './favorite_catalog_target';
+import type { FavoriteAccountScopeCapture, FavoriteRepository } from './favorite_repository';
 
 const logger = log.extend('favorite-metadata');
 const MAX_REFERENCES_PER_REQUEST = 500;
 
-type CatalogEntityApplier = (realm: Realm, response: CatalogResolveResponse) => void;
-
-/** Best-effort catalog hydration for active favorites missing local metadata. */
+/** Hydrates catalog metadata without changing saved favorite membership. */
 export class FavoriteMetadataHydrator {
   constructor(
     private readonly repository: FavoriteRepository,
@@ -37,9 +33,11 @@ export class FavoriteMetadataHydrator {
   ) {}
 
   async hydrateMissing(capture: FavoriteAccountScopeCapture) {
-    const references = this.referencesNeedingMetadata(capture);
-    let applyCatalogEntities: CatalogEntityApplier | undefined;
+    if (!this.repository.isCaptureCurrent(capture)) {
+      return;
+    }
 
+    const references = this.referencesNeedingMetadata(capture);
     for (let offset = 0; offset < references.length; offset += MAX_REFERENCES_PER_REQUEST) {
       if (!this.repository.isCaptureCurrent(capture)) {
         return;
@@ -47,171 +45,136 @@ export class FavoriteMetadataHydrator {
 
       const batch = references
         .slice(offset, offset + MAX_REFERENCES_PER_REQUEST)
-        .filter((reference) => this.favoriteIsActive(capture, reference));
+        .filter(
+          (target) =>
+            this.repository.favoriteForTarget(capture.scopeId, target)?.effectivePresent === true
+        );
       if (batch.length === 0) {
-        continue;
-      }
-      const response = await this.catalogApi.resolveCatalogReferences(batch);
-      if (!response.data || response.error) {
-        logger.warn(`catalog resolver failed for ${batch.length} favorite references`);
         continue;
       }
 
       try {
-        // Catalog repositories also export React hooks that eventually depend
-        // on root services. Loading their applier after startup keeps that
-        // ordinary UI graph out of root-service module initialization.
-        applyCatalogEntities ??= (await import('@/relisten/library/favorite_catalog_applier'))
-          .applyResolvedCatalogEntities;
-        this.applyResponse(capture, batch, response.data, applyCatalogEntities);
+        const response = await this.catalogApi.resolveCatalogReferences(batch);
+        if (response.error || !response.data) {
+          throw response.error?.error ?? new Error('Catalog resolver request failed.');
+        }
+        validateResponse(batch, response.data);
+
+        // Resolver patches omit artists held in the shared list. Delay importing
+        // its hook-bearing module until root services have initialized.
+        const { ensureCatalogArtist } = await import('@/relisten/realm/models/artist_repo');
+        await ensureCatalogArtist(this.repository.realm, this.catalogApi);
+        if (!this.repository.isCaptureCurrent(capture)) {
+          return;
+        }
+
+        const entities = response.data.entities;
+        this.repository.realm.write(() => {
+          applyResolvedEntities(this.repository.realm, entities);
+        });
       } catch (error) {
-        // Membership and its sync cursor are already durable. Bad or unavailable
-        // catalog metadata must not roll either one back.
-        logger.warn(`catalog resolver response was not applied: ${errorName(error)}`);
+        // Membership and its sync cursor stay durable when metadata cannot load.
+        logger.warn(
+          `Catalog metadata was not applied: ${error instanceof Error ? error.name : 'unknown_error'}`
+        );
       }
     }
   }
 
   private referencesNeedingMetadata(capture: FavoriteAccountScopeCapture) {
-    if (!this.repository.isCaptureCurrent(capture)) {
-      return [];
-    }
-
     const references = new Map<string, CatalogReferenceRequest>();
     const favorites = this.repository.realm
       .objects(UserFavorite)
       .filtered('scopeId == $0 AND effectivePresent == true', capture.scopeId);
 
     for (const favorite of favorites) {
-      const reference = catalogReferenceForFavoriteTarget({
-        kind: favorite.targetKind,
-        id: favorite.targetId,
-      });
-      if (reference && !this.hasRequiredMetadata(reference)) {
-        references.set(targetKey(reference), reference);
+      const target = { kind: favorite.targetKind, id: favorite.targetId };
+      if (!this.hasMetadata(target)) {
+        references.set(`${target.kind}:${target.id}`, { ...target, scheme: 'v4' });
       }
     }
 
     return [...references.values()];
   }
 
-  private favoriteIsActive(
-    capture: FavoriteAccountScopeCapture,
-    reference: CatalogReferenceRequest
-  ) {
-    return (
-      this.repository.favoriteForTarget(
-        capture.scopeId,
-        favoriteTargetForCatalogReference(reference)
-      )?.effectivePresent === true
-    );
-  }
-
-  private applyResponse(
-    capture: FavoriteAccountScopeCapture,
-    request: CatalogResolveRequest['references'],
-    response: CatalogResolveResponse,
-    applyCatalogEntities: CatalogEntityApplier
-  ) {
-    if (!this.repository.isCaptureCurrent(capture)) {
-      return;
-    }
-    validateResponse(request, response);
-
+  private hasMetadata(target: FavoriteTarget): boolean {
     const realm = this.repository.realm;
-    realm.write(() => {
-      if (!this.repository.isCaptureCurrent(capture)) {
-        return;
+    const id = catalogIdForFavoriteTarget(target);
+    if (!id) {
+      return false;
+    }
+
+    switch (target.kind) {
+      case 'venue':
+        return realm.objectForPrimaryKey(NormalizedVenue, id) !== null;
+      case 'song': {
+        const song = realm.objectForPrimaryKey(NormalizedSong, id);
+        return song !== null && this.hasArtist(song.artistUuid);
       }
-
-      applyCatalogEntities(realm, response);
-    });
+      case 'artist':
+        return this.hasArtist(id);
+      case 'show':
+        return this.hasShow(id);
+      case 'source': {
+        const source = realm.objectForPrimaryKey(Source, id);
+        return isActive(source) && this.hasShow(source.showUuid);
+      }
+      case 'track': {
+        const track = realm.objectForPrimaryKey(SourceTrack, id);
+        return isActive(track) && this.hasShow(track.showUuid);
+      }
+      case 'imported_song': {
+        const song = realm.objectForPrimaryKey(Song, id);
+        return isActive(song) && this.hasArtist(song.artistUuid);
+      }
+      case 'imported_venue': {
+        const venue = realm.objectForPrimaryKey(Venue, id);
+        return isActive(venue) && this.hasArtist(venue.artistUuid);
+      }
+      case 'tour': {
+        const tour = realm.objectForPrimaryKey(Tour, id);
+        return isActive(tour) && this.hasArtist(tour.artistUuid);
+      }
+    }
   }
 
-  private hasRequiredMetadata(reference: CatalogReferenceRequest) {
-    const realm = this.repository.realm;
-
-    // A child row by itself is not enough to render My Library. Resolver
-    // responses include these shallow parents, so ask again when an older or
-    // partial local catalog has the favorite but not the graph it projects to.
-    if (reference.catalog_type === 'source') {
-      const source = realm.objectForPrimaryKey(Source, reference.catalog_uuid);
-      return isActiveCatalogObject(source) && this.hasShowMetadata(source.showUuid);
-    }
-    if (reference.catalog_type === 'source_track') {
-      const track = realm.objectForPrimaryKey(SourceTrack, reference.catalog_uuid);
-      return isActiveCatalogObject(track) && this.hasShowMetadata(track.showUuid);
-    }
-    if (reference.catalog_type === 'show') {
-      return this.hasShowMetadata(reference.catalog_uuid);
-    }
-    if (reference.catalog_type === 'song') {
-      const song = realm.objectForPrimaryKey(Song, reference.catalog_uuid);
-      return isActiveCatalogObject(song) && this.hasArtistMetadata(song.artistUuid);
-    }
-    if (reference.catalog_type === 'tour') {
-      const tour = realm.objectForPrimaryKey(Tour, reference.catalog_uuid);
-      return isActiveCatalogObject(tour) && this.hasArtistMetadata(tour.artistUuid);
-    }
-    if (reference.catalog_type === 'venue') {
-      const venue = realm.objectForPrimaryKey(Venue, reference.catalog_uuid);
-      return isActiveCatalogObject(venue) && this.hasArtistMetadata(venue.artistUuid);
-    }
-
-    return this.hasArtistMetadata(reference.catalog_uuid);
+  private hasArtist(uuid: string) {
+    return isActive(this.repository.realm.objectForPrimaryKey(Artist, uuid));
   }
 
-  private hasShowMetadata(showUuid: string) {
+  private hasShow(uuid: string) {
     const realm = this.repository.realm;
-    const show = realm.objectForPrimaryKey(Show, showUuid);
+    const show = realm.objectForPrimaryKey(Show, uuid);
     return (
-      isActiveCatalogObject(show) &&
-      this.hasArtistMetadata(show.artistUuid) &&
-      isActiveCatalogObject(realm.objectForPrimaryKey(Year, show.yearUuid))
+      isActive(show) &&
+      this.hasArtist(show.artistUuid) &&
+      (!show.yearUuid || isActive(realm.objectForPrimaryKey(Year, show.yearUuid)))
     );
   }
-
-  private hasArtistMetadata(artistUuid: string) {
-    return isActiveCatalogObject(this.repository.realm.objectForPrimaryKey(Artist, artistUuid));
-  }
 }
 
-function isActiveCatalogObject<T extends { deletedAt?: Date }>(object: T | null): object is T {
-  // Tombstones retain their primary keys. Treat them as missing metadata so an
-  // authoritative resolver upsert can restore the same object by UUID.
-  return object != null && object.deletedAt == null;
+function isActive<T extends { deletedAt?: Date }>(row: T | null): row is T {
+  return row !== null && row.deletedAt == null;
 }
 
-function validateResponse(
-  request: ReadonlyArray<CatalogReferenceRequest>,
-  response: CatalogResolveResponse
-) {
-  if (response.contract_version !== 1 || Number.isNaN(new Date(response.checked_at).valueOf())) {
-    throw new Error('Unsupported catalog resolver response.');
-  }
+function validateResponse(request: CatalogReferenceRequest[], response: CatalogResolveResponse) {
   if (response.references.length !== request.length) {
-    throw new Error('The catalog resolver response is missing requested references.');
+    throw new Error('Catalog resolver omitted requested references.');
   }
 
-  const expected = new Set(request.map(targetKey));
-  const seen = new Set<string>();
-  for (const reference of response.references) {
-    const key = targetKey(reference);
-    if (
-      !expected.has(key) ||
-      seen.has(key) ||
-      (reference.availability !== 'available' && reference.availability !== 'unavailable')
-    ) {
-      throw new Error('The catalog resolver response contains an invalid reference.');
+  for (let index = 0; index < request.length; index++) {
+    const expected = request[index];
+    const actual = response.references[index];
+    if (actual.scheme !== 'v4' || actual.id !== expected.id || actual.kind !== expected.kind) {
+      throw new Error('Catalog resolver returned an unexpected reference.');
     }
-    seen.add(key);
+
+    if (actual.availability === 'available' || actual.availability === 'redirected') {
+      if (!isFavoriteTarget(actual.target) || actual.target.kind !== actual.kind) {
+        throw new Error('Catalog resolver returned an invalid target.');
+      }
+    } else if (actual.availability !== 'unavailable' && actual.availability !== 'retired') {
+      throw new Error('Catalog resolver returned an unknown availability.');
+    }
   }
-}
-
-function targetKey(reference: CatalogReferenceRequest) {
-  return `${reference.catalog_type}:${reference.catalog_uuid}`;
-}
-
-function errorName(error: unknown) {
-  return error instanceof Error ? error.name : 'unknown_error';
 }

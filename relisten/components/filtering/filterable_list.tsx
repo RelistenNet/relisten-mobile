@@ -1,6 +1,6 @@
 import { log } from '@/relisten/util/logging';
 import React, { useEffect, useMemo } from 'react';
-import { RelistenObject } from '../../api/models/relisten';
+import type { RelistenObject } from '../../realm/relisten_object';
 import {
   RelistenSectionData,
   RelistenSectionList,

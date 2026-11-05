@@ -1,13 +1,14 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { log } from '@/relisten/util/logging';
-import { WebRewriteLoader } from '@/relisten/components/web_rewrite_loader';
-import { useEffect } from 'react';
 import { useRelistenApi } from '@/relisten/api/context';
-import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
-import { AutoplayDeepLinkToTrackSetting } from '@/relisten/realm/models/user_settings';
-import { PushShowOptions, usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
+import { decodeUuidCatalogId, encodeUuidCatalogId } from '@/relisten/api/catalog/identity';
+import { WebRewriteLoader } from '@/relisten/components/web_rewrite_loader';
 import { useArtists } from '@/relisten/realm/models/artist_repo';
+import { AutoplayDeepLinkToTrackSetting } from '@/relisten/realm/models/user_settings';
+import { useUserSettings } from '@/relisten/realm/models/user_settings_repo';
 import { groupByUuid } from '@/relisten/util/group_by';
+import { log } from '@/relisten/util/logging';
+import { PushShowOptions, usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect } from 'react';
 
 const logger = log.extend('deep-links');
 
@@ -25,15 +26,13 @@ export default function Page() {
     }
 
     (async () => {
-      const show = await apiClient.showWithSourcesOnDate(
-        String(artistSlug),
-        `${year}-${month}-${day}`,
-        {
-          bypassRequestDeduplication: true,
-          bypassRateLimit: true,
-          bypassEtagCaching: true,
-        }
-      );
+      const artist = artistsResults.data.find((candidate) => candidate.slug === String(artistSlug));
+      if (!artist) {
+        router.replace('/relisten/tabs');
+        return;
+      }
+
+      const show = await apiClient.showWithSourcesOnDate(artist.uuid, `${year}-${month}-${day}`);
 
       const showData = show.data;
 
@@ -49,18 +48,32 @@ export default function Page() {
 
       let sourceUuid: string | undefined = undefined;
       let trackUuid: string | undefined = undefined;
+      let requestedSourceId = sourceId ? String(sourceId) : undefined;
+
+      if (requestedSourceId && /^\d+$/.test(requestedSourceId)) {
+        const resolved = await apiClient.resolveCatalogReferences([
+          {
+            kind: 'source',
+            scheme: 'legacy_integer',
+            id: requestedSourceId,
+            artist_id: encodeUuidCatalogId(artist.uuid, 'artist'),
+          },
+        ]);
+        requestedSourceId = resolved.data?.references[0]?.target?.id;
+      }
 
       for (const source of showData.sources) {
-        if (String(source.id) !== sourceId && source.uuid !== sourceId) {
+        const uuid = decodeUuidCatalogId(source.id, 'source');
+        if (source.id !== requestedSourceId && uuid !== requestedSourceId) {
           continue;
         }
 
-        sourceUuid = source.uuid;
+        sourceUuid = uuid;
 
         for (const set of source.sets) {
           for (const track of set.tracks) {
             if (track.slug === trackSlug) {
-              trackUuid = track.uuid;
+              trackUuid = decodeUuidCatalogId(track.id, 'track');
             }
           }
         }
@@ -82,8 +95,8 @@ export default function Page() {
 
       setTimeout(() => {
         const params: PushShowOptions = {
-          artist: artistByUuid[showData.artist_uuid],
-          showUuid: showData.uuid,
+          artist: artistByUuid[decodeUuidCatalogId(showData.artist_id, 'artist')],
+          showUuid: decodeUuidCatalogId(showData.id, 'show'),
           sourceUuid: sourceUuid,
           overrideGroupSegment: '(artists)',
         };

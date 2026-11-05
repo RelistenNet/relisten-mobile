@@ -2,7 +2,7 @@ import { RouteFilterConfig, serializeFilters } from '@/relisten/realm/models/rou
 import { useObject, useRealm } from '@/relisten/realm/schema';
 import React, { PropsWithChildren, useCallback, useContext, useMemo, useState } from 'react';
 import Realm from 'realm';
-import { RelistenObject } from '../../api/models/relisten';
+import type { RelistenObject } from '../../realm/relisten_object';
 
 const GLOBAL_FILTER_KEY = '__global__';
 

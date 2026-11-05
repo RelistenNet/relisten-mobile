@@ -36,7 +36,7 @@ import { Show } from '@/relisten/realm/models/show';
 import { Venue } from '@/relisten/realm/models/venue';
 import { Tour } from '@/relisten/realm/models/tour';
 import { Song } from '@/relisten/realm/models/song';
-import { Source } from '@/relisten/realm/models/source';
+import { FlacType, Source } from '@/relisten/realm/models/source';
 import { SourceSet } from '@/relisten/realm/models/source_set';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { SourceTrackOfflineInfo } from '@/relisten/realm/models/source_track_offline_info';
@@ -52,7 +52,7 @@ import {
   PopularityWindow,
   PopularityWindows,
 } from '@/relisten/realm/models/popularity';
-import { FlacType } from '@/relisten/api/models/source';
+import { CATALOG_REALM_MODELS } from '@/relisten/realm/models/catalog';
 
 const TEST_REALM_PATH = '/tmp/relisten-catalog-startup-repair-test.realm';
 const now = new Date('2026-08-20T00:00:00.000Z');
@@ -77,6 +77,7 @@ const config: Realm.Configuration = {
     PopularityWindow,
     PopularityWindows,
     CatalogStartupRepairState,
+    ...CATALOG_REALM_MODELS,
   ],
 };
 
@@ -303,7 +304,7 @@ describe('catalog startup repair', () => {
     expect(show.artist.uuid).toBe('artist');
     expect(source.artist.uuid).toBe('artist');
     expect(track.artist.uuid).toBe('artist');
-    expect(track.year.uuid).toBe('year');
+    expect(track.year!.uuid).toBe('year');
     expect(track.show.uuid).toBe('show');
     expect(track.source.uuid).toBe('source');
     expect(

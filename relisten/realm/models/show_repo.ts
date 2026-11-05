@@ -1,22 +1,8 @@
-import { useMemo } from 'react';
-import Realm from 'realm';
-import * as R from 'remeda';
-import { sourceTrackRepo } from './source_track_repo';
-import { sourceSetRepo } from './source_set_repo';
-import { sourceRepo } from './source_repo';
-import { NetworkBackedResults } from '../network_backed_results';
-import { firstBy } from 'thenby';
-import { RelistenApiClient, RelistenApiResponse, RelistenApiResponseType } from '../../api/client';
-import { ShowWithSources as ApiShowWithSources } from '../../api/models/source';
-import { NetworkBackedBehaviorOptions } from '../network_backed_behavior';
-import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
-import { Show } from './show';
-import { Source } from './source';
-import { SourceTrack } from './source_track';
-import { venueRepo } from './venue_repo';
-import { Artist } from './artist';
-import { Year } from './year';
-import { yearRepo } from './year_repository';
+import { decodeUuidCatalogId, encodeUuidCatalogId } from '@/relisten/api/catalog/identity';
+import type { ShowResource } from '@/relisten/api/catalog/resources';
+import { LibraryIndex } from '@/relisten/realm/library_index';
+import { NetworkBackedBehavior } from '@/relisten/realm/network_backed_behavior';
+import { useLibraryMembershipRevision, useRootLibraryIndex } from '@/relisten/realm/root_services';
 import { useObject, useRealm } from '@/relisten/realm/schema';
 import {
   CombinedValueStream,
@@ -24,27 +10,24 @@ import {
   RealmQueryValueStream,
   ValueStream,
 } from '@/relisten/realm/value_streams';
-import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_network_backed_behavior';
-import { LibraryIndex } from '@/relisten/realm/library_index';
-import { useLibraryMembershipRevision, useRootLibraryIndex } from '@/relisten/realm/root_services';
-import { attachShowArtists } from '@/relisten/realm/models/show_artist_relationships';
 import { useGroupSegment } from '@/relisten/util/routes';
-import { showRepo } from '@/relisten/realm/models/show_repository';
-
-export { showRepo } from '@/relisten/realm/models/show_repository';
+import { useMemo } from 'react';
+import Realm from 'realm';
+import { firstBy } from 'thenby';
+import { RelistenApiClient, RelistenApiResponse, RelistenApiResponseType } from '../../api/client';
+import { NetworkBackedBehaviorOptions } from '../network_backed_behavior';
+import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
+import { NetworkBackedResults } from '../network_backed_results';
+import { applyFullShow } from '../catalog_apply';
+import { Artist } from './artist';
+import { ensureCatalogArtist } from './artist_repo';
+import { Show } from './show';
+import { Source } from './source';
 
 export interface ShowWithSources {
   show: Show | undefined;
   sources: Realm.Results<Source>;
 }
-
-// const getEtreeId = (s = '') =>
-//   Number(
-//     s
-//       .split('.')
-//       .reverse()
-//       .find((x) => /^[0-9]+$/.test(x))
-//   );
 
 // our magic live music sort, taken from relisten-web
 // gives precedence to favorites -> soundboards -> charlie miller/peter costello -> etree ids -> avg weighted rating
@@ -71,11 +54,6 @@ export const sortSources = (
               ),
             'desc'
           )
-          // .thenBy(
-          //   (t1: Source, t2: Source) =>
-          //     getEtreeId(t1.upstreamIdentifier) - getEtreeId(t2.upstreamIdentifier),
-          //   'desc'
-          // )
           .thenBy((t) => t.avgRatingWeighted, 'desc')
       )
     : [];
@@ -83,9 +61,9 @@ export const sortSources = (
   return sortedSources;
 };
 
-export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
+export class ShowWithFullSourcesNetworkBackedBehavior extends NetworkBackedBehavior<
   ShowWithSources,
-  ApiShowWithSources
+  ShowResource
 > {
   constructor(
     realm: Realm.Realm,
@@ -97,18 +75,32 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
     super(realm, options);
   }
 
-  fetchFromApi(
-    api: RelistenApiClient,
-    forcedRefresh: boolean
-  ): Promise<RelistenApiResponse<ApiShowWithSources | undefined>> {
-    if (!this.showUuid) {
-      return Promise.resolve({
-        type: RelistenApiResponseType.Offline,
-        data: undefined,
-      });
-    }
+  get queryKey() {
+    return this.showUuid ? `GET /shows/${encodeUuidCatalogId(this.showUuid, 'show')}` : undefined;
+  }
 
-    return api.showWithSources(this.showUuid, api.refreshOptions(forcedRefresh));
+  async fetchFromApi(
+    api: RelistenApiClient,
+    _force: boolean,
+    etag?: string
+  ): Promise<RelistenApiResponse<ShowResource>> {
+    if (!this.showUuid) {
+      return { type: RelistenApiResponseType.Offline };
+    }
+    const response = await api.showWithSources(this.showUuid, { etag });
+    if (response.data) {
+      await ensureCatalogArtist(
+        this.realm,
+        api,
+        decodeUuidCatalogId(response.data.artist_id, 'artist')
+      );
+    }
+    return response;
+  }
+
+  hasLocalData() {
+    const show = this.showUuid ? this.realm.objectForPrimaryKey(Show, this.showUuid) : null;
+    return show !== null && this.realm.objectForPrimaryKey(Artist, show.artistUuid) !== null;
   }
 
   override createLocalUpdatingResults(): ValueStream<ShowWithSources> {
@@ -140,133 +132,14 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends ThrottledNetworkBa
   }
 
   isLocalDataShowable(localData: ShowWithSources): boolean {
-    // Cached headers can outlive quarantined tracks; force a fresh payload for that partial graph.
-    return (
-      localData.show != null &&
-      localData.sources.some((source) =>
-        source.sourceSets.some((set) => set.sourceTracks.some((track) => track.deletedAt == null))
-      )
-    );
+    return localData.show != null;
   }
 
-  override upsert(localData: ShowWithSources, apiData: ApiShowWithSources): void {
-    const artist = this.realm.objectForPrimaryKey(Artist, apiData.artist_uuid);
-    const apiSourceSets = R.flatMap(apiData.sources, (s) => s.sets);
-    const apiSourceTracks = R.flatMap(apiSourceSets, (s) => s.tracks);
-    const apiSourceSetsBySource = R.groupBy(apiSourceSets, (s) => s.source_uuid);
-    const apiSourceTracksBySet = R.groupBy(apiSourceTracks, (s) => s.source_set_uuid);
-
-    this.realm.write(() => {
-      const existingYear = this.realm.objectForPrimaryKey(Year, apiData.year_uuid) ?? undefined;
-      const year = apiData.year
-        ? yearRepo.upsert(this.realm, apiData.year, existingYear, true).allModels[0]
-        : existingYear;
-
-      const {
-        createdModels: [createdShow],
-        updatedModels: [updatedShow],
-      } = showRepo.upsert(this.realm, apiData, localData.show, true);
-
-      if (createdShow && artist) {
-        createdShow.artist = artist;
-      }
-
-      if (!localData.show) {
-        localData.show = updatedShow || createdShow;
-      }
-
-      if (localData.show) {
-        attachShowArtists(this.realm, [localData.show]);
-      }
-
-      if (localData.show && apiData.venue) {
-        let venueToUpdate = localData.show.venue;
-
-        if (venueToUpdate && venueToUpdate.uuid !== apiData.venue.uuid) {
-          venueToUpdate = undefined;
-        }
-
-        const { createdModels: createdVenues, updatedModels: updatedVenues } = venueRepo.upsert(
-          this.realm,
-          apiData.venue,
-          venueToUpdate,
-          true
-        );
-
-        if (createdVenues.length > 0) {
-          localData.show.venue = createdVenues[0];
-        }
-
-        if (updatedVenues.length > 0) {
-          localData.show.venue = updatedVenues[0];
-        }
-      }
-
-      // These child objects have global primary keys, but the local lists here are only scoped to
-      // the current parent. Enable global lookup so a missing parent link does not get mistaken
-      // for a missing Realm object and trigger a duplicate-PK create.
-      const { allModels: sourceModels } = sourceRepo.upsertMultiple(
-        this.realm,
-        apiData.sources,
-        localData.sources,
-        true,
-        true
-      );
-
-      for (const source of sourceModels) {
-        if (artist) {
-          source.artist = artist;
-        } else {
-          source.deletedAt ??= new Date();
-          source.isFavorite = false;
-        }
-
-        const { allModels: sourceSets } = sourceSetRepo.upsertMultiple(
-          this.realm,
-          apiSourceSetsBySource[source.uuid] || [],
-          source.sourceSets,
-          true,
-          true
-        );
-
-        // Rebuild the parent list from allModels rather than only appending createdModels. When
-        // queryForModel finds an existing row elsewhere in Realm, it must still be reattached to
-        // this parent list and stale children must be removed.
-        source.sourceSets.splice(0, source.sourceSets.length, ...sourceSets);
-
-        for (const sourceSet of sourceSets) {
-          const { allModels: sourceTracks } = sourceTrackRepo.upsertMultiple(
-            this.realm,
-            apiSourceTracksBySet[sourceSet.uuid] || [],
-            sourceSet.sourceTracks,
-            true,
-            true
-          );
-
-          const currentSourceTracks: SourceTrack[] = [];
-
-          for (const sourceTrack of sourceTracks) {
-            if (artist) sourceTrack.artist = artist;
-            if (year) sourceTrack.year = year;
-            if (localData.show) sourceTrack.show = localData.show;
-            sourceTrack.source = source;
-
-            if (!artist || !year || !localData.show) {
-              // The row stays valid in Realm, but active queries must not expose an incomplete
-              // playback graph. A later complete API response can restore the same object.
-              sourceTrack.deletedAt ??= new Date();
-              sourceTrack.isFavorite = false;
-            } else {
-              currentSourceTracks.push(sourceTrack);
-            }
-          }
-
-          // Current membership follows the API order, but never exposes an incomplete Track.
-          // The rejected row remains a tombstone and can recover on a later complete response.
-          sourceSet.sourceTracks.splice(0, sourceSet.sourceTracks.length, ...currentSourceTracks);
-        }
-      }
-    });
+  override upsert(_data: ShowWithSources, resource: ShowResource) {
+    if (decodeUuidCatalogId(resource.id, 'show') !== this.showUuid) {
+      throw new Error('Unexpected show identity.');
+    }
+    return applyFullShow(this.realm, resource);
   }
 }
 
@@ -294,7 +167,9 @@ export function useFullShowWithSelectedSource(showUuid: string, selectedSourceUu
   const libraryMembershipRevision = useLibraryMembershipRevision();
 
   const sortedSources = useMemo(() => {
-    if (!sources) return [];
+    if (!sources) {
+      return [];
+    }
 
     return sortSources(sources, libraryIndex);
   }, [libraryIndex, libraryMembershipRevision, sources]);
@@ -317,21 +192,8 @@ export function useFullShowWithSelectedSource(showUuid: string, selectedSourceUu
   };
 }
 
-export function upsertShowWithSources(
-  realm: Realm.Realm,
-  apiData: ApiShowWithSources
-): Show | undefined {
-  const existingShow = realm.objectForPrimaryKey(Show, apiData.uuid) || undefined;
-  const existingSources = realm.objects(Source).filtered('showUuid == $0', apiData.uuid);
-  // Writer lookups are retained so a positive response can restore the existing primary-key row.
-  const behavior = new ShowWithFullSourcesNetworkBackedBehavior(
-    realm,
-    apiData.uuid,
-    undefined,
-    true
-  );
-
-  behavior.upsert({ show: existingShow, sources: existingSources }, apiData);
-
-  return realm.objectForPrimaryKey(Show, apiData.uuid) || existingShow;
+/** Imperative callers (random/deep links/CarPlay) use the same repository mapping. */
+export function upsertShowWithSources(realm: Realm, resource: ShowResource): Show {
+  realm.write(() => applyFullShow(realm, resource));
+  return realm.objectForPrimaryKey(Show, decodeUuidCatalogId(resource.id, 'show'))!;
 }

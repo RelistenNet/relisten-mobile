@@ -1,7 +1,5 @@
 import Realm from 'realm';
-import { TourWithShowCount } from '../../api/models/tour';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
-import dayjs from 'dayjs';
 import { LegacyFavoriteMirror } from '../legacy_favorite_mirror';
 
 export interface TourRequiredProperties extends RelistenObjectRequiredProperties {
@@ -9,12 +7,12 @@ export interface TourRequiredProperties extends RelistenObjectRequiredProperties
   createdAt: Date;
   updatedAt: Date;
   artistUuid: string;
-  startDate: Date;
-  endDate: Date;
+  startDate?: Date;
+  endDate?: Date;
   name: string;
   slug: string;
   upstreamIdentifier: string;
-  showsOnTour?: number;
+  showCount: number;
 }
 
 export class Tour
@@ -29,11 +27,12 @@ export class Tour
       updatedAt: 'date',
       deletedAt: { type: 'date', optional: true, indexed: true },
       artistUuid: 'string',
-      startDate: 'date',
-      endDate: 'date',
+      startDate: 'date?',
+      endDate: 'date?',
       name: 'string',
       slug: 'string',
       upstreamIdentifier: 'string',
+      showCount: { type: 'int', default: 0 },
       uuid: 'string',
       // Deprecated compatibility mirror. Canonical membership is in UserFavorite.
       isFavorite: { type: 'bool', default: false },
@@ -45,28 +44,13 @@ export class Tour
   updatedAt!: Date;
   deletedAt?: Date;
   artistUuid!: string;
-  startDate!: Date;
-  endDate!: Date;
+  startDate?: Date;
+  endDate?: Date;
   name!: string;
   slug!: string;
   upstreamIdentifier!: string;
-  showsOnTour?: number;
+  showCount!: number;
 
   /** @deprecated Use `useFavorite` or `LibraryIndex` for active-account membership. */
   isFavorite!: boolean;
-
-  static propertiesFromApi(relistenObj: TourWithShowCount): TourRequiredProperties {
-    return {
-      uuid: relistenObj.uuid,
-      createdAt: dayjs(relistenObj.created_at).toDate(),
-      updatedAt: dayjs(relistenObj.updated_at).toDate(),
-      startDate: dayjs(relistenObj.start_date).toDate(),
-      endDate: dayjs(relistenObj.end_date).toDate(),
-      artistUuid: relistenObj.artist_uuid,
-      name: relistenObj.name,
-      upstreamIdentifier: relistenObj.upstream_identifier,
-      slug: relistenObj.slug,
-      showsOnTour: relistenObj.shows_on_tour,
-    };
-  }
 }

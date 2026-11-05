@@ -1,9 +1,9 @@
-import { Artist } from '@/relisten/realm/models/artist';
-import { useWindowDimensions, View } from 'react-native';
-import { Link } from 'expo-router';
 import { RelistenButton } from '@/relisten/components/relisten_button';
-import React from 'react';
+import { Artist } from '@/relisten/realm/models/artist';
 import { tw } from '@/relisten/util/tw';
+import { Link } from 'expo-router';
+import React from 'react';
+import { useWindowDimensions, View } from 'react-native';
 
 export function ArtistActionButtons({
   currentRoute,
@@ -72,7 +72,6 @@ export function ArtistActionButtons({
       <RelistenButton
         className={tw(`grow shrink`, basis)}
         textClassName="text-l"
-        disabled={!artist.features().songs}
         disabledPopoverText="Songs feature not available for this artist"
       >
         Songs

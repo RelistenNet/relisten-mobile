@@ -1,25 +1,24 @@
-import { CarPlay, ListTemplate } from '@g4rb4g3/react-native-carplay';
-import { ListSection } from '@g4rb4g3/react-native-carplay';
+import { carplay_logger } from '@/relisten/carplay/carplay_logger';
 import { RelistenCarPlayContext } from '@/relisten/carplay/relisten_car_play_context';
+import { CarPlayScope, SCOPE_META } from '@/relisten/carplay/scope';
+import { formatShowDetail } from '@/relisten/carplay/show_formatters';
+import { createSourcesListTemplate } from '@/relisten/carplay/show_templates';
+import { createTodayShowsTemplate } from '@/relisten/carplay/today';
+import { Artist } from '@/relisten/realm/models/artist';
 import { artistsNetworkBackedBehavior } from '@/relisten/realm/models/artist_repo';
+import { Show } from '@/relisten/realm/models/show';
+import { upsertShowWithSources } from '@/relisten/realm/models/show_repo';
+import { TodayShowsNetworkBackedBehavior } from '@/relisten/realm/models/shows/today_shows_repo';
+import { Year } from '@/relisten/realm/models/year';
 import {
   createYearShowsNetworkBackedBehavior,
   YearShows,
   yearsNetworkBackedModelArrayBehavior,
 } from '@/relisten/realm/models/year_repo';
-import { Artist } from '@/relisten/realm/models/artist';
-import { Year } from '@/relisten/realm/models/year';
-import { Show } from '@/relisten/realm/models/show';
 import { NetworkBackedBehaviorFetchStrategy } from '@/relisten/realm/network_backed_behavior';
-import { carplay_logger } from '@/relisten/carplay/carplay_logger';
-import { createSourcesListTemplate } from '@/relisten/carplay/show_templates';
-import { createTodayShowsTemplate } from '@/relisten/carplay/today';
-import { CarPlayScope, SCOPE_META } from '@/relisten/carplay/scope';
-import { formatShowDetail } from '@/relisten/carplay/show_formatters';
-import { upsertShowWithSources } from '@/relisten/realm/models/show_repo';
-import { TodayShowsNetworkBackedBehavior } from '@/relisten/realm/models/shows/today_shows_repo';
-import { sample } from 'remeda';
+import { CarPlay, ListSection, ListTemplate } from '@g4rb4g3/react-native-carplay';
 import plur from 'plur';
+import { sample } from 'remeda';
 
 type ItemMap<T extends { uuid: string }> = Map<string, T>;
 
@@ -44,7 +43,6 @@ export function createArtistsListTemplate(
   const artistsBehavior = artistsNetworkBackedBehavior(
     ctx.realm,
     scope === 'offline',
-    false,
     scope !== 'browse',
     'all',
     behaviorOptions
@@ -78,7 +76,7 @@ export function createArtistsListTemplate(
           const randomArtist = sample([...favoriteArtists], 1)[0]!;
           const randomShow = await ctx.apiClient.randomShow(randomArtist.uuid);
 
-          if (randomShow?.data?.uuid) {
+          if (randomShow.data) {
             const show = upsertShowWithSources(ctx.realm, randomShow.data);
 
             if (show && show.artist) {
@@ -93,7 +91,9 @@ export function createArtistsListTemplate(
       carplay_logger.info('artist selected', { id, scope });
       const artist = artistMap.get(String(id));
 
-      if (!artist) return;
+      if (!artist) {
+        return;
+      }
 
       const yearsTemplate = createYearsListTemplate(ctx, scope, artist);
       CarPlay.pushTemplate(yearsTemplate, true);
@@ -511,7 +511,9 @@ function createYearsListTemplate(
           scope,
         });
         const show = showMap.get(String(id));
-        if (!show) return;
+        if (!show) {
+          return;
+        }
 
         const sourcesTemplate = createSourcesListTemplate(ctx, scope, artist, show);
         CarPlay.pushTemplate(sourcesTemplate, true);
@@ -526,7 +528,7 @@ function createYearsListTemplate(
       if (id === ARTIST_ACTION_RANDOM) {
         const randomShow = await ctx.apiClient.randomShow(artist.uuid);
 
-        if (randomShow?.data?.uuid) {
+        if (randomShow.data) {
           const show = upsertShowWithSources(ctx.realm, randomShow.data);
 
           if (show && show.artist) {
@@ -539,7 +541,9 @@ function createYearsListTemplate(
 
       carplay_logger.info('year selected', { id, artist: artist.uuid, scope });
       const year = yearMap.get(String(id));
-      if (!year) return;
+      if (!year) {
+        return;
+      }
 
       showShows(year);
     },

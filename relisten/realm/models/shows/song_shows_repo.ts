@@ -1,114 +1,172 @@
-import { RelistenApiClient, RelistenApiResponse } from '@/relisten/api/client';
-import { SongWithShows } from '@/relisten/api/models/song';
-import { upsertShowList } from '@/relisten/realm/models/repo_utils';
+import { detailRowUuids, orderedUuidRows, uuidRows } from '../../catalog_projection';
+import { Artist } from '../artist';
+import type { RelistenApiClient } from '@/relisten/api/client';
+import { encodeUuidCatalogId } from '@/relisten/api/catalog/identity';
+import type {
+  ImportedSongWithShowsResource,
+  SongWithShowsResource,
+} from '@/relisten/api/catalog/resources';
+import {
+  NetworkBackedBehavior,
+  NetworkBackedBehaviorOptions,
+} from '@/relisten/realm/network_backed_behavior';
+import { useNetworkBackedBehavior } from '@/relisten/realm/network_backed_behavior_hooks';
+import {
+  mergeNetworkBackedResults,
+  NetworkBackedResults,
+} from '@/relisten/realm/network_backed_results';
+import { useQuery, useRealm } from '@/relisten/realm/schema';
+import { RealmObjectValueStream, ValueStream } from '@/relisten/realm/value_streams';
 import { useMemo } from 'react';
 import Realm from 'realm';
-import { NetworkBackedBehaviorOptions } from '../../network_backed_behavior';
-import { useNetworkBackedBehavior } from '../../network_backed_behavior_hooks';
-import { mergeNetworkBackedResults, NetworkBackedResults } from '../../network_backed_results';
-import { useArtist } from '../artist_repo';
+import { applyImportedSongDetail, applySongDetail } from '../../catalog_apply';
+
+import { ensureCatalogArtist, useArtist } from '../artist_repo';
 import { Show } from '../show';
 import { Song } from '../song';
-import { songRepo } from '../song_repo';
-import { useRealm } from '@/relisten/realm/schema';
-import {
-  CombinedValueStream,
-  RealmObjectValueStream,
-  RealmQueryValueStream,
-  ValueStream,
-} from '@/relisten/realm/value_streams';
-import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_network_backed_behavior';
+import { CatalogQueryState, NormalizedSong } from '../catalog';
 
-export interface SongShows {
-  song: Song | null;
-  shows: Realm.Results<Show>;
+export type SongCatalogKind = 'song' | 'imported_song';
+
+export type SongShows =
+  | { kind: 'song'; song: NormalizedSong | null; shows: Show[]; hasAppliedData: boolean }
+  | { kind: 'imported_song'; song: Song | null; shows: Show[]; hasAppliedData: boolean };
+
+function songDetailQueryKey(kind: SongCatalogKind, songId: string) {
+  return kind === 'song'
+    ? `GET /songs/${songId}`
+    : `GET /imported-songs/${encodeUuidCatalogId(songId, 'imported_song')}`;
 }
 
-class SongShowsNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
-  SongShows,
-  SongWithShows
+export class SongShowsNetworkBackedBehavior extends NetworkBackedBehavior<
+  CatalogQueryState | null,
+  SongWithShowsResource | ImportedSongWithShowsResource
 > {
   constructor(
-    realm: Realm.Realm,
-    public artistUuid: string,
-    public songUuid: string,
+    realm: Realm,
+    private readonly artistUuid: string,
+    private readonly songId: string,
+    private readonly kind: SongCatalogKind,
     options?: NetworkBackedBehaviorOptions
   ) {
     super(realm, options);
   }
 
-  fetchFromApi(
-    api: RelistenApiClient,
-    forcedRefresh: boolean
-  ): Promise<RelistenApiResponse<SongWithShows>> {
-    return api.song(this.artistUuid, this.songUuid, api.refreshOptions(forcedRefresh));
+  get queryKey() {
+    return songDetailQueryKey(this.kind, this.songId);
   }
 
-  override createLocalUpdatingResults(): ValueStream<SongShows> {
-    const songResults = new RealmObjectValueStream(this.realm, Song, this.songUuid);
-    const showsResults = new RealmQueryValueStream<Show>(
-      this.realm,
-      this.realm.objects(Show).filtered('ANY songs.uuid == $0 && deletedAt == nil', this.songUuid)
-    );
-
-    return new CombinedValueStream(songResults, showsResults, (song, shows) => {
-      return { song: song?.deletedAt == null ? song : null, shows };
-    });
+  createLocalUpdatingResults(): ValueStream<CatalogQueryState | null> {
+    return new RealmObjectValueStream(this.realm, CatalogQueryState, this.queryKey);
   }
 
-  isLocalDataShowable(localData: SongShows): boolean {
-    return localData.song !== null && localData.shows.length > 0;
+  async fetchFromApi(api: RelistenApiClient, _force: boolean, etag?: string) {
+    await ensureCatalogArtist(this.realm, api, this.artistUuid);
+    return this.kind === 'song'
+      ? api.song(this.songId, { etag })
+      : api.importedSong(this.songId, { etag });
   }
 
-  override upsert(localData: SongShows, apiData: SongWithShows): void {
-    if (!localData.shows.isValid() || !localData.song?.isValid()) {
-      return;
+  isLocalDataShowable(state: CatalogQueryState | null) {
+    return state?.hasAppliedData === true;
+  }
+
+  hasLocalData(_state: CatalogQueryState | null, resultIds: Iterable<string>) {
+    const [rootId] = resultIds;
+    if (!rootId) {
+      return false;
+    }
+    const song =
+      this.kind === 'song'
+        ? this.realm.objectForPrimaryKey(NormalizedSong, rootId)
+        : this.realm.objectForPrimaryKey(Song, this.songId);
+    return song !== null && this.realm.objectForPrimaryKey(Artist, this.artistUuid) !== null;
+  }
+
+  upsert(
+    _state: CatalogQueryState | null,
+    resource: SongWithShowsResource | ImportedSongWithShowsResource
+  ) {
+    if (this.kind === 'song' && 'matched_track_count' in resource) {
+      return applySongDetail(this.realm, this.artistUuid, resource);
     }
 
-    this.realm.write(() => {
-      const { createdModels, updatedModels } = songRepo.upsert(
-        this.realm,
-        { ...apiData, shows_played_at: apiData.shows.length },
-        localData.song || undefined,
-        true
-      );
+    if (
+      this.kind === 'imported_song' &&
+      'setlist_show_count' in resource &&
+      resource.id === encodeUuidCatalogId(this.songId, 'imported_song')
+    ) {
+      return applyImportedSongDetail(this.realm, this.artistUuid, resource);
+    }
 
-      const allModels = [localData.song, ...createdModels, ...updatedModels].filter((s) => !!s);
-
-      upsertShowList(this.realm, apiData.shows, localData.shows, {
-        // we may not have all the shows here on initial load
-        performDeletes: false,
-        queryForModel: true,
-        upsertModels: {
-          song: allModels.length > 0 ? allModels[0] : undefined,
-        },
-      });
-    });
+    throw new Error('Unexpected song detail identity or kind.');
   }
 }
 
 export function useSongShows(
   artistUuid: string,
-  songUuid: string
+  songId: string,
+  kind?: SongCatalogKind
 ): NetworkBackedResults<SongShows> {
   const realm = useRealm();
-  const behavior = useMemo(() => {
-    return new SongShowsNetworkBackedBehavior(realm, artistUuid, songUuid);
-  }, [realm, artistUuid, songUuid]);
+  const effectiveKind = kind ?? (songId.startsWith('song_') ? 'song' : 'imported_song');
+  const behavior = useMemo(
+    () => new SongShowsNetworkBackedBehavior(realm, artistUuid, songId, effectiveKind),
+    [artistUuid, effectiveKind, realm, songId]
+  );
+  const results = useNetworkBackedBehavior(behavior);
+  const rootId = results.data?.hasAppliedData ? results.data.resultIds[0] : undefined;
+  const normalizedSongs = useQuery(
+    NormalizedSong,
+    (query) => query.filtered('id == $0', effectiveKind === 'song' ? (rootId ?? '') : ''),
+    [effectiveKind, rootId]
+  );
+  const importedSongs = useQuery(
+    Song,
+    (query) =>
+      query.filtered(
+        'uuid == $0 AND deletedAt == nil',
+        effectiveKind === 'imported_song' && rootId ? songId : ''
+      ),
+    [effectiveKind, rootId, songId]
+  );
+  const uuids = useMemo(() => detailRowUuids(results.data, 'show'), [results.data]);
+  const shows = useQuery(
+    Show,
+    (query) => uuidRows(query, uuids).filtered('artistUuid == $0', artistUuid),
+    [artistUuid, uuids]
+  );
+  const data = useMemo<SongShows>(() => {
+    const ordered = orderedUuidRows(shows, uuids);
+    const hasAppliedData =
+      results.data?.hasAppliedData === true && ordered.length === results.data.resultIds.length - 1;
+    if (effectiveKind === 'song') {
+      const song = normalizedSongs[0] ?? null;
+      return {
+        kind: effectiveKind,
+        song,
+        shows: ordered,
+        hasAppliedData: hasAppliedData && song !== null,
+      };
+    }
+    const song = importedSongs[0] ?? null;
+    return {
+      kind: effectiveKind,
+      song,
+      shows: ordered,
+      hasAppliedData: hasAppliedData && song !== null,
+    };
+  }, [effectiveKind, importedSongs, normalizedSongs, results.data, shows, uuids]);
 
-  return useNetworkBackedBehavior(behavior);
+  return { ...results, data };
 }
 
-export const useArtistSongShows = (artistUuid: string, songUuid: string) => {
+export const useArtistSongShows = (artistUuid: string, songId: string, kind?: SongCatalogKind) => {
   const artistResults = useArtist(artistUuid);
-  const songResults = useSongShows(artistUuid, songUuid);
+  const songResults = useSongShows(artistUuid, songId, kind);
 
-  const results = useMemo(() => {
-    return mergeNetworkBackedResults({
-      song: songResults,
-      artist: artistResults,
-    });
-  }, [songResults, artistResults]);
-
-  return results;
+  return useMemo(
+    () => mergeNetworkBackedResults({ song: songResults, artist: artistResults }),
+    [songResults, artistResults]
+  );
 };

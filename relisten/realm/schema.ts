@@ -7,7 +7,6 @@ import { Venue } from './models/venue';
 import { Source } from './models/source';
 import { SourceSet } from './models/source_set';
 import { SourceTrack } from './models/source_track';
-import { UrlRequestMetadata } from '@/relisten/realm/models/url_request_metadata';
 import { RouteFilterConfig } from '@/relisten/realm/models/route_filter_config';
 import { Tour } from './models/tour';
 import { Song } from './models/song';
@@ -40,6 +39,7 @@ import {
   stageLegacyAccountIdentityFields,
   upgradeTypedAccountIdentity,
 } from '@/relisten/realm/account_identity_upgrade';
+import { CATALOG_REALM_MODELS } from '@/relisten/realm/models/catalog';
 
 if (isVerboseProfileLoggingEnabled()) {
   Realm.setLogger(({ category, level, message }) => {
@@ -51,37 +51,41 @@ if (isVerboseProfileLoggingEnabled()) {
   Realm.setLogLevel('debug', 'Realm.Storage.Notification');
 }
 
-const realmConfig: Realm.Configuration = {
-  schema: [
-    Artist,
-    Year,
-    Show,
-    Venue,
-    Tour,
-    Song,
-    Source,
-    SourceSet,
-    SourceTrack,
-    UrlRequestMetadata,
-    RouteFilterConfig,
-    SourceTrackOfflineInfo,
-    PlaybackHistoryEntry,
-    ...PLAYER_STATE_SCHEMAS,
-    UserSettings,
-    LastFmSettings,
-    LastFmScrobbleEntry,
-    AudioAdjustmentSettings,
-    AudioAdjustmentPresetModel,
-    Popularity,
-    PopularityWindow,
-    PopularityWindows,
-    CatalogStartupRepairState,
-    AccountIdentityUpgradeState,
-    ...ACCOUNT_REALM_MODELS,
-    ...FAVORITE_REALM_MODELS,
-  ],
-  // Existing accounts builds used 15 with the UUID/index player format.
-  schemaVersion: 17,
+export const REALM_SCHEMA_VERSION = 18;
+
+export const REALM_SCHEMA = [
+  Artist,
+  Year,
+  Show,
+  Venue,
+  Tour,
+  Song,
+  Source,
+  SourceSet,
+  SourceTrack,
+  RouteFilterConfig,
+  SourceTrackOfflineInfo,
+  PlaybackHistoryEntry,
+  ...PLAYER_STATE_SCHEMAS,
+  UserSettings,
+  LastFmSettings,
+  LastFmScrobbleEntry,
+  AudioAdjustmentSettings,
+  AudioAdjustmentPresetModel,
+  Popularity,
+  PopularityWindow,
+  PopularityWindows,
+  CatalogStartupRepairState,
+  AccountIdentityUpgradeState,
+  ...ACCOUNT_REALM_MODELS,
+  ...FAVORITE_REALM_MODELS,
+  ...CATALOG_REALM_MODELS,
+];
+
+export const realmConfig: Realm.Configuration = {
+  schema: REALM_SCHEMA,
+  // Schema 18 adds the final catalog overlays; query state owns ordered membership.
+  schemaVersion: REALM_SCHEMA_VERSION,
   onMigration: (oldRealm, newRealm) => {
     migratePlayerState(oldRealm, newRealm);
     stageLegacyAccountIdentityFields(oldRealm, newRealm);

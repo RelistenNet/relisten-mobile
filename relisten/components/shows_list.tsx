@@ -28,6 +28,19 @@ import {
   useShowHasOfflineTracks,
 } from '@/relisten/realm/root_services';
 import { useFavorite } from '@/relisten/library/favorite_hooks';
+import { normalizedVenueLocation } from '@/relisten/components/venue_presenters';
+
+function showVenueName(show: Show) {
+  return show.venue?.name ?? show.artistVenue?.venue.name;
+}
+
+function showVenueLocation(show: Show) {
+  return show.venue?.location ?? normalizedVenueLocation(show.artistVenue?.venue);
+}
+
+function showVenueLabel(show: Show) {
+  return [showVenueName(show), showVenueLocation(show)].filter(Boolean).join(', ');
+}
 
 interface ShowListItemProps {
   show: Show;
@@ -84,7 +97,7 @@ const ShowListItemView = ({
             </Flex>
             <SubtitleRow className="flex-row flex-1">
               <SubtitleText numberOfLines={venueLineCount} className="flex-shrink">
-                {show.venue && `${show.venue.name}, ${show.venue.location}`}
+                {showVenueLabel(show)}
               </SubtitleText>
               <SubtitleText className="text-right pl-2">
                 <Plur word="tape" count={show.sourceCount} />
@@ -212,8 +225,8 @@ export function useShowFilters(): Filter<ShowFilterKey, Show>[] {
 
           return (
             searchForSubstring(show.displayDate, search) ||
-            searchForSubstring(show.venue?.name, search) ||
-            searchForSubstring(show.venue?.location, search) ||
+            searchForSubstring(showVenueName(show), search) ||
+            searchForSubstring(showVenueLocation(show), search) ||
             searchForSubstring(show.venue?.pastNames, search) ||
             searchForSubstring(show.artist.name.toLowerCase(), search)
           );

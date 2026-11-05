@@ -53,6 +53,22 @@ export function favoriteTargetForCatalogUuid(
   return { kind, id: formatUuidTypedId(kind, catalogUuid) };
 }
 
+/** Builds the durable favorite target for either a UUID-backed or canonical catalog ID. */
+export function favoriteTargetForCatalogId(
+  kind: FavoriteTargetKind,
+  catalogId: string
+): FavoriteTarget {
+  if (kind === 'song' || kind === 'venue') {
+    const target = { kind, id: catalogId };
+    if (!isFavoriteTarget(target)) {
+      throw new Error(`Expected a canonical ${kind} ID.`);
+    }
+    return target;
+  }
+
+  return favoriteTargetForCatalogUuid(kind, catalogId);
+}
+
 export function favoriteTargetForCatalogReference(
   reference: V3FavoriteCatalogReference
 ): FavoriteTarget {
@@ -79,6 +95,15 @@ export function catalogReferenceForFavoriteTarget(
     catalog_type: V3_TYPE_BY_TARGET_KIND[target.kind],
     catalog_uuid: catalogUuid,
   };
+}
+
+/** Returns the ID used by the matching local Realm model without requiring v3 resolution. */
+export function catalogIdForFavoriteTarget(target: FavoriteTarget): string | null {
+  if (target.kind === 'song' || target.kind === 'venue') {
+    return isFavoriteTarget(target) ? target.id : null;
+  }
+
+  return catalogReferenceForFavoriteTarget(target)?.catalog_uuid ?? null;
 }
 
 export function isFavoriteTarget(value: unknown): value is FavoriteTarget {

@@ -1,22 +1,22 @@
-import Realm from 'realm';
-import { Show } from '@/relisten/realm/models/show';
-import { Show as ApiShow } from '@/relisten/api/models/show';
 import {
   RelistenApiClient,
   RelistenApiResponse,
   RelistenApiResponseType,
 } from '@/relisten/api/client';
+import { ShowSummaryResource as ApiShow } from '@/relisten/api/catalog/resources';
 import { useArtist } from '@/relisten/realm/models/artist_repo';
-import { useMemo } from 'react';
-import { mergeNetworkBackedResults } from '@/relisten/realm/network_backed_results';
-import { useNetworkBackedBehavior } from '@/relisten/realm/network_backed_behavior_hooks';
+import { Show } from '@/relisten/realm/models/show';
 import { ShowsWithVenueNetworkBackedBehavior } from '@/relisten/realm/models/shows/show_with_venues_behavior';
 import {
   NetworkBackedBehaviorFetchStrategy,
   NetworkBackedBehaviorOptions,
 } from '@/relisten/realm/network_backed_behavior';
-import { useRealm } from '../../schema';
+import { useNetworkBackedBehavior } from '@/relisten/realm/network_backed_behavior_hooks';
+import { mergeNetworkBackedResults } from '@/relisten/realm/network_backed_results';
 import { RealmQueryValueStream } from '@/relisten/realm/value_streams';
+import { useMemo } from 'react';
+import Realm from 'realm';
+import { useRealm } from '../../schema';
 
 export enum RecentShowTabs {
   Performed = 'performed',
@@ -33,28 +33,15 @@ class RecentShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavi
     super(realm, options);
   }
 
-  fetchFromApi(
-    api: RelistenApiClient,
-    forcedRefresh: boolean
-  ): Promise<RelistenApiResponse<ApiShow[] | undefined>> {
+  fetchShows(api: RelistenApiClient): Promise<RelistenApiResponse<ApiShow[] | undefined>> {
     if (!this.artistUuid || !this.activeTab) {
       return Promise.resolve({ type: RelistenApiResponseType.Offline, data: undefined });
     }
 
-    const refreshOptions = api.refreshOptions(forcedRefresh) || {};
-
     if (this.activeTab === RecentShowTabs.Performed) {
-      return api.recentPerformedShows(this.artistUuid, {
-        bypassRateLimit: false,
-        bypassEtagCaching: true,
-        ...refreshOptions,
-      });
+      return api.recentPerformedShows(this.artistUuid);
     } else {
-      return api.recentUpdatedShows(this.artistUuid, {
-        bypassRateLimit: false,
-        bypassEtagCaching: true,
-        ...refreshOptions,
-      });
+      return api.recentUpdatedShows(this.artistUuid);
     }
   }
 

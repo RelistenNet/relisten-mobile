@@ -3,7 +3,7 @@ import { ReactElement, useMemo } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import { RefreshControl, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { RelistenObject } from '../api/models/relisten';
+import type { RelistenObject } from '../realm/relisten_object';
 import { RelistenBlue } from '../relisten_blue';
 import { ItemSeparator } from './item_separator';
 import { useRefreshContext } from './refresh_context';
@@ -98,9 +98,13 @@ export const RelistenSectionList = <T extends RelistenObject>({
             sectionKey,
             sectionTitle: section.sectionTitle,
           });
-          internalData.push(...section.data.map((rawItem) => ({ rawItem, keyPrefix: sectionKey })));
-        } else {
-          internalData.push(...section.data.map((rawItem) => ({ rawItem })));
+        }
+
+        const keyPrefix = section.sectionTitle
+          ? (section.sectionKey ?? section.sectionTitle)
+          : undefined;
+        for (const rawItem of section.data) {
+          internalData.push({ rawItem, keyPrefix });
         }
       }
     }

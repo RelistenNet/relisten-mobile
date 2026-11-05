@@ -1,41 +1,74 @@
-import { Repository } from '../repository';
-import { useRealm } from '../schema';
-import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
-import { useArtist } from './artist_repo';
-import { mergeNetworkBackedResults } from '../network_backed_results';
+import { Artist } from './artist';
+import type { RelistenApiClient } from '@/relisten/api/client';
+import { encodeUuidCatalogId } from '@/relisten/api/catalog/identity';
+import type { TourResource } from '@/relisten/api/catalog/resources';
 import { useMemo } from 'react';
+import Realm from 'realm';
+import { NetworkBackedBehavior, NetworkBackedBehaviorOptions } from '../network_backed_behavior';
+import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
+import { mergeNetworkBackedResults } from '../network_backed_results';
+import { useRealm } from '../schema';
+import { applyArtistTours } from '../catalog_apply';
+import { RealmQueryValueStream } from '../value_streams';
+import { ensureCatalogArtist, useArtist } from './artist_repo';
 import { Tour } from './tour';
-import { NetworkBackedBehaviorOptions } from '@/relisten/realm/network_backed_behavior';
-import { NetworkBackedModelArrayBehavior } from '@/relisten/realm/network_backed_model_array_behavior';
+import { CatalogQueryState } from './catalog';
 
-export const tourRepo = new Repository(Tour);
+export class ToursNetworkBackedBehavior extends NetworkBackedBehavior<
+  Realm.Results<Tour>,
+  TourResource[]
+> {
+  constructor(
+    realm: Realm,
+    private readonly artistUuid: string,
+    options?: NetworkBackedBehaviorOptions
+  ) {
+    super(realm, options);
+  }
+
+  get queryKey() {
+    return `GET /artists/${encodeUuidCatalogId(this.artistUuid, 'artist')}/tours`;
+  }
+
+  createLocalUpdatingResults() {
+    const tours = this.realm
+      .objects(Tour)
+      .filtered('artistUuid == $0 && deletedAt == nil', this.artistUuid);
+    return new RealmQueryValueStream(this.realm, tours);
+  }
+
+  async fetchFromApi(api: RelistenApiClient, _force: boolean, etag?: string) {
+    await ensureCatalogArtist(this.realm, api, this.artistUuid);
+    return api.tours(this.artistUuid, { etag });
+  }
+
+  isLocalDataShowable(data: Realm.Results<Tour>) {
+    return (
+      data.length > 0 ||
+      this.realm.objectForPrimaryKey(CatalogQueryState, this.queryKey)?.hasAppliedData === true
+    );
+  }
+
+  hasLocalData() {
+    return this.realm.objectForPrimaryKey(Artist, this.artistUuid) !== null;
+  }
+
+  upsert(_data: Realm.Results<Tour>, resources: TourResource[]) {
+    return applyArtistTours(this.realm, this.artistUuid, resources);
+  }
+}
 
 export function useTours(artistUuid: string, options?: NetworkBackedBehaviorOptions) {
   const realm = useRealm();
-
-  const behavior = useMemo(() => {
-    return new NetworkBackedModelArrayBehavior(
-      realm,
-      tourRepo,
-      (realm) => realm.objects(Tour).filtered('artistUuid == $0 && deletedAt == nil', artistUuid),
-      (api) => api.tours(artistUuid),
-      options
-    );
-  }, [realm, artistUuid, options]);
-
+  const behavior = useMemo(
+    () => new ToursNetworkBackedBehavior(realm, artistUuid, options),
+    [realm, artistUuid, options]
+  );
   return useNetworkBackedBehavior(behavior);
 }
 
 export const useArtistTours = (artistUuid: string) => {
-  const artistResults = useArtist(artistUuid);
-  const toursResults = useTours(artistUuid);
-
-  const results = useMemo(() => {
-    return mergeNetworkBackedResults({
-      tours: toursResults,
-      artist: artistResults,
-    });
-  }, [toursResults, artistResults]);
-
-  return results;
+  const artist = useArtist(artistUuid);
+  const tours = useTours(artistUuid);
+  return useMemo(() => mergeNetworkBackedResults({ tours, artist }), [tours, artist]);
 };

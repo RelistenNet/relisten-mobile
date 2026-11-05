@@ -1,14 +1,14 @@
-import { Stack, useLocalSearchParams } from 'expo-router';
-import { RelistenText } from '@/relisten/components/relisten_text';
-import { View } from 'react-native';
-import { List as ListContentLoader } from 'react-content-loader/native';
-import { RelistenBlue } from '@/relisten/relisten_blue';
+import { SourceReviewResource as SourceReview } from '@/relisten/api/catalog/resources';
 import { RelistenFlatList } from '@/relisten/components/relisten_flat_list';
-import { SourceReview } from '@/relisten/api/models/source';
-import { useSourceReviews } from '@/relisten/realm/models/source_repo';
-import dayjs from 'dayjs';
-import { memo } from '@/relisten/util/memo';
+import { RelistenText } from '@/relisten/components/relisten_text';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
+import { useSourceReviews } from '@/relisten/realm/models/source_repo';
+import { RelistenBlue } from '@/relisten/relisten_blue';
+import { memo } from '@/relisten/util/memo';
+import dayjs from 'dayjs';
+import { Stack, useLocalSearchParams } from 'expo-router';
+import { List as ListContentLoader } from 'react-content-loader/native';
+import { View } from 'react-native';
 
 export default function Page() {
   const { sourceUuid } = useLocalSearchParams();

@@ -1,12 +1,15 @@
-import { NetworkBackedBehaviorOptions } from '@/relisten/realm/network_backed_behavior';
-import Realm from 'realm';
-import { Show } from '@/relisten/realm/models/show';
-import { Show as ApiShow } from '@/relisten/api/models/show';
 import { RelistenApiClient, RelistenApiResponse } from '@/relisten/api/client';
-import { upsertShowList } from '@/relisten/realm/models/repo_utils';
-import { ThrottledNetworkBackedBehavior } from '@/relisten/realm/throttled_network_backed_behavior';
+import { ShowSummaryResource as ApiShow } from '@/relisten/api/catalog/resources';
+import { Show } from '@/relisten/realm/models/show';
+import {
+  NetworkBackedBehavior,
+  NetworkBackedBehaviorOptions,
+} from '@/relisten/realm/network_backed_behavior';
+import { applyShowSummaries } from '@/relisten/realm/catalog_apply';
+import Realm from 'realm';
+import { ensureCatalogArtist } from '../artist_repo';
 
-export abstract class ShowsWithVenueNetworkBackedBehavior extends ThrottledNetworkBackedBehavior<
+export abstract class ShowsWithVenueNetworkBackedBehavior extends NetworkBackedBehavior<
   Realm.Results<Show>,
   ApiShow[]
 > {
@@ -14,10 +17,19 @@ export abstract class ShowsWithVenueNetworkBackedBehavior extends ThrottledNetwo
     super(realm, options);
   }
 
-  abstract fetchFromApi(
+  abstract fetchShows(
     api: RelistenApiClient,
     forcedRefresh: boolean
   ): Promise<RelistenApiResponse<ApiShow[] | undefined>>;
+
+  async fetchFromApi(api: RelistenApiClient, force: boolean) {
+    const response = await this.fetchShows(api, force);
+    if (response.data?.length) {
+      await ensureCatalogArtist(this.realm, api);
+    }
+
+    return response;
+  }
 
   isLocalDataShowable(localData: Realm.Results<Show>): boolean {
     return localData.length > 0;
@@ -25,10 +37,7 @@ export abstract class ShowsWithVenueNetworkBackedBehavior extends ThrottledNetwo
 
   override upsert(localData: Realm.Results<Show>, apiData: ApiShow[]): void {
     this.realm.write(() => {
-      upsertShowList(this.realm, apiData, localData, {
-        performDeletes: false,
-        queryForModel: true,
-      });
+      applyShowSummaries(this.realm, apiData);
     });
   }
 }

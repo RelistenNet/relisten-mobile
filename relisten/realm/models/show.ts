@@ -1,5 +1,3 @@
-import dayjs from 'dayjs';
-import { Show as ApiShow } from '../../api/models/show';
 import Realm from 'realm';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import { LegacyFavoriteMirror } from '../legacy_favorite_mirror';
@@ -12,10 +10,11 @@ import { duration } from '@/relisten/util/duration';
 import type { Song } from '@/relisten/realm/models/song';
 import { Popularity } from './popularity';
 import type { LibraryIndex } from '@/relisten/realm/library_index';
+import type { ArtistVenue } from '@/relisten/realm/models/catalog';
 
 export interface ShowRequiredProperties extends RelistenObjectRequiredProperties {
   artistUuid: string;
-  yearUuid: string;
+  yearUuid?: string;
   venueUuid?: string;
   tourUuid?: string;
   createdAt: Date;
@@ -40,7 +39,7 @@ export class Show
     properties: {
       uuid: 'string',
       artistUuid: { type: 'string', indexed: true },
-      yearUuid: { type: 'string', indexed: true },
+      yearUuid: { type: 'string', optional: true, indexed: true },
       venueUuid: { type: 'string', optional: true, indexed: true },
       tourUuid: { type: 'string', optional: true, indexed: true },
       createdAt: 'date',
@@ -70,6 +69,7 @@ export class Show
       },
       tour: 'Tour?',
       artist: 'Artist?',
+      artistVenue: 'ArtistVenue?',
     },
   };
 
@@ -78,7 +78,7 @@ export class Show
   updatedAt!: Date;
   deletedAt?: Date;
   artistUuid!: string;
-  yearUuid!: string;
+  yearUuid?: string;
   venueUuid?: string;
   tourUuid?: string;
   date!: Date;
@@ -96,6 +96,7 @@ export class Show
   songs!: Realm.Set<Song>;
   artist!: Artist;
   tour?: Tour;
+  artistVenue?: ArtistVenue;
 
   /** @deprecated Use `useFavorite` or `LibraryIndex` for active-account membership. */
   isFavorite!: boolean;
@@ -117,90 +118,5 @@ export class Show
     return libraryIndex
       ? libraryIndex.showHasOfflineTracks(this.uuid)
       : checkIfOfflineSourceTrackExists(this.sourceTracks);
-  }
-
-  static propertiesFromApi(relistenObj: ApiShow): ShowRequiredProperties {
-    const popularity = relistenObj.popularity;
-    const windows = popularity?.windows;
-    const window48h = windows?.['48h'];
-    const window7d = windows?.['7d'];
-    const window30d = windows?.['30d'];
-
-    return {
-      uuid: relistenObj.uuid,
-      createdAt: dayjs(relistenObj.created_at).toDate(),
-      updatedAt: dayjs(relistenObj.updated_at).toDate(),
-      artistUuid: relistenObj.artist_uuid,
-      venueUuid: relistenObj.venue_uuid || undefined,
-      tourUuid: relistenObj.tour_uuid || undefined,
-      yearUuid: relistenObj.year_uuid,
-      date: dayjs(relistenObj.date).toDate(),
-      avgRating: relistenObj.avg_rating,
-      avgDuration: relistenObj.avg_duration || undefined,
-      displayDate: relistenObj.display_date,
-      mostRecentSourceUpdatedAt: dayjs(relistenObj.most_recent_source_updated_at).toDate(),
-      hasSoundboardSource: relistenObj.has_soundboard_source,
-      hasStreamableFlacSource: relistenObj.has_streamable_flac_source,
-      sourceCount: relistenObj.source_count,
-      popularity: popularity
-        ? ({
-            momentumScore: popularity.momentum_score,
-            trendRatio: popularity.trend_ratio,
-            windows: {
-              hours48h: {
-                plays: window48h?.plays ?? 0,
-                hours: window48h?.hours ?? 0,
-                hotScore: window48h?.hot_score ?? 0,
-              },
-              days7d: {
-                plays: window7d?.plays ?? 0,
-                hours: window7d?.hours ?? 0,
-                hotScore: window7d?.hot_score ?? 0,
-              },
-              days30d: {
-                plays: window30d?.plays ?? 0,
-                hours: window30d?.hours ?? 0,
-                hotScore: window30d?.hot_score ?? 0,
-              },
-            },
-          } as Popularity)
-        : undefined,
-    };
-  }
-
-  static shouldUpdateFromApi(model: Show, relistenObj: ApiShow): boolean {
-    const popularity = relistenObj.popularity;
-    const windows = popularity?.windows;
-    const window48h = windows?.['48h'];
-    const window7d = windows?.['7d'];
-    const window30d = windows?.['30d'];
-    const apiVenueUuid = relistenObj.venue_uuid || undefined;
-    const apiTourUuid = relistenObj.tour_uuid || undefined;
-
-    if (model.venueUuid !== apiVenueUuid || model.tourUuid !== apiTourUuid) {
-      return true;
-    }
-
-    if (!popularity) {
-      return false;
-    }
-
-    if (!model.popularity || !model.popularity.windows) {
-      return true;
-    }
-
-    return (
-      model.popularity.momentumScore !== popularity.momentum_score ||
-      model.popularity.trendRatio !== popularity.trend_ratio ||
-      model.popularity.windows.hours48h.plays !== (window48h?.plays ?? 0) ||
-      model.popularity.windows.hours48h.hours !== (window48h?.hours ?? 0) ||
-      model.popularity.windows.hours48h.hotScore !== (window48h?.hot_score ?? 0) ||
-      model.popularity.windows.days7d.plays !== (window7d?.plays ?? 0) ||
-      model.popularity.windows.days7d.hours !== (window7d?.hours ?? 0) ||
-      model.popularity.windows.days7d.hotScore !== (window7d?.hot_score ?? 0) ||
-      model.popularity.windows.days30d.plays !== (window30d?.plays ?? 0) ||
-      model.popularity.windows.days30d.hours !== (window30d?.hours ?? 0) ||
-      model.popularity.windows.days30d.hotScore !== (window30d?.hot_score ?? 0)
-    );
   }
 }

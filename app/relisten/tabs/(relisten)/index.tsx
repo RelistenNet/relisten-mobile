@@ -1,30 +1,31 @@
-import { Directory, File, Paths } from 'expo-file-system';
-import { getFreeDiskStorageAsync, getTotalDiskCapacityAsync } from 'expo-file-system/legacy';
+import { AccountSettingsSection } from '@/relisten/accounts/ui/account_settings_section';
+import { useRelistenApi } from '@/relisten/api/context';
+import { decodeUuidCatalogId } from '@/relisten/api/catalog/identity';
+import { RelistenAbout } from '@/relisten/components/about';
+import Flex from '@/relisten/components/flex';
 import { StorageDeleteMenu } from '@/relisten/components/menus/storage_delete_menu';
 import { RelistenButton } from '@/relisten/components/relisten_button';
-import { ScrollView, View } from 'react-native';
-import { useCallback, useEffect, useReducer, useState } from 'react';
-import Flex from '@/relisten/components/flex';
+import { RowWithAction } from '@/relisten/components/row_with_action';
+import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
+import { SectionHeader } from '@/relisten/components/section_header';
+import { RelistenSettings } from '@/relisten/components/settings';
+import { UpdatesStatusSection } from '@/relisten/components/updates_status_section';
+import { LegacyDataMigrationModal, SEEN_MODAL_KEY } from '@/relisten/pages/legacy_migration';
+import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
+import { useArtists } from '@/relisten/realm/models/artist_repo';
 import {
   OFFLINE_DIRECTORIES_LEGACY,
   OFFLINE_DIRECTORY,
 } from '@/relisten/realm/models/source_track';
-import { Link, useFocusEffect } from 'expo-router';
-import { RelistenSettings } from '@/relisten/components/settings';
-import { SectionHeader } from '@/relisten/components/section_header';
-import { RowWithAction } from '@/relisten/components/row_with_action';
-import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
-import { RelistenAbout } from '@/relisten/components/about';
-import { UpdatesStatusSection } from '@/relisten/components/updates_status_section';
-import { useArtists } from '@/relisten/realm/models/artist_repo';
-import { sample } from 'remeda';
-import { useRelistenApi } from '@/relisten/api/context';
-import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { legacyDatabaseExists } from '@/relisten/realm/old_ios_schema';
+import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LegacyDataMigrationModal, SEEN_MODAL_KEY } from '@/relisten/pages/legacy_migration';
-import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
-import { AccountSettingsSection } from '@/relisten/accounts/ui/account_settings_section';
+import { Directory, File, Paths } from 'expo-file-system';
+import { getFreeDiskStorageAsync, getTotalDiskCapacityAsync } from 'expo-file-system/legacy';
+import { Link, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useReducer, useState } from 'react';
+import { ScrollView, View } from 'react-native';
+import { sample } from 'remeda';
 
 const sizeFormatter = new Intl.NumberFormat([], {
   style: 'unit',
@@ -185,10 +186,10 @@ export default function Page() {
     const randomArtist = sample([...artists.data], 1)[0]!;
     const randomShow = await apiClient.randomShow(randomArtist.uuid);
 
-    if (randomShow?.data?.uuid) {
+    if (randomShow.data) {
       pushShow({
         artist: randomArtist,
-        showUuid: randomShow!.data!.uuid,
+        showUuid: decodeUuidCatalogId(randomShow.data.id, 'show'),
         overrideGroupSegment: '(artists)',
       });
     }

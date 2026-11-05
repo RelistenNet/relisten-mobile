@@ -1,22 +1,22 @@
-import { useMemo } from 'react';
-import { useNetworkBackedBehavior } from '@/relisten/realm/network_backed_behavior_hooks';
-import { useArtist } from '@/relisten/realm/models/artist_repo';
-import { mergeNetworkBackedResults } from '@/relisten/realm/network_backed_results';
-import Realm from 'realm';
-import { Show } from '@/relisten/realm/models/show';
-import { Show as ApiShow } from '@/relisten/api/models/show';
 import {
   RelistenApiClient,
   RelistenApiResponse,
   RelistenApiResponseType,
 } from '@/relisten/api/client';
-import { useRealm } from '@/relisten/realm/schema';
+import { ShowSummaryResource as ApiShow } from '@/relisten/api/catalog/resources';
+import { useArtist } from '@/relisten/realm/models/artist_repo';
+import { Show } from '@/relisten/realm/models/show';
 import { ShowsWithVenueNetworkBackedBehavior } from '@/relisten/realm/models/shows/show_with_venues_behavior';
 import {
   NetworkBackedBehaviorFetchStrategy,
   NetworkBackedBehaviorOptions,
 } from '@/relisten/realm/network_backed_behavior';
+import { useNetworkBackedBehavior } from '@/relisten/realm/network_backed_behavior_hooks';
+import { mergeNetworkBackedResults } from '@/relisten/realm/network_backed_results';
+import { useRealm } from '@/relisten/realm/schema';
 import { RealmQueryValueStream } from '@/relisten/realm/value_streams';
+import { useMemo } from 'react';
+import Realm from 'realm';
 
 class TopShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavior {
   constructor(
@@ -27,21 +27,12 @@ class TopShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavior 
     super(realm, options);
   }
 
-  fetchFromApi(
-    api: RelistenApiClient,
-    forcedRefresh: boolean
-  ): Promise<RelistenApiResponse<ApiShow[] | undefined>> {
+  fetchShows(api: RelistenApiClient): Promise<RelistenApiResponse<ApiShow[] | undefined>> {
     if (!this.artistUuid) {
       return Promise.resolve({ type: RelistenApiResponseType.Offline, data: undefined });
     }
 
-    const refreshOptions = api.refreshOptions(forcedRefresh);
-
-    return api.topShow(this.artistUuid, {
-      bypassEtagCaching: true,
-      bypassRateLimit: true,
-      ...refreshOptions,
-    });
+    return api.topShow(this.artistUuid);
   }
 
   override createLocalUpdatingResults(): RealmQueryValueStream<Show> {

@@ -1,20 +1,20 @@
-import Realm from 'realm';
-import { useMemo } from 'react';
-import { Show } from '@/relisten/realm/models/show';
-import { Show as ApiShow } from '@/relisten/api/models/show';
 import {
   RelistenApiClient,
   RelistenApiResponse,
   RelistenApiResponseType,
 } from '@/relisten/api/client';
-import { useNetworkBackedBehavior } from '@/relisten/realm/network_backed_behavior_hooks';
-import { useRealm } from '@/relisten/realm/schema';
+import { ShowSummaryResource as ApiShow } from '@/relisten/api/catalog/resources';
+import { Show } from '@/relisten/realm/models/show';
 import { ShowsWithVenueNetworkBackedBehavior } from '@/relisten/realm/models/shows/show_with_venues_behavior';
 import {
   NetworkBackedBehaviorFetchStrategy,
   NetworkBackedBehaviorOptions,
 } from '@/relisten/realm/network_backed_behavior';
+import { useNetworkBackedBehavior } from '@/relisten/realm/network_backed_behavior_hooks';
+import { useRealm } from '@/relisten/realm/schema';
 import { RealmQueryValueStream } from '@/relisten/realm/value_streams';
+import { useMemo } from 'react';
+import Realm from 'realm';
 
 class ShowsByMomentumNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavior {
   constructor(
@@ -25,15 +25,12 @@ class ShowsByMomentumNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBe
     super(realm, options);
   }
 
-  fetchFromApi(
-    api: RelistenApiClient,
-    forcedRefresh: boolean
-  ): Promise<RelistenApiResponse<ApiShow[] | undefined>> {
+  fetchShows(api: RelistenApiClient): Promise<RelistenApiResponse<ApiShow[] | undefined>> {
     if (this.artistUuids.length === 0) {
       return Promise.resolve({ type: RelistenApiResponseType.Offline, data: undefined });
     }
 
-    return api.showsByMomentum(this.artistUuids, api.refreshOptions(forcedRefresh));
+    return api.showsByMomentum(this.artistUuids);
   }
 
   override createLocalUpdatingResults(): RealmQueryValueStream<Show> {

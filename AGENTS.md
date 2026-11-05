@@ -27,9 +27,9 @@ Always run `yarn lint` and `yarn ts:check` after making changes to ensure that k
 - Linting is enforced by `eslint.config.mjs`; run `yarn lint` before PRs.
 
 ## Testing Guidelines
-- No test framework is configured in this repo today.
-- Use `yarn ts:check` and `yarn lint` as the default verification steps.
-- If you introduce tests, keep them close to the feature and document how to run them.
+- Tests use Vitest. Run `yarn test` for the full suite or pass a test file for focused verification.
+- Keep tests beside the feature. Exercise observable behavior through HTTP, repository, persistence, or player contracts; avoid assertions that repeat private implementation details.
+- Run `yarn ts:check` and `yarn lint` alongside the affected tests.
 
 ## Commit & Pull Request Guidelines
 - Recent commits are short and informal (e.g., “wip carplay”); there is no strict convention.

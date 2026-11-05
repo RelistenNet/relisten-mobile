@@ -1,13 +1,14 @@
+import { NetworkBackedResults } from '@/relisten/realm/network_backed_results';
+import { EmittableValueStream, ValueStream } from '@/relisten/realm/value_streams';
+import { log } from '@/relisten/util/logging';
+import Realm from 'realm';
 import {
   RelistenApiClient,
   RelistenApiClientError,
   RelistenApiResponse,
   RelistenApiResponseType,
 } from '../api/client';
-import dayjs from 'dayjs';
-import { NetworkBackedResults } from '@/relisten/realm/network_backed_results';
-import { log } from '@/relisten/util/logging';
-import { EmittableValueStream, ValueStream } from '@/relisten/realm/value_streams';
+import { CatalogQueryState } from './models/catalog';
 
 export enum NetworkBackedBehaviorFetchStrategy {
   UNKNOWN,
@@ -18,11 +19,30 @@ export enum NetworkBackedBehaviorFetchStrategy {
 }
 
 export abstract class NetworkBackedBehavior<TLocalData, TApiData> {
-  abstract fetchStrategy: NetworkBackedBehaviorFetchStrategy;
+  readonly fetchStrategy: NetworkBackedBehaviorFetchStrategy;
+
+  protected constructor(
+    readonly realm: Realm,
+    options?: NetworkBackedBehaviorOptions
+  ) {
+    this.fetchStrategy =
+      options?.fetchStrategy ?? NetworkBackedBehaviorFetchStrategy.StaleWhileRevalidate;
+  }
+
+  get queryKey(): string | undefined {
+    return undefined;
+  }
+
+  // Applied empty collections are valid. Repositories only check required roots/owners.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  hasLocalData(_localData: TLocalData, _resultIds: Iterable<string>): boolean {
+    return true;
+  }
 
   abstract createLocalUpdatingResults(): ValueStream<TLocalData>;
 
   private _sharedExecutor: NetworkBackedBehaviorExecutor<TLocalData, TApiData> | undefined;
+
   sharedExecutor(api: RelistenApiClient) {
     if (!this._sharedExecutor) {
       this._sharedExecutor = new NetworkBackedBehaviorExecutor(this, api);
@@ -33,21 +53,16 @@ export abstract class NetworkBackedBehavior<TLocalData, TApiData> {
 
   abstract fetchFromApi(
     api: RelistenApiClient,
-    forcedRefresh: boolean
+    forcedRefresh: boolean,
+    etag?: string
   ): Promise<RelistenApiResponse<TApiData | undefined>>;
-
-  abstract shouldPerformNetworkRequest(
-    lastRequestAt: dayjs.Dayjs | undefined,
-    localData: TLocalData
-  ): boolean;
 
   abstract isLocalDataShowable(localData: TLocalData): boolean;
 
-  abstract upsert(localData: TLocalData | null, apiData: TApiData): void;
+  abstract upsert(localData: TLocalData, apiData: TApiData): string[] | void;
 }
 
 export interface NetworkBackedBehaviorOptions {
-  minTimeBetweenRequestsSeconds?: number;
   fetchStrategy?: NetworkBackedBehaviorFetchStrategy;
 }
 
@@ -79,9 +94,13 @@ export class NetworkBackedResultValueStream<TLocalData> extends EmittableValueSt
 
 export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
   private isNetworkLoading: boolean;
+
   private isNetworkLoadingDefault: boolean;
+
   private errors: RelistenApiClientError[] | undefined = undefined;
+
   private localData: ValueStream<TLocalData>;
+
   private output: NetworkBackedResultValueStream<TLocalData>;
 
   constructor(
@@ -111,7 +130,7 @@ export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
   }
 
   start(): NetworkBackedResultValueStream<TLocalData> {
-    this.refresh(this.isNetworkLoadingDefault).catch((e) => {
+    this.refresh(false).catch((e) => {
       logger.error(e);
 
       if (__DEV__) {
@@ -164,24 +183,175 @@ export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
     this.output.emit(this.buildResult());
   }
 
-  refresh = async (shouldForceLoadingSpinner: boolean = false) => {
-    if (shouldForceLoadingSpinner) {
+  refresh = async (force = false) => {
+    if (
+      this.behavior.fetchStrategy === NetworkBackedBehaviorFetchStrategy.LocalOnly ||
+      (!force &&
+        this.behavior.fetchStrategy ===
+          NetworkBackedBehaviorFetchStrategy.NetworkOnlyIfLocalIsNotShowable &&
+        this.behavior.isLocalDataShowable(this.localData.currentValue))
+    ) {
+      return;
+    }
+
+    if (force) {
       this.isNetworkLoading = true;
       this.buildAndEmit();
     }
-    const apiData = await this.behavior.fetchFromApi(this.api, shouldForceLoadingSpinner);
-
-    if (apiData?.type == RelistenApiResponseType.OnlineRequestCompleted) {
-      if (apiData?.data && !apiData.duplicate) {
-        this.behavior.upsert(this.localData.currentValue, apiData.data);
+    try {
+      const key = this.behavior.queryKey;
+      if (key) {
+        await this.refreshCached(key, force);
+      } else {
+        const response = await this.behavior.fetchFromApi(this.api, force);
+        if (response.error) {
+          throw response.error.error ?? new Error(response.error.message);
+        }
+        if (response.data !== undefined) {
+          this.behavior.upsert(this.localData.currentValue, response.data);
+        }
       }
+      this.errors = undefined;
+    } catch (error) {
+      const cause = error instanceof Error ? error : new Error(String(error));
+      this.errors = [{ error: cause, message: cause.message }];
+    } finally {
+      this.isNetworkLoading = false;
+      this.buildAndEmit();
+    }
+  };
 
-      if (apiData?.error) {
-        this.errors = [apiData?.error];
-      }
+  private async refreshCached(key: string, force: boolean) {
+    const realm = this.behavior.realm;
+    const state = realm.objectForPrimaryKey(CatalogQueryState, key);
+    const hasLocalData = () =>
+      this.behavior.hasLocalData(
+        this.localData.currentValue,
+        realm.objectForPrimaryKey(CatalogQueryState, key)?.resultIds ?? []
+      );
+    if (
+      !force &&
+      state?.hasAppliedData &&
+      !state.retryPending &&
+      state.lastCheckedAt &&
+      Date.now() - state.lastCheckedAt.getTime() < 15 * 60 * 1000 &&
+      hasLocalData()
+    ) {
+      return;
     }
 
-    this.isNetworkLoading = false;
-    this.buildAndEmit();
-  };
+    const requests = requestState(realm);
+    const existing = requests.inflight.get(key);
+    if (!force && existing) {
+      return existing.promise;
+    }
+    const token = {};
+    const promise = this.fetchAndApply(key, force, token, hasLocalData).finally(() => {
+      if (requests.inflight.get(key)?.token === token) {
+        requests.inflight.delete(key);
+      }
+    });
+    requests.inflight.set(key, { token, promise });
+    return promise;
+  }
+
+  private async fetchAndApply(
+    key: string,
+    force: boolean,
+    token: object,
+    hasLocalData: () => boolean
+  ) {
+    const realm = this.behavior.realm;
+    const requests = requestState(realm);
+    const isCurrent = () => requests.inflight.get(key)?.token === token;
+    try {
+      const state = realm.objectForPrimaryKey(CatalogQueryState, key);
+      const etag = !force && state?.hasAppliedData && hasLocalData() ? state.etag : undefined;
+      let response = await this.behavior.fetchFromApi(this.api, force, etag);
+      if (!isCurrent()) {
+        return;
+      }
+      if (response.error) {
+        throw response.error.error ?? new Error(response.error.message);
+      }
+      if (response.type === RelistenApiResponseType.RequestContentsUnchanged) {
+        const current = realm.objectForPrimaryKey(CatalogQueryState, key);
+        if (
+          etag &&
+          response.etag === etag &&
+          current?.etag === etag &&
+          current.hasAppliedData &&
+          hasLocalData()
+        ) {
+          realm.write(() => {
+            current.lastCheckedAt = new Date();
+            current.retryPending = false;
+          });
+          requests.retries.delete(key);
+          return;
+        }
+        // A required root may have disappeared while the request was in flight.
+        response = await this.behavior.fetchFromApi(this.api, force);
+        if (!isCurrent()) {
+          return;
+        }
+        if (response.error) {
+          throw response.error.error ?? new Error(response.error.message);
+        }
+      }
+      if (response.data === undefined || !response.etag) {
+        throw new Error('Catalog refresh requires a resource body and ETag.');
+      }
+      const body = response.data;
+      const validator = response.etag;
+      realm.write(() => {
+        const resultIds = this.behavior.upsert(this.localData.currentValue, body) ?? [];
+        realm.create(
+          CatalogQueryState,
+          {
+            key,
+            etag: validator,
+            hasAppliedData: true,
+            lastAppliedAt: new Date(),
+            lastCheckedAt: new Date(),
+            retryPending: false,
+            resultIds,
+          },
+          Realm.UpdateMode.Modified
+        );
+      });
+      requests.retries.delete(key);
+    } catch (error) {
+      if (!isCurrent()) {
+        return;
+      }
+      realm.write(() => {
+        realm.create(CatalogQueryState, { key, retryPending: true }, Realm.UpdateMode.Modified);
+      });
+      requests.retries.set(key, () => this.refresh(force));
+      throw error;
+    }
+  }
+}
+
+// Request coalescing lasts only while work is in flight. Persisted query state
+// owns validators and freshness; no response body or permanent generation map is retained.
+interface RepositoryRequests {
+  inflight: Map<string, { token: object; promise: Promise<void> }>;
+  retries: Map<string, () => Promise<void>>;
+}
+const requestsByRealm = new WeakMap<Realm, RepositoryRequests>();
+function requestState(realm: Realm): RepositoryRequests {
+  let state = requestsByRealm.get(realm);
+  if (!state) {
+    state = { inflight: new Map(), retries: new Map() };
+    requestsByRealm.set(realm, state);
+  }
+  return state;
+}
+export async function retryCatalogRequests(realm: Realm) {
+  const requests = requestsByRealm.get(realm);
+  if (requests) {
+    await Promise.allSettled([...requests.retries.values()].map((retry) => retry()));
+  }
 }

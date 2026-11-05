@@ -1,73 +1,51 @@
-import wretch, { ConfiguredMiddleware, WretchError, WretchOptions } from 'wretch';
-import { log } from '../util/logging';
-import { ArtistWithCounts } from './models/artist';
-import { Year, YearWithShows } from './models/year';
-import { ShowWithSources, SourceReview } from './models/source';
-import dayjs from 'dayjs';
-import { RelistenObject, RelistenUpdatableObject } from '@/relisten/api/models/relisten';
-import { CryptoDigestAlgorithm, digestStringAsync } from 'expo-crypto';
-import { realm } from '@/relisten/realm/schema';
-import { UrlRequestMetadata } from '@/relisten/realm/models/url_request_metadata';
-import { VenueWithShowCounts, VenueWithShows } from './models/venue';
-import { TourWithShowCount, TourWithShows } from './models/tour';
-import { SongWithPlayCount, SongWithShows } from './models/song';
-import { Show } from './models/show';
 import { Platform } from 'react-native';
-import { OnRetryFunctionResponse, retry } from './retry_middleware';
-import { catalogApiBase } from '@/relisten/api/catalog_config';
-import {
-  CatalogReferenceRequest,
-  CatalogResolveResponse,
-} from '@/relisten/api/models/catalog_resolve';
-
-const logger = log.extend('network');
-
-const loggingMiddleware: ConfiguredMiddleware = (next) => (url, opts) => {
-  logger.info(`[api] ${opts.method} ${url}`);
-
-  return next(url, opts);
-};
-
-function calculateEtag(objs: Array<RelistenObject & RelistenUpdatableObject>): Promise<string> {
-  let str = '';
-
-  for (const obj of objs) {
-    str += obj.uuid;
-    str += obj.updated_at;
-  }
-
-  return digestStringAsync(CryptoDigestAlgorithm.MD5, str);
-}
+import { encodeUuidCatalogId } from './catalog/identity';
+import type { CatalogReferenceRequest, CatalogResolveResponse } from './catalog/resolve';
+import { CatalogTransport } from './catalog/transport';
+import type {
+  ArtistResource,
+  ArtistSongEntryResource,
+  ArtistVenueEntryResource,
+  ArtistVenueWithShowsResource,
+  ImportedSongWithShowsResource,
+  ImportedVenueWithShowsResource,
+  LiveHistoryResource,
+  ShowResource,
+  ShowSummaryResource,
+  SongWithShowsResource,
+  SongWithTracksResource,
+  SourceResource,
+  SourceReviewResource,
+  TourResource,
+  TourWithShowsResource,
+  TrackResource,
+  VenueWithShowsResource,
+  YearResource,
+  YearWithShowsResource,
+} from './catalog/resources';
 
 export enum RelistenApiResponseType {
   Offline,
-  LastRequestTooRecent,
-  RequestContentsUnchanged,
-  OnlineRequestCompleted,
+  RequestContentsUnchanged = 2,
+  OnlineRequestCompleted = 3,
 }
 
 export interface RelistenApiResponse<T> {
   type: RelistenApiResponseType;
   data?: T;
   error?: RelistenApiClientError;
-  duplicate?: boolean;
+  etag?: string;
 }
 
+/** HTTP validators are supplied by the owning repository, never stored by this client. */
 export interface RelistenApiRequestOptions {
-  bypassEtagCaching?: boolean;
-  bypassRateLimit?: boolean;
-  bypassRequestDeduplication?: boolean;
+  etag?: string;
 }
 
 export interface RelistenApiClientError {
   error?: Error;
-  httpError?: WretchError;
+  httpError?: { status: number; url: string };
   message?: string;
-}
-
-enum RelistenApiRequestMethod {
-  GET = 'GET',
-  POST = 'POST',
 }
 
 export function errorDisplayString(err?: RelistenApiClientError): string {
@@ -86,401 +64,206 @@ export function errorDisplayString(err?: RelistenApiClientError): string {
   return 'Unknown error';
 }
 
+/** HTTP-only catalog client. Repositories own Realm writes, freshness, membership and retry policy. */
 export class RelistenApiClient {
-  static API_BASE = catalogApiBase();
+  private readonly transport: CatalogTransport;
 
-  private api = wretch(RelistenApiClient.API_BASE).middlewares([
-    loggingMiddleware,
-    retry({
-      delayTimer: 100,
-      maxAttempts: 3,
-      retryOnNetworkError: true,
-      resolveWithLatestResponse: true,
-      onRetry: async ({
-        response,
-        options,
-        url,
-        error: e,
-      }: {
-        response?: Response;
-        error?: Error;
-        url: string;
-        options: WretchOptions;
-      }): Promise<OnRetryFunctionResponse> => {
-        if (response && response instanceof Response) {
-          const wretchError = e as WretchError | undefined;
-          logger.warn(
-            `Retrying error: ${wretchError?.status} method=${options.method} url=${url} text=${await wretchError?.response.text()}`
-          );
-        } else {
-          logger.warn(`Retrying error: method=${options.method} url=${url} ${e}`);
-        }
-
-        return undefined;
-      },
-    }),
-  ]);
-
-  private inflightRequests: Map<string, Promise<RelistenApiResponse<unknown>>> = new Map();
-
-  private postJson<T>(url: string, body: object): Promise<RelistenApiResponse<T>> {
-    return this.makeJsonRequest<T>(RelistenApiRequestMethod.POST, url, body);
+  constructor(options: { transport?: CatalogTransport } = {}) {
+    this.transport = options.transport ?? new CatalogTransport();
   }
 
-  private getJson<
-    T extends
-      | (RelistenObject & RelistenUpdatableObject)
-      | Array<RelistenObject & RelistenUpdatableObject>,
-  >(url: string, options?: RelistenApiRequestOptions): Promise<RelistenApiResponse<T>> {
-    // we only do GET requests for now
-    const key = 'GET@' + url;
-    const hasInFlightRequest = this.inflightRequests.has(key);
+  /** Complete shared list; repositories filter automatically created visibility locally. */
+  artists(options?: RelistenApiRequestOptions) {
+    return this.get<ArtistResource[]>('/artists?include_autocreated=true', options);
+  }
 
-    let req: Promise<RelistenApiResponse<T>> | undefined = undefined;
+  years(artistUuid: string, options?: RelistenApiRequestOptions) {
+    return this.get<YearResource[]>(`${this.artistPath(artistUuid)}/years`, options);
+  }
 
-    if (options?.bypassRequestDeduplication === true || !hasInFlightRequest) {
-      req = this.makeJsonRequest<T>(
-        RelistenApiRequestMethod.GET,
-        url,
-        /* body= */ undefined,
-        options
-      );
+  year(artistUuid: string, yearUuid: string, options?: RelistenApiRequestOptions) {
+    return this.get<YearWithShowsResource>(
+      `${this.artistPath(artistUuid)}/years/${encodeUuidCatalogId(yearUuid, 'year')}`,
+      options
+    );
+  }
 
-      if (!options?.bypassRequestDeduplication) {
-        req.then(() => {
-          this.inflightRequests.delete(key);
-        });
+  showWithSources(showUuid: string, options?: RelistenApiRequestOptions) {
+    return this.get<ShowResource>(`/shows/${encodeUuidCatalogId(showUuid, 'show')}`, options);
+  }
 
-        this.inflightRequests.set(key, req);
-      }
-    } else if (hasInFlightRequest) {
-      logger.info(`[dedupe] url=${url}, duplicate request found.`);
-      const inFlightRequest = this.inflightRequests.get(key) as Promise<RelistenApiResponse<T>>;
-      req = inFlightRequest.then((resp) => {
-        return {
-          ...resp,
-          duplicate: true,
-        };
-      });
+  source(sourceUuid: string, options?: RelistenApiRequestOptions) {
+    return this.get<SourceResource>(
+      `/sources/${encodeUuidCatalogId(sourceUuid, 'source')}`,
+      options
+    );
+  }
+
+  track(trackUuid: string, options?: RelistenApiRequestOptions) {
+    return this.get<TrackResource>(
+      `/source-tracks/${encodeUuidCatalogId(trackUuid, 'track')}`,
+      options
+    );
+  }
+
+  venues(artistUuid: string, options?: RelistenApiRequestOptions) {
+    return this.get<ArtistVenueEntryResource[]>(`${this.artistPath(artistUuid)}/venues`, options);
+  }
+
+  artistVenue(artistUuid: string, venueId: string, options?: RelistenApiRequestOptions) {
+    return this.get<ArtistVenueWithShowsResource>(
+      `${this.artistPath(artistUuid)}/venues/${venueId}`,
+      options
+    );
+  }
+
+  importedVenue(venueUuid: string, options?: RelistenApiRequestOptions) {
+    return this.get<ImportedVenueWithShowsResource>(
+      `/imported-venues/${encodeUuidCatalogId(venueUuid, 'imported_venue')}`,
+      options
+    );
+  }
+
+  venue(venueId: string, options?: RelistenApiRequestOptions) {
+    return this.get<VenueWithShowsResource>(`/venues/${venueId}`, options);
+  }
+
+  songs(artistUuid: string, options?: RelistenApiRequestOptions) {
+    return this.get<ArtistSongEntryResource[]>(`${this.artistPath(artistUuid)}/songs`, options);
+  }
+
+  song(songId: string, options?: RelistenApiRequestOptions) {
+    return this.get<SongWithShowsResource>(`/songs/${songId}`, options);
+  }
+
+  songTracks(songId: string, options?: RelistenApiRequestOptions) {
+    return this.get<SongWithTracksResource>(`/songs/${songId}/tracks`, options);
+  }
+
+  importedSong(songUuid: string, options?: RelistenApiRequestOptions) {
+    return this.get<ImportedSongWithShowsResource>(
+      `/imported-songs/${encodeUuidCatalogId(songUuid, 'imported_song')}`,
+      options
+    );
+  }
+
+  tours(artistUuid: string, options?: RelistenApiRequestOptions) {
+    return this.get<TourResource[]>(`${this.artistPath(artistUuid)}/tours`, options);
+  }
+
+  tour(tourUuid: string, options?: RelistenApiRequestOptions) {
+    return this.get<TourWithShowsResource>(
+      `/tours/${encodeUuidCatalogId(tourUuid, 'tour')}`,
+      options
+    );
+  }
+
+  sourceReviews(sourceUuid: string) {
+    return this.get<SourceReviewResource[]>(
+      `/sources/${encodeUuidCatalogId(sourceUuid, 'source')}/reviews`
+    );
+  }
+
+  showWithSourcesOnDate(artistUuid: string, date: string) {
+    return this.get<ShowResource>(
+      `${this.artistPath(artistUuid)}/shows/by-date/${encodeURIComponent(date)}`
+    );
+  }
+
+  randomShow(artistUuid: string) {
+    return this.request<ShowResource>(`${this.artistPath(artistUuid)}/shows/random`);
+  }
+
+  topShow(artistUuid: string) {
+    return this.get<ShowSummaryResource[]>(`${this.artistPath(artistUuid)}/shows/top`);
+  }
+
+  recentPerformedShows(artistUuid: string) {
+    return this.get<ShowSummaryResource[]>(
+      `${this.artistPath(artistUuid)}/shows/recently-performed`
+    );
+  }
+
+  recentUpdatedShows(artistUuid: string) {
+    return this.get<ShowSummaryResource[]>(`${this.artistPath(artistUuid)}/shows/recently-updated`);
+  }
+
+  showsByMomentum(artistUuids: string[]) {
+    const params = new URLSearchParams();
+    for (const uuid of artistUuids) {
+      params.append('artist_ids', encodeUuidCatalogId(uuid, 'artist'));
     }
-
-    return req!;
+    return this.get<ShowSummaryResource[]>(`/shows/momentum?${params}`);
   }
 
-  static MIN_REQUEST_COOLDOWN_SECONDS = 1 * 60 * 60;
-  static MIN_ETAG_COOLDOWN_SECONDS = 24 * 60 * 60;
+  todayShows(date = new Date()) {
+    return this.get<ShowSummaryResource[]>(
+      `/shows/on-date?month=${date.getMonth() + 1}&day=${date.getDate()}`
+    );
+  }
 
-  private async makeJsonRequest<T>(
-    method: RelistenApiRequestMethod,
-    url: string,
-    body?: object,
+  recordPlayback(trackUuid: string) {
+    return this.request<{
+      sequence: number;
+      played_at: string;
+      track_id: string;
+      app_type: string;
+    }>('/live/play', {
+      track_id: encodeUuidCatalogId(trackUuid, 'track'),
+      app_type: Platform.OS,
+    });
+  }
+
+  liveHistory(afterSequence?: number) {
+    const params = new URLSearchParams({ limit: '200' });
+    if (afterSequence !== undefined) {
+      params.set('after_sequence', String(afterSequence));
+    }
+    return this.request<LiveHistoryResource[]>(`/live/history?${params}`);
+  }
+
+  resolveCatalogReferences(references: CatalogReferenceRequest[]) {
+    return this.request<CatalogResolveResponse>('/catalog/resolve', { references });
+  }
+
+  private artistPath(uuid: string) {
+    return `/artists/${encodeUuidCatalogId(uuid, 'artist')}`;
+  }
+
+  private async get<T>(
+    path: string,
     options?: RelistenApiRequestOptions
   ): Promise<RelistenApiResponse<T>> {
-    let urlMetadata: UrlRequestMetadata | null = null;
-    if (method == RelistenApiRequestMethod.POST) {
-      logger.info('[rate limiting] Bypassing rate-limiting for POST request');
-    } else if (realm) {
-      urlMetadata = realm.objectForPrimaryKey<UrlRequestMetadata>(UrlRequestMetadata, url);
-
-      const msSinceLastRequest = urlMetadata
-        ? Date.now() - urlMetadata.lastRequestCompletedAt.getTime()
-        : undefined;
-
-      // don't make a request more than once per hour
-      if (options?.bypassRateLimit === true) {
-        logger.info(
-          `[rate limiting] url=${url}, making request. bypassRateLimit=${options?.bypassRateLimit}`
-        );
-      } else if (
-        msSinceLastRequest &&
-        msSinceLastRequest < RelistenApiClient.MIN_REQUEST_COOLDOWN_SECONDS * 1000
-      ) {
-        logger.info(
-          `[rate limiting] url=${url}, skipping request. last request was too recent: ${(
-            msSinceLastRequest / 1000.0
-          ).toFixed(2)}s ago. (limit: ${RelistenApiClient.MIN_REQUEST_COOLDOWN_SECONDS.toFixed(2)})`
-        );
-        return { type: RelistenApiResponseType.LastRequestTooRecent };
-      } else {
-        logger.info(
-          `[rate limiting] url=${url}, making request. secondsSinceLastRequest=${msSinceLastRequest}`
-        );
-      }
-    }
-
-    const startedAt = dayjs();
-
     try {
-      const resp = await this.api.fetch(method, url, body).res();
-      const j = await resp.json();
-
-      const completedAt = new Date();
-      const duration = dayjs(completedAt).diff(startedAt, 'milliseconds');
-
-      logger.info(`[api] ${resp.status} ${duration}ms ${method} ${resp.url}`);
-
-      if (method === RelistenApiRequestMethod.GET) {
-        const values = (Array.isArray(j) ? j : [j]) as Array<
-          RelistenObject & RelistenUpdatableObject
-        >;
-
-        // TODO(alecgorge): This doesn't account for situations like VenuesWithShows
-        //  where the Venue hasn't changed but the list of Shows has changed
-        const etag = await calculateEtag(values);
-        const oldEtag = urlMetadata?.etag;
-
-        let etagLastUpdatedAt = urlMetadata?.etagLastUpdatedAt;
-
-        const msSinceEtagLastUpdated = etagLastUpdatedAt
-          ? Date.now() - etagLastUpdatedAt.getTime()
-          : undefined;
-
-        if (options?.bypassEtagCaching === true) {
-          logger.info(
-            `[etag] url=${url}, updating local database. bypassEtagCaching=${options?.bypassEtagCaching}`
-          );
-
-          etagLastUpdatedAt = completedAt;
-        } else if (etag === oldEtag) {
-          if (
-            msSinceEtagLastUpdated !== undefined &&
-            msSinceEtagLastUpdated < RelistenApiClient.MIN_ETAG_COOLDOWN_SECONDS * 1000
-          ) {
-            logger.info(`[etag] url=${resp.url}, request contents unchanged. etag=${etag}`);
-            return { type: RelistenApiResponseType.RequestContentsUnchanged };
-          } else {
-            logger.info(
-              `[etag] url=${resp.url}, request contents unchanged but expired. msSinceEtagLastUpdated=${msSinceEtagLastUpdated}, etag=${etag}`
-            );
-
-            etagLastUpdatedAt = completedAt;
-          }
-        }
-
-        logger.info(
-          `[etag] url=${resp.url}, updating local database; request contents changed or expired. msSinceEtagLastUpdated=${msSinceEtagLastUpdated}, stored_etag=${oldEtag}, new_etag=${etag}`
-        );
-
-        realm?.write(() => {
-          if (urlMetadata) {
-            urlMetadata.etag = etag;
-            urlMetadata.etagLastUpdatedAt = etagLastUpdatedAt;
-            urlMetadata.lastRequestCompletedAt = completedAt;
-          } else {
-            realm?.create(UrlRequestMetadata, {
-              url,
-              etag,
-              lastRequestCompletedAt: completedAt,
-              etagLastUpdatedAt,
-            });
-          }
-        });
-      }
-
-      return {
-        type: RelistenApiResponseType.OnlineRequestCompleted,
-        data: j as T,
-      };
-    } catch (e) {
-      const err: RelistenApiClientError = {};
-
-      if (e && typeof e === 'object' && 'response' in e) {
-        const wretchError = e as WretchError;
-        err.httpError = wretchError;
-        logger.warn(
-          `${wretchError.status} method=${method} url=${url} text=${await wretchError.response.text()}`
-        );
-      } else {
-        err.error = e instanceof Error ? e : new Error(String(e));
-        err.message = `Error loading ${url}`;
-        logger.warn(`method=${method} url=${url} ${e}`);
-      }
-
-      return {
-        type: RelistenApiResponseType.OnlineRequestCompleted,
-        data: undefined,
-        error: err,
-      };
+      const response = await this.transport.getJson<T>(path, options?.etag);
+      return response.status === 'not_modified'
+        ? { type: RelistenApiResponseType.RequestContentsUnchanged, etag: response.etag }
+        : {
+            type: RelistenApiResponseType.OnlineRequestCompleted,
+            data: response.data,
+            etag: response.etag,
+          };
+    } catch (error) {
+      return this.failure(error);
     }
   }
 
-  public refreshOptions(forceRefresh: boolean): RelistenApiRequestOptions | undefined {
-    if (!forceRefresh) {
-      return;
+  private async request<T>(path: string, body?: object): Promise<RelistenApiResponse<T>> {
+    try {
+      return {
+        type: RelistenApiResponseType.OnlineRequestCompleted,
+        data: await this.transport.requestJson<T>(path, body),
+      };
+    } catch (error) {
+      return this.failure(error);
     }
+  }
 
+  private failure(error: unknown) {
+    const cause = error instanceof Error ? error : new Error(String(error));
     return {
-      bypassEtagCaching: true,
-      bypassRateLimit: true,
+      type: RelistenApiResponseType.Offline,
+      error: { error: cause, message: cause.message },
     };
-  }
-
-  public resolveCatalogReferences(
-    references: CatalogReferenceRequest[]
-  ): Promise<RelistenApiResponse<CatalogResolveResponse>> {
-    return this.postJson('/v3/catalog/resolve', {
-      contract_version: 1,
-      references,
-    });
-  }
-
-  public artists(
-    includeAutomaticallyCreated: boolean,
-    options?: RelistenApiRequestOptions
-  ): Promise<RelistenApiResponse<ArtistWithCounts[]>> {
-    return this.getJson(`/v3/artists?include_autocreated=${includeAutomaticallyCreated}`, options);
-  }
-
-  public artist(
-    artistUuid: string,
-    options?: RelistenApiRequestOptions
-  ): Promise<RelistenApiResponse<ArtistWithCounts>> {
-    return this.getJson(`/v3/artists/${artistUuid}`, options);
-  }
-
-  public showWithSources(
-    showUuid: string,
-    options?: RelistenApiRequestOptions
-  ): Promise<RelistenApiResponse<ShowWithSources>> {
-    return this.getJson(`/v3/shows/${showUuid}`, options);
-  }
-
-  public showWithSourcesOnDate(
-    artistIdOrSlug: string,
-    showDate: string,
-    options?: RelistenApiRequestOptions
-  ): Promise<RelistenApiResponse<ShowWithSources>> {
-    return this.getJson(`/v2/artists/${artistIdOrSlug}/shows/${showDate}`, options);
-  }
-
-  public sourceReviews(
-    sourceUuid: string,
-    options?: RelistenApiRequestOptions
-  ): Promise<RelistenApiResponse<SourceReview[]>> {
-    return this.getJson(`/v3/sources/${sourceUuid}/reviews`, options);
-  }
-
-  public randomShow(
-    artistUuid: string,
-    options?: RelistenApiRequestOptions
-  ): Promise<RelistenApiResponse<ShowWithSources>> {
-    return this.getJson(`/v2/artists/${artistUuid}/shows/random`, {
-      bypassRateLimit: true,
-      bypassEtagCaching: true,
-      ...(options || {}),
-    });
-  }
-
-  public topShow(
-    artistUuid: string,
-    options?: RelistenApiRequestOptions
-  ): Promise<RelistenApiResponse<Show[]>> {
-    return this.getJson(`/v2/artists/${artistUuid}/shows/top`, options);
-  }
-
-  public showsByMomentum(
-    artistUuids: string[],
-    options?: RelistenApiRequestOptions
-  ): Promise<RelistenApiResponse<Show[]>> {
-    // Returns max 25 shows across all artists passed in
-    return this.getJson(
-      `/v3/shows/momentum?${artistUuids.map((v) => 'artistUuids=' + v).join('&')}`,
-      options
-    );
-  }
-
-  public years(
-    artistUuid: string,
-    options?: RelistenApiRequestOptions
-  ): Promise<RelistenApiResponse<Year[]>> {
-    return this.getJson(`/v3/artists/${artistUuid}/years`, options);
-  }
-
-  public year(
-    artistUuid: string,
-    yearUuid: string,
-    options?: RelistenApiRequestOptions
-  ): Promise<RelistenApiResponse<YearWithShows>> {
-    return this.getJson(`/v3/artists/${artistUuid}/years/${yearUuid}`, options);
-  }
-
-  public venues(
-    artistUuid: string,
-    options?: RelistenApiRequestOptions
-  ): Promise<RelistenApiResponse<VenueWithShowCounts[]>> {
-    return this.getJson(`/v2/artists/${artistUuid}/venues`, options);
-  }
-
-  public venue(
-    artistUuid: string,
-    venueUuid: string,
-    options?: RelistenApiRequestOptions
-  ): Promise<RelistenApiResponse<VenueWithShows>> {
-    return this.getJson(`/v3/artists/${artistUuid}/venues/${venueUuid}`, options);
-  }
-
-  public tours(
-    artistUuid: string,
-    options?: RelistenApiRequestOptions
-  ): Promise<RelistenApiResponse<TourWithShowCount[]>> {
-    return this.getJson(`/v2/artists/${artistUuid}/tours`, options);
-  }
-
-  public tour(
-    artistUuid: string,
-    tourUuid: string,
-    options?: RelistenApiRequestOptions
-  ): Promise<RelistenApiResponse<TourWithShows>> {
-    return this.getJson(`/v3/artists/${artistUuid}/tours/${tourUuid}`, options);
-  }
-
-  public songs(
-    artistUuid: string,
-    options?: RelistenApiRequestOptions
-  ): Promise<RelistenApiResponse<SongWithPlayCount[]>> {
-    return this.getJson(`/v2/artists/${artistUuid}/songs`, options);
-  }
-
-  public song(
-    artistUuid: string,
-    songUuid: string,
-    options?: RelistenApiRequestOptions
-  ): Promise<RelistenApiResponse<SongWithShows>> {
-    return this.getJson(`/v3/artists/${artistUuid}/songs/${songUuid}`, options);
-  }
-
-  public recentPerformedShows(
-    artistUuid: string,
-    options?: RelistenApiRequestOptions
-  ): Promise<RelistenApiResponse<Show[]>> {
-    return this.getJson(`/v2/artists/${artistUuid}/shows/recently-performed`, options);
-  }
-
-  public recentUpdatedShows(
-    artistUuid: string,
-    options?: RelistenApiRequestOptions
-  ): Promise<RelistenApiResponse<Show[]>> {
-    return this.getJson(`/v2/artists/${artistUuid}/shows/recently-updated`, options);
-  }
-
-  public async recordPlayback(sourceTrackUuid: string): Promise<RelistenApiResponse<unknown>> {
-    const app_type = Platform.OS;
-
-    // const app_type = 'ios';
-    return await this.postJson<unknown>(
-      `/v2/live/play?app_type=${app_type}&track_uuid=${sourceTrackUuid}`,
-      {}
-    );
-  }
-
-  public todayShows(
-    asOf?: Date,
-    options?: RelistenApiRequestOptions
-  ): Promise<RelistenApiResponse<Show[]>> {
-    const now = asOf ?? new Date();
-    return this.getJson(
-      `/v2/shows/today?month=${now.getMonth() + 1}&day=${now.getDate()}`,
-      options
-    );
   }
 }

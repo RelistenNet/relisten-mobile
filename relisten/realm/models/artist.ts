@@ -1,12 +1,59 @@
-import dayjs from 'dayjs';
 import Realm from 'realm';
-import { ArtistUpstreamSource, ArtistWithCounts, Features } from '../../api/models/artist';
 import { LegacyFavoriteMirror } from '../legacy_favorite_mirror';
 import { checkIfOfflineSourceTrackExists } from '../realm_filters';
 import { RelistenObjectRequiredProperties } from '../relisten_object';
 import { SourceTrack } from './source_track';
 import { Popularity } from './popularity';
 import type { LibraryIndex } from '@/relisten/realm/library_index';
+
+export interface Features {
+  descriptions: boolean;
+  eras: boolean;
+  multiple_sources: boolean;
+  reviews: boolean;
+  ratings: boolean;
+  tours: boolean;
+  taper_notes: boolean;
+  source_information: boolean;
+  sets: boolean;
+  per_show_venues: boolean;
+  per_source_venues: boolean;
+  venue_coords: boolean;
+  songs: boolean;
+  years: boolean;
+  track_md5s: boolean;
+  review_titles: boolean;
+  jam_charts: boolean;
+  setlist_data_incomplete: boolean;
+  track_names: boolean;
+  venue_past_names: boolean;
+  reviews_have_ratings: boolean;
+  track_durations: boolean;
+  can_have_flac: boolean;
+  // Released feature JSON predates normalization.
+  normalization?: boolean;
+}
+
+/** Stored provider JSON includes the released nested shape and the current flat shape. */
+export type StoredArtistUpstreamSource =
+  | {
+      upstream_source_id: number;
+      upstream_identifier: string | null;
+      artist_uuid: string;
+      upstream_source: {
+        name: string;
+        url: string;
+        description: string;
+        credit_line: string;
+      };
+    }
+  | {
+      provider: string;
+      upstream_identifier: string | null;
+      url: string | null;
+      description: string | null;
+      credit_line: string | null;
+    };
 
 export interface ArtistRequiredProperties extends RelistenObjectRequiredProperties {
   musicbrainzId: string;
@@ -93,92 +140,17 @@ export class Artist
     return this._features as Features;
   }
 
-  private _upstreamSources?: ArtistUpstreamSource[];
-  upstreamSources() {
+  private _upstreamSources?: StoredArtistUpstreamSource[];
+  upstreamSources(): StoredArtistUpstreamSource[] {
     if (!this._upstreamSources) {
       this._upstreamSources = JSON.parse(this.upstreamSourcesRaw);
     }
-    return this._upstreamSources;
+    return this._upstreamSources!;
   }
 
   hasOfflineTracks(libraryIndex?: Pick<LibraryIndex, 'artistHasOfflineTracks'>) {
     return libraryIndex
       ? libraryIndex.artistHasOfflineTracks(this.uuid)
       : checkIfOfflineSourceTrackExists(this.sourceTracks);
-  }
-
-  static propertiesFromApi(relistenObj: ArtistWithCounts): ArtistRequiredProperties {
-    const popularity = relistenObj.popularity;
-    const windows = popularity?.windows;
-    const window48h = windows?.['48h'];
-    const window7d = windows?.['7d'];
-    const window30d = windows?.['30d'];
-    return {
-      uuid: relistenObj.uuid,
-      createdAt: dayjs(relistenObj.created_at).toDate(),
-      updatedAt: dayjs(relistenObj.updated_at).toDate(),
-      musicbrainzId: relistenObj.musicbrainz_id,
-      name: relistenObj.name,
-      featured: relistenObj.featured,
-      slug: relistenObj.slug,
-      sortName: relistenObj.sort_name,
-      popularity: popularity
-        ? ({
-            momentumScore: popularity.momentum_score,
-            trendRatio: popularity.trend_ratio,
-            windows: {
-              hours48h: {
-                plays: window48h?.plays ?? 0,
-                hours: window48h?.hours ?? 0,
-                hotScore: window48h?.hot_score ?? 0,
-              },
-              days7d: {
-                plays: window7d?.plays ?? 0,
-                hours: window7d?.hours ?? 0,
-                hotScore: window7d?.hot_score ?? 0,
-              },
-              days30d: {
-                plays: window30d?.plays ?? 0,
-                hours: window30d?.hours ?? 0,
-                hotScore: window30d?.hot_score ?? 0,
-              },
-            },
-          } as Popularity)
-        : undefined,
-      featuresRaw: JSON.stringify(relistenObj.features),
-      upstreamSourcesRaw: JSON.stringify(relistenObj.upstream_sources),
-      showCount: relistenObj.show_count,
-      sourceCount: relistenObj.source_count,
-    };
-  }
-
-  static shouldUpdateFromApi(model: Artist, relistenObj: ArtistWithCounts): boolean {
-    const popularity = relistenObj.popularity;
-    const windows = popularity?.windows;
-    const window48h = windows?.['48h'];
-    const window7d = windows?.['7d'];
-    const window30d = windows?.['30d'];
-
-    if (!popularity) {
-      return false;
-    }
-
-    if (!model.popularity || !model.popularity.windows) {
-      return true;
-    }
-
-    return (
-      model.popularity.momentumScore !== popularity.momentum_score ||
-      model.popularity.trendRatio !== popularity.trend_ratio ||
-      model.popularity.windows.hours48h.plays !== (window48h?.plays ?? 0) ||
-      model.popularity.windows.hours48h.hours !== (window48h?.hours ?? 0) ||
-      model.popularity.windows.hours48h.hotScore !== (window48h?.hot_score ?? 0) ||
-      model.popularity.windows.days7d.plays !== (window7d?.plays ?? 0) ||
-      model.popularity.windows.days7d.hours !== (window7d?.hours ?? 0) ||
-      model.popularity.windows.days7d.hotScore !== (window7d?.hot_score ?? 0) ||
-      model.popularity.windows.days30d.plays !== (window30d?.plays ?? 0) ||
-      model.popularity.windows.days30d.hours !== (window30d?.hours ?? 0) ||
-      model.popularity.windows.days30d.hotScore !== (window30d?.hot_score ?? 0)
-    );
   }
 }

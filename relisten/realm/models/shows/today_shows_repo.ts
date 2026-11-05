@@ -1,5 +1,5 @@
 import { RelistenApiClient, RelistenApiResponse } from '@/relisten/api/client';
-import { Show as ApiShow } from '@/relisten/api/models/show';
+import { ShowSummaryResource as ApiShow } from '@/relisten/api/catalog/resources';
 import { Show } from '@/relisten/realm/models/show';
 import { ShowsWithVenueNetworkBackedBehavior } from '@/relisten/realm/models/shows/show_with_venues_behavior';
 
@@ -9,9 +9,9 @@ import {
 } from '@/relisten/realm/network_backed_behavior';
 import { useNetworkBackedBehavior } from '@/relisten/realm/network_backed_behavior_hooks';
 import { useRealm } from '@/relisten/realm/schema';
+import { RealmQueryValueStream } from '@/relisten/realm/value_streams';
 import { useMemo } from 'react';
 import Realm from 'realm';
-import { RealmQueryValueStream } from '@/relisten/realm/value_streams';
 
 export class TodayShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBackedBehavior {
   private asOf = new Date();
@@ -24,11 +24,8 @@ export class TodayShowsNetworkBackedBehavior extends ShowsWithVenueNetworkBacked
     super(realm, options);
   }
 
-  fetchFromApi(
-    api: RelistenApiClient,
-    forcedRefresh: boolean
-  ): Promise<RelistenApiResponse<ApiShow[] | undefined>> {
-    return api.todayShows(this.asOf, api.refreshOptions(forcedRefresh));
+  fetchShows(api: RelistenApiClient): Promise<RelistenApiResponse<ApiShow[] | undefined>> {
+    return api.todayShows(this.asOf);
   }
 
   override createLocalUpdatingResults(): RealmQueryValueStream<Show> {
