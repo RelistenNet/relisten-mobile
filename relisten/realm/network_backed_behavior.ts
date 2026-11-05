@@ -98,6 +98,7 @@ export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
   private isNetworkLoadingDefault: boolean;
 
   private errors: RelistenApiClientError[] | undefined = undefined;
+  private refreshGeneration = 0;
 
   private localData: ValueStream<TLocalData>;
 
@@ -194,6 +195,7 @@ export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
       return;
     }
 
+    const generation = ++this.refreshGeneration;
     if (force) {
       this.isNetworkLoading = true;
       this.buildAndEmit();
@@ -204,6 +206,7 @@ export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
         await this.refreshCached(key, force);
       } else {
         const response = await this.behavior.fetchFromApi(this.api, force);
+        if (generation !== this.refreshGeneration) return;
         if (response.error) {
           throw response.error.error ?? new Error(response.error.message);
         }
@@ -211,18 +214,26 @@ export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
           this.behavior.upsert(this.localData.currentValue, response.data);
         }
       }
+      if (generation !== this.refreshGeneration) return;
       this.errors = undefined;
     } catch (error) {
+      if (generation !== this.refreshGeneration) return;
       const cause = error instanceof Error ? error : new Error(String(error));
       this.errors = [{ error: cause, message: cause.message }];
     } finally {
-      this.isNetworkLoading = false;
-      this.buildAndEmit();
+      if (generation === this.refreshGeneration) {
+        this.isNetworkLoading = false;
+        this.buildAndEmit();
+      }
     }
   };
 
   private async refreshCached(key: string, force: boolean) {
     const realm = this.behavior.realm;
+    const requests = requestState(realm);
+    const existing = requests.inflight.get(key);
+    // A forced body refresh already in flight takes precedence over cached freshness.
+    if (!force && existing) return existing.promise;
     const state = realm.objectForPrimaryKey(CatalogQueryState, key);
     const hasLocalData = () =>
       this.behavior.hasLocalData(
@@ -240,11 +251,6 @@ export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
       return;
     }
 
-    const requests = requestState(realm);
-    const existing = requests.inflight.get(key);
-    if (!force && existing) {
-      return existing.promise;
-    }
     const token = {};
     const promise = this.fetchAndApply(key, force, token, hasLocalData).finally(() => {
       if (requests.inflight.get(key)?.token === token) {

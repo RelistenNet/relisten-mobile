@@ -261,4 +261,73 @@ describe('repository request execution', () => {
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(state().hasAppliedData).toBe(true);
   });
+  it('keeps the latest failure when an older success finishes, then recovers on retry', async () => {
+    let finishOlder!: (response: Response) => void;
+    fetch.mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          finishOlder = resolve;
+        })
+    );
+    const executor = repository.sharedExecutor(api);
+    const older = executor.refresh();
+    fetch.mockImplementationOnce(async () => new Response('Unavailable', { status: 404 }));
+    await executor.refresh(true);
+    expect(executor.currentResults().errors?.[0].message).toContain('404');
+    finishOlder(body('Old value'));
+    await older;
+    expect(executor.currentResults().errors?.[0].message).toContain('404');
+    expect(executor.currentResults().isNetworkLoading).toBe(false);
+    expect(state().hasAppliedData).toBe(false);
+    fetch.mockImplementationOnce(async () => body('Recovered'));
+    await retryCatalogRequests(realm);
+    expect(executor.currentResults().data[0].title).toBe('Recovered');
+    expect(executor.currentResults().errors).toBeUndefined();
+  });
+
+  it('keeps loading while a newer forced request remains in flight', async () => {
+    const pending: ((response: Response) => void)[] = [];
+    fetch.mockImplementation(() => new Promise<Response>((resolve) => pending.push(resolve)));
+    const executor = repository.sharedExecutor(api);
+    const older = executor.refresh();
+    const newer = executor.refresh(true);
+    pending[0](body('Old'));
+    await older;
+    expect(executor.currentResults().isNetworkLoading).toBe(true);
+    pending[1](body('New'));
+    await newer;
+    expect(executor.currentResults().isNetworkLoading).toBe(false);
+    expect(executor.currentResults().data[0].title).toBe('New');
+  });
+
+  it('recovers from a transient HTTP failure without a connectivity transition', async () => {
+    fetch.mockImplementationOnce(async () => new Response('Temporary', { status: 503 }));
+    fetch.mockImplementationOnce(async () => body('Recovered'));
+    const executor = repository.sharedExecutor(api);
+    await executor.refresh();
+    expect(executor.currentResults().data[0].title).toBe('Recovered');
+    expect(executor.currentResults().errors).toBeUndefined();
+    expect(state().retryPending).toBe(false);
+  });
+  it('joins an in-flight manual refresh even when the old cache is fresh', async () => {
+    fetch.mockImplementationOnce(async () => body());
+    const executor = repository.sharedExecutor(api);
+    await executor.refresh();
+    let finish!: (response: Response) => void;
+    fetch.mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        })
+    );
+    const manual = executor.refresh(true);
+    const ordinary = executor.refresh();
+    await Promise.resolve();
+    expect(executor.currentResults().isNetworkLoading).toBe(true);
+    finish(new Response('Missing', { status: 404 }));
+    await Promise.all([manual, ordinary]);
+    expect(executor.currentResults().errors?.[0].message).toContain('404');
+    expect(executor.currentResults().isNetworkLoading).toBe(false);
+    expect(state().retryPending).toBe(true);
+  });
 });
