@@ -452,10 +452,17 @@ function applyShowSummary(realm: Realm, resource: V4ShowSummaryResource) {
   );
 }
 
+interface AppliedSongReference {
+  song: NormalizedSong;
+  artistUuid: string;
+  resource: V4SongResource;
+}
+
 function normalizationProperties(
   realm: Realm,
   resource: V4TrackNormalizationResource,
-  artistUuid: string
+  artistUuid: string,
+  targetSong?: AppliedSongReference
 ) {
   return {
     state: resource.state,
@@ -467,18 +474,47 @@ function normalizationProperties(
       qualifiers: part.qualifiers,
       notes: part.notes,
       segueAfter: part.segue_after,
-      song: part.song ? applyTrackSongReference(realm, part.song, artistUuid) : null,
+      song: part.song ? applyTrackSongReference(realm, part.song, artistUuid, targetSong) : null,
     })),
   };
 }
 
-function applyTrackSongReference(realm: Realm, resource: V4SongResource, artistUuid: string) {
+function applyTrackSongReference(
+  realm: Realm,
+  resource: V4SongResource,
+  artistUuid: string,
+  targetSong?: AppliedSongReference
+) {
+  // The owning song was already validated and applied. Compare payload fields
+  // rather than reading the same Realm object for every matching recording.
+  if (
+    targetSong &&
+    resource.id === targetSong.resource.id &&
+    resource.artist_id === targetSong.resource.artist_id &&
+    resource.name === targetSong.resource.name &&
+    resource.kind === targetSong.resource.kind
+  ) {
+    requireMatchingArtist(
+      targetSong.artistUuid,
+      artistUuid,
+      `Track normalization song ${resource.id}`
+    );
+    return targetSong.song;
+  }
   const song = applyNormalizedSongReference(realm, resource);
   requireMatchingArtist(song.artistUuid, artistUuid, `Track normalization song ${song.id}`);
+  if (targetSong && resource.id === targetSong.resource.id) {
+    // Later parts compare against the last applied correction, not the root payload.
+    targetSong.resource = resource;
+  }
   return song;
 }
 
-function trackScalarProperties(realm: Realm, resource: V4TrackResource) {
+function trackScalarProperties(
+  realm: Realm,
+  resource: V4TrackResource,
+  targetSong?: AppliedSongReference
+) {
   const uuid = decodeV4UuidCatalogId(resource.id, 'track');
   const sourceUuid = decodeV4UuidCatalogId(resource.source_id, 'source');
   const sourceSetUuid = decodeV4UuidCatalogId(resource.source_set_id, 'source_set');
@@ -507,7 +543,7 @@ function trackScalarProperties(realm: Realm, resource: V4TrackResource) {
     flacUrl: resource.flac_url,
     flacMd5: resource.flac_md5,
     artist,
-    normalization: normalizationProperties(realm, resource.normalization, artistUuid),
+    normalization: normalizationProperties(realm, resource.normalization, artistUuid, targetSong),
   };
 }
 
@@ -549,8 +585,13 @@ function applyTrackResource(realm: Realm, resource: V4TrackResource) {
   return track;
 }
 
-function applySongTrackResource(realm: Realm, resource: V4TrackResource, song: NormalizedSong) {
-  const properties = trackScalarProperties(realm, resource);
+function applySongTrackResource(
+  realm: Realm,
+  resource: V4TrackResource,
+  target: AppliedSongReference
+) {
+  const { song } = target;
+  const properties = trackScalarProperties(realm, resource, target);
   requireMatchingArtist(properties.artistUuid, song.artistUuid, `Track ${properties.uuid}`);
   if (
     !resource.normalization.parts.some(
@@ -1097,8 +1138,9 @@ export function applyV4SongTracks(
     resource.tracks.map((track) => track.id),
     `Song ${song.id}'s track membership`
   );
+  const target = { song, artistUuid, resource };
   for (const track of resource.tracks) {
-    applySongTrackResource(realm, track, song);
+    applySongTrackResource(realm, track, target);
   }
   return detailResultIds(resource.id, resource.tracks);
 }
