@@ -39,7 +39,7 @@ describe('getAccountRuntimeConfig', () => {
     vi.stubGlobal('__DEV__', true);
 
     expect(getAccountRuntimeConfig()).toMatchObject({
-      issuer: 'https://auth.relisten.localhost:5443',
+      issuer: 'https://localhost:5443',
       accountsOrigin: 'https://accounts.relisten.localhost:5443',
       clientId: 'relisten-mobile-ios-dev',
       redirectUri: 'net.relisten.mobile:/oauth2redirect/ios',

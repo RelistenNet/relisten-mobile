@@ -41,7 +41,7 @@ export function getAccountRuntimeConfig(): AccountRuntimeConfig {
   }
 
   const platform = Platform.OS;
-  const localIssuer = 'https://auth.relisten.localhost:5443';
+  const localIssuer = 'https://localhost:5443';
   const localAccountsOrigin = 'https://accounts.relisten.localhost:5443';
   const productionIssuer = 'https://auth.relisten.net';
   const productionAccountsOrigin = 'https://accounts.relisten.net';
