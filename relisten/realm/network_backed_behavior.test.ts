@@ -63,6 +63,10 @@ class TrackRepository extends NetworkBackedBehavior<Realm.Results<Item>, V4Track
     return data.length > 0;
   }
 
+  hasLocalData(data: Realm.Results<Item>) {
+    return data.length > 0;
+  }
+
   upsert(_data: Realm.Results<Item>, track: V4TrackResource) {
     this.realm.create(Item, { id: track.id, title: track.title }, Realm.UpdateMode.Modified);
     if (this.failApply) {
@@ -150,7 +154,10 @@ describe('repository request execution', () => {
     await executor.refresh();
 
     repository.failApply = true;
-    fetch.mockImplementation(async () => body('Correction', '"corrected"'));
+    fetch.mockImplementation(async (_input, init) => {
+      expect(new Headers(init?.headers).has('If-None-Match')).toBe(false);
+      return body('Correction', '"corrected"');
+    });
     await executor.refresh(true);
     expect(executor.currentResults().errors?.[0].message).toContain('Apply failed');
     expect(realm.objectForPrimaryKey(Item, id)?.title).toBe('Imported title');
@@ -164,7 +171,7 @@ describe('repository request execution', () => {
     expect(executor.currentResults().errors).toBeUndefined();
   });
 
-  it('reuses fresh data, conditionally refreshes expired data, and lets manual refresh bypass freshness', async () => {
+  it('reuses fresh data and expired validators, while manual refresh always requests a body', async () => {
     fetch.mockImplementation(async () => body());
     const executor = repository.sharedExecutor(api);
     await executor.refresh();
@@ -177,15 +184,20 @@ describe('repository request execution', () => {
       return unchanged();
     });
     await executor.refresh();
+    fetch.mockImplementation(async (_input, init) => {
+      expect(new Headers(init?.headers).has('If-None-Match')).toBe(false);
+      return body('Manually refreshed');
+    });
     await executor.refresh(true);
     expect(fetch).toHaveBeenCalledTimes(3);
-    expect(executor.currentResults().data[0].title).toBe('Imported title');
+    expect(executor.currentResults().data[0].title).toBe('Manually refreshed');
   });
 
   it('requests a body if local data disappears while a conditional request is in flight', async () => {
     fetch.mockImplementationOnce(async () => body());
     const executor = repository.sharedExecutor(api);
     await executor.refresh();
+    vi.setSystemTime(new Date(Date.now() + 15 * 60 * 1000));
     let finish: ((response: Response) => void) | undefined;
     fetch.mockImplementationOnce(
       () =>
@@ -193,7 +205,7 @@ describe('repository request execution', () => {
           finish = resolve;
         })
     );
-    const pending = executor.refresh(true);
+    const pending = executor.refresh();
     await vi.waitFor(() => expect(finish).toBeDefined());
     realm.write(() => realm.delete(realm.objects(Item)));
     fetch.mockImplementationOnce(async (_input, init) => {
@@ -203,6 +215,14 @@ describe('repository request execution', () => {
     finish!(unchanged());
     await pending;
     expect(executor.currentResults().data[0].title).toBe('Restored');
+
+    realm.write(() => realm.delete(realm.objects(Item)));
+    fetch.mockImplementationOnce(async (_input, init) => {
+      expect(new Headers(init?.headers).has('If-None-Match')).toBe(false);
+      return body('Restored missing root');
+    });
+    await executor.refresh();
+    expect(executor.currentResults().data[0].title).toBe('Restored missing root');
   });
 
   it.each([false, true])('ignores a superseded completion, including failure=%s', async (fails) => {

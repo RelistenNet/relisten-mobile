@@ -1,5 +1,6 @@
+import { Artist } from './artist';
 import type { RelistenApiClient } from '@/relisten/api/client';
-import { decodeV4UuidCatalogId, encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
+import { encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
 import type { V4TourResource } from '@/relisten/api/v4/wire_types';
 import { useMemo } from 'react';
 import Realm from 'realm';
@@ -48,11 +49,8 @@ export class ToursNetworkBackedBehavior extends NetworkBackedBehavior<
     );
   }
 
-  hasLocalData(_data: Realm.Results<Tour>, resultIds: Iterable<string>) {
-    return [...resultIds].every((id) => {
-      const tour = this.realm.objectForPrimaryKey(Tour, decodeV4UuidCatalogId(id, 'tour'));
-      return tour !== null && tour.deletedAt == null && tour.artistUuid === this.artistUuid;
-    });
+  hasLocalData() {
+    return this.realm.objectForPrimaryKey(Artist, this.artistUuid) !== null;
   }
 
   upsert(_data: Realm.Results<Tour>, resources: V4TourResource[]) {

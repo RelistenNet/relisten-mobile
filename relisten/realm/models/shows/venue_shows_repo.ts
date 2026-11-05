@@ -1,3 +1,4 @@
+import { Artist } from '../artist';
 import { RelistenApiClient } from '@/relisten/api/client';
 import { decodeV4UuidCatalogId, encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
 import type {
@@ -18,14 +19,7 @@ import { useQuery, useRealm } from '@/relisten/realm/schema';
 import { RealmObjectValueStream, ValueStream } from '@/relisten/realm/value_streams';
 import { useMemo } from 'react';
 import Realm from 'realm';
-import {
-  applyV4ArtistVenue,
-  applyV4ImportedVenue,
-  applyV4Venue,
-  hasV4ArtistVenue,
-  hasV4ImportedVenue,
-  hasV4Venue,
-} from '../../v4_catalog_apply';
+import { applyV4ArtistVenue, applyV4ImportedVenue, applyV4Venue } from '../../v4_catalog_apply';
 
 import { ensureCatalogArtist, useArtist } from '../artist_repo';
 import { Show } from '../show';
@@ -99,11 +93,7 @@ function projectVenueDetail(
 
   if (kind === 'artist_venue') {
     const artistVenue = artistVenues.find((venue) => venue.id === rootId);
-    const hasCompleteProjection =
-      hasCompleteShowProjection &&
-      artistVenue !== undefined &&
-      artistVenue.venueId === artistVenue.venue.id &&
-      shows.every((show) => show.artistVenue?.id === artistVenue.id);
+    const hasCompleteProjection = hasCompleteShowProjection && artistVenue !== undefined;
     return {
       kind,
       artistVenue,
@@ -124,10 +114,7 @@ function projectVenueDetail(
       (venue) => venue.uuid === importedVenueUuid && venue.deletedAt == null
     );
     const hasCompleteProjection =
-      hasCompleteShowProjection &&
-      importedVenueUuid === venueId &&
-      importedVenue !== undefined &&
-      shows.every((show) => show.venueUuid === importedVenue.uuid);
+      hasCompleteShowProjection && importedVenueUuid === venueId && importedVenue !== undefined;
     return {
       kind,
       importedVenue,
@@ -137,10 +124,7 @@ function projectVenueDetail(
   }
 
   const normalizedVenue = normalizedVenues.find((venue) => venue.id === rootId);
-  const hasCompleteProjection =
-    hasCompleteShowProjection &&
-    normalizedVenue !== undefined &&
-    shows.every((show) => show.artistVenue?.venueId === normalizedVenue.id);
+  const hasCompleteProjection = hasCompleteShowProjection && normalizedVenue !== undefined;
   return {
     kind,
     normalizedVenue,
@@ -188,13 +172,20 @@ export class VenueShowsNetworkBackedBehavior extends NetworkBackedBehavior<
   }
 
   hasLocalData(_state: CatalogQueryState | null, resultIds: Iterable<string>) {
+    const [rootId] = resultIds;
+    if (!rootId) {
+      return false;
+    }
+    if (this.artistUuid && this.realm.objectForPrimaryKey(Artist, this.artistUuid) === null) {
+      return false;
+    }
     switch (this.kind) {
       case 'artist_venue':
-        return hasV4ArtistVenue(this.realm, this.artistUuid!, resultIds);
+        return this.realm.objectForPrimaryKey(ArtistVenue, rootId) !== null;
       case 'imported_venue':
-        return hasV4ImportedVenue(this.realm, this.artistUuid!, resultIds);
+        return this.realm.objectForPrimaryKey(Venue, this.venueId) !== null;
       case 'venue':
-        return hasV4Venue(this.realm, resultIds);
+        return this.realm.objectForPrimaryKey(NormalizedVenue, rootId) !== null;
     }
   }
 

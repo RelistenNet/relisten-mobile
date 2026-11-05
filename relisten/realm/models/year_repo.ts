@@ -1,7 +1,9 @@
+import { CatalogQueryState } from './v4_catalog';
+import { Artist } from './artist';
 import { encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
 import type { V4YearResource, V4YearWithShowsResource } from '@/relisten/api/v4/wire_types';
 import { useQuery, useRealm } from '../schema';
-import { applyV4ArtistYears, applyV4Year, hasV4ArtistYears, hasV4Year } from '../v4_catalog_apply';
+import { applyV4ArtistYears, applyV4Year } from '../v4_catalog_apply';
 import { ensureCatalogArtist } from './artist_repo';
 import { Year } from './year';
 
@@ -76,11 +78,14 @@ class YearsNetworkBackedBehavior extends NetworkBackedBehavior<
   }
 
   isLocalDataShowable(data: Realm.Results<Year>) {
-    return data.length > 0;
+    return (
+      data.length > 0 ||
+      this.realm.objectForPrimaryKey(CatalogQueryState, this.queryKey)?.hasAppliedData === true
+    );
   }
 
-  hasLocalData(_data: Realm.Results<Year>, ids: Iterable<string>) {
-    return hasV4ArtistYears(this.realm, this.artistUuid, ids);
+  hasLocalData() {
+    return this.realm.objectForPrimaryKey(Artist, this.artistUuid) !== null;
   }
 
   upsert(_data: Realm.Results<Year>, resources: V4YearResource[]) {
@@ -149,8 +154,11 @@ export class YearShowsNetworkBackedBehavior extends NetworkBackedBehavior<
     return api.year(this.artistUuid, this.yearUuid, { etag });
   }
 
-  hasLocalData(_data: YearShows, ids: Iterable<string>) {
-    return hasV4Year(this.realm, this.artistUuid, this.yearUuid, ids);
+  hasLocalData() {
+    return (
+      this.realm.objectForPrimaryKey(Year, this.yearUuid) !== null &&
+      this.realm.objectForPrimaryKey(Artist, this.artistUuid) !== null
+    );
   }
 
   override createLocalUpdatingResults(): ValueStream<YearShows> {
@@ -175,7 +183,7 @@ export class YearShowsNetworkBackedBehavior extends NetworkBackedBehavior<
   }
 
   isLocalDataShowable(localData: YearShows): boolean {
-    return localData.year !== null && localData.shows.length > 0;
+    return localData.year !== null;
   }
 
   override upsert(_data: YearShows, resource: V4YearWithShowsResource) {

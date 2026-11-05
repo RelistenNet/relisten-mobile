@@ -1,3 +1,4 @@
+import { Artist } from './artist';
 import type { RelistenApiClient } from '@/relisten/api/client';
 import { decodeV4UuidCatalogId, encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
 import type { V4ArtistVenueEntryResource } from '@/relisten/api/v4/wire_types';
@@ -10,7 +11,7 @@ import { mergeNetworkBackedResults } from '@/relisten/realm/network_backed_resul
 import { RealmObjectValueStream, ValueStream } from '@/relisten/realm/value_streams';
 import { useMemo } from 'react';
 import Realm from 'realm';
-import { applyV4ArtistVenues, hasV4ArtistVenues } from '../v4_catalog_apply';
+import { applyV4ArtistVenues } from '../v4_catalog_apply';
 import { useQuery, useRealm } from '../schema';
 import { ensureCatalogArtist, useArtist } from './artist_repo';
 import { ArtistVenue, CatalogQueryState } from './v4_catalog';
@@ -82,8 +83,8 @@ export class ArtistVenuesNetworkBackedBehavior extends NetworkBackedBehavior<
     return state?.hasAppliedData === true;
   }
 
-  hasLocalData(_state: CatalogQueryState | null, resultIds: Iterable<string>) {
-    return hasV4ArtistVenues(this.realm, this.artistUuid, resultIds);
+  hasLocalData() {
+    return this.realm.objectForPrimaryKey(Artist, this.artistUuid) !== null;
   }
 
   upsert(_state: CatalogQueryState | null, resources: V4ArtistVenueEntryResource[]) {

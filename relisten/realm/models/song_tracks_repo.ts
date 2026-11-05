@@ -1,3 +1,4 @@
+import { Artist } from './artist';
 import type { RelistenApiClient } from '@/relisten/api/client';
 import { decodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
 import {
@@ -12,7 +13,7 @@ import { useMemo } from 'react';
 import Realm from 'realm';
 
 import type { V4SongWithTracksResource } from '@/relisten/api/v4/wire_types';
-import { applyV4SongTracks, hasV4SongTracks } from '../v4_catalog_apply';
+import { applyV4SongTracks } from '../v4_catalog_apply';
 import { ensureCatalogArtist, useArtist } from './artist_repo';
 import { SongShowsNetworkBackedBehavior } from './shows/song_shows_repo';
 import { SourceTrack } from './source_track';
@@ -83,7 +84,7 @@ export class SongTracksNetworkBackedBehavior extends NetworkBackedBehavior<
     return songTracksQueryKey(this.songId);
   }
 
-  async fetchFromApi(api: RelistenApiClient, _force: boolean, etag?: string) {
+  async fetchFromApi(api: RelistenApiClient, force: boolean, etag?: string) {
     await ensureCatalogArtist(this.realm, api, this.artistUuid);
 
     // The recordings response carries show IDs, not show bodies. Resolve its
@@ -94,7 +95,7 @@ export class SongTracksNetworkBackedBehavior extends NetworkBackedBehavior<
       this.songId,
       'song'
     ).sharedExecutor(api);
-    await shows.refresh(false);
+    await shows.refresh(force);
     const errors = shows.currentResults().errors;
     shows.tearDown();
     if (errors?.length) {
@@ -117,7 +118,12 @@ export class SongTracksNetworkBackedBehavior extends NetworkBackedBehavior<
   }
 
   hasLocalData(_state: CatalogQueryState | null, resultIds: Iterable<string>) {
-    return hasV4SongTracks(this.realm, this.artistUuid, resultIds);
+    const [rootId] = resultIds;
+    return (
+      rootId !== undefined &&
+      this.realm.objectForPrimaryKey(Artist, this.artistUuid) !== null &&
+      this.realm.objectForPrimaryKey(NormalizedSong, rootId) !== null
+    );
   }
 
   upsert(_state: CatalogQueryState | null, resource: V4SongWithTracksResource) {

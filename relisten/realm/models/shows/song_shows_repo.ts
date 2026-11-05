@@ -1,3 +1,4 @@
+import { Artist } from '../artist';
 import type { RelistenApiClient } from '@/relisten/api/client';
 import { decodeV4UuidCatalogId, encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
 import type {
@@ -17,12 +18,7 @@ import { useQuery, useRealm } from '@/relisten/realm/schema';
 import { RealmObjectValueStream, ValueStream } from '@/relisten/realm/value_streams';
 import { useMemo } from 'react';
 import Realm from 'realm';
-import {
-  applyV4ImportedSong,
-  applyV4Song,
-  hasV4ImportedSong,
-  hasV4Song,
-} from '../../v4_catalog_apply';
+import { applyV4ImportedSong, applyV4Song } from '../../v4_catalog_apply';
 
 import { ensureCatalogArtist, useArtist } from '../artist_repo';
 import { Show } from '../show';
@@ -136,9 +132,15 @@ export class SongShowsNetworkBackedBehavior extends NetworkBackedBehavior<
   }
 
   hasLocalData(_state: CatalogQueryState | null, resultIds: Iterable<string>) {
-    return this.kind === 'song'
-      ? hasV4Song(this.realm, this.artistUuid, resultIds)
-      : hasV4ImportedSong(this.realm, this.artistUuid, resultIds);
+    const [rootId] = resultIds;
+    if (!rootId) {
+      return false;
+    }
+    const song =
+      this.kind === 'song'
+        ? this.realm.objectForPrimaryKey(NormalizedSong, rootId)
+        : this.realm.objectForPrimaryKey(Song, this.songId);
+    return song !== null && this.realm.objectForPrimaryKey(Artist, this.artistUuid) !== null;
   }
 
   upsert(
