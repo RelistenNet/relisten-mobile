@@ -1,4 +1,4 @@
-import { decodeUuidCatalogId, encodeUuidCatalogId } from '@/relisten/api/catalog/identity';
+import { decodeUuidCatalogId } from '@/relisten/api/catalog/identity';
 import type { ShowResource } from '@/relisten/api/catalog/resources';
 import { LibraryIndex } from '@/relisten/realm/library_index';
 import { NetworkBackedBehavior } from '@/relisten/realm/network_backed_behavior';
@@ -75,19 +75,14 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends NetworkBackedBehav
     super(realm, options);
   }
 
-  get queryKey() {
-    return this.showUuid ? `GET /shows/${encodeUuidCatalogId(this.showUuid, 'show')}` : undefined;
-  }
-
   async fetchFromApi(
     api: RelistenApiClient,
-    _force: boolean,
-    etag?: string
+    force: boolean
   ): Promise<RelistenApiResponse<ShowResource>> {
     if (!this.showUuid) {
       return { type: RelistenApiResponseType.Offline };
     }
-    const response = await api.showWithSources(this.showUuid, { etag });
+    const response = await api.showWithSources(this.showUuid, { force });
     if (response.data) {
       await ensureCatalogArtist(
         this.realm,
@@ -96,11 +91,6 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends NetworkBackedBehav
       );
     }
     return response;
-  }
-
-  hasLocalData() {
-    const show = this.showUuid ? this.realm.objectForPrimaryKey(Show, this.showUuid) : null;
-    return show !== null && this.realm.objectForPrimaryKey(Artist, show.artistUuid) !== null;
   }
 
   override createLocalUpdatingResults(): ValueStream<ShowWithSources> {

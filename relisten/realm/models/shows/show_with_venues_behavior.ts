@@ -36,8 +36,6 @@ export abstract class ShowsWithVenueNetworkBackedBehavior extends NetworkBackedB
   }
 
   override upsert(localData: Realm.Results<Show>, apiData: ApiShow[]): void {
-    this.realm.write(() => {
-      applyShowSummaries(this.realm, apiData);
-    });
+    applyShowSummaries(this.realm, apiData);
   }
 }

@@ -1,5 +1,5 @@
+import { saveCatalogResults } from '../catalog_projection';
 import { indexRows, uuidRows } from '../catalog_projection';
-import { Artist } from './artist';
 import type { RelistenApiClient } from '@/relisten/api/client';
 import { decodeUuidCatalogId, encodeUuidCatalogId } from '@/relisten/api/catalog/identity';
 import type { ArtistVenueEntryResource } from '@/relisten/api/catalog/resources';
@@ -75,21 +75,21 @@ export class ArtistVenuesNetworkBackedBehavior extends NetworkBackedBehavior<
     return new RealmObjectValueStream(this.realm, CatalogQueryState, this.queryKey);
   }
 
-  async fetchFromApi(api: RelistenApiClient, _force: boolean, etag?: string) {
+  async fetchFromApi(api: RelistenApiClient, force: boolean) {
     await ensureCatalogArtist(this.realm, api, this.artistUuid);
-    return api.venues(this.artistUuid, { etag });
+    return api.venues(this.artistUuid, { force });
   }
 
   isLocalDataShowable(state: CatalogQueryState | null) {
     return state?.hasAppliedData === true;
   }
 
-  hasLocalData() {
-    return this.realm.objectForPrimaryKey(Artist, this.artistUuid) !== null;
-  }
-
   upsert(_state: CatalogQueryState | null, resources: ArtistVenueEntryResource[]) {
-    return applyArtistVenues(this.realm, this.artistUuid, resources);
+    return saveCatalogResults(
+      this.realm,
+      this.queryKey,
+      applyArtistVenues(this.realm, this.artistUuid, resources)
+    );
   }
 }
 

@@ -1,4 +1,4 @@
-import { Artist } from '../artist';
+import { saveCatalogResults } from '../../catalog_projection';
 import type { RelistenApiClient } from '@/relisten/api/client';
 import { decodeUuidCatalogId, encodeUuidCatalogId } from '@/relisten/api/catalog/identity';
 import type { TourWithShowsResource } from '@/relisten/api/catalog/resources';
@@ -42,9 +42,9 @@ export class TourShowsNetworkBackedBehavior extends NetworkBackedBehavior<
     return `GET /tours/${encodeUuidCatalogId(this.tourUuid, 'tour')}`;
   }
 
-  async fetchFromApi(api: RelistenApiClient, _force: boolean, etag?: string) {
+  async fetchFromApi(api: RelistenApiClient, force: boolean) {
     await ensureCatalogArtist(this.realm, api, this.artistUuid);
-    return api.tour(this.tourUuid, { etag });
+    return api.tour(this.tourUuid, { force });
   }
 
   createLocalUpdatingResults() {
@@ -75,18 +75,15 @@ export class TourShowsNetworkBackedBehavior extends NetworkBackedBehavior<
     return data.tour !== null && data.hasAppliedData;
   }
 
-  hasLocalData() {
-    return (
-      this.realm.objectForPrimaryKey(Tour, this.tourUuid) !== null &&
-      this.realm.objectForPrimaryKey(Artist, this.artistUuid) !== null
-    );
-  }
-
   upsert(_data: TourShows, resource: TourWithShowsResource) {
     if (resource.id !== encodeUuidCatalogId(this.tourUuid, 'tour')) {
       throw new Error('Unexpected tour identity.');
     }
-    return applyTourDetail(this.realm, this.artistUuid, resource);
+    return saveCatalogResults(
+      this.realm,
+      this.queryKey,
+      applyTourDetail(this.realm, this.artistUuid, resource)
+    );
   }
 }
 

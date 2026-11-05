@@ -20,13 +20,11 @@ import { RelistenApiClient } from '@/relisten/api/client';
 import { CatalogTransport } from '@/relisten/api/catalog/transport';
 import { encodeUuidCatalogId } from '@/relisten/api/catalog/identity';
 import type { TrackResource } from '@/relisten/api/catalog/resources';
-import { CatalogQueryState } from './models/catalog';
-import { NetworkBackedBehavior, retryCatalogRequests } from './network_backed_behavior';
+import { NetworkBackedBehavior, retryFailedRequests } from './network_backed_behavior';
 import { EmittableValueStream } from './value_streams';
 
 const uuid = '00000000-0000-4000-8000-000000000001';
 const id = encodeUuidCatalogId(uuid, 'track');
-const queryKey = `GET /source-tracks/${id}`;
 
 class Item extends Realm.Object<Item> {
   static schema: Realm.ObjectSchema = {
@@ -42,32 +40,26 @@ class Item extends Realm.Object<Item> {
 
 class TrackRepository extends NetworkBackedBehavior<Realm.Results<Item>, TrackResource> {
   failApply = false;
+  applyCount = 0;
 
   constructor(realm: Realm) {
     super(realm);
-  }
-
-  get queryKey() {
-    return queryKey;
   }
 
   createLocalUpdatingResults() {
     return new EmittableValueStream(this.realm.objects(Item));
   }
 
-  fetchFromApi(api: RelistenApiClient, _force: boolean, etag?: string) {
-    return api.track(uuid, { etag });
+  fetchFromApi(api: RelistenApiClient, force: boolean) {
+    return api.track(uuid, { force });
   }
 
   isLocalDataShowable(data: Realm.Results<Item>) {
     return data.length > 0;
   }
 
-  hasLocalData(data: Realm.Results<Item>) {
-    return data.length > 0;
-  }
-
   upsert(_data: Realm.Results<Item>, track: TrackResource) {
+    this.applyCount++;
     this.realm.create(Item, { id: track.id, title: track.title }, Realm.UpdateMode.Modified);
     if (this.failApply) {
       throw new Error('Apply failed after writing a row.');
@@ -98,10 +90,6 @@ function body(title = 'Imported title', etag = '"current"') {
   return new Response(JSON.stringify(track), { headers: { etag } });
 }
 
-function unchanged(etag = '"current"') {
-  return new Response(null, { status: 304, headers: { etag } });
-}
-
 describe('repository request execution', () => {
   let directory: string;
   let realm: Realm;
@@ -115,7 +103,7 @@ describe('repository request execution', () => {
     directory = mkdtempSync(join(tmpdir(), 'relisten-repository-'));
     realm = new Realm({
       path: join(directory, 'catalog.realm'),
-      schema: [Item, CatalogQueryState],
+      schema: [Item],
     });
     fetch = vi.fn();
     api = new RelistenApiClient({
@@ -130,159 +118,123 @@ describe('repository request execution', () => {
     vi.useRealTimers();
   });
 
-  function state() {
-    return realm.objectForPrimaryKey(CatalogQueryState, queryKey)!;
-  }
-
-  it('returns an API payload without storage, then lets the repository commit its payload and ETag together', async () => {
-    fetch.mockImplementation(async () => body());
+  it('keeps fetching separate from Realm application and accepts bodies without ETags', async () => {
+    fetch.mockImplementation(
+      async () => new Response(JSON.stringify({ id, title: 'No validator' }))
+    );
     const response = await api.track(uuid);
-    expect(response.data?.title).toBe('Imported title');
+    expect(response.data?.title).toBe('No validator');
     expect(realm.objects(Item)).toHaveLength(0);
-
     const executor = repository.sharedExecutor(api);
     await executor.refresh();
-    expect(executor.currentResults().data[0].title).toBe('Imported title');
-    expect([...state().resultIds]).toEqual([id]);
-    expect(state().etag).toBe('"current"');
-    expect(state().retryPending).toBe(false);
+    expect(executor.currentResults().data[0].title).toBe('No validator');
+    expect(repository.applyCount).toBe(1);
+    executor.tearDown();
   });
 
-  it('rolls back failed application and preserves data and validator until reconnect repairs it', async () => {
+  it('rolls back failed application and retries the mounted behavior on reconnect', async () => {
     fetch.mockImplementation(async () => body());
     const executor = repository.sharedExecutor(api);
     await executor.refresh();
-
     repository.failApply = true;
-    fetch.mockImplementation(async (_input, init) => {
-      expect(new Headers(init?.headers).has('If-None-Match')).toBe(false);
-      return body('Correction', '"corrected"');
-    });
+    fetch.mockImplementation(async () => body('Correction'));
     await executor.refresh(true);
     expect(executor.currentResults().errors?.[0].message).toContain('Apply failed');
     expect(realm.objectForPrimaryKey(Item, id)?.title).toBe('Imported title');
-    expect(state().etag).toBe('"current"');
-    expect(state().retryPending).toBe(true);
-
     repository.failApply = false;
-    await retryCatalogRequests(realm);
+    await retryFailedRequests(realm);
     expect(realm.objectForPrimaryKey(Item, id)?.title).toBe('Correction');
-    expect(state().etag).toBe('"corrected"');
     expect(executor.currentResults().errors).toBeUndefined();
+    executor.tearDown();
   });
 
-  it('reuses fresh data and expired validators, while manual refresh always requests a body', async () => {
-    fetch.mockImplementation(async () => body());
-    const executor = repository.sharedExecutor(api);
-    await executor.refresh();
-    await executor.refresh();
+  it('deduplicates overlapping reads and applies their shared response once', async () => {
+    let finish!: (response: Response) => void;
+    fetch.mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        })
+    );
+    const first = repository.sharedExecutor(api);
+    const other = new TrackRepository(realm);
+    const second = other.sharedExecutor(api);
+    const requests = [first.refresh(), second.refresh()];
+    finish(body());
+    await Promise.all(requests);
     expect(fetch).toHaveBeenCalledTimes(1);
-
-    vi.setSystemTime(new Date(Date.now() + 15 * 60 * 1000));
-    fetch.mockImplementation(async (_input, init) => {
-      expect(new Headers(init?.headers).get('If-None-Match')).toBe('"current"');
-      return unchanged();
-    });
-    await executor.refresh();
-    fetch.mockImplementation(async (_input, init) => {
-      expect(new Headers(init?.headers).has('If-None-Match')).toBe(false);
-      return body('Manually refreshed');
-    });
-    await executor.refresh(true);
-    expect(fetch).toHaveBeenCalledTimes(3);
-    expect(executor.currentResults().data[0].title).toBe('Manually refreshed');
+    expect(repository.applyCount + other.applyCount).toBe(1);
+    expect(realm.objectForPrimaryKey(Item, id)?.title).toBe('Imported title');
+    first.tearDown();
+    second.tearDown();
   });
 
-  it('requests a body if local data disappears while a conditional request is in flight', async () => {
-    fetch.mockImplementationOnce(async () => body());
+  it('applies a shared request even when an imperative caller started it', async () => {
+    let finish!: (response: Response) => void;
+    fetch.mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        })
+    );
+    const imperative = api.track(uuid);
     const executor = repository.sharedExecutor(api);
-    await executor.refresh();
-    vi.setSystemTime(new Date(Date.now() + 15 * 60 * 1000));
-    let finish: ((response: Response) => void) | undefined;
-    fetch.mockImplementationOnce(
-      () =>
-        new Promise<Response>((resolve) => {
-          finish = resolve;
-        })
-    );
-    const pending = executor.refresh();
-    await vi.waitFor(() => expect(finish).toBeDefined());
-    realm.write(() => realm.delete(realm.objects(Item)));
-    fetch.mockImplementationOnce(async (_input, init) => {
-      expect(new Headers(init?.headers).has('If-None-Match')).toBe(false);
-      return body('Restored');
-    });
-    finish!(unchanged());
-    await pending;
-    expect(executor.currentResults().data[0].title).toBe('Restored');
-
-    realm.write(() => realm.delete(realm.objects(Item)));
-    fetch.mockImplementationOnce(async (_input, init) => {
-      expect(new Headers(init?.headers).has('If-None-Match')).toBe(false);
-      return body('Restored missing root');
-    });
-    await executor.refresh();
-    expect(executor.currentResults().data[0].title).toBe('Restored missing root');
-  });
-
-  it.each([false, true])('ignores a superseded completion, including failure=%s', async (fails) => {
-    let finish: ((response: Response) => void) | undefined;
-    fetch.mockImplementationOnce(
-      () =>
-        new Promise<Response>((resolve) => {
-          finish = resolve;
-        })
-    );
-    const older = repository.sharedExecutor(api).refresh();
-    await vi.waitFor(() => expect(finish).toBeDefined());
-    fetch.mockImplementationOnce(async () => body('New value', '"new"'));
-    const newerExecutor = new TrackRepository(realm).sharedExecutor(api);
-    await newerExecutor.refresh(true);
-    finish!(fails ? new Response('Unavailable', { status: 503 }) : body('Old value', '"old"'));
-    await older;
-    expect(newerExecutor.currentResults().data[0].title).toBe('New value');
-    expect(state().etag).toBe('"new"');
-    expect(state().retryPending).toBe(false);
-  });
-
-  it('coalesces ordinary same-query reads across repository instances', async () => {
-    let finish: ((response: Response) => void) | undefined;
-    fetch.mockImplementationOnce(
-      () =>
-        new Promise<Response>((resolve) => {
-          finish = resolve;
-        })
-    );
-    const first = repository.sharedExecutor(api).refresh();
-    const second = new TrackRepository(realm).sharedExecutor(api).refresh();
-    await vi.waitFor(() => expect(finish).toBeDefined());
-    finish!(body());
-    await Promise.all([first, second]);
+    const applying = executor.refresh();
+    finish(body('Shared body'));
+    await Promise.all([imperative, applying]);
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(state().hasAppliedData).toBe(true);
+    expect(repository.applyCount).toBe(1);
+    expect(realm.objectForPrimaryKey(Item, id)?.title).toBe('Shared body');
+    executor.tearDown();
   });
-  it('keeps the latest failure when an older success finishes, then recovers on retry', async () => {
-    let finishOlder!: (response: Response) => void;
+
+  it.each([false, true])(
+    'ignores a superseded response across repository instances (failure=%s)',
+    async (fails) => {
+      let finish!: (response: Response) => void;
+      fetch.mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            finish = resolve;
+          })
+      );
+      const first = repository.sharedExecutor(api);
+      const older = first.refresh();
+      fetch.mockImplementationOnce(async () => body('New value'));
+      const second = new TrackRepository(realm).sharedExecutor(api);
+      await second.refresh(true);
+      // Permanent failures exercise fencing without spending time in the retry policy.
+      finish(fails ? new Response('Missing', { status: 404 }) : body('Old value'));
+      await older;
+      expect(realm.objectForPrimaryKey(Item, id)?.title).toBe('New value');
+      expect(first.currentResults().errors).toBeUndefined();
+      first.tearDown();
+      second.tearDown();
+    }
+  );
+
+  it('keeps the latest failure when an older success finishes, then recovers', async () => {
+    let finish!: (response: Response) => void;
     fetch.mockImplementationOnce(
       () =>
         new Promise<Response>((resolve) => {
-          finishOlder = resolve;
+          finish = resolve;
         })
     );
     const executor = repository.sharedExecutor(api);
     const older = executor.refresh();
-    fetch.mockImplementationOnce(async () => new Response('Unavailable', { status: 404 }));
+    fetch.mockImplementationOnce(async () => new Response('Missing', { status: 404 }));
     await executor.refresh(true);
-    expect(executor.currentResults().errors?.[0].message).toContain('404');
-    finishOlder(body('Old value'));
+    finish(body('Old value'));
     await older;
     expect(executor.currentResults().errors?.[0].message).toContain('404');
     expect(executor.currentResults().isNetworkLoading).toBe(false);
-    expect(state().hasAppliedData).toBe(false);
+    expect(realm.objects(Item)).toHaveLength(0);
     fetch.mockImplementationOnce(async () => body('Recovered'));
-    await retryCatalogRequests(realm);
+    await retryFailedRequests(realm);
     expect(executor.currentResults().data[0].title).toBe('Recovered');
     expect(executor.currentResults().errors).toBeUndefined();
+    executor.tearDown();
   });
 
   it('keeps loading while a newer forced request remains in flight', async () => {
@@ -298,18 +250,10 @@ describe('repository request execution', () => {
     await newer;
     expect(executor.currentResults().isNetworkLoading).toBe(false);
     expect(executor.currentResults().data[0].title).toBe('New');
+    executor.tearDown();
   });
 
-  it('recovers from a transient HTTP failure without a connectivity transition', async () => {
-    fetch.mockImplementationOnce(async () => new Response('Temporary', { status: 503 }));
-    fetch.mockImplementationOnce(async () => body('Recovered'));
-    const executor = repository.sharedExecutor(api);
-    await executor.refresh();
-    expect(executor.currentResults().data[0].title).toBe('Recovered');
-    expect(executor.currentResults().errors).toBeUndefined();
-    expect(state().retryPending).toBe(false);
-  });
-  it('joins an in-flight manual refresh even when the old cache is fresh', async () => {
+  it('joins an in-flight manual refresh and applies its body', async () => {
     fetch.mockImplementationOnce(async () => body());
     const executor = repository.sharedExecutor(api);
     await executor.refresh();
@@ -322,12 +266,30 @@ describe('repository request execution', () => {
     );
     const manual = executor.refresh(true);
     const ordinary = executor.refresh();
-    await Promise.resolve();
     expect(executor.currentResults().isNetworkLoading).toBe(true);
-    finish(new Response('Missing', { status: 404 }));
+    finish(body('Manual result'));
     await Promise.all([manual, ordinary]);
-    expect(executor.currentResults().errors?.[0].message).toContain('404');
-    expect(executor.currentResults().isNetworkLoading).toBe(false);
-    expect(state().retryPending).toBe(true);
+    expect(executor.currentResults().data[0].title).toBe('Manual result');
+    expect(repository.applyCount).toBe(2);
+    executor.tearDown();
+  });
+
+  it('retries transient GET failures without a connectivity transition', async () => {
+    fetch.mockImplementationOnce(async () => new Response('Temporary', { status: 503 }));
+    fetch.mockImplementationOnce(async () => body('Recovered'));
+    const executor = repository.sharedExecutor(api);
+    await executor.refresh();
+    expect(executor.currentResults().data[0].title).toBe('Recovered');
+    expect(executor.currentResults().errors).toBeUndefined();
+    executor.tearDown();
+  });
+
+  it('does not retry a failed behavior after it is unmounted', async () => {
+    fetch.mockImplementation(async () => new Response('Missing', { status: 404 }));
+    const executor = repository.sharedExecutor(api);
+    await executor.refresh();
+    executor.tearDown();
+    await retryFailedRequests(realm);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });

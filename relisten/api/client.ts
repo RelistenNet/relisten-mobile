@@ -26,7 +26,6 @@ import type {
 
 export enum RelistenApiResponseType {
   Offline,
-  RequestContentsUnchanged = 2,
   OnlineRequestCompleted = 3,
 }
 
@@ -34,12 +33,12 @@ export interface RelistenApiResponse<T> {
   type: RelistenApiResponseType;
   data?: T;
   error?: RelistenApiClientError;
-  etag?: string;
+  superseded?: boolean;
 }
 
-/** HTTP validators are supplied by the owning repository, never stored by this client. */
+/** A manual refresh supersedes an older request for the same resource. */
 export interface RelistenApiRequestOptions {
-  etag?: string;
+  force?: boolean;
 }
 
 export interface RelistenApiClientError {
@@ -64,9 +63,16 @@ export function errorDisplayString(err?: RelistenApiClientError): string {
   return 'Unknown error';
 }
 
-/** HTTP-only catalog client. Repositories own Realm writes, freshness, membership and retry policy. */
+/** Owns HTTP requests and deduplication. Repositories own persisted catalog data. */
 export class RelistenApiClient {
   private readonly transport: CatalogTransport;
+  private readonly requests = new Map<
+    string,
+    {
+      promise?: Promise<RelistenApiResponse<unknown>>;
+      superseded: boolean;
+    }
+  >();
 
   constructor(options: { transport?: CatalogTransport } = {}) {
     this.transport = options.transport ?? new CatalogTransport();
@@ -234,15 +240,29 @@ export class RelistenApiClient {
     path: string,
     options?: RelistenApiRequestOptions
   ): Promise<RelistenApiResponse<T>> {
+    const existing = this.requests.get(path);
+    if (existing?.promise && !options?.force) {
+      return existing.promise as Promise<RelistenApiResponse<T>>;
+    }
+    if (existing) existing.superseded = true;
+    const request = { superseded: false, promise: this.fetch<T>(path) };
+    this.requests.set(path, request);
     try {
-      const response = await this.transport.getJson<T>(path, options?.etag);
-      return response.status === 'not_modified'
-        ? { type: RelistenApiResponseType.RequestContentsUnchanged, etag: response.etag }
-        : {
-            type: RelistenApiResponseType.OnlineRequestCompleted,
-            data: response.data,
-            etag: response.etag,
-          };
+      const response = await request.promise;
+      Object.defineProperty(response, 'superseded', { get: () => request.superseded });
+      return response;
+    } finally {
+      // Keep only the latest token: a caller may still be preparing parents
+      // before applying this body. No completed promise or body is retained.
+      const latest = this.requests.get(path);
+      if (latest === request) latest.promise = undefined;
+    }
+  }
+
+  private async fetch<T>(path: string): Promise<RelistenApiResponse<T>> {
+    try {
+      const data = await this.transport.getJson<T>(path);
+      return { type: RelistenApiResponseType.OnlineRequestCompleted, data };
     } catch (error) {
       return this.failure(error);
     }

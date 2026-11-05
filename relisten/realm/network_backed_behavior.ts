@@ -2,13 +2,7 @@ import { NetworkBackedResults } from '@/relisten/realm/network_backed_results';
 import { EmittableValueStream, ValueStream } from '@/relisten/realm/value_streams';
 import { log } from '@/relisten/util/logging';
 import Realm from 'realm';
-import {
-  RelistenApiClient,
-  RelistenApiClientError,
-  RelistenApiResponse,
-  RelistenApiResponseType,
-} from '../api/client';
-import { CatalogQueryState } from './models/catalog';
+import { RelistenApiClient, RelistenApiClientError, RelistenApiResponse } from '../api/client';
 
 export enum NetworkBackedBehaviorFetchStrategy {
   UNKNOWN,
@@ -29,16 +23,6 @@ export abstract class NetworkBackedBehavior<TLocalData, TApiData> {
       options?.fetchStrategy ?? NetworkBackedBehaviorFetchStrategy.StaleWhileRevalidate;
   }
 
-  get queryKey(): string | undefined {
-    return undefined;
-  }
-
-  // Applied empty collections are valid. Repositories only check required roots/owners.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  hasLocalData(_localData: TLocalData, _resultIds: Iterable<string>): boolean {
-    return true;
-  }
-
   abstract createLocalUpdatingResults(): ValueStream<TLocalData>;
 
   private _sharedExecutor: NetworkBackedBehaviorExecutor<TLocalData, TApiData> | undefined;
@@ -53,13 +37,18 @@ export abstract class NetworkBackedBehavior<TLocalData, TApiData> {
 
   abstract fetchFromApi(
     api: RelistenApiClient,
-    forcedRefresh: boolean,
-    etag?: string
+    forcedRefresh: boolean
   ): Promise<RelistenApiResponse<TApiData | undefined>>;
 
   abstract isLocalDataShowable(localData: TLocalData): boolean;
 
-  abstract upsert(localData: TLocalData, apiData: TApiData): string[] | void;
+  // Repositories may use their successfully loaded domain data to avoid redundant fetches.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  shouldPerformNetworkRequest(_localData: TLocalData): boolean {
+    return true;
+  }
+
+  abstract upsert(localData: TLocalData, apiData: TApiData): void;
 }
 
 export interface NetworkBackedBehaviorOptions {
@@ -99,6 +88,8 @@ export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
 
   private errors: RelistenApiClientError[] | undefined = undefined;
   private refreshGeneration = 0;
+  private tornDown = false;
+  private pending?: Promise<void>;
 
   private localData: ValueStream<TLocalData>;
 
@@ -165,6 +156,8 @@ export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
   }
 
   public tearDown() {
+    this.tornDown = true;
+    failedRequests(this.behavior.realm).delete(this.refresh);
     this.output.tearDown();
     this.localData.tearDown();
   }
@@ -184,7 +177,16 @@ export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
     this.output.emit(this.buildResult());
   }
 
-  refresh = async (force = false) => {
+  refresh = (force = false): Promise<void> => {
+    if (this.pending && !force) return this.pending;
+    const pending = this.executeRefresh(force).finally(() => {
+      if (this.pending === pending) this.pending = undefined;
+    });
+    this.pending = pending;
+    return pending;
+  };
+
+  private async executeRefresh(force: boolean) {
     if (
       this.behavior.fetchStrategy === NetworkBackedBehaviorFetchStrategy.LocalOnly ||
       (!force &&
@@ -195,169 +197,75 @@ export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
       return;
     }
 
+    if (
+      !force &&
+      !this.errors &&
+      !this.behavior.shouldPerformNetworkRequest(this.localData.currentValue)
+    )
+      return;
+
     const generation = ++this.refreshGeneration;
     if (force) {
       this.isNetworkLoading = true;
       this.buildAndEmit();
     }
     try {
-      const key = this.behavior.queryKey;
-      if (key) {
-        await this.refreshCached(key, force);
-      } else {
-        const response = await this.behavior.fetchFromApi(this.api, force);
-        if (generation !== this.refreshGeneration) return;
-        if (response.error) {
-          throw response.error.error ?? new Error(response.error.message);
-        }
-        if (response.data !== undefined) {
-          this.behavior.upsert(this.localData.currentValue, response.data);
-        }
+      const response = await this.behavior.fetchFromApi(this.api, force);
+      if (
+        generation !== this.refreshGeneration ||
+        this.behavior.realm.isClosed ||
+        response.superseded
+      )
+        return;
+      if (response.error) {
+        throw response.error.error ?? new Error(response.error.message);
       }
+      if (response.data !== undefined && !appliedResponses(this.behavior.realm).has(response)) {
+        this.behavior.realm.write(() => {
+          this.behavior.upsert(this.localData.currentValue, response.data!);
+        });
+        appliedResponses(this.behavior.realm).add(response);
+      }
+      failedRequests(this.behavior.realm).delete(this.refresh);
       if (generation !== this.refreshGeneration) return;
       this.errors = undefined;
     } catch (error) {
       if (generation !== this.refreshGeneration) return;
       const cause = error instanceof Error ? error : new Error(String(error));
       this.errors = [{ error: cause, message: cause.message }];
+      if (!this.tornDown) failedRequests(this.behavior.realm).add(this.refresh);
     } finally {
       if (generation === this.refreshGeneration) {
         this.isNetworkLoading = false;
         this.buildAndEmit();
       }
     }
-  };
-
-  private async refreshCached(key: string, force: boolean) {
-    const realm = this.behavior.realm;
-    const requests = requestState(realm);
-    const existing = requests.inflight.get(key);
-    // A forced body refresh already in flight takes precedence over cached freshness.
-    if (!force && existing) return existing.promise;
-    const state = realm.objectForPrimaryKey(CatalogQueryState, key);
-    const hasLocalData = () =>
-      this.behavior.hasLocalData(
-        this.localData.currentValue,
-        realm.objectForPrimaryKey(CatalogQueryState, key)?.resultIds ?? []
-      );
-    if (
-      !force &&
-      state?.hasAppliedData &&
-      !state.retryPending &&
-      state.lastCheckedAt &&
-      Date.now() - state.lastCheckedAt.getTime() < 15 * 60 * 1000 &&
-      hasLocalData()
-    ) {
-      return;
-    }
-
-    const token = {};
-    const promise = this.fetchAndApply(key, force, token, hasLocalData).finally(() => {
-      if (requests.inflight.get(key)?.token === token) {
-        requests.inflight.delete(key);
-      }
-    });
-    requests.inflight.set(key, { token, promise });
-    return promise;
-  }
-
-  private async fetchAndApply(
-    key: string,
-    force: boolean,
-    token: object,
-    hasLocalData: () => boolean
-  ) {
-    const realm = this.behavior.realm;
-    const requests = requestState(realm);
-    const isCurrent = () => requests.inflight.get(key)?.token === token;
-    try {
-      const state = realm.objectForPrimaryKey(CatalogQueryState, key);
-      const etag = !force && state?.hasAppliedData && hasLocalData() ? state.etag : undefined;
-      let response = await this.behavior.fetchFromApi(this.api, force, etag);
-      if (!isCurrent()) {
-        return;
-      }
-      if (response.error) {
-        throw response.error.error ?? new Error(response.error.message);
-      }
-      if (response.type === RelistenApiResponseType.RequestContentsUnchanged) {
-        const current = realm.objectForPrimaryKey(CatalogQueryState, key);
-        if (
-          etag &&
-          response.etag === etag &&
-          current?.etag === etag &&
-          current.hasAppliedData &&
-          hasLocalData()
-        ) {
-          realm.write(() => {
-            current.lastCheckedAt = new Date();
-            current.retryPending = false;
-          });
-          requests.retries.delete(key);
-          return;
-        }
-        // A required root may have disappeared while the request was in flight.
-        response = await this.behavior.fetchFromApi(this.api, force);
-        if (!isCurrent()) {
-          return;
-        }
-        if (response.error) {
-          throw response.error.error ?? new Error(response.error.message);
-        }
-      }
-      if (response.data === undefined || !response.etag) {
-        throw new Error('Catalog refresh requires a resource body and ETag.');
-      }
-      const body = response.data;
-      const validator = response.etag;
-      realm.write(() => {
-        const resultIds = this.behavior.upsert(this.localData.currentValue, body) ?? [];
-        realm.create(
-          CatalogQueryState,
-          {
-            key,
-            etag: validator,
-            hasAppliedData: true,
-            lastAppliedAt: new Date(),
-            lastCheckedAt: new Date(),
-            retryPending: false,
-            resultIds,
-          },
-          Realm.UpdateMode.Modified
-        );
-      });
-      requests.retries.delete(key);
-    } catch (error) {
-      if (!isCurrent()) {
-        return;
-      }
-      realm.write(() => {
-        realm.create(CatalogQueryState, { key, retryPending: true }, Realm.UpdateMode.Modified);
-      });
-      requests.retries.set(key, () => this.refresh(force));
-      throw error;
-    }
   }
 }
 
-// Request coalescing lasts only while work is in flight. Persisted query state
-// owns validators and freshness; no response body or permanent generation map is retained.
-interface RepositoryRequests {
-  inflight: Map<string, { token: object; promise: Promise<void> }>;
-  retries: Map<string, () => Promise<void>>;
-}
-const requestsByRealm = new WeakMap<Realm, RepositoryRequests>();
-function requestState(realm: Realm): RepositoryRequests {
-  let state = requestsByRealm.get(realm);
-  if (!state) {
-    state = { inflight: new Map(), retries: new Map() };
-    requestsByRealm.set(realm, state);
+// Only mounted, failed behaviors remain eligible for a connectivity retry.
+const failuresByRealm = new WeakMap<Realm, Set<() => Promise<void>>>();
+function failedRequests(realm: Realm) {
+  let failures = failuresByRealm.get(realm);
+  if (!failures) {
+    failures = new Set();
+    failuresByRealm.set(realm, failures);
   }
-  return state;
+  return failures;
 }
-export async function retryCatalogRequests(realm: Realm) {
-  const requests = requestsByRealm.get(realm);
-  if (requests) {
-    await Promise.allSettled([...requests.retries.values()].map((retry) => retry()));
+
+export async function retryFailedRequests(realm: Realm) {
+  await Promise.allSettled([...failedRequests(realm)].map((retry) => retry()));
+}
+
+// A shared HTTP result may reach several behaviors. Publish it once per Realm;
+// a failed transaction remains eligible for another consumer or retry.
+const appliedByRealm = new WeakMap<Realm, WeakSet<object>>();
+function appliedResponses(realm: Realm) {
+  let responses = appliedByRealm.get(realm);
+  if (!responses) {
+    responses = new WeakSet();
+    appliedByRealm.set(realm, responses);
   }
+  return responses;
 }

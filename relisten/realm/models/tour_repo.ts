@@ -1,6 +1,4 @@
-import { Artist } from './artist';
 import type { RelistenApiClient } from '@/relisten/api/client';
-import { encodeUuidCatalogId } from '@/relisten/api/catalog/identity';
 import type { TourResource } from '@/relisten/api/catalog/resources';
 import { useMemo } from 'react';
 import Realm from 'realm';
@@ -12,7 +10,6 @@ import { applyArtistTours } from '../catalog_apply';
 import { RealmQueryValueStream } from '../value_streams';
 import { ensureCatalogArtist, useArtist } from './artist_repo';
 import { Tour } from './tour';
-import { CatalogQueryState } from './catalog';
 
 export class ToursNetworkBackedBehavior extends NetworkBackedBehavior<
   Realm.Results<Tour>,
@@ -26,10 +23,6 @@ export class ToursNetworkBackedBehavior extends NetworkBackedBehavior<
     super(realm, options);
   }
 
-  get queryKey() {
-    return `GET /artists/${encodeUuidCatalogId(this.artistUuid, 'artist')}/tours`;
-  }
-
   createLocalUpdatingResults() {
     const tours = this.realm
       .objects(Tour)
@@ -37,20 +30,13 @@ export class ToursNetworkBackedBehavior extends NetworkBackedBehavior<
     return new RealmQueryValueStream(this.realm, tours);
   }
 
-  async fetchFromApi(api: RelistenApiClient, _force: boolean, etag?: string) {
+  async fetchFromApi(api: RelistenApiClient, force: boolean) {
     await ensureCatalogArtist(this.realm, api, this.artistUuid);
-    return api.tours(this.artistUuid, { etag });
+    return api.tours(this.artistUuid, { force });
   }
 
   isLocalDataShowable(data: Realm.Results<Tour>) {
-    return (
-      data.length > 0 ||
-      this.realm.objectForPrimaryKey(CatalogQueryState, this.queryKey)?.hasAppliedData === true
-    );
-  }
-
-  hasLocalData() {
-    return this.realm.objectForPrimaryKey(Artist, this.artistUuid) !== null;
+    return data.length > 0;
   }
 
   upsert(_data: Realm.Results<Tour>, resources: TourResource[]) {

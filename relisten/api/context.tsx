@@ -1,5 +1,5 @@
 import { PlaybackHistoryReporter } from '@/relisten/playback_history_reporter';
-import { retryCatalogRequests } from '@/relisten/realm/network_backed_behavior';
+import { retryFailedRequests } from '@/relisten/realm/network_backed_behavior';
 import { useRealm } from '@/relisten/realm/schema';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import React, { PropsWithChildren, useContext, useEffect, useMemo } from 'react';
@@ -21,7 +21,7 @@ export const RelistenApiProvider: React.FC<PropsWithChildren> = ({ children }) =
   useEffect(() => {
     if (shouldMakeNetworkRequests) {
       playbackHistoryReporter.onNetworkAvailable();
-      void retryCatalogRequests(realm);
+      void retryFailedRequests(realm);
     } else {
       playbackHistoryReporter.onNetworkUnavailable();
     }

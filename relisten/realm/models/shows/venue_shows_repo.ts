@@ -1,5 +1,5 @@
+import { saveCatalogResults } from '../../catalog_projection';
 import { detailRowUuids, orderedUuidRows, uuidRows } from '../../catalog_projection';
-import { Artist } from '../artist';
 import { RelistenApiClient } from '@/relisten/api/client';
 import { encodeUuidCatalogId } from '@/relisten/api/catalog/identity';
 import type {
@@ -84,15 +84,15 @@ export class VenueShowsNetworkBackedBehavior extends NetworkBackedBehavior<
     return new RealmObjectValueStream(this.realm, CatalogQueryState, this.queryKey);
   }
 
-  async fetchFromApi(api: RelistenApiClient, _force: boolean, etag?: string) {
+  async fetchFromApi(api: RelistenApiClient, force: boolean) {
     await ensureCatalogArtist(this.realm, api, this.artistUuid);
     switch (this.kind) {
       case 'artist_venue':
-        return api.artistVenue(this.artistUuid!, this.venueId, { etag });
+        return api.artistVenue(this.artistUuid!, this.venueId, { force });
       case 'imported_venue':
-        return api.importedVenue(this.venueId, { etag });
+        return api.importedVenue(this.venueId, { force });
       case 'venue':
-        return api.venue(this.venueId, { etag });
+        return api.venue(this.venueId, { force });
     }
   }
 
@@ -100,27 +100,13 @@ export class VenueShowsNetworkBackedBehavior extends NetworkBackedBehavior<
     return state?.hasAppliedData === true;
   }
 
-  hasLocalData(_state: CatalogQueryState | null, resultIds: Iterable<string>) {
-    const [rootId] = resultIds;
-    if (!rootId) {
-      return false;
-    }
-    if (this.artistUuid && this.realm.objectForPrimaryKey(Artist, this.artistUuid) === null) {
-      return false;
-    }
-    switch (this.kind) {
-      case 'artist_venue':
-        return this.realm.objectForPrimaryKey(ArtistVenue, rootId) !== null;
-      case 'imported_venue':
-        return this.realm.objectForPrimaryKey(Venue, this.venueId) !== null;
-      case 'venue':
-        return this.realm.objectForPrimaryKey(NormalizedVenue, rootId) !== null;
-    }
-  }
-
   upsert(_state: CatalogQueryState | null, resource: VenueDetailResource) {
     if (this.kind === 'artist_venue' && 'venue' in resource) {
-      return applyArtistVenueDetail(this.realm, this.artistUuid!, resource);
+      return saveCatalogResults(
+        this.realm,
+        this.queryKey,
+        applyArtistVenueDetail(this.realm, this.artistUuid!, resource)
+      );
     }
 
     if (
@@ -128,11 +114,15 @@ export class VenueShowsNetworkBackedBehavior extends NetworkBackedBehavior<
       'upstream_identifier' in resource &&
       resource.id === encodeUuidCatalogId(this.venueId, 'imported_venue')
     ) {
-      return applyImportedVenueDetail(this.realm, this.artistUuid!, resource);
+      return saveCatalogResults(
+        this.realm,
+        this.queryKey,
+        applyImportedVenueDetail(this.realm, this.artistUuid!, resource)
+      );
     }
 
     if (this.kind === 'venue' && 'global_show_count' in resource) {
-      return applyVenueDetail(this.realm, resource);
+      return saveCatalogResults(this.realm, this.queryKey, applyVenueDetail(this.realm, resource));
     }
 
     throw new Error('Unexpected venue detail identity or kind.');

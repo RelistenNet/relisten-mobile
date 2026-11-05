@@ -1,18 +1,5 @@
 import { catalogApiBase } from '@/relisten/api/catalog_config';
 
-export interface CatalogResponse<T> {
-  status: 'ok';
-  data: T;
-  etag: string;
-}
-
-export interface CatalogNotModifiedResponse {
-  status: 'not_modified';
-  etag: string;
-}
-
-export type CatalogGetResponse<T> = CatalogResponse<T> | CatalogNotModifiedResponse;
-
 export class CatalogHttpError extends Error {
   constructor(
     readonly url: string,
@@ -116,30 +103,14 @@ export class CatalogTransport {
     }
   }
 
-  async getJson<T>(path: string, appliedEtag?: string): Promise<CatalogGetResponse<T>> {
+  async getJson<T>(path: string): Promise<T> {
     if (!path.startsWith('/') || path.startsWith('//')) {
       throw new CatalogProtocolError('Catalog paths must be origin-relative');
     }
 
     const url = `${this.apiBase}/v4${path}`;
     const headers = new Headers({ Accept: 'application/json' });
-    if (appliedEtag) {
-      headers.set('If-None-Match', appliedEtag);
-    }
-
     const response = await this.fetchGet(url, headers);
-
-    if (response.status === 304) {
-      const etag = response.headers.get('etag') ?? appliedEtag;
-      if (!etag) {
-        throw new CatalogProtocolError('A 304 response requires the matching request validator');
-      }
-
-      return {
-        status: 'not_modified',
-        etag,
-      };
-    }
 
     if (!response.ok) {
       let responseBody = '';
@@ -151,11 +122,6 @@ export class CatalogTransport {
       throw new CatalogHttpError(url, response.status, responseBody);
     }
 
-    const etag = response.headers.get('etag');
-    if (!etag) {
-      throw new CatalogProtocolError('A successful catalog response must include an ETag');
-    }
-
     const responseBody = await response.text();
     let data: T;
     try {
@@ -164,10 +130,6 @@ export class CatalogTransport {
       throw new CatalogParseError(url, { cause: error });
     }
 
-    return {
-      status: 'ok',
-      data,
-      etag,
-    };
+    return data;
   }
 }

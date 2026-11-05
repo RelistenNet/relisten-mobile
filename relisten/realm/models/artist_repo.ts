@@ -11,7 +11,6 @@ import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
 import { NetworkBackedResults } from '../network_backed_results';
 import { useQuery, useRealm } from '../schema';
 import { Artist, ArtistFeaturedFlags } from './artist';
-import { CatalogQueryState } from './catalog';
 
 import { NetworkBackedBehavior } from '@/relisten/realm/network_backed_behavior';
 import { useFavoriteCatalogUuids } from '@/relisten/realm/root_services';
@@ -25,10 +24,6 @@ export class ArtistsNetworkBackedBehavior extends NetworkBackedBehavior<
   Realm.Results<Artist>,
   ArtistResource[]
 > {
-  get queryKey() {
-    return 'GET /artists?include_autocreated=true';
-  }
-
   constructor(
     realm: Realm,
     private readonly localQuery: (realm: Realm) => Realm.Results<Artist>,
@@ -41,15 +36,12 @@ export class ArtistsNetworkBackedBehavior extends NetworkBackedBehavior<
     return new RealmQueryValueStream(this.realm, this.localQuery(this.realm));
   }
 
-  fetchFromApi(api: RelistenApiClient, _force: boolean, etag?: string) {
-    return api.artists({ etag });
+  fetchFromApi(api: RelistenApiClient, force: boolean) {
+    return api.artists({ force });
   }
 
   isLocalDataShowable(data: Realm.Results<Artist>) {
-    return (
-      data.length > 0 ||
-      this.realm.objectForPrimaryKey(CatalogQueryState, this.queryKey)?.hasAppliedData === true
-    );
+    return data.length > 0;
   }
 
   upsert(_data: Realm.Results<Artist>, resources: ArtistResource[]) {
@@ -198,10 +190,6 @@ class ArtistBootstrapNetworkBackedBehavior extends NetworkBackedBehavior<
   Artist | null,
   ArtistResource[]
 > {
-  get queryKey() {
-    return 'GET /artists?include_autocreated=true';
-  }
-
   constructor(
     realm: Realm,
     private readonly localQueryFactory: (realm: Realm) => Realm.Results<Artist>,
@@ -213,8 +201,8 @@ class ArtistBootstrapNetworkBackedBehavior extends NetworkBackedBehavior<
     });
   }
 
-  fetchFromApi(api: RelistenApiClient, _force: boolean, etag?: string) {
-    return api.artists({ etag });
+  fetchFromApi(api: RelistenApiClient, force: boolean) {
+    return api.artists({ force });
   }
 
   createLocalUpdatingResults(): ValueStream<Artist | null> {
@@ -223,10 +211,6 @@ class ArtistBootstrapNetworkBackedBehavior extends NetworkBackedBehavior<
 
   isLocalDataShowable(data: Artist | null) {
     return data !== null;
-  }
-
-  hasLocalData() {
-    return this.localQueryFactory(this.realm).length > 0;
   }
 
   upsert(_data: Artist | null, resources: ArtistResource[]) {

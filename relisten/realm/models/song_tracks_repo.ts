@@ -1,5 +1,5 @@
+import { saveCatalogResults } from '../catalog_projection';
 import { detailRowUuids, orderedUuidRows, uuidRows } from '../catalog_projection';
-import { Artist } from './artist';
 import type { RelistenApiClient } from '@/relisten/api/client';
 import {
   NetworkBackedBehavior,
@@ -46,7 +46,7 @@ export class SongTracksNetworkBackedBehavior extends NetworkBackedBehavior<
     return songTracksQueryKey(this.songId);
   }
 
-  async fetchFromApi(api: RelistenApiClient, force: boolean, etag?: string) {
+  async fetchFromApi(api: RelistenApiClient, force: boolean) {
     await ensureCatalogArtist(this.realm, api, this.artistUuid);
 
     // The recordings response carries show IDs, not show bodies. Resolve its
@@ -64,7 +64,7 @@ export class SongTracksNetworkBackedBehavior extends NetworkBackedBehavior<
       throw errors[0].error ?? new Error(errors[0].message);
     }
 
-    return api.songTracks(this.songId, { etag });
+    return api.songTracks(this.songId, { force });
   }
 
   override createLocalUpdatingResults(): ValueStream<CatalogQueryState | null> {
@@ -79,17 +79,12 @@ export class SongTracksNetworkBackedBehavior extends NetworkBackedBehavior<
     return state?.hasAppliedData === true;
   }
 
-  hasLocalData(_state: CatalogQueryState | null, resultIds: Iterable<string>) {
-    const [rootId] = resultIds;
-    return (
-      rootId !== undefined &&
-      this.realm.objectForPrimaryKey(Artist, this.artistUuid) !== null &&
-      this.realm.objectForPrimaryKey(NormalizedSong, rootId) !== null
-    );
-  }
-
   upsert(_state: CatalogQueryState | null, resource: SongWithTracksResource) {
-    return applySongTracks(this.realm, this.artistUuid, resource);
+    return saveCatalogResults(
+      this.realm,
+      this.queryKey,
+      applySongTracks(this.realm, this.artistUuid, resource)
+    );
   }
 }
 

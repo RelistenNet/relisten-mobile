@@ -12,21 +12,6 @@ function response(body: string | null, init: ResponseInit) {
 }
 
 describe('CatalogTransport', () => {
-  it('sends a matching validator and accepts a bodyless 304', async () => {
-    const fetch = vi.fn<CatalogFetch>(async () => response(null, { status: 304 }));
-    const transport = new CatalogTransport({ apiBase: 'https://catalog.test/api', fetch });
-
-    await expect(transport.getJson('/artists', 'W/"catalog"')).resolves.toMatchObject({
-      status: 'not_modified',
-      etag: 'W/"catalog"',
-    });
-
-    const [url, request] = fetch.mock.calls[0]!;
-    expect(url).toBe('https://catalog.test/api/v4/artists');
-    expect(request!.method).toBe('GET');
-    expect(new Headers(request!.headers).get('If-None-Match')).toBe('W/"catalog"');
-  });
-
   it('parses a direct response without changing Unicode text', async () => {
     const transport = new CatalogTransport({
       apiBase: 'https://catalog.test/api',
@@ -38,9 +23,7 @@ describe('CatalogTransport', () => {
     });
 
     await expect(transport.getJson<{ name: string }>('/artists/artist_id')).resolves.toEqual({
-      status: 'ok',
-      data: { name: 'Beyoncé' },
-      etag: 'W/"artist"',
+      name: 'Beyoncé',
     });
   });
 
@@ -85,7 +68,7 @@ describe('CatalogTransport', () => {
       apiBase: 'https://catalog.test/api',
       fetch: async () => response('[]', { status: 200 }),
     });
-    await expect(missingEtag.getJson('/artists')).rejects.toBeInstanceOf(CatalogProtocolError);
+    await expect(missingEtag.getJson('/artists')).resolves.toEqual([]);
   });
 
   it('rejects paths that could escape the configured catalog origin', async () => {
@@ -132,7 +115,7 @@ describe('CatalogTransport', () => {
       await vi.advanceTimersByTimeAsync(999);
       expect(fetch).toHaveBeenCalledTimes(1);
       await vi.advanceTimersByTimeAsync(1);
-      await expect(pending).resolves.toMatchObject({ status: 'ok', data: [] });
+      await expect(pending).resolves.toEqual([]);
       expect(fetch).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();

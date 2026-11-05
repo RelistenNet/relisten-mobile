@@ -49,3 +49,12 @@ export function orderedUuidRows<T extends { uuid: string }>(
   }
   return ordered;
 }
+
+/** Existing collection readers own their result membership, independently of transport state. */
+export function saveCatalogResults(realm: Realm, key: string, resultIds: string[]) {
+  realm.create(
+    CatalogQueryState,
+    { key, resultIds, hasAppliedData: true },
+    Realm.UpdateMode.Modified
+  );
+}

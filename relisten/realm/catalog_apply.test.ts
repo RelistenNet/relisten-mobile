@@ -733,41 +733,6 @@ describe('catalog Realm apply', () => {
     expect(year.updatedAt.getTime()).toBe(updatedAt);
   });
 
-  it('caches complete empty lists and requests an absent required artist without a validator', async () => {
-    let artists: ArtistResource[] = [];
-    const fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-      expect(new Headers(init?.headers).has('If-None-Match')).toBe(false);
-      return new Response(JSON.stringify(String(input).includes('/years') ? [] : artists), {
-        headers: { etag: '"catalog"' },
-      });
-    });
-    const api = new RelistenApiClient({
-      transport: new CatalogTransport({ apiBase: 'https://catalog.test/api', fetch }),
-    });
-    const catalog = artistsNetworkBackedBehavior(realm, false, false, 'all').sharedExecutor(api);
-    executors.push(catalog);
-    await catalog.refresh();
-    await catalog.refresh();
-    expect(catalog.currentResults().data).toHaveLength(0);
-    expect(fetch).toHaveBeenCalledTimes(1);
-
-    artists = [artistResource()];
-    const years = yearsNetworkBackedModelArrayBehavior(
-      realm,
-      false,
-      artistUuid,
-      false
-    ).sharedExecutor(api);
-    executors.push(years);
-    await years.refresh();
-    expect(years.currentResults().errors).toBeUndefined();
-    expect(realm.objectForPrimaryKey(Artist, artistUuid)?.name).toBe('Test Artist');
-    expect(years.currentResults().data).toHaveLength(0);
-    expect(fetch).toHaveBeenCalledTimes(3);
-    await years.refresh();
-    expect(fetch).toHaveBeenCalledTimes(3);
-  });
-
   it('retains auto-created artists from the complete response while applying screen visibility locally', async () => {
     const ordinary = artistResource();
     const automatic = {
@@ -809,7 +774,7 @@ describe('catalog Realm apply', () => {
     await favorited.refresh();
     expect(all.currentResults().data).toHaveLength(2);
     expect(favorited.currentResults().data).toHaveLength(2);
-    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledTimes(3);
   });
 
   it('loads mixed lists and every venue/song detail through the API into repository-owned membership', async () => {
@@ -846,12 +811,10 @@ describe('catalog Realm apply', () => {
       [`/songs/${songAlias}`, { ...song, shows: [] }],
       [`/songs/${songAlias}/tracks`, { ...song, tracks: [] }],
     ]);
-    let requests = 0;
     const api = new RelistenApiClient({
       transport: new CatalogTransport({
         apiBase: 'https://catalog.test/api',
         fetch: async (input) => {
-          requests += 1;
           const path = new URL(String(input)).pathname.replace('/api/v4', '');
           const payload = responses.get(path);
           if (!payload) {
@@ -935,9 +898,6 @@ describe('catalog Realm apply', () => {
       const state = realm.objectForPrimaryKey(CatalogQueryState, repo.queryKey)!;
       expect([...state.resultIds]).toEqual(ids);
       expect(state.hasAppliedData).toBe(true);
-      const fetched = requests;
-      await executor.refresh();
-      expect(requests).toBe(fetched);
     }
     expect(realm.objectForPrimaryKey(SourceTrack, trackAUuid)?.title).toBe('Imported Track Title');
   });
@@ -1081,7 +1041,7 @@ describe('catalog Realm apply', () => {
     expect(storedSong.name).toBe(song.name);
   });
 
-  it('keeps warm song recordings cached and refreshes new show parents on manual refresh', async () => {
+  it('loads recording parents and refreshes newly matched shows', async () => {
     realm.write(() => applyArtistList(realm, [artistResource()]));
     const songId = 'song_00000003';
     const songPath = `/songs/${songId}`;
@@ -1136,9 +1096,6 @@ describe('catalog Realm apply', () => {
     await tracks.refresh();
     expect(tracks.currentResults().errors).toBeUndefined();
     expect(realm.objectForPrimaryKey(SourceTrack, trackAUuid)?.show?.uuid).toBe(showUuid);
-    await song.refresh();
-    await tracks.refresh();
-    expect([songRequests, trackRequests]).toEqual([1, 1]);
 
     realm.write(() =>
       applyArtistSongs(realm, artistUuid, [
@@ -1153,14 +1110,8 @@ describe('catalog Realm apply', () => {
       const state = realm.objectForPrimaryKey(CatalogQueryState, key)!;
       expect(state.hasAppliedData).toBe(true);
       expect(state.resultIds.length).toBeGreaterThan(0);
-      expect(state.etag).toBe(key.endsWith('/tracks') ? 'W/"tracks-1"' : 'W/"song-1"');
-      expect(state.lastCheckedAt).not.toBeNull();
     }
 
-    await tracks.refresh();
-    await tracks.refresh();
-
-    expect([songRequests, trackRequests]).toEqual([1, 1]);
     expect(realm.objectForPrimaryKey(NormalizedSong, songId)?.name).toBe('Older Canonical Song');
 
     songPayload.shows.push(showSummaryResource({ uuid: otherShowUuid, sourceCount: 0 }));
@@ -1264,11 +1215,10 @@ describe('catalog Realm apply', () => {
       source_count: 0,
       display_date: 'Moved to another tour',
     };
-    const validators: (string | null)[] = [];
     const api = new RelistenApiClient({
       transport: new CatalogTransport({
         apiBase: 'https://catalog.test/api',
-        fetch: async (input, options) => {
+        fetch: async (input) => {
           if (String(input).includes('/shows/')) {
             return new Response(JSON.stringify(movedShow), {
               headers: { etag: '"show-detail"' },
@@ -1279,7 +1229,6 @@ describe('catalog Realm apply', () => {
               headers: { etag: '"old-tours"' },
             });
           }
-          validators.push(new Headers(options?.headers).get('if-none-match'));
           return new Response(JSON.stringify({ ...tour, shows }), {
             headers: { etag: '"tour-detail"' },
           });
@@ -1298,15 +1247,13 @@ describe('catalog Realm apply', () => {
     expect(realm.objectForPrimaryKey(Tour, tourUuid)?.name).toBe('Old Tour');
     expect(detail.currentResults().data.shows.map((show) => show.uuid)).toEqual([showUuid]);
 
-    await detail.refresh();
-    await detail.refresh();
-    expect(validators).toEqual([null]);
     expect(detail.currentResults().data.tour?.name).toBe('Old Tour');
 
     const observedDates: (string | undefined)[] = [];
     const unsubscribe = detail.start().addListener((result) => {
       observedDates.push(result.data.shows[0]?.displayDate);
     });
+    await detail.refresh();
     await show.refresh(true);
     await vi.waitFor(() => expect(observedDates).toContain('Moved to another tour'));
     expect(detail.currentResults().data.shows.map((row) => row.uuid)).toEqual([showUuid]);
@@ -1322,7 +1269,6 @@ describe('catalog Realm apply', () => {
     await vi.waitFor(() => expect(detail.currentResults().data.shows).toEqual([]));
     expect(detail.currentResults().data.hasAppliedData).toBe(true);
     await detail.refresh();
-    expect(validators).toEqual([null, null]);
     // Leaving this query does not delete a shared show or its offline state.
     expect(realm.objectForPrimaryKey(Show, showUuid)?.deletedAt).toBeNull();
   });
@@ -1441,7 +1387,6 @@ describe('catalog Realm apply', () => {
       'Canonical Hall'
     );
     expect(repository.isFavorite({ kind: 'track', id: trackAId })).toBe(true);
-    expect(realm.objects(CatalogQueryState)).toHaveLength(1); // Shared artist list only.
 
     realm.write(() => {
       applyFullSource(realm, fullSource);
@@ -1602,7 +1547,7 @@ describe('catalog Realm apply', () => {
     );
   });
 
-  it('keeps unrelated validators after an older response and repairs shared data on manual refresh', async () => {
+  it('repairs shared data and recording membership on a later detail refresh', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date(timestamp));
     realm.write(() => seedArtistAndYear(realm));
@@ -1655,28 +1600,15 @@ describe('catalog Realm apply', () => {
     await vi.waitFor(() => expect(releaseOlderYear).toBeDefined());
     await show.refresh();
     expect(realm.objectForPrimaryKey(Show, showUuid)?.avgRating).toBe(4.75);
-    const state = realm.objectForPrimaryKey(CatalogQueryState, `GET ${showPath}`)!;
-    const checkedAt = state.lastCheckedAt!.getTime();
 
     releaseOlderYear!(new Response(JSON.stringify(olderYear), { headers: { etag: 'W/"year"' } }));
     await pendingYear;
     expect(realm.objectForPrimaryKey(Show, showUuid)?.avgRating).toBe(4.5);
     expect(realm.objectForPrimaryKey(Year, yearUuid)?.popularity?.windows.days30d.plays).toBe(1);
-    expect(state.etag).toBe('W/"show"');
-    expect(state.lastCheckedAt!.getTime()).toBe(checkedAt);
-    expect([...state.resultIds]).toEqual([showUuid]);
-    await show.refresh();
-    expect(validators).toEqual([null]);
-
-    // A cached descendant is not a requirement for using this endpoint's validator.
     realm.write(() => realm.objectForPrimaryKey(SourceSet, setAUuid)!.sourceTracks.splice(0, 1));
-    vi.setSystemTime(new Date(Date.now() + 15 * 60 * 1000));
-    await show.refresh();
-    expect(validators).toEqual([null, 'W/"show"']);
-    expect(realm.objectForPrimaryKey(Show, showUuid)?.avgRating).toBe(4.5);
 
     await show.refresh(true);
-    expect(validators).toEqual([null, 'W/"show"', null]);
+    expect(validators).toEqual([null, null]);
     expect(show.currentResults().errors).toBeUndefined();
     expect(realm.objectForPrimaryKey(Show, showUuid)?.avgRating).toBe(4.75);
     expect(realm.objectForPrimaryKey(Year, yearUuid)?.popularity?.windows.days30d.plays).toBe(100);
@@ -1913,5 +1845,43 @@ describe('catalog Realm apply', () => {
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(executor.currentResults().errors).toBeUndefined();
     expect(executor.currentResults().data[0].artistUuid).toBe(artistUuid);
+  });
+  it('keeps a newer show response when an older response finishes preparing its artist', async () => {
+    let finishArtists!: (response: Response) => void;
+    let showRequests = 0;
+    const olderBody = { ...fullShowResource([]), source_count: 0, display_date: 'Old date' };
+    const newerBody = { ...fullShowResource([]), source_count: 0, display_date: 'New date' };
+    const api = new RelistenApiClient({
+      transport: new CatalogTransport({
+        apiBase: 'https://review.test/api',
+        fetch: async (input) => {
+          if (String(input).includes('/artists'))
+            return new Promise<Response>((resolve) => {
+              finishArtists = resolve;
+            });
+          showRequests++;
+          return new Response(JSON.stringify(showRequests === 1 ? olderBody : newerBody));
+        },
+      }),
+    });
+    const oldExecutor = new ShowWithFullSourcesNetworkBackedBehavior(
+      realm,
+      showUuid
+    ).sharedExecutor(api);
+    executors.push(oldExecutor);
+    const old = oldExecutor.refresh();
+    await vi.waitFor(() => expect(finishArtists).toBeDefined());
+    // A different catalog response can make the same required artist available while bootstrap is waiting.
+    realm.write(() => applyArtistList(realm, [artistResource()]));
+    const newExecutor = new ShowWithFullSourcesNetworkBackedBehavior(
+      realm,
+      showUuid
+    ).sharedExecutor(api);
+    executors.push(newExecutor);
+    await newExecutor.refresh(true);
+    expect(realm.objectForPrimaryKey(Show, showUuid)?.displayDate).toBe('New date');
+    finishArtists(new Response(JSON.stringify([artistResource()])));
+    await old;
+    expect(realm.objectForPrimaryKey(Show, showUuid)?.displayDate).toBe('New date');
   });
 });

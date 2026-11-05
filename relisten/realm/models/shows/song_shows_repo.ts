@@ -1,5 +1,5 @@
+import { saveCatalogResults } from '../../catalog_projection';
 import { detailRowUuids, orderedUuidRows, uuidRows } from '../../catalog_projection';
-import { Artist } from '../artist';
 import type { RelistenApiClient } from '@/relisten/api/client';
 import { encodeUuidCatalogId } from '@/relisten/api/catalog/identity';
 import type {
@@ -60,27 +60,15 @@ export class SongShowsNetworkBackedBehavior extends NetworkBackedBehavior<
     return new RealmObjectValueStream(this.realm, CatalogQueryState, this.queryKey);
   }
 
-  async fetchFromApi(api: RelistenApiClient, _force: boolean, etag?: string) {
+  async fetchFromApi(api: RelistenApiClient, force: boolean) {
     await ensureCatalogArtist(this.realm, api, this.artistUuid);
     return this.kind === 'song'
-      ? api.song(this.songId, { etag })
-      : api.importedSong(this.songId, { etag });
+      ? api.song(this.songId, { force })
+      : api.importedSong(this.songId, { force });
   }
 
   isLocalDataShowable(state: CatalogQueryState | null) {
     return state?.hasAppliedData === true;
-  }
-
-  hasLocalData(_state: CatalogQueryState | null, resultIds: Iterable<string>) {
-    const [rootId] = resultIds;
-    if (!rootId) {
-      return false;
-    }
-    const song =
-      this.kind === 'song'
-        ? this.realm.objectForPrimaryKey(NormalizedSong, rootId)
-        : this.realm.objectForPrimaryKey(Song, this.songId);
-    return song !== null && this.realm.objectForPrimaryKey(Artist, this.artistUuid) !== null;
   }
 
   upsert(
@@ -88,7 +76,11 @@ export class SongShowsNetworkBackedBehavior extends NetworkBackedBehavior<
     resource: SongWithShowsResource | ImportedSongWithShowsResource
   ) {
     if (this.kind === 'song' && 'matched_track_count' in resource) {
-      return applySongDetail(this.realm, this.artistUuid, resource);
+      return saveCatalogResults(
+        this.realm,
+        this.queryKey,
+        applySongDetail(this.realm, this.artistUuid, resource)
+      );
     }
 
     if (
@@ -96,7 +88,11 @@ export class SongShowsNetworkBackedBehavior extends NetworkBackedBehavior<
       'setlist_show_count' in resource &&
       resource.id === encodeUuidCatalogId(this.songId, 'imported_song')
     ) {
-      return applyImportedSongDetail(this.realm, this.artistUuid, resource);
+      return saveCatalogResults(
+        this.realm,
+        this.queryKey,
+        applyImportedSongDetail(this.realm, this.artistUuid, resource)
+      );
     }
 
     throw new Error('Unexpected song detail identity or kind.');

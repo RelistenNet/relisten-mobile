@@ -1,6 +1,3 @@
-import { CatalogQueryState } from './catalog';
-import { Artist } from './artist';
-import { encodeUuidCatalogId } from '@/relisten/api/catalog/identity';
 import type { YearResource, YearWithShowsResource } from '@/relisten/api/catalog/resources';
 import { useQuery, useRealm } from '../schema';
 import { applyArtistYears, applyYearDetail } from '../catalog_apply';
@@ -64,28 +61,17 @@ class YearsNetworkBackedBehavior extends NetworkBackedBehavior<
     super(realm, options);
   }
 
-  get queryKey() {
-    return `GET /artists/${encodeUuidCatalogId(this.artistUuid, 'artist')}/years`;
-  }
-
   createLocalUpdatingResults() {
     return new RealmQueryValueStream(this.realm, this.localQuery(this.realm));
   }
 
-  async fetchFromApi(api: RelistenApiClient, _force: boolean, etag?: string) {
+  async fetchFromApi(api: RelistenApiClient, force: boolean) {
     await ensureCatalogArtist(this.realm, api, this.artistUuid);
-    return api.years(this.artistUuid, { etag });
+    return api.years(this.artistUuid, { force });
   }
 
   isLocalDataShowable(data: Realm.Results<Year>) {
-    return (
-      data.length > 0 ||
-      this.realm.objectForPrimaryKey(CatalogQueryState, this.queryKey)?.hasAppliedData === true
-    );
-  }
-
-  hasLocalData() {
-    return this.realm.objectForPrimaryKey(Artist, this.artistUuid) !== null;
+    return data.length > 0;
   }
 
   upsert(_data: Realm.Results<Year>, resources: YearResource[]) {
@@ -145,20 +131,9 @@ export class YearShowsNetworkBackedBehavior extends NetworkBackedBehavior<
     super(realm, options);
   }
 
-  get queryKey() {
-    return `GET /artists/${encodeUuidCatalogId(this.artistUuid, 'artist')}/years/${encodeUuidCatalogId(this.yearUuid, 'year')}`;
-  }
-
-  async fetchFromApi(api: RelistenApiClient, _force: boolean, etag?: string) {
+  async fetchFromApi(api: RelistenApiClient, force: boolean) {
     await ensureCatalogArtist(this.realm, api, this.artistUuid);
-    return api.year(this.artistUuid, this.yearUuid, { etag });
-  }
-
-  hasLocalData() {
-    return (
-      this.realm.objectForPrimaryKey(Year, this.yearUuid) !== null &&
-      this.realm.objectForPrimaryKey(Artist, this.artistUuid) !== null
-    );
+    return api.year(this.artistUuid, this.yearUuid, { force });
   }
 
   override createLocalUpdatingResults(): ValueStream<YearShows> {
