@@ -314,7 +314,17 @@ Use authorization code plus PKCE against `https://auth.relisten.net`. The produc
 https://relisten.net/auth/mobile/ios/callback
 ```
 
-Development uses the collision-resistant private scheme with the platform suffix. Keep `relisten://` for ordinary app deep links. On production iOS, pass `preferUniversalLinks: true`; `openAuthSessionAsync` still uses `ASWebAuthenticationSession`. Android production auth remains deferred until its separate client and claimed HTTPS callback are deployed. Never embed auth in `WebView` and never call Apple or Google token endpoints from mobile. Register both iOS redirects during the transition, but make the app request the claimed HTTPS callback. Retain `net.relisten.mobile` for one rollback interval. Remove the private iOS redirect only after a release-signed physical-device test passes and adoption is sufficient.
+Development uses the private scheme with the platform suffix on its separate
+`relisten-mobile-ios-dev` client. Keep `relisten://` for ordinary app deep links.
+The production `relisten-mobile-ios` registration accepts only the HTTPS callback
+above, aligned by the account service's forward registration migration. On
+production iOS, pass `preferUniversalLinks: true`; `openAuthSessionAsync` still
+uses `ASWebAuthenticationSession`. Verify the claimed-link return with a
+release-signed physical-device build before activation.
+
+Android production auth remains deferred until its separate client and claimed
+HTTPS callback are deployed. Never embed auth in `WebView` and never call Apple
+or Google token endpoints from mobile.
 
 Make the issuer an explicit build environment value. Daily local work uses the User Service's development-only identity provider and an isolated local database. Real Apple testing uses the stable HTTPS preview issuer/database because Apple web callbacks cannot target localhost or an IP address; a local mobile build may authorize against that preview issuer. Never mix local and preview user databases or silently fall back from a preview issuer to production.
 
