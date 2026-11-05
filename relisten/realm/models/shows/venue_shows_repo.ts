@@ -1,12 +1,12 @@
 import { detailRowUuids, orderedUuidRows, uuidRows } from '../../catalog_projection';
 import { Artist } from '../artist';
 import { RelistenApiClient } from '@/relisten/api/client';
-import { encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
+import { encodeUuidCatalogId } from '@/relisten/api/catalog/identity';
 import type {
-  V4ArtistVenueWithShowsResource,
-  V4ImportedVenueWithShowsResource,
-  V4VenueWithShowsResource,
-} from '@/relisten/api/v4/wire_types';
+  ArtistVenueWithShowsResource,
+  ImportedVenueWithShowsResource,
+  VenueWithShowsResource,
+} from '@/relisten/api/catalog/resources';
 import {
   NetworkBackedBehavior,
   NetworkBackedBehaviorOptions,
@@ -20,11 +20,15 @@ import { useQuery, useRealm } from '@/relisten/realm/schema';
 import { RealmObjectValueStream, ValueStream } from '@/relisten/realm/value_streams';
 import { useMemo } from 'react';
 import Realm from 'realm';
-import { applyV4ArtistVenue, applyV4ImportedVenue, applyV4Venue } from '../../v4_catalog_apply';
+import {
+  applyArtistVenueDetail,
+  applyImportedVenueDetail,
+  applyVenueDetail,
+} from '../../catalog_apply';
 
 import { ensureCatalogArtist, useArtist } from '../artist_repo';
 import { Show } from '../show';
-import { ArtistVenue, CatalogQueryState, NormalizedVenue } from '../v4_catalog';
+import { ArtistVenue, CatalogQueryState, NormalizedVenue } from '../catalog';
 import { Venue } from '../venue';
 
 export type VenueDetailKind = 'artist_venue' | 'imported_venue' | 'venue';
@@ -39,9 +43,9 @@ export interface VenueShows {
 }
 
 type VenueDetailResource =
-  | V4ArtistVenueWithShowsResource
-  | V4ImportedVenueWithShowsResource
-  | V4VenueWithShowsResource;
+  | ArtistVenueWithShowsResource
+  | ImportedVenueWithShowsResource
+  | VenueWithShowsResource;
 
 function venueDetailQueryKey(
   kind: VenueDetailKind,
@@ -50,9 +54,9 @@ function venueDetailQueryKey(
 ) {
   switch (kind) {
     case 'artist_venue':
-      return `GET /artists/${encodeV4UuidCatalogId(artistUuid!, 'artist')}/venues/${venueId}`;
+      return `GET /artists/${encodeUuidCatalogId(artistUuid!, 'artist')}/venues/${venueId}`;
     case 'imported_venue':
-      return `GET /imported-venues/${encodeV4UuidCatalogId(venueId, 'imported_venue')}`;
+      return `GET /imported-venues/${encodeUuidCatalogId(venueId, 'imported_venue')}`;
     case 'venue':
       return `GET /venues/${venueId}`;
   }
@@ -116,19 +120,19 @@ export class VenueShowsNetworkBackedBehavior extends NetworkBackedBehavior<
 
   upsert(_state: CatalogQueryState | null, resource: VenueDetailResource) {
     if (this.kind === 'artist_venue' && 'venue' in resource) {
-      return applyV4ArtistVenue(this.realm, this.artistUuid!, resource);
+      return applyArtistVenueDetail(this.realm, this.artistUuid!, resource);
     }
 
     if (
       this.kind === 'imported_venue' &&
       'upstream_identifier' in resource &&
-      resource.id === encodeV4UuidCatalogId(this.venueId, 'imported_venue')
+      resource.id === encodeUuidCatalogId(this.venueId, 'imported_venue')
     ) {
-      return applyV4ImportedVenue(this.realm, this.artistUuid!, resource);
+      return applyImportedVenueDetail(this.realm, this.artistUuid!, resource);
     }
 
     if (this.kind === 'venue' && 'global_show_count' in resource) {
-      return applyV4Venue(this.realm, resource);
+      return applyVenueDetail(this.realm, resource);
     }
 
     throw new Error('Unexpected venue detail identity or kind.');

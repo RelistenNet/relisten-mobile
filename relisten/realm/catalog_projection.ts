@@ -1,6 +1,6 @@
 import Realm from 'realm';
-import { decodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
-import { CatalogQueryState } from './models/v4_catalog';
+import { decodeUuidCatalogId } from '@/relisten/api/catalog/identity';
+import { CatalogQueryState } from './models/catalog';
 
 /** Decode saved child IDs for a detail query's selected Realm subscription. */
 export function detailRowUuids(state: CatalogQueryState | null, prefix: 'show' | 'track') {
@@ -8,7 +8,7 @@ export function detailRowUuids(state: CatalogQueryState | null, prefix: 'show' |
   if (state?.hasAppliedData) {
     for (let index = 1; index < state.resultIds.length; index += 1) {
       try {
-        uuids.push(decodeV4UuidCatalogId(state.resultIds[index], prefix));
+        uuids.push(decodeUuidCatalogId(state.resultIds[index], prefix));
       } catch {
         // Missing or invalid cached children leave the rendered projection incomplete.
       }

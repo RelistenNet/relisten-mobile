@@ -1,4 +1,4 @@
-import { V4SourceReviewResource as SourceReview } from '@/relisten/api/v4/wire_types';
+import { SourceReviewResource as SourceReview } from '@/relisten/api/catalog/resources';
 import { RelistenFlatList } from '@/relisten/components/relisten_flat_list';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';

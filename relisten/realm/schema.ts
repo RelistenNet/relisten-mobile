@@ -39,7 +39,7 @@ import {
   stageLegacyAccountIdentityFields,
   upgradeTypedAccountIdentity,
 } from '@/relisten/realm/account_identity_upgrade';
-import { V4_CATALOG_REALM_MODELS } from '@/relisten/realm/models/v4_catalog';
+import { CATALOG_REALM_MODELS } from '@/relisten/realm/models/catalog';
 
 if (isVerboseProfileLoggingEnabled()) {
   Realm.setLogger(({ category, level, message }) => {
@@ -79,12 +79,12 @@ export const REALM_SCHEMA = [
   AccountIdentityUpgradeState,
   ...ACCOUNT_REALM_MODELS,
   ...FAVORITE_REALM_MODELS,
-  ...V4_CATALOG_REALM_MODELS,
+  ...CATALOG_REALM_MODELS,
 ];
 
 export const realmConfig: Realm.Configuration = {
   schema: REALM_SCHEMA,
-  // Schema 18 adds the final v4 overlays; query state owns ordered membership.
+  // Schema 18 adds the final catalog overlays; query state owns ordered membership.
   schemaVersion: REALM_SCHEMA_VERSION,
   onMigration: (oldRealm, newRealm) => {
     migratePlayerState(oldRealm, newRealm);

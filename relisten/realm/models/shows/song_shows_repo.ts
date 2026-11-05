@@ -1,11 +1,11 @@
 import { detailRowUuids, orderedUuidRows, uuidRows } from '../../catalog_projection';
 import { Artist } from '../artist';
 import type { RelistenApiClient } from '@/relisten/api/client';
-import { encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
+import { encodeUuidCatalogId } from '@/relisten/api/catalog/identity';
 import type {
-  V4ImportedSongWithShowsResource,
-  V4SongWithShowsResource,
-} from '@/relisten/api/v4/wire_types';
+  ImportedSongWithShowsResource,
+  SongWithShowsResource,
+} from '@/relisten/api/catalog/resources';
 import {
   NetworkBackedBehavior,
   NetworkBackedBehaviorOptions,
@@ -19,12 +19,12 @@ import { useQuery, useRealm } from '@/relisten/realm/schema';
 import { RealmObjectValueStream, ValueStream } from '@/relisten/realm/value_streams';
 import { useMemo } from 'react';
 import Realm from 'realm';
-import { applyV4ImportedSong, applyV4Song } from '../../v4_catalog_apply';
+import { applyImportedSongDetail, applySongDetail } from '../../catalog_apply';
 
 import { ensureCatalogArtist, useArtist } from '../artist_repo';
 import { Show } from '../show';
 import { Song } from '../song';
-import { CatalogQueryState, NormalizedSong } from '../v4_catalog';
+import { CatalogQueryState, NormalizedSong } from '../catalog';
 
 export type SongCatalogKind = 'song' | 'imported_song';
 
@@ -35,12 +35,12 @@ export type SongShows =
 function songDetailQueryKey(kind: SongCatalogKind, songId: string) {
   return kind === 'song'
     ? `GET /songs/${songId}`
-    : `GET /imported-songs/${encodeV4UuidCatalogId(songId, 'imported_song')}`;
+    : `GET /imported-songs/${encodeUuidCatalogId(songId, 'imported_song')}`;
 }
 
 export class SongShowsNetworkBackedBehavior extends NetworkBackedBehavior<
   CatalogQueryState | null,
-  V4SongWithShowsResource | V4ImportedSongWithShowsResource
+  SongWithShowsResource | ImportedSongWithShowsResource
 > {
   constructor(
     realm: Realm,
@@ -85,18 +85,18 @@ export class SongShowsNetworkBackedBehavior extends NetworkBackedBehavior<
 
   upsert(
     _state: CatalogQueryState | null,
-    resource: V4SongWithShowsResource | V4ImportedSongWithShowsResource
+    resource: SongWithShowsResource | ImportedSongWithShowsResource
   ) {
     if (this.kind === 'song' && 'matched_track_count' in resource) {
-      return applyV4Song(this.realm, this.artistUuid, resource);
+      return applySongDetail(this.realm, this.artistUuid, resource);
     }
 
     if (
       this.kind === 'imported_song' &&
       'setlist_show_count' in resource &&
-      resource.id === encodeV4UuidCatalogId(this.songId, 'imported_song')
+      resource.id === encodeUuidCatalogId(this.songId, 'imported_song')
     ) {
-      return applyV4ImportedSong(this.realm, this.artistUuid, resource);
+      return applyImportedSongDetail(this.realm, this.artistUuid, resource);
     }
 
     throw new Error('Unexpected song detail identity or kind.');

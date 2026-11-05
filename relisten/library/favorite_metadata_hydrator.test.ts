@@ -27,7 +27,7 @@ vi.mock('@/relisten/util/logging', () => ({
 }));
 
 import type { RelistenApiClient } from '@/relisten/api/client';
-import type { V4CatalogReferenceRequest } from '@/relisten/api/v4/catalog_resolve';
+import type { CatalogReferenceRequest } from '@/relisten/api/catalog/resolve';
 import { Artist } from '@/relisten/realm/models/artist';
 import { UserFavorite } from '@/relisten/realm/models/library';
 import {
@@ -41,7 +41,7 @@ import {
   NormalizedSong,
   NormalizedVenue,
   NormalizedVenueName,
-} from '@/relisten/realm/models/v4_catalog';
+} from '@/relisten/realm/models/catalog';
 import { FavoriteMetadataHydrator } from './favorite_metadata_hydrator';
 import type { FavoriteRepository } from './favorite_repository';
 
@@ -113,7 +113,7 @@ describe('FavoriteMetadataHydrator canonical favorites', () => {
       });
     });
 
-    const resolveCatalogReferences = vi.fn(async (references: V4CatalogReferenceRequest[]) => {
+    const resolveCatalogReferences = vi.fn(async (references: CatalogReferenceRequest[]) => {
       expect(references).toHaveLength(4);
       return {
         type: 3,

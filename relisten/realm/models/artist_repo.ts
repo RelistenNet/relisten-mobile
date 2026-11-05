@@ -1,17 +1,17 @@
 import { RelistenApiClient } from '@/relisten/api/client';
-import type { V4ArtistResource } from '@/relisten/api/v4/wire_types';
+import type { ArtistResource } from '@/relisten/api/catalog/resources';
 import {
   NetworkBackedBehaviorFetchStrategy,
   NetworkBackedBehaviorOptions,
 } from '@/relisten/realm/network_backed_behavior';
-import { applyV4ArtistList } from '@/relisten/realm/v4_catalog_apply';
+import { applyArtistList } from '@/relisten/realm/catalog_apply';
 import { useMemo } from 'react';
 import Realm from 'realm';
 import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
 import { NetworkBackedResults } from '../network_backed_results';
 import { useQuery, useRealm } from '../schema';
 import { Artist, ArtistFeaturedFlags } from './artist';
-import { CatalogQueryState } from './v4_catalog';
+import { CatalogQueryState } from './catalog';
 
 import { NetworkBackedBehavior } from '@/relisten/realm/network_backed_behavior';
 import { useFavoriteCatalogUuids } from '@/relisten/realm/root_services';
@@ -23,7 +23,7 @@ import { Source } from './source';
 
 export class ArtistsNetworkBackedBehavior extends NetworkBackedBehavior<
   Realm.Results<Artist>,
-  V4ArtistResource[]
+  ArtistResource[]
 > {
   get queryKey() {
     return 'GET /artists?include_autocreated=true';
@@ -52,8 +52,8 @@ export class ArtistsNetworkBackedBehavior extends NetworkBackedBehavior<
     );
   }
 
-  upsert(_data: Realm.Results<Artist>, resources: V4ArtistResource[]) {
-    return applyV4ArtistList(this.realm, resources);
+  upsert(_data: Realm.Results<Artist>, resources: ArtistResource[]) {
+    return applyArtistList(this.realm, resources);
   }
 }
 
@@ -175,7 +175,7 @@ class SingleArtistValueStream extends ValueStream<Artist | null> {
 
 class ArtistBootstrapNetworkBackedBehavior extends NetworkBackedBehavior<
   Artist | null,
-  V4ArtistResource[]
+  ArtistResource[]
 > {
   get queryKey() {
     return 'GET /artists?include_autocreated=true';
@@ -208,8 +208,8 @@ class ArtistBootstrapNetworkBackedBehavior extends NetworkBackedBehavior<
     return this.localQueryFactory(this.realm).length > 0;
   }
 
-  upsert(_data: Artist | null, resources: V4ArtistResource[]) {
-    return applyV4ArtistList(this.realm, resources);
+  upsert(_data: Artist | null, resources: ArtistResource[]) {
+    return applyArtistList(this.realm, resources);
   }
 }
 

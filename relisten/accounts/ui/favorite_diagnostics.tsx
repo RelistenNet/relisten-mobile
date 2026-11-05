@@ -22,7 +22,7 @@ import {
   catalogIdForFavoriteTarget,
   catalogReferenceForFavoriteTarget,
 } from '@/relisten/library/favorite_catalog_target';
-import { NormalizedSong, NormalizedVenue } from '@/relisten/realm/models/v4_catalog';
+import { NormalizedSong, NormalizedVenue } from '@/relisten/realm/models/catalog';
 
 /**
  * Temporary production-visible counters for the first account-sync builds.

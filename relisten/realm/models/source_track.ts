@@ -10,7 +10,7 @@ import { trackDuration } from '@/relisten/util/duration';
 import { Paths } from 'expo-file-system';
 import { sharedStatsigClient } from '@/relisten/events';
 import { LegacyFavoriteMirror } from '@/relisten/realm/legacy_favorite_mirror';
-import type { TrackNormalization } from '@/relisten/realm/models/v4_catalog';
+import type { TrackNormalization } from '@/relisten/realm/models/catalog';
 
 export const OFFLINE_DIRECTORY = Paths.join(Paths.document, 'offline');
 

@@ -1,5 +1,5 @@
 import { useRelistenApi } from '@/relisten/api/context';
-import { decodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
+import { decodeUuidCatalogId } from '@/relisten/api/catalog/identity';
 import Plur from '@/relisten/components/plur';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { ArtistActionButtons } from '@/relisten/pages/artist/artist_action_buttons';
@@ -37,7 +37,7 @@ export const YearsHeader: React.FC<{ artist: Artist | null }> = ({ artist }) => 
         const randomShow = await apiClient.randomShow(artist.uuid);
 
         if (randomShow.data) {
-          pushShow({ artist, showUuid: decodeV4UuidCatalogId(randomShow.data.id, 'show') });
+          pushShow({ artist, showUuid: decodeUuidCatalogId(randomShow.data.id, 'show') });
         }
       }}
     />

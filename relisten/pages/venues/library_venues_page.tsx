@@ -20,7 +20,7 @@ import {
   normalizedVenueAliases,
   normalizedVenueLocation,
 } from '@/relisten/components/venue_presenters';
-import { NormalizedVenue } from '@/relisten/realm/models/v4_catalog';
+import { NormalizedVenue } from '@/relisten/realm/models/catalog';
 import { useFavoriteCatalogUuids } from '@/relisten/realm/root_services';
 import { useQuery } from '@/relisten/realm/schema';
 import { useGroupSegment } from '@/relisten/util/routes';

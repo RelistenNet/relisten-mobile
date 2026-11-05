@@ -17,15 +17,15 @@ vi.mock('@/relisten/util/logging', () => ({
 }));
 
 import { RelistenApiClient } from '@/relisten/api/client';
-import { CatalogV4Transport } from '@/relisten/api/v4/catalog_transport';
-import { encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
-import type { V4TrackResource } from '@/relisten/api/v4/wire_types';
-import { CatalogQueryState } from './models/v4_catalog';
+import { CatalogTransport } from '@/relisten/api/catalog/transport';
+import { encodeUuidCatalogId } from '@/relisten/api/catalog/identity';
+import type { TrackResource } from '@/relisten/api/catalog/resources';
+import { CatalogQueryState } from './models/catalog';
 import { NetworkBackedBehavior, retryCatalogRequests } from './network_backed_behavior';
 import { EmittableValueStream } from './value_streams';
 
 const uuid = '00000000-0000-4000-8000-000000000001';
-const id = encodeV4UuidCatalogId(uuid, 'track');
+const id = encodeUuidCatalogId(uuid, 'track');
 const queryKey = `GET /source-tracks/${id}`;
 
 class Item extends Realm.Object<Item> {
@@ -40,7 +40,7 @@ class Item extends Realm.Object<Item> {
   title!: string;
 }
 
-class TrackRepository extends NetworkBackedBehavior<Realm.Results<Item>, V4TrackResource> {
+class TrackRepository extends NetworkBackedBehavior<Realm.Results<Item>, TrackResource> {
   failApply = false;
 
   constructor(realm: Realm) {
@@ -67,7 +67,7 @@ class TrackRepository extends NetworkBackedBehavior<Realm.Results<Item>, V4Track
     return data.length > 0;
   }
 
-  upsert(_data: Realm.Results<Item>, track: V4TrackResource) {
+  upsert(_data: Realm.Results<Item>, track: TrackResource) {
     this.realm.create(Item, { id: track.id, title: track.title }, Realm.UpdateMode.Modified);
     if (this.failApply) {
       throw new Error('Apply failed after writing a row.');
@@ -77,12 +77,12 @@ class TrackRepository extends NetworkBackedBehavior<Realm.Results<Item>, V4Track
 }
 
 function body(title = 'Imported title', etag = '"current"') {
-  const track: V4TrackResource = {
+  const track: TrackResource = {
     id,
-    source_id: encodeV4UuidCatalogId(uuid, 'source'),
-    source_set_id: encodeV4UuidCatalogId(uuid, 'source_set'),
-    show_id: encodeV4UuidCatalogId(uuid, 'show'),
-    artist_id: encodeV4UuidCatalogId(uuid, 'artist'),
+    source_id: encodeUuidCatalogId(uuid, 'source'),
+    source_set_id: encodeUuidCatalogId(uuid, 'source_set'),
+    show_id: encodeUuidCatalogId(uuid, 'show'),
+    artist_id: encodeUuidCatalogId(uuid, 'artist'),
     track_position: 1,
     duration: 300,
     title,
@@ -119,7 +119,7 @@ describe('repository request execution', () => {
     });
     fetch = vi.fn();
     api = new RelistenApiClient({
-      transport: new CatalogV4Transport({ apiBase: 'https://catalog.test/api', fetch }),
+      transport: new CatalogTransport({ apiBase: 'https://catalog.test/api', fetch }),
     });
     repository = new TrackRepository(realm);
   });

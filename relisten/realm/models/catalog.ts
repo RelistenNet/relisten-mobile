@@ -175,7 +175,7 @@ export class CatalogQueryState extends Realm.Object<CatalogQueryState> {
   resultIds!: Realm.List<string>;
 }
 
-export const V4_CATALOG_REALM_MODELS = [
+export const CATALOG_REALM_MODELS = [
   NormalizedVenueName,
   NormalizedVenue,
   ArtistVenue,

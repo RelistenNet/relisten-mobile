@@ -1,5 +1,5 @@
 import { RelistenApiClient, RelistenApiResponse } from '@/relisten/api/client';
-import { V4ShowSummaryResource as ApiShow } from '@/relisten/api/v4/wire_types';
+import { ShowSummaryResource as ApiShow } from '@/relisten/api/catalog/resources';
 import { Show } from '@/relisten/realm/models/show';
 import { ShowsWithVenueNetworkBackedBehavior } from '@/relisten/realm/models/shows/show_with_venues_behavior';
 

@@ -1,8 +1,8 @@
 import type { RelistenApiClient } from '@/relisten/api/client';
 import type {
-  V4CatalogReferenceRequest,
-  V4CatalogResolveResponse,
-} from '@/relisten/api/v4/catalog_resolve';
+  CatalogReferenceRequest,
+  CatalogResolveResponse,
+} from '@/relisten/api/catalog/resolve';
 import { Artist } from '@/relisten/realm/models/artist';
 import { UserFavorite } from '@/relisten/realm/models/library';
 import { Show } from '@/relisten/realm/models/show';
@@ -10,10 +10,10 @@ import { Song } from '@/relisten/realm/models/song';
 import { Source } from '@/relisten/realm/models/source';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { Tour } from '@/relisten/realm/models/tour';
-import { NormalizedSong, NormalizedVenue } from '@/relisten/realm/models/v4_catalog';
+import { NormalizedSong, NormalizedVenue } from '@/relisten/realm/models/catalog';
 import { Venue } from '@/relisten/realm/models/venue';
 import { Year } from '@/relisten/realm/models/year';
-import { applyV4ResolvedEntities } from '@/relisten/realm/v4_catalog_apply';
+import { applyResolvedEntities } from '@/relisten/realm/catalog_apply';
 import { log } from '@/relisten/util/logging';
 import {
   catalogIdForFavoriteTarget,
@@ -70,7 +70,7 @@ export class FavoriteMetadataHydrator {
 
         const entities = response.data.entities;
         this.repository.realm.write(() => {
-          applyV4ResolvedEntities(this.repository.realm, entities);
+          applyResolvedEntities(this.repository.realm, entities);
         });
       } catch (error) {
         // Membership and its sync cursor stay durable when metadata cannot load.
@@ -82,7 +82,7 @@ export class FavoriteMetadataHydrator {
   }
 
   private referencesNeedingMetadata(capture: FavoriteAccountScopeCapture) {
-    const references = new Map<string, V4CatalogReferenceRequest>();
+    const references = new Map<string, CatalogReferenceRequest>();
     const favorites = this.repository.realm
       .objects(UserFavorite)
       .filtered('scopeId == $0 AND effectivePresent == true', capture.scopeId);
@@ -157,10 +157,7 @@ function isActive<T extends { deletedAt?: Date }>(row: T | null): row is T {
   return row !== null && row.deletedAt == null;
 }
 
-function validateResponse(
-  request: V4CatalogReferenceRequest[],
-  response: V4CatalogResolveResponse
-) {
+function validateResponse(request: CatalogReferenceRequest[], response: CatalogResolveResponse) {
   if (response.references.length !== request.length) {
     throw new Error('Catalog resolver omitted requested references.');
   }

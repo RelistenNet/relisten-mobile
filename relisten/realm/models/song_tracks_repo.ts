@@ -12,12 +12,12 @@ import { RealmObjectValueStream, ValueStream } from '@/relisten/realm/value_stre
 import { useMemo } from 'react';
 import Realm from 'realm';
 
-import type { V4SongWithTracksResource } from '@/relisten/api/v4/wire_types';
-import { applyV4SongTracks } from '../v4_catalog_apply';
+import type { SongWithTracksResource } from '@/relisten/api/catalog/resources';
+import { applySongTracks } from '../catalog_apply';
 import { ensureCatalogArtist, useArtist } from './artist_repo';
 import { SongShowsNetworkBackedBehavior } from './shows/song_shows_repo';
 import { SourceTrack } from './source_track';
-import { CatalogQueryState, NormalizedSong } from './v4_catalog';
+import { CatalogQueryState, NormalizedSong } from './catalog';
 
 export interface SongTracks {
   song: NormalizedSong | null;
@@ -31,7 +31,7 @@ function songTracksQueryKey(songId: string) {
 
 export class SongTracksNetworkBackedBehavior extends NetworkBackedBehavior<
   CatalogQueryState | null,
-  V4SongWithTracksResource
+  SongWithTracksResource
 > {
   constructor(
     realm: Realm,
@@ -88,8 +88,8 @@ export class SongTracksNetworkBackedBehavior extends NetworkBackedBehavior<
     );
   }
 
-  upsert(_state: CatalogQueryState | null, resource: V4SongWithTracksResource) {
-    return applyV4SongTracks(this.realm, this.artistUuid, resource);
+  upsert(_state: CatalogQueryState | null, resource: SongWithTracksResource) {
+    return applySongTracks(this.realm, this.artistUuid, resource);
   }
 }
 

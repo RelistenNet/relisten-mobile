@@ -1,9 +1,9 @@
-import { CatalogQueryState } from './v4_catalog';
+import { CatalogQueryState } from './catalog';
 import { Artist } from './artist';
-import { encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
-import type { V4YearResource, V4YearWithShowsResource } from '@/relisten/api/v4/wire_types';
+import { encodeUuidCatalogId } from '@/relisten/api/catalog/identity';
+import type { YearResource, YearWithShowsResource } from '@/relisten/api/catalog/resources';
 import { useQuery, useRealm } from '../schema';
-import { applyV4ArtistYears, applyV4Year } from '../v4_catalog_apply';
+import { applyArtistYears, applyYearDetail } from '../catalog_apply';
 import { ensureCatalogArtist } from './artist_repo';
 import { Year } from './year';
 
@@ -53,7 +53,7 @@ export function yearsNetworkBackedModelArrayBehavior(
 
 class YearsNetworkBackedBehavior extends NetworkBackedBehavior<
   Realm.Results<Year>,
-  V4YearResource[]
+  YearResource[]
 > {
   constructor(
     realm: Realm,
@@ -65,7 +65,7 @@ class YearsNetworkBackedBehavior extends NetworkBackedBehavior<
   }
 
   get queryKey() {
-    return `GET /artists/${encodeV4UuidCatalogId(this.artistUuid, 'artist')}/years`;
+    return `GET /artists/${encodeUuidCatalogId(this.artistUuid, 'artist')}/years`;
   }
 
   createLocalUpdatingResults() {
@@ -88,8 +88,8 @@ class YearsNetworkBackedBehavior extends NetworkBackedBehavior<
     return this.realm.objectForPrimaryKey(Artist, this.artistUuid) !== null;
   }
 
-  upsert(_data: Realm.Results<Year>, resources: V4YearResource[]) {
-    return applyV4ArtistYears(this.realm, this.artistUuid, resources);
+  upsert(_data: Realm.Results<Year>, resources: YearResource[]) {
+    return applyArtistYears(this.realm, this.artistUuid, resources);
   }
 }
 
@@ -132,7 +132,7 @@ export interface YearShows {
 
 export class YearShowsNetworkBackedBehavior extends NetworkBackedBehavior<
   YearShows,
-  V4YearWithShowsResource
+  YearWithShowsResource
 > {
   constructor(
     public realm: Realm.Realm,
@@ -146,7 +146,7 @@ export class YearShowsNetworkBackedBehavior extends NetworkBackedBehavior<
   }
 
   get queryKey() {
-    return `GET /artists/${encodeV4UuidCatalogId(this.artistUuid, 'artist')}/years/${encodeV4UuidCatalogId(this.yearUuid, 'year')}`;
+    return `GET /artists/${encodeUuidCatalogId(this.artistUuid, 'artist')}/years/${encodeUuidCatalogId(this.yearUuid, 'year')}`;
   }
 
   async fetchFromApi(api: RelistenApiClient, _force: boolean, etag?: string) {
@@ -186,8 +186,8 @@ export class YearShowsNetworkBackedBehavior extends NetworkBackedBehavior<
     return localData.year !== null;
   }
 
-  override upsert(_data: YearShows, resource: V4YearWithShowsResource) {
-    return applyV4Year(this.realm, this.artistUuid, this.yearUuid, resource);
+  override upsert(_data: YearShows, resource: YearWithShowsResource) {
+    return applyYearDetail(this.realm, this.artistUuid, this.yearUuid, resource);
   }
 }
 

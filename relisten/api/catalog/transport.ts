@@ -1,69 +1,69 @@
 import { catalogApiBase } from '@/relisten/api/catalog_config';
 
-export interface CatalogV4Response<T> {
+export interface CatalogResponse<T> {
   status: 'ok';
   data: T;
   etag: string;
 }
 
-export interface CatalogV4NotModifiedResponse {
+export interface CatalogNotModifiedResponse {
   status: 'not_modified';
   etag: string;
 }
 
-export type CatalogV4GetResponse<T> = CatalogV4Response<T> | CatalogV4NotModifiedResponse;
+export type CatalogGetResponse<T> = CatalogResponse<T> | CatalogNotModifiedResponse;
 
-export class CatalogV4HttpError extends Error {
+export class CatalogHttpError extends Error {
   constructor(
     readonly url: string,
     readonly status: number,
     readonly responseBody: string
   ) {
     super(`Relisten catalog request failed with HTTP ${status}`);
-    this.name = 'CatalogV4HttpError';
+    this.name = 'CatalogHttpError';
   }
 }
 
-export class CatalogV4NetworkError extends Error {
+export class CatalogNetworkError extends Error {
   constructor(
     readonly url: string,
     options?: ErrorOptions
   ) {
     super('Relisten catalog request failed before receiving a response', options);
-    this.name = 'CatalogV4NetworkError';
+    this.name = 'CatalogNetworkError';
   }
 }
 
-export class CatalogV4ParseError extends Error {
+export class CatalogParseError extends Error {
   constructor(
     readonly url: string,
     options?: ErrorOptions
   ) {
     super('Relisten catalog returned invalid JSON', options);
-    this.name = 'CatalogV4ParseError';
+    this.name = 'CatalogParseError';
   }
 }
 
-export class CatalogV4ProtocolError extends Error {
+export class CatalogProtocolError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'CatalogV4ProtocolError';
+    this.name = 'CatalogProtocolError';
   }
 }
 
 export type CatalogFetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
-export interface CatalogV4TransportOptions {
+export interface CatalogTransportOptions {
   apiBase?: string;
   fetch?: CatalogFetch;
 }
 
-export class CatalogV4Transport {
+export class CatalogTransport {
   private readonly apiBase: string;
 
   private readonly fetch: CatalogFetch;
 
-  constructor(options: CatalogV4TransportOptions = {}) {
+  constructor(options: CatalogTransportOptions = {}) {
     this.apiBase = (options.apiBase ?? catalogApiBase()).replace(/\/$/, '');
     this.fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
   }
@@ -71,7 +71,7 @@ export class CatalogV4Transport {
   /** No-store endpoints and commands return their typed JSON without retaining it. */
   async requestJson<T>(path: string, body?: object): Promise<T> {
     if (!path.startsWith('/') || path.startsWith('//')) {
-      throw new CatalogV4ProtocolError('V4 catalog paths must be origin-relative');
+      throw new CatalogProtocolError('Catalog paths must be origin-relative');
     }
     const url = `${this.apiBase}/v4${path}`;
     const response = await this.fetch(url, {
@@ -83,14 +83,14 @@ export class CatalogV4Transport {
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     if (!response.ok) {
-      throw new CatalogV4HttpError(url, response.status, await response.text());
+      throw new CatalogHttpError(url, response.status, await response.text());
     }
     return response.json() as Promise<T>;
   }
 
-  async getJson<T>(path: string, appliedEtag?: string): Promise<CatalogV4GetResponse<T>> {
+  async getJson<T>(path: string, appliedEtag?: string): Promise<CatalogGetResponse<T>> {
     if (!path.startsWith('/') || path.startsWith('//')) {
-      throw new CatalogV4ProtocolError('V4 catalog paths must be origin-relative');
+      throw new CatalogProtocolError('Catalog paths must be origin-relative');
     }
 
     const url = `${this.apiBase}/v4${path}`;
@@ -103,13 +103,13 @@ export class CatalogV4Transport {
     try {
       response = await this.fetch(url, { headers, method: 'GET' });
     } catch (error) {
-      throw new CatalogV4NetworkError(url, { cause: error });
+      throw new CatalogNetworkError(url, { cause: error });
     }
 
     if (response.status === 304) {
       const etag = response.headers.get('etag') ?? appliedEtag;
       if (!etag) {
-        throw new CatalogV4ProtocolError('A 304 response requires the matching request validator');
+        throw new CatalogProtocolError('A 304 response requires the matching request validator');
       }
 
       return {
@@ -125,12 +125,12 @@ export class CatalogV4Transport {
       } catch {
         // The status and URL still identify the failed request when its body cannot be read.
       }
-      throw new CatalogV4HttpError(url, response.status, responseBody);
+      throw new CatalogHttpError(url, response.status, responseBody);
     }
 
     const etag = response.headers.get('etag');
     if (!etag) {
-      throw new CatalogV4ProtocolError('A successful v4 catalog response must include an ETag');
+      throw new CatalogProtocolError('A successful catalog response must include an ETag');
     }
 
     const responseBody = await response.text();
@@ -138,7 +138,7 @@ export class CatalogV4Transport {
     try {
       data = JSON.parse(responseBody) as T;
     } catch (error) {
-      throw new CatalogV4ParseError(url, { cause: error });
+      throw new CatalogParseError(url, { cause: error });
     }
 
     return {

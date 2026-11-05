@@ -42,7 +42,7 @@ vi.mock('@/relisten/accounts/auth/pkce_transaction', () => ({
 }));
 
 import { REALM_SCHEMA, REALM_SCHEMA_VERSION, realmConfig } from '@/relisten/realm/schema';
-import { CatalogQueryState, V4_CATALOG_REALM_MODELS } from '@/relisten/realm/models/v4_catalog';
+import { CatalogQueryState, CATALOG_REALM_MODELS } from '@/relisten/realm/models/catalog';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import {
   SourceTrackOfflineInfoStatus,
@@ -77,13 +77,13 @@ const favoriteTargetId = formatUuidTypedId('track', trackUuid);
 type RealmModel = { schema: Realm.ObjectSchema };
 
 function schema17(): Realm.ObjectSchema[] {
-  const v4Names = new Set(
-    V4_CATALOG_REALM_MODELS.map((model) => (model as unknown as RealmModel).schema.name)
+  const catalogNames = new Set(
+    CATALOG_REALM_MODELS.map((model) => (model as unknown as RealmModel).schema.name)
   );
 
   return REALM_SCHEMA.flatMap((model) => {
     const schema = (model as unknown as RealmModel).schema;
-    if (v4Names.has(schema.name)) return [];
+    if (catalogNames.has(schema.name)) return [];
 
     const properties = { ...schema.properties };
     if (schema.name === 'Show') {
@@ -102,7 +102,7 @@ function schema17(): Realm.ObjectSchema[] {
 }
 
 class MigrationRealmFile {
-  readonly directory = mkdtempSync(join(tmpdir(), 'relisten-v4-catalog-migration-'));
+  readonly directory = mkdtempSync(join(tmpdir(), 'relisten-catalog-migration-'));
   readonly path = join(this.directory, 'catalog.realm');
   private readonly connections: Realm[] = [];
 
@@ -359,7 +359,7 @@ function expectPreservedState(realm: Realm) {
   expect(realm.objects(CatalogQueryState)).toHaveLength(0);
 }
 
-describe('v4 catalog Realm migration', () => {
+describe('catalog Realm migration', () => {
   let file: MigrationRealmFile;
 
   beforeEach(() => {
