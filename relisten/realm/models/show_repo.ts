@@ -3,7 +3,7 @@ import type { ShowResource } from '@/relisten/api/catalog/resources';
 import { LibraryIndex } from '@/relisten/realm/library_index';
 import { NetworkBackedBehavior } from '@/relisten/realm/network_backed_behavior';
 import { useLibraryMembershipRevision, useRootLibraryIndex } from '@/relisten/realm/root_services';
-import { useObject, useRealm } from '@/relisten/realm/schema';
+import { useQuery, useRealm } from '@/relisten/realm/schema';
 import {
   CombinedValueStream,
   RealmObjectValueStream,
@@ -159,10 +159,12 @@ export function useFullShowWithSelectedSource(showUuid: string, selectedSourceUu
   const results = useFullShow(String(showUuid));
   const show = results.data?.show;
   const sources = results.data?.sources;
-  const fallbackArtist = useObject(
-    Artist,
-    show?.artistUuid ?? sources?.[0]?.artistUuid ?? '__missing__'
-  );
+  const artistUuid = show?.artistUuid ?? sources?.[0]?.artistUuid ?? '__missing__';
+  // Query the selected row without eagerly wrapping the artist's inverse track collection.
+  const fallbackArtists = useQuery(Artist, (query) => query.filtered('uuid == $0', artistUuid), [
+    artistUuid,
+  ]);
+  const fallbackArtist = fallbackArtists[0];
   const libraryIndex = useRootLibraryIndex();
   const libraryMembershipRevision = useLibraryMembershipRevision();
 

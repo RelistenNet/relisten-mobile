@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Realm from 'realm';
+import { OfflineAvailabilityProjection } from '@/relisten/library/offline_availability_projection';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('expo-file-system', () => ({
@@ -1487,6 +1488,45 @@ describe('catalog Realm apply', () => {
     realm.write(() => applyArtistYears(realm, artistUuid, [yearResource(), secondYear]));
     expect(firstYear.isValid()).toBe(true);
     expect(firstYear.deletedAt).toBeNull();
+  });
+
+  it('counts downloads only while the playable track is linked to its offline record', async () => {
+    realm.write(() => {
+      seedArtistAndYear(realm);
+      applyFullShow(
+        realm,
+        fullShowResource([
+          sourceResource(sourceAId, [sourceSetResource(setAId, sourceAId, [trackResource()])]),
+        ])
+      );
+      realm.create(SourceTrackOfflineInfo, {
+        sourceTrackUuid: trackAUuid,
+        status: SourceTrackOfflineInfoStatus.Succeeded,
+        type: SourceTrackOfflineInfoType.StreamingCache,
+        queuedAt: new Date(timestamp),
+      });
+    });
+    const projection = new OfflineAvailabilityProjection(realm);
+    try {
+      expect(projection.artistHasPlayableTracks(artistUuid)).toBe(false);
+      realm.write(() => {
+        const info = realm.objectForPrimaryKey(SourceTrackOfflineInfo, trackAUuid)!;
+        realm.objectForPrimaryKey(SourceTrack, trackAUuid)!.offlineInfo = info;
+        info.type = SourceTrackOfflineInfoType.UserInitiated;
+      });
+      await vi.waitFor(() => expect(projection.artistHasLibraryDownloads(artistUuid)).toBe(true));
+      expect(projection.yearHasPlayableTracks(yearUuid)).toBe(true);
+      expect(projection.showHasPlayableTracks(showUuid)).toBe(true);
+      expect(projection.sourceHasPlayableTracks(sourceAUuid)).toBe(true);
+      realm.write(() => {
+        realm.objectForPrimaryKey(SourceTrackOfflineInfo, trackAUuid)!.type =
+          SourceTrackOfflineInfoType.StreamingCache;
+      });
+      await vi.waitFor(() => expect(projection.artistHasLibraryDownloads(artistUuid)).toBe(false));
+      expect(projection.artistHasPlayableTracks(artistUuid)).toBe(true);
+    } finally {
+      projection.tearDown();
+    }
   });
 
   it("replaces only one year's shows while preserving detail and offline descendants", () => {

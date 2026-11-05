@@ -1,4 +1,5 @@
 import Realm from 'realm';
+import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { Show } from '@/relisten/realm/models/show';
 import {
   SourceTrackOfflineInfo,
@@ -113,8 +114,8 @@ export class OfflineAvailabilityProjection {
     clearCounts(this.library);
 
     for (const offlineInfo of this.offlineInfos) {
-      const track = offlineInfo.sourceTrack;
-      if (!track) {
+      const track = this.realm.objectForPrimaryKey(SourceTrack, offlineInfo.sourceTrackUuid);
+      if (!track || track.offlineInfo?.sourceTrackUuid !== offlineInfo.sourceTrackUuid) {
         continue;
       }
 
