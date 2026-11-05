@@ -5,7 +5,9 @@ Decision Log, and Outcomes & Retrospective current while the pilot is built.
 
 ## Current implementation (November 4)
 
-The mobile catalog is v4-only. `RelistenApiClient` returns typed API resources;
+The mobile catalog uses `/api/v4`. Internal code has one catalog: resources,
+transport and identity types live in `relisten/api/catalog/`; Realm mapping lives
+in `relisten/realm/catalog_apply.ts`. `RelistenApiClient` returns typed API resources;
 Realm repositories map them; the existing `NetworkBackedBehaviorExecutor` commits
 records, exact query membership and ETags together. The separate persistent v4
 client, coordinator, synthetic request cache and v3 repository branches are
@@ -288,8 +290,8 @@ The live RocketSim preview for this pass is
 ## Context and Orientation
 
 `relisten/api/client.ts` performs HTTP requests and returns concrete v4 DTOs.
-`relisten/api/v4/catalog_transport.ts` handles HTTP/JSON and bodyless 304s.
-Repositories own DTO mapping in `v4_catalog_apply.ts`; they return ordered
+`relisten/api/catalog/transport.ts` handles HTTP/JSON and bodyless 304s.
+Repositories own DTO mapping in `catalog_apply.ts`; they return ordered
 result IDs to the executor. `CatalogQueryState` stores those IDs, its ETag,
 freshness timestamps and retry state for one exact endpoint.
 
@@ -349,7 +351,7 @@ shell validation with `nvm use`.
 
 Focused checks during implementation:
 
-    yarn vitest run relisten/api/v4 relisten/realm/v4_catalog_apply.test.ts relisten/realm/migrations/v4_catalog_migration.test.ts
+    yarn vitest run relisten/api/catalog relisten/realm/catalog_apply.test.ts relisten/realm/migrations/catalog_migration.test.ts
 
 Final checks:
 
@@ -360,7 +362,7 @@ Final checks:
 
 For simulator review, use the API on port 43823 and start Metro with:
 
-    EXPO_PUBLIC_RELISTEN_CATALOG_ORIGIN=http://127.0.0.1:43823 EXPO_PUBLIC_RELISTEN_CATALOG_TRANSPORT=v4 npx expo start --dev-client
+    EXPO_PUBLIC_RELISTEN_CATALOG_ORIGIN=http://127.0.0.1:43823 npx expo start --dev-client
 
 Use the retained iPhone 17 simulator
 `063F4104-44E5-480E-94DD-847C0D024D4D`. Reinstall the app on that simulator if
@@ -635,3 +637,69 @@ diff checks. Sol xhigh review and independent validation identified the tour
 subscription issue above and confirmed its fix. The new regressions fail under
 the corresponding broken implementations; no test harness or compatibility
 layer was added to production.
+
+
+### November 4: one catalog and bounded projection work
+
+The unused generated v3 schema and DTO wrappers are removed. Stored provider and
+source-link JSON types now live beside their Realm owners, with the same shapes
+and enum values. This removes 1,966 net lines without changing stored data.
+Internal types and apply functions no longer carry `V4`; detail entrypoints use
+`Detail` to distinguish collection membership from shallow row mapping. Public
+`/api/v4` URLs and the resolver's `v4` scheme remain unchanged. Realm names, keys
+and schema 18 are unchanged.
+
+Browse/detail hooks select saved IDs in Realm, then project those rows in saved
+order using indexed access. They no longer copy all cached artist rows into maps
+or create per-item flatMap arrays. Selected queries retain live subscriptions and
+Realm's cached object references. Song-recording apply reuses the owning song
+when all supplied shallow fields match; corrections and other multipart songs
+still use the normal writer. No cache survives the response. Section-list
+flattening writes directly into the final array. Unused request metrics are gone.
+Tour projection already did result-count work; keep its existing implementation.
+
+The desktop replay used real local API data: Drums has 16,198 recordings across
+1,624 shows, with a 15,487,413-byte uncompressed recording response. Three
+alternating samples reduced median cold apply from 1,339 ms to 1,204 ms and
+unchanged apply from 1,415 ms to 1,088 ms. The unchanged samples varied more.
+All six stored-state hashes matched. Canonical song create/update calls fell
+from 16,822 to 609; all 16,198 track writes remain.
+
+For steady JavaScript projection with 100,000 cached tracks, selecting 16,198
+results reduced median projection from 118 ms to 27 ms. Sampled JS heap growth
+fell from about 38 MB to 9 MB. Query construction/evaluation is separate: the
+selected-query experiment measured about 28 ms for that large selection. These
+are desktop Node/Realm measurements, not first-screen timings or iPhone peak
+memory. Native Realm and retained fixture bodies prevent attributing process RSS
+to this change. Temporary replay tools and captured payloads stay under `/tmp`,
+not in the shipping test suite.
+
+A numeric UUID decoder experiment was slower than the existing BigInt decoder;
+keep the existing shared codec. No pagination, response-body cache, generic row
+diff engine, timestamp-based skip, sync mode or migration was introduced.
+
+Two focused regressions protect the changed behavior: ordered selected rows with
+live metadata/tombstone updates and empty results; and multipart song references
+with scalar corrections and artist ownership. Existing cases retain atomic
+failure/retry, aliases, downloads and shallow/full response guarantees.
+
+
+Final checks: all 313 tests in 46 files, TypeScript, lint and diff checks pass.
+The temporary real local HTTP -> client -> repository -> Realm replay passes after
+the rename, including warm reuse, expiry/304, manual body refresh, aliases and
+cold song-recording parents. Sol xhigh review and independent validation found
+no code issues; two stale documentation paths were corrected.
+
+The retained simulator cold-started the current JS bundle and rendered Artists
+with its existing Tune Up playback checkpoint and downloaded data. RocketSim
+then rejected the first navigation action because its daily interaction quota
+was exhausted. Drums scrolling, recording selection and warm reopen still need
+a manual simulator/device check for this final revision. No app reset, native
+rebuild, production mutation or deployment occurred. Replays do not establish
+physical-device latency or peak memory.
+
+For that manual check: Grateful Dead -> Songs -> Drums -> Recordings. Confirm
+16,198 rows, scroll, open a recording's show, return, reopen the list, and pull to
+refresh. Also verify the existing Offline -> 1966 -> January 8 -> Tune Up journey
+retains its download. Keep the local API at port 43823 and the existing Metro
+server; no catalog-wide prefetch is required.
