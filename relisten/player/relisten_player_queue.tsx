@@ -87,9 +87,7 @@ export class PlayerQueueTrack {
     const source = sourceTrack.source;
     const venue = sourceTrack.show.venue;
 
-    const [year, month, day] = source.displayDate.split('-');
-
-    const albumArtUrl = `https://sonos.relisten.net/album-art/${artist?.slug}/years/${year}/${year}-${month}-${day}/${source.uuid}/550.png`;
+    const albumArtUrl = `https://relisten.net/album-art/${sourceTrack.show.uuid}.png`;
 
     return new PlayerQueueTrack(
       sourceTrack,
