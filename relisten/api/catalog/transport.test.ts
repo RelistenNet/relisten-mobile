@@ -101,4 +101,41 @@ describe('CatalogTransport', () => {
       CatalogProtocolError
     );
   });
+  it('bounds network retries and leaves permanent failures and POSTs single-attempt', async () => {
+    const fetch = vi.fn<CatalogFetch>(async () => {
+      throw new TypeError('connection reset');
+    });
+    const transport = new CatalogTransport({ apiBase: 'https://catalog.test/api', fetch });
+    await expect(transport.getJson('/artists')).rejects.toBeInstanceOf(CatalogNetworkError);
+    expect(fetch).toHaveBeenCalledTimes(4);
+    fetch.mockClear();
+    fetch.mockImplementation(async () => response('missing', { status: 404 }));
+    await expect(transport.getJson('/artists')).rejects.toMatchObject({ status: 404 });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    fetch.mockClear();
+    fetch.mockImplementation(async () => response('unavailable', { status: 503 }));
+    await expect(transport.requestJson('/live/play', {})).rejects.toMatchObject({ status: 503 });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+  it('honors Retry-After before retrying a throttled GET', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetch = vi
+        .fn<CatalogFetch>()
+        .mockResolvedValueOnce(
+          response('throttled', { status: 429, headers: { 'Retry-After': '1' } })
+        )
+        .mockResolvedValueOnce(response('[]', { status: 200, headers: { ETag: '"ok"' } }));
+      const pending = new CatalogTransport({ apiBase: 'https://catalog.test/api', fetch }).getJson(
+        '/artists'
+      );
+      await vi.advanceTimersByTimeAsync(999);
+      expect(fetch).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(pending).resolves.toMatchObject({ status: 'ok', data: [] });
+      expect(fetch).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
