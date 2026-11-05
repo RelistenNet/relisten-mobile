@@ -3,6 +3,8 @@ import { NativeMenuView, type MenuAction } from '@/relisten/components/menus/nat
 import { OverflowMenuTrigger } from '@/relisten/components/menus/overflow_menu_trigger';
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
 import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
+import { playerTrackAccessibilityLabel } from './player_display_helpers';
+import * as Haptics from 'expo-haptics';
 import { useCallback } from 'react';
 
 const ACTION_IDS = {
@@ -16,25 +18,31 @@ type PlayerQueueActionId = (typeof ACTION_IDS)[keyof typeof ACTION_IDS];
 
 const ACTIONS: MenuAction[] = [
   {
-    id: ACTION_IDS.playNow,
-    image: nativeMenuIcons.play,
-    title: 'Play Now',
+    id: 'playback',
+    title: 'Playback',
+    displayInline: true,
+    subactions: [
+      { id: ACTION_IDS.playNow, image: nativeMenuIcons.play, title: 'Play Now' },
+      { id: ACTION_IDS.playNext, image: nativeMenuIcons.playNext, title: 'Play Next' },
+      {
+        id: ACTION_IDS.addToQueue,
+        image: nativeMenuIcons.addToQueue,
+        title: 'Add to End of Queue',
+      },
+    ],
   },
   {
-    id: ACTION_IDS.playNext,
-    image: nativeMenuIcons.playNext,
-    title: 'Play Next',
-  },
-  {
-    id: ACTION_IDS.addToQueue,
-    image: nativeMenuIcons.addToQueue,
-    title: 'Add to End of Queue',
-  },
-  {
-    id: ACTION_IDS.remove,
-    image: nativeMenuIcons.removeFromQueue,
-    title: 'Remove from Queue',
-    attributes: { destructive: true },
+    id: 'queue',
+    title: 'Queue',
+    displayInline: true,
+    subactions: [
+      {
+        id: ACTION_IDS.remove,
+        image: nativeMenuIcons.removeFromQueue,
+        title: 'Remove from Queue',
+        attributes: { destructive: true },
+      },
+    ],
   },
 ];
 
@@ -56,6 +64,7 @@ export function PlayerQueueActionsMenu({
       switch (actionId) {
         case ACTION_IDS.playNow:
           player.playTrackAtIndex(index);
+          void Haptics.selectionAsync();
           break;
         case ACTION_IDS.playNext:
           player.queue.queueNextTrack([PlayerQueueTrack.fromSourceTrack(queueTrack.sourceTrack)]);
@@ -79,7 +88,7 @@ export function PlayerQueueActionsMenu({
       onPressAction={({ nativeEvent }) => handleAction(nativeEvent.event as PlayerQueueActionId)}
     >
       <OverflowMenuTrigger
-        accessibilityLabel={`Actions for ${queueTrack.sourceTrack.title}`}
+        accessibilityLabel={`Actions for ${playerTrackAccessibilityLabel(queueTrack.sourceTrack)}`}
         iconAlignment={iconAlignment}
       />
     </NativeMenuView>

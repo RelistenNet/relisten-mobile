@@ -2,10 +2,10 @@ import { FavoriteMutation, FavoriteMutationState } from '@/relisten/realm/models
 import {
   FavoriteAccountScopeCapture,
   FavoriteRepository,
-  FavoriteTarget,
   StaleFavoriteAccountScopeError,
   write,
 } from '@/relisten/library/favorite_repository';
+import { favoriteTargetKey } from '@/relisten/library/favorite_catalog_target';
 import { FavoriteRemoteLibraryApplier } from '@/relisten/library/favorite_remote_library_applier';
 import {
   favoriteSyncFailure,
@@ -28,7 +28,7 @@ export interface FavoriteMutationTransport {
 
 export interface PreparedFavoriteMutationBatch {
   capture: FavoriteAccountScopeCapture;
-  mutationUuids: string[];
+  mutationIds: string[];
   request: FavoriteMutationBatchRequest;
 }
 
@@ -62,8 +62,8 @@ export class FavoriteSyncAdapter {
         send: (request) => transport.sendFavoriteMutations(request),
         apply: (request, response) =>
           this.remoteLibrary.applyMutationResponse(prepared.capture, request, response),
-        reject: (mutationUuids, failure) =>
-          this.rejectMutationBatch(prepared.capture, mutationUuids, failure),
+        reject: (mutationIds, failure) =>
+          this.rejectMutationBatch(prepared.capture, mutationIds, failure),
       });
       return true;
     } catch (error) {
@@ -73,7 +73,7 @@ export class FavoriteSyncAdapter {
         // Anything reaching this catch must remain retryable as one durable batch.
         this.releaseMutationBatch(
           prepared.capture,
-          prepared.mutationUuids,
+          prepared.mutationIds,
           failure,
           new Date(Date.now() + RETRY_DELAY_MS)
         );
@@ -101,7 +101,7 @@ export class FavoriteSyncAdapter {
             capture.scopeId,
             FavoriteMutationState.InFlight
           )
-          .map(targetKey)
+          .map((mutation) => targetKey(mutation))
       );
       const pending = [
         ...realm
@@ -135,7 +135,7 @@ export class FavoriteSyncAdapter {
 
       return {
         capture,
-        mutationUuids: selected.map((mutation) => mutation.mutationUuid),
+        mutationIds: selected.map((mutation) => mutation.mutationId),
         request: {
           contract_version: 1,
           mutations: selected.map(toRequestItem),
@@ -146,12 +146,12 @@ export class FavoriteSyncAdapter {
 
   releaseMutationBatch(
     capture: FavoriteAccountScopeCapture,
-    mutationUuids: ReadonlyArray<string>,
+    mutationIds: ReadonlyArray<string>,
     failure: FavoriteSyncFailure,
     nextAttemptAt: Date,
     now = new Date()
   ) {
-    this.updateMutationBatch(capture, mutationUuids, FavoriteMutationState.InFlight, (mutation) => {
+    this.updateMutationBatch(capture, mutationIds, (mutation) => {
       mutation.state = FavoriteMutationState.Pending;
       mutation.nextAttemptAt = nextAttemptAt;
       mutation.lastErrorCode = failure.code;
@@ -162,11 +162,11 @@ export class FavoriteSyncAdapter {
 
   rejectMutationBatch(
     capture: FavoriteAccountScopeCapture,
-    mutationUuids: ReadonlyArray<string>,
+    mutationIds: ReadonlyArray<string>,
     failure: FavoriteSyncFailure,
     now = new Date()
   ) {
-    this.updateMutationBatch(capture, mutationUuids, FavoriteMutationState.InFlight, (mutation) => {
+    this.updateMutationBatch(capture, mutationIds, (mutation) => {
       mutation.state = FavoriteMutationState.NeedsAttention;
       mutation.nextAttemptAt = undefined;
       mutation.lastErrorCode = failure.code;
@@ -193,8 +193,7 @@ export class FavoriteSyncAdapter {
 
   private updateMutationBatch(
     capture: FavoriteAccountScopeCapture,
-    mutationUuids: ReadonlyArray<string>,
-    expectedState: FavoriteMutationState,
+    mutationIds: ReadonlyArray<string>,
     update: (mutation: FavoriteMutation) => void
   ) {
     this.assertCurrent(capture);
@@ -202,9 +201,13 @@ export class FavoriteSyncAdapter {
 
     write(realm, () => {
       this.assertCurrent(capture);
-      for (const mutationUuid of mutationUuids) {
-        const mutation = realm.objectForPrimaryKey(FavoriteMutation, mutationUuid);
-        if (!mutation || mutation.scopeId !== capture.scopeId || mutation.state !== expectedState) {
+      for (const mutationId of mutationIds) {
+        const mutation = realm.objectForPrimaryKey(FavoriteMutation, mutationId);
+        if (
+          !mutation ||
+          mutation.scopeId !== capture.scopeId ||
+          mutation.state !== FavoriteMutationState.InFlight
+        ) {
           continue;
         }
 
@@ -223,16 +226,15 @@ export class FavoriteSyncAdapter {
 
 function toRequestItem(mutation: FavoriteMutation): FavoriteMutationRequestItem {
   const common = {
-    mutation_uuid: mutation.mutationUuid,
-    catalog_type: mutation.catalogType,
-    catalog_uuid: mutation.catalogUuid,
+    mutation_id: mutation.mutationId,
+    target: { kind: mutation.targetKind, id: mutation.targetId },
   };
 
   return mutation.desiredPresent
     ? {
         ...common,
         desired_state: 'favorite',
-        favorite_uuid: mutation.favoriteUuid,
+        favorite_id: mutation.favoriteId,
       }
     : {
         ...common,
@@ -240,6 +242,6 @@ function toRequestItem(mutation: FavoriteMutation): FavoriteMutationRequestItem 
       };
 }
 
-function targetKey(target: FavoriteTarget) {
-  return `${target.catalogType}:${target.catalogUuid}`;
+function targetKey(mutation: FavoriteMutation) {
+  return favoriteTargetKey({ kind: mutation.targetKind, id: mutation.targetId });
 }

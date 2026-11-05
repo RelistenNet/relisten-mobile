@@ -1,4 +1,5 @@
 import ExpoModulesCore
+import AVFAudio
 import Foundation
 import UIKit
 
@@ -35,6 +36,7 @@ var DEBUG_state = ""
 public class RelistenAudioPlayerModule: Module {
     var player: PlaybackBackend?
     private let moduleInstanceID = UUID().uuidString
+    private var outputRouteObserver: NSObjectProtocol?
 
     // Each module class must implement the definition function. The definition consists of components
     // that describes the module's functionality and behavior.
@@ -53,9 +55,24 @@ public class RelistenAudioPlayerModule: Module {
             )
             player = makePlaybackBackend()
             player?.delegate = self
+
+            // Route presentation also runs before the first Play and while paused.
+            // The backend's observers have a separate lifecycle and control transport.
+            outputRouteObserver = NotificationCenter.default.addObserver(
+                forName: AVAudioSession.routeChangeNotification,
+                object: AVAudioSession.sharedInstance(),
+                queue: .main
+            ) { [weak self] _ in
+                guard let self else { return }
+                self.sendEvent("onAudioOutputRouteChanged", self.audioOutputRoute())
+            }
         }
 
         OnDestroy {
+            if let outputRouteObserver {
+                NotificationCenter.default.removeObserver(outputRouteObserver)
+                self.outputRouteObserver = nil
+            }
             moduleLifecycleLog.info(
                 "destroyed",
                 "module instance",
@@ -73,10 +90,15 @@ public class RelistenAudioPlayerModule: Module {
             "onDownloadProgressChanged",
             "onTrackChanged",
             "onRemoteControl",
-            "onTrackStreamingCacheComplete"
+            "onTrackStreamingCacheComplete",
+            "onAudioOutputRouteChanged"
         )
 
         OnAppEntersBackground { player?.enqueuePlaybackSnapshot() }
+
+        Function("getAudioOutputRoute") {
+            self.audioOutputRoute()
+        }
 
         View(RelistenAudioSpectrumView.self) {
             Prop("active") { (view: RelistenAudioSpectrumView, active: Bool) in
@@ -249,6 +271,18 @@ public class RelistenAudioPlayerModule: Module {
                 promise.resolve()
             }
         }
+    }
+
+    /// Read the selected system route without activating or changing the audio session.
+    private func audioOutputRoute() -> [String: Any] {
+        let outputs = AVAudioSession.sharedInstance().currentRoute.outputs
+        let externalOutputs = outputs.filter {
+            $0.portType != .builtInSpeaker && $0.portType != .builtInReceiver
+        }
+        return [
+            "name": externalOutputs.map(\.portName).joined(separator: ", "),
+            "isExternal": !externalOutputs.isEmpty
+        ]
     }
 }
 

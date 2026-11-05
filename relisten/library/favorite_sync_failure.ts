@@ -1,11 +1,10 @@
 import { AccountsApiError } from '@/relisten/accounts/api/accounts_api_client';
 import { AuthFlowError } from '@/relisten/accounts/auth/auth_validation';
-import { favoriteSyncErrorIsRetryable } from '@/relisten/library/favorite_mutation_batch_isolation';
 
 export function favoriteSyncFailure(error: unknown, hasLocalSnapshot: boolean) {
   if (error instanceof AccountsApiError) {
     const code = error.code ?? 'favorite_sync_failed';
-    const retryable = favoriteSyncErrorIsRetryable(code, error.retryable);
+    const retryable = error.retryable;
     return {
       code,
       retryable,

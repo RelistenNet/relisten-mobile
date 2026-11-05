@@ -4,15 +4,15 @@ import {
   useNativePlaybackProgress,
 } from '@/relisten/player/native_playback_state_hooks';
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
-import { sharedStates } from '@/relisten/player/shared_state';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { trackDuration } from '@/relisten/util/duration';
 import * as Haptics from 'expo-haptics';
-import { useCallback, useEffect, useRef } from 'react';
-import { Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
+import { Pressable, Text, View } from 'react-native';
 import { HapticModeEnum, Slider } from 'react-native-awesome-slider';
 import { useSharedValue } from 'react-native-reanimated';
 import { useRelistenCastStatus } from '@/relisten/casting/cast_ui';
+import { playbackTimePreference } from './playback_time_preference';
 
 type ScrubberRowProps = {
   showTimes?: boolean;
@@ -20,6 +20,7 @@ type ScrubberRowProps = {
   onScrubbingChange?: (scrubbing: boolean) => void;
 };
 
+/** Seek control shared by both player headers, with an optional persistent time display. */
 export function ScrubberRow({
   showTimes = true,
   subduedCache = false,
@@ -31,6 +32,20 @@ export function ScrubberRow({
   const downloadProgress = useNativeActiveTrackDownloadProgress();
   const player = useRelistenPlayer();
   const { isCasting } = useRelistenCastStatus();
+  const timeDisplay = useSyncExternalStore(
+    playbackTimePreference.subscribe,
+    playbackTimePreference.getSnapshot,
+    playbackTimePreference.getSnapshot
+  );
+  const elapsed = progressObj?.elapsed ?? 0;
+  const duration = progressObj?.duration ?? 0;
+  const displayedTime = trackDuration(
+    timeDisplay === 'remaining' ? Math.max(0, duration - elapsed) : duration
+  );
+
+  useEffect(() => {
+    void playbackTimePreference.load();
+  }, []);
 
   const cacheValue =
     Math.max(0, Math.min(1, downloadProgress?.percent ?? 0)) * (progressObj?.duration ?? 0);
@@ -44,22 +59,16 @@ export function ScrubberRow({
 
   const doSeek = useCallback(
     (value: number) => {
-      if (!progressObj || progressObj.duration <= 0) {
+      if (duration <= 0) {
         return;
       }
 
+      value = Math.max(0, Math.min(duration, value));
       progress.value = value;
       pendingSeekRef.current = { value, startedAt: Date.now() };
-      if (isCasting) {
-        sharedStates.progress.setState({
-          elapsed: value,
-          duration: progressObj.duration,
-          percent: progressObj.duration ? value / progressObj.duration : 0,
-        });
-      }
-      player.seekTo(value / progressObj.duration).then(() => {});
+      void player.seekTo(value / duration);
     },
-    [isCasting, player, progress, progressObj?.duration]
+    [duration, player, progress]
   );
 
   useEffect(() => {
@@ -96,51 +105,88 @@ export function ScrubberRow({
   useEffect(() => () => onScrubbingChange?.(false), [onScrubbingChange]);
 
   return (
-    <View
-      onTouchStart={() => onScrubbingChange?.(true)}
-      onTouchEnd={() => onScrubbingChange?.(false)}
-      onTouchCancel={() => onScrubbingChange?.(false)}
-    >
-      <Flex column>
-        <Slider
-          progress={progress}
-          minimumValue={min}
-          maximumValue={max}
-          cache={cache}
-          isScrubbing={isScrubbing}
-          hapticMode={HapticModeEnum.BOTH}
-          onHapticFeedback={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }}
-          onSlidingComplete={doSeek}
-          theme={{
-            minimumTrackTintColor: RelistenBlue['400'],
-            maximumTrackTintColor: subduedCache ? 'rgba(255, 255, 255, 0.52)' : undefined,
-            cacheTrackTintColor: subduedCache ? 'rgba(255, 255, 255, 0.52)' : RelistenBlue['600'],
-            bubbleBackgroundColor: RelistenBlue['900'],
-          }}
-          bubble={(value) => trackDuration(value)}
-          bubbleTextStyle={{ fontVariant: ['tabular-nums'], textAlign: 'center' }}
-        />
-        {showTimes && (
-          <Flex className="mt-2 min-h-5 justify-between">
+    <Flex column>
+      <View
+        accessible
+        accessibilityRole="adjustable"
+        accessibilityLabel="Playback position"
+        accessibilityValue={{
+          min: 0,
+          max: duration,
+          now: elapsed,
+          text: `${trackDuration(elapsed)} of ${trackDuration(duration)}`,
+        }}
+        accessibilityState={{ disabled: duration <= 0 }}
+        accessibilityHint="Swipe up or down to seek by 15 seconds."
+        accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+        onAccessibilityAction={({ nativeEvent }) => {
+          if (nativeEvent.actionName === 'increment') doSeek(elapsed + 15);
+          if (nativeEvent.actionName === 'decrement') doSeek(elapsed - 15);
+        }}
+        onTouchStart={() => onScrubbingChange?.(true)}
+        onTouchEnd={() => onScrubbingChange?.(false)}
+        onTouchCancel={() => onScrubbingChange?.(false)}
+      >
+        {/* The parent owns VoiceOver seeking; the visual slider keeps touch gestures. */}
+        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          <Slider
+            progress={progress}
+            minimumValue={min}
+            maximumValue={max}
+            cache={cache}
+            isScrubbing={isScrubbing}
+            hapticMode={HapticModeEnum.BOTH}
+            onHapticFeedback={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }}
+            onSlidingComplete={doSeek}
+            theme={{
+              minimumTrackTintColor: RelistenBlue['400'],
+              maximumTrackTintColor: subduedCache ? 'rgba(255, 255, 255, 0.52)' : undefined,
+              cacheTrackTintColor: subduedCache ? 'rgba(255, 255, 255, 0.52)' : RelistenBlue['600'],
+              bubbleBackgroundColor: RelistenBlue['900'],
+            }}
+            bubble={(value) => trackDuration(value)}
+            bubbleTextStyle={{
+              fontVariant: ['tabular-nums'],
+              textAlign: 'center',
+            }}
+          />
+        </View>
+      </View>
+      {showTimes && (
+        <Flex className="min-h-[44px] items-center justify-between">
+          <Text
+            className="font-semibold leading-5 text-gray-300 tabular-nums"
+            maxFontSizeMultiplier={1.8}
+            selectable={false}
+          >
+            {trackDuration(elapsed)}
+          </Text>
+          <Pressable
+            onPress={playbackTimePreference.toggle}
+            accessibilityRole="button"
+            accessibilityLabel={timeDisplay === 'remaining' ? 'Remaining time' : 'Total duration'}
+            accessibilityValue={{ text: displayedTime }}
+            accessibilityHint={`Switch to ${timeDisplay === 'remaining' ? 'total duration' : 'remaining time'}.`}
+            style={{
+              minWidth: 44,
+              minHeight: 44,
+              alignItems: 'flex-end',
+              justifyContent: 'center',
+            }}
+          >
             <Text
               className="font-semibold leading-5 text-gray-300 tabular-nums"
               maxFontSizeMultiplier={1.8}
               selectable={false}
             >
-              {trackDuration(progressObj?.elapsed ?? 0)}
+              {timeDisplay === 'remaining' ? '-' : ''}
+              {displayedTime}
             </Text>
-            <Text
-              className="font-semibold leading-5 text-gray-300 tabular-nums"
-              maxFontSizeMultiplier={1.8}
-              selectable={false}
-            >
-              {trackDuration(progressObj?.duration ?? 0)}
-            </Text>
-          </Flex>
-        )}
-      </Flex>
-    </View>
+          </Pressable>
+        </Flex>
+      )}
+    </Flex>
   );
 }

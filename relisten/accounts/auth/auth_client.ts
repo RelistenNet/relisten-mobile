@@ -43,7 +43,7 @@ export interface CandidateTokenSet {
   accessToken: string;
   accessTokenExpiresAt: Date;
   refreshToken: string;
-  subject: string | null;
+  subject: string;
   nativeSessionId: string | null;
 }
 
@@ -89,7 +89,7 @@ function callbackMatches(actualValue: string, expectedValue: string): boolean {
 
 function candidateFromTokenResponse(
   response: TokenResponse,
-  identity: { subject: string | null; nativeSessionId: string | null }
+  identity: { subject: string; nativeSessionId: string | null }
 ): CandidateTokenSet {
   if (!response.refreshToken) {
     throw new AuthFlowError(
@@ -213,7 +213,7 @@ export class AccountAuthClient {
     );
 
     return candidateFromTokenResponse(response, {
-      subject: envelope.userUuid,
+      subject: envelope.userId,
       nativeSessionId: envelope.nativeSessionId,
     });
   }
@@ -242,7 +242,7 @@ export class AccountAuthClient {
       );
       throw new AuthFlowError(
         __DEV__
-          ? 'Relisten could not reach the local account service on port 5443. Start RelistenUserService and try again.'
+          ? 'Relisten could not reach the local account preview on port 5443. Start the accounts review service and try again.'
           : 'Relisten could not reach the account service. Try again.',
         'auth_service_unavailable',
         false,

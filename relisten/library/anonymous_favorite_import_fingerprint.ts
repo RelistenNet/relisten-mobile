@@ -1,6 +1,6 @@
 export interface AnonymousFavoriteImportSource {
-  catalogType: string;
-  catalogUuid: string;
+  targetKind: string;
+  targetId: string;
 }
 
 /**
@@ -13,7 +13,7 @@ export function anonymousFavoriteSourceFingerprint(
 ) {
   const targetKeys = new Set<string>();
   for (const favorite of favorites) {
-    targetKeys.add(`${favorite.catalogType}:${favorite.catalogUuid}`);
+    targetKeys.add(`${favorite.targetKind}:${favorite.targetId}`);
   }
 
   return JSON.stringify([...targetKeys].sort());

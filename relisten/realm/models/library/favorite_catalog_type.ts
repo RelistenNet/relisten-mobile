@@ -1,15 +1,17 @@
-export const FAVORITE_CATALOG_TYPES = [
+export const FAVORITE_TARGET_KINDS = [
   'artist',
   'show',
   'source',
-  'source_track',
+  'track',
+  'imported_song',
+  'imported_venue',
   'song',
   'tour',
   'venue',
 ] as const;
 
-export type FavoriteCatalogType = (typeof FAVORITE_CATALOG_TYPES)[number];
+export type FavoriteTargetKind = (typeof FAVORITE_TARGET_KINDS)[number];
 
-export function isFavoriteCatalogType(value: string): value is FavoriteCatalogType {
-  return FAVORITE_CATALOG_TYPES.includes(value as FavoriteCatalogType);
+export function isFavoriteTargetKind(value: string): value is FavoriteTargetKind {
+  return FAVORITE_TARGET_KINDS.includes(value as FavoriteTargetKind);
 }

@@ -23,6 +23,11 @@ import { ReturnToNowPlayingButton } from '@/relisten/player/ui/return_to_now_pla
 import { isQueueReorderCurrent } from '@/relisten/player/ui/player_queue_reorder';
 import { PlayerQueueTransport } from '@/relisten/player/ui/player_queue_transport';
 import {
+  isPlayerTimelineReleaseAtRest,
+  PlayerTimelineHaptics,
+} from '@/relisten/player/ui/player_timeline_haptics';
+import { playerTransportTransition } from '@/relisten/player/ui/player_transport_transition';
+import {
   playerTimelineFooterHeight,
   playerTimelineSnapOffsets,
   reconciledPlayerTimelineOffset,
@@ -49,8 +54,7 @@ import DraggableFlatList, {
   type RenderItemParams,
 } from 'react-native-draggable-flatlist';
 import Animated, {
-  Extrapolation,
-  interpolate,
+  interpolateColor,
   useAnimatedStyle,
   runOnJS,
   type SharedValue,
@@ -108,7 +112,8 @@ function PlayerTimelinePivotObserver({
       }
 
       const relativeOffset = scrollOffset.value - pivotOffset.value;
-      if (relativeOffset >= (nowPlayingHeight.value - compactHeight) * 0.85 - 1) return 1;
+      const progress = relativeOffset / Math.max(1, nowPlayingHeight.value - compactHeight);
+      if (playerTransportTransition(progress).compactOwnsControls) return 1;
       return relativeOffset <= -viewportHeight + 1 ? -1 : 0;
     },
     (visibility, previousVisibility) => {
@@ -211,6 +216,7 @@ export function PlayerQueueSheet({
   const anchorRetryCount = useRef(0);
   const pendingPivotReconciliation = useRef(false);
   const reconciliationGeneration = useRef(0);
+  const breakpointHaptics = useRef(new PlayerTimelineHaptics()).current;
   const measuredPivotLayoutRef = useRef<PlayerTimelineLayout | undefined>(undefined);
   const committedPivotLayoutRef = useRef<PlayerTimelineLayout | undefined>(undefined);
   const [pivotLayout, setPivotLayout] = useState<PlayerTimelineLayout>();
@@ -247,10 +253,24 @@ export function PlayerQueueSheet({
   const nowPlayingHeight = useSharedValue(0);
   const anchorReady = useSharedValue(false);
   const expandedPlayerStyle = useAnimatedStyle(() => ({
-    // Preserve its measured height, but finish fading before compact appears.
-    // Otherwise the lower utility buttons peek out below the compact header.
-    opacity: interpolate(queueProgress.value, [0.2, 0.5], [1, 0], Extrapolation.CLAMP),
+    opacity: playerTransportTransition(queueProgress.value).expandedOpacity,
   }));
+  // At rest Up Next continues the poster background. As it becomes sticky,
+  // match the queue backdrop so moving rows cannot show through its labels.
+  const upNextHeaderStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(backdropProgress.value, [0, 1], ['#001D2400', '#001D24']),
+  }));
+  const expandedPlayerMaskStyle = useAnimatedStyle(() => {
+    const transition = playerTransportTransition(queueProgress.value);
+    const offset = Math.max(0, effectiveScrollOffset.value - pivotOffset.value);
+    const clippedHeight =
+      Math.max(0, nowPlayingHeight.value - offset - transportHeight) *
+      transition.expandedClipProgress;
+
+    // Mask instead of changing layout height: snapping and queue anchors must
+    // stay fixed, and longer track titles must still measure at natural height.
+    return { height: clippedHeight };
+  });
   useDerivedValue(() => {
     if (!anchorReady.value) {
       queueProgress.value = 0;
@@ -420,6 +440,18 @@ export function PlayerQueueSheet({
     [timelineItems]
   );
 
+  // iOS Fabric reports momentum end for native deceleration and for both
+  // animated and immediate scrollToOffset calls. Arrival during a scroll is silent.
+  const completeBreakpointScroll = useCallback(
+    (offset: number) => {
+      const layout = committedPivotLayoutRef.current;
+      if (layout && breakpointHaptics.settle(offset, layout, transportHeight)) {
+        void Haptics.selectionAsync();
+      }
+    },
+    [breakpointHaptics, transportHeight]
+  );
+
   const applyScrollOffset = useCallback(
     (offset: number) => {
       listRef.current?.scrollToOffset({ animated: false, offset });
@@ -454,6 +486,7 @@ export function PlayerQueueSheet({
       }
 
       const previousLayout = committedPivotLayoutRef.current;
+      breakpointHaptics.cancel();
       const previousTransportHeight = committedTransportHeightRef.current;
       committedTransportHeightRef.current = transportHeight;
       const currentOffset = effectiveScrollOffset.value;
@@ -486,6 +519,7 @@ export function PlayerQueueSheet({
     },
     [
       anchorReady,
+      breakpointHaptics,
       applyScrollOffset,
       effectiveScrollOffset,
       focusNowPlaying,
@@ -520,17 +554,30 @@ export function PlayerQueueSheet({
     });
   }, [reconcilePivot]);
 
-  const settleScrollWithoutMomentum = useCallback(() => {
-    requestAnimationFrame(() => {
-      if (scrollPhaseRef.current !== 'awaiting-momentum') return;
-      scrollPhaseRef.current = 'idle';
-      if (pendingPivotReconciliation.current) schedulePivotReconciliation();
-    });
-  }, [schedulePivotReconciliation]);
+  // Momentum may begin after end-drag. The next frame only confirms a release
+  // that is already stationary at its native target; deceleration completes natively.
+  const settleScrollWithoutMomentum = useCallback(
+    (offset: number, releasedAtRest: boolean) => {
+      const generation = reconciliationGeneration.current;
+      requestAnimationFrame(() => {
+        if (
+          generation !== reconciliationGeneration.current ||
+          scrollPhaseRef.current !== 'awaiting-momentum'
+        )
+          return;
+        scrollPhaseRef.current = 'idle';
+        if (releasedAtRest) completeBreakpointScroll(offset);
+        if (pendingPivotReconciliation.current) schedulePivotReconciliation();
+      });
+    },
+    [completeBreakpointScroll, schedulePivotReconciliation]
+  );
 
   useEffect(() => {
+    breakpointHaptics.cancel();
     schedulePivotReconciliation();
-  }, [currentTrack?.identifier, prePivotSignature, schedulePivotReconciliation]);
+    return () => breakpointHaptics.cancel();
+  }, [breakpointHaptics, currentTrack?.identifier, prePivotSignature, schedulePivotReconciliation]);
 
   const handleInitialScrollFailure = useCallback(
     ({ averageItemLength, index }: { averageItemLength: number; index: number }) => {
@@ -562,12 +609,16 @@ export function PlayerQueueSheet({
     });
   }, [listViewportHeight, pivotIndex]);
 
-  const handleListContainerLayout = useCallback((event: LayoutChangeEvent) => {
-    const nextHeight = event.nativeEvent.layout.height;
-    setListViewportHeight((currentHeight) =>
-      Math.abs(currentHeight - nextHeight) >= 1 ? nextHeight : currentHeight
-    );
-  }, []);
+  const handleListContainerLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      breakpointHaptics.cancel();
+      const nextHeight = event.nativeEvent.layout.height;
+      setListViewportHeight((currentHeight) =>
+        Math.abs(currentHeight - nextHeight) >= 1 ? nextHeight : currentHeight
+      );
+    },
+    [breakpointHaptics]
+  );
 
   const handleAnimatedValuesReady = useCallback(
     ({ scrollOffset: nextScrollOffset }: { scrollOffset: SharedValue<number> }) => {
@@ -593,6 +644,7 @@ export function PlayerQueueSheet({
 
   const handleNowPlayingStickyLayout = useCallback(
     ({ height: measuredHeight, y }: { height: number; y: number }) => {
+      breakpointHaptics.cancel();
       measuredPivotLayoutRef.current = { y, height: measuredHeight };
       if (hasAnchored.current) {
         schedulePivotReconciliation();
@@ -608,27 +660,33 @@ export function PlayerQueueSheet({
         });
       }
     },
-    [reconcilePivot, schedulePivotReconciliation]
+    [breakpointHaptics, reconcilePivot, schedulePivotReconciliation]
   );
 
   const triggerHaptics = useCallback(() => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }, []);
 
-  const setQueueDragging = useCallback((dragging: boolean) => {
-    reconciliationGeneration.current += 1;
-    isQueueDraggingRef.current = dragging;
-    setIsDragging(dragging);
-  }, []);
+  const setQueueDragging = useCallback(
+    (dragging: boolean) => {
+      if (dragging) breakpointHaptics.cancel();
+      reconciliationGeneration.current += 1;
+      isQueueDraggingRef.current = dragging;
+      setIsDragging(dragging);
+    },
+    [breakpointHaptics]
+  );
 
   const handleScrubbingChange = useCallback(
     (scrubbing: boolean) => {
       isScrubbingRef.current = scrubbing;
       setIsScrubbing(scrubbing);
-      if (scrubbing) reconciliationGeneration.current += 1;
-      else if (pendingPivotReconciliation.current) schedulePivotReconciliation();
+      if (scrubbing) {
+        breakpointHaptics.cancel();
+        reconciliationGeneration.current += 1;
+      } else if (pendingPivotReconciliation.current) schedulePivotReconciliation();
     },
-    [schedulePivotReconciliation]
+    [breakpointHaptics, schedulePivotReconciliation]
   );
 
   const finishQueueDrag = useCallback(() => {
@@ -686,19 +744,34 @@ export function PlayerQueueSheet({
     focusGenerationRef.current += 1;
     setReturnArrival(0);
     pendingReturnFocusRef.current = true;
+    const layout = committedPivotLayoutRef.current;
+    if (layout) {
+      reconciliationGeneration.current += 1;
+      breakpointHaptics.begin(effectiveScrollOffset.value, layout, transportHeight, layout.y);
+    }
     listRef.current?.scrollToOffset({ animated: !reduceMotion, offset: pivotOffsetRef.current });
     if (Math.abs(effectiveScrollOffset.value - pivotOffsetRef.current) <= 1) handleNowPlayingRest();
-  }, [effectiveScrollOffset, handleNowPlayingRest, reduceMotion]);
+  }, [
+    breakpointHaptics,
+    effectiveScrollOffset,
+    handleNowPlayingRest,
+    reduceMotion,
+    transportHeight,
+  ]);
 
   const openQueue = useCallback(() => {
     if (isQueueDraggingRef.current || isScrubbingRef.current) return;
     const layout = committedPivotLayoutRef.current;
-    if (layout)
+    if (layout) {
+      const target = layout.y + Math.max(0, layout.height - transportHeight);
+      reconciliationGeneration.current += 1;
+      breakpointHaptics.begin(effectiveScrollOffset.value, layout, transportHeight, target);
       listRef.current?.scrollToOffset({
         animated: !reduceMotion,
-        offset: layout.y + Math.max(0, layout.height - transportHeight),
+        offset: target,
       });
-  }, [reduceMotion, transportHeight]);
+    }
+  }, [breakpointHaptics, effectiveScrollOffset, reduceMotion, transportHeight]);
 
   const renderItem = useCallback(
     ({ drag, item }: RenderItemParams<TimelineItem>) => {
@@ -718,7 +791,9 @@ export function PlayerQueueSheet({
           );
         case 'section-header':
           return (
-            <View
+            <Animated.View
+              className={item.id === 'up-next' ? undefined : 'bg-relisten-blue-900'}
+              style={item.id === 'up-next' ? upNextHeaderStyle : undefined}
               onLayout={
                 item.id === 'up-next'
                   ? (event) =>
@@ -732,7 +807,7 @@ export function PlayerQueueSheet({
                 label={item.label}
                 onPress={item.id === 'up-next' ? openQueue : undefined}
               />
-            </View>
+            </Animated.View>
           );
         case 'sticky-reset':
           return (
@@ -758,6 +833,13 @@ export function PlayerQueueSheet({
                 onBeforeNavigate={onBeforeNavigate}
                 onScrubbingChange={handleScrubbingChange}
                 visualizerActive={visualizerActive && !isPivotOffscreen}
+              />
+              <Animated.View
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+                pointerEvents="none"
+                className="absolute inset-x-0 bottom-0 z-10 bg-relisten-blue-900"
+                style={expandedPlayerMaskStyle}
               />
             </Animated.View>
           );
@@ -792,6 +874,8 @@ export function PlayerQueueSheet({
     [
       isPivotOffscreen,
       expandedPlayerStyle,
+      upNextHeaderStyle,
+      expandedPlayerMaskStyle,
       measureQueueItem,
       handleScrubbingChange,
       openQueue,
@@ -848,18 +932,29 @@ export function PlayerQueueSheet({
             focusGenerationRef.current += 1;
             reconciliationGeneration.current += 1;
             scrollPhaseRef.current = 'dragging';
+            const layout = committedPivotLayoutRef.current;
+            if (layout && !isQueueDraggingRef.current && !isScrubbingRef.current) {
+              breakpointHaptics.begin(event.nativeEvent.contentOffset.y, layout, transportHeight);
+            } else {
+              breakpointHaptics.cancel();
+            }
             beginListDismissalDrag(event);
           }}
           onScrollEndDrag={(event) => {
             scrollPhaseRef.current = 'awaiting-momentum';
             endListDismissalDrag(event);
-            settleScrollWithoutMomentum();
+            settleScrollWithoutMomentum(
+              event.nativeEvent.contentOffset.y,
+              isPlayerTimelineReleaseAtRest(event.nativeEvent)
+            );
           }}
           onMomentumScrollBegin={() => {
             scrollPhaseRef.current = 'momentum';
           }}
-          onMomentumScrollEnd={() => {
+          onMomentumScrollEnd={(event) => {
+            if (scrollPhaseRef.current === 'dragging') return;
             scrollPhaseRef.current = 'idle';
+            completeBreakpointScroll(event.nativeEvent.contentOffset.y);
             if (pendingPivotReconciliation.current) schedulePivotReconciliation();
           }}
           renderItem={renderItem}
@@ -889,7 +984,10 @@ export function PlayerQueueSheet({
       )}
       <PlayerQueueTransport
         interactive={isQueueVisible && !isDragging}
-        onLayout={(event) => setTransportHeight(event.nativeEvent.layout.height)}
+        onLayout={(event) => {
+          breakpointHaptics.cancel();
+          setTransportHeight(event.nativeEvent.layout.height);
+        }}
         onReturn={returnToNowPlaying}
         onScrubbingChange={handleScrubbingChange}
         progress={queueProgress}

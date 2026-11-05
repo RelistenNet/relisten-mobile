@@ -10,8 +10,7 @@
     "lint": "eslint app relisten",
     "pods": "npx pod-install",
     "postinstall": "patch-package",
-    "store:screenshots": "swift tooling/store-screenshots/generate-store-screenshots.swift",
-    "test:favorites": "node --experimental-strip-types --test tooling/favorite_sync.test.ts"
+    "store:screenshots": "swift tooling/store-screenshots/generate-store-screenshots.swift"
   },
   "dependencies": {
     "@expo/material-symbols": "^0.1.1",
@@ -37,6 +36,7 @@
     "expo-application": "~58.1.1",
     "expo-asset": "~58.0.16",
     "expo-auth-session": "~58.0.12",
+    "expo-blur": "~58.0.5",
     "expo-build-properties": "~58.0.10",
     "expo-constants": "~58.0.12",
     "expo-crypto": "~58.0.6",

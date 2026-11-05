@@ -1,6 +1,7 @@
 import Realm from 'realm';
+import { catalogReferenceForFavoriteTarget } from '@/relisten/library/favorite_catalog_target';
 import type { FavoriteAccountScopeSource } from '@/relisten/library/favorite_repository';
-import type { FavoriteCatalogType } from '@/relisten/realm/models/library/favorite_catalog_type';
+import type { FavoriteTargetKind } from '@/relisten/realm/models/library/favorite_catalog_type';
 import { UserFavorite } from '@/relisten/realm/models/library/user_favorite';
 
 type Listener = () => void;
@@ -33,7 +34,7 @@ export class FavoriteMembershipProjection {
   private readonly songs: Realm.Results<ArtistChildProjection>;
   private readonly tours: Realm.Results<ArtistChildProjection>;
   private readonly venues: Realm.Results<ArtistChildProjection>;
-  private readonly favoriteUuidsByType = new Map<FavoriteCatalogType, Set<string>>();
+  private readonly favoriteUuidsByType = new Map<FavoriteTargetKind, Set<string>>();
   private readonly libraryShowUuids = new Set<string>();
   private readonly favoriteContentByArtist = new Map<string, number>();
   private readonly favoriteContentByYear = new Map<string, number>();
@@ -59,8 +60,8 @@ export class FavoriteMembershipProjection {
 
     this.favorites.addListener(this.handleDataChanged, [
       'scopeId',
-      'catalogType',
-      'catalogUuid',
+      'targetKind',
+      'targetId',
       'effectivePresent',
     ]);
     this.shows.addListener(this.handleDataChanged);
@@ -94,12 +95,12 @@ export class FavoriteMembershipProjection {
 
   getSnapshot = () => this.version;
 
-  isFavorite(catalogType: FavoriteCatalogType, catalogUuid?: string | null) {
-    return !!catalogUuid && (this.favoriteUuidsByType.get(catalogType)?.has(catalogUuid) ?? false);
+  isFavorite(targetKind: FavoriteTargetKind, catalogUuid?: string | null) {
+    return !!catalogUuid && (this.favoriteUuidsByType.get(targetKind)?.has(catalogUuid) ?? false);
   }
 
-  favoriteUuids(catalogType: FavoriteCatalogType): ReadonlySet<string> {
-    return this.favoriteUuidsByType.get(catalogType) ?? EMPTY_SET;
+  favoriteUuids(targetKind: FavoriteTargetKind): ReadonlySet<string> {
+    return this.favoriteUuidsByType.get(targetKind) ?? EMPTY_SET;
   }
 
   favoriteShowUuidsForLibrary(): ReadonlySet<string> {
@@ -149,12 +150,20 @@ export class FavoriteMembershipProjection {
         continue;
       }
 
-      let typeFavorites = this.favoriteUuidsByType.get(favorite.catalogType);
+      const catalogReference = catalogReferenceForFavoriteTarget({
+        kind: favorite.targetKind,
+        id: favorite.targetId,
+      });
+      if (!catalogReference) {
+        continue;
+      }
+
+      let typeFavorites = this.favoriteUuidsByType.get(favorite.targetKind);
       if (!typeFavorites) {
         typeFavorites = new Set<string>();
-        this.favoriteUuidsByType.set(favorite.catalogType, typeFavorites);
+        this.favoriteUuidsByType.set(favorite.targetKind, typeFavorites);
       }
-      typeFavorites.add(favorite.catalogUuid);
+      typeFavorites.add(catalogReference.catalog_uuid);
     }
 
     for (const showUuid of this.favoriteUuids('show')) {
@@ -165,12 +174,12 @@ export class FavoriteMembershipProjection {
         this.realm.objectForPrimaryKey<SourceProjection>('Source', sourceUuid)?.showUuid
       );
     }
-    for (const trackUuid of this.favoriteUuids('source_track')) {
+    for (const trackUuid of this.favoriteUuids('track')) {
       this.addLibraryShow(
         this.realm.objectForPrimaryKey<SourceTrackProjection>('SourceTrack', trackUuid)?.showUuid
       );
     }
-    for (const songUuid of this.favoriteUuids('song')) {
+    for (const songUuid of this.favoriteUuids('imported_song')) {
       this.addLibraryArtist(
         this.realm.objectForPrimaryKey<ArtistChildProjection>('Song', songUuid)?.artistUuid
       );
@@ -180,7 +189,7 @@ export class FavoriteMembershipProjection {
         this.realm.objectForPrimaryKey<ArtistChildProjection>('Tour', tourUuid)?.artistUuid
       );
     }
-    for (const venueUuid of this.favoriteUuids('venue')) {
+    for (const venueUuid of this.favoriteUuids('imported_venue')) {
       this.addLibraryArtist(
         this.realm.objectForPrimaryKey<ArtistChildProjection>('Venue', venueUuid)?.artistUuid
       );

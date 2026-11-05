@@ -792,6 +792,211 @@ describe('checkpoint persistence and queue edits', () => {
   });
 });
 
+describe('seeking', () => {
+  it.each(['fraction', 'seconds'] as const)(
+    'saves a stopped %s seek and starts the restored entry at that position',
+    async (unit) => {
+      await scenario.restore();
+
+      if (unit === 'fraction') {
+        await player.seekTo(0.5);
+      } else {
+        await player.seekToTime(205);
+      }
+      vi.advanceTimersByTime(1000);
+
+      expect(player.state).toBe(RelistenPlaybackState.Stopped);
+      expect(progress.lastState()).toEqual({ elapsed: 205, duration: 410, percent: 0.5 });
+      expect(scenario.savedCheckpoint).toEqual({
+        entryId: 'B',
+        elapsedSeconds: 205,
+        durationSeconds: 410,
+      });
+      expect(mocks.native.seekTo).not.toHaveBeenCalled();
+      expect(mocks.native.seekToTime).not.toHaveBeenCalled();
+      expect(mocks.native.play).not.toHaveBeenCalled();
+
+      player.resume();
+      await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+      expect(scenario.lastNativePlay).toMatchObject({ entryId: 'B', startTimeMs: 205000 });
+    }
+  );
+
+  it('resumes from confirmed progress after explicitly playing a previously sought entry', async () => {
+    await scenario.restore();
+    await player.seekToTime(205);
+
+    player.playTrackAtIndex(1);
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+    scenario.emit({ identifier: 'B', elapsed: 20, duration: 410 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(player.progress).toMatchObject({ elapsed: 20, duration: 410 });
+
+    await player.stop();
+    expect(scenario.savedCheckpoint).toMatchObject({ entryId: 'B', elapsedSeconds: 20 });
+    player.resume();
+
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(2));
+    expect(scenario.lastNativePlay).toMatchObject({ entryId: 'B', startTimeMs: 20000 });
+  });
+
+  it('keeps a pending entry seek preview out of the confirmed checkpoint', async () => {
+    scenario.startPlayingQueue();
+    const pause = deferredOperation();
+    mocks.native.pause.mockImplementationOnce(() => pause.promise);
+
+    player.next();
+    await player.seekTo(0.5);
+    vi.advanceTimersByTime(1000);
+
+    expect(progress.lastState()).toEqual({ elapsed: 205, duration: 410, percent: 0.5 });
+    expect(player.progress).toMatchObject({ elapsed: 120, duration: 381 });
+    expect(scenario.savedCheckpoint).toMatchObject({
+      entryId: minglewood.identifier,
+      elapsedSeconds: 120,
+      durationSeconds: 381,
+    });
+  });
+
+  it('starts a pending entry at the latest seek without seeking the preceding native item', async () => {
+    scenario.startPlayingQueue();
+    const pause = deferredOperation();
+    mocks.native.pause.mockImplementationOnce(() => pause.promise);
+
+    player.next();
+    await player.seekTo(0.25);
+    await player.seekToTime(205);
+    scenario.emit({ elapsed: 121, duration: 381 });
+
+    expect(mocks.native.seekTo).not.toHaveBeenCalled();
+    expect(mocks.native.seekToTime).not.toHaveBeenCalled();
+    expect(progress.lastState()).toMatchObject({ elapsed: 205, duration: 410 });
+    expect(player.progress).toMatchObject({ elapsed: 121, duration: 381 });
+
+    pause.complete();
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+    expect(scenario.lastNativePlay).toMatchObject({
+      entryId: loser.identifier,
+      startTimeMs: 205000,
+    });
+  });
+
+  it('retains a seek while the first play is still stopped', async () => {
+    await scenario.restore();
+    player.playTrackAtIndex(1);
+    await player.seekTo(0.5);
+
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+    expect(scenario.lastNativePlay).toMatchObject({ entryId: 'B', startTimeMs: 205000 });
+    expect(mocks.native.seekTo).not.toHaveBeenCalled();
+    expect(mocks.native.seekToTime).not.toHaveBeenCalled();
+  });
+
+  it.each(['before', 'after'] as const)(
+    'serializes a seek when native confirmation arrives %s the play promise settles',
+    async (confirmationOrder) => {
+      scenario.startPlayingQueue();
+      const play = deferredOperation();
+      mocks.native.play.mockImplementationOnce(() => play.promise);
+      player.next();
+      await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+      await player.seekToTime(205);
+
+      expect(mocks.native.seekToTime).not.toHaveBeenCalled();
+      if (confirmationOrder === 'before') {
+        scenario.emit({ identifier: loser.identifier, elapsed: 0, duration: 410 });
+      }
+      play.complete();
+      if (confirmationOrder === 'after') {
+        await vi.advanceTimersByTimeAsync(0);
+        expect(mocks.native.seekToTime).not.toHaveBeenCalled();
+        scenario.emit({ identifier: loser.identifier, elapsed: 0, duration: 410 });
+      }
+
+      await vi.waitFor(() => expect(mocks.native.seekToTime).toHaveBeenCalledWith(205000));
+      expect(mocks.native.play).toHaveBeenCalledTimes(1);
+      expect(scenario.savedCheckpoint).toMatchObject({
+        entryId: loser.identifier,
+        elapsedSeconds: 205,
+        durationSeconds: 410,
+      });
+    }
+  );
+
+  it('preserves a newer queued selection when seeking an older preview', async () => {
+    scenario.startPlayingQueue();
+    player.queue.addTrackToEndOfQueue([track('third', 430)]);
+    const third = player.queue.orderedTracks[2];
+    const pause = deferredOperation();
+    mocks.native.pause.mockImplementationOnce(() => pause.promise);
+
+    player.next();
+    player.playTrackAtIndex(2);
+    await player.seekTo(0.5);
+    pause.complete();
+
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+    expect(scenario.lastNativePlay).toMatchObject({
+      entryId: third.identifier,
+      startTimeMs: undefined,
+    });
+    expect(mocks.native.seekTo).not.toHaveBeenCalled();
+    expect(mocks.native.seekToTime).not.toHaveBeenCalled();
+  });
+
+  it('applies a seek after auto-advance without releasing an unresolved pause', async () => {
+    scenario.startPlayingQueue();
+    const pause = deferredOperation();
+    mocks.native.pause.mockImplementationOnce(() => pause.promise);
+
+    player.next();
+    scenario.emit({ identifier: loser.identifier, elapsed: 0, duration: 410 });
+    await player.seekTo(0.5);
+    expect(mocks.native.seekToTime).not.toHaveBeenCalled();
+    pause.complete();
+
+    await vi.waitFor(() => expect(mocks.native.seekToTime).toHaveBeenCalledWith(205000));
+    expect(mocks.native.play).not.toHaveBeenCalled();
+    expect(player.progress).toMatchObject({ elapsed: 205, duration: 410 });
+  });
+
+  it('honors an explicit time when replaying the current playing entry', async () => {
+    scenario.startPlayingQueue();
+    player.playTrackAtIndex(0, 205);
+
+    await vi.waitFor(() => expect(mocks.native.seekToTime).toHaveBeenCalledWith(205000));
+    expect(mocks.native.seekTo).not.toHaveBeenCalled();
+    expect(mocks.native.play).not.toHaveBeenCalled();
+  });
+
+  it('keeps the fractional and absolute driver contracts without resuming paused playback', async () => {
+    scenario.startPlayingQueue();
+    scenario.emit({ playbackState: RelistenPlaybackState.Paused });
+    const driver = {
+      name: 'cast',
+      isActive: () => true,
+      play: vi.fn(async () => {}),
+      pause: vi.fn(async () => {}),
+      resume: vi.fn(async () => {}),
+      stop: vi.fn(async () => {}),
+      seekTo: vi.fn(async () => {}),
+      seekToTime: vi.fn(async () => {}),
+      setNextStream: vi.fn(),
+    };
+    player.setPlaybackDriver(driver);
+
+    await player.seekTo(0.5);
+    await player.seekToTime(500);
+    vi.advanceTimersByTime(1000);
+
+    expect(driver.seekTo).toHaveBeenCalledWith(0.5);
+    expect(driver.seekToTime).toHaveBeenCalledWith(500000);
+    expect(driver.resume).not.toHaveBeenCalled();
+    expect(player.state).toBe(RelistenPlaybackState.Paused);
+    expect(progress.lastState()?.elapsed).toBe(500);
+  });
+});
+
 describe('saved queue restoration', () => {
   it('does not transfer a removed restored entry seek to the next entry', async () => {
     await scenario.restore({

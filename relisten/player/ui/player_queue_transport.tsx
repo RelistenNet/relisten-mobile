@@ -1,18 +1,22 @@
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player_queue_hooks';
 import { PlayerAudioVisualizer } from '@/relisten/player/ui/player_audio_visualizer';
-import { playerDisplayTitle, playerPosterDate } from '@/relisten/player/ui/player_display_helpers';
+import {
+  playerDisplayTitle,
+  playerPosterDate,
+  playerTrackAccessibilityLabel,
+} from '@/relisten/player/ui/player_display_helpers';
 import { PlayerControls } from '@/relisten/player/ui/player_now_playing';
 import { ScrubberRow } from '@/relisten/player/ui/player_scrubber';
+import { playerTransportTransition } from '@/relisten/player/ui/player_transport_transition';
 import { TouchableOpacity, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import Animated, {
-  interpolate,
-  Extrapolation,
   useAnimatedStyle,
   useReducedMotion,
   type SharedValue,
 } from 'react-native-reanimated';
 
+/** Fixed queue controls; `interactive` follows the scrolling transport handoff. */
 export function PlayerQueueTransport({
   onLayout,
   onReturn,
@@ -29,21 +33,16 @@ export function PlayerQueueTransport({
   const track = useRelistenPlayerCurrentTrack()?.sourceTrack;
   const { fontScale } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(progress.value, [0.55, 0.85], [0, 1], Extrapolation.CLAMP),
-    transform: [
-      {
-        translateY: reduceMotion
-          ? 0
-          : interpolate(progress.value, [0.55, 0.85], [-12, 0], Extrapolation.CLAMP),
-      },
-      {
-        scale: reduceMotion
-          ? 1
-          : interpolate(progress.value, [0.55, 0.85], [1.04, 1], Extrapolation.CLAMP),
-      },
-    ],
-  }));
+  const animatedStyle = useAnimatedStyle(() => {
+    const { compactOpacity } = playerTransportTransition(progress.value);
+    return {
+      opacity: compactOpacity,
+      transform: [
+        { translateY: reduceMotion ? 0 : -12 * (1 - compactOpacity) },
+        { scale: reduceMotion ? 1 : 1 + 0.04 * (1 - compactOpacity) },
+      ],
+    };
+  });
   if (!track) return null;
   const { day, month, year } = playerPosterDate(track.show.displayDate);
 
@@ -59,11 +58,11 @@ export function PlayerQueueTransport({
       <View className={fontScale >= 1.4 ? 'gap-2' : 'flex-row gap-2'}>
         <TouchableOpacity
           accessibilityRole="button"
-          accessibilityLabel={`Return to Now Playing, ${playerDisplayTitle(track.title)}, ${track.artist.name}, ${track.show.displayDate}`}
+          accessibilityLabel={`Return to Now Playing, ${playerTrackAccessibilityLabel(track)}`}
           className={
             fontScale >= 1.4
-              ? 'min-h-11 min-w-0 flex-row items-center'
-              : 'min-h-11 min-w-0 flex-1 flex-row items-center'
+              ? 'min-h-[44px] min-w-0 flex-row items-center'
+              : 'min-h-[44px] min-w-0 flex-1 flex-row items-center'
           }
           onPress={onReturn}
         >

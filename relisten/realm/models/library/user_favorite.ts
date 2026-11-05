@@ -1,19 +1,19 @@
 import Realm from 'realm';
-import type { FavoriteCatalogType } from './favorite_catalog_type';
+import type { FavoriteTargetKind } from './favorite_catalog_type';
 
 /**
  * Account-owned membership that survives catalog eviction and licensing removal.
- * Catalog references stay as UUID strings instead of Realm links for that reason.
+ * Catalog references stay as canonical typed IDs instead of Realm links for that reason.
  */
 export class UserFavorite extends Realm.Object<UserFavorite> {
   static schema: Realm.ObjectSchema = {
     name: 'UserFavorite',
-    primaryKey: 'favoriteUuid',
+    primaryKey: 'favoriteId',
     properties: {
-      favoriteUuid: 'string',
+      favoriteId: 'string',
       scopeId: { type: 'string', indexed: true },
-      catalogType: { type: 'string', indexed: true },
-      catalogUuid: { type: 'string', indexed: true },
+      targetKind: { type: 'string', indexed: true },
+      targetId: { type: 'string', indexed: true },
       acknowledgedPresent: { type: 'bool', default: false },
       effectivePresent: { type: 'bool', default: false, indexed: true },
       acknowledgedRevision: 'int?',
@@ -25,10 +25,10 @@ export class UserFavorite extends Realm.Object<UserFavorite> {
     },
   };
 
-  favoriteUuid!: string;
+  favoriteId!: string;
   scopeId!: string;
-  catalogType!: FavoriteCatalogType;
-  catalogUuid!: string;
+  targetKind!: FavoriteTargetKind;
+  targetId!: string;
   acknowledgedPresent!: boolean;
   effectivePresent!: boolean;
   acknowledgedRevision?: number;

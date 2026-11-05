@@ -5185,6 +5185,11 @@ expo-auth-session@~58.0.12:
     expo-web-browser "~58.0.6"
     invariant "^2.2.4"
 
+expo-blur@~58.0.5:
+  version "58.0.5"
+  resolved "https://registry.yarnpkg.com/expo-blur/-/expo-blur-58.0.5.tgz#55f32f4817e91f06a996c40cc65913eb515d3f69"
+  integrity sha512-l8MEObIh0opwIUf+SD9MfqD0JnOirGuetAW/V3phXQRJaTPKLtb0IukgyLmnOsfWMAWTdJrcl5l/2ezcDHrkHQ==
+
 expo-build-properties@~58.0.10:
   version "58.0.10"
   resolved "https://registry.yarnpkg.com/expo-build-properties/-/expo-build-properties-58.0.10.tgz#93d23d3b3b3215f0b39cd9946c2c9d08bb9c3b26"

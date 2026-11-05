@@ -10,6 +10,9 @@ To keep the code base clean, use the steps below to run locally and verify your 
 
 React Compiler is enabled repo-wide, and compiler diagnostics are treated as hard failures. If you hit new React Compiler issues while iterating, run `npx react-compiler-healthcheck@latest` to get a repo-level inventory in addition to `yarn lint`.
 
+Run `yarn test` for the Vitest suite, including the account and favorite-sync
+invariants. To run one file, use `yarn test relisten/library/favorite_sync_invariants.test.ts`.
+
 ### Expo native module builds
 
 Use Expo's default precompiled modules on iOS. After an Expo SDK upgrade or a
@@ -37,6 +40,9 @@ favorites sync. Run the catalog API as well when testing best-effort hydration f
 whose catalog object is missing from Realm. Catalog resolver failure does not block favorite or
 unfavorite synchronization.
 
+The User Service requires the trusted local certificate. Create it once from the sibling web
+repository with `pnpm setup:browser-session` before starting the service.
+
 ```bash
 # Terminal 1
 cd ../RelistenApi
@@ -49,9 +55,10 @@ cd ../RelistenApi
 dotnet run --project RelistenUserService/RelistenUserService.csproj
 ```
 
-The iOS Simulator can reach the catalog API at `http://localhost:3823` and the User Service at
-`http://localhost:5443`. For an Android emulator, forward both loopback addresses before starting
-the app:
+The iOS Simulator can reach the v3 catalog API at `http://localhost:3823`. Account sign-in uses
+`https://auth.relisten.localhost:5443`, and account APIs use
+`https://accounts.relisten.localhost:5443`; the mobile client does not allow a plaintext account
+origin. For an Android emulator, forward both loopback ports before starting the app:
 
 ```bash
 adb reverse tcp:3823 tcp:3823

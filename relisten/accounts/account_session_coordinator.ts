@@ -511,7 +511,7 @@ export class AccountSessionCoordinator {
   private assertProfileMatchesScope(profile: AccountProfileSnapshot, capture: AccountScopeCapture) {
     if (
       !capture.isAuthenticated ||
-      profile.userUuid !== capture.userUuid ||
+      profile.userId !== capture.userId ||
       profile.nativeSessionId !== capture.nativeSessionId ||
       !this.scopeSource.isCurrent(capture)
     ) {

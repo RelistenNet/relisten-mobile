@@ -13,22 +13,22 @@ import {
   usePlayerPresentation,
 } from '@/relisten/player/ui/player_presentation';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useCallback } from 'react';
+import { BlurView } from 'expo-blur';
+import { useCallback, useEffect, useState } from 'react';
 import {
+  AccessibilityInfo,
   LayoutChangeEvent,
   Platform,
   TouchableOpacity,
   useWindowDimensions,
   View,
 } from 'react-native';
+import { PlayerOutputRoute } from './player_output_route';
 import { ScrubberRow } from './player_scrubber';
+import { playerQueueDate, playerTrackAccessibilityLabel } from './player_display_helpers';
 import * as Progress from 'react-native-progress';
 import AirPlayButton from 'react-native-airplay-button';
-import {
-  RelistenCastButton,
-  useShouldRenderCastButton,
-  useRelistenCastStatus,
-} from '@/relisten/casting/cast_ui';
+import { RelistenCastButton, useShouldRenderCastButton } from '@/relisten/casting/cast_ui';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import {
   useIsPlayerBottomBarVisible,
@@ -74,11 +74,11 @@ function NativeTabsAccessoryProgress() {
       : 0;
 
   return (
-    <View className="mx-1.5 h-[3px] overflow-hidden rounded-full bg-slate-400/20">
-      <View
-        className="h-full rounded-full bg-cyan-400"
-        style={{ width: `${percent * 100}%`, opacity: percent < 0.01 ? 0 : 1 }}
-      />
+    <View
+      pointerEvents="none"
+      className="absolute bottom-px left-5 right-5 h-[2px] overflow-hidden rounded-full bg-slate-400/20"
+    >
+      <View className="h-full rounded-full bg-cyan-400" style={{ width: `${percent * 100}%` }} />
     </View>
   );
 }
@@ -105,7 +105,6 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
   const player = useRelistenPlayer();
   const { height } = useWindowDimensions();
   const { beginInteractivePresentation, closePlayer, openPlayer } = usePlayerPresentation();
-  const { isCasting, deviceName } = useRelistenCastStatus();
   const shouldRenderCastButton = useShouldRenderCastButton();
   const gesturePresentationStarted = useSharedValue(false);
   const gestureStartProgress = useSharedValue(0);
@@ -117,9 +116,13 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
 
   const track = currentTrack.sourceTrack;
   const isAccessory = placementBackend === 'nativeTabsAccessory';
+  // The fixed-height native accessory must fit controls and up to three metadata lines.
+  // Keep its text at the designed size; the expanded player supports Dynamic Type.
+  const metadataFontSizeLimit = isAccessory ? 1 : undefined;
   const playbackIconSize = isAccessory ? 26 : 30;
-  const utilityIconClassName = isAccessory ? 'h-[18] w-[18]' : 'h-[20] w-[20]';
-  const rootContainerCn = isAccessory ? '' : 'flex-1';
+  // UIKit owns the accessory height. Keep progress inside that frame instead of
+  // adding its height below the native route control.
+  const rootContainerCn = isAccessory ? 'h-full justify-center' : 'flex-1';
   const headerRowCn = isAccessory ? 'min-h-[38px] items-center' : 'items-center';
   const titleClassName = isAccessory
     ? 'text-[15px] font-semibold text-white'
@@ -127,17 +130,18 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
   const subtitleClassName = isAccessory ? 'text-xs text-slate-200' : 'text-sm text-slate-200';
   const castingClassName = isAccessory ? 'text-[11px] text-slate-300' : 'text-xs text-slate-300';
   const transportButtonClassName = isAccessory
-    ? 'h-9 w-9 items-center justify-center rounded-full bg-white/15'
+    ? 'h-11 w-11 items-center justify-center rounded-full bg-white/15'
     : 'h-11 w-11 items-center justify-center rounded-full bg-white/10';
-  const utilityButtonShellClassName = isAccessory
-    ? 'ml-1.5 h-[30px] w-[30px] items-center justify-center rounded-full bg-white/10'
-    : 'ml-2 h-9 w-9 items-center justify-center rounded-full bg-white/10';
+  const utilityButtonShellClassName = 'h-11 w-11 items-center justify-center';
 
+  let playbackLabel = 'Play';
   let playbackStateIcon = <MaterialIcons name="play-arrow" size={playbackIconSize} color="white" />;
 
   if (playbackState == RelistenPlaybackState.Playing) {
+    playbackLabel = 'Pause';
     playbackStateIcon = <MaterialIcons name="pause" size={playbackIconSize} color="white" />;
   } else if (playbackState == RelistenPlaybackState.Stalled) {
+    playbackLabel = 'Buffering';
     playbackStateIcon = (
       <Progress.CircleSnail indeterminate={true} size={isAccessory ? 22 : 28} color="white" />
     );
@@ -195,6 +199,8 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
     <Flex column cn={rootContainerCn}>
       <Flex cn={headerRowCn}>
         <TouchableOpacity
+          accessibilityLabel={`${playbackLabel} ${playerTrackAccessibilityLabel(track)}`}
+          accessibilityRole="button"
           className={transportButtonClassName}
           onPress={() => {
             player.togglePauseResume();
@@ -205,43 +211,59 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
         <GestureDetector gesture={metadataGesture}>
           <Animated.View
             accessible
-            accessibilityLabel={`Open player for ${track.title}`}
+            accessibilityLabel={`Open player for ${playerTrackAccessibilityLabel(track)}`}
             accessibilityRole="button"
             className={`${isAccessory ? 'ml-2' : 'ml-3'} min-w-0 flex-1`}
             onAccessibilityTap={openPlayer}
           >
-            <Flex column cn="flex-1 min-w-0">
-              <RelistenText className={titleClassName} numberOfLines={1}>
+            <Flex column cn="min-w-0">
+              <RelistenText
+                className={titleClassName}
+                maxFontSizeMultiplier={metadataFontSizeLimit}
+                numberOfLines={1}
+              >
                 {track?.title ?? ''}
               </RelistenText>
-              <RelistenText className={subtitleClassName} numberOfLines={1}>
-                {currentTrack.subtitle ?? ''}
-              </RelistenText>
-              {isCasting && (
-                <RelistenText className={castingClassName} numberOfLines={1}>
-                  Casting{deviceName ? ` to ${deviceName}` : ''}
+              {/* Reserve space for the date even when the artist name is long. */}
+              <View className="min-w-0 flex-row items-baseline">
+                <RelistenText
+                  className={`${subtitleClassName} min-w-0 shrink`}
+                  maxFontSizeMultiplier={metadataFontSizeLimit}
+                  numberOfLines={1}
+                >
+                  {track.artist.name}
                 </RelistenText>
-              )}
+                <RelistenText
+                  className={`${subtitleClassName} shrink-0`}
+                  maxFontSizeMultiplier={metadataFontSizeLimit}
+                  numberOfLines={1}
+                >
+                  {' · '}
+                  {playerQueueDate(track.show.displayDate)}
+                </RelistenText>
+              </View>
+              <PlayerOutputRoute
+                cn={castingClassName}
+                maxFontSizeMultiplier={metadataFontSizeLimit}
+              />
             </Flex>
           </Animated.View>
         </GestureDetector>
         <Flex cn={isAccessory ? 'ml-2 items-center self-center' : 'ml-2 items-center'}>
           {Platform.OS === 'ios' && (
-            <View className={utilityButtonShellClassName}>
+            <View className="h-12 w-11 items-center justify-center">
               <AirPlayButton
                 activeTintColor="white"
                 tintColor="rgba(226, 232, 240, 0.72)"
                 prioritizesVideoDevices={false}
-                className={utilityIconClassName}
+                // UIKit's internal route button is shorter than the native view.
+                className="h-12 w-11"
               />
             </View>
           )}
           {shouldRenderCastButton && (
             <View className={utilityButtonShellClassName}>
-              <RelistenCastButton
-                tintColor="rgba(226, 232, 240, 0.78)"
-                className={utilityIconClassName}
-              />
+              <RelistenCastButton tintColor="rgba(226, 232, 240, 0.78)" className="h-11 w-11" />
             </View>
           )}
         </Flex>
@@ -257,11 +279,37 @@ interface PlayerBottomBarProps {
 
 const OFFLINE_OVERLAY_MIN_HEIGHT = 104;
 const OFFLINE_ACCESSORY_MIN_HEIGHT = 96;
+// With Reduce Transparency on, Liquid Glass (tab bar, native accessory) renders as an
+// opaque fill. BlurView's material falls back to a different grey, so match glass instead.
+const REDUCED_TRANSPARENCY_GLASS_COLOR = '#101617';
+
+function useIsReduceTransparencyEnabled() {
+  const [isEnabled, setIsEnabled] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    void AccessibilityInfo.isReduceTransparencyEnabled().then((enabled) => {
+      if (isMounted) setIsEnabled(enabled);
+    });
+    const subscription = AccessibilityInfo.addEventListener(
+      'reduceTransparencyChanged',
+      setIsEnabled
+    );
+
+    return () => {
+      isMounted = false;
+      subscription.remove();
+    };
+  }, []);
+
+  return isEnabled;
+}
 
 export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBarProps) {
   'use no memo';
 
   const isOnline = useShouldMakeNetworkRequests();
+  const isReduceTransparencyEnabled = useIsReduceTransparencyEnabled();
   const { playerBottomBarHeight, setPlayerBottomBarHeight } = useRelistenPlayerBottomBarContext();
   const placementOffset = usePlayerBarPlacementOffset();
   const { isPresentationActive } = usePlayerPresentation();
@@ -315,14 +363,14 @@ export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBa
   }
 
   const isOverlay = placementBackend === 'overlay';
-  const containerClassName = isOverlay ? 'absolute w-full' : 'w-full';
-  const contentContainerClassName = isOverlay ? 'w-full flex-1 px-3 pb-2' : 'w-full px-1.5';
-  const mainSurfaceClassName = isOverlay ? 'px-3 pb-3 pt-2.5' : 'pb-2 pt-1.5';
+  const containerClassName = isOverlay ? 'absolute w-full' : 'h-full w-full';
+  const contentContainerClassName = isOverlay ? 'w-full flex-1 px-6 pb-2' : 'h-full w-full px-1.5';
+  const mainSurfaceClassName = isOverlay ? 'px-3 pb-3 pt-2.5' : 'h-full';
   const shellChromeStyle =
     Platform.OS === 'ios'
       ? { boxShadow: '0 10px 22px rgba(2, 6, 23, 0.22)' }
       : { elevation: 10, shadowColor: '#020617' };
-  const shellSurfaceClassName = `overflow-hidden rounded-3xl border bg-[rgba(8,18,31,0.95)] ${
+  const shellSurfaceClassName = `overflow-hidden rounded-3xl border ${
     Platform.OS === 'ios' ? 'border-white/15' : 'border-white/10'
   }`;
   const body = (
@@ -347,7 +395,22 @@ export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBa
       <View className={contentContainerClassName}>
         {isOverlay ? (
           <View className="rounded-3xl" style={shellChromeStyle}>
-            <View className={shellSurfaceClassName}>{body}</View>
+            {isReduceTransparencyEnabled ? (
+              <View
+                className={shellSurfaceClassName}
+                style={{ backgroundColor: REDUCED_TRANSPARENCY_GLASS_COLOR }}
+              >
+                {body}
+              </View>
+            ) : (
+              <BlurView
+                className={shellSurfaceClassName}
+                intensity={30}
+                tint="systemChromeMaterialDark"
+              >
+                {body}
+              </BlurView>
+            )}
           </View>
         ) : (
           body

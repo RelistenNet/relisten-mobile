@@ -35,6 +35,11 @@ import {
 import { ACCOUNT_REALM_MODELS } from '@/relisten/realm/models/accounts';
 import { FAVORITE_REALM_MODELS } from '@/relisten/realm/models/library';
 import { migrateLegacyFavoritesToAnonymous } from '@/relisten/realm/migrations/favorite_migration';
+import { AccountIdentityUpgradeState } from '@/relisten/realm/models/accounts/account_identity_upgrade_state';
+import {
+  stageLegacyAccountIdentityFields,
+  upgradeTypedAccountIdentity,
+} from '@/relisten/realm/account_identity_upgrade';
 
 if (isVerboseProfileLoggingEnabled()) {
   Realm.setLogger(({ category, level, message }) => {
@@ -71,13 +76,15 @@ const realmConfig: Realm.Configuration = {
     PopularityWindow,
     PopularityWindows,
     CatalogStartupRepairState,
+    AccountIdentityUpgradeState,
     ...ACCOUNT_REALM_MODELS,
     ...FAVORITE_REALM_MODELS,
   ],
   // Existing accounts builds used 15 with the UUID/index player format.
-  schemaVersion: 16,
+  schemaVersion: 17,
   onMigration: (oldRealm, newRealm) => {
     migratePlayerState(oldRealm, newRealm);
+    stageLegacyAccountIdentityFields(oldRealm, newRealm);
     migrateLegacyFavoritesToAnonymous(oldRealm, newRealm);
   },
   // As to not conflict with the prior versions default.realm that isn't readable with this version of the SDK
@@ -96,6 +103,14 @@ export function setRealm(newRealm: Realm | undefined) {
   }
 }
 
+/** Completes every startup repair before services can observe the Realm. */
+export async function prepareRealmForUse(openedRealm: Realm): Promise<Realm> {
+  repairCatalogAtStartup(openedRealm);
+  await upgradeTypedAccountIdentity(openedRealm);
+  setRealm(openedRealm);
+  return openedRealm;
+}
+
 export async function openRealm(): Promise<Realm> {
   if (realm) {
     return realm;
@@ -103,10 +118,13 @@ export async function openRealm(): Promise<Realm> {
 
   if (!realmOpenPromise) {
     realmOpenPromise = Realm.open(realmConfig)
-      .then((openedRealm) => {
-        repairCatalogAtStartup(openedRealm);
-        setRealm(openedRealm);
-        return openedRealm;
+      .then(async (openedRealm) => {
+        try {
+          return await prepareRealmForUse(openedRealm);
+        } catch (error) {
+          openedRealm.close();
+          throw error;
+        }
       })
       .catch((error) => {
         realmOpenPromise = null;

@@ -9,6 +9,7 @@ import {
   useState,
 } from 'react';
 import { cancelAnimation, makeMutable, runOnJS, withSpring } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 import { createPlayerCloseCompletion } from './player_close_completion';
 
 export const playerPresentationProgress = makeMutable(0);
@@ -41,6 +42,9 @@ const PlayerPresentationContext = createContext<PlayerPresentationContextValue |
 export function PlayerPresentationProvider({ children }: PropsWithChildren) {
   const [presentationState, setPresentationState] = useState<PlayerPresentationState>('idle');
   const presentationRequested = useRef(false);
+  // A drag mounts content before its endpoint is chosen. Keep the committed
+  // endpoint separate so cancelled drags and repeated requests stay quiet.
+  const committedExpanded = useRef(false);
   const pendingOpen = useRef(false);
   const closeCompletion = useMemo(
     () =>
@@ -72,6 +76,10 @@ export function PlayerPresentationProvider({ children }: PropsWithChildren) {
   }, [cancelPendingClose]);
 
   const openPlayer = useCallback(() => {
+    if (!committedExpanded.current) {
+      committedExpanded.current = true;
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
     cancelPendingClose();
     cancelAnimation(playerPresentationProgress);
     presentationRequested.current = true;
@@ -94,6 +102,10 @@ export function PlayerPresentationProvider({ children }: PropsWithChildren) {
 
   const closePlayer = useCallback(
     (afterClose?: () => void) => {
+      if (committedExpanded.current) {
+        committedExpanded.current = false;
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
       presentationRequested.current = false;
       pendingOpen.current = false;
       closeCompletion.cancel();
@@ -116,6 +128,7 @@ export function PlayerPresentationProvider({ children }: PropsWithChildren) {
     cancelPendingClose();
     cancelAnimation(playerPresentationProgress);
     presentationRequested.current = false;
+    committedExpanded.current = false;
     pendingOpen.current = false;
     playerPresentationContentReady.set(false);
     playerPresentationProgress.set(0);

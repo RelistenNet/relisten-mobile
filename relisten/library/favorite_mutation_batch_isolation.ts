@@ -9,20 +9,15 @@ export type FavoriteSyncFailure = {
   retryable: boolean;
 };
 
-/** Catalog absence was a write error on older servers, but is now retryable version skew. */
-export function favoriteSyncErrorIsRetryable(code: string, declaredRetryable: boolean) {
-  return code === 'catalog_unavailable' || declaredRetryable;
-}
-
 type BatchIsolationOptions = {
   request: FavoriteMutationBatchRequest;
   send: (request: FavoriteMutationBatchRequest) => Promise<FavoriteMutationBatchResponse>;
   apply: (request: FavoriteMutationBatchRequest, response: FavoriteMutationBatchResponse) => void;
-  reject: (mutationUuids: ReadonlyArray<string>, failure: FavoriteSyncFailure) => void;
+  reject: (mutationIds: ReadonlyArray<string>, failure: FavoriteSyncFailure) => void;
 };
 
 const MUTATION_SEMANTIC_ERROR_CODES = new Set([
-  'favorite_uuid_conflict',
+  'favorite_id_conflict',
   'idempotency_conflict',
   'invalid_favorite_mutation',
   'quota_exceeded',
@@ -60,11 +55,11 @@ async function sendWithIsolation(
       throw error;
     }
 
-    const rejectedMutationUuids = terminalMutationUuids(error, request);
-    if (rejectedMutationUuids.size > 0) {
-      options.reject([...rejectedMutationUuids], failure);
+    const rejectedMutationIds = terminalMutationIds(error, request);
+    if (rejectedMutationIds.size > 0) {
+      options.reject([...rejectedMutationIds], failure);
       const remaining = request.mutations.filter(
-        (mutation) => !rejectedMutationUuids.has(mutation.mutation_uuid)
+        (mutation) => !rejectedMutationIds.has(mutation.mutation_id)
       );
       if (remaining.length > 0) {
         await sendWithIsolation({ contract_version: 1, mutations: remaining }, options);
@@ -73,7 +68,7 @@ async function sendWithIsolation(
     }
 
     if (request.mutations.length === 1) {
-      options.reject([request.mutations[0].mutation_uuid], failure);
+      options.reject([request.mutations[0].mutation_id], failure);
       return;
     }
 
@@ -117,10 +112,8 @@ export function favoriteSyncFailure(error: unknown): FavoriteSyncFailure {
       code,
       message,
       // Network and unexpected client failures can be retried safely because
-      // mutation UUIDs are idempotency keys. Older servers may still reject a
-      // missing catalog UUID, but catalog availability is no longer a terminal
-      // favorite-write condition.
-      retryable: favoriteSyncErrorIsRetryable(code, candidate.retryable !== false),
+      // mutation IDs are idempotency keys.
+      retryable: candidate.retryable !== false,
     };
   }
 
@@ -131,31 +124,29 @@ export function favoriteSyncFailure(error: unknown): FavoriteSyncFailure {
   };
 }
 
-function terminalMutationUuids(error: unknown, request: FavoriteMutationBatchRequest) {
+function terminalMutationIds(error: unknown, request: FavoriteMutationBatchRequest) {
   const problem = accountApiError(error)?.problem;
   if (!problem || typeof problem !== 'object') {
     return new Set<string>();
   }
 
-  const requestedMutationUuids = new Set(
-    request.mutations.map((mutation) => mutation.mutation_uuid)
-  );
-  const requestedFavoriteUuids = new Map(
+  const requestedMutationIds = new Set(request.mutations.map((mutation) => mutation.mutation_id));
+  const requestedFavoriteIds = new Map(
     request.mutations
       .filter((mutation) => mutation.desired_state === 'favorite')
-      .map((mutation) => [mutation.favorite_uuid, mutation.mutation_uuid])
+      .map((mutation) => [mutation.favorite_id, mutation.mutation_id])
   );
   const rejected = new Set<string>();
 
-  for (const uuid of stringArray(problem.conflicting_mutation_uuids)) {
-    if (requestedMutationUuids.has(uuid)) {
-      rejected.add(uuid);
+  for (const id of stringArray(problem.conflicting_mutation_ids)) {
+    if (requestedMutationIds.has(id)) {
+      rejected.add(id);
     }
   }
-  for (const uuid of stringArray(problem.conflicting_favorite_uuids)) {
-    const mutationUuid = requestedFavoriteUuids.get(uuid);
-    if (mutationUuid) {
-      rejected.add(mutationUuid);
+  for (const id of stringArray(problem.conflicting_favorite_ids)) {
+    const mutationId = requestedFavoriteIds.get(id);
+    if (mutationId) {
+      rejected.add(mutationId);
     }
   }
   return rejected;

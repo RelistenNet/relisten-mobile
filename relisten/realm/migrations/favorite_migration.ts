@@ -1,19 +1,28 @@
 import Realm from 'realm';
 import { createUuidV7 } from '@/relisten/util/uuid_v7';
-import { FavoriteCatalogType, UserFavorite } from '@/relisten/realm/models/library';
+import { UserFavorite } from '@/relisten/realm/models/library';
 import { ANONYMOUS_ACCOUNT_SCOPE_ID } from '@/relisten/realm/models/accounts';
+
+type StagedFavoriteKind =
+  | 'artist'
+  | 'show'
+  | 'source'
+  | 'track'
+  | 'imported_song'
+  | 'imported_venue'
+  | 'tour';
 
 const LEGACY_FAVORITE_MODELS: ReadonlyArray<{
   modelName: string;
-  catalogType: FavoriteCatalogType;
+  targetKind: StagedFavoriteKind;
 }> = [
-  { modelName: 'Artist', catalogType: 'artist' },
-  { modelName: 'Show', catalogType: 'show' },
-  { modelName: 'Source', catalogType: 'source' },
-  { modelName: 'SourceTrack', catalogType: 'source_track' },
-  { modelName: 'Song', catalogType: 'song' },
-  { modelName: 'Tour', catalogType: 'tour' },
-  { modelName: 'Venue', catalogType: 'venue' },
+  { modelName: 'Artist', targetKind: 'artist' },
+  { modelName: 'Show', targetKind: 'show' },
+  { modelName: 'Source', targetKind: 'source' },
+  { modelName: 'SourceTrack', targetKind: 'track' },
+  { modelName: 'Song', targetKind: 'imported_song' },
+  { modelName: 'Tour', targetKind: 'tour' },
+  { modelName: 'Venue', targetKind: 'imported_venue' },
 ];
 
 /**
@@ -33,7 +42,7 @@ export function migrateLegacyFavoritesToAnonymous(
     return;
   }
 
-  for (const { modelName, catalogType } of LEGACY_FAVORITE_MODELS) {
+  for (const { modelName, targetKind } of LEGACY_FAVORITE_MODELS) {
     if (!oldModelNames.has(modelName)) {
       continue;
     }
@@ -47,10 +56,10 @@ export function migrateLegacyFavoritesToAnonymous(
       }
 
       newRealm.create(UserFavorite, {
-        favoriteUuid: createUuidV7(),
+        favoriteId: createUuidV7(),
         scopeId: ANONYMOUS_ACCOUNT_SCOPE_ID,
-        catalogType,
-        catalogUuid,
+        targetKind,
+        targetId: catalogUuid,
         acknowledgedPresent: true,
         effectivePresent: true,
         acknowledgedRevision: undefined,

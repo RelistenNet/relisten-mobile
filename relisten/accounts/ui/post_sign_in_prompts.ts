@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 type PromptError = {
   message: string;
-  userUuid: string;
+  userId: string;
 };
 
 /**
@@ -32,8 +32,8 @@ export function usePostSignInPrompts() {
   const [promptError, setPromptError] = useState<PromptError | null>(null);
 
   const importFavorites = useCallback(async () => {
-    const userUuid = account.profile?.userUuid;
-    if (!userUuid) {
+    const userId = account.profile?.userId;
+    if (!userId) {
       return;
     }
 
@@ -41,13 +41,13 @@ export function usePostSignInPrompts() {
     try {
       await importAnonymousFavorites();
     } catch (error) {
-      setPromptError({ message: accountErrorMessage(error), userUuid });
+      setPromptError({ message: accountErrorMessage(error), userId });
     }
-  }, [account.profile?.userUuid, importAnonymousFavorites]);
+  }, [account.profile?.userId, importAnonymousFavorites]);
 
   const deferFavorites = useCallback(async () => {
-    const userUuid = account.profile?.userUuid;
-    if (!userUuid) {
+    const userId = account.profile?.userId;
+    if (!userId) {
       return;
     }
 
@@ -55,9 +55,9 @@ export function usePostSignInPrompts() {
     try {
       await deferAnonymousFavorites();
     } catch (error) {
-      setPromptError({ message: accountErrorMessage(error), userUuid });
+      setPromptError({ message: accountErrorMessage(error), userId });
     }
-  }, [account.profile?.userUuid, deferAnonymousFavorites]);
+  }, [account.profile?.userId, deferAnonymousFavorites]);
 
   const presentImportPrompt = useCallback(() => {
     if (!account.profile || anonymousImport.anonymousFavoriteCount === 0) {
@@ -77,7 +77,7 @@ export function usePostSignInPrompts() {
       return;
     }
 
-    const promptKey = `${account.profile.userUuid}:${anonymousImport.sourceFingerprint}`;
+    const promptKey = `${account.profile.userId}:${anonymousImport.sourceFingerprint}`;
     if (promptedImportKey.current === promptKey) {
       return;
     }
@@ -95,7 +95,7 @@ export function usePostSignInPrompts() {
     useCallback(() => {
       if (
         !account.profile ||
-        importAfterReviewUser.current !== account.profile.userUuid ||
+        importAfterReviewUser.current !== account.profile.userId ||
         anonymousImport.state === 'notApplicable'
       ) {
         return;
@@ -114,45 +114,45 @@ export function usePostSignInPrompts() {
       return;
     }
 
-    const { userUuid, usernameReviewNeeded } = account.profile;
+    const { userId, usernameReviewNeeded } = account.profile;
     if (!usernameReviewNeeded) {
-      setReviewCheckCompletedForUser(userUuid);
+      setReviewCheckCompletedForUser(userId);
       return;
     }
-    if (checkedInitialReviewUser.current === userUuid) {
+    if (checkedInitialReviewUser.current === userId) {
       return;
     }
 
-    checkedInitialReviewUser.current = userUuid;
+    checkedInitialReviewUser.current = userId;
     let active = true;
 
-    void claimInitialUsernameReviewPresentation(userUuid).then((shouldPresent) => {
+    void claimInitialUsernameReviewPresentation(userId).then((shouldPresent) => {
       if (!active) {
         return;
       }
 
-      setReviewCheckCompletedForUser(userUuid);
+      setReviewCheckCompletedForUser(userId);
       if (!shouldPresent) {
         return;
       }
 
-      importAfterReviewUser.current = userUuid;
+      importAfterReviewUser.current = userId;
       router.push('/relisten/account/username');
     });
 
     return () => {
       active = false;
     };
-  }, [account.profile?.userUuid, account.profile?.usernameReviewNeeded, account.status, router]);
+  }, [account.profile?.userId, account.profile?.usernameReviewNeeded, account.status, router]);
 
   useEffect(() => {
     if (
       account.status !== 'signedIn' ||
       !account.profile ||
       !isFocused ||
-      importAfterReviewUser.current === account.profile.userUuid ||
+      importAfterReviewUser.current === account.profile.userId ||
       (account.profile.usernameReviewNeeded &&
-        reviewCheckCompletedForUser !== account.profile.userUuid) ||
+        reviewCheckCompletedForUser !== account.profile.userId) ||
       anonymousImport.state !== 'available'
     ) {
       return;
@@ -171,7 +171,7 @@ export function usePostSignInPrompts() {
   return {
     anonymousImport,
     errorMessage:
-      promptError && promptError.userUuid === account.profile?.userUuid
+      promptError && promptError.userId === account.profile?.userId
         ? promptError.message
         : undefined,
     presentImportPrompt,

@@ -11,7 +11,7 @@ type Listener = () => void;
 
 export interface AccountScopeSnapshot {
   scopeId: string;
-  userUuid: string | null;
+  userId: string | null;
   generation: number;
   nativeSessionId: string | null;
   isAuthenticated: boolean;
@@ -36,7 +36,7 @@ export class StaleAccountScopeError extends Error {
 function anonymousSnapshot(generation = 0): AccountScopeSnapshot {
   return Object.freeze({
     scopeId: ANONYMOUS_ACCOUNT_SCOPE_ID,
-    userUuid: null,
+    userId: null,
     generation,
     nativeSessionId: null,
     isAuthenticated: false,
@@ -44,13 +44,13 @@ function anonymousSnapshot(generation = 0): AccountScopeSnapshot {
 }
 
 function scopeSnapshot(scope: ActiveAccountScope | null): AccountScopeSnapshot {
-  if (!scope || !scope.userUuid || !scope.nativeSessionId) {
+  if (!scope || !scope.userId || !scope.nativeSessionId) {
     return anonymousSnapshot(scope?.generation ?? 0);
   }
 
   return Object.freeze({
     scopeId: scope.scopeId,
-    userUuid: scope.userUuid,
+    userId: scope.userId,
     generation: scope.generation,
     nativeSessionId: scope.nativeSessionId,
     isAuthenticated: true,
@@ -60,7 +60,7 @@ function scopeSnapshot(scope: ActiveAccountScope | null): AccountScopeSnapshot {
 function sameScope(left: AccountScopeSnapshot, right: AccountScopeSnapshot) {
   return (
     left.scopeId === right.scopeId &&
-    left.userUuid === right.userUuid &&
+    left.userId === right.userId &&
     left.generation === right.generation &&
     left.nativeSessionId === right.nativeSessionId
   );
@@ -68,8 +68,8 @@ function sameScope(left: AccountScopeSnapshot, right: AccountScopeSnapshot) {
 
 function toRealmProfile(profile: AccountProfileSnapshot) {
   return {
-    scopeId: `user:${profile.userUuid}`,
-    userUuid: profile.userUuid,
+    scopeId: profile.userId,
+    userId: profile.userId,
     username: profile.username,
     usernameVersion: profile.usernameVersion,
     usernameReviewNeeded: profile.usernameReviewNeeded,
@@ -82,7 +82,7 @@ function toRealmProfile(profile: AccountProfileSnapshot) {
 
 function fromRealmProfile(profile: AccountProfile): AccountProfileSnapshot {
   return {
-    userUuid: profile.userUuid,
+    userId: profile.userId,
     username: profile.username,
     usernameVersion: profile.usernameVersion,
     usernameReviewNeeded: profile.usernameReviewNeeded,
@@ -155,7 +155,7 @@ export class AccountScopeStore implements AccountScopeSource {
 
   promote(profile: AccountProfileSnapshot): AccountScopeSnapshot {
     const nextGeneration = this.snapshot.generation + 1;
-    const scopeId = `user:${profile.userUuid}`;
+    const scopeId = profile.userId;
 
     this.realm.write(() => {
       this.realm.create(AccountProfile, toRealmProfile(profile), Realm.UpdateMode.Modified);
@@ -164,7 +164,7 @@ export class AccountScopeStore implements AccountScopeSource {
         {
           id: ACTIVE_ACCOUNT_SCOPE_ID,
           scopeId,
-          userUuid: profile.userUuid,
+          userId: profile.userId,
           generation: nextGeneration,
           nativeSessionId: profile.nativeSessionId,
           updatedAt: new Date(),
@@ -179,7 +179,7 @@ export class AccountScopeStore implements AccountScopeSource {
   }
 
   updateProfile(capture: AccountScopeCapture, profile: AccountProfileSnapshot) {
-    if (!this.isCurrent(capture) || profile.userUuid !== capture.userUuid) {
+    if (!this.isCurrent(capture) || profile.userId !== capture.userId) {
       throw new StaleAccountScopeError();
     }
 
@@ -214,7 +214,7 @@ export class AccountScopeStore implements AccountScopeSource {
     this.realm.write(() => {
       const scope = this.realmScope!;
       scope.scopeId = ANONYMOUS_ACCOUNT_SCOPE_ID;
-      scope.userUuid = undefined;
+      scope.userId = undefined;
       scope.generation = nextGeneration;
       scope.nativeSessionId = undefined;
       if (blockedNativeSessionId !== undefined) {

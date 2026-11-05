@@ -67,7 +67,7 @@ export function ReturnToNowPlayingButton({
         accessibilityHint="Returns to the current track and player controls."
         accessibilityLabel="Return to Now Playing"
         accessibilityRole="button"
-        className="min-h-11 items-center justify-center rounded-full border border-relisten-blue-200/35 bg-relisten-blue-700 px-3.5 py-2"
+        className="min-h-[44px] items-center justify-center rounded-full border border-relisten-blue-200/35 bg-relisten-blue-700 px-3.5 py-2"
         onPress={onPress}
         style={{ borderCurve: 'continuous' }}
       >

@@ -388,12 +388,12 @@ publish_accounts_favorites_ios() {
   # Bound this update to the reviewed native binary delivered to TestFlight.
   node -e '
 const expoVersion = require("./node_modules/expo/package.json").version;
-if (Number(expoVersion.split(".")[0]) !== 57) {
-  throw new Error("The delivered 6050 binary uses Expo SDK 57. Build a new native binary for this SDK.");
+if (Number(expoVersion.split(".")[0]) !== 58) {
+  throw new Error("The delivered 6052 binary uses Expo SDK 58. Build a new native binary for this SDK.");
 }
 const app = require("./app.json").expo;
-if (app.version !== "6.2.0" || String(app.ios.buildNumber) !== "6050") {
-  throw new Error("The accounts/favorites OTA requires the delivered 6.2.0 (6050) binary.");
+if (app.version !== "6.2.0" || String(app.ios.buildNumber) !== "6052") {
+  throw new Error("The accounts/favorites OTA requires the delivered 6.2.0 (6052) binary.");
 }
 '
   ensure_local_env_for_ota
@@ -405,9 +405,9 @@ if (app.version !== "6.2.0" || String(app.ios.buildNumber) !== "6050") {
     unset EXPO_TOKEN
   fi
   export RELEASE_CHANNEL="accounts-favorites-mobile"
-  export RELISTEN_IOS_RUNTIME_VERSION="6.2.0+ios.6050"
+  export RELISTEN_IOS_RUNTIME_VERSION="6.2.0+ios.6052"
   export EXPO_PUBLIC_RELISTEN_CATALOG_ORIGIN="https://api.relisten.net"
-  echo "Publishing iOS only: accounts-favorites-mobile / 6.2.0+ios.6050"
+  echo "Publishing iOS only: accounts-favorites-mobile / 6.2.0+ios.6052"
   run_eoas publish --branch accounts-favorites-mobile --platform ios --nonInteractive --outputDir dist/accounts-favorites-mobile-ios
 }
 

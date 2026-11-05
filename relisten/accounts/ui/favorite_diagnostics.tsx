@@ -2,7 +2,7 @@ import { useAccountScope } from '@/relisten/accounts/account_context';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { SectionHeader } from '@/relisten/components/section_header';
 import {
-  FAVORITE_CATALOG_TYPES,
+  FAVORITE_TARGET_KINDS,
   FavoriteMutation,
   FavoriteMutationState,
   FavoriteSyncState,
@@ -18,6 +18,7 @@ import { Source } from '@/relisten/realm/models/source';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { Tour } from '@/relisten/realm/models/tour';
 import { Venue } from '@/relisten/realm/models/venue';
+import { catalogReferenceForFavoriteTarget } from '@/relisten/library/favorite_catalog_target';
 
 /**
  * Temporary production-visible counters for the first account-sync builds.
@@ -45,9 +46,9 @@ export function FavoriteDiagnostics() {
   );
 
   const activeFavorites = [...favorites].filter((favorite) => favorite.effectivePresent);
-  const favoriteCounts = FAVORITE_CATALOG_TYPES.flatMap((catalogType) => {
-    const count = activeFavorites.filter((favorite) => favorite.catalogType === catalogType).length;
-    return count > 0 ? [`${catalogType.replace('_', ' ')} ${count}`] : [];
+  const favoriteCounts = FAVORITE_TARGET_KINDS.flatMap((targetKind) => {
+    const count = activeFavorites.filter((favorite) => favorite.targetKind === targetKind).length;
+    return count > 0 ? [`${targetKind.replace('_', ' ')} ${count}`] : [];
   });
   const pendingCount = mutations.filtered('state == $0', FavoriteMutationState.Pending).length;
   const inFlightCount = mutations.filtered('state == $0', FavoriteMutationState.InFlight).length;
@@ -58,7 +59,7 @@ export function FavoriteDiagnostics() {
   const projected = libraryIndex.libraryMembershipCounts();
   const syncState = syncStates[0];
   const resolvedFavoriteCount = activeFavorites.filter((favorite) =>
-    favoriteCatalogObjectExists(realm, favorite.catalogType, favorite.catalogUuid)
+    favoriteCatalogObjectExists(realm, favorite.targetKind, favorite.targetId)
   ).length;
 
   return (
@@ -97,24 +98,29 @@ export function FavoriteDiagnostics() {
 
 function favoriteCatalogObjectExists(
   realm: ReturnType<typeof useRealm>,
-  catalogType: (typeof FAVORITE_CATALOG_TYPES)[number],
-  catalogUuid: string
+  targetKind: (typeof FAVORITE_TARGET_KINDS)[number],
+  targetId: string
 ) {
-  switch (catalogType) {
+  const reference = catalogReferenceForFavoriteTarget({ kind: targetKind, id: targetId });
+  if (!reference) {
+    return false;
+  }
+
+  switch (reference.catalog_type) {
     case 'artist':
-      return !!realm.objectForPrimaryKey(Artist, catalogUuid);
+      return !!realm.objectForPrimaryKey(Artist, reference.catalog_uuid);
     case 'show':
-      return !!realm.objectForPrimaryKey(Show, catalogUuid);
+      return !!realm.objectForPrimaryKey(Show, reference.catalog_uuid);
     case 'source':
-      return !!realm.objectForPrimaryKey(Source, catalogUuid);
+      return !!realm.objectForPrimaryKey(Source, reference.catalog_uuid);
     case 'source_track':
-      return !!realm.objectForPrimaryKey(SourceTrack, catalogUuid);
+      return !!realm.objectForPrimaryKey(SourceTrack, reference.catalog_uuid);
     case 'song':
-      return !!realm.objectForPrimaryKey(Song, catalogUuid);
+      return !!realm.objectForPrimaryKey(Song, reference.catalog_uuid);
     case 'tour':
-      return !!realm.objectForPrimaryKey(Tour, catalogUuid);
+      return !!realm.objectForPrimaryKey(Tour, reference.catalog_uuid);
     case 'venue':
-      return !!realm.objectForPrimaryKey(Venue, catalogUuid);
+      return !!realm.objectForPrimaryKey(Venue, reference.catalog_uuid);
   }
 }
 

@@ -31,7 +31,7 @@ export class UsernameService {
 
     const capture = this.scopeStore.capture();
 
-    if (!capture.isAuthenticated || !profile || profile.userUuid !== capture.userUuid) {
+    if (!capture.isAuthenticated || !profile || profile.userId !== capture.userId) {
       throw new StaleAccountScopeError();
     }
 
@@ -51,7 +51,7 @@ export class UsernameService {
     try {
       const updated = await this.accountsApi.updateUsername({
         contract_version: 1,
-        client_command_uuid: command.commandUuid,
+        command_id: command.commandId,
         expected_username_version: command.expectedUsernameVersion,
         username: command.username,
       });
@@ -79,7 +79,7 @@ export class UsernameService {
     capture: ReturnType<AccountScopeStore['capture']>
   ) {
     if (
-      profile.userUuid !== capture.userUuid ||
+      profile.userId !== capture.userId ||
       profile.nativeSessionId !== capture.nativeSessionId ||
       !this.scopeStore.isCurrent(capture)
     ) {

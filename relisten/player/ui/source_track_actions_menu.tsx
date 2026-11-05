@@ -11,6 +11,7 @@ import {
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { useCallback, useMemo } from 'react';
 import { Platform, Share } from 'react-native';
+import { playerTrackAccessibilityLabel } from './player_display_helpers';
 import { useFavorite } from '@/relisten/library/favorite_hooks';
 
 export type PlayShow = (sourceTrack?: SourceTrack) => void;
@@ -73,7 +74,7 @@ type SourceTrackActionsMenuProps = {
 
 export function SourceTrackActionsMenu({ playShow, sourceTrack }: SourceTrackActionsMenuProps) {
   const player = useRelistenPlayer();
-  const favorite = useFavorite('source_track', sourceTrack.uuid);
+  const favorite = useFavorite('track', sourceTrack.uuid);
   const queueTrack = useMemo(() => PlayerQueueTrack.fromSourceTrack(sourceTrack), [sourceTrack]);
   const offlineStatus = sourceTrack.offlineInfo?.status;
   const offlineType = sourceTrack.offlineInfo?.type;
@@ -153,7 +154,9 @@ export function SourceTrackActionsMenu({ playShow, sourceTrack }: SourceTrackAct
         void handleAction(nativeEvent.event as SourceTrackActionId);
       }}
     >
-      <OverflowMenuTrigger accessibilityLabel={`Actions for ${sourceTrack.title}`} />
+      <OverflowMenuTrigger
+        accessibilityLabel={`Actions for ${playerTrackAccessibilityLabel(sourceTrack)}`}
+      />
     </NativeMenuView>
   );
 }

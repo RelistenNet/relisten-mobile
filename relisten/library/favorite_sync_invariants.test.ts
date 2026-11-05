@@ -1,27 +1,22 @@
+/// <reference types="node" />
 import assert from 'node:assert/strict';
-import test from 'node:test';
-import { sendFavoriteMutationBatchWithIsolation } from '../relisten/library/favorite_mutation_batch_isolation.ts';
+import { test } from 'vitest';
+import { sendFavoriteMutationBatchWithIsolation } from './favorite_mutation_batch_isolation';
 import {
   importUuidsSettledByCompaction,
   isTrulyUnsentFavoriteMutation,
-} from '../relisten/library/favorite_mutation_compaction.ts';
-import { earliestFutureRetryAt } from '../relisten/library/favorite_retry_schedule.ts';
+} from './favorite_mutation_compaction';
+import { earliestFutureRetryAt } from './favorite_retry_schedule';
 import {
   favoriteSyncPresentationState,
   resumedFavoriteSyncRunStatus,
-} from '../relisten/library/favorite_sync_presentation.ts';
-import { preferNewerUsernameProfile } from '../relisten/accounts/username_profile_monotonicity.ts';
-import { isPostgresUuid } from '../relisten/util/postgres_uuid.ts';
-import {
-  anonymousFavoriteSourceFingerprint,
-} from '../relisten/library/anonymous_favorite_import_fingerprint.ts';
-import { anonymousFavoriteImportState } from '../relisten/library/anonymous_favorite_import_state.ts';
-import { upsertResolvedCatalogDtos } from '../relisten/library/resolved_catalog_dto_updater.ts';
-import { favoriteSyncErrorIsRetryable } from '../relisten/library/favorite_mutation_batch_isolation.ts';
-import {
-  favoriteSyncStateSnapshot,
-  favoriteSyncStateView,
-} from '../relisten/library/favorite_sync_state_snapshot.ts';
+} from './favorite_sync_presentation';
+import { preferNewerUsernameProfile } from '@/relisten/accounts/username_profile_monotonicity';
+import { isPostgresUuid } from '@/relisten/util/postgres_uuid';
+import { anonymousFavoriteSourceFingerprint } from './anonymous_favorite_import_fingerprint';
+import { anonymousFavoriteImportState } from './anonymous_favorite_import_state';
+import { upsertResolvedCatalogDtos } from './resolved_catalog_dto_updater';
+import { favoriteSyncStateSnapshot, favoriteSyncStateView } from './favorite_sync_state_snapshot';
 
 test('favorite sync snapshots change when a live Realm object is mutated in place', () => {
   const state = {
@@ -64,49 +59,49 @@ function accountError(code: string, problem: Record<string, unknown> | null = nu
   return error;
 }
 
-function mutation(id: string, catalogUuid: string) {
+function mutation(id: string, targetId: string) {
   return {
-    mutation_uuid: id,
-    catalog_type: 'artist' as const,
-    catalog_uuid: catalogUuid,
+    mutation_id: `mutation-${id}`,
+    target: { kind: 'artist' as const, id: targetId },
     desired_state: 'favorite' as const,
-    favorite_uuid: `favorite-${id}`,
+    favorite_id: `favorite-${id}`,
   };
 }
 
-test('an obsolete catalog rejection leaves the mutation pending for a later server retry', async () => {
-  const favorite = mutation('favorite', '22222222-2222-4222-8222-222222222222');
-  let sendCount = 0;
+test('typed conflict IDs reject only the named mutation', async () => {
+  const first = mutation('first', 'artist-first');
+  const second = mutation('second', 'artist-second');
+  const sent: string[][] = [];
   const rejected: string[] = [];
+  const applied: string[] = [];
 
-  await assert.rejects(
-    sendFavoriteMutationBatchWithIsolation({
-      request: { contract_version: 1, mutations: [favorite] },
-      send: async () => {
-        sendCount += 1;
-        throw accountError('catalog_unavailable', {
-          unavailable_references: [],
+  await sendFavoriteMutationBatchWithIsolation({
+    request: { contract_version: 1, mutations: [first, second] },
+    send: async (request) => {
+      sent.push(request.mutations.map((item) => item.mutation_id));
+      if (request.mutations.length === 2) {
+        throw accountError('favorite_id_conflict', {
+          conflicting_favorite_ids: [first.favorite_id],
         });
-      },
-      apply: () => assert.fail('A rejected request cannot be applied.'),
-      reject: (mutationUuids) => rejected.push(...mutationUuids),
-    }),
-    (error) => (error as Error & { code?: string }).code === 'catalog_unavailable'
-  );
+      }
+      return { contract_version: 1, library_revision: 1, results: [] };
+    },
+    apply: (request) => applied.push(...request.mutations.map((item) => item.mutation_id)),
+    reject: (mutationIds) => rejected.push(...mutationIds),
+  });
 
-  assert.equal(sendCount, 1);
-  assert.deepEqual(rejected, []);
-  assert.equal(favoriteSyncErrorIsRetryable('catalog_unavailable', false), true);
+  assert.deepEqual(sent, [[first.mutation_id, second.mutation_id], [second.mutation_id]]);
+  assert.deepEqual(rejected, [first.mutation_id]);
+  assert.deepEqual(applied, [second.mutation_id]);
 });
 
-test('an unfavorite request syncs without catalog metadata or a favorite UUID', async () => {
+test('an unfavorite request syncs without catalog metadata or a favorite ID', async () => {
   const request = {
     contract_version: 1 as const,
     mutations: [
       {
-        mutation_uuid: 'remove',
-        catalog_type: 'show' as const,
-        catalog_uuid: '22222222-2222-4222-8222-222222222222',
+        mutation_id: 'mutation-remove',
+        target: { kind: 'show' as const, id: 'show-target' },
         desired_state: 'not_favorite' as const,
       },
     ],
@@ -281,14 +276,14 @@ test('favorite compaction preserves every operation that may have reached the se
 
 test('anonymous import receipts identify one exact source snapshot', () => {
   const firstSnapshot = [
-    { catalogType: 'artist', catalogUuid: '11111111-1111-4111-8111-111111111111' },
-    { catalogType: 'show', catalogUuid: '22222222-2222-4222-8222-222222222222' },
+    { targetKind: 'artist', targetId: 'artist_first' },
+    { targetKind: 'show', targetId: 'show_second' },
   ];
   const reorderedFingerprint = anonymousFavoriteSourceFingerprint([...firstSnapshot].reverse());
   const firstFingerprint = anonymousFavoriteSourceFingerprint(firstSnapshot);
   const changedFingerprint = anonymousFavoriteSourceFingerprint([
     firstSnapshot[0],
-    { catalogType: 'show', catalogUuid: '33333333-3333-4333-8333-333333333333' },
+    { targetKind: 'show', targetId: 'show_third' },
   ]);
 
   assert.equal(reorderedFingerprint, firstFingerprint);
@@ -319,13 +314,13 @@ test('an idempotent username receipt cannot replace a newer cached profile', () 
 
 function accountProfile(usernameVersion: number, username: string) {
   return {
-    userUuid: '019b6ce0-d644-7000-8000-000000000001',
+    userId: 'user_01kdpw1nj4e008000000000001',
     username,
     usernameVersion,
     usernameReviewNeeded: false,
     usernameReviewedAt: new Date('2026-07-19T12:00:00Z'),
     usernameChangeAvailableAt: null,
-    nativeSessionId: '019b6ce0-d644-7000-8000-000000000002',
+    nativeSessionId: 'session_01kdpw1nj4e008000000000002',
     lastSyncedAt: new Date('2026-07-19T12:00:00Z'),
   };
 }

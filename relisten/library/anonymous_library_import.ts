@@ -114,8 +114,8 @@ export class AnonymousLibraryImportService {
 
       const result = this.favoriteRepository.setFavorites(
         anonymousFavorites.map((favorite) => ({
-          catalogType: favorite.catalogType,
-          catalogUuid: favorite.catalogUuid,
+          kind: favorite.targetKind,
+          id: favorite.targetId,
           isFavorite: true,
         })),
         { capture, importUuid: receipt.importUuid, now }
@@ -124,7 +124,7 @@ export class AnonymousLibraryImportService {
       const remainingImportMutations = realm
         .objects('FavoriteMutation')
         .filtered('importUuid == $0', receipt.importUuid);
-      if (result.mutationUuids.length === 0 && remainingImportMutations.length === 0) {
+      if (result.mutationIds.length === 0 && remainingImportMutations.length === 0) {
         receipt.state = AnonymousFavoriteImportState.Completed;
         receipt.completedAt = now;
         receipt.updatedAt = now;

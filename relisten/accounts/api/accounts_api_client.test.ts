@@ -18,10 +18,10 @@ import {
 import { AccountScopeCapture, StaleAccountScopeError } from '../account_scope_store';
 
 const capture: AccountScopeCapture = Object.freeze({
-  scopeId: 'user:test-user',
-  userUuid: 'test-user',
+  scopeId: 'user_01hx3x56tafay8vvr14d2pf2db',
+  userId: 'user_01hx3x56tafay8vvr14d2pf2db',
   generation: 1,
-  nativeSessionId: 'test-session',
+  nativeSessionId: 'session_01hx3x56tbfay8vvr14d2pf2db',
   isAuthenticated: true,
 });
 
