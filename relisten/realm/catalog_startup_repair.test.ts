@@ -52,7 +52,7 @@ import {
   PopularityWindow,
   PopularityWindows,
 } from '@/relisten/realm/models/popularity';
-import { V4_CATALOG_REALM_MODELS } from '@/relisten/realm/models/v4_catalog';
+import { CATALOG_REALM_MODELS } from '@/relisten/realm/models/catalog';
 
 const TEST_REALM_PATH = '/tmp/relisten-catalog-startup-repair-test.realm';
 const now = new Date('2026-08-20T00:00:00.000Z');
@@ -77,7 +77,7 @@ const config: Realm.Configuration = {
     PopularityWindow,
     PopularityWindows,
     CatalogStartupRepairState,
-    ...V4_CATALOG_REALM_MODELS,
+    ...CATALOG_REALM_MODELS,
   ],
 };
 

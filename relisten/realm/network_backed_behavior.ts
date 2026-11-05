@@ -8,7 +8,7 @@ import {
   RelistenApiResponse,
   RelistenApiResponseType,
 } from '../api/client';
-import { CatalogQueryState } from './models/v4_catalog';
+import { CatalogQueryState } from './models/catalog';
 
 export enum NetworkBackedBehaviorFetchStrategy {
   UNKNOWN,

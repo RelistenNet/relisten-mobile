@@ -12,7 +12,7 @@ import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useArtistSongTracks } from '@/relisten/realm/models/song_tracks_repo';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
-import { NormalizedSong } from '@/relisten/realm/models/v4_catalog';
+import { NormalizedSong } from '@/relisten/realm/models/catalog';
 import { ShowLink } from '@/relisten/util/push_show';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { useEffect } from 'react';

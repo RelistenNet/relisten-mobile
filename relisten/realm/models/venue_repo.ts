@@ -1,8 +1,8 @@
 import { indexRows, uuidRows } from '../catalog_projection';
 import { Artist } from './artist';
 import type { RelistenApiClient } from '@/relisten/api/client';
-import { decodeV4UuidCatalogId, encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
-import type { V4ArtistVenueEntryResource } from '@/relisten/api/v4/wire_types';
+import { decodeUuidCatalogId, encodeUuidCatalogId } from '@/relisten/api/catalog/identity';
+import type { ArtistVenueEntryResource } from '@/relisten/api/catalog/resources';
 import {
   NetworkBackedBehavior,
   NetworkBackedBehaviorOptions,
@@ -12,10 +12,10 @@ import { mergeNetworkBackedResults } from '@/relisten/realm/network_backed_resul
 import { RealmObjectValueStream, ValueStream } from '@/relisten/realm/value_streams';
 import { useMemo } from 'react';
 import Realm from 'realm';
-import { applyV4ArtistVenues } from '../v4_catalog_apply';
+import { applyArtistVenues } from '../catalog_apply';
 import { useQuery, useRealm } from '../schema';
 import { ensureCatalogArtist, useArtist } from './artist_repo';
-import { ArtistVenue, CatalogQueryState } from './v4_catalog';
+import { ArtistVenue, CatalogQueryState } from './catalog';
 import { Venue } from './venue';
 
 export type ArtistVenueBrowseItem =
@@ -23,7 +23,7 @@ export type ArtistVenueBrowseItem =
   | { uuid: string; kind: 'imported_venue'; importedVenue: Venue };
 
 function artistVenuesQueryKey(artistUuid: string) {
-  return `GET /artists/${encodeV4UuidCatalogId(artistUuid, 'artist')}/venues`;
+  return `GET /artists/${encodeUuidCatalogId(artistUuid, 'artist')}/venues`;
 }
 
 function projectArtistVenueBrowseItems(
@@ -57,7 +57,7 @@ function projectArtistVenueBrowseItems(
 
 export class ArtistVenuesNetworkBackedBehavior extends NetworkBackedBehavior<
   CatalogQueryState | null,
-  V4ArtistVenueEntryResource[]
+  ArtistVenueEntryResource[]
 > {
   constructor(
     realm: Realm,
@@ -88,8 +88,8 @@ export class ArtistVenuesNetworkBackedBehavior extends NetworkBackedBehavior<
     return this.realm.objectForPrimaryKey(Artist, this.artistUuid) !== null;
   }
 
-  upsert(_state: CatalogQueryState | null, resources: V4ArtistVenueEntryResource[]) {
-    return applyV4ArtistVenues(this.realm, this.artistUuid, resources);
+  upsert(_state: CatalogQueryState | null, resources: ArtistVenueEntryResource[]) {
+    return applyArtistVenues(this.realm, this.artistUuid, resources);
   }
 }
 
@@ -107,7 +107,7 @@ export function useVenues(artistUuid: string, options?: NetworkBackedBehaviorOpt
       for (let index = 0; index < ids.length; index += 1) {
         const id = ids[index];
         keys.push(
-          id.startsWith('imported_venue_') ? decodeV4UuidCatalogId(id, 'imported_venue') : id
+          id.startsWith('imported_venue_') ? decodeUuidCatalogId(id, 'imported_venue') : id
         );
       }
     }

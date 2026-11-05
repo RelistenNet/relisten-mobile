@@ -1,6 +1,6 @@
 import { AccountSettingsSection } from '@/relisten/accounts/ui/account_settings_section';
 import { useRelistenApi } from '@/relisten/api/context';
-import { decodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
+import { decodeUuidCatalogId } from '@/relisten/api/catalog/identity';
 import { RelistenAbout } from '@/relisten/components/about';
 import Flex from '@/relisten/components/flex';
 import { StorageDeleteMenu } from '@/relisten/components/menus/storage_delete_menu';
@@ -189,7 +189,7 @@ export default function Page() {
     if (randomShow.data) {
       pushShow({
         artist: randomArtist,
-        showUuid: decodeV4UuidCatalogId(randomShow.data.id, 'show'),
+        showUuid: decodeUuidCatalogId(randomShow.data.id, 'show'),
         overrideGroupSegment: '(artists)',
       });
     }

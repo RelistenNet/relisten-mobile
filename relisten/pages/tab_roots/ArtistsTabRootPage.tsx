@@ -1,5 +1,5 @@
 import { useRelistenApi } from '@/relisten/api/context';
-import { decodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
+import { decodeUuidCatalogId } from '@/relisten/api/catalog/identity';
 import { ARTIST_SORT_FILTERS, ArtistSortKey } from '@/relisten/components/artist_filters';
 import { ArtistListItem } from '@/relisten/components/artist_rows';
 import { NonSearchFilterBar } from '@/relisten/components/filtering/filter_bar';
@@ -51,7 +51,7 @@ const FavoritesSectionHeader = ({ favorites }: { favorites: Artist[] }) => {
     if (randomShow.data) {
       pushShow({
         artist: randomFavorite,
-        showUuid: decodeV4UuidCatalogId(randomShow.data.id, 'show'),
+        showUuid: decodeUuidCatalogId(randomShow.data.id, 'show'),
         overrideGroupSegment: '(artists)',
       });
     }

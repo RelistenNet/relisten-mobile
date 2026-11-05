@@ -1,8 +1,8 @@
 import { indexRows, uuidRows } from '../catalog_projection';
 import { Artist } from './artist';
 import type { RelistenApiClient } from '@/relisten/api/client';
-import { decodeV4UuidCatalogId, encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
-import type { V4ArtistSongEntryResource } from '@/relisten/api/v4/wire_types';
+import { decodeUuidCatalogId, encodeUuidCatalogId } from '@/relisten/api/catalog/identity';
+import type { ArtistSongEntryResource } from '@/relisten/api/catalog/resources';
 import {
   NetworkBackedBehavior,
   NetworkBackedBehaviorOptions,
@@ -13,18 +13,18 @@ import { useQuery, useRealm } from '@/relisten/realm/schema';
 import { RealmObjectValueStream, ValueStream } from '@/relisten/realm/value_streams';
 import { useMemo } from 'react';
 import Realm from 'realm';
-import { applyV4ArtistSongs } from '../v4_catalog_apply';
+import { applyArtistSongs } from '../catalog_apply';
 
 import { ensureCatalogArtist, useArtist } from './artist_repo';
 import { Song } from './song';
-import { CatalogQueryState, NormalizedSong } from './v4_catalog';
+import { CatalogQueryState, NormalizedSong } from './catalog';
 
 export type ArtistSongBrowseItem =
   | { uuid: string; routeId: string; kind: 'song'; song: NormalizedSong }
   | { uuid: string; routeId: string; kind: 'imported_song'; song: Song };
 
 function artistSongsQueryKey(artistUuid: string) {
-  return `GET /artists/${encodeV4UuidCatalogId(artistUuid, 'artist')}/songs`;
+  return `GET /artists/${encodeUuidCatalogId(artistUuid, 'artist')}/songs`;
 }
 
 function projectArtistSongBrowseItems(
@@ -58,7 +58,7 @@ function projectArtistSongBrowseItems(
 
 export class ArtistSongsNetworkBackedBehavior extends NetworkBackedBehavior<
   CatalogQueryState | null,
-  V4ArtistSongEntryResource[]
+  ArtistSongEntryResource[]
 > {
   constructor(
     realm: Realm,
@@ -89,8 +89,8 @@ export class ArtistSongsNetworkBackedBehavior extends NetworkBackedBehavior<
     return this.realm.objectForPrimaryKey(Artist, this.artistUuid) !== null;
   }
 
-  upsert(_state: CatalogQueryState | null, resources: V4ArtistSongEntryResource[]) {
-    return applyV4ArtistSongs(this.realm, this.artistUuid, resources);
+  upsert(_state: CatalogQueryState | null, resources: ArtistSongEntryResource[]) {
+    return applyArtistSongs(this.realm, this.artistUuid, resources);
   }
 }
 
@@ -107,9 +107,7 @@ export function useSongs(artistUuid: string, options?: NetworkBackedBehaviorOpti
       const ids = results.data.resultIds;
       for (let index = 0; index < ids.length; index += 1) {
         const id = ids[index];
-        keys.push(
-          id.startsWith('imported_song_') ? decodeV4UuidCatalogId(id, 'imported_song') : id
-        );
+        keys.push(id.startsWith('imported_song_') ? decodeUuidCatalogId(id, 'imported_song') : id);
       }
     }
     return keys;

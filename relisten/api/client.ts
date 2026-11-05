@@ -1,28 +1,28 @@
 import { Platform } from 'react-native';
-import { encodeV4UuidCatalogId } from './v4/catalog_identity';
-import type { V4CatalogReferenceRequest, V4CatalogResolveResponse } from './v4/catalog_resolve';
-import { CatalogV4Transport } from './v4/catalog_transport';
+import { encodeUuidCatalogId } from './catalog/identity';
+import type { CatalogReferenceRequest, CatalogResolveResponse } from './catalog/resolve';
+import { CatalogTransport } from './catalog/transport';
 import type {
-  V4ArtistResource,
-  V4ArtistSongEntryResource,
-  V4ArtistVenueEntryResource,
-  V4ArtistVenueWithShowsResource,
-  V4ImportedSongWithShowsResource,
-  V4ImportedVenueWithShowsResource,
-  V4LiveHistoryResource,
-  V4ShowResource,
-  V4ShowSummaryResource,
-  V4SongWithShowsResource,
-  V4SongWithTracksResource,
-  V4SourceResource,
-  V4SourceReviewResource,
-  V4TourResource,
-  V4TourWithShowsResource,
-  V4TrackResource,
-  V4VenueWithShowsResource,
-  V4YearResource,
-  V4YearWithShowsResource,
-} from './v4/wire_types';
+  ArtistResource,
+  ArtistSongEntryResource,
+  ArtistVenueEntryResource,
+  ArtistVenueWithShowsResource,
+  ImportedSongWithShowsResource,
+  ImportedVenueWithShowsResource,
+  LiveHistoryResource,
+  ShowResource,
+  ShowSummaryResource,
+  SongWithShowsResource,
+  SongWithTracksResource,
+  SourceResource,
+  SourceReviewResource,
+  TourResource,
+  TourWithShowsResource,
+  TrackResource,
+  VenueWithShowsResource,
+  YearResource,
+  YearWithShowsResource,
+} from './catalog/resources';
 
 export enum RelistenApiResponseType {
   Offline,
@@ -64,142 +64,140 @@ export function errorDisplayString(err?: RelistenApiClientError): string {
   return 'Unknown error';
 }
 
-/** HTTP-only v4 client. Repositories own Realm writes, freshness, membership and retry policy. */
+/** HTTP-only catalog client. Repositories own Realm writes, freshness, membership and retry policy. */
 export class RelistenApiClient {
-  private readonly transport: CatalogV4Transport;
+  private readonly transport: CatalogTransport;
 
-  constructor(options: { transport?: CatalogV4Transport } = {}) {
-    this.transport = options.transport ?? new CatalogV4Transport();
+  constructor(options: { transport?: CatalogTransport } = {}) {
+    this.transport = options.transport ?? new CatalogTransport();
   }
 
   /** Complete shared list; repositories filter automatically created visibility locally. */
   artists(options?: RelistenApiRequestOptions) {
-    return this.get<V4ArtistResource[]>('/artists?include_autocreated=true', options);
+    return this.get<ArtistResource[]>('/artists?include_autocreated=true', options);
   }
 
   years(artistUuid: string, options?: RelistenApiRequestOptions) {
-    return this.get<V4YearResource[]>(`${this.artistPath(artistUuid)}/years`, options);
+    return this.get<YearResource[]>(`${this.artistPath(artistUuid)}/years`, options);
   }
 
   year(artistUuid: string, yearUuid: string, options?: RelistenApiRequestOptions) {
-    return this.get<V4YearWithShowsResource>(
-      `${this.artistPath(artistUuid)}/years/${encodeV4UuidCatalogId(yearUuid, 'year')}`,
+    return this.get<YearWithShowsResource>(
+      `${this.artistPath(artistUuid)}/years/${encodeUuidCatalogId(yearUuid, 'year')}`,
       options
     );
   }
 
   showWithSources(showUuid: string, options?: RelistenApiRequestOptions) {
-    return this.get<V4ShowResource>(`/shows/${encodeV4UuidCatalogId(showUuid, 'show')}`, options);
+    return this.get<ShowResource>(`/shows/${encodeUuidCatalogId(showUuid, 'show')}`, options);
   }
 
   source(sourceUuid: string, options?: RelistenApiRequestOptions) {
-    return this.get<V4SourceResource>(
-      `/sources/${encodeV4UuidCatalogId(sourceUuid, 'source')}`,
+    return this.get<SourceResource>(
+      `/sources/${encodeUuidCatalogId(sourceUuid, 'source')}`,
       options
     );
   }
 
   track(trackUuid: string, options?: RelistenApiRequestOptions) {
-    return this.get<V4TrackResource>(
-      `/source-tracks/${encodeV4UuidCatalogId(trackUuid, 'track')}`,
+    return this.get<TrackResource>(
+      `/source-tracks/${encodeUuidCatalogId(trackUuid, 'track')}`,
       options
     );
   }
 
   venues(artistUuid: string, options?: RelistenApiRequestOptions) {
-    return this.get<V4ArtistVenueEntryResource[]>(`${this.artistPath(artistUuid)}/venues`, options);
+    return this.get<ArtistVenueEntryResource[]>(`${this.artistPath(artistUuid)}/venues`, options);
   }
 
   artistVenue(artistUuid: string, venueId: string, options?: RelistenApiRequestOptions) {
-    return this.get<V4ArtistVenueWithShowsResource>(
+    return this.get<ArtistVenueWithShowsResource>(
       `${this.artistPath(artistUuid)}/venues/${venueId}`,
       options
     );
   }
 
   importedVenue(venueUuid: string, options?: RelistenApiRequestOptions) {
-    return this.get<V4ImportedVenueWithShowsResource>(
-      `/imported-venues/${encodeV4UuidCatalogId(venueUuid, 'imported_venue')}`,
+    return this.get<ImportedVenueWithShowsResource>(
+      `/imported-venues/${encodeUuidCatalogId(venueUuid, 'imported_venue')}`,
       options
     );
   }
 
   venue(venueId: string, options?: RelistenApiRequestOptions) {
-    return this.get<V4VenueWithShowsResource>(`/venues/${venueId}`, options);
+    return this.get<VenueWithShowsResource>(`/venues/${venueId}`, options);
   }
 
   songs(artistUuid: string, options?: RelistenApiRequestOptions) {
-    return this.get<V4ArtistSongEntryResource[]>(`${this.artistPath(artistUuid)}/songs`, options);
+    return this.get<ArtistSongEntryResource[]>(`${this.artistPath(artistUuid)}/songs`, options);
   }
 
   song(songId: string, options?: RelistenApiRequestOptions) {
-    return this.get<V4SongWithShowsResource>(`/songs/${songId}`, options);
+    return this.get<SongWithShowsResource>(`/songs/${songId}`, options);
   }
 
   songTracks(songId: string, options?: RelistenApiRequestOptions) {
-    return this.get<V4SongWithTracksResource>(`/songs/${songId}/tracks`, options);
+    return this.get<SongWithTracksResource>(`/songs/${songId}/tracks`, options);
   }
 
   importedSong(songUuid: string, options?: RelistenApiRequestOptions) {
-    return this.get<V4ImportedSongWithShowsResource>(
-      `/imported-songs/${encodeV4UuidCatalogId(songUuid, 'imported_song')}`,
+    return this.get<ImportedSongWithShowsResource>(
+      `/imported-songs/${encodeUuidCatalogId(songUuid, 'imported_song')}`,
       options
     );
   }
 
   tours(artistUuid: string, options?: RelistenApiRequestOptions) {
-    return this.get<V4TourResource[]>(`${this.artistPath(artistUuid)}/tours`, options);
+    return this.get<TourResource[]>(`${this.artistPath(artistUuid)}/tours`, options);
   }
 
   tour(tourUuid: string, options?: RelistenApiRequestOptions) {
-    return this.get<V4TourWithShowsResource>(
-      `/tours/${encodeV4UuidCatalogId(tourUuid, 'tour')}`,
+    return this.get<TourWithShowsResource>(
+      `/tours/${encodeUuidCatalogId(tourUuid, 'tour')}`,
       options
     );
   }
 
   sourceReviews(sourceUuid: string) {
-    return this.get<V4SourceReviewResource[]>(
-      `/sources/${encodeV4UuidCatalogId(sourceUuid, 'source')}/reviews`
+    return this.get<SourceReviewResource[]>(
+      `/sources/${encodeUuidCatalogId(sourceUuid, 'source')}/reviews`
     );
   }
 
   showWithSourcesOnDate(artistUuid: string, date: string) {
-    return this.get<V4ShowResource>(
+    return this.get<ShowResource>(
       `${this.artistPath(artistUuid)}/shows/by-date/${encodeURIComponent(date)}`
     );
   }
 
   randomShow(artistUuid: string) {
-    return this.request<V4ShowResource>(`${this.artistPath(artistUuid)}/shows/random`);
+    return this.request<ShowResource>(`${this.artistPath(artistUuid)}/shows/random`);
   }
 
   topShow(artistUuid: string) {
-    return this.get<V4ShowSummaryResource[]>(`${this.artistPath(artistUuid)}/shows/top`);
+    return this.get<ShowSummaryResource[]>(`${this.artistPath(artistUuid)}/shows/top`);
   }
 
   recentPerformedShows(artistUuid: string) {
-    return this.get<V4ShowSummaryResource[]>(
+    return this.get<ShowSummaryResource[]>(
       `${this.artistPath(artistUuid)}/shows/recently-performed`
     );
   }
 
   recentUpdatedShows(artistUuid: string) {
-    return this.get<V4ShowSummaryResource[]>(
-      `${this.artistPath(artistUuid)}/shows/recently-updated`
-    );
+    return this.get<ShowSummaryResource[]>(`${this.artistPath(artistUuid)}/shows/recently-updated`);
   }
 
   showsByMomentum(artistUuids: string[]) {
     const params = new URLSearchParams();
     for (const uuid of artistUuids) {
-      params.append('artist_ids', encodeV4UuidCatalogId(uuid, 'artist'));
+      params.append('artist_ids', encodeUuidCatalogId(uuid, 'artist'));
     }
-    return this.get<V4ShowSummaryResource[]>(`/shows/momentum?${params}`);
+    return this.get<ShowSummaryResource[]>(`/shows/momentum?${params}`);
   }
 
   todayShows(date = new Date()) {
-    return this.get<V4ShowSummaryResource[]>(
+    return this.get<ShowSummaryResource[]>(
       `/shows/on-date?month=${date.getMonth() + 1}&day=${date.getDate()}`
     );
   }
@@ -211,7 +209,7 @@ export class RelistenApiClient {
       track_id: string;
       app_type: string;
     }>('/live/play', {
-      track_id: encodeV4UuidCatalogId(trackUuid, 'track'),
+      track_id: encodeUuidCatalogId(trackUuid, 'track'),
       app_type: Platform.OS,
     });
   }
@@ -221,15 +219,15 @@ export class RelistenApiClient {
     if (afterSequence !== undefined) {
       params.set('after_sequence', String(afterSequence));
     }
-    return this.request<V4LiveHistoryResource[]>(`/live/history?${params}`);
+    return this.request<LiveHistoryResource[]>(`/live/history?${params}`);
   }
 
-  resolveCatalogReferences(references: V4CatalogReferenceRequest[]) {
-    return this.request<V4CatalogResolveResponse>('/catalog/resolve', { references });
+  resolveCatalogReferences(references: CatalogReferenceRequest[]) {
+    return this.request<CatalogResolveResponse>('/catalog/resolve', { references });
   }
 
   private artistPath(uuid: string) {
-    return `/artists/${encodeV4UuidCatalogId(uuid, 'artist')}`;
+    return `/artists/${encodeUuidCatalogId(uuid, 'artist')}`;
   }
 
   private async get<T>(

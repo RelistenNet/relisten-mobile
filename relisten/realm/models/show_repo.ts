@@ -1,5 +1,5 @@
-import { decodeV4UuidCatalogId, encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
-import type { V4ShowResource } from '@/relisten/api/v4/wire_types';
+import { decodeUuidCatalogId, encodeUuidCatalogId } from '@/relisten/api/catalog/identity';
+import type { ShowResource } from '@/relisten/api/catalog/resources';
 import { LibraryIndex } from '@/relisten/realm/library_index';
 import { NetworkBackedBehavior } from '@/relisten/realm/network_backed_behavior';
 import { useLibraryMembershipRevision, useRootLibraryIndex } from '@/relisten/realm/root_services';
@@ -18,7 +18,7 @@ import { RelistenApiClient, RelistenApiResponse, RelistenApiResponseType } from 
 import { NetworkBackedBehaviorOptions } from '../network_backed_behavior';
 import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
 import { NetworkBackedResults } from '../network_backed_results';
-import { applyV4FullShow } from '../v4_catalog_apply';
+import { applyFullShow } from '../catalog_apply';
 import { Artist } from './artist';
 import { ensureCatalogArtist } from './artist_repo';
 import { Show } from './show';
@@ -63,7 +63,7 @@ export const sortSources = (
 
 export class ShowWithFullSourcesNetworkBackedBehavior extends NetworkBackedBehavior<
   ShowWithSources,
-  V4ShowResource
+  ShowResource
 > {
   constructor(
     realm: Realm.Realm,
@@ -76,14 +76,14 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends NetworkBackedBehav
   }
 
   get queryKey() {
-    return this.showUuid ? `GET /shows/${encodeV4UuidCatalogId(this.showUuid, 'show')}` : undefined;
+    return this.showUuid ? `GET /shows/${encodeUuidCatalogId(this.showUuid, 'show')}` : undefined;
   }
 
   async fetchFromApi(
     api: RelistenApiClient,
     _force: boolean,
     etag?: string
-  ): Promise<RelistenApiResponse<V4ShowResource>> {
+  ): Promise<RelistenApiResponse<ShowResource>> {
     if (!this.showUuid) {
       return { type: RelistenApiResponseType.Offline };
     }
@@ -92,7 +92,7 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends NetworkBackedBehav
       await ensureCatalogArtist(
         this.realm,
         api,
-        decodeV4UuidCatalogId(response.data.artist_id, 'artist')
+        decodeUuidCatalogId(response.data.artist_id, 'artist')
       );
     }
     return response;
@@ -135,11 +135,11 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends NetworkBackedBehav
     return localData.show != null;
   }
 
-  override upsert(_data: ShowWithSources, resource: V4ShowResource) {
-    if (decodeV4UuidCatalogId(resource.id, 'show') !== this.showUuid) {
+  override upsert(_data: ShowWithSources, resource: ShowResource) {
+    if (decodeUuidCatalogId(resource.id, 'show') !== this.showUuid) {
       throw new Error('Unexpected show identity.');
     }
-    return applyV4FullShow(this.realm, resource);
+    return applyFullShow(this.realm, resource);
   }
 }
 
@@ -193,7 +193,7 @@ export function useFullShowWithSelectedSource(showUuid: string, selectedSourceUu
 }
 
 /** Imperative callers (random/deep links/CarPlay) use the same repository mapping. */
-export function upsertShowWithSources(realm: Realm, resource: V4ShowResource): Show {
-  realm.write(() => applyV4FullShow(realm, resource));
-  return realm.objectForPrimaryKey(Show, decodeV4UuidCatalogId(resource.id, 'show'))!;
+export function upsertShowWithSources(realm: Realm, resource: ShowResource): Show {
+  realm.write(() => applyFullShow(realm, resource));
+  return realm.objectForPrimaryKey(Show, decodeUuidCatalogId(resource.id, 'show'))!;
 }

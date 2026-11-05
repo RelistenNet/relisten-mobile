@@ -1,6 +1,6 @@
 import { useRelistenApi } from '@/relisten/api/context';
-import { decodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
-import type { V4LiveHistoryResource } from '@/relisten/api/v4/wire_types';
+import { decodeUuidCatalogId } from '@/relisten/api/catalog/identity';
+import type { LiveHistoryResource } from '@/relisten/api/catalog/resources';
 import Flex from '@/relisten/components/flex';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
@@ -19,13 +19,13 @@ import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_
 
 interface HistoryState {
   isLoading: boolean;
-  data: V4LiveHistoryResource[];
+  data: LiveHistoryResource[];
   error?: string;
 }
 
-function mergeHistory(incoming: V4LiveHistoryResource[], previous: V4LiveHistoryResource[]) {
+function mergeHistory(incoming: LiveHistoryResource[], previous: LiveHistoryResource[]) {
   const seen = new Set<number>();
-  const merged: V4LiveHistoryResource[] = [];
+  const merged: LiveHistoryResource[] = [];
   for (const event of [...incoming].reverse().concat(previous)) {
     if (!seen.has(event.sequence)) {
       seen.add(event.sequence);
@@ -120,7 +120,7 @@ export default function Page() {
             exiting={() => FadeOutDown.springify()}
           >
             {state.data.map((item) => {
-              const artist = artistByUuid[decodeV4UuidCatalogId(item.show.artist_id, 'artist')];
+              const artist = artistByUuid[decodeUuidCatalogId(item.show.artist_id, 'artist')];
 
               if (!artist) {
                 return null;
@@ -130,8 +130,8 @@ export default function Page() {
                 <ShowLink
                   show={{
                     artist,
-                    showUuid: decodeV4UuidCatalogId(item.show.id, 'show'),
-                    sourceUuid: decodeV4UuidCatalogId(item.track.source_id, 'source'),
+                    showUuid: decodeUuidCatalogId(item.show.id, 'show'),
+                    sourceUuid: decodeUuidCatalogId(item.track.source_id, 'source'),
                     overrideGroupSegment: '(artists)',
                   }}
                   key={item.sequence}

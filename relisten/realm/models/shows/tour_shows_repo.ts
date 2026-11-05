@@ -1,14 +1,14 @@
 import { Artist } from '../artist';
 import type { RelistenApiClient } from '@/relisten/api/client';
-import { decodeV4UuidCatalogId, encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
-import type { V4TourWithShowsResource } from '@/relisten/api/v4/wire_types';
+import { decodeUuidCatalogId, encodeUuidCatalogId } from '@/relisten/api/catalog/identity';
+import type { TourWithShowsResource } from '@/relisten/api/catalog/resources';
 import { useMemo } from 'react';
 import Realm from 'realm';
 import { NetworkBackedBehavior, NetworkBackedBehaviorOptions } from '../../network_backed_behavior';
 import { useNetworkBackedBehavior } from '../../network_backed_behavior_hooks';
 import { mergeNetworkBackedResults, NetworkBackedResults } from '../../network_backed_results';
 import { useRealm } from '../../schema';
-import { applyV4Tour } from '../../v4_catalog_apply';
+import { applyTourDetail } from '../../catalog_apply';
 import {
   CombinedValueStream,
   RealmObjectValueStream,
@@ -17,7 +17,7 @@ import {
 import { ensureCatalogArtist, useArtist } from '../artist_repo';
 import { Show } from '../show';
 import { Tour } from '../tour';
-import { CatalogQueryState } from '../v4_catalog';
+import { CatalogQueryState } from '../catalog';
 
 export interface TourShows {
   tour: Tour | null;
@@ -27,7 +27,7 @@ export interface TourShows {
 
 export class TourShowsNetworkBackedBehavior extends NetworkBackedBehavior<
   TourShows,
-  V4TourWithShowsResource
+  TourWithShowsResource
 > {
   constructor(
     realm: Realm,
@@ -39,7 +39,7 @@ export class TourShowsNetworkBackedBehavior extends NetworkBackedBehavior<
   }
 
   get queryKey() {
-    return `GET /tours/${encodeV4UuidCatalogId(this.tourUuid, 'tour')}`;
+    return `GET /tours/${encodeUuidCatalogId(this.tourUuid, 'tour')}`;
   }
 
   async fetchFromApi(api: RelistenApiClient, _force: boolean, etag?: string) {
@@ -59,7 +59,7 @@ export class TourShowsNetworkBackedBehavior extends NetworkBackedBehavior<
     return new CombinedValueStream(detail, rows, ({ query, tour }) => {
       const ids = query?.hasAppliedData ? [...query.resultIds].slice(1) : [];
       const shows = ids.flatMap((id) => {
-        const show = this.realm.objectForPrimaryKey(Show, decodeV4UuidCatalogId(id, 'show'));
+        const show = this.realm.objectForPrimaryKey(Show, decodeUuidCatalogId(id, 'show'));
         return show && show.deletedAt == null ? [show] : [];
       });
 
@@ -82,11 +82,11 @@ export class TourShowsNetworkBackedBehavior extends NetworkBackedBehavior<
     );
   }
 
-  upsert(_data: TourShows, resource: V4TourWithShowsResource) {
-    if (resource.id !== encodeV4UuidCatalogId(this.tourUuid, 'tour')) {
+  upsert(_data: TourShows, resource: TourWithShowsResource) {
+    if (resource.id !== encodeUuidCatalogId(this.tourUuid, 'tour')) {
       throw new Error('Unexpected tour identity.');
     }
-    return applyV4Tour(this.realm, this.artistUuid, resource);
+    return applyTourDetail(this.realm, this.artistUuid, resource);
   }
 }
 

@@ -1,11 +1,11 @@
 import { RelistenApiClient, RelistenApiResponse } from '@/relisten/api/client';
-import { V4ShowSummaryResource as ApiShow } from '@/relisten/api/v4/wire_types';
+import { ShowSummaryResource as ApiShow } from '@/relisten/api/catalog/resources';
 import { Show } from '@/relisten/realm/models/show';
 import {
   NetworkBackedBehavior,
   NetworkBackedBehaviorOptions,
 } from '@/relisten/realm/network_backed_behavior';
-import { applyV4ShowSummaries } from '@/relisten/realm/v4_catalog_apply';
+import { applyShowSummaries } from '@/relisten/realm/catalog_apply';
 import Realm from 'realm';
 import { ensureCatalogArtist } from '../artist_repo';
 
@@ -37,7 +37,7 @@ export abstract class ShowsWithVenueNetworkBackedBehavior extends NetworkBackedB
 
   override upsert(localData: Realm.Results<Show>, apiData: ApiShow[]): void {
     this.realm.write(() => {
-      applyV4ShowSummaries(this.realm, apiData);
+      applyShowSummaries(this.realm, apiData);
     });
   }
 }

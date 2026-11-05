@@ -1,22 +1,22 @@
 import { Artist } from './artist';
 import type { RelistenApiClient } from '@/relisten/api/client';
-import { encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
-import type { V4TourResource } from '@/relisten/api/v4/wire_types';
+import { encodeUuidCatalogId } from '@/relisten/api/catalog/identity';
+import type { TourResource } from '@/relisten/api/catalog/resources';
 import { useMemo } from 'react';
 import Realm from 'realm';
 import { NetworkBackedBehavior, NetworkBackedBehaviorOptions } from '../network_backed_behavior';
 import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
 import { mergeNetworkBackedResults } from '../network_backed_results';
 import { useRealm } from '../schema';
-import { applyV4ArtistTours } from '../v4_catalog_apply';
+import { applyArtistTours } from '../catalog_apply';
 import { RealmQueryValueStream } from '../value_streams';
 import { ensureCatalogArtist, useArtist } from './artist_repo';
 import { Tour } from './tour';
-import { CatalogQueryState } from './v4_catalog';
+import { CatalogQueryState } from './catalog';
 
 export class ToursNetworkBackedBehavior extends NetworkBackedBehavior<
   Realm.Results<Tour>,
-  V4TourResource[]
+  TourResource[]
 > {
   constructor(
     realm: Realm,
@@ -27,7 +27,7 @@ export class ToursNetworkBackedBehavior extends NetworkBackedBehavior<
   }
 
   get queryKey() {
-    return `GET /artists/${encodeV4UuidCatalogId(this.artistUuid, 'artist')}/tours`;
+    return `GET /artists/${encodeUuidCatalogId(this.artistUuid, 'artist')}/tours`;
   }
 
   createLocalUpdatingResults() {
@@ -53,8 +53,8 @@ export class ToursNetworkBackedBehavior extends NetworkBackedBehavior<
     return this.realm.objectForPrimaryKey(Artist, this.artistUuid) !== null;
   }
 
-  upsert(_data: Realm.Results<Tour>, resources: V4TourResource[]) {
-    return applyV4ArtistTours(this.realm, this.artistUuid, resources);
+  upsert(_data: Realm.Results<Tour>, resources: TourResource[]) {
+    return applyArtistTours(this.realm, this.artistUuid, resources);
   }
 }
 

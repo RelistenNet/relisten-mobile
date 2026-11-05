@@ -1,46 +1,46 @@
 import { formatUuidTypedId, parseUuidTypedId } from '@/relisten/util/typed_uuid_id';
 import type {
-  V4ShortCatalogId,
-  V4ShortCatalogPrefix,
-  V4UuidCatalogId,
-  V4UuidCatalogPrefix,
-} from './wire_types';
+  ShortCatalogId,
+  ShortCatalogPrefix,
+  UuidCatalogId,
+  UuidCatalogPrefix,
+} from './resources';
 
 const SHORT_ID_ALPHABET = '0123456789abcdefghjkmnpqrstvwxyz';
 
-export class InvalidV4CatalogIdError extends Error {
+export class InvalidCatalogIdError extends Error {
   constructor(value: unknown, expectedPrefix: string) {
     super(`Expected a valid ${expectedPrefix}_ catalog ID, received ${String(value)}.`);
-    this.name = 'InvalidV4CatalogIdError';
+    this.name = 'InvalidCatalogIdError';
   }
 }
 
-/** Converts a UUID-backed v4 ID to the existing raw UUID Realm key. */
-export function decodeV4UuidCatalogId<TPrefix extends V4UuidCatalogPrefix>(
+/** Converts a UUID-backed catalog ID to the existing raw UUID Realm key. */
+export function decodeUuidCatalogId<TPrefix extends UuidCatalogPrefix>(
   value: unknown,
   expectedPrefix: TPrefix
 ): string {
   const uuid = parseUuidTypedId(value, expectedPrefix);
   if (!uuid) {
-    throw new InvalidV4CatalogIdError(value, expectedPrefix);
+    throw new InvalidCatalogIdError(value, expectedPrefix);
   }
 
   return uuid;
 }
 
-/** Converts an existing raw UUID Realm key to the corresponding v4 wire ID. */
-export function encodeV4UuidCatalogId<TPrefix extends V4UuidCatalogPrefix>(
+/** Converts an existing raw UUID Realm key to the corresponding catalog wire ID. */
+export function encodeUuidCatalogId<TPrefix extends UuidCatalogPrefix>(
   uuid: string,
   prefix: TPrefix
-): V4UuidCatalogId<TPrefix> {
-  return formatUuidTypedId(prefix, uuid) as V4UuidCatalogId<TPrefix>;
+): UuidCatalogId<TPrefix> {
+  return formatUuidTypedId(prefix, uuid) as UuidCatalogId<TPrefix>;
 }
 
 /** Validates a short normalization ID without converting it to another identity. */
-export function retainV4ShortCatalogId<TPrefix extends V4ShortCatalogPrefix>(
+export function retainShortCatalogId<TPrefix extends ShortCatalogPrefix>(
   value: unknown,
   expectedPrefix: TPrefix
-): V4ShortCatalogId<TPrefix> {
+): ShortCatalogId<TPrefix> {
   const marker = `${expectedPrefix}_`;
   if (
     typeof value !== 'string' ||
@@ -48,8 +48,8 @@ export function retainV4ShortCatalogId<TPrefix extends V4ShortCatalogPrefix>(
     !value.startsWith(marker) ||
     [...value.slice(marker.length)].some((character) => !SHORT_ID_ALPHABET.includes(character))
   ) {
-    throw new InvalidV4CatalogIdError(value, expectedPrefix);
+    throw new InvalidCatalogIdError(value, expectedPrefix);
   }
 
-  return value as V4ShortCatalogId<TPrefix>;
+  return value as ShortCatalogId<TPrefix>;
 }

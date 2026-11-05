@@ -1,5 +1,5 @@
 import { useRelistenApi } from '@/relisten/api/context';
-import { decodeV4UuidCatalogId, encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
+import { decodeUuidCatalogId, encodeUuidCatalogId } from '@/relisten/api/catalog/identity';
 import { WebRewriteLoader } from '@/relisten/components/web_rewrite_loader';
 import { useArtists } from '@/relisten/realm/models/artist_repo';
 import { AutoplayDeepLinkToTrackSetting } from '@/relisten/realm/models/user_settings';
@@ -56,14 +56,14 @@ export default function Page() {
             kind: 'source',
             scheme: 'legacy_integer',
             id: requestedSourceId,
-            artist_id: encodeV4UuidCatalogId(artist.uuid, 'artist'),
+            artist_id: encodeUuidCatalogId(artist.uuid, 'artist'),
           },
         ]);
         requestedSourceId = resolved.data?.references[0]?.target?.id;
       }
 
       for (const source of showData.sources) {
-        const uuid = decodeV4UuidCatalogId(source.id, 'source');
+        const uuid = decodeUuidCatalogId(source.id, 'source');
         if (source.id !== requestedSourceId && uuid !== requestedSourceId) {
           continue;
         }
@@ -73,7 +73,7 @@ export default function Page() {
         for (const set of source.sets) {
           for (const track of set.tracks) {
             if (track.slug === trackSlug) {
-              trackUuid = decodeV4UuidCatalogId(track.id, 'track');
+              trackUuid = decodeUuidCatalogId(track.id, 'track');
             }
           }
         }
@@ -95,8 +95,8 @@ export default function Page() {
 
       setTimeout(() => {
         const params: PushShowOptions = {
-          artist: artistByUuid[decodeV4UuidCatalogId(showData.artist_id, 'artist')],
-          showUuid: decodeV4UuidCatalogId(showData.id, 'show'),
+          artist: artistByUuid[decodeUuidCatalogId(showData.artist_id, 'artist')],
+          showUuid: decodeUuidCatalogId(showData.id, 'show'),
           sourceUuid: sourceUuid,
           overrideGroupSegment: '(artists)',
         };
