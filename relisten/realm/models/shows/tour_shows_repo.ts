@@ -1,3 +1,4 @@
+import { Artist } from '../artist';
 import type { RelistenApiClient } from '@/relisten/api/client';
 import { decodeV4UuidCatalogId, encodeV4UuidCatalogId } from '@/relisten/api/v4/catalog_identity';
 import type { V4TourWithShowsResource } from '@/relisten/api/v4/wire_types';
@@ -48,17 +49,18 @@ export class TourShowsNetworkBackedBehavior extends NetworkBackedBehavior<
 
   createLocalUpdatingResults() {
     const state = new RealmObjectValueStream(this.realm, CatalogQueryState, this.queryKey);
+    const tour = new RealmObjectValueStream(this.realm, Tour, this.tourUuid);
+    const detail = new CombinedValueStream(state, tour, (query, tour) => ({ query, tour }));
     const rows = new RealmQueryValueStream(
       this.realm,
-      this.realm.objects(Show).filtered('tourUuid == $0 && deletedAt == nil', this.tourUuid)
+      this.realm.objects(Show).filtered('artistUuid == $0 && deletedAt == nil', this.artistUuid)
     );
 
-    return new CombinedValueStream(state, rows, (query) => {
-      const tour = this.realm.objectForPrimaryKey(Tour, this.tourUuid);
+    return new CombinedValueStream(detail, rows, ({ query, tour }) => {
       const ids = query?.hasAppliedData ? [...query.resultIds].slice(1) : [];
       const shows = ids.flatMap((id) => {
         const show = this.realm.objectForPrimaryKey(Show, decodeV4UuidCatalogId(id, 'show'));
-        return show && show.deletedAt == null && show.tourUuid === this.tourUuid ? [show] : [];
+        return show && show.deletedAt == null ? [show] : [];
       });
 
       return {
@@ -73,12 +75,10 @@ export class TourShowsNetworkBackedBehavior extends NetworkBackedBehavior<
     return data.tour !== null && data.hasAppliedData;
   }
 
-  hasLocalData(data: TourShows, resultIds: Iterable<string>) {
-    const [rootId] = resultIds;
+  hasLocalData() {
     return (
-      rootId === encodeV4UuidCatalogId(this.tourUuid, 'tour') &&
-      data.tour?.artistUuid === this.artistUuid &&
-      data.hasAppliedData
+      this.realm.objectForPrimaryKey(Tour, this.tourUuid) !== null &&
+      this.realm.objectForPrimaryKey(Artist, this.artistUuid) !== null
     );
   }
 

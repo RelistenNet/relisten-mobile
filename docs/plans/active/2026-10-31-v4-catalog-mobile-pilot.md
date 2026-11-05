@@ -17,10 +17,15 @@ stores each canonical song's ordered show/file IDs once. `NormalizedSong` stores
 metadata only. Keep the schema 17 upgrade test; reinstall intermediate pilot
 simulator databases instead of adding migrations for schemas 18–20.
 
-Keep conditional GETs and the existing 15-minute freshness interval. A failed
-apply preserves old records and validator; reconnect retries it. An overlapping
-metadata correction invalidates the affected validator while retaining offline
-membership. No request body or duplicate membership list is cached in memory.
+Keep conditional GETs and the existing 15-minute freshness interval. Manual
+refresh fetches a body without an ETag. A failed apply preserves old records and
+validator; reconnect retries it. Different endpoint responses update shared
+metadata in arrival order without invalidating each other's query state. A 304
+does not restore metadata overwritten by another endpoint; manual refresh does.
+Cheap root/local-data checks replace exhaustive recording-graph audits. Complete
+empty results remain cached. No response body or duplicate membership list is
+retained. This approved contract supersedes the earlier automatic-repair policy
+described in historical checkpoints below.
 
 ## Purpose / Big Picture
 
@@ -97,17 +102,16 @@ keep using the server's existing v2/v3 APIs.
 - Removing one large request does not order writes from different query keys. A
   reproduced older selected-year response overwrote a newer full-show rating;
   the still-valid show ETag then returned 304 and made the stale value durable.
-  The client now drops only the affected show-detail validator, so the next show
-  read repairs that shared row. Other cross-query ownership questions remain
-  outside this narrow fix.
+  Alec accepted arrival-order metadata and unconditional manual refresh instead
+  of automatic cross-endpoint repair. Same-query stale-completion guards remain.
 - RocketSim network conditioning was unavailable during the first review. The
   offline restart instead used Always Offline Mode and an unreachable loopback
   catalog origin. That proved catalog independence and local-file playback,
   not system-wide radio loss.
 - A shared normalized venue or song can arrive through browse and detail routes.
-  Invalidating detail on every compact upsert created a download loop. The
-  writer now invalidates only when a compact field it owns changes; unchanged
-  second opens make no song or recording request.
+  Invalidating detail on compact upsert created extra downloads and required
+  field comparisons. The simpler contract removes those comparisons and
+  invalidation; reopening a fresh query makes no request.
 - An active canonical song favorite may hydrate into an empty Realm that does
   not yet contain its artist. Favorite hydration now performs the existing
   artist bootstrap once, rechecks the captured account, and then applies the
@@ -118,8 +122,9 @@ keep using the server's existing v2/v3 APIs.
   alias `venue_e9z3ebnb`. UUID-backed imported and playback routes still require
   exact identity.
 - An applied query flag alone is not proof that its cached projection is intact.
-  Empty cached lists remain usable offline, but refresh errors are suppressed
-  only when the root and every exact query member still project successfully.
+  The approved cache contract checks required local roots without auditing every
+  recording descendant. Existing screen projections still report missing rows;
+  manual refresh is the repair path.
 - TypeScript and ESLint did not catch two React Compiler constraints: a
   conditional default hook argument and memo dependencies the compiler could
   not preserve. The native Metro pass did; both hooks now derive defaults in
@@ -127,6 +132,13 @@ keep using the server's existing v2/v3 APIs.
 
 ## Decision Log
 
+- Decision: use per-query ETags and 15-minute freshness with cheap local-data
+  checks. Accept shared metadata in response arrival order. Remove cross-query
+  invalidation, field comparisons used only for invalidation, and deep graph
+  audits. Explicit manual refresh omits the validator and applies a body. Keep
+  atomic writes, query membership, retries, input ownership checks and same-query
+  request fencing. This supersedes earlier cache-repair decisions below.
+  Date/Author: 2026-11-04, Alec.
 - Decision: keep v3 as the default and select v4 only with
   `EXPO_PUBLIC_RELISTEN_CATALOG_TRANSPORT=v4`. The pilot must not activate
   release traffic by merging its storage support. Date/Author: 2026-10-31,
@@ -154,11 +166,9 @@ keep using the server's existing v2/v3 APIs.
 - Decision: keep normalization state and parts out of the source-track row. The
   imported title is the listener-facing label. Realm may retain normalization
   for catalog behavior and future screens with a defined listener need.
-- Decision: retain per-query same-request fencing. Do not describe the removal
-  of the combined endpoint as a general fix for cross-query shared-entity races.
-  When a selected-year response rewrites a returned show summary, invalidate
-  only that show's detail validator in the same transaction. Do not add a
-  dependency graph, global revision, or broad invalidation framework.
+- Decision: retain per-query same-request fencing. Independent endpoint responses
+  can overwrite shared metadata; they do not invalidate each other's validators.
+  Do not add a dependency graph, global revision or invalidation framework.
 - Decision: venue and song browse screens consume the server's mixed canonical
   and imported entries in returned order. The client does not choose entry type
   from normalization state or artist feature flags. Detail and matched-track
@@ -315,8 +325,8 @@ The authoritative API loading rules are in the sibling checkout:
    require copying the response.
 5. Point the existing repositories and remaining catalog callers at v4. Delete
    the mobile v3 branch and transport switch after the one-way cutover.
-6. Prove route identity, endpoint-local replacement, atomic ETag apply, damaged
-   cache recovery, imported identity preservation, and the absence of a
+6. Prove route identity, endpoint-local replacement, atomic ETag apply, explicit
+   manual refresh, imported identity preservation, and the absence of a
    `/catalog` request. Then repeat the real iPhone 17 browsing and playback
    journey.
 7. Project venue and song browse entries from exact ordered query membership,
@@ -369,16 +379,17 @@ Automated evidence must show:
 - route artist/year mismatches commit neither payload nor ETag;
 - selected-year summary refresh preserves source/set/track graphs, download
   state, and shows belonging to another year;
-- an older selected-year response cannot leave a newer full-show correction
-  hidden behind a stale detail validator;
+- an older selected-year response may overwrite shared show metadata without
+  clearing the detail validator; ordinary 304 retains that value, and manual
+  refresh fetches a body and restores the owning endpoint's fields;
 - payload, endpoint membership, and ETag commit or roll back together;
-- a 304 is accepted only with matching applied state and usable local data;
-- manual refresh bypasses freshness, reconnect retries failure, and an older
+- a 304 is accepted only with matching applied state and required local data;
+- manual refresh bypasses freshness and ETags, reconnect retries failure, and an older
   same-query completion cannot overwrite a forced refresh;
 - shallow normalized references retain richer aliases and counts;
 - migration preserves raw imported keys, download state/path, queue/checkpoint,
   history links, and typed account/library identities;
-- pre-cutover configuration still uses the legacy client;
+- catalog calls use the typed v4 client with no legacy transport switch;
 - transport parsing no longer makes a second UTF-8 copy solely to count bytes.
 - venue and song browse preserve the server's ordered canonical/imported
   membership and do not refetch unchanged detail;
@@ -505,11 +516,9 @@ returns typed resources; existing repositories apply the nullable fields. Popula
 and Trending sorts need no extra ranking request or persistent list.
 
 Score changes apply even when imported `updated_at` stays unchanged. Null clears
-an old score. When an overlapping response overwrites a shared artist/year score,
-invalidate only affected cached validators and freshness; retain their ordered
-membership and applied-data marker. Numeric comparisons avoid response copies
-and prevent identical scores from causing a refresh loop. The year lookup uses
-the existing indexed show relationship; no dependency table or schema was added.
+an old score. The approved simpler contract accepts an overlapping response's
+score without invalidating other query state. Explicit manual refresh fetches
+the owning endpoint's body. No dependency table or schema was added.
 
 All 319 mobile tests, TypeScript and lint passed. Focused payload-through-client,
 repository and Realm cases cover score storage, null clearing, both directions
@@ -548,11 +557,10 @@ unchanged-timestamp corrections, tombstone restoration, downloads and retained
 rows, shallow favorite hydration, scoped membership, and atomic failure/retry.
 All 41 focused tests, TypeScript and lint passed for the deletion.
 
-Cross-endpoint invalidation and complete-graph checks remain a separate policy
-question. Removing invalidation can let an older response overwrite shared fields
-while an owning response continues to return 304; waiting 15 minutes alone does
-not repair those fields. Removing graph checks also gives up automatic recovery
-when playable rows are missing. Neither change is part of this deletion.
+That deletion retained the earlier automatic-repair policy. Alec subsequently
+approved the simpler contract in the current overview: shared metadata follows
+arrival order, cheap checks replace graph audits, and manual refresh fetches a
+body. Ordinary 304 responses can leave an overwritten field in place.
 
 ### Assign complete recording lists once
 
@@ -587,3 +595,43 @@ check full-show and resolver entry points instead of the deleted health exports.
 A temporary mutant that omitted standalone child attachment failed the cold
 favorite regression. Fresh Sol xhigh review and independent validation found no
 remaining issues in the actual combined diff.
+
+### Approved simpler cache contract
+
+The apply module now contains mapping, write-time ownership checks and list
+replacement. Cross-endpoint comparisons, validator invalidation and all deep
+`hasV4*` audits are removed. It is 624 lines shorter, including the new file-level
+responsibility comment. The executor retains per-query ETags and 15-minute
+freshness with cheap root/owner checks. Stored returned roots keep merged alias
+details cacheable. Successful empty results remain cached.
+
+Different endpoints apply shared fields in arrival order. Explicit manual
+refresh omits the validator and applies a body; a failed manual refresh keeps
+that intent on retry. For song recordings it also forces the existing song/show
+prerequisite, so newly referenced show/year parents can load. No eager artist
+collection fan-out, schema change or response-body cache was added.
+
+Tour detail now observes its root and artist-scoped show rows while projecting
+only its saved query membership. This preserves notifications after a listed
+show moves and when an empty tour is renamed. The regression checks subscriber
+updates; temporary mutants without prerequisite forcing or either subscription
+fail the corresponding assertions. Seven obsolete repair/audit cases were
+removed. Ownership, empty lists, unchanged-timestamp corrections, atomic retry,
+stale same-query completions, shallow favorites and download retention remain
+covered through the existing public boundaries.
+
+The real API check verified ordinary expiry returning 304 with a validator and
+manual refresh returning 200 without one. On the retained simulator, the Offline
+journey retained one show/tape, and Tune Up played from the existing UUID-named
+local file before pausing with a saved checkpoint at 15.8 seconds. Network access
+remained enabled; this verifies downloaded-file selection, not network loss.
+Evidence: `/tmp/v4-simple-cache-real-api.log`,
+`/tmp/v4-simple-cache-downloaded-playback.log` and
+`/tmp/v4-simple-cache-downloaded-playback.png`. No app reset or production change
+was required.
+
+Final verification: all 311 tests in 46 files passed, plus TypeScript, lint and
+diff checks. Sol xhigh review and independent validation identified the tour
+subscription issue above and confirmed its fix. The new regressions fail under
+the corresponding broken implementations; no test harness or compatibility
+layer was added to production.

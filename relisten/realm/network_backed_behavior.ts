@@ -33,10 +33,10 @@ export abstract class NetworkBackedBehavior<TLocalData, TApiData> {
     return undefined;
   }
 
-  // Repos can strengthen this with membership and playable-graph checks.
+  // Applied empty collections are valid. Repositories only check required roots/owners.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  hasLocalData(localData: TLocalData, _resultIds: Iterable<string>): boolean {
-    return this.isLocalDataShowable(localData);
+  hasLocalData(_localData: TLocalData, _resultIds: Iterable<string>): boolean {
+    return true;
   }
 
   abstract createLocalUpdatingResults(): ValueStream<TLocalData>;
@@ -224,7 +224,7 @@ export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
   private async refreshCached(key: string, force: boolean) {
     const realm = this.behavior.realm;
     const state = realm.objectForPrimaryKey(CatalogQueryState, key);
-    const healthy = () =>
+    const hasLocalData = () =>
       this.behavior.hasLocalData(
         this.localData.currentValue,
         realm.objectForPrimaryKey(CatalogQueryState, key)?.resultIds ?? []
@@ -235,7 +235,7 @@ export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
       !state.retryPending &&
       state.lastCheckedAt &&
       Date.now() - state.lastCheckedAt.getTime() < 15 * 60 * 1000 &&
-      healthy()
+      hasLocalData()
     ) {
       return;
     }
@@ -246,7 +246,7 @@ export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
       return existing.promise;
     }
     const token = {};
-    const promise = this.fetchAndApply(key, force, token, healthy).finally(() => {
+    const promise = this.fetchAndApply(key, force, token, hasLocalData).finally(() => {
       if (requests.inflight.get(key)?.token === token) {
         requests.inflight.delete(key);
       }
@@ -255,13 +255,18 @@ export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
     return promise;
   }
 
-  private async fetchAndApply(key: string, force: boolean, token: object, healthy: () => boolean) {
+  private async fetchAndApply(
+    key: string,
+    force: boolean,
+    token: object,
+    hasLocalData: () => boolean
+  ) {
     const realm = this.behavior.realm;
     const requests = requestState(realm);
     const isCurrent = () => requests.inflight.get(key)?.token === token;
     try {
       const state = realm.objectForPrimaryKey(CatalogQueryState, key);
-      const etag = state?.hasAppliedData && state.etag && healthy() ? state.etag : undefined;
+      const etag = !force && state?.hasAppliedData && hasLocalData() ? state.etag : undefined;
       let response = await this.behavior.fetchFromApi(this.api, force, etag);
       if (!isCurrent()) {
         return;
@@ -276,7 +281,7 @@ export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
           response.etag === etag &&
           current?.etag === etag &&
           current.hasAppliedData &&
-          healthy()
+          hasLocalData()
         ) {
           realm.write(() => {
             current.lastCheckedAt = new Date();
@@ -285,8 +290,7 @@ export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
           requests.retries.delete(key);
           return;
         }
-        // Another endpoint may have changed shared rows after this request began.
-        // A bodyless response cannot repair that graph, so fetch its owner again.
+        // A required root may have disappeared while the request was in flight.
         response = await this.behavior.fetchFromApi(this.api, force);
         if (!isCurrent()) {
           return;
@@ -324,7 +328,7 @@ export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
       realm.write(() => {
         realm.create(CatalogQueryState, { key, retryPending: true }, Realm.UpdateMode.Modified);
       });
-      requests.retries.set(key, () => this.refresh(false));
+      requests.retries.set(key, () => this.refresh(force));
       throw error;
     }
   }

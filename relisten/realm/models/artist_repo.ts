@@ -11,6 +11,7 @@ import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
 import { NetworkBackedResults } from '../network_backed_results';
 import { useQuery, useRealm } from '../schema';
 import { Artist, ArtistFeaturedFlags } from './artist';
+import { CatalogQueryState } from './v4_catalog';
 
 import { NetworkBackedBehavior } from '@/relisten/realm/network_backed_behavior';
 import { useFavoriteCatalogUuids } from '@/relisten/realm/root_services';
@@ -45,14 +46,10 @@ export class ArtistsNetworkBackedBehavior extends NetworkBackedBehavior<
   }
 
   isLocalDataShowable(data: Realm.Results<Artist>) {
-    return data.length > 0;
-  }
-
-  hasLocalData(_data: Realm.Results<Artist>, ids: Iterable<string>) {
-    return [...ids].every((id) => {
-      const artist = this.realm.objectForPrimaryKey(Artist, id);
-      return artist != null && artist.deletedAt == null;
-    });
+    return (
+      data.length > 0 ||
+      this.realm.objectForPrimaryKey(CatalogQueryState, this.queryKey)?.hasAppliedData === true
+    );
   }
 
   upsert(_data: Realm.Results<Artist>, resources: V4ArtistResource[]) {
@@ -72,7 +69,7 @@ export async function ensureCatalogArtist(
   }
   const behavior = new ArtistsNetworkBackedBehavior(realm, (r) => r.objects(Artist));
   const executor = behavior.sharedExecutor(api);
-  await executor.refresh(false);
+  await executor.refresh(artistUuid !== undefined);
   const errors = executor.currentResults().errors;
   executor.tearDown();
   if (errors?.length) {
@@ -205,6 +202,10 @@ class ArtistBootstrapNetworkBackedBehavior extends NetworkBackedBehavior<
 
   isLocalDataShowable(data: Artist | null) {
     return data !== null;
+  }
+
+  hasLocalData() {
+    return this.localQueryFactory(this.realm).length > 0;
   }
 
   upsert(_data: Artist | null, resources: V4ArtistResource[]) {

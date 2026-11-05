@@ -18,7 +18,7 @@ import { RelistenApiClient, RelistenApiResponse, RelistenApiResponseType } from 
 import { NetworkBackedBehaviorOptions } from '../network_backed_behavior';
 import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
 import { NetworkBackedResults } from '../network_backed_results';
-import { applyV4FullShow, hasV4Show } from '../v4_catalog_apply';
+import { applyV4FullShow } from '../v4_catalog_apply';
 import { Artist } from './artist';
 import { ensureCatalogArtist } from './artist_repo';
 import { Show } from './show';
@@ -99,7 +99,8 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends NetworkBackedBehav
   }
 
   hasLocalData() {
-    return !!this.showUuid && hasV4Show(this.realm, this.showUuid);
+    const show = this.showUuid ? this.realm.objectForPrimaryKey(Show, this.showUuid) : null;
+    return show !== null && this.realm.objectForPrimaryKey(Artist, show.artistUuid) !== null;
   }
 
   override createLocalUpdatingResults(): ValueStream<ShowWithSources> {
@@ -131,13 +132,7 @@ export class ShowWithFullSourcesNetworkBackedBehavior extends NetworkBackedBehav
   }
 
   isLocalDataShowable(localData: ShowWithSources): boolean {
-    // Cached headers can outlive quarantined tracks; force a fresh payload for that partial graph.
-    return (
-      localData.show != null &&
-      localData.sources.some((source) =>
-        source.sourceSets.some((set) => set.sourceTracks.some((track) => track.deletedAt == null))
-      )
-    );
+    return localData.show != null;
   }
 
   override upsert(_data: ShowWithSources, resource: V4ShowResource) {
