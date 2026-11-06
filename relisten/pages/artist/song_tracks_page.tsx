@@ -33,6 +33,10 @@ export default function SongTracksPage() {
   useEffect(() => {
     navigation.setOptions({
       title: songTracks.song?.name.trim() || 'Recordings',
+      headerRight: () =>
+        songTracks.song ? (
+          <FavoriteTargetButton {...songTracks.song.favorite} className="p-2" />
+        ) : null,
     });
   }, [navigation, songTracks.song]);
 
@@ -80,7 +84,6 @@ function TrackList({ artist, isLoading, song, tracks, ...scrollProps }: TrackLis
                 <RelistenText className="text-center text-4xl font-bold text-white">
                   {song.name.trim() || 'Unknown song'}
                 </RelistenText>
-                {song && <FavoriteTargetButton {...song.favorite} />}
               </Flex>
               <RelistenText className="text-l text-center italic text-gray-400">
                 <Plur word="recording" count={tracks.length} />

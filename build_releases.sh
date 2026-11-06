@@ -361,22 +361,22 @@ build_target() {
 publish_ota() {
   local branch="$1"
 
-  if [[ "$PLATFORM" != "all" ]]; then
-    echo "OTA publish always targets both platforms. Remove --platform or use --platform all."
-    exit 1
-  fi
+  case "$PLATFORM" in
+  ios|android|all) ;;
+  *) usage ;;
+  esac
 
   configure_ota_runtime_versions
   ensure_local_env_for_ota
   ensure_expo_token
 
-  echo "Publishing OTA to branch '$branch' (ios+android)..."
+  echo "Publishing OTA to branch '$branch' ($PLATFORM)..."
   export EXPO_TOKEN
   export RELEASE_CHANNEL="$branch"
   export RELISTEN_IOS_RUNTIME_VERSION="$OTA_IOS_RUNTIME_VERSION"
   export RELISTEN_ANDROID_RUNTIME_VERSION="$OTA_ANDROID_RUNTIME_VERSION"
 
-  run_eoas publish --branch "$branch" --platform all --nonInteractive
+  run_eoas publish --branch "$branch" --platform "$PLATFORM" --nonInteractive
 }
 
 publish_accounts_favorites_ios() {

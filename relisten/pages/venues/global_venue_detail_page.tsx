@@ -1,3 +1,4 @@
+import { FavoriteTargetButton } from '@/relisten/components/favorite_icon_button';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import { RelistenSectionData } from '@/relisten/components/relisten_section_list';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
@@ -18,7 +19,11 @@ export default function GlobalVenueDetailPage() {
   const venue = results.data;
 
   useEffect(() => {
-    navigation.setOptions({ title: venueDetailName(venue) });
+    navigation.setOptions({
+      title: venueDetailName(venue),
+      headerRight: () =>
+        venue.venue ? <FavoriteTargetButton {...venue.venue.favorite} className="p-2" /> : null,
+    });
   }, [navigation, venue]);
 
   const data = useMemo<RelistenSectionData<Show>>(() => {

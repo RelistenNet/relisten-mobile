@@ -9,7 +9,7 @@ import {
   SortDirection,
   useFilters,
 } from '@/relisten/components/filtering/filters';
-import { NonIdealState } from '@/relisten/components/non_ideal_state';
+import { OfflineArtistsEmptyState } from './offline_artists_empty_state';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import {
@@ -240,16 +240,7 @@ const OnlineArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> 
   );
 };
 
-const OfflineArtistsListContent = ({
-  artists,
-  groupSegment,
-}: {
-  artists: Realm.Results<Artist>;
-  groupSegment: '(artists)' | '(offline)';
-}) => {
-  const router = useRouter();
-
-  const allArtistsRoute = `/relisten/tabs/${groupSegment}/all`;
+const OfflineArtistsListContent = ({ artists }: { artists: Realm.Results<Artist> }) => {
   const sortedArtists = useMemo(() => {
     return [...artists].sort((a, b) => a.sortName.localeCompare(b.sortName));
   }, [artists]);
@@ -263,15 +254,7 @@ const OfflineArtistsListContent = ({
   }, [sortedArtists]);
 
   if (artists.length === 0) {
-    return (
-      <NonIdealState
-        icon="cloud-off"
-        title="No offline shows yet"
-        description="Download tracks from any show and they'll appear here for offline playback."
-        actionText="Browse all artists"
-        onAction={() => router.push(allArtistsRoute)}
-      />
-    );
+    return <OfflineArtistsEmptyState />;
   }
 
   return (
@@ -292,7 +275,7 @@ const ArtistsList = ({
   const isOfflineTab = groupSegment === '(offline)';
 
   if (isOfflineTab) {
-    return <OfflineArtistsListContent artists={artists} groupSegment={groupSegment} />;
+    return <OfflineArtistsListContent artists={artists} />;
   }
 
   return (

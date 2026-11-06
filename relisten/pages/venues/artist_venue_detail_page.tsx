@@ -1,5 +1,4 @@
 import { FavoriteTargetButton } from '@/relisten/components/favorite_icon_button';
-import Flex from '@/relisten/components/flex';
 import Plur from '@/relisten/components/plur';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import { RelistenText } from '@/relisten/components/relisten_text';
@@ -23,17 +22,13 @@ export function venueDetailShowCount(venue: VenueShows) {
 }
 
 export function VenueHeader({ venue }: { venue: VenueShows }) {
-  const favoriteObject = venue.venue;
   const location = venueDetailLocation(venue);
 
   return (
     <View className="w-full flex-col items-center gap-1 px-4 py-2">
-      <Flex className="w-full items-center justify-center">
-        <RelistenText className="text-center text-4xl font-bold text-white" selectable={false}>
-          {venueDetailName(venue)}
-        </RelistenText>
-        {favoriteObject && <FavoriteTargetButton {...favoriteObject.favorite} />}
-      </Flex>
+      <RelistenText className="text-center text-4xl font-bold text-white" selectable={false}>
+        {venueDetailName(venue)}
+      </RelistenText>
       {!!location && (
         <RelistenText className="w-full text-center text-lg text-gray-300">{location}</RelistenText>
       )}
@@ -54,7 +49,11 @@ export default function ArtistVenueDetailPage() {
   const venue = results.data.venue;
 
   useEffect(() => {
-    navigation.setOptions({ title: venueDetailName(venue) });
+    navigation.setOptions({
+      title: venueDetailName(venue),
+      headerRight: () =>
+        venue.venue ? <FavoriteTargetButton {...venue.venue.favorite} className="p-2" /> : null,
+    });
   }, [navigation, venue]);
 
   const data = useMemo(() => [{ data: venue.shows }], [venue.shows]);
