@@ -34,7 +34,7 @@ export interface Features {
   normalization?: boolean;
 }
 
-/** Stored provider JSON includes the released nested shape and the current flat shape. */
+/** Stored provider JSON includes released metadata and compact V4 assignments. */
 export type StoredArtistUpstreamSource =
   | {
       upstream_source_id: number;
@@ -48,11 +48,11 @@ export type StoredArtistUpstreamSource =
       };
     }
   | {
-      provider: string;
+      provider: string | null;
       upstream_identifier: string | null;
-      url: string | null;
-      description: string | null;
-      credit_line: string | null;
+      url?: string | null;
+      description?: string | null;
+      credit_line?: string | null;
     };
 
 export interface ArtistRequiredProperties extends RelistenObjectRequiredProperties {

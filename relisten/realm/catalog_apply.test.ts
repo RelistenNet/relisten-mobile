@@ -87,7 +87,6 @@ import { RelistenApiClient } from '@/relisten/api/client';
 import { encodeUuidCatalogId } from '@/relisten/api/catalog/identity';
 import { CatalogTransport } from '@/relisten/api/catalog/transport';
 import type {
-  ArtistFeaturesResource,
   ArtistResource,
   ArtistSongEntryResource,
   ArtistVenueEntryResource,
@@ -200,32 +199,7 @@ const trackBId = encodeUuidCatalogId(trackBUuid, 'track');
 const trackCId = encodeUuidCatalogId(trackCUuid, 'track');
 const importedSongId = encodeUuidCatalogId(importedSongUuid, 'imported_song');
 
-const features: ArtistFeaturesResource = {
-  descriptions: true,
-  eras: true,
-  multiple_sources: true,
-  reviews: true,
-  ratings: true,
-  tours: true,
-  taper_notes: true,
-  source_information: true,
-  sets: true,
-  per_show_venues: true,
-  per_source_venues: true,
-  venue_coords: true,
-  songs: true,
-  years: true,
-  track_md5s: true,
-  review_titles: true,
-  jam_charts: true,
-  setlist_data_incomplete: false,
-  track_names: true,
-  venue_past_names: true,
-  reviews_have_ratings: true,
-  track_durations: true,
-  can_have_flac: true,
-  normalization: true,
-};
+const features = '16646143'; // All known features except setlist_data_incomplete.
 
 function popularityResource(plays = 100): PopularityResource {
   return {
@@ -577,6 +551,56 @@ describe('catalog Realm apply', () => {
     }
     rmSync(directory, { force: true, recursive: true });
     vi.useRealTimers();
+  });
+
+  it.each([
+    ['0', { descriptions: false, track_durations: false, normalization: false }],
+    ['10485761', { descriptions: true, track_durations: true, normalization: true }],
+    ['9223372036854775809', { descriptions: true, track_durations: false, normalization: false }],
+  ])(
+    'stores feature mask %s as existing boolean JSON through the artist API',
+    async (mask, expected) => {
+      const upstreamSources = [
+        { provider: 'archive.org', upstream_identifier: 'collection-one' },
+        { provider: 'archive.org', upstream_identifier: 'collection-two' },
+        { provider: null, upstream_identifier: 'unknown-provider-id' },
+      ];
+      const api = new RelistenApiClient({
+        transport: new CatalogTransport({
+          apiBase: 'https://catalog.test/api',
+          fetch: async () =>
+            new Response(
+              JSON.stringify([
+                { ...artistResource(), features: mask, upstream_sources: upstreamSources },
+              ])
+            ),
+        }),
+      });
+      const executor = artistsNetworkBackedBehavior(realm, false, false, 'all').sharedExecutor(api);
+      executors.push(executor);
+      await executor.refresh();
+      expect(executor.currentResults().errors).toBeUndefined();
+      const artist = realm.objectForPrimaryKey(Artist, artistUuid)!;
+      expect(JSON.parse(artist.featuresRaw)).toMatchObject(expected);
+      expect(artist.features()).toMatchObject(expected);
+      expect(artist.upstreamSources()).toEqual(upstreamSources);
+    }
+  );
+
+  it('reads existing stored feature booleans without a migration or network request', () => {
+    realm.write(() => {
+      applyArtistList(realm, [artistResource()]);
+      realm.objectForPrimaryKey(Artist, artistUuid)!.featuresRaw = JSON.stringify({
+        ratings: true,
+        multiple_sources: true,
+        sets: false,
+      });
+    });
+    expect(realm.objectForPrimaryKey(Artist, artistUuid)!.features()).toEqual({
+      ratings: true,
+      multiple_sources: true,
+      sets: false,
+    });
   });
 
   it('applies corrected normalization at an unchanged track timestamp without flattening the imported title or rich song detail', () => {

@@ -52,39 +52,9 @@ export interface PopularityResource {
   };
 }
 
-export interface ArtistFeaturesResource {
-  descriptions: boolean;
-  eras: boolean;
-  multiple_sources: boolean;
-  reviews: boolean;
-  ratings: boolean;
-  tours: boolean;
-  taper_notes: boolean;
-  source_information: boolean;
-  sets: boolean;
-  per_show_venues: boolean;
-  per_source_venues: boolean;
-  venue_coords: boolean;
-  songs: boolean;
-  years: boolean;
-  track_md5s: boolean;
-  review_titles: boolean;
-  jam_charts: boolean;
-  setlist_data_incomplete: boolean;
-  track_names: boolean;
-  venue_past_names: boolean;
-  reviews_have_ratings: boolean;
-  track_durations: boolean;
-  can_have_flac: boolean;
-  normalization: boolean;
-}
-
 export interface ArtistProviderResource {
-  provider: string;
+  provider: string | null;
   upstream_identifier: string | null;
-  url: string | null;
-  description: string | null;
-  credit_line: string | null;
 }
 
 export interface ArtistResource {
@@ -99,7 +69,7 @@ export interface ArtistResource {
   source_count: number;
   created_at: string;
   updated_at: string;
-  features: ArtistFeaturesResource;
+  features: string;
   upstream_sources: ArtistProviderResource[];
 }
 

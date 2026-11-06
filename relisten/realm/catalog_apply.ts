@@ -1,4 +1,5 @@
 import { applyCatalogRedirect } from './catalog_identity';
+import { ArtistFeature, hasArtistFeature } from '@/relisten/api/catalog/artist_features';
 /**
  * Maps catalog resources inside the repository's Realm write transaction. Complete
  * owners replace their child lists; shallow parents preserve omitted children.
@@ -40,7 +41,7 @@ import type {
   YearResource,
   YearWithShowsResource,
 } from '@/relisten/api/catalog/resources';
-import { Artist } from '@/relisten/realm/models/artist';
+import { Artist, type Features } from '@/relisten/realm/models/artist';
 import { Show } from '@/relisten/realm/models/show';
 import { Song } from '@/relisten/realm/models/song';
 import { Source } from '@/relisten/realm/models/source';
@@ -181,6 +182,37 @@ function unlinkSetFromOtherSources(realm: Realm, sourceSet: SourceSet, targetSou
   }
 }
 
+/** Decode the wire mask on write; released Realm records and callers keep boolean features. */
+function artistFeatures(resource: ArtistResource): Features {
+  const has = (feature: ArtistFeature) => hasArtistFeature(resource, feature);
+  return {
+    descriptions: has(ArtistFeature.Descriptions),
+    eras: has(ArtistFeature.Eras),
+    multiple_sources: has(ArtistFeature.MultipleSources),
+    reviews: has(ArtistFeature.Reviews),
+    ratings: has(ArtistFeature.Ratings),
+    tours: has(ArtistFeature.Tours),
+    taper_notes: has(ArtistFeature.TaperNotes),
+    source_information: has(ArtistFeature.SourceInformation),
+    sets: has(ArtistFeature.Sets),
+    per_show_venues: has(ArtistFeature.PerShowVenues),
+    per_source_venues: has(ArtistFeature.PerSourceVenues),
+    venue_coords: has(ArtistFeature.VenueCoords),
+    songs: has(ArtistFeature.Songs),
+    years: has(ArtistFeature.Years),
+    track_md5s: has(ArtistFeature.TrackMd5s),
+    review_titles: has(ArtistFeature.ReviewTitles),
+    jam_charts: has(ArtistFeature.JamCharts),
+    setlist_data_incomplete: has(ArtistFeature.SetlistDataIncomplete),
+    track_names: has(ArtistFeature.TrackNames),
+    venue_past_names: has(ArtistFeature.VenuePastNames),
+    reviews_have_ratings: has(ArtistFeature.ReviewsHaveRatings),
+    track_durations: has(ArtistFeature.TrackDurations),
+    can_have_flac: has(ArtistFeature.CanHaveFlac),
+    normalization: has(ArtistFeature.Normalization),
+  };
+}
+
 function applyArtist(realm: Realm, resource: ArtistResource) {
   const uuid = decodeUuidCatalogId(resource.id, 'artist');
   return realm.create(
@@ -195,7 +227,7 @@ function applyArtist(realm: Realm, resource: ArtistResource) {
       featured: resource.featured,
       slug: resource.slug,
       sortName: resource.sort_name ?? resource.name,
-      featuresRaw: JSON.stringify(resource.features),
+      featuresRaw: JSON.stringify(artistFeatures(resource)),
       upstreamSourcesRaw: JSON.stringify(resource.upstream_sources),
       popularity: popularityProperties(resource.popularity),
       showCount: resource.show_count,
