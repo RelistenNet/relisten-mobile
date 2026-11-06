@@ -16,7 +16,6 @@ export default function GlobalVenueDetailPage() {
   const { venueId } = useLocalSearchParams<{ venueId: string }>();
   const results = useGlobalVenueShows(String(venueId));
   const venue = results.data;
-  const visibleResults = venue.isAvailable ? { ...results, errors: undefined } : results;
 
   useEffect(() => {
     navigation.setOptions({ title: venueDetailName(venue) });
@@ -34,7 +33,7 @@ export default function GlobalVenueDetailPage() {
 
   return (
     <View style={{ flex: 1, width: '100%' }}>
-      <RefreshContextProvider networkBackedResults={visibleResults}>
+      <RefreshContextProvider networkBackedResults={results}>
         <DisappearingHeaderScreen
           ScrollableComponent={ShowListContainer}
           ListHeaderComponent={<VenueHeader venue={venue} />}

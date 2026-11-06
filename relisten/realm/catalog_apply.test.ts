@@ -3,6 +3,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Realm from 'realm';
+import type { ReactElement } from 'react';
+import type { NetworkBackedResults } from './network_backed_results';
 import { LibraryIndex } from './library_index';
 import { CatalogIdentity, CatalogRedirect, applyCatalogResolutions } from './catalog_identity';
 import { OfflineAvailabilityProjection } from '@/relisten/library/offline_availability_projection';
@@ -24,11 +26,12 @@ vi.mock('@/relisten/util/logging', () => ({
 vi.hoisted(() => {
   vi.stubGlobal('__DEV__', true);
 });
-vi.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
+vi.mock('react-native', () => ({ Platform: { OS: 'ios' }, View: 'View' }));
 vi.mock('@/relisten/api/context', () => ({ useRelistenApi: () => ({ apiClient: null }) }));
 vi.mock('@/relisten/util/netinfo', () => ({ useShouldMakeNetworkRequests: () => true }));
 const hookRealm = vi.hoisted(() => ({ current: null as Realm | null }));
 vi.mock('react', () => ({
+  useEffect: () => {},
   useMemo: (factory: () => unknown) => factory(),
   useCallback: (fn: unknown) => fn,
 }));
@@ -45,6 +48,29 @@ vi.mock('@/relisten/components/relisten_button', () => ({ RelistenButton: () => 
 vi.mock('@/relisten/components/relisten_text', () => ({ RelistenText: () => null }));
 vi.mock('@react-native-async-storage/async-storage', () => ({ default: {} }));
 vi.mock('@/relisten/realm/old_ios_schema', () => ({}));
+const venuePageState = vi.hoisted(() => ({ results: undefined as unknown }));
+vi.mock('@/relisten/realm/models/shows/venue_shows_repo', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/relisten/realm/models/shows/venue_shows_repo')>()),
+  useArtistVenueShows: () => venuePageState.results,
+  useGlobalVenueShows: () => venuePageState.results,
+}));
+vi.mock('expo-router', () => ({
+  useNavigation: () => ({ setOptions: () => {} }),
+  useLocalSearchParams: () => ({
+    artistUuid,
+    venueUuid: 'venue_00000001',
+    venueId: 'venue_00000001',
+  }),
+}));
+vi.mock('@/relisten/components/favorite_icon_button', () => ({ FavoriteTargetButton: () => null }));
+vi.mock('@/relisten/components/plur', () => ({ default: () => null }));
+vi.mock('@/relisten/components/refresh_context', () => ({
+  RefreshContextProvider: 'RefreshContextProvider',
+}));
+vi.mock('@/relisten/components/screens/disappearing_title_screen', () => ({
+  DisappearingHeaderScreen: 'Screen',
+}));
+vi.mock('@/relisten/components/shows_list', () => ({ ShowListContainer: 'ShowList' }));
 vi.mock('@/relisten/realm/network_backed_behavior_hooks', () => ({
   useNetworkOnlyResults: () => ({ data: undefined, isNetworkLoading: false, refresh: () => {} }),
   useNetworkBackedBehavior: (behavior: {
@@ -139,6 +165,8 @@ import { FavoriteMetadataHydrator } from '../library/favorite_metadata_hydrator'
 import { FavoriteRepository } from '../library/favorite_repository';
 import { favoriteTargetForCatalogUuid } from '../library/favorite_catalog_target';
 import { LegacyDataMigrator } from '../pages/legacy_migration';
+import ArtistVenueDetailPage from '../pages/venues/artist_venue_detail_page';
+import GlobalVenueDetailPage from '../pages/venues/global_venue_detail_page';
 import { UserFavorite, FAVORITE_REALM_MODELS } from './models/library';
 
 const timestamp = '2026-10-31T12:00:00.000Z';
@@ -1998,6 +2026,51 @@ describe('catalog Realm apply', () => {
     expect(useVenues(artistUuid).data).toEqual([]);
     expect(realm.objectForPrimaryKey(Song, importedSongUuid)!.shows).toHaveLength(1);
   });
+
+  it.each(['artist', 'global'] as const)(
+    'preserves first-load errors in the %s venue screen when only metadata is cached',
+    async (kind) => {
+      vi.stubGlobal('React', await vi.importActual('react'));
+      realm.write(() => {
+        seedArtistAndYear(realm);
+        applyArtistVenues(realm, artistUuid, [
+          { kind: 'artist_venue', artist_venue: artistVenueResource(), imported_venue: null },
+        ]);
+      });
+      const api = new RelistenApiClient({
+        transport: new CatalogTransport({
+          apiBase: 'https://venue.test/api',
+          fetch: async () => new Response('missing', { status: 404 }),
+        }),
+      });
+      const executor = new VenueShowsNetworkBackedBehavior(
+        realm,
+        kind === 'artist' ? artistUuid : undefined,
+        'venue_00000001'
+      ).sharedExecutor(api);
+      executors.push(executor);
+      await executor.refresh();
+      const results = executor.currentResults();
+      expect(results.data.venue?.showCount).toBeGreaterThan(0);
+      expect(results.data.shows).toEqual([]);
+      expect(results.errors).toHaveLength(1);
+      venuePageState.results =
+        kind === 'artist'
+          ? {
+              ...results,
+              data: { venue: results.data, artist: realm.objectForPrimaryKey(Artist, artistUuid) },
+            }
+          : results;
+
+      // Exercise the actual page's handoff to the shared error-rendering context.
+      const page = (
+        kind === 'artist' ? ArtistVenueDetailPage() : GlobalVenueDetailPage()
+      ) as ReactElement<{
+        children: ReactElement<{ networkBackedResults: NetworkBackedResults<unknown> }>;
+      }>;
+      expect(page.props.children.props.networkBackedResults.errors).toEqual(results.errors);
+    }
+  );
 
   it('keeps cached browse aliases in My Library filters after a catalog merge', async () => {
     const a = 'song_00000004';

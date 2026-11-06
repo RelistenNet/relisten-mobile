@@ -52,7 +52,6 @@ export default function ArtistVenueDetailPage() {
   }>();
   const results = useArtistVenueShows(String(artistUuid), String(venueUuid));
   const venue = results.data.venue;
-  const visibleResults = venue.isAvailable ? { ...results, errors: undefined } : results;
 
   useEffect(() => {
     navigation.setOptions({ title: venueDetailName(venue) });
@@ -62,7 +61,7 @@ export default function ArtistVenueDetailPage() {
 
   return (
     <View style={{ flex: 1, width: '100%' }}>
-      <RefreshContextProvider networkBackedResults={visibleResults}>
+      <RefreshContextProvider networkBackedResults={results}>
         <DisappearingHeaderScreen
           ScrollableComponent={ShowListContainer}
           ListHeaderComponent={<VenueHeader venue={venue} />}
