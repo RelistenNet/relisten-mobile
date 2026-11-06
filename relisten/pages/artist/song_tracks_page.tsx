@@ -74,17 +74,19 @@ function TrackList({ artist, isLoading, song, tracks, ...scrollProps }: TrackLis
         filtering={false}
         isLoading={isLoading}
         ListHeaderComponent={
-          <View className="w-full items-center gap-1 py-2">
-            <Flex className="w-full items-center justify-center px-4" style={{ gap: 12 }}>
-              <RelistenText className="text-center text-4xl font-bold text-white">
-                {song?.name.trim() || 'Unknown song'}
+          song ? (
+            <View className="w-full items-center gap-1 py-2">
+              <Flex className="w-full items-center justify-center px-4" style={{ gap: 12 }}>
+                <RelistenText className="text-center text-4xl font-bold text-white">
+                  {song.name.trim() || 'Unknown song'}
+                </RelistenText>
+                {song && <FavoriteTargetButton {...song.favorite} />}
+              </Flex>
+              <RelistenText className="text-l text-center italic text-gray-400">
+                <Plur word="recording" count={tracks.length} />
               </RelistenText>
-              {song && <FavoriteTargetButton {...song.favorite} />}
-            </Flex>
-            <RelistenText className="text-l text-center italic text-gray-400">
-              <Plur word="recording" count={tracks.length} />
-            </RelistenText>
-          </View>
+            </View>
+          ) : null
         }
         data={[{ data: tracks }]}
         renderItem={({ item }) => <TrackRow artist={artist} track={item} />}

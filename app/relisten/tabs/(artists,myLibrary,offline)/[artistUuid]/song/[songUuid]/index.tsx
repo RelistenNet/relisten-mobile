@@ -4,7 +4,7 @@ import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { ShowFilterKey, ShowListContainer } from '@/relisten/components/shows_list';
-import { Link, useLocalSearchParams, useNavigation } from 'expo-router';
+import { useLocalSearchParams, useNavigation } from 'expo-router';
 import Plur from '@/relisten/components/plur';
 import { useEffect, useMemo } from 'react';
 import { View } from 'react-native';
@@ -12,8 +12,6 @@ import { SortDirection } from '@/relisten/components/filtering/filters';
 import { SongShows, useArtistSongShows } from '@/relisten/realm/models/shows/song_shows_repo';
 import { FavoriteTargetButton } from '@/relisten/components/favorite_icon_button';
 import Flex from '@/relisten/components/flex';
-import { RelistenButton } from '@/relisten/components/relisten_button';
-import { useGroupSegment } from '@/relisten/util/routes';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -52,13 +50,7 @@ export default function Page() {
         <DisappearingHeaderScreen
           ScrollableComponent={ShowListContainer}
           isLoading={isLoading}
-          ListHeaderComponent={
-            <SongHeader
-              artistUuid={String(artistUuid)}
-              songUuid={String(songUuid)}
-              songResult={songResult}
-            />
-          }
+          ListHeaderComponent={<SongHeader songResult={songResult} />}
           data={data}
           filterOptions={{
             persistence: {
@@ -82,46 +74,23 @@ export default function Page() {
   );
 }
 
-const SongHeader = ({
-  artistUuid,
-  songUuid,
-  songResult,
-}: {
-  artistUuid: string;
-  songUuid: string;
-  songResult: SongShows;
-}) => {
-  const groupSegment = useGroupSegment();
+const SongHeader = ({ songResult }: { songResult: SongShows }) => {
   const { song, shows } = songResult;
-  const totalShows = song?.showCount ?? shows.length;
-  const matchedTrackCount = song?.recordingCount;
+  if (!song) return null;
+  const totalShows = song.showCount ?? shows.length;
 
   return (
     <View className="flex w-full flex-col items-center gap-1 py-2">
       <Flex className="w-full items-center justify-center px-4" style={{ gap: 12 }}>
         <RelistenText className="text-center text-4xl font-bold text-white" selectable={false}>
-          {song?.name.trim() || 'Unknown song'}
+          {song.name.trim() || 'Unknown song'}
         </RelistenText>
-        {song && <FavoriteTargetButton {...song.favorite} />}
+        <FavoriteTargetButton {...song.favorite} />
       </Flex>
 
       <RelistenText className="text-l w-full text-center italic text-gray-400">
         <Plur word="show" count={totalShows} />
       </RelistenText>
-
-      {matchedTrackCount != null && (
-        <Link
-          href={{
-            pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/song/[songUuid]/tracks` as const,
-            params: { artistUuid, songUuid },
-          }}
-          asChild
-        >
-          <RelistenButton className="mt-2 min-w-[50%]" intent="outline" size="thin">
-            <Plur word="Recording" count={matchedTrackCount} />
-          </RelistenButton>
-        </Link>
-      )}
     </View>
   );
 };

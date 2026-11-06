@@ -5,6 +5,7 @@
     <key>com.apple.developer.associated-domains</key>
     <array>
       <string>applinks:relisten.net</string>
+      <string>webcredentials:relisten.net</string>
     </array>
     <key>com.apple.developer.carplay-audio</key>
     <true/>

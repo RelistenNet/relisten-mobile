@@ -89,8 +89,6 @@ export const RelistenButton = React.forwardRef<TouchableOpacityRef, ButtonProps>
     },
     ref
   ) => {
-    const cls = tw(buttonVariants({ disabled, intent, rounded }), cn, className);
-
     const [isLoading, setIsLoading] = useState<boolean>(false);
 
     const wrappedOnPress = async (event: GestureResponderEvent) => {
@@ -109,17 +107,22 @@ export const RelistenButton = React.forwardRef<TouchableOpacityRef, ButtonProps>
       }
     };
 
-    if (automaticLoadingIndicator && isLoading && !icon) {
+    if (automaticLoadingIndicator && isLoading) {
       icon = <ActivityIndicator size={8} className="mr-2" />;
       disabled = true;
     }
+
+    const cls = tw(buttonVariants({ disabled, intent, rounded }), cn, className);
 
     if (disabled && disabledPopoverText) {
       return (
         <Popover
           from={
-            <TouchableOpacity ref={ref} className={cls} {...props}>
-              <RelistenText className={tw('text-center font-bold', textClassName)}>
+            <TouchableOpacity ref={ref} accessibilityRole="button" className={cls} {...props}>
+              <RelistenText
+                selectable={false}
+                className={tw('text-center font-bold', textClassName)}
+              >
                 {children}
               </RelistenText>
             </TouchableOpacity>
@@ -135,13 +138,14 @@ export const RelistenButton = React.forwardRef<TouchableOpacityRef, ButtonProps>
     return (
       <TouchableOpacity
         ref={ref}
+        accessibilityRole="button"
         className={cls}
         onPress={asyncOnPress ? wrappedOnPress : onPress}
         {...props}
         disabled={disabled}
       >
         {icon && <View className="pr-1">{icon}</View>}
-        <RelistenText className={tw('text-center font-bold', textClassName)}>
+        <RelistenText selectable={false} className={tw('text-center font-bold', textClassName)}>
           {children}
         </RelistenText>
       </TouchableOpacity>
