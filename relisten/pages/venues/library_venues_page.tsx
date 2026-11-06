@@ -1,3 +1,4 @@
+import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import { FavoriteTargetButton } from '@/relisten/components/favorite_icon_button';
 import {
   Filter,
@@ -21,11 +22,10 @@ import {
   normalizedVenueLocation,
 } from '@/relisten/components/venue_presenters';
 import { NormalizedVenue } from '@/relisten/realm/models/catalog';
-import { useFavoriteCatalogUuids } from '@/relisten/realm/root_services';
-import { useQuery } from '@/relisten/realm/schema';
+import { useFavoriteVenues } from '@/relisten/library/favorite_hooks';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { Link, useNavigation } from 'expo-router';
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 import { View } from 'react-native';
 
 interface LibraryVenueItem {
@@ -101,7 +101,7 @@ function LibraryVenueRow({ item }: { item: LibraryVenueItem }) {
     <Link
       href={{
         pathname: `/relisten/tabs/${groupSegment}/venue/[venueId]/` as const,
-        params: { venueId: item.uuid },
+        params: { venueId: item.venue.id },
       }}
       asChild
     >
@@ -149,19 +149,15 @@ function LibraryVenueList({
 
 export default function LibraryVenuesPage() {
   const navigation = useNavigation();
-  const favoriteVenueIds = useFavoriteCatalogUuids('venue');
-  const normalizedVenues = useQuery(NormalizedVenue);
-  const venues = useMemo(() => {
-    const venuesById = new Map([...normalizedVenues].map((venue) => [venue.id, venue]));
-    return [...favoriteVenueIds].map((id) => ({
-      uuid: id,
-      venue: venuesById.get(id),
-    }));
-  }, [favoriteVenueIds, normalizedVenues]);
+  const results = useFavoriteVenues();
 
   useEffect(() => {
     navigation.setOptions({ title: 'My Venues' });
   }, [navigation]);
 
-  return <DisappearingHeaderScreen ScrollableComponent={LibraryVenueList} venues={venues} />;
+  return (
+    <RefreshContextProvider networkBackedResults={results}>
+      <DisappearingHeaderScreen ScrollableComponent={LibraryVenueList} venues={results.data} />
+    </RefreshContextProvider>
+  );
 }

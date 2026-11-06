@@ -23,6 +23,7 @@ import {
 export interface RootServices {
   libraryIndex: LibraryIndex;
   favoriteRepository: FavoriteRepository;
+  favoriteMetadataHydrator: FavoriteMetadataHydrator;
   favoriteSyncAdapter: FavoriteSyncAdapter;
   favoriteSyncService: FavoriteSyncService;
   anonymousLibraryImportService: AnonymousLibraryImportService;
@@ -44,16 +45,15 @@ export function RootServicesProvider({ children }: PropsWithChildren) {
       favoriteRepository,
       new RelistenApiClient()
     );
-
     return {
+      favoriteMetadataHydrator,
       libraryIndex: new LibraryIndex(realm, accountScopeSource),
       favoriteRepository,
       favoriteSyncAdapter,
       favoriteSyncService: new FavoriteSyncService(
         favoriteRepository,
         favoriteSyncAdapter,
-        accountsApi,
-        favoriteMetadataHydrator
+        accountsApi
       ),
       anonymousLibraryImportService: new AnonymousLibraryImportService(favoriteRepository),
       userSettingsStore: new UserSettingsStore(realm),
@@ -301,4 +301,8 @@ export function useRootLibraryIndex() {
 
 export function useRootUserSettingsStore() {
   return useRootServices().userSettingsStore;
+}
+
+export function useFavoriteMetadataHydrator() {
+  return useRootServices().favoriteMetadataHydrator;
 }

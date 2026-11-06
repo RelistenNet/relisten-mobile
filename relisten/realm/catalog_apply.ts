@@ -1,12 +1,17 @@
+import { applyCatalogRedirect } from './catalog_identity';
 /**
  * Maps catalog resources inside the repository's Realm write transaction. Complete
  * owners replace their child lists; shallow parents preserve omitted children.
- * Query freshness, validators and retries belong to the repository executor.
+ * Stored membership is independent of HTTP requests and their validators.
  */
 import type { CatalogResolveResponse } from '@/relisten/api/catalog/resolve';
 import Realm from 'realm';
 
-import { decodeUuidCatalogId, retainShortCatalogId } from '@/relisten/api/catalog/identity';
+import {
+  decodeUuidCatalogId,
+  encodeUuidCatalogId,
+  retainShortCatalogId,
+} from '@/relisten/api/catalog/identity';
 import type {
   ArtistResource,
   ArtistSongEntryResource,
@@ -260,7 +265,7 @@ function applyImportedVenue(realm: Realm, resource: ImportedVenueResource) {
       artistUuid,
       createdAt: requiredDate(resource.created_at, 'imported_venue.created_at'),
       updatedAt: requiredDate(resource.updated_at, 'imported_venue.updated_at'),
-      deletedAt: null,
+      deletedAt: realm.objectForPrimaryKey(Venue, uuid)?.deletedAt ?? null,
       latitude: resource.latitude,
       longitude: resource.longitude,
       name,
@@ -285,12 +290,13 @@ function applyImportedSong(realm: Realm, resource: ImportedSongResource) {
       artistUuid,
       createdAt: requiredDate(resource.created_at, 'imported_song.created_at'),
       updatedAt: requiredDate(resource.updated_at, 'imported_song.updated_at'),
-      deletedAt: null,
+      deletedAt: realm.objectForPrimaryKey(Song, uuid)?.deletedAt ?? null,
       name: resource.name,
       slug: resource.slug,
       upstreamIdentifier: resource.upstream_identifier,
       sortName: resource.name,
       showsPlayedAt: resource.setlist_show_count,
+      normalizedSongId: resource.normalized_song_id ?? null,
     } as unknown as Realm.Unmanaged<Song>,
     Realm.UpdateMode.Modified
   );
@@ -835,8 +841,6 @@ export function applyTourDetail(realm: Realm, artistUuid: string, resource: Tour
       throw new CatalogApplyError('Inconsistent tour membership.');
     }
   });
-
-  return detailResultIds(resource.id, resource.shows);
 }
 
 /** Resolver patches update shared records; omitted child lists retain their membership. */
@@ -986,8 +990,20 @@ export function applyShowSummaries(realm: Realm, resources: ShowSummaryResource[
   return applyShowCollection(realm, resources, 'Show feed', () => {});
 }
 
-function detailResultIds(rootId: string, resources: Array<{ id: string }>) {
-  return [rootId, ...resources.map((resource) => resource.id)];
+/** Browse owns visibility; metadata patches retain rows and their existing links. */
+function pruneBrowseRows<T extends { deletedAt?: Date }>(
+  rows: Iterable<T>,
+  returned: ReadonlySet<string>,
+  identity: (row: T) => string
+) {
+  const now = new Date();
+  for (const row of rows) {
+    if (returned.has(identity(row))) {
+      row.deletedAt = undefined;
+    } else if (row.deletedAt == null) {
+      row.deletedAt = now;
+    }
+  }
 }
 
 /** Applies one artist's ordered mixed canonical/imported venue browse result. */
@@ -1022,6 +1038,15 @@ export function applyArtistVenues(
     throw new CatalogApplyError(`Unknown artist venue entry kind: ${value.kind}.`);
   });
   requireUniqueIds(resultIds, `Artist ${artistUuid}'s venue browse membership`);
+  const returned = new Set(resultIds);
+  pruneBrowseRows(realm.objects(Venue).filtered('artistUuid == $0', artistUuid), returned, (row) =>
+    encodeUuidCatalogId(row.uuid, 'imported_venue')
+  );
+  pruneBrowseRows(
+    realm.objects(ArtistVenue).filtered('artistUuid == $0', artistUuid),
+    returned,
+    (row) => row.id
+  );
   return resultIds;
 }
 
@@ -1057,14 +1082,25 @@ export function applyArtistSongs(
     throw new CatalogApplyError(`Unknown artist song entry kind: ${value.kind}.`);
   });
   requireUniqueIds(resultIds, `Artist ${artistUuid}'s song browse membership`);
+  const returned = new Set(resultIds);
+  pruneBrowseRows(realm.objects(Song).filtered('artistUuid == $0', artistUuid), returned, (row) =>
+    encodeUuidCatalogId(row.uuid, 'imported_song')
+  );
+  pruneBrowseRows(
+    realm.objects(NormalizedSong).filtered('artistUuid == $0', artistUuid),
+    returned,
+    (row) => row.id
+  );
   return resultIds;
 }
 
 export function applyArtistVenueDetail(
   realm: Realm,
   artistUuid: string,
-  resource: ArtistVenueWithShowsResource
+  resource: ArtistVenueWithShowsResource,
+  requestedId: string = resource.venue.id
 ) {
+  applyCatalogRedirect(realm, 'venue', requestedId, resource.venue.id);
   const artistVenue = applyArtistVenue(realm, resource);
   requireMatchingArtist(artistVenue.artistUuid, artistUuid, `Artist venue ${artistVenue.id}`);
   applyShowCollection(
@@ -1078,7 +1114,6 @@ export function applyArtistVenueDetail(
       }
     }
   );
-  return detailResultIds(resource.id, resource.shows);
 }
 
 export function applyImportedVenueDetail(
@@ -1099,33 +1134,48 @@ export function applyImportedVenueDetail(
       }
     }
   );
-  return detailResultIds(resource.id, resource.shows);
 }
 
-export function applyVenueDetail(realm: Realm, resource: VenueWithShowsResource) {
+export function applyVenueDetail(
+  realm: Realm,
+  resource: VenueWithShowsResource,
+  requestedId: string = resource.id
+) {
+  applyCatalogRedirect(realm, 'venue', requestedId, resource.id);
   const venue = applyNormalizedVenue(realm, resource);
   applyShowCollection(realm, resource.shows, `Venue ${venue.id}'s show membership`, (show) => {
     if (show.artistVenue?.venueId !== venue.id) {
       throw new CatalogApplyError(`Show ${show.uuid} has an inconsistent venue parent.`);
     }
   });
-  return detailResultIds(resource.id, resource.shows);
 }
 
-export function applySongDetail(realm: Realm, artistUuid: string, resource: SongWithShowsResource) {
+/** Online discovery applies shared metadata, but keeps its result membership in memory. */
+export function applySongDetail(
+  realm: Realm,
+  artistUuid: string,
+  resource: SongWithShowsResource,
+  requestedId: string = resource.id
+) {
+  applyCatalogRedirect(realm, 'song', requestedId, resource.id);
   const song = applyNormalizedSongDetail(realm, resource);
   requireMatchingArtist(song.artistUuid, artistUuid, `Song ${song.id}`);
-  applyShowCollection(realm, resource.shows, `Song ${song.id}'s show membership`, (show) =>
-    requireMatchingArtist(show.artistUuid, artistUuid, `Show ${show.uuid}`)
+  const shows = applyShowCollection(
+    realm,
+    resource.shows.map((entry) => entry.show),
+    `Song ${song.id}'s shows`,
+    (show) => requireMatchingArtist(show.artistUuid, artistUuid, `Show ${show.uuid}`)
   );
-  return detailResultIds(resource.id, resource.shows);
+  return { song, shows };
 }
 
 export function applySongTracks(
   realm: Realm,
   artistUuid: string,
-  resource: SongWithTracksResource
+  resource: SongWithTracksResource,
+  requestedId: string = resource.id
 ) {
+  applyCatalogRedirect(realm, 'song', requestedId, resource.id);
   const song = applyNormalizedSongDetail(realm, resource);
   requireMatchingArtist(song.artistUuid, artistUuid, `Song ${song.id}`);
   requireUniqueIds(
@@ -1133,10 +1183,8 @@ export function applySongTracks(
     `Song ${song.id}'s track membership`
   );
   const target = { song, artistUuid, resource };
-  for (const track of resource.tracks) {
-    applySongTrackResource(realm, track, target);
-  }
-  return detailResultIds(resource.id, resource.tracks);
+  const tracks = resource.tracks.map((track) => applySongTrackResource(realm, track, target));
+  return { song, tracks };
 }
 
 export function applyImportedSongDetail(
@@ -1146,11 +1194,11 @@ export function applyImportedSongDetail(
 ) {
   const song = applyImportedSong(realm, resource);
   requireMatchingArtist(song.artistUuid, artistUuid, `Imported song ${song.uuid}`);
-  applyShowCollection(
+  const shows = applyShowCollection(
     realm,
     resource.shows,
     `Imported song ${song.uuid}'s show membership`,
     (show) => requireMatchingArtist(show.artistUuid, artistUuid, `Show ${show.uuid}`)
   );
-  return detailResultIds(resource.id, resource.shows);
+  return { song, shows };
 }

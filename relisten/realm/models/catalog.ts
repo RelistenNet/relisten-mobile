@@ -58,6 +58,7 @@ export class ArtistVenue extends Realm.Object<ArtistVenue> {
     primaryKey: 'id',
     properties: {
       id: 'string',
+      deletedAt: { type: 'date', optional: true, indexed: true },
       artistUuid: { type: 'string', indexed: true },
       venueId: { type: 'string', indexed: true },
       artistShowCount: 'int',
@@ -69,6 +70,7 @@ export class ArtistVenue extends Realm.Object<ArtistVenue> {
   };
 
   id!: string;
+  deletedAt?: Date;
   artistUuid!: string;
   venueId!: string;
   artistShowCount!: number;
@@ -85,6 +87,7 @@ export class NormalizedSong extends Realm.Object<NormalizedSong> {
     primaryKey: 'id',
     properties: {
       id: 'string',
+      deletedAt: { type: 'date', optional: true, indexed: true },
       artistUuid: { type: 'string', indexed: true },
       name: 'string',
       kind: 'string?',
@@ -98,6 +101,7 @@ export class NormalizedSong extends Realm.Object<NormalizedSong> {
   };
 
   id!: string;
+  deletedAt?: Date;
   artistUuid!: string;
   name!: string;
   kind?: string;
@@ -150,37 +154,24 @@ export class TrackNormalization extends Realm.Object<TrackNormalization> {
   parts!: Realm.List<TrackNormalizationPart>;
 }
 
-/** Applied HTTP validator and exact result order for one endpoint/filter query. */
-export class CatalogQueryState extends Realm.Object<CatalogQueryState> {
+/** Catalog merges are independent of accounts and saved favorite identities. */
+export class CatalogRedirect extends Realm.Object<CatalogRedirect> {
   static schema: Realm.ObjectSchema = {
-    name: 'CatalogQueryState',
-    primaryKey: 'key',
-    properties: {
-      key: 'string',
-      etag: 'string?',
-      hasAppliedData: { type: 'bool', default: false },
-      lastAppliedAt: 'date?',
-      lastCheckedAt: 'date?',
-      retryPending: { type: 'bool', default: false },
-      resultIds: 'string[]',
-    },
+    name: 'CatalogRedirect',
+    primaryKey: 'id',
+    properties: { id: 'string', targetId: 'string' },
   };
 
-  key!: string;
-  etag?: string;
-  hasAppliedData!: boolean;
-  lastAppliedAt?: Date;
-  lastCheckedAt?: Date;
-  retryPending!: boolean;
-  resultIds!: Realm.List<string>;
+  id!: string;
+  targetId!: string;
 }
 
 export const CATALOG_REALM_MODELS = [
+  CatalogRedirect,
   NormalizedVenueName,
   NormalizedVenue,
   ArtistVenue,
   NormalizedSong,
   TrackNormalizationPart,
   TrackNormalization,
-  CatalogQueryState,
 ];

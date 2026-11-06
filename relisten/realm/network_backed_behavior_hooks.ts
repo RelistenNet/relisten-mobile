@@ -1,53 +1,79 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  RelistenApiClientError,
-  RelistenApiResponse,
-  RelistenApiResponseType,
-} from '../api/client';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { RelistenApiClientError, RelistenApiResponse } from '../api/client';
 import { useRelistenApi } from '../api/context';
 import { NetworkBackedBehavior } from './network_backed_behavior';
 import { NetworkBackedResults } from './network_backed_results';
 
+/** Network-only data is scoped to the current request and never reconstructed from Realm. */
 export function useNetworkOnlyResults<TApiData>(
-  fetchFromNetwork: () => Promise<RelistenApiResponse<TApiData | undefined>>
+  fetchFromNetwork: (force?: boolean) => Promise<RelistenApiResponse<TApiData | undefined>>
 ): NetworkBackedResults<TApiData | undefined> {
-  // if data doesn't exist, initialize the loading state
-  const [isNetworkLoading, setIsNetworkLoading] = useState(true);
-  const [data, setData] = useState<TApiData | undefined>(undefined);
-  const [error, setError] = useState<RelistenApiClientError | undefined>();
+  const generation = useRef(0);
+  const [state, setState] = useState<{
+    request: typeof fetchFromNetwork;
+    data?: TApiData;
+    errors?: RelistenApiClientError[];
+    isNetworkLoading: boolean;
+  }>({ request: fetchFromNetwork, isNetworkLoading: true });
 
   const refresh = useCallback(
-    async (shouldForceLoadingSpinner: boolean) => {
-      if (shouldForceLoadingSpinner) {
-        setIsNetworkLoading(true);
-      }
-      const apiData = await fetchFromNetwork();
-
-      if (apiData?.type == RelistenApiResponseType.OnlineRequestCompleted) {
-        setData(apiData.data);
-      }
-
-      setError(apiData.error);
-      setIsNetworkLoading(false);
+    (force = true) => {
+      const current = ++generation.current;
+      setState((state) => ({
+        ...state,
+        request: fetchFromNetwork,
+        data: state.request === fetchFromNetwork ? state.data : undefined,
+        isNetworkLoading: true,
+      }));
+      return Promise.resolve()
+        .then(async () => {
+          let response = await fetchFromNetwork(force);
+          // Another screen can force a newer request for this same resource.
+          // Join that request so this screen also receives its online selection.
+          while (response.superseded && generation.current === current) {
+            response = await fetchFromNetwork(false);
+          }
+          return response;
+        })
+        .then(
+          (response) => {
+            if (generation.current !== current || response.superseded) return;
+            setState({
+              request: fetchFromNetwork,
+              data: response.data,
+              errors: response.error ? [response.error] : undefined,
+              isNetworkLoading: false,
+            });
+          },
+          (error: unknown) => {
+            if (generation.current !== current) return;
+            const cause = error instanceof Error ? error : new Error(String(error));
+            setState({
+              request: fetchFromNetwork,
+              errors: [{ error: cause, message: cause.message }],
+              isNetworkLoading: false,
+            });
+          }
+        );
     },
-    [setIsNetworkLoading, setData, fetchFromNetwork, setError]
+    [fetchFromNetwork]
   );
 
-  const results = useMemo<NetworkBackedResults<TApiData | undefined>>(() => {
-    return {
-      isNetworkLoading,
-      data: data,
-      // if were pull-to-refreshing, always show the spinner
-      refresh: (force = true) => refresh(force),
-      errors: error ? [error] : undefined,
-    };
-  }, [isNetworkLoading, data, refresh, error]);
-
   useEffect(() => {
-    refresh(true);
-  }, [fetchFromNetwork, refresh]);
+    void refresh(false);
+    return () => {
+      generation.current += 1;
+    };
+  }, [refresh]);
 
-  return results;
+  if (state.request !== fetchFromNetwork)
+    return { data: undefined, isNetworkLoading: true, refresh };
+  return {
+    data: state.data,
+    errors: state.errors,
+    isNetworkLoading: state.isNetworkLoading,
+    refresh,
+  };
 }
 
 export function useNetworkBackedBehavior<TLocalData, TApiData>(

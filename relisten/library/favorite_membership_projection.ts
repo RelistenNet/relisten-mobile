@@ -1,4 +1,5 @@
 import Realm from 'realm';
+import { CatalogIdentity, CatalogRedirect } from '@/relisten/realm/catalog_identity';
 import { catalogIdForFavoriteTarget } from '@/relisten/library/favorite_catalog_target';
 import type { FavoriteAccountScopeSource } from '@/relisten/library/favorite_repository';
 import type { FavoriteTargetKind } from '@/relisten/realm/models/library/favorite_catalog_type';
@@ -27,6 +28,8 @@ interface ArtistChildProjection extends Realm.Object<ArtistChildProjection> {
 /** Active-account favorite membership plus the catalog relationships needed by My Library. */
 export class FavoriteMembershipProjection {
   private readonly listeners = new Set<Listener>();
+  private identity = new CatalogIdentity([]);
+  private readonly redirects: Realm.Results<CatalogRedirect>;
   private readonly favorites: Realm.Results<UserFavorite>;
   private readonly shows: Realm.Results<ShowProjection>;
   private readonly sources: Realm.Results<SourceProjection>;
@@ -50,6 +53,8 @@ export class FavoriteMembershipProjection {
     // entering or leaving `effectivePresent` must wake an already-mounted list; deriving the
     // active set here makes both transitions observable before the projection is rebuilt.
     this.favorites = realm.objects(UserFavorite);
+    this.redirects = realm.objects(CatalogRedirect);
+    this.redirects.addListener(this.handleDataChanged);
     // String schema names keep this projection below the model/repository layer and avoid
     // making account membership participate in every catalog model's import graph.
     this.shows = realm.objects<ShowProjection>('Show');
@@ -80,6 +85,7 @@ export class FavoriteMembershipProjection {
   tearDown() {
     if (!this.realm.isClosed) {
       this.favorites.removeListener(this.handleDataChanged);
+      this.redirects.removeListener(this.handleDataChanged);
       this.shows.removeListener(this.handleDataChanged);
       this.sources.removeListener(this.handleDataChanged);
       this.sourceTracks.removeListener(this.handleDataChanged);
@@ -100,7 +106,10 @@ export class FavoriteMembershipProjection {
   getSnapshot = () => this.version;
 
   isFavorite(targetKind: FavoriteTargetKind, catalogUuid?: string | null) {
-    return !!catalogUuid && (this.favoriteUuidsByType.get(targetKind)?.has(catalogUuid) ?? false);
+    return (
+      !!catalogUuid &&
+      (this.favoriteUuidsByType.get(targetKind)?.has(this.identity.resolve(catalogUuid)) ?? false)
+    );
   }
 
   favoriteUuids(targetKind: FavoriteTargetKind): ReadonlySet<string> {
@@ -144,6 +153,8 @@ export class FavoriteMembershipProjection {
 
   private rebuild() {
     this.favoriteUuidsByType.clear();
+    const identity = new CatalogIdentity(this.redirects);
+    this.identity = identity;
     this.libraryShowUuids.clear();
     this.favoriteContentByArtist.clear();
     this.favoriteContentByYear.clear();
@@ -167,7 +178,14 @@ export class FavoriteMembershipProjection {
         typeFavorites = new Set<string>();
         this.favoriteUuidsByType.set(favorite.targetKind, typeFavorites);
       }
-      typeFavorites.add(catalogId);
+      const displayId = identity.resolve(catalogId);
+      typeFavorites.add(displayId);
+      if (favorite.targetKind === 'song') {
+        this.addLibraryArtist(
+          this.realm.objectForPrimaryKey<ArtistChildProjection>('NormalizedSong', displayId)
+            ?.artistUuid
+        );
+      }
     }
 
     for (const showUuid of this.favoriteUuids('show')) {
@@ -186,11 +204,6 @@ export class FavoriteMembershipProjection {
     for (const songUuid of this.favoriteUuids('imported_song')) {
       this.addLibraryArtist(
         this.realm.objectForPrimaryKey<ArtistChildProjection>('Song', songUuid)?.artistUuid
-      );
-    }
-    for (const songId of this.favoriteUuids('song')) {
-      this.addLibraryArtist(
-        this.realm.objectForPrimaryKey<ArtistChildProjection>('NormalizedSong', songId)?.artistUuid
       );
     }
     for (const tourUuid of this.favoriteUuids('tour')) {

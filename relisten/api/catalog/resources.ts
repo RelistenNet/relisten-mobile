@@ -225,7 +225,24 @@ export interface SongDetailResource extends SongResource {
 }
 
 export interface SongWithShowsResource extends SongDetailResource {
-  shows: ShowSummaryResource[];
+  shows: SongShowResource[];
+}
+
+export interface SongShowResource {
+  show: ShowSummaryResource;
+  timings: {
+    single_song: SourceStatisticsResource | null;
+    multi_song: SourceStatisticsResource | null;
+  };
+  tracks?: Pick<TrackResource, 'id' | 'source_id' | 'show_id' | 'title' | 'slug' | 'duration'>[];
+}
+
+export interface SourceStatisticsResource {
+  source_count: number;
+  min: number;
+  max: number;
+  avg: number;
+  median: number;
 }
 
 export interface SongWithTracksResource extends SongDetailResource {
@@ -233,6 +250,7 @@ export interface SongWithTracksResource extends SongDetailResource {
 }
 
 export interface ImportedSongResource {
+  normalized_song_id: SongId | null;
   id: ImportedSongId;
   artist_id: ArtistId;
   name: string;

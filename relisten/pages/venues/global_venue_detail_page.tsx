@@ -16,7 +16,7 @@ export default function GlobalVenueDetailPage() {
   const { venueId } = useLocalSearchParams<{ venueId: string }>();
   const results = useGlobalVenueShows(String(venueId));
   const venue = results.data;
-  const visibleResults = venue.hasAppliedData ? { ...results, errors: undefined } : results;
+  const visibleResults = venue.isAvailable ? { ...results, errors: undefined } : results;
 
   useEffect(() => {
     navigation.setOptions({ title: venueDetailName(venue) });

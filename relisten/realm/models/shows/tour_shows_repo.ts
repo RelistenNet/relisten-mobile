@@ -1,6 +1,5 @@
-import { saveCatalogResults } from '../../catalog_projection';
 import type { RelistenApiClient } from '@/relisten/api/client';
-import { decodeUuidCatalogId, encodeUuidCatalogId } from '@/relisten/api/catalog/identity';
+import { encodeUuidCatalogId } from '@/relisten/api/catalog/identity';
 import type { TourWithShowsResource } from '@/relisten/api/catalog/resources';
 import { useMemo } from 'react';
 import Realm from 'realm';
@@ -17,12 +16,10 @@ import {
 import { ensureCatalogArtist, useArtist } from '../artist_repo';
 import { Show } from '../show';
 import { Tour } from '../tour';
-import { CatalogQueryState } from '../catalog';
 
 export interface TourShows {
   tour: Tour | null;
   shows: Show[];
-  hasAppliedData: boolean;
 }
 
 export class TourShowsNetworkBackedBehavior extends NetworkBackedBehavior<
@@ -38,52 +35,38 @@ export class TourShowsNetworkBackedBehavior extends NetworkBackedBehavior<
     super(realm, options);
   }
 
-  get queryKey() {
-    return `GET /tours/${encodeUuidCatalogId(this.tourUuid, 'tour')}`;
-  }
-
   async fetchFromApi(api: RelistenApiClient, force: boolean) {
     await ensureCatalogArtist(this.realm, api, this.artistUuid);
     return api.tour(this.tourUuid, { force });
   }
 
   createLocalUpdatingResults() {
-    const state = new RealmObjectValueStream(this.realm, CatalogQueryState, this.queryKey);
     const tour = new RealmObjectValueStream(this.realm, Tour, this.tourUuid);
-    const detail = new CombinedValueStream(state, tour, (query, tour) => ({ query, tour }));
-    const rows = new RealmQueryValueStream(
+    const shows = new RealmQueryValueStream(
       this.realm,
-      this.realm.objects(Show).filtered('artistUuid == $0 && deletedAt == nil', this.artistUuid)
+      this.realm
+        .objects(Show)
+        .filtered(
+          'artistUuid == $0 AND tourUuid == $1 AND deletedAt == nil',
+          this.artistUuid,
+          this.tourUuid
+        )
     );
-
-    return new CombinedValueStream(detail, rows, ({ query, tour }) => {
-      const ids = query?.hasAppliedData ? [...query.resultIds].slice(1) : [];
-      const shows = ids.flatMap((id) => {
-        const show = this.realm.objectForPrimaryKey(Show, decodeUuidCatalogId(id, 'show'));
-        return show && show.deletedAt == null ? [show] : [];
-      });
-
-      return {
-        tour: tour?.deletedAt == null ? tour : null,
-        shows,
-        hasAppliedData: query?.hasAppliedData === true && shows.length === ids.length,
-      };
-    });
+    return new CombinedValueStream(tour, shows, (tour, shows) => ({
+      tour: tour?.deletedAt == null ? tour : null,
+      shows: Array.from(shows),
+    }));
   }
 
   isLocalDataShowable(data: TourShows) {
-    return data.tour !== null && data.hasAppliedData;
+    return data.tour !== null;
   }
 
   upsert(_data: TourShows, resource: TourWithShowsResource) {
     if (resource.id !== encodeUuidCatalogId(this.tourUuid, 'tour')) {
       throw new Error('Unexpected tour identity.');
     }
-    return saveCatalogResults(
-      this.realm,
-      this.queryKey,
-      applyTourDetail(this.realm, this.artistUuid, resource)
-    );
+    return applyTourDetail(this.realm, this.artistUuid, resource);
   }
 }
 

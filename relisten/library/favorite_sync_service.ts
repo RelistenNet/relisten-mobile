@@ -8,7 +8,6 @@ import {
   FavoriteRepository,
   StaleFavoriteAccountScopeError,
 } from '@/relisten/library/favorite_repository';
-import { FavoriteMetadataHydrator } from '@/relisten/library/favorite_metadata_hydrator';
 import { earliestFutureRetryAt } from '@/relisten/library/favorite_retry_schedule';
 import { favoriteSyncFailure } from '@/relisten/library/favorite_sync_failure';
 import { FavoriteSyncRunStateStore } from '@/relisten/library/favorite_sync_run_state_store';
@@ -69,8 +68,7 @@ export class FavoriteSyncService {
   constructor(
     private readonly repository: FavoriteRepository,
     private readonly adapter: FavoriteSyncAdapter,
-    private readonly accountsApi: AuthorizedAccountsApiClient,
-    private readonly metadataHydrator: FavoriteMetadataHydrator
+    private readonly accountsApi: AuthorizedAccountsApiClient
   ) {
     this.mutations = repository.realm.objects(FavoriteMutation);
     this.runState = new FavoriteSyncRunStateStore(repository);
@@ -188,13 +186,6 @@ export class FavoriteSyncService {
           return;
         }
         await this.pullLibrary(capture);
-        // Favorite membership and its cursor are already durable at this point. Catalog
-        // hydration uses a separate anonymous API and may fail independently, so unresolved
-        // display metadata must not turn a successful account sync into "Needs attention."
-        await this.metadataHydrator.hydrateMissing(capture);
-        if (!this.captureMatchesEnvironment(capture)) {
-          return;
-        }
         this.runState.update(capture, FavoriteSyncRunStatus.Saved);
         this.retryAt = this.nextPersistedRetryAt(capture.scopeId);
         this.scheduleRetryTimer();

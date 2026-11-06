@@ -1,9 +1,17 @@
+import { CatalogIdentity, CatalogRedirect } from '@/relisten/realm/catalog_identity';
+import type { FavoriteRepository } from './favorite_repository';
 import {
   FavoriteTargetKind,
   isFavoriteTargetKind,
 } from '@/relisten/realm/models/library/favorite_catalog_type';
 import { isPostgresUuid } from '@/relisten/util/postgres_uuid';
 import { formatUuidTypedId, parseUuidTypedId } from '@/relisten/util/typed_uuid_id';
+
+/** Props consumed by favorite controls; UUID-backed kinds use their local raw UUID. */
+export interface FavoriteCatalogTarget {
+  targetKind: FavoriteTargetKind;
+  catalogId: string;
+}
 
 export interface FavoriteTarget {
   kind: FavoriteTargetKind;
@@ -138,4 +146,34 @@ function isCatalogFavoriteTargetKind(kind: FavoriteTargetKind): kind is CatalogF
 function isShortTargetId(value: string, expectedKind: 'song' | 'venue') {
   const suffix = value.startsWith(`${expectedKind}_`) ? value.slice(expectedKind.length + 1) : '';
   return suffix.length === 8 && /^[0-9a-hjkmnp-tv-z]+$/.test(suffix);
+}
+
+/** Removing a survivor removes the current account's saved aliases without rewriting their IDs. */
+export function setCatalogFavorite(
+  repository: FavoriteRepository,
+  kind: FavoriteTargetKind,
+  id: string,
+  present: boolean
+) {
+  const capture = repository.captureScope();
+  const identity = new CatalogIdentity(repository.realm.objects(CatalogRedirect));
+  const displayId = identity.resolve(id);
+  const saved = [];
+  for (const favorite of repository.activeFavorites(capture.scopeId)) {
+    if (favorite.targetKind !== kind) continue;
+    const target = { kind: favorite.targetKind, id: favorite.targetId };
+    const catalogId = catalogIdForFavoriteTarget(target);
+    if (catalogId && identity.resolve(catalogId) === displayId) saved.push(target);
+  }
+  if (saved.length === 0) {
+    repository.setFavorite(
+      { ...favoriteTargetForCatalogId(kind, displayId), isFavorite: present },
+      { capture }
+    );
+  } else if (!present) {
+    repository.setFavorites(
+      saved.map((target) => ({ ...target, isFavorite: false })),
+      { capture }
+    );
+  }
 }

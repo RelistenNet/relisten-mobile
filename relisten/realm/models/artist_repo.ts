@@ -51,14 +51,14 @@ export class ArtistsNetworkBackedBehavior extends NetworkBackedBehavior<
 
 const artistBootstraps = new WeakMap<Realm, Promise<void>>();
 
-function refreshArtistList(realm: Realm, api: RelistenApiClient, force: boolean) {
+function refreshArtistList(realm: Realm, api: RelistenApiClient) {
   const pending = artistBootstraps.get(realm);
   if (pending) return pending;
   const executor = new ArtistsNetworkBackedBehavior(realm, (r) => r.objects(Artist)).sharedExecutor(
     api
   );
   const request = executor
-    .refresh(force)
+    .refresh()
     .then(() => {
       const error = executor.currentResults().errors?.[0];
       if (error) throw error.error ?? new Error(error.message);
@@ -75,19 +75,15 @@ function refreshArtistList(realm: Realm, api: RelistenApiClient, force: boolean)
 export async function ensureCatalogArtist(
   realm: Realm,
   api: RelistenApiClient,
-  artistUuid?: string
+  artistUuid: string
 ) {
   const hasArtist = () => {
-    const artist = artistUuid ? realm.objectForPrimaryKey(Artist, artistUuid) : null;
+    const artist = realm.objectForPrimaryKey(Artist, artistUuid);
     return artist !== null && artist.deletedAt == null;
   };
   if (hasArtist()) return;
-  await refreshArtistList(realm, api, false);
-  if (artistUuid && !hasArtist()) {
-    // A fresh inventory can lack an owner required by a later response.
-    await refreshArtistList(realm, api, true);
-    if (!hasArtist()) throw new Error(`Missing artist ${artistUuid} after catalog refresh.`);
-  }
+  await refreshArtistList(realm, api);
+  if (!hasArtist()) throw new Error(`Missing artist ${artistUuid} after catalog refresh.`);
 }
 
 type AutomaticallyCreatedArtistVisibility = ReadonlySet<string> | 'all';

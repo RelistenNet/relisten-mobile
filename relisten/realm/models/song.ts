@@ -33,6 +33,7 @@ export class Song
       sortName: 'string',
       uuid: 'string',
       showsPlayedAt: 'int',
+      normalizedSongId: 'string?',
       // Deprecated compatibility mirror. Canonical membership is in UserFavorite.
       isFavorite: { type: 'bool', default: false },
       shows: {
@@ -52,6 +53,7 @@ export class Song
   upstreamIdentifier!: string;
   sortName!: string;
   showsPlayedAt!: number;
+  normalizedSongId?: string;
 
   shows!: Realm.Set<Show>;
 

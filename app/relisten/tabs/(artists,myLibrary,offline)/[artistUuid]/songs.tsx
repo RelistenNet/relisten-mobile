@@ -1,4 +1,5 @@
-import { ArtistSongBrowseItem, useArtistSongs } from '@/relisten/realm/models/song_repo';
+import { useArtistSongs } from '@/relisten/realm/models/song_repo';
+import type { SongItem } from '@/relisten/realm/models/song_view';
 import Flex from '@/relisten/components/flex';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
@@ -21,7 +22,7 @@ import {
 import { useGroupSegment } from '@/relisten/util/routes';
 import { useEffect, useMemo } from 'react';
 import { useLibraryMembershipRevision, useRootLibraryIndex } from '@/relisten/realm/root_services';
-import { FavoriteObjectButton } from '@/relisten/components/favorite_icon_button';
+import { FavoriteTargetButton } from '@/relisten/components/favorite_icon_button';
 
 export default function Page() {
   const navigation = useNavigation();
@@ -50,12 +51,11 @@ export default function Page() {
 }
 
 interface SongListItemProps {
-  item: ArtistSongBrowseItem;
+  item: SongItem;
 }
 
-const songName = (item: ArtistSongBrowseItem) => item.song.name.trim() || 'Unknown song';
-const songShowCount = (item: ArtistSongBrowseItem) =>
-  item.kind === 'song' ? (item.song.matchedShowCount ?? 0) : item.song.showsPlayedAt;
+const songName = (item: SongItem) => item.name.trim() || 'Unknown song';
+const songShowCount = (item: SongItem) => item.showCount;
 
 const SongListItem = ({ item }: SongListItemProps) => {
   const groupSegment = useGroupSegment();
@@ -65,9 +65,8 @@ const SongListItem = ({ item }: SongListItemProps) => {
       href={{
         pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/song/[songUuid]/` as const,
         params: {
-          artistUuid: item.song.artistUuid,
-          songUuid: item.routeId,
-          songKind: item.kind,
+          artistUuid: item.artistUuid,
+          songUuid: item.uuid,
         },
       }}
       asChild
@@ -82,7 +81,7 @@ const SongListItem = ({ item }: SongListItemProps) => {
               </SubtitleText>
             </SubtitleRow>
           </Flex>
-          <FavoriteObjectButton object={item.song} />
+          <FavoriteTargetButton {...item.favorite} />
         </Flex>
       </SectionedListItem>
     </Link>
@@ -90,7 +89,7 @@ const SongListItem = ({ item }: SongListItemProps) => {
 };
 
 interface SongHeaderProps {
-  songs: ArtistSongBrowseItem[];
+  songs: SongItem[];
 }
 
 const SongHeader = ({ songs }: SongHeaderProps) => {
@@ -117,8 +116,8 @@ enum SongFilterPersistenceKey {
 }
 
 const songFilters = (
-  isFavorite: (item: ArtistSongBrowseItem) => boolean
-): Filter<SongFilterPersistenceKey, ArtistSongBrowseItem>[] => [
+  isFavorite: (item: SongItem) => boolean
+): Filter<SongFilterPersistenceKey, SongItem>[] => [
   {
     persistenceKey: SongFilterPersistenceKey.Library,
     title: 'My Library',
@@ -154,7 +153,7 @@ const songFilters = (
 ];
 
 interface SongListProps {
-  songs: ArtistSongBrowseItem[];
+  songs: SongItem[];
   filterOptions: FilteringOptions<SongFilterPersistenceKey>;
 }
 
@@ -162,15 +161,13 @@ const SongList = ({
   songs,
   filterOptions,
   ...props
-}: SongListProps & Omit<FilterableListProps<ArtistSongBrowseItem>, 'data' | 'renderItem'>) => {
+}: SongListProps & Omit<FilterableListProps<SongItem>, 'data' | 'renderItem'>) => {
   const libraryIndex = useRootLibraryIndex();
   const libraryMembershipRevision = useLibraryMembershipRevision();
   const filters = useMemo(
     () =>
       songFilters((item) =>
-        item.kind === 'song'
-          ? libraryIndex.isFavorite('song', item.song.id)
-          : libraryIndex.isFavorite('imported_song', item.song.uuid)
+        libraryIndex.isFavorite(item.favorite.targetKind, item.favorite.catalogId)
       ),
     [libraryIndex, libraryMembershipRevision]
   );

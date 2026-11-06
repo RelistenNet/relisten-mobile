@@ -1,3 +1,4 @@
+import { decodeUuidCatalogId } from '@/relisten/api/catalog/identity';
 import type { RelistenApiClient } from '@/relisten/api/client';
 import type {
   CatalogReferenceRequest,
@@ -13,6 +14,7 @@ import { Tour } from '@/relisten/realm/models/tour';
 import { NormalizedSong, NormalizedVenue } from '@/relisten/realm/models/catalog';
 import { Venue } from '@/relisten/realm/models/venue';
 import { Year } from '@/relisten/realm/models/year';
+import { applyCatalogResolutions } from '@/relisten/realm/catalog_identity';
 import { applyResolvedEntities } from '@/relisten/realm/catalog_apply';
 import { log } from '@/relisten/util/logging';
 import {
@@ -22,24 +24,47 @@ import {
 } from './favorite_catalog_target';
 import type { FavoriteAccountScopeCapture, FavoriteRepository } from './favorite_repository';
 
-const logger = log.extend('favorite-metadata');
+const logger = log.extend('favorite-catalog');
 const MAX_REFERENCES_PER_REQUEST = 500;
 
-/** Hydrates catalog metadata without changing saved favorite membership. */
+/** Refreshes catalog metadata and redirects without changing saved favorite targets. */
 export class FavoriteMetadataHydrator {
   constructor(
     private readonly repository: FavoriteRepository,
     private readonly catalogApi: RelistenApiClient
   ) {}
 
-  async hydrateMissing(capture: FavoriteAccountScopeCapture) {
-    if (!this.repository.isCaptureCurrent(capture)) {
+  private pending?: Promise<void>;
+  private requested?: FavoriteAccountScopeCapture;
+
+  refresh = (capture = this.repository.captureScope()): Promise<void> => {
+    this.requested = capture;
+    if (!this.pending) {
+      this.pending = this.flush().finally(() => {
+        this.pending = undefined;
+        // A membership change can arrive between the loop finishing and this callback.
+        if (this.requested) void this.refresh(this.requested);
+      });
+    }
+    return this.pending;
+  };
+
+  private async flush() {
+    while (this.requested) {
+      const capture = this.requested;
+      this.requested = undefined;
+      await this.hydrate(capture);
+    }
+  }
+
+  private async hydrate(capture: FavoriteAccountScopeCapture) {
+    if (this.repository.realm.isClosed || !this.repository.isCaptureCurrent(capture)) {
       return;
     }
 
-    const references = this.referencesNeedingMetadata(capture);
+    const references = this.referencesToRefresh(capture);
     for (let offset = 0; offset < references.length; offset += MAX_REFERENCES_PER_REQUEST) {
-      if (!this.repository.isCaptureCurrent(capture)) {
+      if (this.repository.realm.isClosed || !this.repository.isCaptureCurrent(capture)) {
         return;
       }
 
@@ -63,14 +88,39 @@ export class FavoriteMetadataHydrator {
         // Resolver patches omit artists held in the shared list. Delay importing
         // its hook-bearing module until root services have initialized.
         const { ensureCatalogArtist } = await import('@/relisten/realm/models/artist_repo');
-        await ensureCatalogArtist(this.repository.realm, this.catalogApi);
-        if (!this.repository.isCaptureCurrent(capture)) {
+        const entities = response.data.entities;
+        const returnedArtists = new Set(entities.artists.map((artist) => artist.id));
+        const dependentRows = [
+          ...entities.years,
+          ...entities.tours,
+          ...entities.imported_venues,
+          ...entities.imported_songs,
+          ...entities.artist_venues,
+          ...entities.shows,
+          ...entities.sources,
+          ...entities.source_sets,
+          ...entities.tracks,
+          ...entities.songs,
+        ];
+        const artistIds = new Set(dependentRows.map((row) => row.artist_id));
+        await Promise.all(
+          [...artistIds]
+            .filter((id) => !returnedArtists.has(id))
+            .map((id) =>
+              ensureCatalogArtist(
+                this.repository.realm,
+                this.catalogApi,
+                decodeUuidCatalogId(id, 'artist')
+              )
+            )
+        );
+        if (this.repository.realm.isClosed || !this.repository.isCaptureCurrent(capture)) {
           return;
         }
 
-        const entities = response.data.entities;
         this.repository.realm.write(() => {
           applyResolvedEntities(this.repository.realm, entities);
+          applyCatalogResolutions(this.repository.realm, response.data!.references);
         });
       } catch (error) {
         // Membership and its sync cursor stay durable when metadata cannot load.
@@ -81,7 +131,7 @@ export class FavoriteMetadataHydrator {
     }
   }
 
-  private referencesNeedingMetadata(capture: FavoriteAccountScopeCapture) {
+  private referencesToRefresh(capture: FavoriteAccountScopeCapture) {
     const references = new Map<string, CatalogReferenceRequest>();
     const favorites = this.repository.realm
       .objects(UserFavorite)
@@ -89,7 +139,8 @@ export class FavoriteMetadataHydrator {
 
     for (const favorite of favorites) {
       const target = { kind: favorite.targetKind, id: favorite.targetId };
-      if (!this.hasMetadata(target)) {
+      const canonical = target.kind === 'song' || target.kind === 'venue';
+      if (canonical || !this.hasMetadata(target)) {
         references.set(`${target.kind}:${target.id}`, { ...target, scheme: 'v4' });
       }
     }
@@ -125,11 +176,11 @@ export class FavoriteMetadataHydrator {
       }
       case 'imported_song': {
         const song = realm.objectForPrimaryKey(Song, id);
-        return isActive(song) && this.hasArtist(song.artistUuid);
+        return song !== null && this.hasArtist(song.artistUuid);
       }
       case 'imported_venue': {
         const venue = realm.objectForPrimaryKey(Venue, id);
-        return isActive(venue) && this.hasArtist(venue.artistUuid);
+        return venue !== null && this.hasArtist(venue.artistUuid);
       }
       case 'tour': {
         const tour = realm.objectForPrimaryKey(Tour, id);

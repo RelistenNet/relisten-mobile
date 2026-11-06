@@ -240,3 +240,63 @@ export class RealmObjectValueStream<T extends AnyRealmObject> extends ValueStrea
     }
   }
 }
+
+/** Projects selected Realm rows without wrapping inverse relationships for React. */
+export class RealmProjectionValueStream<T> extends ValueStream<T> {
+  public currentValue: T;
+  private readonly update = () => {
+    this.currentValue = this.read();
+    this.emitCurrentValue();
+  };
+
+  constructor(
+    // Each query selects the rows that can change the projection.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    private readonly queries: Realm.Results<any>[],
+    private readonly read: () => T,
+    keyPaths?: string[]
+  ) {
+    super();
+    this.currentValue = read();
+    for (const query of queries) query.addListener(this.update, keyPaths);
+  }
+
+  override tearDown() {
+    super.tearDown();
+    for (const query of this.queries) {
+      if (query.isValid()) query.removeListener(this.update);
+    }
+  }
+}
+
+/** Replaces a selected child subscription when its owner or membership changes. */
+export class SwitchingValueStream<T, TParent> extends ValueStream<T> {
+  public currentValue!: T;
+  private child?: ValueStream<T>;
+  private unsubscribeChild?: () => void;
+  private readonly unsubscribeParent: () => void;
+
+  constructor(
+    private readonly parent: ValueStream<TParent>,
+    select: (value: TParent) => ValueStream<T>
+  ) {
+    super();
+    this.unsubscribeParent = parent.addListener((value) => {
+      this.unsubscribeChild?.();
+      this.child?.tearDown();
+      this.child = select(value);
+      this.unsubscribeChild = this.child.addListener((next) => {
+        this.currentValue = next;
+        this.emitCurrentValue();
+      });
+    });
+  }
+
+  override tearDown() {
+    super.tearDown();
+    this.unsubscribeParent();
+    this.unsubscribeChild?.();
+    this.child?.tearDown();
+    this.parent.tearDown();
+  }
+}

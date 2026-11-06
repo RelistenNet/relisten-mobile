@@ -120,3 +120,30 @@ export class Show
       : checkIfOfflineSourceTrackExists(this.sourceTracks);
   }
 }
+
+/** Fields used by show lists, excluding inverse recording/song collections. */
+export const SHOW_LIST_KEY_PATHS = [
+  'uuid',
+  'artistUuid',
+  'yearUuid',
+  'venueUuid',
+  'tourUuid',
+  'date',
+  'createdAt',
+  'updatedAt',
+  'deletedAt',
+  'avgRating',
+  'avgDuration',
+  'displayDate',
+  'mostRecentSourceUpdatedAt',
+  'hasSoundboardSource',
+  'hasStreamableFlacSource',
+  'sourceCount',
+  'popularity',
+  'venue.name',
+  'venue.location',
+  'artist.uuid',
+  'artist.name',
+  'tour.name',
+  'artistVenue.venueId',
+];

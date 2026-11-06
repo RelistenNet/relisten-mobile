@@ -1,3 +1,4 @@
+import { decodeUuidCatalogId } from '@/relisten/api/catalog/identity';
 import { RelistenApiClient, RelistenApiResponse } from '@/relisten/api/client';
 import { ShowSummaryResource as ApiShow } from '@/relisten/api/catalog/resources';
 import { Show } from '@/relisten/realm/models/show';
@@ -25,7 +26,12 @@ export abstract class ShowsWithVenueNetworkBackedBehavior extends NetworkBackedB
   async fetchFromApi(api: RelistenApiClient, force: boolean) {
     const response = await this.fetchShows(api, force);
     if (response.data?.length) {
-      await ensureCatalogArtist(this.realm, api);
+      const artists = new Set(response.data.map((show) => show.artist_id));
+      await Promise.all(
+        [...artists].map((id) =>
+          ensureCatalogArtist(this.realm, api, decodeUuidCatalogId(id, 'artist'))
+        )
+      );
     }
 
     return response;

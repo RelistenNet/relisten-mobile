@@ -1,4 +1,6 @@
-import { FavoriteObjectButton } from '@/relisten/components/favorite_icon_button';
+import { NonIdealState } from '@/relisten/components/non_ideal_state';
+import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
+import { FavoriteTargetButton } from '@/relisten/components/favorite_icon_button';
 import { FilterableList } from '@/relisten/components/filtering/filterable_list';
 import { FilteringProvider } from '@/relisten/components/filtering/filters';
 import Flex from '@/relisten/components/flex';
@@ -12,7 +14,7 @@ import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useArtistSongTracks } from '@/relisten/realm/models/song_tracks_repo';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
-import { NormalizedSong } from '@/relisten/realm/models/catalog';
+import type { SongItem } from '@/relisten/realm/models/song_view';
 import { ShowLink } from '@/relisten/util/push_show';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { useEffect } from 'react';
@@ -20,18 +22,29 @@ import { ScrollViewProps, View } from 'react-native';
 
 export default function SongTracksPage() {
   const navigation = useNavigation();
+  const online = useShouldMakeNetworkRequests();
   const { artistUuid, songUuid } = useLocalSearchParams();
   const results = useArtistSongTracks(String(artistUuid), String(songUuid));
   const { artist, songTracks } = results.data;
-  const visibleResults = songTracks.hasAppliedData ? { ...results, errors: undefined } : results;
+  const visibleResults = songTracks.isAvailable ? { ...results, errors: undefined } : results;
   const isLoading =
-    results.isNetworkLoading || (!songTracks.hasAppliedData && !results.errors?.length);
+    results.isNetworkLoading || (!songTracks.isAvailable && !results.errors?.length);
 
   useEffect(() => {
     navigation.setOptions({
       title: songTracks.song?.name.trim() || 'Recordings',
     });
   }, [navigation, songTracks.song]);
+
+  if (!online) {
+    return (
+      <NonIdealState
+        icon="cloud-off"
+        title="Connection Required"
+        description="Connect to the internet to find shows and recordings of this song."
+      />
+    );
+  }
 
   return (
     <RefreshContextProvider networkBackedResults={visibleResults}>
@@ -49,7 +62,7 @@ export default function SongTracksPage() {
 type TrackListProps = {
   artist: Artist | null;
   isLoading: boolean;
-  song: NormalizedSong | null;
+  song: SongItem | null;
   tracks: SourceTrack[];
 } & Pick<ScrollViewProps, 'onScroll' | 'scrollEventThrottle'>;
 
@@ -66,7 +79,7 @@ function TrackList({ artist, isLoading, song, tracks, ...scrollProps }: TrackLis
               <RelistenText className="text-center text-4xl font-bold text-white">
                 {song?.name.trim() || 'Unknown song'}
               </RelistenText>
-              {song && <FavoriteObjectButton object={song} />}
+              {song && <FavoriteTargetButton {...song.favorite} />}
             </Flex>
             <RelistenText className="text-l text-center italic text-gray-400">
               <Plur word="recording" count={tracks.length} />

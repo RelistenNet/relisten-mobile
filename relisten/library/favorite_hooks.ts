@@ -1,4 +1,6 @@
-import { useCallback, useMemo, useSyncExternalStore } from 'react';
+import { NormalizedVenue } from '@/relisten/realm/models/catalog';
+import { setCatalogFavorite } from './favorite_catalog_target';
+import { useCallback, useMemo, useState, useSyncExternalStore } from 'react';
 import { useAccountScope } from '@/relisten/accounts/account_context';
 import { requireInstallationUuid } from '@/relisten/accounts/auth/installation_id';
 import {
@@ -9,13 +11,14 @@ import {
   FavoriteSyncState,
   UserFavorite,
 } from '@/relisten/realm/models/library';
-import { favoriteTargetForCatalogId } from '@/relisten/library/favorite_catalog_target';
 import type { FavoriteTargetKind } from '@/relisten/realm/models/library/favorite_catalog_type';
 import { ANONYMOUS_ACCOUNT_SCOPE_ID } from '@/relisten/realm/models/accounts';
 import { useQuery } from '@/relisten/realm/schema';
 import {
   useAnonymousLibraryImportService,
   useFavoriteRepository,
+  useFavoriteMetadataHydrator,
+  useFavoriteCatalogUuids,
   useFavoriteSyncService,
   useRootLibraryIndex,
 } from '@/relisten/realm/root_services';
@@ -39,25 +42,16 @@ export interface FavoriteState {
 
 export function useFavorite(targetKind: FavoriteTargetKind, catalogId: string): FavoriteState {
   const repository = useFavoriteRepository();
-  const libraryIndex = useRootLibraryIndex();
-
-  const subscribe = useCallback(
-    (listener: () => void) => libraryIndex.subscribeFavorite(targetKind, catalogId, listener),
-    [targetKind, catalogId, libraryIndex]
-  );
+  const library = useRootLibraryIndex();
+  const subscribe = library.subscribeLibraryMembership;
   const getSnapshot = useCallback(
-    () => libraryIndex.isFavorite(targetKind, catalogId),
-    [targetKind, catalogId, libraryIndex]
+    () => library.isFavorite(targetKind, catalogId),
+    [library, targetKind, catalogId]
   );
   const isFavorite = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const setFavorite = useCallback(
-    (nextFavorite: boolean) => {
-      repository.setFavorite({
-        ...favoriteTargetForCatalogId(targetKind, catalogId),
-        isFavorite: nextFavorite,
-      });
-    },
-    [targetKind, catalogId, repository]
+    (present: boolean) => setCatalogFavorite(repository, targetKind, catalogId, present),
+    [repository, targetKind, catalogId]
   );
   const toggleFavorite = useCallback(() => {
     setFavorite(!isFavorite);
@@ -259,4 +253,19 @@ export function useAnonymousFavoriteImport() {
     importToActiveAccount,
     defer,
   };
+}
+
+/** A resolved list view; components never choose between saved and display identities. */
+export function useFavoriteVenues() {
+  const hydrator = useFavoriteMetadataHydrator();
+  const ids = useFavoriteCatalogUuids('venue');
+  const venues = useQuery(NormalizedVenue, (rows) => rows.filtered('id IN $0', [...ids]), [ids]);
+  const byId = new Map(venues.map((venue) => [venue.id, venue]));
+  const data = Array.from(ids, (id) => ({ uuid: id, venue: byId.get(id) }));
+  const [isNetworkLoading, setLoading] = useState(false);
+  const refresh = useCallback(() => {
+    setLoading(true);
+    return hydrator.refresh().finally(() => setLoading(false));
+  }, [hydrator]);
+  return { data, isNetworkLoading, refresh };
 }

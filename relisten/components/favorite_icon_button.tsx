@@ -1,3 +1,4 @@
+import type { FavoriteCatalogTarget } from '@/relisten/library/favorite_catalog_target';
 import {
   type GestureResponderEvent,
   LayoutAnimation,
@@ -46,10 +47,7 @@ export const FavoriteTargetButton = ({
   catalogId,
   onPress,
   ...props
-}: {
-  targetKind: FavoriteTargetKind;
-  catalogId: string;
-} & TouchableOpacityProps) => {
+}: FavoriteCatalogTarget & TouchableOpacityProps) => {
   const favorite = useFavorite(targetKind, catalogId);
 
   const favoriteOnPress = useCallback(

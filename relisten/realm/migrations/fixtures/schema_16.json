@@ -1,0 +1,776 @@
+{
+  "sourceCommit": "3e7d26165147db8e443c46f381d8b7651706f0bd",
+  "schemaVersion": 16,
+  "schema": [
+    {
+      "name": "Artist",
+      "primaryKey": "uuid",
+      "properties": {
+        "uuid": "string",
+        "createdAt": "date",
+        "updatedAt": "date",
+        "deletedAt": {
+          "type": "date",
+          "optional": true,
+          "indexed": true
+        },
+        "musicbrainzId": "string",
+        "name": "string",
+        "featured": "int",
+        "slug": "string",
+        "sortName": "string",
+        "popularity": "Popularity?",
+        "featuresRaw": "string",
+        "upstreamSourcesRaw": "string",
+        "showCount": "int",
+        "sourceCount": "int",
+        "isFavorite": {
+          "default": false,
+          "type": "bool"
+        },
+        "sourceTracks": {
+          "type": "linkingObjects",
+          "objectType": "SourceTrack",
+          "property": "artist"
+        }
+      }
+    },
+    {
+      "name": "Year",
+      "primaryKey": "uuid",
+      "properties": {
+        "uuid": "string",
+        "createdAt": "date",
+        "updatedAt": "date",
+        "deletedAt": {
+          "type": "date",
+          "optional": true,
+          "indexed": true
+        },
+        "artistUuid": {
+          "type": "string",
+          "indexed": true
+        },
+        "showCount": "int",
+        "sourceCount": "int",
+        "duration": "double?",
+        "avgDuration": "double?",
+        "avgRating": "double?",
+        "year": "string",
+        "popularity": "Popularity?",
+        "sourceTracks": {
+          "type": "linkingObjects",
+          "objectType": "SourceTrack",
+          "property": "year"
+        }
+      }
+    },
+    {
+      "name": "Show",
+      "primaryKey": "uuid",
+      "properties": {
+        "uuid": "string",
+        "artistUuid": {
+          "type": "string",
+          "indexed": true
+        },
+        "yearUuid": {
+          "type": "string",
+          "indexed": true
+        },
+        "venueUuid": {
+          "type": "string",
+          "optional": true,
+          "indexed": true
+        },
+        "tourUuid": {
+          "type": "string",
+          "optional": true,
+          "indexed": true
+        },
+        "createdAt": "date",
+        "updatedAt": "date",
+        "deletedAt": {
+          "type": "date",
+          "optional": true,
+          "indexed": true
+        },
+        "date": {
+          "type": "date",
+          "indexed": true
+        },
+        "avgRating": "float",
+        "avgDuration": "float?",
+        "displayDate": "string",
+        "mostRecentSourceUpdatedAt": "date",
+        "hasSoundboardSource": "bool",
+        "hasStreamableFlacSource": "bool",
+        "sourceCount": "int",
+        "popularity": "Popularity?",
+        "isFavorite": {
+          "type": "bool",
+          "default": false
+        },
+        "venue": "Venue?",
+        "sourceTracks": {
+          "type": "linkingObjects",
+          "objectType": "SourceTrack",
+          "property": "show"
+        },
+        "songs": {
+          "type": "linkingObjects",
+          "objectType": "Song",
+          "property": "shows"
+        },
+        "tour": "Tour?",
+        "artist": "Artist?"
+      }
+    },
+    {
+      "name": "Venue",
+      "primaryKey": "uuid",
+      "properties": {
+        "uuid": "string",
+        "createdAt": "date",
+        "updatedAt": "date",
+        "deletedAt": {
+          "type": "date",
+          "optional": true,
+          "indexed": true
+        },
+        "artistUuid": "string",
+        "latitude": "double?",
+        "longitude": "double?",
+        "name": "string",
+        "location": "string",
+        "upstreamIdentifier": "string",
+        "slug": "string",
+        "pastNames": "string?",
+        "sortName": "string",
+        "showsAtVenue": "int",
+        "isFavorite": {
+          "type": "bool",
+          "default": false
+        }
+      }
+    },
+    {
+      "name": "Tour",
+      "primaryKey": "uuid",
+      "properties": {
+        "createdAt": "date",
+        "updatedAt": "date",
+        "deletedAt": {
+          "type": "date",
+          "optional": true,
+          "indexed": true
+        },
+        "artistUuid": "string",
+        "startDate": "date",
+        "endDate": "date",
+        "name": "string",
+        "slug": "string",
+        "upstreamIdentifier": "string",
+        "uuid": "string",
+        "isFavorite": {
+          "type": "bool",
+          "default": false
+        }
+      }
+    },
+    {
+      "name": "Song",
+      "primaryKey": "uuid",
+      "properties": {
+        "createdAt": "date",
+        "updatedAt": "date",
+        "deletedAt": {
+          "type": "date",
+          "optional": true,
+          "indexed": true
+        },
+        "artistUuid": "string",
+        "name": "string",
+        "slug": "string",
+        "upstreamIdentifier": "string",
+        "sortName": "string",
+        "uuid": "string",
+        "showsPlayedAt": "int",
+        "isFavorite": {
+          "type": "bool",
+          "default": false
+        },
+        "shows": {
+          "type": "set",
+          "objectType": "Show"
+        }
+      }
+    },
+    {
+      "name": "Source",
+      "primaryKey": "uuid",
+      "properties": {
+        "uuid": "string",
+        "createdAt": "date",
+        "updatedAt": "date",
+        "deletedAt": {
+          "type": "date",
+          "optional": true,
+          "indexed": true
+        },
+        "artistUuid": {
+          "type": "string",
+          "indexed": true
+        },
+        "showUuid": {
+          "type": "string",
+          "indexed": true
+        },
+        "venueUuid": {
+          "type": "string",
+          "optional": true,
+          "indexed": true
+        },
+        "displayDate": "string",
+        "isSoundboard": {
+          "type": "bool",
+          "indexed": true
+        },
+        "isRemaster": {
+          "type": "bool",
+          "indexed": true
+        },
+        "hasJamcharts": "bool",
+        "avgRating": "float",
+        "numReviews": "int",
+        "numRatings": "int?",
+        "avgRatingWeighted": "float",
+        "duration": "double?",
+        "upstreamIdentifier": "string",
+        "description": "string?",
+        "taperNotes": "string?",
+        "source": "string?",
+        "taper": "string?",
+        "transferrer": "string?",
+        "lineage": "string?",
+        "flacType": "string",
+        "reviewCount": "int",
+        "linksRaw": "string",
+        "sourceSets": "SourceSet[]",
+        "sourceTracks": {
+          "type": "linkingObjects",
+          "objectType": "SourceTrack",
+          "property": "source"
+        },
+        "artist": "Artist?",
+        "isFavorite": {
+          "type": "bool",
+          "default": false
+        }
+      }
+    },
+    {
+      "name": "SourceSet",
+      "primaryKey": "uuid",
+      "properties": {
+        "uuid": "string",
+        "createdAt": "date",
+        "updatedAt": "date",
+        "deletedAt": {
+          "type": "date",
+          "optional": true,
+          "indexed": true
+        },
+        "artistUuid": {
+          "type": "string",
+          "indexed": true
+        },
+        "sourceUuid": {
+          "type": "string",
+          "indexed": true
+        },
+        "index": "int",
+        "isEncore": "bool",
+        "name": "string",
+        "sourceTracks": "SourceTrack[]"
+      }
+    },
+    {
+      "name": "SourceTrack",
+      "primaryKey": "uuid",
+      "properties": {
+        "uuid": "string",
+        "createdAt": "date",
+        "updatedAt": "date",
+        "deletedAt": {
+          "type": "date",
+          "optional": true,
+          "indexed": true
+        },
+        "artistUuid": {
+          "type": "string",
+          "indexed": true
+        },
+        "sourceUuid": {
+          "type": "string",
+          "indexed": true
+        },
+        "sourceSetUuid": {
+          "type": "string",
+          "indexed": true
+        },
+        "showUuid": {
+          "type": "string",
+          "indexed": true
+        },
+        "trackPosition": "int",
+        "duration": "double?",
+        "title": "string",
+        "slug": "string",
+        "mp3Url": "string?",
+        "mp3Md5": "string?",
+        "flacUrl": "string?",
+        "flacMd5": "string?",
+        "isFavorite": {
+          "type": "bool",
+          "default": false
+        },
+        "offlineInfo": "SourceTrackOfflineInfo",
+        "artist": "Artist?",
+        "year": "Year?",
+        "show": "Show?",
+        "source": "Source?"
+      }
+    },
+    {
+      "name": "UrlRequestMetadata",
+      "primaryKey": "url",
+      "properties": {
+        "url": "string",
+        "etag": "string",
+        "lastRequestCompletedAt": "date",
+        "etagLastUpdatedAt": {
+          "type": "date",
+          "optional": true
+        }
+      }
+    },
+    {
+      "name": "RouteFilterConfig",
+      "primaryKey": "key",
+      "properties": {
+        "key": "string",
+        "rawFilters": "string"
+      }
+    },
+    {
+      "name": "SourceTrackOfflineInfo",
+      "primaryKey": "sourceTrackUuid",
+      "properties": {
+        "sourceTrackUuid": "string",
+        "status": "int",
+        "type": "int",
+        "queuedAt": "date",
+        "startedAt": "date?",
+        "completedAt": "date?",
+        "downloadedBytes": {
+          "type": "double",
+          "default": 0
+        },
+        "totalBytes": {
+          "type": "double",
+          "default": 0
+        },
+        "percent": {
+          "type": "double",
+          "default": 0
+        },
+        "errorInfo": "string?",
+        "sourceTracks": {
+          "type": "linkingObjects",
+          "objectType": "SourceTrack",
+          "property": "offlineInfo"
+        }
+      }
+    },
+    {
+      "name": "PlaybackHistoryEntry",
+      "primaryKey": "uuid",
+      "properties": {
+        "uuid": "string",
+        "playbackFlags": "int",
+        "publishedAt": "date?",
+        "createdAt": "date",
+        "playbackStartedAt": "date",
+        "sourceTrack": "SourceTrack",
+        "artist": "Artist",
+        "show": "Show",
+        "source": "Source"
+      }
+    },
+    {
+      "name": "PlayerQueueEntry",
+      "embedded": true,
+      "properties": {
+        "id": "string",
+        "sourceTrackUuid": "string"
+      }
+    },
+    {
+      "name": "PlayerShuffleOrder",
+      "embedded": true,
+      "properties": {
+        "entryIds": "string[]"
+      }
+    },
+    {
+      "name": "PlayerCheckpoint",
+      "embedded": true,
+      "properties": {
+        "entryId": "string",
+        "elapsedSeconds": "double",
+        "durationSeconds": "double?"
+      }
+    },
+    {
+      "name": "PlayerState",
+      "primaryKey": "id",
+      "properties": {
+        "id": "string",
+        "queueEntries": "PlayerQueueEntry[]",
+        "shuffleOrder": "PlayerShuffleOrder?",
+        "repeatMode": "int",
+        "checkpoint": "PlayerCheckpoint?",
+        "lastUpdatedAt": "date"
+      }
+    },
+    {
+      "name": "UserSettings",
+      "primaryKey": "key",
+      "properties": {
+        "key": "string",
+        "trackListeningHistory": {
+          "type": "string",
+          "optional": true
+        },
+        "downloadViaCellularData": {
+          "type": "string",
+          "optional": true
+        },
+        "offlineMode": {
+          "type": "string",
+          "optional": true
+        },
+        "showOfflineTab": {
+          "type": "string",
+          "optional": true
+        },
+        "autocacheStreamedMusic": {
+          "type": "string",
+          "optional": true
+        },
+        "autocacheMinAvailableStorageMB": {
+          "type": "int",
+          "optional": true
+        },
+        "autocacheDeleteFirst": {
+          "type": "string",
+          "optional": true
+        },
+        "autoplayDeepLinkToTrack": {
+          "type": "string",
+          "optional": true
+        },
+        "autoselectPrimarySource": {
+          "type": "string",
+          "optional": true
+        }
+      }
+    },
+    {
+      "name": "LastFmSettings",
+      "primaryKey": "key",
+      "properties": {
+        "key": "string",
+        "enabled": {
+          "type": "bool",
+          "optional": true
+        },
+        "username": {
+          "type": "string",
+          "optional": true
+        },
+        "lastAuthAt": {
+          "type": "date",
+          "optional": true
+        },
+        "authInvalid": {
+          "type": "bool",
+          "optional": true
+        }
+      }
+    },
+    {
+      "name": "LastFmScrobbleEntry",
+      "primaryKey": "id",
+      "properties": {
+        "id": "string",
+        "createdAt": "date",
+        "artist": "string",
+        "track": "string",
+        "album": "string?",
+        "duration": "double?",
+        "timestamp": "date",
+        "failureCount": {
+          "type": "int",
+          "default": 0
+        },
+        "lastAttemptAt": "date?"
+      }
+    },
+    {
+      "name": "AudioAdjustmentSettings",
+      "primaryKey": "key",
+      "properties": {
+        "key": "string",
+        "specVersion": "int",
+        "enabled": "bool",
+        "activePresetId": "string?",
+        "bandGainsDb": "double[]",
+        "extraVolumeReductionDb": "double",
+        "updatedAt": "date"
+      }
+    },
+    {
+      "name": "AudioAdjustmentPreset",
+      "primaryKey": "id",
+      "properties": {
+        "id": "string",
+        "specVersion": "int",
+        "name": "string",
+        "bandGainsDb": "double[]",
+        "extraVolumeReductionDb": "double",
+        "createdAt": "date",
+        "updatedAt": "date"
+      }
+    },
+    {
+      "name": "Popularity",
+      "embedded": true,
+      "properties": {
+        "momentumScore": "double",
+        "trendRatio": "double",
+        "windows": "PopularityWindows"
+      }
+    },
+    {
+      "name": "PopularityWindow",
+      "embedded": true,
+      "properties": {
+        "plays": "int",
+        "hours": "double",
+        "hotScore": "double"
+      }
+    },
+    {
+      "name": "PopularityWindows",
+      "embedded": true,
+      "properties": {
+        "hours48h": "PopularityWindow",
+        "days7d": "PopularityWindow",
+        "days30d": "PopularityWindow"
+      }
+    },
+    {
+      "name": "CatalogStartupRepairState",
+      "primaryKey": "version",
+      "properties": {
+        "version": "int",
+        "completedAt": "date"
+      }
+    },
+    {
+      "name": "ActiveAccountScope",
+      "primaryKey": "id",
+      "properties": {
+        "id": "string",
+        "scopeId": "string",
+        "userUuid": "string?",
+        "generation": {
+          "type": "int",
+          "default": 0
+        },
+        "nativeSessionId": "string?",
+        "blockedNativeSessionId": "string?",
+        "updatedAt": "date"
+      }
+    },
+    {
+      "name": "AccountProfile",
+      "primaryKey": "scopeId",
+      "properties": {
+        "scopeId": "string",
+        "userUuid": "string",
+        "username": "string",
+        "usernameVersion": "int",
+        "usernameReviewNeeded": "bool",
+        "usernameReviewedAt": "date?",
+        "usernameChangeAvailableAt": "date?",
+        "nativeSessionId": "string",
+        "lastSyncedAt": "date"
+      }
+    },
+    {
+      "name": "PendingUsernameCommand",
+      "primaryKey": "scopeId",
+      "properties": {
+        "scopeId": "string",
+        "commandUuid": "string",
+        "expectedUsernameVersion": "int",
+        "username": "string",
+        "createdAt": "date"
+      }
+    },
+    {
+      "name": "UserFavorite",
+      "primaryKey": "favoriteUuid",
+      "properties": {
+        "favoriteUuid": "string",
+        "scopeId": {
+          "type": "string",
+          "indexed": true
+        },
+        "catalogType": {
+          "type": "string",
+          "indexed": true
+        },
+        "catalogUuid": {
+          "type": "string",
+          "indexed": true
+        },
+        "acknowledgedPresent": {
+          "type": "bool",
+          "default": false
+        },
+        "effectivePresent": {
+          "type": "bool",
+          "default": false,
+          "indexed": true
+        },
+        "acknowledgedRevision": "int?",
+        "lastLocalSequence": {
+          "type": "int",
+          "default": 0
+        },
+        "serverCreatedAt": "date?",
+        "serverUpdatedAt": "date?",
+        "createdAt": "date",
+        "updatedAt": "date"
+      }
+    },
+    {
+      "name": "FavoriteMutation",
+      "primaryKey": "mutationUuid",
+      "properties": {
+        "mutationUuid": "string",
+        "scopeId": {
+          "type": "string",
+          "indexed": true
+        },
+        "favoriteUuid": {
+          "type": "string",
+          "indexed": true
+        },
+        "catalogType": {
+          "type": "string",
+          "indexed": true
+        },
+        "catalogUuid": {
+          "type": "string",
+          "indexed": true
+        },
+        "desiredPresent": "bool",
+        "localSequence": {
+          "type": "int",
+          "indexed": true
+        },
+        "state": {
+          "type": "string",
+          "indexed": true
+        },
+        "importUuid": {
+          "type": "string",
+          "optional": true,
+          "indexed": true
+        },
+        "attemptCount": {
+          "type": "int",
+          "default": 0
+        },
+        "nextAttemptAt": "date?",
+        "requestStartedAt": "date?",
+        "lastErrorCode": "string?",
+        "lastErrorMessage": "string?",
+        "createdAt": "date",
+        "updatedAt": "date"
+      }
+    },
+    {
+      "name": "FavoriteSyncState",
+      "primaryKey": "syncStateUuid",
+      "properties": {
+        "syncStateUuid": "string",
+        "scopeId": {
+          "type": "string",
+          "indexed": true
+        },
+        "libraryCursor": "string?",
+        "highestObservedLibraryRevision": {
+          "type": "int",
+          "default": 0
+        },
+        "nextLocalSequence": {
+          "type": "int",
+          "default": 1
+        },
+        "runStatus": {
+          "type": "string",
+          "default": "waiting"
+        },
+        "lastErrorCode": "string?",
+        "lastErrorMessage": "string?",
+        "lastErrorRetryable": {
+          "type": "bool",
+          "default": false
+        },
+        "lastSuccessfulSyncAt": "date?",
+        "createdAt": "date",
+        "updatedAt": "date"
+      }
+    },
+    {
+      "name": "AnonymousFavoriteImport",
+      "primaryKey": "importUuid",
+      "properties": {
+        "importUuid": "string",
+        "installationUuid": {
+          "type": "string",
+          "indexed": true
+        },
+        "destinationScopeId": {
+          "type": "string",
+          "indexed": true
+        },
+        "sourceFingerprint": "string",
+        "state": {
+          "type": "string",
+          "indexed": true
+        },
+        "sourceFavoriteCount": "int",
+        "createdAt": "date",
+        "updatedAt": "date",
+        "completedAt": "date?"
+      }
+    }
+  ]
+}

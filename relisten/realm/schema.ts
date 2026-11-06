@@ -51,7 +51,7 @@ if (isVerboseProfileLoggingEnabled()) {
   Realm.setLogLevel('debug', 'Realm.Storage.Notification');
 }
 
-export const REALM_SCHEMA_VERSION = 18;
+export const REALM_SCHEMA_VERSION = 23;
 
 export const REALM_SCHEMA = [
   Artist,
@@ -84,7 +84,7 @@ export const REALM_SCHEMA = [
 
 export const realmConfig: Realm.Configuration = {
   schema: REALM_SCHEMA,
-  // Schema 18 adds the final catalog overlays; query state owns ordered membership.
+  // Add catalog models while retaining imported records and media identities.
   schemaVersion: REALM_SCHEMA_VERSION,
   onMigration: (oldRealm, newRealm) => {
     migratePlayerState(oldRealm, newRealm);

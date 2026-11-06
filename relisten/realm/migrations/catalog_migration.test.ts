@@ -1,13 +1,39 @@
 /// <reference types="node" />
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Realm from 'realm';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+const fixtureContext = vi.hoisted(() => ({
+  realm: null as Realm | null,
+  document: `/tmp/relisten-upgrade-media-${process.pid}`,
+}));
+vi.mock('react', () => ({
+  useMemo: (factory: () => unknown) => factory(),
+  useCallback: (fn: unknown) => fn,
+}));
+vi.mock('@/relisten/api/context', () => ({ useRelistenApi: () => ({ apiClient: null }) }));
+vi.mock('@/relisten/util/netinfo', () => ({ useShouldMakeNetworkRequests: () => false }));
+vi.mock('@/relisten/realm/root_services', () => ({}));
+vi.mock('@/relisten/util/routes', () => ({}));
+vi.mock('@/relisten/realm/network_backed_behavior_hooks', () => ({
+  useNetworkOnlyResults: () => ({ data: undefined, isNetworkLoading: false, refresh: () => {} }),
+  useNetworkBackedBehavior: (behavior: {
+    createLocalUpdatingResults(): { currentValue: unknown; tearDown(): void };
+  }) => {
+    const stream = behavior.createLocalUpdatingResults();
+    const data = stream.currentValue;
+    stream.tearDown();
+    return { data, isNetworkLoading: false, refresh: vi.fn() };
+  },
+}));
+vi.hoisted(() => vi.stubGlobal('__DEV__', true));
+vi.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
 vi.mock('expo-file-system', () => ({
   Paths: {
-    document: '/documents',
+    document: fixtureContext.document,
     join: (...parts: string[]) => parts.join('/'),
   },
 }));
@@ -18,9 +44,10 @@ vi.mock('@realm/react', async () => {
     Realm,
     createRealmContext: () => ({
       RealmProvider: undefined,
-      useRealm: undefined,
+      useRealm: () => fixtureContext.realm,
       useObject: undefined,
-      useQuery: undefined,
+      useQuery: (type: string, query: (rows: ReturnType<Realm['objects']>) => unknown) =>
+        query(fixtureContext.realm!.objects(type)),
     }),
   };
 });
@@ -41,25 +68,23 @@ vi.mock('@/relisten/accounts/auth/pkce_transaction', () => ({
   clearPendingAuthTransaction: vi.fn(),
 }));
 
-import { REALM_SCHEMA, REALM_SCHEMA_VERSION, realmConfig } from '@/relisten/realm/schema';
-import { CatalogQueryState, CATALOG_REALM_MODELS } from '@/relisten/realm/models/catalog';
-import { SourceTrack } from '@/relisten/realm/models/source_track';
+import frozen from './fixtures/schema_16.json';
+import { REALM_SCHEMA_VERSION, realmConfig, prepareRealmForUse } from '../schema';
+import { useSongs } from '../models/song_repo';
+import { useVenues } from '../models/venue_repo';
+import { useSongShows } from '../models/shows/song_shows_repo';
+import { useVenueShows } from '../models/shows/venue_shows_repo';
+import { SourceTrack } from '../models/source_track';
 import {
   SourceTrackOfflineInfoStatus,
   SourceTrackOfflineInfoType,
-} from '@/relisten/realm/models/source_track_offline_info';
+} from '../models/source_track_offline_info';
 import { PlayerRepeatState } from '@/relisten/player/player_modes';
-import { PLAYER_STATE_SENTINEL, PlayerState } from '@/relisten/realm/models/player_state';
-import {
-  ACTIVE_ACCOUNT_SCOPE_ID,
-  ActiveAccountScope,
-} from '@/relisten/realm/models/accounts/active_account_scope';
-import { UserFavorite } from '@/relisten/realm/models/library/user_favorite';
-import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
-import { Show } from '@/relisten/realm/models/show';
-import { Tour } from '@/relisten/realm/models/tour';
+import { PLAYER_STATE_SENTINEL, PlayerState } from '../models/player_state';
+import { ACTIVE_ACCOUNT_SCOPE_ID } from '../models/accounts/active_account_scope';
+import { UserFavorite } from '../models/library/user_favorite';
+import { PlaybackHistoryEntry } from '../models/history/playback_history_entry';
 import { formatUuidTypedId } from '@/relisten/util/typed_uuid_id';
-
 const savedAt = new Date('2026-10-31T12:00:00Z');
 const artistUuid = '00000000-0000-4000-8000-000000000001';
 const yearUuid = '00000000-0000-4000-8000-000000000002';
@@ -69,64 +94,13 @@ const showUuid = '00000000-0000-4000-8000-000000000005';
 const sourceUuid = '00000000-0000-4000-8000-000000000006';
 const sourceSetUuid = '00000000-0000-4000-8000-000000000007';
 const trackUuid = '00000000-0000-4000-8000-000000000008';
-const userId = formatUuidTypedId('user', '01890a5d-ac96-774b-bcce-b302099a8051');
-const sessionId = formatUuidTypedId('session', '01890a5d-ac96-774b-bcce-b302099a8052');
-const favoriteId = formatUuidTypedId('favorite', '01890a5d-ac96-774b-bcce-b302099a8053');
-const favoriteTargetId = formatUuidTypedId('track', trackUuid);
+const songUuid = '00000000-0000-4000-8000-000000000009';
+const userId = '01890a5d-ac96-774b-bcce-b302099a8051';
+const sessionId = '01890a5d-ac96-774b-bcce-b302099a8052';
+const rawFavoriteId = '01890a5d-ac96-774b-bcce-b302099a8053';
+const audioBytes = readFileSync(new URL('./fixtures/offline_sample.mp3', import.meta.url));
 
-type RealmModel = { schema: Realm.ObjectSchema };
-
-function schema17(): Realm.ObjectSchema[] {
-  const catalogNames = new Set(
-    CATALOG_REALM_MODELS.map((model) => (model as unknown as RealmModel).schema.name)
-  );
-
-  return REALM_SCHEMA.flatMap((model) => {
-    const schema = (model as unknown as RealmModel).schema;
-    if (catalogNames.has(schema.name)) return [];
-
-    const properties = { ...schema.properties };
-    if (schema.name === 'Show') {
-      delete properties.artistVenue;
-      properties.yearUuid = { type: 'string', indexed: true };
-    } else if (schema.name === 'SourceTrack') {
-      delete properties.normalization;
-    } else if (schema.name === 'Tour') {
-      delete properties.showCount;
-      properties.startDate = 'date';
-      properties.endDate = 'date';
-    }
-
-    return [{ ...schema, properties }];
-  });
-}
-
-class MigrationRealmFile {
-  readonly directory = mkdtempSync(join(tmpdir(), 'relisten-catalog-migration-'));
-  readonly path = join(this.directory, 'catalog.realm');
-  private readonly connections: Realm[] = [];
-
-  async open(configuration: Omit<Realm.Configuration, 'path'>) {
-    const realm = await Realm.open({ ...configuration, path: this.path });
-    this.connections.push(realm);
-    return realm;
-  }
-
-  async reopenCurrent() {
-    const realm = await Realm.open({ ...realmConfig, path: this.path });
-    this.connections.push(realm);
-    return realm;
-  }
-
-  dispose() {
-    for (const realm of this.connections) {
-      if (!realm.isClosed) realm.close();
-    }
-    rmSync(this.directory, { force: true, recursive: true });
-  }
-}
-
-function seedSchema17(realm: Realm) {
+function seedSchema16(realm: Realm) {
   realm.write(() => {
     const artist = realm.create('Artist', {
       uuid: artistUuid,
@@ -193,6 +167,18 @@ function seedSchema17(realm: Realm) {
       tour,
       artist,
     });
+    realm.create('Song', {
+      uuid: songUuid,
+      artistUuid,
+      createdAt: savedAt,
+      updatedAt: savedAt,
+      name: 'Cached Song',
+      slug: 'cached-song',
+      upstreamIdentifier: 'cached-song',
+      sortName: 'Cached Song',
+      showsPlayedAt: 1,
+      shows: [show],
+    });
     const sourceSet = realm.create('SourceSet', {
       uuid: sourceSetUuid,
       createdAt: savedAt,
@@ -233,8 +219,8 @@ function seedSchema17(realm: Realm) {
       queuedAt: savedAt,
       startedAt: savedAt,
       completedAt: savedAt,
-      downloadedBytes: 123456,
-      totalBytes: 123456,
+      downloadedBytes: audioBytes.length,
+      totalBytes: audioBytes.length,
       percent: 1,
     });
     const track = realm.create('SourceTrack', {
@@ -270,11 +256,14 @@ function seedSchema17(realm: Realm) {
     });
     realm.create('PlayerState', {
       id: PLAYER_STATE_SENTINEL,
-      queueEntries: [{ id: 'queue-entry', sourceTrackUuid: trackUuid }],
+      queueEntries: [
+        { id: 'first', sourceTrackUuid: trackUuid },
+        { id: 'second', sourceTrackUuid: trackUuid },
+      ],
       shuffleOrder: null,
       repeatMode: PlayerRepeatState.REPEAT_QUEUE,
       checkpoint: {
-        entryId: 'queue-entry',
+        entryId: 'second',
         elapsedSeconds: 42,
         durationSeconds: 300,
       },
@@ -282,17 +271,17 @@ function seedSchema17(realm: Realm) {
     });
     realm.create('ActiveAccountScope', {
       id: ACTIVE_ACCOUNT_SCOPE_ID,
-      scopeId: userId,
-      userId,
+      scopeId: 'anonymous',
+      userUuid: userId,
       generation: 7,
       nativeSessionId: sessionId,
       updatedAt: savedAt,
     });
     realm.create('UserFavorite', {
-      favoriteId,
-      scopeId: userId,
-      targetKind: 'track',
-      targetId: favoriteTargetId,
+      favoriteUuid: rawFavoriteId,
+      scopeId: 'anonymous',
+      catalogType: 'source_track',
+      catalogUuid: trackUuid,
       acknowledgedPresent: true,
       effectivePresent: true,
       acknowledgedRevision: 9,
@@ -303,79 +292,78 @@ function seedSchema17(realm: Realm) {
   });
 }
 
-function expectPreservedState(realm: Realm) {
-  const track = realm.objectForPrimaryKey(SourceTrack, trackUuid)!;
-  const show = realm.objectForPrimaryKey(Show, showUuid)!;
-  const tour = realm.objectForPrimaryKey(Tour, tourUuid)!;
-  const history = realm.objectForPrimaryKey(PlaybackHistoryEntry, 'history-entry')!;
-  const player = realm.objectForPrimaryKey(PlayerState, PLAYER_STATE_SENTINEL)!;
-  const account = realm.objectForPrimaryKey(ActiveAccountScope, ACTIVE_ACCOUNT_SCOPE_ID)!;
-  const favorite = realm.objectForPrimaryKey(UserFavorite, favoriteId)!;
-
-  expect(realm.schemaVersion).toBe(REALM_SCHEMA_VERSION);
-  expect(track.uuid).toBe(trackUuid);
-  expect(track.downloadedFileLocation()).toBe(`/documents/offline/${trackUuid}.mp3`);
-  expect(track.offlineInfo).toMatchObject({
-    sourceTrackUuid: trackUuid,
-    status: SourceTrackOfflineInfoStatus.Succeeded,
-    downloadedBytes: 123456,
-    totalBytes: 123456,
-  });
-  expect(track.normalization).toBeNull();
-  expect(track.artist.uuid).toBe(artistUuid);
-  expect(track.year!.uuid).toBe(yearUuid);
-  expect(track.show.uuid).toBe(showUuid);
-  expect(track.source.uuid).toBe(sourceUuid);
-  expect(show.artistVenue).toBeNull();
-  expect(tour.startDate).toEqual(savedAt);
-  expect(tour.endDate).toEqual(savedAt);
-  expect(tour.showCount).toBe(0);
-  expect(player.queueEntries.map((entry) => entry.toJSON())).toEqual([
-    { id: 'queue-entry', sourceTrackUuid: trackUuid },
-  ]);
-  expect(player.checkpoint?.toJSON()).toEqual({
-    entryId: 'queue-entry',
-    elapsedSeconds: 42,
-    durationSeconds: 300,
-  });
-  expect(history.sourceTrack.uuid).toBe(trackUuid);
-  expect(history.artist.uuid).toBe(artistUuid);
-  expect(history.show.uuid).toBe(showUuid);
-  expect(history.source.uuid).toBe(sourceUuid);
-  expect(account).toMatchObject({
-    scopeId: userId,
-    userId,
-    generation: 7,
-    nativeSessionId: sessionId,
-  });
-  expect(favorite).toMatchObject({
-    favoriteId,
-    scopeId: userId,
-    targetKind: 'track',
-    targetId: favoriteTargetId,
-    acknowledgedPresent: true,
-    effectivePresent: true,
-  });
-  expect(realm.objects(CatalogQueryState)).toHaveLength(0);
-}
-
-describe('catalog Realm migration', () => {
-  let file: MigrationRealmFile;
-
+describe('direct schema-16 offline upgrade', () => {
+  let directory: string;
+  let realm: Realm | undefined;
   beforeEach(() => {
-    file = new MigrationRealmFile();
+    directory = mkdtempSync(join(tmpdir(), 'relisten-upgrade16-'));
   });
-
   afterEach(() => {
-    file.dispose();
+    fixtureContext.realm = null;
+    realm?.close();
+    rmSync(directory, { recursive: true, force: true });
+    rmSync(fixtureContext.document, { recursive: true, force: true });
   });
-
-  it('adds overlays without changing imported, offline, player, history, or account identity', async () => {
-    const schema17Realm = await file.open({ schema: schema17(), schemaVersion: 17 });
-    seedSchema17(schema17Realm);
-    schema17Realm.close();
-
-    const migrated = await file.reopenCurrent();
-    expectPreservedState(migrated);
-  });
+  it.each([false, true])(
+    'preserves offline data without fetch bookkeeping (normalization=%s)',
+    async (normalization) => {
+      const path = join(directory, 'data.realm');
+      realm = await Realm.open({
+        path,
+        schemaVersion: frozen.schemaVersion,
+        schema: frozen.schema as Realm.ObjectSchema[],
+      });
+      seedSchema16(realm);
+      realm.write(() => {
+        realm!.objects('Artist')[0].featuresRaw = JSON.stringify({
+          songs: true,
+          years: true,
+          multiple_sources: true,
+          normalization,
+        });
+      });
+      const audioPath = join(fixtureContext.document, 'offline', `${trackUuid}.mp3`);
+      mkdirSync(join(fixtureContext.document, 'offline'), { recursive: true });
+      writeFileSync(audioPath, audioBytes);
+      const digest = createHash('sha256').update(audioBytes).digest('hex');
+      realm.close();
+      realm = await Realm.open({ ...realmConfig, path });
+      await prepareRealmForUse(realm);
+      fixtureContext.realm = realm;
+      expect(realm.schemaVersion).toBe(REALM_SCHEMA_VERSION);
+      expect(useSongs(artistUuid).data.map((item) => item.uuid)).toEqual([
+        formatUuidTypedId('imported_song', songUuid),
+      ]);
+      expect(useVenues(artistUuid).data).toHaveLength(1);
+      expect(useSongShows(artistUuid, songUuid).data.shows).toEqual([]);
+      expect(useSongShows(artistUuid, songUuid).data.isAvailable).toBe(false);
+      expect(useVenueShows(artistUuid, venueUuid).data.shows.map((show) => show.uuid)).toEqual([
+        showUuid,
+      ]);
+      const track = realm.objectForPrimaryKey(SourceTrack, trackUuid)!;
+      expect(track.downloadedFileLocation()).toBe(audioPath);
+      expect(track.playable(false)).toBe(true);
+      expect(createHash('sha256').update(readFileSync(audioPath)).digest('hex')).toBe(digest);
+      expect(
+        realm
+          .objectForPrimaryKey(PlayerState, PLAYER_STATE_SENTINEL)
+          ?.queueEntries.map((entry) => entry.toJSON())
+      ).toEqual([
+        { id: 'first', sourceTrackUuid: trackUuid },
+        { id: 'second', sourceTrackUuid: trackUuid },
+      ]);
+      expect(
+        realm.objectForPrimaryKey(PlayerState, PLAYER_STATE_SENTINEL)?.checkpoint?.toJSON()
+      ).toEqual({ entryId: 'second', elapsedSeconds: 42, durationSeconds: 300 });
+      expect(
+        realm.objectForPrimaryKey(PlaybackHistoryEntry, 'history-entry')?.sourceTrack.uuid
+      ).toBe(trackUuid);
+      expect(realm.objects(UserFavorite)[0]).toMatchObject({
+        scopeId: 'anonymous',
+        targetKind: 'track',
+        targetId: formatUuidTypedId('track', trackUuid),
+        effectivePresent: true,
+      });
+    }
+  );
 });

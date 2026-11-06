@@ -1,136 +1,71 @@
-import { saveCatalogResults } from '../catalog_projection';
-import { detailRowUuids, orderedUuidRows, uuidRows } from '../catalog_projection';
-import type { RelistenApiClient } from '@/relisten/api/client';
-import {
-  NetworkBackedBehavior,
-  NetworkBackedBehaviorOptions,
-} from '@/relisten/realm/network_backed_behavior';
-import { useNetworkBackedBehavior } from '@/relisten/realm/network_backed_behavior_hooks';
-import { mergeNetworkBackedResults } from '@/relisten/realm/network_backed_results';
-import { useQuery, useRealm } from '@/relisten/realm/schema';
-import { RealmObjectValueStream, ValueStream } from '@/relisten/realm/value_streams';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import Realm from 'realm';
-
-import type { SongWithTracksResource } from '@/relisten/api/catalog/resources';
+import {
+  RelistenApiClient,
+  RelistenApiResponse,
+  RelistenApiResponseType,
+} from '@/relisten/api/client';
+import { useRelistenApi } from '@/relisten/api/context';
 import { applySongTracks } from '../catalog_apply';
-import { ensureCatalogArtist, useArtist } from './artist_repo';
-import { SongShowsNetworkBackedBehavior } from './shows/song_shows_repo';
+import { useNetworkOnlyResults } from '../network_backed_behavior_hooks';
+import { mergeNetworkBackedResults } from '../network_backed_results';
+import { useRealm } from '../schema';
+import { useArtist } from './artist_repo';
+import { fetchSongShows } from './shows/song_shows_repo';
+import { SongItem } from './song_view';
 import { SourceTrack } from './source_track';
-import { CatalogQueryState, NormalizedSong } from './catalog';
+import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 
 export interface SongTracks {
-  song: NormalizedSong | null;
+  song: SongItem | null;
   tracks: SourceTrack[];
-  hasAppliedData: boolean;
+  isAvailable: boolean;
 }
+const EMPTY_SONG_TRACKS: SongTracks = { song: null, tracks: [], isAvailable: false };
 
-function songTracksQueryKey(songId: string) {
-  return `GET /songs/${songId}/tracks`;
-}
-
-export class SongTracksNetworkBackedBehavior extends NetworkBackedBehavior<
-  CatalogQueryState | null,
-  SongWithTracksResource
-> {
-  constructor(
-    realm: Realm,
-    private readonly artistUuid: string,
-    private readonly songId: string,
-    options?: NetworkBackedBehaviorOptions
-  ) {
-    super(realm, options);
-  }
-
-  get queryKey() {
-    return songTracksQueryKey(this.songId);
-  }
-
-  async fetchFromApi(api: RelistenApiClient, force: boolean) {
-    await ensureCatalogArtist(this.realm, api, this.artistUuid);
-
-    // The recordings response carries show IDs, not show bodies. Resolve its
-    // parent collection through the show repo, including on a cold direct entry.
-    const shows = new SongShowsNetworkBackedBehavior(
-      this.realm,
-      this.artistUuid,
-      this.songId,
-      'song'
-    ).sharedExecutor(api);
-    await shows.refresh(force);
-    const errors = shows.currentResults().errors;
-    shows.tearDown();
-    if (errors?.length) {
-      throw errors[0].error ?? new Error(errors[0].message);
-    }
-
-    return api.songTracks(this.songId, { force });
-  }
-
-  override createLocalUpdatingResults(): ValueStream<CatalogQueryState | null> {
-    return new RealmObjectValueStream(
-      this.realm,
-      CatalogQueryState,
-      songTracksQueryKey(this.songId)
-    );
-  }
-
-  override isLocalDataShowable(state: CatalogQueryState | null): boolean {
-    return state?.hasAppliedData === true;
-  }
-
-  upsert(_state: CatalogQueryState | null, resource: SongWithTracksResource) {
-    return saveCatalogResults(
-      this.realm,
-      this.queryKey,
-      applySongTracks(this.realm, this.artistUuid, resource)
-    );
-  }
-}
-
-export function useSongTracks(
+export async function fetchSongTracks(
+  realm: Realm,
+  api: RelistenApiClient,
   artistUuid: string,
   songId: string,
-  options?: NetworkBackedBehaviorOptions
-) {
-  const realm = useRealm();
-  const behavior = useMemo(
-    () => new SongTracksNetworkBackedBehavior(realm, artistUuid, songId, options),
-    [artistUuid, options, realm, songId]
-  );
-  const results = useNetworkBackedBehavior(behavior);
-  const rootId = results.data?.hasAppliedData ? results.data.resultIds[0] : undefined;
-  const songs = useQuery(NormalizedSong, (query) => query.filtered('id == $0', rootId ?? ''), [
-    rootId,
-  ]);
-  const uuids = useMemo(() => detailRowUuids(results.data, 'track'), [results.data]);
-  const tracks = useQuery(
-    SourceTrack,
-    (query) => uuidRows(query, uuids).filtered('artistUuid == $0', artistUuid),
-    [artistUuid, uuids]
-  );
-  const data = useMemo<SongTracks>(() => {
-    const ordered = orderedUuidRows(tracks, uuids);
-    const song = songs[0] ?? null;
+  force = false
+): Promise<RelistenApiResponse<SongTracks>> {
+  try {
+    // Full track resources need their shared show parents, not a persisted song/show collection.
+    const shows = await fetchSongShows(realm, api, artistUuid, songId, force);
+    if (!shows.data) return { ...shows, data: undefined };
+    const response = await api.songTracks(songId, { force });
+    if (!response.data || response.superseded) return { ...response, data: undefined };
+    const result = realm.write(() => applySongTracks(realm, artistUuid, response.data!, songId));
     return {
-      song,
-      tracks: ordered,
-      hasAppliedData:
-        results.data?.hasAppliedData === true &&
-        song !== null &&
-        ordered.length === results.data.resultIds.length - 1,
+      ...response,
+      data: { song: new SongItem(result.song), tracks: result.tracks, isAvailable: true },
     };
-  }, [results.data, songs, tracks, uuids]);
-
-  return { ...results, data };
+  } catch (error) {
+    const cause = error instanceof Error ? error : new Error(String(error));
+    return {
+      type: RelistenApiResponseType.OnlineRequestCompleted,
+      error: { error: cause, message: cause.message },
+    };
+  }
 }
 
-export function useArtistSongTracks(artistUuid: string, songId: string) {
-  const artistResults = useArtist(artistUuid);
-  const tracksResults = useSongTracks(artistUuid, songId);
-
-  return useMemo(
-    () => mergeNetworkBackedResults({ songTracks: tracksResults, artist: artistResults }),
-    [artistResults, tracksResults]
+export function useSongTracks(artistUuid: string, songId: string) {
+  const realm = useRealm();
+  const { apiClient } = useRelistenApi();
+  const online = useShouldMakeNetworkRequests();
+  const fetch = useCallback(
+    (force = false) => {
+      if (!online) return Promise.resolve({ type: RelistenApiResponseType.Offline });
+      return fetchSongTracks(realm, apiClient, artistUuid, songId, force);
+    },
+    [realm, apiClient, artistUuid, songId, online]
   );
+  const result = useNetworkOnlyResults<SongTracks>(fetch);
+  return { ...result, data: result.data ?? EMPTY_SONG_TRACKS };
+}
+export function useArtistSongTracks(artistUuid: string, songId: string) {
+  const artist = useArtist(artistUuid);
+  const songTracks = useSongTracks(artistUuid, songId);
+  return useMemo(() => mergeNetworkBackedResults({ artist, songTracks }), [artist, songTracks]);
 }

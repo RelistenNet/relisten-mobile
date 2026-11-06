@@ -1,4 +1,5 @@
-import { FavoriteObjectButton } from '@/relisten/components/favorite_icon_button';
+import type { VenueItem } from '@/relisten/realm/models/venue_view';
+import { FavoriteTargetButton } from '@/relisten/components/favorite_icon_button';
 import {
   Filter,
   FilteringOptions,
@@ -18,49 +19,32 @@ import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
 import RowTitle from '@/relisten/components/row_title';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
-import {
-  normalizedVenueAliases,
-  normalizedVenueLocation,
-} from '@/relisten/components/venue_presenters';
 import { useLibraryMembershipRevision, useRootLibraryIndex } from '@/relisten/realm/root_services';
-import { ArtistVenueBrowseItem, useArtistVenues } from '@/relisten/realm/models/venue_repo';
+import { useArtistVenues } from '@/relisten/realm/models/venue_repo';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { Link, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useEffect, useMemo } from 'react';
 
-function itemName(item: ArtistVenueBrowseItem) {
-  return item.kind === 'artist_venue'
-    ? item.artistVenue.venue.name
-    : item.importedVenue.name || 'Unknown venue';
+function itemName(item: VenueItem) {
+  return item.name || 'Unknown venue';
+}
+function itemLocation(item: VenueItem) {
+  return item.location;
+}
+function itemShowCount(item: VenueItem) {
+  return item.showCount;
 }
 
-function itemLocation(item: ArtistVenueBrowseItem) {
-  return item.kind === 'artist_venue'
-    ? normalizedVenueLocation(item.artistVenue.venue)
-    : item.importedVenue.location;
-}
-
-function itemShowCount(item: ArtistVenueBrowseItem) {
-  return item.kind === 'artist_venue'
-    ? item.artistVenue.artistShowCount
-    : item.importedVenue.showsAtVenue;
-}
-
-function VenueListItem({ item }: { item: ArtistVenueBrowseItem }) {
+function VenueListItem({ item }: { item: VenueItem }) {
   const groupSegment = useGroupSegment();
-  const artistUuid =
-    item.kind === 'artist_venue' ? item.artistVenue.artistUuid : item.importedVenue.artistUuid;
-  const venueId =
-    item.kind === 'artist_venue' ? item.artistVenue.venue.id : item.importedVenue.uuid;
 
   return (
     <Link
       href={{
         pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/venue/[venueUuid]/` as const,
         params: {
-          artistUuid,
-          venueUuid: venueId,
-          venueKind: item.kind,
+          artistUuid: item.artistUuid!,
+          venueUuid: item.uuid,
         },
       }}
       asChild
@@ -76,16 +60,14 @@ function VenueListItem({ item }: { item: ArtistVenueBrowseItem }) {
               </SubtitleText>
             </SubtitleRow>
           </Flex>
-          <FavoriteObjectButton
-            object={item.kind === 'artist_venue' ? item.artistVenue.venue : item.importedVenue}
-          />
+          <FavoriteTargetButton {...item.favorite} />
         </Flex>
       </SectionedListItem>
     </Link>
   );
 }
 
-function VenueHeader({ venues }: { venues: ArtistVenueBrowseItem[] }) {
+function VenueHeader({ venues }: { venues: VenueItem[] }) {
   return (
     <>
       <RelistenText
@@ -109,8 +91,8 @@ enum VenueFilterKey {
 }
 
 function venueFilters(
-  isFavorite: (item: ArtistVenueBrowseItem) => boolean
-): Filter<VenueFilterKey, ArtistVenueBrowseItem>[] {
+  isFavorite: (item: VenueItem) => boolean
+): Filter<VenueFilterKey, VenueItem>[] {
   return [
     {
       persistenceKey: VenueFilterKey.Library,
@@ -143,9 +125,7 @@ function venueFilters(
         return (
           searchForSubstring(itemName(item), search) ||
           searchForSubstring(itemLocation(item), search) ||
-          (item.kind === 'artist_venue'
-            ? searchForSubstring(normalizedVenueAliases(item.artistVenue.venue), search)
-            : searchForSubstring(item.importedVenue.pastNames, search))
+          searchForSubstring(item.aliases, search)
         );
       },
     },
@@ -153,7 +133,7 @@ function venueFilters(
 }
 
 interface VenueListProps {
-  venues: ArtistVenueBrowseItem[];
+  venues: VenueItem[];
   filterOptions: FilteringOptions<VenueFilterKey>;
 }
 
@@ -161,15 +141,13 @@ function VenueList({
   venues,
   filterOptions,
   ...props
-}: VenueListProps & Omit<FilterableListProps<ArtistVenueBrowseItem>, 'data' | 'renderItem'>) {
+}: VenueListProps & Omit<FilterableListProps<VenueItem>, 'data' | 'renderItem'>) {
   const libraryIndex = useRootLibraryIndex();
   const libraryMembershipRevision = useLibraryMembershipRevision();
   const filters = useMemo(
     () =>
       venueFilters((item) =>
-        item.kind === 'artist_venue'
-          ? libraryIndex.isFavorite('venue', item.artistVenue.venue.id)
-          : libraryIndex.isFavorite('imported_venue', item.importedVenue.uuid)
+        libraryIndex.isFavorite(item.favorite.targetKind, item.favorite.catalogId)
       ),
     [libraryIndex, libraryMembershipRevision]
   );

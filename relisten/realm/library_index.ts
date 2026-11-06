@@ -18,8 +18,7 @@ type KeyedScope =
   | 'artist-offline'
   | 'year-offline'
   | 'show-offline'
-  | 'source-offline'
-  | 'favorite';
+  | 'source-offline';
 
 const SLICE_SCOPES: SliceScope[] = [
   'library-membership',
@@ -34,7 +33,6 @@ const KEYED_SCOPES: KeyedScope[] = [
   'year-offline',
   'show-offline',
   'source-offline',
-  'favorite',
 ];
 
 /**
@@ -44,6 +42,7 @@ const KEYED_SCOPES: KeyedScope[] = [
  */
 export class LibraryIndex {
   private readonly favoriteProjection: FavoriteMembershipProjection;
+  private readonly unsubscribeFavorites: () => void;
   private readonly offlineProjection: OfflineAvailabilityProjection;
   private readonly remainingDownloads: Realm.Results<SourceTrackOfflineInfo>;
   private readonly listeners = new Set<Listener>();
@@ -76,7 +75,9 @@ export class LibraryIndex {
       .filtered('status != $0', SourceTrackOfflineInfoStatus.Succeeded);
     this.lastRemainingDownloadsCount = this.remainingDownloads.length;
 
-    this.favoriteProjection.subscribe(this.handleFavoriteProjectionChanged);
+    this.unsubscribeFavorites = this.favoriteProjection.subscribe(
+      this.handleFavoriteProjectionChanged
+    );
     this.offlineProjection.subscribe(this.handleOfflineProjectionChanged);
     this.remainingDownloads.addListener(this.handleRemainingDownloadsChanged);
     this.replaceFavoriteSets();
@@ -85,6 +86,7 @@ export class LibraryIndex {
   }
 
   tearDown() {
+    this.unsubscribeFavorites();
     this.favoriteProjection.tearDown();
     this.offlineProjection.tearDown();
     if (!this.realm.isClosed) {
@@ -114,11 +116,6 @@ export class LibraryIndex {
     subscribeSet(this.sliceListeners['remaining-downloads'], listener);
   getRemainingDownloadsSnapshot = () => this.remainingDownloadsCount();
 
-  subscribeFavorite = (targetKind: FavoriteTargetKind, catalogUuid: string, listener: Listener) =>
-    this.subscribeKey('favorite', favoriteKey(targetKind, catalogUuid), listener);
-  getFavoriteSnapshot = (targetKind: FavoriteTargetKind, catalogUuid: string) =>
-    this.keyVersion('favorite', favoriteKey(targetKind, catalogUuid));
-
   subscribeArtistLibrary = (uuid: string, listener: Listener) =>
     this.subscribeKey('artist-library', uuid, listener);
   getArtistLibrarySnapshot = (uuid: string) => this.keyVersion('artist-library', uuid);
@@ -142,7 +139,7 @@ export class LibraryIndex {
   getSourceOfflineTracksSnapshot = (uuid: string) => this.keyVersion('source-offline', uuid);
 
   isFavorite(targetKind: FavoriteTargetKind, catalogUuid?: string | null) {
-    return !!catalogUuid && this.favoriteUuids[targetKind].has(catalogUuid);
+    return this.favoriteProjection.isFavorite(targetKind, catalogUuid);
   }
 
   favoriteCatalogUuids(targetKind: FavoriteTargetKind): ReadonlySet<string> {
@@ -203,20 +200,11 @@ export class LibraryIndex {
   }
 
   private readonly handleFavoriteProjectionChanged = () => {
-    const previousFavorites = cloneFavoriteSets(this.favoriteUuids);
     const previousLibrary = this.librarySets();
     this.replaceFavoriteSets();
     this.replaceLibrarySets();
 
     this.queueSlice('library-membership');
-    for (const targetKind of FAVORITE_TARGET_KINDS) {
-      this.queueChangedKeys(
-        'favorite',
-        previousFavorites[targetKind],
-        this.favoriteUuids[targetKind],
-        (uuid) => favoriteKey(targetKind, uuid)
-      );
-    }
     this.queueLibraryChanges(previousLibrary);
     this.scheduleEmit();
   };
@@ -420,16 +408,6 @@ function createFavoriteSetRecord() {
   return Object.fromEntries(
     FAVORITE_TARGET_KINDS.map((type) => [type, new Set<string>()])
   ) as Record<FavoriteTargetKind, Set<string>>;
-}
-
-function cloneFavoriteSets(source: Record<FavoriteTargetKind, Set<string>>) {
-  return Object.fromEntries(
-    FAVORITE_TARGET_KINDS.map((type) => [type, new Set(source[type])])
-  ) as Record<FavoriteTargetKind, Set<string>>;
-}
-
-function favoriteKey(targetKind: FavoriteTargetKind, catalogUuid: string) {
-  return `${targetKind}:${catalogUuid}`;
 }
 
 function union(a: ReadonlySet<string>, b: ReadonlySet<string>) {

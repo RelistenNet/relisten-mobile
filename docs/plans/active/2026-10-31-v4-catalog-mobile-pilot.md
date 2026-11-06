@@ -3,42 +3,32 @@
 This ExecPlan is a living document. Keep Progress, Surprises & Discoveries,
 Decision Log, and Outcomes & Retrospective current while the pilot is built.
 
-The planned replacement for offline upgrade and merged-favorite handling is in
-[Simplify offline upgrades and ongoing favorite merges](2026-11-05-offline-upgrade-favorite-simplification.md).
-It supersedes the schema-19/20 compatibility and HTTP cache-seeding decisions
-below. That simplification is planned; the current code still contains the
-uncommitted implementation described here.
+The current catalog and favorite design is described in
+[Simplify V4 around the existing Realm models](2026-11-05-v4-realm-relationship-simplification.md).
+That implemented plan supersedes the query-state/ETag coupling, persisted result
+membership, copied presentation objects, and favorite facade recorded below.
 
 ## Current implementation (November 5)
 
-The mobile catalog uses `/api/v4`. Internal code has one catalog: resources,
-transport and identity types live in `relisten/api/catalog/`; Realm mapping lives
-in `relisten/realm/catalog_apply.ts`. `RelistenApiClient` returns typed API resources;
-Realm repositories map them; the existing `NetworkBackedBehaviorExecutor` commits
-records, exact query membership and ETags together. The separate persistent v4
-client, coordinator, synthetic request cache and v3 repository branches are
-removed. The dated checkpoints below record the earlier pilot and do not
-re-enable those paths.
+The mobile catalog uses `/api/v4`. The transport handles HTTP and bounded GET
+retries. `RelistenApiClient` coalesces in-flight requests. Realm repositories own
+shared domain relationships and browse visibility; the generic
+`NetworkBackedBehavior` observes local data and coordinates fetch/apply/loading.
+It has no catalog query key or HTTP validator state.
 
-Schema 18 added the catalog overlays above account schema 17. Schema 20 adds
-catalog-owned redirects and seeds retained v3 song/venue browse and detail query
-membership during migration. No timestamps or ETags are invented: the cache is
-usable offline and the next online read fetches a body. The local schema-19
-favorite-resolution experiment migrates into the catalog redirect table; favorite
-records, targets and sync remain unchanged. Disk-backed schema 17, 18 and 19
-upgrades preserve account, download, history and player state. Query state stores
-each canonical song's ordered show/file IDs once; `NormalizedSong` stores metadata
-only.
+Song and venue wrappers read live Realm records. Artist browse soft-prunes omitted
+rows; venue and tour details follow existing Realm relationships. Song discovery
+is online-only, with its returned show/recording selection held in screen memory.
+There are no duplicate persisted browse or detail membership lists.
 
-Keep conditional GETs and the existing 15-minute freshness interval. Manual
-refresh fetches a body without an ETag. A failed apply preserves old records and
-validator; reconnect retries it. Different endpoint responses update shared
-metadata in arrival order without invalidating each other's query state. A 304
-does not restore metadata overwritten by another endpoint; manual refresh does.
-Cheap root/local-data checks replace exhaustive recording-graph audits. Complete
-empty results remain cached. No response body or duplicate membership list is
-retained. This approved contract supersedes the earlier automatic-repair policy
-described in historical checkpoints below.
+Only schema 16 has shipped. The current schema is 23 for local development
+versioning, and release devices upgrade directly from 16. Imported recording IDs,
+download paths, queue occurrences/checkpoint, history, and ordinary anonymous
+favorites survive. Migrations know neither HTTP endpoints nor ETags. Catalog
+redirects and favorite-display resolution work on an ongoing basis, separately
+from saved account mutation targets. Qualification is recorded in the linked
+plan (331 tests, iOS export, offline schema-16 upgrade, ongoing merged favorites,
+and offline removal). Dated checkpoints below describe earlier implementations.
 
 ## Purpose / Big Picture
 
