@@ -331,10 +331,13 @@ describe('direct schema-16 offline upgrade', () => {
       await prepareRealmForUse(realm);
       fixtureContext.realm = realm;
       expect(realm.schemaVersion).toBe(REALM_SCHEMA_VERSION);
-      expect(useSongs(artistUuid).data.map((item) => item.uuid)).toEqual([
-        formatUuidTypedId('imported_song', songUuid),
-      ]);
-      expect(useVenues(artistUuid).data).toHaveLength(1);
+      // Canonical browse stays empty offline until canonical data is fetched; imported data survives.
+      expect(useSongs(artistUuid).data.map((item) => item.uuid)).toEqual(
+        normalization ? [] : [formatUuidTypedId('imported_song', songUuid)]
+      );
+      expect(useVenues(artistUuid).data).toHaveLength(normalization ? 0 : 1);
+      expect(realm.objectForPrimaryKey('Song', songUuid)).toMatchObject({ deletedAt: null });
+      expect(realm.objectForPrimaryKey('Venue', venueUuid)).toMatchObject({ deletedAt: null });
       expect(useSongShows(artistUuid, songUuid).data.shows).toEqual([]);
       expect(useSongShows(artistUuid, songUuid).data.isAvailable).toBe(false);
       expect(useVenueShows(artistUuid, venueUuid).data.shows.map((show) => show.uuid)).toEqual([

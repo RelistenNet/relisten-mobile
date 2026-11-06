@@ -7,8 +7,13 @@ import { NetworkBackedBehavior, NetworkBackedBehaviorOptions } from '../network_
 import { useNetworkBackedBehavior } from '../network_backed_behavior_hooks';
 import { mergeNetworkBackedResults } from '../network_backed_results';
 import { useRealm } from '../schema';
-import { CombinedValueStream, RealmQueryValueStream } from '../value_streams';
+import {
+  RealmObjectValueStream,
+  RealmProjectionValueStream,
+  SwitchingValueStream,
+} from '../value_streams';
 import { NormalizedSong } from './catalog';
+import { Artist } from './artist';
 import { ensureCatalogArtist, useArtist } from './artist_repo';
 import { Song } from './song';
 import { SongItem } from './song_view';
@@ -25,18 +30,18 @@ export class ArtistSongsNetworkBackedBehavior extends NetworkBackedBehavior<
     super(realm, options);
   }
   createLocalUpdatingResults() {
-    const normalized = new RealmQueryValueStream(
-      this.realm,
-      this.realm
-        .objects(NormalizedSong)
-        .filtered('artistUuid == $0 AND deletedAt == nil', this.artistUuid)
-    );
-    const imported = new RealmQueryValueStream(
-      this.realm,
-      this.realm.objects(Song).filtered('artistUuid == $0 AND deletedAt == nil', this.artistUuid)
-    );
-    return new CombinedValueStream(normalized, imported, (normalized, imported) =>
-      [...normalized, ...imported].map((row) => new SongItem(row))
+    return new SwitchingValueStream(
+      new RealmObjectValueStream(this.realm, Artist, this.artistUuid),
+      (artist) => {
+        const rows = (
+          artist?.features().normalization
+            ? this.realm.objects(NormalizedSong)
+            : this.realm.objects(Song)
+        ).filtered('artistUuid == $0 AND deletedAt == nil', this.artistUuid);
+        return new RealmProjectionValueStream([rows], () =>
+          Array.from<Song | NormalizedSong, SongItem>(rows, (row) => new SongItem(row))
+        );
+      }
     );
   }
   async fetchFromApi(api: RelistenApiClient, force: boolean) {

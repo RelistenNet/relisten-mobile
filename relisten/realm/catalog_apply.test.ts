@@ -669,17 +669,12 @@ describe('catalog Realm apply', () => {
     expect(song.matchedShowCount).toBe(5);
   });
 
-  it('applies ordered mixed venue and song browse membership without duplicating it', () => {
+  it('applies canonical venue and song browse membership without duplicating it', () => {
     const venues: ArtistVenueEntryResource[] = [
       {
         kind: 'artist_venue',
         artist_venue: artistVenueResource(),
         imported_venue: null,
-      },
-      {
-        kind: 'imported_venue',
-        artist_venue: null,
-        imported_venue: importedVenueResource(),
       },
     ];
     const songs: ArtistSongEntryResource[] = [
@@ -688,23 +683,19 @@ describe('catalog Realm apply', () => {
         song: normalizedSongDetailResource(),
         imported_song: null,
       },
-      {
-        kind: 'imported_song',
-        song: null,
-        imported_song: importedSongResource(''),
-      },
     ];
 
     const [venueIds, songIds] = realm.write(() => {
       applyArtistList(realm, [artistResource()]);
+      applyImportedSongDetail(realm, artistUuid, { ...importedSongResource(''), shows: [] });
       return [
         applyArtistVenues(realm, artistUuid, venues),
         applyArtistSongs(realm, artistUuid, songs),
       ];
     });
 
-    expect(venueIds).toEqual(['artist_venue_00000002', importedVenueId]);
-    expect(songIds).toEqual(['song_00000003', importedSongId]);
+    expect(venueIds).toEqual(['artist_venue_00000002']);
+    expect(songIds).toEqual(['song_00000003']);
     expect(realm.objectForPrimaryKey(Song, importedSongUuid)?.name).toBe('');
 
     expect(() =>
@@ -723,10 +714,11 @@ describe('catalog Realm apply', () => {
     ).toThrow('inconsistent kind and target');
   });
 
-  it('keeps live wrappers and show labels when artist browse soft-prunes cached entries', async () => {
+  it('keeps imported records and live canonical wrappers when canonical browse prunes entries', async () => {
     realm.write(() => {
       seedArtistAndYear(realm);
       applyYearDetail(realm, artistUuid, yearUuid, yearWithShowsResource());
+      // Seed the mixed cache produced before the API's canonical-only browse change.
       applyArtistSongs(realm, artistUuid, [
         { kind: 'song', song: normalizedSongDetailResource(), imported_song: null },
         { kind: 'imported_song', song: null, imported_song: importedSongResource() },
@@ -737,6 +729,7 @@ describe('catalog Realm apply', () => {
       ]);
     });
     const song = new SongItem(realm.objectForPrimaryKey(Song, importedSongUuid)!);
+    const canonicalSong = realm.objectForPrimaryKey(NormalizedSong, 'song_00000003')!;
     const venue = new VenueItem(realm.objectForPrimaryKey(Venue, importedVenueUuid)!);
     const artistVenue = new VenueItem(realm.objects('ArtistVenue')[0] as never);
     const stream = new ArtistSongsNetworkBackedBehavior(
@@ -746,15 +739,18 @@ describe('catalog Realm apply', () => {
     executors.push(stream);
     realm.write(() => {
       song.record.name = 'Corrected song';
+      canonicalSong.name = 'Corrected canonical song';
       realm.objectForPrimaryKey(Venue, importedVenueUuid)!.name = 'Corrected venue';
     });
     expect(song.name).toBe('Corrected song');
     expect(venue.name).toBe('Corrected venue');
     await vi.waitFor(() =>
-      expect(stream.currentValue.find((row) => row.uuid === importedSongId)?.name).toBe(
-        'Corrected song'
+      expect(stream.currentValue.find((row) => row.uuid === canonicalSong.id)?.name).toBe(
+        'Corrected canonical song'
       )
     );
+    const importedSongBefore = realm.objectForPrimaryKey(Song, importedSongUuid)!.toJSON();
+    const importedVenueBefore = realm.objectForPrimaryKey(Venue, importedVenueUuid)!.toJSON();
     realm.write(() => {
       applyArtistSongs(realm, artistUuid, [
         { kind: 'song', song: normalizedSongDetailResource(), imported_song: null },
@@ -766,18 +762,138 @@ describe('catalog Realm apply', () => {
     hookRealm.current = realm;
     expect(useSongs(artistUuid).data.map((row) => row.uuid)).toEqual(['song_00000003']);
     expect(useVenues(artistUuid).data.map((row) => row.uuid)).toEqual(['venue_00000001']);
+    expect(realm.objectForPrimaryKey(Song, importedSongUuid)!.toJSON()).toEqual(importedSongBefore);
+    expect(realm.objectForPrimaryKey(Venue, importedVenueUuid)!.toJSON()).toEqual(
+      importedVenueBefore
+    );
     expect(realm.objectForPrimaryKey(Show, showUuid)!.venue?.name).toBe('Corrected venue');
     expect(realm.objectForPrimaryKey(Show, showUuid)!.artistVenue?.venue.id).toBe(artistVenue.uuid);
-    // A later embedded venue update changes metadata without restoring browse visibility.
+    // Embedded imported observations remain hidden from canonical browse.
     realm.write(() => applyYearDetail(realm, artistUuid, yearUuid, yearWithShowsResource()));
     expect(useVenues(artistUuid).data.map((row) => row.uuid)).toEqual(['venue_00000001']);
+    realm.write(() => {
+      applyArtistSongs(realm, artistUuid, []);
+      applyArtistVenues(realm, artistUuid, []);
+    });
+    expect(useSongs(artistUuid).data).toEqual([]);
+    expect(useVenues(artistUuid).data).toEqual([]);
+    expect(canonicalSong.deletedAt).toBeInstanceOf(Date);
+    expect(realm.objects('ArtistVenue')[0].deletedAt).toBeInstanceOf(Date);
+    expect(song.record.deletedAt).toBeNull();
+    expect(realm.objectForPrimaryKey(Venue, importedVenueUuid)!.deletedAt).toBeNull();
     realm.write(() =>
       applyArtistVenues(realm, artistUuid, [
-        { kind: 'imported_venue', artist_venue: null, imported_venue: importedVenueResource() },
+        { kind: 'artist_venue', artist_venue: artistVenueResource(), imported_venue: null },
       ])
     );
-    expect(useVenues(artistUuid).data.map((row) => row.uuid)).toEqual([importedVenueId]);
+    expect(useVenues(artistUuid).data.map((row) => row.uuid)).toEqual(['venue_00000001']);
     expect(realm.objectForPrimaryKey(Show, showUuid)!.artistVenue).not.toBeNull();
+  });
+
+  it('keeps empty canonical lists empty when new imported metadata arrives', async () => {
+    realm.write(() => {
+      seedArtistAndYear(realm);
+      applyArtistVenues(realm, artistUuid, []);
+      applyArtistSongs(realm, artistUuid, []);
+    });
+    const songs = new ArtistSongsNetworkBackedBehavior(
+      realm,
+      artistUuid
+    ).createLocalUpdatingResults();
+    const venues = new ArtistVenuesNetworkBackedBehavior(
+      realm,
+      artistUuid
+    ).createLocalUpdatingResults();
+    executors.push(songs, venues);
+    expect(songs.currentValue).toEqual([]);
+    expect(venues.currentValue).toEqual([]);
+    realm.write(() => {
+      const year = yearWithShowsResource();
+      year.shows = year.shows.map((show) => ({ ...show, artist_venue: null }));
+      applyYearDetail(realm, artistUuid, yearUuid, year);
+      applyImportedSongDetail(realm, artistUuid, { ...importedSongResource(), shows: [] });
+    });
+    // Drain Realm notifications before checking the mounted streams and newly opened lists.
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    hookRealm.current = realm;
+    expect(songs.currentValue).toEqual([]);
+    expect(venues.currentValue).toEqual([]);
+    expect(useSongs(artistUuid).data).toEqual([]);
+    expect(useVenues(artistUuid).data).toEqual([]);
+    expect(realm.objectForPrimaryKey(Show, showUuid)!.venue?.name).toBe('Imported Hall');
+    expect(realm.objectForPrimaryKey(Song, importedSongUuid)!.name).toBe(
+      importedSongResource().name
+    );
+  });
+
+  it.each(['songs', 'venues'] as const)(
+    'loads canonical %s when the artist is initially missing',
+    async (kind) => {
+      const responses = new Map<string, object>([
+        ['/api/v4/artists', [artistResource()]],
+        [
+          `/api/v4/artists/${artistId}/songs`,
+          [{ kind: 'song', song: normalizedSongDetailResource(), imported_song: null }],
+        ],
+        [
+          `/api/v4/artists/${artistId}/venues`,
+          [{ kind: 'artist_venue', artist_venue: artistVenueResource(), imported_venue: null }],
+        ],
+      ]);
+      const api = new RelistenApiClient({
+        transport: new CatalogTransport({
+          apiBase: 'https://catalog.test/api',
+          fetch: async (input) => {
+            const path = new URL(String(input)).pathname;
+            const payload = responses.get(path);
+            if (!payload) throw new Error(`Unexpected endpoint ${path}`);
+            return new Response(JSON.stringify(payload));
+          },
+        }),
+      });
+      const behavior =
+        kind === 'songs'
+          ? new ArtistSongsNetworkBackedBehavior(realm, artistUuid)
+          : new ArtistVenuesNetworkBackedBehavior(realm, artistUuid);
+      const executor = behavior.sharedExecutor(api);
+      executors.push(executor);
+      await executor.refresh();
+      expect(executor.currentResults().errors).toBeUndefined();
+      await vi.waitFor(() =>
+        expect(executor.currentResults().data.map((row) => row.uuid)).toEqual(
+          kind === 'songs' ? ['song_00000003'] : ['venue_00000001']
+        )
+      );
+    }
+  );
+
+  it('browses and prunes imported lists for artists without normalization', () => {
+    realm.write(() => {
+      seedArtistAndYear(realm);
+      applyArtistList(realm, [{ ...artistResource(), features: '0' }]);
+      // Canonical metadata may still be cached from a detail or an earlier catalog state.
+      applyYearDetail(realm, artistUuid, yearUuid, yearWithShowsResource());
+      applySongDetail(realm, artistUuid, { ...normalizedSongDetailResource(), shows: [] });
+      applyArtistSongs(realm, artistUuid, [
+        { kind: 'imported_song', song: null, imported_song: importedSongResource() },
+      ]);
+      applyArtistVenues(realm, artistUuid, [
+        { kind: 'imported_venue', artist_venue: null, imported_venue: importedVenueResource() },
+      ]);
+    });
+    hookRealm.current = realm;
+    expect(useSongs(artistUuid).data.map((row) => row.uuid)).toEqual([importedSongId]);
+    expect(useVenues(artistUuid).data.map((row) => row.uuid)).toEqual([importedVenueId]);
+    realm.write(() => {
+      applyArtistSongs(realm, artistUuid, []);
+      applyArtistVenues(realm, artistUuid, []);
+    });
+    expect(useSongs(artistUuid).data).toEqual([]);
+    expect(useVenues(artistUuid).data).toEqual([]);
+    expect(realm.objectForPrimaryKey(Song, importedSongUuid)!.deletedAt).toBeInstanceOf(Date);
+    expect(realm.objectForPrimaryKey(Venue, importedVenueUuid)!.deletedAt).toBeInstanceOf(Date);
+    expect(realm.objectForPrimaryKey(NormalizedSong, 'song_00000003')!.deletedAt).toBeNull();
+    expect(realm.objects('ArtistVenue')[0].deletedAt).toBeNull();
   });
 
   it('applies imported song mappings at the same upstream timestamp without requiring target metadata', () => {
@@ -895,7 +1011,7 @@ describe('catalog Realm apply', () => {
     expect(fetch).toHaveBeenCalledTimes(3);
   });
 
-  it('loads mixed browse, relational venue detail, and online song results through the API', async () => {
+  it('loads canonical browse, imported venue detail, and online song results through the API', async () => {
     realm.write(() => seedArtistAndYear(realm));
     const venue = artistVenueResource();
     const song = normalizedSongDetailResource();
@@ -906,22 +1022,9 @@ describe('catalog Realm apply', () => {
       ['/artists', [artistResource()]],
       [
         `/artists/${artistId}/venues`,
-        [
-          { kind: 'artist_venue', artist_venue: venue, imported_venue: null },
-          {
-            kind: 'imported_venue',
-            artist_venue: null,
-            imported_venue: importedVenueResource(),
-          },
-        ],
+        [{ kind: 'artist_venue', artist_venue: venue, imported_venue: null }],
       ],
-      [
-        `/artists/${artistId}/songs`,
-        [
-          { kind: 'song', song, imported_song: null },
-          { kind: 'imported_song', song: null, imported_song: importedSongResource() },
-        ],
-      ],
+      [`/artists/${artistId}/songs`, [{ kind: 'song', song, imported_song: null }]],
       [`/artists/${artistId}/venues/${venue.venue.id}`, { ...venue, shows: [show] }],
       [`/venues/${venue.venue.id}`, { ...venue.venue, shows: [show] }],
       [`/imported-venues/${importedVenueId}`, { ...importedVenueResource(), shows: [show] }],
@@ -949,11 +1052,11 @@ describe('catalog Realm apply', () => {
     const cases = [
       {
         repo: new ArtistVenuesNetworkBackedBehavior(realm, artistUuid),
-        ids: [venue.venue.id, importedVenueId],
+        ids: [venue.venue.id],
       },
       {
         repo: new ArtistSongsNetworkBackedBehavior(realm, artistUuid),
-        ids: [song.id, importedSongId],
+        ids: [song.id],
       },
       {
         repo: new VenueShowsNetworkBackedBehavior(realm, artistUuid, venue.venue.id),
@@ -1012,12 +1115,11 @@ describe('catalog Realm apply', () => {
     const songItems = useSongs(artistUuid).data;
     expect(songItems.map((item) => [item.name, item.favorite.targetKind])).toEqual([
       [song.name, 'song'],
-      [importedSongResource().name, 'imported_song'],
     ]);
     expect(realm.objectForPrimaryKey(SourceTrack, trackAUuid)?.title).toBe('Imported Track Title');
   });
 
-  it('uses the same favorite control contract for imported and normalized browse items', async () => {
+  it('uses the same favorite control contract for canonical browse and imported records', async () => {
     realm.write(() => {
       seedArtistAndYear(realm);
       applyArtistSongs(realm, artistUuid, [
@@ -1035,9 +1137,12 @@ describe('catalog Realm apply', () => {
     const repository = new FavoriteRepository(realm, scope);
     const library = new LibraryIndex(realm, scope);
     executors.push(library);
-    const controls = [...useSongs(artistUuid).data, ...useVenues(artistUuid).data].map(
-      (item) => item.favorite
-    );
+    const controls = [
+      ...useSongs(artistUuid).data,
+      ...useVenues(artistUuid).data,
+      new SongItem(realm.objectForPrimaryKey(Song, importedSongUuid)!),
+      new VenueItem(realm.objectForPrimaryKey(Venue, importedVenueUuid)!),
+    ].map((item) => item.favorite);
     for (const control of controls)
       setCatalogFavorite(repository, control.targetKind, control.catalogId, true);
     await vi.waitFor(() =>

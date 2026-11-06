@@ -1038,13 +1038,13 @@ function pruneBrowseRows<T extends { deletedAt?: Date }>(
   }
 }
 
-/** Applies one artist's ordered mixed canonical/imported venue browse result. */
+/** Browse only prunes the artist's selected catalog; imported display facts survive canonical reads. */
 export function applyArtistVenues(
   realm: Realm,
   artistUuid: string,
   resources: ArtistVenueEntryResource[]
 ) {
-  requireObject(realm, Artist, artistUuid, 'artist');
+  const artist = requireObject(realm, Artist, artistUuid, 'artist');
   const resultIds = resources.map((entry) => {
     const value = entry as unknown as {
       kind: string;
@@ -1071,24 +1071,29 @@ export function applyArtistVenues(
   });
   requireUniqueIds(resultIds, `Artist ${artistUuid}'s venue browse membership`);
   const returned = new Set(resultIds);
-  pruneBrowseRows(realm.objects(Venue).filtered('artistUuid == $0', artistUuid), returned, (row) =>
-    encodeUuidCatalogId(row.uuid, 'imported_venue')
-  );
-  pruneBrowseRows(
-    realm.objects(ArtistVenue).filtered('artistUuid == $0', artistUuid),
-    returned,
-    (row) => row.id
-  );
+  if (artist.features().normalization) {
+    pruneBrowseRows(
+      realm.objects(ArtistVenue).filtered('artistUuid == $0', artistUuid),
+      returned,
+      (row) => row.id
+    );
+  } else {
+    pruneBrowseRows(
+      realm.objects(Venue).filtered('artistUuid == $0', artistUuid),
+      returned,
+      (row) => encodeUuidCatalogId(row.uuid, 'imported_venue')
+    );
+  }
   return resultIds;
 }
 
-/** Applies one artist's ordered mixed canonical/imported song browse result. */
+/** Canonical song browse owns canonical visibility and leaves imported song records intact. */
 export function applyArtistSongs(
   realm: Realm,
   artistUuid: string,
   resources: ArtistSongEntryResource[]
 ) {
-  requireObject(realm, Artist, artistUuid, 'artist');
+  const artist = requireObject(realm, Artist, artistUuid, 'artist');
   const resultIds = resources.map((entry) => {
     const value = entry as unknown as {
       kind: string;
@@ -1115,14 +1120,17 @@ export function applyArtistSongs(
   });
   requireUniqueIds(resultIds, `Artist ${artistUuid}'s song browse membership`);
   const returned = new Set(resultIds);
-  pruneBrowseRows(realm.objects(Song).filtered('artistUuid == $0', artistUuid), returned, (row) =>
-    encodeUuidCatalogId(row.uuid, 'imported_song')
-  );
-  pruneBrowseRows(
-    realm.objects(NormalizedSong).filtered('artistUuid == $0', artistUuid),
-    returned,
-    (row) => row.id
-  );
+  if (artist.features().normalization) {
+    pruneBrowseRows(
+      realm.objects(NormalizedSong).filtered('artistUuid == $0', artistUuid),
+      returned,
+      (row) => row.id
+    );
+  } else {
+    pruneBrowseRows(realm.objects(Song).filtered('artistUuid == $0', artistUuid), returned, (row) =>
+      encodeUuidCatalogId(row.uuid, 'imported_song')
+    );
+  }
   return resultIds;
 }
 
