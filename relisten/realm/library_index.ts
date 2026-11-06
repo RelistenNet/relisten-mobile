@@ -239,7 +239,12 @@ export class LibraryIndex {
 
   private replaceFavoriteSets() {
     for (const type of FAVORITE_TARGET_KINDS) {
-      this.favoriteUuids[type] = new Set(this.favoriteProjection.favoriteUuids(type));
+      const current = this.favoriteUuids[type];
+      const next = this.favoriteProjection.favoriteUuids(type);
+      // These sets are React snapshots and dependencies of catalog behaviors.
+      if (current.size !== next.size || [...next].some((uuid) => !current.has(uuid))) {
+        this.favoriteUuids[type] = new Set(next);
+      }
     }
   }
 

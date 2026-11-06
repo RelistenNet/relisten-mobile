@@ -16,7 +16,10 @@ import {
   SourceTrackOfflineInfoType,
 } from '@/relisten/realm/models/source_track_offline_info';
 import { yearsNetworkBackedModelArrayBehavior } from '@/relisten/realm/models/year_repo';
-import { NetworkBackedBehaviorExecutor } from '@/relisten/realm/network_backed_behavior';
+import {
+  NetworkBackedBehaviorExecutor,
+  NetworkBackedBehaviorFetchStrategy,
+} from '@/relisten/realm/network_backed_behavior';
 import {
   FavoritedSource,
   LegacyDatabaseContents,
@@ -64,24 +67,28 @@ export class LegacyDataMigrator {
     private favoriteRepository: FavoriteRepository
   ) {}
 
+  private loadRecording(sourceUuid: string, showUuid?: string) {
+    const behavior = new ShowWithFullSourcesNetworkBackedBehavior(
+      this.realm,
+      showUuid,
+      sourceUuid,
+      true,
+      { fetchStrategy: NetworkBackedBehaviorFetchStrategy.NetworkAlwaysFirst }
+    );
+    // A cached show header does not establish whether this recording is available.
+    return NetworkBackedBehaviorExecutor.executeUntilMatches(
+      behavior,
+      this.api,
+      (result) => !result.isNetworkLoading
+    );
+  }
+
   public async migrateOfflineTrack(
     sourceUuid: string,
     offlineTracks: ReadonlyArray<OfflineTrack>,
     allOfflineFiles: string[]
   ): Promise<LegacyDataMigrationResult[]> {
-    const sourceBehavior = new ShowWithFullSourcesNetworkBackedBehavior(
-      this.realm,
-      undefined,
-      sourceUuid,
-      true
-    );
-    const result = await NetworkBackedBehaviorExecutor.executeUntilMatches(
-      sourceBehavior,
-      this.api,
-      (result) => {
-        return (result.errors?.length ?? 0) > 0 || sourceBehavior.isLocalDataShowable(result.data);
-      }
-    );
+    const result = await this.loadRecording(sourceUuid);
 
     if (result.errors && result.errors.length > 0) {
       return offlineTracks.map((t) => {
@@ -277,19 +284,7 @@ export class LegacyDataMigrator {
     legacySource: FavoritedSource
   ): Promise<LegacyDataMigrationResult> {
     const sourceUuid = legacySource.uuid;
-    const sourceBehavior = new ShowWithFullSourcesNetworkBackedBehavior(
-      this.realm,
-      legacySource.show_uuid,
-      sourceUuid,
-      true
-    );
-    const result = await NetworkBackedBehaviorExecutor.executeUntilMatches(
-      sourceBehavior,
-      this.api,
-      (result) => {
-        return (result.errors?.length ?? 0) > 0 || sourceBehavior.isLocalDataShowable(result.data);
-      }
-    );
+    const result = await this.loadRecording(sourceUuid, legacySource.show_uuid);
 
     if (result.errors && result.errors.length > 0) {
       return {

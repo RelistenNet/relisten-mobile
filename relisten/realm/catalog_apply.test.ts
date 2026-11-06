@@ -39,6 +39,12 @@ vi.mock('@/relisten/realm/schema', () => ({
 }));
 vi.mock('@/relisten/realm/root_services', () => ({}));
 vi.mock('@/relisten/util/routes', () => ({}));
+vi.mock('@/assets/relisten_white.png', () => ({ default: '' }));
+vi.mock('@/relisten/components/flex', () => ({ default: () => null }));
+vi.mock('@/relisten/components/relisten_button', () => ({ RelistenButton: () => null }));
+vi.mock('@/relisten/components/relisten_text', () => ({ RelistenText: () => null }));
+vi.mock('@react-native-async-storage/async-storage', () => ({ default: {} }));
+vi.mock('@/relisten/realm/old_ios_schema', () => ({}));
 vi.mock('@/relisten/realm/network_backed_behavior_hooks', () => ({
   useNetworkOnlyResults: () => ({ data: undefined, isNetworkLoading: false, refresh: () => {} }),
   useNetworkBackedBehavior: (behavior: {
@@ -131,6 +137,8 @@ import { ToursNetworkBackedBehavior } from './models/tour_repo';
 import { TourShowsNetworkBackedBehavior } from './models/shows/tour_shows_repo';
 import { FavoriteMetadataHydrator } from '../library/favorite_metadata_hydrator';
 import { FavoriteRepository } from '../library/favorite_repository';
+import { favoriteTargetForCatalogUuid } from '../library/favorite_catalog_target';
+import { LegacyDataMigrator } from '../pages/legacy_migration';
 import { UserFavorite, FAVORITE_REALM_MODELS } from './models/library';
 
 const timestamp = '2026-10-31T12:00:00.000Z';
@@ -1000,6 +1008,115 @@ describe('catalog Realm apply', () => {
     );
     expect(repository.activeFavorites('anonymous')).toHaveLength(0);
   });
+
+  it('keeps favorite snapshots stable across identical artist responses while publishing membership changes', async () => {
+    const artist = { ...artistResource(), popularity: popularityResource() };
+    realm.write(() => {
+      seedArtistAndYear(realm);
+      applyArtistList(realm, [artist]);
+      applyYearDetail(realm, artistUuid, yearUuid, yearWithShowsResource());
+    });
+    const scope = {
+      capture: () => ({ scopeId: 'anonymous', generation: 1 }),
+      isCurrent: () => true,
+      subscribe: () => () => {},
+    };
+    const library = new LibraryIndex(realm, scope);
+    executors.push(library);
+    const notify = vi.fn();
+    library.subscribeLibraryMembership(notify);
+    await vi.waitFor(() => expect(notify).toHaveBeenCalled());
+    const emptySnapshot = library.favoriteCatalogUuids('artist');
+    notify.mockClear();
+
+    // Replacing embedded popularity notifies the cached show's linked artist.
+    realm.write(() => applyArtistList(realm, [artist]));
+    await vi.waitFor(() => expect(notify).toHaveBeenCalled());
+    expect(library.favoriteCatalogUuids('artist')).toBe(emptySnapshot);
+
+    const repository = new FavoriteRepository(realm, scope);
+    const target = favoriteTargetForCatalogUuid('artist', artistUuid);
+    repository.setFavorite({ ...target, isFavorite: true });
+    await vi.waitFor(() =>
+      expect(library.favoriteCatalogUuids('artist').has(artistUuid)).toBe(true)
+    );
+    const favoriteSnapshot = library.favoriteCatalogUuids('artist');
+    expect(favoriteSnapshot).not.toBe(emptySnapshot);
+    expect(emptySnapshot.size).toBe(0);
+
+    repository.setFavorite({ ...target, isFavorite: false });
+    await vi.waitFor(() =>
+      expect(library.favoriteCatalogUuids('artist').has(artistUuid)).toBe(false)
+    );
+    expect(library.favoriteCatalogUuids('artist')).not.toBe(favoriteSnapshot);
+    expect(favoriteSnapshot.has(artistUuid)).toBe(true);
+  });
+
+  it.each(['present', 'missing', 'error'] as const)(
+    'waits for the recording response before importing a legacy source favorite (%s)',
+    async (outcome) => {
+      realm.write(() => {
+        seedArtistAndYear(realm);
+        applyYearDetail(realm, artistUuid, yearUuid, yearWithShowsResource());
+      });
+      let finish!: (response: Response) => void;
+      const api = new RelistenApiClient({
+        transport: new CatalogTransport({
+          apiBase: 'https://migration.test/api',
+          fetch: () =>
+            new Promise<Response>((resolve) => {
+              finish = resolve;
+            }),
+        }),
+      });
+      const scope = {
+        capture: () => ({ scopeId: 'anonymous', generation: 1 }),
+        isCurrent: () => true,
+        subscribe: () => () => {},
+      };
+      const repository = new FavoriteRepository(realm, scope);
+      const migrator = new LegacyDataMigrator(api, realm, repository);
+      let complete = false;
+      const pending = migrator
+        .migrateFavoriteSource({
+          uuid: sourceAUuid,
+          artist_uuid: artistUuid,
+          show_uuid: showUuid,
+          created_at: new Date(timestamp),
+          show_date: new Date(timestamp),
+        })
+        .then((result) => {
+          complete = true;
+          return result;
+        });
+      const sources =
+        outcome === 'present'
+          ? [sourceResource(sourceAId, [sourceSetResource(setAId, sourceAId, [trackResource()])])]
+          : [];
+      try {
+        await vi.waitFor(() => expect(finish).toBeDefined());
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(complete).toBe(false);
+      } finally {
+        finish(
+          new Response(JSON.stringify(fullShowResource(sources)), {
+            status: outcome === 'error' ? 404 : 200,
+          })
+        );
+        await pending;
+      }
+      const result = await pending;
+      expect(result).toMatchObject({
+        success: outcome === 'present',
+        migrated: outcome === 'present',
+      });
+      expect(repository.isFavorite(favoriteTargetForCatalogUuid('source', sourceAUuid))).toBe(
+        outcome === 'present'
+      );
+      if (outcome === 'missing') expect(result.message).toBe('Source not found');
+      if (outcome === 'error') expect(result.message).toContain('HTTP 404');
+    }
+  );
 
   it('applies shallow song tracks without taking source, set, or offline ownership', () => {
     const fullShow = fullShowResource([
@@ -1907,10 +2024,12 @@ describe('catalog Realm apply', () => {
     const index = new LibraryIndex(realm, scope);
     try {
       expect(index.isFavorite('song', a)).toBe(true);
+      expect(index.favoriteCatalogUuids('song')).toEqual(new Set([a]));
       realm.write(() =>
         applySongDetail(realm, artistUuid, { ...normalizedSongDetailResource(), shows: [] }, a)
       );
       await vi.waitFor(() => expect(index.isFavorite('song', b)).toBe(true));
+      expect(index.favoriteCatalogUuids('song')).toEqual(new Set([b]));
       expect(index.isFavorite('song', a)).toBe(true);
     } finally {
       index.tearDown();

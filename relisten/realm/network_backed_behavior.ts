@@ -42,12 +42,6 @@ export abstract class NetworkBackedBehavior<TLocalData, TApiData> {
 
   abstract isLocalDataShowable(localData: TLocalData): boolean;
 
-  // Repositories may use their successfully loaded domain data to avoid redundant fetches.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  shouldPerformNetworkRequest(_localData: TLocalData): boolean {
-    return true;
-  }
-
   abstract upsert(localData: TLocalData, apiData: TApiData): void;
 }
 
@@ -84,8 +78,6 @@ export class NetworkBackedResultValueStream<TLocalData> extends EmittableValueSt
 export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
   private isNetworkLoading: boolean;
 
-  private isNetworkLoadingDefault: boolean;
-
   private errors: RelistenApiClientError[] | undefined = undefined;
   private refreshGeneration = 0;
   private tornDown = false;
@@ -102,12 +94,7 @@ export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
     this.localData = this.behavior.createLocalUpdatingResults();
 
     const dataExists = this.behavior.isLocalDataShowable(this.localData.currentValue);
-    this.isNetworkLoadingDefault = defaultNetworkLoadingValue(
-      this.behavior.fetchStrategy,
-      dataExists
-    );
-
-    this.isNetworkLoading = this.isNetworkLoadingDefault;
+    this.isNetworkLoading = defaultNetworkLoadingValue(this.behavior.fetchStrategy, dataExists);
 
     this.output = new NetworkBackedResultValueStream<TLocalData>(this.buildResult());
 
@@ -196,13 +183,6 @@ export class NetworkBackedBehaviorExecutor<TLocalData, TApiData> {
     ) {
       return;
     }
-
-    if (
-      !force &&
-      !this.errors &&
-      !this.behavior.shouldPerformNetworkRequest(this.localData.currentValue)
-    )
-      return;
 
     const generation = ++this.refreshGeneration;
     if (force) {

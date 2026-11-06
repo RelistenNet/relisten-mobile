@@ -230,3 +230,25 @@ Native qualification used synthetic catalog data, not production mutations.
 No Drums timing or capacity claim is made; a same-fixture device measurement
 remains necessary before claiming a performance improvement. This work does not
 establish release readiness for unrelated CarPlay, deep-link, or rollout work.
+
+### Review fixes after checkpoint `da0aa1c`
+
+The full baseline review found two regressions and two cleanup items, now fixed:
+
+- Favorite-set snapshots keep their identity when membership is unchanged. An
+  identical artist response can no longer recreate the artist behavior through
+  favorite snapshot churn. Real additions, removals, and equal-size redirect
+  changes still publish new snapshots.
+- Legacy source-favorite and downloaded-file imports wait for recording request
+  completion instead of accepting a cached show header. Successful, absent, and
+  failed source responses all reach a terminal migration result. This readiness
+  rule stays in the importer; ordinary show reads keep their cheap header check.
+- The unused repository request-policy hook and redundant loading-default field
+  were removed.
+- Body-less transport requests use the existing GET decoding/error path. POST
+  commands retain their single-attempt behavior.
+
+The regression tests failed against the checkpoint and pass with these fixes.
+The full suite now passes 336 tests in 46 files; TypeScript, lint, and the iOS
+Hermes export pass. Alec requested a second checkpoint commit for these fixes
+and another full baseline review. No further native-device qualification is claimed here.

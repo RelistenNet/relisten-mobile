@@ -55,20 +55,18 @@ export class CatalogTransport {
     this.fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
   }
 
-  /** No-store endpoints and commands return their typed JSON without retaining it. */
+  /** GETs share decoding and retries; POST commands are sent once. */
   async requestJson<T>(path: string, body?: object): Promise<T> {
+    if (body === undefined) return this.getJson<T>(path);
     if (!path.startsWith('/') || path.startsWith('//')) {
       throw new CatalogProtocolError('Catalog paths must be origin-relative');
     }
     const url = `${this.apiBase}/v4${path}`;
-    const response =
-      body === undefined
-        ? await this.fetchGet(url, new Headers({ Accept: 'application/json' }))
-        : await this.fetch(url, {
-            method: 'POST',
-            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-          });
+    const response = await this.fetch(url, {
+      method: 'POST',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
     if (!response.ok) {
       throw new CatalogHttpError(url, response.status, await response.text());
     }
