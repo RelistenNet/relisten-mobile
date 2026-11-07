@@ -72,6 +72,7 @@ function scrollHarness() {
     useContext: () => ({ offset: queueOffset, transition: shared(null) }),
     QueueScrollContext: {},
     useAnimatedReaction: () => {},
+    useSharedValue: shared,
     runOnJS: (callback: unknown) => callback,
   };
   const hook = new Function(...Object.keys(queueEnvironment), `${queueHook}; return hook;`)(
@@ -107,5 +108,65 @@ describe('queue scroll anchor handoff', () => {
     state.animatedIndex.set(0.7);
     handlers.handleOnScroll({ contentOffset: { y: -20 } }, { initialContentOffsetY: 0 });
     expect(scrollTo).toHaveBeenCalledWith(expect.anything(), 0, 0, false);
+  });
+});
+
+describe('native queue scroll feedback', () => {
+  it.each(['handleOnScroll', 'handleOnEndDrag', 'handleOnMomentumEnd'])(
+    'bounds synchronous scroll delivery from %s',
+    (event) => {
+      const { state, handlers, scrollTo, queueOffset } = scrollHarness();
+      state.animatedIndex.set(0.7);
+      const context = { shouldLockInitialPosition: true, initialContentOffsetY: 350 };
+      let depth = 0;
+      scrollTo.mockImplementation((_ref, _x, y) => {
+        if (++depth > 8) throw new Error('Recursive native scroll correction');
+        try {
+          handlers.handleOnScroll({ contentOffset: { y } }, context);
+        } finally {
+          depth -= 1;
+        }
+      });
+
+      expect(() => handlers[event]({ contentOffset: { y: 150 } }, context)).not.toThrow();
+      expect(scrollTo).toHaveBeenCalledTimes(1);
+      expect(queueOffset.get()).toBe(350);
+      handlers[event]({ contentOffset: { y: 150 } }, context);
+      expect(scrollTo).toHaveBeenCalledTimes(2);
+    }
+  );
+
+  it('releases the guard when a native command throws', () => {
+    const { state, handlers, scrollTo } = scrollHarness();
+    state.animatedIndex.set(0.7);
+    const context = { shouldLockInitialPosition: true, initialContentOffsetY: 350 };
+    scrollTo.mockImplementationOnce(() => {
+      throw new Error('Native view unavailable');
+    });
+    expect(() => handlers.handleOnScroll({ contentOffset: { y: 150 } }, context)).toThrow(
+      'Native view unavailable'
+    );
+    handlers.handleOnScroll({ contentOffset: { y: 150 } }, context);
+    expect(scrollTo).toHaveBeenCalledTimes(2);
+  });
+
+  it('stops feedback even when native layout clamps the requested offset', () => {
+    const { state, handlers, scrollTo, queueOffset } = scrollHarness();
+    state.animatedIndex.set(0.7);
+    const context = { shouldLockInitialPosition: true, initialContentOffsetY: 350 };
+    let depth = 0;
+    scrollTo.mockImplementation(() => {
+      if (++depth > 8) throw new Error('Recursive clamped scroll correction');
+      try {
+        handlers.handleOnScroll({ contentOffset: { y: 300 } }, context);
+      } finally {
+        depth -= 1;
+      }
+    });
+
+    expect(() => handlers.handleOnScroll({ contentOffset: { y: 150 } }, context)).not.toThrow();
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    expect(queueOffset.get()).toBe(300);
+    expect(state.animatedScrollableState.get().contentOffsetY).toBe(300);
   });
 });

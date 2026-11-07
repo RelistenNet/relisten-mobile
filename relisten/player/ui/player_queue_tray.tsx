@@ -14,6 +14,7 @@ import BottomSheet, {
   useBottomSheetInternal,
   useScrollEventsHandlersDefault,
   type ScrollEventsHandlersHookType,
+  type ScrollEventHandlerCallbackType,
   useBottomSheetScrollableCreator,
   type BottomSheetBackgroundProps,
   type BottomSheetBackdropProps,
@@ -77,6 +78,7 @@ const QueueScrollContext = createContext<{
 // while the user is dragging the expanded queue.
 const useQueueScrollEvents: ScrollEventsHandlersHookType = (ref, offset) => {
   const defaults = useScrollEventsHandlersDefault(ref, offset);
+  const handlingDefaultScroll = useSharedValue(false);
   // Gorhom supplies useAnimatedRef here, but its public hook type erases that detail.
   const animatedRef = ref as Parameters<typeof scrollTo>[0];
   const {
@@ -156,25 +158,43 @@ const useQueueScrollEvents: ScrollEventsHandlersHookType = (ref, offset) => {
     offset.set(y);
     animatedScrollableState.modify((state) => ({ ...state, contentOffsetY: y }));
   };
+  const handleScrollEvent = (
+    event: Parameters<ScrollEventHandlerCallbackType>[0],
+    context: Parameters<ScrollEventHandlerCallbackType>[1],
+    handler: ScrollEventHandlerCallbackType | undefined
+  ) => {
+    'worklet';
+    queueOffset.set(event.contentOffset.y);
+    // A native scrollTo can deliver another scroll event before it returns.
+    // Record that result without recursively issuing another correction.
+    if (preserveAnchor() || handlingDefaultScroll.get()) {
+      recordOffset(event.contentOffset.y);
+      return;
+    }
+    if (!handler) return;
+    handlingDefaultScroll.set(true);
+    // Reset on both paths; React Compiler cannot currently lower try/finally.
+    try {
+      handler(event, context);
+    } catch (error) {
+      handlingDefaultScroll.set(false);
+      throw error;
+    }
+    handlingDefaultScroll.set(false);
+  };
   return {
     ...defaults,
     handleOnScroll: (event, context) => {
       'worklet';
-      queueOffset.set(event.contentOffset.y);
-      if (preserveAnchor()) recordOffset(event.contentOffset.y);
-      else defaults.handleOnScroll?.(event, context);
+      handleScrollEvent(event, context, defaults.handleOnScroll);
     },
     handleOnEndDrag: (event, context) => {
       'worklet';
-      queueOffset.set(event.contentOffset.y);
-      if (preserveAnchor()) recordOffset(event.contentOffset.y);
-      else defaults.handleOnEndDrag?.(event, context);
+      handleScrollEvent(event, context, defaults.handleOnEndDrag);
     },
     handleOnMomentumEnd: (event, context) => {
       'worklet';
-      queueOffset.set(event.contentOffset.y);
-      if (preserveAnchor()) recordOffset(event.contentOffset.y);
-      else defaults.handleOnMomentumEnd?.(event, context);
+      handleScrollEvent(event, context, defaults.handleOnMomentumEnd);
     },
   };
 };
