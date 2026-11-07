@@ -54,7 +54,7 @@ export function PlayerQueueTrayRow({
   const { fontScale } = useWindowDimensions();
   const stackControls = fontScale >= 1.4;
   return (
-    <View className={stackControls ? 'px-4' : 'flex-row items-center px-4'}>
+    <View className={stackControls ? 'pl-4 pr-0.5' : 'flex-row items-center pl-4 pr-0.5'}>
       <TouchableOpacity
         accessibilityRole="button"
         accessibilityLabel={playerTrackAccessibilityLabel(source)}
@@ -107,20 +107,19 @@ export function PlayerQueueTrayRow({
           stackControls ? 'mt-1 flex-row items-center justify-end' : 'flex-row items-center'
         }
       >
-        {current ? (
-          <CurrentTrackPlaybackButton />
-        ) : (
-          <View className="h-11 min-w-[44px] items-end justify-center">
-            <RelistenText
-              className="text-right text-base text-gray-400 tabular-nums"
-              selectable={false}
-            >
-              {source.humanizedDuration}
-            </RelistenText>
-          </View>
-        )}
-        <PlayerQueueActionsMenu index={index} queueTrack={track} iconAlignment="center" />
-        <QueueDragHandle drag={drag} label={playerTrackAccessibilityLabel(source)} />
+        {current && <CurrentTrackPlaybackButton />}
+        <View className="h-11 min-w-[44px] items-end justify-center">
+          <RelistenText
+            className="text-right text-base text-gray-400 tabular-nums"
+            selectable={false}
+          >
+            {source.humanizedDuration}
+          </RelistenText>
+        </View>
+        <View className="ml-3 flex-row items-center">
+          <PlayerQueueActionsMenu index={index} queueTrack={track} iconAlignment="center" />
+          <QueueDragHandle drag={drag} label={playerTrackAccessibilityLabel(source)} />
+        </View>
       </View>
     </View>
   );

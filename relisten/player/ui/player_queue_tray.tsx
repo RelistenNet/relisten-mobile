@@ -195,7 +195,7 @@ function QueueTrayHandle() {
       <View className="items-center py-2">
         <View className="h-1 w-9 rounded-full bg-white/30" />
       </View>
-      <View className="min-h-[56px] flex-row items-center px-4">
+      <View className="min-h-[56px] flex-row items-center pl-4 pr-0.5">
         <View className="min-w-0 flex-1 justify-center">
           <RelistenText
             accessibilityRole="header"
