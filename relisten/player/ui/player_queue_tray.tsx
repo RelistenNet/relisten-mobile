@@ -309,7 +309,7 @@ export function PlayerQueueTray({
     : `${tracks.length} queued ${tracks.length === 1 ? 'track' : 'tracks'}`;
   const insets = useSafeAreaInsets();
   const { fontScale } = useWindowDimensions();
-  const [{ height, width }, setSize] = useState({ height: 0, width: 0 });
+  const [{ height, width, y }, setSize] = useState({ height: 0, width: 0, y: 0 });
   const [expanded, setExpanded] = useState(false);
   const trayExpanded = useRef(false);
   const [dragging, setDragging] = useState(false);
@@ -480,17 +480,19 @@ export function PlayerQueueTray({
         disappearsOnIndex={0}
         pressBehavior={0}
         opacity={0.4}
+        // The sheet sits below the player header; dim the whole player background.
+        style={[props.style, { top: -y }]}
       />
     ),
-    []
+    [y]
   );
 
   return (
     <View
       className="flex-1"
       onLayout={(e) => {
-        const { height, width } = e.nativeEvent.layout;
-        setSize({ height, width });
+        const { height, width, y } = e.nativeEvent.layout;
+        setSize({ height, width, y });
       }}
     >
       <GestureDetector gesture={dismissGesture}>

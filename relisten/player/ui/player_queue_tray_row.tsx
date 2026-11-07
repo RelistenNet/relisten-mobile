@@ -110,8 +110,11 @@ export function PlayerQueueTrayRow({
         {current ? (
           <CurrentTrackPlaybackButton />
         ) : (
-          <View className="h-11 min-w-[44px] items-center justify-center">
-            <RelistenText className="text-base text-gray-400 tabular-nums" selectable={false}>
+          <View className="h-11 min-w-[44px] items-end justify-center">
+            <RelistenText
+              className="text-right text-base text-gray-400 tabular-nums"
+              selectable={false}
+            >
               {source.humanizedDuration}
             </RelistenText>
           </View>
