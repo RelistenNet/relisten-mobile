@@ -36,7 +36,7 @@ import {
   type ViewInstance,
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import DraggableFlatList from 'react-native-draggable-flatlist';
+import DraggableFlatList, { type RenderItem } from 'react-native-draggable-flatlist';
 import Animated, {
   runOnJS,
   scrollTo,
@@ -52,6 +52,7 @@ import { PlayerNowPlaying } from './player_now_playing';
 import { usePlayerPresentation } from './player_presentation';
 import { isQueueReorderCurrent } from './player_queue_reorder';
 import { PlayerQueueTrayRow } from './player_queue_tray_row';
+import { usePlayerQueueAnchor } from './player_queue_anchor';
 
 type QueueScrollTransition = {
   fromIndex: number;
@@ -64,6 +65,10 @@ const QueueScrollContext = createContext<{
   offset: SharedValue<number>;
   transition: SharedValue<QueueScrollTransition | null>;
   onSnap: (index: number) => void;
+  onViewportHeightChange: (height: number) => void;
+  expanded: boolean;
+  subtitle: string;
+  onToggle: () => void;
 } | null>(null);
 
 // The peek deliberately starts at the next track, rather than content offset zero.
@@ -73,9 +78,29 @@ const useQueueScrollEvents: ScrollEventsHandlersHookType = (ref, offset) => {
   const defaults = useScrollEventsHandlersDefault(ref, offset);
   // Gorhom supplies useAnimatedRef here, but its public hook type erases that detail.
   const animatedRef = ref as Parameters<typeof scrollTo>[0];
-  const { offset: queueOffset, transition, onSnap } = useContext(QueueScrollContext)!;
-  const { animatedIndex, animatedAnimationState, animatedScrollableState } =
-    useBottomSheetInternal();
+  const {
+    offset: queueOffset,
+    transition,
+    onSnap,
+    onViewportHeightChange,
+  } = useContext(QueueScrollContext)!;
+  const {
+    animatedIndex,
+    animatedAnimationState,
+    animatedScrollableState,
+    animatedSheetHeight,
+    animatedLayoutState,
+  } = useBottomSheetInternal();
+  // Use the final viewport geometry, not each intermediate height of the animated mask.
+  useAnimatedReaction(
+    () => {
+      const handleHeight = animatedLayoutState.get().handleHeight;
+      return handleHeight < 0 ? 0 : Math.max(0, animatedSheetHeight.get() - handleHeight);
+    },
+    (height, previous) => {
+      if (height !== previous) runOnJS(onViewportHeightChange)(height);
+    }
+  );
   // Read the actual native animation target, including a reversal to the same
   // detent (for which Gorhom intentionally omits onAnimate/onChange callbacks).
   useAnimatedReaction(
@@ -154,6 +179,47 @@ function useQueueScrollComponent() {
   'use no memo';
   // eslint-disable-next-line react-compiler/react-compiler -- Gorhom takes a hook as configuration.
   return useBottomSheetScrollableCreator({ scrollEventsHandlersHook: useQueueScrollEvents });
+}
+
+function QueueTrayHandle() {
+  const { expanded, subtitle, onToggle } = useContext(QueueScrollContext)!;
+  const title = expanded ? 'Queue' : 'Up next';
+  return (
+    <View className="pb-2">
+      <View className="items-center py-2">
+        <View className="h-1 w-9 rounded-full bg-white/30" />
+      </View>
+      <View className="min-h-[56px] flex-row items-center px-4">
+        <View className="min-w-0 flex-1 justify-center">
+          <RelistenText
+            accessibilityRole="header"
+            className="text-lg font-semibold"
+            selectable={false}
+          >
+            {title}
+          </RelistenText>
+          <RelistenText className="mt-0.5 text-sm text-gray-300" selectable={false}>
+            {subtitle}
+          </RelistenText>
+        </View>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={`${title}, ${subtitle}`}
+          accessibilityHint={expanded ? 'Collapses the queue tray.' : 'Expands the queue tray.'}
+          accessibilityState={{ expanded }}
+          activeOpacity={0.7}
+          onPress={onToggle}
+          className="h-11 w-11 items-center justify-center"
+        >
+          <MaterialIcons
+            name={expanded ? 'keyboard-arrow-down' : 'keyboard-arrow-up'}
+            size={24}
+            color="rgba(255,255,255,0.62)"
+          />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 }
 
 function TrayBackground({ style }: BottomSheetBackgroundProps) {
@@ -242,13 +308,13 @@ export function PlayerQueueTray({
   const trayExpanded = useRef(false);
   const [dragging, setDragging] = useState(false);
   const [listHeight, setListHeight] = useState(0);
-  const [rowHeights, setRowHeights] = useState<Record<string, number>>({});
+  const rowHeights = useRef(new Map<string, number>());
+  const [bottomSpace, setBottomSpace] = useState(insets.bottom + 12);
+  const footerFrame = useRef<ReturnType<typeof requestAnimationFrame> | undefined>(undefined);
   const sheetRef = useRef<BottomSheet>(null);
   const listRef = useRef<FlatList<PlayerQueueTrack>>(null);
   const dragKeys = useRef<readonly string[] | null>(null);
-  const anchorIndex = useRef(Math.max(0, currentIndex));
-  const anchorPending = useRef(true);
-  const anchorRetries = useRef(0);
+  const anchor = usePlayerQueueAnchor(listRef);
   const currentRowRef = useRef<ViewInstance>(null);
   const nextRowRef = useRef<ViewInstance>(null);
   const { markPlayerContentReady, isPresentationActive } = usePlayerPresentation();
@@ -279,16 +345,48 @@ export function PlayerQueueTray({
     }
   }, [dragging, queueKeys]);
 
+  const recalculateFooter = useCallback(() => {
+    const minimum = insets.bottom + 12;
+    let tailHeight = 0;
+    const first = trayExpanded.current ? Math.max(0, currentIndex) : nextIndex;
+    for (
+      let index = first;
+      index < tracks.length && tailHeight < listHeight - minimum;
+      index += 1
+    ) {
+      tailHeight += rowHeights.current.get(tracks[index].identifier) ?? (showArtist ? 64 : 48);
+    }
+    setBottomSpace(Math.max(minimum, listHeight - tailHeight));
+  }, [currentIndex, nextIndex, tracks, listHeight, insets.bottom, showArtist]);
+  const updateFooter = useRef(recalculateFooter);
+  useEffect(() => {
+    updateFooter.current = recalculateFooter;
+    recalculateFooter();
+  }, [recalculateFooter]);
+  useEffect(
+    () => () => {
+      anchor.cancel();
+      if (footerFrame.current !== undefined) cancelAnimationFrame(footerFrame.current);
+      footerFrame.current = undefined;
+    },
+    [anchor]
+  );
+  const measureRow = useCallback((identifier: string, height: number) => {
+    if (rowHeights.current.get(identifier) === height) return;
+    rowHeights.current.set(identifier, height);
+    if (footerFrame.current !== undefined) return;
+    footerFrame.current = requestAnimationFrame(() => {
+      footerFrame.current = undefined;
+      updateFooter.current();
+    });
+  }, []);
   const alignTrack = useCallback(
     (requestedIndex: number) => {
       const index = Math.max(0, requestedIndex);
-      if (!tracks[index]) return;
-      anchorIndex.current = index;
-      anchorPending.current = true;
-      anchorRetries.current = 0;
-      listRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0 });
+      if (tracks[index]) anchor.start(index);
+      else anchor.cancel();
     },
-    [tracks]
+    [anchor, tracks]
   );
   useEffect(() => {
     if (!trayExpanded.current) alignTrack(nextIndex);
@@ -299,11 +397,12 @@ export function PlayerQueueTray({
       if (trayExpanded.current === nextExpanded) return;
       trayExpanded.current = nextExpanded;
       setExpanded(nextExpanded);
+      recalculateFooter();
       const targetIndex = nextExpanded ? currentIndex : nextIndex;
       const targetRow = nextExpanded ? currentRowRef.current : nextRowRef.current;
       const scrollView = listRef.current?.getNativeScrollRef();
       queueTransition.set(null);
-      anchorPending.current = false;
+      anchor.cancel();
       if (!targetRow || !scrollView) {
         alignTrack(targetIndex);
         return;
@@ -327,14 +426,46 @@ export function PlayerQueueTray({
         () => alignTrack(targetIndex)
       );
     },
-    [alignTrack, currentIndex, nextIndex, queueOffset, queueTransition, sheetIndex]
+    [
+      alignTrack,
+      currentIndex,
+      nextIndex,
+      queueOffset,
+      queueTransition,
+      sheetIndex,
+      anchor,
+      recalculateFooter,
+    ]
   );
   const openQueue = useCallback(() => sheetRef.current?.snapToIndex(1), []);
-  // Only enough bottom space to put the selected row at the top for a short tail.
-  const tailHeight = tracks
-    .slice(expanded ? Math.max(0, currentIndex) : nextIndex)
-    .reduce((sum, track) => sum + (rowHeights[track.identifier] ?? (showArtist ? 64 : 48)), 0);
-  const bottomSpace = Math.max(insets.bottom + 12, listHeight - tailHeight);
+  const toggleQueue = useCallback(
+    () => sheetRef.current?.snapToIndex(trayExpanded.current ? 0 : 1),
+    []
+  );
+  const nextIdentifier = tracks[nextIndex]?.identifier;
+  const renderItem = useCallback<RenderItem<PlayerQueueTrack>>(
+    ({ item, getIndex, drag }) => (
+      <View
+        ref={
+          item.identifier === current?.identifier
+            ? currentRowRef
+            : item.identifier === nextIdentifier
+              ? nextRowRef
+              : undefined
+        }
+        onLayout={(event) => measureRow(item.identifier, event.nativeEvent.layout.height)}
+      >
+        <PlayerQueueTrayRow
+          track={item}
+          index={getIndex() ?? tracks.indexOf(item)}
+          current={item.identifier === current?.identifier}
+          showArtist={showArtist}
+          drag={drag}
+        />
+      </View>
+    ),
+    [current?.identifier, nextIdentifier, measureRow, showArtist, tracks]
+  );
   const backdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
       <BottomSheetBackdrop
@@ -346,46 +477,6 @@ export function PlayerQueueTray({
       />
     ),
     []
-  );
-  const title = expanded ? 'Queue' : 'Up next';
-  const handle = useCallback(
-    () => (
-      <View className="pb-2">
-        <View className="items-center py-2">
-          <View className="h-1 w-9 rounded-full bg-white/30" />
-        </View>
-        <View className="min-h-[56px] flex-row items-center px-4">
-          <View className="min-w-0 flex-1 justify-center">
-            <RelistenText
-              accessibilityRole="header"
-              className="text-lg font-semibold"
-              selectable={false}
-            >
-              {title}
-            </RelistenText>
-            <RelistenText className="mt-0.5 text-sm text-gray-300" selectable={false}>
-              {subtitle}
-            </RelistenText>
-          </View>
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel={`${title}, ${subtitle}`}
-            accessibilityHint={expanded ? 'Collapses the queue tray.' : 'Expands the queue tray.'}
-            accessibilityState={{ expanded }}
-            activeOpacity={0.7}
-            onPress={() => (expanded ? sheetRef.current?.snapToIndex(0) : openQueue())}
-            className="h-11 w-11 items-center justify-center"
-          >
-            <MaterialIcons
-              name={expanded ? 'keyboard-arrow-down' : 'keyboard-arrow-up'}
-              size={24}
-              color="rgba(255,255,255,0.62)"
-            />
-          </TouchableOpacity>
-        </View>
-      </View>
-    ),
-    [expanded, openQueue, title, subtitle]
   );
 
   return (
@@ -422,7 +513,15 @@ export function PlayerQueueTray({
       </GestureDetector>
       {height > 0 && (
         <QueueScrollContext
-          value={{ offset: queueOffset, transition: queueTransition, onSnap: updateTrayPosition }}
+          value={{
+            offset: queueOffset,
+            transition: queueTransition,
+            onSnap: updateTrayPosition,
+            onViewportHeightChange: setListHeight,
+            expanded,
+            subtitle,
+            onToggle: toggleQueue,
+          }}
         >
           <BottomSheet
             ref={sheetRef}
@@ -436,7 +535,7 @@ export function PlayerQueueTray({
             enableContentPanningGesture
             enableHandlePanningGesture={!dragging}
             activeOffsetY={dragging ? [-1000000, 1000000] : [-8, 8]}
-            handleComponent={handle}
+            handleComponent={QueueTrayHandle}
             backgroundComponent={TrayBackground}
             backdropComponent={backdrop}
             style={{
@@ -449,7 +548,7 @@ export function PlayerQueueTray({
               borderRadius: 28,
             }}
           >
-            <View className="flex-1" onLayout={(e) => setListHeight(e.nativeEvent.layout.height)}>
+            <View className="flex-1">
               <DraggableFlatList
                 ref={listRef as never}
                 renderScrollComponent={renderQueueScrollComponent}
@@ -469,39 +568,15 @@ export function PlayerQueueTray({
                 automaticallyAdjustContentInsets={false}
                 automaticallyAdjustsScrollIndicatorInsets={false}
                 scrollIndicatorInsets={{ top: 8, bottom: insets.bottom + 24, right: 4 }}
-                onContentSizeChange={() => {
-                  if (anchorPending.current)
-                    requestAnimationFrame(() => alignTrack(anchorIndex.current));
-                }}
-                onLayout={() => {
-                  if (anchorPending.current)
-                    requestAnimationFrame(() => alignTrack(anchorIndex.current));
-                }}
-                onScrollToIndexFailed={({ averageItemLength, index }) => {
-                  if (!anchorPending.current || anchorRetries.current >= 3) return;
-                  anchorRetries.current += 1;
-                  listRef.current?.scrollToOffset({
-                    offset: averageItemLength * index,
-                    animated: false,
-                  });
-                  setTimeout(() => {
-                    if (anchorPending.current && anchorIndex.current === index)
-                      listRef.current?.scrollToIndex({
-                        index,
-                        animated: false,
-                        viewPosition: 0,
-                      });
-                  }, 60);
-                }}
-                onViewableItemsChanged={({ viewableItems }) => {
-                  if (viewableItems[0]?.index === anchorIndex.current)
-                    anchorPending.current = false;
-                }}
-                onScrollBeginDrag={() => {
-                  anchorPending.current = false;
-                }}
+                onContentSizeChange={anchor.retryAfterLayout}
+                onLayout={anchor.retryAfterLayout}
+                onScrollToIndexFailed={anchor.onFailure}
+                onViewableItemsChanged={({ viewableItems }) =>
+                  anchor.onVisibleIndex(viewableItems[0]?.index)
+                }
+                onScrollBeginDrag={anchor.cancel}
                 onDragBegin={() => {
-                  anchorPending.current = false;
+                  anchor.cancel();
                   dragKeys.current = queueKeys;
                   setDragging(true);
                 }}
@@ -511,33 +586,7 @@ export function PlayerQueueTray({
                   dragKeys.current = null;
                   player.queue.moveQueueTrack(from, to);
                 }}
-                renderItem={({ item, getIndex, drag }) => (
-                  <View
-                    ref={
-                      item.identifier === current?.identifier
-                        ? currentRowRef
-                        : item.identifier === tracks[nextIndex]?.identifier
-                          ? nextRowRef
-                          : undefined
-                    }
-                    onLayout={(e) => {
-                      const height = e.nativeEvent.layout.height;
-                      setRowHeights((heights) =>
-                        heights[item.identifier] === height
-                          ? heights
-                          : { ...heights, [item.identifier]: height }
-                      );
-                    }}
-                  >
-                    <PlayerQueueTrayRow
-                      track={item}
-                      index={getIndex() ?? tracks.indexOf(item)}
-                      current={item.identifier === current?.identifier}
-                      showArtist={showArtist}
-                      drag={drag}
-                    />
-                  </View>
-                )}
+                renderItem={renderItem}
                 ListEmptyComponent={
                   <RelistenText className="p-6 text-center text-gray-300">
                     Nothing is queued
