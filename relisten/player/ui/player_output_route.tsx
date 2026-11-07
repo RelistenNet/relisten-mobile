@@ -31,15 +31,12 @@ export function usePlayerOutputRoute(): string | null {
   return route?.isExternal ? route.name : null;
 }
 
-/** Compact route feedback shared by the expanded player and mini-player. */
+/** Destination label for the expanded player. */
 export function PlayerOutputRoute({
   cn,
-  maxFontSizeMultiplier,
 }: {
   /** `cn`, not `className`: NativeWind v2 rewrites className on custom components into style. */
   cn?: string;
-  /** Bounds the label in fixed-height containers such as the native tab accessory. */
-  maxFontSizeMultiplier?: number;
 }) {
   const name = usePlayerOutputRoute();
   if (!name) {
@@ -49,7 +46,6 @@ export function PlayerOutputRoute({
   return (
     <RelistenText
       cn={cn}
-      maxFontSizeMultiplier={maxFontSizeMultiplier}
       numberOfLines={1}
       selectable={false}
       accessibilityLabel={`Audio output: ${name}`}

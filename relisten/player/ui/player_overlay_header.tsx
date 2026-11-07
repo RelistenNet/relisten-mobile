@@ -1,75 +1,13 @@
-import {
-  PLAYER_DISMISS_ACTIVATION_DISTANCE,
-  playerDismissGestureDistance,
-  shouldFinishPlayerDismiss,
-} from '@/relisten/player/ui/player_dismissal';
-import {
-  playerPresentationProgress,
-  usePlayerPresentation,
-} from '@/relisten/player/ui/player_presentation';
 import { Ionicons } from '@expo/vector-icons';
-import { TouchableOpacity, useWindowDimensions, View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { runOnJS, useSharedValue } from 'react-native-reanimated';
+import { TouchableOpacity, View } from 'react-native';
+import { GestureDetector } from 'react-native-gesture-handler';
+import { usePlayerDismissGesture } from './use_player_dismiss_gesture';
+import { usePlayerPresentation } from './player_presentation';
 
 /** One visible dismissal control; the surrounding header also accepts a downward drag. */
 export function PlayerOverlayHeader({ interactive }: { interactive: boolean }) {
-  'use no memo';
-
-  const { height } = useWindowDimensions();
-  const { beginInteractivePresentation, closePlayer, openPlayer } = usePlayerPresentation();
-  const touchStartY = useSharedValue(0);
-  const gestureStartProgress = useSharedValue(1);
-  const gestureDistance = playerDismissGestureDistance(height);
-
-  // Activate only after downward movement, so tapping the chevron remains a
-  // normal button press and an upward drag can pass back to the player list.
-  const collapseGesture = Gesture.Pan()
-    .enabled(interactive)
-    .manualActivation(true)
-    .onTouchesDown((event) => {
-      touchStartY.value = event.allTouches[0]?.absoluteY ?? 0;
-    })
-    .onTouchesMove((event, stateManager) => {
-      const currentY = event.allTouches[0]?.absoluteY;
-      if (currentY === undefined) return;
-
-      const translationY = currentY - touchStartY.value;
-      if (translationY < -PLAYER_DISMISS_ACTIVATION_DISTANCE) {
-        stateManager.fail();
-      } else if (translationY > PLAYER_DISMISS_ACTIVATION_DISTANCE) {
-        stateManager.activate();
-      }
-    })
-    .onStart(() => {
-      gestureStartProgress.value = playerPresentationProgress.value;
-      runOnJS(beginInteractivePresentation)();
-    })
-    .onUpdate((event) => {
-      playerPresentationProgress.value = Math.max(
-        0,
-        Math.min(1, gestureStartProgress.value - event.translationY / gestureDistance)
-      );
-    })
-    .onEnd((event, success) => {
-      // onEnd runs only for an activated drag, including cancellation. A tap
-      // never activates the pan and must not undo the chevron's close action.
-      if (!success) {
-        runOnJS(openPlayer)();
-        return;
-      }
-      if (
-        shouldFinishPlayerDismiss(
-          playerPresentationProgress.value,
-          event.velocityY,
-          gestureDistance
-        )
-      ) {
-        runOnJS(closePlayer)();
-      } else {
-        runOnJS(openPlayer)();
-      }
-    });
+  const { closePlayer } = usePlayerPresentation();
+  const collapseGesture = usePlayerDismissGesture(interactive);
 
   return (
     <GestureDetector gesture={collapseGesture}>

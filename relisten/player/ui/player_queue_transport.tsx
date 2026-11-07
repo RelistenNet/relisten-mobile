@@ -9,7 +9,13 @@ import {
 import { PlayerControls } from '@/relisten/player/ui/player_now_playing';
 import { ScrubberRow } from '@/relisten/player/ui/player_scrubber';
 import { playerTransportTransition } from '@/relisten/player/ui/player_transport_transition';
-import { TouchableOpacity, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
+import {
+  Platform,
+  TouchableOpacity,
+  View,
+  useWindowDimensions,
+  type LayoutChangeEvent,
+} from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useReducedMotion,
@@ -114,9 +120,11 @@ export function PlayerQueueTransport({
           <PlayerControls compact />
         </View>
       </View>
-      <View className="mb-2 mt-3">
-        <PlayerAudioVisualizer compact active={interactive} />
-      </View>
+      {Platform.OS === 'ios' && (
+        <View className="mb-2 mt-3">
+          <PlayerAudioVisualizer compact active={interactive} />
+        </View>
+      )}
       <ScrubberRow subduedCache onScrubbingChange={onScrubbingChange} />
     </Animated.View>
   );

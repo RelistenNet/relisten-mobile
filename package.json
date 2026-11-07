@@ -18,7 +18,7 @@
     "@expo/ui": "~58.0.18",
     "@expo/vector-icons": "^15.0.2",
     "@g4rb4g3/react-native-carplay": "github:RelistenNet/react-native-carplay#1151a8e",
-    "@gorhom/bottom-sheet": "^5.2.8",
+    "@gorhom/bottom-sheet": "^5.2.14",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/netinfo": "12.0.1",
     "@react-native-community/slider": "5.2.1",

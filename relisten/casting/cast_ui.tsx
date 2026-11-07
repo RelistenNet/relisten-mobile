@@ -1,3 +1,5 @@
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
 import { useNetInfo } from '@react-native-community/netinfo';
 import { CastButton, CastState, useCastDevice, useCastState } from 'react-native-google-cast';
@@ -26,12 +28,39 @@ export type RelistenCastButtonProps = ComponentProps<typeof CastButton> & {
   className?: string;
 };
 
-export function RelistenCastButton({ className, ...props }: RelistenCastButtonProps) {
+export function RelistenCastButton({
+  className,
+  style,
+  tintColor = 'white',
+  ...props
+}: RelistenCastButtonProps) {
+  const castState = useCastState();
   const shouldRenderCastButton = useShouldRenderCastButton();
 
   if (!shouldRenderCastButton) {
     return null;
   }
 
-  return <CastButton className={className} {...props} />;
+  return (
+    <View className={className} style={[style, { alignItems: 'center', justifyContent: 'center' }]}>
+      <View pointerEvents="none" accessible={false} accessibilityElementsHidden>
+        {castState === CastState.CONNECTING ? (
+          <ActivityIndicator size="small" color={tintColor} />
+        ) : (
+          <MaterialIcons
+            name={castState === CastState.CONNECTED ? 'cast-connected' : 'cast'}
+            size={20}
+            color={tintColor}
+          />
+        )}
+      </View>
+      {/* The SDK owns the full touch target and discovery; draw its glyph at the app's size.
+          Keep alpha above UIKit's hit-testing threshold so the native button receives taps. */}
+      <CastButton
+        {...props}
+        style={[StyleSheet.absoluteFill, { opacity: 0.02 }]}
+        tintColor={tintColor}
+      />
+    </View>
+  );
 }

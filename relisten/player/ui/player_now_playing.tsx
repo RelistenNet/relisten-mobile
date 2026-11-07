@@ -33,7 +33,7 @@ import { tw } from '@/relisten/util/tw';
 import { Ionicons, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { type Ref } from 'react';
+import { type ReactNode, type Ref } from 'react';
 import {
   Platform,
   Share,
@@ -150,9 +150,11 @@ function ShowIdentity({ visualizerActive }: { visualizerActive: boolean }) {
             </RelistenText>
           </View>
         )}
-        <View className="mb-1 mt-4 w-full px-5">
-          <PlayerAudioVisualizer active={visualizerActive} />
-        </View>
+        {Platform.OS === 'ios' && (
+          <View className="mb-1 mt-4 w-full px-5">
+            <PlayerAudioVisualizer active={visualizerActive} />
+          </View>
+        )}
       </View>
     </View>
   );
@@ -271,7 +273,6 @@ function CurrentTrackInfo({
           {show.venue.name} · {show.venue.location}
         </RelistenText>
       ) : null}
-      <PlayerOutputRoute cn="mt-1 text-sm text-relisten-blue-200" />
     </View>
   );
 
@@ -349,7 +350,13 @@ export function PlayerControls({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function PlayerSecondaryControls({ isCasting }: { isCasting: boolean }) {
+function PlayerSecondaryControls({
+  isCasting,
+  historyButton,
+}: {
+  isCasting: boolean;
+  historyButton?: ReactNode;
+}) {
   const queue = useRelistenPlayerQueue();
   const [shuffleState] = useRelistenPlayerShuffleState();
   const [repeatState] = useRelistenPlayerRepeatState();
@@ -430,6 +437,7 @@ function PlayerSecondaryControls({ isCasting }: { isCasting: boolean }) {
           />
         </TouchableOpacity>
       )}
+      {historyButton}
       {/* These frames belong to the native controls, so the full 44pt area responds. */}
       {shouldRenderCastButton && (
         <RelistenCastButton
@@ -452,6 +460,7 @@ function PlayerSecondaryControls({ isCasting }: { isCasting: boolean }) {
 
 type PlayerNowPlayingProps = {
   headingRef?: Ref<ViewInstance>;
+  onOpenHistory?: () => void;
   onBeforeNavigate: (navigate: () => void) => void;
   visualizerActive?: boolean;
   onScrubbingChange?: (scrubbing: boolean) => void;
@@ -459,6 +468,7 @@ type PlayerNowPlayingProps = {
 
 export function PlayerNowPlaying({
   headingRef,
+  onOpenHistory,
   onBeforeNavigate,
   visualizerActive = true,
   onScrubbingChange,
@@ -493,7 +503,22 @@ export function PlayerNowPlaying({
         <PlayerControls />
       </View>
       <View className="mt-3 pb-1 pt-1">
-        <PlayerSecondaryControls isCasting={castStatus.isCasting} />
+        <PlayerSecondaryControls
+          isCasting={castStatus.isCasting}
+          historyButton={
+            onOpenHistory ? (
+              <TouchableOpacity
+                accessibilityLabel="Listening history"
+                accessibilityRole="button"
+                className="h-11 w-11 items-center justify-center"
+                onPress={onOpenHistory}
+              >
+                <MaterialIcons name="history" size={20} color="rgba(255,255,255,0.62)" />
+              </TouchableOpacity>
+            ) : undefined
+          }
+        />
+        <PlayerOutputRoute cn="mt-1 px-6 text-center text-sm text-relisten-blue-200" />
       </View>
     </View>
   );

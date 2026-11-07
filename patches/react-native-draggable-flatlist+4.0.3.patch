@@ -36,20 +36,39 @@ index e4e861a..a720413 100644
    const updateCellMeasurements = useStableCallback(() => {
      const onSuccess: MeasureLayoutOnSuccessCallback = (x, y, w, h) => {
 diff --git a/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx b/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
-index 7c88afc..3d6fdd0 100644
+index 7c88afc..81640e4 100644
 --- a/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
 +++ b/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
-@@ -7,8 +7,8 @@ import React, {
+@@ -7,10 +7,11 @@ import React, {
    useState,
  } from "react";
  import {
 +  AppState,
++  FlatList as RNFlatList,
    ListRenderItem,
    FlatListProps,
    LayoutChangeEvent,
 -  InteractionManager,
  } from "react-native";
-@@ -120,7 +120,7 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+ import {
+   FlatList,
+@@ -56,7 +57,14 @@ const AnimatedFlatList = (Animated.createAnimatedComponent(
+   FlatList
+ ) as unknown) as <T>(props: RNGHFlatListProps<T>) => React.ReactElement;
+
++// RNGH's FlatList supplies its own scroll component. Use RN's FlatList when
++// the caller provides an integrated scroll view (for example BottomSheetScrollView).
++const AnimatedCustomScrollFlatList = Animated.createAnimatedComponent(
++  RNFlatList
++) as typeof AnimatedFlatList;
++
+ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
++  const hasCustomScrollComponent = !!props.renderScrollComponent;
+   const {
+     cellDataRef,
+     containerRef,
+@@ -119,7 +127,7 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+   if (dataHasChanged) {
      // When data changes make sure `activeKey` is nulled out in the same render pass
      activeKey = null;
 -    InteractionManager.runAfterInteractions(() => {
@@ -57,8 +76,7 @@ index 7c88afc..3d6fdd0 100644
        reset();
      });
    }
-
-@@ -234,6 +235,21 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+@@ -234,6 +242,21 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
      }
    );
 
@@ -80,7 +98,18 @@ index 7c88afc..3d6fdd0 100644
    const onPlaceholderIndexChange = useStableCallback((index: number) => {
      props.onPlaceholderIndexChange?.(index);
    });
-@@ -286,8 +302,8 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+@@ -271,8 +294,10 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+   );
+
+   const gestureDisabled = useSharedValue(false);
++  const touchStart = useSharedValue({ x: 0, y: 0 });
+
+   const panGesture = Gesture.Pan()
++    .manualActivation(hasCustomScrollComponent)
+     .onBegin((evt) => {
+       gestureDisabled.value = disabled.value;
+       if (gestureDisabled.value) return;
+@@ -286,8 +311,8 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
          : evt.translationY;
        touchTranslate.value = translation;
      })
@@ -91,7 +120,7 @@ index 7c88afc..3d6fdd0 100644
        // Set touch val to current translate val
        isTouchActiveNative.value = false;
        const translation = horizontalAnim.value
-@@ -305,7 +321,8 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+@@ -305,7 +330,8 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
        touchTranslate.value = withSpring(
          springTo,
          animationConfigRef.value,
@@ -101,10 +130,11 @@ index 7c88afc..3d6fdd0 100644
            runOnJS(onDragEnd)({
              from: activeIndexAnim.value,
              to: spacerIndexAnim.value,
-@@ -314,6 +331,21 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+@@ -314,9 +340,43 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
          }
        );
      })
+-    .onTouchesDown(() => {
 +    .onFinalize((evt, success) => {
 +      if (success || gestureDisabled.value) return;
 +      // Cancellation (for example app backgrounding) has no onTouchesUp/onEnd.
@@ -120,10 +150,32 @@ index 7c88afc..3d6fdd0 100644
 +        runOnJS(onDragEnd)({ from: activeIndex, to: activeIndex });
 +      }
 +    })
-     .onTouchesDown(() => {
++    .onTouchesDown((event) => {
++      const touch = event.allTouches[0];
++      touchStart.value = { x: touch?.absoluteX ?? 0, y: touch?.absoluteY ?? 0 };
        runOnJS(onContainerTouchStart)();
      })
-@@ -333,17 +365,12 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
++    .onTouchesMove((event, manager) => {
++      if (!hasCustomScrollComponent) return;
++      // Let the integrated scroll view own ordinary swipes. A row is draggable
++      // only after its handle's long press has selected an active cell.
++      if (activeIndexAnim.value >= 0) {
++        manager.activate();
++        return;
++      }
++      const touch = event.allTouches[0];
++      if (
++        touch &&
++        (Math.abs(touch.absoluteY - touchStart.value.y) > 8 ||
++          Math.abs(touch.absoluteX - touchStart.value.x) > 8)
++      ) {
++        manager.fail();
++      }
++    })
+     .onTouchesUp(() => {
+       // Turning this into a worklet causes timing issues. We want it to run
+       // just after the finger lifts.
+@@ -333,17 +393,12 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
      }
    }
 
@@ -141,3 +193,23 @@ index 7c88afc..3d6fdd0 100644
        },
      },
      [horizontalAnim]
+@@ -366,6 +421,10 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+     props.onViewableItemsChanged?.(info);
+   });
+
++  const ListComponent = hasCustomScrollComponent
++    ? AnimatedCustomScrollFlatList
++    : AnimatedFlatList;
++
+   return (
+     <DraggableFlatListProvider
+       activeKey={activeKey}
+@@ -382,7 +441,7 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+           {props.renderPlaceholder && (
+             <PlaceholderItem renderPlaceholder={props.renderPlaceholder} />
+           )}
+-          <AnimatedFlatList
++          <ListComponent
+             {...props}
+             data={props.data}
+             onViewableItemsChanged={onViewableItemsChanged}

@@ -218,7 +218,8 @@ final class RelistenAudioSpectrumView: ExpoView {
 
         let bandCount = smoother.values.count
         let horizontalStep = bounds.width / CGFloat(bandCount)
-        let strokeWidth = min(max(horizontalStep * 0.28, 1.5), 2)
+        // Keep bar density proportional to width instead of capping iPad bars at 2pt.
+        let strokeWidth = min(max(horizontalStep * 0.28, 1.5), bounds.height * 0.5)
         // A fixed midline keeps changing amplitudes and resting dots vertically aligned.
         let baselineY = bounds.midY
         let maximumHeight = max(0, bounds.height - strokeWidth)

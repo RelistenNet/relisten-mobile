@@ -23,12 +23,17 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { PlayerOutputRoute } from './player_output_route';
+import { usePlayerOutputRoute } from './player_output_route';
 import { ScrubberRow } from './player_scrubber';
 import { playerQueueDate, playerTrackAccessibilityLabel } from './player_display_helpers';
 import * as Progress from 'react-native-progress';
 import AirPlayButton from 'react-native-airplay-button';
-import { RelistenCastButton, useShouldRenderCastButton } from '@/relisten/casting/cast_ui';
+import {
+  RelistenCastButton,
+  useRelistenCastStatus,
+  useShouldRenderCastButton,
+} from '@/relisten/casting/cast_ui';
+import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import {
   useIsPlayerBottomBarVisible,
@@ -106,6 +111,9 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
   const { height } = useWindowDimensions();
   const { beginInteractivePresentation, closePlayer, openPlayer } = usePlayerPresentation();
   const shouldRenderCastButton = useShouldRenderCastButton();
+  const { isCasting } = useRelistenCastStatus();
+  const outputRoute = usePlayerOutputRoute();
+  const hasExternalAudioRoute = Boolean(outputRoute) && !isCasting;
   const gesturePresentationStarted = useSharedValue(false);
   const gestureStartProgress = useSharedValue(0);
   const gestureDistance = Math.max(height * 0.72, 1);
@@ -116,7 +124,7 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
 
   const track = currentTrack.sourceTrack;
   const isAccessory = placementBackend === 'nativeTabsAccessory';
-  // The fixed-height native accessory must fit controls and up to three metadata lines.
+  // The fixed-height native accessory must fit controls and two metadata lines.
   // Keep its text at the designed size; the expanded player supports Dynamic Type.
   const metadataFontSizeLimit = isAccessory ? 1 : undefined;
   const playbackIconSize = isAccessory ? 26 : 30;
@@ -128,7 +136,6 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
     ? 'text-[15px] font-semibold text-white'
     : 'text-base font-semibold text-white';
   const subtitleClassName = isAccessory ? 'text-xs text-slate-200' : 'text-sm text-slate-200';
-  const castingClassName = isAccessory ? 'text-[11px] text-slate-300' : 'text-xs text-slate-300';
   const transportButtonClassName = isAccessory
     ? 'h-11 w-11 items-center justify-center rounded-full bg-white/15'
     : 'h-10 w-10 items-center justify-center rounded-full bg-white/10';
@@ -242,10 +249,6 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
                   {playerQueueDate(track.show.displayDate)}
                 </RelistenText>
               </View>
-              <PlayerOutputRoute
-                cn={castingClassName}
-                maxFontSizeMultiplier={metadataFontSizeLimit}
-              />
             </Flex>
           </Animated.View>
         </GestureDetector>
@@ -253,8 +256,13 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
           {Platform.OS === 'ios' && (
             <View className="h-12 w-11 items-center justify-center">
               <AirPlayButton
-                activeTintColor="white"
-                tintColor="rgba(226, 232, 240, 0.72)"
+                activeTintColor={RelistenBlue['200']}
+                tintColor={
+                  hasExternalAudioRoute ? RelistenBlue['200'] : 'rgba(226, 232, 240, 0.72)'
+                }
+                accessibilityLabel={
+                  hasExternalAudioRoute ? `Audio output: ${outputRoute}` : 'AirPlay'
+                }
                 prioritizesVideoDevices={false}
                 // UIKit's internal route button is shorter than the native view.
                 className="h-12 w-11"
@@ -263,7 +271,11 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
           )}
           {shouldRenderCastButton && (
             <View className={utilityButtonShellClassName}>
-              <RelistenCastButton tintColor="rgba(226, 232, 240, 0.78)" className="h-11 w-11" />
+              <RelistenCastButton
+                tintColor={isCasting ? RelistenBlue['200'] : 'rgba(226, 232, 240, 0.78)'}
+                accessibilityLabel={isCasting ? `Casting to ${outputRoute}` : 'Chromecast'}
+                className="h-11 w-11"
+              />
             </View>
           )}
         </Flex>
@@ -388,7 +400,8 @@ export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBa
     <Animated.View
       className={containerClassName}
       onLayout={onLayout}
-      pointerEvents={isPresentationActive ? 'none' : 'auto'}
+      accessibilityElementsHidden={isPresentationActive}
+      importantForAccessibility={isPresentationActive ? 'no-hide-descendants' : 'auto'}
       style={[
         { bottom: isOverlay ? placementOffset : undefined, minHeight: offlineMinHeight },
         barStyle,

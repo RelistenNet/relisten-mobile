@@ -61,7 +61,7 @@ export function playerDisplayTitle(title: string) {
   return title.replace(/\s*>\s*/g, ' > ');
 }
 
-/** Metadata used by history rows; player queue rows reserve a separate show-date label. */
+/** Artist, date, and venue summary used by history rows. */
 export function playerTrackMetadata(sourceTrack: SourceTrack) {
   return [
     sourceTrack.artist.name,

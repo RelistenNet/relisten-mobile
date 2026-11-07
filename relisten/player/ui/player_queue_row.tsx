@@ -21,7 +21,7 @@ export type QueueTimelineEntry = {
   queueTrack: PlayerQueueTrack;
 };
 
-function QueueDragHandle({ drag, label }: { drag: () => void; label: string }) {
+export function QueueDragHandle({ drag, label }: { drag: () => void; label: string }) {
   return (
     <TouchableOpacity
       accessibilityHint="Double tap and hold, then drag to reorder."
