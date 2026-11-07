@@ -8,6 +8,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import BottomSheet, {
   ANIMATION_STATUS,
+  SCROLLABLE_STATUS,
   BottomSheetBackdrop,
   useBottomSheetGestureHandlers,
   useBottomSheetInternal,
@@ -88,6 +89,7 @@ const useQueueScrollEvents: ScrollEventsHandlersHookType = (ref, offset) => {
     animatedIndex,
     animatedAnimationState,
     animatedScrollableState,
+    animatedScrollableStatus,
     animatedSheetHeight,
     animatedLayoutState,
   } = useBottomSheetInternal();
@@ -142,7 +144,11 @@ const useQueueScrollEvents: ScrollEventsHandlersHookType = (ref, offset) => {
   const preserveAnchor = () => {
     'worklet';
     return (
-      animatedIndex.value === 0 || animatedAnimationState.get().status === ANIMATION_STATUS.RUNNING
+      animatedIndex.value === 0 ||
+      animatedAnimationState.get().status === ANIMATION_STATUS.RUNNING ||
+      // The index can settle before Gorhom's derived scroll lock unlocks.
+      // Preserve the anchor through that last frame instead of locking to zero.
+      (animatedIndex.value === 1 && animatedScrollableStatus.value === SCROLLABLE_STATUS.LOCKED)
     );
   };
   const recordOffset = (y: number) => {
