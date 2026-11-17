@@ -238,6 +238,8 @@ arrive through changes.
 
 ## Experience design
 
+Revised 2026-11-17 after a fresh UX/UI review.
+
 ### Who this is for
 
 Two kinds of listeners use the same screens, and the design serves both:
@@ -258,13 +260,20 @@ Principles that follow from that:
 2. **Nothing technical is ever shown.** The UI says "playlist", "group", "kept
    together" and "track". It never says segment, entry, rank, sync, local,
    scope, owner or account playlist.
-3. **Every drag has a tap equivalent** in a visible menu, with plain words and
-   large rows. Nothing is gesture-only, and nothing is swipe-only.
+3. **Every action is visible.** Every row and group header has a ••• button.
+   Every drag has a menu equivalent. Nothing is gesture-only.
 4. **Undo instead of "are you sure?"** Every edit shows a toast with Undo. Only
    deleting a whole playlist asks for confirmation, and even that can be
    restored.
 5. **Offline is normal.** Nothing warns about being offline unless an action
-   actually needs the internet.
+   actually needs the internet, and Play works offline with whatever is
+   downloaded.
+6. **Match the app.** Use the existing Title Case vocabulary ("My Library",
+   "Play Next", "Add to End of Queue"), the existing native menus
+   (`relisten/components/menus/native_menu_view.tsx`,
+   `overflow_menu_trigger.tsx`), the confirmation dialogs
+   (`confirm_destructive_action.ts`), dates as YYYY-MM-DD, and the existing row
+   style. No artwork.
 
 ### Routes
 
@@ -273,181 +282,247 @@ Under `app/relisten/tabs/(myLibrary)/playlists`: the list, `new`,
 
 ### Where playlists live
 
-My Library (`MyLibraryTabRootPage.tsx`) gains a **Your playlists ›** section
-near the top, after listening history and before favorite venues and shows. It
-shows the three most recently edited playlists and a **New** button. The
-header opens the full list. With no playlists, the section shows one line: "Make
-a playlist from any show or song." and **New playlist**.
+My Library (`MyLibraryTabRootPage.tsx`) gains **My Playlists ›** near the top,
+after My Listening History and before the venues and shows sections. It lists
+the three most recently edited playlists, with **New** at the right of the
+header. The header opens the full list.
+
+With no playlists, the section shows "Playlists keep songs in the order you
+choose." and **New Playlist**. That line also tells playlists apart from the
+heart, which adds to My Library.
 
 ### Playlists list
 
-- Titled **Playlists**, with **New playlist** in the header.
-- Each row has three lines, and no artwork, since the app uses none:
+- Titled **Playlists**, with **New Playlist** in the header.
+- Each row has three lines and no artwork:
   - the name
   - "38 tracks · 6 hr 4 min"
   - the artists in it: "Widespread Panic, Phish, and 3 more"
 - A check icon at the end of the row when every track is downloaded.
 - Sorted by most recently edited.
-- A **Recently deleted** row at the bottom, with a count, shown only when
-  something is in it.
+- **Recently Deleted** at the bottom with a count, shown only when something is
+  in it.
 - Never signed in: a card at the bottom reads "Sign in to keep your playlists
-  safe and use them on your other devices." with **Sign in**.
-- Empty state: "Make your first playlist", "Add songs or whole shows from any
-  show page. Tap ••• and choose Add to playlist.", and **New playlist**.
+  safe and use them on your other devices." with **Sign In**.
+- First load shows skeleton rows.
+- Empty state: "Make your first playlist", "Playlists keep songs in the order
+  you choose. Tap ••• on any song or show and choose Add to Playlist.", and **New
+  Playlist**.
+- Duplicate names are allowed. The track count and artist line tell them apart.
 
 ### Adding music
 
-- **A track's ••• menu:** **Add to playlist** adds that track on its own.
-- **A source screen's ••• menu:** **Add show to playlist** adds every track of
+- **A track's ••• menu:** **Add to Playlist…** adds that track on its own.
+- **A source screen's ••• menu:** **Add Show to Playlist…** adds every track of
   the source being viewed, in order, as one group.
 - **Some tracks from a show:** the source screen's ••• menu offers **Select
-  tracks**, which shows checkboxes on every row and a bottom bar reading "Add 3
-  tracks to playlist". The selection is added as one group. This replaces
-  long-press selection, which most listeners would never find.
+  Tracks**. Checkboxes appear on every row, and a bottom bar reads "Add 3 Tracks
+  to Playlist…". The selection is added as one group.
 - **The add sheet** is titled "Add 3 tracks to". When adding more than one track
-  it explains "They'll stay together as a group." It lists **New playlist**
-  first, then playlists by most recently edited, each with its track count. A
-  playlist that already contains every one of these tracks says "already has
-  these" under its name, but can still be chosen: duplicates are allowed.
+  it explains "They'll stay together as a group." It lists **New Playlist**
+  first, then playlists by most recently edited, each with its track count and
+  artist line. A playlist that already has every one of these tracks says
+  "Already added" but can still be chosen: duplicates are allowed.
 - **After adding:** a toast reads "Added 3 tracks to Cornell + friends" with
-  **Undo** and **View**.
+  **Undo** and **Open**.
+- **Saving a segue one song at a time:** if the added track comes right after
+  the playlist's last track in the same source (Fire on the Mountain after
+  Scarlet Begonias), the toast offers **Keep with Scarlet Begonias** in place of
+  Open. Tapping it groups the two. That covers the common case without Select
+  Tracks.
 
-### Creating a playlist
+### Creating and renaming
 
-**New playlist**, from anywhere, opens a small sheet with one field, the name,
-pre-filled with the show it came from ("Grateful Dead 1977-05-08"), or empty
-with the placeholder "Road trip jams" when there's no context. **Create** is the
-only button. When started from the add sheet, the tracks are added in the same
-step. A description can be added later from the editor.
+- **New Playlist**, from anywhere, opens a small sheet with one field, the name,
+  pre-filled with the show it came from ("Grateful Dead 1977-05-08"), or empty
+  with the placeholder "Road trip jams". **Create** is the only button. When
+  started from the add sheet, the tracks are added in the same step.
+- **Rename…** and **Edit Description…** are in the detail screen's ••• menu, so
+  nobody has to discover edit mode to fix a name.
 
 ### Playlist detail
 
-- **Header:** name, optional description, then "6 tracks · 1 hr 21 min", plus
-  "· Downloaded" when every track is downloaded. Two large buttons, **Play**
-  (accent) and **Shuffle**. A ••• menu holds **Edit**, **Download**,
-  **Downloaded tracks only** (a filter toggle) and **Delete playlist**.
-- **Rows:** title, then "Artist · YYYY-MM-DD · Venue", with the duration on the
-  right and a downloaded icon when relevant.
-- **How groups look:**
-  - a one-track group is a plain row with no card
-  - a multi-track group from one source is a card headed "Grateful Dead ·
-    1977-05-08 · Barton Hall"; its rows show titles only
-  - a multi-track group mixing sources is a card headed "Kept together"; each
-    row shows its own show line
-- **Unavailable tracks** stay in place, dimmed, with "Unavailable" before their
-  show line. Tapping one explains "This recording is no longer available on
-  Relisten." Playback skips them.
-- **Tapping a row** plays the playlist from that track. **Long-pressing a row**,
-  or its ••• button, opens the row menu. The detail screen never starts a drag;
-  dragging lives in edit mode, so a resting thumb can't rearrange a playlist.
-- **Shuffle, the first time:** a one-time hint under the button reads "Shuffle
-  keeps groups together, so Scarlet still flows into Fire." using the first
-  group in that playlist.
+**Header**
+
+- The name, an optional description, then "6 tracks · 1 hr 21 min", plus
+  "· Downloaded" or "· Downloading 4 of 6".
+- **Play** (filled accent) and **Shuffle** (outlined, secondary), side by side.
+- An **Edit** text button and a ••• menu: **Rename…**, **Edit Description…**,
+  **Download**, **Show Downloaded Only**, **Delete Playlist…**.
+
+**Rows**
+
+- Title, then "Artist · YYYY-MM-DD · Venue", with the duration on the right and
+  a 44 pt ••• button. The venue truncates first, never the date.
+- The playing track shows an accent title and the equalizer icon. Its group's
+  card gets an accent outline while any of its tracks plays.
+- A downloaded track shows the download icon; a downloading one shows progress.
+
+**Groups**
+
+- A one-track group is a plain row with no card.
+- A multi-track group is a card joined by a thin rail down its left edge, the
+  visual equivalent of "Scarlet > Fire". Its header is plain secondary text, not
+  accent, so it doesn't look like a link:
+  - one source: "Grateful Dead · 1977-05-08 · Barton Hall"; its rows show
+    titles only
+  - mixed sources: "Kept together · 2 tracks"; each row shows its own show line
+- The header ends in a ≡ handle (edit mode) or a ••• button (otherwise).
+  Tapping the header opens the group menu, which includes **Go to Show** when
+  the group has one source.
+
+**Tracks that can't play**
+
+- A track whose details haven't loaded yet shows "Needs internet to load",
+  muted, and is skipped while offline.
+- Only when the catalog says a recording is gone does the row show "No longer
+  available", with an icon and label rather than dimming. Tapping it offers
+  **Remove from Playlist** and **Go to Show**.
+- No duration placeholder is shown for either.
+
+**Interaction**
+
+- Tapping a row plays the playlist from that track. The ••• button or a
+  long-press opens the row menu. The detail screen never starts a drag; dragging
+  lives in edit mode, so a resting thumb can't rearrange a playlist.
+- **Shuffle, the first time:** a dismissible inline card under the buttons reads
+  "Shuffle keeps groups together, so Scarlet Begonias still flows into Fire on
+  the Mountain.", using the first group in that playlist.
+- Long playlists show a **Now Playing** pill that jumps to the current track
+  when it's off screen.
+
+**Other states**
+
+- **Empty playlist:** "This playlist is empty. Add songs from any show's •••
+  menu."
+- **Every track unavailable:** Play and Shuffle are disabled, with one line
+  explaining "None of these recordings are available right now."
+- **Offline with some tracks downloaded:** Play and Shuffle use only downloaded
+  tracks, and a quiet line reads "Playing 12 downloaded tracks. The rest need
+  internet."
 
 ### Editing
 
-**Edit** (in the ••• menu, and a text button in the header once a playlist has
-more than one track) switches the same screen into edit mode:
+**Edit** switches the same screen into edit mode:
 
 - The name and description become text fields at the top.
 - Every track row gets a red ⊖ on the left (remove, with Undo) and a ≡ drag
-  handle on the right. Every group header gets its own ≡ handle.
+  handle on the right. Group headers get the same ≡ on the right. Every handle
+  is the same size and position, so "grab the right edge" always works.
+- ⊖ sits clear of the row text with a full 44 pt target. The iOS back-swipe is
+  disabled in edit mode so a left-edge tap can't leave the screen.
 - Tapping a row opens its row menu.
 - **Done** in the top right leaves edit mode. Edits save as they happen; there
   is no Cancel, because Undo covers mistakes.
 
 ### Dragging
 
-The ≡ handle starts a drag immediately, with no long-press delay, so power users
-move fast. Handles have a 44 × 44 pt touch target.
+The ≡ handle starts a drag immediately, with no long-press delay. Handles have a
+44 × 44 pt touch target. Toasts hide while a drag is in progress.
 
 **Dragging a track**
 
 - The row lifts (slight scale, accent border, a haptic tap) and the list opens a
   gap where it would land, with a dashed outline.
 - **Inside a group:** dropping between two of its tracks keeps it in that group.
-- **At a group's edge** the list opens two separate targets, each a full row
-  tall, never a hairline: "End of this group" inside the card, and "On its own"
-  outside it. Crossing between them gives a haptic tick.
-- **Joining two single tracks:** hovering over the middle of a single track for
-  half a second turns it into a group outline reading "Release to keep these
-  together". Releasing makes a group of the two, with the dragged track second.
+- **At a group's edges** the list opens two separate targets, each a full row
+  tall, never a hairline. At the top they are "Start of this group" inside the
+  card and "Not in a group" above it; at the bottom, "End of this group" and "Not
+  in a group" below it. Crossing between them gives a light haptic tick. Labels
+  use full-strength accent text.
+- **Joining two single tracks:** once the dragged row overlaps at least 60% of a
+  single track's middle, that track shows a growing outline. After 0.7 seconds
+  it arms, with a distinct haptic and the label "Release to keep these
+  together". Releasing then makes a group of the two, with the dragged track
+  second. The timer pauses while the list is auto-scrolling. Hovering over a
+  group's middle does nothing.
 - Dropping back where it started, or dragging off the list, cancels with no
   edit.
 
 **Dragging a group**
 
-- Grabbing a group's header collapses every group to a single line ("Grateful
-  Dead · 1977-05-08 · Barton Hall", "Scarlet Begonias, Fire on the Mountain · 2
-  tracks") for the duration of the drag. That keeps a 20-track show as easy to
-  move as one song and shortens the list.
+- Grabbing a group's ≡ collapses the other groups to a single line each, such
+  as "Grateful Dead · 1977-05-08 · Barton Hall" over "Scarlet Begonias, Fire on
+  the Mountain · 2 tracks". The collapse animates around the dragged group,
+  which stays pinned under the finger, so the list doesn't jump.
 - Groups drop only between groups or single tracks, never inside another group.
+- On drop, groups expand in place and the list scrolls so the moved group is
+  visible.
 
 **Both**
 
-- The list auto-scrolls near the top and bottom edges, faster the closer the
-  finger.
-- Reduce Motion replaces the lift animation with an outline and skips the
-  collapse animation.
+- Auto-scroll near the top and bottom edges speeds up smoothly the closer the
+  finger, up to a cap that keeps it precise.
+- Reduce Motion replaces the lift and collapse animations with outlines.
 
 **What each drop sends**
 
 | Drop | Operation |
 | --- | --- |
 | Track within its group or into another group | `move_entry` to that segment |
-| Track "on its own" | `move_entry` with `new_segment_id`; but if the track was already alone in its group, `move_segment`, which keeps its group ID |
+| Track "Not in a group" | `move_entry` with `new_segment_id`; but if the track was already alone in its group, `move_segment`, which keeps its group ID |
 | Track joined onto a single track | `move_entry` into that single track's segment, after it |
 | Group | `move_segment` |
 
 ### Row menus
 
-The same menu opens from a row's ••• button, a long-press in the detail screen,
-or a tap in edit mode. It's a bottom sheet titled with the track name, with a
-subtitle saying where it is ("In a group with Scarlet Begonias").
+Row and group menus use the app's native menu (`native_menu_view.tsx`), as the
+existing track menus do. Items are in sections, Title Case, with a menu title
+saying where the track is ("In a group with Scarlet Begonias").
 
 **Track menu**
 
-- **Play next**, **Add to queue**
-- **Move up**, **Move down**: one step within its group. A track on its own
-  steps past its neighbor, hopping over a whole group.
-- **Move to top**, **Move to bottom**: as a track on its own.
-- **Take out of group** (in a group only): it lands on its own, right after the
-  group. Splitting a group in place is not available in v1.
-- **Keep with the track above** (on its own, below a track or group): joins that
-  track's group at its end.
-- **Remove from playlist**
+- **Play Next**, **Add to End of Queue**
+- **Move Up**, **Move Down**: one step within its group. On a group's first or
+  last track the item is disabled with the subtitle "First in group" or "Last in
+  group". A track on its own steps past its neighbor, hopping over a whole group.
+- **Move to Top**, **Move to Bottom**: as a track not in a group.
+- **Take Out of Group** (in a group), subtitle "Goes right after the group".
+- **Keep with Fire on the Mountain** (on its own, below a track or group): joins
+  that track's group at its end. The item names the actual track above.
+- **Go to Show**
+- Separator, then **Remove from Playlist** (destructive style).
 
-**Group menu** (from the group header)
+**Group menu** (from the header's ••• or a tap on the header)
 
-- **Play group**
-- **Move up**, **Move down**, **Move to top**, **Move to bottom**
+- **Play Group**
+- **Move Up**, **Move Down**, **Move to Top**, **Move to Bottom**
 - **Ungroup**: each track goes on its own, in the same order.
-- **Remove group**: removes all its tracks, with Undo.
+- **Go to Show** (one source only)
+- Separator, then **Remove Group** (destructive style), with Undo.
 
 ### Undo
 
-- Every edit, whether from a drag, a menu, ⊖ or the add sheet, shows a toast
-  for 6 seconds: "Moved Morning Dew", "Removed Eyes of the World", "Added 3
-  tracks to Cornell + friends", each with **Undo**.
+- Every edit, whether from a drag, a menu, ⊖ or the add sheet, shows a toast:
+  "Moved Morning Dew", "Removed Eyes of the World", "Added 3 tracks to Cornell +
+  friends". When a removal leaves one track in a group, the toast says so:
+  "Removed Fire on the Mountain. Scarlet Begonias is now on its own."
+- The toast docks directly above the floating mini player and tab bar, never
+  over them. The Select Tracks bar follows the same rule.
+- It stays for 10 seconds, and longer while a finger is down on it or VoiceOver
+  is focused on it.
 - Undo applies the inverse edit. A removal is undone by re-inserting the same
   tracks at the same place with new IDs, since a deleted ID can't come back.
   Moves are undone by moving back. For owned playlists the inverse goes through
   the outbox like any edit.
-- One level of undo, for the most recent edit only.
+- Undo keeps the last 5 edits in the current visit to a playlist; the toast
+  shows the most recent. After undoing one, the next toast offers the one
+  before it.
 
 ### Deleting a playlist
 
-- **Delete playlist** asks "Delete Cornell + friends? You can restore it from
-  Recently deleted for 30 days." with **Delete** and **Cancel**. The wording is
-  the same whether or not the playlist is saved to an account.
+- **Delete Playlist…** asks, in the app's confirmation dialog, "Delete Cornell
+  + friends?" with "You can restore it from Recently Deleted for 30 days." and
+  **Delete** and **Cancel**. The wording is the same for every playlist.
 - **Unowned:** marks it deleted on the device (`deletedAt`); it's purged after
   30 days.
-- **Owned:** sends the online-only archive command (decision 6). Offline or
-  signed out, the confirmation is replaced by "Connect to the internet to delete
-  this playlist" or "Sign in to delete this playlist".
-- **Recently deleted** lists deleted playlists with "Deleted 3 days ago" and
-  **Restore**. Owned playlists stay there until restored, since the server keeps
-  them; the 30-day purge applies only to unowned ones.
+- **Owned:** sends the online-only archive command (decision 6). The server
+  keeps archived playlists, so they're never purged; the "30 days" promise is
+  simply always kept. Offline, the dialog is replaced by "Connect to the internet
+  to delete this playlist." Signed out, by "Sign in to delete this playlist.
+  It's saved to your account."
+- **Recently Deleted** lists deleted playlists with "Deleted 3 days ago" and
+  **Restore**.
 
 ### What people see about accounts
 
@@ -457,9 +532,9 @@ subtitle saying where it is ("In a group with Scarlet Begonias").
 | First sign-in with playlists | One-time banner on the list: "Your playlists are now saved to your account." |
 | Edits waiting more than a minute while online | Detail, small text under the header: "Still saving your changes…" |
 | Offline | Nothing. Everything keeps working. |
-| Account full | Detail: "This playlist isn't saved to your account because your account has reached its limit. It still works on this phone. Questions? Email team@relisten.net" |
-| Tracks didn't land | Detail: "2 tracks couldn't be added because this playlist changed on another device." **Add again**, **Dismiss** |
-| Deleted on another device | Detail: "This playlist was deleted on another device." **Restore**, **Discard my changes** |
+| Account full | Detail: "Saved on this phone only. Your account is full. Questions? team@relisten.net" |
+| Tracks didn't land | Detail: "2 tracks couldn't be added because this playlist changed on another device." **Add Again**, **Dismiss** |
+| Deleted on another device | Detail: "This playlist was deleted on another device." **Restore**, **Discard My Changes** |
 | Outbox too large while paused | Alert: "We couldn't save your recent changes. Please email team@relisten.net so we can help." |
 
 ### Accessibility
@@ -467,33 +542,33 @@ subtitle saying where it is ("In a group with Scarlet Begonias").
 - **Text size:** every playlist screen supports Dynamic Type up to the largest
   accessibility sizes. Rows wrap instead of truncating, and the duration moves
   under the title at large sizes.
-- **Touch targets:** at least 44 × 44 pt, including ⊖, ≡ and ••• buttons.
+- **Touch targets:** at least 44 × 44 pt for ⊖, ≡ and •••.
 - **VoiceOver:**
   - Rows read naturally, for example "Fire on the Mountain, Grateful Dead,
     1977-05-08, Barton Hall, in a group with Scarlet Begonias, 13 minutes 44
     seconds".
-  - Every row exposes the row menu's moves as custom actions (Move up, Move
-    down, Take out of group, Keep with the track above, Remove), so nobody needs
-    to drag.
-  - Drags announce their target ("End of group Barton Hall", "On its own").
-- **Contrast:** dimmed unavailable tracks still meet 4.5:1 for their text.
+  - Every row exposes its menu's moves as custom actions, so nobody needs to
+    drag.
+  - Drags announce their target ("End of this group", "Not in a group").
+- **Contrast:** all text, including drop-target labels and unavailable rows,
+  meets 4.5:1. Unavailable rows use an icon and label, not opacity.
 - **No hidden gestures:** everything reachable by long-press is also behind a
   visible ••• button.
 
 ### Mockups
 
-Eight phone mockups were reviewed with Alec on 2026-11-17. They live beside
-this plan in `2026-11-16-local-first-playlists-mockups.html` (open it in a
-browser):
+Eight phone mockups were reviewed with Alec on 2026-11-17 and revised after the
+UX/UI review. They live beside this plan in
+`2026-11-16-local-first-playlists-mockups.html` (open it in a browser):
 
 1. My Library section
 2. Playlists list
-3. Detail with groups
+3. Detail with groups and now playing
 4. Add sheet and toast
 5. Dragging a track at a group's edge
 6. Joining two single tracks
-7. Dragging a collapsed group
-8. The tap menu with Undo
+7. Dragging a group
+8. The native row menu with Undo
 
 They use the app's existing palette (`relisten-blue` 900/950 backgrounds,
 `#009DC1` accent) and row style. Implementation should match them, not
@@ -506,8 +581,9 @@ introduce a new visual language.
 - When a playlist screen opens, resolve missing tracks in chunks of 500, following
   `favorite_metadata_hydrator.ts`. Upsert returned entities. Never delete cached
   catalog data or entries because of an omission. Cached tracks are not re-checked.
-- Entries that cannot be hydrated yet render as placeholders ("Track unavailable
-  offline") and are skipped by playback.
+- Entries that cannot be hydrated yet show "Needs internet to load" and are
+  skipped while offline. Only a resolver status of `unavailable` or `retired`
+  shows "No longer available" (see Experience design).
 - Availability lives in `PlaylistTrackAvailability`, not on `SourceTrack`, whose
   `deletedAt` belongs to catalog sync.
 - Resolver statuses: `available` clears any record; `unavailable` and `retired`
@@ -559,6 +635,11 @@ a toast. For a streamed occurrence with playlist context:
 - when a resolve result arrives late, always record availability, but skip only
   if the failed occurrence is still the current one. If the user has moved on to
   another track, playback is left alone.
+
+**Offline**
+
+Offline, Play and Shuffle on a playlist enqueue only its downloaded tracks, so
+the 3-skip limit is never reached for tracks that simply need the internet.
 
 **Download**
 
@@ -694,6 +775,10 @@ Follow `AGENTS.md`: run affected Vitest files, `yarn ts:check` and `yarn lint`.
   - VoiceOver custom actions reach every move
   - every screen works at the largest accessibility text size
   - Recently deleted restores an unowned playlist and purges it after 30 days
+  - join-by-hover never arms during auto-scroll or under 60% overlap
+  - the toast never overlaps the mini player or tab bar, and hides during drags
+  - offline Play with a partly downloaded playlist plays only downloaded tracks
+  - the "Keep with…" toast appears when a segue's second track is added
 - **Player:** each group-shuffle rule above; enqueue the same playlist twice and
   remove one duplicate; **Play next** keeps grouping; restart restores the exact
   queue occurrence and checkpoint; later playlist edits leave the queue unchanged;
