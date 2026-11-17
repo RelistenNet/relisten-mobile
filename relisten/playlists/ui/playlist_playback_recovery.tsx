@@ -25,7 +25,11 @@ function createFailureHandler(realm: Realm, catalogApi: RelistenApiClient, playe
 
   return async (event: RelistenErrorEvent) => {
     const failed = player.queue.orderedTracks.find((t) => t.identifier === event.identifier);
-    if (!failed?.playlistContext || failed.sourceTrack.offlineInfo?.isPlayableOffline()) {
+    if (
+      !failed?.playlistContext ||
+      !failed.sourceTrack.isValid() ||
+      failed.sourceTrack.offlineInfo?.isPlayableOffline()
+    ) {
       return;
     }
 

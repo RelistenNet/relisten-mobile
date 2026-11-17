@@ -5,11 +5,9 @@ import {
   type PlaylistOperation,
   type PlaylistSnapshot,
 } from '@/relisten/playlists/playlist_operations';
-
-export { orderedGroups, type PlaylistGroup };
 import {
   appendSegment,
-  applyOperation,
+  applyOperations,
   newSegmentId,
   readPlaylistSnapshot,
   restoreSnapshot,
@@ -23,16 +21,27 @@ import {
 
 // region Undo
 
-const MAX_UNDO = 5;
+/**
+ * In-memory undo history: the last few snapshots for the most recently edited
+ * playlists. It lives for the app session, so a toast's Undo still works after
+ * leaving the playlist screen.
+ */
+const MAX_UNDO_PER_PLAYLIST = 5;
+const MAX_PLAYLISTS_WITH_UNDO = 10;
 const undoStacks = new Map<string, PlaylistSnapshot[]>();
 
 function pushUndo(playlistId: string, snapshot: PlaylistSnapshot) {
   const stack = undoStacks.get(playlistId) ?? [];
   stack.push(snapshot);
-  if (stack.length > MAX_UNDO) {
+  if (stack.length > MAX_UNDO_PER_PLAYLIST) {
     stack.shift();
   }
+  // Re-insert so Map order tracks recency, then drop the least recently edited.
+  undoStacks.delete(playlistId);
   undoStacks.set(playlistId, stack);
+  if (undoStacks.size > MAX_PLAYLISTS_WITH_UNDO) {
+    undoStacks.delete(undoStacks.keys().next().value!);
+  }
 }
 
 /** Restores the playlist to before its most recent edit. Returns false when there is nothing to undo. */
@@ -45,24 +54,16 @@ export function undoLastEdit(realm: Realm, playlistId: string): boolean {
   return true;
 }
 
-export function canUndo(playlistId: string) {
-  return (undoStacks.get(playlistId)?.length ?? 0) > 0;
-}
-
-/** Undo history lasts for one visit to a playlist. */
-export function clearUndo(playlistId: string) {
-  undoStacks.delete(playlistId);
-}
-
 // endregion
 
-/** Applies operations and records an undo snapshot only if one of them changed something. */
+/**
+ * Applies operations in one transaction and records an undo snapshot only if
+ * something changed. Every user edit goes through here; callers show a toast
+ * (with Undo) only when this returns true.
+ */
 function edit(realm: Realm, playlistId: string, operations: PlaylistOperation[]): boolean {
   const before = readPlaylistSnapshot(realm, playlistId);
-  let changed = false;
-  for (const operation of operations) {
-    changed = applyOperation(realm, playlistId, operation).status === 'applied' || changed;
-  }
+  const changed = applyOperations(realm, playlistId, operations);
   if (changed) {
     pushUndo(playlistId, before);
   }
@@ -83,11 +84,16 @@ function locate(snapshot: PlaylistSnapshot, entryId: string) {
 // region Adding
 
 /** Adds tracks at the end: as one group when `together`, otherwise each on its own. */
-export function addTracks(realm: Realm, playlistId: string, trackIds: string[], together: boolean) {
+export function addTracks(
+  realm: Realm,
+  playlistId: string,
+  trackIds: string[],
+  together: boolean
+): boolean {
   if (trackIds.length === 0) {
-    return;
+    return false;
   }
-  edit(
+  return edit(
     realm,
     playlistId,
     together ? [appendSegment(trackIds)] : trackIds.map((trackId) => appendSegment([trackId]))
@@ -109,14 +115,14 @@ export function moveEntryStep(
   playlistId: string,
   entryId: string,
   direction: MoveDirection
-) {
+): boolean {
   const at = locate(readPlaylistSnapshot(realm, playlistId), entryId);
-  if (!at) return;
+  if (!at) return false;
 
   if (!at.isSingle) {
     const neighbor = at.group.entries[at.index + (direction === 'up' ? -1 : 1)];
-    if (!neighbor) return;
-    edit(realm, playlistId, [
+    if (!neighbor) return false;
+    return edit(realm, playlistId, [
       {
         type: 'move_entry',
         entryId,
@@ -126,10 +132,9 @@ export function moveEntryStep(
             : { segmentId: at.group.segment.segmentId, afterEntryId: neighbor.entryId },
       },
     ]);
-    return;
   }
 
-  moveSegmentStep(realm, playlistId, at.group.segment.segmentId, direction);
+  return moveSegmentStep(realm, playlistId, at.group.segment.segmentId, direction);
 }
 
 export function canMoveEntry(
@@ -150,18 +155,17 @@ export function moveEntryToEdge(
   playlistId: string,
   entryId: string,
   edge: 'top' | 'bottom'
-) {
+): boolean {
   const at = locate(readPlaylistSnapshot(realm, playlistId), entryId);
-  if (!at) return;
+  if (!at) return false;
 
   if (at.isSingle) {
-    moveSegmentToEdge(realm, playlistId, at.group.segment.segmentId, edge);
-    return;
+    return moveSegmentToEdge(realm, playlistId, at.group.segment.segmentId, edge);
   }
 
   const first = at.groups[0].segment.segmentId;
   const last = at.groups[at.groups.length - 1].segment.segmentId;
-  edit(realm, playlistId, [
+  return edit(realm, playlistId, [
     {
       type: 'move_entry',
       entryId,
@@ -174,10 +178,10 @@ export function moveEntryToEdge(
 }
 
 /** Takes a track out of its group; it lands on its own right after the group. */
-export function takeOutOfGroup(realm: Realm, playlistId: string, entryId: string) {
+export function takeOutOfGroup(realm: Realm, playlistId: string, entryId: string): boolean {
   const at = locate(readPlaylistSnapshot(realm, playlistId), entryId);
-  if (!at || at.isSingle) return;
-  edit(realm, playlistId, [
+  if (!at || at.isSingle) return false;
+  return edit(realm, playlistId, [
     {
       type: 'move_entry',
       entryId,
@@ -194,10 +198,10 @@ export function groupAbove(snapshot: PlaylistSnapshot, entryId: string): Playlis
 }
 
 /** Joins a track on its own onto the end of the group (or single track) directly above it. */
-export function keepWithAbove(realm: Realm, playlistId: string, entryId: string) {
+export function keepWithAbove(realm: Realm, playlistId: string, entryId: string): boolean {
   const above = groupAbove(readPlaylistSnapshot(realm, playlistId), entryId);
-  if (!above) return;
-  edit(realm, playlistId, [
+  if (!above) return false;
+  return edit(realm, playlistId, [
     {
       type: 'move_entry',
       entryId,
@@ -209,8 +213,8 @@ export function keepWithAbove(realm: Realm, playlistId: string, entryId: string)
   ]);
 }
 
-export function removeEntry(realm: Realm, playlistId: string, entryId: string) {
-  edit(realm, playlistId, [{ type: 'delete_entry', entryId }]);
+export function removeEntry(realm: Realm, playlistId: string, entryId: string): boolean {
+  return edit(realm, playlistId, [{ type: 'delete_entry', entryId }]);
 }
 
 // endregion
@@ -222,13 +226,13 @@ export function moveSegmentStep(
   playlistId: string,
   segmentId: string,
   direction: MoveDirection
-) {
+): boolean {
   const groups = orderedGroups(readPlaylistSnapshot(realm, playlistId));
   const index = groups.findIndex((g) => g.segment.segmentId === segmentId);
   const neighbor = groups[index + (direction === 'up' ? -1 : 1)];
-  if (index < 0 || !neighbor) return;
+  if (index < 0 || !neighbor) return false;
 
-  edit(realm, playlistId, [
+  return edit(realm, playlistId, [
     direction === 'up'
       ? { type: 'move_segment', segmentId, beforeSegmentId: neighbor.segment.segmentId }
       : { type: 'move_segment', segmentId, afterSegmentId: neighbor.segment.segmentId },
@@ -250,10 +254,13 @@ export function moveSegmentToEdge(
   playlistId: string,
   segmentId: string,
   edge: 'top' | 'bottom'
-) {
+): boolean {
   const groups = orderedGroups(readPlaylistSnapshot(realm, playlistId));
-  if (groups.length < 2) return;
-  edit(realm, playlistId, [
+  const first = groups[0]?.segment.segmentId;
+  const last = groups[groups.length - 1]?.segment.segmentId;
+  // Already at that edge: nothing to do (and no self-anchor, which would append).
+  if (groups.length < 2 || segmentId === (edge === 'top' ? first : last)) return false;
+  return edit(realm, playlistId, [
     edge === 'top'
       ? { type: 'move_segment', segmentId, beforeSegmentId: groups[0].segment.segmentId }
       : {
@@ -265,11 +272,11 @@ export function moveSegmentToEdge(
 }
 
 /** Puts every track of a group on its own, keeping their order. */
-export function ungroup(realm: Realm, playlistId: string, segmentId: string) {
+export function ungroup(realm: Realm, playlistId: string, segmentId: string): boolean {
   const group = orderedGroups(readPlaylistSnapshot(realm, playlistId)).find(
     (g) => g.segment.segmentId === segmentId
   );
-  if (!group || group.entries.length < 2) return;
+  if (!group || group.entries.length < 2) return false;
 
   const operations: PlaylistOperation[] = [];
   let after = segmentId;
@@ -282,11 +289,11 @@ export function ungroup(realm: Realm, playlistId: string, segmentId: string) {
     });
     after = next;
   }
-  edit(realm, playlistId, operations);
+  return edit(realm, playlistId, operations);
 }
 
-export function removeSegment(realm: Realm, playlistId: string, segmentId: string) {
-  edit(realm, playlistId, [{ type: 'delete_segment', segmentId }]);
+export function removeSegment(realm: Realm, playlistId: string, segmentId: string): boolean {
+  return edit(realm, playlistId, [{ type: 'delete_segment', segmentId }]);
 }
 
 // endregion
@@ -298,12 +305,17 @@ export type TrackDrop =
   | { kind: 'in_group'; segmentId: string; afterEntryId?: string; beforeEntryId?: string }
   | { kind: 'not_in_group'; afterSegmentId?: string; beforeSegmentId?: string };
 
-export function dropTrack(realm: Realm, playlistId: string, entryId: string, drop: TrackDrop) {
+export function dropTrack(
+  realm: Realm,
+  playlistId: string,
+  entryId: string,
+  drop: TrackDrop
+): boolean {
   const at = locate(readPlaylistSnapshot(realm, playlistId), entryId);
-  if (!at) return;
+  if (!at) return false;
 
   if (drop.kind === 'in_group') {
-    edit(realm, playlistId, [
+    return edit(realm, playlistId, [
       {
         type: 'move_entry',
         entryId,
@@ -314,11 +326,10 @@ export function dropTrack(realm: Realm, playlistId: string, entryId: string, dro
         },
       },
     ]);
-    return;
   }
 
   // A track already on its own moves its whole segment, keeping the segment's ID.
-  edit(realm, playlistId, [
+  return edit(realm, playlistId, [
     at.isSingle
       ? {
           type: 'move_segment',
@@ -343,8 +354,8 @@ export function dropSegment(
   playlistId: string,
   segmentId: string,
   anchors: { afterSegmentId?: string; beforeSegmentId?: string }
-) {
-  edit(realm, playlistId, [{ type: 'move_segment', segmentId, ...anchors }]);
+): boolean {
+  return edit(realm, playlistId, [{ type: 'move_segment', segmentId, ...anchors }]);
 }
 
 // endregion

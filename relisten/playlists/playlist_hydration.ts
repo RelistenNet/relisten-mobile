@@ -47,18 +47,7 @@ export async function resolvePlaylistTracks(
         const now = new Date();
         for (const reference of references) {
           availability.set(reference.id, reference.availability);
-          const gone =
-            reference.availability === 'unavailable' || reference.availability === 'retired';
-          const existing = realm.objectForPrimaryKey(PlaylistTrackAvailability, reference.id);
-          if (gone) {
-            realm.create(
-              PlaylistTrackAvailability,
-              { trackId: reference.id, checkedAt: now },
-              Realm.UpdateMode.Modified
-            );
-          } else if (existing) {
-            realm.delete(existing);
-          }
+          recordAvailability(realm, reference, now);
         }
       });
     } catch (error) {
@@ -68,6 +57,35 @@ export async function resolvePlaylistTracks(
     }
   }
   return availability;
+}
+
+/** Remembers a gone or redirected track; an available track clears any old record. */
+function recordAvailability(realm: Realm, reference: CatalogReferenceResolution, now: Date) {
+  const existing = realm.objectForPrimaryKey(PlaylistTrackAvailability, reference.id);
+  switch (reference.availability) {
+    case 'unavailable':
+    case 'retired':
+      realm.create(
+        PlaylistTrackAvailability,
+        { trackId: reference.id, status: 'unavailable', checkedAt: now },
+        Realm.UpdateMode.Modified
+      );
+      return;
+    case 'redirected':
+      realm.create(
+        PlaylistTrackAvailability,
+        {
+          trackId: reference.id,
+          status: 'redirected',
+          redirectTrackId: reference.target?.id,
+          checkedAt: now,
+        },
+        Realm.UpdateMode.Modified
+      );
+      return;
+    case 'available':
+      if (existing) realm.delete(existing);
+  }
 }
 
 /**

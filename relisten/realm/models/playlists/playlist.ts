@@ -70,8 +70,10 @@ export class PlaylistEntry extends Realm.Object<PlaylistEntry> {
 }
 
 /**
- * A recording the catalog reported as gone. Stored on the playlist side because
- * `SourceTrack.deletedAt` belongs to catalog sync. Only unavailable tracks are stored.
+ * What the catalog last said about a playlist track that isn't simply available:
+ * `unavailable` (gone or retired) or `redirected` to another track. Stored on the
+ * playlist side because `SourceTrack.deletedAt` belongs to catalog sync and catalog
+ * redirects only cover songs and venues. The entry keeps its original `trackId`.
  */
 export class PlaylistTrackAvailability extends Realm.Object<PlaylistTrackAvailability> {
   static schema: Realm.ObjectSchema = {
@@ -79,11 +81,15 @@ export class PlaylistTrackAvailability extends Realm.Object<PlaylistTrackAvailab
     primaryKey: 'trackId',
     properties: {
       trackId: 'string',
+      status: 'string',
+      redirectTrackId: 'string?',
       checkedAt: 'date',
     },
   };
 
   trackId!: string;
+  status!: 'unavailable' | 'redirected';
+  redirectTrackId?: string;
   checkedAt!: Date;
 }
 

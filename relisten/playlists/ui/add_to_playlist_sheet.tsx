@@ -8,12 +8,8 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import { Playlist, PlaylistEntry } from '@/relisten/realm/models/playlists/playlist';
 import { useRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
-import {
-  addTracks,
-  keepWithAbove,
-  orderedGroups,
-  undoLastEdit,
-} from '@/relisten/playlists/playlist_actions';
+import { addTracks, keepWithAbove, undoLastEdit } from '@/relisten/playlists/playlist_actions';
+import { orderedGroups } from '@/relisten/playlists/playlist_operations';
 import { artistLine, playlistSizeLine } from '@/relisten/playlists/playlist_format';
 import {
   sourceTrackFor,
@@ -24,8 +20,8 @@ import {
   createPlaylist,
   PLAYLIST_LIMITS,
   PlaylistLimitError,
+  deletePlaylistPermanently,
   readPlaylistSnapshot,
-  setPlaylistDeleted,
 } from '@/relisten/playlists/playlist_repository';
 import { openPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
 import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
@@ -81,7 +77,7 @@ export default function AddToPlaylistSheet() {
       return;
     }
     showPlaylistToast(`Added ${countLabel(trackIds.length)} to ${playlist.name}`, [
-      { label: 'Undo', onPress: () => setPlaylistDeleted(realm, playlistId, true) },
+      { label: 'Undo', onPress: () => deletePlaylistPermanently(realm, playlistId) },
       { label: 'Open', onPress: () => openPlaylist(router, playlistId) },
     ]);
   };

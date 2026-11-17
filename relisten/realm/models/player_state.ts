@@ -146,6 +146,8 @@ export class PlayerState extends Realm.Object<PlayerState> {
           (entry, index) =>
             entry.id !== props.queueEntries[index].id ||
             entry.sourceTrackUuid !== props.queueEntries[index].sourceTrackUuid ||
+            (entry.playlistId ?? null) !== (props.queueEntries[index].playlistId ?? null) ||
+            (entry.entryId ?? null) !== (props.queueEntries[index].entryId ?? null) ||
             (entry.segmentInstanceId ?? null) !==
               (props.queueEntries[index].segmentInstanceId ?? null)
         );

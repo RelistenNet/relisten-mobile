@@ -19,7 +19,11 @@ import {
   undoLastEdit,
   ungroup,
 } from '@/relisten/playlists/playlist_actions';
-import type { PlaylistRowEntry, PlaylistRowGroup } from '@/relisten/playlists/playlist_hooks';
+import type {
+  PlaylistLayout,
+  PlaylistRowEntry,
+  PlaylistRowGroup,
+} from '@/relisten/playlists/playlist_hooks';
 import { queueTracksFor } from '@/relisten/playlists/playlist_playback';
 import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
 import { useGroupSegment } from '@/relisten/util/routes';
@@ -28,17 +32,22 @@ import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 export const trackTitle = (row: PlaylistRowEntry | undefined) => row?.sourceTrack?.title ?? 'track';
 
 /** Where a row sits, which decides which moves make sense. */
-function position(groups: PlaylistRowGroup[], entryId: string) {
-  const groupIndex = groups.findIndex((g) => g.entries.some((r) => r.entry.entryId === entryId));
-  const group = groups[groupIndex];
-  const index = group?.entries.findIndex((r) => r.entry.entryId === entryId) ?? -1;
+function position(layout: PlaylistLayout, entryId: string) {
+  const { groupIndex = -1, index = -1 } = layout.entryPositions.get(entryId) ?? {};
+  const group = layout.groups[groupIndex];
   return { groupIndex, group, index, inGroup: (group?.entries.length ?? 0) > 1 };
 }
 
+/** Shows a confirmation with Undo, but only when the edit actually changed something. */
 function useEditToast(playlistId: string) {
   const realm = useRealm();
-  return (message: string) =>
-    showPlaylistToast(message, [{ label: 'Undo', onPress: () => undoLastEdit(realm, playlistId) }]);
+  return (changed: boolean, message: string) => {
+    if (changed) {
+      showPlaylistToast(message, [
+        { label: 'Undo', onPress: () => undoLastEdit(realm, playlistId) },
+      ]);
+    }
+  };
 }
 
 function useGoToShow() {
@@ -70,13 +79,13 @@ const action = (
 /** The menu for one track: playback, moves, grouping, then Remove. Shown in view and edit modes. */
 export function TrackMenu({
   playlistId,
-  groups,
+  layout,
   row,
   style,
   children,
 }: {
   playlistId: string;
-  groups: PlaylistRowGroup[];
+  layout: PlaylistLayout;
   row: PlaylistRowEntry;
   style?: StyleProp<ViewStyle>;
   children: ReactNode;
@@ -87,7 +96,8 @@ export function TrackMenu({
   const goToShow = useGoToShow();
   const entryId = row.entry.entryId;
   const title = trackTitle(row);
-  const at = position(groups, entryId);
+  const { groups } = layout;
+  const at = position(layout, entryId);
   const above = !at.inGroup && at.groupIndex > 0 ? groups[at.groupIndex - 1] : undefined;
   const aboveTitle = above ? trackTitle(above.entries[above.entries.length - 1]) : undefined;
   const isFirst = at.inGroup ? at.index === 0 : at.groupIndex === 0;
@@ -107,11 +117,12 @@ export function TrackMenu({
   }
   if (!isFirst) actions.push(action('move-up', 'Move Up', nativeMenuIcons.moveUp));
   if (!isLast) actions.push(action('move-down', 'Move Down', nativeMenuIcons.moveDown));
-  if (groups.length > 1 || at.inGroup) {
-    actions.push(
-      action('move-top', 'Move to Top', nativeMenuIcons.moveToTop),
-      action('move-bottom', 'Move to Bottom', nativeMenuIcons.moveToBottom)
-    );
+  // A grouped track can always leave for either edge; a single one only if it isn't there yet.
+  if (at.inGroup || at.groupIndex > 0) {
+    actions.push(action('move-top', 'Move to Top', nativeMenuIcons.moveToTop));
+  }
+  if (at.inGroup || at.groupIndex < groups.length - 1) {
+    actions.push(action('move-bottom', 'Move to Bottom', nativeMenuIcons.moveToBottom));
   }
   if (at.inGroup) actions.push(action('take-out', 'Take Out of Group', nativeMenuIcons.ungroup));
   if (aboveTitle)
@@ -130,24 +141,29 @@ export function TrackMenu({
       }
       case 'move-up':
       case 'move-down':
-        moveEntryStep(realm, playlistId, entryId, id === 'move-up' ? 'up' : 'down');
-        return toast(`Moved ${title}`);
+        return toast(
+          moveEntryStep(realm, playlistId, entryId, id === 'move-up' ? 'up' : 'down'),
+          `Moved ${title}`
+        );
       case 'move-top':
       case 'move-bottom':
-        moveEntryToEdge(realm, playlistId, entryId, id === 'move-top' ? 'top' : 'bottom');
-        return toast(`Moved ${title} to the ${id === 'move-top' ? 'top' : 'bottom'}`);
+        return toast(
+          moveEntryToEdge(realm, playlistId, entryId, id === 'move-top' ? 'top' : 'bottom'),
+          `Moved ${title} to the ${id === 'move-top' ? 'top' : 'bottom'}`
+        );
       case 'take-out':
-        takeOutOfGroup(realm, playlistId, entryId);
-        return toast(`Took ${title} out of the group`);
+        return toast(takeOutOfGroup(realm, playlistId, entryId), `Took ${title} out of the group`);
       case 'keep-with':
-        keepWithAbove(realm, playlistId, entryId);
-        return toast(`Keeping ${title} with ${aboveTitle}`);
+        return toast(
+          keepWithAbove(realm, playlistId, entryId),
+          `Keeping ${title} with ${aboveTitle}`
+        );
       case 'go-to-show':
         return goToShow(row.sourceTrack!);
       case 'remove': {
         const shrinks = at.inGroup && at.group!.entries.length === 2;
-        removeEntry(realm, playlistId, entryId);
         return toast(
+          removeEntry(realm, playlistId, entryId),
           shrinks
             ? `Removed ${title}. ${trackTitle(groupmate)} is now on its own.`
             : `Removed ${title}`
@@ -171,12 +187,12 @@ export function TrackMenu({
 /** The menu for a group header. */
 export function GroupMenu({
   playlistId,
-  groups,
+  layout,
   group,
   children,
 }: {
   playlistId: string;
-  groups: PlaylistRowGroup[];
+  layout: PlaylistLayout;
   group: PlaylistRowGroup;
   children: ReactNode;
 }) {
@@ -186,18 +202,18 @@ export function GroupMenu({
   const toast = useEditToast(playlistId);
   const goToShow = useGoToShow();
   const segmentId = group.segment.segmentId;
-  const index = groups.findIndex((g) => g.segment.segmentId === segmentId);
+  const groupCount = layout.groups.length;
+  const index = layout.groupIndexes.get(segmentId) ?? -1;
   const showTrack = singleSourceTrack(group);
 
   const actions: MenuAction[] = [action('play-group', 'Play Group', nativeMenuIcons.play)];
   if (index > 0) actions.push(action('move-up', 'Move Up', nativeMenuIcons.moveUp));
-  if (index < groups.length - 1)
+  if (index < groupCount - 1) {
     actions.push(action('move-down', 'Move Down', nativeMenuIcons.moveDown));
-  if (groups.length > 1) {
-    actions.push(
-      action('move-top', 'Move to Top', nativeMenuIcons.moveToTop),
-      action('move-bottom', 'Move to Bottom', nativeMenuIcons.moveToBottom)
-    );
+  }
+  if (index > 0) actions.push(action('move-top', 'Move to Top', nativeMenuIcons.moveToTop));
+  if (index < groupCount - 1) {
+    actions.push(action('move-bottom', 'Move to Bottom', nativeMenuIcons.moveToBottom));
   }
   actions.push(action('ungroup', 'Ungroup', nativeMenuIcons.ungroup));
   if (showTrack) actions.push(action('go-to-show', 'Go to Show', nativeMenuIcons.goTo));
@@ -212,20 +228,25 @@ export function GroupMenu({
       }
       case 'move-up':
       case 'move-down':
-        moveSegmentStep(realm, playlistId, segmentId, id === 'move-up' ? 'up' : 'down');
-        return toast('Moved group');
+        return toast(
+          moveSegmentStep(realm, playlistId, segmentId, id === 'move-up' ? 'up' : 'down'),
+          'Moved group'
+        );
       case 'move-top':
       case 'move-bottom':
-        moveSegmentToEdge(realm, playlistId, segmentId, id === 'move-top' ? 'top' : 'bottom');
-        return toast(`Moved group to the ${id === 'move-top' ? 'top' : 'bottom'}`);
+        return toast(
+          moveSegmentToEdge(realm, playlistId, segmentId, id === 'move-top' ? 'top' : 'bottom'),
+          `Moved group to the ${id === 'move-top' ? 'top' : 'bottom'}`
+        );
       case 'ungroup':
-        ungroup(realm, playlistId, segmentId);
-        return toast('Ungrouped');
+        return toast(ungroup(realm, playlistId, segmentId), 'Ungrouped');
       case 'go-to-show':
         return goToShow(showTrack!);
       case 'remove':
-        removeSegment(realm, playlistId, segmentId);
-        return toast(`Removed ${group.entries.length} tracks`);
+        return toast(
+          removeSegment(realm, playlistId, segmentId),
+          `Removed ${group.entries.length} tracks`
+        );
     }
   };
 

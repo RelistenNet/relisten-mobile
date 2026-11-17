@@ -9,14 +9,19 @@ import { OfflineModeSetting } from '@/relisten/realm/models/user_settings';
 import plur from 'plur';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { queuePlaybackHistoryEntry } from '@/relisten/carplay/queue_helpers';
+import NetInfo from '@react-native-community/netinfo';
 import { Playlist } from '@/relisten/realm/models/playlists/playlist';
 import { readPlaylistRowGroups } from '@/relisten/playlists/playlist_hooks';
 import { playPlaylist } from '@/relisten/playlists/playlist_playback';
 
 const PLAYLIST_ITEM_PREFIX = 'playlist:';
 
-function playPlaylistFromCarPlay(ctx: RelistenCarPlayContext, playlistId: string) {
-  const online = ctx.userSettings.offlineModeWithDefault() !== OfflineModeSetting.AlwaysOffline;
+async function playPlaylistFromCarPlay(ctx: RelistenCarPlayContext, playlistId: string) {
+  // Same rule as the app: offline mode or no connection means downloaded tracks only.
+  const network = await NetInfo.fetch();
+  const online =
+    network.type !== 'none' &&
+    ctx.userSettings.offlineModeWithDefault() !== OfflineModeSetting.AlwaysOffline;
   if (playPlaylist(ctx.player, playlistId, readPlaylistRowGroups(ctx.realm, playlistId), online)) {
     ctx.showNowPlaying?.();
   } else {
@@ -44,7 +49,7 @@ export function createLibraryTemplate(ctx: RelistenCarPlayContext): ListTemplate
     tabSystemImageName: 'star.circle',
     async onItemSelect({ id }: { templateId: string; index: number; id: string }) {
       if (String(id).startsWith(PLAYLIST_ITEM_PREFIX)) {
-        playPlaylistFromCarPlay(ctx, String(id).slice(PLAYLIST_ITEM_PREFIX.length));
+        await playPlaylistFromCarPlay(ctx, String(id).slice(PLAYLIST_ITEM_PREFIX.length));
         return;
       }
       const show = showMap.get(String(id));

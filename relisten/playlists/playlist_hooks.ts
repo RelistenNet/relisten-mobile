@@ -19,9 +19,17 @@ import { formatUuidTypedId, parseUuidTypedId } from '@/relisten/util/typed_uuid_
 export const trackIdForSourceTrack = (sourceTrack: Pick<SourceTrack, 'uuid'>) =>
   formatUuidTypedId('track', sourceTrack.uuid);
 
-/** The catalog track for an entry, or null when it hasn't been loaded onto this device yet. */
+/**
+ * The catalog track for an entry, following a recorded redirect, or null when it
+ * hasn't been loaded onto this device yet.
+ */
 export function sourceTrackFor(realm: Realm, trackId: string): SourceTrack | null {
-  const uuid = parseUuidTypedId(trackId, 'track');
+  const redirect = realm.objectForPrimaryKey(PlaylistTrackAvailability, trackId);
+  const playableId =
+    redirect?.status === 'redirected' && redirect.redirectTrackId
+      ? redirect.redirectTrackId
+      : trackId;
+  const uuid = parseUuidTypedId(playableId, 'track');
   if (!uuid) {
     return null;
   }
@@ -76,11 +84,23 @@ export function usePlaylistGroups(playlistId: string): PlaylistRowGroup[] {
   const entries = useQuery(PlaylistEntry, (rows) => rows.filtered('playlistId == $0', playlistId), [
     playlistId,
   ]);
-  const unavailable = useQuery(PlaylistTrackAvailability);
+  const availability = useQuery(PlaylistTrackAvailability);
+  // Entries only hold IDs, so watch the catalog tracks they point at: rows update
+  // when hydration loads a track, without re-rendering for unrelated catalog writes.
+  const trackUuids = useMemo(
+    () =>
+      [...new Set(entries.map((e) => parseUuidTypedId(e.trackId, 'track')))].filter(
+        (uuid): uuid is string => uuid !== null
+      ),
+    [entries]
+  );
+  const tracks = useQuery(SourceTrack, (rows) => rows.filtered('uuid IN $0', trackUuids), [
+    trackUuids,
+  ]);
 
   return useMemo(
-    () => buildRowGroups(realm, segments, entries, new Set(unavailable.map((row) => row.trackId))),
-    [realm, segments, entries, unavailable]
+    () => buildRowGroups(realm, segments, entries, unavailableIds(availability)),
+    [realm, segments, entries, availability, tracks]
   );
 }
 
@@ -90,8 +110,12 @@ export function readPlaylistRowGroups(realm: Realm, playlistId: string): Playlis
     realm,
     realm.objects(PlaylistSegment).filtered('playlistId == $0', playlistId),
     realm.objects(PlaylistEntry).filtered('playlistId == $0', playlistId),
-    new Set(realm.objects(PlaylistTrackAvailability).map((row) => row.trackId))
+    unavailableIds(realm.objects(PlaylistTrackAvailability))
   );
+}
+
+function unavailableIds(rows: Iterable<PlaylistTrackAvailability>): ReadonlySet<string> {
+  return new Set([...rows].filter((row) => row.status === 'unavailable').map((row) => row.trackId));
 }
 
 function buildRowGroups(
@@ -161,4 +185,28 @@ export function readPlaylistSummary(realm: Realm, playlistId: string): PlaylistS
 export function usePlaylistSummary(playlist: Playlist): PlaylistSummary {
   const realm = useRealm();
   return readPlaylistSummary(realm, playlist.playlistId);
+}
+
+/**
+ * The playlist's groups plus position lookups, built once per change so each
+ * row's menu can find its place without scanning the whole playlist.
+ */
+export interface PlaylistLayout {
+  groups: PlaylistRowGroup[];
+  entryPositions: ReadonlyMap<string, { groupIndex: number; index: number }>;
+  groupIndexes: ReadonlyMap<string, number>;
+}
+
+export function usePlaylistLayout(groups: PlaylistRowGroup[]): PlaylistLayout {
+  return useMemo(() => {
+    const entryPositions = new Map<string, { groupIndex: number; index: number }>();
+    const groupIndexes = new Map<string, number>();
+    groups.forEach((group, groupIndex) => {
+      groupIndexes.set(group.segment.segmentId, groupIndex);
+      group.entries.forEach((row, index) => {
+        entryPositions.set(row.entry.entryId, { groupIndex, index });
+      });
+    });
+    return { groups, entryPositions, groupIndexes };
+  }, [groups]);
 }
