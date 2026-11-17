@@ -1,4 +1,5 @@
 import { type SourceTrack } from '@/relisten/realm/models/source_track';
+import type { LinkPosition } from '@/relisten/playlists/playlist_drag_slots';
 
 const LONG_MONTHS = [
   'January',
@@ -83,4 +84,31 @@ export function playerTrackAccessibilityLabel(sourceTrack: SourceTrack) {
   ]
     .filter(Boolean)
     .join(', ');
+}
+
+type LinkedQueueTrack = { playlistContext?: { segmentInstanceId: string } };
+
+/**
+ * Where a queue row sits in a run of tracks from one playlist link, judged by
+ * its neighbors in the current order. Shuffle keeps a link's tracks together;
+ * a link split apart by a manual reorder shows as separate runs.
+ */
+export function queueLinkPosition(
+  tracks: readonly LinkedQueueTrack[],
+  index: number
+): LinkPosition | undefined {
+  const linkId = tracks[index]?.playlistContext?.segmentInstanceId;
+  if (!linkId) {
+    return undefined;
+  }
+
+  const linkedBefore = tracks[index - 1]?.playlistContext?.segmentInstanceId === linkId;
+  const linkedAfter = tracks[index + 1]?.playlistContext?.segmentInstanceId === linkId;
+  if (linkedBefore && linkedAfter) {
+    return 'middle';
+  }
+  if (linkedBefore) {
+    return 'last';
+  }
+  return linkedAfter ? 'first' : undefined;
 }

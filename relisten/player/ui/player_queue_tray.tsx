@@ -49,7 +49,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { usePlayerDismissGesture } from './use_player_dismiss_gesture';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { playerDisplayTitle } from './player_display_helpers';
+import { playerDisplayTitle, queueLinkPosition } from './player_display_helpers';
 import { PlayerNowPlaying } from './player_now_playing';
 import { usePlayerPresentation } from './player_presentation';
 import { isQueueReorderCurrent } from './player_queue_reorder';
@@ -486,11 +486,16 @@ export function PlayerQueueTray({
           index={getIndex() ?? tracks.indexOf(item)}
           current={item.identifier === current?.identifier}
           showArtist={showArtist}
+          link={queueLinkPosition(tracks, getIndex() ?? tracks.indexOf(item))}
+          linkPlaying={
+            !!item.playlistContext &&
+            item.playlistContext.segmentInstanceId === current?.playlistContext?.segmentInstanceId
+          }
           drag={drag}
         />
       </View>
     ),
-    [current?.identifier, nextIdentifier, measureRow, showArtist, tracks]
+    [current?.identifier, current?.playlistContext, nextIdentifier, measureRow, showArtist, tracks]
   );
   const backdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
