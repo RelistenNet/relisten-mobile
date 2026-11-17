@@ -29,18 +29,30 @@ export function queueTracksFor(
   for (const group of groups) {
     const segmentInstanceId = createUuidV7();
     for (const row of group.entries) {
-      if (!isQueueable(row, online)) {
-        continue;
+      if (isQueueable(row, online)) {
+        tracks.push(queueTrackFor(playlistId, row, segmentInstanceId));
       }
-      const track = PlayerQueueTrack.fromSourceTrack(row.sourceTrack!);
-      track.playlistContext = { playlistId, entryId: row.entry.entryId, segmentInstanceId };
-      tracks.push(track);
     }
   }
   return tracks;
 }
 
-/** Plays the playlist in order, from `startEntryId` or the beginning. Returns false if nothing can play. */
+/** One queue occurrence of an entry, keeping its playlist provenance. */
+export function queueTrackFor(
+  playlistId: string,
+  row: PlaylistRowEntry,
+  segmentInstanceId = createUuidV7()
+): PlayerQueueTrack {
+  const track = PlayerQueueTrack.fromSourceTrack(row.sourceTrack!);
+  track.playlistContext = { playlistId, entryId: row.entry.entryId, segmentInstanceId };
+  return track;
+}
+
+/**
+ * Plays the playlist in order, from `startEntryId` or the beginning. Returns
+ * false, leaving the queue alone, if nothing can play or the chosen entry
+ * can't play right now.
+ */
 export function playPlaylist(
   player: RelistenPlayer,
   playlistId: string,
@@ -49,13 +61,12 @@ export function playPlaylist(
   startEntryId?: string
 ): boolean {
   const tracks = queueTracksFor(playlistId, groups, online);
-  if (tracks.length === 0) {
+  const startIndex = startEntryId
+    ? tracks.findIndex((t) => t.playlistContext?.entryId === startEntryId)
+    : 0;
+  if (tracks.length === 0 || startIndex < 0) {
     return false;
   }
-  const startIndex = Math.max(
-    0,
-    tracks.findIndex((t) => t.playlistContext?.entryId === startEntryId)
-  );
   player.queue.replaceQueue(tracks, startIndex, { resetShuffle: true });
   sharedStatsigClient().logEvent(playlistActionEvent('play', tracks.length));
   return true;

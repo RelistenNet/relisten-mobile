@@ -31,7 +31,7 @@ export function PlaylistSyncCoordinator() {
     }
     const claimed = realm.write(() => claimUnownedPlaylists(realm, userId));
     if (claimed > 0) {
-      showPlaylistToast('Your playlists are now saved to your account.');
+      showPlaylistToast('Saving your playlists to your account.');
       service.flush();
     }
   }, [realm, service, userId]);

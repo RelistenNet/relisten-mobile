@@ -2,7 +2,7 @@ import { useHeaderHeight } from 'expo-router/react-navigation';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import plur from 'plur';
 import { useMemo, useState } from 'react';
-import { FlatList, Switch, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Switch, TextInput, TouchableOpacity, View } from 'react-native';
 import Realm from 'realm';
 import { ItemSeparator } from '@/relisten/components/item_separator';
 import { RelistenText } from '@/relisten/components/relisten_text';
@@ -57,8 +57,9 @@ export default function AddToPlaylistSheet() {
     try {
       addTracks(realm, playlistId, groups);
     } catch (error) {
-      showPlaylistToast(
-        error instanceof PlaylistLimitError ? error.message : "Couldn't add to playlist."
+      // An alert, since the sheet covers the toast.
+      Alert.alert(
+        error instanceof PlaylistLimitError ? error.message : 'Couldn’t add to playlist.'
       );
       return;
     }
@@ -71,14 +72,24 @@ export default function AddToPlaylistSheet() {
       segueEntry
         ? {
             label: `Link to ${segueEntry.previousTitle}`,
-            onPress: () => keepWithAbove(realm, playlistId, segueEntry.entryId),
+            onPress: () =>
+              keepWithAbove(realm, playlistId, segueEntry.entryId, segueEntry.previousEntryId),
           }
         : { label: 'Open', onPress: () => openPlaylist(router, playlistId) },
     ]);
   };
 
   const create = (name: string) => {
-    const playlist = createPlaylist(realm, name, groups);
+    let playlist: Playlist;
+    try {
+      playlist = createPlaylist(realm, name, groups);
+    } catch (error) {
+      // The form stays open; an alert, since the sheet covers the toast.
+      Alert.alert(
+        error instanceof PlaylistLimitError ? error.message : 'Couldn’t create the playlist.'
+      );
+      return;
+    }
     const { playlistId } = playlist;
     router.back();
     sharedStatsigClient().logEvent(playlistActionEvent('create', trackIds.length));
@@ -274,13 +285,7 @@ function backToBackRuns(realm: Realm, trackIds: string[]): string[][] {
 
   for (const trackId of trackIds) {
     const track = sourceTrackFor(realm, trackId);
-    const followsPrevious =
-      !!track &&
-      !!previous &&
-      track.sourceUuid === previous.sourceUuid &&
-      track.trackPosition === previous.trackPosition + 1;
-
-    if (followsPrevious) {
+    if (track && previous && playsRightAfter(previous, track)) {
       runs[runs.length - 1].push(trackId);
     } else {
       runs.push([trackId]);
@@ -289,6 +294,13 @@ function backToBackRuns(realm: Realm, trackIds: string[]): string[][] {
   }
 
   return runs;
+}
+
+/** Whether `next` is the track that follows `previous` in the same recording. */
+function playsRightAfter(previous: SourceTrack, next: SourceTrack): boolean {
+  return (
+    next.sourceUuid === previous.sourceUuid && next.trackPosition === previous.trackPosition + 1
+  );
 }
 
 /** Names what was added: a title, a linked pair, or a count with its show. */
@@ -306,10 +318,11 @@ function addedLabel(realm: Realm, groups: string[][]): string {
       : `“${titles[0]}” and “${titles[1]}”`;
   }
 
-  const shows = new Set(tracks.map((track) => track?.show.displayDate));
-  const [onlyShow] = shows;
-  return shows.size === 1 && onlyShow
-    ? `${countLabel(trackIds.length)} from ${onlyShow}`
+  // Compared by show, since two shows can share a date.
+  const shows = new Set(tracks.map((track) => track?.show.uuid));
+  const firstShow = tracks[0]?.show;
+  return shows.size === 1 && firstShow
+    ? `${countLabel(trackIds.length)} from ${firstShow.displayDate}`
     : countLabel(trackIds.length);
 }
 
@@ -337,16 +350,12 @@ function segueSuggestion(realm: Realm, playlistId: string) {
     realm,
     previous.entries[previous.entries.length - 1].trackId
   );
-  if (
-    !addedTrack ||
-    !previousTrack ||
-    addedTrack.sourceUuid !== previousTrack.sourceUuid ||
-    addedTrack.trackPosition !== previousTrack.trackPosition + 1
-  ) {
+  if (!addedTrack || !previousTrack || !playsRightAfter(previousTrack, addedTrack)) {
     return undefined;
   }
   return {
     entryId: added.entries[0].entryId,
+    previousEntryId: previous.entries[previous.entries.length - 1].entryId,
     previousTitle: previousTrack.title,
   };
 }

@@ -95,6 +95,8 @@ export const SourceSetComponent = ({
               sourceTrack={t}
               isLastTrackInSet={idx == sourceSet.sourceTracks.length - 1}
               onPress={() => selection.toggle(t.uuid)}
+              // The row is the one checkbox screen readers see; the circle mirrors it.
+              accessibilityRole="checkbox"
               accessibilityState={{ checked }}
               actions={
                 <TouchableOpacity

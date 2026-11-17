@@ -88,27 +88,39 @@ export function playerTrackAccessibilityLabel(sourceTrack: SourceTrack) {
 
 type LinkedQueueTrack = { playlistContext?: { segmentInstanceId: string } };
 
-/**
- * Where a queue row sits in a run of tracks from one playlist link, judged by
- * its neighbors in the current order. Shuffle keeps a link's tracks together;
- * a link split apart by a manual reorder shows as separate runs.
- */
-export function queueLinkPosition(
-  tracks: readonly LinkedQueueTrack[],
-  index: number
-): LinkPosition | undefined {
-  const linkId = tracks[index]?.playlistContext?.segmentInstanceId;
-  if (!linkId) {
-    return undefined;
-  }
+export interface QueueLink {
+  /** Where the row sits in its run of linked tracks; undefined for a track on its own. */
+  position?: LinkPosition;
+  /** Rows in the same run share this; every other row has its own. */
+  run: number;
+}
 
-  const linkedBefore = tracks[index - 1]?.playlistContext?.segmentInstanceId === linkId;
-  const linkedAfter = tracks[index + 1]?.playlistContext?.segmentInstanceId === linkId;
-  if (linkedBefore && linkedAfter) {
-    return 'middle';
-  }
-  if (linkedBefore) {
-    return 'last';
-  }
-  return linkedAfter ? 'first' : undefined;
+/**
+ * Runs of adjacent queue tracks from one playlist link, in the current order.
+ * Shuffle keeps a link's tracks together; a link split apart by a manual
+ * reorder becomes separate runs, each drawn and lit on its own.
+ */
+export function queueLinks(tracks: readonly LinkedQueueTrack[]): QueueLink[] {
+  const links: QueueLink[] = [];
+  let run = -1;
+  tracks.forEach((track, index) => {
+    const linkId = track.playlistContext?.segmentInstanceId;
+    const linkedBefore =
+      !!linkId && tracks[index - 1]?.playlistContext?.segmentInstanceId === linkId;
+    const linkedAfter =
+      !!linkId && tracks[index + 1]?.playlistContext?.segmentInstanceId === linkId;
+    if (!linkedBefore) {
+      run += 1;
+    }
+    const position: LinkPosition | undefined =
+      linkedBefore && linkedAfter
+        ? 'middle'
+        : linkedBefore
+          ? 'last'
+          : linkedAfter
+            ? 'first'
+            : undefined;
+    links.push({ position, run });
+  });
+  return links;
 }

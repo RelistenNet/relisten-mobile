@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, Pressable, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import Realm from 'realm';
 import { RelistenBlue } from '@/relisten/relisten_blue';
-import { undoLastEdit } from '@/relisten/playlists/playlist_actions';
+import { undoForLatestEdit } from '@/relisten/playlists/playlist_actions';
 import type { PlaylistRowEntry, PlaylistRowGroup } from '@/relisten/playlists/playlist_hooks';
 
 export interface PlaylistToastAction {
@@ -48,6 +48,7 @@ export function PlaylistToastHost() {
   const [toast, setToast] = useState<PlaylistToast | null>(null);
   const insets = useSafeAreaInsets();
   const offset = useSharedValue(-120);
+  const handled = useRef(0);
 
   useEffect(() => {
     listener = setToast;
@@ -71,11 +72,22 @@ export function PlaylistToastHost() {
       return;
     }
     offset.set(withSpring(0, { damping: 20, stiffness: 220 }));
-    const timer = setTimeout(
-      () => dismiss(),
-      toast.actions.length > 0 ? VISIBLE_WITH_ACTIONS_MS : VISIBLE_MS
-    );
-    return () => clearTimeout(timer);
+    AccessibilityInfo.announceForAccessibility(toast.message);
+
+    // A screen reader needs time to reach the toast's actions.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let cancelled = false;
+    void AccessibilityInfo.isScreenReaderEnabled().then((screenReader) => {
+      if (cancelled) {
+        return;
+      }
+      const visibleMs = toast.actions.length > 0 ? VISIBLE_WITH_ACTIONS_MS : VISIBLE_MS;
+      timer = setTimeout(() => dismiss(), screenReader ? visibleMs * 3 : visibleMs);
+    });
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [toast]);
 
   const swipeUp = Gesture.Pan()
@@ -130,6 +142,11 @@ export function PlaylistToastHost() {
               hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
               className="ml-4"
               onPress={() => {
+                // A toast's actions run at most once, even if tapped again while it leaves.
+                if (handled.current === toast.id) {
+                  return;
+                }
+                handled.current = toast.id;
                 dismiss();
                 action.onPress();
               }}
@@ -151,13 +168,20 @@ export function PlaylistToastHost() {
   );
 }
 
-/** The Undo button for an edit toast. An account edit can be undone only until it is sent. */
+/**
+ * The Undo button for an edit toast, bound to the edit just made. An account
+ * edit can be undone only until it is sent.
+ */
 export function undoAction(realm: Realm, playlistId: string): PlaylistToastAction {
+  const undo = undoForLatestEdit(playlistId);
   return {
     label: 'Undo',
     onPress: () => {
-      if (!undoLastEdit(realm, playlistId)) {
+      const result = undo(realm);
+      if (result === 'sent') {
         showPlaylistToast('That change is already saved to your account, so it can’t be undone.');
+      } else if (result === 'gone') {
+        showPlaylistToast('That change can no longer be undone.');
       }
     },
   };

@@ -262,4 +262,38 @@ describe('typed favorite sync adapter', () => {
       highestObservedLibraryRevision: 8,
     });
   });
+  it('drops favorites a restored snapshot leaves out, even at a lower revision', () => {
+    const favoriteId = formatUuidTypedId('favorite', '01890a5d-ac96-774b-bcce-b302099a8099');
+    const item = {
+      favorite_id: favoriteId,
+      target: catalogTarget,
+      created_at: '2026-11-01T00:00:00Z',
+      updated_at: '2026-11-01T00:00:00Z',
+    };
+    const capture = scope.capture();
+    adapter.applySnapshot(capture, {
+      contract_version: 1,
+      library_revision: 43,
+      next_cursor: 'before-restore',
+      favorites: [item],
+      history_generation: 'generation-a',
+    });
+    expect(realm.objects(UserFavorite)[0].effectivePresent).toBe(true);
+
+    // The server was restored to revision 40, before this favorite was added.
+    adapter.applySnapshot(capture, {
+      contract_version: 1,
+      library_revision: 40,
+      next_cursor: 'after-restore',
+      favorites: [],
+      history_generation: 'generation-b',
+    });
+
+    expect(realm.objects(UserFavorite)[0].effectivePresent).toBe(false);
+    expect(realm.objects(FavoriteSyncState)[0]).toMatchObject({
+      libraryCursor: 'after-restore',
+      historyGeneration: 'generation-b',
+      highestObservedLibraryRevision: 40,
+    });
+  });
 });

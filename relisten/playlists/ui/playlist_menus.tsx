@@ -5,7 +5,6 @@ import type { StyleProp, ViewStyle } from 'react-native';
 import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
 import { NativeMenuView, type MenuAction } from '@/relisten/components/menus/native_menu_view';
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
-import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
 import { useRealm } from '@/relisten/realm/schema';
 import type { SourceTrack } from '@/relisten/realm/models/source_track';
 import {
@@ -24,7 +23,8 @@ import type {
   PlaylistRowEntry,
   PlaylistRowGroup,
 } from '@/relisten/playlists/playlist_hooks';
-import { queueTracksFor } from '@/relisten/playlists/playlist_playback';
+import { isQueueable, queueTrackFor, queueTracksFor } from '@/relisten/playlists/playlist_playback';
+import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
 import { removedMessage, toastEdit } from '@/relisten/playlists/ui/playlist_toast';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
@@ -89,6 +89,7 @@ export function TrackMenu({
 }) {
   const realm = useRealm();
   const player = useRelistenPlayer();
+  const online = useShouldMakeNetworkRequests();
   const toast = (changed: boolean, message: string) =>
     toastEdit(realm, playlistId, changed, message);
   const goToShow = useGoToShow();
@@ -107,7 +108,7 @@ export function TrackMenu({
     : undefined;
 
   const playback: MenuAction[] = [];
-  if (row.sourceTrack && row.status === 'playable') {
+  if (isQueueable(row, online)) {
     playback.push(
       action('play-next', 'Play Next', nativeMenuIcons.playNext),
       action('add-to-queue', 'Add to End of Queue', nativeMenuIcons.addToQueue)
@@ -154,7 +155,7 @@ export function TrackMenu({
     switch (id) {
       case 'play-next':
       case 'add-to-queue': {
-        const track = PlayerQueueTrack.fromSourceTrack(row.sourceTrack!);
+        const track = queueTrackFor(playlistId, row);
         if (id === 'play-next') {
           player.queue.queueNextTrack([track]);
         } else player.queue.addTrackToEndOfQueue([track]);
@@ -254,6 +255,12 @@ export function GroupMenu({
         const tracks = queueTracksFor(playlistId, [group], online);
         if (tracks.length > 0) {
           player.queue.replaceQueue(tracks, 0, { resetShuffle: true });
+        } else {
+          showPlaylistToast(
+            online
+              ? 'These recordings aren’t available right now.'
+              : 'These tracks aren’t downloaded.'
+          );
         }
         return;
       }

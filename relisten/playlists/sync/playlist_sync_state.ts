@@ -1,4 +1,5 @@
 import Realm from 'realm';
+import { FavoriteSyncState } from '@/relisten/realm/models/library/favorite_sync_state';
 import {
   Playlist,
   PlaylistCommand,
@@ -63,6 +64,15 @@ export function visibleOwnerId(realm: Realm): string | undefined {
     realm.objectForPrimaryKey(PlaylistDeviceState, PLAYLIST_DEVICE_STATE_ID)?.lastSignedInUserId ??
     undefined
   );
+}
+
+/**
+ * Whether the current listener may see, edit, or play a playlist: one saved to
+ * their account (or the last signed-in account, while signed out), or one not
+ * saved to any account. Lists, by-ID screens, edits, and CarPlay share it.
+ */
+export function canAccessPlaylist(realm: Realm, playlist: Playlist): boolean {
+  return !playlist.ownerUserId || playlist.ownerUserId === visibleOwnerId(realm);
 }
 
 /**
@@ -150,7 +160,9 @@ export function issueCreateCommand(realm: Realm, playlist: Playlist) {
  * next pull: one new to this device, one just created, or any after a restore.
  */
 export function markNeedsSnapshot(playlist: Playlist) {
+  // Revisions from another history generation don't compare, so all three go together.
   playlist.appliedRevision = undefined;
+  playlist.summaryRevision = undefined;
   playlist.historyGeneration = undefined;
 }
 
@@ -259,6 +271,52 @@ export function recordEdit(
     writeDisplayedChanges(realm, playlist, changes);
   }
   return playlist.ownerUserId ? appendOperation(realm, playlist, edit) : undefined;
+}
+
+/**
+ * How deleting an owned playlist works. The server never accepted one whose
+ * create was never sent or was refused, so it is removed on the device like a
+ * device playlist. One whose create was sent without an answer yet can't be
+ * deleted until that answer arrives. Everything else is archived on the account.
+ */
+export function ownedDeletion(realm: Realm, playlist: Playlist): 'local' | 'pending' | 'archive' {
+  const commands = realm.objects(PlaylistCommand).filtered('playlistId == $0', playlist.playlistId);
+  if (playlist.serverState === 'needs_attention' || playlist.serverState == null) {
+    return 'local';
+  }
+  if (playlist.serverState === 'creating') {
+    return commands.some((c) => c.attemptCount > 0) ? 'pending' : 'local';
+  }
+  return 'archive';
+}
+
+/**
+ * Moves a never-created account playlist to Recently Deleted on the device and
+ * drops its unsent work. It keeps its owner; restoring it issues a fresh create.
+ */
+export function deleteNeverCreated(realm: Realm, playlist: Playlist) {
+  realm.delete(realm.objects(PlaylistCommand).filtered('playlistId == $0', playlist.playlistId));
+  realm.delete(realm.objects(PlaylistOperation).filtered('playlistId == $0', playlist.playlistId));
+  playlist.serverState = undefined;
+  playlist.deletedAt = new Date();
+}
+
+/**
+ * Restores a playlist from the device's Recently Deleted. Signed in, it belongs
+ * to the current account and is saved there (a fresh create); signed out, a
+ * device playlist stays unowned and is saved when someone next signs in.
+ */
+export function restoreDeletedOnDevice(
+  realm: Realm,
+  playlist: Playlist,
+  signedInUserId: string | undefined
+) {
+  playlist.deletedAt = undefined;
+  const owner = playlist.ownerUserId ?? signedInUserId;
+  if (owner) {
+    playlist.ownerUserId = owner;
+    issueCreateCommand(realm, playlist);
+  }
 }
 
 /**
@@ -585,6 +643,16 @@ export function setArchived(realm: Realm, playlist: Playlist, archived: boolean)
 /** Applies one changes page, in array order, then prunes and rebuilds. */
 export function applyChangesPage(realm: Realm, playlist: Playlist, page: PlaylistChangesResponse) {
   const playlistId = playlist.playlistId;
+  // An empty page that confirms what is already applied writes nothing, so it
+  // can't wake the listeners that schedule the next pull.
+  if (
+    page.revisions.length === 0 &&
+    playlist.appliedRevision === page.next_after_revision &&
+    playlist.historyGeneration === page.history_generation &&
+    (playlist.summaryRevision ?? 0) >= page.head_revision
+  ) {
+    return;
+  }
   for (const revision of page.revisions) {
     for (const change of revision.changes) {
       switch (change.type) {
@@ -697,9 +765,17 @@ export function pruneConfirmed(realm: Realm, playlist: Playlist) {
  *
  * Generations are compared per playlist (its last pull) and for the library
  * feed (`FavoriteSyncState`); whichever notices first starts this, and a
- * second start is harmless because every resend replays.
+ * second start is harmless because every resend replays. When a playlist
+ * notices first, the library feed keeps its old generation on purpose: the
+ * snapshot that the dropped cursor forces then finds the new generation, and
+ * the favorites applier (`resetIfRestored`) finishes resetting favorites.
  */
 export function startRestoreRecovery(realm: Realm, ownerUserId: string) {
+  // When a playlist response notices the restore first, the library feed's
+  // cursor is from the old history too; dropping it makes the next pull a snapshot.
+  for (const syncState of realm.objects(FavoriteSyncState).filtered('scopeId == $0', ownerUserId)) {
+    syncState.libraryCursor = undefined;
+  }
   for (const playlist of realm.objects(Playlist).filtered('ownerUserId == $0', ownerUserId)) {
     markNeedsSnapshot(playlist);
   }

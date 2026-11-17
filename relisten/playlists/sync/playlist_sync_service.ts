@@ -544,6 +544,7 @@ export class PlaylistSyncService {
         for (const op of sent) {
           op.state = 'needs_attention';
           op.lastErrorCode = problemCode(error) ?? 'rejected';
+          op.failedTrackIds.push(...addedTrackIds(JSON.parse(op.operationJson) as PlaylistEdit));
         }
         rebuildDisplayed(this.realm, playlistId);
         return;
@@ -572,8 +573,9 @@ export class PlaylistSyncService {
    * just opened.
    */
   private async pull(capture: AccountScopeCapture, userId: string) {
+    // Open checks are cleared one at a time as they run, so a pass that fails
+    // partway leaves the rest for the next run.
     const requested = new Set(this.checkRequested);
-    this.checkRequested.clear();
     const candidates = [
       ...this.playlists.filtered(
         'ownerUserId == $0 AND serverState == $1 AND archived == false',
@@ -593,6 +595,7 @@ export class PlaylistSyncService {
       } else {
         continue;
       }
+      this.checkRequested.delete(playlistId);
       this.lastChecked.set(playlistId, Date.now());
     }
   }
@@ -623,12 +626,7 @@ export class PlaylistSyncService {
       if (problemCode(error) !== 'playlist_not_found') {
         throw error;
       }
-      this.write(capture, () => {
-        const playlist = this.realm.objectForPrimaryKey(Playlist, playlistId);
-        if (playlist) {
-          this.recreate(playlist);
-        }
-      });
+      this.recoverMissing(capture, playlistId);
       return;
     }
 
@@ -666,7 +664,12 @@ export class PlaylistSyncService {
           `/v1/playlists/${playlistId}/changes?after_revision=${playlist.appliedRevision}`
         );
       } catch (error) {
-        if (problemCode(error) !== 'snapshot_required') {
+        const code = problemCode(error);
+        if (code === 'playlist_not_found') {
+          this.recoverMissing(capture, playlistId);
+          return;
+        }
+        if (code !== 'snapshot_required') {
           throw error;
         }
         // The server's history is behind this device: treat it as a restore.
@@ -690,6 +693,21 @@ export class PlaylistSyncService {
         return;
       }
     }
+  }
+
+  /**
+   * The account says a playlist this device saw confirmed doesn't exist. An
+   * archived playlist is purged by the server in time, so only a live one is
+   * treated as lost to a restore and created again; one already being
+   * recreated is left to that create.
+   */
+  private recoverMissing(capture: AccountScopeCapture, playlistId: string) {
+    this.write(capture, () => {
+      const playlist = this.realm.objectForPrimaryKey(Playlist, playlistId);
+      if (playlist && playlist.serverState === 'synced' && !playlist.archived) {
+        this.recreate(playlist);
+      }
+    });
   }
 
   /** The account lost the playlist: create it again from what this device shows. Runs in a write. */

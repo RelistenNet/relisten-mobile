@@ -1,18 +1,19 @@
+import { useIsFocused } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import Realm from 'realm';
 import type { RelistenApiClient } from '@/relisten/api/client';
 import type { CatalogReferenceResolution } from '@/relisten/api/catalog/resolve';
 import { useRelistenApi } from '@/relisten/api/context';
-import { applyResolvedEntities } from '@/relisten/realm/catalog_apply';
-import { applyCatalogResolutions } from '@/relisten/realm/catalog_identity';
+import {
+  MAX_REFERENCES_PER_REQUEST,
+  resolveCatalogBatch,
+} from '@/relisten/realm/catalog_resolution';
 import { PlaylistTrackAvailability } from '@/relisten/realm/models/playlists/playlist';
-import { ensureResolverArtists } from '@/relisten/realm/resolver_artists';
 import { useRealm } from '@/relisten/realm/schema';
 import type { PlaylistRowGroup } from '@/relisten/playlists/playlist_hooks';
 import { log } from '@/relisten/util/logging';
 
 const logger = log.extend('playlist-catalog');
-const MAX_REFERENCES_PER_REQUEST = 500;
 
 /**
  * Asks the catalog about tracks and records what it says. Returned metadata is
@@ -29,28 +30,18 @@ export async function resolvePlaylistTracks(
   const unique = [...new Set(trackIds)];
 
   for (let offset = 0; offset < unique.length; offset += MAX_REFERENCES_PER_REQUEST) {
-    const batch = unique.slice(offset, offset + MAX_REFERENCES_PER_REQUEST);
+    const batch = unique
+      .slice(offset, offset + MAX_REFERENCES_PER_REQUEST)
+      .map((id) => ({ kind: 'track' as const, id, scheme: 'v4' as const }));
     try {
-      const response = await catalogApi.resolveCatalogReferences(
-        batch.map((id) => ({ kind: 'track' as const, id, scheme: 'v4' as const }))
-      );
-      if (response.error || !response.data) {
-        throw response.error?.error ?? new Error('Catalog resolver request failed.');
-      }
-      const { entities, references } = response.data;
-      await ensureResolverArtists(realm, catalogApi, entities);
-      if (realm.isClosed) {
-        return availability;
-      }
-
-      realm.write(() => {
-        applyResolvedEntities(realm, entities);
-        applyCatalogResolutions(realm, references);
-        const now = new Date();
-        for (const reference of references) {
-          availability.set(reference.id, reference.availability);
-          recordAvailability(realm, reference, now);
-        }
+      await resolveCatalogBatch(realm, catalogApi, batch, {
+        applyAlso: (references) => {
+          const now = new Date();
+          for (const reference of references) {
+            availability.set(reference.id, reference.availability);
+            recordAvailability(realm, reference, now);
+          }
+        },
       });
     } catch (error) {
       logger.warn(
@@ -93,8 +84,10 @@ function recordAvailability(realm: Realm, reference: CatalogReferenceResolution,
 }
 
 /**
- * Loads details for tracks this device hasn't seen yet, once per visit. Cached
- * tracks are never re-checked; a track is only re-checked when it fails to play.
+ * Loads details for tracks this device hasn't seen yet. Cached tracks are never
+ * re-checked here; a track is only re-checked when it fails to play. A request
+ * that fails is tried again when the screen is next focused or the device comes
+ * back online, never in a loop.
  */
 export function usePlaylistHydration(
   playlistId: string,
@@ -103,21 +96,24 @@ export function usePlaylistHydration(
 ) {
   const realm = useRealm();
   const { apiClient } = useRelistenApi();
-  const requested = useRef(new Set<string>());
+  const focused = useIsFocused();
+  const inFlight = useRef(new Set<string>());
 
   useEffect(() => {
-    if (!online) {
+    if (!online || !focused) {
       return;
     }
     const missing = groups
       .flatMap((g) => g.entries)
-      .filter((row) => row.status === 'loading' && !requested.current.has(row.entry.trackId))
+      .filter((row) => row.status === 'loading' && !inFlight.current.has(row.entry.trackId))
       .map((row) => row.entry.trackId);
     if (missing.length === 0) {
       return;
     }
 
-    missing.forEach((id) => requested.current.add(id));
-    void resolvePlaylistTracks(realm, apiClient, missing);
-  }, [apiClient, groups, online, playlistId, realm]);
+    missing.forEach((id) => inFlight.current.add(id));
+    void resolvePlaylistTracks(realm, apiClient, missing).finally(() => {
+      missing.forEach((id) => inFlight.current.delete(id));
+    });
+  }, [apiClient, focused, groups, online, playlistId, realm]);
 }

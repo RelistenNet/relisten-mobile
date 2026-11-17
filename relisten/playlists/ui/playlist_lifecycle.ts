@@ -3,9 +3,11 @@ import { Alert } from 'react-native';
 import { useAccountScope } from '@/relisten/accounts/account_context';
 import { confirmDestructiveAction } from '@/relisten/components/menus/confirm_destructive_action';
 import {
+  deletePlaylistOnDevice,
   RECENTLY_DELETED_DAYS,
-  setPlaylistDeleted,
+  restorePlaylistOnDevice,
 } from '@/relisten/playlists/playlist_repository';
+import { canAccessPlaylist, ownedDeletion } from '@/relisten/playlists/sync/playlist_sync_state';
 import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
 import type { Playlist } from '@/relisten/realm/models/playlists/playlist';
 import { usePlaylistSyncService } from '@/relisten/realm/root_services';
@@ -13,9 +15,10 @@ import { useRealm } from '@/relisten/realm/schema';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 
 /**
- * Deleting and restoring a playlist. A device playlist moves to Recently
- * Deleted locally. An account playlist is archived on the account, which needs
- * the internet and its owner signed in; it is never queued.
+ * Deleting and restoring a playlist. A device playlist, or an account playlist
+ * the server never accepted, moves to Recently Deleted on the device. Any other
+ * account playlist is archived on the account, which needs the internet and its
+ * owner signed in; it is never queued.
  */
 export function usePlaylistLifecycle() {
   const realm = useRealm();
@@ -50,8 +53,14 @@ export function usePlaylistLifecycle() {
 
   const remove = (playlist: Playlist) => {
     const { playlistId, name } = playlist;
-    const owned = !!playlist.ownerUserId;
-    if (owned && !canReachAccount(playlist, 'delete')) {
+    const deletion = playlist.ownerUserId ? ownedDeletion(realm, playlist) : 'local';
+    if (deletion === 'pending') {
+      Alert.alert('This playlist is still being saved.', 'Try again in a moment.');
+      service.flush();
+      return;
+    }
+    const archive = deletion === 'archive';
+    if (archive && !canReachAccount(playlist, 'delete')) {
       return;
     }
 
@@ -60,19 +69,25 @@ export function usePlaylistLifecycle() {
       message: `You can restore it from Recently Deleted for ${RECENTLY_DELETED_DAYS} days.`,
       confirmLabel: 'Delete',
       onConfirm: async () => {
-        if (owned) {
+        // The account or the playlist may have changed while the alert was up.
+        if (!playlist.isValid() || !canAccessPlaylist(realm, playlist)) {
+          return;
+        }
+        if (archive) {
           if (!(await setArchived(playlist, true))) {
             return;
           }
         } else {
-          setPlaylistDeleted(realm, playlistId, true);
+          deletePlaylistOnDevice(realm, playlistId);
         }
         router.back();
         showPlaylistToast(`Deleted ${name}`, [
           {
             label: 'Undo',
             onPress: () =>
-              owned ? void restore(playlist) : setPlaylistDeleted(realm, playlistId, false),
+              archive
+                ? void restore(playlist)
+                : restorePlaylistOnDevice(realm, playlistId, signedIn()),
           },
         ]);
       },
@@ -80,14 +95,17 @@ export function usePlaylistLifecycle() {
   };
 
   const restore = async (playlist: Playlist) => {
-    if (!playlist.ownerUserId) {
-      setPlaylistDeleted(realm, playlist.playlistId, false);
+    if (playlist.deletedAt) {
+      restorePlaylistOnDevice(realm, playlist.playlistId, signedIn());
       return;
     }
     if (canReachAccount(playlist, 'restore')) {
       await setArchived(playlist, false);
     }
   };
+
+  /** The signed-in account, which a restored device playlist is saved to. */
+  const signedIn = () => (account.isAuthenticated ? account.userId : undefined) ?? undefined;
 
   return { remove, restore };
 }

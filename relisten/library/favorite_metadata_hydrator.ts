@@ -1,8 +1,5 @@
 import type { RelistenApiClient } from '@/relisten/api/client';
-import type {
-  CatalogReferenceRequest,
-  CatalogResolveResponse,
-} from '@/relisten/api/catalog/resolve';
+import type { CatalogReferenceRequest } from '@/relisten/api/catalog/resolve';
 import { Artist } from '@/relisten/realm/models/artist';
 import { UserFavorite } from '@/relisten/realm/models/library';
 import { Show } from '@/relisten/realm/models/show';
@@ -13,19 +10,15 @@ import { Tour } from '@/relisten/realm/models/tour';
 import { NormalizedSong, NormalizedVenue } from '@/relisten/realm/models/catalog';
 import { Venue } from '@/relisten/realm/models/venue';
 import { Year } from '@/relisten/realm/models/year';
-import { applyCatalogResolutions } from '@/relisten/realm/catalog_identity';
-import { applyResolvedEntities } from '@/relisten/realm/catalog_apply';
-import { ensureResolverArtists } from '@/relisten/realm/resolver_artists';
-import { log } from '@/relisten/util/logging';
 import {
-  catalogIdForFavoriteTarget,
-  isFavoriteTarget,
-  type FavoriteTarget,
-} from './favorite_catalog_target';
+  MAX_REFERENCES_PER_REQUEST,
+  resolveCatalogBatch,
+} from '@/relisten/realm/catalog_resolution';
+import { log } from '@/relisten/util/logging';
+import { catalogIdForFavoriteTarget, type FavoriteTarget } from './favorite_catalog_target';
 import type { FavoriteAccountScopeCapture, FavoriteRepository } from './favorite_repository';
 
 const logger = log.extend('favorite-catalog');
-const MAX_REFERENCES_PER_REQUEST = 500;
 
 /** Refreshes catalog metadata and redirects without changing saved favorite targets. */
 export class FavoriteMetadataHydrator {
@@ -79,21 +72,8 @@ export class FavoriteMetadataHydrator {
       }
 
       try {
-        const response = await this.catalogApi.resolveCatalogReferences(batch);
-        if (response.error || !response.data) {
-          throw response.error?.error ?? new Error('Catalog resolver request failed.');
-        }
-        validateResponse(batch, response.data);
-
-        const entities = response.data.entities;
-        await ensureResolverArtists(this.repository.realm, this.catalogApi, entities);
-        if (this.repository.realm.isClosed || !this.repository.isCaptureCurrent(capture)) {
-          return;
-        }
-
-        this.repository.realm.write(() => {
-          applyResolvedEntities(this.repository.realm, entities);
-          applyCatalogResolutions(this.repository.realm, response.data!.references);
+        await resolveCatalogBatch(this.repository.realm, this.catalogApi, batch, {
+          isCurrent: () => this.repository.isCaptureCurrent(capture),
         });
       } catch (error) {
         // Membership and its sync cursor stay durable when metadata cannot load.
@@ -179,26 +159,4 @@ export class FavoriteMetadataHydrator {
 
 function isActive<T extends { deletedAt?: Date }>(row: T | null): row is T {
   return row !== null && row.deletedAt == null;
-}
-
-function validateResponse(request: CatalogReferenceRequest[], response: CatalogResolveResponse) {
-  if (response.references.length !== request.length) {
-    throw new Error('Catalog resolver omitted requested references.');
-  }
-
-  for (let index = 0; index < request.length; index++) {
-    const expected = request[index];
-    const actual = response.references[index];
-    if (actual.scheme !== 'v4' || actual.id !== expected.id || actual.kind !== expected.kind) {
-      throw new Error('Catalog resolver returned an unexpected reference.');
-    }
-
-    if (actual.availability === 'available' || actual.availability === 'redirected') {
-      if (!isFavoriteTarget(actual.target) || actual.target.kind !== actual.kind) {
-        throw new Error('Catalog resolver returned an invalid target.');
-      }
-    } else if (actual.availability !== 'unavailable' && actual.availability !== 'retired') {
-      throw new Error('Catalog resolver returned an unknown availability.');
-    }
-  }
 }
