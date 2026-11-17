@@ -1,6 +1,5 @@
+import { accountPath } from '@/relisten/accounts/ui/account_routes';
 import { useAccount } from '@/relisten/accounts/account_context';
-import { AccountAvatar } from '@/relisten/accounts/ui/account_avatar';
-import { useAccountSyncSummary } from '@/relisten/accounts/ui/sync_status';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { usePlaylists } from '@/relisten/playlists/playlist_hooks';
@@ -17,45 +16,13 @@ import { TouchableOpacity, View } from 'react-native';
 const DISMISSED_KEY = 'myLibrary.signInPromptDismissed';
 
 /**
- * The account's place on My Library. Signed in, a quiet line that leads to the
- * Relisten tab, where account settings live. Signed out, an offer to sign in,
+ * The account's place in My Library's content: nothing once signed in (the
+ * header's account button covers that), and an offer to sign in otherwise,
  * shown only once there is something worth saving and until it is dismissed.
  */
 export function AccountEntryCard() {
-  const { profile, status } = useAccount();
-
-  if (status === 'restoring') {
-    return null;
-  }
-  if (status === 'signedIn' && profile) {
-    return <SignedInLine username={profile.username} />;
-  }
-  return <SignInPrompt />;
-}
-
-function SignedInLine({ username }: { username: string }) {
-  const router = useRouter();
-  const summary = useAccountSyncSummary();
-
-  return (
-    <TouchableOpacity
-      accessibilityRole="button"
-      accessibilityLabel={`@${username}, ${summary.label}`}
-      accessibilityHint="Opens account settings on the Relisten tab"
-      className="mb-2 flex-row items-center px-4 py-2"
-      onPress={() => router.navigate('/relisten/tabs/(relisten)')}
-    >
-      <AccountAvatar username={username} size={28} />
-      <RelistenText className="ml-3 shrink font-semibold" numberOfLines={1}>
-        @{username}
-      </RelistenText>
-      <RelistenText className={`ml-2 shrink text-sm ${summary.textClassName}`} numberOfLines={1}>
-        {summary.label}
-      </RelistenText>
-      <View className="flex-1" />
-      <MaterialIcons color="#9ca3af" name="chevron-right" size={22} />
-    </TouchableOpacity>
-  );
+  const { status } = useAccount();
+  return status === 'signedOut' ? <SignInPrompt /> : null;
 }
 
 function SignInPrompt() {
@@ -100,7 +67,7 @@ function SignInPrompt() {
       <RelistenButton
         className="mt-3 self-start"
         intent="primary"
-        onPress={() => router.push('/relisten/account')}
+        onPress={() => router.push(accountPath('(myLibrary)'))}
       >
         Sign In
       </RelistenButton>

@@ -1,3 +1,4 @@
+import { accountPath } from '@/relisten/accounts/ui/account_routes';
 import { useAccount } from '@/relisten/accounts/account_context';
 import { AccountAvatar } from '@/relisten/accounts/ui/account_avatar';
 import { useAccountSyncSummary } from '@/relisten/accounts/ui/sync_status';
@@ -25,23 +26,21 @@ export function AccountSettingsSection() {
       ? `@${pendingUsername} is waiting to sync`
       : profile.usernameReviewNeeded
         ? 'Choose how you appear on Relisten'
-        : summary.label
+        : summary.label || 'Account, sync and diagnostics'
     : 'Save your favorites and playlists to your account';
 
   return (
-    <Link href="/relisten/account" push asChild>
+    <Link href={accountPath('(relisten)')} push asChild>
       <TouchableOpacity
         accessibilityRole="button"
         accessibilityLabel={`${title}, ${subtitle}`}
-        className="mx-4 mb-2 mt-4 flex-row items-center rounded-xl bg-relisten-blue-800 p-4"
+        className="mt-2 flex-row items-center border-y border-white/10 px-4 py-3"
         disabled={status === 'restoring'}
       >
         {signedIn ? (
           <AccountAvatar username={profile.username} size={48} />
         ) : (
-          <View className="h-12 w-12 items-center justify-center rounded-full bg-relisten-blue-700">
-            <MaterialIcons color="white" name="person" size={28} />
-          </View>
+          <MaterialIcons color="white" name="account-circle" size={48} />
         )}
         <View className="ml-3 min-w-0 flex-1">
           <RelistenText className="text-lg font-semibold" numberOfLines={1}>

@@ -1,3 +1,4 @@
+import { usernamePath, useAccountTab } from '@/relisten/accounts/ui/account_routes';
 import { useAccount } from '@/relisten/accounts/account_context';
 import { accountErrorMessage } from '@/relisten/accounts/ui/account_error_notice';
 import { showAnonymousFavoritesImportPrompt } from '@/relisten/accounts/ui/anonymous_favorites_import_prompt';
@@ -22,6 +23,7 @@ export function usePostSignInPrompts() {
   const { defer: deferAnonymousFavorites, importToActiveAccount: importAnonymousFavorites } =
     anonymousImport;
   const router = useRouter();
+  const tab = useAccountTab();
   const isFocused = useIsFocused();
   const checkedInitialReviewUser = useRef<string | null>(null);
   const importAfterReviewUser = useRef<string | null>(null);
@@ -137,7 +139,7 @@ export function usePostSignInPrompts() {
       }
 
       importAfterReviewUser.current = userId;
-      router.push('/relisten/account/username');
+      router.push(usernamePath(tab));
     });
 
     return () => {

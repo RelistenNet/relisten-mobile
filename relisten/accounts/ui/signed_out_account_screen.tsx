@@ -20,7 +20,7 @@ export function SignedOutAccountScreen({
 }: SignedOutAccountScreenProps) {
   return (
     <ScrollView
-      className="flex-1 bg-relisten-blue-950"
+      className="flex-1 bg-relisten-blue-900"
       contentContainerStyle={{ padding: 24, paddingTop: 40 }}
       keyboardShouldPersistTaps="handled"
     >

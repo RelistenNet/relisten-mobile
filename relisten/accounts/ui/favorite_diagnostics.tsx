@@ -140,7 +140,7 @@ function favoriteCatalogObjectExists(
   }
 }
 
-function DiagnosticRow({ label, value }: { label: string; value: string }) {
+export function DiagnosticRow({ label, value }: { label: string; value: string }) {
   return (
     <View className="mb-2 flex-row items-start">
       <RelistenText className="w-36 shrink-0 text-sm font-semibold">{label}</RelistenText>
