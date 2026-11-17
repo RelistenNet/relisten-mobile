@@ -1,3 +1,4 @@
+import { useStableCallback } from '@/relisten/util/use_stable_callback';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -155,35 +156,15 @@ export default function PlaylistDetailPage() {
 
   return (
     <View className="flex-1 bg-relisten-blue-900">
-      <Stack.Screen options={{ title: editing ? 'Editing' : '' }} />
-      <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Button onPress={editing ? finishEditing : startEditing}>
-          {editing ? 'Done' : 'Edit'}
-        </Stack.Toolbar.Button>
-        <Stack.Toolbar.Menu accessibilityLabel="Playlist actions" icon={nativeMenuIcons.more}>
-          <Stack.Toolbar.Menu inline>
-            <Stack.Toolbar.MenuAction icon={nativeMenuIcons.edit} onPress={startRename}>
-              Rename…
-            </Stack.Toolbar.MenuAction>
-            <Stack.Toolbar.MenuAction
-              icon={nativeMenuIcons.download}
-              isOn={downloadedOnly}
-              onPress={() => setDownloadedOnly(!downloadedOnly)}
-            >
-              Show Downloaded Only
-            </Stack.Toolbar.MenuAction>
-          </Stack.Toolbar.Menu>
-          <Stack.Toolbar.Menu inline>
-            <Stack.Toolbar.MenuAction
-              destructive
-              icon={nativeMenuIcons.delete}
-              onPress={deletePlaylist}
-            >
-              Delete Playlist…
-            </Stack.Toolbar.MenuAction>
-          </Stack.Toolbar.Menu>
-        </Stack.Toolbar.Menu>
-      </Stack.Toolbar>
+      <PlaylistHeader
+        editing={editing}
+        downloadedOnly={downloadedOnly}
+        onEdit={startEditing}
+        onDone={finishEditing}
+        onRename={startRename}
+        onToggleDownloadedOnly={() => setDownloadedOnly(!downloadedOnly)}
+        onDelete={deletePlaylist}
+      />
 
       {editing ? (
         <PlaylistEditList
@@ -417,4 +398,64 @@ function nothingPlayableMessage(online: boolean) {
   return online
     ? 'None of these recordings are available right now.'
     : 'None of these tracks are downloaded.';
+}
+
+/**
+ * The playlist's native header: Edit or Done, and the actions menu. Handlers
+ * are held stable so the header is set again only when what it shows
+ * changes, not each time the screen re-renders as data loads (on iOS 26,
+ * re-setting header items redraws the bar and flashes the back button).
+ */
+function PlaylistHeader({
+  editing,
+  downloadedOnly,
+  onEdit,
+  onDone,
+  onRename,
+  onToggleDownloadedOnly,
+  onDelete,
+}: {
+  editing: boolean;
+  downloadedOnly: boolean;
+  onEdit: () => void;
+  onDone: () => void;
+  onRename: () => void;
+  onToggleDownloadedOnly: () => void;
+  onDelete: () => void;
+}) {
+  const edit = useStableCallback(onEdit);
+  const done = useStableCallback(onDone);
+  const rename = useStableCallback(onRename);
+  const toggleDownloadedOnly = useStableCallback(onToggleDownloadedOnly);
+  const remove = useStableCallback(onDelete);
+
+  return (
+    <>
+      <Stack.Screen options={{ title: editing ? 'Editing' : '' }} />
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button onPress={editing ? done : edit}>
+          {editing ? 'Done' : 'Edit'}
+        </Stack.Toolbar.Button>
+        <Stack.Toolbar.Menu accessibilityLabel="Playlist actions" icon={nativeMenuIcons.more}>
+          <Stack.Toolbar.Menu inline>
+            <Stack.Toolbar.MenuAction icon={nativeMenuIcons.edit} onPress={rename}>
+              Rename…
+            </Stack.Toolbar.MenuAction>
+            <Stack.Toolbar.MenuAction
+              icon={nativeMenuIcons.download}
+              isOn={downloadedOnly}
+              onPress={toggleDownloadedOnly}
+            >
+              Show Downloaded Only
+            </Stack.Toolbar.MenuAction>
+          </Stack.Toolbar.Menu>
+          <Stack.Toolbar.Menu inline>
+            <Stack.Toolbar.MenuAction destructive icon={nativeMenuIcons.delete} onPress={remove}>
+              Delete Playlist…
+            </Stack.Toolbar.MenuAction>
+          </Stack.Toolbar.Menu>
+        </Stack.Toolbar.Menu>
+      </Stack.Toolbar>
+    </>
+  );
 }

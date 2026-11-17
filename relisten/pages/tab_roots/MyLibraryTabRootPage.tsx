@@ -1,3 +1,4 @@
+import { useStableCallback } from '@/relisten/util/use_stable_callback';
 import { ListRow } from '@/relisten/components/list_row';
 import { ItemSeparator } from '@/relisten/components/item_separator';
 import { SubtitleText } from '@/relisten/components/row_subtitle';
@@ -70,6 +71,8 @@ function AccountHeaderButton() {
   const summary = useAccountSyncSummary();
   const signedIn = status === 'signedIn' && isAuthenticated;
   const needsAttention = signedIn && summary.state === 'needsAttention';
+  // Stable, so this header isn't set again when the screen re-renders.
+  const openAccount = useStableCallback(() => router.push(accountPath('(myLibrary)')));
 
   return (
     <Stack.Toolbar placement="right">
@@ -84,7 +87,7 @@ function AccountHeaderButton() {
               ? nativeMenuIcons.accountSignedIn
               : nativeMenuIcons.account
         }
-        onPress={() => router.push(accountPath('(myLibrary)'))}
+        onPress={openAccount}
       />
     </Stack.Toolbar>
   );
