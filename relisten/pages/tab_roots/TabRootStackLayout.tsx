@@ -103,6 +103,9 @@ export default function TabRootStackLayout() {
         <Stack.Screen name="[artistUuid]/song/[songUuid]/index" options={{ title: '' }} />
         <Stack.Screen name="[artistUuid]/song/[songUuid]/tracks" options={{ title: '' }} />
         <Stack.Screen name="history/tracks" options={{ title: 'My History' }} />
+        <Stack.Screen name="playlists/index" options={{ title: 'Playlists' }} />
+        <Stack.Screen name="playlists/[playlistId]" options={{ title: '' }} />
+        <Stack.Screen name="playlists/recently-deleted" options={{ title: 'Recently Deleted' }} />
       </Stack>
     </View>
   );

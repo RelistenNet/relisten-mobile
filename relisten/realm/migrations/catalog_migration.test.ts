@@ -292,6 +292,8 @@ function seedSchema16(realm: Realm) {
   });
 }
 
+const NO_PLAYLIST_CONTEXT = { playlistId: null, entryId: null, segmentInstanceId: null };
+
 describe('direct schema-16 offline upgrade', () => {
   let directory: string;
   let realm: Realm | undefined;
@@ -352,8 +354,9 @@ describe('direct schema-16 offline upgrade', () => {
           .objectForPrimaryKey(PlayerState, PLAYER_STATE_SENTINEL)
           ?.queueEntries.map((entry) => entry.toJSON())
       ).toEqual([
-        { id: 'first', sourceTrackUuid: trackUuid },
-        { id: 'second', sourceTrackUuid: trackUuid },
+        // Older queue entries migrate with no playlist context.
+        { id: 'first', sourceTrackUuid: trackUuid, ...NO_PLAYLIST_CONTEXT },
+        { id: 'second', sourceTrackUuid: trackUuid, ...NO_PLAYLIST_CONTEXT },
       ]);
       expect(
         realm.objectForPrimaryKey(PlayerState, PLAYER_STATE_SENTINEL)?.checkpoint?.toJSON()

@@ -13,10 +13,14 @@ import { useCallback, useMemo } from 'react';
 import { Platform, Share } from 'react-native';
 import { playerTrackAccessibilityLabel } from './player_display_helpers';
 import { useFavorite } from '@/relisten/library/favorite_hooks';
+import { trackIdForSourceTrack } from '@/relisten/playlists/playlist_hooks';
+import { openAddToPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
+import { useRouter } from 'expo-router';
 
 export type PlayShow = (sourceTrack?: SourceTrack) => void;
 
 const ACTION_IDS = {
+  addToPlaylist: 'add-to-playlist',
   addToQueue: 'add-to-queue',
   download: 'download',
   favorite: 'favorite',
@@ -74,6 +78,7 @@ type SourceTrackActionsMenuProps = {
 
 export function SourceTrackActionsMenu({ playShow, sourceTrack }: SourceTrackActionsMenuProps) {
   const player = useRelistenPlayer();
+  const router = useRouter();
   const favorite = useFavorite('track', sourceTrack.uuid);
   const queueTrack = useMemo(() => PlayerQueueTrack.fromSourceTrack(sourceTrack), [sourceTrack]);
   const offlineStatus = sourceTrack.offlineInfo?.status;
@@ -94,6 +99,11 @@ export function SourceTrackActionsMenu({ playShow, sourceTrack }: SourceTrackAct
         id: ACTION_IDS.addToQueue,
         image: nativeMenuIcons.addToQueue,
         title: 'Add to End of Queue',
+      },
+      {
+        id: ACTION_IDS.addToPlaylist,
+        image: nativeMenuIcons.addToPlaylist,
+        title: 'Add to Playlist…',
       },
       {
         id: ACTION_IDS.favorite,
@@ -123,6 +133,9 @@ export function SourceTrackActionsMenu({ playShow, sourceTrack }: SourceTrackAct
         case ACTION_IDS.addToQueue:
           player.queue.addTrackToEndOfQueue([queueTrack]);
           break;
+        case ACTION_IDS.addToPlaylist:
+          openAddToPlaylist(router, [trackIdForSourceTrack(sourceTrack)], { together: false });
+          break;
         case ACTION_IDS.favorite:
           favorite.toggleFavorite();
           break;
@@ -144,7 +157,7 @@ export function SourceTrackActionsMenu({ playShow, sourceTrack }: SourceTrackAct
         }
       }
     },
-    [favorite, playShow, player, queueTrack, sourceTrack]
+    [favorite, playShow, player, queueTrack, router, sourceTrack]
   );
 
   return (

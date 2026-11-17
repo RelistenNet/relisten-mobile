@@ -1,4 +1,3 @@
-import { decodeUuidCatalogId } from '@/relisten/api/catalog/identity';
 import type { RelistenApiClient } from '@/relisten/api/client';
 import type {
   CatalogReferenceRequest,
@@ -16,6 +15,7 @@ import { Venue } from '@/relisten/realm/models/venue';
 import { Year } from '@/relisten/realm/models/year';
 import { applyCatalogResolutions } from '@/relisten/realm/catalog_identity';
 import { applyResolvedEntities } from '@/relisten/realm/catalog_apply';
+import { ensureResolverArtists } from '@/relisten/realm/resolver_artists';
 import { log } from '@/relisten/util/logging';
 import {
   catalogIdForFavoriteTarget,
@@ -85,35 +85,8 @@ export class FavoriteMetadataHydrator {
         }
         validateResponse(batch, response.data);
 
-        // Resolver patches omit artists held in the shared list. Delay importing
-        // its hook-bearing module until root services have initialized.
-        const { ensureCatalogArtist } = await import('@/relisten/realm/models/artist_repo');
         const entities = response.data.entities;
-        const returnedArtists = new Set(entities.artists.map((artist) => artist.id));
-        const dependentRows = [
-          ...entities.years,
-          ...entities.tours,
-          ...entities.imported_venues,
-          ...entities.imported_songs,
-          ...entities.artist_venues,
-          ...entities.shows,
-          ...entities.sources,
-          ...entities.source_sets,
-          ...entities.tracks,
-          ...entities.songs,
-        ];
-        const artistIds = new Set(dependentRows.map((row) => row.artist_id));
-        await Promise.all(
-          [...artistIds]
-            .filter((id) => !returnedArtists.has(id))
-            .map((id) =>
-              ensureCatalogArtist(
-                this.repository.realm,
-                this.catalogApi,
-                decodeUuidCatalogId(id, 'artist')
-              )
-            )
-        );
+        await ensureResolverArtists(this.repository.realm, this.catalogApi, entities);
         if (this.repository.realm.isClosed || !this.repository.isCaptureCurrent(capture)) {
           return;
         }
