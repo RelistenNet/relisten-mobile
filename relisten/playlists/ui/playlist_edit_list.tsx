@@ -37,7 +37,8 @@ import {
 import type { PlaylistLayout } from '@/relisten/playlists/playlist_hooks';
 import { trackTitle } from '@/relisten/playlists/playlist_format';
 import { GroupMenu, TrackMenu } from '@/relisten/playlists/ui/playlist_menus';
-import { LinkRail, linkedLabel, showLine } from '@/relisten/playlists/ui/playlist_rows';
+import { LinkRail } from '@/relisten/playlists/ui/link_rail';
+import { linkedLabel, showLine } from '@/relisten/playlists/ui/playlist_rows';
 import { removedMessage, toastEdit } from '@/relisten/playlists/ui/playlist_toast';
 
 /**

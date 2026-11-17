@@ -1,11 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { TouchableOpacity, View } from 'react-native';
 import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import { OverflowMenuTrigger } from '@/relisten/components/menus/overflow_menu_trigger';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { SoundIndicator } from '@/relisten/components/sound_indicator';
 import { SourceTrackOfflineIndicator } from '@/relisten/components/source/source_track_offline_indicator';
-import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useRelistenPlayerPlaybackState } from '@/relisten/player/relisten_player_hooks';
 import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player_queue_hooks';
 import type {
@@ -16,6 +15,7 @@ import type {
 import { trackTitle } from '@/relisten/playlists/playlist_format';
 import type { LinkPosition } from '@/relisten/playlists/playlist_drag_slots';
 import { TrackMenu } from '@/relisten/playlists/ui/playlist_menus';
+import { LinkRail } from '@/relisten/playlists/ui/link_rail';
 import { tw } from '@/relisten/util/tw';
 
 /** "Grateful Dead · 1977-05-08 · Barton Hall". The venue is last, so it is what truncates. */
@@ -86,34 +86,6 @@ export function playlistViewRows(groups: PlaylistRowGroup[]): PlaylistViewRow[] 
   }
   return rows;
 }
-
-/**
- * The thin line in the left gutter that joins linked tracks. It is the only
- * mark a link gets in the view, so a playlist built from many shows still reads
- * as one smooth list.
- */
-export function LinkRail({ link, active }: { link?: LinkPosition; active: boolean }) {
-  if (!link) {
-    return null;
-  }
-  return (
-    <View
-      pointerEvents="none"
-      style={[
-        railStyles.rail,
-        (link === 'first' || link === 'only') && railStyles.first,
-        (link === 'last' || link === 'only') && railStyles.last,
-        { backgroundColor: active ? RelistenBlue[400] : RelistenBlue[700] },
-      ]}
-    />
-  );
-}
-
-const railStyles = StyleSheet.create({
-  rail: { position: 'absolute', left: 6, width: 2, top: 0, bottom: 0 },
-  first: { top: 16, borderTopLeftRadius: 1, borderTopRightRadius: 1 },
-  last: { bottom: 16, borderBottomLeftRadius: 1, borderBottomRightRadius: 1 },
-});
 
 export function PlaylistTrackRow({
   playlistId,

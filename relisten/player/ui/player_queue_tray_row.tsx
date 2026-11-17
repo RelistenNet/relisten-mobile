@@ -14,6 +14,8 @@ import {
   playerQueueDate,
 } from './player_display_helpers';
 import { PlayerQueueActionsMenu } from './player_queue_actions_menu';
+import type { LinkPosition } from '@/relisten/playlists/playlist_drag_slots';
+import { LinkRail } from '@/relisten/playlists/ui/link_rail';
 import { QueueDragHandle } from './player_queue_row';
 
 function CurrentTrackPlaybackButton() {
@@ -41,12 +43,17 @@ export function PlayerQueueTrayRow({
   index,
   current,
   showArtist,
+  link,
+  linkPlaying,
   drag,
 }: {
   track: PlayerQueueTrack;
   index: number;
   current: boolean;
   showArtist: boolean;
+  /** Where this track sits in a run of linked tracks, which shuffle keeps together. */
+  link?: LinkPosition;
+  linkPlaying: boolean;
   drag: () => void;
 }) {
   const player = useRelistenPlayer();
@@ -55,6 +62,7 @@ export function PlayerQueueTrayRow({
   const stackControls = fontScale >= 1.4;
   return (
     <View className={stackControls ? 'pl-4 pr-0.5' : 'flex-row items-center pl-4 pr-0.5'}>
+      <LinkRail link={link} active={linkPlaying} />
       <TouchableOpacity
         accessibilityRole="button"
         accessibilityLabel={playerTrackAccessibilityLabel(source)}

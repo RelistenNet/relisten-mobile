@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { type SourceTrack } from '@/relisten/realm/models/source_track';
-import { playerTrackAccessibilityLabel } from './player_display_helpers';
+import { playerTrackAccessibilityLabel, queueLinkPosition } from './player_display_helpers';
 
 function performance(displayDate: string, venue?: { name: string; location: string }) {
   return {
@@ -37,5 +37,23 @@ describe('spoken performance identity', () => {
     expect(playerTrackAccessibilityLabel(performance('2026-10-15'))).toBe(
       'Scarlet Begonias > Fire on the Mountain, Grateful Dead, Oct 15, 2026'
     );
+  });
+});
+
+describe('queue link position', () => {
+  const track = (link?: string) => ({
+    playlistContext: link ? { segmentInstanceId: link } : undefined,
+  });
+
+  it('marks runs of one link and leaves single tracks and split-off tracks unmarked', () => {
+    const queue = [track('a'), track('a'), track('a'), track(), track('b'), track('a')];
+    expect(queue.map((_, index) => queueLinkPosition(queue, index))).toEqual([
+      'first',
+      'middle',
+      'last',
+      undefined,
+      undefined,
+      undefined,
+    ]);
   });
 });
