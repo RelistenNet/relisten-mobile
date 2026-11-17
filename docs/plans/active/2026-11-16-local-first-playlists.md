@@ -122,7 +122,7 @@ Each milestone adds only its own models, in its own schema version. Catalog
 references stay typed strings, not Realm links, so entries survive catalog
 eviction, as `UserFavorite` does.
 
-### Schema 24 (milestone 1)
+### Schemas 24 and 25 (milestone 1)
 
 `Playlist`
 
@@ -151,7 +151,7 @@ Deleting a group or track in an unowned playlist removes its rows outright;
 nothing else holds their IDs. Deleting a whole unowned playlist sets `deletedAt`
 instead, and the startup purge removes it and its rows after 30 days.
 
-### Schema 25 (milestone 2)
+### Schema 26 (milestone 2)
 
 - `Playlist` gains:
   - `ownerUserId?` (indexed); empty means unowned
@@ -838,6 +838,38 @@ Follow `AGENTS.md`: run affected Vitest files, `yarn ts:check` and `yarn lint`.
    switch between an anonymous set and an account set. That is separate work, and
    cheap while favorites are dev-alpha only.
 
+## Milestone 1 implementation notes (2026-11-17)
+
+Built on `codex/v4-playlists-mobile` and exercised in the iOS simulator against
+the production catalog. Where the build differs from the spec above, these
+notes win:
+
+- **Schemas.** Schema 24 added the playlist models and queue context. Schema 25
+  gives `PlaylistTrackAvailability` a `status` (`unavailable` or `redirected`)
+  and a `redirectTrackId`, because catalog redirects only cover songs and venues.
+  Account sync therefore starts at schema 26.
+- **Toasts** reuse the app's existing floating top message (as the history queue
+  Undo does), which never collides with the mini player or tab bar. Toasts appear
+  only when an edit changed something. Undo history is in memory: 5 snapshots for
+  each of the 10 most recently edited playlists, so Undo still works after leaving
+  the screen.
+- **Dragging** uses `react-native-draggable-flatlist`, like the player queue.
+  Group boundaries are real header and footer rows, so a drop is inside a group
+  when it lands after the header or before the footer. Whole groups move in an
+  **Arrange Groups** mode, where each group is one row; there is no mid-drag
+  collapse. Joining two loose tracks is done with **Keep with…** (row menu, or the
+  toast after a drop that lands right under a single track), not hover-to-join.
+- **Menus** hide moves that don't apply instead of showing disabled items with
+  subtitles; native menu items have no subtitle support.
+- **New playlist** shows the suggested name as a placeholder; Create uses it when
+  the field is empty.
+- **Not built yet:** the first-time shuffle hint, the Now Playing jump pill, the
+  sign-in card (playlists don't sync until milestone 2), and **Android Auto**. The
+  Android Auto bridge needs native Kotlin, and no JDK 17 or 21 was available to
+  compile it.
+- **Not verified by hand:** dragging (simulator automation can't hold a touch);
+  the drop logic has unit tests instead. CarPlay (type-checked, not run).
+
 ## Progress
 
 - [x] (2026-11-16) Branch created; scope, favorites, Realm and queue code
@@ -845,5 +877,6 @@ Follow `AGENTS.md`: run affected Vitest files, `yarn ts:check` and `yarn lint`.
 - [x] (2026-11-16) Alec accepted the first round of decisions.
 - [x] (2026-11-17) Replaced separate local and account lists with one list and
   optional owners.
-- [ ] Milestone 1: playlists on the device.
+- [x] (2026-11-17) Milestone 1: playlists on the device, except Android Auto.
+- [ ] Android Auto playlists list (needs a JDK 17 or 21 to build and verify).
 - [ ] Milestone 2: saving to an account (after the User Service delivery 1).
