@@ -341,21 +341,28 @@ an account switch writes nothing.
 
 **Sending**
 
-- Debounce sends for 2 seconds after the last edit. Flush when the editor closes,
-  the app backgrounds, or connectivity returns.
+- Debounce sends for 20 seconds after the last edit (Alec, 2026-11-17; one
+  constant). Flush immediately when the editor closes, the user leaves the
+  playlist, the app backgrounds, or connectivity returns. The outbox is durable,
+  so the delay risks nothing; other devices just see changes later.
 - Before sending, compact **truly unsent** operations only (pending, zero
   attempts). An operation **references** an item when it names it as target,
   destination parent or anchor.
-  - Moves are never merged in v1. A move can create a group (`move_entry` with
-    `new_segment_id`) that later operations depend on, so merging moves can erase
-    a needed group. Example: move E into new group N, insert F into N, move E into
-    T. Merging the two moves of E removes N's creation, and inserting F then fails
-    with `parent_missing`. Revisit only with dependency tracking for created groups.
+  - Two moves of the same item (`move_entry` or `move_segment`) merge into the
+    later one unless an operation between them references the item, or the
+    earlier move created a group (`move_entry` with `new_segment_id`) that any
+    later operation references. Example of the exception: move E into new group
+    N, insert F into N, move E into T. Merging would erase N's creation, and
+    inserting F would then fail with `parent_missing`. When nothing references the
+    new group, merging is safe: E was its only track, so the second move would
+    have emptied and deleted it anyway. A move that empties its old group needs
+    no exception, since the merged move empties it too.
   - An insert followed by a delete of the same unsent item drops both, but only if
     no other operation references that item.
   - Consecutive `update_metadata` operations merge.
   - Property tests check that replaying the compacted outbox gives the same state
-    as replaying the original. They include the move-into-new-group case above.
+    as replaying the original. They include the move-into-new-group case above,
+    both with and without a later reference to the new group.
 - Batches are capped at 500 operations and 1.5 MiB of payload. A `413` splits the
   batch and retries, except while `quota_paused`, when the outbox must travel whole.
 
