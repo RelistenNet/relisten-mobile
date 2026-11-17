@@ -52,6 +52,12 @@ const logger = log.extend('playlist-sync');
  */
 export const SEND_DELAY_MS = 20_000;
 const RETRY_DELAY_MS = 30_000;
+/**
+ * Opening a playlist checks the account for other devices' changes to it,
+ * unless it was checked this recently. The library feed covers everything else
+ * when the app comes to the foreground.
+ */
+const OPEN_CHECK_INTERVAL_MS = 30_000;
 const MAX_BATCH_BYTES = 1.5 * 1024 * 1024;
 
 export interface PlaylistSyncEnvironment {
@@ -103,6 +109,9 @@ export class PlaylistSyncService {
   private retryAt = 0;
   /** Lowered after a 413 so an oversized batch is split; restored after a success. */
   private batchLimit = MAX_BATCH_OPERATIONS;
+  /** Playlists whose screen opened and should be checked on the next pull. */
+  private readonly checkRequested = new Set<string>();
+  private readonly lastChecked = new Map<string, number>();
   private readonly operations;
   private readonly commands;
   private readonly playlists;
@@ -152,6 +161,15 @@ export class PlaylistSyncService {
       this.retryAt = 0;
       this.flushRequested = true;
     }
+    this.requestRun();
+  }
+
+  /** Checks one playlist for other devices' changes, at most every 30 seconds. */
+  checkForChanges(playlistId: string) {
+    if (Date.now() - (this.lastChecked.get(playlistId) ?? 0) < OPEN_CHECK_INTERVAL_MS) {
+      return;
+    }
+    this.checkRequested.add(playlistId);
     this.requestRun();
   }
 
@@ -549,10 +567,13 @@ export class PlaylistSyncService {
 
   /**
    * Pulls every playlist this device should refresh: those that need a
-   * snapshot (new, created, or after a restore), and those whose summary or
-   * own acknowledged edits are ahead of what was applied.
+   * snapshot (new, created, or after a restore), those whose summary or own
+   * acknowledged edits are ahead of what was applied, and any whose screen
+   * just opened.
    */
   private async pull(capture: AccountScopeCapture, userId: string) {
+    const requested = new Set(this.checkRequested);
+    this.checkRequested.clear();
     const candidates = [
       ...this.playlists.filtered(
         'ownerUserId == $0 AND serverState == $1 AND archived == false',
@@ -564,11 +585,15 @@ export class PlaylistSyncService {
       if (!playlist.isValid()) {
         continue;
       }
+      const playlistId = playlist.playlistId;
       if (needsSnapshot(playlist)) {
-        await this.fetchSnapshot(capture, playlist.playlistId);
-      } else if (this.isBehind(playlist)) {
-        await this.fetchChanges(capture, playlist.playlistId);
+        await this.fetchSnapshot(capture, playlistId);
+      } else if (this.isBehind(playlist) || requested.has(playlistId)) {
+        await this.fetchChanges(capture, playlistId);
+      } else {
+        continue;
       }
+      this.lastChecked.set(playlistId, Date.now());
     }
   }
 

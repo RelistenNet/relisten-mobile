@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Realm from 'realm';
 import {
   FlatList,
@@ -61,6 +61,12 @@ export default function PlaylistDetailPage() {
   const syncService = usePlaylistSyncService();
 
   usePlaylistHydration(playlistId, allGroups, online);
+  // Opening the playlist (or coming back to it) checks for other devices' changes.
+  useFocusEffect(
+    useCallback(() => {
+      syncService.checkForChanges(playlistId);
+    }, [playlistId, syncService])
+  );
   // Leaving the screen mid-edit keeps the name and description changes. Undo
   // history is kept so a toast's Undo still works after navigating away.
   // Leaving also sends this playlist's pending edits rather than waiting.
