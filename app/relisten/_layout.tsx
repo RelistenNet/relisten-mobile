@@ -69,7 +69,9 @@ export default function TabLayout() {
         name="add-to-playlist"
         options={{
           contentStyle: { backgroundColor: RelistenBlue['900'] },
-          headerShown: false,
+          headerShown: true,
+          headerStyle: { backgroundColor: RelistenBlue['900'] },
+          headerTintColor: 'white',
           presentation: 'formSheet',
           sheetAllowedDetents: [0.6, 0.92],
           sheetGrabberVisible: true,

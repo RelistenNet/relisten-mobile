@@ -1,4 +1,5 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useHeaderHeight } from 'expo-router/react-navigation';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import plur from 'plur';
 import { useMemo, useState } from 'react';
 import { FlatList, TextInput, TouchableOpacity, View } from 'react-native';
@@ -39,6 +40,8 @@ export default function AddToPlaylistSheet() {
   const together = params.together === '1' && trackIds.length > 1;
   const playlists = usePlaylists();
   const [naming, setNaming] = useState(trackIds.length === 0);
+  // A form sheet lays its content out under the native header, not below it.
+  const headerHeight = useHeaderHeight();
 
   const addToExisting = (playlist: Playlist) => {
     const { playlistId, name } = playlist;
@@ -94,6 +97,7 @@ export default function AddToPlaylistSheet() {
   if (naming) {
     return (
       <NewPlaylistForm
+        topInset={headerHeight}
         defaultName={defaultPlaylistName(realm, trackIds)}
         onCancel={() => (trackIds.length === 0 ? router.back() : setNaming(false))}
         onCreate={create}
@@ -102,43 +106,64 @@ export default function AddToPlaylistSheet() {
   }
 
   return (
-    <FlatList
-      style={{ flex: 1, backgroundColor: RelistenBlue[900] }}
-      data={playlists}
-      keyExtractor={(p) => p.playlistId}
-      ItemSeparatorComponent={ItemSeparator}
-      ListHeaderComponent={
-        <>
-          <View className="px-4 pb-2 pt-5">
-            <RelistenText className="text-xl font-bold">
-              Add {countLabel(trackIds.length)} to
-            </RelistenText>
+    <>
+      <Stack.Screen options={{ title: `Add ${countLabel(trackIds.length)} to…` }} />
+      <SheetToolbar onCancel={() => router.back()} />
+      <FlatList
+        style={{ flex: 1, backgroundColor: RelistenBlue[900] }}
+        contentContainerStyle={{ paddingTop: headerHeight }}
+        data={playlists}
+        keyExtractor={(p) => p.playlistId}
+        ItemSeparatorComponent={ItemSeparator}
+        ListHeaderComponent={
+          <>
             {together && (
-              <RelistenText className="mt-1 text-gray-400">
+              <RelistenText className="px-4 pb-3 pt-2 text-gray-400">
                 {"They'll stay linked, so shuffle keeps them in order."}
               </RelistenText>
             )}
-          </View>
-          <ItemSeparator />
-          <TouchableOpacity
-            accessibilityRole="button"
-            className="min-h-[52px] flex-row items-center px-4"
-            onPress={() => setNaming(true)}
-          >
-            <RelistenText
-              className="text-lg font-semibold text-relisten-blue-400"
-              selectable={false}
+            <ItemSeparator />
+            <TouchableOpacity
+              accessibilityRole="button"
+              className="min-h-[52px] flex-row items-center px-4"
+              onPress={() => setNaming(true)}
             >
-              + New Playlist
-            </RelistenText>
-          </TouchableOpacity>
-          <ItemSeparator />
-        </>
-      }
-      renderItem={({ item }) => (
-        <PickerRow playlist={item} trackIds={trackIds} onPress={() => addToExisting(item)} />
+              <RelistenText
+                className="text-lg font-semibold text-relisten-blue-400"
+                selectable={false}
+              >
+                + New Playlist
+              </RelistenText>
+            </TouchableOpacity>
+            <ItemSeparator />
+          </>
+        }
+        renderItem={({ item }) => (
+          <PickerRow playlist={item} trackIds={trackIds} onPress={() => addToExisting(item)} />
+        )}
+      />
+    </>
+  );
+}
+
+/** The sheet's native header buttons: close on the left, and Create when naming. */
+function SheetToolbar({ onCancel, onCreate }: { onCancel: () => void; onCreate?: () => void }) {
+  return (
+    <>
+      <Stack.Toolbar placement="left">
+        <Stack.Toolbar.Button accessibilityLabel="Cancel" icon="xmark" onPress={onCancel} />
+      </Stack.Toolbar>
+      {onCreate && (
+        <Stack.Toolbar placement="right">
+          <Stack.Toolbar.Button
+            accessibilityLabel="Create"
+            icon="checkmark"
+            variant="done"
+            onPress={onCreate}
+          />
+        </Stack.Toolbar>
       )}
-    />
+    </>
   );
 }
 
@@ -179,10 +204,12 @@ function PickerRow({
 }
 
 function NewPlaylistForm({
+  topInset,
   defaultName,
   onCancel,
   onCreate,
 }: {
+  topInset: number;
   defaultName: string;
   onCancel: () => void;
   onCreate: (name: string) => void;
@@ -191,40 +218,16 @@ function NewPlaylistForm({
   // replaces it and leaving the field empty still creates a well-named playlist.
   const [name, setName] = useState('');
   const finalName = name.trim() || defaultName;
-  const canCreate = finalName.length > 0;
-  const submit = () => canCreate && onCreate(finalName);
+  const submit = () => finalName.length > 0 && onCreate(finalName);
 
   return (
-    <View className="flex-1 bg-relisten-blue-900 px-4 pt-4">
-      <View className="flex-row items-center justify-between">
-        <TouchableOpacity
-          accessibilityRole="button"
-          className="min-h-[44px] justify-center"
-          onPress={onCancel}
-        >
-          <RelistenText className="text-relisten-blue-400" selectable={false}>
-            Cancel
-          </RelistenText>
-        </TouchableOpacity>
-        <RelistenText className="text-lg font-bold">New Playlist</RelistenText>
-        <TouchableOpacity
-          accessibilityRole="button"
-          accessibilityState={{ disabled: !canCreate }}
-          className="min-h-[44px] justify-center"
-          onPress={submit}
-        >
-          <RelistenText
-            className={canCreate ? 'font-bold text-relisten-blue-400' : 'font-bold text-gray-500'}
-            selectable={false}
-          >
-            Create
-          </RelistenText>
-        </TouchableOpacity>
-      </View>
+    <View className="flex-1 bg-relisten-blue-900 px-4" style={{ paddingTop: topInset + 16 }}>
+      <Stack.Screen options={{ title: 'New Playlist' }} />
+      <SheetToolbar onCancel={onCancel} onCreate={submit} />
       <TextInput
         accessibilityLabel="Playlist name"
         autoFocus
-        className="mt-6 rounded-lg bg-relisten-blue-800 px-4 py-3 text-lg text-white"
+        className="rounded-lg bg-relisten-blue-800 px-4 py-3 text-lg text-white"
         maxLength={PLAYLIST_LIMITS.nameLength}
         onChangeText={setName}
         onSubmitEditing={submit}
