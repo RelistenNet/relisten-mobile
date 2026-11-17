@@ -1,11 +1,18 @@
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Realm from 'realm';
-import { FlatList, TextInput, type TextInputInstance, TouchableOpacity, View } from 'react-native';
+import {
+  FlatList,
+  TextInput,
+  type TextInputInstance,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { ItemSeparator } from '@/relisten/components/item_separator';
 import { confirmDestructiveAction } from '@/relisten/components/menus/confirm_destructive_action';
 import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
+import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { DownloadManager } from '@/relisten/offline/download_manager';
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
@@ -30,15 +37,14 @@ import {
   updatePlaylistDetails,
   RECENTLY_DELETED_DAYS,
 } from '@/relisten/playlists/playlist_repository';
-import { PlaylistEditList, type ArrangeMode } from '@/relisten/playlists/ui/playlist_edit_list';
+import { PlaylistEditList } from '@/relisten/playlists/ui/playlist_edit_list';
 import {
-  PlaylistGroupCard,
   PlaylistTrackRow,
+  playlistViewRows,
   usePlayingEntryId,
 } from '@/relisten/playlists/ui/playlist_rows';
 import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
-import { tw } from '@/relisten/util/tw';
 
 export default function PlaylistDetailPage() {
   const { playlistId } = useLocalSearchParams<{ playlistId: string }>();
@@ -55,7 +61,6 @@ export default function PlaylistDetailPage() {
   // Name and description edits are drafts until Done (or leaving the screen) commits them.
   const [draft, setDraft] = useState({ name: '', description: '' });
   const draftRef = useRef<typeof draft | null>(null);
-  const [arrange, setArrange] = useState<ArrangeMode>('tracks');
   const [downloadedOnly, setDownloadedOnly] = useState(false);
   const nameInput = useRef<TextInputInstance>(null);
 
@@ -71,10 +76,13 @@ export default function PlaylistDetailPage() {
   // Watching offline info keeps Show Downloaded Only current as downloads finish.
   const offlineInfos = useQuery(SourceTrackOfflineInfo);
 
-  const groups = useMemo(
-    () => (downloadedOnly ? filterDownloaded(allGroups) : allGroups),
+  const viewRows = useMemo(
+    () => playlistViewRows(downloadedOnly ? filterDownloaded(allGroups) : allGroups),
     [allGroups, downloadedOnly, offlineInfos]
   );
+  const playingSegmentId = playingEntryId
+    ? layout.groups[layout.entryPositions.get(playingEntryId)?.groupIndex ?? -1]?.segment.segmentId
+    : undefined;
 
   if (!playlist || playlist.deletedAt) {
     return (
@@ -120,7 +128,10 @@ export default function PlaylistDetailPage() {
         setPlaylistDeleted(realm, playlistId, true);
         router.back();
         showPlaylistToast(`Deleted ${name}`, [
-          { label: 'Undo', onPress: () => setPlaylistDeleted(realm, playlistId, false) },
+          {
+            label: 'Undo',
+            onPress: () => setPlaylistDeleted(realm, playlistId, false),
+          },
         ]);
       },
     });
@@ -155,9 +166,6 @@ export default function PlaylistDetailPage() {
           <Stack.Toolbar.MenuAction icon={nativeMenuIcons.edit} onPress={startRename}>
             Rename…
           </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon={nativeMenuIcons.download} onPress={download}>
-            Download
-          </Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction
             icon={nativeMenuIcons.download}
             isOn={downloadedOnly}
@@ -179,22 +187,12 @@ export default function PlaylistDetailPage() {
         <PlaylistEditList
           playlistId={playlistId}
           layout={layout}
-          mode={arrange}
-          header={
-            <EditHeader
-              draft={draft}
-              onChange={updateDraft}
-              nameInput={nameInput}
-              arrange={arrange}
-              onArrange={setArrange}
-              showArrange={allGroups.some((g) => g.entries.length > 1)}
-            />
-          }
+          header={<EditHeader draft={draft} onChange={updateDraft} nameInput={nameInput} />}
         />
       ) : (
         <FlatList
-          data={groups}
-          keyExtractor={(g) => g.segment.segmentId}
+          data={viewRows}
+          keyExtractor={(r) => r.row.entry.entryId}
           ListHeaderComponent={
             <ViewHeader
               name={name}
@@ -204,6 +202,7 @@ export default function PlaylistDetailPage() {
               online={online}
               onPlay={() => play()}
               onShuffle={shuffle}
+              onDownload={download}
             />
           }
           ListEmptyComponent={
@@ -213,33 +212,20 @@ export default function PlaylistDetailPage() {
                 : "This playlist is empty. Add songs from any show's ••• menu."}
             </RelistenText>
           }
-          renderItem={({ item, index }) =>
-            item.entries.length > 1 ? (
-              <View className="px-3">
-                <PlaylistGroupCard
-                  playlistId={playlistId}
-                  layout={layout}
-                  group={item}
-                  online={online}
-                  playingEntryId={playingEntryId}
-                  onPlay={play}
-                />
-              </View>
-            ) : (
-              <View className="pl-4 pr-2">
-                {index > 0 && groups[index - 1].entries.length === 1 && <ItemSeparator />}
-                <PlaylistTrackRow
-                  playlistId={playlistId}
-                  layout={layout}
-                  row={item.entries[0]}
-                  showShowLine
-                  online={online}
-                  playingEntryId={playingEntryId}
-                  onPlay={play}
-                />
-              </View>
-            )
-          }
+          renderItem={({ item, index }) => (
+            <PlaylistTrackRow
+              playlistId={playlistId}
+              layout={layout}
+              viewRow={item}
+              separator={index < viewRows.length - 1}
+              online={online}
+              playingEntryId={playingEntryId}
+              linkPlaying={
+                item.link !== undefined && item.group.segment.segmentId === playingSegmentId
+              }
+              onPlay={play}
+            />
+          )}
           {...scrollProps}
         />
       )}
@@ -255,6 +241,7 @@ function ViewHeader({
   online,
   onPlay,
   onShuffle,
+  onDownload,
 }: {
   name: string;
   description?: string;
@@ -263,88 +250,91 @@ function ViewHeader({
   online: boolean;
   onPlay: () => void;
   onShuffle: () => void;
+  onDownload: () => void;
 }) {
+  const { fontScale } = useWindowDimensions();
   // Subscribing to offline info keeps the download status current while downloads run.
   const offlineInfos = useQuery(SourceTrackOfflineInfo);
   const stats = useMemo(() => playbackStats(groups, online), [groups, online, offlineInfos]);
   const canPlay = stats.queueable > 0;
-  const status =
-    stats.downloadable > 0 && stats.downloaded === stats.downloadable
-      ? 'Downloaded'
-      : stats.downloading > 0
-        ? `Downloading ${stats.downloaded} of ${stats.downloadable}`
-        : '';
+  const fullyDownloaded = stats.downloadable > 0 && stats.downloaded === stats.downloadable;
+  const status = fullyDownloaded
+    ? 'Downloaded'
+    : stats.downloading > 0
+      ? `Downloading ${stats.downloaded} of ${stats.downloadable}`
+      : '';
+  const iconSize = 20 * fontScale;
 
+  // Laid out like a show's header: centered title, a quiet details line, then
+  // one row of equal buttons.
   return (
-    <View className="px-4 pb-2 pt-2">
-      <RelistenText className="text-2xl font-bold">{name}</RelistenText>
+    <View className="w-full items-center px-4">
+      <RelistenText className="w-full py-2 text-center text-3xl font-bold" selectable={false}>
+        {name}
+      </RelistenText>
       {description ? (
-        <RelistenText className="mt-1 text-gray-300">{description}</RelistenText>
+        <RelistenText className="w-full pb-2 text-center text-gray-300">{description}</RelistenText>
       ) : null}
-      <RelistenText className="mt-1 text-sm text-gray-400">
+      <RelistenText className="w-full pb-4 text-center italic text-gray-400" selectable={false}>
         {[
           playlistSizeLine(entryCount, 0),
           stats.durationSeconds > 0 ? humanDuration(stats.durationSeconds) : '',
           status,
         ]
           .filter(Boolean)
-          .join(' · ')}
+          .join('\u00A0•\u00A0')}
       </RelistenText>
 
       {entryCount > 0 && (
-        <View className="mt-4 flex-row">
-          <HeaderButton icon="play" label="Play" primary disabled={!canPlay} onPress={onPlay} />
-          <View className="w-3" />
-          <HeaderButton icon="shuffle" label="Shuffle" disabled={!canPlay} onPress={onShuffle} />
+        <View className="w-full flex-row pb-4" style={{ gap: 16 }}>
+          <RelistenButton
+            className="flex-1"
+            textClassName="text-l"
+            icon={<MaterialIcons name="play-arrow" size={iconSize} color="white" />}
+            disabled={!canPlay}
+            onPress={onPlay}
+          >
+            Play
+          </RelistenButton>
+          <RelistenButton
+            className="flex-1"
+            textClassName="text-l"
+            icon={<MaterialIcons name="shuffle" size={iconSize} color="white" />}
+            disabled={!canPlay}
+            onPress={onShuffle}
+          >
+            Shuffle
+          </RelistenButton>
+          <RelistenButton
+            accessibilityLabel="Download"
+            className="basis-1/5"
+            disabled={fullyDownloaded || stats.downloadable === 0}
+            disabledPopoverText={
+              fullyDownloaded
+                ? 'Every track is downloaded'
+                : 'None of these tracks can be downloaded'
+            }
+            onPress={onDownload}
+          >
+            <MaterialIcons name="file-download" size={iconSize} color="white" />
+          </RelistenButton>
         </View>
       )}
       {entryCount > 0 && !canPlay && (
-        <RelistenText className="mt-2 text-sm text-gray-400">
+        <RelistenText className="pb-3 text-center text-sm text-gray-400">
           {online
             ? 'None of these recordings are available right now.'
             : 'None of these tracks are downloaded.'}
         </RelistenText>
       )}
       {!online && canPlay && stats.queueable < stats.total && (
-        <RelistenText className="mt-2 text-sm text-gray-400">
+        <RelistenText className="pb-3 text-center text-sm text-gray-400">
           Playing {stats.queueable} downloaded {stats.queueable === 1 ? 'track' : 'tracks'}. The
           rest need internet.
         </RelistenText>
       )}
+      <ItemSeparator />
     </View>
-  );
-}
-
-function HeaderButton({
-  icon,
-  label,
-  primary = false,
-  disabled,
-  onPress,
-}: {
-  icon: 'play' | 'shuffle';
-  label: string;
-  primary?: boolean;
-  disabled: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      accessibilityRole="button"
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      className={tw('min-h-[44px] flex-1 flex-row items-center justify-center rounded-lg', {
-        'bg-relisten-blue-600': primary,
-        'border border-relisten-blue-700': !primary,
-        'opacity-40': disabled,
-      })}
-    >
-      <Ionicons name={icon} size={18} color="white" />
-      <RelistenText className="ml-2 font-semibold" selectable={false}>
-        {label}
-      </RelistenText>
-    </TouchableOpacity>
   );
 }
 
@@ -364,19 +354,13 @@ function EditHeader({
   draft,
   onChange,
   nameInput,
-  arrange,
-  onArrange,
-  showArrange,
 }: {
   draft: { name: string; description: string };
   onChange: (draft: { name: string; description: string }) => void;
   nameInput: React.RefObject<TextInputInstance | null>;
-  arrange: ArrangeMode;
-  onArrange: (mode: ArrangeMode) => void;
-  showArrange: boolean;
 }) {
   return (
-    <View className="px-4 pb-3 pt-2">
+    <View className="px-4 pb-4 pt-2">
       <TextInput
         ref={nameInput}
         accessibilityLabel="Playlist name"
@@ -396,28 +380,6 @@ function EditHeader({
         value={draft.description}
         onChangeText={(description) => onChange({ ...draft, description })}
       />
-      {showArrange && (
-        <View
-          className="mt-4 flex-row rounded-lg border border-relisten-blue-700 p-1"
-          accessibilityRole="tablist"
-        >
-          {(['tracks', 'groups'] as const).map((mode) => (
-            <TouchableOpacity
-              key={mode}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: arrange === mode }}
-              className={tw('min-h-[36px] flex-1 items-center justify-center rounded-md', {
-                'bg-relisten-blue-700': arrange === mode,
-              })}
-              onPress={() => onArrange(mode)}
-            >
-              <RelistenText className="font-semibold" selectable={false}>
-                {mode === 'tracks' ? 'Arrange Tracks' : 'Arrange Groups'}
-              </RelistenText>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
     </View>
   );
 }
@@ -458,5 +420,12 @@ function playbackStats(groups: PlaylistRowGroup[], online: boolean) {
         downloading++;
     }
   }
-  return { total, queueable, durationSeconds, downloadable, downloaded, downloading };
+  return {
+    total,
+    queueable,
+    durationSeconds,
+    downloadable,
+    downloaded,
+    downloading,
+  };
 }

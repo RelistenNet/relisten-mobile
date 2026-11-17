@@ -124,9 +124,11 @@ export function TrackMenu({
   if (at.inGroup || at.groupIndex < groups.length - 1) {
     actions.push(action('move-bottom', 'Move to Bottom', nativeMenuIcons.moveToBottom));
   }
-  if (at.inGroup) actions.push(action('take-out', 'Take Out of Group', nativeMenuIcons.ungroup));
-  if (aboveTitle)
-    actions.push(action('keep-with', `Keep with ${aboveTitle}`, nativeMenuIcons.group));
+  if (at.inGroup) actions.push(action('take-out', 'Unlink', nativeMenuIcons.ungroup));
+  if (at.inGroup && at.group!.entries.length > 2) {
+    actions.push(action('unlink-all', 'Unlink All', nativeMenuIcons.ungroup));
+  }
+  if (aboveTitle) actions.push(action('keep-with', `Link to ${aboveTitle}`, nativeMenuIcons.group));
   if (row.sourceTrack) actions.push(action('go-to-show', 'Go to Show', nativeMenuIcons.goTo));
   actions.push(action('remove', 'Remove from Playlist', nativeMenuIcons.delete, true));
 
@@ -152,12 +154,11 @@ export function TrackMenu({
           `Moved ${title} to the ${id === 'move-top' ? 'top' : 'bottom'}`
         );
       case 'take-out':
-        return toast(takeOutOfGroup(realm, playlistId, entryId), `Took ${title} out of the group`);
+        return toast(takeOutOfGroup(realm, playlistId, entryId), `Unlinked ${title}`);
+      case 'unlink-all':
+        return toast(ungroup(realm, playlistId, at.group!.segment.segmentId), 'Unlinked');
       case 'keep-with':
-        return toast(
-          keepWithAbove(realm, playlistId, entryId),
-          `Keeping ${title} with ${aboveTitle}`
-        );
+        return toast(keepWithAbove(realm, playlistId, entryId), `Linked ${title} to ${aboveTitle}`);
       case 'go-to-show':
         return goToShow(row.sourceTrack!);
       case 'remove': {
@@ -176,7 +177,7 @@ export function TrackMenu({
     <NativeMenuView
       actions={actions}
       style={style}
-      title={at.inGroup ? `In a group with ${trackTitle(groupmate)}` : undefined}
+      title={at.inGroup ? `Linked with ${trackTitle(groupmate)}` : undefined}
       onPressAction={({ nativeEvent }) => handle(nativeEvent.event)}
     >
       {children}
@@ -184,16 +185,18 @@ export function TrackMenu({
   );
 }
 
-/** The menu for a group header. */
+/** The menu for a run of linked tracks, on its line in edit mode. */
 export function GroupMenu({
   playlistId,
   layout,
   group,
+  style,
   children,
 }: {
   playlistId: string;
   layout: PlaylistLayout;
   group: PlaylistRowGroup;
+  style?: StyleProp<ViewStyle>;
   children: ReactNode;
 }) {
   const realm = useRealm();
@@ -206,7 +209,7 @@ export function GroupMenu({
   const index = layout.groupIndexes.get(segmentId) ?? -1;
   const showTrack = singleSourceTrack(group);
 
-  const actions: MenuAction[] = [action('play-group', 'Play Group', nativeMenuIcons.play)];
+  const actions: MenuAction[] = [action('play-group', 'Play Linked Tracks', nativeMenuIcons.play)];
   if (index > 0) actions.push(action('move-up', 'Move Up', nativeMenuIcons.moveUp));
   if (index < groupCount - 1) {
     actions.push(action('move-down', 'Move Down', nativeMenuIcons.moveDown));
@@ -215,9 +218,9 @@ export function GroupMenu({
   if (index < groupCount - 1) {
     actions.push(action('move-bottom', 'Move to Bottom', nativeMenuIcons.moveToBottom));
   }
-  actions.push(action('ungroup', 'Ungroup', nativeMenuIcons.ungroup));
+  actions.push(action('ungroup', 'Unlink All', nativeMenuIcons.ungroup));
   if (showTrack) actions.push(action('go-to-show', 'Go to Show', nativeMenuIcons.goTo));
-  actions.push(action('remove', 'Remove Group', nativeMenuIcons.delete, true));
+  actions.push(action('remove', 'Remove Linked Tracks', nativeMenuIcons.delete, true));
 
   const handle = (id: string) => {
     switch (id) {
@@ -230,16 +233,16 @@ export function GroupMenu({
       case 'move-down':
         return toast(
           moveSegmentStep(realm, playlistId, segmentId, id === 'move-up' ? 'up' : 'down'),
-          'Moved group'
+          'Moved linked tracks'
         );
       case 'move-top':
       case 'move-bottom':
         return toast(
           moveSegmentToEdge(realm, playlistId, segmentId, id === 'move-top' ? 'top' : 'bottom'),
-          `Moved group to the ${id === 'move-top' ? 'top' : 'bottom'}`
+          `Moved linked tracks to the ${id === 'move-top' ? 'top' : 'bottom'}`
         );
       case 'ungroup':
-        return toast(ungroup(realm, playlistId, segmentId), 'Ungrouped');
+        return toast(ungroup(realm, playlistId, segmentId), 'Unlinked');
       case 'go-to-show':
         return goToShow(showTrack!);
       case 'remove':
@@ -253,6 +256,7 @@ export function GroupMenu({
   return (
     <NativeMenuView
       actions={actions}
+      style={style}
       onPressAction={({ nativeEvent }) => handle(nativeEvent.event)}
     >
       {children}

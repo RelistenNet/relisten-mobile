@@ -1,11 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import { TouchableOpacity, View } from 'react-native';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import { OverflowMenuTrigger } from '@/relisten/components/menus/overflow_menu_trigger';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { SoundIndicator } from '@/relisten/components/sound_indicator';
 import { SourceTrackOfflineIndicator } from '@/relisten/components/source/source_track_offline_indicator';
-import { ItemSeparator } from '@/relisten/components/item_separator';
+import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useRelistenPlayerPlaybackState } from '@/relisten/player/relisten_player_hooks';
 import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player_queue_hooks';
 import type {
@@ -13,12 +13,7 @@ import type {
   PlaylistRowEntry,
   PlaylistRowGroup,
 } from '@/relisten/playlists/playlist_hooks';
-import {
-  GroupMenu,
-  singleSourceTrack,
-  trackTitle,
-  TrackMenu,
-} from '@/relisten/playlists/ui/playlist_menus';
+import { singleSourceTrack, trackTitle, TrackMenu } from '@/relisten/playlists/ui/playlist_menus';
 import { tw } from '@/relisten/util/tw';
 
 /** "Grateful Dead · 1977-05-08 · Barton Hall". The venue is last, so it is what truncates. */
@@ -65,159 +60,160 @@ function StatusLine({ row, online }: { row: PlaylistRowEntry; online: boolean })
   return null;
 }
 
-export function PlaylistTrackRow({
-  playlistId,
-  layout,
-  row,
-  showShowLine,
-  online,
-  playingEntryId,
-  onPlay,
-}: {
-  playlistId: string;
-  layout: PlaylistLayout;
-  row: PlaylistRowEntry;
-  showShowLine: boolean;
-  online: boolean;
-  playingEntryId: string | undefined;
-  onPlay: (entryId: string) => void;
-}) {
-  const isCurrent = playingEntryId === row.entry.entryId;
-  const canPlay = row.status === 'playable';
-  const title = row.sourceTrack ? row.sourceTrack.title : 'Track';
-  const subtitle = showShowLine ? showLine(row) : '';
+/**
+ * Where a row sits in a run of linked tracks, which decides how its rail is
+ * drawn: `only` is a short rail for a link shown as a single row.
+ */
+export type LinkPosition = 'first' | 'middle' | 'last' | 'only';
 
-  return (
-    <View className="min-h-[52px] flex-row items-center">
-      <TouchableOpacity
-        accessibilityRole="button"
-        accessibilityLabel={[title, subtitle, isCurrent ? 'Now playing' : '']
-          .filter(Boolean)
-          .join(', ')}
-        accessibilityState={{ disabled: !canPlay }}
-        className="min-w-0 flex-1 flex-row items-center py-2"
-        disabled={!canPlay}
-        onPress={() => onPlay(row.entry.entryId)}
-      >
-        {isCurrent && (
-          <View className="mr-2">
-            <NowPlayingIndicator />
-          </View>
-        )}
-        <View className="min-w-0 flex-1">
-          <RelistenText
-            className={tw('text-lg', {
-              'font-semibold text-relisten-blue-300': isCurrent,
-              'text-gray-300': !canPlay,
-            })}
-            numberOfLines={2}
-            selectable={false}
-          >
-            {title}
-          </RelistenText>
-          {subtitle !== '' && canPlay && (
-            <RelistenText className="text-sm text-gray-400" numberOfLines={1} selectable={false}>
-              {subtitle}
-            </RelistenText>
-          )}
-          <StatusLine row={row} online={online} />
-        </View>
-        {canPlay && (
-          <View className="ml-2 flex-row items-center">
-            <SourceTrackOfflineIndicator offlineInfo={row.sourceTrack!.offlineInfo} />
-            <RelistenText className="ml-2 text-gray-400" selectable={false}>
-              {row.sourceTrack!.humanizedDuration}
-            </RelistenText>
-          </View>
-        )}
-      </TouchableOpacity>
-      <TrackMenu playlistId={playlistId} layout={layout} row={row}>
-        <OverflowMenuTrigger
-          accessibilityLabel={`Actions for ${trackTitle(row)}`}
-          iconAlignment="trailing"
-        />
-      </TrackMenu>
-    </View>
-  );
+/** One row of the playlist view: a track, and whether it is linked to its neighbors. */
+export interface PlaylistViewRow {
+  row: PlaylistRowEntry;
+  group: PlaylistRowGroup;
+  link?: LinkPosition;
+  /** Linked tracks from one recording show the show line once, on the first track. */
+  showShowLine: boolean;
 }
 
-/** A group's label: the show when every track shares one, otherwise "Kept together". */
-export function groupLabel(group: PlaylistRowGroup): string {
-  const track = singleSourceTrack(group);
-  if (track) {
-    return [track.artist.name, track.show.displayDate, track.show.venue?.name]
-      .filter(Boolean)
-      .join(' · ');
+export function playlistViewRows(groups: PlaylistRowGroup[]): PlaylistViewRow[] {
+  const rows: PlaylistViewRow[] = [];
+  for (const group of groups) {
+    const count = group.entries.length;
+    const oneShow = count > 1 && singleSourceTrack(group) !== undefined;
+    group.entries.forEach((row, index) => {
+      rows.push({
+        row,
+        group,
+        link:
+          count < 2 ? undefined : index === 0 ? 'first' : index === count - 1 ? 'last' : 'middle',
+        showShowLine: !oneShow || index === 0,
+      });
+    });
   }
-  return `Kept together · ${group.entries.length} tracks`;
+  return rows;
 }
 
 /**
- * Tracks kept together, drawn as a card joined by a rail down its left edge.
- * The header is plain text, not accent, so it doesn't read as a link.
+ * The thin line in the left gutter that joins linked tracks. It is the only
+ * mark a link gets in the view, so a playlist built from many shows still reads
+ * as one smooth list.
  */
-export function PlaylistGroupCard({
+export function LinkRail({ link, active }: { link?: LinkPosition; active: boolean }) {
+  if (!link) {
+    return null;
+  }
+  return (
+    <View
+      pointerEvents="none"
+      style={[
+        railStyles.rail,
+        (link === 'first' || link === 'only') && railStyles.first,
+        (link === 'last' || link === 'only') && railStyles.last,
+        { backgroundColor: active ? RelistenBlue[400] : RelistenBlue[700] },
+      ]}
+    />
+  );
+}
+
+const railStyles = StyleSheet.create({
+  rail: { position: 'absolute', left: 6, width: 2, top: 0, bottom: 0 },
+  first: { top: 16, borderTopLeftRadius: 1, borderTopRightRadius: 1 },
+  last: { bottom: 16, borderBottomLeftRadius: 1, borderBottomRightRadius: 1 },
+});
+
+export function PlaylistTrackRow({
   playlistId,
   layout,
-  group,
+  viewRow,
+  separator,
   online,
   playingEntryId,
+  linkPlaying,
   onPlay,
 }: {
   playlistId: string;
   layout: PlaylistLayout;
-  group: PlaylistRowGroup;
+  viewRow: PlaylistViewRow;
+  separator: boolean;
   online: boolean;
   playingEntryId: string | undefined;
+  /** True when a track in this row's linked run is playing; the rail lights up. */
+  linkPlaying: boolean;
   onPlay: (entryId: string) => void;
 }) {
-  const isPlaying = group.entries.some((r) => r.entry.entryId === playingEntryId);
-  const oneShow = singleSourceTrack(group) !== undefined;
+  const { row, link } = viewRow;
+  const isCurrent = playingEntryId === row.entry.entryId;
+  const canPlay = row.status === 'playable';
+  const title = row.sourceTrack ? row.sourceTrack.title : 'Track';
+  const subtitle = viewRow.showShowLine ? showLine(row) : '';
 
   return (
-    <View
-      className={tw('my-2 flex-row rounded-xl border bg-relisten-blue-950', {
-        'border-relisten-blue-500': isPlaying,
-        'border-relisten-blue-800': !isPlaying,
-      })}
-    >
+    <View className="pl-4 pr-2">
+      <LinkRail link={link} active={linkPlaying} />
       <View
-        className={tw('my-3 ml-2 w-[3px] rounded-full', {
-          'bg-relisten-blue-500': isPlaying,
-          'bg-relisten-blue-700': !isPlaying,
+        className={tw('min-h-[52px] flex-row items-center', {
+          'border-b border-white/10': separator,
         })}
-      />
-      <View className="min-w-0 flex-1 pl-3 pr-1">
-        <GroupMenu playlistId={playlistId} layout={layout} group={group}>
-          <View className="min-h-[44px] flex-row items-center" accessibilityRole="button">
+      >
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={[
+            title,
+            subtitle,
+            link ? 'Linked' : '',
+            isCurrent ? 'Now playing' : '',
+          ]
+            .filter(Boolean)
+            .join(', ')}
+          accessibilityState={{ disabled: !canPlay }}
+          className="min-w-0 flex-1 flex-row items-center py-2"
+          disabled={!canPlay}
+          onPress={() => onPlay(row.entry.entryId)}
+        >
+          {isCurrent && (
+            <View className="mr-2">
+              <NowPlayingIndicator />
+            </View>
+          )}
+          <View className="min-w-0 flex-1">
             <RelistenText
-              className="flex-1 text-sm text-gray-400"
-              numberOfLines={1}
+              className={tw('text-lg', {
+                'font-semibold text-relisten-blue-300': isCurrent,
+                'text-gray-300': !canPlay,
+              })}
+              numberOfLines={2}
               selectable={false}
             >
-              {groupLabel(group)}
+              {title}
             </RelistenText>
-            <OverflowMenuTrigger
-              accessibilityLabel={`Actions for group ${groupLabel(group)}`}
-              iconAlignment="trailing"
-            />
+            {subtitle !== '' && canPlay && (
+              <RelistenText className="text-sm text-gray-400" numberOfLines={1} selectable={false}>
+                {subtitle}
+              </RelistenText>
+            )}
+            <StatusLine row={row} online={online} />
           </View>
-        </GroupMenu>
-        {group.entries.map((row, index) => (
-          <View key={row.entry.entryId}>
-            {index > 0 && <ItemSeparator />}
-            <PlaylistTrackRow
-              playlistId={playlistId}
-              layout={layout}
-              row={row}
-              showShowLine={!oneShow}
-              online={online}
-              playingEntryId={playingEntryId}
-              onPlay={onPlay}
-            />
-          </View>
-        ))}
+          {canPlay && (
+            <View className="ml-2 flex-row items-center">
+              <SourceTrackOfflineIndicator offlineInfo={row.sourceTrack!.offlineInfo} />
+              <RelistenText className="ml-2 text-gray-400" selectable={false}>
+                {row.sourceTrack!.humanizedDuration}
+              </RelistenText>
+            </View>
+          )}
+        </TouchableOpacity>
+        <TrackMenu playlistId={playlistId} layout={layout} row={row}>
+          <OverflowMenuTrigger
+            accessibilityLabel={`Actions for ${trackTitle(row)}`}
+            iconAlignment="trailing"
+          />
+        </TrackMenu>
       </View>
     </View>
   );
+}
+
+/** "Linked · 3 tracks", used where a run of linked tracks is shown as one item. */
+export function linkedLabel(group: PlaylistRowGroup): string {
+  return `Linked · ${group.entries.length} tracks`;
 }

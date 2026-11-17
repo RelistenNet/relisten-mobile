@@ -3,6 +3,7 @@ import { Link, Stack, useRouter } from 'expo-router';
 import { FlatList, TouchableOpacity, View } from 'react-native';
 import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
 import { ItemSeparator } from '@/relisten/components/item_separator';
+import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
 import { useDeletedPlaylists, usePlaylists } from '@/relisten/playlists/playlist_hooks';
@@ -48,15 +49,9 @@ function EmptyPlaylists({ onCreate }: { onCreate: () => void }) {
         Playlists keep songs in the order you choose. Tap ••• on any song or show and choose Add to
         Playlist.
       </RelistenText>
-      <TouchableOpacity
-        accessibilityRole="button"
-        className="mt-6 min-h-[44px] justify-center rounded-lg bg-relisten-blue-600 px-6"
-        onPress={onCreate}
-      >
-        <RelistenText className="font-semibold" selectable={false}>
-          New Playlist
-        </RelistenText>
-      </TouchableOpacity>
+      <RelistenButton className="mt-6" intent="primary" onPress={onCreate}>
+        New Playlist
+      </RelistenButton>
     </View>
   );
 }
