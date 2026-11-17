@@ -57,7 +57,7 @@ export function RootServicesProvider({ children }: PropsWithChildren) {
         favoriteSyncAdapter,
         accountsApi
       ),
-      playlistSyncService: new PlaylistSyncService(realm, accountsApi),
+      playlistSyncService: new PlaylistSyncService(realm, accountsApi, accountScopeSource),
       anonymousLibraryImportService: new AnonymousLibraryImportService(favoriteRepository),
       userSettingsStore: new UserSettingsStore(realm),
       audioAdjustmentStore: new AudioAdjustmentStore(realm),

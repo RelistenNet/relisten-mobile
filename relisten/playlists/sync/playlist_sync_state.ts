@@ -84,14 +84,28 @@ export function claimUnownedPlaylists(realm: Realm, userId: string): number {
 }
 
 /**
- * Freezes the playlist's current structure into a create command and treats it
- * as the provisional canonical state until the server confirms it.
+ * Freezes what the device shows into a create command, and makes that the
+ * provisional canonical state until the server confirms it, so edits made
+ * meanwhile replay on top of exactly what the command will create.
+ *
+ * Used when a playlist first gets an owner, and to recreate one the account
+ * lost (a restore older than the playlist). In the second case any earlier
+ * confirmed state is stale: hidden rows are dropped and the caller has already
+ * removed the overlay, whose effects are part of what the device shows.
  */
 export function issueCreateCommand(realm: Realm, playlist: Playlist) {
-  const segments = liveRows(realm, PlaylistSegment, playlist.playlistId);
-  const entries = liveRows(realm, PlaylistEntry, playlist.playlistId);
+  const playlistId = playlist.playlistId;
+  realm.delete(
+    realm.objects(PlaylistSegment).filtered('playlistId == $0 AND live == false', playlistId)
+  );
+  realm.delete(
+    realm.objects(PlaylistEntry).filtered('playlistId == $0 AND live == false', playlistId)
+  );
+  const segments = liveRows(realm, PlaylistSegment, playlistId);
+  const entries = liveRows(realm, PlaylistEntry, playlistId);
 
   playlist.serverState = 'creating';
+  markNeedsSnapshot(playlist);
   playlist.canonicalName = playlist.name;
   playlist.canonicalDescription = playlist.description;
   for (const segment of segments) {
@@ -128,6 +142,71 @@ export function issueCreateCommand(realm: Realm, playlist: Playlist) {
     state: 'pending',
     createdAt: new Date(),
   });
+}
+
+/**
+ * A playlist with no confirmed revision is fetched whole by snapshot on the
+ * next pull: one new to this device, one just created, or any after a restore.
+ */
+export function markNeedsSnapshot(playlist: Playlist) {
+  playlist.appliedRevision = undefined;
+  playlist.historyGeneration = undefined;
+}
+
+export function needsSnapshot(playlist: Playlist): boolean {
+  return playlist.appliedRevision == null;
+}
+
+// endregion
+
+// region Outbox state transitions
+
+/**
+ * Requests that were in flight when the app stopped never got a response;
+ * they are resent with the same IDs and the server replays any that landed.
+ * Runs at the start of each sync run, when nothing is in flight.
+ */
+export function resetInterruptedOperations(realm: Realm, ownerUserId: string) {
+  for (const op of realm
+    .objects(PlaylistOperation)
+    .filtered('ownerUserId == $0 AND state == $1', ownerUserId, 'in_flight')) {
+    op.state = 'pending';
+  }
+}
+
+/** Edits held while the playlist was archived are sent once it is restored, from any device. */
+export function releaseHeldEdits(realm: Realm, playlistId: string) {
+  for (const op of realm
+    .objects(PlaylistOperation)
+    .filtered('playlistId == $0 AND state == $1', playlistId, 'archived_hold')) {
+    op.state = 'pending';
+  }
+}
+
+/**
+ * A deletion synced, so the account may have room again: resend paused
+ * outboxes whole and retry creates that the account refused as full.
+ */
+export function resumeAfterDeletion(realm: Realm, ownerUserId: string) {
+  for (const op of realm
+    .objects(PlaylistOperation)
+    .filtered('ownerUserId == $0 AND state == $1', ownerUserId, 'quota_paused')) {
+    op.state = 'pending';
+  }
+  for (const command of realm
+    .objects(PlaylistCommand)
+    .filtered(
+      'ownerUserId == $0 AND state == $1 AND lastErrorCode == $2',
+      ownerUserId,
+      'needs_attention',
+      'quota_exceeded'
+    )) {
+    command.state = 'pending';
+    const playlist = realm.objectForPrimaryKey(Playlist, command.playlistId);
+    if (playlist) {
+      playlist.serverState = 'creating';
+    }
+  }
 }
 
 // endregion
@@ -189,7 +268,9 @@ export function writeDisplayedChanges(realm: Realm, playlist: Playlist, changes:
 }
 
 function hideOrDelete(realm: Realm, row: PlaylistEntry | PlaylistSegment | null) {
-  if (!row) return;
+  if (!row) {
+    return;
+  }
   if (row.canonicalLive) {
     row.live = false;
   } else {
@@ -223,15 +304,74 @@ export function withdrawUnsentOperations(
  */
 export function rebuildDisplayed(realm: Realm, playlistId: string) {
   const playlist = realm.objectForPrimaryKey(Playlist, playlistId);
-  if (!playlist) return;
+  if (!playlist) {
+    return;
+  }
 
   const segmentRows = [...realm.objects(PlaylistSegment).filtered('playlistId == $0', playlistId)];
   const entryRows = [...realm.objects(PlaylistEntry).filtered('playlistId == $0', playlistId)];
+  const state = readCanonical(playlist, segmentRows, entryRows);
+  replayOverlay(state, overlayEdits(realm, playlistId));
+
+  writeRebuilt(
+    realm,
+    playlistId,
+    PlaylistSegment,
+    segmentRows,
+    state.segments,
+    (row) => row.segmentId,
+    (row, segment) => {
+      if (row.rank !== segment.rank) {
+        row.rank = segment.rank;
+      }
+    }
+  );
+  writeRebuilt(
+    realm,
+    playlistId,
+    PlaylistEntry,
+    entryRows,
+    state.entries,
+    (row) => row.entryId,
+    (row, entry) => {
+      if (row.rank !== entry.rank) {
+        row.rank = entry.rank;
+      }
+      if (row.segmentId !== entry.segmentId) {
+        row.segmentId = entry.segmentId;
+      }
+    }
+  );
+
+  if (playlist.name !== state.name) {
+    playlist.name = state.name;
+  }
+  if ((playlist.description ?? undefined) !== (state.description ?? undefined)) {
+    playlist.description = state.description;
+  }
+  if (playlist.entryCount !== state.entries.size) {
+    playlist.entryCount = state.entries.size;
+  }
+}
+
+interface WorkingState {
+  segments: Map<string, SegmentState>;
+  entries: Map<string, EntryState>;
+  name: string;
+  description?: string;
+}
+
+function readCanonical(
+  playlist: Playlist,
+  segmentRows: PlaylistSegment[],
+  entryRows: PlaylistEntry[]
+): WorkingState {
   const segments = new Map<string, SegmentState>();
   const entries = new Map<string, EntryState>();
   for (const row of segmentRows) {
-    if (row.canonicalLive)
+    if (row.canonicalLive) {
       segments.set(row.segmentId, { segmentId: row.segmentId, rank: row.canonicalRank! });
+    }
   }
   for (const row of entryRows) {
     if (row.canonicalLive) {
@@ -243,50 +383,35 @@ export function rebuildDisplayed(realm: Realm, playlistId: string) {
       });
     }
   }
+  return {
+    segments,
+    entries,
+    name: playlist.canonicalName ?? playlist.name,
+    description: playlist.canonicalDescription,
+  };
+}
 
-  let name = playlist.canonicalName ?? playlist.name;
-  let description = playlist.canonicalDescription;
-  for (const edit of overlayEdits(realm, playlistId)) {
+/** Applies the overlay to the working state in order, with the same engine edits use. */
+function replayOverlay(state: WorkingState, edits: PlaylistEdit[]) {
+  for (const edit of edits) {
     if (edit.type === 'update_metadata') {
-      ({ name, description } = applyMetadata({ name, description }, edit));
+      Object.assign(state, applyMetadata(state, edit));
       continue;
     }
-    const outcome = applyPlaylistOperation({ segments, entries }, edit);
-    for (const segment of outcome.changes.upsertSegments) segments.set(segment.segmentId, segment);
-    for (const entry of outcome.changes.upsertEntries) entries.set(entry.entryId, entry);
-    for (const id of outcome.changes.deleteEntryIds) entries.delete(id);
-    for (const id of outcome.changes.deleteSegmentIds) segments.delete(id);
-  }
-
-  writeRebuilt(
-    realm,
-    playlistId,
-    PlaylistSegment,
-    segmentRows,
-    segments,
-    (row) => row.segmentId,
-    (row, state) => {
-      if (row.rank !== state.rank) row.rank = state.rank;
+    const { changes } = applyPlaylistOperation(state, edit);
+    for (const segment of changes.upsertSegments) {
+      state.segments.set(segment.segmentId, segment);
     }
-  );
-  writeRebuilt(
-    realm,
-    playlistId,
-    PlaylistEntry,
-    entryRows,
-    entries,
-    (row) => row.entryId,
-    (row, state) => {
-      if (row.rank !== state.rank) row.rank = state.rank;
-      if (row.segmentId !== state.segmentId) row.segmentId = state.segmentId;
+    for (const entry of changes.upsertEntries) {
+      state.entries.set(entry.entryId, entry);
     }
-  );
-
-  if (playlist.name !== name) playlist.name = name;
-  if ((playlist.description ?? undefined) !== (description ?? undefined)) {
-    playlist.description = description;
+    for (const id of changes.deleteEntryIds) {
+      state.entries.delete(id);
+    }
+    for (const id of changes.deleteSegmentIds) {
+      state.segments.delete(id);
+    }
   }
-  if (playlist.entryCount !== entries.size) playlist.entryCount = entries.size;
 }
 
 function writeRebuilt<Row extends PlaylistSegment | PlaylistEntry, State>(
@@ -304,10 +429,14 @@ function writeRebuilt<Row extends PlaylistSegment | PlaylistEntry, State>(
     const state = states.get(id);
     seen.add(id);
     if (state) {
-      if (!row.live) row.live = true;
+      if (!row.live) {
+        row.live = true;
+      }
       update(row, state);
     } else if (row.canonicalLive) {
-      if (row.live) row.live = false;
+      if (row.live) {
+        row.live = false;
+      }
     } else {
       // Neither confirmed nor in the overlay: an edit that was withdrawn or refused.
       realm.delete(row);
@@ -316,7 +445,9 @@ function writeRebuilt<Row extends PlaylistSegment | PlaylistEntry, State>(
   // Rows always exist for overlay items, since edits write them; this covers
   // an overlay replayed after its rows were lost to a restore.
   for (const [id, state] of states) {
-    if (seen.has(id)) continue;
+    if (seen.has(id)) {
+      continue;
+    }
     realm.create(type.schema.name, { ...state, playlistId, live: true });
   }
 }
@@ -357,10 +488,12 @@ export function applyPlaylistSummaries(
   for (const summary of summaries) {
     const playlist = realm.objectForPrimaryKey(Playlist, summary.playlist_id);
     if (playlist) {
-      if (playlist.ownerUserId !== ownerUserId) continue;
+      if (playlist.ownerUserId !== ownerUserId) {
+        continue;
+      }
       playlist.summaryRevision = Math.max(playlist.summaryRevision ?? 0, summary.revision);
       // Archive is online-only, so the server's flag is always current.
-      if (playlist.archived !== summary.archived) playlist.archived = summary.archived;
+      setArchived(realm, playlist, summary.archived);
       continue;
     }
     const updatedAt = new Date(summary.updated_at);
@@ -407,7 +540,7 @@ export function applySnapshot(
 
   playlist.canonicalName = snapshot.metadata.name;
   playlist.canonicalDescription = snapshot.metadata.description ?? undefined;
-  playlist.archived = snapshot.archived;
+  setArchived(realm, playlist, snapshot.archived);
   playlist.serverState = 'synced';
   playlist.appliedRevision = snapshot.revision;
   playlist.summaryRevision = Math.max(playlist.summaryRevision ?? 0, snapshot.revision);
@@ -416,6 +549,16 @@ export function applySnapshot(
 
   pruneConfirmed(realm, playlist);
   rebuildDisplayed(realm, playlistId);
+}
+
+/** Records the server's archive flag; a restore from any device releases held edits. */
+export function setArchived(realm: Realm, playlist: Playlist, archived: boolean) {
+  if (playlist.archived !== archived) {
+    playlist.archived = archived;
+  }
+  if (!archived) {
+    releaseHeldEdits(realm, playlist.playlistId);
+  }
 }
 
 /** Applies one changes page, in array order, then prunes and rebuilds. */
@@ -433,7 +576,9 @@ export function applyChangesPage(realm: Realm, playlist: Playlist, page: Playlis
           break;
         case 'segment_deleted': {
           const segment = realm.objectForPrimaryKey(PlaylistSegment, change.segment_id);
-          if (segment) segment.canonicalLive = false;
+          if (segment) {
+            segment.canonicalLive = false;
+          }
           for (const entry of realm
             .objects(PlaylistEntry)
             .filtered('canonicalSegmentId == $0 AND canonicalLive == true', change.segment_id)) {
@@ -453,7 +598,9 @@ export function applyChangesPage(realm: Realm, playlist: Playlist, page: Playlis
           break;
         case 'entry_deleted': {
           const entry = realm.objectForPrimaryKey(PlaylistEntry, change.entry_id);
-          if (entry) entry.canonicalLive = false;
+          if (entry) {
+            entry.canonicalLive = false;
+          }
           break;
         }
       }
@@ -463,7 +610,9 @@ export function applyChangesPage(realm: Realm, playlist: Playlist, page: Playlis
   playlist.appliedRevision = page.next_after_revision;
   playlist.summaryRevision = Math.max(playlist.summaryRevision ?? 0, page.head_revision);
   playlist.historyGeneration = page.history_generation;
-  if (page.revisions.length > 0) playlist.updatedAt = new Date();
+  if (page.revisions.length > 0) {
+    playlist.updatedAt = new Date();
+  }
 
   pruneConfirmed(realm, playlist);
   rebuildDisplayed(realm, playlistId);
@@ -519,11 +668,15 @@ export function pruneConfirmed(realm: Realm, playlist: Playlist) {
  * The server's history changed under us (a database restore). Forget every
  * base so playlists are fetched fresh, and send every edit still held again
  * with its original ID: a surviving receipt replays, anything else applies.
+ * The run that follows sends before it pulls, as the contract requires.
+ *
+ * Generations are compared per playlist (its last pull) and for the library
+ * feed (`FavoriteSyncState`); whichever notices first starts this, and a
+ * second start is harmless because every resend replays.
  */
 export function startRestoreRecovery(realm: Realm, ownerUserId: string) {
   for (const playlist of realm.objects(Playlist).filtered('ownerUserId == $0', ownerUserId)) {
-    playlist.appliedRevision = undefined;
-    playlist.historyGeneration = undefined;
+    markNeedsSnapshot(playlist);
   }
   for (const op of realm
     .objects(PlaylistOperation)
