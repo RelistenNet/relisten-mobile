@@ -25,7 +25,8 @@ import {
   deletePlaylistPermanently,
   readPlaylistSnapshot,
 } from '@/relisten/playlists/playlist_repository';
-import { openPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
+import { openPlaylist, showPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
+import { usePlayerPresentation } from '@/relisten/player/ui/player_presentation';
 import { showPlaylistToast, undoAction } from '@/relisten/playlists/ui/playlist_toast';
 import { playlistActionEvent, sharedStatsigClient } from '@/relisten/events';
 
@@ -48,6 +49,11 @@ export default function AddToPlaylistSheet() {
     [linkBackToBack, linkable, realm, trackIds]
   );
   const playlists = usePlaylists();
+  const presentation = usePlayerPresentation();
+  const fullPlayer = {
+    isOpen: presentation.isPresentationActive,
+    close: presentation.closePlayer,
+  };
   const [naming, setNaming] = useState(trackIds.length === 0);
   // A form sheet lays its content out under the native header, not below it.
   const headerHeight = useHeaderHeight();
@@ -75,7 +81,7 @@ export default function AddToPlaylistSheet() {
             onPress: () =>
               keepWithAbove(realm, playlistId, segueEntry.entryId, segueEntry.previousEntryId),
           }
-        : { label: 'Open', onPress: () => openPlaylist(router, playlistId) },
+        : { label: 'Open', onPress: () => showPlaylist(router, playlistId, fullPlayer) },
     ]);
   };
 
@@ -109,7 +115,7 @@ export default function AddToPlaylistSheet() {
           }
         },
       },
-      { label: 'Open', onPress: () => openPlaylist(router, playlistId) },
+      { label: 'Open', onPress: () => showPlaylist(router, playlistId, fullPlayer) },
     ]);
   };
 

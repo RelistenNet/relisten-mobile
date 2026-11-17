@@ -33,3 +33,25 @@ export function openPlaylist(
     params: { playlistId },
   });
 }
+
+/**
+ * Brings the listener to a playlist from a toast. The full player is an
+ * overlay above every screen, so it closes first; and if that playlist is
+ * already the screen underneath, it is shown rather than pushed again.
+ */
+export function showPlaylist(
+  router: Router,
+  playlistId: string,
+  player: { isOpen: boolean; close: (afterClose: () => void) => void }
+) {
+  const navigate = () =>
+    router.navigate({
+      pathname: '/relisten/tabs/(myLibrary)/playlists/[playlistId]',
+      params: { playlistId },
+    });
+  if (player.isOpen) {
+    player.close(navigate);
+  } else {
+    navigate();
+  }
+}
