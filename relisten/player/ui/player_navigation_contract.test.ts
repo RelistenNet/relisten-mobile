@@ -67,6 +67,8 @@ vi.mock('@/relisten/player/audio_adjustments/audio_adjustment_native', () => ({
 vi.mock('@/relisten/player/relisten_player_queue_hooks', () => ({
   useRelistenPlayerCurrentTrack: () => harness.track,
 }));
+vi.mock('@/relisten/player/relisten_player_hooks', () => ({ useRelistenPlayer: () => ({}) }));
+vi.mock('@/relisten/playlists/playlist_hooks', () => ({ trackIdForSourceTrack: vi.fn() }));
 vi.mock('@/relisten/util/push_show', () => ({
   usePushShowRespectingUserSettings: () => ({ pushShow: harness.pushShow }),
 }));
