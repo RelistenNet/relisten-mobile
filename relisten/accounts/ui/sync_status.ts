@@ -1,5 +1,5 @@
-import { RelistenText } from '@/relisten/components/relisten_text';
-import { tw } from '@/relisten/util/tw';
+import { useAccount } from '@/relisten/accounts/account_context';
+import { useFavoriteSyncStatus } from '@/relisten/library/favorite_hooks';
 
 export type AccountSyncState = 'saved' | 'waiting' | 'syncing' | 'needsAttention';
 
@@ -36,18 +36,32 @@ export function syncStatusLabel(state: AccountSyncState) {
   return SYNC_STATUS[state].label;
 }
 
-export function SyncStatusText({
-  className,
-  state,
-}: {
-  className?: string;
-  state: AccountSyncState;
-}) {
-  const status = SYNC_STATUS[state];
+const SUMMARY_LABEL: Record<AccountSyncState, string> = {
+  saved: 'Saved to your account',
+  waiting: 'Waiting to sync',
+  syncing: 'Saving…',
+  needsAttention: 'Needs attention',
+};
 
-  return (
-    <RelistenText className={tw('text-sm', status.textClassName, className)}>
-      {status.label}
-    </RelistenText>
-  );
+/** One short line about whether this device's library has reached the account. */
+export function useAccountSyncSummary(): {
+  state: AccountSyncState;
+  label: string;
+  textClassName: string;
+} {
+  const { error } = useAccount();
+  const syncStatus = useFavoriteSyncStatus();
+  const state: AccountSyncState =
+    syncStatus.state === 'needsAttention'
+      ? 'needsAttention'
+      : isAccountWaitingToRestore(error)
+        ? 'waiting'
+        : syncStatus.state;
+
+  return {
+    state,
+    label: SUMMARY_LABEL[state],
+    textClassName:
+      state === 'saved' || state === 'syncing' ? 'text-gray-400' : SYNC_STATUS[state].textClassName,
+  };
 }
