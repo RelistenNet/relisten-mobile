@@ -1,6 +1,7 @@
 import type { RelistenPlayer } from '@/relisten/player/relisten_player';
 import { PlayerQueueTrack, PlayerShuffleState } from '@/relisten/player/relisten_player_queue';
 import type { PlaylistRowEntry, PlaylistRowGroup } from '@/relisten/playlists/playlist_hooks';
+import { playlistActionEvent, sharedStatsigClient } from '@/relisten/events';
 import { createUuidV7 } from '@/relisten/util/uuid_v7';
 
 /**
@@ -56,6 +57,7 @@ export function playPlaylist(
     tracks.findIndex((t) => t.playlistContext?.entryId === startEntryId)
   );
   player.queue.replaceQueue(tracks, startIndex, { resetShuffle: true });
+  sharedStatsigClient().logEvent(playlistActionEvent('play', tracks.length));
   return true;
 }
 
@@ -73,5 +75,6 @@ export function shufflePlaylist(
   player.queue.replaceQueue(tracks, undefined, { resetShuffle: true });
   player.queue.setShuffleState(PlayerShuffleState.SHUFFLE_ON);
   player.playTrackAtIndex(0);
+  sharedStatsigClient().logEvent(playlistActionEvent('shuffle', tracks.length));
   return true;
 }

@@ -31,6 +31,18 @@ export enum Events {
   TrackDownloadIntegrity = 'track_download_integrity',
   DownloadsResumed = 'downloads_resumed',
   CatalogStartupRepair = 'catalog_startup_repair',
+  PlaylistAction = 'playlist_action',
+}
+
+export type PlaylistAction = 'create' | 'add' | 'play' | 'shuffle';
+
+/** One event for playlist use; the action says what happened and the value how many tracks. */
+export function playlistActionEvent(action: PlaylistAction, trackCount: number): StatsigEvent {
+  return {
+    eventName: Events.PlaylistAction,
+    value: trackCount,
+    metadata: { action },
+  };
 }
 
 export function catalogStartupRepairEvent(
