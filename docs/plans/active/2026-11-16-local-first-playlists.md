@@ -131,8 +131,11 @@ nothing else holds their IDs. Copying to an account always uses fresh IDs.
 ### Schema 25 (milestone 2)
 
 - `Playlist` gains `archived`, `serverState` (`creating`, `synced`,
-  `needs_attention`), `appliedRevision?`, `historyGeneration?` and
-  `summaryRevision?`.
+  `needs_attention`), `appliedRevision?`, `historyGeneration?`,
+  `summaryRevision?`, and a canonical metadata base: `canonicalName?` and
+  `canonicalDescription?`. Snapshots and `metadata_updated` changes write the
+  canonical fields; `name` and `description` are the displayed values, rebuilt
+  like everything else.
 - `PlaylistSegment` and `PlaylistEntry` gain `live` (indexed) and canonical
   fields: `canonicalRank?`, `canonicalLive`, and for entries
   `canonicalSegmentId?`. In the account scope, displayed fields are canonical plus
@@ -198,7 +201,7 @@ identically:
    changed rows, and append the operation to the outbox, in one Realm write. No
    rebuild.
 3. **Account playlists, after a pull or recovery:** rebuild displayed state by
-   resetting it to canonical and replaying every operation still in the overlay,
+   resetting it to canonical (metadata, segments and entries) and replaying every operation still in the overlay,
    in order. The rebuild computes in memory, then writes only fields whose value
    changed.
 
@@ -302,12 +305,15 @@ flat result, so restore is unchanged. Rules, each with a test:
 Today `onNativePlayerError` in `relisten/player/relisten_player.tsx` logs and shows
 a toast. For a streamed occurrence with playlist context:
 
-- re-resolve its track once;
+- re-resolve its track once, remembering which queue occurrence failed;
 - if the result is `unavailable` or `retired`, record it unavailable and skip to
   the next queue occurrence;
 - skip at most 3 tracks in a row this way, then stop and show the error, so an
   offline device cannot race through the queue;
-- never re-resolve a downloaded track.
+- never re-resolve a downloaded track;
+- when a resolve result arrives late, always record availability, but skip only
+  if the failed occurrence is still the current one. If the user has moved on to
+  another track, playback is left alone.
 
 **Download**
 
@@ -340,13 +346,16 @@ an account switch writes nothing.
 - Before sending, compact **truly unsent** operations only (pending, zero
   attempts). An operation **references** an item when it names it as target,
   destination parent or anchor.
-  - Two moves of the same item merge into the later one only if no operation
-    between them references that item.
+  - Moves are never merged in v1. A move can create a group (`move_entry` with
+    `new_segment_id`) that later operations depend on, so merging moves can erase
+    a needed group. Example: move E into new group N, insert F into N, move E into
+    T. Merging the two moves of E removes N's creation, and inserting F then fails
+    with `parent_missing`. Revisit only with dependency tracking for created groups.
   - An insert followed by a delete of the same unsent item drops both, but only if
     no other operation references that item.
   - Consecutive `update_metadata` operations merge.
   - Property tests check that replaying the compacted outbox gives the same state
-    as replaying the original.
+    as replaying the original. They include the move-into-new-group case above.
 - Batches are capped at 500 operations and 1.5 MiB of payload. A `413` splits the
   batch and retries, except while `quota_paused`, when the outbox must travel whole.
 
@@ -402,7 +411,8 @@ reappear when that account signs in again.
 **Flow**
 
 - **Save to my account** (one playlist) and **Add local playlists to this
-  account** (all uncopied) both create one job. In a single Realm transaction they
+  account** (all uncopied) both create one job, unless a matching copy is already
+  unfinished (see Reuse). In a single Realm transaction they
   write the job, every receipt, and every create command with fresh playlist,
   segment and entry IDs, as `importToActiveAccount` does for favorites. A kill at
   any point leaves complete records; the coordinator resumes any `running` job at
@@ -415,15 +425,26 @@ reappear when that account signs in again.
   its pending account row is removed, the job stops as `stopped_quota`, and the
   remaining receipts stay `queued`. The list shows the limit; retrying the job
   resumes from the first unfinished receipt.
-- **Uncopied** means no `copied` receipt for this account. A playlist edited
-  after its copy shows **Save changes as a new copy** on its detail screen, but
+- **Reuse.** A receipt is unfinished when its state is `queued`, `sent` or
+  `failed_quota`. For the same destination account, source playlist and
+  fingerprint, a new action reuses that receipt and its existing create command
+  instead of writing fresh IDs, and resumes its job. This follows the favorites
+  importer. So a second tap, or a bulk action started while a copy is pending,
+  never produces a second account copy.
+- **Uncopied** means no receipt for this account and source with the current
+  fingerprint, in any state. A playlist edited after its copy has a new
+  fingerprint; it shows **Save changes as a new copy** on its detail screen, but
   bulk copy skips it.
 
 ## Platform surfaces
 
 - **CarPlay** (`relisten/carplay/library.ts`) and **Android Auto**
   (`RelistenMediaLibrary.kt`): a read-only **Playlists** list that plays a
-  playlist, in milestone 1. Editing stays on the phone.
+  playlist, in milestone 1. Editing stays on the phone. CarPlay already browses
+  from TypeScript. Android Auto's native media library exposes only the current
+  and preloaded next tracks, so milestone 1 adds a browse-and-select bridge from
+  the native library to the TypeScript queue owner: list playlists, and on
+  selection hand the playlist ID to TypeScript, which builds the queue.
 - **Cast:** playlist playback uses the existing queue, so Cast needs no new work;
   verify it once in milestone 1.
 - **Offline library, search and analytics:** milestone 1 adds a "downloaded only"
@@ -445,7 +466,9 @@ Follow `AGENTS.md`: run affected Vitest files, `yarn ts:check` and `yarn lint`.
 - **Player:** each group-shuffle rule above; enqueue the same playlist twice and
   remove one duplicate; **Play next** keeps grouping; restart restores the exact
   queue occurrence and checkpoint; later playlist edits leave the queue unchanged;
-  downloaded playlist tracks play offline; the 3-skip limit.
+  downloaded playlist tracks play offline; the 3-skip limit. A stale error: track
+  A fails, the user selects B, then A's resolve returns `unavailable`; B keeps
+  playing and A is marked unavailable.
 - **Sync (milestone 2), against a fake server:**
   - receipt 43 arriving before delta 42 still pulls after 41
   - a lost create response retries before its children, and edits made before
