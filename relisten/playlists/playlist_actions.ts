@@ -107,19 +107,15 @@ function locate(snapshot: PlaylistSnapshot, entryId: string) {
 // region Adding
 
 /** Adds tracks at the end: as one group when `together`, otherwise each on its own. */
-export function addTracks(
-  realm: Realm,
-  playlistId: string,
-  trackIds: string[],
-  together: boolean
-): boolean {
-  if (trackIds.length === 0) {
+/** Appends each group as its own segment: a group of several tracks stays linked. */
+export function addTracks(realm: Realm, playlistId: string, groups: string[][]): boolean {
+  if (groups.length === 0) {
     return false;
   }
   return edit(
     realm,
     playlistId,
-    together ? [appendSegment(trackIds)] : trackIds.map((trackId) => appendSegment([trackId]))
+    groups.map((trackIds) => appendSegment(trackIds))
   );
 }
 

@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { View } from 'react-native';
+import { TouchableOpacity, View } from 'react-native';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import Realm from 'realm';
 import { ItemSeparator } from '@/relisten/components/item_separator';
@@ -33,10 +33,13 @@ export interface TrackSelection {
 interface SourceSetsProps {
   source: Source;
   playShow: PlayShow;
+  /** Present while selecting tracks. */
   selection?: TrackSelection;
+  /** Starts selecting with this track checked, from a long press or the track's menu. */
+  onStartSelection?: (sourceTrackUuid: string) => void;
 }
 
-export const SourceSets = ({ source, playShow, selection }: SourceSetsProps) => {
+export const SourceSets = ({ source, playShow, selection, onStartSelection }: SourceSetsProps) => {
   const sortedSets = sortSetsByIndex(source.sourceSets);
 
   return (
@@ -48,6 +51,7 @@ export const SourceSets = ({ source, playShow, selection }: SourceSetsProps) => 
           source={source}
           playShow={playShow}
           selection={selection}
+          onStartSelection={onStartSelection}
         />
       ))}
       <View className="px-4">
@@ -62,9 +66,16 @@ interface SourceSetProps {
   sourceSet: SourceSet;
   playShow: PlayShow;
   selection?: TrackSelection;
+  onStartSelection?: (sourceTrackUuid: string) => void;
 }
 
-export const SourceSetComponent = ({ source, sourceSet, playShow, selection }: SourceSetProps) => {
+export const SourceSetComponent = ({
+  source,
+  sourceSet,
+  playShow,
+  selection,
+  onStartSelection,
+}: SourceSetProps) => {
   const userSettings = useUserSettings();
   const isOfflineTab = useIsOfflineTab();
   const queueOfflineOnly =
@@ -86,13 +97,18 @@ export const SourceSetComponent = ({ source, sourceSet, playShow, selection }: S
               onPress={() => selection.toggle(t.uuid)}
               accessibilityState={{ checked }}
               actions={
-                <View className="h-11 w-11 items-center justify-center">
+                <TouchableOpacity
+                  accessibilityElementsHidden
+                  className="h-11 w-11 items-center justify-center"
+                  importantForAccessibility="no"
+                  onPress={() => selection.toggle(t.uuid)}
+                >
                   <Ionicons
                     name={checked ? 'checkmark-circle' : 'ellipse-outline'}
                     size={24}
                     color={checked ? RelistenBlue[400] : 'rgba(255,255,255,0.5)'}
                   />
-                </View>
+                </TouchableOpacity>
               }
             />
           );
@@ -104,7 +120,14 @@ export const SourceSetComponent = ({ source, sourceSet, playShow, selection }: S
             sourceTrack={t}
             isLastTrackInSet={idx == sourceSet.sourceTracks.length - 1}
             onPress={playable ? playShow : undefined}
-            actions={<SourceTrackActionsMenu sourceTrack={t} playShow={playShow} />}
+            onLongPress={onStartSelection && (() => onStartSelection(t.uuid))}
+            actions={
+              <SourceTrackActionsMenu
+                sourceTrack={t}
+                playShow={playShow}
+                onSelect={onStartSelection && (() => onStartSelection(t.uuid))}
+              />
+            }
             disabled={!playable}
           />
         );

@@ -85,7 +85,7 @@ export function PlayerQueueActionsMenu({
           break;
         case ACTION_IDS.addToPlaylist:
           openAddToPlaylist(router, [trackIdForSourceTrack(queueTrack.sourceTrack)], {
-            together: false,
+            linkable: false,
           });
           break;
         case ACTION_IDS.remove:

@@ -93,7 +93,7 @@ function usePlayerActions(onBeforeNavigate?: (navigate: () => void) => void) {
         const current = player.queue.currentTrack;
         if (current) {
           openAddToPlaylist(router, [trackIdForSourceTrack(current.sourceTrack)], {
-            together: false,
+            linkable: false,
           });
         }
         return;
@@ -102,7 +102,7 @@ function usePlayerActions(onBeforeNavigate?: (navigate: () => void) => void) {
         const trackIds = player.queue.orderedTracks.map((track) =>
           trackIdForSourceTrack(track.sourceTrack)
         );
-        openAddToPlaylist(router, trackIds, { together: false });
+        openAddToPlaylist(router, trackIds, { linkable: false });
         return;
       }
 
