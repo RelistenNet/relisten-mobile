@@ -157,23 +157,27 @@ export default function PlaylistDetailPage() {
           {editing ? 'Done' : 'Edit'}
         </Stack.Toolbar.Button>
         <Stack.Toolbar.Menu accessibilityLabel="Playlist actions" icon={nativeMenuIcons.more}>
-          <Stack.Toolbar.MenuAction icon={nativeMenuIcons.edit} onPress={startRename}>
-            Rename…
-          </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction
-            icon={nativeMenuIcons.download}
-            isOn={downloadedOnly}
-            onPress={() => setDownloadedOnly(!downloadedOnly)}
-          >
-            Show Downloaded Only
-          </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction
-            destructive
-            icon={nativeMenuIcons.delete}
-            onPress={deletePlaylist}
-          >
-            Delete Playlist…
-          </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.Menu inline>
+            <Stack.Toolbar.MenuAction icon={nativeMenuIcons.edit} onPress={startRename}>
+              Rename…
+            </Stack.Toolbar.MenuAction>
+            <Stack.Toolbar.MenuAction
+              icon={nativeMenuIcons.download}
+              isOn={downloadedOnly}
+              onPress={() => setDownloadedOnly(!downloadedOnly)}
+            >
+              Show Downloaded Only
+            </Stack.Toolbar.MenuAction>
+          </Stack.Toolbar.Menu>
+          <Stack.Toolbar.Menu inline>
+            <Stack.Toolbar.MenuAction
+              destructive
+              icon={nativeMenuIcons.delete}
+              onPress={deletePlaylist}
+            >
+              Delete Playlist…
+            </Stack.Toolbar.MenuAction>
+          </Stack.Toolbar.Menu>
         </Stack.Toolbar.Menu>
       </Stack.Toolbar>
 
