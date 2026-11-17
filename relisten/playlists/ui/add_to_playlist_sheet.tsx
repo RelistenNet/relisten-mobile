@@ -29,6 +29,7 @@ import {
 } from '@/relisten/playlists/playlist_repository';
 import { openPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
 import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
+import { playlistActionEvent, sharedStatsigClient } from '@/relisten/events';
 
 /** "Add 3 tracks to" sheet. With no tracks it only creates a new playlist. */
 export default function AddToPlaylistSheet() {
@@ -54,6 +55,7 @@ export default function AddToPlaylistSheet() {
       return;
     }
     router.back();
+    sharedStatsigClient().logEvent(playlistActionEvent('add', trackIds.length));
 
     const segueEntry = trackIds.length === 1 ? segueSuggestion(realm, playlistId) : undefined;
     showPlaylistToast(`Added ${countLabel(trackIds.length)} to ${name}`, [
@@ -72,6 +74,7 @@ export default function AddToPlaylistSheet() {
     const playlist = createPlaylist(realm, name, groups);
     const { playlistId } = playlist;
     router.back();
+    sharedStatsigClient().logEvent(playlistActionEvent('create', trackIds.length));
 
     if (trackIds.length === 0) {
       openPlaylist(router, playlistId);
