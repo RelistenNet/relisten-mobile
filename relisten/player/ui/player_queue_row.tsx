@@ -1,3 +1,4 @@
+import { TrackDuration } from '@/relisten/components/track_duration';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { SourceTrackOfflineIndicator } from '@/relisten/components/source/source_track_offline_indicator';
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
@@ -93,12 +94,9 @@ function QueueTrackRow({
             </RelistenText>
           </View>
         </TouchableOpacity>
-        <RelistenText
-          className="ml-2.5 min-w-[42px] text-right text-gray-300 tabular-nums"
-          selectable={false}
-        >
-          {sourceTrack.humanizedDuration}
-        </RelistenText>
+        <View className="ml-2.5">
+          <TrackDuration duration={sourceTrack.humanizedDuration} className="text-gray-300" />
+        </View>
         {action}
       </View>
     </PlayerPanelRow>

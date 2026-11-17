@@ -141,6 +141,8 @@ export function usePlaylistGroups(playlistId: string): PlaylistRowGroup[] {
       keyPaths: [
         'uuid',
         'deletedAt',
+        // The link itself changes when a download starts; its fields as it runs.
+        'offlineInfo',
         'offlineInfo.status',
         'offlineInfo.type',
         'show',
