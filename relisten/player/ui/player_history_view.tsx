@@ -47,7 +47,7 @@ export function PlayerHistoryView({
       <Stack.Toolbar placement="left">
         <Stack.Toolbar.Button
           accessibilityLabel="Close Listening History"
-          icon="xmark"
+          icon={nativeMenuIcons.close}
           onPress={() => router.back()}
         />
       </Stack.Toolbar>
