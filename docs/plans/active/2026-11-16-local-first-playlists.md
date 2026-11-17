@@ -482,8 +482,9 @@ subtitle saying where it is ("In a group with Scarlet Begonias").
 
 ### Mockups
 
-Eight phone mockups were reviewed with Alec on 2026-11-17 in the planning
-conversation:
+Eight phone mockups were reviewed with Alec on 2026-11-17. They live beside
+this plan in `2026-11-16-local-first-playlists-mockups.html` (open it in a
+browser):
 
 1. My Library section
 2. Playlists list
