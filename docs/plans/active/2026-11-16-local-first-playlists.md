@@ -506,6 +506,10 @@ Follow `AGENTS.md`: run affected Vitest files, `yarn ts:check` and `yarn lint`.
 4. **CarPlay and Android Auto get a read-only Playlists list in milestone 1** that
    plays a playlist. Editing stays on the phone.
 5. **Save queue as playlist is deferred** past milestone 1.
+6. **The server base is stored as paired fields on each row** (`canonical*` beside
+   the displayed fields, plus `live` flags), not as a separate base document or
+   per-row JSON (Alec, 2026-11-17). A pull's cost tracks the size of the change,
+   and the pattern matches favorites.
 
 ## Progress
 
