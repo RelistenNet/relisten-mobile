@@ -112,6 +112,9 @@ eviction, as `UserFavorite` does.
 
 - `playlistId` (primary key, `playlist_` UUIDv7), `scopeId` (indexed).
 - `name`, `description?`, `createdAt`, `updatedAt`.
+- `localRevision` (int, default 0): increases by one on every local edit. It is a
+  device-local edit counter, unrelated to server revisions, and does not depend
+  on the clock.
 
 `PlaylistSegment`
 
@@ -136,7 +139,7 @@ nothing else holds their IDs. Copying to an account always uses fresh IDs.
   `canonicalDescription?`. Snapshots and `metadata_updated` changes write the
   canonical fields; `name` and `description` are the displayed values, rebuilt
   like everything else.
-- `Playlist` also gains `copiedFromPlaylistId?` and `copiedFromUpdatedAt?`, set
+- `Playlist` also gains `copiedFromPlaylistId?` and `copiedFromLocalRevision?`, set
   on an account playlist created by **Save to my account**. They make the account
   playlist row its own copy receipt; milestone 3 adds no models.
 - `PlaylistSegment` and `PlaylistEntry` gain `live` (indexed) and canonical
@@ -191,7 +194,8 @@ operation types and placement rules exactly:
 
 It returns the set of rows it changed. Callers write only those rows, so one edit
 touches a handful of rows even in a 5,000-entry playlist. Every applied edit also
-sets the playlist's `updatedAt`, which copy detection relies on.
+increments the playlist's `localRevision`, which copy detection relies on, and
+sets `updatedAt` for display.
 
 The same function serves three callers, so local and synced playlists behave
 identically:
@@ -409,8 +413,8 @@ reappear when that account signs in again.
 
 A copy is an ordinary account playlist created by a create command with fresh
 playlist, segment and entry IDs. The account playlist row records where it came
-from (`copiedFromPlaylistId`) and the source's `updatedAt` at copy time
-(`copiedFromUpdatedAt`). No separate job or receipt model exists (Alec,
+from (`copiedFromPlaylistId`) and the source's `localRevision` at copy time
+(`copiedFromLocalRevision`). No separate job or receipt model exists (Alec,
 2026-11-17).
 
 - **Save to my account** (one playlist) and **Add local playlists to this
@@ -419,13 +423,13 @@ from (`copiedFromPlaylistId`) and the source's `updatedAt` at copy time
   `importToActiveAccount` does for favorites. The normal command retry finishes
   them, including after the app is killed.
 - **No duplicates.** Before copying, look in the destination account for a
-  playlist with the same `copiedFromPlaylistId` and `copiedFromUpdatedAt`, in any
+  playlist with the same `copiedFromPlaylistId` and `copiedFromLocalRevision`, in any
   state. If one exists, reuse it and its command instead of writing fresh IDs. A
   second tap, or a bulk copy started while a copy is pending, therefore never makes
   a second account copy.
 - **Eligible for bulk copy** means no account playlist was copied from this source
-  at all. A source edited after its copy (`updatedAt` later than
-  `copiedFromUpdatedAt`) is skipped by bulk copy; its detail screen offers **Save
+  at all. A source edited after its copy (`localRevision` greater than
+  `copiedFromLocalRevision`) is skipped by bulk copy; its detail screen offers **Save
   changes as a new copy**, which creates another account playlist.
 - **Progress** for a bulk copy counts the copied account playlists still
   `creating` against those `synced`.
@@ -506,7 +510,7 @@ Follow `AGENTS.md`: run affected Vitest files, `yarn ts:check` and `yarn lint`.
    per-row JSON (Alec, 2026-11-17). A pull's cost tracks the size of the change,
    and the pattern matches favorites.
 7. **Copies need no job or receipt models.** The account playlist records its
-   source and the source's `updatedAt` at copy time, and the normal create-command
+   source and the source's `localRevision` at copy time, and the normal create-command
    retry finishes interrupted copies (Alec, 2026-11-17).
 
 ## Progress
