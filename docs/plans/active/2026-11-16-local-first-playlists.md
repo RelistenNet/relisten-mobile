@@ -743,7 +743,7 @@ Follow `AGENTS.md`: run affected Vitest files, `yarn ts:check` and `yarn lint`.
    **Recently deleted** and can be restored; deleting one requires being online
    and signed in as its owner. No contract change (Alec, 2026-11-17). Unowned
    playlists also go to Recently deleted, for 30 days, so Delete means the same
-   thing everywhere.
+   thing everywhere (confirmed by Alec, 2026-11-17).
 7. **The experience design section is the UX spec** (Alec, 2026-11-17):
    - plain rows for single tracks
    - drag in edit mode with tap equivalents for every move
