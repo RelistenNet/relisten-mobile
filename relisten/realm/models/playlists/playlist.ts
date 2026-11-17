@@ -24,7 +24,7 @@ export class Playlist extends Realm.Object<Playlist> {
       deletedAt: { type: 'date', optional: true, indexed: true },
       createdAt: 'date',
       updatedAt: { type: 'date', indexed: true },
-      // Account playlists (schema 26). Unowned playlists leave these empty.
+      // Account playlists. Unowned playlists leave these empty.
       ownerUserId: { type: 'string', optional: true, indexed: true },
       // Deleting an account playlist archives it on the server.
       archived: { type: 'bool', default: false },

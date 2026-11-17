@@ -15,7 +15,7 @@ export class FavoriteSyncState extends Realm.Object<FavoriteSyncState> {
       syncStateUuid: 'string',
       scopeId: { type: 'string', indexed: true },
       libraryCursor: 'string?',
-      // The server's history generation when the cursor was saved (schema 26).
+      // The server's history generation when the cursor was saved.
       historyGeneration: 'string?',
       highestObservedLibraryRevision: { type: 'int', default: 0 },
       nextLocalSequence: { type: 'int', default: 1 },

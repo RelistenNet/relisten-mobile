@@ -118,11 +118,13 @@ Add the `fractional-indexing` npm package (Rocicorp), pinned, for rank generatio
 
 ## Realm model
 
-Each milestone adds only its own models, in its own schema version. Catalog
-references stay typed strings, not Realm links, so entries survive catalog
+Everything playlists add ships in one schema version, 24, the first after the
+pilot's 23 (Alec, 2026-11-17: nothing between has shipped, so development
+simulators are reset rather than migrated). Catalog references stay typed
+strings, not Realm links, so entries survive catalog
 eviction, as `UserFavorite` does.
 
-### Schemas 24 and 25 (milestone 1)
+### Device playlists (milestone 1)
 
 `Playlist`
 
@@ -151,7 +153,7 @@ Deleting a group or track in an unowned playlist removes its rows outright;
 nothing else holds their IDs. Deleting a whole unowned playlist sets `deletedAt`
 instead, and the startup purge removes it and its rows after 30 days.
 
-### Schema 26 (milestone 2)
+### Account sync fields (milestone 2)
 
 - `Playlist` gains:
   - `ownerUserId?` (indexed); empty means unowned
@@ -844,10 +846,9 @@ Built on `codex/v4-playlists-mobile` and exercised in the iOS simulator against
 the production catalog. Where the build differs from the spec above, these
 notes win:
 
-- **Schemas.** Schema 24 added the playlist models and queue context. Schema 25
-  gives `PlaylistTrackAvailability` a `status` (`unavailable` or `redirected`)
-  and a `redirectTrackId`, because catalog redirects only cover songs and venues.
-  Account sync therefore starts at schema 26.
+- **Availability.** `PlaylistTrackAvailability` has a `status` (`unavailable`
+  or `redirected`) and a `redirectTrackId`, because catalog redirects only cover
+  songs and venues.
 - **Toasts** reuse the app's existing floating top message (as the history queue
   Undo does), which never collides with the mini player or tab bar. Toasts appear
   only when an edit changed something. Undo history is in memory: 5 snapshots for
@@ -892,10 +893,10 @@ Implemented in `relisten/playlists/sync/` against the local User Service on
   for it are folded into that create.
 - **Library history generation** is stored on `FavoriteSyncState`; a change
   starts restore recovery for every playlist the account owns.
-- **Schema 26 migration** sets `live = true` on existing rows. Realm gives new
-  properties on existing objects their type's zero value, not the schema
-  default; without the migration every existing track would be hidden and then
-  dropped by the first rebuild. Regression test: `playlist_migration.test.ts`.
+- **One schema version.** Milestones 1 and 2 share schema 24. If a later
+  schema adds a property to existing playlist rows, remember that Realm gives
+  it the type's zero value on existing objects, not the schema default; a new
+  `live` flag would need a migration to stay true.
 - **Verified end to end** in the simulator with one device and a second
   session driven over HTTP: claiming on sign-in, creates, edit batches, pulls of
   another device's insert and rename, concurrent edits from both, archive and
