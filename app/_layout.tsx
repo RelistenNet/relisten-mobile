@@ -47,6 +47,7 @@ import {
 } from '@/relisten/realm/root_services';
 import { AccountProvider, useAccountScope } from '@/relisten/accounts/account_context';
 import { FavoriteSyncCoordinator } from '@/relisten/library/favorite_sync_coordinator';
+import { PlaylistSyncCoordinator } from '@/relisten/playlists/sync/playlist_sync_coordinator';
 import { PlaylistPlaybackRecovery } from '@/relisten/playlists/ui/playlist_playback_recovery';
 import { PlaylistStartupPurge } from '@/relisten/playlists/ui/playlist_startup_purge';
 import {
@@ -222,6 +223,7 @@ function TabLayout() {
                 <RelistenCastProvider>
                   <PlaybackHistoryReporterComponent />
                   <FavoriteSyncCoordinator />
+                  <PlaylistSyncCoordinator />
                   <PlaylistPlaybackRecovery />
                   <PlaylistStartupPurge />
                   <LastFmReporterComponent />

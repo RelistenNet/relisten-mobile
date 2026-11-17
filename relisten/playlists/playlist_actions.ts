@@ -11,6 +11,7 @@ import {
   newSegmentId,
   readPlaylistSnapshot,
   restoreSnapshot,
+  withdrawEdit,
 } from '@/relisten/playlists/playlist_repository';
 
 /**
@@ -28,11 +29,21 @@ import {
  */
 const MAX_UNDO_PER_PLAYLIST = 5;
 const MAX_PLAYLISTS_WITH_UNDO = 10;
-const undoStacks = new Map<string, PlaylistSnapshot[]>();
 
-function pushUndo(playlistId: string, snapshot: PlaylistSnapshot) {
+/**
+ * How to undo one edit. A device playlist restores its earlier snapshot. An
+ * account playlist withdraws the edit's operations, which only works until
+ * they are sent: the server never lets a deleted ID come back.
+ */
+type UndoStep =
+  | { kind: 'snapshot'; snapshot: PlaylistSnapshot }
+  | { kind: 'operations'; operationIds: string[] };
+
+const undoStacks = new Map<string, UndoStep[]>();
+
+function pushUndo(playlistId: string, step: UndoStep) {
   const stack = undoStacks.get(playlistId) ?? [];
-  stack.push(snapshot);
+  stack.push(step);
   if (stack.length > MAX_UNDO_PER_PLAYLIST) {
     stack.shift();
   }
@@ -44,13 +55,19 @@ function pushUndo(playlistId: string, snapshot: PlaylistSnapshot) {
   }
 }
 
-/** Restores the playlist to before its most recent edit. Returns false when there is nothing to undo. */
+/**
+ * Restores the playlist to before its most recent edit. Returns false when
+ * there is nothing to undo, or the edit already reached the account.
+ */
 export function undoLastEdit(realm: Realm, playlistId: string): boolean {
-  const snapshot = undoStacks.get(playlistId)?.pop();
-  if (!snapshot) {
+  const step = undoStacks.get(playlistId)?.pop();
+  if (!step) {
     return false;
   }
-  restoreSnapshot(realm, playlistId, snapshot);
+  if (step.kind === 'operations') {
+    return withdrawEdit(realm, playlistId, step.operationIds);
+  }
+  restoreSnapshot(realm, playlistId, step.snapshot);
   return true;
 }
 
@@ -63,9 +80,14 @@ export function undoLastEdit(realm: Realm, playlistId: string): boolean {
  */
 function edit(realm: Realm, playlistId: string, operations: PlaylistOperation[]): boolean {
   const before = readPlaylistSnapshot(realm, playlistId);
-  const changed = applyOperations(realm, playlistId, operations);
+  const { changed, operationIds } = applyOperations(realm, playlistId, operations);
   if (changed) {
-    pushUndo(playlistId, before);
+    pushUndo(
+      playlistId,
+      operationIds.length > 0
+        ? { kind: 'operations', operationIds }
+        : { kind: 'snapshot', snapshot: before }
+    );
   }
   return changed;
 }

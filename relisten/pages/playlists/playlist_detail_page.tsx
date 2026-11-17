@@ -1,5 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Realm from 'realm';
 import {
@@ -10,7 +10,6 @@ import {
   View,
 } from 'react-native';
 import { ItemSeparator } from '@/relisten/components/item_separator';
-import { confirmDestructiveAction } from '@/relisten/components/menus/confirm_destructive_action';
 import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RelistenText } from '@/relisten/components/relisten_text';
@@ -31,25 +30,22 @@ import {
 } from '@/relisten/playlists/playlist_hooks';
 import { usePlaylistHydration } from '@/relisten/playlists/playlist_hydration';
 import { isQueueable, playPlaylist, shufflePlaylist } from '@/relisten/playlists/playlist_playback';
-import {
-  PLAYLIST_LIMITS,
-  setPlaylistDeleted,
-  updatePlaylistDetails,
-  RECENTLY_DELETED_DAYS,
-} from '@/relisten/playlists/playlist_repository';
+import { PLAYLIST_LIMITS, updatePlaylistDetails } from '@/relisten/playlists/playlist_repository';
 import { PlaylistEditList } from '@/relisten/playlists/ui/playlist_edit_list';
 import {
   PlaylistTrackRow,
   playlistViewRows,
   usePlayingEntryId,
 } from '@/relisten/playlists/ui/playlist_rows';
+import { usePlaylistLifecycle } from '@/relisten/playlists/ui/playlist_lifecycle';
+import { PlaylistSyncNotice } from '@/relisten/playlists/ui/playlist_sync_notice';
 import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
+import { usePlaylistSyncService } from '@/relisten/realm/root_services';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 
 export default function PlaylistDetailPage() {
   const { playlistId } = useLocalSearchParams<{ playlistId: string }>();
   const realm = useRealm();
-  const router = useRouter();
   const player = useRelistenPlayer();
   const online = useShouldMakeNetworkRequests();
   const playlist = usePlaylist(playlistId);
@@ -63,15 +59,19 @@ export default function PlaylistDetailPage() {
   const draftRef = useRef<typeof draft | null>(null);
   const [downloadedOnly, setDownloadedOnly] = useState(false);
   const nameInput = useRef<TextInputInstance>(null);
+  const lifecycle = usePlaylistLifecycle();
+  const syncService = usePlaylistSyncService();
 
   usePlaylistHydration(playlistId, allGroups, online);
   // Leaving the screen mid-edit keeps the name and description changes. Undo
   // history is kept so a toast's Undo still works after navigating away.
+  // Leaving also sends this playlist's pending edits rather than waiting.
   useEffect(
     () => () => {
       if (draftRef.current) commitDetails(realm, playlistId, draftRef.current);
+      syncService.flush();
     },
-    [playlistId, realm]
+    [playlistId, realm, syncService]
   );
   // Watching offline info keeps Show Downloaded Only current as downloads finish.
   const offlineInfos = useQuery(SourceTrackOfflineInfo);
@@ -119,22 +119,7 @@ export default function PlaylistDetailPage() {
       }
     }
   };
-  const deletePlaylist = () =>
-    confirmDestructiveAction({
-      title: `Delete ${name}?`,
-      message: `You can restore it from Recently Deleted for ${RECENTLY_DELETED_DAYS} days.`,
-      confirmLabel: 'Delete',
-      onConfirm: () => {
-        setPlaylistDeleted(realm, playlistId, true);
-        router.back();
-        showPlaylistToast(`Deleted ${name}`, [
-          {
-            label: 'Undo',
-            onPress: () => setPlaylistDeleted(realm, playlistId, false),
-          },
-        ]);
-      },
-    });
+  const deletePlaylist = () => lifecycle.remove(playlist);
   const startEditing = () => {
     const initial = { name, description: playlist.description ?? '' };
     draftRef.current = initial;
@@ -145,6 +130,7 @@ export default function PlaylistDetailPage() {
     if (draftRef.current) commitDetails(realm, playlistId, draftRef.current);
     draftRef.current = null;
     setEditing(false);
+    syncService.flush();
   };
   const updateDraft = (next: typeof draft) => {
     draftRef.current = next;
@@ -203,6 +189,7 @@ export default function PlaylistDetailPage() {
               onPlay={() => play()}
               onShuffle={shuffle}
               onDownload={download}
+              notice={<PlaylistSyncNotice playlist={playlist} />}
             />
           }
           ListEmptyComponent={
@@ -242,7 +229,9 @@ function ViewHeader({
   onPlay,
   onShuffle,
   onDownload,
+  notice,
 }: {
+  notice: React.ReactNode;
   name: string;
   description?: string;
   entryCount: number;
@@ -285,6 +274,7 @@ function ViewHeader({
           .join('\u00A0•\u00A0')}
       </RelistenText>
 
+      {notice}
       {entryCount > 0 && (
         <View className="w-full flex-row pb-4" style={{ gap: 16 }}>
           <RelistenButton
