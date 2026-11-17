@@ -78,33 +78,52 @@ export function usePlaylistGroups(playlistId: string): PlaylistRowGroup[] {
   ]);
   const unavailable = useQuery(PlaylistTrackAvailability);
 
-  return useMemo(() => {
-    const unavailableIds = new Set(unavailable.map((row) => row.trackId));
-    const groups: PlaylistGroup[] = orderedGroups({
-      segments: new Map(
-        segments.map((s) => [s.segmentId, { segmentId: s.segmentId, rank: s.rank }])
-      ),
-      entries: new Map(
-        entries.map((e) => [
-          e.entryId,
-          { entryId: e.entryId, segmentId: e.segmentId, trackId: e.trackId, rank: e.rank },
-        ])
-      ),
-    });
+  return useMemo(
+    () => buildRowGroups(realm, segments, entries, new Set(unavailable.map((row) => row.trackId))),
+    [realm, segments, entries, unavailable]
+  );
+}
 
-    return groups.map(({ segment, entries: groupEntries }) => ({
-      segment,
-      entries: groupEntries.map((entry) => {
-        const sourceTrack = sourceTrackFor(realm, entry.trackId);
-        const status: PlaylistTrackStatus = unavailableIds.has(entry.trackId)
-          ? 'unavailable'
-          : sourceTrack
-            ? 'playable'
-            : 'loading';
-        return { entry, sourceTrack, status };
-      }),
-    }));
-  }, [realm, segments, entries, unavailable]);
+/** The same groups outside React, for CarPlay and other non-UI callers. */
+export function readPlaylistRowGroups(realm: Realm, playlistId: string): PlaylistRowGroup[] {
+  return buildRowGroups(
+    realm,
+    realm.objects(PlaylistSegment).filtered('playlistId == $0', playlistId),
+    realm.objects(PlaylistEntry).filtered('playlistId == $0', playlistId),
+    new Set(realm.objects(PlaylistTrackAvailability).map((row) => row.trackId))
+  );
+}
+
+function buildRowGroups(
+  realm: Realm,
+  segments: Iterable<PlaylistSegment>,
+  entries: Iterable<PlaylistEntry>,
+  unavailableIds: ReadonlySet<string>
+): PlaylistRowGroup[] {
+  const groups: PlaylistGroup[] = orderedGroups({
+    segments: new Map(
+      [...segments].map((s) => [s.segmentId, { segmentId: s.segmentId, rank: s.rank }])
+    ),
+    entries: new Map(
+      [...entries].map((e) => [
+        e.entryId,
+        { entryId: e.entryId, segmentId: e.segmentId, trackId: e.trackId, rank: e.rank },
+      ])
+    ),
+  });
+
+  return groups.map(({ segment, entries: groupEntries }) => ({
+    segment,
+    entries: groupEntries.map((entry) => {
+      const sourceTrack = sourceTrackFor(realm, entry.trackId);
+      const status: PlaylistTrackStatus = unavailableIds.has(entry.trackId)
+        ? 'unavailable'
+        : sourceTrack
+          ? 'playable'
+          : 'loading';
+      return { entry, sourceTrack, status };
+    }),
+  }));
 }
 
 export interface PlaylistSummary {
