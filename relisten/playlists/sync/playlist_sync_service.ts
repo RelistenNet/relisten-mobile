@@ -22,9 +22,9 @@ import {
   needsSnapshot,
   OVERLAY_STATES,
   rebuildDisplayed,
-  releaseHeldEdits,
   resetInterruptedOperations,
   resumeAfterDeletion,
+  setArchived as recordArchived,
   startRestoreRecovery,
 } from '@/relisten/playlists/sync/playlist_sync_state';
 import {
@@ -179,10 +179,7 @@ export class PlaylistSyncService {
     this.realm.write(() => {
       const playlist = this.realm.objectForPrimaryKey(Playlist, playlistId);
       if (playlist) {
-        playlist.archived = response.archived;
-        if (!response.archived) {
-          releaseHeldEdits(this.realm, playlistId);
-        }
+        recordArchived(this.realm, playlist, response.archived);
       }
     });
     this.flush();
@@ -433,18 +430,19 @@ export class PlaylistSyncService {
     const batch: WireOperation[] = [];
     let bytes = 0;
     for (const op of pending) {
-      const wire = toWireOperation(
-        op.operationId,
-        op.baseRevision,
-        JSON.parse(op.operationJson) as PlaylistEdit
-      );
       bytes += op.operationJson.length;
       if (batch.length >= this.batchLimit || (batch.length > 0 && bytes > MAX_BATCH_BYTES)) {
         break;
       }
       op.state = 'in_flight';
       op.attemptCount += 1;
-      batch.push(wire);
+      batch.push(
+        toWireOperation(
+          op.operationId,
+          op.baseRevision,
+          JSON.parse(op.operationJson) as PlaylistEdit
+        )
+      );
     }
     return batch;
   }

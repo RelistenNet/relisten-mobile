@@ -10,6 +10,7 @@ import {
   PlaylistSegment,
 } from '@/relisten/realm/models/playlists/playlist';
 import {
+  applyChanges,
   applyPlaylistOperation,
   type EntryState,
   orderedGroups,
@@ -243,11 +244,43 @@ export function appendOperation(realm: Realm, playlist: Playlist, edit: Playlist
 }
 
 /**
+ * Records one listener edit that changed something: writes its changes to the
+ * displayed fields and, for an account playlist, appends it to the outbox.
+ * Returns the outbox operation ID, if any. The repository's edits all come
+ * through here, so it never handles outbox rows itself.
+ */
+export function recordEdit(
+  realm: Realm,
+  playlist: Playlist,
+  edit: PlaylistEdit,
+  changes?: PlaylistChanges
+): string | undefined {
+  if (changes) {
+    writeDisplayedChanges(realm, playlist, changes);
+  }
+  return playlist.ownerUserId ? appendOperation(realm, playlist, edit) : undefined;
+}
+
+/**
+ * Removes an account playlist before the account has it, to undo creating it.
+ * Returns false once its create may have been sent.
+ */
+export function discardUnsentPlaylist(realm: Realm, playlist: Playlist): boolean {
+  const commands = realm.objects(PlaylistCommand).filtered('playlistId == $0', playlist.playlistId);
+  if (playlist.serverState !== 'creating' || commands.some((c) => c.attemptCount > 0)) {
+    return false;
+  }
+  realm.delete(commands);
+  realm.delete(realm.objects(PlaylistOperation).filtered('playlistId == $0', playlist.playlistId));
+  return true;
+}
+
+/**
  * Writes an applied operation's changes to the displayed fields. In an account
  * playlist a row the server still has is hidden rather than deleted, because
  * its canonical fields are still needed.
  */
-export function writeDisplayedChanges(realm: Realm, playlist: Playlist, changes: PlaylistChanges) {
+function writeDisplayedChanges(realm: Realm, playlist: Playlist, changes: PlaylistChanges) {
   const playlistId = playlist.playlistId;
   for (const segment of changes.upsertSegments) {
     realm.create(
@@ -398,19 +431,7 @@ function replayOverlay(state: WorkingState, edits: PlaylistEdit[]) {
       Object.assign(state, applyMetadata(state, edit));
       continue;
     }
-    const { changes } = applyPlaylistOperation(state, edit);
-    for (const segment of changes.upsertSegments) {
-      state.segments.set(segment.segmentId, segment);
-    }
-    for (const entry of changes.upsertEntries) {
-      state.entries.set(entry.entryId, entry);
-    }
-    for (const id of changes.deleteEntryIds) {
-      state.entries.delete(id);
-    }
-    for (const id of changes.deleteSegmentIds) {
-      state.segments.delete(id);
-    }
+    applyChanges(state, applyPlaylistOperation(state, edit).changes);
   }
 }
 
@@ -581,7 +602,11 @@ export function applyChangesPage(realm: Realm, playlist: Playlist, page: Playlis
           }
           for (const entry of realm
             .objects(PlaylistEntry)
-            .filtered('canonicalSegmentId == $0 AND canonicalLive == true', change.segment_id)) {
+            .filtered(
+              'playlistId == $0 AND canonicalSegmentId == $1 AND canonicalLive == true',
+              playlistId,
+              change.segment_id
+            )) {
             entry.canonicalLive = false;
           }
           break;

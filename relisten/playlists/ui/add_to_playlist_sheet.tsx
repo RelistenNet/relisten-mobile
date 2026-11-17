@@ -5,7 +5,7 @@ import { FlatList, TextInput, TouchableOpacity, View } from 'react-native';
 import Realm from 'realm';
 import { ItemSeparator } from '@/relisten/components/item_separator';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { Playlist, PlaylistEntry } from '@/relisten/realm/models/playlists/playlist';
+import { Playlist } from '@/relisten/realm/models/playlists/playlist';
 import { useRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { addTracks, keepWithAbove } from '@/relisten/playlists/playlist_actions';
@@ -24,8 +24,7 @@ import {
   readPlaylistSnapshot,
 } from '@/relisten/playlists/playlist_repository';
 import { openPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
-import { undoAction } from '@/relisten/playlists/ui/playlist_lifecycle';
-import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
+import { showPlaylistToast, undoAction } from '@/relisten/playlists/ui/playlist_toast';
 import { playlistActionEvent, sharedStatsigClient } from '@/relisten/events';
 
 /** "Add 3 tracks to" sheet. With no tracks it only creates a new playlist. */
@@ -105,7 +104,7 @@ export default function AddToPlaylistSheet() {
   return (
     <FlatList
       style={{ flex: 1, backgroundColor: RelistenBlue[900] }}
-      data={[...playlists]}
+      data={playlists}
       keyExtractor={(p) => p.playlistId}
       ItemSeparatorComponent={ItemSeparator}
       ListHeaderComponent={
@@ -152,17 +151,8 @@ function PickerRow({
   trackIds: string[];
   onPress: () => void;
 }) {
-  const realm = useRealm();
   const summary = usePlaylistSummary(playlist);
-  const alreadyAdded = useMemo(() => {
-    const present = new Set(
-      realm
-        .objects(PlaylistEntry)
-        .filtered('playlistId == $0 AND live == true', playlist.playlistId)
-        .map((e) => e.trackId)
-    );
-    return trackIds.length > 0 && trackIds.every((id) => present.has(id));
-  }, [realm, playlist.playlistId, trackIds]);
+  const alreadyAdded = trackIds.length > 0 && trackIds.every((id) => summary.trackIds.has(id));
 
   const detail = [
     playlistSizeLine(playlist.entryCount, summary.durationSeconds),

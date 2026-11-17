@@ -16,15 +16,12 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import { DownloadManager } from '@/relisten/offline/download_manager';
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
 import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
-import {
-  SourceTrackOfflineInfo,
-  SourceTrackOfflineInfoStatus,
-} from '@/relisten/realm/models/source_track_offline_info';
-import { useQuery, useRealm } from '@/relisten/realm/schema';
+import { useRealm } from '@/relisten/realm/schema';
 import { humanDuration, playlistSizeLine } from '@/relisten/playlists/playlist_format';
 import {
   usePlaylist,
   usePlaylistGroups,
+  summarizePlaylist,
   usePlaylistLayout,
   type PlaylistRowGroup,
 } from '@/relisten/playlists/playlist_hooks';
@@ -59,6 +56,7 @@ export default function PlaylistDetailPage() {
   const draftRef = useRef<typeof draft | null>(null);
   const [downloadedOnly, setDownloadedOnly] = useState(false);
   const nameInput = useRef<TextInputInstance>(null);
+  const [focusName, setFocusName] = useState(false);
   const lifecycle = usePlaylistLifecycle();
   const syncService = usePlaylistSyncService();
 
@@ -68,17 +66,17 @@ export default function PlaylistDetailPage() {
   // Leaving also sends this playlist's pending edits rather than waiting.
   useEffect(
     () => () => {
-      if (draftRef.current) commitDetails(realm, playlistId, draftRef.current);
+      if (draftRef.current) {
+        commitDetails(realm, playlistId, draftRef.current);
+      }
       syncService.flush();
     },
     [playlistId, realm, syncService]
   );
-  // Watching offline info keeps Show Downloaded Only current as downloads finish.
-  const offlineInfos = useQuery(SourceTrackOfflineInfo);
-
+  // The groups update as downloads finish, which keeps Show Downloaded Only current.
   const viewRows = useMemo(
     () => playlistViewRows(downloadedOnly ? filterDownloaded(allGroups) : allGroups),
-    [allGroups, downloadedOnly, offlineInfos]
+    [allGroups, downloadedOnly]
   );
   const playingSegmentId = playingEntryId
     ? layout.groups[layout.entryPositions.get(playingEntryId)?.groupIndex ?? -1]?.segment.segmentId
@@ -98,16 +96,12 @@ export default function PlaylistDetailPage() {
   const name = playlist.name;
   const play = (entryId?: string) => {
     if (!playPlaylist(player, playlistId, allGroups, online, entryId)) {
-      showPlaylistToast(
-        online ? 'None of these tracks can play right now.' : 'None of these tracks are downloaded.'
-      );
+      showPlaylistToast(nothingPlayableMessage(online));
     }
   };
   const shuffle = () => {
     if (!shufflePlaylist(player, playlistId, allGroups, online)) {
-      showPlaylistToast(
-        online ? 'None of these tracks can play right now.' : 'None of these tracks are downloaded.'
-      );
+      showPlaylistToast(nothingPlayableMessage(online));
     }
   };
   const download = () => {
@@ -127,18 +121,26 @@ export default function PlaylistDetailPage() {
     setEditing(true);
   };
   const finishEditing = () => {
-    if (draftRef.current) commitDetails(realm, playlistId, draftRef.current);
+    if (draftRef.current) {
+      commitDetails(realm, playlistId, draftRef.current);
+    }
     draftRef.current = null;
     setEditing(false);
+    setFocusName(false);
     syncService.flush();
   };
   const updateDraft = (next: typeof draft) => {
     draftRef.current = next;
     setDraft(next);
   };
+  // Rename opens edit mode with the name field focused as it appears.
   const startRename = () => {
-    if (!editing) startEditing();
-    setTimeout(() => nameInput.current?.focus(), 300);
+    if (editing) {
+      nameInput.current?.focus();
+      return;
+    }
+    setFocusName(true);
+    startEditing();
   };
 
   return (
@@ -173,7 +175,14 @@ export default function PlaylistDetailPage() {
         <PlaylistEditList
           playlistId={playlistId}
           layout={layout}
-          header={<EditHeader draft={draft} onChange={updateDraft} nameInput={nameInput} />}
+          header={
+            <EditHeader
+              draft={draft}
+              onChange={updateDraft}
+              nameInput={nameInput}
+              focusName={focusName}
+            />
+          }
         />
       ) : (
         <FlatList
@@ -242,11 +251,14 @@ function ViewHeader({
   onDownload: () => void;
 }) {
   const { fontScale } = useWindowDimensions();
-  // Subscribing to offline info keeps the download status current while downloads run.
-  const offlineInfos = useQuery(SourceTrackOfflineInfo);
-  const stats = useMemo(() => playbackStats(groups, online), [groups, online, offlineInfos]);
-  const canPlay = stats.queueable > 0;
-  const fullyDownloaded = stats.downloadable > 0 && stats.downloaded === stats.downloadable;
+  const stats = useMemo(() => summarizePlaylist(groups), [groups]);
+  const queueable = useMemo(
+    () =>
+      groups.reduce((n, g) => n + g.entries.filter((row) => isQueueable(row, online)).length, 0),
+    [groups, online]
+  );
+  const canPlay = queueable > 0;
+  const fullyDownloaded = stats.allDownloaded;
   const status = fullyDownloaded
     ? 'Downloaded'
     : stats.downloading > 0
@@ -312,15 +324,13 @@ function ViewHeader({
       )}
       {entryCount > 0 && !canPlay && (
         <RelistenText className="pb-3 text-center text-sm text-gray-400">
-          {online
-            ? 'None of these recordings are available right now.'
-            : 'None of these tracks are downloaded.'}
+          {nothingPlayableMessage(online)}
         </RelistenText>
       )}
-      {!online && canPlay && stats.queueable < stats.total && (
+      {!online && canPlay && queueable < entryCount && (
         <RelistenText className="pb-3 text-center text-sm text-gray-400">
-          Playing {stats.queueable} downloaded {stats.queueable === 1 ? 'track' : 'tracks'}. The
-          rest need internet.
+          Playing {queueable} downloaded {queueable === 1 ? 'track' : 'tracks'}. The rest need
+          internet.
         </RelistenText>
       )}
       <ItemSeparator />
@@ -344,7 +354,9 @@ function EditHeader({
   draft,
   onChange,
   nameInput,
+  focusName,
 }: {
+  focusName: boolean;
   draft: { name: string; description: string };
   onChange: (draft: { name: string; description: string }) => void;
   nameInput: React.RefObject<TextInputInstance | null>;
@@ -353,6 +365,7 @@ function EditHeader({
     <View className="px-4 pb-4 pt-2">
       <TextInput
         ref={nameInput}
+        autoFocus={focusName}
         accessibilityLabel="Playlist name"
         className="rounded-lg bg-relisten-blue-800 px-3 py-3 text-xl font-bold text-white"
         maxLength={PLAYLIST_LIMITS.nameLength}
@@ -385,37 +398,8 @@ function filterDownloaded(groups: PlaylistRowGroup[]): PlaylistRowGroup[] {
     .filter((group) => group.entries.length > 0);
 }
 
-function playbackStats(groups: PlaylistRowGroup[], online: boolean) {
-  let total = 0;
-  let queueable = 0;
-  let durationSeconds = 0;
-  let downloadable = 0;
-  let downloaded = 0;
-  let downloading = 0;
-  for (const group of groups) {
-    for (const row of group.entries) {
-      total++;
-      if (isQueueable(row, online)) queueable++;
-      const track = row.sourceTrack;
-      if (!track) continue;
-      durationSeconds += track.duration ?? 0;
-      if (!track.supportsOfflineDownload()) continue;
-      downloadable++;
-      const info = track.offlineInfo;
-      if (info?.isPlayableOffline()) downloaded++;
-      else if (
-        info?.status === SourceTrackOfflineInfoStatus.Queued ||
-        info?.status === SourceTrackOfflineInfoStatus.Downloading
-      )
-        downloading++;
-    }
-  }
-  return {
-    total,
-    queueable,
-    durationSeconds,
-    downloadable,
-    downloaded,
-    downloading,
-  };
+function nothingPlayableMessage(online: boolean) {
+  return online
+    ? 'None of these recordings are available right now.'
+    : 'None of these tracks are downloaded.';
 }

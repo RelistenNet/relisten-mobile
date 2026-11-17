@@ -30,7 +30,8 @@ const pick = (plan: ReturnType<typeof planTrackDrag>, y: number) =>
       plan.slots.map((s) => s.y),
       plan.slots.map((s) => !!s.linkTarget),
       y,
-      -1
+      -1,
+      metrics.trackHeight
     )
   ];
 
@@ -104,7 +105,7 @@ describe('planTrackDrag', () => {
       linkTarget: true,
       drop: { drop: { kind: 'in_group', segmentId: 'd', afterEntryId: 'dew' } },
     });
-    expect(pick(plan, target.bottom).linkTarget).toBeUndefined();
+    expect(pick(plan, target.top + 56).linkTarget).toBeUndefined();
   });
 });
 

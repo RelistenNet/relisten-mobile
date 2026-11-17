@@ -1,4 +1,5 @@
 import type { TrackDrop } from '@/relisten/playlists/playlist_actions';
+import { singleSourceTrack, trackTitle } from '@/relisten/playlists/playlist_format';
 import type { PlaylistRowEntry, PlaylistRowGroup } from '@/relisten/playlists/playlist_hooks';
 
 /**
@@ -16,7 +17,11 @@ import type { PlaylistRowEntry, PlaylistRowGroup } from '@/relisten/playlists/pl
  * on the UI thread.
  */
 
-export type LinkPosition = 'first' | 'middle' | 'last';
+/**
+ * Where a row sits in a run of linked tracks, which decides how its rail is
+ * drawn: `only` is a short rail for a link shown as one row.
+ */
+export type LinkPosition = 'first' | 'middle' | 'last' | 'only';
 
 export type EditItem =
   | { kind: 'link'; key: string; group: PlaylistRowGroup }
@@ -26,7 +31,7 @@ export type EditItem =
       group: PlaylistRowGroup;
       row: PlaylistRowEntry;
       /** Set for tracks in a link; the link line above is always `first`. */
-      link?: Exclude<LinkPosition, 'first'>;
+      link?: 'middle' | 'last';
       showShowLine: boolean;
     }
   /** A whole link or single track as one row, while a link is being dragged. */
@@ -70,7 +75,6 @@ export interface DropSlot {
 /** A single track that a held drag can link onto. */
 export interface HoverTarget {
   top: number;
-  bottom: number;
   slotIndex: number;
 }
 
@@ -84,10 +88,11 @@ export interface DragPlan {
 }
 
 /**
- * How far the inside and outside slots at a link's end sit from the seam. A
- * finger move of about half a row switches between them, with a haptic tick.
+ * How far the inside and outside slots at a link's end sit from the seam, as a
+ * share of a row. Moving about half a row switches between them. Relative to
+ * the row so it holds at large text sizes.
  */
-const EDGE_OFFSET = 14;
+const EDGE_OFFSET_ROWS = 0.25;
 
 /** The list in edit mode, with nothing being dragged. */
 export function editItems(groups: PlaylistRowGroup[]): EditItem[] {
@@ -102,7 +107,7 @@ function itemsForGroup(
   if (!linked) {
     return entries.map((row) => trackItem(group, row, undefined, true));
   }
-  const oneShow = sameRecording(entries);
+  const oneShow = singleSourceTrack(entries) !== undefined;
   return [
     { kind: 'link', key: `link:${group.segment.segmentId}`, group },
     ...entries.map((row, index) =>
@@ -132,13 +137,6 @@ function trackItem(
   };
 }
 
-function sameRecording(entries: PlaylistRowEntry[]) {
-  const first = entries[0]?.sourceTrack?.sourceUuid;
-  return first !== undefined && entries.every((r) => r.sourceTrack?.sourceUuid === first);
-}
-
-const titleOf = (row: PlaylistRowEntry | undefined) => row?.sourceTrack?.title ?? 'track';
-
 /**
  * Drag plan for one track. The track leaves the list and a placeholder takes
  * its place. A link it leaves keeps its line and rail until the drop, so the
@@ -158,6 +156,7 @@ export function planTrackDrag(
     .filter((g) => g.entries.length > 0);
   const origin = locateEntry(groups, entryId);
 
+  const edgeOffset = metrics.trackHeight * EDGE_OFFSET_ROWS;
   const items: EditItem[] = [];
   const slots: DropSlot[] = [];
   const hoverTargets: HoverTarget[] = [];
@@ -165,7 +164,9 @@ export function planTrackDrag(
   let initialSlot = 0;
 
   const addSlot = (slot: DropSlot, isOrigin: boolean) => {
-    if (isOrigin) initialSlot = slots.length;
+    if (isOrigin) {
+      initialSlot = slots.length;
+    }
     slots.push(slot);
   };
 
@@ -179,10 +180,10 @@ export function planTrackDrag(
       const last = previous.entries[previous.entries.length - 1];
       addSlot(
         {
-          y: seam - EDGE_OFFSET,
+          y: seam - edgeOffset,
           gapIndex: firstItem,
           inLink: true,
-          label: `Linked with ${titleOf(last)}`,
+          label: `Linked with ${trackTitle(last)}`,
           drop: {
             kind: 'track',
             drop: {
@@ -201,7 +202,7 @@ export function planTrackDrag(
 
     addSlot(
       {
-        y: previous?.linked ? seam + EDGE_OFFSET : seam,
+        y: previous?.linked ? seam + edgeOffset : seam,
         gapIndex: firstItem,
         inLink: false,
         label: previous?.linked || current.linked ? 'Not linked' : undefined,
@@ -231,7 +232,7 @@ export function planTrackDrag(
             y,
             gapIndex: items.length,
             inLink: true,
-            label: entryIndex === 0 ? `Linked with ${titleOf(row)}` : undefined,
+            label: entryIndex === 0 ? `Linked with ${trackTitle(row)}` : undefined,
             drop: {
               kind: 'track',
               drop: {
@@ -253,13 +254,13 @@ export function planTrackDrag(
       y += metrics.trackHeight;
 
       if (!current.linked) {
-        hoverTargets.push({ top, bottom: y, slotIndex: slots.length });
+        hoverTargets.push({ top, slotIndex: slots.length });
         slots.push({
           y,
           gapIndex: items.length,
           inLink: true,
           linkTarget: true,
-          label: `Linked with ${titleOf(row)}`,
+          label: `Linked with ${trackTitle(row)}`,
           drop: {
             kind: 'track',
             drop: {
@@ -278,10 +279,10 @@ export function planTrackDrag(
     const lastEntry = last.entries[last.entries.length - 1];
     addSlot(
       {
-        y: y - EDGE_OFFSET,
+        y: y - edgeOffset,
         gapIndex: items.length,
         inLink: true,
-        label: `Linked with ${titleOf(lastEntry)}`,
+        label: `Linked with ${trackTitle(lastEntry)}`,
         drop: {
           kind: 'track',
           drop: {
@@ -298,7 +299,7 @@ export function planTrackDrag(
   }
   addSlot(
     {
-      y: last?.linked ? y + EDGE_OFFSET : y,
+      y: last?.linked ? y + edgeOffset : y,
       gapIndex: items.length,
       inLink: false,
       label: last?.linked ? 'Not linked' : undefined,
@@ -327,7 +328,9 @@ function locateEntry(groups: PlaylistRowGroup[], entryId: string) {
   for (let g = 0; g < groups.length; g++) {
     const entries = groups[g].entries;
     const index = entries.findIndex((r) => r.entry.entryId === entryId);
-    if (index < 0) continue;
+    if (index < 0) {
+      continue;
+    }
     if (entries.length === 1) {
       return {
         single: true as const,
@@ -409,22 +412,27 @@ export function gaplessY(y: number, gapTop: number, gapHeight: number): number {
   return y >= gapTop + gapHeight ? y - gapHeight : gapTop;
 }
 
-/** Switching slots needs a little extra distance, so a finger resting on a boundary doesn't flicker. */
-const HYSTERESIS = 6;
+/** Switching slots needs a little extra distance (a tenth of a row), so a finger resting on a boundary doesn't flicker. */
+const HYSTERESIS_ROWS = 0.1;
 
 /** The positional slot nearest `y`, keeping `current` unless another is clearly closer. */
 export function nearestSlot(
   slotYs: number[],
   linkTargets: boolean[],
   y: number,
-  current: number
+  current: number,
+  rowHeight: number
 ): number {
   'worklet';
   let best = current;
   let bestDistance =
-    current >= 0 && !linkTargets[current] ? Math.abs(slotYs[current] - y) - HYSTERESIS : Infinity;
+    current >= 0 && !linkTargets[current]
+      ? Math.abs(slotYs[current] - y) - rowHeight * HYSTERESIS_ROWS
+      : Infinity;
   for (let i = 0; i < slotYs.length; i++) {
-    if (linkTargets[i]) continue;
+    if (linkTargets[i]) {
+      continue;
+    }
     const distance = Math.abs(slotYs[i] - y);
     if (distance < bestDistance) {
       best = i;

@@ -36,13 +36,6 @@ export interface WireEntry {
   track_id: string;
 }
 
-export interface CreatePlaylistResponse {
-  contract_version: 1;
-  playlist_id: string;
-  revision: number;
-  history_generation: string;
-}
-
 export interface PlaylistSnapshotResponse {
   contract_version: 1;
   playlist_id: string;

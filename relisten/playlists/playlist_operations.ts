@@ -4,8 +4,8 @@ import { generateNKeysBetween } from 'fractional-indexing';
  * The playlist operation engine. It implements the structural operations of the
  * frozen API contract (`2026-11-16-v4-playlist-contracts.md`) as a pure function
  * over an in-memory snapshot, and returns only the rows it changed. Playlists on
- * the device apply those changes directly; account playlists will later use the
- * same engine for optimistic edits and replay, so behavior stays identical.
+ * the device apply those changes directly; account playlists use the same
+ * engine for their pending edits and for replaying them after a pull.
  */
 
 export interface SegmentState {
@@ -113,6 +113,28 @@ export function orderedGroups(snapshot: PlaylistSnapshot): PlaylistGroup[] {
     segment,
     entries: (entriesBySegment.get(segment.segmentId) ?? []).sort(byRank),
   }));
+}
+
+/** A snapshot an edit or replay updates in place, one operation at a time. */
+export interface WorkingSnapshot {
+  segments: Map<string, SegmentState>;
+  entries: Map<string, EntryState>;
+}
+
+/** Folds an operation's changes into a working snapshot. */
+export function applyChanges(snapshot: WorkingSnapshot, changes: PlaylistChanges) {
+  for (const segment of changes.upsertSegments) {
+    snapshot.segments.set(segment.segmentId, segment);
+  }
+  for (const entry of changes.upsertEntries) {
+    snapshot.entries.set(entry.entryId, entry);
+  }
+  for (const id of changes.deleteEntryIds) {
+    snapshot.entries.delete(id);
+  }
+  for (const id of changes.deleteSegmentIds) {
+    snapshot.segments.delete(id);
+  }
 }
 
 export function applyPlaylistOperation(

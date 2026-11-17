@@ -1,7 +1,10 @@
 import { Pressable, View } from 'react-native';
 import { hideMessage, showMessage } from 'react-native-flash-message';
 import { RelistenText } from '@/relisten/components/relisten_text';
+import Realm from 'realm';
 import { RelistenBlue } from '@/relisten/relisten_blue';
+import { undoLastEdit } from '@/relisten/playlists/playlist_actions';
+import type { PlaylistRowEntry, PlaylistRowGroup } from '@/relisten/playlists/playlist_hooks';
 
 export interface PlaylistToastAction {
   label: string;
@@ -52,4 +55,38 @@ export function showPlaylistToast(message: string, actions: PlaylistToastAction[
     titleStyle: { fontSize: 16, lineHeight: 22 },
     type: 'info',
   });
+}
+
+/** The Undo button for an edit toast. An account edit can be undone only until it is sent. */
+export function undoAction(realm: Realm, playlistId: string): PlaylistToastAction {
+  return {
+    label: 'Undo',
+    onPress: () => {
+      if (!undoLastEdit(realm, playlistId)) {
+        showPlaylistToast('That change is already saved to your account, so it can’t be undone.');
+      }
+    },
+  };
+}
+
+/** Confirms an edit with Undo. An edit that changed nothing gets no toast. */
+export function toastEdit(
+  realm: Realm,
+  playlistId: string,
+  changed: boolean,
+  message: string,
+  extra: PlaylistToastAction[] = []
+) {
+  if (changed) {
+    showPlaylistToast(message, [undoAction(realm, playlistId), ...extra]);
+  }
+}
+
+/** "Removed Jack Straw", noting when its one linked partner is left on its own. */
+export function removedMessage(row: PlaylistRowEntry, group: PlaylistRowGroup): string {
+  const title = row.sourceTrack?.title ?? 'track';
+  const mate = group.entries.length === 2 ? group.entries.find((r) => r !== row) : undefined;
+  return mate
+    ? `Removed ${title}. ${mate.sourceTrack?.title ?? 'The other track'} is no longer linked.`
+    : `Removed ${title}`;
 }

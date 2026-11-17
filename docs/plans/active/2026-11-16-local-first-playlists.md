@@ -854,22 +854,25 @@ notes win:
   only when an edit changed something. Undo history is in memory: 5 snapshots for
   each of the 10 most recently edited playlists, so Undo still works after leaving
   the screen.
-- **Dragging** uses `react-native-draggable-flatlist`, like the player queue.
-  Group boundaries are real header and footer rows, so a drop is inside a group
-  when it lands after the header or before the footer. Whole groups move in an
-  **Arrange Groups** mode, where each group is one row; there is no mid-drag
-  collapse. Joining two loose tracks is done with **Keep with…** (row menu, or the
-  toast after a drop that lands right under a single track), not hover-to-join.
+- **Dragging** (revised 2026-11-17) follows the spec above, with a custom drag
+  layer (`playlist_edit_list.tsx`, slots from `playlist_drag_slots.ts`) instead
+  of `react-native-draggable-flatlist`, which can't express two targets at one
+  spot. One list gesture claims touches in the handle column. At a link's edge
+  the inside and outside slots are a quarter row apart; holding a track partly
+  over a single track for 0.6 s links them; a link's slim line drags the whole
+  link while the others fold. Groups are called **Linked** in the UI. Distances
+  are fractions of the row height, so they hold at large text sizes.
 - **Menus** hide moves that don't apply instead of showing disabled items with
   subtitles; native menu items have no subtitle support.
 - **New playlist** shows the suggested name as a placeholder; Create uses it when
   the field is empty.
 - **Not built yet:** the first-time shuffle hint, the Now Playing jump pill, the
-  sign-in card (playlists don't sync until milestone 2), and **Android Auto**. The
+  and **Android Auto**. The
   Android Auto bridge needs native Kotlin, and no JDK 17 or 21 was available to
   compile it.
-- **Not verified by hand:** dragging (simulator automation can't hold a touch);
-  the drop logic has unit tests instead. CarPlay (type-checked, not run).
+- **Verified by hand:** dragging, with slow simulator swipes: inside and outside a
+  link's edge, holding to link, dragging a whole link, and auto-scroll. Not run:
+  CarPlay (type-checked only).
 
 ## Milestone 2 implementation notes (2026-11-17)
 

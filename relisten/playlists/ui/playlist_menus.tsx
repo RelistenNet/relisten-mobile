@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { singleSourceTrack, trackTitle } from '@/relisten/playlists/playlist_format';
 import { type ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
@@ -24,28 +25,15 @@ import type {
   PlaylistRowGroup,
 } from '@/relisten/playlists/playlist_hooks';
 import { queueTracksFor } from '@/relisten/playlists/playlist_playback';
-import { undoAction } from '@/relisten/playlists/ui/playlist_lifecycle';
-import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
+import { removedMessage, toastEdit } from '@/relisten/playlists/ui/playlist_toast';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
-
-export const trackTitle = (row: PlaylistRowEntry | undefined) => row?.sourceTrack?.title ?? 'track';
 
 /** Where a row sits, which decides which moves make sense. */
 function position(layout: PlaylistLayout, entryId: string) {
   const { groupIndex = -1, index = -1 } = layout.entryPositions.get(entryId) ?? {};
   const group = layout.groups[groupIndex];
   return { groupIndex, group, index, inGroup: (group?.entries.length ?? 0) > 1 };
-}
-
-/** Shows a confirmation with Undo, but only when the edit actually changed something. */
-function useEditToast(playlistId: string) {
-  const realm = useRealm();
-  return (changed: boolean, message: string) => {
-    if (changed) {
-      showPlaylistToast(message, [undoAction(realm, playlistId)]);
-    }
-  };
 }
 
 function useGoToShow() {
@@ -90,7 +78,8 @@ export function TrackMenu({
 }) {
   const realm = useRealm();
   const player = useRelistenPlayer();
-  const toast = useEditToast(playlistId);
+  const toast = (changed: boolean, message: string) =>
+    toastEdit(realm, playlistId, changed, message);
   const goToShow = useGoToShow();
   const entryId = row.entry.entryId;
   const title = trackTitle(row);
@@ -113,8 +102,12 @@ export function TrackMenu({
       action('add-to-queue', 'Add to End of Queue', nativeMenuIcons.addToQueue)
     );
   }
-  if (!isFirst) actions.push(action('move-up', 'Move Up', nativeMenuIcons.moveUp));
-  if (!isLast) actions.push(action('move-down', 'Move Down', nativeMenuIcons.moveDown));
+  if (!isFirst) {
+    actions.push(action('move-up', 'Move Up', nativeMenuIcons.moveUp));
+  }
+  if (!isLast) {
+    actions.push(action('move-down', 'Move Down', nativeMenuIcons.moveDown));
+  }
   // A grouped track can always leave for either edge; a single one only if it isn't there yet.
   if (at.inGroup || at.groupIndex > 0) {
     actions.push(action('move-top', 'Move to Top', nativeMenuIcons.moveToTop));
@@ -122,12 +115,18 @@ export function TrackMenu({
   if (at.inGroup || at.groupIndex < groups.length - 1) {
     actions.push(action('move-bottom', 'Move to Bottom', nativeMenuIcons.moveToBottom));
   }
-  if (at.inGroup) actions.push(action('take-out', 'Unlink', nativeMenuIcons.ungroup));
+  if (at.inGroup) {
+    actions.push(action('take-out', 'Unlink', nativeMenuIcons.ungroup));
+  }
   if (at.inGroup && at.group!.entries.length > 2) {
     actions.push(action('unlink-all', 'Unlink All', nativeMenuIcons.ungroup));
   }
-  if (aboveTitle) actions.push(action('keep-with', `Link to ${aboveTitle}`, nativeMenuIcons.group));
-  if (row.sourceTrack) actions.push(action('go-to-show', 'Go to Show', nativeMenuIcons.goTo));
+  if (aboveTitle) {
+    actions.push(action('keep-with', `Link to ${aboveTitle}`, nativeMenuIcons.group));
+  }
+  if (row.sourceTrack) {
+    actions.push(action('go-to-show', 'Go to Show', nativeMenuIcons.goTo));
+  }
   actions.push(action('remove', 'Remove from Playlist', nativeMenuIcons.delete, true));
 
   const handle = (id: string) => {
@@ -135,8 +134,9 @@ export function TrackMenu({
       case 'play-next':
       case 'add-to-queue': {
         const track = PlayerQueueTrack.fromSourceTrack(row.sourceTrack!);
-        if (id === 'play-next') player.queue.queueNextTrack([track]);
-        else player.queue.addTrackToEndOfQueue([track]);
+        if (id === 'play-next') {
+          player.queue.queueNextTrack([track]);
+        } else player.queue.addTrackToEndOfQueue([track]);
         return;
       }
       case 'move-up':
@@ -159,15 +159,8 @@ export function TrackMenu({
         return toast(keepWithAbove(realm, playlistId, entryId), `Linked ${title} to ${aboveTitle}`);
       case 'go-to-show':
         return goToShow(row.sourceTrack!);
-      case 'remove': {
-        const shrinks = at.inGroup && at.group!.entries.length === 2;
-        return toast(
-          removeEntry(realm, playlistId, entryId),
-          shrinks
-            ? `Removed ${title}. ${trackTitle(groupmate)} is now on its own.`
-            : `Removed ${title}`
-        );
-      }
+      case 'remove':
+        return toast(removeEntry(realm, playlistId, entryId), removedMessage(row, at.group!));
     }
   };
 
@@ -200,31 +193,40 @@ export function GroupMenu({
   const realm = useRealm();
   const player = useRelistenPlayer();
   const online = useShouldMakeNetworkRequests();
-  const toast = useEditToast(playlistId);
+  const toast = (changed: boolean, message: string) =>
+    toastEdit(realm, playlistId, changed, message);
   const goToShow = useGoToShow();
   const segmentId = group.segment.segmentId;
   const groupCount = layout.groups.length;
   const index = layout.groupIndexes.get(segmentId) ?? -1;
-  const showTrack = singleSourceTrack(group);
+  const showTrack = singleSourceTrack(group.entries);
 
   const actions: MenuAction[] = [action('play-group', 'Play Linked Tracks', nativeMenuIcons.play)];
-  if (index > 0) actions.push(action('move-up', 'Move Up', nativeMenuIcons.moveUp));
+  if (index > 0) {
+    actions.push(action('move-up', 'Move Up', nativeMenuIcons.moveUp));
+  }
   if (index < groupCount - 1) {
     actions.push(action('move-down', 'Move Down', nativeMenuIcons.moveDown));
   }
-  if (index > 0) actions.push(action('move-top', 'Move to Top', nativeMenuIcons.moveToTop));
+  if (index > 0) {
+    actions.push(action('move-top', 'Move to Top', nativeMenuIcons.moveToTop));
+  }
   if (index < groupCount - 1) {
     actions.push(action('move-bottom', 'Move to Bottom', nativeMenuIcons.moveToBottom));
   }
   actions.push(action('ungroup', 'Unlink All', nativeMenuIcons.ungroup));
-  if (showTrack) actions.push(action('go-to-show', 'Go to Show', nativeMenuIcons.goTo));
+  if (showTrack) {
+    actions.push(action('go-to-show', 'Go to Show', nativeMenuIcons.goTo));
+  }
   actions.push(action('remove', 'Remove Linked Tracks', nativeMenuIcons.delete, true));
 
   const handle = (id: string) => {
     switch (id) {
       case 'play-group': {
         const tracks = queueTracksFor(playlistId, [group], online);
-        if (tracks.length > 0) player.queue.replaceQueue(tracks, 0, { resetShuffle: true });
+        if (tracks.length > 0) {
+          player.queue.replaceQueue(tracks, 0, { resetShuffle: true });
+        }
         return;
       }
       case 'move-up':
@@ -260,13 +262,4 @@ export function GroupMenu({
       {children}
     </NativeMenuView>
   );
-}
-
-/** A loaded track when every track in the group comes from the same recording. */
-export function singleSourceTrack(group: PlaylistRowGroup): SourceTrack | undefined {
-  const first = group.entries[0]?.sourceTrack;
-  if (!first) return undefined;
-  return group.entries.every((r) => r.sourceTrack?.sourceUuid === first.sourceUuid)
-    ? first
-    : undefined;
 }

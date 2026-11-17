@@ -27,7 +27,7 @@ export default function PlaylistsPage() {
         />
       </Stack.Toolbar>
       <FlatList
-        data={[...playlists]}
+        data={playlists}
         keyExtractor={(p) => p.playlistId}
         renderItem={({ item }) => <PlaylistListRow playlist={item} />}
         ItemSeparatorComponent={ItemSeparator}

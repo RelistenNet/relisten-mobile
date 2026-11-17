@@ -1,9 +1,7 @@
 import { useRouter } from 'expo-router';
 import { Alert } from 'react-native';
-import Realm from 'realm';
 import { useAccountScope } from '@/relisten/accounts/account_context';
 import { confirmDestructiveAction } from '@/relisten/components/menus/confirm_destructive_action';
-import { undoLastEdit } from '@/relisten/playlists/playlist_actions';
 import {
   RECENTLY_DELETED_DAYS,
   setPlaylistDeleted,
@@ -13,18 +11,6 @@ import type { Playlist } from '@/relisten/realm/models/playlists/playlist';
 import { usePlaylistSyncService } from '@/relisten/realm/root_services';
 import { useRealm } from '@/relisten/realm/schema';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
-
-/** The Undo button for an edit toast. An account edit can be undone only until it is sent. */
-export function undoAction(realm: Realm, playlistId: string) {
-  return {
-    label: 'Undo',
-    onPress: () => {
-      if (!undoLastEdit(realm, playlistId)) {
-        showPlaylistToast('That change is already saved to your account, so it can’t be undone.');
-      }
-    },
-  };
-}
 
 /**
  * Deleting and restoring a playlist. A device playlist moves to Recently
@@ -65,7 +51,9 @@ export function usePlaylistLifecycle() {
   const remove = (playlist: Playlist) => {
     const { playlistId, name } = playlist;
     const owned = !!playlist.ownerUserId;
-    if (owned && !canReachAccount(playlist, 'delete')) return;
+    if (owned && !canReachAccount(playlist, 'delete')) {
+      return;
+    }
 
     confirmDestructiveAction({
       title: `Delete ${name}?`,
@@ -73,7 +61,9 @@ export function usePlaylistLifecycle() {
       confirmLabel: 'Delete',
       onConfirm: async () => {
         if (owned) {
-          if (!(await setArchived(playlist, true))) return;
+          if (!(await setArchived(playlist, true))) {
+            return;
+          }
         } else {
           setPlaylistDeleted(realm, playlistId, true);
         }
