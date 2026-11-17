@@ -62,6 +62,17 @@ const action = (
   attributes: destructive ? { destructive: true } : undefined,
 });
 
+/** Groups of actions shown with dividers between them; empty groups are left out. */
+const menuSections = (sections: MenuAction[][]): MenuAction[] =>
+  sections
+    .filter((section) => section.length > 0)
+    .map((subactions, index) => ({
+      id: `section-${index}`,
+      title: '',
+      displayInline: true,
+      subactions,
+    }));
+
 /** The menu for one track: playback, moves, grouping, then Remove. Shown in view and edit modes. */
 export function TrackMenu({
   playlistId,
@@ -95,39 +106,49 @@ export function TrackMenu({
     ? at.group!.entries.find((r) => r.entry.entryId !== entryId)
     : undefined;
 
-  const actions: MenuAction[] = [];
+  const playback: MenuAction[] = [];
   if (row.sourceTrack && row.status === 'playable') {
-    actions.push(
+    playback.push(
       action('play-next', 'Play Next', nativeMenuIcons.playNext),
       action('add-to-queue', 'Add to End of Queue', nativeMenuIcons.addToQueue)
     );
   }
+
+  const moves: MenuAction[] = [];
   if (!isFirst) {
-    actions.push(action('move-up', 'Move Up', nativeMenuIcons.moveUp));
+    moves.push(action('move-up', 'Move Up', nativeMenuIcons.moveUp));
   }
   if (!isLast) {
-    actions.push(action('move-down', 'Move Down', nativeMenuIcons.moveDown));
+    moves.push(action('move-down', 'Move Down', nativeMenuIcons.moveDown));
   }
   // A grouped track can always leave for either edge; a single one only if it isn't there yet.
   if (at.inGroup || at.groupIndex > 0) {
-    actions.push(action('move-top', 'Move to Top', nativeMenuIcons.moveToTop));
+    moves.push(action('move-top', 'Move to Top', nativeMenuIcons.moveToTop));
   }
   if (at.inGroup || at.groupIndex < groups.length - 1) {
-    actions.push(action('move-bottom', 'Move to Bottom', nativeMenuIcons.moveToBottom));
+    moves.push(action('move-bottom', 'Move to Bottom', nativeMenuIcons.moveToBottom));
   }
+
+  const links: MenuAction[] = [];
   if (at.inGroup) {
-    actions.push(action('take-out', 'Unlink', nativeMenuIcons.ungroup));
+    links.push(action('take-out', 'Unlink', nativeMenuIcons.ungroup));
   }
   if (at.inGroup && at.group!.entries.length > 2) {
-    actions.push(action('unlink-all', 'Unlink All', nativeMenuIcons.ungroup));
+    links.push(action('unlink-all', 'Unlink All', nativeMenuIcons.ungroup));
   }
   if (aboveTitle) {
-    actions.push(action('keep-with', `Link to ${aboveTitle}`, nativeMenuIcons.group));
+    links.push(action('keep-with', `Link to ${aboveTitle}`, nativeMenuIcons.group));
   }
   if (row.sourceTrack) {
-    actions.push(action('go-to-show', 'Go to Show', nativeMenuIcons.goTo));
+    links.push(action('go-to-show', 'Go to Show', nativeMenuIcons.goTo));
   }
-  actions.push(action('remove', 'Remove from Playlist', nativeMenuIcons.delete, true));
+
+  const actions = menuSections([
+    playback,
+    moves,
+    links,
+    [action('remove', 'Remove from Playlist', nativeMenuIcons.delete, true)],
+  ]);
 
   const handle = (id: string) => {
     switch (id) {
@@ -201,24 +222,31 @@ export function GroupMenu({
   const index = layout.groupIndexes.get(segmentId) ?? -1;
   const showTrack = singleSourceTrack(group.entries);
 
-  const actions: MenuAction[] = [action('play-group', 'Play Linked Tracks', nativeMenuIcons.play)];
+  const moves: MenuAction[] = [];
   if (index > 0) {
-    actions.push(action('move-up', 'Move Up', nativeMenuIcons.moveUp));
+    moves.push(action('move-up', 'Move Up', nativeMenuIcons.moveUp));
   }
   if (index < groupCount - 1) {
-    actions.push(action('move-down', 'Move Down', nativeMenuIcons.moveDown));
+    moves.push(action('move-down', 'Move Down', nativeMenuIcons.moveDown));
   }
   if (index > 0) {
-    actions.push(action('move-top', 'Move to Top', nativeMenuIcons.moveToTop));
+    moves.push(action('move-top', 'Move to Top', nativeMenuIcons.moveToTop));
   }
   if (index < groupCount - 1) {
-    actions.push(action('move-bottom', 'Move to Bottom', nativeMenuIcons.moveToBottom));
+    moves.push(action('move-bottom', 'Move to Bottom', nativeMenuIcons.moveToBottom));
   }
-  actions.push(action('ungroup', 'Unlink All', nativeMenuIcons.ungroup));
+
+  const links: MenuAction[] = [action('ungroup', 'Unlink All', nativeMenuIcons.ungroup)];
   if (showTrack) {
-    actions.push(action('go-to-show', 'Go to Show', nativeMenuIcons.goTo));
+    links.push(action('go-to-show', 'Go to Show', nativeMenuIcons.goTo));
   }
-  actions.push(action('remove', 'Remove Linked Tracks', nativeMenuIcons.delete, true));
+
+  const actions = menuSections([
+    [action('play-group', 'Play Linked Tracks', nativeMenuIcons.play)],
+    moves,
+    links,
+    [action('remove', 'Remove Linked Tracks', nativeMenuIcons.delete, true)],
+  ]);
 
   const handle = (id: string) => {
     switch (id) {
