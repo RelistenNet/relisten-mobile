@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Playlist mockups</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+body{margin:0;background:#0a1116;color:#e8eef2;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Helvetica,Arial,sans-serif}
+main{max-width:1320px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:22px;font-weight:600;margin:0 0 4px}
+h2{font-size:17px;font-weight:600;margin:28px 0 12px;color:#bcd}
+.intro{color:#9aa7b4;font-size:14px;margin:0 0 8px;max-width:760px;line-height:1.5}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:24px}
+.ph{background:#001114;border-radius:32px;border:7px solid #2a3542;padding:16px 12px 18px;color:#fff;font-size:12px;line-height:1.35;min-height:560px;box-sizing:border-box}
+.cap{font-size:13px;color:#9aa7b4;margin:10px 4px 0;line-height:1.45}
+.h1{font-size:19px;font-weight:600;margin:6px 2px 10px}
+.sec{font-size:14px;font-weight:600;margin:12px 2px 6px}
+.r{display:flex;align-items:center;gap:8px;padding:9px 4px;border-bottom:1px solid #1c2a35}
+.t{font-size:14px;font-weight:600}
+.s{color:#9aa7b4;font-size:11.5px}
+.d{color:#9aa7b4;font-size:12px;margin-left:auto;white-space:nowrap}
+.g{border:1px solid #2d3b4a;background:#0f1d27;border-radius:12px;margin:8px 0;padding:2px 8px}
+.gh{color:#8fd8ea;font-size:11.5px;padding:7px 0 3px;display:flex;gap:6px;align-items:center}
+.btn{border-radius:10px;padding:9px 0;text-align:center;font-weight:600;font-size:13px;flex:1}
+.mi{color:#e5484d;font-size:16px}
+.hd{color:#6b7884;font-size:18px}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:13px}
+.toast{background:#e8f7fb;color:#003b49;border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:8px;font-size:12.5px}
+.toast b{font-weight:600}
+.sheet{background:#1e2a38;border-radius:16px;padding:6px 12px 10px}
+.grab{width:36px;height:4px;background:#4a5866;border-radius:2px;margin:6px auto 10px}
+.lift{background:#1e2a38;border:1px solid #009DC1;border-radius:10px;padding:9px 8px;display:flex;gap:8px;align-items:center}
+.slot{border:1.5px dashed #009DC1;border-radius:8px;display:flex;align-items:center;padding-left:8px;color:#8fd8ea;font-size:11.5px}
+</style>
+</head>
+<body>
+<main>
+<h1>Relisten playlists: screen mockups</h1>
+<p class="intro">Companion to <code>2026-11-16-local-first-playlists.md</code>, section "Experience design". Uses the app's existing palette (relisten-blue 900/950 backgrounds, #009DC1 accent) and row style. Example data only.</p>
+
+<h2>Browsing, playing and adding</h2>
+<div class="grid">
+
+<div>
+<div class="ph">
+<div class="h1">My Library</div>
+<div style="background:#1e2a38;border-radius:12px;padding:10px 12px;margin-bottom:10px"><span class="t">My listening history</span> <span class="s">›</span></div>
+<div class="sec" style="display:flex;justify-content:space-between"><span>Your playlists ›</span><span style="color:#009DC1;font-size:12px;font-weight:600"><i class="ti ti-plus"></i> New</span></div>
+<div class="r"><div><div class="t">Cornell + friends</div><div class="s">6 tracks · 1 hr 21 min</div></div><span class="d">›</span></div>
+<div class="r"><div><div class="t">Road trip jams</div><div class="s">38 tracks · 6 hr 4 min</div></div><span class="d">›</span></div>
+<div class="r" style="border:none"><div><div class="t">Spring '77 favorites</div><div class="s">14 tracks · 2 hr 40 min</div></div><span class="d">›</span></div>
+<div class="sec">Venues in my library ›</div>
+<div class="sec">12 shows in my library</div>
+<div class="r"><div><div class="t">1977-05-08</div><div class="s">Grateful Dead · Barton Hall, Ithaca, NY</div></div></div>
+<div class="r"><div><div class="t">1997-12-29</div><div class="s">Phish · Madison Square Garden</div></div></div>
+</div>
+<p class="cap">1. My Library: a playlists section near the top, three most recent, with New.</p>
+</div>
+
+<div>
+<div class="ph">
+<div style="display:flex;justify-content:space-between;align-items:center"><span class="s" style="font-size:13px">‹ My Library</span><span style="color:#009DC1;font-weight:600"><i class="ti ti-plus"></i> New playlist</span></div>
+<div class="h1">Playlists</div>
+<div class="r"><div><div class="t">Cornell + friends</div><div class="s">6 tracks · 1 hr 21 min</div><div class="s">Grateful Dead, Phish</div></div><span class="d"><i class="ti ti-circle-check" style="color:#009DC1"></i> ›</span></div>
+<div class="r"><div><div class="t">Road trip jams</div><div class="s">38 tracks · 6 hr 4 min</div><div class="s">Widespread Panic, Phish, and 3 more</div></div><span class="d">›</span></div>
+<div class="r"><div><div class="t">Spring '77 favorites</div><div class="s">14 tracks · 2 hr 40 min</div><div class="s">Grateful Dead</div></div><span class="d">›</span></div>
+<div class="r"><div><div class="t">Sunday morning</div><div class="s">9 tracks · 58 min</div><div class="s">Jerry Garcia Band, Grateful Dead</div></div><span class="d">›</span></div>
+<div class="r" style="color:#9aa7b4"><i class="ti ti-trash"></i><span style="font-size:13px">Recently deleted</span><span class="d">2 ›</span></div>
+<div style="background:#0f1d27;border:1px solid #2d3b4a;border-radius:12px;padding:10px 12px;margin-top:14px">
+<div style="font-size:12.5px">Sign in to keep your playlists safe and use them on your other devices.</div>
+<div style="color:#009DC1;font-weight:600;margin-top:6px;font-size:13px">Sign in</div></div>
+</div>
+<p class="cap">2. Playlists: no artwork. Name, size, and who's in it. Most recently edited first.</p>
+</div>
+
+<div>
+<div class="ph">
+<div style="display:flex;justify-content:space-between"><span class="s" style="font-size:13px">‹ Playlists</span><span><i class="ti ti-dots"></i></span></div>
+<div class="h1" style="margin-bottom:2px">Cornell + friends</div>
+<div class="s" style="margin:0 2px 10px">6 tracks · 1 hr 21 min · Downloaded</div>
+<div style="display:flex;gap:8px;margin-bottom:6px"><div class="btn" style="background:#009DC1;color:#001114"><i class="ti ti-player-play"></i> Play</div><div class="btn" style="background:#1e2a38"><i class="ti ti-arrows-shuffle"></i> Shuffle</div></div>
+<div class="g"><div class="gh"><i class="ti ti-link"></i>Grateful Dead · 1977-05-08 · Barton Hall</div>
+<div class="r"><div class="t">Scarlet Begonias</div><span class="d">10:51</span></div>
+<div class="r" style="border:none"><div class="t">Fire on the Mountain</div><span class="d">13:44</span></div></div>
+<div class="r"><div><div class="t">Morning Dew</div><div class="s">Grateful Dead · 1977-05-08 · Barton Hall</div></div><span class="d">14:31</span></div>
+<div class="r"><div><div class="t">Tweezer</div><div class="s">Phish · 1997-12-29 · Madison Square Garden</div></div><span class="d">18:12</span></div>
+<div class="g"><div class="gh"><i class="ti ti-link"></i>Kept together</div>
+<div class="r"><div><div class="t">Dark Star</div><div class="s">Grateful Dead · 1972-08-27 · Veneta</div></div><span class="d">31:20</span></div>
+<div class="r" style="border:none"><div><div class="t" style="color:#7d8a96">Eyes of the World</div><div class="s" style="color:#7d8a96">Unavailable · Grateful Dead · 1974-06-18</div></div><span class="d" style="color:#7d8a96">—</span></div></div>
+</div>
+<p class="cap">3. Detail: single tracks are plain rows. Only tracks kept together get a card, headed by the show when they share one.</p>
+</div>
+
+<div>
+<div class="ph">
+<div style="opacity:.35">
+<div class="h1">Barton Hall, 1977-05-08</div>
+<div class="r"><div class="t">Scarlet Begonias</div><span class="d">10:51</span></div>
+<div class="r"><div class="t">Fire on the Mountain</div><span class="d">13:44</span></div>
+</div>
+<div class="sheet" style="margin-top:12px">
+<div class="grab"></div>
+<div class="t" style="font-size:15px">Add 2 tracks to</div>
+<div class="s" style="margin-bottom:6px">They'll stay together as a group.</div>
+<div class="r" style="color:#009DC1"><i class="ti ti-plus"></i><span class="t" style="color:#009DC1">New playlist</span></div>
+<div class="r"><div><div class="t">Cornell + friends</div><div class="s">6 tracks</div></div></div>
+<div class="r"><div><div class="t">Road trip jams</div><div class="s">38 tracks</div></div></div>
+<div class="r" style="border:none"><div><div class="t">Spring '77 favorites</div><div class="s">14 tracks · already has these</div></div></div>
+</div>
+<div class="toast" style="margin-top:14px"><i class="ti ti-check"></i><span style="flex:1">Added 2 tracks to Cornell + friends</span><b>Undo</b><b>View</b></div>
+</div>
+<p class="cap">4. Add to playlist sheet, then a toast with Undo and View. Duplicates are allowed but flagged.</p>
+</div>
+
+</div>
+
+<h2>Editing and dragging</h2>
+<div class="grid">
+
+<div>
+<div class="ph">
+<div class="top"><span class="s" style="font-size:13px">Editing</span><span style="color:#009DC1;font-weight:600">Done</span></div>
+<div class="g" style="border-color:#009DC1"><div class="gh"><i class="ti ti-grip-horizontal hd" style="font-size:14px"></i>Grateful Dead · 1977-05-08 · Barton Hall</div>
+<div class="r"><i class="ti ti-circle-minus mi"></i><div class="t">Scarlet Begonias</div><span class="d"><i class="ti ti-menu-2 hd"></i></span></div>
+<div class="r" style="border:none"><i class="ti ti-circle-minus mi"></i><div class="t">Fire on the Mountain</div><span class="d"><i class="ti ti-menu-2 hd"></i></span></div>
+<div class="slot" style="height:34px;margin:2px 0 8px 22px">Drop here: end of this group</div></div>
+<div class="slot" style="height:30px;margin:4px 0;border-color:#3b4a58;color:#6b7884">Or here: on its own</div>
+<div class="lift" style="margin:6px -4px 6px 10px;transform:rotate(-1.5deg)"><div><div class="t">Morning Dew</div><div class="s">Grateful Dead · 1977-05-08</div></div><span class="d"><i class="ti ti-menu-2"></i></span></div>
+<div class="r"><i class="ti ti-circle-minus mi"></i><div><div class="t">Tweezer</div><div class="s">Phish · 1997-12-29</div></div><span class="d"><i class="ti ti-menu-2 hd"></i></span></div>
+</div>
+<p class="cap">5. Dragging a track. At a group's edge the list opens two tall targets, inside the group or on its own, with a haptic tick when you cross between them.</p>
+</div>
+
+<div>
+<div class="ph">
+<div class="top"><span class="s" style="font-size:13px">Editing</span><span style="color:#009DC1;font-weight:600">Done</span></div>
+<div class="r"><i class="ti ti-circle-minus mi"></i><div><div class="t">Morning Dew</div><div class="s">Grateful Dead · 1977-05-08</div></div><span class="d"><i class="ti ti-menu-2 hd"></i></span></div>
+<div style="border:1.5px solid #009DC1;background:#062a33;border-radius:12px;padding:2px 8px;margin:8px 0">
+<div class="gh"><i class="ti ti-link"></i>Release to keep these together</div>
+<div class="r" style="border:none"><i class="ti ti-circle-minus mi"></i><div><div class="t">Tweezer</div><div class="s">Phish · 1997-12-29</div></div></div></div>
+<div class="lift" style="margin:-36px -2px 18px 40px;transform:rotate(1.5deg)"><div><div class="t">Tweezer Reprise</div><div class="s">Phish · 1997-12-29</div></div></div>
+<div class="r"><i class="ti ti-circle-minus mi"></i><div><div class="t">Dark Star</div><div class="s">Grateful Dead · 1972-08-27</div></div><span class="d"><i class="ti ti-menu-2 hd"></i></span></div>
+</div>
+<p class="cap">6. Joining. Hold a dragged track over the middle of a single track for half a second and it becomes a group outline. Release to group them.</p>
+</div>
+
+<div>
+<div class="ph">
+<div class="top"><span class="s" style="font-size:13px">Editing</span><span style="color:#009DC1;font-weight:600">Done</span></div>
+<div class="r"><i class="ti ti-circle-minus mi"></i><div><div class="t">Morning Dew</div><div class="s">Grateful Dead · 1977-05-08</div></div><span class="d"><i class="ti ti-menu-2 hd"></i></span></div>
+<div class="slot" style="height:30px;margin:6px 0">Move group here</div>
+<div style="background:#1e2a38;border:1px solid #009DC1;border-radius:12px;padding:10px;margin:4px -4px 8px 8px;transform:rotate(-1deg)"><div class="gh" style="padding:0"><i class="ti ti-grip-horizontal"></i>Grateful Dead · 1977-05-08 · Barton Hall</div><div class="s" style="margin-top:3px">Scarlet Begonias, Fire on the Mountain · 2 tracks</div></div>
+<div class="r"><i class="ti ti-circle-minus mi"></i><div><div class="t">Tweezer</div><div class="s">Phish · 1997-12-29</div></div><span class="d"><i class="ti ti-menu-2 hd"></i></span></div>
+<div class="g"><div class="gh"><i class="ti ti-grip-horizontal hd" style="font-size:14px"></i>Kept together · 2 tracks</div><div class="s" style="padding:0 0 8px">Dark Star, Eyes of the World</div></div>
+</div>
+<p class="cap">7. Dragging a group by its header. Every group collapses to one line while it moves, so a whole show is as easy to move as a song. Groups only drop between groups.</p>
+</div>
+
+<div>
+<div class="ph" style="display:flex;flex-direction:column">
+<div style="opacity:.35">
+<div class="r"><div class="t">Scarlet Begonias</div></div>
+<div class="r"><div class="t">Fire on the Mountain</div></div>
+<div class="r"><div class="t">Morning Dew</div></div>
+</div>
+<div class="sheet" style="margin-top:auto">
+<div class="grab"></div>
+<div class="t" style="font-size:15px">Fire on the Mountain</div>
+<div class="s" style="margin-bottom:4px">In a group with Scarlet Begonias</div>
+<div class="r"><i class="ti ti-arrow-up"></i><span class="t">Move up</span></div>
+<div class="r"><i class="ti ti-arrow-down"></i><span class="t">Move down</span></div>
+<div class="r"><i class="ti ti-arrow-bar-to-up"></i><span class="t">Move to top</span></div>
+<div class="r"><i class="ti ti-unlink"></i><span class="t">Take out of group</span></div>
+<div class="r"><i class="ti ti-player-track-next"></i><span class="t">Play next</span></div>
+<div class="r" style="border:none"><i class="ti ti-trash" style="color:#ff6b6b"></i><span class="t" style="color:#ff6b6b">Remove from playlist</span></div>
+</div>
+<div class="toast" style="margin-top:10px"><span style="flex:1">Removed Eyes of the World</span><b>Undo</b></div>
+</div>
+<p class="cap">8. The same moves without dragging: every row's menu, large rows, plain words. Every edit shows an Undo toast.</p>
+</div>
+
+</div>
+</main>
+</body>
+</html>
