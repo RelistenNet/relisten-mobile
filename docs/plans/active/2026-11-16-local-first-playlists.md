@@ -237,7 +237,7 @@ arrive through changes.
 
 Routes keep the July layout under `app/relisten/tabs/(myLibrary)/playlists`:
 list, `new`, `[playlistId]` and `[playlistId]/edit`, plus `recently-deleted`
-(milestone 2; see Open decision 1).
+(milestone 2).
 
 **Adding to a playlist**
 
@@ -278,8 +278,16 @@ groups is done by dragging tracks.
 
 **Deleting**
 
-Every playlist shows **Delete playlist**, with confirmation; see Open decision 1
-for how that maps onto owned playlists.
+Every playlist shows **Delete playlist**, with confirmation (Alec, 2026-11-17):
+
+- **Unowned:** removes its rows.
+- **Owned:** sends the archive command, which stays online-only as the contract
+  says. On success the playlist leaves the list and appears in **Recently
+  deleted**, where **Restore** unarchives it. Archived playlists keep counting
+  toward account limits.
+- **Owned, but offline or signed out:** nothing is queued. The confirmation is
+  replaced by a short message: "Connect to the internet to delete this playlist"
+  or "Sign in to delete this playlist".
 
 ## Catalog hydration and availability
 
@@ -513,20 +521,12 @@ Follow `AGENTS.md`: run affected Vitest files, `yarn ts:check` and `yarn lint`.
    the displayed fields, plus `live` flags), not as a separate base document or
    per-row JSON (Alec, 2026-11-17). A pull's cost tracks the size of the change,
    and the pattern matches favorites.
-6. **Favorites should move to the same owner model later.** Today they still
+6. **Delete archives owned playlists online only.** Owned playlists move to
+   **Recently deleted** and can be restored; deleting one requires being online
+   and signed in as its owner. No contract change (Alec, 2026-11-17).
+7. **Favorites should move to the same owner model later.** Today they still
    switch between an anonymous set and an account set. That is separate work, and
    cheap while favorites are dev-alpha only.
-
-## Open decisions
-
-1. **What Delete does to an owned playlist.** The server is archive-only in v1,
-   and archive is an online-only command in the contract. Proposal: every playlist
-   shows **Delete playlist**. For an unowned playlist it removes the rows. For an
-   owned one it archives on the server, and the playlist appears in **Recently
-   deleted**, where **Restore** unarchives it. Deleting an owned playlist while
-   offline or signed out hides it at once and queues the archive command. That
-   needs one contract change: allow archive commands to be queued offline for
-   private playlists.
 
 ## Progress
 
