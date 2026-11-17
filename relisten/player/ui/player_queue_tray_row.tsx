@@ -1,3 +1,4 @@
+import { TrackDuration } from '@/relisten/components/track_duration';
 import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { SourceTrackOfflineIndicator } from '@/relisten/components/source/source_track_offline_indicator';
@@ -116,13 +117,8 @@ export function PlayerQueueTrayRow({
         }
       >
         {current && <CurrentTrackPlaybackButton />}
-        <View className="h-11 min-w-[44px] items-end justify-center">
-          <RelistenText
-            className="text-right text-base text-gray-400 tabular-nums"
-            selectable={false}
-          >
-            {source.humanizedDuration}
-          </RelistenText>
+        <View className="h-11 justify-center">
+          <TrackDuration duration={source.humanizedDuration} />
         </View>
         <View className="ml-3 flex-row items-center">
           <PlayerQueueActionsMenu index={index} queueTrack={track} iconAlignment="center" />

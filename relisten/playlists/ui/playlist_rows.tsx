@@ -1,3 +1,4 @@
+import { TrackDuration } from '@/relisten/components/track_duration';
 import { Ionicons } from '@expo/vector-icons';
 import { TouchableOpacity, View } from 'react-native';
 import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
@@ -158,9 +159,9 @@ export function PlaylistTrackRow({
           {canPlay && (
             <View className="ml-2 flex-row items-center">
               <SourceTrackOfflineIndicator offlineInfo={row.sourceTrack!.offlineInfo} />
-              <RelistenText className="ml-2 text-gray-400" selectable={false}>
-                {row.sourceTrack!.humanizedDuration}
-              </RelistenText>
+              <View className="ml-2">
+                <TrackDuration duration={row.sourceTrack!.humanizedDuration} />
+              </View>
             </View>
           )}
         </TouchableOpacity>

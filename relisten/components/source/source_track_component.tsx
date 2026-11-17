@@ -1,3 +1,4 @@
+import { TrackDuration } from '@/relisten/components/track_duration';
 import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import { ItemSeparator } from '@/relisten/components/item_separator';
 import { RelistenText } from '@/relisten/components/relisten_text';
@@ -85,9 +86,9 @@ export const SourceTrackComponent = ({
             <View className="flex-1" />
             <View className="shrink-0 flex-row items-center">
               <SourceTrackOfflineIndicator offlineInfo={sourceTrack.offlineInfo} />
-              <RelistenText className="ml-2 text-right text-base text-gray-400" selectable={false}>
-                {sourceTrack.humanizedDuration}
-              </RelistenText>
+              <View className="ml-2">
+                <TrackDuration duration={sourceTrack.humanizedDuration} />
+              </View>
             </View>
           </View>
         </PressableView>
