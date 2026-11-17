@@ -1,5 +1,6 @@
-import { useAccount } from '@/relisten/accounts/account_context';
+import { useAccount, useAccountScope } from '@/relisten/accounts/account_context';
 import { useFavoriteSyncStatus } from '@/relisten/library/favorite_hooks';
+import { usePlaylistSaveState } from '@/relisten/playlists/playlist_hooks';
 
 export type AccountSyncState = 'saved' | 'waiting' | 'syncing' | 'needsAttention';
 
@@ -50,13 +51,18 @@ export function useAccountSyncSummary(): {
   textClassName: string;
 } {
   const { error } = useAccount();
+  const { userId } = useAccountScope();
   const syncStatus = useFavoriteSyncStatus();
+  // Favorites and playlists both count: "Saved" only when neither has unsent work.
+  const playlists = usePlaylistSaveState(userId ?? undefined);
   const state: AccountSyncState =
-    syncStatus.state === 'needsAttention'
+    syncStatus.state === 'needsAttention' || playlists === 'needsAttention'
       ? 'needsAttention'
       : isAccountWaitingToRestore(error)
         ? 'waiting'
-        : syncStatus.state;
+        : syncStatus.state === 'saved' && playlists === 'unsaved'
+          ? 'syncing'
+          : syncStatus.state;
 
   return {
     state,

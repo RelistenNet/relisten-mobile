@@ -51,16 +51,27 @@ export function usePlaylistLifecycle() {
     }
   };
 
-  const remove = (playlist: Playlist) => {
-    const { playlistId, name } = playlist;
+  /**
+   * How to delete right now: on the device, archived on the account, or not
+   * yet (a create is on its way to the server). Explains a "not yet" or an
+   * unreachable account and returns undefined.
+   */
+  const deletionNow = (playlist: Playlist): 'local' | 'archive' | undefined => {
     const deletion = playlist.ownerUserId ? ownedDeletion(realm, playlist) : 'local';
     if (deletion === 'pending') {
       Alert.alert('This playlist is still being saved.', 'Try again in a moment.');
       service.flush();
-      return;
+      return undefined;
     }
-    const archive = deletion === 'archive';
-    if (archive && !canReachAccount(playlist, 'delete')) {
+    if (deletion === 'archive' && !canReachAccount(playlist, 'delete')) {
+      return undefined;
+    }
+    return deletion;
+  };
+
+  const remove = (playlist: Playlist) => {
+    const { playlistId, name } = playlist;
+    if (!deletionNow(playlist)) {
       return;
     }
 
@@ -69,10 +80,16 @@ export function usePlaylistLifecycle() {
       message: `You can restore it from Recently Deleted for ${RECENTLY_DELETED_DAYS} days.`,
       confirmLabel: 'Delete',
       onConfirm: async () => {
-        // The account or the playlist may have changed while the alert was up.
+        // The account or the playlist may have changed while the alert was up,
+        // and a new playlist's create may have been sent meanwhile, so decide again.
         if (!playlist.isValid() || !canAccessPlaylist(realm, playlist)) {
           return;
         }
+        const deletion = deletionNow(playlist);
+        if (!deletion) {
+          return;
+        }
+        const archive = deletion === 'archive';
         if (archive) {
           if (!(await setArchived(playlist, true))) {
             return;
