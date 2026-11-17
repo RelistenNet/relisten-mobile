@@ -34,7 +34,6 @@ import {
 import { ACCOUNT_REALM_MODELS } from '@/relisten/realm/models/accounts';
 import { FAVORITE_REALM_MODELS } from '@/relisten/realm/models/library';
 import { migrateLegacyFavoritesToAnonymous } from '@/relisten/realm/migrations/favorite_migration';
-import { migratePlaylistRows } from '@/relisten/realm/migrations/playlist_migration';
 import { AccountIdentityUpgradeState } from '@/relisten/realm/models/accounts/account_identity_upgrade_state';
 import {
   stageLegacyAccountIdentityFields,
@@ -53,7 +52,7 @@ if (isVerboseProfileLoggingEnabled()) {
   Realm.setLogLevel('debug', 'Realm.Storage.Notification');
 }
 
-export const REALM_SCHEMA_VERSION = 26;
+export const REALM_SCHEMA_VERSION = 24;
 
 export const REALM_SCHEMA = [
   Artist,
@@ -93,7 +92,6 @@ export const realmConfig: Realm.Configuration = {
     migratePlayerState(oldRealm, newRealm);
     stageLegacyAccountIdentityFields(oldRealm, newRealm);
     migrateLegacyFavoritesToAnonymous(oldRealm, newRealm);
-    migratePlaylistRows(oldRealm, newRealm);
   },
   // As to not conflict with the prior versions default.realm that isn't readable with this version of the SDK
   path: './relisten.realm',
