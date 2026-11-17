@@ -37,7 +37,7 @@ import { LastFmAuthListener } from '@/relisten/lastfm/lastfm_auth_listener';
 import * as Sentry from '@sentry/react-native';
 import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
 import { enableFreeze } from 'react-native-screens';
-import { AppState, LogBox, View } from 'react-native';
+import { AppState, LogBox, StyleSheet, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useCarPlaySetup } from '@/relisten/carplay/useCarPlaySetup';
 import {
@@ -249,9 +249,10 @@ function TabLayout() {
                             <Slot />
                             <PlayerPresentationOverlay />
                             <View
-                              className="absolute inset-0"
                               pointerEvents="box-none"
-                              style={{ elevation: 2000, zIndex: 2000 }}
+                              // NativeWind v2 doesn't apply `inset-0`, which left the
+                              // message host with no width.
+                              style={[StyleSheet.absoluteFill, { elevation: 2000, zIndex: 2000 }]}
                             >
                               <FlashMessage position="top" />
                             </View>
