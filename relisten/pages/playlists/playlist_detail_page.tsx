@@ -218,12 +218,11 @@ export default function PlaylistDetailPage() {
                 : "This playlist is empty. Add songs from any show's ••• menu."}
             </RelistenText>
           }
-          renderItem={({ item, index }) => (
+          renderItem={({ item }) => (
             <PlaylistTrackRow
               playlistId={playlistId}
               layout={layout}
               viewRow={item}
-              separator={index < viewRows.length - 1}
               online={online}
               playingEntryId={playingEntryId}
               linkPlaying={

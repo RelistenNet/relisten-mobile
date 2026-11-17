@@ -679,7 +679,7 @@ function RowContent({
 }
 
 function TrackText({ item }: { item: Extract<EditItem, { kind: 'track' }> }) {
-  const subtitle = item.showShowLine ? showLine(item.row) : '';
+  const subtitle = showLine(item.row);
   return (
     <View className="min-w-0 flex-1 justify-center">
       <RelistenText className="text-lg" numberOfLines={1} selectable={false}>

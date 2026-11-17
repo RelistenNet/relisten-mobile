@@ -13,7 +13,7 @@ import type {
   PlaylistRowEntry,
   PlaylistRowGroup,
 } from '@/relisten/playlists/playlist_hooks';
-import { singleSourceTrack, trackTitle } from '@/relisten/playlists/playlist_format';
+import { trackTitle } from '@/relisten/playlists/playlist_format';
 import type { LinkPosition } from '@/relisten/playlists/playlist_drag_slots';
 import { TrackMenu } from '@/relisten/playlists/ui/playlist_menus';
 import { tw } from '@/relisten/util/tw';
@@ -69,22 +69,18 @@ export interface PlaylistViewRow {
   row: PlaylistRowEntry;
   group: PlaylistRowGroup;
   link?: LinkPosition;
-  /** Linked tracks from one recording show the show line once, on the first track. */
-  showShowLine: boolean;
 }
 
 export function playlistViewRows(groups: PlaylistRowGroup[]): PlaylistViewRow[] {
   const rows: PlaylistViewRow[] = [];
   for (const group of groups) {
     const count = group.entries.length;
-    const oneShow = count > 1 && singleSourceTrack(group.entries) !== undefined;
     group.entries.forEach((row, index) => {
       rows.push({
         row,
         group,
         link:
           count < 2 ? undefined : index === 0 ? 'first' : index === count - 1 ? 'last' : 'middle',
-        showShowLine: !oneShow || index === 0,
       });
     });
   }
@@ -123,7 +119,6 @@ export function PlaylistTrackRow({
   playlistId,
   layout,
   viewRow,
-  separator,
   online,
   playingEntryId,
   linkPlaying,
@@ -132,7 +127,6 @@ export function PlaylistTrackRow({
   playlistId: string;
   layout: PlaylistLayout;
   viewRow: PlaylistViewRow;
-  separator: boolean;
   online: boolean;
   playingEntryId: string | undefined;
   /** True when a track in this row's linked run is playing; the rail lights up. */
@@ -143,16 +137,13 @@ export function PlaylistTrackRow({
   const isCurrent = playingEntryId === row.entry.entryId;
   const canPlay = row.status === 'playable';
   const title = row.sourceTrack ? row.sourceTrack.title : 'Track';
-  const subtitle = viewRow.showShowLine ? showLine(row) : '';
+  const subtitle = showLine(row);
 
   return (
     <View className="pl-4 pr-2">
       <LinkRail link={link} active={linkPlaying} />
-      <View
-        className={tw('min-h-[52px] flex-row items-center', {
-          'border-b border-white/10': separator,
-        })}
-      >
+      {/* Every row, the last included, ends in a hairline, so a link's rail sits evenly between lines. */}
+      <View className="min-h-[52px] flex-row items-center border-b border-white/10">
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityLabel={[
@@ -176,7 +167,6 @@ export function PlaylistTrackRow({
           <View className="min-w-0 flex-1">
             <RelistenText
               className={tw('text-lg', {
-                'font-semibold text-relisten-blue-300': isCurrent,
                 'text-gray-300': !canPlay,
               })}
               numberOfLines={2}
