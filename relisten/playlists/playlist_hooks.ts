@@ -3,12 +3,14 @@ import Realm from 'realm';
 import { useObject, useQuery, useRealm } from '@/relisten/realm/schema';
 import {
   Playlist,
+  PLAYLIST_DEVICE_STATE_ID,
   PlaylistDeviceState,
   PlaylistEntry,
   PlaylistSegment,
   PlaylistTrackAvailability,
 } from '@/relisten/realm/models/playlists/playlist';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
+import { SourceTrackOfflineInfoStatus } from '@/relisten/realm/models/source_track_offline_info';
 import {
   orderedGroups,
   type EntryState,
@@ -47,22 +49,21 @@ export function sourceTrackFor(realm: Realm, trackId: string): SourceTrack | nul
  * playlists stay on the device, hidden until it signs in again.
  */
 export function useVisibleOwnerId(): string | null {
-  const states = useQuery(PlaylistDeviceState);
-  return states[0]?.lastSignedInUserId ?? null;
+  return useObject(PlaylistDeviceState, PLAYLIST_DEVICE_STATE_ID)?.lastSignedInUserId ?? null;
 }
 
 const VISIBLE = '(ownerUserId == null OR ownerUserId == $0)';
 
+/** The playlists lists show, most recently edited first. Used by screens and CarPlay. */
+export function visiblePlaylists(rows: Realm.Results<Playlist>, owner: string | null) {
+  return rows
+    .filtered(`${VISIBLE} AND deletedAt == null AND archived == false`, owner)
+    .sorted('updatedAt', true);
+}
+
 export function usePlaylists() {
   const owner = useVisibleOwnerId();
-  return useQuery(
-    Playlist,
-    (rows) =>
-      rows
-        .filtered(`${VISIBLE} AND deletedAt == null AND archived == false`, owner)
-        .sorted('updatedAt', true),
-    [owner]
-  );
+  return useQuery(Playlist, (rows) => visiblePlaylists(rows, owner), [owner]);
 }
 
 /** Deleted device playlists (kept 30 days) and archived account playlists. */
@@ -118,9 +119,15 @@ export function usePlaylistGroups(playlistId: string): PlaylistRowGroup[] {
       ),
     [entries]
   );
-  const tracks = useQuery(SourceTrack, (rows) => rows.filtered('uuid IN $0', trackUuids), [
-    trackUuids,
-  ]);
+  // Download status matters to rows; progress ticks do not, so they don't re-render.
+  const tracks = useQuery(
+    {
+      type: SourceTrack,
+      query: (rows) => rows.filtered('uuid IN $0', trackUuids),
+      keyPaths: ['uuid', 'offlineInfo.status'],
+    },
+    [trackUuids]
+  );
 
   return useMemo(
     () => buildRowGroups(realm, segments, entries, unavailableIds(availability)),
@@ -174,43 +181,66 @@ function buildRowGroups(
   }));
 }
 
+/** Totals for a playlist, shared by list rows and the playlist header. */
 export interface PlaylistSummary {
   durationSeconds: number;
+  /** Most frequent first. */
   artistNames: string[];
+  /** Tracks that can be downloaded (some recordings can't). */
+  downloadable: number;
+  downloaded: number;
+  downloading: number;
   allDownloaded: boolean;
+  trackIds: ReadonlySet<string>;
 }
 
-/** Duration, artists and download state for list rows. Reads only this playlist's entries. */
-export function readPlaylistSummary(realm: Realm, playlistId: string): PlaylistSummary {
+export function summarizePlaylist(groups: PlaylistRowGroup[]): PlaylistSummary {
   let durationSeconds = 0;
-  let allDownloaded = true;
+  let downloadable = 0;
+  let downloaded = 0;
+  let downloading = 0;
   const artistCounts = new Map<string, number>();
+  const trackIds = new Set<string>();
 
-  for (const entry of realm
-    .objects(PlaylistEntry)
-    .filtered('playlistId == $0 AND live == true', playlistId)) {
-    const track = sourceTrackFor(realm, entry.trackId);
-    if (!track) {
-      allDownloaded = false;
-      continue;
+  for (const group of groups) {
+    for (const { entry, sourceTrack: track } of group.entries) {
+      trackIds.add(entry.trackId);
+      if (!track) {
+        continue;
+      }
+      durationSeconds += track.duration ?? 0;
+      artistCounts.set(track.artist.name, (artistCounts.get(track.artist.name) ?? 0) + 1);
+      if (!track.supportsOfflineDownload()) {
+        continue;
+      }
+      downloadable += 1;
+      const status = track.offlineInfo?.status;
+      if (track.offlineInfo?.isPlayableOffline()) {
+        downloaded += 1;
+      } else if (
+        status === SourceTrackOfflineInfoStatus.Queued ||
+        status === SourceTrackOfflineInfoStatus.Downloading
+      ) {
+        downloading += 1;
+      }
     }
-    durationSeconds += track.duration ?? 0;
-    allDownloaded = allDownloaded && track.offlineInfo?.isPlayableOffline() === true;
-    const name = track.artist.name;
-    artistCounts.set(name, (artistCounts.get(name) ?? 0) + 1);
   }
 
-  const artistNames = [...artistCounts.entries()].sort((a, b) => b[1] - a[1]).map(([name]) => name);
-  return { durationSeconds, artistNames, allDownloaded: allDownloaded && artistCounts.size > 0 };
+  return {
+    durationSeconds,
+    artistNames: [...artistCounts.entries()].sort((a, b) => b[1] - a[1]).map(([name]) => name),
+    downloadable,
+    downloaded,
+    downloading,
+    allDownloaded: downloadable > 0 && downloaded === downloadable,
+    trackIds,
+  };
 }
 
-/**
- * Summary for a list row. Rows re-render rarely, and this is one pass over the
- * playlist's own entries, so it is simply recomputed on render.
- */
+/** A list row's summary, updated as tracks load and downloads finish. */
 export function usePlaylistSummary(playlist: Playlist): PlaylistSummary {
-  const realm = useRealm();
-  return readPlaylistSummary(realm, playlist.playlistId);
+  const groups = usePlaylistGroups(playlist.playlistId);
+  return useMemo(() => summarizePlaylist(groups), [groups]);
 }
 
 /**

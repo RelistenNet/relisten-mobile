@@ -1,25 +1,24 @@
 import Realm from 'realm';
 import {
   Playlist,
-  PlaylistCommand,
   PlaylistEntry,
-  PlaylistOperation as PlaylistOperationRow,
   PlaylistSegment,
 } from '@/relisten/realm/models/playlists/playlist';
 import {
+  applyChanges,
   applyPlaylistOperation,
   type EntryState,
-  type OperationResult,
   type PlaylistOperation,
   type PlaylistSnapshot,
   type SegmentState,
+  type WorkingSnapshot,
 } from '@/relisten/playlists/playlist_operations';
 import {
-  appendOperation,
+  discardUnsentPlaylist,
   issueCreateCommand,
+  recordEdit,
   visibleOwnerId,
   withdrawUnsentOperations,
-  writeDisplayedChanges,
 } from '@/relisten/playlists/sync/playlist_sync_state';
 import type { MetadataEdit } from '@/relisten/playlists/sync/playlist_wire';
 import { createUuidV7TypedId } from '@/relisten/util/typed_uuid_id';
@@ -54,7 +53,7 @@ export function normalizePlaylistDescription(description: string | undefined): s
   return value ? value : undefined;
 }
 
-export function readPlaylistSnapshot(realm: Realm, playlistId: string): PlaylistSnapshot {
+export function readPlaylistSnapshot(realm: Realm, playlistId: string): WorkingSnapshot {
   const segments = new Map<string, SegmentState>();
   for (const s of realm
     .objects(PlaylistSegment)
@@ -95,9 +94,7 @@ export function createPlaylist(realm: Realm, name: string, groups: string[][] = 
       createdAt: now,
       updatedAt: now,
     });
-    for (const trackIds of groups) {
-      applyInWrite(realm, playlist, appendSegment(trackIds));
-    }
+    applyInWrite(realm, playlist, groups.map(appendSegment));
     const owner = visibleOwnerId(realm);
     if (owner) {
       playlist.ownerUserId = owner;
@@ -137,18 +134,7 @@ export function applyOperations(
     if (!playlist) {
       throw new Error('Playlist not found.');
     }
-    const operationIds: string[] = [];
-    let changed = false;
-    for (const operation of operations) {
-      if (applyInWrite(realm, playlist, operation).status !== 'applied') {
-        continue;
-      }
-      changed = true;
-      if (playlist.ownerUserId) {
-        operationIds.push(appendOperation(realm, playlist, operation));
-      }
-    }
-    return { changed, operationIds };
+    return applyInWrite(realm, playlist, operations);
   });
 }
 
@@ -157,31 +143,42 @@ export function withdrawEdit(realm: Realm, playlistId: string, operationIds: str
   return realm.write(() => withdrawUnsentOperations(realm, playlistId, operationIds));
 }
 
+/**
+ * Reads the playlist once and applies each operation to that working copy,
+ * writing only the rows each one changed.
+ */
 function applyInWrite(
   realm: Realm,
   playlist: Playlist,
-  operation: PlaylistOperation
-): OperationResult {
+  operations: PlaylistOperation[]
+): AppliedEdit {
   const snapshot = readPlaylistSnapshot(realm, playlist.playlistId);
-  const outcome = applyPlaylistOperation(snapshot, operation);
-  if (outcome.status !== 'applied') {
-    return outcome;
+  const operationIds: string[] = [];
+  let changed = false;
+
+  for (const operation of operations) {
+    const { status, changes } = applyPlaylistOperation(snapshot, operation);
+    if (status !== 'applied') {
+      continue;
+    }
+    applyChanges(snapshot, changes);
+    if (snapshot.entries.size > PLAYLIST_LIMITS.entriesPerPlaylist) {
+      throw new PlaylistLimitError(
+        `A playlist can hold up to ${PLAYLIST_LIMITS.entriesPerPlaylist.toLocaleString()} tracks.`
+      );
+    }
+    changed = true;
+    const operationId = recordEdit(realm, playlist, operation, changes);
+    if (operationId) {
+      operationIds.push(operationId);
+    }
   }
 
-  const { changes } = outcome;
-  const newEntries = changes.upsertEntries.filter((e) => !snapshot.entries.has(e.entryId)).length;
-  const entryCount = snapshot.entries.size + newEntries - changes.deleteEntryIds.length;
-  if (entryCount > PLAYLIST_LIMITS.entriesPerPlaylist) {
-    throw new PlaylistLimitError(
-      `A playlist can hold up to ${PLAYLIST_LIMITS.entriesPerPlaylist.toLocaleString()} tracks.`
-    );
+  if (changed) {
+    playlist.entryCount = snapshot.entries.size;
+    playlist.updatedAt = new Date();
   }
-
-  writeDisplayedChanges(realm, playlist, changes);
-
-  playlist.entryCount = entryCount;
-  playlist.updatedAt = new Date();
-  return outcome;
+  return { changed, operationIds };
 }
 
 /**
@@ -249,9 +246,7 @@ export function updatePlaylistDetails(
       return;
     }
     playlist.updatedAt = new Date();
-    if (playlist.ownerUserId) {
-      appendOperation(realm, playlist, edit);
-    }
+    recordEdit(realm, playlist, edit);
   });
 }
 
@@ -263,14 +258,11 @@ export function updatePlaylistDetails(
 export function deletePlaylistPermanently(realm: Realm, playlistId: string): boolean {
   return realm.write(() => {
     const playlist = realm.objectForPrimaryKey(Playlist, playlistId);
-    if (!playlist) return true;
-    if (playlist.ownerUserId) {
-      const commands = realm.objects(PlaylistCommand).filtered('playlistId == $0', playlistId);
-      if (playlist.serverState !== 'creating' || commands.some((c) => c.attemptCount > 0)) {
-        return false;
-      }
-      realm.delete(commands);
-      realm.delete(realm.objects(PlaylistOperationRow).filtered('playlistId == $0', playlistId));
+    if (!playlist) {
+      return true;
+    }
+    if (playlist.ownerUserId && !discardUnsentPlaylist(realm, playlist)) {
+      return false;
     }
     realm.delete(realm.objects(PlaylistEntry).filtered('playlistId == $0', playlistId));
     realm.delete(realm.objects(PlaylistSegment).filtered('playlistId == $0', playlistId));

@@ -13,13 +13,17 @@ import type {
   PlaylistRowEntry,
   PlaylistRowGroup,
 } from '@/relisten/playlists/playlist_hooks';
-import { singleSourceTrack, trackTitle, TrackMenu } from '@/relisten/playlists/ui/playlist_menus';
+import { singleSourceTrack, trackTitle } from '@/relisten/playlists/playlist_format';
+import type { LinkPosition } from '@/relisten/playlists/playlist_drag_slots';
+import { TrackMenu } from '@/relisten/playlists/ui/playlist_menus';
 import { tw } from '@/relisten/util/tw';
 
 /** "Grateful Dead · 1977-05-08 · Barton Hall". The venue is last, so it is what truncates. */
 export function showLine(row: PlaylistRowEntry): string {
   const track = row.sourceTrack;
-  if (!track) return '';
+  if (!track) {
+    return '';
+  }
   return [track.artist.name, track.show.displayDate, track.show.venue?.name]
     .filter(Boolean)
     .join(' · ');
@@ -60,12 +64,6 @@ function StatusLine({ row, online }: { row: PlaylistRowEntry; online: boolean })
   return null;
 }
 
-/**
- * Where a row sits in a run of linked tracks, which decides how its rail is
- * drawn: `only` is a short rail for a link shown as a single row.
- */
-export type LinkPosition = 'first' | 'middle' | 'last' | 'only';
-
 /** One row of the playlist view: a track, and whether it is linked to its neighbors. */
 export interface PlaylistViewRow {
   row: PlaylistRowEntry;
@@ -79,7 +77,7 @@ export function playlistViewRows(groups: PlaylistRowGroup[]): PlaylistViewRow[] 
   const rows: PlaylistViewRow[] = [];
   for (const group of groups) {
     const count = group.entries.length;
-    const oneShow = count > 1 && singleSourceTrack(group) !== undefined;
+    const oneShow = count > 1 && singleSourceTrack(group.entries) !== undefined;
     group.entries.forEach((row, index) => {
       rows.push({
         row,

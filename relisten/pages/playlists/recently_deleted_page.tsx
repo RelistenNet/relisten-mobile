@@ -17,7 +17,7 @@ export default function RecentlyDeletedPage() {
     <View className="flex-1 bg-relisten-blue-900">
       <Stack.Screen options={{ title: 'Recently Deleted' }} />
       <FlatList
-        data={[...deleted]}
+        data={deleted}
         keyExtractor={(p) => p.playlistId}
         ItemSeparatorComponent={ItemSeparator}
         ListHeaderComponent={

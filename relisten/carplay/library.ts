@@ -11,8 +11,8 @@ import plur from 'plur';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { queuePlaybackHistoryEntry } from '@/relisten/carplay/queue_helpers';
 import NetInfo from '@react-native-community/netinfo';
-import { Playlist } from '@/relisten/realm/models/playlists/playlist';
-import { readPlaylistRowGroups } from '@/relisten/playlists/playlist_hooks';
+import { Playlist, PlaylistDeviceState } from '@/relisten/realm/models/playlists/playlist';
+import { readPlaylistRowGroups, visiblePlaylists } from '@/relisten/playlists/playlist_hooks';
 import { playPlaylist } from '@/relisten/playlists/playlist_playback';
 
 const PLAYLIST_ITEM_PREFIX = 'playlist:';
@@ -34,16 +34,13 @@ export function createLibraryTemplate(ctx: RelistenCarPlayContext): ListTemplate
   carplay_logger.info('createLibraryTemplate');
 
   const showsStream = new RealmQueryValueStream(ctx.realm, ctx.realm.objects(Show));
+  // All of this device's playlists; which ones are visible is decided on each
+  // update, since signing in or switching accounts changes the visible owner.
   const playlistsStream = new RealmQueryValueStream(
     ctx.realm,
-    ctx.realm
-      .objects(Playlist)
-      .filtered(
-        '(ownerUserId == null OR ownerUserId == $0) AND deletedAt == null AND archived == false',
-        visibleOwnerId(ctx.realm) ?? null
-      )
-      .sorted('updatedAt', true)
+    ctx.realm.objects(Playlist).sorted('updatedAt', true)
   );
+  const deviceStates = ctx.realm.objects(PlaylistDeviceState);
 
   ctx.addTeardown(() => showsStream.tearDown());
   ctx.addTeardown(() => playlistsStream.tearDown());
@@ -81,7 +78,9 @@ export function createLibraryTemplate(ctx: RelistenCarPlayContext): ListTemplate
     const sections: ListSection[] = [];
 
     // Playlists are read-only in the car: choosing one plays it from the top.
-    const playlists = Array.from(playlistsStream.currentValue || []);
+    const playlists = playlistsStream.currentValue
+      ? [...visiblePlaylists(playlistsStream.currentValue, visibleOwnerId(ctx.realm) ?? null)]
+      : [];
     if (playlists.length > 0) {
       sections.push({
         header: 'Playlists',
@@ -149,6 +148,8 @@ export function createLibraryTemplate(ctx: RelistenCarPlayContext): ListTemplate
 
   showsStream.addListener(updateSections);
   playlistsStream.addListener(updateSections);
+  deviceStates.addListener(updateSections);
+  ctx.addTeardown(() => deviceStates.removeListener(updateSections));
   ctx.addTeardown(ctx.libraryIndex.subscribeLibraryMembership(updateSections));
 
   return template;

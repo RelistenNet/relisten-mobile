@@ -39,7 +39,9 @@ export async function resolvePlaylistTracks(
       }
       const { entities, references } = response.data;
       await ensureResolverArtists(realm, catalogApi, entities);
-      if (realm.isClosed) return availability;
+      if (realm.isClosed) {
+        return availability;
+      }
 
       realm.write(() => {
         applyResolvedEntities(realm, entities);
@@ -84,7 +86,9 @@ function recordAvailability(realm: Realm, reference: CatalogReferenceResolution,
       );
       return;
     case 'available':
-      if (existing) realm.delete(existing);
+      if (existing) {
+        realm.delete(existing);
+      }
   }
 }
 
@@ -102,12 +106,16 @@ export function usePlaylistHydration(
   const requested = useRef(new Set<string>());
 
   useEffect(() => {
-    if (!online) return;
+    if (!online) {
+      return;
+    }
     const missing = groups
       .flatMap((g) => g.entries)
       .filter((row) => row.status === 'loading' && !requested.current.has(row.entry.trackId))
       .map((row) => row.entry.trackId);
-    if (missing.length === 0) return;
+    if (missing.length === 0) {
+      return;
+    }
 
     missing.forEach((id) => requested.current.add(id));
     void resolvePlaylistTracks(realm, apiClient, missing);

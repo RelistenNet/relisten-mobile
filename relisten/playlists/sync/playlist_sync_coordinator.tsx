@@ -26,7 +26,9 @@ export function PlaylistSyncCoordinator() {
   }, [service]);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId) {
+      return;
+    }
     const claimed = realm.write(() => claimUnownedPlaylists(realm, userId));
     if (claimed > 0) {
       showPlaylistToast('Your playlists are now saved to your account.');
@@ -44,7 +46,9 @@ export function PlaylistSyncCoordinator() {
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (next) => {
-      if (next !== 'active') service.flush();
+      if (next !== 'active') {
+        service.flush();
+      }
       setAppState(next);
     });
     return () => subscription.remove();

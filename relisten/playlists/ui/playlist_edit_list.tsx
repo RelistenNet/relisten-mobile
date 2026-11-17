@@ -24,6 +24,7 @@ import {
   type DropSlot,
   type EditItem,
   type EditMetrics,
+  type LinkPosition,
   editItems,
   editMetrics,
   gaplessY,
@@ -34,15 +35,10 @@ import {
   planTrackDrag,
 } from '@/relisten/playlists/playlist_drag_slots';
 import type { PlaylistLayout } from '@/relisten/playlists/playlist_hooks';
-import { GroupMenu, trackTitle, TrackMenu } from '@/relisten/playlists/ui/playlist_menus';
-import {
-  LinkRail,
-  linkedLabel,
-  type LinkPosition,
-  showLine,
-} from '@/relisten/playlists/ui/playlist_rows';
-import { undoAction } from '@/relisten/playlists/ui/playlist_lifecycle';
-import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
+import { trackTitle } from '@/relisten/playlists/playlist_format';
+import { GroupMenu, TrackMenu } from '@/relisten/playlists/ui/playlist_menus';
+import { LinkRail, linkedLabel, showLine } from '@/relisten/playlists/ui/playlist_rows';
+import { removedMessage, toastEdit } from '@/relisten/playlists/ui/playlist_toast';
 
 /**
  * The playlist in edit mode: one list, where every row has a handle.
@@ -57,14 +53,24 @@ import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
  * callback. React re-renders only when the chosen slot changes.
  */
 
-const AUTOSCROLL_EDGE = 90;
+/*
+ * Drag tuning. Distances are in rows, so they hold at every text size; the
+ * row height comes from `editMetrics`.
+ */
+/** Auto-scroll starts this many rows from the top or bottom edge. */
+const AUTOSCROLL_EDGE_ROWS = 1.5;
+/** Points per frame at the very edge. */
 const AUTOSCROLL_MAX_SPEED = 14;
+/**
+ * The tab bar and mini player float over the bottom of the list. Not every
+ * layout reports their height in the scroll insets, so this is the minimum.
+ */
 const BOTTOM_OBSTRUCTION_FLOOR = 150;
 const LINK_HOLD_MS = 600;
-/** How much of a single track the dragged row must cover for holding to link onto it. A third of a row on either side of the reflow point. */
-const LINK_OVERLAP = 0.35;
+/** How much of a single track the dragged row must cover for holding to link onto it. */
+const LINK_OVERLAP_ROWS = 0.35;
 /** How far the row moves over its placeholder to step to the other slot at the same spot. */
-const SEAM_STEP = 18;
+const SEAM_STEP_ROWS = 0.3;
 
 type ListItem = EditItem | { kind: 'gap'; key: 'gap'; slot: DropSlot };
 
@@ -116,9 +122,6 @@ export function PlaylistEditList({
   const headerHeight = useSharedValue(0);
   const listHeight = useSharedValue(0);
   const contentHeight = useSharedValue(0);
-  // The tab bar and mini player float over the bottom of the list, so
-  // auto-scroll starts above them. Not every layout reports their height in
-  // the scroll insets, hence the floor.
   const bottomObstruction = useSharedValue(0);
   const obstruction = Math.max(
     scrollProps.scrollIndicatorInsets?.bottom ?? 0,
@@ -133,7 +136,6 @@ export function PlaylistEditList({
   const slotGapTops = useSharedValue<number[]>([]);
   const linkTargets = useSharedValue<boolean[]>([]);
   const hoverTops = useSharedValue<number[]>([]);
-  const hoverBottoms = useSharedValue<number[]>([]);
   const hoverSlots = useSharedValue<number[]>([]);
   const currentSlot = useSharedValue(-1);
   const hoverIndex = useSharedValue(-1);
@@ -165,7 +167,9 @@ export function PlaylistEditList({
 
   const onSlotChange = useCallback((slot: number) => {
     const current = dragRef.current;
-    if (!current) return;
+    if (!current) {
+      return;
+    }
     const armedLink = current.plan.slots[slot]?.linkTarget === true;
     void (armedLink
       ? Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
@@ -179,14 +183,15 @@ export function PlaylistEditList({
   function autoScroll(): boolean {
     'worklet';
     const relative = fingerY.value - listPageY.value;
-    const bottomEdge = listHeight.value - bottomObstruction.value - AUTOSCROLL_EDGE;
+    const edge = AUTOSCROLL_EDGE_ROWS * gapHeight.value;
+    const bottomEdge = listHeight.value - bottomObstruction.value - edge;
     // The list also runs under the translucent navigation bar.
-    const topEdge = -minScrollY.value + AUTOSCROLL_EDGE;
+    const topEdge = -minScrollY.value + edge;
     let delta = 0;
     if (relative < topEdge) {
-      delta = -AUTOSCROLL_MAX_SPEED * Math.min(1, (topEdge - relative) / AUTOSCROLL_EDGE);
+      delta = -AUTOSCROLL_MAX_SPEED * Math.min(1, (topEdge - relative) / edge);
     } else if (relative > bottomEdge) {
-      delta = AUTOSCROLL_MAX_SPEED * Math.min(1, (relative - bottomEdge) / AUTOSCROLL_EDGE);
+      delta = AUTOSCROLL_MAX_SPEED * Math.min(1, (relative - bottomEdge) / edge);
     }
     if (delta === 0) {
       return false;
@@ -215,11 +220,15 @@ export function PlaylistEditList({
     // and partly covering a track holds true on both sides of that reflow.
     const gapTop = slotGapTops.value[currentSlot.value] ?? 0;
     const height = gapHeight.value;
+    const targets = hoverTops.value;
     let over = -1;
-    for (let i = 0; i < hoverTops.value.length; i++) {
-      const top = hoverTops.value[i] + (hoverTops.value[i] >= gapTop ? height : 0);
+    for (let i = 0; i < targets.length; i++) {
+      const top = targets[i] + (targets[i] >= gapTop ? height : 0);
+      if (top > rawTop + height) {
+        break; // Targets are in order; the rest are further down.
+      }
       const overlap = Math.min(rawTop, top) + height - Math.max(rawTop, top);
-      if (overlap >= height * LINK_OVERLAP) {
+      if (overlap >= height * LINK_OVERLAP_ROWS) {
         over = i;
         break;
       }
@@ -239,9 +248,10 @@ export function PlaylistEditList({
       return hoverSlots.value[over];
     }
     const current = currentSlot.value;
-    if (!linkTargets.value[current] && Math.abs(rawTop - gapTop) < gapHeight.value / 2) {
-      const step =
-        rawTop - anchorTop.value > SEAM_STEP ? 1 : rawTop - anchorTop.value < -SEAM_STEP ? -1 : 0;
+    if (!linkTargets.value[current] && Math.abs(rawTop - gapTop) < height / 2) {
+      const moved = rawTop - anchorTop.value;
+      const stepDistance = height * SEAM_STEP_ROWS;
+      const step = moved > stepDistance ? 1 : moved < -stepDistance ? -1 : 0;
       const neighbor = current + step;
       const sameSpot =
         step !== 0 &&
@@ -250,7 +260,7 @@ export function PlaylistEditList({
       return sameSpot ? neighbor : current;
     }
     const positional = linkTargets.value[current] ? -1 : current;
-    return nearestSlot(slotYs.value, linkTargets.value, rowTop, positional);
+    return nearestSlot(slotYs.value, linkTargets.value, rowTop, positional, height);
   }
 
   const frame = useFrameCallback((info) => {
@@ -289,18 +299,15 @@ export function PlaylistEditList({
       const planHeight = plan.items.reduce((sum, item) => sum + itemHeight(item, metrics), 0);
       const gapTopOf = (slot: DropSlot) => planTops[slot.gapIndex] ?? planHeight;
 
-      anchorTop.value = itemTops(items, metrics)[index];
-      grab.value = Math.min(
-        plan.gapHeight,
-        Math.max(0, contentY - itemTops(items, metrics)[index])
-      );
+      const itemTop = itemTops(items, metrics)[index];
+      anchorTop.value = itemTop;
+      grab.value = Math.min(plan.gapHeight, Math.max(0, contentY - itemTop));
       gapHeight.value = plan.gapHeight;
       slotYs.value = plan.slots.map((slot) => slot.y);
       slotGapTops.value = plan.slots.map(gapTopOf);
       linkTargets.value = plan.slots.map((slot) => slot.linkTarget === true);
       slotGapIndexes.value = plan.slots.map((slot) => slot.gapIndex);
       hoverTops.value = plan.hoverTargets.map((target) => target.top);
-      hoverBottoms.value = plan.hoverTargets.map((target) => target.bottom);
       hoverSlots.value = plan.hoverTargets.map((target) => target.slotIndex);
       currentSlot.value = plan.initialSlot;
       hoverIndex.value = -1;
@@ -323,7 +330,9 @@ export function PlaylistEditList({
       frame.setActive(false);
       active.value = 0;
       const current = dragRef.current;
-      if (!current || current.settlingFrom) return;
+      if (!current || current.settlingFrom) {
+        return;
+      }
 
       const slot = current.plan.slots[current.slot];
       const changed = commit && slot ? applyDrop(current, slot) : false;
@@ -338,11 +347,9 @@ export function PlaylistEditList({
   );
 
   function applyDrop(current: DragState, slot: DropSlot): boolean {
-    const undo = undoAction(realm, playlistId);
-
     if (slot.drop.kind === 'segment') {
       const changed = dropSegment(realm, playlistId, current.id, slot.drop);
-      if (changed) showPlaylistToast('Moved linked tracks', [undo]);
+      toastEdit(realm, playlistId, changed, 'Moved linked tracks');
       return changed;
     }
 
@@ -350,15 +357,13 @@ export function PlaylistEditList({
     const title = trackTitle(dragged.row);
     const wasLinked = dragged.group.entries.length > 1;
     const changed = dropTrack(realm, playlistId, current.id, slot.drop.drop);
-    if (changed) {
-      const message =
-        slot.inLink && !wasLinked
-          ? `Linked ${title}`
-          : !slot.inLink && wasLinked
-            ? `Unlinked ${title}`
-            : `Moved ${title}`;
-      showPlaylistToast(message, [undo]);
-    }
+    const message =
+      slot.inLink && !wasLinked
+        ? `Linked ${title}`
+        : !slot.inLink && wasLinked
+          ? `Unlinked ${title}`
+          : `Moved ${title}`;
+    toastEdit(realm, playlistId, changed, message);
     return changed;
   }
 
@@ -526,7 +531,9 @@ function railFor(item: ListItem, next: ListItem | undefined): LinkPosition | und
     case 'collapsed':
       return item.group.entries.length > 1 ? 'only' : undefined;
     case 'gap': {
-      if (!item.slot.inLink) return undefined;
+      if (!item.slot.inLink) {
+        return undefined;
+      }
       const continues = next?.kind === 'track' && next.link !== undefined && !item.slot.linkTarget;
       return continues ? 'middle' : 'last';
     }
@@ -697,17 +704,13 @@ function RemoveButton({
   const realm = useRealm();
   const title = trackTitle(item.row);
 
-  const remove = () => {
-    const linkSize = item.group.entries.length;
-    const mate = item.group.entries.find((r) => r.entry.entryId !== item.row.entry.entryId);
-    if (!removeEntry(realm, playlistId, item.row.entry.entryId)) return;
-    showPlaylistToast(
-      linkSize === 2
-        ? `Removed ${title}. ${trackTitle(mate)} is no longer linked.`
-        : `Removed ${title}`,
-      [undoAction(realm, playlistId)]
+  const remove = () =>
+    toastEdit(
+      realm,
+      playlistId,
+      removeEntry(realm, playlistId, item.row.entry.entryId),
+      removedMessage(item.row, item.group)
     );
-  };
 
   return (
     <TouchableOpacity
