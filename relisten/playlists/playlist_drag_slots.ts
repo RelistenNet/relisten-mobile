@@ -1,5 +1,5 @@
 import type { TrackDrop } from '@/relisten/playlists/playlist_actions';
-import { singleSourceTrack, trackTitle } from '@/relisten/playlists/playlist_format';
+import { trackTitle } from '@/relisten/playlists/playlist_format';
 import type { PlaylistRowEntry, PlaylistRowGroup } from '@/relisten/playlists/playlist_hooks';
 
 /**
@@ -32,7 +32,6 @@ export type EditItem =
       row: PlaylistRowEntry;
       /** Set for tracks in a link; the link line above is always `first`. */
       link?: 'middle' | 'last';
-      showShowLine: boolean;
     }
   /** A whole link or single track as one row, while a link is being dragged. */
   | { kind: 'collapsed'; key: string; group: PlaylistRowGroup };
@@ -105,18 +104,12 @@ function itemsForGroup(
   linked = group.entries.length > 1
 ): EditItem[] {
   if (!linked) {
-    return entries.map((row) => trackItem(group, row, undefined, true));
+    return entries.map((row) => trackItem(group, row, undefined));
   }
-  const oneShow = singleSourceTrack(entries) !== undefined;
   return [
     { kind: 'link', key: `link:${group.segment.segmentId}`, group },
     ...entries.map((row, index) =>
-      trackItem(
-        group,
-        row,
-        index === entries.length - 1 ? 'last' : 'middle',
-        !oneShow || index === 0
-      )
+      trackItem(group, row, index === entries.length - 1 ? 'last' : 'middle')
     ),
   ];
 }
@@ -124,8 +117,7 @@ function itemsForGroup(
 function trackItem(
   group: PlaylistRowGroup,
   row: PlaylistRowEntry,
-  link: 'middle' | 'last' | undefined,
-  showShowLine: boolean
+  link: 'middle' | 'last' | undefined
 ): EditItem {
   return {
     kind: 'track',
@@ -133,7 +125,6 @@ function trackItem(
     group,
     row,
     link,
-    showShowLine,
   };
 }
 
