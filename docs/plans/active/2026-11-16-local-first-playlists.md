@@ -870,6 +870,38 @@ notes win:
 - **Not verified by hand:** dragging (simulator automation can't hold a touch);
   the drop logic has unit tests instead. CarPlay (type-checked, not run).
 
+## Milestone 2 implementation notes (2026-11-17)
+
+Implemented in `relisten/playlists/sync/` against the local User Service on
+`codex/v4-playlist-plan`. Where it departs from the sections above:
+
+- **Undo on account playlists** withdraws the edit's operations while they are
+  unsent (the 20-second quiet period). Once sent, Undo says the change is
+  already saved. Inverse operations were not built.
+- **No outbox compaction.** The quiet period and batching already make one
+  request per burst of edits; compaction can follow if batches prove large.
+- **Rebuilds run only after server responses** (pulls, acknowledgements,
+  withdrawn or refused edits). A listener's edit writes the displayed fields and
+  appends its operation, as planned.
+- **A create command freezes the structure at claim time** and copies it into
+  the canonical fields as a provisional base, so edits made before the create is
+  acknowledged replay on top of it. The snapshot fetched after the
+  acknowledgement replaces it with the server's ranks.
+- **A playlist the account lost** (404 on a batch or snapshot, after a restore
+  older than the playlist) is recreated from what the device shows; edits held
+  for it are folded into that create.
+- **Library history generation** is stored on `FavoriteSyncState`; a change
+  starts restore recovery for every playlist the account owns.
+- **Schema 26 migration** sets `live = true` on existing rows. Realm gives new
+  properties on existing objects their type's zero value, not the schema
+  default; without the migration every existing track would be hidden and then
+  dropped by the first rebuild. Regression test: `playlist_migration.test.ts`.
+- **Verified end to end** in the simulator with one device and a second
+  session driven over HTTP: claiming on sign-in, creates, edit batches, pulls of
+  another device's insert and rename, concurrent edits from both, archive and
+  restore. Not verified: quota pause, `playlist_archived` holds, refused
+  additions, restore recovery, and the 413 split.
+
 ## Progress
 
 - [x] (2026-11-16) Branch created; scope, favorites, Realm and queue code

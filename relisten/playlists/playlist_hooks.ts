@@ -3,6 +3,7 @@ import Realm from 'realm';
 import { useObject, useQuery, useRealm } from '@/relisten/realm/schema';
 import {
   Playlist,
+  PlaylistDeviceState,
   PlaylistEntry,
   PlaylistSegment,
   PlaylistTrackAvailability,
@@ -40,19 +41,40 @@ export function sourceTrackFor(realm: Realm, trackId: string): SourceTrack | nul
     : null;
 }
 
+/**
+ * The visible owner is the signed-in account, or the last one signed in on this
+ * device. Lists show unowned playlists plus that owner's; another account's
+ * playlists stay on the device, hidden until it signs in again.
+ */
+export function useVisibleOwnerId(): string | null {
+  const states = useQuery(PlaylistDeviceState);
+  return states[0]?.lastSignedInUserId ?? null;
+}
+
+const VISIBLE = '(ownerUserId == null OR ownerUserId == $0)';
+
 export function usePlaylists() {
+  const owner = useVisibleOwnerId();
   return useQuery(
     Playlist,
-    (rows) => rows.filtered('deletedAt == null').sorted('updatedAt', true),
-    []
+    (rows) =>
+      rows
+        .filtered(`${VISIBLE} AND deletedAt == null AND archived == false`, owner)
+        .sorted('updatedAt', true),
+    [owner]
   );
 }
 
+/** Deleted device playlists (kept 30 days) and archived account playlists. */
 export function useDeletedPlaylists() {
+  const owner = useVisibleOwnerId();
   return useQuery(
     Playlist,
-    (rows) => rows.filtered('deletedAt != null').sorted('deletedAt', true),
-    []
+    (rows) =>
+      rows
+        .filtered(`${VISIBLE} AND (deletedAt != null OR archived == true)`, owner)
+        .sorted('updatedAt', true),
+    [owner]
   );
 }
 
@@ -78,12 +100,14 @@ export function usePlaylistGroups(playlistId: string): PlaylistRowGroup[] {
   const realm = useRealm();
   const segments = useQuery(
     PlaylistSegment,
-    (rows) => rows.filtered('playlistId == $0', playlistId),
+    (rows) => rows.filtered('playlistId == $0 AND live == true', playlistId),
     [playlistId]
   );
-  const entries = useQuery(PlaylistEntry, (rows) => rows.filtered('playlistId == $0', playlistId), [
-    playlistId,
-  ]);
+  const entries = useQuery(
+    PlaylistEntry,
+    (rows) => rows.filtered('playlistId == $0 AND live == true', playlistId),
+    [playlistId]
+  );
   const availability = useQuery(PlaylistTrackAvailability);
   // Entries only hold IDs, so watch the catalog tracks they point at: rows update
   // when hydration loads a track, without re-rendering for unrelated catalog writes.
@@ -108,8 +132,8 @@ export function usePlaylistGroups(playlistId: string): PlaylistRowGroup[] {
 export function readPlaylistRowGroups(realm: Realm, playlistId: string): PlaylistRowGroup[] {
   return buildRowGroups(
     realm,
-    realm.objects(PlaylistSegment).filtered('playlistId == $0', playlistId),
-    realm.objects(PlaylistEntry).filtered('playlistId == $0', playlistId),
+    realm.objects(PlaylistSegment).filtered('playlistId == $0 AND live == true', playlistId),
+    realm.objects(PlaylistEntry).filtered('playlistId == $0 AND live == true', playlistId),
     unavailableIds(realm.objects(PlaylistTrackAvailability))
   );
 }
@@ -162,7 +186,9 @@ export function readPlaylistSummary(realm: Realm, playlistId: string): PlaylistS
   let allDownloaded = true;
   const artistCounts = new Map<string, number>();
 
-  for (const entry of realm.objects(PlaylistEntry).filtered('playlistId == $0', playlistId)) {
+  for (const entry of realm
+    .objects(PlaylistEntry)
+    .filtered('playlistId == $0 AND live == true', playlistId)) {
     const track = sourceTrackFor(realm, entry.trackId);
     if (!track) {
       allDownloaded = false;

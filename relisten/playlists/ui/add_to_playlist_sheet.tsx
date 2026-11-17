@@ -8,7 +8,7 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import { Playlist, PlaylistEntry } from '@/relisten/realm/models/playlists/playlist';
 import { useRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
-import { addTracks, keepWithAbove, undoLastEdit } from '@/relisten/playlists/playlist_actions';
+import { addTracks, keepWithAbove } from '@/relisten/playlists/playlist_actions';
 import { orderedGroups } from '@/relisten/playlists/playlist_operations';
 import { artistLine, playlistSizeLine } from '@/relisten/playlists/playlist_format';
 import {
@@ -24,6 +24,7 @@ import {
   readPlaylistSnapshot,
 } from '@/relisten/playlists/playlist_repository';
 import { openPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
+import { undoAction } from '@/relisten/playlists/ui/playlist_lifecycle';
 import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
 import { playlistActionEvent, sharedStatsigClient } from '@/relisten/events';
 
@@ -55,7 +56,7 @@ export default function AddToPlaylistSheet() {
 
     const segueEntry = trackIds.length === 1 ? segueSuggestion(realm, playlistId) : undefined;
     showPlaylistToast(`Added ${countLabel(trackIds.length)} to ${name}`, [
-      { label: 'Undo', onPress: () => undoLastEdit(realm, playlistId) },
+      undoAction(realm, playlistId),
       segueEntry
         ? {
             label: `Link to ${segueEntry.previousTitle}`,
@@ -79,7 +80,13 @@ export default function AddToPlaylistSheet() {
     showPlaylistToast(`Added ${countLabel(trackIds.length)} to ${playlist.name}`, [
       {
         label: 'Undo',
-        onPress: () => deletePlaylistPermanently(realm, playlistId),
+        onPress: () => {
+          if (!deletePlaylistPermanently(realm, playlistId)) {
+            showPlaylistToast(
+              'It’s already saved to your account. Delete it from the playlist’s menu.'
+            );
+          }
+        },
       },
       { label: 'Open', onPress: () => openPlaylist(router, playlistId) },
     ]);
@@ -151,7 +158,7 @@ function PickerRow({
     const present = new Set(
       realm
         .objects(PlaylistEntry)
-        .filtered('playlistId == $0', playlist.playlistId)
+        .filtered('playlistId == $0 AND live == true', playlist.playlistId)
         .map((e) => e.trackId)
     );
     return trackIds.length > 0 && trackIds.every((id) => present.has(id));

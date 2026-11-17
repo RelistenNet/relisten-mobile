@@ -18,12 +18,7 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useRealm } from '@/relisten/realm/schema';
-import {
-  dropSegment,
-  dropTrack,
-  removeEntry,
-  undoLastEdit,
-} from '@/relisten/playlists/playlist_actions';
+import { dropSegment, dropTrack, removeEntry } from '@/relisten/playlists/playlist_actions';
 import {
   type DragPlan,
   type DropSlot,
@@ -46,6 +41,7 @@ import {
   type LinkPosition,
   showLine,
 } from '@/relisten/playlists/ui/playlist_rows';
+import { undoAction } from '@/relisten/playlists/ui/playlist_lifecycle';
 import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
 
 /**
@@ -342,10 +338,7 @@ export function PlaylistEditList({
   );
 
   function applyDrop(current: DragState, slot: DropSlot): boolean {
-    const undo = {
-      label: 'Undo',
-      onPress: () => undoLastEdit(realm, playlistId),
-    };
+    const undo = undoAction(realm, playlistId);
 
     if (slot.drop.kind === 'segment') {
       const changed = dropSegment(realm, playlistId, current.id, slot.drop);
@@ -712,7 +705,7 @@ function RemoveButton({
       linkSize === 2
         ? `Removed ${title}. ${trackTitle(mate)} is no longer linked.`
         : `Removed ${title}`,
-      [{ label: 'Undo', onPress: () => undoLastEdit(realm, playlistId) }]
+      [undoAction(realm, playlistId)]
     );
   };
 

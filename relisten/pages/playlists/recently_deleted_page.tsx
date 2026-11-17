@@ -5,14 +5,11 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
 import { deletedAgo, playlistSizeLine } from '@/relisten/playlists/playlist_format';
 import { useDeletedPlaylists } from '@/relisten/playlists/playlist_hooks';
-import {
-  RECENTLY_DELETED_DAYS,
-  setPlaylistDeleted,
-} from '@/relisten/playlists/playlist_repository';
-import { useRealm } from '@/relisten/realm/schema';
+import { RECENTLY_DELETED_DAYS } from '@/relisten/playlists/playlist_repository';
+import { usePlaylistLifecycle } from '@/relisten/playlists/ui/playlist_lifecycle';
 
 export default function RecentlyDeletedPage() {
-  const realm = useRealm();
+  const { restore } = usePlaylistLifecycle();
   const deleted = useDeletedPlaylists();
   const scrollProps = usePlayerBottomScrollViewProps({});
 
@@ -41,14 +38,15 @@ export default function RecentlyDeletedPage() {
               </RelistenText>
               <RelistenText className="text-sm text-gray-400">
                 {playlistSizeLine(item.entryCount, 0)} ·{' '}
-                {item.deletedAt ? deletedAgo(item.deletedAt) : ''}
+                {/* Account playlists are archived; their last change is when. */}
+                {deletedAgo(item.deletedAt ?? item.updatedAt)}
               </RelistenText>
             </View>
             <TouchableOpacity
               accessibilityRole="button"
               accessibilityLabel={`Restore ${item.name}`}
               className="min-h-[44px] justify-center px-3"
-              onPress={() => setPlaylistDeleted(realm, item.playlistId, false)}
+              onPress={() => void restore(item)}
             >
               <RelistenText className="font-semibold text-relisten-blue-400" selectable={false}>
                 Restore

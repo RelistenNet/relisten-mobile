@@ -1,3 +1,4 @@
+import { visibleOwnerId } from '@/relisten/playlists/sync/playlist_sync_state';
 import { CarPlay, ListTemplate } from '@g4rb4g3/react-native-carplay';
 import { ListSection } from '@g4rb4g3/react-native-carplay';
 import { RelistenCarPlayContext } from '@/relisten/carplay/relisten_car_play_context';
@@ -35,7 +36,13 @@ export function createLibraryTemplate(ctx: RelistenCarPlayContext): ListTemplate
   const showsStream = new RealmQueryValueStream(ctx.realm, ctx.realm.objects(Show));
   const playlistsStream = new RealmQueryValueStream(
     ctx.realm,
-    ctx.realm.objects(Playlist).filtered('deletedAt == null').sorted('updatedAt', true)
+    ctx.realm
+      .objects(Playlist)
+      .filtered(
+        '(ownerUserId == null OR ownerUserId == $0) AND deletedAt == null AND archived == false',
+        visibleOwnerId(ctx.realm) ?? null
+      )
+      .sorted('updatedAt', true)
   );
 
   ctx.addTeardown(() => showsStream.tearDown());

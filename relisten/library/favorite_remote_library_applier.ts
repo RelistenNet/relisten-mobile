@@ -16,12 +16,19 @@ import {
   FavoriteLibrarySnapshot,
   FavoriteMutationBatchRequest,
   FavoriteMutationBatchResponse,
+  isFavoriteChange,
+  isPlaylistSummaryChange,
   parseFavoriteServerDate,
   validateFavoriteChanges,
   validateFavoriteMutationResponse,
   validateFavoriteSnapshot,
 } from '@/relisten/library/favorite_sync_contract';
 import { isTrulyUnsentFavoriteMutation } from '@/relisten/library/favorite_mutation_compaction';
+import {
+  applyPlaylistSummaries,
+  startRestoreRecovery,
+} from '@/relisten/playlists/sync/playlist_sync_state';
+import type { PlaylistSummary } from '@/relisten/playlists/sync/playlist_wire';
 
 /** Applies validated server state while preserving newer local desired state. */
 export class FavoriteRemoteLibraryApplier {
@@ -132,6 +139,8 @@ export class FavoriteRemoteLibraryApplier {
         this.repository.recomputeEffectiveFavorite(favorite, now);
       }
 
+      this.applyPlaylistFeed(capture, snapshot.history_generation, snapshot.playlists ?? []);
+
       const syncState = this.repository.syncState(capture.scopeId, now);
       syncState.libraryCursor = snapshot.next_cursor;
       syncState.highestObservedLibraryRevision = Math.max(
@@ -151,7 +160,9 @@ export class FavoriteRemoteLibraryApplier {
     this.assertCurrent(capture);
     validateFavoriteChanges(page);
     const realm = this.repository.realm;
-    const orderedChanges = [...page.changes].sort((left, right) => left.revision - right.revision);
+    const ordered = [...page.changes].sort((left, right) => left.revision - right.revision);
+    const orderedChanges = ordered.filter(isFavoriteChange);
+    const playlistSummaries = ordered.filter(isPlaylistSummaryChange).map((c) => c.playlist);
 
     write(realm, () => {
       this.assertCurrent(capture);
@@ -173,6 +184,8 @@ export class FavoriteRemoteLibraryApplier {
         this.repository.recomputeEffectiveFavorite(favorite, now);
       }
 
+      this.applyPlaylistFeed(capture, page.history_generation, playlistSummaries);
+
       const syncState = this.repository.syncState(capture.scopeId, now);
       syncState.libraryCursor = page.next_cursor;
       syncState.highestObservedLibraryRevision = Math.max(
@@ -182,6 +195,30 @@ export class FavoriteRemoteLibraryApplier {
       syncState.lastSuccessfulSyncAt = now;
       syncState.updatedAt = now;
     });
+  }
+
+  /**
+   * Hands playlist summaries to playlist sync, in the same write as the cursor.
+   * A changed history generation means the server was restored: every playlist
+   * base is forgotten and held edits are sent again (see playlist_sync_state).
+   */
+  private applyPlaylistFeed(
+    capture: FavoriteAccountScopeCapture,
+    historyGeneration: string | undefined,
+    summaries: PlaylistSummary[]
+  ) {
+    const userId = capture.userId;
+    if (!userId) return;
+    const realm = this.repository.realm;
+    const syncState = this.repository.syncState(capture.scopeId, new Date());
+
+    if (historyGeneration) {
+      if (syncState.historyGeneration && syncState.historyGeneration !== historyGeneration) {
+        startRestoreRecovery(realm, userId);
+      }
+      syncState.historyGeneration = historyGeneration;
+    }
+    applyPlaylistSummaries(realm, userId, summaries);
   }
 
   private ensureCanonicalFavorite(

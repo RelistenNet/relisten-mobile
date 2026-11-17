@@ -1,7 +1,9 @@
 import Realm from 'realm';
 import {
   Playlist,
+  PlaylistCommand,
   PlaylistEntry,
+  PlaylistOperation as PlaylistOperationRow,
   PlaylistSegment,
 } from '@/relisten/realm/models/playlists/playlist';
 import {
@@ -12,6 +14,14 @@ import {
   type PlaylistSnapshot,
   type SegmentState,
 } from '@/relisten/playlists/playlist_operations';
+import {
+  appendOperation,
+  issueCreateCommand,
+  visibleOwnerId,
+  withdrawUnsentOperations,
+  writeDisplayedChanges,
+} from '@/relisten/playlists/sync/playlist_sync_state';
+import type { MetadataEdit } from '@/relisten/playlists/sync/playlist_wire';
 import { createUuidV7TypedId } from '@/relisten/util/typed_uuid_id';
 
 /** Local playlists follow the server contract's limits so they can be saved to an account later. */
@@ -46,12 +56,16 @@ export function normalizePlaylistDescription(description: string | undefined): s
 
 export function readPlaylistSnapshot(realm: Realm, playlistId: string): PlaylistSnapshot {
   const segments = new Map<string, SegmentState>();
-  for (const s of realm.objects(PlaylistSegment).filtered('playlistId == $0', playlistId)) {
+  for (const s of realm
+    .objects(PlaylistSegment)
+    .filtered('playlistId == $0 AND live == true', playlistId)) {
     segments.set(s.segmentId, { segmentId: s.segmentId, rank: s.rank });
   }
 
   const entries = new Map<string, EntryState>();
-  for (const e of realm.objects(PlaylistEntry).filtered('playlistId == $0', playlistId)) {
+  for (const e of realm
+    .objects(PlaylistEntry)
+    .filtered('playlistId == $0 AND live == true', playlistId)) {
     entries.set(e.entryId, {
       entryId: e.entryId,
       segmentId: e.segmentId,
@@ -63,6 +77,11 @@ export function readPlaylistSnapshot(realm: Realm, playlistId: string): Playlist
   return { segments, entries };
 }
 
+/**
+ * Creates a playlist with these groups. While an account is the visible owner
+ * the playlist belongs to it from the start, with a create command holding its
+ * initial structure.
+ */
 export function createPlaylist(realm: Realm, name: string, groups: string[][] = []): Playlist {
   const now = new Date();
   const playlistId = newPlaylistId();
@@ -79,6 +98,11 @@ export function createPlaylist(realm: Realm, name: string, groups: string[][] = 
     for (const trackIds of groups) {
       applyInWrite(realm, playlist, appendSegment(trackIds));
     }
+    const owner = visibleOwnerId(realm);
+    if (owner) {
+      playlist.ownerUserId = owner;
+      issueCreateCommand(realm, playlist);
+    }
     return playlist;
   });
 }
@@ -92,26 +116,45 @@ export function appendSegment(trackIds: string[]): PlaylistOperation {
   };
 }
 
+export interface AppliedEdit {
+  changed: boolean;
+  /** Outbox operations recorded for an account playlist; empty for device playlists. */
+  operationIds: string[];
+}
+
 /**
  * Applies operations in order, in one transaction: either all of them land or,
- * if one would exceed a limit, none do. Returns whether anything changed.
+ * if one would exceed a limit, none do. In an account playlist each operation
+ * that changed something is also appended to the owner's outbox.
  */
 export function applyOperations(
   realm: Realm,
   playlistId: string,
   operations: PlaylistOperation[]
-): boolean {
+): AppliedEdit {
   return realm.write(() => {
     const playlist = realm.objectForPrimaryKey(Playlist, playlistId);
     if (!playlist) {
       throw new Error('Playlist not found.');
     }
+    const operationIds: string[] = [];
     let changed = false;
     for (const operation of operations) {
-      changed = applyInWrite(realm, playlist, operation).status === 'applied' || changed;
+      if (applyInWrite(realm, playlist, operation).status !== 'applied') {
+        continue;
+      }
+      changed = true;
+      if (playlist.ownerUserId) {
+        operationIds.push(appendOperation(realm, playlist, operation));
+      }
     }
-    return changed;
+    return { changed, operationIds };
   });
+}
+
+/** Undoes an account playlist edit that has not been sent. Returns false once it has. */
+export function withdrawEdit(realm: Realm, playlistId: string, operationIds: string[]): boolean {
+  return realm.write(() => withdrawUnsentOperations(realm, playlistId, operationIds));
 }
 
 function applyInWrite(
@@ -134,22 +177,7 @@ function applyInWrite(
     );
   }
 
-  for (const segment of changes.upsertSegments) {
-    realm.create(
-      PlaylistSegment,
-      { ...segment, playlistId: playlist.playlistId },
-      Realm.UpdateMode.Modified
-    );
-  }
-  for (const entry of changes.upsertEntries) {
-    realm.create(
-      PlaylistEntry,
-      { ...entry, playlistId: playlist.playlistId },
-      Realm.UpdateMode.Modified
-    );
-  }
-  deleteByIds(realm, PlaylistEntry, changes.deleteEntryIds);
-  deleteByIds(realm, PlaylistSegment, changes.deleteSegmentIds);
+  writeDisplayedChanges(realm, playlist, changes);
 
   playlist.entryCount = entryCount;
   playlist.updatedAt = new Date();
@@ -159,8 +187,8 @@ function applyInWrite(
 /**
  * Replaces a playlist's structure with an earlier snapshot. Used by Undo on
  * device playlists, where IDs can be reused because nothing else holds them.
- * Account playlists will need inverse operations instead, because the server
- * never lets a deleted ID come back.
+ * Account playlists withdraw unsent operations instead (`withdrawEdit`),
+ * because the server never lets a deleted ID come back.
  */
 export function restoreSnapshot(realm: Realm, playlistId: string, snapshot: PlaylistSnapshot) {
   realm.write(() => {
@@ -202,26 +230,52 @@ export function updatePlaylistDetails(
     if (!playlist) {
       return;
     }
+    const edit: MetadataEdit = { type: 'update_metadata' };
     if (details.name !== undefined) {
       const name = normalizePlaylistName(details.name);
-      if (name) {
+      if (name && name !== playlist.name) {
         playlist.name = name;
+        edit.name = name;
       }
     }
     if (details.description !== undefined) {
-      playlist.description = normalizePlaylistDescription(details.description ?? undefined);
+      const description = normalizePlaylistDescription(details.description ?? undefined);
+      if ((description ?? null) !== (playlist.description ?? null)) {
+        playlist.description = description;
+        edit.description = description ?? null;
+      }
+    }
+    if (edit.name === undefined && edit.description === undefined) {
+      return;
     }
     playlist.updatedAt = new Date();
+    if (playlist.ownerUserId) {
+      appendOperation(realm, playlist, edit);
+    }
   });
 }
 
-/** Removes a playlist and its rows outright. Used to undo creating one. */
-export function deletePlaylistPermanently(realm: Realm, playlistId: string) {
-  realm.write(() => {
+/**
+ * Removes a playlist and its rows outright, to undo creating one. An account
+ * playlist can only be removed while its create command is still unsent;
+ * returns false once the account may already have it.
+ */
+export function deletePlaylistPermanently(realm: Realm, playlistId: string): boolean {
+  return realm.write(() => {
+    const playlist = realm.objectForPrimaryKey(Playlist, playlistId);
+    if (!playlist) return true;
+    if (playlist.ownerUserId) {
+      const commands = realm.objects(PlaylistCommand).filtered('playlistId == $0', playlistId);
+      if (playlist.serverState !== 'creating' || commands.some((c) => c.attemptCount > 0)) {
+        return false;
+      }
+      realm.delete(commands);
+      realm.delete(realm.objects(PlaylistOperationRow).filtered('playlistId == $0', playlistId));
+    }
     realm.delete(realm.objects(PlaylistEntry).filtered('playlistId == $0', playlistId));
     realm.delete(realm.objects(PlaylistSegment).filtered('playlistId == $0', playlistId));
-    const playlist = realm.objectForPrimaryKey(Playlist, playlistId);
-    if (playlist) realm.delete(playlist);
+    realm.delete(playlist);
+    return true;
   });
 }
 

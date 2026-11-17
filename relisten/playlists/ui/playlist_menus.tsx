@@ -16,7 +16,6 @@ import {
   removeEntry,
   removeSegment,
   takeOutOfGroup,
-  undoLastEdit,
   ungroup,
 } from '@/relisten/playlists/playlist_actions';
 import type {
@@ -25,6 +24,7 @@ import type {
   PlaylistRowGroup,
 } from '@/relisten/playlists/playlist_hooks';
 import { queueTracksFor } from '@/relisten/playlists/playlist_playback';
+import { undoAction } from '@/relisten/playlists/ui/playlist_lifecycle';
 import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
@@ -43,9 +43,7 @@ function useEditToast(playlistId: string) {
   const realm = useRealm();
   return (changed: boolean, message: string) => {
     if (changed) {
-      showPlaylistToast(message, [
-        { label: 'Undo', onPress: () => undoLastEdit(realm, playlistId) },
-      ]);
+      showPlaylistToast(message, [undoAction(realm, playlistId)]);
     }
   };
 }

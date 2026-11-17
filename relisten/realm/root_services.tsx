@@ -5,6 +5,7 @@ import { FavoriteMetadataHydrator } from '@/relisten/library/favorite_metadata_h
 import { FavoriteRepository } from '@/relisten/library/favorite_repository';
 import { FavoriteSyncAdapter } from '@/relisten/library/favorite_sync_adapter';
 import { FavoriteSyncService } from '@/relisten/library/favorite_sync_service';
+import { PlaylistSyncService } from '@/relisten/playlists/sync/playlist_sync_service';
 import { DownloadManager } from '@/relisten/offline/download_manager';
 import { AudioAdjustmentStore } from '@/relisten/player/audio_adjustments/audio_adjustment_store';
 import { LibraryIndex } from '@/relisten/realm/library_index';
@@ -26,6 +27,7 @@ export interface RootServices {
   favoriteMetadataHydrator: FavoriteMetadataHydrator;
   favoriteSyncAdapter: FavoriteSyncAdapter;
   favoriteSyncService: FavoriteSyncService;
+  playlistSyncService: PlaylistSyncService;
   anonymousLibraryImportService: AnonymousLibraryImportService;
   userSettingsStore: UserSettingsStore;
   audioAdjustmentStore: AudioAdjustmentStore;
@@ -55,6 +57,7 @@ export function RootServicesProvider({ children }: PropsWithChildren) {
         favoriteSyncAdapter,
         accountsApi
       ),
+      playlistSyncService: new PlaylistSyncService(realm, accountsApi),
       anonymousLibraryImportService: new AnonymousLibraryImportService(favoriteRepository),
       userSettingsStore: new UserSettingsStore(realm),
       audioAdjustmentStore: new AudioAdjustmentStore(realm),
@@ -64,6 +67,7 @@ export function RootServicesProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     return () => {
       services.favoriteSyncService.stop();
+      services.playlistSyncService.stop();
       services.libraryIndex.tearDown();
       services.userSettingsStore.tearDown();
     };
@@ -165,6 +169,10 @@ export function useFavoriteSyncAdapter() {
 
 export function useFavoriteSyncService() {
   return useRootServices().favoriteSyncService;
+}
+
+export function usePlaylistSyncService() {
+  return useRootServices().playlistSyncService;
 }
 
 export function useAnonymousLibraryImportService() {
