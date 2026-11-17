@@ -17,6 +17,7 @@ import {
   canAccessPlaylist,
   deleteNeverCreated,
   discardUnsentPlaylist,
+  ownedDeletion,
   issueCreateCommand,
   recordEdit,
   restoreDeletedOnDevice,
@@ -310,7 +311,10 @@ export function deletePlaylistOnDevice(realm: Realm, playlistId: string) {
       return;
     }
     if (playlist.ownerUserId) {
-      deleteNeverCreated(realm, playlist);
+      // Only a playlist the server has never seen may vanish from the device alone.
+      if (ownedDeletion(realm, playlist) === 'local') {
+        deleteNeverCreated(realm, playlist);
+      }
     } else {
       playlist.deletedAt = new Date();
     }

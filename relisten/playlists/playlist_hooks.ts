@@ -5,7 +5,9 @@ import {
   Playlist,
   PLAYLIST_DEVICE_STATE_ID,
   PlaylistDeviceState,
+  PlaylistCommand,
   PlaylistEntry,
+  PlaylistOperation,
   PlaylistSegment,
   PlaylistTrackAvailability,
 } from '@/relisten/realm/models/playlists/playlist';
@@ -306,4 +308,30 @@ export function usePlaylistLayout(groups: PlaylistRowGroup[]): PlaylistLayout {
     });
     return { groups, entryPositions, groupIndexes };
   }, [groups]);
+}
+
+/**
+ * Whether an account's playlists have all reached it: `unsaved` while creates
+ * or edits wait to send, `needsAttention` when any is paused for a full
+ * account, refused, or held for a deleted playlist.
+ */
+export function usePlaylistSaveState(
+  ownerUserId: string | undefined
+): 'saved' | 'unsaved' | 'needsAttention' {
+  const owner = ownerUserId ?? '';
+  const operations = useQuery(
+    PlaylistOperation,
+    (rows) => rows.filtered('ownerUserId == $0 AND state != $1', owner, 'acknowledged'),
+    [owner]
+  );
+  const commands = useQuery(PlaylistCommand, (rows) => rows.filtered('ownerUserId == $0', owner), [
+    owner,
+  ]);
+
+  const stuck = (state: string) =>
+    state === 'needs_attention' || state === 'quota_paused' || state === 'archived_hold';
+  if (operations.some((op) => stuck(op.state)) || commands.some((c) => stuck(c.state))) {
+    return 'needsAttention';
+  }
+  return operations.length > 0 || commands.length > 0 ? 'unsaved' : 'saved';
 }

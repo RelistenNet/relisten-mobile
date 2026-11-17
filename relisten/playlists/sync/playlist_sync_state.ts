@@ -700,6 +700,17 @@ export function applyChangesPage(realm: Realm, playlist: Playlist, page: Playlis
     }
   }
 
+  // A deletion from another device may have freed space in a full account, so
+  // work paused for quota gets another try, as after this device's own deletions.
+  const deleted = page.revisions.some((revision) =>
+    revision.changes.some(
+      (change) => change.type === 'entry_deleted' || change.type === 'segment_deleted'
+    )
+  );
+  if (deleted && playlist.ownerUserId) {
+    resumeAfterDeletion(realm, playlist.ownerUserId);
+  }
+
   playlist.appliedRevision = page.next_after_revision;
   playlist.summaryRevision = Math.max(playlist.summaryRevision ?? 0, page.head_revision);
   playlist.historyGeneration = page.history_generation;
