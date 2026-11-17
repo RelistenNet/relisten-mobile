@@ -9,13 +9,32 @@ import { OfflineModeSetting } from '@/relisten/realm/models/user_settings';
 import plur from 'plur';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { queuePlaybackHistoryEntry } from '@/relisten/carplay/queue_helpers';
+import { Playlist } from '@/relisten/realm/models/playlists/playlist';
+import { readPlaylistRowGroups } from '@/relisten/playlists/playlist_hooks';
+import { playPlaylist } from '@/relisten/playlists/playlist_playback';
+
+const PLAYLIST_ITEM_PREFIX = 'playlist:';
+
+function playPlaylistFromCarPlay(ctx: RelistenCarPlayContext, playlistId: string) {
+  const online = ctx.userSettings.offlineModeWithDefault() !== OfflineModeSetting.AlwaysOffline;
+  if (playPlaylist(ctx.player, playlistId, readPlaylistRowGroups(ctx.realm, playlistId), online)) {
+    ctx.showNowPlaying?.();
+  } else {
+    carplay_logger.warn('Playlist has no playable tracks', { playlistId });
+  }
+}
 
 export function createLibraryTemplate(ctx: RelistenCarPlayContext): ListTemplate {
   carplay_logger.info('createLibraryTemplate');
 
   const showsStream = new RealmQueryValueStream(ctx.realm, ctx.realm.objects(Show));
+  const playlistsStream = new RealmQueryValueStream(
+    ctx.realm,
+    ctx.realm.objects(Playlist).filtered('deletedAt == null').sorted('updatedAt', true)
+  );
 
   ctx.addTeardown(() => showsStream.tearDown());
+  ctx.addTeardown(() => playlistsStream.tearDown());
 
   const showMap: Map<string, Show> = new Map();
 
@@ -24,6 +43,10 @@ export function createLibraryTemplate(ctx: RelistenCarPlayContext): ListTemplate
     tabTitle: 'Library',
     tabSystemImageName: 'star.circle',
     async onItemSelect({ id }: { templateId: string; index: number; id: string }) {
+      if (String(id).startsWith(PLAYLIST_ITEM_PREFIX)) {
+        playPlaylistFromCarPlay(ctx, String(id).slice(PLAYLIST_ITEM_PREFIX.length));
+        return;
+      }
       const show = showMap.get(String(id));
       if (!show || !show.artist) {
         carplay_logger.warn('Library show selection missing data', { id });
@@ -44,6 +67,19 @@ export function createLibraryTemplate(ctx: RelistenCarPlayContext): ListTemplate
     );
 
     const sections: ListSection[] = [];
+
+    // Playlists are read-only in the car: choosing one plays it from the top.
+    const playlists = Array.from(playlistsStream.currentValue || []);
+    if (playlists.length > 0) {
+      sections.push({
+        header: 'Playlists',
+        items: playlists.map((playlist) => ({
+          id: `${PLAYLIST_ITEM_PREFIX}${playlist.playlistId}`,
+          text: playlist.name,
+          detailText: `${playlist.entryCount} ${plur('track', playlist.entryCount)}`,
+        })),
+      });
+    }
 
     const groupedByArtist: Map<string, Show[]> = new Map();
 
@@ -100,6 +136,7 @@ export function createLibraryTemplate(ctx: RelistenCarPlayContext): ListTemplate
   };
 
   showsStream.addListener(updateSections);
+  playlistsStream.addListener(updateSections);
   ctx.addTeardown(ctx.libraryIndex.subscribeLibraryMembership(updateSections));
 
   return template;
