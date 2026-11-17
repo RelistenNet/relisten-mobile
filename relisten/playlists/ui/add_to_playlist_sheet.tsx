@@ -58,7 +58,7 @@ export default function AddToPlaylistSheet() {
       { label: 'Undo', onPress: () => undoLastEdit(realm, playlistId) },
       segueEntry
         ? {
-            label: `Keep with ${segueEntry.previousTitle}`,
+            label: `Link to ${segueEntry.previousTitle}`,
             onPress: () => keepWithAbove(realm, playlistId, segueEntry.entryId),
           }
         : { label: 'Open', onPress: () => openPlaylist(router, playlistId) },
@@ -77,7 +77,10 @@ export default function AddToPlaylistSheet() {
       return;
     }
     showPlaylistToast(`Added ${countLabel(trackIds.length)} to ${playlist.name}`, [
-      { label: 'Undo', onPress: () => deletePlaylistPermanently(realm, playlistId) },
+      {
+        label: 'Undo',
+        onPress: () => deletePlaylistPermanently(realm, playlistId),
+      },
       { label: 'Open', onPress: () => openPlaylist(router, playlistId) },
     ]);
   };
@@ -106,7 +109,7 @@ export default function AddToPlaylistSheet() {
             </RelistenText>
             {together && (
               <RelistenText className="mt-1 text-gray-400">
-                {"They'll stay together as a group."}
+                {"They'll stay linked, so shuffle keeps them in order."}
               </RelistenText>
             )}
           </View>
@@ -250,7 +253,7 @@ function defaultPlaylistName(realm: Realm, trackIds: string[]): string {
 /**
  * When a single added track directly follows the playlist's previous last track
  * in the same recording (Fire on the Mountain after Scarlet Begonias), offer to
- * keep them together. That saves a segue without needing Select Tracks.
+ * link them. That saves a segue without needing Select Tracks.
  */
 function segueSuggestion(realm: Realm, playlistId: string) {
   const groups = orderedGroups(readPlaylistSnapshot(realm, playlistId));
@@ -273,5 +276,8 @@ function segueSuggestion(realm: Realm, playlistId: string) {
   ) {
     return undefined;
   }
-  return { entryId: added.entries[0].entryId, previousTitle: previousTrack.title };
+  return {
+    entryId: added.entries[0].entryId,
+    previousTitle: previousTrack.title,
+  };
 }
