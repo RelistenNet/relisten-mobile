@@ -115,6 +115,9 @@ export interface PlaylistSummary {
   updated_at: string;
 }
 
+/** The contract's cap on operations per batch request. */
+export const MAX_BATCH_OPERATIONS = 500;
+
 /** Statuses the server accepted. The rest mean the edit did not land. */
 export const ACCEPTED_STATUSES: ReadonlySet<OperationResultStatus> = new Set([
   'applied',

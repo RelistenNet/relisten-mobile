@@ -3,15 +3,18 @@ import { useAccountScope } from '@/relisten/accounts/account_context';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { addTracks } from '@/relisten/playlists/playlist_actions';
 import { usePlaylistLifecycle } from '@/relisten/playlists/ui/playlist_lifecycle';
-import { Playlist, PlaylistOperation } from '@/relisten/realm/models/playlists/playlist';
+import {
+  Playlist,
+  PlaylistCommand,
+  PlaylistOperation,
+} from '@/relisten/realm/models/playlists/playlist';
+import { MAX_BATCH_OPERATIONS } from '@/relisten/playlists/sync/playlist_wire';
 import { usePlaylistSyncService } from '@/relisten/realm/root_services';
 import { useQuery, useRealm } from '@/relisten/realm/schema';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 
 /** Edits waiting longer than this while online get a quiet "still saving" line. */
 const SLOW_SAVE_MS = 60_000;
-/** A paused outbox bigger than one batch can't be resent whole (see the contract). */
-const MAX_BATCH_OPERATIONS = 500;
 
 /**
  * The one line, at most, that an account playlist shows about syncing. Saving
@@ -30,6 +33,11 @@ export function PlaylistSyncNotice({ playlist }: { playlist: Playlist }) {
     (rows) => rows.filtered('playlistId == $0', playlistId),
     [playlistId]
   );
+  const refusedCreate = useQuery(
+    PlaylistCommand,
+    (rows) => rows.filtered('playlistId == $0 AND state == $1', playlistId, 'needs_attention'),
+    [playlistId]
+  )[0];
 
   if (!playlist.ownerUserId) {
     return null;
@@ -65,9 +73,15 @@ export function PlaylistSyncNotice({ playlist }: { playlist: Playlist }) {
     );
   }
 
-  if (paused.length > 0 || playlist.serverState === 'needs_attention') {
+  if (paused.length > 0 || refusedCreate?.lastErrorCode === 'quota_exceeded') {
     return (
       <Notice message="Saved on this phone only. Your account is full. Questions? team@relisten.net" />
+    );
+  }
+
+  if (refusedCreate) {
+    return (
+      <Notice message="Saved on this phone only. Your account couldn’t save this playlist. Questions? team@relisten.net" />
     );
   }
 

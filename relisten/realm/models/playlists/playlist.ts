@@ -137,6 +137,25 @@ export class PlaylistTrackAvailability extends Realm.Object<PlaylistTrackAvailab
   checkedAt!: Date;
 }
 
+/**
+ * Where each operation state comes from (sync code in relisten/playlists/sync):
+ *
+ * | From | To | When |
+ * | --- | --- | --- |
+ * | (new) | pending | A listener edits an account playlist (`appendOperation`). |
+ * | pending | in_flight | A batch is sent (`prepareBatch`). |
+ * | in_flight | pending | Transport failure, 413 split, or the app stopped mid-request. |
+ * | in_flight | acknowledged | The server applied it; kept until a pull confirms it. |
+ * | in_flight | (deleted) | Accepted without a revision (no-op, target gone). |
+ * | in_flight | needs_attention | Refused (`parent_missing`, `id_conflict`, a permanent 4xx). |
+ * | pending, in_flight | quota_paused | The account is full. |
+ * | quota_paused | pending | Another edit to the playlist, or a deletion synced. |
+ * | pending, in_flight | archived_hold | The playlist was archived elsewhere. |
+ * | archived_hold | pending | The playlist is restored, here or elsewhere. |
+ * | acknowledged | (deleted) | A pull in the same generation reached its revision. |
+ * | acknowledged, in_flight | pending | Restore recovery (history generation changed). |
+ * | needs_attention | (deleted) | The listener dismisses it or adds the tracks again. |
+ */
 export type PlaylistOperationState =
   /** Not sent yet, or waiting to retry after a transport failure. */
   | 'pending'
