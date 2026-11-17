@@ -200,6 +200,7 @@ export default function Page() {
       <ScrollView className="" {...playerBottomScrollViewProps}>
         <Flex column>
           <AccountSettingsSection />
+          <SectionHeader title="Explore" />
           <Flex column className="gap-4 p-4 pr-8">
             <RowWithAction
               title="Recently Played"

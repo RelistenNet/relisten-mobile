@@ -1,3 +1,10 @@
+import { ListRow } from '@/relisten/components/list_row';
+import { ItemSeparator } from '@/relisten/components/item_separator';
+import { SubtitleText } from '@/relisten/components/row_subtitle';
+import { SectionHeader } from '@/relisten/components/section_header';
+import { Show } from '@/relisten/realm/models/show';
+import { useQuery } from '@/relisten/realm/schema';
+import plur from 'plur';
 import { useAccount, useAccountScope } from '@/relisten/accounts/account_context';
 import { AccountEntryCard } from '@/relisten/accounts/ui/account_entry_card';
 import { accountPath } from '@/relisten/accounts/ui/account_routes';
@@ -16,7 +23,6 @@ import {
 } from '@/relisten/realm/root_services';
 import { logTabRootDebug } from '@/relisten/util/profile_logging';
 import { useGroupSegment } from '@/relisten/util/routes';
-import { MaterialIcons } from '@expo/vector-icons';
 import { Link, Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect } from 'react';
 import { ScrollView, TouchableOpacity, View } from 'react-native';
@@ -48,7 +54,7 @@ export default function MyLibraryTabRootPage() {
           <AccountEntryCard />
           <ActiveDownloads />
           <MyPlaylistsSection />
-          <SavedCategories />
+          <FavoriteCategories />
           <RecentListening />
         </View>
       </ScrollView>
@@ -102,49 +108,32 @@ function ActiveDownloads() {
   );
 }
 
-/** What the listener has saved, one row per kind, each with its count. */
-function SavedCategories() {
-  const shows = useLibraryShowCatalogUuids();
+/** The listener's favorites, one row per kind, its count in the subtitle. */
+function FavoriteCategories() {
+  const showUuids = useLibraryShowCatalogUuids();
   const venues = useFavoriteCatalogUuids('venue');
+  const shows = useQuery(Show, (rows) => rows.filtered('uuid IN $0', [...showUuids]), [showUuids]);
+  const artistCount = new Set(shows.map((show) => show.artistUuid)).size;
 
   return (
-    <View className="mb-6 border-y border-white/10">
-      <CategoryRow label="Shows" count={shows.size} pathname="/relisten/tabs/(myLibrary)/shows" />
-      <View className="ml-4 h-px bg-white/10" />
-      <CategoryRow
-        label="Venues"
-        count={venues.size}
-        pathname="/relisten/tabs/(myLibrary)/venues"
-      />
+    <View>
+      <SectionHeader title="Favorites" />
+      <Link href={{ pathname: '/relisten/tabs/(myLibrary)/shows' }} asChild>
+        <ListRow
+          title="Shows"
+          subtitle={[
+            `${showUuids.size} ${plur('show', showUuids.size)}`,
+            artistCount > 0 ? `${artistCount} ${plur('artist', artistCount)}` : '',
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        />
+      </Link>
+      <ItemSeparator />
+      <Link href={{ pathname: '/relisten/tabs/(myLibrary)/venues' }} asChild>
+        <ListRow title="Venues" subtitle={`${venues.size} ${plur('venue', venues.size)}`} />
+      </Link>
     </View>
-  );
-}
-
-function CategoryRow({
-  label,
-  count,
-  pathname,
-}: {
-  label: string;
-  count: number;
-  pathname: '/relisten/tabs/(myLibrary)/shows' | '/relisten/tabs/(myLibrary)/venues';
-}) {
-  return (
-    <Link href={{ pathname }} asChild>
-      <TouchableOpacity
-        accessibilityRole="button"
-        accessibilityLabel={`${label}, ${count}`}
-        className="min-h-[52px] flex-row items-center px-4"
-      >
-        <RelistenText className="flex-1 text-lg" selectable={false}>
-          {label}
-        </RelistenText>
-        <RelistenText className="text-gray-400" selectable={false}>
-          {count}
-        </RelistenText>
-        <MaterialIcons color="#9ca3af" name="chevron-right" size={22} />
-      </TouchableOpacity>
-    </Link>
   );
 }
 
@@ -153,26 +142,24 @@ function RecentListening() {
   const recentlyPlayedShows = useHistoryRecentlyPlayedShows();
 
   return (
-    <View className="mb-4">
-      <View className="flex-row items-center px-4 py-2">
+    <View>
+      <SectionHeader className="flex-row items-center">
         <RelistenText className="flex-1 text-m font-bold">Recent Listening</RelistenText>
         {recentlyPlayedShows.length > 0 && (
           <Link href={{ pathname: '/relisten/tabs/(myLibrary)/history/tracks' }} asChild>
             <TouchableOpacity accessibilityRole="button" hitSlop={8}>
-              <RelistenText className="text-gray-400" selectable={false}>
+              <RelistenText className="font-semibold text-gray-300" selectable={false}>
                 See All&nbsp;›
               </RelistenText>
             </TouchableOpacity>
           </Link>
         )}
-      </View>
+      </SectionHeader>
 
       {recentlyPlayedShows.length === 0 ? (
-        <RelistenText className="px-4 pb-2 text-gray-400">
-          Shows you play will show up here.
-        </RelistenText>
+        <SubtitleText className="px-4 py-3">Shows you play will show up here.</SubtitleText>
       ) : (
-        <View className="w-full flex-row flex-wrap px-2">
+        <View className="w-full flex-row flex-wrap px-2 pt-2">
           {recentlyPlayedShows.map((show) => (
             <ShowCard
               show={show.show}
@@ -184,16 +171,11 @@ function RecentListening() {
         </View>
       )}
 
+      <View className="mt-2">
+        <ItemSeparator />
+      </View>
       <Link href={{ pathname: '/relisten/tabs/(myLibrary)/history/statistics' }} asChild>
-        <TouchableOpacity
-          accessibilityRole="button"
-          className="mt-3 min-h-[52px] flex-row items-center border-y border-white/10 px-4"
-        >
-          <RelistenText className="flex-1 text-lg" selectable={false}>
-            Listening Statistics
-          </RelistenText>
-          <MaterialIcons color="#9ca3af" name="chevron-right" size={22} />
-        </TouchableOpacity>
+        <ListRow title="Listening Statistics" subtitle="Your top artists, shows and songs" />
       </Link>
     </View>
   );
