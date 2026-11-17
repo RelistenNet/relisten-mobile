@@ -25,6 +25,44 @@ export { PlayerRepeatState, PlayerShuffleState } from '@/relisten/player/player_
 
 const logger = log.extend('player-queue');
 
+/**
+ * Runs of consecutive occurrences that share a playlist segment instance; every
+ * other occurrence is its own run. Shuffle moves runs, never splitting a group.
+ */
+function groupRuns(tracks: PlayerQueueTrack[]): PlayerQueueTrack[][] {
+  const runs: PlayerQueueTrack[][] = [];
+  for (const track of tracks) {
+    const groupId = track.playlistContext?.segmentInstanceId;
+    const last = runs[runs.length - 1];
+    if (groupId && last && last[0].playlistContext?.segmentInstanceId === groupId) {
+      last.push(track);
+    } else {
+      runs.push([track]);
+    }
+  }
+  return runs;
+}
+
+/**
+ * Shuffles while keeping playlist groups together. When a track is playing, it
+ * stays first, followed by the rest of its group in order; the group's earlier
+ * tracks become a run of their own.
+ */
+export function shuffleKeepingGroups(tracks: PlayerQueueTrack[], current?: PlayerQueueTrack) {
+  const runs = groupRuns(tracks);
+  if (!current) {
+    return shuffleArray(runs).flat();
+  }
+
+  const currentRunIndex = runs.findIndex((run) => run.includes(current));
+  const [currentRun] = runs.splice(currentRunIndex, 1);
+  const split = currentRun.indexOf(current);
+  if (split > 0) {
+    runs.push(currentRun.slice(0, split));
+  }
+  return [...currentRun.slice(split), ...shuffleArray(runs).flat()];
+}
+
 function shuffleArray<T>(arr: T[]) {
   // ye old fisher-yates
   for (let i = arr.length - 1; i > 0; i--) {
@@ -35,6 +73,19 @@ function shuffleArray<T>(arr: T[]) {
   }
 
   return arr;
+}
+
+/** The index of the last occurrence in the group that `index` belongs to. */
+function endOfGroupIndex(tracks: PlayerQueueTrack[], index: number | undefined) {
+  if (index === undefined) {
+    return undefined;
+  }
+  const groupId = tracks[index]?.playlistContext?.segmentInstanceId;
+  let end = index;
+  while (groupId && tracks[end + 1]?.playlistContext?.segmentInstanceId === groupId) {
+    end++;
+  }
+  return end;
 }
 
 const queueInstanceId = uuid();
@@ -52,8 +103,17 @@ function nextQueueTrackId() {
   return queueInstanceId + '_' + queueTrackId.toFixed(0);
 }
 
+/** Where a queue occurrence came from when it was enqueued from a playlist. */
+export interface PlaylistQueueContext {
+  playlistId: string;
+  entryId: string;
+  /** Shared by the occurrences of one playlist segment in one enqueue; shuffle keeps them together. */
+  segmentInstanceId: string;
+}
+
 export class PlayerQueueTrack {
   public identifier: string;
+  public playlistContext?: PlaylistQueueContext;
 
   renewIdentifier() {
     this.identifier = nextQueueTrackId();
@@ -72,7 +132,7 @@ export class PlayerQueueTrack {
 
   /** Copy playback metadata into a fresh occurrence without changing this entry. */
   newOccurrence(): PlayerQueueTrack {
-    return new PlayerQueueTrack(
+    const occurrence = new PlayerQueueTrack(
       this.sourceTrack,
       this.title,
       this.artist,
@@ -80,6 +140,9 @@ export class PlayerQueueTrack {
       this.albumTitle,
       this.albumArt
     );
+    // Play Next and Add to End keep a playlist group together through shuffle.
+    occurrence.playlistContext = this.playlistContext;
+    return occurrence;
   }
 
   static fromSourceTrack(sourceTrack: SourceTrack) {
@@ -186,7 +249,11 @@ export class RelistenPlayerQueue {
     }
 
     this.originalTracks = insertNext(this.originalTracks, this.originalTracksCurrentIndex);
-    this.shuffledTracks = insertNext(this.shuffledTracks, this.shuffledTracksCurrentIndex);
+    // While shuffled, Play Next lands after the rest of the current group, not inside it.
+    this.shuffledTracks = insertNext(
+      this.shuffledTracks,
+      endOfGroupIndex(this.shuffledTracks, this.shuffledTracksCurrentIndex)
+    );
 
     this.recalculateNextTrack();
     this.onOrderedTracksChanged.dispatch(this.orderedTracks);
@@ -434,13 +501,11 @@ ${indentString(tracks)}
   // region Shuffling
   private reshuffleTracks() {
     if (this.originalTracksCurrentIndex !== undefined) {
-      const originalTracksCopy = [...this.originalTracks];
-      const [currentlyPlayingItem] = originalTracksCopy.splice(this.originalTracksCurrentIndex, 1);
-
-      this.shuffledTracks = [currentlyPlayingItem].concat(shuffleArray(originalTracksCopy));
+      const current = this.originalTracks[this.originalTracksCurrentIndex];
+      this.shuffledTracks = shuffleKeepingGroups(this.originalTracks, current);
       this.shuffledTracksCurrentIndex = 0;
     } else {
-      this.shuffledTracks = shuffleArray([...this.originalTracks]);
+      this.shuffledTracks = shuffleKeepingGroups(this.originalTracks);
     }
   }
 
@@ -657,6 +722,9 @@ ${indentString(tracks)}
       queueEntries: this.originalTracks.map((track) => ({
         id: track.identifier,
         sourceTrackUuid: track.sourceTrack.uuid,
+        playlistId: track.playlistContext?.playlistId ?? null,
+        entryId: track.playlistContext?.entryId ?? null,
+        segmentInstanceId: track.playlistContext?.segmentInstanceId ?? null,
       })),
       shuffleOrder:
         this.shuffleState === PlayerShuffleState.SHUFFLE_ON
@@ -725,6 +793,13 @@ ${indentString(tracks)}
       try {
         const track = PlayerQueueTrack.fromSourceTrack(sourceTrack);
         track.identifier = entry.id;
+        if (entry.playlistId && entry.entryId && entry.segmentInstanceId) {
+          track.playlistContext = {
+            playlistId: entry.playlistId,
+            entryId: entry.entryId,
+            segmentInstanceId: entry.segmentInstanceId,
+          };
+        }
         tracksByEntryId.set(entry.id, track);
       } catch (error) {
         logger.warn('Skipping invalid persisted queue track during restore', {

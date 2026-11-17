@@ -21,6 +21,7 @@ import {
 } from '@/relisten/realm/root_services';
 import { logTabRootDebug } from '@/relisten/util/profile_logging';
 import { AccountEntryCard } from '@/relisten/accounts/ui/account_entry_card';
+import { MyPlaylistsSection } from '@/relisten/playlists/ui/my_playlists_section';
 
 function MyLibrarySectionHeader({ children, className, ...props }: PropsWithChildren<ViewProps>) {
   return (
@@ -236,6 +237,7 @@ export default function MyLibraryTabRootPage() {
             <AccountEntryCard />
             <ActiveDownloads />
             <RecentlyPlayedShows />
+            <MyPlaylistsSection />
             <FavoriteVenuesLink />
             <Link
               href={{

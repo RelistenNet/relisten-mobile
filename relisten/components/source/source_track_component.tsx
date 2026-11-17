@@ -8,12 +8,13 @@ import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player
 import type { PlayShow } from '@/relisten/player/ui/source_track_actions_menu';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { type ReactNode } from 'react';
-import { TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { type AccessibilityState, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { tw } from '@/relisten/util/tw';
 import { accessibleControlScale } from '@/relisten/util/accessible_control_scale';
 
 interface SourceTrackProps {
   actions?: ReactNode;
+  accessibilityState?: AccessibilityState;
   sourceTrack: SourceTrack;
   isLastTrackInSet: boolean;
   onPress?: PlayShow;
@@ -23,6 +24,7 @@ interface SourceTrackProps {
 
 export const SourceTrackComponent = ({
   actions,
+  accessibilityState,
   sourceTrack,
   isLastTrackInSet,
   onPress,
@@ -43,6 +45,7 @@ export const SourceTrackComponent = ({
     <View className={tw('pl-6 pr-4', { 'opacity-60': disabled })}>
       <View className="flex-row items-center">
         <PressableView
+          accessibilityState={accessibilityState}
           className="min-w-0 flex-1 flex-row items-center self-stretch"
           onPress={() => onPress?.(sourceTrack)}
         >

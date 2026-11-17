@@ -6,10 +6,12 @@ type SourceActionsToolbarProps = {
   canPlay: boolean;
   isFavorite: boolean;
   isRemovingDownloads: boolean;
+  onAddToPlaylist: () => void;
   onDownload: () => void;
   onFavorite: () => void;
   onPlay: () => void;
   onRemoveDownloads: () => void;
+  onSelectTracks: () => void;
   onShare: () => void;
   onSwitchSource: () => void;
 };
@@ -19,10 +21,12 @@ export function SourceActionsToolbar({
   canPlay,
   isFavorite,
   isRemovingDownloads,
+  onAddToPlaylist,
   onDownload,
   onFavorite,
   onPlay,
   onRemoveDownloads,
+  onSelectTracks,
   onShare,
   onSwitchSource,
 }: SourceActionsToolbarProps) {
@@ -31,6 +35,12 @@ export function SourceActionsToolbar({
       <Stack.Toolbar.Menu accessibilityLabel="Show actions" icon={nativeMenuIcons.more}>
         <Stack.Toolbar.MenuAction disabled={!canPlay} icon={nativeMenuIcons.play} onPress={onPlay}>
           Play Show
+        </Stack.Toolbar.MenuAction>
+        <Stack.Toolbar.MenuAction icon={nativeMenuIcons.addToPlaylist} onPress={onAddToPlaylist}>
+          Add Show to Playlist…
+        </Stack.Toolbar.MenuAction>
+        <Stack.Toolbar.MenuAction icon={nativeMenuIcons.select} onPress={onSelectTracks}>
+          Select Tracks
         </Stack.Toolbar.MenuAction>
         <Stack.Toolbar.MenuAction
           icon={nativeMenuIcons.favorite}

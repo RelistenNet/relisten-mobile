@@ -66,6 +66,16 @@ export default function TabLayout() {
         }}
       />
       <Stack.Screen
+        name="add-to-playlist"
+        options={{
+          contentStyle: { backgroundColor: RelistenBlue['900'] },
+          headerShown: false,
+          presentation: 'formSheet',
+          sheetAllowedDetents: [0.6, 0.92],
+          sheetGrabberVisible: true,
+        }}
+      />
+      <Stack.Screen
         name="audio-adjustments"
         options={{
           contentStyle: { backgroundColor: RelistenBlue['950'] },
