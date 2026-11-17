@@ -97,12 +97,15 @@ export function SignedInAccountScreen({
         </View>
       )}
 
-      <SettingsGroup>
+      <SettingsGroup title="Account">
         <SettingsRow
           label="Username"
           value={pendingUsername ? `@${pendingUsername} (waiting)` : `@${username}`}
           onPress={onReviewUsername}
         />
+      </SettingsGroup>
+
+      <SettingsGroup title="Sync">
         {!syncFailure && (
           <SettingsRow
             label="Favorites"
@@ -111,22 +114,20 @@ export function SignedInAccountScreen({
           />
         )}
         <PlaylistSyncRow />
-        {(importAvailable || importInProgress) && (
-          <SettingsRow
-            label={
-              importInProgress
-                ? 'Adding favorites…'
-                : `Add ${anonymousFavoriteCount} ${anonymousFavoriteCount === 1 ? 'favorite' : 'favorites'} from this device`
-            }
-            tone="action"
-            disabled={importInProgress}
-            onPress={onImportFavorites}
-          />
-        )}
       </SettingsGroup>
 
+      {(importAvailable || importInProgress) && (
+        <View className="mb-4 px-4">
+          <RelistenButton disabled={importInProgress} onPress={onImportFavorites}>
+            {importInProgress
+              ? 'Adding favorites…'
+              : `Add ${anonymousFavoriteCount} ${anonymousFavoriteCount === 1 ? 'favorite' : 'favorites'} from this device`}
+          </RelistenButton>
+        </View>
+      )}
+
       {syncWaitingMessage && (
-        <RelistenText className="-mt-4 mb-6 px-8 text-sm text-gray-400">
+        <RelistenText className="-mt-2 mb-4 px-4 text-sm text-gray-400">
           {syncWaitingMessage}
         </RelistenText>
       )}
@@ -140,28 +141,25 @@ export function SignedInAccountScreen({
         </View>
       )}
 
-      <SettingsGroup>
-        <SettingsRow
-          label="Switch Account"
-          tone="action"
-          disabled={transitioning}
-          onPress={onSwitchAccount}
-        />
-        <SettingsRow
-          label="Sign Out"
-          tone="destructive"
+      <View className="mb-4 mt-6 flex-row gap-3 px-4">
+        <RelistenButton className="flex-1" disabled={transitioning} onPress={onSwitchAccount}>
+          Switch Account
+        </RelistenButton>
+        <RelistenButton
+          className="flex-1"
           disabled={transitioning}
           onPress={onSignOut}
-        />
-      </SettingsGroup>
+          textClassName="text-red-300"
+        >
+          Sign Out
+        </RelistenButton>
+      </View>
 
-      <SettingsGroup>
-        <SettingsRow
-          label={showDiagnostics ? 'Hide Diagnostics' : 'Show Diagnostics'}
-          tone="action"
-          onPress={() => setShowDiagnostics(!showDiagnostics)}
-        />
-      </SettingsGroup>
+      <View className="mb-4 px-4">
+        <RelistenButton intent="outline" onPress={() => setShowDiagnostics(!showDiagnostics)}>
+          {showDiagnostics ? 'Hide Diagnostics' : 'Show Diagnostics'}
+        </RelistenButton>
+      </View>
       {showDiagnostics && (
         <View className="pb-8">
           <FavoriteDiagnostics />

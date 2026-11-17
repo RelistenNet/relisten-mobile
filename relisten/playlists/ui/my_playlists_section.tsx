@@ -1,8 +1,10 @@
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { ListRow } from '@/relisten/components/list_row';
+import { Ionicons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
 import { TouchableOpacity, View } from 'react-native';
+import { ItemSeparator } from '@/relisten/components/item_separator';
+import { SectionHeader } from '@/relisten/components/section_header';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { RelistenBlue } from '@/relisten/relisten_blue';
 import { usePlaylists } from '@/relisten/playlists/playlist_hooks';
 import { PlaylistListRow } from '@/relisten/playlists/ui/playlist_list_row';
 import { openNewPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
@@ -20,60 +22,40 @@ export function MyPlaylistsSection() {
   const preview = playlists.slice(0, PREVIEW_COUNT);
 
   return (
-    <View className="mb-6">
-      <View className="flex-row items-center py-1 pl-4 pr-2">
-        <RelistenText className="flex-1 text-m font-bold">Playlists</RelistenText>
+    <View>
+      <SectionHeader className="flex-row items-center py-0 pr-1">
+        <RelistenText className="flex-1 py-2 text-m font-bold">Playlists</RelistenText>
         <TouchableOpacity
           accessibilityLabel="New Playlist"
           accessibilityRole="button"
-          className="h-11 w-11 items-center justify-center"
+          className="h-10 w-10 items-center justify-center"
           onPress={() => openNewPlaylist(router)}
         >
-          <Ionicons name="add" size={26} color="white" />
+          <Ionicons name="add" size={24} color="white" />
         </TouchableOpacity>
-      </View>
+      </SectionHeader>
 
-      <View className="border-y border-white/10">
-        {preview.length === 0 && (
-          <TouchableOpacity
-            accessibilityRole="button"
-            className="min-h-[52px] justify-center px-4 py-2"
-            onPress={() => openNewPlaylist(router)}
-          >
-            <View className="flex-row items-center">
-              <Ionicons name="add" size={20} color={RelistenBlue[400]} />
-              <RelistenText className="ml-2 text-lg" selectable={false}>
-                New Playlist…
-              </RelistenText>
-            </View>
-            <RelistenText className="mt-1 text-sm text-gray-400" selectable={false}>
-              Or add songs from any show’s ••• menu.
-            </RelistenText>
-          </TouchableOpacity>
-        )}
-        {preview.map((playlist, index) => (
-          <View key={playlist.playlistId}>
-            {index > 0 && <View className="ml-4 h-px bg-white/10" />}
-            <PlaylistListRow playlist={playlist} compact />
-          </View>
-        ))}
-        {playlists.length > PREVIEW_COUNT && (
-          <>
-            <View className="ml-4 h-px bg-white/10" />
-            <Link href={{ pathname: '/relisten/tabs/(myLibrary)/playlists' }} asChild>
-              <TouchableOpacity
-                accessibilityRole="button"
-                className="min-h-[48px] flex-row items-center px-4"
-              >
-                <RelistenText className="flex-1 text-gray-300" selectable={false}>
-                  See All {playlists.length} Playlists
-                </RelistenText>
-                <MaterialIcons color="#9ca3af" name="chevron-right" size={22} />
-              </TouchableOpacity>
-            </Link>
-          </>
-        )}
-      </View>
+      {preview.length === 0 && (
+        <ListRow
+          title="New Playlist…"
+          subtitle="Or add songs from any show’s ••• menu"
+          onPress={() => openNewPlaylist(router)}
+        />
+      )}
+      {preview.map((playlist, index) => (
+        <View key={playlist.playlistId}>
+          {index > 0 && <ItemSeparator />}
+          <PlaylistListRow playlist={playlist} />
+        </View>
+      ))}
+      {playlists.length > PREVIEW_COUNT && (
+        <>
+          <ItemSeparator />
+          <Link href={{ pathname: '/relisten/tabs/(myLibrary)/playlists' }} asChild>
+            <ListRow title={`See All ${playlists.length} Playlists`} />
+          </Link>
+        </>
+      )}
     </View>
   );
 }

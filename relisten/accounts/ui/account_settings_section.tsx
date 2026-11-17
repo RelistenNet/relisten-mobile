@@ -1,3 +1,4 @@
+import { SectionHeader } from '@/relisten/components/section_header';
 import { accountPath } from '@/relisten/accounts/ui/account_routes';
 import { useAccount } from '@/relisten/accounts/account_context';
 import { AccountAvatar } from '@/relisten/accounts/ui/account_avatar';
@@ -30,31 +31,34 @@ export function AccountSettingsSection() {
     : 'Save your favorites and playlists to your account';
 
   return (
-    <Link href={accountPath('(relisten)')} push asChild>
-      <TouchableOpacity
-        accessibilityRole="button"
-        accessibilityLabel={`${title}, ${subtitle}`}
-        className="mt-2 flex-row items-center border-y border-white/10 px-4 py-3"
-        disabled={status === 'restoring'}
-      >
-        {signedIn ? (
-          <AccountAvatar username={profile.username} size={48} />
-        ) : (
-          <MaterialIcons color="white" name="account-circle" size={48} />
-        )}
-        <View className="ml-3 min-w-0 flex-1">
-          <RelistenText className="text-lg font-semibold" numberOfLines={1}>
-            {title}
-          </RelistenText>
-          <RelistenText
-            className={`text-sm ${signedIn && !pendingUsername && !profile.usernameReviewNeeded ? summary.textClassName : 'text-gray-400'}`}
-            numberOfLines={2}
-          >
-            {subtitle}
-          </RelistenText>
-        </View>
-        <MaterialIcons color="#9ca3af" name="chevron-right" size={24} />
-      </TouchableOpacity>
-    </Link>
+    <>
+      <SectionHeader title="Account" />
+      <Link href={accountPath('(relisten)')} push asChild>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={`${title}, ${subtitle}`}
+          className="flex-row items-center px-4 py-3"
+          disabled={status === 'restoring'}
+        >
+          {signedIn ? (
+            <AccountAvatar username={profile.username} size={48} />
+          ) : (
+            <MaterialIcons color="white" name="account-circle" size={48} />
+          )}
+          <View className="ml-3 min-w-0 flex-1">
+            <RelistenText className="text-lg font-semibold" numberOfLines={1}>
+              {title}
+            </RelistenText>
+            <RelistenText
+              className={`text-sm ${signedIn && !pendingUsername && !profile.usernameReviewNeeded ? summary.textClassName : 'text-gray-400'}`}
+              numberOfLines={2}
+            >
+              {subtitle}
+            </RelistenText>
+          </View>
+          <MaterialIcons color="#9ca3af" name="chevron-right" size={24} />
+        </TouchableOpacity>
+      </Link>
+    </>
   );
 }

@@ -1,7 +1,6 @@
+import { ListRow } from '@/relisten/components/list_row';
 import { Ionicons } from '@expo/vector-icons';
 import { Link } from 'expo-router';
-import { TouchableOpacity, View } from 'react-native';
-import { RelistenText } from '@/relisten/components/relisten_text';
 import { Playlist } from '@/relisten/realm/models/playlists/playlist';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { artistLine, playlistSizeLine } from '@/relisten/playlists/playlist_format';
@@ -29,8 +28,7 @@ export function PlaylistListRow({
       }}
       asChild
     >
-      <TouchableOpacity
-        accessibilityRole="button"
+      <ListRow
         accessibilityLabel={[
           playlist.name,
           size,
@@ -39,28 +37,14 @@ export function PlaylistListRow({
         ]
           .filter(Boolean)
           .join(', ')}
-        className="min-h-[56px] flex-row items-center px-4 py-3"
-      >
-        <View className="min-w-0 flex-1">
-          <RelistenText className="text-lg font-semibold" numberOfLines={2} selectable={false}>
-            {playlist.name}
-          </RelistenText>
-          <RelistenText className="text-sm text-gray-400" selectable={false}>
-            {size}
-          </RelistenText>
-          {!compact && artists !== '' && (
-            <RelistenText className="text-sm text-gray-400" numberOfLines={2} selectable={false}>
-              {artists}
-            </RelistenText>
-          )}
-        </View>
-        {summary.allDownloaded && (
-          <Ionicons name="checkmark-circle-outline" size={18} color={RelistenBlue[400]} />
-        )}
-        <RelistenText className="ml-2 text-lg text-gray-400" selectable={false}>
-          ›
-        </RelistenText>
-      </TouchableOpacity>
+        title={playlist.name}
+        subtitle={!compact && artists !== '' ? `${size}\n${artists}` : size}
+        accessory={
+          summary.allDownloaded ? (
+            <Ionicons name="checkmark-circle-outline" size={18} color={RelistenBlue[400]} />
+          ) : undefined
+        }
+      />
     </Link>
   );
 }
