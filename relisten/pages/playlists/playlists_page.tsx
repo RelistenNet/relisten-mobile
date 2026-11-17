@@ -50,7 +50,7 @@ function EmptyPlaylists({ onCreate }: { onCreate: () => void }) {
       </RelistenText>
       <TouchableOpacity
         accessibilityRole="button"
-        className="mt-6 min-h-11 justify-center rounded-lg bg-relisten-blue-600 px-6"
+        className="mt-6 min-h-[44px] justify-center rounded-lg bg-relisten-blue-600 px-6"
         onPress={onCreate}
       >
         <RelistenText className="font-semibold" selectable={false}>

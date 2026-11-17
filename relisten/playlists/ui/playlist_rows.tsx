@@ -185,7 +185,7 @@ export function PlaylistGroupCard({
       />
       <View className="min-w-0 flex-1 pl-3 pr-1">
         <GroupMenu playlistId={playlistId} groups={groups} group={group}>
-          <View className="min-h-11 flex-row items-center" accessibilityRole="button">
+          <View className="min-h-[44px] flex-row items-center" accessibilityRole="button">
             <RelistenText
               className="flex-1 text-sm text-gray-400"
               numberOfLines={1}

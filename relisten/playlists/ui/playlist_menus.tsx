@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
-import { type ReactNode, useMemo } from 'react';
+import { type ReactNode } from 'react';
+import type { StyleProp, ViewStyle } from 'react-native';
 import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
 import { NativeMenuView, type MenuAction } from '@/relisten/components/menus/native_menu_view';
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
@@ -71,11 +72,13 @@ export function TrackMenu({
   playlistId,
   groups,
   row,
+  style,
   children,
 }: {
   playlistId: string;
   groups: PlaylistRowGroup[];
   row: PlaylistRowEntry;
+  style?: StyleProp<ViewStyle>;
   children: ReactNode;
 }) {
   const realm = useRealm();
@@ -95,29 +98,26 @@ export function TrackMenu({
     ? at.group!.entries.find((r) => r.entry.entryId !== entryId)
     : undefined;
 
-  const actions = useMemo<MenuAction[]>(() => {
-    const list: MenuAction[] = [];
-    if (row.sourceTrack && row.status === 'playable') {
-      list.push(
-        action('play-next', 'Play Next', nativeMenuIcons.playNext),
-        action('add-to-queue', 'Add to End of Queue', nativeMenuIcons.addToQueue)
-      );
-    }
-    if (!isFirst) list.push(action('move-up', 'Move Up', nativeMenuIcons.moveUp));
-    if (!isLast) list.push(action('move-down', 'Move Down', nativeMenuIcons.moveDown));
-    if (groups.length > 1 || at.inGroup) {
-      list.push(
-        action('move-top', 'Move to Top', nativeMenuIcons.moveToTop),
-        action('move-bottom', 'Move to Bottom', nativeMenuIcons.moveToBottom)
-      );
-    }
-    if (at.inGroup) list.push(action('take-out', 'Take Out of Group', nativeMenuIcons.ungroup));
-    if (aboveTitle)
-      list.push(action('keep-with', `Keep with ${aboveTitle}`, nativeMenuIcons.group));
-    if (row.sourceTrack) list.push(action('go-to-show', 'Go to Show', nativeMenuIcons.goTo));
-    list.push(action('remove', 'Remove from Playlist', nativeMenuIcons.delete, true));
-    return list;
-  }, [row, isFirst, isLast, groups.length, at.inGroup, aboveTitle]);
+  const actions: MenuAction[] = [];
+  if (row.sourceTrack && row.status === 'playable') {
+    actions.push(
+      action('play-next', 'Play Next', nativeMenuIcons.playNext),
+      action('add-to-queue', 'Add to End of Queue', nativeMenuIcons.addToQueue)
+    );
+  }
+  if (!isFirst) actions.push(action('move-up', 'Move Up', nativeMenuIcons.moveUp));
+  if (!isLast) actions.push(action('move-down', 'Move Down', nativeMenuIcons.moveDown));
+  if (groups.length > 1 || at.inGroup) {
+    actions.push(
+      action('move-top', 'Move to Top', nativeMenuIcons.moveToTop),
+      action('move-bottom', 'Move to Bottom', nativeMenuIcons.moveToBottom)
+    );
+  }
+  if (at.inGroup) actions.push(action('take-out', 'Take Out of Group', nativeMenuIcons.ungroup));
+  if (aboveTitle)
+    actions.push(action('keep-with', `Keep with ${aboveTitle}`, nativeMenuIcons.group));
+  if (row.sourceTrack) actions.push(action('go-to-show', 'Go to Show', nativeMenuIcons.goTo));
+  actions.push(action('remove', 'Remove from Playlist', nativeMenuIcons.delete, true));
 
   const handle = (id: string) => {
     switch (id) {
@@ -159,6 +159,7 @@ export function TrackMenu({
   return (
     <NativeMenuView
       actions={actions}
+      style={style}
       title={at.inGroup ? `In a group with ${trackTitle(groupmate)}` : undefined}
       onPressAction={({ nativeEvent }) => handle(nativeEvent.event)}
     >

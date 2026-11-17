@@ -1,7 +1,8 @@
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { type ReactElement, useCallback, useMemo, useState } from 'react';
-import { Pressable, TouchableOpacity, View } from 'react-native';
+import { Pressable, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { RelistenBlue } from '@/relisten/relisten_blue';
 import DraggableFlatList, { type RenderItem } from 'react-native-draggable-flatlist';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
@@ -15,10 +16,14 @@ import {
   type TrackDrop,
 } from '@/relisten/playlists/playlist_actions';
 import type { PlaylistRowEntry, PlaylistRowGroup } from '@/relisten/playlists/playlist_hooks';
-import { GroupMenu, trackTitle, TrackMenu } from '@/relisten/playlists/ui/playlist_menus';
+import {
+  GroupMenu,
+  singleSourceTrack,
+  trackTitle,
+  TrackMenu,
+} from '@/relisten/playlists/ui/playlist_menus';
 import { groupLabel, showLine } from '@/relisten/playlists/ui/playlist_rows';
 import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
-import { tw } from '@/relisten/util/tw';
 
 export type ArrangeMode = 'tracks' | 'groups';
 
@@ -153,7 +158,7 @@ export function PlaylistEditList({
           return (
             <View className="mx-3 mt-2 rounded-t-xl border-x border-t border-relisten-blue-800 bg-relisten-blue-950 pl-4 pr-1">
               <GroupMenu playlistId={playlistId} groups={groups} group={item.group}>
-                <View className="min-h-11 justify-center">
+                <View className="min-h-[44px] justify-center">
                   <RelistenText
                     className="text-sm text-gray-400"
                     numberOfLines={1}
@@ -182,10 +187,7 @@ export function PlaylistEditList({
           );
         case 'group':
           return (
-            <EditableRowFrame
-              isActive={isActive}
-              className="mx-3 my-1 rounded-xl border border-relisten-blue-800"
-            >
+            <EditableRowFrame isActive={isActive} variant="group">
               <View className="min-w-0 flex-1 py-3 pl-3">
                 <RelistenText className="font-semibold" numberOfLines={1} selectable={false}>
                   {item.group.entries.length > 1
@@ -208,14 +210,7 @@ export function PlaylistEditList({
         case 'entry': {
           const title = trackTitle(item.row);
           return (
-            <EditableRowFrame
-              isActive={isActive}
-              className={
-                item.inGroup
-                  ? 'mx-3 border-x border-relisten-blue-800 bg-relisten-blue-950'
-                  : 'mx-1'
-              }
-            >
+            <EditableRowFrame isActive={isActive} variant={item.inGroup ? 'inCard' : 'loose'}>
               <TouchableOpacity
                 accessibilityRole="button"
                 accessibilityLabel={`Remove ${title}`}
@@ -235,12 +230,17 @@ export function PlaylistEditList({
               >
                 <Ionicons name="remove-circle" size={22} color="#e5484d" />
               </TouchableOpacity>
-              <TrackMenu playlistId={playlistId} groups={groups} row={item.row}>
-                <View className="min-w-0 flex-1 py-2">
+              <TrackMenu
+                playlistId={playlistId}
+                groups={groups}
+                row={item.row}
+                style={{ flex: 1, minWidth: 0, alignSelf: 'stretch' }}
+              >
+                <View className="min-w-0 flex-1 justify-center py-2">
                   <RelistenText className="text-lg" numberOfLines={1} selectable={false}>
                     {item.row.sourceTrack ? title : 'Track'}
                   </RelistenText>
-                  {item.row.sourceTrack && (
+                  {item.row.sourceTrack && !(item.inGroup && singleSourceTrack(item.group)) && (
                     <RelistenText
                       className="text-sm text-gray-400"
                       numberOfLines={1}
@@ -283,25 +283,43 @@ export function PlaylistEditList({
   );
 }
 
+/** A draggable row. Rows inside a group continue the group card's side borders. */
 function EditableRowFrame({
   isActive,
-  className,
+  variant,
   children,
 }: {
   isActive: boolean;
-  className?: string;
+  variant: 'loose' | 'inCard' | 'group';
   children: React.ReactNode;
 }) {
-  return (
-    <View
-      className={tw('min-h-[52px] flex-row items-center', className, {
-        'rounded-lg border border-relisten-blue-400 bg-relisten-blue-800': isActive,
-      })}
-    >
-      {children}
-    </View>
-  );
+  return <View style={[styles.row, styles[variant], isActive && styles.active]}>{children}</View>;
 }
+
+const styles = StyleSheet.create({
+  row: { minHeight: 52, flexDirection: 'row', alignItems: 'center' },
+  loose: { marginHorizontal: 4 },
+  inCard: {
+    marginHorizontal: 12,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: RelistenBlue[800],
+    backgroundColor: RelistenBlue[950],
+  },
+  group: {
+    marginHorizontal: 12,
+    marginVertical: 4,
+    borderWidth: 1,
+    borderRadius: 12,
+    borderColor: RelistenBlue[800],
+  },
+  active: {
+    borderWidth: 1,
+    borderRadius: 8,
+    borderColor: RelistenBlue[400],
+    backgroundColor: RelistenBlue[800],
+  },
+});
 
 /** Starts a drag on touch, with no long-press delay. */
 function DragHandle({ drag, label }: { drag: () => void; label: string }) {

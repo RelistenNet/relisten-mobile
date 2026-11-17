@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Realm from 'realm';
 import { FlatList, TextInput, type TextInputInstance, TouchableOpacity, View } from 'react-native';
 import { ItemSeparator } from '@/relisten/components/item_separator';
 import { confirmDestructiveAction } from '@/relisten/components/menus/confirm_destructive_action';
@@ -14,7 +15,6 @@ import {
   SourceTrackOfflineInfoStatus,
 } from '@/relisten/realm/models/source_track_offline_info';
 import { useQuery, useRealm } from '@/relisten/realm/schema';
-import { RelistenBlue } from '@/relisten/relisten_blue';
 import { clearUndo } from '@/relisten/playlists/playlist_actions';
 import { humanDuration, playlistSizeLine } from '@/relisten/playlists/playlist_format';
 import {
@@ -51,13 +51,22 @@ export default function PlaylistDetailPage() {
   const playingEntryId = usePlayingEntryId(playlistId);
   const scrollProps = usePlayerBottomScrollViewProps({});
   const [editing, setEditing] = useState(false);
+  // Name and description edits are drafts until Done (or leaving the screen) commits them.
+  const [draft, setDraft] = useState({ name: '', description: '' });
+  const draftRef = useRef<typeof draft | null>(null);
   const [arrange, setArrange] = useState<ArrangeMode>('tracks');
   const [downloadedOnly, setDownloadedOnly] = useState(false);
   const nameInput = useRef<TextInputInstance>(null);
 
   usePlaylistHydration(playlistId, allGroups, online);
-  // Undo history lasts for one visit to a playlist.
-  useEffect(() => () => clearUndo(playlistId), [playlistId]);
+  useEffect(
+    () => () => {
+      // Leaving the screen mid-edit keeps the changes; Undo history lasts for one visit.
+      if (draftRef.current) commitDetails(realm, playlistId, draftRef.current);
+      clearUndo(playlistId);
+    },
+    [playlistId, realm]
+  );
 
   const groups = useMemo(
     () => (downloadedOnly ? filterDownloaded(allGroups) : allGroups),
@@ -112,8 +121,23 @@ export default function PlaylistDetailPage() {
         ]);
       },
     });
-  const startRename = () => {
+  const startEditing = () => {
+    const initial = { name, description: playlist.description ?? '' };
+    draftRef.current = initial;
+    setDraft(initial);
     setEditing(true);
+  };
+  const finishEditing = () => {
+    if (draftRef.current) commitDetails(realm, playlistId, draftRef.current);
+    draftRef.current = null;
+    setEditing(false);
+  };
+  const updateDraft = (next: typeof draft) => {
+    draftRef.current = next;
+    setDraft(next);
+  };
+  const startRename = () => {
+    startEditing();
     setTimeout(() => nameInput.current?.focus(), 300);
   };
 
@@ -121,7 +145,7 @@ export default function PlaylistDetailPage() {
     <View className="flex-1 bg-relisten-blue-900">
       <Stack.Screen options={{ title: editing ? 'Editing' : '' }} />
       <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Button onPress={() => setEditing(!editing)}>
+        <Stack.Toolbar.Button onPress={editing ? finishEditing : startEditing}>
           {editing ? 'Done' : 'Edit'}
         </Stack.Toolbar.Button>
         <Stack.Toolbar.Menu accessibilityLabel="Playlist actions" icon={nativeMenuIcons.more}>
@@ -155,9 +179,8 @@ export default function PlaylistDetailPage() {
           mode={arrange}
           header={
             <EditHeader
-              playlistId={playlistId}
-              name={name}
-              description={playlist.description}
+              draft={draft}
+              onChange={updateDraft}
               nameInput={nameInput}
               arrange={arrange}
               onArrange={setArrange}
@@ -266,8 +289,9 @@ function ViewHeader({
       </RelistenText>
 
       {entryCount > 0 && (
-        <View className="mt-4 flex-row gap-3">
+        <View className="mt-4 flex-row">
           <HeaderButton icon="play" label="Play" primary disabled={!canPlay} onPress={onPlay} />
+          <View className="w-3" />
           <HeaderButton icon="shuffle" label="Shuffle" disabled={!canPlay} onPress={onShuffle} />
         </View>
       )}
@@ -307,7 +331,7 @@ function HeaderButton({
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      className={tw('min-h-11 flex-1 flex-row items-center justify-center rounded-lg', {
+      className={tw('min-h-[44px] flex-1 flex-row items-center justify-center rounded-lg', {
         'bg-relisten-blue-600': primary,
         'border border-relisten-blue-700': !primary,
         'opacity-40': disabled,
@@ -321,31 +345,33 @@ function HeaderButton({
   );
 }
 
+function commitDetails(
+  realm: Realm,
+  playlistId: string,
+  draft: { name: string; description: string }
+) {
+  updatePlaylistDetails(realm, playlistId, {
+    // An emptied name keeps the old one rather than leaving the playlist unnamed.
+    name: draft.name.trim() ? draft.name : undefined,
+    description: draft.description,
+  });
+}
+
 function EditHeader({
-  playlistId,
-  name,
-  description,
+  draft,
+  onChange,
   nameInput,
   arrange,
   onArrange,
   showArrange,
 }: {
-  playlistId: string;
-  name: string;
-  description?: string;
+  draft: { name: string; description: string };
+  onChange: (draft: { name: string; description: string }) => void;
   nameInput: React.RefObject<TextInputInstance | null>;
   arrange: ArrangeMode;
   onArrange: (mode: ArrangeMode) => void;
   showArrange: boolean;
 }) {
-  const realm = useRealm();
-  const [draftName, setDraftName] = useState(name);
-  const [draftDescription, setDraftDescription] = useState(description ?? '');
-  const saveName = () =>
-    draftName.trim() && updatePlaylistDetails(realm, playlistId, { name: draftName });
-  const saveDescription = () =>
-    updatePlaylistDetails(realm, playlistId, { description: draftDescription });
-
   return (
     <View className="px-4 pb-3 pt-2">
       <TextInput
@@ -353,10 +379,8 @@ function EditHeader({
         accessibilityLabel="Playlist name"
         className="rounded-lg bg-relisten-blue-800 px-3 py-3 text-xl font-bold text-white"
         maxLength={PLAYLIST_LIMITS.nameLength}
-        value={draftName}
-        onChangeText={setDraftName}
-        onBlur={saveName}
-        onSubmitEditing={saveName}
+        value={draft.name}
+        onChangeText={(name) => onChange({ ...draft, name })}
         returnKeyType="done"
       />
       <TextInput
@@ -365,10 +389,9 @@ function EditHeader({
         maxLength={PLAYLIST_LIMITS.descriptionLength}
         multiline
         placeholder="Add a description"
-        placeholderTextColor={RelistenBlue[400]}
-        value={draftDescription}
-        onChangeText={setDraftDescription}
-        onBlur={saveDescription}
+        placeholderTextColor="#9ca3af"
+        value={draft.description}
+        onChangeText={(description) => onChange({ ...draft, description })}
       />
       {showArrange && (
         <View
@@ -380,7 +403,7 @@ function EditHeader({
               key={mode}
               accessibilityRole="tab"
               accessibilityState={{ selected: arrange === mode }}
-              className={tw('min-h-9 flex-1 items-center justify-center rounded-md', {
+              className={tw('min-h-[36px] flex-1 items-center justify-center rounded-md', {
                 'bg-relisten-blue-700': arrange === mode,
               })}
               onPress={() => onArrange(mode)}

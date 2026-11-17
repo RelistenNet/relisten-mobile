@@ -94,43 +94,43 @@ export default function AddToPlaylistSheet() {
   }
 
   return (
-    <View className="flex-1 bg-relisten-blue-900 pt-4">
-      <View className="px-4 pb-2">
-        <RelistenText className="text-xl font-bold">
-          Add {countLabel(trackIds.length)} to
-        </RelistenText>
-        {together && (
-          <RelistenText className="mt-1 text-gray-400">
-            {"They'll stay together as a group."}
-          </RelistenText>
-        )}
-      </View>
-      <FlatList
-        data={[...playlists]}
-        keyExtractor={(p) => p.playlistId}
-        ItemSeparatorComponent={ItemSeparator}
-        ListHeaderComponent={
-          <>
-            <TouchableOpacity
-              accessibilityRole="button"
-              className="min-h-[52px] flex-row items-center px-4"
-              onPress={() => setNaming(true)}
-            >
-              <RelistenText
-                className="text-lg font-semibold text-relisten-blue-400"
-                selectable={false}
-              >
-                + New Playlist
+    <FlatList
+      style={{ flex: 1, backgroundColor: RelistenBlue[900] }}
+      data={[...playlists]}
+      keyExtractor={(p) => p.playlistId}
+      ItemSeparatorComponent={ItemSeparator}
+      ListHeaderComponent={
+        <>
+          <View className="px-4 pb-2 pt-5">
+            <RelistenText className="text-xl font-bold">
+              Add {countLabel(trackIds.length)} to
+            </RelistenText>
+            {together && (
+              <RelistenText className="mt-1 text-gray-400">
+                {"They'll stay together as a group."}
               </RelistenText>
-            </TouchableOpacity>
-            <ItemSeparator />
-          </>
-        }
-        renderItem={({ item }) => (
-          <PickerRow playlist={item} trackIds={trackIds} onPress={() => addToExisting(item)} />
-        )}
-      />
-    </View>
+            )}
+          </View>
+          <ItemSeparator />
+          <TouchableOpacity
+            accessibilityRole="button"
+            className="min-h-[52px] flex-row items-center px-4"
+            onPress={() => setNaming(true)}
+          >
+            <RelistenText
+              className="text-lg font-semibold text-relisten-blue-400"
+              selectable={false}
+            >
+              + New Playlist
+            </RelistenText>
+          </TouchableOpacity>
+          <ItemSeparator />
+        </>
+      }
+      renderItem={({ item }) => (
+        <PickerRow playlist={item} trackIds={trackIds} onPress={() => addToExisting(item)} />
+      )}
+    />
   );
 }
 
@@ -188,15 +188,19 @@ function NewPlaylistForm({
   onCancel: () => void;
   onCreate: (name: string) => void;
 }) {
-  const [name, setName] = useState(defaultName);
-  const canCreate = name.trim().length > 0;
+  // The suggested name is a placeholder rather than a prefilled value, so typing
+  // replaces it and leaving the field empty still creates a well-named playlist.
+  const [name, setName] = useState('');
+  const finalName = name.trim() || defaultName;
+  const canCreate = finalName.length > 0;
+  const submit = () => canCreate && onCreate(finalName);
 
   return (
     <View className="flex-1 bg-relisten-blue-900 px-4 pt-4">
       <View className="flex-row items-center justify-between">
         <TouchableOpacity
           accessibilityRole="button"
-          className="min-h-11 justify-center"
+          className="min-h-[44px] justify-center"
           onPress={onCancel}
         >
           <RelistenText className="text-relisten-blue-400" selectable={false}>
@@ -207,8 +211,8 @@ function NewPlaylistForm({
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityState={{ disabled: !canCreate }}
-          className="min-h-11 justify-center"
-          onPress={() => canCreate && onCreate(name)}
+          className="min-h-[44px] justify-center"
+          onPress={submit}
         >
           <RelistenText
             className={canCreate ? 'font-bold text-relisten-blue-400' : 'font-bold text-gray-500'}
@@ -224,11 +228,10 @@ function NewPlaylistForm({
         className="mt-6 rounded-lg bg-relisten-blue-800 px-4 py-3 text-lg text-white"
         maxLength={PLAYLIST_LIMITS.nameLength}
         onChangeText={setName}
-        onSubmitEditing={() => canCreate && onCreate(name)}
-        placeholder="Road trip jams"
-        placeholderTextColor={RelistenBlue[400]}
+        onSubmitEditing={submit}
+        placeholder={defaultName || 'Road trip jams'}
+        placeholderTextColor="#9ca3af"
         returnKeyType="done"
-        selectTextOnFocus
         value={name}
       />
     </View>
