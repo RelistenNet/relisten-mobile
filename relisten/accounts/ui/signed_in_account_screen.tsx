@@ -1,3 +1,4 @@
+import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
 import { AccountErrorNotice } from '@/relisten/accounts/ui/account_error_notice';
 import { AccountAvatar } from '@/relisten/accounts/ui/account_avatar';
 import { FavoriteSyncFailureNotice } from '@/relisten/accounts/ui/favorite_sync_failure_notice';
@@ -9,6 +10,7 @@ import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import type { FavoriteSyncFailure } from '@/relisten/library/favorite_hooks';
 import { FavoriteDiagnostics } from '@/relisten/accounts/ui/favorite_diagnostics';
+import { PlaylistDiagnostics, PlaylistSyncRow } from '@/relisten/accounts/ui/playlist_diagnostics';
 
 type SignedInAccountScreenProps = {
   actionError?: string;
@@ -54,6 +56,8 @@ export function SignedInAccountScreen({
   usernameReviewNeeded,
 }: SignedInAccountScreenProps) {
   const [showDiagnostics, setShowDiagnostics] = useState(false);
+  // Keeps the last rows clear of the mini player now that this screen sits in a tab.
+  const scrollProps = usePlayerBottomScrollViewProps({});
   const favoritesValue =
     pendingSyncCount > 0
       ? `${pendingSyncCount} ${pendingSyncCount === 1 ? 'change' : 'changes'} to save`
@@ -62,7 +66,7 @@ export function SignedInAccountScreen({
         : syncStatusLabel(syncState);
 
   return (
-    <ScrollView className="flex-1 bg-relisten-blue-950">
+    <ScrollView className="flex-1 bg-relisten-blue-900" {...scrollProps}>
       <View className="items-center px-6 pb-6 pt-8">
         <AccountAvatar username={username} size={72} />
         <RelistenText className="mt-3 text-2xl font-bold">@{username}</RelistenText>
@@ -106,6 +110,7 @@ export function SignedInAccountScreen({
             valueClassName={syncValueClass(syncState)}
           />
         )}
+        <PlaylistSyncRow />
         {(importAvailable || importInProgress) && (
           <SettingsRow
             label={
@@ -160,6 +165,7 @@ export function SignedInAccountScreen({
       {showDiagnostics && (
         <View className="pb-8">
           <FavoriteDiagnostics />
+          <PlaylistDiagnostics />
         </View>
       )}
     </ScrollView>

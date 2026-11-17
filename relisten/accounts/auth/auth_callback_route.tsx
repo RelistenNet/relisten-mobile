@@ -1,3 +1,4 @@
+import { accountPath } from '@/relisten/accounts/ui/account_routes';
 import { useEffect } from 'react';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
@@ -21,7 +22,8 @@ export function AuthCallbackRoute() {
       }
 
       if (active) {
-        router.replace('/relisten/account');
+        // Sign-in starts from the account screen; land on it in the Relisten tab.
+        router.replace(accountPath('(relisten)'));
       }
     };
 

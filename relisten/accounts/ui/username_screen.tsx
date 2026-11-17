@@ -1,3 +1,4 @@
+import { accountPath, useAccountTab } from '@/relisten/accounts/ui/account_routes';
 import { useAccount } from '@/relisten/accounts/account_context';
 import {
   AccountErrorNotice,
@@ -31,6 +32,7 @@ function changeAvailableAt(value: Date | string | null | undefined) {
 export function UsernameScreen() {
   const account = useAccount();
   const router = useRouter();
+  const tab = useAccountTab();
   const [username, setUsername] = useState(
     account.pendingUsername ?? account.profile?.username ?? ''
   );
@@ -72,14 +74,14 @@ export function UsernameScreen() {
 
   if (account.status === 'restoring') {
     return (
-      <View className="flex-1 items-center justify-center bg-relisten-blue-950">
+      <View className="flex-1 items-center justify-center bg-relisten-blue-900">
         <ActivityIndicator color="white" size="large" />
       </View>
     );
   }
 
   if (account.status !== 'signedIn' || !account.profile) {
-    return <Redirect href="/relisten/account" />;
+    return <Redirect href={accountPath(tab)} />;
   }
 
   const saveUsername = async () => {
@@ -93,7 +95,7 @@ export function UsernameScreen() {
 
     try {
       await account.updateUsername(normalizedUsername);
-      router.dismissTo('/relisten/account');
+      router.dismissTo(accountPath(tab));
     } catch (error) {
       setActionError(accountErrorMessage(error));
     }
@@ -110,7 +112,7 @@ export function UsernameScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      className="flex-1 bg-relisten-blue-950"
+      className="flex-1 bg-relisten-blue-900"
     >
       <ScrollView
         contentContainerStyle={{ flexGrow: 1, padding: 24 }}
@@ -128,7 +130,7 @@ export function UsernameScreen() {
 
           <View className="gap-2">
             <RelistenText className="text-sm font-semibold text-gray-300">Username</RelistenText>
-            <View className="flex-row items-center rounded-lg border border-relisten-blue-700 bg-relisten-blue-900 px-4">
+            <View className="flex-row items-center rounded-lg border border-relisten-blue-700 bg-relisten-blue-800 px-4">
               <RelistenText className="text-lg text-gray-400" selectable={false}>
                 @
               </RelistenText>
@@ -193,7 +195,7 @@ export function UsernameScreen() {
             <RelistenButton
               disabled={submitting}
               intent="outline"
-              onPress={() => router.dismissTo('/relisten/account')}
+              onPress={() => router.dismissTo(accountPath(tab))}
             >
               {hasPendingUsername ? 'Finish later' : `Use @${account.profile.username} for now`}
             </RelistenButton>

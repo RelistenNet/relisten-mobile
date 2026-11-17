@@ -37,8 +37,9 @@ export function syncStatusLabel(state: AccountSyncState) {
   return SYNC_STATUS[state].label;
 }
 
+/** Saving is quiet when it works: only waiting, saving, and problems get a word. */
 const SUMMARY_LABEL: Record<AccountSyncState, string> = {
-  saved: 'Saved to your account',
+  saved: '',
   waiting: 'Waiting to sync',
   syncing: 'Saving…',
   needsAttention: 'Needs attention',

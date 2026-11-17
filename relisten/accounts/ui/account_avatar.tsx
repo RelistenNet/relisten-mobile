@@ -1,22 +1,17 @@
-import { RelistenText } from '@/relisten/components/relisten_text';
-import { View } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 
-/** A circle with the username's first letter. Relisten has no profile photos. */
-export function AccountAvatar({ username, size }: { username?: string; size: number }) {
-  const initial = username?.[0]?.toUpperCase();
-
+/**
+ * The account's mark. Relisten has no profile photos, so this is the same
+ * account icon for everyone rather than an initial pretending to be a photo.
+ */
+export function AccountAvatar({ size }: { username?: string; size: number }) {
   return (
-    <View
+    <MaterialIcons
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      className="items-center justify-center rounded-full bg-relisten-blue-600"
-      style={{ width: size, height: size }}
-    >
-      {initial ? (
-        <RelistenText className="font-bold" style={{ fontSize: size * 0.45 }} selectable={false}>
-          {initial}
-        </RelistenText>
-      ) : null}
-    </View>
+      color="white"
+      name="account-circle"
+      size={size}
+    />
   );
 }

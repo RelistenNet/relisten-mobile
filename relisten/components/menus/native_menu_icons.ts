@@ -1,6 +1,21 @@
 import { Icon } from '@expo/ui';
 
 export const nativeMenuIcons = {
+  // Relisten has no profile photos, so the account is a plain person icon:
+  // outlined signed out, filled signed in, badged when sync needs attention.
+  // Material Symbols has one account icon, so Android shows the same for each.
+  account: Icon.select({
+    ios: 'person.crop.circle',
+    android: import('@expo/material-symbols/account_circle.xml'),
+  }),
+  accountSignedIn: Icon.select({
+    ios: 'person.crop.circle.fill',
+    android: import('@expo/material-symbols/account_circle.xml'),
+  }),
+  accountNeedsAttention: Icon.select({
+    ios: 'person.crop.circle.badge.exclamationmark',
+    android: import('@expo/material-symbols/account_circle.xml'),
+  }),
   audioAdjustments: Icon.select({
     ios: 'slider.horizontal.3',
     android: import('@expo/material-symbols/tune.xml'),
