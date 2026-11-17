@@ -190,7 +190,8 @@ operation types and placement rules exactly:
 - New ranks come from `generateKeyBetween`.
 
 It returns the set of rows it changed. Callers write only those rows, so one edit
-touches a handful of rows even in a 5,000-entry playlist.
+touches a handful of rows even in a 5,000-entry playlist. Every applied edit also
+sets the playlist's `updatedAt`, which copy detection relies on.
 
 The same function serves three callers, so local and synced playlists behave
 identically:
