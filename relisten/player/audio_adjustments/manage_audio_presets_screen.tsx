@@ -1,3 +1,4 @@
+import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
 import { NativeMenuView, type MenuAction } from '@/relisten/components/menus/native_menu_view';
 import { OverflowMenuTrigger } from '@/relisten/components/menus/overflow_menu_trigger';
 import { RelistenText } from '@/relisten/components/relisten_text';
@@ -16,10 +17,10 @@ const PRESET_ACTION_IDS = {
 type PresetActionId = (typeof PRESET_ACTION_IDS)[keyof typeof PRESET_ACTION_IDS];
 
 const PRESET_ACTIONS: MenuAction[] = [
-  { id: PRESET_ACTION_IDS.rename, image: 'pencil', title: 'Rename' },
+  { id: PRESET_ACTION_IDS.rename, image: nativeMenuIcons.edit, title: 'Rename' },
   {
     id: PRESET_ACTION_IDS.delete,
-    image: 'trash',
+    image: nativeMenuIcons.delete,
     title: 'Delete',
     attributes: { destructive: true },
   },

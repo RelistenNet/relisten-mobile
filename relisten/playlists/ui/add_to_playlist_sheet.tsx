@@ -1,3 +1,4 @@
+import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import plur from 'plur';
@@ -188,13 +189,17 @@ function SheetToolbar({ onCancel, onCreate }: { onCancel: () => void; onCreate?:
   return (
     <>
       <Stack.Toolbar placement="left">
-        <Stack.Toolbar.Button accessibilityLabel="Cancel" icon="xmark" onPress={onCancel} />
+        <Stack.Toolbar.Button
+          accessibilityLabel="Cancel"
+          icon={nativeMenuIcons.close}
+          onPress={onCancel}
+        />
       </Stack.Toolbar>
       {onCreate && (
         <Stack.Toolbar placement="right">
           <Stack.Toolbar.Button
             accessibilityLabel="Create"
-            icon="checkmark"
+            icon={nativeMenuIcons.done}
             variant="done"
             onPress={onCreate}
           />

@@ -36,6 +36,10 @@ export const nativeMenuIcons = {
     ios: 'trash',
     android: import('@expo/material-symbols/delete_sweep.xml'),
   }),
+  done: Icon.select({
+    ios: 'checkmark',
+    android: import('@expo/material-symbols/check.xml'),
+  }),
   close: Icon.select({
     ios: 'xmark',
     android: import('@expo/material-symbols/close.xml'),
