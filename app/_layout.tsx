@@ -31,6 +31,7 @@ import { PlayerPresentationOverlay } from '@/relisten/player/ui/player_presentat
 import { AudioAdjustmentCoordinator } from '@/relisten/player/audio_adjustments/audio_adjustment_coordinator';
 import { RelistenCastProvider } from '@/relisten/casting/cast_provider';
 import FlashMessage from 'react-native-flash-message';
+import { PlaylistToastHost } from '@/relisten/playlists/ui/playlist_toast';
 import { PlaybackHistoryReporterComponent } from '@/relisten/components/playback_history_reporter';
 import { LastFmReporterComponent } from '@/relisten/lastfm/lastfm_reporter_component';
 import { LastFmAuthListener } from '@/relisten/lastfm/lastfm_auth_listener';
@@ -258,6 +259,7 @@ function TabLayout() {
                             >
                               <FlashMessage position="top" />
                             </View>
+                            <PlaylistToastHost />
                           </SafeAreaProvider>
                         </GestureHandlerRootView>
                       </PlayerPresentationProvider>
