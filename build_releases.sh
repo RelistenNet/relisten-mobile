@@ -212,6 +212,11 @@ ensure_sentry_token() {
 }
 
 ensure_expo_token() {
+  # run_eoas loads .env.local itself, so a token there needs no 1Password read.
+  if [[ -z "$EXPO_TOKEN" ]] && grep -q '^EXPO_TOKEN=.' .env.local 2>/dev/null; then
+    return
+  fi
+
   if [[ -z "$EXPO_TOKEN" ]]; then
     EXPO_TOKEN="$(op read "op://Private/Relisten OTA Expo access token/credential")"
   fi
@@ -371,7 +376,9 @@ publish_ota() {
   ensure_expo_token
 
   echo "Publishing OTA to branch '$branch' ($PLATFORM)..."
-  export EXPO_TOKEN
+  if [[ -n "$EXPO_TOKEN" ]]; then
+    export EXPO_TOKEN
+  fi
   export RELEASE_CHANNEL="$branch"
   export RELISTEN_IOS_RUNTIME_VERSION="$OTA_IOS_RUNTIME_VERSION"
   export RELISTEN_ANDROID_RUNTIME_VERSION="$OTA_ANDROID_RUNTIME_VERSION"
