@@ -2,11 +2,12 @@ import { useHeaderHeight } from 'expo-router/react-navigation';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import plur from 'plur';
 import { useMemo, useState } from 'react';
-import { FlatList, TextInput, TouchableOpacity, View } from 'react-native';
+import { FlatList, Switch, TextInput, TouchableOpacity, View } from 'react-native';
 import Realm from 'realm';
 import { ItemSeparator } from '@/relisten/components/item_separator';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { Playlist } from '@/relisten/realm/models/playlists/playlist';
+import type { SourceTrack } from '@/relisten/realm/models/source_track';
 import { useRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { addTracks, keepWithAbove } from '@/relisten/playlists/playlist_actions';
@@ -32,12 +33,20 @@ import { playlistActionEvent, sharedStatsigClient } from '@/relisten/events';
 export default function AddToPlaylistSheet() {
   const realm = useRealm();
   const router = useRouter();
-  const params = useLocalSearchParams<{ tracks?: string; together?: string }>();
+  const params = useLocalSearchParams<{ tracks?: string; linkable?: string }>();
   const trackIds = useMemo(
     () => (params.tracks ? params.tracks.split(',').filter(Boolean) : []),
     [params.tracks]
   );
-  const together = params.together === '1' && trackIds.length > 1;
+  const linkable = params.linkable === '1' && trackIds.length > 1;
+  const [linkBackToBack, setLinkBackToBack] = useState(true);
+  const groups = useMemo(
+    () =>
+      linkable && linkBackToBack
+        ? backToBackRuns(realm, trackIds)
+        : trackIds.map((trackId) => [trackId]),
+    [linkBackToBack, linkable, realm, trackIds]
+  );
   const playlists = usePlaylists();
   const [naming, setNaming] = useState(trackIds.length === 0);
   // A form sheet lays its content out under the native header, not below it.
@@ -46,7 +55,7 @@ export default function AddToPlaylistSheet() {
   const addToExisting = (playlist: Playlist) => {
     const { playlistId, name } = playlist;
     try {
-      addTracks(realm, playlistId, trackIds, together);
+      addTracks(realm, playlistId, groups);
     } catch (error) {
       showPlaylistToast(
         error instanceof PlaylistLimitError ? error.message : "Couldn't add to playlist."
@@ -57,7 +66,7 @@ export default function AddToPlaylistSheet() {
     sharedStatsigClient().logEvent(playlistActionEvent('add', trackIds.length));
 
     const segueEntry = trackIds.length === 1 ? segueSuggestion(realm, playlistId) : undefined;
-    showPlaylistToast(`Added ${countLabel(trackIds.length)} to ${name}`, [
+    showPlaylistToast(`Added ${addedLabel(realm, groups)} to ${name}`, [
       undoAction(realm, playlistId),
       segueEntry
         ? {
@@ -69,7 +78,6 @@ export default function AddToPlaylistSheet() {
   };
 
   const create = (name: string) => {
-    const groups = trackIds.length === 0 ? [] : together ? [trackIds] : trackIds.map((id) => [id]);
     const playlist = createPlaylist(realm, name, groups);
     const { playlistId } = playlist;
     router.back();
@@ -79,7 +87,7 @@ export default function AddToPlaylistSheet() {
       openPlaylist(router, playlistId);
       return;
     }
-    showPlaylistToast(`Added ${countLabel(trackIds.length)} to ${playlist.name}`, [
+    showPlaylistToast(`Added ${addedLabel(realm, groups)} to ${playlist.name}`, [
       {
         label: 'Undo',
         onPress: () => {
@@ -117,12 +125,24 @@ export default function AddToPlaylistSheet() {
         ItemSeparatorComponent={ItemSeparator}
         ListHeaderComponent={
           <>
-            {together && (
-              <RelistenText className="px-4 pb-3 pt-2 text-gray-400">
-                {"They'll stay linked, so shuffle keeps them in order."}
-              </RelistenText>
+            {linkable && (
+              <>
+                <View className="min-h-[56px] flex-row items-center px-4 py-2">
+                  <View className="flex-1 pr-3">
+                    <RelistenText className="text-lg">Link back-to-back tracks</RelistenText>
+                    <RelistenText className="text-sm text-gray-400">
+                      Segues stay together and in order when shuffled.
+                    </RelistenText>
+                  </View>
+                  <Switch
+                    accessibilityLabel="Link back-to-back tracks"
+                    onValueChange={setLinkBackToBack}
+                    value={linkBackToBack}
+                  />
+                </View>
+                <ItemSeparator />
+              </>
             )}
-            <ItemSeparator />
             <TouchableOpacity
               accessibilityRole="button"
               className="min-h-[52px] flex-row items-center px-4"
@@ -242,6 +262,55 @@ function NewPlaylistForm({
 
 function countLabel(count: number) {
   return `${count} ${plur('track', count)}`;
+}
+
+/**
+ * Splits tracks into runs that play back to back in one recording, such as
+ * Scarlet Begonias into Fire on the Mountain. Each run becomes one link.
+ */
+function backToBackRuns(realm: Realm, trackIds: string[]): string[][] {
+  const runs: string[][] = [];
+  let previous: SourceTrack | null = null;
+
+  for (const trackId of trackIds) {
+    const track = sourceTrackFor(realm, trackId);
+    const followsPrevious =
+      !!track &&
+      !!previous &&
+      track.sourceUuid === previous.sourceUuid &&
+      track.trackPosition === previous.trackPosition + 1;
+
+    if (followsPrevious) {
+      runs[runs.length - 1].push(trackId);
+    } else {
+      runs.push([trackId]);
+    }
+    previous = track;
+  }
+
+  return runs;
+}
+
+/** Names what was added: a title, a linked pair, or a count with its show. */
+function addedLabel(realm: Realm, groups: string[][]): string {
+  const trackIds = groups.flat();
+  const tracks = trackIds.map((trackId) => sourceTrackFor(realm, trackId));
+  const titles = tracks.map((track) => track?.title);
+
+  if (trackIds.length === 1 && titles[0]) {
+    return `“${titles[0]}”`;
+  }
+  if (trackIds.length === 2 && titles[0] && titles[1]) {
+    return groups.length === 1
+      ? `“${titles[0]} → ${titles[1]}”`
+      : `“${titles[0]}” and “${titles[1]}”`;
+  }
+
+  const shows = new Set(tracks.map((track) => track?.show.displayDate));
+  const [onlyShow] = shows;
+  return shows.size === 1 && onlyShow
+    ? `${countLabel(trackIds.length)} from ${onlyShow}`
+    : countLabel(trackIds.length);
 }
 
 /** Names a new playlist after the show its first track came from, e.g. "Grateful Dead 1977-05-08". */

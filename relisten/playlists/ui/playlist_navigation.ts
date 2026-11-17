@@ -4,23 +4,23 @@ import type { RelistenTabGroupSegment } from '@/relisten/util/routes';
 type Router = ReturnType<typeof useRouter>;
 
 /**
- * Opens the add-to-playlist sheet. `together` keeps the tracks as one group;
- * a single track is always added on its own.
+ * Opens the add-to-playlist sheet. With `linkable`, tracks from one show can be
+ * linked where they play back to back; the sheet offers that as a switch.
  */
 export function openAddToPlaylist(
   router: Router,
   trackIds: string[],
-  options: { together: boolean }
+  options: { linkable: boolean }
 ) {
   router.push({
     pathname: '/relisten/add-to-playlist',
-    params: { tracks: trackIds.join(','), together: options.together ? '1' : '0' },
+    params: { tracks: trackIds.join(','), linkable: options.linkable ? '1' : '0' },
   });
 }
 
 /** Opens the same sheet with nothing to add, which goes straight to naming a new playlist. */
 export function openNewPlaylist(router: Router) {
-  router.push({ pathname: '/relisten/add-to-playlist', params: { tracks: '', together: '0' } });
+  router.push({ pathname: '/relisten/add-to-playlist', params: { tracks: '', linkable: '0' } });
 }
 
 export function openPlaylist(

@@ -249,7 +249,7 @@ export default function Page() {
   const addShowToPlaylist = () => {
     if (!selectedSource) return;
     openAddToPlaylist(router, selectedSource.allSourceTracks().map(trackIdForSourceTrack), {
-      together: true,
+      linkable: true,
     });
   };
 
@@ -261,7 +261,7 @@ export default function Page() {
       .filter((t) => selectedTrackUuids.has(t.uuid))
       .map(trackIdForSourceTrack);
     setSelectedTrackUuids(null);
-    openAddToPlaylist(router, ids, { together: true });
+    openAddToPlaylist(router, ids, { linkable: true });
   };
 
   const selection: TrackSelection | undefined = selectedTrackUuids
@@ -334,6 +334,7 @@ export default function Page() {
           playShow={playShow}
           downloadShow={downloadShow}
           selection={selection}
+          onStartSelection={(uuid: string) => setSelectedTrackUuids(new Set([uuid]))}
         />
       </RefreshContextProvider>
     </>
@@ -347,6 +348,7 @@ const SourceComponent = ({
   artist,
   downloadShow,
   selection,
+  onStartSelection,
   ...props
 }: {
   show: Show | undefined;
@@ -355,6 +357,7 @@ const SourceComponent = ({
   playShow: PlayShow;
   downloadShow: () => void;
   selection?: TrackSelection;
+  onStartSelection?: (sourceTrackUuid: string) => void;
 } & ScrollViewProps) => {
   const { refreshing, errors, hasData } = useRefreshContext();
   const userSettings = useUserSettings();
@@ -411,7 +414,12 @@ const SourceComponent = ({
         initialTrackToPlay={initialTrackToPlay}
         hasDownloadableTrack={hasDownloadableTrack}
       />
-      <SourceSets source={selectedSource} playShow={playShow} selection={selection} />
+      <SourceSets
+        source={selectedSource}
+        playShow={playShow}
+        selection={selection}
+        onStartSelection={onStartSelection}
+      />
       <SourceFooter source={selectedSource} />
     </Animated.ScrollView>
   );

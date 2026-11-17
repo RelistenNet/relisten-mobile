@@ -18,6 +18,7 @@ interface SourceTrackProps {
   sourceTrack: SourceTrack;
   isLastTrackInSet: boolean;
   onPress?: PlayShow;
+  onLongPress?: () => void;
   showTrackNumber?: boolean;
   disabled?: boolean;
 }
@@ -28,6 +29,7 @@ export const SourceTrackComponent = ({
   sourceTrack,
   isLastTrackInSet,
   onPress,
+  onLongPress,
   showTrackNumber,
   disabled,
 }: SourceTrackProps) => {
@@ -48,6 +50,7 @@ export const SourceTrackComponent = ({
           accessibilityState={accessibilityState}
           className="min-w-0 flex-1 flex-row items-center self-stretch"
           onPress={() => onPress?.(sourceTrack)}
+          onLongPress={onLongPress}
         >
           {shouldShowTrackNumber && !isPlayingThisTrack && (
             <View className="self-center" style={{ width: leadingColumnWidth }}>

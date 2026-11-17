@@ -94,7 +94,7 @@ export function PlaylistSyncNotice({ playlist }: { playlist: Playlist }) {
           {
             label: 'Add Again',
             onPress: () => {
-              addTracks(realm, playlistId, refusedTracks, true);
+              addTracks(realm, playlistId, [refusedTracks]);
               service.dismissRefused(playlistId);
             },
           },
