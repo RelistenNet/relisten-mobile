@@ -136,6 +136,9 @@ nothing else holds their IDs. Copying to an account always uses fresh IDs.
   `canonicalDescription?`. Snapshots and `metadata_updated` changes write the
   canonical fields; `name` and `description` are the displayed values, rebuilt
   like everything else.
+- `Playlist` also gains `copiedFromPlaylistId?` and `copiedFromUpdatedAt?`, set
+  on an account playlist created by **Save to my account**. They make the account
+  playlist row its own copy receipt; milestone 3 adds no models.
 - `PlaylistSegment` and `PlaylistEntry` gain `live` (indexed) and canonical
   fields: `canonicalRank?`, `canonicalLive`, and for entries
   `canonicalSegmentId?`. In the account scope, displayed fields are canonical plus
@@ -159,10 +162,6 @@ Operation states:
 | `quota_paused` | Whole outbox paused after `quota_exceeded`. |
 | `archived_hold` | Held because the playlist is archived. |
 | `needs_attention` | Rejected, or a create failed terminally; shown to the user. |
-
-### Schema 26 (milestone 3)
-
-`PlaylistCopyJob` and `PlaylistCopyReceipt`; see Save to my account.
 
 ### Queries
 
@@ -407,41 +406,34 @@ reappear when that account signs in again.
 
 ## Save to my account (milestone 3)
 
-**Records**
-
-- `PlaylistCopyJob`: one per user action, with `destinationScopeId`, the ordered
-  list of source playlist IDs, and `state` (`running`, `stopped_quota`, `done`).
-- `PlaylistCopyReceipt`: one per source playlist, with `sourcePlaylistId`,
-  `destinationPlaylistId`, `commandId`, `sourceFingerprint` and `state`
-  (`queued`, `sent`, `copied`, `failed_quota`).
-
-**Flow**
+A copy is an ordinary account playlist created by a create command with fresh
+playlist, segment and entry IDs. The account playlist row records where it came
+from (`copiedFromPlaylistId`) and the source's `updatedAt` at copy time
+(`copiedFromUpdatedAt`). No separate job or receipt model exists (Alec,
+2026-11-17).
 
 - **Save to my account** (one playlist) and **Add local playlists to this
-  account** (all uncopied) both create one job, unless a matching copy is already
-  unfinished (see Reuse). In a single Realm transaction they
-  write the job, every receipt, and every create command with fresh playlist,
-  segment and entry IDs, as `importToActiveAccount` does for favorites. A kill at
-  any point leaves complete records; the coordinator resumes any `running` job at
-  startup.
-- The account copy appears in **Mine** immediately, shown as **Saving…** until its
-  create is acknowledged. Retries resend the identical command, so a copy is never
-  duplicated.
-- The local original is never moved, renamed or deleted.
-- If a create fails with `quota_exceeded`, that receipt becomes `failed_quota`,
-  its pending account row is removed, the job stops as `stopped_quota`, and the
-  remaining receipts stay `queued`. The list shows the limit; retrying the job
-  resumes from the first unfinished receipt.
-- **Reuse.** A receipt is unfinished when its state is `queued`, `sent` or
-  `failed_quota`. For the same destination account, source playlist and
-  fingerprint, a new action reuses that receipt and its existing create command
-  instead of writing fresh IDs, and resumes its job. This follows the favorites
-  importer. So a second tap, or a bulk action started while a copy is pending,
-  never produces a second account copy.
-- **Uncopied** means no receipt for this account and source with the current
-  fingerprint, in any state. A playlist edited after its copy has a new
-  fingerprint; it shows **Save changes as a new copy** on its detail screen, but
-  bulk copy skips it.
+  account** (all eligible) write every account playlist row, its segments and
+  entries, and its create command in one Realm transaction, as
+  `importToActiveAccount` does for favorites. The normal command retry finishes
+  them, including after the app is killed.
+- **No duplicates.** Before copying, look in the destination account for a
+  playlist with the same `copiedFromPlaylistId` and `copiedFromUpdatedAt`, in any
+  state. If one exists, reuse it and its command instead of writing fresh IDs. A
+  second tap, or a bulk copy started while a copy is pending, therefore never makes
+  a second account copy.
+- **Eligible for bulk copy** means no account playlist was copied from this source
+  at all. A source edited after its copy (`updatedAt` later than
+  `copiedFromUpdatedAt`) is skipped by bulk copy; its detail screen offers **Save
+  changes as a new copy**, which creates another account playlist.
+- **Progress** for a bulk copy counts the copied account playlists still
+  `creating` against those `synced`.
+- Copies appear in **Mine** immediately, shown as **Saving…** until acknowledged.
+  The local original is never moved, renamed or deleted.
+- **Quota.** Each copy succeeds or fails on its own. A copy whose create fails
+  with `quota_exceeded` stays in **Mine** as "Couldn't save, over the limit" with
+  **Try again** and **Remove**. The other copies carry on, since smaller playlists
+  may still fit.
 
 ## Platform surfaces
 
@@ -486,8 +478,10 @@ Follow `AGENTS.md`: run affected Vitest files, `yarn ts:check` and `yarn lint`.
   - compaction never touches an operation that has started a request, and
     preserves replay results
   - a response arriving after an account switch writes nothing
-- **Copy (milestone 3):** a kill mid-job resumes without duplicates; quota failure
-  stops the job and leaves later playlists queued; local originals stay intact.
+- **Copy (milestone 3):** a kill mid-copy resumes without duplicates; a second
+  Save during a pending copy reuses it; one copy failing quota leaves the others
+  copying; an edited source is skipped by bulk copy and offers a new copy; local
+  originals stay intact.
 - **Manual simulator checklist:**
   - Milestone 1: create from a show, add tracks from another show into the same
     group, drag a track out, kill and relaunch, then play with shuffle in airplane
@@ -510,6 +504,9 @@ Follow `AGENTS.md`: run affected Vitest files, `yarn ts:check` and `yarn lint`.
    the displayed fields, plus `live` flags), not as a separate base document or
    per-row JSON (Alec, 2026-11-17). A pull's cost tracks the size of the change,
    and the pattern matches favorites.
+7. **Copies need no job or receipt models.** The account playlist records its
+   source and the source's `updatedAt` at copy time, and the normal create-command
+   retry finishes interrupted copies (Alec, 2026-11-17).
 
 ## Progress
 
