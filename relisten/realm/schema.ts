@@ -40,6 +40,7 @@ import {
   upgradeTypedAccountIdentity,
 } from '@/relisten/realm/account_identity_upgrade';
 import { CATALOG_REALM_MODELS } from '@/relisten/realm/models/catalog';
+import { PLAYLIST_REALM_MODELS } from '@/relisten/realm/models/playlists/playlist';
 
 if (isVerboseProfileLoggingEnabled()) {
   Realm.setLogger(({ category, level, message }) => {
@@ -51,7 +52,7 @@ if (isVerboseProfileLoggingEnabled()) {
   Realm.setLogLevel('debug', 'Realm.Storage.Notification');
 }
 
-export const REALM_SCHEMA_VERSION = 23;
+export const REALM_SCHEMA_VERSION = 24;
 
 export const REALM_SCHEMA = [
   Artist,
@@ -80,6 +81,7 @@ export const REALM_SCHEMA = [
   ...ACCOUNT_REALM_MODELS,
   ...FAVORITE_REALM_MODELS,
   ...CATALOG_REALM_MODELS,
+  ...PLAYLIST_REALM_MODELS,
 ];
 
 export const realmConfig: Realm.Configuration = {
