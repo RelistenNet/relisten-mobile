@@ -48,7 +48,7 @@ describe('shuffleKeepingGroups', () => {
 });
 
 describe('endOfGroupIndex', () => {
-  it('finds the last track of the current group, for Play Next while shuffled', () => {
+  it('finds the last track of the current group, where Play Next inserts', () => {
     expect(endOfGroupIndex(queue, 0)).toBe(1);
     expect(endOfGroupIndex(queue, 3)).toBe(4);
   });

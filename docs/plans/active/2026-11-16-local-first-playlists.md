@@ -1,8 +1,9 @@
 # Local-first playlists
 
 Status: approved 2026-11-16; revised 2026-11-17 to one list of playlists with
-optional owners. Milestone 1 not started. Branch `codex/v4-playlists-mobile`, cut
-from `codex/v4-mobile-pilot` at `535ec16` (Realm schema 23).
+optional owners. Milestones 1 and 2 are built and shipped to TestFlight 6055 by
+OTA (2026-11-17); Android Auto is still open. Branch `codex/v4-playlists-mobile`,
+cut from `codex/v4-mobile-pilot` at `535ec16` (Realm schema 23, now 24).
 
 ## Purpose and current decisions
 
@@ -65,8 +66,8 @@ Each milestone is releasable on its own.
 2. **Saving to an account.** Signing in gives every unowned playlist an owner and
    syncs it to `accounts.relisten.net/v1`: outbox, sync coordinator, library feed
    summaries, history-generation recovery and quota handling. A new device
-   downloads the account's playlists. This needs the User Service's delivery-1
-   implementation, which has not started.
+   downloads the account's playlists. Built against the User Service's
+   delivery-1 implementation, deployed to production 2026-11-17.
 
 Milestone 1's end-to-end proof: create a playlist from a show, edit it offline,
 restart the app, and play it with group shuffle. Milestone 2 extends that proof
@@ -821,7 +822,9 @@ Follow `AGENTS.md`: run affected Vitest files, `yarn ts:check` and `yarn lint`.
    (Alec, 2026-11-17).
 3. **CarPlay and Android Auto get a read-only Playlists list in milestone 1** that
    plays a playlist. Editing stays on the phone (Alec, 2026-11-16).
-4. **Save queue as playlist is deferred** past milestone 1 (Alec, 2026-11-16).
+4. **Save queue as playlist was deferred** past milestone 1 (Alec, 2026-11-16),
+   then built as **Add Queue to Playlist…** in the player's menu (2026-11-17). It
+   adds the queue's tracks in order, each as its own entry, without links.
 5. **The server base is stored as paired fields on each row** (`canonical*` beside
    the displayed fields, plus `live` flags), not as a separate base document or
    per-row JSON (Alec, 2026-11-17). A pull's cost tracks the size of the change,
@@ -849,11 +852,13 @@ notes win:
 - **Availability.** `PlaylistTrackAvailability` has a `status` (`unavailable`
   or `redirected`) and a `redirectTrackId`, because catalog redirects only cover
   songs and venues.
-- **Toasts** reuse the app's existing floating top message (as the history queue
-  Undo does), which never collides with the mini player or tab bar. Toasts appear
-  only when an edit changed something. Undo history is in memory: 5 snapshots for
-  each of the 10 most recently edited playlists, so Undo still works after leaving
-  the screen.
+- **Toasts** are a compact pill under the status bar (`PlaylistToastHost` in
+  `playlist_toast.tsx`, mounted at the app root), above the player and clear of
+  the mini player. They name what changed, swipe away, and run each action at
+  most once; a screen reader hears them and gets three times as long. Toasts
+  appear only when an edit changed something. Undo history is in memory: 5 steps
+  for each of the 10 most recently edited playlists, so Undo still works after
+  leaving the screen, and each toast's Undo is bound to the edit that made it.
 - **Dragging** (revised 2026-11-17) follows the spec above, with a custom drag
   layer (`playlist_edit_list.tsx`, slots from `playlist_drag_slots.ts`) instead
   of `react-native-draggable-flatlist`, which can't express two targets at one
@@ -866,7 +871,7 @@ notes win:
   subtitles; native menu items have no subtitle support.
 - **New playlist** shows the suggested name as a placeholder; Create uses it when
   the field is empty.
-- **Not built yet:** the first-time shuffle hint, the Now Playing jump pill, the
+- **Not built yet:** the first-time shuffle hint, the Now Playing jump pill,
   and **Android Auto**. The
   Android Auto bridge needs native Kotlin, and no JDK 17 or 21 was available to
   compile it.
@@ -884,6 +889,16 @@ Implemented in `relisten/playlists/sync/` against the local User Service on
   already saved. Inverse operations were not built.
 - **No outbox compaction.** The quiet period and batching already make one
   request per burst of edits; compaction can follow if batches prove large.
+- **Deleting a playlist the account never accepted** (create unsent or
+  refused) moves it to Recently Deleted on the device; restoring it while
+  signed in saves it to the current account with a fresh create. A create
+  sent without an answer yet has to finish before the playlist can be deleted.
+- **Restore recovery** resets a playlist's applied, summary, and generation
+  values together, and drops the library cursor so the next library pull is a
+  snapshot. The favorites applier forgets its confirmed base on a new
+  generation, so a restored snapshot can remove favorites.
+- **Adding from a show** offers "Link back-to-back tracks": consecutive tracks
+  of one recording become one link each. Queue rows show the same link line.
 - **Rebuilds run only after server responses** (pulls, acknowledgements,
   withdrawn or refused edits). A listener's edit writes the displayed fields and
   appends its operation, as planned.
@@ -915,4 +930,10 @@ Implemented in `relisten/playlists/sync/` against the local User Service on
   optional owners.
 - [x] (2026-11-17) Milestone 1: playlists on the device, except Android Auto.
 - [ ] Android Auto playlists list (needs a JDK 17 or 21 to build and verify).
-- [ ] Milestone 2: saving to an account (after the User Service delivery 1).
+- [x] (2026-11-17) Milestone 2: saving to an account, shipped by OTA to
+  TestFlight 6055.
+- [x] (2026-11-17) Fixed the review's release blockers and follow-ups:
+  playback recovery tied to the failed command, offline taps, account
+  isolation for by-ID access, restore recovery for playlists and favorites,
+  metadata saves of changed fields only, never-created deletes, and shared
+  catalog resolver code.

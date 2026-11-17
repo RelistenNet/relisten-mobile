@@ -57,19 +57,28 @@ function pushUndo(playlistId: string, step: UndoStep) {
 }
 
 /**
- * Restores the playlist to before its most recent edit. Returns false when
- * there is nothing to undo, or the edit already reached the account.
+ * The undo for the playlist's most recent edit, bound to that edit: it works
+ * once, and does nothing if the edit is no longer on the stack. Taken right
+ * after an edit, so the toast's Undo can never reach an earlier one. Returns
+ * `sent` when an account edit already reached the server.
  */
-export function undoLastEdit(realm: Realm, playlistId: string): boolean {
-  const step = undoStacks.get(playlistId)?.pop();
-  if (!step) {
-    return false;
-  }
-  if (step.kind === 'operations') {
-    return withdrawEdit(realm, playlistId, step.operationIds);
-  }
-  restoreSnapshot(realm, playlistId, step.snapshot);
-  return true;
+export function undoForLatestEdit(
+  playlistId: string
+): (realm: Realm) => 'undone' | 'sent' | 'gone' {
+  const stack = undoStacks.get(playlistId);
+  const step = stack?.[stack.length - 1];
+  return (realm) => {
+    const current = undoStacks.get(playlistId);
+    const index = step ? (current?.lastIndexOf(step) ?? -1) : -1;
+    if (!step || index < 0) {
+      return 'gone';
+    }
+    current!.splice(index, 1);
+    if (step.kind === 'operations') {
+      return withdrawEdit(realm, playlistId, step.operationIds) ? 'undone' : 'sent';
+    }
+    return restoreSnapshot(realm, playlistId, step.snapshot) ? 'undone' : 'gone';
+  };
 }
 
 // endregion
@@ -106,7 +115,6 @@ function locate(snapshot: PlaylistSnapshot, entryId: string) {
 
 // region Adding
 
-/** Adds tracks at the end: as one group when `together`, otherwise each on its own. */
 /** Appends each group as its own segment: a group of several tracks stays linked. */
 export function addTracks(realm: Realm, playlistId: string, groups: string[][]): boolean {
   if (groups.length === 0) {
@@ -214,9 +222,24 @@ function groupAbove(snapshot: PlaylistSnapshot, entryId: string): PlaylistGroup 
 }
 
 /** Joins a track on its own onto the end of the group (or single track) directly above it. */
-export function keepWithAbove(realm: Realm, playlistId: string, entryId: string): boolean {
+/**
+ * Links an entry onto the end of the group above it. With `expectedAboveEntryId`
+ * (an action that named that track), it links only if that track is still the
+ * one directly above.
+ */
+export function keepWithAbove(
+  realm: Realm,
+  playlistId: string,
+  entryId: string,
+  expectedAboveEntryId?: string
+): boolean {
   const above = groupAbove(readPlaylistSnapshot(realm, playlistId), entryId);
-  if (!above) {
+  const aboveLast = above?.entries[above.entries.length - 1];
+  if (
+    !above ||
+    !aboveLast ||
+    (expectedAboveEntryId && aboveLast.entryId !== expectedAboveEntryId)
+  ) {
     return false;
   }
   return edit(realm, playlistId, [

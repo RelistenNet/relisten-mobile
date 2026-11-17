@@ -22,7 +22,8 @@ export default function RecentlyDeletedPage() {
         ItemSeparatorComponent={ItemSeparator}
         ListHeaderComponent={
           <RelistenText className="px-4 py-3 text-sm text-gray-400">
-            Deleted playlists are kept for {RECENTLY_DELETED_DAYS} days.
+            Playlists deleted on this phone are kept for {RECENTLY_DELETED_DAYS} days. Playlists
+            saved to your account can be restored for at least {RECENTLY_DELETED_DAYS} days.
           </RelistenText>
         }
         ListEmptyComponent={
@@ -37,9 +38,13 @@ export default function RecentlyDeletedPage() {
                 {item.name}
               </RelistenText>
               <RelistenText className="text-sm text-gray-400">
-                {playlistSizeLine(item.entryCount, 0)} ·{' '}
-                {/* Account playlists are archived; their last change is when. */}
-                {deletedAgo(item.deletedAt ?? item.updatedAt)}
+                {/* Only a device deletion has a known time; an account archive doesn't say when. */}
+                {[
+                  playlistSizeLine(item.entryCount, 0),
+                  item.deletedAt ? deletedAgo(item.deletedAt) : undefined,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
               </RelistenText>
             </View>
             <TouchableOpacity

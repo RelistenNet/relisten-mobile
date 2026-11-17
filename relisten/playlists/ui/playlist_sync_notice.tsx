@@ -1,7 +1,10 @@
+import { useEffect, useState } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import { useAccountScope } from '@/relisten/accounts/account_context';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { addTracks } from '@/relisten/playlists/playlist_actions';
+import { PlaylistLimitError } from '@/relisten/playlists/playlist_repository';
+import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
 import { usePlaylistLifecycle } from '@/relisten/playlists/ui/playlist_lifecycle';
 import {
   Playlist,
@@ -39,15 +42,21 @@ export function PlaylistSyncNotice({ playlist }: { playlist: Playlist }) {
     [playlistId]
   )[0];
 
-  if (!playlist.ownerUserId) {
-    return null;
-  }
-
   const inState = (state: PlaylistOperation['state']) =>
     operations.filter((op) => op.state === state);
   const held = inState('archived_hold');
   const paused = inState('quota_paused');
-  const refusedTracks = inState('needs_attention').flatMap((op) => [...op.failedTrackIds]);
+  const refused = inState('needs_attention');
+  const refusedTracks = refused.flatMap((op) => [...op.failedTrackIds]);
+  // Pending and in-flight edits both count as unsaved.
+  const oldestUnsaved = operations
+    .filter((op) => op.state === 'pending' || op.state === 'in_flight')
+    .reduce((oldest, op) => Math.min(oldest, op.createdAt.getTime()), Number.POSITIVE_INFINITY);
+  const slowSave = useIsSlow(oldestUnsaved);
+
+  if (!playlist.ownerUserId) {
+    return null;
+  }
 
   if (playlist.archived) {
     return (
@@ -94,7 +103,15 @@ export function PlaylistSyncNotice({ playlist }: { playlist: Playlist }) {
           {
             label: 'Add Again',
             onPress: () => {
-              addTracks(realm, playlistId, [refusedTracks]);
+              // Added back as one linked group, as they were refused together.
+              try {
+                addTracks(realm, playlistId, [refusedTracks]);
+              } catch (error) {
+                showPlaylistToast(
+                  error instanceof PlaylistLimitError ? error.message : 'Couldn’t add them again.'
+                );
+                return;
+              }
               service.dismissRefused(playlistId);
             },
           },
@@ -104,16 +121,35 @@ export function PlaylistSyncNotice({ playlist }: { playlist: Playlist }) {
     );
   }
 
+  if (refused.length > 0) {
+    return (
+      <Notice
+        message="Some changes couldn’t be saved because this playlist changed on another device."
+        actions={[{ label: 'OK', onPress: () => service.dismissRefused(playlistId) }]}
+      />
+    );
+  }
+
   const signedInAsOwner = account.isAuthenticated && account.userId === playlist.ownerUserId;
-  const oldestPending = inState('pending').reduce(
-    (oldest, op) => Math.min(oldest, op.createdAt.getTime()),
-    Number.POSITIVE_INFINITY
-  );
-  if (signedInAsOwner && online && Date.now() - oldestPending > SLOW_SAVE_MS) {
+  if (signedInAsOwner && online && slowSave) {
     return <Notice message="Still saving your changes…" quiet />;
   }
 
   return null;
+}
+
+/** True once the oldest unsaved edit has waited `SLOW_SAVE_MS`, re-rendering when it crosses. */
+function useIsSlow(since: number): boolean {
+  const [now, setNow] = useState(() => Date.now());
+  const due = since + SLOW_SAVE_MS;
+  useEffect(() => {
+    if (!Number.isFinite(due) || now >= due) {
+      return;
+    }
+    const timer = setTimeout(() => setNow(Date.now()), due - now);
+    return () => clearTimeout(timer);
+  }, [due, now]);
+  return Number.isFinite(due) && now >= due;
 }
 
 function Notice({

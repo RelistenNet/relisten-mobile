@@ -10,7 +10,10 @@ import {
   PlaylistTrackAvailability,
 } from '@/relisten/realm/models/playlists/playlist';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
-import { SourceTrackOfflineInfoStatus } from '@/relisten/realm/models/source_track_offline_info';
+import {
+  SourceTrackOfflineInfoStatus,
+  SourceTrackOfflineInfoType,
+} from '@/relisten/realm/models/source_track_offline_info';
 import {
   orderedGroups,
   type EntryState,
@@ -72,15 +75,19 @@ export function useDeletedPlaylists() {
   return useQuery(
     Playlist,
     (rows) =>
-      rows
-        .filtered(`${VISIBLE} AND (deletedAt != null OR archived == true)`, owner)
-        .sorted('updatedAt', true),
+      rows.filtered(`${VISIBLE} AND (deletedAt != null OR archived == true)`, owner).sorted([
+        ['deletedAt', true],
+        ['updatedAt', true],
+      ]),
     [owner]
   );
 }
 
+/** The playlist, unless it belongs to an account other than the current one. */
 export function usePlaylist(playlistId: string) {
-  return useObject(Playlist, playlistId);
+  const owner = useVisibleOwnerId();
+  const playlist = useObject(Playlist, playlistId);
+  return playlist && (!playlist.ownerUserId || playlist.ownerUserId === owner) ? playlist : null;
 }
 
 export type PlaylistTrackStatus = 'playable' | 'loading' | 'unavailable';
@@ -109,22 +116,35 @@ export function usePlaylistGroups(playlistId: string): PlaylistRowGroup[] {
     (rows) => rows.filtered('playlistId == $0 AND live == true', playlistId),
     [playlistId]
   );
-  const availability = useQuery(PlaylistTrackAvailability);
-  // Entries only hold IDs, so watch the catalog tracks they point at: rows update
-  // when hydration loads a track, without re-rendering for unrelated catalog writes.
-  const trackUuids = useMemo(
-    () =>
-      [...new Set(entries.map((e) => parseUuidTypedId(e.trackId, 'track')))].filter(
-        (uuid): uuid is string => uuid !== null
-      ),
-    [entries]
+  const trackIds = useMemo(() => [...new Set(entries.map((e) => e.trackId))], [entries]);
+  // Only this playlist's availability records, so a resolver write for another
+  // playlist doesn't rebuild these rows.
+  const availability = useQuery(
+    PlaylistTrackAvailability,
+    (rows) => rows.filtered('trackId IN $0', trackIds),
+    [trackIds]
   );
-  // Download status matters to rows; progress ticks do not, so they don't re-render.
+  // Entries only hold IDs, so watch the catalog tracks rows actually render: the
+  // redirect target when a recording moved, otherwise the entry's own track.
+  const trackUuids = useMemo(
+    () => playableTrackUuids(trackIds, availability),
+    [trackIds, availability]
+  );
+  // Rows read download status, soft deletion, and the show, source, and artist
+  // links; download progress ticks are left out so they don't re-render.
   const tracks = useQuery(
     {
       type: SourceTrack,
       query: (rows) => rows.filtered('uuid IN $0', trackUuids),
-      keyPaths: ['uuid', 'offlineInfo.status'],
+      keyPaths: [
+        'uuid',
+        'deletedAt',
+        'offlineInfo.status',
+        'offlineInfo.type',
+        'show',
+        'source',
+        'artist',
+      ],
     },
     [trackUuids]
   );
@@ -143,6 +163,20 @@ export function readPlaylistRowGroups(realm: Realm, playlistId: string): Playlis
     realm.objects(PlaylistEntry).filtered('playlistId == $0 AND live == true', playlistId),
     unavailableIds(realm.objects(PlaylistTrackAvailability))
   );
+}
+
+function playableTrackUuids(
+  trackIds: string[],
+  availability: Iterable<PlaylistTrackAvailability>
+): string[] {
+  const redirects = new Map(
+    [...availability]
+      .filter((row) => row.status === 'redirected' && row.redirectTrackId)
+      .map((row) => [row.trackId, row.redirectTrackId!])
+  );
+  return [
+    ...new Set(trackIds.map((id) => parseUuidTypedId(redirects.get(id) ?? id, 'track'))),
+  ].filter((uuid): uuid is string => uuid !== null);
 }
 
 function unavailableIds(rows: Iterable<PlaylistTrackAvailability>): ReadonlySet<string> {
@@ -199,6 +233,7 @@ export function summarizePlaylist(groups: PlaylistRowGroup[]): PlaylistSummary {
   let downloadable = 0;
   let downloaded = 0;
   let downloading = 0;
+  let unresolved = 0;
   const artistCounts = new Map<string, number>();
   const trackIds = new Set<string>();
 
@@ -206,6 +241,7 @@ export function summarizePlaylist(groups: PlaylistRowGroup[]): PlaylistSummary {
     for (const { entry, sourceTrack: track } of group.entries) {
       trackIds.add(entry.trackId);
       if (!track) {
+        unresolved += 1;
         continue;
       }
       durationSeconds += track.duration ?? 0;
@@ -215,7 +251,12 @@ export function summarizePlaylist(groups: PlaylistRowGroup[]): PlaylistSummary {
       }
       downloadable += 1;
       const status = track.offlineInfo?.status;
-      if (track.offlineInfo?.isPlayableOffline()) {
+      // Same rule as the show screen: cached streaming audio isn't a download,
+      // so Download stays available to keep it.
+      if (
+        track.offlineInfo?.isPlayableOffline() &&
+        track.offlineInfo.type !== SourceTrackOfflineInfoType.StreamingCache
+      ) {
         downloaded += 1;
       } else if (
         status === SourceTrackOfflineInfoStatus.Queued ||
@@ -232,7 +273,7 @@ export function summarizePlaylist(groups: PlaylistRowGroup[]): PlaylistSummary {
     downloadable,
     downloaded,
     downloading,
-    allDownloaded: downloadable > 0 && downloaded === downloadable,
+    allDownloaded: downloadable > 0 && downloaded === downloadable && unresolved === 0,
     trackIds,
   };
 }

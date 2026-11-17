@@ -49,7 +49,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { usePlayerDismissGesture } from './use_player_dismiss_gesture';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { playerDisplayTitle, queueLinkPosition } from './player_display_helpers';
+import { playerDisplayTitle, type QueueLink, queueLinks } from './player_display_helpers';
 import { PlayerNowPlaying } from './player_now_playing';
 import { usePlayerPresentation } from './player_presentation';
 import { isQueueReorderCurrent } from './player_queue_reorder';
@@ -469,6 +469,8 @@ export function PlayerQueueTray({
     []
   );
   const nextIdentifier = tracks[nextIndex]?.identifier;
+  const links = queueLinks(tracks);
+  const currentRun = currentIndex >= 0 ? links[currentIndex]?.run : undefined;
   const renderItem = useCallback<RenderItem<PlayerQueueTrack>>(
     ({ item, getIndex, drag }) => (
       <View
@@ -486,16 +488,13 @@ export function PlayerQueueTray({
           index={getIndex() ?? tracks.indexOf(item)}
           current={item.identifier === current?.identifier}
           showArtist={showArtist}
-          link={queueLinkPosition(tracks, getIndex() ?? tracks.indexOf(item))}
-          linkPlaying={
-            !!item.playlistContext &&
-            item.playlistContext.segmentInstanceId === current?.playlistContext?.segmentInstanceId
-          }
+          link={links[getIndex() ?? tracks.indexOf(item)]?.position}
+          linkPlaying={isInRun(links[getIndex() ?? tracks.indexOf(item)], currentRun)}
           drag={drag}
         />
       </View>
     ),
-    [current?.identifier, current?.playlistContext, nextIdentifier, measureRow, showArtist, tracks]
+    [current?.identifier, currentRun, links, nextIdentifier, measureRow, showArtist, tracks]
   );
   const backdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
@@ -645,4 +644,9 @@ export function PlayerQueueTray({
       )}
     </View>
   );
+}
+
+/** Whether a linked row belongs to the run that is playing; its rail lights up. */
+function isInRun(link: QueueLink | undefined, currentRun: number | undefined): boolean {
+  return link?.position !== undefined && link.run === currentRun;
 }

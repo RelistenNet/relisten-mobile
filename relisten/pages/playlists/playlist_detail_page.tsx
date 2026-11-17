@@ -54,6 +54,9 @@ export default function PlaylistDetailPage() {
   // Name and description edits are drafts until Done (or leaving the screen) commits them.
   const [draft, setDraft] = useState({ name: '', description: '' });
   const draftRef = useRef<typeof draft | null>(null);
+  // What the fields held when editing began. Only fields the listener changed
+  // are saved, so an untouched field never undoes another device's edit.
+  const initialDraftRef = useRef<typeof draft>({ name: '', description: '' });
   const [downloadedOnly, setDownloadedOnly] = useState(false);
   const nameInput = useRef<TextInputInstance>(null);
   const [focusName, setFocusName] = useState(false);
@@ -73,7 +76,7 @@ export default function PlaylistDetailPage() {
   useEffect(
     () => () => {
       if (draftRef.current) {
-        commitDetails(realm, playlistId, draftRef.current);
+        commitDetails(realm, playlistId, draftRef.current, initialDraftRef.current);
       }
       syncService.flush();
     },
@@ -102,7 +105,7 @@ export default function PlaylistDetailPage() {
   const name = playlist.name;
   const play = (entryId?: string) => {
     if (!playPlaylist(player, playlistId, allGroups, online, entryId)) {
-      showPlaylistToast(nothingPlayableMessage(online));
+      showPlaylistToast(entryId ? 'This track isn’t downloaded.' : nothingPlayableMessage(online));
     }
   };
   const shuffle = () => {
@@ -123,12 +126,13 @@ export default function PlaylistDetailPage() {
   const startEditing = () => {
     const initial = { name, description: playlist.description ?? '' };
     draftRef.current = initial;
+    initialDraftRef.current = initial;
     setDraft(initial);
     setEditing(true);
   };
   const finishEditing = () => {
     if (draftRef.current) {
-      commitDetails(realm, playlistId, draftRef.current);
+      commitDetails(realm, playlistId, draftRef.current, initialDraftRef.current);
     }
     draftRef.current = null;
     setEditing(false);
@@ -350,12 +354,14 @@ function ViewHeader({
 function commitDetails(
   realm: Realm,
   playlistId: string,
-  draft: { name: string; description: string }
+  draft: { name: string; description: string },
+  initial: { name: string; description: string }
 ) {
+  const nameChanged = draft.name !== initial.name;
   updatePlaylistDetails(realm, playlistId, {
     // An emptied name keeps the old one rather than leaving the playlist unnamed.
-    name: draft.name.trim() ? draft.name : undefined,
-    description: draft.description,
+    name: nameChanged && draft.name.trim() ? draft.name : undefined,
+    description: draft.description !== initial.description ? draft.description : undefined,
   });
 }
 

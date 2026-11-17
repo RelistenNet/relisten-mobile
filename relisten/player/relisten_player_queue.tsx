@@ -186,8 +186,12 @@ export class RelistenPlayerQueue {
       return arrCopy;
     }
 
-    this.originalTracks = insertNext(this.originalTracks, this.originalTracksCurrentIndex);
-    // While shuffled, Play Next lands after the rest of the current group, not inside it.
+    // Play Next lands after the rest of the current linked group, never inside it.
+    // Both orders get the rule, so turning shuffle off or on can't split the link.
+    this.originalTracks = insertNext(
+      this.originalTracks,
+      endOfGroupIndex(this.originalTracks, this.originalTracksCurrentIndex)
+    );
     this.shuffledTracks = insertNext(
       this.shuffledTracks,
       endOfGroupIndex(this.shuffledTracks, this.shuffledTracksCurrentIndex)

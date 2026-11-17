@@ -16,6 +16,7 @@ import { trackTitle } from '@/relisten/playlists/playlist_format';
 import type { LinkPosition } from '@/relisten/playlists/playlist_drag_slots';
 import { TrackMenu } from '@/relisten/playlists/ui/playlist_menus';
 import { LinkRail } from '@/relisten/playlists/ui/link_rail';
+import { isQueueable } from '@/relisten/playlists/playlist_playback';
 import { tw } from '@/relisten/util/tw';
 
 /** "Grateful Dead · 1977-05-08 · Barton Hall". The venue is last, so it is what truncates. */
@@ -107,7 +108,8 @@ export function PlaylistTrackRow({
 }) {
   const { row, link } = viewRow;
   const isCurrent = playingEntryId === row.entry.entryId;
-  const canPlay = row.status === 'playable';
+  // Offline, a track that isn't downloaded is dimmed and can't be tapped.
+  const canPlay = isQueueable(row, online);
   const title = row.sourceTrack ? row.sourceTrack.title : 'Track';
   const subtitle = showLine(row);
 

@@ -1,5 +1,5 @@
-import { visibleOwnerId } from '@/relisten/playlists/sync/playlist_sync_state';
-import { CarPlay, ListTemplate } from '@g4rb4g3/react-native-carplay';
+import { canAccessPlaylist, visibleOwnerId } from '@/relisten/playlists/sync/playlist_sync_state';
+import { AlertTemplate, CarPlay, ListTemplate } from '@g4rb4g3/react-native-carplay';
 import { ListSection } from '@g4rb4g3/react-native-carplay';
 import { RelistenCarPlayContext } from '@/relisten/carplay/relisten_car_play_context';
 import { carplay_logger } from '@/relisten/carplay/carplay_logger';
@@ -14,6 +14,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { Playlist, PlaylistDeviceState } from '@/relisten/realm/models/playlists/playlist';
 import { readPlaylistRowGroups, visiblePlaylists } from '@/relisten/playlists/playlist_hooks';
 import { playPlaylist } from '@/relisten/playlists/playlist_playback';
+import { resolvePlaylistTracks } from '@/relisten/playlists/playlist_hydration';
 
 const PLAYLIST_ITEM_PREFIX = 'playlist:';
 
@@ -23,11 +24,46 @@ async function playPlaylistFromCarPlay(ctx: RelistenCarPlayContext, playlistId: 
   const online =
     network.type !== 'none' &&
     ctx.userSettings.offlineModeWithDefault() !== OfflineModeSetting.AlwaysOffline;
+
+  // A synced playlist can name recordings this device hasn't loaded yet.
+  if (online) {
+    const missing = readPlaylistRowGroups(ctx.realm, playlistId)
+      .flatMap((group) => group.entries)
+      .filter((row) => row.status === 'loading')
+      .map((row) => row.entry.trackId);
+    if (missing.length > 0) {
+      await resolvePlaylistTracks(ctx.realm, ctx.apiClient, missing);
+    }
+  }
+
+  // The account may have changed during the checks above.
+  const playlist = ctx.realm.objectForPrimaryKey(Playlist, playlistId);
+  if (!playlist || !canAccessPlaylist(ctx.realm, playlist)) {
+    carplay_logger.warn('Playlist is no longer available to this account', { playlistId });
+    return;
+  }
+
   if (playPlaylist(ctx.player, playlistId, readPlaylistRowGroups(ctx.realm, playlistId), online)) {
     ctx.showNowPlaying?.();
   } else {
     carplay_logger.warn('Playlist has no playable tracks', { playlistId });
+    showCarPlayNotice(
+      online
+        ? 'None of these recordings are available right now.'
+        : 'None of these tracks are downloaded.'
+    );
   }
+}
+
+/** A short message the driver dismisses with one tap. */
+function showCarPlayNotice(message: string) {
+  CarPlay.presentTemplate(
+    new AlertTemplate({
+      titleVariants: [message],
+      actions: [{ id: 'ok', title: 'OK' }],
+      onActionButtonPressed: () => CarPlay.dismissTemplate(true),
+    })
+  );
 }
 
 export function createLibraryTemplate(ctx: RelistenCarPlayContext): ListTemplate {

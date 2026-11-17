@@ -14,9 +14,12 @@ import {
   type WorkingSnapshot,
 } from '@/relisten/playlists/playlist_operations';
 import {
+  canAccessPlaylist,
+  deleteNeverCreated,
   discardUnsentPlaylist,
   issueCreateCommand,
   recordEdit,
+  restoreDeletedOnDevice,
   visibleOwnerId,
   withdrawUnsentOperations,
 } from '@/relisten/playlists/sync/playlist_sync_state';
@@ -43,13 +46,29 @@ export class PlaylistLimitError extends Error {
   }
 }
 
-/** Trims and normalizes a name the same way the server will, so a later save never fails validation. */
+/**
+ * Cleans text the way the server validates it, so a save never fails there:
+ * no NUL characters or broken surrogate pairs, NFC, trimmed, and limited by
+ * Unicode characters rather than UTF-16 units, so an emoji is never cut in half.
+ */
+function normalizePlaylistText(text: string, maxCharacters: number): string {
+  const clean = text
+    .replace(/\0/g, '')
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '\uFFFD')
+    .normalize('NFC')
+    .trim();
+  return Array.from(clean).slice(0, maxCharacters).join('').trim();
+}
+
 export function normalizePlaylistName(name: string): string {
-  return name.normalize('NFC').trim().slice(0, PLAYLIST_LIMITS.nameLength);
+  return normalizePlaylistText(name, PLAYLIST_LIMITS.nameLength);
 }
 
 export function normalizePlaylistDescription(description: string | undefined): string | undefined {
-  const value = description?.normalize('NFC').trim().slice(0, PLAYLIST_LIMITS.descriptionLength);
+  const value =
+    description === undefined
+      ? undefined
+      : normalizePlaylistText(description, PLAYLIST_LIMITS.descriptionLength);
   return value ? value : undefined;
 }
 
@@ -130,7 +149,7 @@ export function applyOperations(
   operations: PlaylistOperation[]
 ): AppliedEdit {
   return realm.write(() => {
-    const playlist = realm.objectForPrimaryKey(Playlist, playlistId);
+    const playlist = accessiblePlaylist(realm, playlistId);
     if (!playlist) {
       throw new Error('Playlist not found.');
     }
@@ -161,8 +180,14 @@ function applyInWrite(
     if (status !== 'applied') {
       continue;
     }
+    const sizeBefore = snapshot.entries.size;
     applyChanges(snapshot, changes);
-    if (snapshot.entries.size > PLAYLIST_LIMITS.entriesPerPlaylist) {
+    // Only growth is refused: a playlist pushed over the limit (pending additions
+    // plus another device's) can always shrink.
+    if (
+      snapshot.entries.size > PLAYLIST_LIMITS.entriesPerPlaylist &&
+      snapshot.entries.size > sizeBefore
+    ) {
       throw new PlaylistLimitError(
         `A playlist can hold up to ${PLAYLIST_LIMITS.entriesPerPlaylist.toLocaleString()} tracks.`
       );
@@ -187,11 +212,16 @@ function applyInWrite(
  * Account playlists withdraw unsent operations instead (`withdrawEdit`),
  * because the server never lets a deleted ID come back.
  */
-export function restoreSnapshot(realm: Realm, playlistId: string, snapshot: PlaylistSnapshot) {
-  realm.write(() => {
-    const playlist = realm.objectForPrimaryKey(Playlist, playlistId);
-    if (!playlist) {
-      return;
+export function restoreSnapshot(
+  realm: Realm,
+  playlistId: string,
+  snapshot: PlaylistSnapshot
+): boolean {
+  return realm.write(() => {
+    const playlist = accessiblePlaylist(realm, playlistId);
+    // A playlist saved to an account since the snapshot can't go back to it.
+    if (!playlist || playlist.ownerUserId) {
+      return false;
     }
     const current = readPlaylistSnapshot(realm, playlistId);
 
@@ -214,6 +244,7 @@ export function restoreSnapshot(realm: Realm, playlistId: string, snapshot: Play
 
     playlist.entryCount = snapshot.entries.size;
     playlist.updatedAt = new Date();
+    return true;
   });
 }
 
@@ -223,7 +254,7 @@ export function updatePlaylistDetails(
   details: { name?: string; description?: string | null }
 ) {
   realm.write(() => {
-    const playlist = realm.objectForPrimaryKey(Playlist, playlistId);
+    const playlist = accessiblePlaylist(realm, playlistId);
     if (!playlist) {
       return;
     }
@@ -257,7 +288,7 @@ export function updatePlaylistDetails(
  */
 export function deletePlaylistPermanently(realm: Realm, playlistId: string): boolean {
   return realm.write(() => {
-    const playlist = realm.objectForPrimaryKey(Playlist, playlistId);
+    const playlist = accessiblePlaylist(realm, playlistId);
     if (!playlist) {
       return true;
     }
@@ -271,11 +302,31 @@ export function deletePlaylistPermanently(realm: Realm, playlistId: string): boo
   });
 }
 
-export function setPlaylistDeleted(realm: Realm, playlistId: string, deleted: boolean) {
+/** Moves a device playlist (or a never-created account one) to Recently Deleted. */
+export function deletePlaylistOnDevice(realm: Realm, playlistId: string) {
   realm.write(() => {
-    const playlist = realm.objectForPrimaryKey(Playlist, playlistId);
+    const playlist = accessiblePlaylist(realm, playlistId);
+    if (!playlist) {
+      return;
+    }
+    if (playlist.ownerUserId) {
+      deleteNeverCreated(realm, playlist);
+    } else {
+      playlist.deletedAt = new Date();
+    }
+  });
+}
+
+/** Brings a playlist back from the device's Recently Deleted; see restoreDeletedOnDevice. */
+export function restorePlaylistOnDevice(
+  realm: Realm,
+  playlistId: string,
+  signedInUserId: string | undefined
+) {
+  realm.write(() => {
+    const playlist = accessiblePlaylist(realm, playlistId);
     if (playlist) {
-      playlist.deletedAt = deleted ? new Date() : undefined;
+      restoreDeletedOnDevice(realm, playlist, signedInUserId);
     }
   });
 }
@@ -309,4 +360,10 @@ function deleteByIds(
       realm.delete(row);
     }
   }
+}
+
+/** The playlist if the current listener may edit it; another account's playlist reads as missing. */
+function accessiblePlaylist(realm: Realm, playlistId: string): Playlist | null {
+  const playlist = realm.objectForPrimaryKey(Playlist, playlistId);
+  return playlist && canAccessPlaylist(realm, playlist) ? playlist : null;
 }

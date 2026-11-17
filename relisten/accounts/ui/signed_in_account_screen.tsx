@@ -67,7 +67,7 @@ export function SignedInAccountScreen({
         <AccountAvatar username={username} size={72} />
         <RelistenText className="mt-3 text-2xl font-bold">@{username}</RelistenText>
         <RelistenText className="mt-1 text-center text-gray-400">
-          Your favorites and playlists are saved to this account.
+          Your favorites and playlists sync to this account.
         </RelistenText>
       </View>
 
