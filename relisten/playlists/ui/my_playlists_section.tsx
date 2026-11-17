@@ -20,7 +20,7 @@ export function MyPlaylistsSection() {
         <Link href={{ pathname: '/relisten/tabs/(myLibrary)/playlists' }} asChild>
           <TouchableOpacity
             accessibilityRole="button"
-            className="min-h-11 justify-center px-4 py-2"
+            className="min-h-[44px] justify-center px-4 py-2"
           >
             <RelistenText className="text-m font-bold">My Playlists&nbsp;›</RelistenText>
           </TouchableOpacity>
@@ -28,7 +28,7 @@ export function MyPlaylistsSection() {
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityLabel="New Playlist"
-          className="min-h-11 justify-center px-2"
+          className="min-h-[44px] justify-center px-2"
           onPress={() => openNewPlaylist(router)}
         >
           <RelistenText className="font-semibold text-relisten-blue-400">+ New</RelistenText>

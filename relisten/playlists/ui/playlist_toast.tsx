@@ -30,7 +30,7 @@ export function showPlaylistToast(message: string, actions: PlaylistToastAction[
               key={action.label}
               accessibilityRole="button"
               accessibilityLabel={action.label}
-              className="min-h-11 min-w-16 items-center justify-center px-3"
+              className="min-h-[44px] min-w-[64px] items-center justify-center px-3"
               onPress={() => {
                 hideMessage();
                 action.onPress();

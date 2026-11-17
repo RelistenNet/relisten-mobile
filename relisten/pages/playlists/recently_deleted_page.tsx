@@ -47,7 +47,7 @@ export default function RecentlyDeletedPage() {
             <TouchableOpacity
               accessibilityRole="button"
               accessibilityLabel={`Restore ${item.name}`}
-              className="min-h-11 justify-center px-3"
+              className="min-h-[44px] justify-center px-3"
               onPress={() => setPlaylistDeleted(realm, item.playlistId, false)}
             >
               <RelistenText className="font-semibold text-relisten-blue-400" selectable={false}>
