@@ -1,15 +1,20 @@
 # Local-first playlists
 
-Status: approved 2026-11-16 after a fresh-reader review; milestone 1 not started. Branch `codex/v4-playlists-mobile`, cut from
-`codex/v4-mobile-pilot` at `535ec16` (Realm schema 23).
+Status: approved 2026-11-16; revised 2026-11-17 to one list of playlists with
+optional owners. Milestone 1 not started. Branch `codex/v4-playlists-mobile`, cut
+from `codex/v4-mobile-pilot` at `535ec16` (Realm schema 23).
 
 ## Purpose and current decisions
 
 A listener can make playlists without an account. They work fully offline:
-create, edit, reorder, play, shuffle by group and download. Signing in adds
-syncing playlists to the account and copying local playlists into it. Relisten is
-an anonymous, offline-first app, so **signed-out local playlists are the primary
+create, edit, reorder, play, shuffle by group and download. Relisten is an
+anonymous, offline-first app, so **playlists without an account are the primary
 v1 feature and account sync is a layer on top** (Alec, 2026-11-16).
+
+Many listeners are in their 50s and 60s, so the app never asks them to understand
+"local" versus "synced" (Alec, 2026-11-17). There is **one list of playlists on
+the device**. Signing in quietly saves them to the account; signing out changes
+nothing visible.
 
 The server contract is frozen in the API repository on branch
 `codex/v4-playlist-plan`:
@@ -23,8 +28,9 @@ This plan replaces the playlist portions of
 `2026-07-18-relisten-mobile-account-library-ux-rollout.md` and
 `2026-07-18-relisten-mobile-accounts-library-sync-and-sonos-implementation.md`.
 Those assumed recording-only blocks, server-hydrated snapshots carrying catalog
-rows, and no resolver hydration; all three are now wrong. Their route list,
-signed-out states and copy-to-account intent carry forward below.
+rows, no resolver hydration, and separate "Mine" and "On this device" lists with
+an explicit copy step. All of that is now replaced. Their route list carries
+forward below.
 
 Settled decisions this plan builds on:
 
@@ -34,7 +40,7 @@ Settled decisions this plan builds on:
   comes from Realm; missing tracks are hydrated through
   `POST /api/v4/catalog/resolve`. Mobile never re-checks cached tracks; it
   re-resolves a track when its playback fails.
-- Account playlists are archive-only in v1.
+- Playlists saved to an account are archive-only on the server in v1.
 - Segment shuffle ships. Track-level shuffle that ignores segments is deferred.
 - Realm `sorted()` on a rank property matches byte order (verified 2026-11-16 on
   Realm 20.2.0), so queries may sort by rank directly.
@@ -44,6 +50,7 @@ Settled decisions this plan builds on:
 | Term | Meaning |
 | --- | --- |
 | Playlist, segment, entry | Contract terms. The UI says "playlist", "group" and "track". |
+| Owner | The account a playlist is saved to, or none. Never shown as a concept in the UI. |
 | Rank | Opaque ordering string for a segment among segments, or an entry within its segment. Never shown. |
 | Queue occurrence | One `PlayerQueueTrack` in the player queue. Every enqueue makes new ones. |
 | Segment instance | One enqueue of one segment. Its queue occurrences share a `segmentInstanceId`. |
@@ -52,46 +59,55 @@ Settled decisions this plan builds on:
 
 Each milestone is releasable on its own.
 
-1. **Local playlists.** Everything works in the anonymous scope with no server:
-   create, edit, play, group shuffle, download, restart and restore. No server
+1. **Playlists on the device.** Create, edit, play, group shuffle, download,
+   restart and restore, with no server. Every playlist has no owner. No server
    work is required.
-2. **Account playlists.** Sync to `accounts.relisten.net/v1`: outbox, sync
-   coordinator, library feed summaries, archive, history-generation recovery and
-   quota handling. This needs the User Service's delivery-1 implementation, which
-   has not started.
-3. **Save to my account.** Copy one local playlist, or all of them, into the
-   account as independent private playlists. The local originals stay.
+2. **Saving to an account.** Signing in gives every unowned playlist an owner and
+   syncs it to `accounts.relisten.net/v1`: outbox, sync coordinator, library feed
+   summaries, history-generation recovery and quota handling. A new device
+   downloads the account's playlists. This needs the User Service's delivery-1
+   implementation, which has not started.
 
 Milestone 1's end-to-end proof: create a playlist from a show, edit it offline,
 restart the app, and play it with group shuffle. Milestone 2 extends that proof
-with sync to a second device.
+with signing in and syncing to a second device.
 
-## Where playlists appear
+## Owners and visibility
 
-| Situation | Playlist list shows | New playlists go to |
-| --- | --- | --- |
-| Signed out | **Playlists** (local) | Local |
-| Signed in, milestone 1 | **On this device** (local) | Local |
-| Signed in, milestone 2+ | **Mine** (account), **On this device** (local, if any), **Archived playlists** row | Account |
+Each `Playlist` has an optional `ownerUserId` (milestone 2). Segments and entries
+have no owner of their own; they follow their playlist.
 
-Local playlists belong to the device, like downloads, and are visible to anyone
-using the app, signed in or out. Local playlists are never folded into **Mine** automatically.
-Signed-out playlists are lost if the app is deleted; the list shows a one-line
-note offering sign-in to keep playlists across devices (milestone 2+).
+**Who sees what.** The app has a *visible owner*: the signed-in account, or, while
+signed out, the account most recently signed in on this device
+(`PlaylistDeviceState.lastSignedInUserId`). The list shows playlists with no
+owner plus playlists owned by the visible owner. Another account's playlists stay
+on the device but are hidden until that account signs in again (Alec, 2026-11-17).
+
+| Event | What happens |
+| --- | --- |
+| Signed out, never signed in | All playlists are unowned and visible. |
+| Sign in as A | Every visible unowned playlist gets owner A, and a create command for each is written in the same Realm transaction. A one-time notice says "Your playlists are now saved to your account." A's playlists from the server download alongside them. |
+| Sign out of A | Nothing visible changes. A's playlists stay listed and editable. Edits queue in A's outbox and send when A signs in again. |
+| Create a playlist while signed out after A | Owner A, so it behaves like the rest of the visible list. |
+| Sign in as B after A | A's playlists are hidden. Any unowned playlists get owner B. B's playlists download. Playback stops and the queue clears, as on any account switch today. |
+| Sign back in as A | A's playlists reappear and their queued edits send. |
+
+The list is always titled **Playlists**. There is no "On this device" or "Mine"
+section. Signed-out playlists are lost if the app is deleted before ever signing
+in; the list shows a one-line note offering sign-in to keep playlists safe.
 
 ## Existing code to reuse
 
-Favorites already solved most of the scope and outbox problems. Follow their
+Favorites already solved most of the account and outbox problems. Follow their
 patterns rather than inventing parallel ones.
 
 | Need | Existing pattern |
 | --- | --- |
-| Scope every row to anonymous or an account | `scopeId` on `UserFavorite`, `ANONYMOUS_ACCOUNT_SCOPE_ID` in `relisten/realm/models/accounts/active_account_scope.ts` |
 | Acknowledged vs. displayed state on one row | `UserFavorite.acknowledgedPresent` / `effectivePresent` |
 | Durable outbox with states and attempts | `FavoriteMutation` |
 | When an unsent edit may be replaced | `isTrulyUnsentFavoriteMutation` in `relisten/library/favorite_mutation_compaction.ts` |
-| Reject writes from a stale account scope | `captureScope` / `isCaptureCurrent` in `relisten/library/favorite_repository.ts` |
-| Copy anonymous data into an account with receipts | `AnonymousLibraryImportService` (`importToActiveAccount`) and `AnonymousFavoriteImport` |
+| Reject writes from a stale account session | `captureScope` / `isCaptureCurrent` in `relisten/library/favorite_repository.ts` |
+| Write many account records in one transaction | `importToActiveAccount` in `relisten/library/anonymous_library_import.ts` |
 | Library feed client | `relisten/library/favorite_sync_contract.ts`, `favorite_sync_service.ts`, `favorite_sync_coordinator.tsx` |
 | Resolver hydration | `relisten/library/favorite_metadata_hydrator.ts` |
 | Fresh queue identity per enqueue | `PlayerQueueTrack.newOccurrence()` in `relisten/player/relisten_player_queue.tsx` |
@@ -110,50 +126,55 @@ eviction, as `UserFavorite` does.
 
 `Playlist`
 
-- `playlistId` (primary key, `playlist_` UUIDv7), `scopeId` (indexed).
+- `playlistId` (primary key, `playlist_` UUIDv7).
 - `name`, `description?`, `createdAt`, `updatedAt`.
-- `localRevision` (int, default 0): increases by one on every local edit. It is a
-  device-local edit counter, unrelated to server revisions, and does not depend
-  on the clock.
 
 `PlaylistSegment`
 
-- `segmentId` (primary key), `playlistId` (indexed), `scopeId`, `rank`.
+- `segmentId` (primary key), `playlistId` (indexed), `rank`.
 
 `PlaylistEntry`
 
 - `entryId` (primary key), `playlistId` (indexed), `segmentId`, `trackId`
-  (indexed `track_` ID), `scopeId`, `rank`.
+  (indexed `track_` ID), `rank`.
 
-Local deletes remove rows outright; local playlists have no tombstones, because
-nothing else holds their IDs. Copying to an account always uses fresh IDs.
+`PlaylistTrackAvailability`
+
+- `trackId` (primary key), `status` (`unavailable`), `checkedAt`.
 
 `PlayerQueueEntry` gains optional `playlistId`, `segmentInstanceId` and
 `entryId`. The migration leaves them empty on existing entries.
 
+Deleting an unowned playlist, group or track removes its rows outright; nothing
+else holds their IDs.
+
 ### Schema 25 (milestone 2)
 
-- `Playlist` gains `archived`, `serverState` (`creating`, `synced`,
-  `needs_attention`), `appliedRevision?`, `historyGeneration?`,
-  `summaryRevision?`, and a canonical metadata base: `canonicalName?` and
-  `canonicalDescription?`. Snapshots and `metadata_updated` changes write the
-  canonical fields; `name` and `description` are the displayed values, rebuilt
-  like everything else.
-- `Playlist` also gains `copiedFromPlaylistId?` and `copiedFromLocalRevision?`, set
-  on an account playlist created by **Save to my account**. They make the account
-  playlist row its own copy receipt; milestone 3 adds no models.
-- `PlaylistSegment` and `PlaylistEntry` gain `live` (indexed) and canonical
-  fields: `canonicalRank?`, `canonicalLive`, and for entries
-  `canonicalSegmentId?`. In the account scope, displayed fields are canonical plus
-  the overlay; deleted items stay as non-live rows until a pull removes them.
-- `PlaylistOperation`: `operationId`, `playlistId`, `scopeId`, `localSequence`,
-  `operationType`, `payloadJson` (frozen exact contract payload), `baseRevision`,
-  `state`, `attemptCount`, `nextAttemptAt?`, `lastErrorCode?`, `resultStatus?`,
-  `resultRevision?`, `resultGeneration?`, and `failedTrackIds` (for retrying
-  additions that did not land).
+- `Playlist` gains:
+  - `ownerUserId?` (indexed); empty means unowned
+  - `archived` (default false)
+  - `serverState?`: `creating`, `synced` or `needs_attention`
+  - `appliedRevision?`, `historyGeneration?`, `summaryRevision?`
+  - a canonical metadata base: `canonicalName?`, `canonicalDescription?`
+- `PlaylistSegment` gains `live` (default true, indexed), `canonicalRank?` and
+  `canonicalLive` (default false).
+- `PlaylistEntry` gains `live` (default true, indexed), `canonicalSegmentId?`,
+  `canonicalRank?` and `canonicalLive` (default false).
+- `PlaylistOperation`: `operationId`, `playlistId`, `ownerUserId` (indexed),
+  `localSequence`, `operationType`, `payloadJson` (frozen exact contract
+  payload), `baseRevision`, `state`, `attemptCount`, `nextAttemptAt?`,
+  `lastErrorCode?`, `resultStatus?`, `resultRevision?`, `resultGeneration?`, and
+  `failedTrackIds` (for retrying additions that did not land).
 - `PlaylistCommand`: persisted create and archive commands with `commandId`,
-  `kind`, `playlistId`, `payloadJson`, `state`, attempts and result.
-- The library cursor's stored state gains `historyGeneration`.
+  `kind`, `playlistId`, `ownerUserId`, `payloadJson`, `state`, attempts and
+  result.
+- `PlaylistDeviceState`: a single row holding `lastSignedInUserId?`.
+- `FavoriteSyncState` gains `historyGeneration`, stored with the library cursor.
+
+For owned playlists, displayed fields are the canonical base plus the pending
+overlay. A deleted item stays as a non-live row until the server confirms the
+delete. Unowned playlists use the displayed fields alone; their `live` is always
+true and their canonical fields stay empty.
 
 Operation states:
 
@@ -169,14 +190,15 @@ Operation states:
 ### Queries
 
 A playlist screen runs two live queries: its segments sorted by `rank`, and all
-its entries (by `playlistId`) sorted by `rank`. It groups entries by `segmentId`
-in JavaScript. Never run one query per segment, and never copy a segment's rank
-onto entries, since `move_segment` would then rewrite every entry.
+its entries (by `playlistId`) sorted by `rank`, both filtered to `live == true`.
+It groups entries by `segmentId` in JavaScript. Never run one query per segment,
+and never copy a segment's rank onto entries, since `move_segment` would then
+rewrite every entry. The playlist list filters by the visibility rule above.
 
 ### Limits enforced locally
 
-Local playlists follow the contract's limits so that copying to an account never
-fails validation: names are 1–100 characters after trimming and NFC
+Unowned playlists follow the contract's limits so that saving them to an account
+never fails validation: names are 1–100 characters after trimming and NFC
 normalization; an empty description is stored as `null`; at most 5,000 entries
 per playlist. A new playlist defaults to the name of the show it was created
 from, or "New playlist".
@@ -193,29 +215,29 @@ operation types and placement rules exactly:
 - New ranks come from `generateKeyBetween`.
 
 It returns the set of rows it changed. Callers write only those rows, so one edit
-touches a handful of rows even in a 5,000-entry playlist. Every applied edit also
-increments the playlist's `localRevision`, which copy detection relies on, and
-sets `updatedAt` for display.
+touches a handful of rows even in a 5,000-entry playlist. Every edit also sets
+the playlist's `updatedAt`.
 
-The same function serves three callers, so local and synced playlists behave
-identically:
+Which caller runs depends on whether the playlist has an owner, not on whether
+anyone is signed in:
 
-1. **Local playlists:** apply and write the changed rows.
-2. **Account playlists, on a user edit:** apply to displayed state, write the
-   changed rows, and append the operation to the outbox, in one Realm write. No
-   rebuild.
-3. **Account playlists, after a pull or recovery:** rebuild displayed state by
-   resetting it to canonical (metadata, segments and entries) and replaying every operation still in the overlay,
-   in order. The rebuild computes in memory, then writes only fields whose value
-   changed.
+1. **Unowned playlists:** apply and write the changed rows.
+2. **Owned playlists, on a user edit:** apply to displayed state, write the
+   changed rows, and append the operation to the owner's outbox, in one Realm
+   write. This works the same signed in or out. No rebuild.
+3. **Owned playlists, after a pull or recovery:** rebuild displayed state by
+   resetting it to canonical (metadata, segments and entries) and replaying every
+   operation still in the overlay, in order. The rebuild computes in memory, then
+   writes only fields whose value changed.
 
-Locally generated ranks are display-only for account playlists; the server's
-ranks arrive through changes.
+Locally generated ranks are display-only for owned playlists; the server's ranks
+arrive through changes.
 
 ## Screens and entry points
 
 Routes keep the July layout under `app/relisten/tabs/(myLibrary)/playlists`:
-list, `archived` (milestone 2), `new`, `[playlistId]` and `[playlistId]/edit`.
+list, `new`, `[playlistId]` and `[playlistId]/edit`, plus `recently-deleted`
+(milestone 2; see Open decision 1).
 
 **Adding to a playlist**
 
@@ -223,7 +245,7 @@ list, `archived` (milestone 2), `new`, `[playlistId]` and `[playlistId]/edit`.
 - From a source screen: **Add to playlist** adds that source's tracks as one
   group, in source order. Long-pressing tracks first narrows it to the selected
   ones. A show with several sources uses the source being viewed.
-- The picker lists writable playlists and offers **New playlist**.
+- The picker lists visible playlists and offers **New playlist**.
 
 **Detail**
 
@@ -232,8 +254,10 @@ list, `archived` (milestone 2), `new`, `[playlistId]` and `[playlistId]/edit`.
 - Groups render as blocks. A block from one recording is headed by its artist,
   date and venue. A mixed block shows each track's own show line.
 - Unavailable tracks are dimmed and skipped by playback, but never removed.
-- Account playlists show **Waiting to sync** while operations are pending, plus
-  the quota, archived or support notices described under Account sync.
+- Sync is mostly invisible. The detail screen shows a quiet **Not synced yet**
+  line only when an owned playlist has edits waiting while signed in and online
+  for more than a minute, plus the quota, archived or support notices described
+  under Account sync.
 
 **Editor gestures and the operations they send**
 
@@ -252,10 +276,10 @@ Splitting a group in place is not supported in v1 (the contract has no
 `split_segment`): a track dragged out lands between whole groups. Merging two
 groups is done by dragging tracks.
 
-**Deleting and archiving**
+**Deleting**
 
-- Account playlists: **Archive playlist** and **Unarchive**. No delete.
-- Local playlists: **Delete playlist**, with confirmation.
+Every playlist shows **Delete playlist**, with confirmation; see Open decision 1
+for how that maps onto owned playlists.
 
 ## Catalog hydration and availability
 
@@ -266,9 +290,8 @@ groups is done by dragging tracks.
   catalog data or entries because of an omission. Cached tracks are not re-checked.
 - Entries that cannot be hydrated yet render as placeholders ("Track unavailable
   offline") and are skipped by playback.
-- Availability is stored on the playlist side, not on `SourceTrack`, whose
-  `deletedAt` belongs to catalog sync: a small `PlaylistTrackAvailability` record
-  keyed by `trackId` with `status` and `checkedAt`, added in schema 24.
+- Availability lives in `PlaylistTrackAvailability`, not on `SourceTrack`, whose
+  `deletedAt` belongs to catalog sync.
 - Resolver statuses: `available` clears any record; `unavailable` and `retired`
   mark the track unavailable; `redirected` upserts the target track, and playback
   uses the target while the entry keeps its original `trackId`.
@@ -328,20 +351,31 @@ system. Downloads stay device-global and survive sign-out.
 
 Follow the contract's Client model section. Mobile specifics:
 
-**Scope safety**
+**Session safety**
 
-Every sync write captures the account scope before the request and checks it with
-`isCaptureCurrent` before writing, as favorites do. A response that finishes after
-an account switch writes nothing.
+The sync coordinator only sends an owner's outbox while that owner is the
+signed-in account. Every sync write captures the session before the request and
+checks it with `isCaptureCurrent` before writing, as favorites do. A response that
+finishes after an account switch writes nothing.
 
-**Creating**
+**Saving playlists on sign-in**
 
-- A playlist created in the account scope writes a `PlaylistCommand` (create) with
-  its full initial structure. Edits made before acknowledgement are queued as
-  operations with `base_revision: 0` and held behind the command.
-- After the create is acknowledged, fetch the snapshot to establish the canonical
+- On sign-in as A, in one Realm transaction: set `ownerUserId = A` on every
+  visible unowned playlist, write a create command for each with its current
+  structure and existing IDs, and record A as `lastSignedInUserId`. No new IDs are
+  minted and nothing is copied, so a retry can never make a duplicate.
+- A playlist created while A is the visible owner (signed in or out) gets owner A
+  and a create command at once.
+- Edits made before a create is acknowledged queue as operations with
+  `base_revision: 0`, held behind the command.
+- After a create is acknowledged, fetch the snapshot to establish the canonical
   base and the server's ranks, then rebuild displayed state and release the held
   operations.
+- If a create fails with `quota_exceeded` (the account already has 250 playlists
+  or 25,000 tracks), the playlist keeps working on the device. Its create stays
+  `needs_attention`, the detail screen says it isn't saved to the account because
+  the account is full and offers team@relisten.net, and the create retries after
+  any delete in that account syncs.
 
 **Sending**
 
@@ -376,8 +410,9 @@ an account switch writes nothing.
   `favorite_sync_contract.ts` parses the `playlists` snapshot array and
   `playlist_summary` changes, and ignores unknown `change_type` values instead of
   throwing. Playlist summaries route to the playlist sync coordinator.
-- Pull a playlist when its summary revision is ahead of `appliedRevision`; fetch an
-  unknown playlist by snapshot.
+- A summary for a playlist not on the device creates it with owner A and fetches
+  its snapshot. Otherwise pull when the summary revision is ahead of
+  `appliedRevision`.
 - Apply each changes page in one Realm write, then rebuild displayed state.
 
 **Recovery**
@@ -386,69 +421,33 @@ an account switch writes nothing.
   `410 snapshot_required`, runs restore recovery exactly as the contract lists it:
   resubmit held operations with their original IDs (creates first), fetch
   snapshots, then prune within the new generation. A library-feed mismatch also
-  triggers it for every account playlist.
+  triggers it for every playlist the account owns.
 - `parent_missing` and `id_conflict`: mark the operation `needs_attention`, keep
   any track IDs it was adding in `failedTrackIds`, and show "2 tracks couldn't be
   added to Cornell + friends". **Add again** sends one `insert_segment` at the end
   of the playlist with fresh IDs; **Dismiss** drops it.
 - `409 playlist_archived`: move the outbox to `archived_hold` and stop resending.
-  The detail view says the playlist was archived on another device and offers
-  **Unarchive** or **Discard changes**. Unarchiving resumes sending.
+  The detail view says the playlist was deleted on another device and offers
+  **Restore** or **Discard changes**. Restoring resumes sending.
 
-**Quota**
+**Quota on edits**
 
 - After `422 quota_exceeded`, mark the outbox `quota_paused` and stop resending it
   unchanged. Resend the whole outbox in order when the user adds another edit, or
-  when a deletion in another account playlist syncs.
+  when a deletion in another of the owner's playlists syncs.
 - If the paused outbox exceeds one batch, keep every edit, show an alert asking
   the user to contact team@relisten.net, and record a diagnostic event.
-
-**Account switching**
-
-Switching or signing out follows the existing transition: stop playback, clear
-queues, change scope. Account playlists stay in Realm under their scope and
-reappear when that account signs in again.
-
-## Save to my account (milestone 3)
-
-A copy is an ordinary account playlist created by a create command with fresh
-playlist, segment and entry IDs. The account playlist row records where it came
-from (`copiedFromPlaylistId`) and the source's `localRevision` at copy time
-(`copiedFromLocalRevision`). No separate job or receipt model exists (Alec,
-2026-11-17).
-
-- **Save to my account** (one playlist) and **Add local playlists to this
-  account** (all eligible) write every account playlist row, its segments and
-  entries, and its create command in one Realm transaction, as
-  `importToActiveAccount` does for favorites. The normal command retry finishes
-  them, including after the app is killed.
-- **No duplicates.** Before copying, look in the destination account for a
-  playlist with the same `copiedFromPlaylistId` and `copiedFromLocalRevision`, in any
-  state. If one exists, reuse it and its command instead of writing fresh IDs. A
-  second tap, or a bulk copy started while a copy is pending, therefore never makes
-  a second account copy.
-- **Eligible for bulk copy** means no account playlist was copied from this source
-  at all. A source edited after its copy (`localRevision` greater than
-  `copiedFromLocalRevision`) is skipped by bulk copy; its detail screen offers **Save
-  changes as a new copy**, which creates another account playlist.
-- **Progress** for a bulk copy counts the copied account playlists still
-  `creating` against those `synced`.
-- Copies appear in **Mine** immediately, shown as **Saving…** until acknowledged.
-  The local original is never moved, renamed or deleted.
-- **Quota.** Each copy succeeds or fails on its own. A copy whose create fails
-  with `quota_exceeded` stays in **Mine** as "Couldn't save, over the limit" with
-  **Try again** and **Remove**. The other copies carry on, since smaller playlists
-  may still fit.
 
 ## Platform surfaces
 
 - **CarPlay** (`relisten/carplay/library.ts`) and **Android Auto**
-  (`RelistenMediaLibrary.kt`): a read-only **Playlists** list that plays a
-  playlist, in milestone 1. Editing stays on the phone. CarPlay already browses
-  from TypeScript. Android Auto's native media library exposes only the current
-  and preloaded next tracks, so milestone 1 adds a browse-and-select bridge from
-  the native library to the TypeScript queue owner: list playlists, and on
-  selection hand the playlist ID to TypeScript, which builds the queue.
+  (`RelistenMediaLibrary.kt`): a read-only **Playlists** list of visible
+  playlists that plays a playlist, in milestone 1. Editing stays on the phone.
+  CarPlay already browses from TypeScript. Android Auto's native media library
+  exposes only the current and preloaded next tracks, so milestone 1 adds a
+  browse-and-select bridge from the native library to the TypeScript queue owner:
+  list playlists, and on selection hand the playlist ID to TypeScript, which builds
+  the queue.
 - **Cast:** playlist playback uses the existing queue, so Cast needs no new work;
   verify it once in milestone 1.
 - **Offline library, search and analytics:** milestone 1 adds a "downloaded only"
@@ -465,8 +464,10 @@ Follow `AGENTS.md`: run affected Vitest files, `yarn ts:check` and `yarn lint`.
   fields.
 - **Realm:** rank sort matches byte order (regression test for the 2026-11-16
   check). Migrations 23 → 24 → 25 on new fixtures (only `schema_16.json` exists
-  today), including a persisted queue. Scope isolation between anonymous and
-  account rows.
+  today), including a persisted queue and existing unowned playlists.
+- **Visibility:** each row of the Owners and visibility table, including signing
+  out of A, editing, signing in as B (A's playlists hidden, edits still queued for
+  A), then signing back in as A (edits send).
 - **Player:** each group-shuffle rule above; enqueue the same playlist twice and
   remove one duplicate; **Play next** keeps grouping; restart restores the exact
   queue occurrence and checkpoint; later playlist edits leave the queue unchanged;
@@ -474,50 +475,65 @@ Follow `AGENTS.md`: run affected Vitest files, `yarn ts:check` and `yarn lint`.
   A fails, the user selects B, then A's resolve returns `unavailable`; B keeps
   playing and A is marked unavailable.
 - **Sync (milestone 2), against a fake server:**
+  - signing in saves every unowned playlist with its existing IDs, and a kill
+    mid-save resumes without duplicates
   - receipt 43 arriving before delta 42 still pulls after 41
   - a lost create response retries before its children, and edits made before
     acknowledgement apply afterward
   - a restore that reuses revision numbers forces snapshot replacement
   - a quota-failed insert into a single-entry segment applies when resent with
     the deletion of that entry
+  - a create failing account quota leaves the playlist working on the device
   - compaction never touches an operation that has started a request, and
     preserves replay results
   - a response arriving after an account switch writes nothing
-- **Copy (milestone 3):** a kill mid-copy resumes without duplicates; a second
-  Save during a pending copy reuses it; one copy failing quota leaves the others
-  copying; an edited source is skipped by bulk copy and offers a new copy; local
-  originals stay intact.
 - **Manual simulator checklist:**
   - Milestone 1: create from a show, add tracks from another show into the same
     group, drag a track out, kill and relaunch, then play with shuffle in airplane
     mode, including over Cast once.
-  - Milestone 2: edit on two simulators, one offline, then reconnect.
+  - Milestone 2: make playlists signed out, sign in and see them sync to a second
+    simulator; edit on both, one offline, then reconnect; sign out and confirm
+    nothing disappears.
 
-## Decisions (Alec, 2026-11-16)
+## Decisions
 
-1. **Local playlists belong to the device**, like downloads. They stay visible
-   signed out and when signed in to any account. Favorites differ: anonymous
-   favorites are offered for import rather than shown alongside account favorites.
-2. **New playlists go to the account once milestone 2 ships.** **On this device**
-   keeps only playlists created while signed out or before milestone 2.
-3. **Local playlists can be deleted**, with confirmation. Account playlists stay
-   archive-only. Deleting a copied local playlist does not affect the account copy.
-4. **CarPlay and Android Auto get a read-only Playlists list in milestone 1** that
-   plays a playlist. Editing stays on the phone.
-5. **Save queue as playlist is deferred** past milestone 1.
-6. **The server base is stored as paired fields on each row** (`canonical*` beside
+1. **Playlists live on the device; owners are invisible.** One list, titled
+   **Playlists**. Signing in gives unowned playlists an owner and syncs them in
+   place with their existing IDs; signing out changes nothing visible (Alec,
+   2026-11-17). This replaces the earlier "local playlists belong to the device"
+   and "new playlists go to the account" decisions and the Save to my account
+   milestone.
+2. **A second account on the device sees only unowned playlists and its own.**
+   Other accounts' playlists stay on the device, hidden until they sign in again
+   (Alec, 2026-11-17).
+3. **CarPlay and Android Auto get a read-only Playlists list in milestone 1** that
+   plays a playlist. Editing stays on the phone (Alec, 2026-11-16).
+4. **Save queue as playlist is deferred** past milestone 1 (Alec, 2026-11-16).
+5. **The server base is stored as paired fields on each row** (`canonical*` beside
    the displayed fields, plus `live` flags), not as a separate base document or
    per-row JSON (Alec, 2026-11-17). A pull's cost tracks the size of the change,
    and the pattern matches favorites.
-7. **Copies need no job or receipt models.** The account playlist records its
-   source and the source's `localRevision` at copy time, and the normal create-command
-   retry finishes interrupted copies (Alec, 2026-11-17).
+6. **Favorites should move to the same owner model later.** Today they still
+   switch between an anonymous set and an account set. That is separate work, and
+   cheap while favorites are dev-alpha only.
+
+## Open decisions
+
+1. **What Delete does to an owned playlist.** The server is archive-only in v1,
+   and archive is an online-only command in the contract. Proposal: every playlist
+   shows **Delete playlist**. For an unowned playlist it removes the rows. For an
+   owned one it archives on the server, and the playlist appears in **Recently
+   deleted**, where **Restore** unarchives it. Deleting an owned playlist while
+   offline or signed out hides it at once and queues the archive command. That
+   needs one contract change: allow archive commands to be queued offline for
+   private playlists.
 
 ## Progress
 
 - [x] (2026-11-16) Branch created; scope, favorites, Realm and queue code
   surveyed; plan drafted and revised after a fresh-reader review.
-- [x] (2026-11-16) Alec accepted all five open decisions.
-- [ ] Milestone 1: local playlists.
-- [ ] Milestone 2: account playlists (after the User Service delivery 1).
-- [ ] Milestone 3: Save to my account.
+- [x] (2026-11-16) Alec accepted the first round of decisions.
+- [x] (2026-11-17) Replaced separate local and account lists with one list and
+  optional owners.
+- [ ] Milestone 1: playlists on the device.
+- [ ] Milestone 2: saving to an account (after the User Service delivery 1).
