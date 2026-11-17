@@ -1,7 +1,6 @@
 # Local-first playlists
 
-Status: draft, 2026-11-16, revised after a fresh-reader review; awaiting Alec's
-open decisions. Branch `codex/v4-playlists-mobile`, cut from
+Status: approved 2026-11-16 after a fresh-reader review; milestone 1 not started. Branch `codex/v4-playlists-mobile`, cut from
 `codex/v4-mobile-pilot` at `535ec16` (Realm schema 23).
 
 ## Purpose and current decisions
@@ -73,10 +72,10 @@ with sync to a second device.
 | --- | --- | --- |
 | Signed out | **Playlists** (local) | Local |
 | Signed in, milestone 1 | **On this device** (local) | Local |
-| Signed in, milestone 2+ | **Mine** (account), **On this device** (local, if any), **Archived playlists** row | See Open decision 2 |
+| Signed in, milestone 2+ | **Mine** (account), **On this device** (local, if any), **Archived playlists** row | Account |
 
-Local playlists belong to the device, like downloads; see Open decision 1 for who
-can see them. Local playlists are never folded into **Mine** automatically.
+Local playlists belong to the device, like downloads, and are visible to anyone
+using the app, signed in or out. Local playlists are never folded into **Mine** automatically.
 Signed-out playlists are lost if the app is deleted; the list shows a one-line
 note offering sign-in to keep playlists across devices (milestone 2+).
 
@@ -249,7 +248,7 @@ groups is done by dragging tracks.
 **Deleting and archiving**
 
 - Account playlists: **Archive playlist** and **Unarchive**. No delete.
-- Local playlists: see Open decision 3.
+- Local playlists: **Delete playlist**, with confirmation.
 
 ## Catalog hydration and availability
 
@@ -423,7 +422,8 @@ reappear when that account signs in again.
 ## Platform surfaces
 
 - **CarPlay** (`relisten/carplay/library.ts`) and **Android Auto**
-  (`RelistenMediaLibrary.kt`): see Open decision 4.
+  (`RelistenMediaLibrary.kt`): a read-only **Playlists** list that plays a
+  playlist, in milestone 1. Editing stays on the phone.
 - **Cast:** playlist playback uses the existing queue, so Cast needs no new work;
   verify it once in milestone 1.
 - **Offline library, search and analytics:** milestone 1 adds a "downloaded only"
@@ -464,28 +464,24 @@ Follow `AGENTS.md`: run affected Vitest files, `yarn ts:check` and `yarn lint`.
     mode, including over Cast once.
   - Milestone 2: edit on two simulators, one offline, then reconnect.
 
-## Open decisions
+## Decisions (Alec, 2026-11-16)
 
-1. **Who sees local playlists.** Proposal: local playlists belong to the device,
-   like downloads, and stay visible whether signed out or signed in to any
-   account. Favorites differ: anonymous favorites are offered for import rather
-   than shown alongside account favorites.
-2. **Default for new playlists once signed in (milestone 2).** Proposal: new
-   playlists go to the account; **On this device** keeps only playlists created
-   while signed out or before milestone 2.
-3. **Deleting local playlists.** Proposal: local playlists can be deleted, with
-   confirmation, since they are only local data. Account playlists stay
+1. **Local playlists belong to the device**, like downloads. They stay visible
+   signed out and when signed in to any account. Favorites differ: anonymous
+   favorites are offered for import rather than shown alongside account favorites.
+2. **New playlists go to the account once milestone 2 ships.** **On this device**
+   keeps only playlists created while signed out or before milestone 2.
+3. **Local playlists can be deleted**, with confirmation. Account playlists stay
    archive-only. Deleting a copied local playlist does not affect the account copy.
-4. **CarPlay and Android Auto in milestone 1.** Proposal: add a read-only
-   **Playlists** list that plays a playlist, in milestone 1. Editing stays on the
-   phone.
-5. **Save queue as playlist.** Proposal: defer past milestone 1.
+4. **CarPlay and Android Auto get a read-only Playlists list in milestone 1** that
+   plays a playlist. Editing stays on the phone.
+5. **Save queue as playlist is deferred** past milestone 1.
 
 ## Progress
 
 - [x] (2026-11-16) Branch created; scope, favorites, Realm and queue code
   surveyed; plan drafted and revised after a fresh-reader review.
-- [ ] Alec reviews the open decisions.
+- [x] (2026-11-16) Alec accepted all five open decisions.
 - [ ] Milestone 1: local playlists.
 - [ ] Milestone 2: account playlists (after the User Service delivery 1).
 - [ ] Milestone 3: Save to my account.
