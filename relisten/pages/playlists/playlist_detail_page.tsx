@@ -15,11 +15,11 @@ import {
   SourceTrackOfflineInfoStatus,
 } from '@/relisten/realm/models/source_track_offline_info';
 import { useQuery, useRealm } from '@/relisten/realm/schema';
-import { clearUndo } from '@/relisten/playlists/playlist_actions';
 import { humanDuration, playlistSizeLine } from '@/relisten/playlists/playlist_format';
 import {
   usePlaylist,
   usePlaylistGroups,
+  usePlaylistLayout,
   type PlaylistRowGroup,
 } from '@/relisten/playlists/playlist_hooks';
 import { usePlaylistHydration } from '@/relisten/playlists/playlist_hydration';
@@ -48,6 +48,7 @@ export default function PlaylistDetailPage() {
   const online = useShouldMakeNetworkRequests();
   const playlist = usePlaylist(playlistId);
   const allGroups = usePlaylistGroups(playlistId);
+  const layout = usePlaylistLayout(allGroups);
   const playingEntryId = usePlayingEntryId(playlistId);
   const scrollProps = usePlayerBottomScrollViewProps({});
   const [editing, setEditing] = useState(false);
@@ -59,18 +60,20 @@ export default function PlaylistDetailPage() {
   const nameInput = useRef<TextInputInstance>(null);
 
   usePlaylistHydration(playlistId, allGroups, online);
+  // Leaving the screen mid-edit keeps the name and description changes. Undo
+  // history is kept so a toast's Undo still works after navigating away.
   useEffect(
     () => () => {
-      // Leaving the screen mid-edit keeps the changes; Undo history lasts for one visit.
       if (draftRef.current) commitDetails(realm, playlistId, draftRef.current);
-      clearUndo(playlistId);
     },
     [playlistId, realm]
   );
+  // Watching offline info keeps Show Downloaded Only current as downloads finish.
+  const offlineInfos = useQuery(SourceTrackOfflineInfo);
 
   const groups = useMemo(
     () => (downloadedOnly ? filterDownloaded(allGroups) : allGroups),
-    [allGroups, downloadedOnly]
+    [allGroups, downloadedOnly, offlineInfos]
   );
 
   if (!playlist || playlist.deletedAt) {
@@ -137,7 +140,7 @@ export default function PlaylistDetailPage() {
     setDraft(next);
   };
   const startRename = () => {
-    startEditing();
+    if (!editing) startEditing();
     setTimeout(() => nameInput.current?.focus(), 300);
   };
 
@@ -175,7 +178,7 @@ export default function PlaylistDetailPage() {
       {editing ? (
         <PlaylistEditList
           playlistId={playlistId}
-          groups={allGroups}
+          layout={layout}
           mode={arrange}
           header={
             <EditHeader
@@ -215,7 +218,7 @@ export default function PlaylistDetailPage() {
               <View className="px-3">
                 <PlaylistGroupCard
                   playlistId={playlistId}
-                  groups={allGroups}
+                  layout={layout}
                   group={item}
                   online={online}
                   playingEntryId={playingEntryId}
@@ -227,7 +230,7 @@ export default function PlaylistDetailPage() {
                 {index > 0 && groups[index - 1].entries.length === 1 && <ItemSeparator />}
                 <PlaylistTrackRow
                   playlistId={playlistId}
-                  groups={allGroups}
+                  layout={layout}
                   row={item.entries[0]}
                   showShowLine
                   online={online}

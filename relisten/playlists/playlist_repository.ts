@@ -92,17 +92,25 @@ export function appendSegment(trackIds: string[]): PlaylistOperation {
   };
 }
 
-export function applyOperation(
+/**
+ * Applies operations in order, in one transaction: either all of them land or,
+ * if one would exceed a limit, none do. Returns whether anything changed.
+ */
+export function applyOperations(
   realm: Realm,
   playlistId: string,
-  operation: PlaylistOperation
-): OperationResult {
+  operations: PlaylistOperation[]
+): boolean {
   return realm.write(() => {
     const playlist = realm.objectForPrimaryKey(Playlist, playlistId);
     if (!playlist) {
       throw new Error('Playlist not found.');
     }
-    return applyInWrite(realm, playlist, operation);
+    let changed = false;
+    for (const operation of operations) {
+      changed = applyInWrite(realm, playlist, operation).status === 'applied' || changed;
+    }
+    return changed;
   });
 }
 
@@ -204,6 +212,16 @@ export function updatePlaylistDetails(
       playlist.description = normalizePlaylistDescription(details.description ?? undefined);
     }
     playlist.updatedAt = new Date();
+  });
+}
+
+/** Removes a playlist and its rows outright. Used to undo creating one. */
+export function deletePlaylistPermanently(realm: Realm, playlistId: string) {
+  realm.write(() => {
+    realm.delete(realm.objects(PlaylistEntry).filtered('playlistId == $0', playlistId));
+    realm.delete(realm.objects(PlaylistSegment).filtered('playlistId == $0', playlistId));
+    const playlist = realm.objectForPrimaryKey(Playlist, playlistId);
+    if (playlist) realm.delete(playlist);
   });
 }
 

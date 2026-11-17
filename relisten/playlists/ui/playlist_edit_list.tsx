@@ -1,6 +1,13 @@
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { type ReactElement, useCallback, useMemo, useState } from 'react';
+import {
+  createContext,
+  type ReactElement,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+} from 'react';
 import { Pressable, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import DraggableFlatList, { type RenderItem } from 'react-native-draggable-flatlist';
@@ -20,7 +27,7 @@ import {
   type ArrangeMode,
   type EditRow,
 } from '@/relisten/playlists/playlist_edit_rows';
-import type { PlaylistRowGroup } from '@/relisten/playlists/playlist_hooks';
+import type { PlaylistLayout } from '@/relisten/playlists/playlist_hooks';
 import {
   GroupMenu,
   singleSourceTrack,
@@ -34,32 +41,43 @@ export type { ArrangeMode } from '@/relisten/playlists/playlist_edit_rows';
 
 export function PlaylistEditList({
   playlistId,
-  groups,
+  layout,
   mode,
   header,
 }: {
   playlistId: string;
-  groups: PlaylistRowGroup[];
+  layout: PlaylistLayout;
   mode: ArrangeMode;
   header: ReactElement;
 }) {
   const realm = useRealm();
   const [dragging, setDragging] = useState(false);
+  // After a drop, show the dropped order until Realm's update arrives, so the
+  // list doesn't snap back for a frame. Cleared whenever the playlist changes.
+  const [droppedRows, setDroppedRows] = useState<{ source: PlaylistLayout; rows: EditRow[] }>();
   const scrollProps = usePlayerBottomScrollViewProps({});
   const rows = useMemo<EditRow[]>(
     () =>
       mode === 'tracks'
-        ? trackRows(groups)
-        : groups.map((group) => ({ key: group.segment.segmentId, kind: 'group' as const, group })),
-    [groups, mode]
+        ? trackRows(layout.groups)
+        : layout.groups.map((group) => ({
+            key: group.segment.segmentId,
+            kind: 'group' as const,
+            group,
+          })),
+    [layout, mode]
   );
 
+  const visibleRows = droppedRows?.source === layout ? droppedRows.rows : rows;
+
   const undoToast = useCallback(
-    (message: string, extra?: { label: string; onPress: () => void }) =>
+    (changed: boolean, message: string, extra?: { label: string; onPress: () => void }) => {
+      if (!changed) return;
       showPlaylistToast(message, [
         { label: 'Undo', onPress: () => undoLastEdit(realm, playlistId) },
         ...(extra ? [extra] : []),
-      ]),
+      ]);
+    },
     [realm, playlistId]
   );
 
@@ -68,26 +86,28 @@ export function PlaylistEditList({
       setDragging(false);
       if (from === to) return;
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setDroppedRows({ source: layout, rows: data });
       const moved = data[to];
 
       if (moved.kind === 'group') {
-        dropSegment(realm, playlistId, moved.group.segment.segmentId, {
+        const changed = dropSegment(realm, playlistId, moved.group.segment.segmentId, {
           afterSegmentId: data[to - 1]?.group.segment.segmentId,
           beforeSegmentId: data[to + 1]?.group.segment.segmentId,
         });
-        undoToast('Moved group');
+        undoToast(changed, 'Moved group');
         return;
       }
       if (moved.kind !== 'entry') return;
 
       const drop = trackDropAt(data, to);
-      dropTrack(realm, playlistId, moved.row.entry.entryId, drop);
+      const changed = dropTrack(realm, playlistId, moved.row.entry.entryId, drop);
 
       // Landing on its own right under another single track is how two tracks
       // become a group by dragging: the toast offers to keep them together.
       const prev = data[to - 1];
       const joinable = drop.kind === 'not_in_group' && prev?.kind === 'entry' && !prev.inGroup;
       undoToast(
+        changed,
         `Moved ${trackTitle(moved.row)}`,
         joinable
           ? {
@@ -97,7 +117,7 @@ export function PlaylistEditList({
           : undefined
       );
     },
-    [realm, playlistId, undoToast]
+    [layout, realm, playlistId, undoToast]
   );
 
   const renderItem = useCallback<RenderItem<EditRow>>(
@@ -106,7 +126,7 @@ export function PlaylistEditList({
         case 'header':
           return (
             <View className="mx-3 mt-2 rounded-t-xl border-x border-t border-relisten-blue-800 bg-relisten-blue-950 pl-4 pr-1">
-              <GroupMenu playlistId={playlistId} groups={groups} group={item.group}>
+              <GroupMenu playlistId={playlistId} layout={layout} group={item.group}>
                 <View className="min-h-[44px] justify-center">
                   <RelistenText
                     className="text-sm text-gray-400"
@@ -120,20 +140,7 @@ export function PlaylistEditList({
             </View>
           );
         case 'footer':
-          return (
-            <View className="mx-3 mb-2 h-10 justify-center rounded-b-xl border-x border-b border-relisten-blue-800 bg-relisten-blue-950 px-4">
-              {dragging && (
-                <View className="h-7 justify-center rounded-md border border-dashed border-relisten-blue-400 px-3">
-                  <RelistenText
-                    className="text-sm font-semibold text-relisten-blue-300"
-                    selectable={false}
-                  >
-                    End of this group
-                  </RelistenText>
-                </View>
-              )}
-            </View>
-          );
+          return <GroupFooter />;
         case 'group':
           return (
             <EditableRowFrame isActive={isActive} variant="group">
@@ -169,8 +176,9 @@ export function PlaylistEditList({
                   const mate = item.group.entries.find(
                     (r) => r.entry.entryId !== item.row.entry.entryId
                   );
-                  removeEntry(realm, playlistId, item.row.entry.entryId);
+                  const changed = removeEntry(realm, playlistId, item.row.entry.entryId);
                   undoToast(
+                    changed,
                     shrinks
                       ? `Removed ${title}. ${trackTitle(mate)} is now on its own.`
                       : `Removed ${title}`
@@ -181,7 +189,7 @@ export function PlaylistEditList({
               </TouchableOpacity>
               <TrackMenu
                 playlistId={playlistId}
-                groups={groups}
+                layout={layout}
                 row={item.row}
                 style={{ flex: 1, minWidth: 0, alignSelf: 'stretch' }}
               >
@@ -206,29 +214,50 @@ export function PlaylistEditList({
         }
       }
     },
-    [dragging, groups, playlistId, realm, undoToast]
+    [layout, playlistId, realm, undoToast]
   );
 
   return (
-    <DraggableFlatList
-      data={rows}
-      keyExtractor={(row) => row.key}
-      renderItem={renderItem}
-      ListHeaderComponent={header}
-      onDragBegin={() => {
-        setDragging(true);
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      }}
-      onPlaceholderIndexChange={() => void Haptics.selectionAsync()}
-      onDragEnd={onDragEnd}
-      activationDistance={0}
-      autoscrollThreshold={80}
-      autoscrollSpeed={120}
-      containerStyle={{ flex: 1 }}
-      contentContainerStyle={scrollProps.contentContainerStyle}
-      contentInsetAdjustmentBehavior={scrollProps.contentInsetAdjustmentBehavior}
-      scrollIndicatorInsets={scrollProps.scrollIndicatorInsets}
-    />
+    <DraggingContext.Provider value={dragging}>
+      <DraggableFlatList
+        data={visibleRows}
+        keyExtractor={(row) => row.key}
+        renderItem={renderItem}
+        ListHeaderComponent={header}
+        onDragBegin={() => {
+          setDragging(true);
+          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        }}
+        onPlaceholderIndexChange={() => void Haptics.selectionAsync()}
+        onDragEnd={onDragEnd}
+        activationDistance={0}
+        autoscrollThreshold={80}
+        autoscrollSpeed={120}
+        containerStyle={{ flex: 1 }}
+        contentContainerStyle={scrollProps.contentContainerStyle}
+        contentInsetAdjustmentBehavior={scrollProps.contentInsetAdjustmentBehavior}
+        scrollIndicatorInsets={scrollProps.scrollIndicatorInsets}
+      />
+    </DraggingContext.Provider>
+  );
+}
+
+/** Whether a drag is in progress. Only group footers read it, so starting a drag doesn't re-render every row. */
+const DraggingContext = createContext(false);
+
+/** The bottom edge of a group card. While dragging it labels the "end of this group" drop target. */
+function GroupFooter() {
+  const dragging = useContext(DraggingContext);
+  return (
+    <View className="mx-3 mb-2 h-10 justify-center rounded-b-xl border-x border-b border-relisten-blue-800 bg-relisten-blue-950 px-4">
+      {dragging && (
+        <View className="h-7 justify-center rounded-md border border-dashed border-relisten-blue-400 px-3">
+          <RelistenText className="text-sm font-semibold text-relisten-blue-300" selectable={false}>
+            End of this group
+          </RelistenText>
+        </View>
+      )}
+    </View>
   );
 }
 

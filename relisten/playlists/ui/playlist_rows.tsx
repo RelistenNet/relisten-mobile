@@ -8,7 +8,11 @@ import { SourceTrackOfflineIndicator } from '@/relisten/components/source/source
 import { ItemSeparator } from '@/relisten/components/item_separator';
 import { useRelistenPlayerPlaybackState } from '@/relisten/player/relisten_player_hooks';
 import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player_queue_hooks';
-import type { PlaylistRowEntry, PlaylistRowGroup } from '@/relisten/playlists/playlist_hooks';
+import type {
+  PlaylistLayout,
+  PlaylistRowEntry,
+  PlaylistRowGroup,
+} from '@/relisten/playlists/playlist_hooks';
 import {
   GroupMenu,
   singleSourceTrack,
@@ -63,7 +67,7 @@ function StatusLine({ row, online }: { row: PlaylistRowEntry; online: boolean })
 
 export function PlaylistTrackRow({
   playlistId,
-  groups,
+  layout,
   row,
   showShowLine,
   online,
@@ -71,7 +75,7 @@ export function PlaylistTrackRow({
   onPlay,
 }: {
   playlistId: string;
-  groups: PlaylistRowGroup[];
+  layout: PlaylistLayout;
   row: PlaylistRowEntry;
   showShowLine: boolean;
   online: boolean;
@@ -127,7 +131,7 @@ export function PlaylistTrackRow({
           </View>
         )}
       </TouchableOpacity>
-      <TrackMenu playlistId={playlistId} groups={groups} row={row}>
+      <TrackMenu playlistId={playlistId} layout={layout} row={row}>
         <OverflowMenuTrigger
           accessibilityLabel={`Actions for ${trackTitle(row)}`}
           iconAlignment="trailing"
@@ -154,14 +158,14 @@ export function groupLabel(group: PlaylistRowGroup): string {
  */
 export function PlaylistGroupCard({
   playlistId,
-  groups,
+  layout,
   group,
   online,
   playingEntryId,
   onPlay,
 }: {
   playlistId: string;
-  groups: PlaylistRowGroup[];
+  layout: PlaylistLayout;
   group: PlaylistRowGroup;
   online: boolean;
   playingEntryId: string | undefined;
@@ -184,7 +188,7 @@ export function PlaylistGroupCard({
         })}
       />
       <View className="min-w-0 flex-1 pl-3 pr-1">
-        <GroupMenu playlistId={playlistId} groups={groups} group={group}>
+        <GroupMenu playlistId={playlistId} layout={layout} group={group}>
           <View className="min-h-[44px] flex-row items-center" accessibilityRole="button">
             <RelistenText
               className="flex-1 text-sm text-gray-400"
@@ -204,7 +208,7 @@ export function PlaylistGroupCard({
             {index > 0 && <ItemSeparator />}
             <PlaylistTrackRow
               playlistId={playlistId}
-              groups={groups}
+              layout={layout}
               row={row}
               showShowLine={!oneShow}
               online={online}
