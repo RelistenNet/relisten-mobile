@@ -1,9 +1,11 @@
+import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Realm from 'realm';
 import {
   FlatList,
+  type FlatListProps,
   TextInput,
   type TextInputInstance,
   useWindowDimensions,
@@ -31,6 +33,7 @@ import { PLAYLIST_LIMITS, updatePlaylistDetails } from '@/relisten/playlists/pla
 import { PlaylistEditList } from '@/relisten/playlists/ui/playlist_edit_list';
 import {
   PlaylistTrackRow,
+  type PlaylistViewRow,
   playlistViewRows,
   usePlayingEntryId,
 } from '@/relisten/playlists/ui/playlist_rows';
@@ -155,7 +158,20 @@ export default function PlaylistDetailPage() {
 
   return (
     <View className="flex-1 bg-relisten-blue-900">
-      <Stack.Screen options={{ title: editing ? 'Editing' : '' }} />
+      {/* Viewing, the name fades into the header as you scroll (DisappearingHeaderScreen
+          sets that title view). Editing shows a plain "Editing" instead. */}
+      <Stack.Screen
+        options={
+          editing
+            ? {
+                title: 'Editing',
+                headerTitle: ({ children }) => (
+                  <RelistenText className="text-xl font-semibold">{children}</RelistenText>
+                ),
+              }
+            : { title: name }
+        }
+      />
       <Stack.Toolbar placement="right">
         <Stack.Toolbar.Button onPress={editing ? finishEditing : startEditing}>
           {editing ? 'Done' : 'Edit'}
@@ -199,7 +215,8 @@ export default function PlaylistDetailPage() {
           }
         />
       ) : (
-        <FlatList
+        <DisappearingHeaderScreen
+          ScrollableComponent={PlaylistTrackList}
           data={viewRows}
           keyExtractor={(r) => r.row.entry.entryId}
           ListHeaderComponent={
@@ -241,6 +258,9 @@ export default function PlaylistDetailPage() {
     </View>
   );
 }
+
+/** The playlist's rows; a FlatList typed for DisappearingHeaderScreen. */
+const PlaylistTrackList = FlatList as React.ComponentType<FlatListProps<PlaylistViewRow>>;
 
 function ViewHeader({
   name,
