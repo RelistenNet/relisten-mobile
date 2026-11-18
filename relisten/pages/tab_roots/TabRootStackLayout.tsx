@@ -25,6 +25,10 @@ export default function TabRootStackLayout() {
         <Stack.Screen
           name="index"
           options={{
+            // A frozen screen's Stack.Toolbar is removed from its header (freezing
+            // runs layout-effect cleanups), and the screen above rebuilds its back
+            // button from that header: a visible flash. My Library has header items.
+            freezeOnBlur: groupSegment !== '(myLibrary)',
             title: currentTitle,
             headerTitleAlign: 'center',
             headerLargeTitle: false,
@@ -115,7 +119,8 @@ export default function TabRootStackLayout() {
         <Stack.Screen name="[artistUuid]/song/[songUuid]/tracks" options={{ title: '' }} />
         <Stack.Screen name="history/tracks" options={{ title: 'My History' }} />
         <Stack.Screen name="playlists/index" options={{ title: 'Playlists' }} />
-        <Stack.Screen name="playlists/[playlistId]" options={{ title: '' }} />
+        {/* Has header items too; see the index screen. */}
+        <Stack.Screen name="playlists/[playlistId]" options={{ title: '', freezeOnBlur: false }} />
         <Stack.Screen name="playlists/recently-deleted" options={{ title: 'Recently Deleted' }} />
       </Stack>
     </View>
