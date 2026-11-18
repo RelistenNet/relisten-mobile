@@ -1,3 +1,4 @@
+import { type HistorySelection } from '@/relisten/history/history_selection';
 import {
   RelistenSectionList,
   type RelistenSectionData,
@@ -16,11 +17,15 @@ type ListeningHistoryListProps = Omit<
 > & {
   history: PagedListeningHistory;
   onViewShow: (entry: PlaybackHistoryEntry) => void;
+  selection?: HistorySelection;
+  onStartSelection?: (entryUuid: string) => void;
 };
 
 export function ListeningHistoryList({
   history,
   onViewShow,
+  selection,
+  onStartSelection,
   stickySectionHeadersEnabled = true,
   ...props
 }: ListeningHistoryListProps) {
@@ -52,9 +57,14 @@ export function ListeningHistoryList({
 
   const renderItem = useCallback(
     ({ item }: Parameters<ListRenderItem<PlaybackHistoryEntry>>[0]): ReactElement => (
-      <ListeningHistoryRow entry={item} onViewShow={onViewShow} />
+      <ListeningHistoryRow
+        entry={item}
+        onViewShow={onViewShow}
+        selection={selection}
+        onStartSelection={onStartSelection}
+      />
     ),
-    [onViewShow]
+    [onStartSelection, onViewShow, selection]
   );
 
   return (
@@ -64,6 +74,7 @@ export function ListeningHistoryList({
       onEndReached={history.hasMore ? history.loadMore : undefined}
       onEndReachedThreshold={0.4}
       renderItem={renderItem}
+      extraData={selection}
       stickySectionHeadersEnabled={stickySectionHeadersEnabled}
     />
   );

@@ -1,3 +1,6 @@
+import { Ionicons } from '@expo/vector-icons';
+import { type HistorySelection } from '@/relisten/history/history_selection';
+import { RelistenBlue } from '@/relisten/relisten_blue';
 import { OverflowMenuTrigger } from '@/relisten/components/menus/overflow_menu_trigger';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { HistoryEntryContent } from '@/relisten/history/history_entry_content';
@@ -8,9 +11,17 @@ import { Pressable, View } from 'react-native';
 type ListeningHistoryRowProps = {
   entry: PlaybackHistoryEntry;
   onViewShow: (entry: PlaybackHistoryEntry) => void;
+  /** Present while selecting entries. */
+  selection?: HistorySelection;
+  onStartSelection?: (entryUuid: string) => void;
 };
 
-export function ListeningHistoryRow({ entry, onViewShow }: ListeningHistoryRowProps) {
+export function ListeningHistoryRow({
+  entry,
+  onViewShow,
+  selection,
+  onStartSelection,
+}: ListeningHistoryRowProps) {
   const sourceTrack = entry.sourceTrack;
   const venue = sourceTrack.show.venue;
   const viewShow = () => onViewShow(entry);
@@ -25,6 +36,31 @@ export function ListeningHistoryRow({ entry, onViewShow }: ListeningHistoryRowPr
     .filter(Boolean)
     .join(', ');
 
+  if (selection) {
+    const checked = selection.selected.has(entry.uuid);
+    return (
+      <Pressable
+        accessibilityLabel={accessibilityLabel.replace(`View show for `, '')}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked }}
+        className="flex-row items-center pl-5 pr-2"
+        onPress={() => selection.toggle(entry.uuid)}
+      >
+        <View className="min-w-0 flex-1">
+          <HistoryEntryContent sourceTrack={sourceTrack} />
+        </View>
+        <View className="h-11 w-11 items-center justify-center">
+          <Ionicons
+            name={checked ? 'checkmark-circle' : 'ellipse-outline'}
+            size={24}
+            color={checked ? RelistenBlue[400] : 'rgba(255,255,255,0.5)'}
+          />
+        </View>
+      </Pressable>
+    );
+  }
+
+  const startSelection = onStartSelection && (() => onStartSelection(entry.uuid));
   return (
     <View className="flex-row items-center pl-5 pr-2">
       <Pressable
@@ -33,6 +69,7 @@ export function ListeningHistoryRow({ entry, onViewShow }: ListeningHistoryRowPr
         accessibilityRole="button"
         className="min-w-0 flex-1"
         onPress={viewShow}
+        onLongPress={startSelection}
         style={({ pressed }) => ({ opacity: pressed ? 0.65 : 1 })}
       >
         <HistoryEntryContent
@@ -45,7 +82,11 @@ export function ListeningHistoryRow({ entry, onViewShow }: ListeningHistoryRowPr
         />
       </Pressable>
       <View className="ml-1">
-        <HistoryTrackActionsMenu onViewShow={viewShow} sourceTrack={sourceTrack}>
+        <HistoryTrackActionsMenu
+          onViewShow={viewShow}
+          onSelect={startSelection}
+          sourceTrack={sourceTrack}
+        >
           <OverflowMenuTrigger accessibilityLabel={`Actions for ${sourceTrack.title}`} />
         </HistoryTrackActionsMenu>
       </View>

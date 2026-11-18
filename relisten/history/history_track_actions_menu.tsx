@@ -8,34 +8,60 @@ import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
 import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
+import { trackIdForSourceTrack } from '@/relisten/playlists/playlist_hooks';
+import { openAddToPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
 import { type ReactNode, useCallback } from 'react';
 import { type AccessibilityRole } from 'react-native';
 
 const ACTION_IDS = {
+  addToPlaylist: 'add-to-playlist',
   addToQueue: 'add-to-queue',
   playNext: 'play-next',
+  select: 'select',
   viewShow: 'view-show',
 } as const;
 
 type HistoryTrackActionId = (typeof ACTION_IDS)[keyof typeof ACTION_IDS];
 
-const ACTIONS: MenuAction[] = [
-  {
-    id: ACTION_IDS.playNext,
-    image: nativeMenuIcons.playNext,
-    title: 'Play Next',
-  },
-  {
-    id: ACTION_IDS.addToQueue,
-    image: nativeMenuIcons.addToQueue,
-    title: 'Add to End of Queue',
-  },
-  {
-    id: ACTION_IDS.viewShow,
-    image: nativeMenuIcons.show,
-    title: 'View Show',
-  },
-];
+function historyActions(canSelect: boolean): MenuAction[] {
+  return [
+    {
+      id: 'playback',
+      title: '',
+      displayInline: true,
+      subactions: [
+        { id: ACTION_IDS.playNext, image: nativeMenuIcons.playNext, title: 'Play Next' },
+        {
+          id: ACTION_IDS.addToQueue,
+          image: nativeMenuIcons.addToQueue,
+          title: 'Add to End of Queue',
+        },
+      ],
+    },
+    {
+      id: 'playlists',
+      title: '',
+      displayInline: true,
+      subactions: [
+        {
+          id: ACTION_IDS.addToPlaylist,
+          image: nativeMenuIcons.addToPlaylist,
+          title: 'Add to Playlist…',
+        },
+        ...(canSelect
+          ? [{ id: ACTION_IDS.select, image: nativeMenuIcons.select, title: 'Select Tracks' }]
+          : []),
+      ],
+    },
+    {
+      id: 'show',
+      title: '',
+      displayInline: true,
+      subactions: [{ id: ACTION_IDS.viewShow, image: nativeMenuIcons.show, title: 'View Show' }],
+    },
+  ];
+}
 
 type HistoryTrackActionsMenuProps = {
   accessibilityHint?: string;
@@ -43,6 +69,8 @@ type HistoryTrackActionsMenuProps = {
   accessibilityRole?: AccessibilityRole;
   children: ReactNode;
   onViewShow: () => void;
+  /** Starts selecting with this entry checked; offered only where selection exists. */
+  onSelect?: () => void;
   sourceTrack: SourceTrack;
 };
 
@@ -52,9 +80,11 @@ export function HistoryTrackActionsMenu({
   accessibilityRole,
   children,
   onViewShow,
+  onSelect,
   sourceTrack,
 }: HistoryTrackActionsMenuProps) {
   const player = useRelistenPlayer();
+  const router = useRouter();
 
   const addToQueue = useCallback(
     (placement: 'next' | 'end') => {
@@ -90,12 +120,18 @@ export function HistoryTrackActionsMenu({
         case ACTION_IDS.addToQueue:
           addToQueue('end');
           break;
+        case ACTION_IDS.addToPlaylist:
+          openAddToPlaylist(router, [trackIdForSourceTrack(sourceTrack)], { linkable: false });
+          break;
+        case ACTION_IDS.select:
+          onSelect?.();
+          break;
         case ACTION_IDS.viewShow:
           onViewShow();
           break;
       }
     },
-    [addToQueue, onViewShow]
+    [addToQueue, onSelect, onViewShow, router, sourceTrack]
   );
 
   return (
@@ -103,7 +139,7 @@ export function HistoryTrackActionsMenu({
       accessibilityHint={accessibilityHint}
       accessibilityLabel={accessibilityLabel}
       accessibilityRole={accessibilityRole}
-      actions={ACTIONS}
+      actions={historyActions(onSelect !== undefined)}
       onPressAction={({ nativeEvent }) => handleAction(nativeEvent.event as HistoryTrackActionId)}
       shouldOpenOnLongPress={false}
     >

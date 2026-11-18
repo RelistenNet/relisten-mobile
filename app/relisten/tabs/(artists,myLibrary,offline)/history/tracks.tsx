@@ -1,3 +1,4 @@
+import { HistorySelectionToolbar, useHistorySelection } from '@/relisten/history/history_selection';
 import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
 import { RefreshContextProvider } from '@/relisten/components/refresh_context';
 import { RelistenText } from '@/relisten/components/relisten_text';
@@ -63,18 +64,30 @@ export default function Page() {
     [pushShow]
   );
 
+  const selecting = useHistorySelection(history.entries);
+
   return (
     <>
-      <HistoryToolbar
-        disabled={history.totalCount === 0}
-        onClear={() => confirmClearListeningHistory(realm)}
-      />
+      {selecting.selection ? (
+        <HistorySelectionToolbar
+          count={selecting.selection.selected.size}
+          onCancel={selecting.cancel}
+          onAdd={selecting.addToPlaylist}
+        />
+      ) : (
+        <HistoryToolbar
+          disabled={history.totalCount === 0}
+          onClear={() => confirmClearListeningHistory(realm)}
+        />
+      )}
       <RefreshContextProvider>
         <DisappearingHeaderScreen
           ScrollableComponent={ListeningHistoryList}
           ListHeaderComponent={<HistoryHeader totalPlayed={history.totalCount} />}
           history={history}
           onViewShow={viewShow}
+          selection={selecting.selection}
+          onStartSelection={selecting.start}
           pullToRefresh
         />
       </RefreshContextProvider>

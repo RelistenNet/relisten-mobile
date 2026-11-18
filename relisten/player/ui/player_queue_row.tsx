@@ -69,7 +69,7 @@ function QueueTrackRow({
             void Haptics.selectionAsync();
           }}
         >
-          <View className="min-w-0 flex-row items-start">
+          <View className="min-w-0 flex-row items-center">
             <RelistenText
               className="flex-1 shrink text-lg font-semibold"
               numberOfLines={stackMetadata ? undefined : 2}
