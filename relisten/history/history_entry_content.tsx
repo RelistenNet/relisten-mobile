@@ -27,7 +27,7 @@ export function HistoryEntryContent({
     <View className="min-w-0 flex-row items-center">
       {leading}
       <View className="min-w-0 flex-1 py-2">
-        <View className="min-w-0 flex-row items-start">
+        <View className="min-w-0 flex-row items-center">
           <RelistenText className="flex-1 shrink text-base font-semibold" selectable={false}>
             {playerDisplayTitle(sourceTrack.title)}
           </RelistenText>

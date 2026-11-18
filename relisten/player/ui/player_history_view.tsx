@@ -1,3 +1,4 @@
+import { HistorySelectionToolbar, useHistorySelection } from '@/relisten/history/history_selection';
 import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
 import Plur from '@/relisten/components/plur';
 import { RelistenText } from '@/relisten/components/relisten_text';
@@ -41,32 +42,43 @@ export function PlayerHistoryView({
   const realm = useRealm();
   const history = usePagedListeningHistory();
   const insets = useSafeAreaInsets();
+  const selecting = useHistorySelection(history.entries);
 
   return (
     <>
-      <Stack.Toolbar placement="left">
-        <Stack.Toolbar.Button
-          accessibilityLabel="Close Listening History"
-          icon={nativeMenuIcons.close}
-          onPress={() => router.back()}
+      {selecting.selection ? (
+        <HistorySelectionToolbar
+          count={selecting.selection.selected.size}
+          onCancel={selecting.cancel}
+          onAdd={selecting.addToPlaylist}
         />
-      </Stack.Toolbar>
-      <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Menu
-          accessibilityLabel="Listening history actions"
-          disabled={history.totalCount === 0}
-          icon={nativeMenuIcons.more}
-        >
-          <Stack.Toolbar.MenuAction
-            destructive
-            disabled={history.totalCount === 0}
-            icon={nativeMenuIcons.clearHistory}
-            onPress={() => confirmClearListeningHistory(realm)}
-          >
-            Clear Listening History…
-          </Stack.Toolbar.MenuAction>
-        </Stack.Toolbar.Menu>
-      </Stack.Toolbar>
+      ) : (
+        <>
+          <Stack.Toolbar placement="left">
+            <Stack.Toolbar.Button
+              accessibilityLabel="Close Listening History"
+              icon={nativeMenuIcons.close}
+              onPress={() => router.back()}
+            />
+          </Stack.Toolbar>
+          <Stack.Toolbar placement="right">
+            <Stack.Toolbar.Menu
+              accessibilityLabel="Listening history actions"
+              disabled={history.totalCount === 0}
+              icon={nativeMenuIcons.more}
+            >
+              <Stack.Toolbar.MenuAction
+                destructive
+                disabled={history.totalCount === 0}
+                icon={nativeMenuIcons.clearHistory}
+                onPress={() => confirmClearListeningHistory(realm)}
+              >
+                Clear Listening History…
+              </Stack.Toolbar.MenuAction>
+            </Stack.Toolbar.Menu>
+          </Stack.Toolbar>
+        </>
+      )}
       <ListeningHistoryList
         adjustsForPlayerBottomBar={false}
         ListEmptyComponent={
@@ -81,6 +93,8 @@ export function PlayerHistoryView({
         contentInsetAdjustmentBehavior="automatic"
         history={history}
         onViewShow={onViewShow}
+        selection={selecting.selection}
+        onStartSelection={selecting.start}
         renderSectionHeader={(section) => (
           <PlayerHistorySectionHeader title={section.sectionTitle} />
         )}
