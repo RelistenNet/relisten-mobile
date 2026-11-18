@@ -78,20 +78,17 @@ export function PlayerQueueTrayRow({
         }
         onPress={() => (current ? player.togglePauseResume() : player.playTrackAtIndex(index))}
       >
-        <View className="flex-row items-center gap-1.5">
-          <RelistenText
-            className={
-              current
-                ? 'min-w-0 flex-1 text-base font-semibold text-relisten-blue-200'
-                : 'min-w-0 flex-1 text-base font-semibold'
-            }
-            numberOfLines={stackControls ? undefined : 2}
-            selectable={false}
-          >
-            {playerDisplayTitle(source.title)}
-          </RelistenText>
-          <SourceTrackOfflineIndicator offlineInfo={source.offlineInfo} />
-        </View>
+        <RelistenText
+          className={
+            current
+              ? 'min-w-0 text-base font-semibold text-relisten-blue-200'
+              : 'min-w-0 text-base font-semibold'
+          }
+          numberOfLines={stackControls ? undefined : 2}
+          selectable={false}
+        >
+          {playerDisplayTitle(source.title)}
+        </RelistenText>
         <RelistenText
           className="mt-[3px] text-sm text-gray-300/70"
           numberOfLines={stackControls ? undefined : 1}
@@ -117,7 +114,9 @@ export function PlayerQueueTrayRow({
         }
       >
         {current && <CurrentTrackPlaybackButton />}
-        <View className="h-11 justify-center">
+        {/* Centered in the row beside the duration, as on show and playlist rows. */}
+        <SourceTrackOfflineIndicator offlineInfo={source.offlineInfo} />
+        <View className="ml-2 h-11 justify-center">
           <TrackDuration duration={source.humanizedDuration} />
         </View>
         <View className="ml-3 flex-row items-center">

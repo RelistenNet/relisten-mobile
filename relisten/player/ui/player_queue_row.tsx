@@ -69,16 +69,13 @@ function QueueTrackRow({
             void Haptics.selectionAsync();
           }}
         >
-          <View className="min-w-0 flex-row items-center">
-            <RelistenText
-              className="flex-1 shrink text-lg font-semibold"
-              numberOfLines={stackMetadata ? undefined : 2}
-              selectable={false}
-            >
-              {displayTitle}
-            </RelistenText>
-            <SourceTrackOfflineIndicator offlineInfo={sourceTrack.offlineInfo} />
-          </View>
+          <RelistenText
+            className="shrink text-lg font-semibold"
+            numberOfLines={stackMetadata ? undefined : 2}
+            selectable={false}
+          >
+            {displayTitle}
+          </RelistenText>
           {/* Reserve the date at normal sizes; stack it when both labels need room to wrap. */}
           <View className={`mt-[3px] min-w-0 ${stackMetadata ? '' : 'flex-row items-baseline'}`}>
             <RelistenText
@@ -94,8 +91,9 @@ function QueueTrackRow({
             </RelistenText>
           </View>
         </TouchableOpacity>
+        <SourceTrackOfflineIndicator offlineInfo={sourceTrack.offlineInfo} />
         <View className="ml-2.5">
-          <TrackDuration duration={sourceTrack.humanizedDuration} className="text-gray-300" />
+          <TrackDuration duration={sourceTrack.humanizedDuration} />
         </View>
         {action}
       </View>
