@@ -1,8 +1,8 @@
+import { TrackDuration } from '@/relisten/components/track_duration';
 import { Ionicons } from '@expo/vector-icons';
 import { type HistorySelection } from '@/relisten/history/history_selection';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { OverflowMenuTrigger } from '@/relisten/components/menus/overflow_menu_trigger';
-import { RelistenText } from '@/relisten/components/relisten_text';
 import { HistoryEntryContent } from '@/relisten/history/history_entry_content';
 import { HistoryTrackActionsMenu } from '@/relisten/history/history_track_actions_menu';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
@@ -75,9 +75,7 @@ export function ListeningHistoryRow({
         <HistoryEntryContent
           sourceTrack={sourceTrack}
           trailing={
-            <RelistenText className="text-sm text-gray-300" selectable={false}>
-              {entry.humanizedPlaybackStartedAt()}
-            </RelistenText>
+            <TrackDuration duration={entry.humanizedPlaybackStartedAt()} small widest="00:00 AM" />
           }
         />
       </Pressable>

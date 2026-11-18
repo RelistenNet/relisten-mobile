@@ -27,16 +27,15 @@ export function HistoryEntryContent({
     <View className="min-w-0 flex-row items-center">
       {leading}
       <View className="min-w-0 flex-1 py-2">
-        <View className="min-w-0 flex-row items-center">
-          <RelistenText className="flex-1 shrink text-base font-semibold" selectable={false}>
-            {playerDisplayTitle(sourceTrack.title)}
-          </RelistenText>
-          <SourceTrackOfflineIndicator offlineInfo={sourceTrack.offlineInfo} />
-        </View>
+        <RelistenText className="shrink text-base font-semibold" selectable={false}>
+          {playerDisplayTitle(sourceTrack.title)}
+        </RelistenText>
         <RelistenText className="mt-[3px] text-sm text-gray-300/70" selectable={false}>
           {metadata}
         </RelistenText>
       </View>
+      {/* Centered in the row beside the timestamp, as show rows place it beside the duration. */}
+      <SourceTrackOfflineIndicator offlineInfo={sourceTrack.offlineInfo} />
       {trailing ? <View className="ml-2">{trailing}</View> : null}
       {action}
     </View>
