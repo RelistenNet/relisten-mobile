@@ -22,7 +22,9 @@ export function AuthCallbackRoute() {
       }
 
       if (active) {
-        // Sign-in starts from the account screen; land on it in the Relisten tab.
+        // Only a cold start from the callback link reaches this screen (see
+        // app/+native-intent.tsx), so there is no screen to return to; land on
+        // the account screen in the Relisten tab.
         router.replace(accountPath('(relisten)'));
       }
     };
