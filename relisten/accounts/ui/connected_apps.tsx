@@ -70,7 +70,7 @@ export function ConnectedAppsGroup() {
         <ListRow
           key={client.id}
           title={client.name}
-          subtitle={client.state === 'connected' ? 'Connected' : 'Allowed'}
+          subtitle={client.state === 'connected' ? 'Connected' : 'Signed out'}
           disclosure={false}
           accessory={
             <RelistenText className="ml-2 text-red-400" selectable={false}>

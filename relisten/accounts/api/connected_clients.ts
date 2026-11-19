@@ -2,13 +2,13 @@ import type { AuthorizedAccountsApiClient } from './accounts_api_client';
 
 /**
  * Apps outside Relisten that the listener let into their account, such as
- * ChatGPT. `consent_remembered` means the app has no live session but would
- * be let back in without asking; disconnecting forgets that too.
+ * ChatGPT. `expired` means its session lapsed: the app has to sign in and be
+ * approved again, and disconnecting removes it from the list.
  */
 export interface ConnectedClient {
   id: string;
   name: string;
-  state: 'connected' | 'consent_remembered';
+  state: 'connected' | 'expired';
 }
 
 export async function fetchConnectedClients(
@@ -34,6 +34,6 @@ export function parseConnectedClients(value: unknown): ConnectedClient[] {
     (client): client is ConnectedClient =>
       typeof client?.id === 'string' &&
       typeof client.name === 'string' &&
-      (client.state === 'connected' || client.state === 'consent_remembered')
+      (client.state === 'connected' || client.state === 'expired')
   );
 }
