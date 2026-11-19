@@ -8,11 +8,11 @@ import {
   restorePlaylistOnDevice,
 } from '@/relisten/playlists/playlist_repository';
 import { canAccessPlaylist, ownedDeletion } from '@/relisten/playlists/sync/playlist_sync_state';
+import { useAccountPlaylistGate } from '@/relisten/playlists/ui/account_playlist_gate';
 import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
 import type { Playlist } from '@/relisten/realm/models/playlists/playlist';
 import { usePlaylistSyncService } from '@/relisten/realm/root_services';
 import { useRealm } from '@/relisten/realm/schema';
-import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 
 /**
  * Deleting and restoring a playlist. A device playlist, or an account playlist
@@ -25,20 +25,7 @@ export function usePlaylistLifecycle() {
   const router = useRouter();
   const account = useAccountScope();
   const service = usePlaylistSyncService();
-  const online = useShouldMakeNetworkRequests();
-
-  /** Explains why an account playlist can't change right now, or returns true. */
-  const canReachAccount = (playlist: Playlist, action: 'delete' | 'restore') => {
-    if (account.userId !== playlist.libraryUserId || !account.isAuthenticated) {
-      Alert.alert(`Sign in to ${action} this playlist.`, 'It’s saved to your account.');
-      return false;
-    }
-    if (!online) {
-      Alert.alert(`Connect to the internet to ${action} this playlist.`);
-      return false;
-    }
-    return true;
-  };
+  const canReachAccount = useAccountPlaylistGate();
 
   const setArchived = async (playlist: Playlist, archived: boolean) => {
     const name = playlist.name;

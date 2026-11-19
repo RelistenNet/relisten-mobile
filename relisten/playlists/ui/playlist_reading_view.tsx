@@ -1,6 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import React, { useMemo } from 'react';
 import { FlatList, type FlatListProps, useWindowDimensions, View } from 'react-native';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { ItemSeparator } from '@/relisten/components/item_separator';
 import { RelistenButton } from '@/relisten/components/relisten_button';
@@ -170,7 +171,7 @@ export function PlaylistViewHeader({
   trackCount: number;
   groups: PlaylistRowGroup[];
   notice?: React.ReactNode;
-  /** For someone else's playlist: Follow, or Following once it is followed. */
+  /** For someone else's playlist: the follow heart, filled once followed. */
   follow?: PlaylistFollowControl;
 }) {
   const { fontScale } = useWindowDimensions();
@@ -308,7 +309,7 @@ function FollowButton({
 }: PlaylistFollowControl & { iconSize: number }) {
   return (
     <RelistenButton
-      accessibilityLabel={following ? 'Unfollow' : 'Follow'}
+      accessibilityLabel="Follow"
       accessibilityState={{ selected: following, busy }}
       className="basis-1/5"
       disabled={busy}
@@ -321,6 +322,27 @@ function FollowButton({
       />
     </RelistenButton>
   );
+}
+
+/**
+ * A message in place of a playlist's rows, such as an unavailable or
+ * not-yet-loaded playlist, set below the transparent header.
+ */
+export function PlaylistScreenNotice({ children }: { children: React.ReactNode }) {
+  const headerHeight = useHeaderHeight();
+  return (
+    <View
+      className="flex-1 items-center bg-relisten-blue-900 px-8"
+      style={{ gap: 16, paddingTop: headerHeight + 24 }}
+    >
+      {children}
+    </View>
+  );
+}
+
+/** The empty-list text for a playlist whose rows haven't arrived yet. */
+export function notLoadedText(online: boolean) {
+  return online ? 'Loading…' : 'Connect to the internet to load this playlist.';
 }
 
 function filterDownloaded(groups: PlaylistRowGroup[]): PlaylistRowGroup[] {

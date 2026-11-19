@@ -7,13 +7,14 @@ import { join } from 'node:path';
 import { FAVORITE_REALM_MODELS } from '@/relisten/realm/models/library';
 import {
   Playlist,
+  PlaylistCommand,
   PlaylistOperation,
   PLAYLIST_REALM_MODELS,
 } from '@/relisten/realm/models/playlists/playlist';
 import {
   canAccessPlaylist,
   canEditPlaylist,
-  claimUnownedPlaylists,
+  claimDevicePlaylists,
 } from '@/relisten/playlists/sync/playlist_sync_state';
 import { migratePlaylistLibraryUsers } from './playlist_library_migration';
 
@@ -42,6 +43,15 @@ const schema25Playlist: Realm.ObjectSchema = {
   ),
 };
 
+/** An outbox model as schema 25 stored it, naming its account `ownerUserId`. */
+const withOwnerUserId = ({
+  properties: { libraryUserId, ...rest },
+  ...model
+}: Realm.ObjectSchema) => ({
+  ...model,
+  properties: { ...rest, ownerUserId: libraryUserId },
+});
+
 describe('playlist library migration', () => {
   let directory: string;
   let path: string;
@@ -61,7 +71,9 @@ describe('playlist library migration', () => {
       schemaVersion: 25,
       schema: [
         schema25Playlist,
-        ...PLAYLIST_REALM_MODELS.filter((model) => model !== Playlist).map((m) => m.schema),
+        ...PLAYLIST_REALM_MODELS.filter((model) => model !== Playlist).map((m) =>
+          m === PlaylistOperation || m === PlaylistCommand ? withOwnerUserId(m.schema) : m.schema
+        ),
         ...FAVORITE_REALM_MODELS,
       ],
     });
@@ -95,7 +107,8 @@ describe('playlist library migration', () => {
 
     const realm = await Realm.open({
       path,
-      schemaVersion: 26,
+      // At or past every version the migration handles.
+      schemaVersion: 28,
       schema: [...PLAYLIST_REALM_MODELS, ...FAVORITE_REALM_MODELS],
       onMigration: migratePlaylistLibraryUsers,
     });
@@ -105,13 +118,13 @@ describe('playlist library migration', () => {
       expect(playlist.access).toBe('owner');
       expect(canEditPlaylist(realm, playlist)).toBe(true);
 
-      realm.write(() => claimUnownedPlaylists(realm, accountB));
+      realm.write(() => claimDevicePlaylists(realm, accountB));
       expect(playlist.ownerUserId).toBe(accountA);
       expect(canAccessPlaylist(realm, playlist)).toBe(false);
 
-      realm.write(() => claimUnownedPlaylists(realm, accountA));
+      realm.write(() => claimDevicePlaylists(realm, accountA));
       expect(canEditPlaylist(realm, playlist)).toBe(true);
-      expect(realm.objects(PlaylistOperation).map((op) => [op.ownerUserId, op.state])).toEqual([
+      expect(realm.objects(PlaylistOperation).map((op) => [op.libraryUserId, op.state])).toEqual([
         [accountA, 'pending'],
       ]);
     } finally {

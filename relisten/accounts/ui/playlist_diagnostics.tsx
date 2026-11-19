@@ -20,22 +20,23 @@ import { View } from 'react-native';
 /** The account screen's Playlists row: quiet when everything is saved, specific when not. */
 export function PlaylistSyncRow() {
   const { userId } = useAccountScope();
-  const owner = userId ?? '';
+  const libraryUserId = userId ?? '';
   const saveState = usePlaylistSaveState(userId ?? undefined);
   const playlists = useQuery(
     Playlist,
     (rows) =>
       rows.filtered(
         'libraryUserId == $0 AND access == $1 AND archived == false AND deletedAt == null',
-        owner,
+        libraryUserId,
         'owner'
       ),
-    [owner]
+    [libraryUserId]
   );
   const unsent = useQuery(
     PlaylistOperation,
-    (rows) => rows.filtered('ownerUserId == $0 AND state IN $1', owner, ['pending', 'in_flight']),
-    [owner]
+    (rows) =>
+      rows.filtered('libraryUserId == $0 AND state IN $1', libraryUserId, ['pending', 'in_flight']),
+    [libraryUserId]
   );
 
   const value =
@@ -63,22 +64,24 @@ export function PlaylistSyncRow() {
  */
 export function PlaylistDiagnostics() {
   const { userId } = useAccountScope();
-  const owner = userId ?? '';
+  const libraryUserId = userId ?? '';
   const playlists = useQuery(Playlist);
   const segments = useQuery(PlaylistSegment, (rows) => rows.filtered('live == true'), []);
   const entries = useQuery(PlaylistEntry, (rows) => rows.filtered('live == true'), []);
   const operations = useQuery(
     PlaylistOperation,
-    (rows) => rows.filtered('ownerUserId == $0', owner),
-    [owner]
+    (rows) => rows.filtered('libraryUserId == $0', libraryUserId),
+    [libraryUserId]
   );
-  const commands = useQuery(PlaylistCommand, (rows) => rows.filtered('ownerUserId == $0', owner), [
-    owner,
-  ]);
+  const commands = useQuery(
+    PlaylistCommand,
+    (rows) => rows.filtered('libraryUserId == $0', libraryUserId),
+    [libraryUserId]
+  );
   const device = useObject(PlaylistDeviceState, PLAYLIST_DEVICE_STATE_ID);
   const queue = useRelistenPlayerQueueOrderedTracks();
 
-  const inLibrary = playlists.filter((p) => p.libraryUserId === owner);
+  const inLibrary = playlists.filter((p) => p.libraryUserId === libraryUserId);
   const owned = inLibrary.filter((p) => p.access === 'owner');
   const followed = inLibrary.length - owned.length;
   const phoneOnly = playlists.filter((p) => !p.libraryUserId);

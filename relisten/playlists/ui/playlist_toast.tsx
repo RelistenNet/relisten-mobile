@@ -200,8 +200,11 @@ export function toastEdit(
   }
 }
 
-/** "Removed Jack Straw", noting when its one linked partner is left on its own. */
+/** "Removed Jack Straw", noting when its one linked partner is left on its own; "Removed note" for a text block. */
 export function removedMessage(row: PlaylistRowEntry, group: PlaylistRowGroup): string {
+  if (row.status === 'text') {
+    return 'Removed note';
+  }
   const title = row.sourceTrack?.title ?? 'track';
   const mate = group.entries.length === 2 ? group.entries.find((r) => r !== row) : undefined;
   return mate

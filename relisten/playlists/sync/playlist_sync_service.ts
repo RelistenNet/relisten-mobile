@@ -29,7 +29,6 @@ import {
 } from '@/relisten/playlists/sync/playlist_sync_state';
 import {
   ACCEPTED_STATUSES,
-  addedTrackIds,
   type ArchiveStateResponse,
   MAX_BATCH_OPERATIONS,
   type OperationBatchResponse,
@@ -40,20 +39,19 @@ import {
   type WireOperation,
 } from '@/relisten/playlists/sync/playlist_wire';
 import { createUuidV7TypedId } from '@/relisten/util/typed_uuid_id';
-import { FavoriteSyncState } from '@/relisten/realm/models/library/favorite_sync_state';
 import {
-  followNeedsSnapshot,
+  isPermanentRejection,
+  jsonRequest,
+  problemCode,
+} from '@/relisten/playlists/sharing/accounts_http';
+import {
+  applyFollowedSnapshot,
   followsNeedingSnapshot,
   isFollowedBy,
   markFollowUnavailable,
-  writeFollowedSnapshot,
 } from '@/relisten/playlists/sharing/followed_playlists';
 import { fetchPublicSnapshot, requestCopy } from '@/relisten/playlists/sharing/sharing_requests';
-import {
-  dropCopyCommand,
-  finishCopy,
-  isFinalCopyRefusal,
-} from '@/relisten/playlists/sharing/playlist_copies';
+import { dropCopyCommand, finishCopy } from '@/relisten/playlists/sharing/playlist_copies';
 import { PlaylistCopyCommand } from '@/relisten/realm/models/playlists/playlist';
 import { log } from '@/relisten/util/logging';
 
@@ -80,6 +78,12 @@ const MAX_BATCH_BYTES = 1.5 * 1024 * 1024;
  * opened, or on a later run.
  */
 const FOLLOWED_SNAPSHOTS_PER_RUN = 20;
+/**
+ * How long a followed playlist waits after a fetch that failed or was out of
+ * date. The edge caches public snapshots for about a minute, so asking sooner
+ * gets the same answer.
+ */
+const FOLLOWED_RETRY_DELAY_MS = 60_000;
 
 export interface PlaylistSyncEnvironment {
   account: AccountScopeSnapshot;
@@ -105,9 +109,12 @@ type BatchFailure =
 /**
  * Sends account playlists' create commands and edits, and pulls their changes.
  *
- * A run works for one account capture: it sends create commands, then each
- * playlist's pending edits in order, then pulls every playlist this device is
- * behind on. Every request and every write first checks that the capture is
+ * A run works for one account capture: it resends unfinished copies, sends
+ * create commands, then each playlist's pending edits in order, then pulls
+ * every owned playlist this device is behind on, then followed playlists.
+ * A failure in the owned steps pauses the whole run for a retry. Copies and
+ * followed playlists fail one at a time and never hold up owned playlists.
+ * Every request and every write first checks that the capture is
  * still the signed-in account, so a switch mid-run stops the run before it can
  * touch the previous account's data with the new account's session.
  *
@@ -127,11 +134,17 @@ export class PlaylistSyncService {
   private rerunRequested = false;
   private flushRequested = false;
   private timer: ReturnType<typeof setTimeout> | undefined;
+  private timerDueAt = 0;
   private retryAt = 0;
   /** Lowered after a 413 so an oversized batch is split; restored after a success. */
   private batchLimit = MAX_BATCH_OPERATIONS;
   /** Followed snapshots this run may still fetch without being asked. */
   private followedBudget = FOLLOWED_SNAPSHOTS_PER_RUN;
+  /**
+   * When a followed playlist may be fetched again after a fetch that didn't
+   * bring it up to date. Kept in memory only: a restart just fetches again.
+   */
+  private readonly followedRetryAt = new Map<string, number>();
   /** Playlists whose screen opened and should be checked on the next pull. */
   private readonly checkRequested = new Set<string>();
   private readonly lastChecked = new Map<string, number>();
@@ -175,6 +188,7 @@ export class PlaylistSyncService {
       this.playlists.removeListener(this.requestRun);
     }
     clearTimeout(this.timer);
+    this.timer = undefined;
   }
 
   updateEnvironment(environment: PlaylistSyncEnvironment) {
@@ -187,7 +201,13 @@ export class PlaylistSyncService {
     this.requestRun();
   }
 
-  /** Checks one playlist for other devices' changes, at most every 30 seconds. */
+  /**
+   * Called when a playlist's screen opens. An owned playlist is checked for
+   * other devices' changes, at most every 30 seconds. A followed playlist is
+   * not checked with the server here: news of the owner's edits comes only
+   * from the library feed. If the feed already said its copy is behind, the
+   * copy is fetched on the next run even when the run's budget is spent.
+   */
   checkForChanges(playlistId: string) {
     if (Date.now() - (this.lastChecked.get(playlistId) ?? 0) < OPEN_CHECK_INTERVAL_MS) {
       return;
@@ -314,10 +334,10 @@ export class PlaylistSyncService {
   private quietPeriodRemaining(userId: string): number {
     const newest = Math.max(
       newestCreatedAt(
-        this.operations.filtered('ownerUserId == $0 AND state == $1', userId, 'pending')
+        this.operations.filtered('libraryUserId == $0 AND state == $1', userId, 'pending')
       ),
       newestCreatedAt(
-        this.commands.filtered('ownerUserId == $0 AND state == $1', userId, 'pending')
+        this.commands.filtered('libraryUserId == $0 AND state == $1', userId, 'pending')
       )
     );
     return newest + SEND_DELAY_MS - Date.now();
@@ -357,11 +377,15 @@ export class PlaylistSyncService {
   /**
    * Resends copies the app stopped waiting for (a network error, or a restart
    * mid-request). The same command ID returns the copy already made.
+   *
+   * A copy that fails again keeps its command and is resent on a later run;
+   * it doesn't stop the run, so owned playlists sync regardless.
    */
   private async resendCopies(capture: AccountScopeCapture, userId: string) {
     const commands = [
       ...this.realm.objects(PlaylistCopyCommand).filtered('userId == $0', userId),
     ].map(({ commandId, publicCode }) => ({ commandId, publicCode }));
+
     for (const { commandId, publicCode } of commands) {
       try {
         const created = await this.fenced(capture, () =>
@@ -369,10 +393,15 @@ export class PlaylistSyncService {
         );
         this.write(capture, () => finishCopy(this.realm, userId, commandId, created));
       } catch (error) {
-        if (!isFinalCopyRefusal(error)) {
+        if (error instanceof StaleAccountScopeError) {
           throw error;
         }
-        this.write(capture, () => dropCopyCommand(this.realm, commandId));
+        if (isPermanentRejection(error)) {
+          this.write(capture, () => dropCopyCommand(this.realm, commandId));
+          continue;
+        }
+        logger.warn(`playlist copy not finished: ${describe(error)}`);
+        this.schedule(RETRY_DELAY_MS);
       }
     }
   }
@@ -384,7 +413,7 @@ export class PlaylistSyncService {
   private async sendCreateCommands(capture: AccountScopeCapture, userId: string) {
     const pending = [
       ...this.commands
-        .filtered('ownerUserId == $0 AND state == $1', userId, 'pending')
+        .filtered('libraryUserId == $0 AND state == $1', userId, 'pending')
         .sorted('createdAt'),
     ];
     for (const command of pending) {
@@ -451,7 +480,7 @@ export class PlaylistSyncService {
   private async sendEdits(capture: AccountScopeCapture, userId: string) {
     const playlistIds = new Set(
       this.operations
-        .filtered('ownerUserId == $0 AND state == $1', userId, 'pending')
+        .filtered('libraryUserId == $0 AND state == $1', userId, 'pending')
         .map((op) => op.playlistId)
     );
     for (const playlistId of playlistIds) {
@@ -549,10 +578,9 @@ export class PlaylistSyncService {
         // Accepted without a revision: nothing will arrive to confirm it.
         this.realm.delete(op);
       } else {
-        // The edit's intent did not land. Additions are offered again.
+        // The edit's intent did not land. The sync notice offers its additions again.
         op.state = 'needs_attention';
         op.lastErrorCode = result.status;
-        op.failedTrackIds.push(...addedTrackIds(edit));
       }
     }
     if (deleted) {
@@ -601,7 +629,6 @@ export class PlaylistSyncService {
         for (const op of sent) {
           op.state = 'needs_attention';
           op.lastErrorCode = problemCode(error) ?? 'rejected';
-          op.failedTrackIds.push(...addedTrackIds(JSON.parse(op.operationJson) as PlaylistEdit));
         }
         rebuildDisplayed(this.realm, playlistId);
         return;
@@ -757,58 +784,102 @@ export class PlaylistSyncService {
    * Fetches followed playlists whose head is ahead of the stored copy: the
    * opened ones, then up to the run's budget of the rest. Public snapshots are
    * read without credentials, so the edge can serve them from its cache.
+   *
+   * Each playlist is fetched on its own. One that fails, or whose snapshot is
+   * still behind its head, waits `FOLLOWED_RETRY_DELAY_MS` while the others
+   * go ahead, and a run is scheduled for when the wait ends.
    */
   private async pullFollowed(capture: AccountScopeCapture, userId: string) {
-    const opened = [...this.checkRequested]
-      .map((playlistId) => this.realm.objectForPrimaryKey(Playlist, playlistId))
-      .filter((p): p is Playlist => !!p && isFollowedBy(p, userId));
-    for (const playlist of opened) {
-      this.checkRequested.delete(playlist.playlistId);
-    }
-    const due = followsNeedingSnapshot(this.realm, userId, this.followedBudget);
-    this.followedBudget -= due.length;
+    const opened = this.takeOpenedFollows(userId);
+    const now = Date.now();
+    const due: string[] = [];
+    let nextRetryAt = Infinity;
 
-    const playlistIds = new Set(
-      [...opened.filter(followNeedsSnapshot), ...due].map((p) => p.playlistId)
-    );
-    for (const playlistId of playlistIds) {
-      await this.fetchFollowedSnapshot(capture, userId, playlistId);
+    for (const playlist of followsNeedingSnapshot(this.realm, userId)) {
+      const playlistId = playlist.playlistId;
+      const retryAt = this.followedRetryAt.get(playlistId) ?? 0;
+      if (retryAt > now) {
+        nextRetryAt = Math.min(nextRetryAt, retryAt);
+      } else if (opened.has(playlistId)) {
+        due.push(playlistId);
+      } else if (this.followedBudget > 0) {
+        this.followedBudget -= 1;
+        due.push(playlistId);
+      }
+    }
+
+    for (const playlistId of due) {
+      if (await this.followedSnapshotSettled(capture, userId, playlistId)) {
+        this.followedRetryAt.delete(playlistId);
+      } else {
+        this.followedRetryAt.set(playlistId, Date.now() + FOLLOWED_RETRY_DELAY_MS);
+        nextRetryAt = Math.min(nextRetryAt, Date.now() + FOLLOWED_RETRY_DELAY_MS);
+      }
+    }
+
+    if (nextRetryAt !== Infinity) {
+      this.schedule(nextRetryAt - Date.now());
     }
   }
 
+  /** Removes the followed playlists from the open checks, which `pull` leaves, and returns them. */
+  private takeOpenedFollows(userId: string): Set<string> {
+    const opened = new Set<string>();
+    for (const playlistId of this.checkRequested) {
+      const playlist = this.realm.objectForPrimaryKey(Playlist, playlistId);
+      if (playlist && isFollowedBy(playlist, userId)) {
+        this.checkRequested.delete(playlistId);
+        opened.add(playlistId);
+      }
+    }
+    return opened;
+  }
+
+  /** Fetches one followed playlist. False means it should be fetched again after a wait. */
+  private async followedSnapshotSettled(
+    capture: AccountScopeCapture,
+    userId: string,
+    playlistId: string
+  ): Promise<boolean> {
+    try {
+      return await this.fetchFollowedSnapshot(capture, userId, playlistId);
+    } catch (error) {
+      if (error instanceof StaleAccountScopeError) {
+        throw error;
+      }
+      logger.warn(`followed playlist not fetched: ${describe(error)}`);
+      return false;
+    }
+  }
+
+  /** Fetches and stores one followed playlist's snapshot. Returns whether the follow is settled. */
   private async fetchFollowedSnapshot(
     capture: AccountScopeCapture,
     userId: string,
     playlistId: string
-  ) {
+  ): Promise<boolean> {
     const publicCode = this.realm.objectForPrimaryKey(Playlist, playlistId)?.publicCode;
     if (!publicCode) {
-      return;
+      return true;
     }
 
     const snapshot = await this.fenced(capture, () => fetchPublicSnapshot(this.api, publicCode));
 
-    this.write(capture, () => {
+    return this.write(capture, () => {
       const playlist = this.realm.objectForPrimaryKey(Playlist, playlistId);
       if (!playlist || !isFollowedBy(playlist, userId)) {
-        return;
+        return true;
       }
-      if (!snapshot) {
+      // A 404 means it is private, taken down or deleted. A code that answers
+      // with another playlist means the head and the public page disagree, and
+      // fetching again can't settle that. Either way the follow shows as
+      // unavailable until a later head from the library feed makes it
+      // available again, which allows one more fetch.
+      if (!snapshot || snapshot.playlist_id !== playlistId) {
         markFollowUnavailable(playlist);
-        return;
+        return true;
       }
-      // After a restore the edge may still serve the old history for up to a
-      // minute. Applying it would mix generations; the next run tries again.
-      const libraryGeneration = this.realm
-        .objects(FavoriteSyncState)
-        .filtered('scopeId == $0', userId)[0]?.historyGeneration;
-      if (
-        snapshot.playlist_id !== playlistId ||
-        (libraryGeneration && snapshot.history_generation !== libraryGeneration)
-      ) {
-        return;
-      }
-      writeFollowedSnapshot(this.realm, playlist, snapshot);
+      return applyFollowedSnapshot(this.realm, userId, snapshot);
     });
   }
 
@@ -841,15 +912,22 @@ export class PlaylistSyncService {
 
   // endregion
 
+  /**
+   * Starts a run after `delayMs`, unless one is already due sooner. Each run
+   * clears the timer and schedules again whatever it still waits for, so the
+   * quiet period, the retry pause and followed-playlist waits can share it.
+   */
   private schedule(delayMs: number) {
+    const dueAt = Date.now() + Math.max(0, delayMs);
+    if (this.timer !== undefined && this.timerDueAt <= dueAt) {
+      return;
+    }
     clearTimeout(this.timer);
-    this.timer = setTimeout(
-      () => {
-        this.timer = undefined;
-        this.requestRun();
-      },
-      Math.max(0, delayMs)
-    );
+    this.timerDueAt = dueAt;
+    this.timer = setTimeout(() => {
+      this.timer = undefined;
+      this.requestRun();
+    }, dueAt - Date.now());
   }
 
   private canRun() {
@@ -887,27 +965,6 @@ function classifyBatchFailure(error: unknown, size: number, limit: number): Batc
 function newestCreatedAt<T extends { createdAt: Date }>(rows: Realm.Results<T>): number {
   const newest = rows.sorted('createdAt', true)[0];
   return newest ? newest.createdAt.getTime() : Number.NEGATIVE_INFINITY;
-}
-
-function jsonRequest(method: 'POST' | 'PUT', body: unknown): RequestInit {
-  return { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
-}
-
-function problemCode(error: unknown): string | null {
-  return error instanceof AccountsApiError ? error.code : null;
-}
-
-/** A 4xx the server will answer the same way every time; resending cannot help. */
-function isPermanentRejection(error: unknown) {
-  return (
-    error instanceof AccountsApiError &&
-    error.status !== null &&
-    error.status >= 400 &&
-    error.status < 500 &&
-    error.status !== 401 &&
-    error.status !== 408 &&
-    error.status !== 429
-  );
 }
 
 function describe(error: unknown) {

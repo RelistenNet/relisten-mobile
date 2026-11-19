@@ -243,10 +243,3 @@ export function refusedAddition(edit: PlaylistEdit): RefusedAddition | null {
   }
   return edit.type === 'insert_entries' ? { entries: edit.entries } : null;
 }
-
-/** The track IDs an edit was adding, recorded on a refused operation. */
-export function addedTrackIds(edit: PlaylistEdit): string[] {
-  return (refusedAddition(edit)?.entries ?? []).flatMap((entry) =>
-    entry.trackId ? [entry.trackId] : []
-  );
-}

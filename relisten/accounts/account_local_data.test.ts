@@ -90,6 +90,17 @@ describe('account local data', () => {
     expect(lastSignedInUserId(realm)).toBeNull();
   });
 
+  it("keeps a deleted account's uploaded plays, which are the device's history", () => {
+    const uploaded = realm.objectForPrimaryKey(PlaybackHistoryEntry, `play_row_${deleted}`)!;
+    realm.write(() => {
+      uploaded.publishedAt = new Date();
+    });
+
+    forgetDeletedAccount(realm, deleted);
+
+    expect(uploaded.isValid()).toBe(true);
+  });
+
   it('removes the playlists the account followed, which someone else owns', () => {
     realm.write(() => {
       const now = new Date();
@@ -174,8 +185,8 @@ const accountTables = [
   [AccountProfile, 'scopeId'],
   [PendingUsernameCommand, 'scopeId'],
   [Playlist, 'libraryUserId'],
-  [PlaylistOperation, 'ownerUserId'],
-  [PlaylistCommand, 'ownerUserId'],
+  [PlaylistOperation, 'libraryUserId'],
+  [PlaylistCommand, 'libraryUserId'],
   [PlaylistCopyCommand, 'userId'],
   // Unsent plays only; plays already uploaded are the device's history.
   [PlaybackHistoryEntry, 'destinationUserId'],
@@ -252,7 +263,7 @@ function seedAccount(realm: Realm, userId: string) {
   realm.create(PlaylistOperation, {
     operationId: `operation_${userId}`,
     playlistId,
-    ownerUserId: userId,
+    libraryUserId: userId,
     localSequence: 1,
     operationJson: '{}',
     baseRevision: 1,
@@ -262,7 +273,7 @@ function seedAccount(realm: Realm, userId: string) {
   realm.create(PlaylistCommand, {
     commandId: `command_${userId}`,
     playlistId,
-    ownerUserId: userId,
+    libraryUserId: userId,
     requestJson: '{}',
     state: 'pending',
     createdAt: now,

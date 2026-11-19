@@ -144,8 +144,8 @@ export function PlaylistSyncNotice({ playlist }: { playlist: Playlist }) {
     );
   }
 
-  const signedInAsOwner = account.isAuthenticated && account.userId === playlist.libraryUserId;
-  if (signedInAsOwner && online && slowSave) {
+  const signedInToLibrary = account.isAuthenticated && account.userId === playlist.libraryUserId;
+  if (signedInToLibrary && online && slowSave) {
     return <Notice message="Still saving your changes…" quiet />;
   }
 

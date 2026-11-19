@@ -1,13 +1,13 @@
-import { useRouter } from 'expo-router';
 import { Alert, Platform, Share } from 'react-native';
-import { useAccountScope } from '@/relisten/accounts/account_context';
-import { openSignInSheet } from '@/relisten/accounts/ui/account_routes';
 import type { Playlist } from '@/relisten/realm/models/playlists/playlist';
 import { publicPlaylistUrl } from '@/relisten/playlists/sharing/sharing_wire';
-import { SharingError } from '@/relisten/playlists/sharing/playlist_sharing_service';
+import { useAccountPlaylistGate } from '@/relisten/playlists/ui/account_playlist_gate';
 import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
+import {
+  explainSharingFailure,
+  TAKEN_DOWN_PLAYLIST,
+} from '@/relisten/playlists/ui/sharing_messages';
 import { usePlaylistSharingService } from '@/relisten/realm/root_services';
-import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 
 /** Opens the system share sheet for a public playlist's link. */
 export function sharePlaylistLink(name: string, publicCode: string) {
@@ -17,38 +17,21 @@ export function sharePlaylistLink(name: string, publicCode: string) {
 }
 
 /**
- * Share… and Make Private for a playlist the listener made. Sharing needs the
- * playlist saved to the signed-in account; the first share asks to make it
- * public. Both need the internet and are never queued.
+ * Share… and Make Private for a playlist the listener made. Both need the
+ * playlist saved to the signed-in account and the internet, and are never
+ * queued; the first share asks to make it public.
  */
 export function usePlaylistShareActions() {
-  const router = useRouter();
-  const account = useAccountScope();
-  const online = useShouldMakeNetworkRequests();
   const sharing = usePlaylistSharingService();
+  const canReachAccount = useAccountPlaylistGate();
 
   /** Explains why the playlist can't be shared right now, or returns true. */
   const canShare = (playlist: Playlist) => {
-    if (!playlist.libraryUserId || !account.isAuthenticated) {
-      Alert.alert(
-        'Sign in to share this playlist.',
-        'Sharing needs a Relisten account. Signing in saves your playlists to it.',
-        [
-          { text: 'Not Now', style: 'cancel' },
-          { text: 'Sign In', onPress: () => openSignInSheet(router, 'share this playlist') },
-        ]
-      );
-      return false;
-    }
-    if (account.userId !== playlist.libraryUserId) {
-      Alert.alert('Sign in to the account this playlist is saved to, to share it.');
+    if (!canReachAccount(playlist, 'share')) {
       return false;
     }
     if (playlist.takenDown) {
-      Alert.alert(
-        'This playlist can’t be shared.',
-        'It was removed from public view after a report. It’s still yours to play and edit.'
-      );
+      Alert.alert(...TAKEN_DOWN_PLAYLIST);
       return false;
     }
     if (playlist.serverState !== 'synced') {
@@ -56,10 +39,6 @@ export function usePlaylistShareActions() {
         'This playlist isn’t saved to your account yet.',
         'You can share it once it’s saved.'
       );
-      return false;
-    }
-    if (!online) {
-      Alert.alert('Connect to the internet to share this playlist.');
       return false;
     }
     return true;
@@ -73,7 +52,7 @@ export function usePlaylistShareActions() {
         sharePlaylistLink(name, publicCode);
       }
     } catch (error) {
-      explainFailure(error, `Couldn’t share ${name}. Try again.`);
+      explainSharingFailure(error, `Couldn’t share ${name}. Try again.`, OWNER_FAILURES);
     }
   };
 
@@ -96,8 +75,7 @@ export function usePlaylistShareActions() {
   };
 
   const makePrivate = (playlist: Playlist) => {
-    if (!online) {
-      Alert.alert('Connect to the internet to make this playlist private.');
+    if (!canReachAccount(playlist, 'make private')) {
       return;
     }
     const { playlistId, name } = playlist;
@@ -112,7 +90,13 @@ export function usePlaylistShareActions() {
             void sharing
               .setPublished(playlistId, false)
               .then(() => showPlaylistToast(`${name} is private`))
-              .catch((error) => explainFailure(error, `Couldn’t make ${name} private. Try again.`)),
+              .catch((error) =>
+                explainSharingFailure(
+                  error,
+                  `Couldn’t make ${name} private. Try again.`,
+                  OWNER_FAILURES
+                )
+              ),
         },
       ]
     );
@@ -121,13 +105,5 @@ export function usePlaylistShareActions() {
   return { share, makePrivate };
 }
 
-function explainFailure(error: unknown, fallback: string) {
-  if (error instanceof SharingError && error.failure === 'taken_down') {
-    Alert.alert(
-      'This playlist can’t be shared.',
-      'It was removed from public view after a report. It’s still yours to play and edit.'
-    );
-    return;
-  }
-  showPlaylistToast(fallback);
-}
+/** The owner's own playlist, taken down, is still theirs: say so. */
+const OWNER_FAILURES = { taken_down: TAKEN_DOWN_PLAYLIST };

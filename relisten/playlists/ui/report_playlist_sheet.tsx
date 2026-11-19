@@ -4,9 +4,9 @@ import { useState } from 'react';
 import { Alert, Platform, TextInput, View } from 'react-native';
 import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { SharingError } from '@/relisten/playlists/sharing/playlist_sharing_service';
 import { REPORT_REASON_LENGTH } from '@/relisten/playlists/sharing/sharing_wire';
 import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
+import { sharingFailureAlert } from '@/relisten/playlists/ui/sharing_messages';
 import { usePlaylistSharingService } from '@/relisten/realm/root_services';
 
 /**
@@ -37,9 +37,12 @@ export default function ReportPlaylistSheet() {
       setSending(false);
       // An alert, since the sheet covers the toast. The reason stays for another try.
       Alert.alert(
-        error instanceof SharingError && error.failure === 'rate_limited'
-          ? 'You’ve sent several reports in the last minute. Wait a moment, then try again.'
-          : 'Couldn’t send the report. Try again.'
+        ...(sharingFailureAlert(error, {
+          rate_limited: [
+            'You’ve sent several reports in the last minute.',
+            'Wait a moment, then try again.',
+          ],
+        }) ?? ['Couldn’t send the report. Try again.'])
       );
     }
   };

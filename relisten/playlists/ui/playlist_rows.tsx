@@ -312,14 +312,3 @@ export const PlaylistTrackRow = memo(function PlaylistTrackRow({
     </View>
   );
 });
-
-/** "Linked · 3 tracks" (or "· 2 tracks, 1 note"), where a run of linked entries is one item. */
-export function linkedLabel(group: PlaylistRowGroup): string {
-  const notes = group.entries.filter((row) => row.status === 'text').length;
-  const tracks = group.entries.length - notes;
-  const parts = [`${tracks} ${tracks === 1 ? 'track' : 'tracks'}`];
-  if (notes > 0) {
-    parts.push(`${notes} ${notes === 1 ? 'note' : 'notes'}`);
-  }
-  return `Linked · ${parts.join(', ')}`;
-}

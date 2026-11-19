@@ -1,10 +1,11 @@
 import Realm from 'realm';
-import {
-  Playlist,
-  PlaylistEntry,
-  PlaylistSegment,
-} from '@/relisten/realm/models/playlists/playlist';
+import { FavoriteSyncState } from '@/relisten/realm/models/library/favorite_sync_state';
+import { Playlist } from '@/relisten/realm/models/playlists/playlist';
 import { writeEntryRow, writeSegmentRow } from '@/relisten/playlists/guide/guide_rows';
+import {
+  deletePlaylistRows,
+  releaseFollowedRow,
+} from '@/relisten/playlists/sync/playlist_sync_state';
 import {
   type FollowedPlaylistHead,
   publicTrackCount,
@@ -23,11 +24,18 @@ import {
  * canonical state and no outbox.
  *
  * A followed row lives in the follower's library (`libraryUserId`) with
- * `access = 'follower'`, and keeps the real owner in `ownerUserId`. Two cases
- * store nothing: following your own public playlist keeps the row you made,
- * and a playlist ID already stored for another account on this device is
- * left to that account. The follow still exists on the server, so it appears
- * here once the other account's row is gone and a library snapshot arrives.
+ * `access = 'follower'`, and keeps the real owner in `ownerUserId`.
+ *
+ * The device holds one row per playlist ID, whichever account it is for:
+ * - Following your own playlist keeps the row you made. If the follow arrives
+ *   first (from a link, before the library feed names the playlist), it is
+ *   stored as followed until the owner's summary replaces it
+ *   (`applyPlaylistSummaries`).
+ * - A row another account on this device owns is left alone, because it may
+ *   hold unsent edits. The follow still exists on the server, and appears
+ *   here once that row is gone and a library snapshot arrives.
+ * - A row another account follows is replaced by this account's follow. It
+ *   has nothing unsent, and that account gets it back on its next pull.
  */
 
 /** Applies the follow changes of one feed page, in order. */
@@ -96,21 +104,49 @@ export function followNeedsSnapshot(playlist: Playlist): boolean {
 }
 
 /** The followed playlists to pull, oldest copy first, so each sync makes progress on all of them. */
-export function followsNeedingSnapshot(realm: Realm, userId: string, limit: number): Playlist[] {
-  return [...followedPlaylists(realm, userId).sorted('updatedAt')]
-    .filter(followNeedsSnapshot)
-    .slice(0, limit);
+export function followsNeedingSnapshot(realm: Realm, userId: string): Playlist[] {
+  return [...followedPlaylists(realm, userId).sorted('updatedAt')].filter(followNeedsSnapshot);
 }
 
-/** Replaces a followed playlist's rows and details with its public snapshot. */
-export function writeFollowedSnapshot(
+/**
+ * Stores a fetched public snapshot as `userId`'s copy of a playlist they
+ * follow. Returns whether the follow is settled; false means this snapshot
+ * left it behind its head, so the caller should fetch again later.
+ *
+ * Public snapshots are cached at the edge for about a minute, so one can be
+ * older than the head the library feed just delivered, older than the copy
+ * already stored, or from the history before a restore. An older revision
+ * never replaces a newer copy, and a snapshot from another history
+ * generation than the library's is never stored: mixing generations would
+ * compare revisions that don't relate.
+ */
+export function applyFollowedSnapshot(
   realm: Realm,
-  playlist: Playlist,
+  userId: string,
   snapshot: PublicPlaylistSnapshot
-) {
+): boolean {
+  const playlist = realm.objectForPrimaryKey(Playlist, snapshot.playlist_id);
+  if (!playlist || !isFollowedBy(playlist, userId)) {
+    return true;
+  }
+
+  const libraryGeneration = realm
+    .objects(FavoriteSyncState)
+    .filtered('scopeId == $0', userId)[0]?.historyGeneration;
+  if (libraryGeneration && libraryGeneration !== snapshot.history_generation) {
+    return false;
+  }
+
+  if (playlist.appliedRevision == null || snapshot.revision > playlist.appliedRevision) {
+    writeFollowedSnapshot(realm, playlist, snapshot);
+  }
+  return !followNeedsSnapshot(playlist);
+}
+
+/** Replaces a followed playlist's rows and details with a newer public snapshot. */
+function writeFollowedSnapshot(realm: Realm, playlist: Playlist, snapshot: PublicPlaylistSnapshot) {
   const playlistId = playlist.playlistId;
-  realm.delete(realm.objects(PlaylistEntry).filtered('playlistId == $0', playlistId));
-  realm.delete(realm.objects(PlaylistSegment).filtered('playlistId == $0', playlistId));
+  deletePlaylistRows(realm, [playlistId]);
 
   for (const segment of snapshot.segments) {
     writeSegmentRow(realm, playlistId, {
@@ -130,9 +166,7 @@ export function writeFollowedSnapshot(
   }
 
   // A newer revision is an edit by the owner, which moves it up the list.
-  if (playlist.appliedRevision !== snapshot.revision) {
-    playlist.updatedAt = new Date();
-  }
+  playlist.updatedAt = new Date();
   playlist.name = snapshot.metadata.name;
   playlist.description = snapshot.metadata.description ?? undefined;
   playlist.entryCount = publicTrackCount(snapshot);
@@ -141,11 +175,16 @@ export function writeFollowedSnapshot(
   playlist.publicCode = snapshot.public_code;
   playlist.unavailable = false;
   playlist.appliedRevision = snapshot.revision;
-  playlist.summaryRevision = snapshot.revision;
+  // The head may already name a later revision than this snapshot; keeping it
+  // leaves the follow needing another pull.
+  playlist.summaryRevision = Math.max(playlist.summaryRevision ?? 0, snapshot.revision);
   playlist.historyGeneration = snapshot.history_generation;
 }
 
-/** Marks a followed playlist unavailable after its public snapshot answered 404. */
+/**
+ * Marks a followed playlist unavailable after its public snapshot could not
+ * be had. It is not fetched again until a head says it is available.
+ */
 export function markFollowUnavailable(playlist: Playlist) {
   setIfChanged(playlist, 'unavailable', true);
 }
@@ -162,10 +201,14 @@ function followedPlaylists(realm: Realm, userId: string) {
 
 /** Stores a follow with no details yet; the head on the same pull names it. */
 function addFollow(realm: Realm, userId: string, playlistId: string) {
-  // Your own playlist, an existing follow, or another account's row: keep it as it is.
-  if (realm.objectForPrimaryKey(Playlist, playlistId)) {
+  const existing = realm.objectForPrimaryKey(Playlist, playlistId);
+  if (existing?.access === 'follower' && existing.libraryUserId !== userId) {
+    releaseFollowedRow(realm, existing, userId);
+  } else if (existing) {
+    // This account's own playlist or follow, or a playlist another account owns.
     return;
   }
+
   const now = new Date();
   realm.create(Playlist, {
     playlistId,
@@ -182,8 +225,7 @@ function removeFollow(realm: Realm, userId: string, playlistId: string) {
   if (!playlist || !isFollowedBy(playlist, userId)) {
     return;
   }
-  realm.delete(realm.objects(PlaylistEntry).filtered('playlistId == $0', playlistId));
-  realm.delete(realm.objects(PlaylistSegment).filtered('playlistId == $0', playlistId));
+  deletePlaylistRows(realm, [playlistId]);
   realm.delete(playlist);
 }
 

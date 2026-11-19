@@ -98,3 +98,11 @@ export function markdownPreview(markdown: string | undefined): string {
     .join(' ')
     .replace(/\s+/g, ' ');
 }
+
+/**
+ * A playlist's name for lists and headers. A followed playlist has no name
+ * until its first snapshot arrives, and keeps none once its owner hides it.
+ */
+export function playlistDisplayName(playlist: { name: string; unavailable: boolean }) {
+  return playlist.name || (playlist.unavailable ? 'Unavailable playlist' : 'Loading…');
+}

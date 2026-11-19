@@ -74,6 +74,8 @@ export function SignInSheet() {
       }
       onSignIn={signIn}
       openingProvider={providerSignIn.openingProvider}
+      // Closing signed out drops the action that asked for the sheet.
+      onCancel={() => router.back()}
     />
   );
 }

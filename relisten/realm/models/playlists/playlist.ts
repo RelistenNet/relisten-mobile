@@ -244,7 +244,7 @@ export class PlaylistOperation extends Realm.Object<PlaylistOperation> {
     properties: {
       operationId: 'string',
       playlistId: { type: 'string', indexed: true },
-      ownerUserId: { type: 'string', indexed: true },
+      libraryUserId: { type: 'string', indexed: true },
       localSequence: 'int',
       operationJson: 'string',
       baseRevision: 'int',
@@ -253,14 +253,14 @@ export class PlaylistOperation extends Realm.Object<PlaylistOperation> {
       lastErrorCode: 'string?',
       resultRevision: 'int?',
       resultGeneration: 'string?',
-      failedTrackIds: 'string[]',
       createdAt: 'date',
     },
   };
 
   operationId!: string;
   playlistId!: string;
-  ownerUserId!: string;
+  /** The account whose outbox this edit is in: the library the playlist is saved to. */
+  libraryUserId!: string;
   localSequence!: number;
   operationJson!: string;
   baseRevision!: number;
@@ -269,7 +269,6 @@ export class PlaylistOperation extends Realm.Object<PlaylistOperation> {
   lastErrorCode?: string;
   resultRevision?: number;
   resultGeneration?: string;
-  failedTrackIds!: Realm.List<string>;
   createdAt!: Date;
 }
 
@@ -284,7 +283,7 @@ export class PlaylistCommand extends Realm.Object<PlaylistCommand> {
     properties: {
       commandId: 'string',
       playlistId: { type: 'string', indexed: true },
-      ownerUserId: { type: 'string', indexed: true },
+      libraryUserId: { type: 'string', indexed: true },
       requestJson: 'string',
       state: { type: 'string', indexed: true },
       attemptCount: { type: 'int', default: 0 },
@@ -295,7 +294,8 @@ export class PlaylistCommand extends Realm.Object<PlaylistCommand> {
 
   commandId!: string;
   playlistId!: string;
-  ownerUserId!: string;
+  /** The account the playlist is created on. */
+  libraryUserId!: string;
   requestJson!: string;
   state!: 'pending' | 'needs_attention';
   attemptCount!: number;

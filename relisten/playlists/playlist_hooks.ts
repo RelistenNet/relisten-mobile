@@ -198,59 +198,77 @@ export function useSnapshotRowGroups(
   segments: PlaylistSnapshotResponse['segments']
 ): PlaylistRowGroup[] {
   const realm = useRealm();
-  const trackIds = useMemo(
-    () => [
-      ...new Set(
-        segments.flatMap((segment) =>
-          segment.entries.flatMap((entry) => (entry.track_id ? [entry.track_id] : []))
-        )
-      ),
-    ],
-    [segments]
-  );
-  const { availability, tracks } = useCatalogTracks(trackIds);
+  const snapshot = useMemo(() => snapshotRows(segments), [segments]);
+  const { availability, tracks } = useCatalogTracks(snapshot.trackIds);
 
   return useMemo(() => {
     const catalog = catalogViewOf(availability, tracks);
-    const descriptions = new Map<string, string>();
-    const segmentStates = new Map<string, SegmentState>();
-    const entryStates = new Map<string, EntryState>();
-    for (const segment of segments) {
-      segmentStates.set(segment.segment_id, {
-        segmentId: segment.segment_id,
-        rank: segment.rank,
-      });
-      if (segment.description) {
-        descriptions.set(segment.segment_id, segment.description);
-      }
-      for (const entry of segment.entries) {
-        const state: EntryState = {
-          entryId: entry.entry_id,
-          segmentId: segment.segment_id,
-          rank: entry.rank,
-        };
-        if (entry.track_id) {
-          state.trackId = entry.track_id;
-        }
-        entryStates.set(entry.entry_id, state);
-        if (entry.description) {
-          descriptions.set(entry.entry_id, entry.description);
-        }
-      }
-    }
-    const markdown = (id: string, context: GuideTextContext) => {
-      const description = descriptions.get(id);
-      return description ? sanitizeGuideMarkdown(description, context) : undefined;
-    };
-
-    return orderedGroups({ segments: segmentStates, entries: entryStates }).map((group) => ({
+    return orderedGroups(snapshot.states).map((group) => ({
       segment: group.segment,
-      descriptionMarkdown: markdown(group.segment.segmentId, { kind: 'segment' }),
+      descriptionMarkdown: snapshot.markdown(group.segment.segmentId, { kind: 'segment' }),
       entries: group.entries.map((entry) =>
-        rowEntry(entry, catalog, markdown(entry.entryId, entryContext(realm, entry.trackId)))
+        rowEntry(
+          entry,
+          catalog,
+          snapshot.markdown(entry.entryId, entryContext(realm, entry.trackId))
+        )
       ),
     }));
-  }, [realm, segments, availability, tracks]);
+  }, [realm, snapshot, availability, tracks]);
+}
+
+/**
+ * A snapshot's segments and entries as row states, its track IDs, and its
+ * guide text. Rows rebuild each time a track loads, and sanitizing is the
+ * costly step (about 5 ms per 2,000 characters), so each description is
+ * sanitized once per context: a track note again only when its track's
+ * duration becomes known.
+ */
+function snapshotRows(segments: PlaylistSnapshotResponse['segments']) {
+  const descriptions = new Map<string, string>();
+  const states = {
+    segments: new Map<string, SegmentState>(),
+    entries: new Map<string, EntryState>(),
+  };
+  const trackIds = new Set<string>();
+  for (const segment of segments) {
+    states.segments.set(segment.segment_id, { segmentId: segment.segment_id, rank: segment.rank });
+    if (segment.description) {
+      descriptions.set(segment.segment_id, segment.description);
+    }
+    for (const entry of segment.entries) {
+      const state: EntryState = {
+        entryId: entry.entry_id,
+        segmentId: segment.segment_id,
+        rank: entry.rank,
+      };
+      if (entry.track_id) {
+        state.trackId = entry.track_id;
+        trackIds.add(entry.track_id);
+      }
+      states.entries.set(entry.entry_id, state);
+      if (entry.description) {
+        descriptions.set(entry.entry_id, entry.description);
+      }
+    }
+  }
+
+  const sanitized = new Map<string, string>();
+  const markdown = (id: string, context: GuideTextContext) => {
+    const description = descriptions.get(id);
+    if (!description) {
+      return undefined;
+    }
+    const key = `${id}|${context.kind}|${context.kind === 'track' ? (context.durationSeconds ?? '') : ''}`;
+    let result = sanitized.get(key);
+    if (result === undefined) {
+      result = sanitizeGuideMarkdown(description, context);
+      sanitized.set(key, result);
+    }
+    return result;
+  };
+
+  return { states, trackIds: [...trackIds], markdown };
 }
 
 /**
@@ -474,17 +492,19 @@ export function usePlaylistLayout(groups: PlaylistRowGroup[]): PlaylistLayout {
  * account, refused, or held for a deleted playlist.
  */
 export function usePlaylistSaveState(
-  ownerUserId: string | undefined
+  libraryUserId: string | undefined
 ): 'saved' | 'unsaved' | 'needsAttention' {
-  const owner = ownerUserId ?? '';
+  const userId = libraryUserId ?? '';
   const operations = useQuery(
     PlaylistOperation,
-    (rows) => rows.filtered('ownerUserId == $0 AND state != $1', owner, 'acknowledged'),
-    [owner]
+    (rows) => rows.filtered('libraryUserId == $0 AND state != $1', userId, 'acknowledged'),
+    [userId]
   );
-  const commands = useQuery(PlaylistCommand, (rows) => rows.filtered('ownerUserId == $0', owner), [
-    owner,
-  ]);
+  const commands = useQuery(
+    PlaylistCommand,
+    (rows) => rows.filtered('libraryUserId == $0', userId),
+    [userId]
+  );
 
   const stuck = (state: string) =>
     state === 'needs_attention' || state === 'quota_paused' || state === 'archived_hold';

@@ -16,12 +16,13 @@ import {
 import {
   canEditPlaylist,
   deleteNeverCreated,
+  deletePlaylistRows,
   discardUnsentPlaylist,
   ownedDeletion,
   issueCreateCommand,
   recordEdit,
   restoreDeletedOnDevice,
-  visibleOwnerId,
+  visibleLibraryUserId,
   withdrawUnsentOperations,
 } from '@/relisten/playlists/sync/playlist_sync_state';
 import type { MetadataEdit } from '@/relisten/playlists/sync/playlist_wire';
@@ -124,7 +125,7 @@ export function createPlaylist(realm: Realm, name: string, groups: string[][] = 
       updatedAt: now,
     });
     applyInWrite(realm, playlist, groups.map(appendSegment));
-    const owner = visibleOwnerId(realm);
+    const owner = visibleLibraryUserId(realm);
     if (owner) {
       playlist.ownerUserId = owner;
       playlist.libraryUserId = owner;
@@ -275,7 +276,7 @@ function applyInWrite(
         `A playlist can hold up to ${PLAYLIST_LIMITS.entriesPerPlaylist.toLocaleString()} tracks and notes.`
       );
     }
-    if (addsGuideText(operation)) {
+    if (mayExceedGuideLimits(operation)) {
       assertGuideLimits(snapshot, playlist.description);
     }
     changed = true;
@@ -292,9 +293,16 @@ function applyInWrite(
   return { changed, operationIds };
 }
 
-/** Operations that can add guide text, so they are checked against the guide limits. */
-function addsGuideText(operation: PlaylistOperation): boolean {
+/**
+ * Operations that can push a playlist over the guide limits, so the state they
+ * leave is checked: those that add guide text, and those that can take the
+ * last entry out of a described group, leaving it text-only.
+ */
+function mayExceedGuideLimits(operation: PlaylistOperation): boolean {
   switch (operation.type) {
+    case 'move_entry':
+    case 'delete_entry':
+      return true;
     case 'insert_segment':
       return !!operation.description || operation.entries.some((entry) => entry.description);
     case 'insert_entries':
@@ -398,8 +406,7 @@ export function deletePlaylistPermanently(realm: Realm, playlistId: string): boo
     if (playlist.libraryUserId && !discardUnsentPlaylist(realm, playlist)) {
       return false;
     }
-    realm.delete(realm.objects(PlaylistEntry).filtered('playlistId == $0', playlistId));
-    realm.delete(realm.objects(PlaylistSegment).filtered('playlistId == $0', playlistId));
+    deletePlaylistRows(realm, [playlistId]);
     realm.delete(playlist);
     return true;
   });
@@ -446,12 +453,11 @@ export function purgeExpiredPlaylists(realm: Realm, now = new Date()) {
   }
 
   realm.write(() => {
-    for (const playlist of [...expired]) {
-      const id = playlist.playlistId;
-      realm.delete(realm.objects(PlaylistEntry).filtered('playlistId == $0', id));
-      realm.delete(realm.objects(PlaylistSegment).filtered('playlistId == $0', id));
-      realm.delete(playlist);
-    }
+    deletePlaylistRows(
+      realm,
+      expired.map((playlist) => playlist.playlistId)
+    );
+    realm.delete(expired);
   });
 }
 

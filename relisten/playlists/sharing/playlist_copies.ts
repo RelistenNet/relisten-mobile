@@ -1,5 +1,4 @@
 import Realm from 'realm';
-import { AccountsApiError } from '@/relisten/accounts/api/accounts_api_client';
 import { Playlist, PlaylistCopyCommand } from '@/relisten/realm/models/playlists/playlist';
 import { createUuidV7TypedId } from '@/relisten/util/typed_uuid_id';
 import type { PlaylistCreatedResponse } from './sharing_wire';
@@ -60,22 +59,10 @@ export function finishCopy(
 }
 
 /**
- * A refusal that resending can't change: the playlist isn't public (and was
- * never copied with this command), or the account is full. The command is
- * dropped; anything else keeps it for a retry.
+ * Forgets a copy the server refused for good: the playlist isn't public (and
+ * was never copied with this command), or the account is full. Any other
+ * failure keeps the command, so the next sync resends it.
  */
-export function isFinalCopyRefusal(error: unknown) {
-  return (
-    error instanceof AccountsApiError &&
-    error.status !== null &&
-    error.status >= 400 &&
-    error.status < 500 &&
-    error.status !== 401 &&
-    error.status !== 408 &&
-    error.status !== 429
-  );
-}
-
 export function dropCopyCommand(realm: Realm, commandId: string) {
   const command = realm.objectForPrimaryKey(PlaylistCopyCommand, commandId);
   if (command) {

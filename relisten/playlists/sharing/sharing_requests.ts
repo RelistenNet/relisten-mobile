@@ -3,6 +3,7 @@ import {
   type AuthorizedAccountsApiClient,
 } from '@/relisten/accounts/api/accounts_api_client';
 import { createUuidV7TypedId } from '@/relisten/util/typed_uuid_id';
+import { jsonRequest } from './accounts_http';
 import {
   parsePublicSnapshot,
   type PlaylistCreatedResponse,
@@ -80,8 +81,4 @@ export function requestReport(
     `/v1/public-playlists/${publicCode}/reports`,
     jsonRequest('POST', { reason })
   );
-}
-
-function jsonRequest(method: 'POST' | 'PUT', body: unknown): RequestInit {
-  return { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
 }

@@ -4,7 +4,7 @@ import Realm from 'realm';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { FAVORITE_REALM_MODELS } from '@/relisten/realm/models/library';
+import { FAVORITE_REALM_MODELS, FavoriteSyncState } from '@/relisten/realm/models/library';
 import {
   Playlist,
   PlaylistEntry,
@@ -12,18 +12,19 @@ import {
   PlaylistSegment,
 } from '@/relisten/realm/models/playlists/playlist';
 import {
+  applyPlaylistSummaries,
   canAccessPlaylist,
   canEditPlaylist,
-  claimUnownedPlaylists,
+  claimDevicePlaylists,
   startRestoreRecovery,
 } from '@/relisten/playlists/sync/playlist_sync_state';
 import {
   applyFollowChanges,
   applyFollowedHeads,
+  applyFollowedSnapshot,
   followNeedsSnapshot,
   followsNeedingSnapshot,
   replaceFollows,
-  writeFollowedSnapshot,
 } from './followed_playlists';
 import type { FollowedPlaylistHead, PublicPlaylistSnapshot } from './sharing_wire';
 
@@ -87,7 +88,7 @@ describe('followed playlists', () => {
       schemaVersion: 1,
       schema: [...PLAYLIST_REALM_MODELS, ...FAVORITE_REALM_MODELS],
     });
-    realm.write(() => claimUnownedPlaylists(realm, follower));
+    realm.write(() => claimDevicePlaylists(realm, follower));
   });
 
   afterEach(() => {
@@ -111,24 +112,22 @@ describe('followed playlists', () => {
     expect(playlist.ownerUsername).toBe('deadhead');
     expect(canAccessPlaylist(realm, playlist)).toBe(true);
     expect(canEditPlaylist(realm, playlist)).toBe(false);
-    expect(followsNeedingSnapshot(realm, follower, 20)).toEqual([playlist]);
+    expect(followsNeedingSnapshot(realm, follower)).toEqual([playlist]);
   });
 
   it('replaces the rows from the public snapshot, sanitizing guide text', () => {
     follow();
     realm.write(() =>
-      writeFollowedSnapshot(
+      applyFollowedSnapshot(
         realm,
-        stored()!,
+        follower,
         snapshot(3, [
           [trackEntry, trackId],
           [textEntry, null],
         ])
       )
     );
-    realm.write(() =>
-      writeFollowedSnapshot(realm, stored()!, snapshot(4, [[laterEntry, trackId]]))
-    );
+    realm.write(() => applyFollowedSnapshot(realm, follower, snapshot(4, [[laterEntry, trackId]])));
 
     const entries = realm.objects(PlaylistEntry).filtered('playlistId == $0', playlistId);
     expect(entries.map((entry) => entry.entryId)).toEqual([laterEntry]);
@@ -139,6 +138,24 @@ describe('followed playlists', () => {
 
     realm.write(() => applyFollowedHeads(realm, follower, [head(5)]));
     expect(followNeedsSnapshot(stored()!)).toBe(true);
+  });
+
+  it('still needs a pull after a cached snapshot older than its head', () => {
+    follow();
+    realm.write(() => applyFollowedHeads(realm, follower, [head(5)]));
+
+    const settled = realm.write(() =>
+      applyFollowedSnapshot(realm, follower, snapshot(4, [[trackEntry, trackId]]))
+    );
+
+    expect(settled).toBe(false);
+    expect(followNeedsSnapshot(stored()!)).toBe(true);
+    // The older copy is still shown meanwhile, and never replaces a newer one.
+    expect(stored()!.entryCount).toBe(1);
+    realm.write(() => applyFollowedSnapshot(realm, follower, snapshot(5, [])));
+    realm.write(() => applyFollowedSnapshot(realm, follower, snapshot(4, [[trackEntry, trackId]])));
+    expect(stored()!.entryCount).toBe(0);
+    expect(followNeedsSnapshot(stored()!)).toBe(false);
   });
 
   it('keeps the last name of a playlist that became unavailable', () => {
@@ -154,9 +171,7 @@ describe('followed playlists', () => {
 
   it('removes an unfollowed playlist with its rows', () => {
     follow();
-    realm.write(() =>
-      writeFollowedSnapshot(realm, stored()!, snapshot(3, [[trackEntry, trackId]]))
-    );
+    realm.write(() => applyFollowedSnapshot(realm, follower, snapshot(3, [[trackEntry, trackId]])));
 
     realm.write(() => applyFollowChanges(realm, follower, [{ playlistId, followed: false }]));
 
@@ -213,11 +228,47 @@ describe('followed playlists', () => {
     expect(stored()!.name).toBe('Theirs');
   });
 
+  it("gives the owner's account a playlist another account on the device follows", () => {
+    const now = new Date();
+    realm.write(() => {
+      realm.create(FavoriteSyncState, {
+        syncStateUuid: 'other-account',
+        scopeId: otherAccount,
+        libraryCursor: 'cursor',
+        createdAt: now,
+        updatedAt: now,
+      });
+      applyFollowChanges(realm, otherAccount, [{ playlistId, followed: true }]);
+      applyFollowedHeads(realm, otherAccount, [head(3)]);
+      applyFollowedSnapshot(realm, otherAccount, snapshot(3, [[trackEntry, trackId]]));
+    });
+
+    realm.write(() =>
+      applyPlaylistSummaries(realm, follower, [
+        {
+          playlist_id: playlistId,
+          name: 'Mine',
+          entry_count: 2,
+          archived: false,
+          revision: 7,
+          updated_at: '2026-11-19T08:00:00Z',
+        },
+      ])
+    );
+
+    const playlist = stored()!;
+    expect(playlist.libraryUserId).toBe(follower);
+    expect(playlist.access).toBe('owner');
+    expect(canEditPlaylist(realm, playlist)).toBe(true);
+    expect(playlist.appliedRevision).toBeNull();
+    expect(realm.objects(PlaylistEntry).filtered('playlistId == $0', playlistId)).toHaveLength(0);
+    // The other account's next pull is a snapshot, which lists its follow again.
+    expect(realm.objects(FavoriteSyncState)[0].libraryCursor).toBeNull();
+  });
+
   it('pulls every followed playlist again after a restore', () => {
     follow();
-    realm.write(() =>
-      writeFollowedSnapshot(realm, stored()!, snapshot(3, [[trackEntry, trackId]]))
-    );
+    realm.write(() => applyFollowedSnapshot(realm, follower, snapshot(3, [[trackEntry, trackId]])));
 
     realm.write(() => startRestoreRecovery(realm, follower));
 

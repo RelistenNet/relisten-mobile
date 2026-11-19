@@ -21,6 +21,7 @@ import { PlaylistEditList } from '@/relisten/playlists/ui/playlist_edit_list';
 import { openGuideTextEditor } from '@/relisten/playlists/guide/guide_text_navigation';
 import { usePlaylistLifecycle } from '@/relisten/playlists/ui/playlist_lifecycle';
 import {
+  notLoadedText,
   PlaylistReadingList,
   PlaylistViewHeader,
 } from '@/relisten/playlists/ui/playlist_reading_view';
@@ -52,7 +53,8 @@ export default function PlaylistDetailPage() {
   const shareActions = usePlaylistShareActions();
   const syncService = usePlaylistSyncService();
 
-  usePlaylistHydration(playlistId, allGroups, online);
+  // A followed playlist its owner made private keeps its last rows, hidden; don't fetch them.
+  usePlaylistHydration(playlistId, playlist?.unavailable ? [] : allGroups, online);
   // Opening the playlist (or coming back to it) checks for other devices' changes.
   useFocusEffect(
     useCallback(() => {
@@ -215,9 +217,7 @@ export default function PlaylistDetailPage() {
           downloadedOnly={downloadedOnly}
           emptyText={
             isLoading(playlist)
-              ? online
-                ? 'Loading…'
-                : 'Connect to the internet to load this playlist.'
+              ? notLoadedText(online)
               : "This playlist is empty. Add songs from any show's ••• menu."
           }
           header={

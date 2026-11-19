@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 import { useAccountScope } from '@/relisten/accounts/account_context';
-import { claimUnownedPlaylists } from '@/relisten/playlists/sync/playlist_sync_state';
+import { claimDevicePlaylists } from '@/relisten/playlists/sync/playlist_sync_state';
 import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
 import { usePlaylistSyncService } from '@/relisten/realm/root_services';
 import { useRealm } from '@/relisten/realm/schema';
@@ -29,7 +29,7 @@ export function PlaylistSyncCoordinator() {
     if (!userId) {
       return;
     }
-    const claimed = realm.write(() => claimUnownedPlaylists(realm, userId));
+    const claimed = realm.write(() => claimDevicePlaylists(realm, userId));
     if (claimed > 0) {
       showPlaylistToast('Saving your playlists to your account.');
       service.flush();

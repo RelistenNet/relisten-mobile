@@ -90,6 +90,7 @@ export function parsePublicSnapshot(value: unknown, publicCode: string): PublicP
     isUuidV7TypedId(snapshot.owner?.id, 'user') &&
     typeof snapshot.owner.username === 'string' &&
     typeof snapshot.metadata?.name === 'string' &&
+    isOptionalText(snapshot.metadata.description) &&
     typeof snapshot.history_generation === 'string' &&
     Number.isSafeInteger(snapshot.revision) &&
     Array.isArray(snapshot.segments) &&
@@ -97,11 +98,13 @@ export function parsePublicSnapshot(value: unknown, publicCode: string): PublicP
       (segment) =>
         isUuidV7TypedId(segment.segment_id, 'playlist_segment') &&
         typeof segment.rank === 'string' &&
+        isOptionalText(segment.description) &&
         Array.isArray(segment.entries) &&
         segment.entries.every(
           (entry) =>
             isUuidV7TypedId(entry.entry_id, 'playlist_entry') &&
             typeof entry.rank === 'string' &&
+            isOptionalText(entry.description) &&
             (entry.track_id === null || typeof entry.track_id === 'string')
         )
     );
@@ -109,6 +112,11 @@ export function parsePublicSnapshot(value: unknown, publicCode: string): PublicP
     throw new Error('The public playlist response is invalid.');
   }
   return snapshot;
+}
+
+/** Guide text is stored and rendered as a string; the server omits or nulls an empty one. */
+function isOptionalText(value: unknown) {
+  return value == null || typeof value === 'string';
 }
 
 export function isFollowedPlaylistHead(value: unknown): value is FollowedPlaylistHead {

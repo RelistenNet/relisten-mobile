@@ -66,56 +66,14 @@ export default function TabLayout() {
           title: 'Listening History',
         }}
       />
-      <Stack.Screen
-        name="add-to-playlist"
-        options={{
-          contentStyle: { backgroundColor: RelistenBlue['900'] },
-          headerShown: true,
-          headerStyle: { backgroundColor: RelistenBlue['900'] },
-          headerTintColor: 'white',
-          // Android draws a form sheet as a Material bottom sheet with no header,
-          // which would hide the title, Cancel and Create; it opens full screen there.
-          presentation: Platform.OS === 'android' ? 'modal' : 'formSheet',
-          sheetAllowedDetents: [0.6, 0.92],
-          sheetGrabberVisible: true,
-        }}
-      />
-      <Stack.Screen
-        name="guide-text"
-        options={{
-          contentStyle: { backgroundColor: RelistenBlue['900'] },
-          headerShown: true,
-          headerStyle: { backgroundColor: RelistenBlue['900'] },
-          headerTintColor: 'white',
-          // Full screen on Android for the same reason as add-to-playlist.
-          presentation: Platform.OS === 'android' ? 'modal' : 'formSheet',
-          sheetAllowedDetents: [0.92],
-          sheetGrabberVisible: true,
-        }}
-      />
+      <Stack.Screen name="add-to-playlist" options={sheetOptions([0.6, 0.92])} />
+      <Stack.Screen name="guide-text" options={sheetOptions([0.92])} />
       <Stack.Screen
         name="sign-in"
-        options={{
-          contentStyle: { backgroundColor: RelistenBlue['900'] },
-          headerShown: false,
-          // Full screen on Android for the same reason as add-to-playlist.
-          presentation: Platform.OS === 'android' ? 'modal' : 'formSheet',
-          sheetAllowedDetents: [0.6, 0.92],
-          sheetGrabberVisible: true,
-        }}
+        // The sheet has no header; Not Now (and on iOS, a swipe down) closes it.
+        options={{ ...sheetOptions([0.6, 0.92]), headerShown: false }}
       />
-      <Stack.Screen
-        name="report-playlist"
-        options={{
-          contentStyle: { backgroundColor: RelistenBlue['900'] },
-          headerShown: true,
-          headerStyle: { backgroundColor: RelistenBlue['900'] },
-          headerTintColor: 'white',
-          presentation: Platform.OS === 'android' ? 'modal' : 'formSheet',
-          sheetAllowedDetents: [0.6],
-          sheetGrabberVisible: true,
-        }}
-      />
+      <Stack.Screen name="report-playlist" options={sheetOptions([0.6])} />
       <Stack.Screen
         name="audio-adjustments"
         options={{
@@ -129,4 +87,21 @@ export default function TabLayout() {
       />
     </Stack>
   );
+}
+
+/**
+ * A sheet over the current screen, with a header for its title and buttons.
+ * Android draws a form sheet as a Material bottom sheet with no header, which
+ * would hide them, so it opens full screen there.
+ */
+function sheetOptions(detents: number[]) {
+  return {
+    contentStyle: { backgroundColor: RelistenBlue['900'] },
+    headerShown: true,
+    headerStyle: { backgroundColor: RelistenBlue['900'] },
+    headerTintColor: 'white',
+    presentation: Platform.OS === 'android' ? 'modal' : 'formSheet',
+    sheetAllowedDetents: detents,
+    sheetGrabberVisible: true,
+  } as const;
 }

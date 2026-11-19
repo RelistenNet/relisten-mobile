@@ -147,8 +147,11 @@ export class FavoriteRemoteLibraryApplier {
       }
 
       this.applyPlaylistFeed(capture, snapshot.playlists ?? []);
-      if (capture.userId) {
-        const heads = snapshot.followed_playlists ?? [];
+      // The list is the whole set of follows, so anything missing from it is
+      // removed. A snapshot without the field says nothing about follows and
+      // must not be read as "none".
+      const heads = snapshot.followed_playlists;
+      if (capture.userId && heads) {
         replaceFollows(
           realm,
           capture.userId,

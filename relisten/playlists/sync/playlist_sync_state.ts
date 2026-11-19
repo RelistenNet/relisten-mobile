@@ -75,7 +75,7 @@ export function deviceState(realm: Realm): PlaylistDeviceState {
 }
 
 /** The account whose playlists are shown: signed in now, or most recently. */
-export function visibleOwnerId(realm: Realm): string | undefined {
+export function visibleLibraryUserId(realm: Realm): string | undefined {
   return (
     realm.objectForPrimaryKey(PlaylistDeviceState, PLAYLIST_DEVICE_STATE_ID)?.lastSignedInUserId ??
     undefined
@@ -88,7 +88,7 @@ export function visibleOwnerId(realm: Realm): string | undefined {
  * saved to any account. Lists, by-ID screens, edits, and CarPlay share it.
  */
 export function canAccessPlaylist(realm: Realm, playlist: Playlist): boolean {
-  return !playlist.libraryUserId || playlist.libraryUserId === visibleOwnerId(realm);
+  return !playlist.libraryUserId || playlist.libraryUserId === visibleLibraryUserId(realm);
 }
 
 /** Whether the current listener may change a playlist: one they can see and made. */
@@ -102,7 +102,7 @@ export function canEditPlaylist(realm: Realm, playlist: Playlist): boolean {
  * create can never make a duplicate. Deleted device playlists stay unowned and
  * are purged on schedule. Returns how many playlists were claimed.
  */
-export function claimUnownedPlaylists(realm: Realm, userId: string): number {
+export function claimDevicePlaylists(realm: Realm, userId: string): number {
   deviceState(realm).lastSignedInUserId = userId;
 
   const unowned = [
@@ -126,16 +126,46 @@ export function forgetAccountPlaylists(realm: Realm, userId: string) {
   const playlists = realm.objects(Playlist).filtered('libraryUserId == $0', userId);
   const playlistIds = playlists.map((playlist) => playlist.playlistId);
 
-  realm.delete(realm.objects(PlaylistEntry).filtered('playlistId IN $0', playlistIds));
-  realm.delete(realm.objects(PlaylistSegment).filtered('playlistId IN $0', playlistIds));
-  realm.delete(realm.objects(PlaylistOperation).filtered('ownerUserId == $0', userId));
-  realm.delete(realm.objects(PlaylistCommand).filtered('ownerUserId == $0', userId));
+  deletePlaylistRows(realm, playlistIds);
+  realm.delete(realm.objects(PlaylistOperation).filtered('libraryUserId == $0', userId));
+  realm.delete(realm.objects(PlaylistCommand).filtered('libraryUserId == $0', userId));
   realm.delete(realm.objects(PlaylistCopyCommand).filtered('userId == $0', userId));
   realm.delete(playlists);
 
   // Nothing of the deleted account remains on the device, so it stops being
   // the visible owner too.
   hideAccountPlaylists(realm, userId);
+}
+
+/**
+ * Deletes the entries and segments of the given playlists. The Playlist rows
+ * and any outbox are the caller's to keep or remove.
+ */
+export function deletePlaylistRows(realm: Realm, playlistIds: string[]) {
+  realm.delete(realm.objects(PlaylistEntry).filtered('playlistId IN $0', playlistIds));
+  realm.delete(realm.objects(PlaylistSegment).filtered('playlistId IN $0', playlistIds));
+}
+
+/**
+ * Removes a followed playlist from the device so `userId`, the signed-in
+ * account, can store this playlist ID instead. There is one row per playlist
+ * ID, and a followed row has no outbox, so nothing unsent is lost. Another
+ * account's follow stays on the server: dropping that account's library
+ * cursor makes its next pull a snapshot, which lists the follow again.
+ */
+export function releaseFollowedRow(realm: Realm, playlist: Playlist, userId: string) {
+  if (playlist.libraryUserId && playlist.libraryUserId !== userId) {
+    requestLibrarySnapshot(realm, playlist.libraryUserId);
+  }
+  deletePlaylistRows(realm, [playlist.playlistId]);
+  realm.delete(playlist);
+}
+
+/** Drops the account's library feed cursor, so its next pull is a whole snapshot. */
+function requestLibrarySnapshot(realm: Realm, userId: string) {
+  for (const syncState of realm.objects(FavoriteSyncState).filtered('scopeId == $0', userId)) {
+    syncState.libraryCursor = undefined;
+  }
 }
 
 /**
@@ -208,7 +238,7 @@ export function issueCreateCommand(realm: Realm, playlist: Playlist) {
   realm.create(PlaylistCommand, {
     commandId,
     playlistId: playlist.playlistId,
-    ownerUserId: playlist.libraryUserId!,
+    libraryUserId: playlist.libraryUserId!,
     requestJson: JSON.stringify(request),
     state: 'pending',
     createdAt: new Date(),
@@ -239,10 +269,10 @@ export function needsSnapshot(playlist: Playlist): boolean {
  * they are resent with the same IDs and the server replays any that landed.
  * Runs at the start of each sync run, when nothing is in flight.
  */
-export function resetInterruptedOperations(realm: Realm, ownerUserId: string) {
+export function resetInterruptedOperations(realm: Realm, libraryUserId: string) {
   for (const op of realm
     .objects(PlaylistOperation)
-    .filtered('ownerUserId == $0 AND state == $1', ownerUserId, 'in_flight')) {
+    .filtered('libraryUserId == $0 AND state == $1', libraryUserId, 'in_flight')) {
     op.state = 'pending';
   }
 }
@@ -260,17 +290,17 @@ export function releaseHeldEdits(realm: Realm, playlistId: string) {
  * A deletion synced, so the account may have room again: resend paused
  * outboxes whole and retry creates that the account refused as full.
  */
-export function resumeAfterDeletion(realm: Realm, ownerUserId: string) {
+export function resumeAfterDeletion(realm: Realm, libraryUserId: string) {
   for (const op of realm
     .objects(PlaylistOperation)
-    .filtered('ownerUserId == $0 AND state == $1', ownerUserId, 'quota_paused')) {
+    .filtered('libraryUserId == $0 AND state == $1', libraryUserId, 'quota_paused')) {
     op.state = 'pending';
   }
   for (const command of realm
     .objects(PlaylistCommand)
     .filtered(
-      'ownerUserId == $0 AND state == $1 AND lastErrorCode == $2',
-      ownerUserId,
+      'libraryUserId == $0 AND state == $1 AND lastErrorCode == $2',
+      libraryUserId,
       'needs_attention',
       'quota_exceeded'
     )) {
@@ -298,7 +328,7 @@ export function appendOperation(realm: Realm, playlist: Playlist, edit: Playlist
   realm.create(PlaylistOperation, {
     operationId,
     playlistId: playlist.playlistId,
-    ownerUserId: playlist.libraryUserId!,
+    libraryUserId: playlist.libraryUserId!,
     localSequence: state.nextOperationSequence,
     operationJson: JSON.stringify(edit),
     baseRevision: playlist.appliedRevision ?? 0,
@@ -625,18 +655,20 @@ function applyMetadata(
  * Records playlist summaries from the library feed. A playlist new to this
  * device becomes a row with no canonical state yet, which the playlist sync
  * fetches by snapshot; a known one notes the newer revision so it is pulled.
+ *
+ * A summary says the account owns the playlist. A followed row with the same
+ * ID gives way to it, whether another account on this device follows the
+ * playlist or the owner followed it from a link before this summary arrived.
+ * A row another account owns is kept, because it may hold unsent edits; the
+ * summary is then skipped and the playlist is missing from this library.
  */
-export function applyPlaylistSummaries(
-  realm: Realm,
-  ownerUserId: string,
-  summaries: PlaylistSummary[]
-) {
+export function applyPlaylistSummaries(realm: Realm, userId: string, summaries: PlaylistSummary[]) {
   for (const summary of summaries) {
     const playlist = realm.objectForPrimaryKey(Playlist, summary.playlist_id);
-    if (playlist) {
-      // A row in another library is that account's; a followed row with this
-      // ID can't be the owner's summary.
-      if (playlist.libraryUserId !== ownerUserId || playlist.access !== 'owner') {
+    if (playlist?.access === 'follower') {
+      releaseFollowedRow(realm, playlist, userId);
+    } else if (playlist) {
+      if (playlist.libraryUserId !== userId) {
         continue;
       }
       playlist.summaryRevision = Math.max(playlist.summaryRevision ?? 0, summary.revision);
@@ -652,8 +684,8 @@ export function applyPlaylistSummaries(
       entryCount: summary.track_count ?? summary.entry_count,
       createdAt: updatedAt,
       updatedAt,
-      ownerUserId,
-      libraryUserId: ownerUserId,
+      ownerUserId: userId,
+      libraryUserId: userId,
       archived: summary.archived,
       serverState: 'synced',
       summaryRevision: summary.revision,
@@ -887,19 +919,20 @@ export function pruneConfirmed(realm: Realm, playlist: Playlist) {
  * snapshot that the dropped cursor forces then finds the new generation, and
  * the favorites applier (`resetIfRestored`) finishes resetting favorites.
  */
-export function startRestoreRecovery(realm: Realm, ownerUserId: string) {
+export function startRestoreRecovery(realm: Realm, libraryUserId: string) {
   // When a playlist response notices the restore first, the library feed's
-  // cursor is from the old history too; dropping it makes the next pull a snapshot.
-  for (const syncState of realm.objects(FavoriteSyncState).filtered('scopeId == $0', ownerUserId)) {
-    syncState.libraryCursor = undefined;
-  }
+  // cursor is from the old history too.
+  requestLibrarySnapshot(realm, libraryUserId);
   // Followed playlists too: their stored revisions are from the old history.
-  for (const playlist of realm.objects(Playlist).filtered('libraryUserId == $0', ownerUserId)) {
+  for (const playlist of realm.objects(Playlist).filtered('libraryUserId == $0', libraryUserId)) {
     markNeedsSnapshot(playlist);
   }
   for (const op of realm
     .objects(PlaylistOperation)
-    .filtered('ownerUserId == $0 AND state IN $1', ownerUserId, ['acknowledged', 'in_flight'])) {
+    .filtered('libraryUserId == $0 AND state IN $1', libraryUserId, [
+      'acknowledged',
+      'in_flight',
+    ])) {
     op.state = 'pending';
     op.resultRevision = undefined;
     op.resultGeneration = undefined;

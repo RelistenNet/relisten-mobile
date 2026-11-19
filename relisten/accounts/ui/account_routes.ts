@@ -21,10 +21,11 @@ export function useAccountTab(): AccountTab {
 }
 
 /**
- * Asks to sign in over the current screen, for an action that needs an
- * account, such as following a playlist. `reason` finishes "Sign in to …".
- * The sheet closes once the listener is signed in.
+ * Asks to sign in over the current screen, which stays where it was. The
+ * sheet closes once the listener is signed in. `reason` finishes
+ * "Sign in to …" for an action the screen will run afterwards, such as
+ * "follow this playlist"; without one, the sheet uses its general title.
  */
-export function openSignInSheet(router: ReturnType<typeof useRouter>, reason: string) {
-  router.push({ pathname: '/relisten/sign-in', params: { reason } });
+export function openSignInSheet(router: ReturnType<typeof useRouter>, reason?: string) {
+  router.push({ pathname: '/relisten/sign-in', params: reason ? { reason } : {} });
 }

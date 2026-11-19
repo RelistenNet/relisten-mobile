@@ -63,7 +63,10 @@ export interface FavoriteLibrarySnapshot {
   next_cursor: string;
   favorites: FavoriteSnapshotItem[];
   playlists?: PlaylistSummary[];
-  /** Every follow, so this is the whole follow list. */
+  /**
+   * Every follow, so this is the whole follow list. The server always sends
+   * it; when it is absent the stored follows are left as they are.
+   */
   followed_playlists?: FollowedPlaylistHead[];
   history_generation?: string;
 }

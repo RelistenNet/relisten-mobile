@@ -1,15 +1,12 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import { useAccountScope } from '@/relisten/accounts/account_context';
 import { openSignInSheet } from '@/relisten/accounts/ui/account_routes';
-import {
-  SharingError,
-  type SharingFailure,
-} from '@/relisten/playlists/sharing/playlist_sharing_service';
 import type { PublicPlaylistSnapshot } from '@/relisten/playlists/sharing/sharing_wire';
 import { openPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
 import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
+import { explainSharingFailure } from '@/relisten/playlists/ui/sharing_messages';
 import { usePlaylistSharingService } from '@/relisten/realm/root_services';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { useGroupSegment } from '@/relisten/util/routes';
@@ -19,6 +16,9 @@ import { useGroupSegment } from '@/relisten/util/routes';
  * unfollow it, copy it into their own playlists, or report it. Each needs the
  * internet and a signed-in account. Signed out, an action opens the sign-in
  * sheet and runs once the listener signs in; closing the sheet drops it.
+ *
+ * One action runs at a time: `busy` is true while one is in flight, and a
+ * second tap meanwhile is ignored, so a double tap can't follow twice.
  */
 export function usePlaylistReaderActions() {
   const router = useRouter();
@@ -27,9 +27,23 @@ export function usePlaylistReaderActions() {
   const online = useShouldMakeNetworkRequests();
   const sharing = usePlaylistSharingService();
   const signedIn = account.isAuthenticated && !!account.userId;
+  const [busy, setBusy] = useState(false);
+  const running = useRef(false);
   // The action waiting on the sign-in sheet. In memory only: it belongs to
   // this screen, and a relaunch shouldn't follow something by surprise.
-  const waitingForSignIn = useRef<(() => unknown) | undefined>(undefined);
+  const waitingForSignIn = useRef<PendingAction | undefined>(undefined);
+
+  const runOnce = useCallback((run: () => Promise<unknown>) => {
+    if (running.current) {
+      return;
+    }
+    running.current = true;
+    setBusy(true);
+    void run().finally(() => {
+      running.current = false;
+      setBusy(false);
+    });
+  }, []);
 
   // The sheet has closed when this screen is focused again. The action runs
   // only then: following can redirect this screen, and navigating under an
@@ -37,29 +51,35 @@ export function usePlaylistReaderActions() {
   // listener closed the sheet, so the action is dropped.
   useFocusEffect(
     useCallback(() => {
-      const run = waitingForSignIn.current;
+      const pending = waitingForSignIn.current;
       waitingForSignIn.current = undefined;
-      if (run && signedIn) {
-        void run();
+      if (!pending || !signedIn) {
+        return;
       }
-    }, [signedIn])
+      if (online) {
+        runOnce(pending.run);
+      } else {
+        alertOffline(pending.action);
+      }
+    }, [signedIn, online, runOnce])
   );
 
   /**
-   * Runs `run` now and returns what it returns, or runs it after signing in.
-   * `action` finishes "Sign in to …" and "Connect to the internet to …".
+   * Runs `run` now, or after signing in. `action` finishes "Sign in to …" and
+   * "Connect to the internet to …". Offline comes first: signing in needs the
+   * internet too.
    */
-  const whenReady = async (action: string, run: () => unknown) => {
+  const whenReady = (action: string, run: () => Promise<unknown>) => {
+    if (!online) {
+      alertOffline(action);
+      return;
+    }
     if (!signedIn) {
-      waitingForSignIn.current = run;
+      waitingForSignIn.current = { action, run };
       openSignInSheet(router, action);
       return;
     }
-    if (!online) {
-      Alert.alert(`Connect to the internet to ${action}.`);
-      return;
-    }
-    await run();
+    runOnce(run);
   };
 
   const follow = (snapshot: PublicPlaylistSnapshot) =>
@@ -68,7 +88,7 @@ export function usePlaylistReaderActions() {
         await sharing.follow(snapshot);
         showPlaylistToast(`Following ${snapshot.metadata.name}`);
       } catch (error) {
-        explain(error, `Couldn’t follow ${snapshot.metadata.name}. Try again.`);
+        explainSharingFailure(error, `Couldn’t follow ${snapshot.metadata.name}. Try again.`);
       }
     });
 
@@ -91,7 +111,7 @@ export function usePlaylistReaderActions() {
         }
         showPlaylistToast(`Unfollowed ${name}`);
       } catch (error) {
-        explain(error, `Couldn’t unfollow ${name}. Try again.`);
+        explainSharingFailure(error, `Couldn’t unfollow ${name}. Try again.`);
       }
     });
 
@@ -102,32 +122,23 @@ export function usePlaylistReaderActions() {
         openPlaylist(router, playlistId, groupSegment);
         showPlaylistToast(`Copied ${name} to your playlists`);
       } catch (error) {
-        explain(error, `Couldn’t copy ${name}. Try again.`);
+        explainSharingFailure(error, `Couldn’t copy ${name}. Try again.`);
       }
     });
 
   const report = (publicCode: string, name: string) =>
-    whenReady('report this playlist', () =>
-      router.push({ pathname: '/relisten/report-playlist', params: { publicCode, name } })
-    );
+    whenReady('report this playlist', async () => {
+      router.push({ pathname: '/relisten/report-playlist', params: { publicCode, name } });
+    });
 
-  return { signedIn, follow, unfollow, copy, report };
+  return { busy, follow, unfollow, copy, report };
 }
 
-const FAILURE_MESSAGES: Partial<Record<SharingFailure, [string, string?]>> = {
-  unavailable: ['This playlist isn’t available.', 'Its owner may have made it private.'],
-  full: [
-    'Your account is full.',
-    'An account can follow up to 500 playlists and hold up to 250. Remove some, then try again.',
-  ],
-  taken_down: ['This playlist isn’t available.', 'It was removed after a report.'],
-};
+interface PendingAction {
+  action: string;
+  run: () => Promise<unknown>;
+}
 
-function explain(error: unknown, fallback: string) {
-  const message = error instanceof SharingError ? FAILURE_MESSAGES[error.failure] : undefined;
-  if (message) {
-    Alert.alert(...message);
-  } else {
-    showPlaylistToast(fallback);
-  }
+function alertOffline(action: string) {
+  Alert.alert(`Connect to the internet to ${action}.`);
 }

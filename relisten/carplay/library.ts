@@ -1,4 +1,7 @@
-import { canAccessPlaylist, visibleOwnerId } from '@/relisten/playlists/sync/playlist_sync_state';
+import {
+  canAccessPlaylist,
+  visibleLibraryUserId,
+} from '@/relisten/playlists/sync/playlist_sync_state';
 import { AlertTemplate, CarPlay, ListTemplate } from '@g4rb4g3/react-native-carplay';
 import { ListSection } from '@g4rb4g3/react-native-carplay';
 import { RelistenCarPlayContext } from '@/relisten/carplay/relisten_car_play_context';
@@ -115,7 +118,7 @@ export function createLibraryTemplate(ctx: RelistenCarPlayContext): ListTemplate
 
     // Playlists are read-only in the car: choosing one plays it from the top.
     const playlists = playlistsStream.currentValue
-      ? [...visiblePlaylists(playlistsStream.currentValue, visibleOwnerId(ctx.realm) ?? null)]
+      ? [...visiblePlaylists(playlistsStream.currentValue, visibleLibraryUserId(ctx.realm) ?? null)]
       : [];
     if (playlists.length > 0) {
       sections.push({

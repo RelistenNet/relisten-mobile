@@ -3,7 +3,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { Link } from 'expo-router';
 import { Playlist } from '@/relisten/realm/models/playlists/playlist';
 import { RelistenBlue } from '@/relisten/relisten_blue';
-import { artistLine, playlistSizeLine } from '@/relisten/playlists/playlist_format';
+import {
+  artistLine,
+  playlistDisplayName,
+  playlistSizeLine,
+} from '@/relisten/playlists/playlist_format';
 import { usePlaylistSummary } from '@/relisten/playlists/playlist_hooks';
 import { useGroupSegment } from '@/relisten/util/routes';
 
@@ -23,7 +27,7 @@ export function PlaylistListRow({
   const artists = artistLine(summary.artistNames);
   const followed = playlist.access === 'follower';
   // Named once its details arrive: a new follow's head, or a new copy's snapshot.
-  const name = playlist.name || (playlist.unavailable ? 'Unavailable playlist' : 'Loading…');
+  const name = playlistDisplayName(playlist);
   const size = playlist.unavailable
     ? 'No longer available'
     : playlistSizeLine(playlist.entryCount, summary.durationSeconds);

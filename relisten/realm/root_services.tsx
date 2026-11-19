@@ -66,9 +66,11 @@ export function RootServicesProvider({ children }: PropsWithChildren) {
         realm,
         accountsApi,
         accountScopeSource,
-        // A library pull is what a retry starts; it carries follows and new copies.
-        () => favoriteSyncService.retryNow(),
-        playlistSyncService.flush
+        // The favorite sync has no plain "pull now"; a run always pulls the
+        // library, and `retryNow` is its only way to ask for one. It also ends
+        // a backoff early, which is fine here: it is called only after an
+        // account request just succeeded, so the service is reachable.
+        () => favoriteSyncService.retryNow()
       ),
       anonymousLibraryImportService: new AnonymousLibraryImportService(favoriteRepository),
       userSettingsStore: new UserSettingsStore(realm),

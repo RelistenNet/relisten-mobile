@@ -2,6 +2,7 @@ import { AccountErrorNotice } from '@/relisten/accounts/ui/account_error_notice'
 import type { AccountProvider } from '@/relisten/accounts/auth/account_auth_types';
 import { ProviderButton } from '@/relisten/accounts/ui/provider_button';
 import Flex from '@/relisten/components/flex';
+import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { ScrollView, View } from 'react-native';
 
@@ -12,6 +13,8 @@ type SignedOutAccountScreenProps = {
   errorMessage?: string;
   onSignIn: (provider: AccountProvider) => Promise<void>;
   openingProvider: AccountProvider | null;
+  /** Shown as Not Now, for the sign-in sheet. */
+  onCancel?: () => void;
 };
 
 export function SignedOutAccountScreen({
@@ -20,6 +23,7 @@ export function SignedOutAccountScreen({
   errorMessage,
   onSignIn,
   openingProvider,
+  onCancel,
 }: SignedOutAccountScreenProps) {
   return (
     <ScrollView
@@ -56,6 +60,11 @@ export function SignedOutAccountScreen({
           onPress={() => onSignIn('google')}
           provider="google"
         />
+        {onCancel && (
+          <RelistenButton className="mt-6" intent="outline" disabled={busy} onPress={onCancel}>
+            Not Now
+          </RelistenButton>
+        )}
       </Flex>
     </ScrollView>
   );

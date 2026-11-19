@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { singleSourceTrack, trackTitle } from '@/relisten/playlists/playlist_format';
+import { entryTitle, singleSourceTrack } from '@/relisten/playlists/playlist_format';
 import { type ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
@@ -106,8 +106,7 @@ export function TrackMenu({
     toastEdit(realm, playlistId, changed, message);
   const goToShow = useGoToShow();
   const entryId = row.entry.entryId;
-  const isText = row.status === 'text';
-  const title = isText ? 'note' : trackTitle(row);
+  const title = entryTitle(row);
   const { groups } = layout;
   const at = position(layout, entryId);
   // Only a track truly on its own can link up; one with an intro keeps its group
@@ -116,7 +115,7 @@ export function TrackMenu({
   const above = canLinkUp ? groups[at.groupIndex - 1] : undefined;
   // A text-only group above has no entry to link to.
   const aboveLast = above?.entries[above.entries.length - 1];
-  const aboveTitle = aboveLast ? trackTitle(aboveLast) : undefined;
+  const aboveTitle = aboveLast ? entryTitle(aboveLast) : undefined;
   const isFirst = at.inGroup ? at.index === 0 : at.groupIndex === 0;
   const isLast = at.inGroup
     ? at.index === (at.group?.entries.length ?? 0) - 1
@@ -215,10 +214,7 @@ export function TrackMenu({
       case 'group-intro':
         return editText({ kind: 'segment', segmentId: at.group!.segment.segmentId });
       case 'remove':
-        return toast(
-          removeEntry(realm, playlistId, entryId),
-          isText ? 'Removed note' : removedMessage(row, at.group!)
-        );
+        return toast(removeEntry(realm, playlistId, entryId), removedMessage(row, at.group!));
     }
   };
 
@@ -226,7 +222,7 @@ export function TrackMenu({
     <NativeMenuView
       actions={actions}
       style={style}
-      title={at.inGroup ? `Linked with ${trackTitle(groupmate)}` : undefined}
+      title={at.inGroup ? `Linked with ${entryTitle(groupmate)}` : undefined}
       onPressAction={({ nativeEvent }) => handle(nativeEvent.event)}
     >
       {children}
@@ -245,7 +241,7 @@ function guideActions(
 ): MenuAction[] {
   const actions: MenuAction[] = [];
   if (row.status === 'text') {
-    actions.push(action('note', 'Edit Text…', nativeMenuIcons.edit));
+    actions.push(action('note', 'Edit Note…', nativeMenuIcons.edit));
   } else {
     actions.push(
       action('note', row.entry.description ? 'Edit Note…' : 'Add Note…', nativeMenuIcons.edit)

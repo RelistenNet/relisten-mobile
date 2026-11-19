@@ -2,8 +2,10 @@
 
 Status: approved 2026-11-16; revised 2026-11-17 to one list of playlists with
 optional owners. Milestones 1 and 2 are built and shipped to TestFlight 6055 by
-OTA (2026-11-17). The Android Auto list was cut (2026-11-18). Branch `codex/v4-playlists-mobile`,
-cut from `codex/v4-mobile-pilot` at `535ec16` (Realm schema 23, now 24).
+OTA (2026-11-17). The Android Auto list was cut (2026-11-18). Milestones 1 and 2
+are on `codex/v4-playlists-mobile`, cut from `codex/v4-mobile-pilot` at `535ec16`
+(Realm schema 23). Guide content and sharing are stacked on it, ending on
+`codex/playlist-sharing-mobile` (Realm schema 27).
 
 ## Purpose and current decisions
 
@@ -126,9 +128,10 @@ Add the `fractional-indexing` npm package (Rocicorp), pinned, for rank generatio
 
 ## Realm model
 
-Everything playlists add ships in one schema version, 24, the first after the
-pilot's 23 (Alec, 2026-11-17: nothing between has shipped, so development
-simulators are reset rather than migrated). Catalog references stay typed
+Milestones 1 and 2 ship in schema 24, the first after the pilot's 23 (Alec,
+2026-11-17: nothing between has shipped, so development simulators are reset
+rather than migrated). Guide content adds 25; sharing and play history add 26
+and 27, with a migration because development simulators had opened 26. Catalog references stay typed
 strings, not Realm links, so entries survive catalog
 eviction, as `UserFavorite` does.
 
@@ -867,9 +870,16 @@ a report and can't be shared.
 - A **Report** action sends a report to the server.
 
 **Following.**
-- Signed in, the read-only screen offers **Follow**. Followed playlists appear in
-  the one Playlists list with the owner's `@username`, and open the read-only
-  screen.
+- The read-only screen's action row has a **heart**, as a show's page does:
+  outlined, then red once followed. Unfollowing doesn't ask first and leaves
+  the listener on the playlist's public page, one tap from following again.
+  Followed playlists appear in the one Playlists list with the owner's
+  `@username`, and open the read-only screen.
+- Follow, Make a Copy and Report need an account. Signed out, each opens a
+  **sign-in sheet** over the screen and runs once the sheet closes signed in;
+  closing it signed out drops the action. Share, Make Private, Delete and
+  Restore on the listener's own playlist explain what's missing (internet,
+  sign-in, or the right account) and don't resume.
 - **Which playlists are followed** comes only from the library feed:
   `playlist_followed` and `playlist_unfollowed` changes, applied with their page
   like favorites. A library snapshot, an expired cursor or a new
@@ -920,7 +930,7 @@ a report and can't be shared.
   The other account's rows and outbox are never touched.
 
 **Copying.** **Make a Copy** creates a playlist owned by the signed-in account
-through the server's copy command, then opens it for editing. Persist the copy
+through the server's copy command, then opens it. Persist the copy
 command ID before sending it, and keep it until the outcome is known. A network
 error or a restart retries with the same ID, which returns the original copy
 and never makes a second one.
@@ -1094,10 +1104,9 @@ Implemented in `relisten/playlists/sync/` against the local User Service on
   for it are folded into that create.
 - **Library history generation** is stored on `FavoriteSyncState`; a change
   starts restore recovery for every playlist the account owns.
-- **One schema version.** Milestones 1 and 2 share schema 24. If a later
-  schema adds a property to existing playlist rows, remember that Realm gives
-  it the type's zero value on existing objects, not the schema default; a new
-  `live` flag would need a migration to stay true.
+- **New properties on existing rows.** Realm gives a property added by a later
+  schema the type's zero value on existing objects, not the schema default, so
+  a migration has to set it (schema 27 sets `access = owner` this way).
 - **Verified end to end** in the simulator with one device and a second
   session driven over HTTP: claiming on sign-in, creates, edit batches, pulls of
   another device's insert and rename, concurrent edits from both, archive and
