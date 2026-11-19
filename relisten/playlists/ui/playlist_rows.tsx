@@ -1,5 +1,6 @@
 import { TrackDuration } from '@/relisten/components/track_duration';
 import { Ionicons } from '@expo/vector-icons';
+import { memo } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import { OverflowMenuTrigger } from '@/relisten/components/menus/overflow_menu_trigger';
@@ -137,7 +138,7 @@ const GUIDE_ROW_PADDING = 'py-3';
 export type TimestampHandler = (entryId: string, seconds: number) => void;
 
 /** A group's intro, above its entries. Edited from the menu or in edit mode. */
-export function PlaylistIntroRow({
+export const PlaylistIntroRow = memo(function PlaylistIntroRow({
   viewRow,
   linkPlaying,
   onTimestamp,
@@ -158,10 +159,10 @@ export function PlaylistIntroRow({
       </View>
     </View>
   );
-}
+});
 
 /** A text block between tracks. It has the same menu as a track, minus playback. */
-export function PlaylistTextRow({
+export const PlaylistTextRow = memo(function PlaylistTextRow({
   playlistId,
   layout,
   viewRow,
@@ -191,14 +192,20 @@ export function PlaylistTextRow({
       </View>
     </View>
   );
-}
+});
 
-export function PlaylistTrackRow({
+/**
+ * Rows are memoized: the list calls `renderItem` for every visible row when
+ * anything the page holds changes (the playing track, say), and only rows
+ * whose props differ should re-render. Pass booleans like `isCurrent` rather
+ * than page-wide values like the playing entry ID, which would differ for all.
+ */
+export const PlaylistTrackRow = memo(function PlaylistTrackRow({
   playlistId,
   layout,
   viewRow,
   online,
-  playingEntryId,
+  isCurrent,
   linkPlaying,
   onPlay,
   onTimestamp,
@@ -207,14 +214,14 @@ export function PlaylistTrackRow({
   layout: PlaylistLayout;
   viewRow: Extract<PlaylistViewRow, { kind: 'entry' }>;
   online: boolean;
-  playingEntryId: string | undefined;
+  /** This entry is the one playing. */
+  isCurrent: boolean;
   /** True when a track in this row's linked run is playing; the rail lights up. */
   linkPlaying: boolean;
   onPlay: (entryId: string) => void;
   onTimestamp: TimestampHandler;
 }) {
   const { row, link } = viewRow;
-  const isCurrent = playingEntryId === row.entry.entryId;
   // Offline, a track that isn't downloaded is dimmed and can't be tapped.
   const canPlay = isQueueable(row, online);
   const title = row.sourceTrack ? row.sourceTrack.title : 'Track';
@@ -295,7 +302,7 @@ export function PlaylistTrackRow({
       )}
     </View>
   );
-}
+});
 
 /** "Linked · 3 tracks" (or "· 2 tracks, 1 note"), where a run of linked entries is one item. */
 export function linkedLabel(group: PlaylistRowGroup): string {

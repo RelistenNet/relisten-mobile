@@ -297,7 +297,7 @@ export default function PlaylistDetailPage() {
                 layout={layout}
                 viewRow={item}
                 online={online}
-                playingEntryId={playingEntryId}
+                isCurrent={item.row.entry.entryId === playingEntryId}
                 linkPlaying={linkPlaying}
                 onPlay={play}
                 onTimestamp={playTimestamp}
