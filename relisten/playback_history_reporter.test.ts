@@ -26,11 +26,8 @@ vi.mock('expo-crypto', () => ({
   getRandomValues: (bytes: Uint8Array<ArrayBuffer>) => globalThis.crypto.getRandomValues(bytes),
 }));
 
-import {
-  discardUnreportedPlays,
-  forgetAccountPlays,
-  PlaybackHistoryReporter,
-} from '@/relisten/playback_history_reporter';
+import { PlaybackHistoryReporter } from '@/relisten/playback_history_reporter';
+import { discardUnreportedPlays, forgetAccountPlays } from '@/relisten/history/play_history_rows';
 import {
   PlaybackFlags,
   PlaybackHistoryEntry,

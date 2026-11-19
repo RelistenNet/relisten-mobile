@@ -16,7 +16,7 @@ import {
   UserSettingsProps,
 } from '@/relisten/realm/models/user_settings';
 import { useRealm, useObject } from '@/relisten/realm/schema';
-import { discardUnreportedPlays } from '@/relisten/playback_history_reporter';
+import { discardUnreportedPlays } from '@/relisten/history/play_history_rows';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useEffect, useState } from 'react';
 import { Switch, SwitchProps, TextInput, TextInputProps } from 'react-native';

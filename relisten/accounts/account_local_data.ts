@@ -10,7 +10,7 @@ import {
   forgetAccountPlaylists,
   hideAccountPlaylists,
 } from '@/relisten/playlists/sync/playlist_sync_state';
-import { forgetAccountPlays } from '@/relisten/playback_history_reporter';
+import { forgetAccountPlays } from '@/relisten/history/play_history_rows';
 
 /**
  * Removes everything on the device that belongs to a deleted account:

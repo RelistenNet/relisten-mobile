@@ -28,6 +28,7 @@ import {
   PlaylistSegment,
 } from '@/relisten/realm/models/playlists/playlist';
 import { forgetDeletedAccount, hideUnconfirmedAccount } from './account_local_data';
+import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 
 vi.mock('expo-crypto', () => ({
   getRandomValues: (bytes: Uint8Array<ArrayBuffer>) => globalThis.crypto.getRandomValues(bytes),
@@ -45,7 +46,13 @@ describe('account local data', () => {
     realm = await Realm.open({
       path: join(directory, 'accounts.realm'),
       schemaVersion: 1,
-      schema: [...ACCOUNT_REALM_MODELS, ...FAVORITE_REALM_MODELS, ...PLAYLIST_REALM_MODELS],
+      schema: [
+        ...ACCOUNT_REALM_MODELS,
+        ...FAVORITE_REALM_MODELS,
+        ...PLAYLIST_REALM_MODELS,
+        PlaybackHistoryEntry,
+        ...HISTORY_LINK_STUBS,
+      ],
     });
     realm.write(() => {
       for (const userId of [deleted, survivor]) {
@@ -106,8 +113,9 @@ describe('account local data', () => {
     ).toHaveLength(0);
   });
 
-  // Account data lives in these three model groups. The app's full schema
-  // can't load under Vitest, since other models import React Native.
+  // Account data lives in these model groups and listening history. The
+  // app's full schema can't load under Vitest, since other models import
+  // React Native.
   it('covers every account, favorite and playlist table with an account field', () => {
     const accountFields = new Set([
       'scopeId',
@@ -115,11 +123,13 @@ describe('account local data', () => {
       'ownerUserId',
       'libraryUserId',
       'destinationScopeId',
+      'destinationUserId',
     ]);
     const withAccountField = [
       ...ACCOUNT_REALM_MODELS,
       ...FAVORITE_REALM_MODELS,
       ...PLAYLIST_REALM_MODELS,
+      PlaybackHistoryEntry,
     ]
       .map((model) => model.schema)
       .filter((schema) => Object.keys(schema.properties).some((name) => accountFields.has(name)))
@@ -167,7 +177,14 @@ const accountTables = [
   [PlaylistOperation, 'ownerUserId'],
   [PlaylistCommand, 'ownerUserId'],
   [PlaylistCopyCommand, 'userId'],
+  // Unsent plays only; plays already uploaded are the device's history.
+  [PlaybackHistoryEntry, 'destinationUserId'],
 ] as const;
+
+/** The catalog rows a play links to, reduced to their keys. */
+const HISTORY_LINK_STUBS: Realm.ObjectSchema[] = ['SourceTrack', 'Artist', 'Show', 'Source'].map(
+  (name) => ({ name, primaryKey: 'uuid', properties: { uuid: 'string' } })
+);
 
 function lastSignedInUserId(realm: Realm) {
   return realm.objectForPrimaryKey(PlaylistDeviceState, PLAYLIST_DEVICE_STATE_ID)
@@ -256,6 +273,20 @@ function seedAccount(realm: Realm, userId: string) {
     userId,
     createdAt: now,
   });
+  const link = (name: string) =>
+    realm.create(name, { uuid: `${name}_${userId}` }, Realm.UpdateMode.Modified);
+  realm.create(PlaybackHistoryEntry, {
+    uuid: `play_row_${userId}`,
+    playbackFlags: 0,
+    createdAt: now,
+    playbackStartedAt: now,
+    destinationUserId: userId,
+    playId: `play_${userId}`,
+    sourceTrack: link('SourceTrack'),
+    artist: link('Artist'),
+    show: link('Show'),
+    source: link('Source'),
+  } as never);
 }
 
 function seedDevicePlaylist(realm: Realm) {
