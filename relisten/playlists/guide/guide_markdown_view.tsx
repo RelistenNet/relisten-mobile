@@ -74,7 +74,7 @@ function guideStyle(fontScale: number, secondary: boolean): MarkdownStyle {
       markerColor: color,
       // The marker column is the top-level indent (`marginLeft` only indents
       // nested lists), with room between the marker and its text.
-      markerMinWidth: body * 1.25,
+      markerMinWidth: body * 0.75,
       gapWidth: body * 0.75,
       marginBottom: body * 0.5,
     },
