@@ -53,11 +53,39 @@ export function sourceTrackFor(realm: Realm, trackId: string): SourceTrack | nul
   if (!uuid) {
     return null;
   }
-  const track = realm.objectForPrimaryKey(SourceTrack, uuid);
-  // Playlist rows read the show, source and artist, so a track without them can't render yet.
+  return renderable(realm.objectForPrimaryKey(SourceTrack, uuid));
+}
+
+/** Playlist rows read the show, source and artist, so a track without them can't render yet. */
+function renderable(track: SourceTrack | null | undefined): SourceTrack | null {
   return track && track.deletedAt == null && track.show && track.source && track.artist
     ? track
     : null;
+}
+
+/**
+ * What rows know about the catalog: which tracks are gone, and the track each
+ * entry plays. Hooks build it from the live queries they watch, so rows are
+ * rebuilt from exactly what changed; code outside React reads Realm directly.
+ */
+interface CatalogView {
+  unavailable: ReadonlySet<string>;
+  trackFor(trackId: string): SourceTrack | null;
+}
+
+function catalogViewOf(
+  availability: Iterable<PlaylistTrackAvailability>,
+  tracks: Iterable<SourceTrack>
+): CatalogView {
+  const byUuid = new Map([...tracks].map((track) => [track.uuid, track]));
+  const redirects = redirectTargets(availability);
+  return {
+    unavailable: unavailableIds(availability),
+    trackFor: (trackId) => {
+      const uuid = parseUuidTypedId(redirects.get(trackId) ?? trackId, 'track');
+      return uuid ? renderable(byUuid.get(uuid)) : null;
+    },
+  };
 }
 
 /**
@@ -156,7 +184,7 @@ export function usePlaylistGroups(playlistId: string): PlaylistRowGroup[] {
   const { availability, tracks } = useCatalogTracks(trackIds);
 
   return useMemo(
-    () => buildRowGroups(realm, segments, entries, unavailableIds(availability)),
+    () => buildRowGroups(realm, segments, entries, catalogViewOf(availability, tracks)),
     [realm, segments, entries, availability, tracks]
   );
 }
@@ -183,7 +211,7 @@ export function useSnapshotRowGroups(
   const { availability, tracks } = useCatalogTracks(trackIds);
 
   return useMemo(() => {
-    const unavailable = unavailableIds(availability);
+    const catalog = catalogViewOf(availability, tracks);
     const descriptions = new Map<string, string>();
     const segmentStates = new Map<string, SegmentState>();
     const entryStates = new Map<string, EntryState>();
@@ -219,15 +247,9 @@ export function useSnapshotRowGroups(
       segment: group.segment,
       descriptionMarkdown: markdown(group.segment.segmentId, { kind: 'segment' }),
       entries: group.entries.map((entry) =>
-        rowEntry(
-          realm,
-          entry,
-          unavailable,
-          markdown(entry.entryId, entryContext(realm, entry.trackId))
-        )
+        rowEntry(entry, catalog, markdown(entry.entryId, entryContext(realm, entry.trackId)))
       ),
     }));
-    // `tracks` changes as the catalog loads them, which changes each row's status.
   }, [realm, segments, availability, tracks]);
 }
 
@@ -279,7 +301,18 @@ export function readPlaylistRowGroups(realm: Realm, playlistId: string): Playlis
     realm,
     realm.objects(PlaylistSegment).filtered('playlistId == $0 AND live == true', playlistId),
     realm.objects(PlaylistEntry).filtered('playlistId == $0 AND live == true', playlistId),
-    unavailableIds(realm.objects(PlaylistTrackAvailability))
+    {
+      unavailable: unavailableIds(realm.objects(PlaylistTrackAvailability)),
+      trackFor: (trackId) => sourceTrackFor(realm, trackId),
+    }
+  );
+}
+
+function redirectTargets(availability: Iterable<PlaylistTrackAvailability>) {
+  return new Map(
+    [...availability]
+      .filter((row) => row.status === 'redirected' && row.redirectTrackId)
+      .map((row) => [row.trackId, row.redirectTrackId!])
   );
 }
 
@@ -287,11 +320,7 @@ function playableTrackUuids(
   trackIds: string[],
   availability: Iterable<PlaylistTrackAvailability>
 ): string[] {
-  const redirects = new Map(
-    [...availability]
-      .filter((row) => row.status === 'redirected' && row.redirectTrackId)
-      .map((row) => [row.trackId, row.redirectTrackId!])
-  );
+  const redirects = redirectTargets(availability);
   return [
     ...new Set(trackIds.map((id) => parseUuidTypedId(redirects.get(id) ?? id, 'track'))),
   ].filter((uuid): uuid is string => uuid !== null);
@@ -305,7 +334,7 @@ function buildRowGroups(
   realm: Realm,
   segments: Iterable<PlaylistSegment>,
   entries: Iterable<PlaylistEntry>,
-  unavailableIds: ReadonlySet<string>
+  catalog: CatalogView
 ): PlaylistRowGroup[] {
   const segmentRows = new Map([...segments].map((s) => [s.segmentId, s]));
   const entryRows = new Map([...entries].map((e) => [e.entryId, e]));
@@ -321,22 +350,21 @@ function buildRowGroups(
     segment,
     descriptionMarkdown: markdownOf(segmentRows.get(segment.segmentId)),
     entries: groupEntries.map((entry) =>
-      rowEntry(realm, entry, unavailableIds, markdownOf(entryRows.get(entry.entryId)))
+      rowEntry(entry, catalog, markdownOf(entryRows.get(entry.entryId)))
     ),
   }));
 }
 
 function rowEntry(
-  realm: Realm,
   entry: EntryState,
-  unavailableIds: ReadonlySet<string>,
+  catalog: CatalogView,
   descriptionMarkdown: string | undefined
 ): PlaylistRowEntry {
   if (!entry.trackId) {
     return { entry, sourceTrack: null, status: 'text', descriptionMarkdown };
   }
-  const sourceTrack = sourceTrackFor(realm, entry.trackId);
-  const status: PlaylistTrackStatus = unavailableIds.has(entry.trackId)
+  const sourceTrack = catalog.trackFor(entry.trackId);
+  const status: PlaylistTrackStatus = catalog.unavailable.has(entry.trackId)
     ? 'unavailable'
     : sourceTrack
       ? 'playable'
