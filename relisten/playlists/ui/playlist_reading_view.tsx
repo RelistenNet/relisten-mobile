@@ -1,5 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import React, { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
+import React, { useMemo } from 'react';
 import { FlatList, type FlatListProps, useWindowDimensions, View } from 'react-native';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
@@ -72,32 +72,19 @@ export function PlaylistReadingList({
     ? layout.groups[layout.entryPositions.get(playingEntryId)?.groupIndex ?? -1]?.segment.segmentId
     : undefined;
 
-  // Row callbacks read the playlist when tapped, so they stay the same function
-  // as tracks load and every memoized row isn't re-rendered for a new one.
-  const latest = useRef({ groups, online });
-  useLayoutEffect(() => {
-    latest.current = { groups, online };
-  });
-  const play = useCallback(
-    (entryId: string) => {
-      const { groups, online } = latest.current;
-      if (!playPlaylist(player, playlistId, groups, online, entryId)) {
-        showPlaylistToast('This track isn’t downloaded.');
-      }
-    },
-    [player, playlistId]
-  );
-  const playTimestamp = useCallback(
-    (entryId: string, seconds: number) => {
-      const { groups, online } = latest.current;
-      if (!playEntryAt(player, playlistId, groups, online, entryId, seconds)) {
-        showPlaylistToast(
-          online ? 'That part isn’t available right now.' : 'That track isn’t downloaded.'
-        );
-      }
-    },
-    [player, playlistId]
-  );
+  // Playback queues every group, even when only downloaded tracks show.
+  const play = (entryId: string) => {
+    if (!playPlaylist(player, playlistId, groups, online, entryId)) {
+      showPlaylistToast('This track isn’t downloaded.');
+    }
+  };
+  const playTimestamp = (entryId: string, seconds: number) => {
+    if (!playEntryAt(player, playlistId, groups, online, entryId, seconds)) {
+      showPlaylistToast(
+        online ? 'That part isn’t available right now.' : 'That track isn’t downloaded.'
+      );
+    }
+  };
 
   return (
     <DisappearingHeaderScreen
