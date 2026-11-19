@@ -49,8 +49,7 @@ export function usePlaylistShareActions() {
     return true;
   };
 
-  const publishAndShare = async (playlist: Playlist) => {
-    const { playlistId, name } = playlist;
+  const publishAndShare = async (playlistId: string, name: string) => {
     try {
       const publicCode = await sharing.setPublished(playlistId, true);
       if (publicCode) {
@@ -70,12 +69,17 @@ export function usePlaylistShareActions() {
       sharePlaylistLink(playlist.name, playlist.publicCode);
       return;
     }
+    // Copied now: the playlist can be deleted while the alert is open.
+    const { name } = playlist;
     Alert.alert(
       'Make this playlist public?',
       'Anyone with the link can see and play it, and see your username. You can make it private again at any time.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Make Public', onPress: () => void publishAndShare(playlist) },
+        {
+          text: 'Make Public',
+          onPress: () => void publishAndShare(playlistId, name),
+        },
       ]
     );
   };
