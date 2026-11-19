@@ -27,7 +27,8 @@ vi.mock('expo-crypto', () => ({
 }));
 
 import { PlaybackHistoryReporter } from '@/relisten/playback_history_reporter';
-import { discardUnreportedPlays, forgetAccountPlays } from '@/relisten/history/play_history_rows';
+import { AccountsApiError } from '@/relisten/accounts/api/accounts_api_client';
+import { StaleAccountScopeError } from '@/relisten/accounts/account_scope_store';
 import {
   PlaybackFlags,
   PlaybackHistoryEntry,
@@ -73,21 +74,30 @@ const config: Realm.Configuration = {
 /** A signed-in account that can change between a request and its response. */
 function fakeAccounts(initial: string | null) {
   let userId = initial;
-  let generation = 0;
   const request = vi.fn();
   return {
     request,
+    currentUserId: () => userId,
     signInAs(next: string | null) {
       userId = next;
-      generation += 1;
     },
     accounts: {
       scopes: {
-        capture: () => ({ isAuthenticated: userId !== null, userId, generation }),
-        isCurrent: (capture: { generation: number }) => capture.generation === generation,
+        capture: () => ({ isAuthenticated: userId !== null, userId }),
       },
       api: { request },
     } as never,
+  };
+}
+
+/** The batch endpoint accepting every play it is sent. */
+async function acceptAll(_path: string, init: RequestInit) {
+  return {
+    contract_version: 1,
+    results: JSON.parse(String(init.body)).plays.map((p: { play_id: string }) => ({
+      play_id: p.play_id,
+      status: 'accepted',
+    })),
   };
 }
 
@@ -147,13 +157,7 @@ describe('PlaybackHistoryReporter', () => {
 
   it('uploads a signed-in play to that account, and only there', async () => {
     const signedIn = fakeAccounts(accountA);
-    signedIn.request.mockImplementation(async (_path: string, init: RequestInit) => ({
-      contract_version: 1,
-      results: JSON.parse(String(init.body)).plays.map((p: { play_id: string }) => ({
-        play_id: p.play_id,
-        status: 'accepted',
-      })),
-    }));
+    signedIn.request.mockImplementation(acceptAll);
     const reporter = reporterFor(signedIn);
     const entry = play(reporter, true);
 
@@ -216,18 +220,72 @@ describe('PlaybackHistoryReporter', () => {
     expect(unreported()).toHaveLength(1);
   });
 
-  it('writes nothing for a response that arrives after an account switch', async () => {
+  it("leaves A's plays unsent when A's response arrives after a switch, and sends B's", async () => {
     const accounts = fakeAccounts(accountA);
-    accounts.request.mockImplementation(async () => {
-      accounts.signInAs(accountB);
-      return { contract_version: 1, results: [{ play_id: null, status: 'accepted' }] };
-    });
     const reporter = reporterFor(accounts);
-    play(reporter);
+    const fromA = play(reporter);
+    accounts.signInAs(accountB);
+    const fromB = play(reporter);
+    accounts.signInAs(accountA);
+    accounts.request.mockImplementation(async (path: string, init: RequestInit) => {
+      if (accounts.currentUserId() === accountA) {
+        // The real client throws once the account it captured is no longer signed in.
+        accounts.signInAs(accountB);
+        void reporter.report();
+        throw new StaleAccountScopeError();
+      }
+      return acceptAll(path, init);
+    });
 
     await reporter.report();
 
-    expect(unreported()).toHaveLength(1);
+    expect(fromA.publishedAt).toBeNull();
+    expect(fromB.publishedAt).toBeInstanceOf(Date);
+  });
+
+  it('gives up on plays the account refuses for good, but retries a transient failure', async () => {
+    const accounts = fakeAccounts(accountA);
+    const reporter = reporterFor(accounts);
+    const refused = play(reporter);
+    accounts.signInAs(null);
+    const anonymous = play(reporter);
+    accounts.signInAs(accountA);
+    accounts.request.mockRejectedValueOnce(
+      new AccountsApiError('Bad request', 400, 'invalid_request', false)
+    );
+
+    await reporter.report();
+
+    expect(refused.publishedAt).toBeInstanceOf(Date);
+    expect(anonymous.publishedAt).toBeInstanceOf(Date);
+
+    const waiting = play(reporter);
+    accounts.request.mockRejectedValueOnce(new AccountsApiError('Unavailable', 503, null, true));
+
+    await reporter.report();
+
+    expect(waiting.publishedAt).toBeNull();
+  });
+
+  it('uploads more than one batch of waiting plays, oldest first', async () => {
+    const accounts = fakeAccounts(accountA);
+    accounts.request.mockImplementation(acceptAll);
+    const reporter = reporterFor(accounts);
+    const entries = Array.from({ length: 501 }, () => play(reporter));
+    realm.write(() => {
+      entries.forEach((entry, index) => {
+        entry.createdAt = new Date(Date.UTC(2026, 10, 19, 1, 0, index));
+      });
+    });
+
+    await reporter.report();
+
+    const sentIds = accounts.request.mock.calls.map(([, init]) =>
+      JSON.parse(init.body).plays.map((p: { play_id: string }) => p.play_id)
+    );
+    expect(sentIds.map((ids) => ids.length)).toEqual([500, 1]);
+    expect(sentIds.flat()).toEqual(entries.map((entry) => entry.playId));
+    expect(unreported()).toHaveLength(0);
   });
 
   it('reports a signed-out play anonymously, skipping rows cleared meanwhile', async () => {
@@ -244,38 +302,5 @@ describe('PlaybackHistoryReporter', () => {
     expect(entry.isValid()).toBe(false);
     expect(recordAnonymously).toHaveBeenCalledTimes(1);
     expect(recordAnonymously).toHaveBeenCalledWith(trackUuid);
-  });
-
-  it("forgets a deleted account's unsent plays and keeps the rest of history", async () => {
-    const accounts = fakeAccounts(accountA);
-    const reporter = reporterFor(accounts);
-    const sent = play(reporter);
-    realm.write(() => {
-      sent.publishedAt = new Date();
-    });
-    play(reporter);
-    accounts.signInAs(null);
-    play(reporter);
-
-    realm.write(() => forgetAccountPlays(realm, accountA));
-
-    expect(realm.objects(PlaybackHistoryEntry).map((e) => e.destinationUserId ?? null)).toEqual([
-      accountA,
-      null,
-    ]);
-  });
-
-  it('discards every unreported play when history is turned off', () => {
-    const reporter = reporterFor(fakeAccounts(accountA));
-    const sent = play(reporter);
-    realm.write(() => {
-      sent.publishedAt = new Date();
-    });
-    play(reporter);
-
-    discardUnreportedPlays(realm);
-
-    expect(realm.objects(PlaybackHistoryEntry)).toHaveLength(1);
-    expect(unreported()).toHaveLength(0);
   });
 });

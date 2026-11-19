@@ -1,7 +1,13 @@
 import type { RelistenApiClient } from '@/relisten/api/client';
 import Realm from 'realm';
-import type { AuthorizedAccountsApiClient } from '@/relisten/accounts/api/accounts_api_client';
-import type { AccountScopeSource } from '@/relisten/accounts/account_scope_store';
+import {
+  AccountsApiError,
+  type AuthorizedAccountsApiClient,
+} from '@/relisten/accounts/api/accounts_api_client';
+import {
+  type AccountScopeSource,
+  StaleAccountScopeError,
+} from '@/relisten/accounts/account_scope_store';
 import {
   PlaybackFlags,
   PlaybackHistoryEntry,
@@ -43,7 +49,8 @@ export interface PlayHistoryAccounts {
  * the signed-in account; the account also counts it toward popularity. A play
  * recorded signed out is reported anonymously to `/live/play`, as before
  * accounts. Rows wait on the device until their destination has them, and a
- * failed send is retried after 30 seconds.
+ * transient failure is retried after 30 seconds while the network is up. A
+ * failure in one destination doesn't hold back the other.
  */
 export class PlaybackHistoryReporter {
   constructor(
@@ -67,7 +74,9 @@ export class PlaybackHistoryReporter {
   }
 
   onNetworkUnavailable() {
+    clearTimeout(this.reportTimer);
     clearTimeout(this.retryTimer);
+    this.reportTimer = undefined;
     this.retryTimer = undefined;
     this.networkAvailable = false;
   }
@@ -141,19 +150,53 @@ export class PlaybackHistoryReporter {
     clearTimeout(this.retryTimer);
     this.retryTimer = undefined;
 
+    let retry = false;
     try {
       do {
         this.reportAgain = false;
-        await this.uploadAccountPlays();
-        await this.reportAnonymousPlays();
+
+        // Both passes run every time, so a failing account can't hold back anonymous plays.
+        const accountPlaysSent = await this.attempt('account', () => this.uploadAccountPlays());
+        const anonymousPlaysSent = await this.attempt('anonymous', () =>
+          this.reportAnonymousPlays()
+        );
+        retry = !accountPlaysSent || !anonymousPlaysSent;
       } while (this.reportAgain);
-    } catch (error) {
-      logger.warn(
-        `Reporting plays failed; retrying in 30s: ${error instanceof Error ? error.message : error}`
-      );
-      this.retryTimer = setTimeout(() => void this.report(), RETRY_DELAY_MS);
     } finally {
       this.reporting = false;
+    }
+
+    // Offline, the next onNetworkAvailable reports instead.
+    if (retry && this.networkAvailable) {
+      this.retryTimer = setTimeout(() => void this.report(), RETRY_DELAY_MS);
+    }
+  }
+
+  /** Runs one pass; false means it stopped on a failure worth retrying. */
+  private async attempt(destination: string, pass: () => Promise<void>): Promise<boolean> {
+    try {
+      await pass();
+      return true;
+    } catch (error) {
+      logger.warn(
+        `Reporting ${destination} plays failed; retrying in 30s: ${error instanceof Error ? error.message : error}`
+      );
+      return false;
+    }
+  }
+
+  /**
+   * A play whose track left the catalog can't be reported to either destination
+   * or shown in history, so it is deleted rather than marked sent: it would
+   * otherwise sit at the front of the queue forever.
+   */
+  private discardTracklessPlays() {
+    const trackless = this.realm
+      .objects(PlaybackHistoryEntry)
+      .filtered('publishedAt == null AND sourceTrack == null');
+    if (trackless.length > 0) {
+      logger.warn(`Discarding ${trackless.length} unsent plays whose track no longer exists`);
+      this.realm.write(() => this.realm.delete(trackless));
     }
   }
 
@@ -169,6 +212,8 @@ export class PlaybackHistoryReporter {
     }
 
     for (;;) {
+      this.discardTracklessPlays();
+
       const batch = this.realm
         .objects(PlaybackHistoryEntry)
         .filtered('publishedAt == null AND destinationUserId == $0', capture.userId)
@@ -177,18 +222,33 @@ export class PlaybackHistoryReporter {
       if (batch.length === 0) {
         return;
       }
+
       const rowIds = batch.map((entry) => entry.uuid);
       const plays = batch.map((entry) => playUploadOf(entry, this.platform));
 
-      const response = await api.request<PlayBatchResponse>('/v1/history/plays:batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contract_version: 1, plays }),
-      });
-      // A response for an account that is no longer signed in writes nothing.
-      if (!scopes.isCurrent(capture)) {
-        return;
+      let response: PlayBatchResponse;
+      try {
+        response = await api.request<PlayBatchResponse>('/v1/history/plays:batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contract_version: 1, plays }),
+        });
+      } catch (error) {
+        // The account changed mid-request: write nothing. The change starts another
+        // report, which the running one picks up through reportAgain.
+        if (error instanceof StaleAccountScopeError) {
+          return;
+        }
+        if (isRefusedForGood(error)) {
+          logger.warn(
+            `The account refused ${plays.length} plays (status ${error.status}); not sending them again`
+          );
+          this.markPublished(rowIds);
+          continue;
+        }
+        throw error;
       }
+
       if (response?.results?.length !== plays.length) {
         throw new Error('The play upload response has no result for every play.');
       }
@@ -200,6 +260,8 @@ export class PlaybackHistoryReporter {
 
   /** Reports plays recorded signed out, one at a time, as before accounts. */
   private async reportAnonymousPlays() {
+    this.discardTracklessPlays();
+
     const waiting = this.realm
       .objects(PlaybackHistoryEntry)
       .filtered('publishedAt == null AND destinationUserId == null')
@@ -230,4 +292,22 @@ export class PlaybackHistoryReporter {
       }
     });
   }
+}
+
+/**
+ * A request the account will never accept as sent, so retrying it would block
+ * every later play. `retryable` covers network failures, 408, 429 and 5xx. A
+ * 401 survived a token refresh, which means the session ended; those plays wait
+ * for the account to sign in again. A non-retryable 5xx is an unreadable
+ * response, which may come from a proxy, so it is retried too.
+ */
+function isRefusedForGood(error: unknown): error is AccountsApiError & { status: number } {
+  return (
+    error instanceof AccountsApiError &&
+    !error.retryable &&
+    error.status !== null &&
+    error.status >= 400 &&
+    error.status < 500 &&
+    error.status !== 401
+  );
 }

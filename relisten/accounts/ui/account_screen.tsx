@@ -105,7 +105,7 @@ export function AccountScreen() {
   const confirmDeleteAccount = () => {
     Alert.alert(
       'Delete your account?',
-      `This permanently deletes @${account.profile?.username} and everything saved to it: ${accountData.summary}. It can't be undone. Downloads and listening history stay on this device.`,
+      `This permanently deletes @${account.profile?.username} and everything saved to it, including ${accountData.summary}, your play history, and the playlists you follow. It can't be undone. Downloads stay on this device.`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Delete Account', style: 'destructive', onPress: () => void deleteAccount() },

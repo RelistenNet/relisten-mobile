@@ -179,7 +179,7 @@ export class AccountSessionCoordinator {
   signOut = (): Promise<void> => {
     if (!this.signOutPromise) {
       if (this.transitioning || this.deletionPromise) {
-        throw new Error('An account transition is already in progress.');
+        return Promise.reject(new Error('An account transition is already in progress.'));
       }
 
       this.signOutPromise = this.performSignOut().finally(() => {
@@ -247,7 +247,7 @@ export class AccountSessionCoordinator {
   deleteAccount = (): Promise<AccountDeletionResult> => {
     if (!this.deletionPromise) {
       if (this.transitioning || this.signOutPromise) {
-        throw new Error('An account transition is already in progress.');
+        return Promise.reject(new Error('An account transition is already in progress.'));
       }
 
       this.deletionPromise = this.performAccountDeletion().finally(() => {

@@ -201,7 +201,7 @@ describe('AccountSessionCoordinator', () => {
 
       void coordinator.deleteAccount();
 
-      expect(() => coordinator.signOut()).toThrow('in progress');
+      await expect(coordinator.signOut()).rejects.toThrow('in progress');
     });
 
     it('stays signed in when the request fails', async () => {
