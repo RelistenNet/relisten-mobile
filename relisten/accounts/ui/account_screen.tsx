@@ -8,6 +8,7 @@ import { SignedOutAccountScreen } from '@/relisten/accounts/ui/signed_out_accoun
 import { isAccountWaitingToRestore } from '@/relisten/accounts/ui/sync_status';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { useFavoriteSyncStatus } from '@/relisten/library/favorite_hooks';
+import { useAccountDataCounts } from '@/relisten/accounts/ui/account_data_counts';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, View } from 'react-native';
@@ -25,6 +26,8 @@ export function AccountScreen() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [openingProvider, setOpeningProvider] = useState<AccountProvider | null>(null);
   const [transitioning, setTransitioning] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const accountData = useAccountDataCounts(account.profile?.userId ?? null);
 
   const signIn = async (provider: AccountProvider) => {
     setActionError(null);
@@ -90,6 +93,38 @@ export function AccountScreen() {
     );
   };
 
+  const deleteAccount = async () => {
+    setDeleting(true);
+    setActionError(null);
+    account.clearError();
+
+    try {
+      // An unconfirmed deletion explains itself through the account error.
+      const result = await account.deleteAccount();
+      if (result === 'deleting') {
+        Alert.alert(
+          'Deleting your account',
+          'Relisten is deleting your account and everything saved to it. This device is signed out.'
+        );
+      }
+    } catch (error) {
+      setActionError(accountErrorMessage(error));
+    }
+
+    setDeleting(false);
+  };
+
+  const confirmDeleteAccount = () => {
+    Alert.alert(
+      'Delete your account?',
+      `This permanently deletes @${account.profile?.username} and everything saved to it: ${accountData.summary}. It can't be undone. Downloads and listening history stay on this device.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete Account', style: 'destructive', onPress: () => void deleteAccount() },
+      ]
+    );
+  };
+
   if (account.status === 'restoring') {
     return (
       <View className="flex-1 items-center justify-center gap-3 bg-relisten-blue-900 p-6">
@@ -145,13 +180,15 @@ export function AccountScreen() {
       onReviewUsername={() => router.push(usernamePath(tab))}
       onRetryFavoriteSync={syncStatus.retryFailed}
       onSignOut={confirmSignOut}
+      onDeleteAccount={confirmDeleteAccount}
+      deleting={deleting}
       onSwitchAccount={confirmSwitchAccount}
       pendingUsername={account.pendingUsername}
       pendingSyncCount={syncStatus.pendingCount}
       syncFailure={syncStatus.failure}
       syncState={displayedSyncState}
       syncWaitingMessage={syncWaitingMessage}
-      transitioning={transitioning}
+      transitioning={transitioning || deleting}
       username={account.profile.username}
       usernameReviewNeeded={account.profile.usernameReviewNeeded}
     />

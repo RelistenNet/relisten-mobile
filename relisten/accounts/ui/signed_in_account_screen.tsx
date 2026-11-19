@@ -21,6 +21,8 @@ type SignedInAccountScreenProps = {
   onImportFavorites: () => void;
   onReviewUsername: () => void;
   onSignOut: () => void;
+  onDeleteAccount: () => void;
+  deleting: boolean;
   onSwitchAccount: () => void;
   pendingUsername: string | null;
   pendingSyncCount: number;
@@ -45,6 +47,8 @@ export function SignedInAccountScreen({
   onReviewUsername,
   onRetryFavoriteSync,
   onSignOut,
+  onDeleteAccount,
+  deleting,
   onSwitchAccount,
   pendingUsername,
   pendingSyncCount,
@@ -152,6 +156,16 @@ export function SignedInAccountScreen({
           textClassName="text-red-300"
         >
           Sign Out
+        </RelistenButton>
+      </View>
+
+      <View className="mb-4 px-4">
+        <RelistenButton
+          disabled={transitioning}
+          onPress={onDeleteAccount}
+          textClassName="text-red-300"
+        >
+          {deleting ? 'Deleting Account…' : 'Delete Account'}
         </RelistenButton>
       </View>
 

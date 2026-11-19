@@ -51,8 +51,15 @@ vi.mock('expo-crypto', () => ({
   getRandomValues: (bytes: Uint8Array) => bytes,
 }));
 
+vi.mock('./account_local_data', () => ({
+  forgetDeletedAccount: vi.fn(),
+  hideUnconfirmedAccount: vi.fn(),
+}));
+
+import { forgetDeletedAccount, hideUnconfirmedAccount } from './account_local_data';
 import { AccountSessionCoordinator } from './account_session_coordinator';
 import { AccountsApiError } from './api/accounts_api_client';
+import { StaleAccountScopeError } from './account_scope_store';
 import { AccountLogoutRequest } from './api/account_logout_request';
 
 beforeEach(() => {
@@ -110,5 +117,103 @@ describe('AccountSessionCoordinator', () => {
       isAuthenticated: false,
     });
     expect(realmScope.blockedNativeSessionId).toBe('session_01hx3x56tbfay8vvr14d2pf2db');
+  });
+
+  describe('deleteAccount', () => {
+    const userId = 'user_01hx3x56tafay8vvr14d2pf2db';
+    const sessionId = 'session_01hx3x56tbfay8vvr14d2pf2db';
+
+    function signedInCoordinator(send: () => Promise<string>) {
+      const realmScope = {
+        scopeId: userId,
+        userId,
+        generation: 1,
+        nativeSessionId: sessionId,
+        blockedNativeSessionId: undefined as string | undefined,
+        updatedAt: new Date(),
+      };
+      const realm = {
+        objectForPrimaryKey: vi.fn(() => realmScope),
+        write: vi.fn((change: () => void) => change()),
+      };
+      const transitionEffects = {
+        beforeLeavingAuthenticatedScope: vi.fn().mockResolvedValue(undefined),
+      };
+      const coordinator = new AccountSessionCoordinator(realm as never, transitionEffects);
+      const credentials = {
+        activeEnvelope: vi.fn(() => ({ nativeSessionId: sessionId })),
+        clearMemory: vi.fn(),
+        clearPersisted: vi.fn().mockResolvedValue(undefined),
+      };
+      Reflect.set(coordinator, 'credentials', credentials);
+      Reflect.set(coordinator, 'deletionRequest', { send: vi.fn(send) });
+      return { coordinator, credentials, realm, realmScope, transitionEffects };
+    }
+
+    it('signs out and forgets the account once the server accepts', async () => {
+      const { coordinator, credentials, realm, realmScope, transitionEffects } =
+        signedInCoordinator(async () => 'accepted');
+
+      await expect(coordinator.deleteAccount()).resolves.toBe('deleting');
+
+      expect(transitionEffects.beforeLeavingAuthenticatedScope).toHaveBeenCalledOnce();
+      expect(credentials.clearPersisted).toHaveBeenCalledOnce();
+      expect(forgetDeletedAccount).toHaveBeenCalledExactlyOnceWith(realm, userId);
+      expect(hideUnconfirmedAccount).not.toHaveBeenCalled();
+      expect(realmScope.blockedNativeSessionId).toBe(sessionId);
+      expect(coordinator.getSnapshot()).toMatchObject({
+        status: 'signedOut',
+        error: null,
+        activeScope: { isAuthenticated: false },
+      });
+    });
+
+    it('keeps the account hidden but intact when the session already ended', async () => {
+      const { coordinator, credentials, realm } = signedInCoordinator(async () => 'sessionEnded');
+
+      await expect(coordinator.deleteAccount()).resolves.toBe('unconfirmed');
+
+      expect(forgetDeletedAccount).not.toHaveBeenCalled();
+      expect(hideUnconfirmedAccount).toHaveBeenCalledExactlyOnceWith(realm, userId);
+      expect(credentials.clearPersisted).toHaveBeenCalledOnce();
+      expect(coordinator.getSnapshot()).toMatchObject({
+        status: 'error',
+        error: { code: 'account_deletion_unconfirmed' },
+        activeScope: { isAuthenticated: false },
+      });
+    });
+
+    it('hides the account when the session ends while the request is in flight', async () => {
+      const { coordinator, realm } = signedInCoordinator(async () => {
+        // A background sync found the session gone and expired it.
+        coordinator.scopeSource.selectAnonymous(true);
+        throw new StaleAccountScopeError();
+      });
+
+      await expect(coordinator.deleteAccount()).resolves.toBe('unconfirmed');
+
+      expect(forgetDeletedAccount).not.toHaveBeenCalled();
+      expect(hideUnconfirmedAccount).toHaveBeenCalledExactlyOnceWith(realm, userId);
+    });
+
+    it('refuses to sign out while the request is in flight', async () => {
+      const { coordinator } = signedInCoordinator(() => new Promise(() => undefined));
+
+      void coordinator.deleteAccount();
+
+      expect(() => coordinator.signOut()).toThrow('in progress');
+    });
+
+    it('stays signed in when the request fails', async () => {
+      const failure = new AccountsApiError('Offline', null, 'account_deletion_failed', true);
+      const { coordinator, credentials } = signedInCoordinator(() => Promise.reject(failure));
+
+      await expect(coordinator.deleteAccount()).rejects.toBe(failure);
+
+      expect(credentials.clearPersisted).not.toHaveBeenCalled();
+      expect(forgetDeletedAccount).not.toHaveBeenCalled();
+      expect(hideUnconfirmedAccount).not.toHaveBeenCalled();
+      expect(coordinator.scopeSource.getSnapshot().isAuthenticated).toBe(true);
+    });
   });
 });

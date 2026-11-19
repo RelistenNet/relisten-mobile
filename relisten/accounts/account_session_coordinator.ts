@@ -26,6 +26,8 @@ import { AccountCredentials, ValidatedCredentials } from './account_credentials'
 import { AccountAccessTokenSource } from './account_access_token_source';
 import { AccountRestoreResult, AccountSessionRestorer } from './account_session_restorer';
 import { AccountLogoutRequest } from './api/account_logout_request';
+import { AccountDeletionOutcome, AccountDeletionRequest } from './api/account_deletion_request';
+import { forgetDeletedAccount, hideUnconfirmedAccount } from './account_local_data';
 
 const logger = log.extend('account-session');
 const LOGOUT_TOKEN_WAIT_MS = 1500;
@@ -34,6 +36,13 @@ type Listener = () => void;
 
 export type AccountStatus = 'restoring' | 'signedOut' | 'signingIn' | 'signedIn' | 'error';
 export type AccountSignInResult = 'signedIn' | 'cancelled';
+/**
+ * - `deleting`: the server accepted the deletion, and the account's data is
+ *   gone from this device.
+ * - `unconfirmed`: the session ended before the server confirmed. The account
+ *   may already be deleted. Its data stays on the device, hidden.
+ */
+export type AccountDeletionResult = 'deleting' | 'unconfirmed';
 
 export interface AccountSessionSnapshot {
   status: AccountStatus;
@@ -52,11 +61,13 @@ export class AccountSessionCoordinator {
   private readonly credentials: AccountCredentials;
   private readonly usernameService: UsernameService;
   private readonly logoutRequest: AccountLogoutRequest;
+  private readonly deletionRequest: AccountDeletionRequest;
   private readonly sessionRestorer: AccountSessionRestorer;
   private snapshot: AccountSessionSnapshot;
   private startPromise: Promise<void> | null = null;
   private restorePromise: Promise<void> | null = null;
   private signOutPromise: Promise<void> | null = null;
+  private deletionPromise: Promise<AccountDeletionResult> | null = null;
   private usernameRetryPromise: Promise<void> | null = null;
   private usernameUpdateInProgress = false;
   private sessionEpoch = 0;
@@ -68,7 +79,7 @@ export class AccountSessionCoordinator {
   } | null = null;
 
   constructor(
-    realm: Realm,
+    private readonly realm: Realm,
     private readonly transitionEffects: AccountTransitionEffects
   ) {
     const config = getAccountRuntimeConfig();
@@ -89,6 +100,7 @@ export class AccountSessionCoordinator {
       sessionExpired: (nativeSessionId) => this.expireSession(nativeSessionId),
     });
     this.accountsApi = new AuthorizedAccountsApiClient(transport, this.scopeSource, tokenSource);
+    this.deletionRequest = new AccountDeletionRequest(this.accountsApi);
     this.usernameService = new UsernameService(
       this.scopeSource,
       new UsernameCommandStore(realm),
@@ -166,7 +178,7 @@ export class AccountSessionCoordinator {
 
   signOut = (): Promise<void> => {
     if (!this.signOutPromise) {
-      if (this.transitioning) {
+      if (this.transitioning || this.deletionPromise) {
         throw new Error('An account transition is already in progress.');
       }
 
@@ -198,19 +210,132 @@ export class AccountSessionCoordinator {
       }
     } finally {
       try {
-        this.sessionEpoch += 1;
-        this.credentials.clearMemory();
-
-        await Promise.all([this.credentials.clearPersisted(), clearPendingAuthTransaction()]).catch(
-          () => {
-            // The blocked native-session ID in Realm prevents a failed SecureStore deletion
-            // from restoring the explicitly signed-out session on the next launch.
-            logger.warn('Protected credentials could not be deleted yet');
-          }
-        );
-
-        this.scopeSource.selectAnonymous(true, previousSessionId);
+        await this.endLocalSession(previousSessionId);
         this.publish({ status: 'signedOut', profile: null, error: null });
+      } finally {
+        this.transitioning = false;
+      }
+    }
+  }
+
+  /**
+   * Forgets the session's credentials on this device and switches to anonymous
+   * mode. Blocking the native session ID keeps a credential deletion that failed
+   * from restoring the session on the next launch.
+   */
+  private async endLocalSession(nativeSessionId: string | undefined) {
+    this.sessionEpoch += 1;
+    this.credentials.clearMemory();
+
+    await Promise.all([this.credentials.clearPersisted(), clearPendingAuthTransaction()]).catch(
+      () => {
+        logger.warn('Protected credentials could not be deleted yet');
+      }
+    );
+
+    this.scopeSource.selectAnonymous(true, nativeSessionId);
+  }
+
+  /**
+   * Asks the server to delete the signed-in account, then leaves it.
+   *
+   * Local data is destroyed only when the server accepts (`202`). If the
+   * session has already ended, an earlier attempt may have deleted the account,
+   * or the session may simply have expired. The app can't tell which, so the
+   * account's data stays on the device, hidden, until it signs in again.
+   */
+  deleteAccount = (): Promise<AccountDeletionResult> => {
+    if (!this.deletionPromise) {
+      if (this.transitioning || this.signOutPromise) {
+        throw new Error('An account transition is already in progress.');
+      }
+
+      this.deletionPromise = this.performAccountDeletion().finally(() => {
+        this.deletionPromise = null;
+      });
+    }
+
+    return this.deletionPromise;
+  };
+
+  private async performAccountDeletion(): Promise<AccountDeletionResult> {
+    const scope = this.scopeSource.getSnapshot();
+    if (!scope.isAuthenticated || !scope.userId) {
+      throw new Error('Sign in to delete your Relisten account.');
+    }
+
+    const userId = scope.userId;
+
+    // The transition gate stays open during the request, because the session
+    // must keep working for it, including a token refresh. Sign-out is refused
+    // until the request settles.
+    const outcome = await this.sendDeletionRequest(userId);
+
+    if (outcome === 'accepted') {
+      await this.leaveDeletedAccount(scope);
+      forgetDeletedAccount(this.realm, userId);
+      this.publish({ status: 'signedOut', profile: null, error: null });
+      return 'deleting';
+    }
+
+    await this.leaveUnconfirmedAccount(userId);
+    return 'unconfirmed';
+  }
+
+  /**
+   * Sends the request. If the session ends while it's in flight, the request
+   * fails with whatever error the ending caused, often a stale-scope error.
+   * Report that as an ended session, so the account is still hidden.
+   */
+  private async sendDeletionRequest(userId: string): Promise<AccountDeletionOutcome> {
+    try {
+      return await this.deletionRequest.send();
+    } catch (error) {
+      if (!this.isSignedInAs(userId)) {
+        return 'sessionEnded';
+      }
+      throw error;
+    }
+  }
+
+  private isSignedInAs(userId: string) {
+    const current = this.scopeSource.getSnapshot();
+    return current.isAuthenticated && current.userId === userId;
+  }
+
+  /** The session ended during deletion: sign out and hide the account's data, destroying nothing. */
+  private async leaveUnconfirmedAccount(userId: string) {
+    // A failed token refresh has normally expired the session already. If not,
+    // expire it here. expireSession publishes a session_expired error, which
+    // the more specific error below replaces.
+    const current = this.scopeSource.getSnapshot();
+    if (this.isSignedInAs(userId) && current.nativeSessionId) {
+      await this.expireSession(current.nativeSessionId);
+    }
+
+    hideUnconfirmedAccount(this.realm, userId);
+    this.publish({
+      status: 'error',
+      profile: null,
+      error: {
+        code: 'account_deletion_unconfirmed',
+        message:
+          "Your session ended before Relisten could confirm the deletion. Your account may already be deleted. If it isn't, sign in again and delete it.",
+        retryable: false,
+      },
+    });
+  }
+
+  /** Like sign-out, but with no logout request: the purge ends the server session. */
+  private async leaveDeletedAccount(scope: AccountScopeCapture) {
+    this.transitioning = true;
+
+    try {
+      this.scopeSource.invalidateInFlightWork();
+      await this.prepareToLeaveAuthenticatedScope();
+    } finally {
+      try {
+        await this.endLocalSession(scope.nativeSessionId ?? undefined);
       } finally {
         this.transitioning = false;
       }

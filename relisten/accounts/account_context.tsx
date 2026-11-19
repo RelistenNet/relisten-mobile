@@ -10,6 +10,7 @@ import {
 import { AppState } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import {
+  AccountDeletionResult,
   AccountSessionCoordinator,
   AccountSignInResult,
   AccountStatus,
@@ -39,6 +40,8 @@ export interface AccountContextValue {
   signIn(provider: AccountProvider): Promise<AccountSignInResult>;
   signOut(): Promise<void>;
   switchAccount(provider: AccountProvider): Promise<AccountSignInResult>;
+  /** Deletes the account on the server, then signs out and removes its data from this device. */
+  deleteAccount(): Promise<AccountDeletionResult>;
   refreshProfile(): Promise<void>;
   updateUsername(username: string): Promise<AccountProfileSnapshot>;
   clearError(): void;
@@ -112,6 +115,7 @@ export function AccountProvider({
       signIn: coordinator.signIn,
       signOut: coordinator.signOut,
       switchAccount: coordinator.switchAccount,
+      deleteAccount: coordinator.deleteAccount,
       refreshProfile: coordinator.refreshProfile,
       updateUsername: coordinator.updateUsername,
       clearError: coordinator.clearError,

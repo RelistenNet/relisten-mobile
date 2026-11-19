@@ -109,6 +109,39 @@ export function claimUnownedPlaylists(realm: Realm, userId: string): number {
 }
 
 /**
+ * The account was deleted: removes its playlists from the device, along with
+ * their rows and unsent work. Call this only after the server accepted the
+ * deletion. When deletion can't be confirmed, use `hideAccountPlaylists`.
+ */
+export function forgetAccountPlaylists(realm: Realm, userId: string) {
+  const playlists = realm.objects(Playlist).filtered('ownerUserId == $0', userId);
+  const playlistIds = playlists.map((playlist) => playlist.playlistId);
+
+  realm.delete(realm.objects(PlaylistEntry).filtered('playlistId IN $0', playlistIds));
+  realm.delete(realm.objects(PlaylistSegment).filtered('playlistId IN $0', playlistIds));
+  realm.delete(realm.objects(PlaylistOperation).filtered('ownerUserId == $0', userId));
+  realm.delete(realm.objects(PlaylistCommand).filtered('ownerUserId == $0', userId));
+  realm.delete(playlists);
+
+  // Nothing of the deleted account remains on the device, so it stops being
+  // the visible owner too.
+  hideAccountPlaylists(realm, userId);
+}
+
+/**
+ * Hides the account's playlists, keeping them and their pending edits on the
+ * device. Ordinary sign-out keeps the last account visible on purpose. This is
+ * for a session that ended during deletion, when the account may be gone.
+ * Signing in to it again shows them again.
+ */
+export function hideAccountPlaylists(realm: Realm, userId: string) {
+  const state = deviceState(realm);
+  if (state.lastSignedInUserId === userId) {
+    state.lastSignedInUserId = undefined;
+  }
+}
+
+/**
  * Freezes what the device shows into a create command, and makes that the
  * provisional canonical state until the server confirms it, so edits made
  * meanwhile replay on top of exactly what the command will create.
