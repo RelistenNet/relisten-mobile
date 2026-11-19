@@ -112,7 +112,7 @@ describe('followed playlists', () => {
     expect(playlist.ownerUsername).toBe('deadhead');
     expect(canAccessPlaylist(realm, playlist)).toBe(true);
     expect(canEditPlaylist(realm, playlist)).toBe(false);
-    expect(followsNeedingSnapshot(realm, follower)).toEqual([playlist]);
+    expect([...followsNeedingSnapshot(realm, follower)]).toEqual([playlist]);
   });
 
   it('replaces the rows from the public snapshot, sanitizing guide text', () => {
@@ -140,6 +140,40 @@ describe('followed playlists', () => {
     expect(followNeedsSnapshot(stored()!)).toBe(true);
   });
 
+  it('keeps the rows a newer snapshot still has, and drops the ones it left out', () => {
+    follow();
+    realm.write(() =>
+      applyFollowedSnapshot(
+        realm,
+        follower,
+        snapshot(3, [
+          [trackEntry, trackId],
+          [textEntry, null],
+        ])
+      )
+    );
+    // What an open playlist screen holds: replacing a row would invalidate it.
+    const kept = realm.objectForPrimaryKey(PlaylistEntry, trackEntry)!;
+    const dropped = realm.objectForPrimaryKey(PlaylistEntry, textEntry)!;
+
+    realm.write(() =>
+      applyFollowedSnapshot(
+        realm,
+        follower,
+        snapshot(4, [
+          [laterEntry, trackId],
+          [trackEntry, trackId],
+        ])
+      )
+    );
+
+    expect(kept.isValid()).toBe(true);
+    expect(kept.rank).toBe('a1');
+    expect(dropped.isValid()).toBe(false);
+    const entries = realm.objects(PlaylistEntry).filtered('playlistId == $0', playlistId);
+    expect(entries.map((entry) => entry.entryId).sort()).toEqual([trackEntry, laterEntry].sort());
+  });
+
   it('still needs a pull after a cached snapshot older than its head', () => {
     follow();
     realm.write(() => applyFollowedHeads(realm, follower, [head(5)]));
@@ -155,6 +189,15 @@ describe('followed playlists', () => {
     realm.write(() => applyFollowedSnapshot(realm, follower, snapshot(5, [])));
     realm.write(() => applyFollowedSnapshot(realm, follower, snapshot(4, [[trackEntry, trackId]])));
     expect(stored()!.entryCount).toBe(0);
+    expect(followNeedsSnapshot(stored()!)).toBe(false);
+  });
+
+  it('stays settled when a late head names an older revision', () => {
+    follow();
+    realm.write(() => applyFollowedSnapshot(realm, follower, snapshot(5, [])));
+
+    realm.write(() => applyFollowedHeads(realm, follower, [head(4)]));
+
     expect(followNeedsSnapshot(stored()!)).toBe(false);
   });
 

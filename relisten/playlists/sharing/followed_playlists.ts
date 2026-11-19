@@ -4,7 +4,9 @@ import { Playlist } from '@/relisten/realm/models/playlists/playlist';
 import { writeEntryRow, writeSegmentRow } from '@/relisten/playlists/guide/guide_rows';
 import {
   deletePlaylistRows,
+  playlistRows,
   releaseFollowedRow,
+  setIfChanged,
 } from '@/relisten/playlists/sync/playlist_sync_state';
 import {
   type FollowedPlaylistHead,
@@ -86,12 +88,18 @@ export function applyFollowedHeads(realm: Realm, userId: string, heads: Followed
     setIfChanged(playlist, 'publicCode', head.public_code);
     setIfChanged(playlist, 'ownerUserId', head.owner.id);
     setIfChanged(playlist, 'ownerUsername', head.owner.username);
-    setIfChanged(playlist, 'summaryRevision', head.revision);
+    // A late head can name an older revision than one already seen; revisions
+    // only grow within a history (a restore clears them), so keep the newest.
+    setIfChanged(
+      playlist,
+      'summaryRevision',
+      Math.max(playlist.summaryRevision ?? 0, head.revision)
+    );
   }
 }
 
 /**
- * Whether a followed playlist's stored copy is behind: its head names another
+ * Whether a followed playlist's stored copy is behind: its head names a later
  * revision, or the copy is from an older history (`markNeedsSnapshot` after a
  * restore clears its revision).
  */
@@ -99,13 +107,19 @@ export function followNeedsSnapshot(playlist: Playlist): boolean {
   return (
     !playlist.unavailable &&
     !!playlist.publicCode &&
-    (playlist.appliedRevision == null || playlist.appliedRevision !== playlist.summaryRevision)
+    (playlist.appliedRevision == null || (playlist.summaryRevision ?? 0) > playlist.appliedRevision)
   );
 }
 
 /** The followed playlists to pull, oldest copy first, so each sync makes progress on all of them. */
-export function followsNeedingSnapshot(realm: Realm, userId: string): Playlist[] {
-  return [...followedPlaylists(realm, userId).sorted('updatedAt')].filter(followNeedsSnapshot);
+export function followsNeedingSnapshot(realm: Realm, userId: string) {
+  // The same rule as `followNeedsSnapshot`, in the query, so a sync pass reads
+  // only the follows that are behind rather than every follow.
+  return followedPlaylists(realm, userId)
+    .filtered(
+      'unavailable == false AND publicCode != null AND (appliedRevision == null OR summaryRevision > appliedRevision)'
+    )
+    .sorted('updatedAt');
 }
 
 /**
@@ -172,18 +186,26 @@ export function storeConfirmedFollow(
   applyFollowedSnapshot(realm, userId, snapshot);
 }
 
-/** Replaces a followed playlist's rows and details with a newer public snapshot. */
+/**
+ * Brings a followed playlist's rows and details up to a newer public snapshot.
+ * Rows are matched by ID: only values that changed are written and only rows
+ * the snapshot dropped are deleted, so the open playlist keeps its unchanged
+ * rows and their sanitized guide text.
+ */
 function writeFollowedSnapshot(realm: Realm, playlist: Playlist, snapshot: PublicPlaylistSnapshot) {
   const playlistId = playlist.playlistId;
-  deletePlaylistRows(realm, [playlistId]);
+  const segmentIds = new Set<string>();
+  const entryIds = new Set<string>();
 
   for (const segment of snapshot.segments) {
+    segmentIds.add(segment.segment_id);
     writeSegmentRow(realm, playlistId, {
       segmentId: segment.segment_id,
       rank: segment.rank,
       description: segment.description ?? undefined,
     });
     for (const entry of segment.entries) {
+      entryIds.add(entry.entry_id);
       writeEntryRow(realm, playlistId, {
         entryId: entry.entry_id,
         segmentId: segment.segment_id,
@@ -193,6 +215,10 @@ function writeFollowedSnapshot(realm: Realm, playlist: Playlist, snapshot: Publi
       });
     }
   }
+
+  const rows = playlistRows(realm, playlistId);
+  realm.delete(rows.entries.filter((row) => !entryIds.has(row.entryId)));
+  realm.delete(rows.segments.filter((row) => !segmentIds.has(row.segmentId)));
 
   // A newer revision is an edit by the owner, which moves it up the list.
   playlist.updatedAt = new Date();
@@ -256,11 +282,4 @@ function removeFollow(realm: Realm, userId: string, playlistId: string) {
   }
   deletePlaylistRows(realm, [playlistId]);
   realm.delete(playlist);
-}
-
-/** Writes only a changed value, so a feed page that changed nothing wakes no listeners. */
-function setIfChanged<K extends keyof Playlist>(playlist: Playlist, key: K, value: Playlist[K]) {
-  if ((playlist[key] ?? undefined) !== (value ?? undefined)) {
-    playlist[key] = value;
-  }
 }

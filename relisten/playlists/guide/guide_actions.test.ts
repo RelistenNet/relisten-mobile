@@ -110,4 +110,27 @@ describe('guide edits', () => {
     expect(() => removeEntry(realm, playlistId, group.entries[0].entryId)).toThrow(GuideLimitError);
     expect(layout(playlistId)).toEqual(before);
   });
+
+  it('checks a batch against the state it leaves, applying all of it or none', () => {
+    const { playlistId } = createPlaylist(realm, 'Guide', [['track_a']]);
+    const [group] = orderedGroups(readPlaylistSnapshot(realm, playlistId));
+    setSegmentDescription(realm, playlistId, group.segment.segmentId, 'Opener');
+    const sections = (count: number) =>
+      Array.from({ length: count }, (_, i) => insertProseSegment(`Section ${i}`, {}));
+    const before = layout(playlistId);
+
+    expect(() => applyOperations(realm, playlistId, sections(MAX_PROSE_ONLY_SEGMENTS + 1))).toThrow(
+      GuideLimitError
+    );
+    expect(layout(playlistId)).toEqual(before);
+
+    // Emptying the described group makes one text section too many, until
+    // the same batch deletes the group.
+    applyOperations(realm, playlistId, [
+      ...sections(MAX_PROSE_ONLY_SEGMENTS),
+      { type: 'delete_entry', entryId: group.entries[0].entryId },
+      { type: 'delete_segment', segmentId: group.segment.segmentId },
+    ]);
+    expect(layout(playlistId)).toHaveLength(MAX_PROSE_ONLY_SEGMENTS);
+  });
 });

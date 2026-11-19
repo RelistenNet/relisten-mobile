@@ -1,7 +1,7 @@
 import { useIsFocused } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import Realm from 'realm';
-import { refreshStaleGuideMarkdown } from '@/relisten/playlists/guide/guide_rows';
+import { refreshTrackNotes } from '@/relisten/playlists/guide/guide_rows';
 import type { RelistenApiClient } from '@/relisten/api/client';
 import type { CatalogReferenceResolution } from '@/relisten/api/catalog/resolve';
 import { useRelistenApi } from '@/relisten/api/context';
@@ -51,7 +51,7 @@ export async function resolvePlaylistTracks(
     }
   }
   // Notes link bare timestamps only once their track's duration is known.
-  refreshStaleGuideMarkdown(realm);
+  refreshTrackNotes(realm, [...availability.keys()]);
   return availability;
 }
 

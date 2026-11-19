@@ -12,7 +12,10 @@ import {
   PLAYLIST_REALM_MODELS,
   PlaylistSegment,
 } from '@/relisten/realm/models/playlists/playlist';
-import { refreshStaleGuideMarkdown } from '@/relisten/playlists/guide/guide_rows';
+import {
+  refreshStaleGuideMarkdown,
+  refreshTrackNotes,
+} from '@/relisten/playlists/guide/guide_rows';
 import { parseUuidTypedId } from '@/relisten/util/typed_uuid_id';
 import {
   appendOperation,
@@ -138,6 +141,37 @@ describe('guide content sync', () => {
     });
     refreshStaleGuideMarkdown(realm);
     expect(entry.descriptionMarkdown).toBe('Listen at [2:00](#t=2:00).');
+  });
+
+  it('links only the loaded tracks’ notes after hydration', () => {
+    const entry = realm.objectForPrimaryKey(PlaylistEntry, trackEntryId)!;
+    realm.write(() => {
+      realm.create('SourceTrack', { uuid: parseUuidTypedId(trackId, 'track'), duration: 300.5 });
+    });
+
+    refreshTrackNotes(realm, ['track_01k8000000e008000000000007']);
+    expect(entry.descriptionMarkdown).toBe('Listen at 2:00.');
+
+    refreshTrackNotes(realm, [trackId]);
+    expect(entry.descriptionMarkdown).toBe('Listen at [2:00](#t=2:00).');
+  });
+
+  it('drops a row a later snapshot leaves out, keeping the rest', () => {
+    const kept = realm.objectForPrimaryKey(PlaylistEntry, trackEntryId)!;
+    const [segment] = snapshot.segments;
+
+    realm.write(() =>
+      applySnapshot(realm, realm.objectForPrimaryKey(Playlist, playlistId)!, {
+        ...snapshot,
+        revision: 4,
+        segments: [{ ...segment, entries: [segment.entries[0]] }],
+      })
+    );
+
+    expect(realm.objectForPrimaryKey(PlaylistEntry, textEntryId)).toBeNull();
+    expect(kept.isValid()).toBe(true);
+    expect(kept.canonicalLive).toBe(true);
+    expect(kept.live).toBe(true);
   });
 
   it('includes descriptions and text blocks when creating the playlist on an account', () => {

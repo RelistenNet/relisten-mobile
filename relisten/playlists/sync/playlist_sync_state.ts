@@ -146,6 +146,29 @@ export function deletePlaylistRows(realm: Realm, playlistIds: string[]) {
   realm.delete(realm.objects(PlaylistSegment).filtered('playlistId IN $0', playlistIds));
 }
 
+/** Every stored segment and entry of a playlist, hidden ones included. */
+export function playlistRows(realm: Realm, playlistId: string) {
+  return {
+    segments: [...realm.objects(PlaylistSegment).filtered('playlistId == $0', playlistId)],
+    entries: [...realm.objects(PlaylistEntry).filtered('playlistId == $0', playlistId)],
+  };
+}
+
+/**
+ * Writes a field only when its value differs. Realm reports every assignment
+ * as a change, so an equal value would still wake the row's listeners and
+ * re-render the screens subscribed to it. An unset optional field reads as
+ * null, which counts as equal to undefined.
+ */
+export function setIfChanged<
+  Row extends Playlist | PlaylistSegment | PlaylistEntry,
+  Key extends keyof Row,
+>(row: Row, key: Key, value: Row[Key]) {
+  if ((row[key] ?? undefined) !== (value ?? undefined)) {
+    row[key] = value;
+  }
+}
+
 /**
  * Removes a followed playlist from the device so `userId`, the signed-in
  * account, can store this playlist ID instead. There is one row per playlist
@@ -486,8 +509,7 @@ export function rebuildDisplayed(realm: Realm, playlistId: string) {
     return;
   }
 
-  const segmentRows = [...realm.objects(PlaylistSegment).filtered('playlistId == $0', playlistId)];
-  const entryRows = [...realm.objects(PlaylistEntry).filtered('playlistId == $0', playlistId)];
+  const { segments: segmentRows, entries: entryRows } = playlistRows(realm, playlistId);
   const state = readCanonical(playlist, segmentRows, entryRows);
   replayOverlay(state, overlayEdits(realm, playlistId));
 
@@ -698,18 +720,9 @@ export function applyPlaylistSummaries(realm: Realm, userId: string, summaries: 
 
 /** Records the server's sharing state for an owned playlist, writing only what changed. */
 export function recordPublication(playlist: Playlist, publication: PlaylistPublicationState) {
-  const publicCode = publication.public_code ?? undefined;
-  const published = publication.published ?? false;
-  const takenDown = publication.taken_down ?? false;
-  if ((playlist.publicCode ?? undefined) !== publicCode) {
-    playlist.publicCode = publicCode;
-  }
-  if (playlist.published !== published) {
-    playlist.published = published;
-  }
-  if (playlist.takenDown !== takenDown) {
-    playlist.takenDown = takenDown;
-  }
+  setIfChanged(playlist, 'publicCode', publication.public_code ?? undefined);
+  setIfChanged(playlist, 'published', publication.published ?? false);
+  setIfChanged(playlist, 'takenDown', publication.taken_down ?? false);
 }
 
 /** Replaces the canonical state with a snapshot, then prunes and rebuilds. */
@@ -719,19 +732,18 @@ export function applySnapshot(
   snapshot: PlaylistSnapshotResponse
 ) {
   const playlistId = playlist.playlistId;
-  for (const row of realm.objects(PlaylistSegment).filtered('playlistId == $0', playlistId)) {
-    row.canonicalLive = false;
-  }
-  for (const row of realm.objects(PlaylistEntry).filtered('playlistId == $0', playlistId)) {
-    row.canonicalLive = false;
-  }
+  const segmentIds = new Set<string>();
+  const entryIds = new Set<string>();
+
   for (const segment of snapshot.segments) {
+    segmentIds.add(segment.segment_id);
     upsertCanonicalSegment(realm, playlistId, {
       segmentId: segment.segment_id,
       rank: segment.rank,
       description: segment.description ?? undefined,
     });
     for (const entry of segment.entries) {
+      entryIds.add(entry.entry_id);
       upsertCanonicalEntry(realm, playlistId, {
         entryId: entry.entry_id,
         segmentId: segment.segment_id,
@@ -742,8 +754,22 @@ export function applySnapshot(
     }
   }
 
-  playlist.canonicalName = snapshot.metadata.name;
-  playlist.canonicalDescription = snapshot.metadata.description ?? undefined;
+  // The snapshot is the whole confirmed state: a row it leaves out is no
+  // longer confirmed. The rebuild below hides or deletes it.
+  const rows = playlistRows(realm, playlistId);
+  for (const row of rows.segments) {
+    if (!segmentIds.has(row.segmentId)) {
+      setIfChanged(row, 'canonicalLive', false);
+    }
+  }
+  for (const row of rows.entries) {
+    if (!entryIds.has(row.entryId)) {
+      setIfChanged(row, 'canonicalLive', false);
+    }
+  }
+
+  setIfChanged(playlist, 'canonicalName', snapshot.metadata.name);
+  setIfChanged(playlist, 'canonicalDescription', snapshot.metadata.description ?? undefined);
   setArchived(realm, playlist, snapshot.archived);
   recordPublication(playlist, snapshot);
   playlist.serverState = 'synced';
@@ -783,8 +809,8 @@ export function applyChangesPage(realm: Realm, playlist: Playlist, page: Playlis
     for (const change of revision.changes) {
       switch (change.type) {
         case 'metadata_updated':
-          playlist.canonicalName = change.name;
-          playlist.canonicalDescription = change.description ?? undefined;
+          setIfChanged(playlist, 'canonicalName', change.name);
+          setIfChanged(playlist, 'canonicalDescription', change.description ?? undefined);
           break;
         case 'segment_upserted':
           upsertCanonicalSegment(realm, playlistId, {
@@ -865,9 +891,9 @@ function upsertCanonicalSegment(realm: Realm, playlistId: string, segment: Segme
       rank: segment.rank,
       live: true,
     });
-  row.canonicalRank = segment.rank;
-  row.canonicalLive = true;
-  row.canonicalDescription = segment.description;
+  setIfChanged(row, 'canonicalRank', segment.rank);
+  setIfChanged(row, 'canonicalLive', true);
+  setIfChanged(row, 'canonicalDescription', segment.description);
 }
 
 /** Records an entry's confirmed state, like `upsertCanonicalSegment`. A text block has no track. */
@@ -882,10 +908,10 @@ function upsertCanonicalEntry(realm: Realm, playlistId: string, entry: EntryStat
       rank: entry.rank,
       live: true,
     });
-  row.canonicalSegmentId = entry.segmentId;
-  row.canonicalRank = entry.rank;
-  row.canonicalLive = true;
-  row.canonicalDescription = entry.description;
+  setIfChanged(row, 'canonicalSegmentId', entry.segmentId);
+  setIfChanged(row, 'canonicalRank', entry.rank);
+  setIfChanged(row, 'canonicalLive', true);
+  setIfChanged(row, 'canonicalDescription', entry.description);
 }
 
 /**

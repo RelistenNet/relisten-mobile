@@ -112,12 +112,33 @@ export function refreshGuideMarkdown(realm: Realm, row: PlaylistSegment | Playli
   }
 }
 
-/** Refreshes every stale stored copy. Runs at startup and after playlist tracks load. */
+/**
+ * Refreshes every stale stored copy, in every playlist. Runs at startup, which
+ * is what picks up a new sanitizer version.
+ */
 export function refreshStaleGuideMarkdown(realm: Realm) {
-  const rows = [
+  refreshStaleRows(realm, [
     ...realm.objects(PlaylistSegment).filtered('description != null'),
     ...realm.objects(PlaylistEntry).filtered('description != null'),
-  ];
+  ]);
+}
+
+/**
+ * Refreshes the notes on the given tracks after the catalog loaded them. A
+ * track's duration decides which of its note's timestamps link, and no other
+ * stored copy depends on the catalog, so only these entries can have gone stale.
+ */
+export function refreshTrackNotes(realm: Realm, trackIds: string[]) {
+  if (trackIds.length === 0) {
+    return;
+  }
+  refreshStaleRows(realm, [
+    ...realm.objects(PlaylistEntry).filtered('description != null AND trackId IN $0', trackIds),
+  ]);
+}
+
+/** Opens a write only when a row is stale, so a refresh that finds nothing wakes no listeners. */
+function refreshStaleRows(realm: Realm, rows: (PlaylistSegment | PlaylistEntry)[]) {
   const stale = rows.filter((row) => row.descriptionMarkdownKey !== keyOf(contextOf(realm, row)));
   if (stale.length === 0) {
     return;

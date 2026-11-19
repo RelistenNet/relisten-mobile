@@ -78,6 +78,8 @@ const MAX_BATCH_BYTES = 1.5 * 1024 * 1024;
  * opened, or on a later run.
  */
 const FOLLOWED_SNAPSHOTS_PER_RUN = 20;
+/** How many owned playlists' snapshots are requested at once. */
+const SNAPSHOT_CONCURRENCY = 4;
 /**
  * How long a followed playlist waits after a fetch that failed or was out of
  * date. The edge caches public snapshots for about a minute, so asking sooner
@@ -292,7 +294,13 @@ export class PlaylistSyncService {
         return;
       }
       // Nothing is in flight between runs, so anything marked so was interrupted.
-      this.write(capture, () => resetInterruptedOperations(this.realm, userId));
+      // Checked first, since a write wakes every listener and runs on each edit.
+      if (
+        this.operations.filtered('libraryUserId == $0 AND state == $1', userId, 'in_flight')
+          .length > 0
+      ) {
+        this.write(capture, () => resetInterruptedOperations(this.realm, userId));
+      }
       this.followedBudget = FOLLOWED_SNAPSHOTS_PER_RUN;
       await this.resendCopies(capture, userId);
 
@@ -520,7 +528,7 @@ export class PlaylistSyncService {
     }
 
     this.batchLimit = MAX_BATCH_OPERATIONS;
-    this.write(capture, () => this.applyBatchResults(playlistId, response));
+    this.write(capture, () => this.applyBatchResults(playlistId, batch, response));
     return (
       this.operations.filtered('playlistId == $0 AND state == $1', playlistId, 'pending').length > 0
     );
@@ -551,8 +559,19 @@ export class PlaylistSyncService {
     return batch;
   }
 
-  /** Records each edit's result, then rebuilds. Runs in a write. */
-  private applyBatchResults(playlistId: string, response: OperationBatchResponse) {
+  /**
+   * Records each sent edit's result. Runs in a write.
+   *
+   * An acknowledged edit stays in the overlay until a pull confirms it, so the
+   * displayed state is already right and is not rebuilt. An edit that leaves
+   * the overlay (accepted with nothing to confirm, or refused) is no longer
+   * replayed, and that does call for a rebuild.
+   */
+  private applyBatchResults(
+    playlistId: string,
+    batch: WireOperation[],
+    response: OperationBatchResponse
+  ) {
     const playlist = this.realm.objectForPrimaryKey(Playlist, playlistId);
     if (!playlist) {
       return;
@@ -562,32 +581,42 @@ export class PlaylistSyncService {
       return;
     }
 
+    const sentTypes = new Map(batch.map((sent) => [sent.operation_id, sent.operation_type]));
     let deleted = false;
+    let overlayChanged = false;
+
     for (const result of response.results) {
       const op = this.realm.objectForPrimaryKey(PlaylistOperation, result.operation_id);
       if (!op) {
         continue;
       }
-      const edit = JSON.parse(op.operationJson) as PlaylistEdit;
       if (result.status === 'applied' && result.revision !== null) {
         op.state = 'acknowledged';
         op.resultRevision = result.revision;
         op.resultGeneration = response.history_generation;
-        deleted ||= edit.type === 'delete_entry' || edit.type === 'delete_segment';
+        const type = sentTypes.get(result.operation_id);
+        deleted ||= type === 'delete_entry' || type === 'delete_segment';
       } else if (ACCEPTED_STATUSES.has(result.status)) {
         // Accepted without a revision: nothing will arrive to confirm it.
         this.realm.delete(op);
+        overlayChanged = true;
       } else {
         // The edit's intent did not land. The sync notice offers its additions again.
         op.state = 'needs_attention';
         op.lastErrorCode = result.status;
+        overlayChanged = true;
       }
     }
+
     if (deleted) {
       resumeAfterDeletion(this.realm, playlist.libraryUserId!);
     }
-    playlist.summaryRevision = Math.max(playlist.summaryRevision ?? 0, response.head_revision);
-    rebuildDisplayed(this.realm, playlistId);
+    if ((playlist.summaryRevision ?? 0) < response.head_revision) {
+      playlist.summaryRevision = response.head_revision;
+    }
+    if (overlayChanged) {
+      rebuildDisplayed(this.realm, playlistId);
+    }
   }
 
   /** Moves the batch's edits to the state the failure calls for. Runs in a write. */
@@ -654,13 +683,14 @@ export class PlaylistSyncService {
    * Pulls every playlist this device should refresh: those that need a
    * snapshot (new, created, or after a restore), those whose summary or own
    * acknowledged edits are ahead of what was applied, and any whose screen
-   * just opened.
+   * just opened. Playlists with an open screen go first in each step.
    */
   private async pull(capture: AccountScopeCapture, userId: string) {
     // Open checks are cleared one at a time as they run, so a pass that fails
     // partway leaves the rest for the next run.
     const requested = new Set(this.checkRequested);
-    const candidates = [
+    const acknowledged = this.acknowledgedRevisions(userId);
+    const owned = [
       ...this.playlists.filtered(
         'libraryUserId == $0 AND access == $1 AND serverState == $2 AND archived == false',
         userId,
@@ -668,42 +698,97 @@ export class PlaylistSyncService {
         'synced'
       ),
     ];
-    for (const playlist of candidates) {
-      if (!playlist.isValid()) {
-        continue;
+    const openFirst = [
+      ...owned.filter((playlist) => requested.has(playlist.playlistId)),
+      ...owned.filter((playlist) => !requested.has(playlist.playlistId)),
+    ];
+    const toSnapshot = openFirst.filter(needsSnapshot).map((playlist) => playlist.playlistId);
+    const toCatchUp = openFirst
+      .filter(
+        (playlist) =>
+          !needsSnapshot(playlist) &&
+          (isBehind(playlist, acknowledged) || requested.has(playlist.playlistId))
+      )
+      .map((playlist) => playlist.playlistId);
+
+    // Catching up is a few small requests; snapshots can be a whole library
+    // on a new device, so they go last.
+    for (const playlistId of toCatchUp) {
+      await this.fetchChanges(capture, playlistId);
+      this.markChecked(playlistId);
+    }
+    await this.fetchSnapshots(capture, toSnapshot);
+  }
+
+  private markChecked(playlistId: string) {
+    this.checkRequested.delete(playlistId);
+    this.lastChecked.set(playlistId, Date.now());
+  }
+
+  /**
+   * The newest revision the server gave each playlist's acknowledged edits,
+   * from one query per pass rather than one per playlist: every edit wakes a
+   * run, so `pull` runs often.
+   */
+  private acknowledgedRevisions(userId: string): Map<string, number> {
+    const revisions = new Map<string, number>();
+    for (const op of this.operations.filtered(
+      'libraryUserId == $0 AND state == $1',
+      userId,
+      'acknowledged'
+    )) {
+      if (op.resultRevision != null) {
+        revisions.set(
+          op.playlistId,
+          Math.max(revisions.get(op.playlistId) ?? 0, op.resultRevision)
+        );
       }
-      const playlistId = playlist.playlistId;
-      if (needsSnapshot(playlist)) {
-        await this.fetchSnapshot(capture, playlistId);
-      } else if (this.isBehind(playlist) || requested.has(playlistId)) {
-        await this.fetchChanges(capture, playlistId);
-      } else {
-        continue;
+    }
+    return revisions;
+  }
+
+  /**
+   * Fetches snapshots a few at a time, so a new device's first sync doesn't
+   * wait on one request per playlist in turn. Only the requests overlap: each
+   * group's snapshots are stored one after another, in order. A request that
+   * fails doesn't cost its group the snapshots that arrived; those are stored,
+   * then the failure stops the pass as it would alone, and the rest are
+   * fetched on the retry.
+   */
+  private async fetchSnapshots(capture: AccountScopeCapture, playlistIds: string[]) {
+    for (let start = 0; start < playlistIds.length; start += SNAPSHOT_CONCURRENCY) {
+      const group = playlistIds.slice(start, start + SNAPSHOT_CONCURRENCY);
+      const results = await Promise.allSettled(
+        group.map((playlistId) => this.requestSnapshot(capture, playlistId))
+      );
+
+      let failure: PromiseRejectedResult | undefined;
+      group.forEach((playlistId, index) => {
+        const result = results[index];
+        if (result.status === 'rejected') {
+          failure ??= result;
+          return;
+        }
+        if (result.value) {
+          this.storeSnapshot(capture, playlistId, result.value);
+        } else {
+          this.recoverMissing(capture, playlistId);
+        }
+        this.markChecked(playlistId);
+      });
+      if (failure) {
+        throw failure.reason;
       }
-      this.checkRequested.delete(playlistId);
-      this.lastChecked.set(playlistId, Date.now());
     }
   }
 
-  private isBehind(playlist: Playlist) {
-    const applied = playlist.appliedRevision ?? 0;
-    if ((playlist.summaryRevision ?? 0) > applied) {
-      return true;
-    }
-    return (
-      this.operations.filtered(
-        'playlistId == $0 AND state == $1 AND resultRevision > $2',
-        playlist.playlistId,
-        'acknowledged',
-        applied
-      ).length > 0
-    );
-  }
-
-  private async fetchSnapshot(capture: AccountScopeCapture, playlistId: string) {
-    let snapshot: PlaylistSnapshotResponse;
+  /** The account's snapshot of a playlist, or null if the account no longer has it. */
+  private async requestSnapshot(
+    capture: AccountScopeCapture,
+    playlistId: string
+  ): Promise<PlaylistSnapshotResponse | null> {
     try {
-      snapshot = await this.request<PlaylistSnapshotResponse>(
+      return await this.request<PlaylistSnapshotResponse>(
         capture,
         `/v1/playlists/${playlistId}/snapshot`
       );
@@ -711,10 +796,15 @@ export class PlaylistSyncService {
       if (problemCode(error) !== 'playlist_not_found') {
         throw error;
       }
-      this.recoverMissing(capture, playlistId);
-      return;
+      return null;
     }
+  }
 
+  private storeSnapshot(
+    capture: AccountScopeCapture,
+    playlistId: string,
+    snapshot: PlaylistSnapshotResponse
+  ) {
     this.write(capture, () => {
       const playlist = this.realm.objectForPrimaryKey(Playlist, playlistId);
       if (!playlist) {
@@ -987,4 +1077,13 @@ function newestCreatedAt<T extends { createdAt: Date }>(rows: Realm.Results<T>):
 
 function describe(error: unknown) {
   return error instanceof Error ? `${error.name}: ${error.message}` : 'unknown error';
+}
+
+/** Whether the account has a newer revision than the one applied: in its summary, or from this device's own acknowledged edits. */
+function isBehind(playlist: Playlist, acknowledged: Map<string, number>) {
+  const applied = playlist.appliedRevision ?? 0;
+  return (
+    (playlist.summaryRevision ?? 0) > applied ||
+    (acknowledged.get(playlist.playlistId) ?? 0) > applied
+  );
 }

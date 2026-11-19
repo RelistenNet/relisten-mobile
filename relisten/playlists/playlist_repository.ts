@@ -224,7 +224,7 @@ export interface AppliedEdit {
 
 /**
  * Applies operations in order, in one transaction: either all of them land or,
- * if one would exceed a limit, none do. In an account playlist each operation
+ * if they would leave the playlist over a limit, none do. In an account playlist each operation
  * that changed something is also appended to the owner's outbox.
  */
 export function applyOperations(
@@ -258,6 +258,7 @@ function applyInWrite(
   const snapshot = readPlaylistSnapshot(realm, playlist.playlistId);
   const operationIds: string[] = [];
   let changed = false;
+  let checkGuideLimits = false;
 
   for (const operation of operations) {
     const { status, changes } = applyPlaylistOperation(snapshot, operation);
@@ -276,14 +277,19 @@ function applyInWrite(
         `A playlist can hold up to ${PLAYLIST_LIMITS.entriesPerPlaylist.toLocaleString()} tracks and notes.`
       );
     }
-    if (mayExceedGuideLimits(operation)) {
-      assertGuideLimits(snapshot, playlist.description);
-    }
+    checkGuideLimits ||= mayExceedGuideLimits(operation);
     changed = true;
     const operationId = recordEdit(realm, playlist, operation, changes);
     if (operationId) {
       operationIds.push(operationId);
     }
+  }
+
+  // The server checks the guide limits against the state a batch leaves
+  // behind, so they are checked once here, after the last operation. A refusal
+  // throws out of the caller's write, which discards the rows written above.
+  if (checkGuideLimits) {
+    assertGuideLimits(snapshot, playlist.description);
   }
 
   if (changed) {
@@ -294,8 +300,8 @@ function applyInWrite(
 }
 
 /**
- * Operations that can push a playlist over the guide limits, so the state they
- * leave is checked: those that add guide text, and those that can take the
+ * Operations that can push a playlist over the guide limits, so a batch with
+ * one has its final state checked: those that add guide text, and those that can take the
  * last entry out of a described group, leaving it text-only.
  */
 function mayExceedGuideLimits(operation: PlaylistOperation): boolean {
