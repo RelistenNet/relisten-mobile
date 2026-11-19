@@ -73,7 +73,13 @@ function StatusLine({ row, online }: { row: PlaylistRowEntry; online: boolean })
  * its neighbors. A group with only a description is just its intro row.
  */
 export type PlaylistViewRow =
-  | { kind: 'intro'; key: string; group: PlaylistRowGroup; markdown: string }
+  | {
+      kind: 'intro';
+      key: string;
+      group: PlaylistRowGroup;
+      markdown: string;
+      link?: LinkPosition;
+    }
   | {
       kind: 'entry';
       key: string;
@@ -85,47 +91,71 @@ export type PlaylistViewRow =
 export function playlistViewRows(groups: PlaylistRowGroup[]): PlaylistViewRow[] {
   const rows: PlaylistViewRow[] = [];
   for (const group of groups) {
+    // An intro belongs to its tracks, so it starts their rail. A rail needs
+    // something to join: the intro and at least one entry, or several entries.
+    const hasIntro = !!group.descriptionMarkdown;
+    const count = group.entries.length + (hasIntro ? 1 : 0);
+    const linkAt = (index: number): LinkPosition | undefined =>
+      count < 2 || group.entries.length === 0
+        ? undefined
+        : index === 0
+          ? 'first'
+          : index === count - 1
+            ? 'last'
+            : 'middle';
+
     if (group.descriptionMarkdown) {
       rows.push({
         kind: 'intro',
         key: `intro:${group.segment.segmentId}`,
         group,
         markdown: group.descriptionMarkdown,
+        link: linkAt(0),
       });
     }
-    const count = group.entries.length;
     group.entries.forEach((row, index) => {
       rows.push({
         kind: 'entry',
         key: row.entry.entryId,
         row,
         group,
-        link:
-          count < 2 ? undefined : index === 0 ? 'first' : index === count - 1 ? 'last' : 'middle',
+        link: linkAt(index + (hasIntro ? 1 : 0)),
       });
     });
   }
   return rows;
 }
 
+/**
+ * Vertical padding shared by guide text rows (intros, text blocks and track
+ * notes). The renderer drops the last block's bottom margin, so the row's own
+ * padding sets the space below, whether the text ends in a paragraph or a list.
+ */
+const GUIDE_ROW_PADDING = 'py-3';
+
 /** Handles a tapped timestamp link: which entry (defaulting to the note's own track) and when. */
 export type TimestampHandler = (entryId: string, seconds: number) => void;
 
 /** A group's intro, above its entries. Edited from the menu or in edit mode. */
 export function PlaylistIntroRow({
-  markdown,
+  viewRow,
+  linkPlaying,
   onTimestamp,
 }: {
-  markdown: string;
+  viewRow: Extract<PlaylistViewRow, { kind: 'intro' }>;
+  linkPlaying: boolean;
   onTimestamp: TimestampHandler;
 }) {
   return (
-    <View className="border-b border-white/10 px-4 pb-1 pt-4">
-      <GuideMarkdown
-        markdown={markdown}
-        // Sanitizing turns entry-less timestamps outside a track's note into text.
-        onTimestamp={(entryId, seconds) => entryId && onTimestamp(entryId, seconds)}
-      />
+    <View className="pl-4 pr-2">
+      <LinkRail link={viewRow.link} active={linkPlaying} />
+      <View className={tw('border-b border-white/10 pr-2', GUIDE_ROW_PADDING)}>
+        <GuideMarkdown
+          markdown={viewRow.markdown}
+          // Sanitizing turns entry-less timestamps outside a track's note into text.
+          onTimestamp={(entryId, seconds) => entryId && onTimestamp(entryId, seconds)}
+        />
+      </View>
     </View>
   );
 }
@@ -149,7 +179,7 @@ export function PlaylistTextRow({
     <View className="pl-4 pr-2">
       <LinkRail link={link} active={linkPlaying} />
       <View className="min-h-[52px] flex-row items-start border-b border-white/10">
-        <View className="min-w-0 flex-1 py-3">
+        <View className={tw('min-w-0 flex-1', GUIDE_ROW_PADDING)}>
           <GuideMarkdown
             markdown={row.descriptionMarkdown ?? ''}
             onTimestamp={(entryId, seconds) => entryId && onTimestamp(entryId, seconds)}
@@ -255,7 +285,7 @@ export function PlaylistTrackRow({
       </View>
       {row.descriptionMarkdown && (
         // The note sits under the track, outside its play button, so its links stay tappable.
-        <View className="border-b border-white/10 pb-2 pr-2">
+        <View className="border-b border-white/10 pb-3 pr-2">
           <GuideMarkdown
             markdown={row.descriptionMarkdown}
             secondary

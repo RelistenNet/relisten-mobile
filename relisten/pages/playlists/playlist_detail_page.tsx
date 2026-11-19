@@ -272,11 +272,17 @@ export default function PlaylistDetailPage() {
             </RelistenText>
           }
           renderItem={({ item }) => {
-            if (item.kind === 'intro') {
-              return <PlaylistIntroRow markdown={item.markdown} onTimestamp={playTimestamp} />;
-            }
             const linkPlaying =
               item.link !== undefined && item.group.segment.segmentId === playingSegmentId;
+            if (item.kind === 'intro') {
+              return (
+                <PlaylistIntroRow
+                  viewRow={item}
+                  linkPlaying={linkPlaying}
+                  onTimestamp={playTimestamp}
+                />
+              );
+            }
             return item.row.status === 'text' ? (
               <PlaylistTextRow
                 playlistId={playlistId}
