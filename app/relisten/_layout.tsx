@@ -5,6 +5,7 @@ import { RelistenBlue } from '@/relisten/relisten_blue';
 import { Stack } from 'expo-router/stack';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { DownloadManager } from '@/relisten/offline/download_manager';
 
 export const unstable_settings = {
@@ -72,7 +73,9 @@ export default function TabLayout() {
           headerShown: true,
           headerStyle: { backgroundColor: RelistenBlue['900'] },
           headerTintColor: 'white',
-          presentation: 'formSheet',
+          // Android draws a form sheet as a Material bottom sheet with no header,
+          // which would hide the title, Cancel and Create; it opens full screen there.
+          presentation: Platform.OS === 'android' ? 'modal' : 'formSheet',
           sheetAllowedDetents: [0.6, 0.92],
           sheetGrabberVisible: true,
         }}

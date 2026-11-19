@@ -1,3 +1,4 @@
+import { TrackSelectionToolbar } from '@/relisten/components/header_buttons';
 import { ItemSeparator } from '@/relisten/components/item_separator';
 import { trackIdForSourceTrack } from '@/relisten/playlists/playlist_hooks';
 import { openAddToPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
@@ -288,23 +289,11 @@ export default function Page() {
     <>
       <Stack.Screen options={{ title: show?.displayDate ?? '' }} />
       {selectedTrackUuids && (
-        <>
-          <Stack.Toolbar placement="left">
-            <Stack.Toolbar.Button onPress={() => setSelectedTrackUuids(null)}>
-              Cancel
-            </Stack.Toolbar.Button>
-          </Stack.Toolbar>
-          <Stack.Toolbar placement="right">
-            <Stack.Toolbar.Button
-              disabled={selectedTrackUuids.size === 0}
-              onPress={addSelectedToPlaylist}
-            >
-              {selectedTrackUuids.size === 0
-                ? 'Add to Playlist'
-                : `Add ${selectedTrackUuids.size} to Playlist`}
-            </Stack.Toolbar.Button>
-          </Stack.Toolbar>
-        </>
+        <TrackSelectionToolbar
+          count={selectedTrackUuids.size}
+          onCancel={() => setSelectedTrackUuids(null)}
+          onAdd={addSelectedToPlaylist}
+        />
       )}
       {show && selectedSource && !selectedTrackUuids && (
         <SourceActionsToolbar
