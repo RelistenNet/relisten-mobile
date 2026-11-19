@@ -122,6 +122,7 @@ export default function GuideTextEditorScreen() {
         cursorColor={RelistenBlue[400]}
         selectionColor={RelistenBlue[600]}
         style={{ flex: 1, color: 'white', fontSize: 17, paddingHorizontal: 16, paddingTop: 12 }}
+        markdownStyle={EDITOR_STYLE}
         formatMenuConfig={{
           underline: { enabled: false },
           strikethrough: { enabled: false },
@@ -147,6 +148,20 @@ function insertWithSpace(
   field.insertText(' ');
   insert(field);
 }
+
+/**
+ * The input draws headings, bold and italics in black unless told otherwise,
+ * which can't be read on the dark sheet. Sizes match the rendered guide.
+ */
+const EDITOR_STYLE = {
+  strong: { color: 'white' },
+  em: { color: 'white' },
+  link: { color: RelistenBlue[400], underline: false },
+  // Typing "# " makes a level-one heading; the guide shows it as plain text.
+  h1: { fontSize: 20, fontWeight: 'bold', color: 'white' },
+  h2: { fontSize: 20, fontWeight: 'bold', color: 'white' },
+  h3: { fontSize: 18, fontWeight: 'bold', color: 'white' },
+};
 
 // region Targets
 

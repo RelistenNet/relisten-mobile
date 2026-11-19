@@ -59,13 +59,22 @@ const GUIDE_MD4C_FLAGS = { hardSoftBreaks: true, admonitions: false, latexMath: 
 function guideStyle(fontScale: number, secondary: boolean): MarkdownStyle {
   const body = (secondary ? 14 : 16) * fontScale;
   const color = secondary ? '#d1d5db' : '#f3f4f6';
+  const text = { fontSize: body, color, lineHeight: body * 1.4 };
 
   return {
-    paragraph: { fontSize: body, color, lineHeight: body * 1.4, marginBottom: body * 0.5 },
+    // Every block sets its own color and size; the renderer's defaults are
+    // black body text, which disappears on the dark background.
+    paragraph: { ...text, marginBottom: body * 0.5 },
     h2: { fontSize: 20 * fontScale, fontWeight: 'bold', color: 'white', marginBottom: 6 },
     h3: { fontSize: 18 * fontScale, fontWeight: 'bold', color: 'white', marginBottom: 4 },
-    blockquote: { borderColor: RelistenBlue[700], borderWidth: 3, gapWidth: 10 },
-    list: { bulletColor: color, markerColor: color, gapWidth: 8 },
+    blockquote: { ...text, borderColor: RelistenBlue[700], borderWidth: 3, gapWidth: 10 },
+    list: {
+      ...text,
+      bulletColor: color,
+      markerColor: color,
+      gapWidth: 8,
+      marginBottom: body * 0.5,
+    },
     link: { color: RelistenBlue[400], underline: false },
     linkVariants: {
       '^(?!https://|#)': { color, underline: false },
