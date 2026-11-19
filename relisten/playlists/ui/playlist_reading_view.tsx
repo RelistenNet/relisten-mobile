@@ -12,7 +12,6 @@ import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_
 import { humanDuration, playlistSizeLine } from '@/relisten/playlists/playlist_format';
 import {
   summarizePlaylist,
-  useIdentityReuse,
   usePlaylistLayout,
   type PlaylistRowGroup,
 } from '@/relisten/playlists/playlist_hooks';
@@ -28,10 +27,8 @@ import {
   PlaylistTrackRow,
   type PlaylistViewRow,
   playlistViewRows,
-  reuseUnchangedViewRows,
   usePlayingEntryId,
 } from '@/relisten/playlists/ui/playlist_rows';
-import { trackMenuPlace } from '@/relisten/playlists/ui/playlist_menus';
 import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 
@@ -66,17 +63,10 @@ export function PlaylistReadingList({
   const layout = usePlaylistLayout(groups);
   const playingEntryId = usePlayingEntryId(playlistId);
   const scrollProps = usePlayerBottomScrollViewProps({});
-  const keepUnchangedViewRows = useIdentityReuse(reuseUnchangedViewRows, []);
   // The groups update as downloads finish, which keeps Show Downloaded Only current.
-  // Menus act on the whole playlist, so their places come from every group.
   const viewRows = useMemo(
-    () =>
-      keepUnchangedViewRows(
-        playlistViewRows(downloadedOnly ? filterDownloaded(groups) : groups, (entryId) =>
-          trackMenuPlace(layout, entryId)
-        )
-      ),
-    [groups, layout, downloadedOnly, keepUnchangedViewRows]
+    () => playlistViewRows(downloadedOnly ? filterDownloaded(groups) : groups),
+    [groups, downloadedOnly]
   );
   const playingSegmentId = playingEntryId
     ? layout.groups[layout.entryPositions.get(playingEntryId)?.groupIndex ?? -1]?.segment.segmentId
@@ -134,6 +124,7 @@ export function PlaylistReadingList({
         return item.row.status === 'text' ? (
           <PlaylistTextRow
             playlistId={playlistId}
+            layout={layout}
             viewRow={item}
             editable={editable}
             linkPlaying={linkPlaying}
@@ -142,6 +133,7 @@ export function PlaylistReadingList({
         ) : (
           <PlaylistTrackRow
             playlistId={playlistId}
+            layout={layout}
             viewRow={item}
             editable={editable}
             online={online}

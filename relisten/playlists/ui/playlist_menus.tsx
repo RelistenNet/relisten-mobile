@@ -34,59 +34,11 @@ import {
 } from '@/relisten/playlists/guide/guide_text_navigation';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 
-/**
- * Where an entry sits, reduced to what its menu shows: the group it is in, its
- * place in that group, whether its group is at either end, and the title it
- * would link to. A list row takes this rather than the whole layout, so its
- * props change only when its own menu would, not whenever another row does.
- */
-export interface TrackMenuPlace {
-  group: PlaylistRowGroup;
-  index: number;
-  firstGroup: boolean;
-  lastGroup: boolean;
-  /** The entry above to link to, for a track on its own below another group. */
-  aboveTitle?: string;
-}
-
-export function trackMenuPlace(
-  layout: PlaylistLayout,
-  entryId: string
-): TrackMenuPlace | undefined {
-  const at = layout.entryPositions.get(entryId);
-  const group = at && layout.groups[at.groupIndex];
-  if (!at || !group) {
-    return undefined;
-  }
-
-  const firstGroup = at.groupIndex === 0;
-  // Only a track truly on its own can link up; one with an intro keeps its group
-  // (see `isSingle` in playlist_actions).
-  const canLinkUp = group.entries.length === 1 && !group.segment.description && !firstGroup;
-  const above = canLinkUp ? layout.groups[at.groupIndex - 1] : undefined;
-  // A text-only group above has no entry to link to.
-  const aboveLast = above?.entries[above.entries.length - 1];
-  return {
-    group,
-    index: at.index,
-    firstGroup,
-    lastGroup: at.groupIndex === layout.groups.length - 1,
-    aboveTitle: aboveLast ? entryTitle(aboveLast) : undefined,
-  };
-}
-
-/** Whether a row's menu would show the same actions in both places. */
-export function sameTrackMenuPlace(a: TrackMenuPlace | undefined, b: TrackMenuPlace | undefined) {
-  return (
-    a === b ||
-    (a !== undefined &&
-      b !== undefined &&
-      a.group === b.group &&
-      a.index === b.index &&
-      a.firstGroup === b.firstGroup &&
-      a.lastGroup === b.lastGroup &&
-      a.aboveTitle === b.aboveTitle)
-  );
+/** Where a row sits, which decides which moves make sense. */
+function position(layout: PlaylistLayout, entryId: string) {
+  const { groupIndex = -1, index = -1 } = layout.entryPositions.get(entryId) ?? {};
+  const group = layout.groups[groupIndex];
+  return { groupIndex, group, index, inGroup: (group?.entries.length ?? 0) > 1 };
 }
 
 function useGoToShow() {
@@ -129,27 +81,23 @@ const menuSections = (sections: MenuAction[][]): MenuAction[] =>
 /**
  * The menu for one track: playback, moves, grouping, then Remove. Shown in
  * view and edit modes. A playlist the listener can't edit gets playback and
- * Go to Show only. Its place comes from `place`, or from `layout` for callers
- * that re-render every row anyway.
+ * Go to Show only.
  */
 export function TrackMenu({
   playlistId,
   layout,
-  place,
   row,
   editable = true,
   style,
   children,
 }: {
   playlistId: string;
+  layout: PlaylistLayout;
   row: PlaylistRowEntry;
   editable?: boolean;
   style?: StyleProp<ViewStyle>;
   children: ReactNode;
-} & (
-  | { layout: PlaylistLayout; place?: undefined }
-  | { place: TrackMenuPlace | undefined; layout?: undefined }
-)) {
+}) {
   const realm = useRealm();
   const router = useRouter();
   const player = useRelistenPlayer();
@@ -159,15 +107,21 @@ export function TrackMenu({
   const goToShow = useGoToShow();
   const entryId = row.entry.entryId;
   const title = entryTitle(row);
-  const at = place ?? (layout ? trackMenuPlace(layout, entryId) : undefined);
-  const inGroup = (at?.group.entries.length ?? 0) > 1;
-  const aboveTitle = at?.aboveTitle;
-  const isFirst = inGroup ? at?.index === 0 : at?.firstGroup === true;
-  const isLast = inGroup
-    ? at?.index === (at?.group.entries.length ?? 0) - 1
-    : at?.lastGroup === true;
-  const groupmate = inGroup
-    ? at!.group.entries.find((r) => r.entry.entryId !== entryId)
+  const { groups } = layout;
+  const at = position(layout, entryId);
+  // Only a track truly on its own can link up; one with an intro keeps its group
+  // (see `isSingle` in playlist_actions).
+  const canLinkUp = !at.inGroup && !at.group?.segment.description && at.groupIndex > 0;
+  const above = canLinkUp ? groups[at.groupIndex - 1] : undefined;
+  // A text-only group above has no entry to link to.
+  const aboveLast = above?.entries[above.entries.length - 1];
+  const aboveTitle = aboveLast ? entryTitle(aboveLast) : undefined;
+  const isFirst = at.inGroup ? at.index === 0 : at.groupIndex === 0;
+  const isLast = at.inGroup
+    ? at.index === (at.group?.entries.length ?? 0) - 1
+    : at.groupIndex === groups.length - 1;
+  const groupmate = at.inGroup
+    ? at.group!.entries.find((r) => r.entry.entryId !== entryId)
     : undefined;
 
   const playback: MenuAction[] = [];
@@ -186,18 +140,18 @@ export function TrackMenu({
     moves.push(action('move-down', 'Move Down', nativeMenuIcons.moveDown));
   }
   // A grouped track can always leave for either edge; a single one only if it isn't there yet.
-  if (inGroup || at?.firstGroup === false) {
+  if (at.inGroup || at.groupIndex > 0) {
     moves.push(action('move-top', 'Move to Top', nativeMenuIcons.moveToTop));
   }
-  if (inGroup || at?.lastGroup === false) {
+  if (at.inGroup || at.groupIndex < groups.length - 1) {
     moves.push(action('move-bottom', 'Move to Bottom', nativeMenuIcons.moveToBottom));
   }
 
   const links: MenuAction[] = [];
-  if (inGroup) {
+  if (at.inGroup) {
     links.push(action('take-out', 'Unlink', nativeMenuIcons.ungroup));
   }
-  if (inGroup && at!.group.entries.length > 2) {
+  if (at.inGroup && at.group!.entries.length > 2) {
     links.push(action('unlink-all', 'Unlink All', nativeMenuIcons.ungroup));
   }
   if (aboveTitle) {
@@ -208,7 +162,7 @@ export function TrackMenu({
   const actions = editable
     ? menuSections([
         playback,
-        guideActions(row, at?.group, inGroup),
+        guideActions(row, at.group, at.inGroup),
         moves,
         [...links, ...goTo],
         [action('remove', 'Remove from Playlist', nativeMenuIcons.delete, true)],
@@ -242,7 +196,7 @@ export function TrackMenu({
       case 'take-out':
         return toast(takeOutOfGroup(realm, playlistId, entryId), `Unlinked ${title}`);
       case 'unlink-all':
-        return toast(ungroup(realm, playlistId, at!.group.segment.segmentId), 'Unlinked');
+        return toast(ungroup(realm, playlistId, at.group!.segment.segmentId), 'Unlinked');
       case 'keep-with':
         return toast(keepWithAbove(realm, playlistId, entryId), `Linked ${title} to ${aboveTitle}`);
       case 'go-to-show':
@@ -253,14 +207,14 @@ export function TrackMenu({
         // Inside a linked group the text stays with it; after a lone track it
         // becomes its own text section, so the track stays unlinked.
         return editText(
-          inGroup
-            ? { kind: 'text', segmentId: at!.group.segment.segmentId, afterEntryId: entryId }
-            : { kind: 'section', afterSegmentId: at!.group.segment.segmentId }
+          at.inGroup
+            ? { kind: 'text', segmentId: at.group!.segment.segmentId, afterEntryId: entryId }
+            : { kind: 'section', afterSegmentId: at.group!.segment.segmentId }
         );
       case 'group-intro':
-        return editText({ kind: 'segment', segmentId: at!.group.segment.segmentId });
+        return editText({ kind: 'segment', segmentId: at.group!.segment.segmentId });
       case 'remove':
-        return toast(removeEntry(realm, playlistId, entryId), removedMessage(row, at!.group));
+        return toast(removeEntry(realm, playlistId, entryId), removedMessage(row, at.group!));
     }
   };
 
@@ -268,7 +222,7 @@ export function TrackMenu({
     <NativeMenuView
       actions={actions}
       style={style}
-      title={inGroup ? `Linked with ${entryTitle(groupmate)}` : undefined}
+      title={at.inGroup ? `Linked with ${entryTitle(groupmate)}` : undefined}
       onPressAction={({ nativeEvent }) => handle(nativeEvent.event)}
     >
       {children}

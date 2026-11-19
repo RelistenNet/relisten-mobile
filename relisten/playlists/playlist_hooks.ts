@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import Realm from 'realm';
 import { useObject, useQuery, useRealm } from '@/relisten/realm/schema';
 import {
@@ -155,12 +155,6 @@ export interface PlaylistRowEntry {
   status: PlaylistTrackStatus;
   /** The description sanitized for rendering: a track's note or a text block's text. */
   descriptionMarkdown?: string;
-  /**
-   * What the row shows from its track (title, duration, download status and
-   * kind) when the row was built. `sourceTrack` is a live object, so this copy
-   * is what tells a reused row apart from one whose track changed.
-   */
-  trackDisplay?: string;
 }
 
 export interface PlaylistRowGroup {
@@ -211,14 +205,10 @@ export function usePlaylistGroups(playlistId: string): PlaylistRowGroup[] {
   );
   const trackIds = useStableIds(entryTrackIds(entries));
   const { availability, tracks } = useCatalogTracks(trackIds);
-  const keepUnchangedRows = useIdentityReuse(reuseUnchangedRows, []);
 
   return useMemo(
-    () =>
-      keepUnchangedRows(
-        buildRowGroups(realm, segments, entries, catalogViewOf(availability, tracks))
-      ),
-    [realm, segments, entries, availability, tracks, keepUnchangedRows]
+    () => buildRowGroups(realm, segments, entries, catalogViewOf(availability, tracks)),
+    [realm, segments, entries, availability, tracks]
   );
 }
 
@@ -233,79 +223,6 @@ function useStableIds(ids: Iterable<string>): string[] {
 }
 
 /**
- * A function that passes each new build through `reuse` with the build before
- * it, so objects whose content is unchanged keep their identity and memoized
- * rows skip re-rendering. Call it inside the `useMemo` that builds. The memory
- * is a closure rather than state: updating it never re-renders, and a render
- * React discards only changes which equal objects get reused.
- */
-export function useIdentityReuse<T>(reuse: (previous: T, next: T) => T, initial: T) {
-  const [keep] = useState(() => {
-    let last = initial;
-    return (next: T) => {
-      last = reuse(last, next);
-      return last;
-    };
-  });
-  return keep;
-}
-
-/**
- * `next`, with each entry row and group that matches the previous build swapped
- * for the previous object, so identity changes only where content did. The
- * array itself is always new: the header's totals and Show Downloaded Only
- * read it as a whole, and must update when any track does.
- */
-export function reuseUnchangedRows(
-  previous: PlaylistRowGroup[],
-  next: PlaylistRowGroup[]
-): PlaylistRowGroup[] {
-  const previousRows = new Map(
-    previous.flatMap((group) => group.entries.map((row) => [row.entry.entryId, row] as const))
-  );
-  const previousGroups = new Map(previous.map((group) => [group.segment.segmentId, group]));
-
-  return next.map((group) => {
-    const entries = group.entries.map((row) => {
-      const old = previousRows.get(row.entry.entryId);
-      return old && sameRowEntry(old, row) ? old : row;
-    });
-    const old = previousGroups.get(group.segment.segmentId);
-    const unchanged =
-      old !== undefined &&
-      shallowEqual(old.segment, group.segment) &&
-      old.descriptionMarkdown === group.descriptionMarkdown &&
-      old.entries.length === entries.length &&
-      old.entries.every((row, index) => row === entries[index]);
-    return unchanged ? old : { ...group, entries };
-  });
-}
-
-/**
- * Whether two builds of an entry render the same. A track's catalog fields
- * (title, show, duration) are compared by the track object's identity, which
- * Realm keeps until the track is replaced; its download state by the copy taken
- * at build time.
- */
-function sameRowEntry(a: PlaylistRowEntry, b: PlaylistRowEntry): boolean {
-  return (
-    shallowEqual(a.entry, b.entry) &&
-    a.sourceTrack === b.sourceTrack &&
-    a.status === b.status &&
-    a.descriptionMarkdown === b.descriptionMarkdown &&
-    a.trackDisplay === b.trackDisplay
-  );
-}
-
-function shallowEqual<T extends object>(a: T, b: T): boolean {
-  const keys = Object.keys(a) as (keyof T)[];
-  return (
-    keys.length === Object.keys(b).length &&
-    keys.every((key) => Object.prototype.hasOwnProperty.call(b, key) && a[key] === b[key])
-  );
-}
-
-/**
  * Groups for a public playlist that isn't stored on this device, read from its
  * snapshot. Guide text is sanitized here rather than stored; it updates as the
  * catalog loads its tracks, like a stored playlist's.
@@ -316,11 +233,10 @@ export function useSnapshotRowGroups(
   const realm = useRealm();
   const snapshot = useMemo(() => snapshotRows(segments), [segments]);
   const { availability, tracks } = useCatalogTracks(snapshot.trackIds);
-  const keepUnchangedRows = useIdentityReuse(reuseUnchangedRows, []);
 
   return useMemo(() => {
     const catalog = catalogViewOf(availability, tracks);
-    const groups = orderedGroups(snapshot.states).map((group) => ({
+    return orderedGroups(snapshot.states).map((group) => ({
       segment: group.segment,
       descriptionMarkdown: snapshot.markdown(group.segment.segmentId, { kind: 'segment' }),
       entries: group.entries.map((entry) =>
@@ -331,8 +247,7 @@ export function useSnapshotRowGroups(
         )
       ),
     }));
-    return keepUnchangedRows(groups);
-  }, [realm, snapshot, availability, tracks, keepUnchangedRows]);
+  }, [realm, snapshot, availability, tracks]);
 }
 
 /**
@@ -506,11 +421,7 @@ function rowEntry(
     : sourceTrack
       ? 'playable'
       : 'loading';
-  const offlineInfo = sourceTrack?.offlineInfo;
-  const trackDisplay = sourceTrack
-    ? `${sourceTrack.title}|${sourceTrack.duration}|${offlineInfo?.status}:${offlineInfo?.type}`
-    : undefined;
-  return { entry, sourceTrack, status, descriptionMarkdown, trackDisplay };
+  return { entry, sourceTrack, status, descriptionMarkdown };
 }
 
 /** Totals for a playlist, shared by list rows and the playlist header. */

@@ -9,14 +9,14 @@ import { SoundIndicator } from '@/relisten/components/sound_indicator';
 import { SourceTrackOfflineIndicator } from '@/relisten/components/source/source_track_offline_indicator';
 import { useRelistenPlayerPlaybackState } from '@/relisten/player/relisten_player_hooks';
 import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player_queue_hooks';
-import type { PlaylistRowEntry, PlaylistRowGroup } from '@/relisten/playlists/playlist_hooks';
+import type {
+  PlaylistLayout,
+  PlaylistRowEntry,
+  PlaylistRowGroup,
+} from '@/relisten/playlists/playlist_hooks';
 import { trackTitle } from '@/relisten/playlists/playlist_format';
 import type { LinkPosition } from '@/relisten/playlists/playlist_drag_slots';
-import {
-  sameTrackMenuPlace,
-  TrackMenu,
-  type TrackMenuPlace,
-} from '@/relisten/playlists/ui/playlist_menus';
+import { TrackMenu } from '@/relisten/playlists/ui/playlist_menus';
 import { LinkRail } from '@/relisten/playlists/ui/link_rail';
 import { isQueueable } from '@/relisten/playlists/playlist_playback';
 import { tw } from '@/relisten/util/tw';
@@ -72,9 +72,6 @@ function StatusLine({ row, online }: { row: PlaylistRowEntry; online: boolean })
  * One row of the playlist view: a group's description (its intro, above its
  * entries), or an entry (a track or a text block) and whether it is linked to
  * its neighbors. A group with only a description is just its intro row.
- *
- * A view row holds only what its row component renders, so an unchanged row
- * can keep its object (see `reuseUnchangedViewRows`) and skip re-rendering.
  */
 export type PlaylistViewRow =
   | {
@@ -90,14 +87,9 @@ export type PlaylistViewRow =
       segmentId: string;
       row: PlaylistRowEntry;
       link?: LinkPosition;
-      /** Where its menu acts, in the whole playlist even when only some rows show. */
-      place: TrackMenuPlace | undefined;
     };
 
-export function playlistViewRows(
-  groups: PlaylistRowGroup[],
-  placeOf: (entryId: string) => TrackMenuPlace | undefined
-): PlaylistViewRow[] {
+export function playlistViewRows(groups: PlaylistRowGroup[]): PlaylistViewRow[] {
   const rows: PlaylistViewRow[] = [];
   for (const group of groups) {
     // An intro belongs to its tracks, so it starts their rail. A rail needs
@@ -129,36 +121,10 @@ export function playlistViewRows(
         segmentId: group.segment.segmentId,
         row,
         link: linkAt(index + (hasIntro ? 1 : 0)),
-        place: placeOf(row.entry.entryId),
       });
     });
   }
   return rows;
-}
-
-/** `next`, keeping each previous view row whose content is unchanged, by key. */
-export function reuseUnchangedViewRows(
-  previous: PlaylistViewRow[],
-  next: PlaylistViewRow[]
-): PlaylistViewRow[] {
-  const byKey = new Map(previous.map((row) => [row.key, row]));
-  return next.map((row) => {
-    const old = byKey.get(row.key);
-    return old && sameViewRow(old, row) ? old : row;
-  });
-}
-
-function sameViewRow(a: PlaylistViewRow, b: PlaylistViewRow): boolean {
-  if (a.segmentId !== b.segmentId || a.link !== b.link) {
-    return false;
-  }
-  if (a.kind === 'intro' && b.kind === 'intro') {
-    return a.markdown === b.markdown;
-  }
-  if (a.kind === 'entry' && b.kind === 'entry') {
-    return a.row === b.row && sameTrackMenuPlace(a.place, b.place);
-  }
-  return false;
 }
 
 /**
@@ -201,18 +167,20 @@ export const PlaylistIntroRow = memo(function PlaylistIntroRow({
  */
 export const PlaylistTextRow = memo(function PlaylistTextRow({
   playlistId,
+  layout,
   viewRow,
   editable,
   linkPlaying,
   onTimestamp,
 }: {
   playlistId: string;
+  layout: PlaylistLayout;
   viewRow: Extract<PlaylistViewRow, { kind: 'entry' }>;
   editable: boolean;
   linkPlaying: boolean;
   onTimestamp: TimestampHandler;
 }) {
-  const { row, link, place } = viewRow;
+  const { row, link } = viewRow;
   return (
     <View className="pl-4 pr-2">
       <LinkRail link={link} active={linkPlaying} />
@@ -224,7 +192,7 @@ export const PlaylistTextRow = memo(function PlaylistTextRow({
           />
         </View>
         {editable && (
-          <TrackMenu playlistId={playlistId} place={place} row={row}>
+          <TrackMenu playlistId={playlistId} layout={layout} row={row}>
             <OverflowMenuTrigger accessibilityLabel="Actions for note" iconAlignment="trailing" />
           </TrackMenu>
         )}
@@ -235,13 +203,13 @@ export const PlaylistTextRow = memo(function PlaylistTextRow({
 
 /**
  * Rows are memoized: the list calls `renderItem` for every visible row when
- * anything the page holds changes (the playing track, a download finishing),
- * and only rows whose props differ should re-render. Pass booleans like
- * `isCurrent` rather than page-wide values like the playing entry ID or the
- * layout, which would differ for all, and stable callbacks.
+ * the playing track changes, and only the rows it moves between should
+ * re-render. Pass booleans like `isCurrent` rather than the playing entry ID,
+ * which would differ for all.
  */
 export const PlaylistTrackRow = memo(function PlaylistTrackRow({
   playlistId,
+  layout,
   viewRow,
   editable,
   online,
@@ -251,6 +219,8 @@ export const PlaylistTrackRow = memo(function PlaylistTrackRow({
   onTimestamp,
 }: {
   playlistId: string;
+  /** The whole playlist's layout, so moves and links act on every row even when only some show. */
+  layout: PlaylistLayout;
   viewRow: Extract<PlaylistViewRow, { kind: 'entry' }>;
   editable: boolean;
   online: boolean;
@@ -261,7 +231,7 @@ export const PlaylistTrackRow = memo(function PlaylistTrackRow({
   onPlay: (entryId: string) => void;
   onTimestamp: TimestampHandler;
 }) {
-  const { row, link, place } = viewRow;
+  const { row, link } = viewRow;
   // Offline, a track that isn't downloaded is dimmed and can't be tapped.
   const canPlay = isQueueable(row, online);
   const title = row.sourceTrack ? row.sourceTrack.title : 'Track';
@@ -323,7 +293,7 @@ export const PlaylistTrackRow = memo(function PlaylistTrackRow({
             </View>
           )}
         </TouchableOpacity>
-        <TrackMenu playlistId={playlistId} place={place} row={row} editable={editable}>
+        <TrackMenu playlistId={playlistId} layout={layout} row={row} editable={editable}>
           <OverflowMenuTrigger
             accessibilityLabel={`Actions for ${trackTitle(row)}`}
             iconAlignment="trailing"
