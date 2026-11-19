@@ -4,6 +4,10 @@ import {
   isFavoriteTarget,
 } from '@/relisten/library/favorite_catalog_target';
 import type { PlaylistSummary } from '@/relisten/playlists/sync/playlist_wire';
+import {
+  type FollowedPlaylistHead,
+  isFollowedPlaylistHead,
+} from '@/relisten/playlists/sharing/sharing_wire';
 import { isUuidV7TypedId } from '@/relisten/util/typed_uuid_id';
 
 export type FavoriteDesiredState = 'favorite' | 'not_favorite';
@@ -50,8 +54,8 @@ export interface FavoriteSnapshotItem {
 }
 
 /**
- * The library feed carries favorites and, additively, playlist summaries. Both
- * responses also carry the server's history generation.
+ * The library feed carries favorites and, additively, playlist summaries and
+ * followed playlists. Both responses also carry the server's history generation.
  */
 export interface FavoriteLibrarySnapshot {
   contract_version: 1;
@@ -59,6 +63,8 @@ export interface FavoriteLibrarySnapshot {
   next_cursor: string;
   favorites: FavoriteSnapshotItem[];
   playlists?: PlaylistSummary[];
+  /** Every follow, so this is the whole follow list. */
+  followed_playlists?: FollowedPlaylistHead[];
   history_generation?: string;
 }
 
@@ -79,6 +85,14 @@ export interface PlaylistSummaryChange {
   changed_at: string;
 }
 
+export interface PlaylistFollowChange {
+  change_id: string;
+  revision: number;
+  change_type: 'playlist_followed' | 'playlist_unfollowed';
+  followed_playlist_id: string;
+  changed_at: string;
+}
+
 /** Change types this client does not know are skipped, never rejected. */
 export interface UnknownLibraryChange {
   change_id: string;
@@ -87,7 +101,11 @@ export interface UnknownLibraryChange {
   changed_at: string;
 }
 
-export type LibraryChange = FavoriteLibraryChange | PlaylistSummaryChange | UnknownLibraryChange;
+export type LibraryChange =
+  | FavoriteLibraryChange
+  | PlaylistSummaryChange
+  | PlaylistFollowChange
+  | UnknownLibraryChange;
 
 export interface FavoriteLibraryChanges {
   contract_version: 1;
@@ -95,6 +113,8 @@ export interface FavoriteLibraryChanges {
   changes: LibraryChange[];
   next_cursor: string;
   has_more: boolean;
+  /** Present on the last page of a pull: heads for every follow, without changing membership. */
+  followed_playlists?: FollowedPlaylistHead[];
   history_generation?: string;
 }
 
@@ -104,6 +124,10 @@ export function isFavoriteChange(change: LibraryChange): change is FavoriteLibra
 
 export function isPlaylistSummaryChange(change: LibraryChange): change is PlaylistSummaryChange {
   return change.change_type === 'playlist_summary';
+}
+
+export function isPlaylistFollowChange(change: LibraryChange): change is PlaylistFollowChange {
+  return change.change_type === 'playlist_followed' || change.change_type === 'playlist_unfollowed';
 }
 
 /**
@@ -184,6 +208,7 @@ export function validateFavoriteSnapshot(snapshot: FavoriteLibrarySnapshot) {
   for (const summary of snapshot.playlists ?? []) {
     assertPlaylistSummary(summary);
   }
+  assertFollowedHeads(snapshot.followed_playlists);
 
   const targets = new Set<string>();
   const favoriteIds = new Set<string>();
@@ -223,6 +248,11 @@ export function validateFavoriteChanges(page: FavoriteLibraryChanges) {
       assertAccountId(change.favorite_id, 'favorite');
     } else if (isPlaylistSummaryChange(change)) {
       assertPlaylistSummary(change.playlist);
+    } else if (
+      isPlaylistFollowChange(change) &&
+      !isUuidV7TypedId(change.followed_playlist_id, 'playlist')
+    ) {
+      throw new Error('The library feed contains an invalid follow change.');
     }
     if (change.revision > page.library_revision) {
       throw new Error('A favorite change revision exceeds the page revision.');
@@ -233,6 +263,7 @@ export function validateFavoriteChanges(page: FavoriteLibraryChanges) {
     changeIds.add(change.change_id);
     revisions.add(change.revision);
   }
+  assertFollowedHeads(page.followed_playlists);
 }
 
 export function parseFavoriteServerDate(value: unknown) {
@@ -257,6 +288,15 @@ function assertPlaylistSummary(summary: PlaylistSummary) {
     throw new Error('The library feed contains an invalid playlist summary.');
   }
   parseFavoriteServerDate(summary.updated_at);
+}
+
+function assertFollowedHeads(heads: unknown) {
+  if (heads === undefined) {
+    return;
+  }
+  if (!Array.isArray(heads) || !heads.every(isFollowedPlaylistHead)) {
+    throw new Error('The library feed contains an invalid followed playlist.');
+  }
 }
 
 function assertContractVersion(version: number) {

@@ -136,4 +136,31 @@ describe('typed favorite sync contract', () => {
       })
     ).not.toThrow();
   });
+
+  it('accepts follow changes with heads, and refuses a malformed head', () => {
+    const followedId = formatUuidTypedId('playlist', '01890a5d-ac96-774b-bcce-b302099a8091');
+    const page = (head: unknown) => ({
+      contract_version: 1 as const,
+      library_revision: 4,
+      next_cursor: 'opaque-next',
+      has_more: false,
+      changes: [
+        {
+          change_id: formatUuidTypedId('library_change', '01890a5d-ac96-774b-bcce-b302099a8081'),
+          revision: 4,
+          change_type: 'playlist_followed',
+          followed_playlist_id: followedId,
+          changed_at: '2026-11-19T08:00:00Z',
+        },
+      ],
+      followed_playlists: [head] as never,
+    });
+
+    expect(() =>
+      validateFavoriteChanges(page({ playlist_id: followedId, available: false }))
+    ).not.toThrow();
+    expect(() =>
+      validateFavoriteChanges(page({ playlist_id: followedId, available: true, name: 'No code' }))
+    ).toThrow('invalid followed playlist');
+  });
 });

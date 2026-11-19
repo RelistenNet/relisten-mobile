@@ -43,14 +43,17 @@ export class AccountsApiTransport {
     this.origin = origin.replace(/\/$/, '');
   }
 
-  async request<T>(path: string, accessToken: string, options: RequestInit): Promise<T> {
+  /** Sends a request with the account's token, or anonymously when `accessToken` is null. */
+  async request<T>(path: string, accessToken: string | null, options: RequestInit): Promise<T> {
     assertRelativeAccountPath(path);
     const method = options.method ?? 'GET';
     const logPath = path.split(/[?#]/, 1)[0];
     logger.info(`${method} ${logPath}`);
     const headers = new Headers(options.headers);
     headers.set('Accept', 'application/json');
-    headers.set('Authorization', `Bearer ${accessToken}`);
+    if (accessToken !== null) {
+      headers.set('Authorization', `Bearer ${accessToken}`);
+    }
 
     let response: Response;
 
@@ -142,6 +145,14 @@ export class AuthorizedAccountsApiClient {
     }
 
     return response;
+  }
+
+  /**
+   * Sends a request without credentials, signed in or not. For public reads,
+   * which the edge caches only when a request carries no authorization.
+   */
+  requestAnonymously<T>(path: string, options: RequestInit = {}): Promise<T> {
+    return this.transport.request<T>(path, null, options);
   }
 
   async getMe(): Promise<AccountProfileSnapshot> {

@@ -17,6 +17,7 @@ import {
   FavoriteMutationBatchRequest,
   FavoriteMutationBatchResponse,
   isFavoriteChange,
+  isPlaylistFollowChange,
   isPlaylistSummaryChange,
   parseFavoriteServerDate,
   validateFavoriteChanges,
@@ -29,6 +30,11 @@ import {
   startRestoreRecovery,
 } from '@/relisten/playlists/sync/playlist_sync_state';
 import type { PlaylistSummary } from '@/relisten/playlists/sync/playlist_wire';
+import {
+  applyFollowChanges,
+  applyFollowedHeads,
+  replaceFollows,
+} from '@/relisten/playlists/sharing/followed_playlists';
 
 /** Applies validated server state while preserving newer local desired state. */
 export class FavoriteRemoteLibraryApplier {
@@ -141,6 +147,15 @@ export class FavoriteRemoteLibraryApplier {
       }
 
       this.applyPlaylistFeed(capture, snapshot.playlists ?? []);
+      if (capture.userId) {
+        const heads = snapshot.followed_playlists ?? [];
+        replaceFollows(
+          realm,
+          capture.userId,
+          heads.map((head) => head.playlist_id)
+        );
+        applyFollowedHeads(realm, capture.userId, heads);
+      }
 
       const syncState = this.repository.syncState(capture.scopeId, now);
       syncState.libraryCursor = snapshot.next_cursor;
@@ -163,6 +178,10 @@ export class FavoriteRemoteLibraryApplier {
     const ordered = [...page.changes].sort((left, right) => left.revision - right.revision);
     const orderedChanges = ordered.filter(isFavoriteChange);
     const playlistSummaries = ordered.filter(isPlaylistSummaryChange).map((c) => c.playlist);
+    const followChanges = ordered.filter(isPlaylistFollowChange).map((change) => ({
+      playlistId: change.followed_playlist_id,
+      followed: change.change_type === 'playlist_followed',
+    }));
 
     write(realm, () => {
       this.assertCurrent(capture);
@@ -188,6 +207,10 @@ export class FavoriteRemoteLibraryApplier {
       }
 
       this.applyPlaylistFeed(capture, playlistSummaries);
+      if (capture.userId) {
+        applyFollowChanges(realm, capture.userId, followChanges);
+        applyFollowedHeads(realm, capture.userId, page.followed_playlists ?? []);
+      }
 
       const syncState = this.repository.syncState(capture.scopeId, now);
       syncState.libraryCursor = page.next_cursor;

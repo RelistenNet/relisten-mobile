@@ -40,6 +40,21 @@ import {
   type WireOperation,
 } from '@/relisten/playlists/sync/playlist_wire';
 import { createUuidV7TypedId } from '@/relisten/util/typed_uuid_id';
+import { FavoriteSyncState } from '@/relisten/realm/models/library/favorite_sync_state';
+import {
+  followNeedsSnapshot,
+  followsNeedingSnapshot,
+  isFollowedBy,
+  markFollowUnavailable,
+  writeFollowedSnapshot,
+} from '@/relisten/playlists/sharing/followed_playlists';
+import { fetchPublicSnapshot, requestCopy } from '@/relisten/playlists/sharing/sharing_requests';
+import {
+  dropCopyCommand,
+  finishCopy,
+  isFinalCopyRefusal,
+} from '@/relisten/playlists/sharing/playlist_copies';
+import { PlaylistCopyCommand } from '@/relisten/realm/models/playlists/playlist';
 import { log } from '@/relisten/util/logging';
 
 const logger = log.extend('playlist-sync');
@@ -59,6 +74,12 @@ const RETRY_DELAY_MS = 30_000;
  */
 const OPEN_CHECK_INTERVAL_MS = 30_000;
 const MAX_BATCH_BYTES = 1.5 * 1024 * 1024;
+/**
+ * Followed playlists whose owner changed them are fetched after each sync, so
+ * they're ready offline, at most this many per run. The rest are fetched when
+ * opened, or on a later run.
+ */
+const FOLLOWED_SNAPSHOTS_PER_RUN = 20;
 
 export interface PlaylistSyncEnvironment {
   account: AccountScopeSnapshot;
@@ -109,6 +130,8 @@ export class PlaylistSyncService {
   private retryAt = 0;
   /** Lowered after a 413 so an oversized batch is split; restored after a success. */
   private batchLimit = MAX_BATCH_OPERATIONS;
+  /** Followed snapshots this run may still fetch without being asked. */
+  private followedBudget = FOLLOWED_SNAPSHOTS_PER_RUN;
   /** Playlists whose screen opened and should be checked on the next pull. */
   private readonly checkRequested = new Set<string>();
   private readonly lastChecked = new Map<string, number>();
@@ -250,6 +273,8 @@ export class PlaylistSyncService {
       }
       // Nothing is in flight between runs, so anything marked so was interrupted.
       this.write(capture, () => resetInterruptedOperations(this.realm, userId));
+      this.followedBudget = FOLLOWED_SNAPSHOTS_PER_RUN;
+      await this.resendCopies(capture, userId);
 
       do {
         this.rerunRequested = false;
@@ -267,6 +292,7 @@ export class PlaylistSyncService {
           this.schedule(waitMs);
         }
         await this.pull(capture, userId);
+        await this.pullFollowed(capture, userId);
       } while (this.rerunRequested && this.canRun());
     } catch (error) {
       if (error instanceof StaleAccountScopeError) {
@@ -300,10 +326,14 @@ export class PlaylistSyncService {
   // region Session fencing
 
   /** Requests only for the captured account; an error is rethrown only if it is still current. */
-  private async request<T>(capture: AccountScopeCapture, path: string, init?: RequestInit) {
+  private request<T>(capture: AccountScopeCapture, path: string, init?: RequestInit) {
+    return this.fenced(capture, () => this.api.request<T>(path, init));
+  }
+
+  private async fenced<T>(capture: AccountScopeCapture, send: () => Promise<T>): Promise<T> {
     this.assertCurrent(capture);
     try {
-      return await this.api.request<T>(path, init);
+      return await send();
     } finally {
       this.assertCurrent(capture);
     }
@@ -317,6 +347,33 @@ export class PlaylistSyncService {
   private assertCurrent(capture: AccountScopeCapture) {
     if (!this.scopes.isCurrent(capture)) {
       throw new StaleAccountScopeError();
+    }
+  }
+
+  // endregion
+
+  // region Copies
+
+  /**
+   * Resends copies the app stopped waiting for (a network error, or a restart
+   * mid-request). The same command ID returns the copy already made.
+   */
+  private async resendCopies(capture: AccountScopeCapture, userId: string) {
+    const commands = [
+      ...this.realm.objects(PlaylistCopyCommand).filtered('userId == $0', userId),
+    ].map(({ commandId, publicCode }) => ({ commandId, publicCode }));
+    for (const { commandId, publicCode } of commands) {
+      try {
+        const created = await this.fenced(capture, () =>
+          requestCopy(this.api, publicCode, commandId)
+        );
+        this.write(capture, () => finishCopy(this.realm, userId, commandId, created));
+      } catch (error) {
+        if (!isFinalCopyRefusal(error)) {
+          throw error;
+        }
+        this.write(capture, () => dropCopyCommand(this.realm, commandId));
+      }
     }
   }
 
@@ -694,6 +751,65 @@ export class PlaylistSyncService {
         return;
       }
     }
+  }
+
+  /**
+   * Fetches followed playlists whose head is ahead of the stored copy: the
+   * opened ones, then up to the run's budget of the rest. Public snapshots are
+   * read without credentials, so the edge can serve them from its cache.
+   */
+  private async pullFollowed(capture: AccountScopeCapture, userId: string) {
+    const opened = [...this.checkRequested]
+      .map((playlistId) => this.realm.objectForPrimaryKey(Playlist, playlistId))
+      .filter((p): p is Playlist => !!p && isFollowedBy(p, userId));
+    for (const playlist of opened) {
+      this.checkRequested.delete(playlist.playlistId);
+    }
+    const due = followsNeedingSnapshot(this.realm, userId, this.followedBudget);
+    this.followedBudget -= due.length;
+
+    const playlistIds = new Set(
+      [...opened.filter(followNeedsSnapshot), ...due].map((p) => p.playlistId)
+    );
+    for (const playlistId of playlistIds) {
+      await this.fetchFollowedSnapshot(capture, userId, playlistId);
+    }
+  }
+
+  private async fetchFollowedSnapshot(
+    capture: AccountScopeCapture,
+    userId: string,
+    playlistId: string
+  ) {
+    const publicCode = this.realm.objectForPrimaryKey(Playlist, playlistId)?.publicCode;
+    if (!publicCode) {
+      return;
+    }
+
+    const snapshot = await this.fenced(capture, () => fetchPublicSnapshot(this.api, publicCode));
+
+    this.write(capture, () => {
+      const playlist = this.realm.objectForPrimaryKey(Playlist, playlistId);
+      if (!playlist || !isFollowedBy(playlist, userId)) {
+        return;
+      }
+      if (!snapshot) {
+        markFollowUnavailable(playlist);
+        return;
+      }
+      // After a restore the edge may still serve the old history for up to a
+      // minute. Applying it would mix generations; the next run tries again.
+      const libraryGeneration = this.realm
+        .objects(FavoriteSyncState)
+        .filtered('scopeId == $0', userId)[0]?.historyGeneration;
+      if (
+        snapshot.playlist_id !== playlistId ||
+        (libraryGeneration && snapshot.history_generation !== libraryGeneration)
+      ) {
+        return;
+      }
+      writeFollowedSnapshot(this.realm, playlist, snapshot);
+    });
   }
 
   /**
