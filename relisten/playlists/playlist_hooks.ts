@@ -23,6 +23,12 @@ import {
   type SegmentState,
 } from '@/relisten/playlists/playlist_operations';
 import { formatUuidTypedId, parseUuidTypedId } from '@/relisten/util/typed_uuid_id';
+import {
+  contextOf,
+  entryStateOf,
+  renderableDescription,
+  segmentStateOf,
+} from '@/relisten/playlists/guide/guide_rows';
 
 export const trackIdForSourceTrack = (sourceTrack: Pick<SourceTrack, 'uuid'>) =>
   formatUuidTypedId('track', sourceTrack.uuid);
@@ -92,17 +98,27 @@ export function usePlaylist(playlistId: string) {
   return playlist && (!playlist.ownerUserId || playlist.ownerUserId === owner) ? playlist : null;
 }
 
-export type PlaylistTrackStatus = 'playable' | 'loading' | 'unavailable';
+/** `text` is a text block: it has no track and is never played, downloaded or loaded. */
+export type PlaylistTrackStatus = 'playable' | 'loading' | 'unavailable' | 'text';
 
 export interface PlaylistRowEntry {
   entry: EntryState;
   sourceTrack: SourceTrack | null;
   status: PlaylistTrackStatus;
+  /** The description sanitized for rendering: a track's note or a text block's text. */
+  descriptionMarkdown?: string;
 }
 
 export interface PlaylistRowGroup {
   segment: SegmentState;
   entries: PlaylistRowEntry[];
+  /** The group's description, sanitized for rendering. */
+  descriptionMarkdown?: string;
+}
+
+/** The catalog track IDs among entries, without text blocks. */
+export function entryTrackIds(entries: Iterable<{ trackId?: string }>): string[] {
+  return [...entries].flatMap((entry) => (entry.trackId ? [entry.trackId] : []));
 }
 
 /** The playlist's groups in order, with each entry's catalog track and whether it can play. */
@@ -118,7 +134,7 @@ export function usePlaylistGroups(playlistId: string): PlaylistRowGroup[] {
     (rows) => rows.filtered('playlistId == $0 AND live == true', playlistId),
     [playlistId]
   );
-  const trackIds = useMemo(() => [...new Set(entries.map((e) => e.trackId))], [entries]);
+  const trackIds = useMemo(() => [...new Set(entryTrackIds(entries))], [entries]);
   // Only this playlist's availability records, so a resolver write for another
   // playlist doesn't rebuild these rows.
   const availability = useQuery(
@@ -193,28 +209,31 @@ function buildRowGroups(
   entries: Iterable<PlaylistEntry>,
   unavailableIds: ReadonlySet<string>
 ): PlaylistRowGroup[] {
+  const segmentRows = new Map([...segments].map((s) => [s.segmentId, s]));
+  const entryRows = new Map([...entries].map((e) => [e.entryId, e]));
   const groups: PlaylistGroup[] = orderedGroups({
-    segments: new Map(
-      [...segments].map((s) => [s.segmentId, { segmentId: s.segmentId, rank: s.rank }])
-    ),
-    entries: new Map(
-      [...entries].map((e) => [
-        e.entryId,
-        { entryId: e.entryId, segmentId: e.segmentId, trackId: e.trackId, rank: e.rank },
-      ])
-    ),
+    segments: new Map([...segmentRows].map(([id, row]) => [id, segmentStateOf(row)])),
+    entries: new Map([...entryRows].map(([id, row]) => [id, entryStateOf(row)])),
   });
+  // Only rows with a description pay for the context lookup (a catalog read for tracks).
+  const markdownOf = (row: PlaylistSegment | PlaylistEntry | undefined) =>
+    row?.description ? renderableDescription(row, contextOf(realm, row)) : undefined;
 
   return groups.map(({ segment, entries: groupEntries }) => ({
     segment,
-    entries: groupEntries.map((entry) => {
+    descriptionMarkdown: markdownOf(segmentRows.get(segment.segmentId)),
+    entries: groupEntries.map((entry): PlaylistRowEntry => {
+      const descriptionMarkdown = markdownOf(entryRows.get(entry.entryId));
+      if (!entry.trackId) {
+        return { entry, sourceTrack: null, status: 'text', descriptionMarkdown };
+      }
       const sourceTrack = sourceTrackFor(realm, entry.trackId);
       const status: PlaylistTrackStatus = unavailableIds.has(entry.trackId)
         ? 'unavailable'
         : sourceTrack
           ? 'playable'
           : 'loading';
-      return { entry, sourceTrack, status };
+      return { entry, sourceTrack, status, descriptionMarkdown };
     }),
   }));
 }
@@ -243,6 +262,9 @@ export function summarizePlaylist(groups: PlaylistRowGroup[]): PlaylistSummary {
 
   for (const group of groups) {
     for (const { entry, sourceTrack: track } of group.entries) {
+      if (!entry.trackId) {
+        continue;
+      }
       trackIds.add(entry.trackId);
       if (!track) {
         unresolved += 1;

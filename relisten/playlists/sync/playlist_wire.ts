@@ -4,6 +4,8 @@ import type { NewEntry, PlaylistOperation } from '@/relisten/playlists/playlist_
  * Wire shapes for the private playlist API (`/v1/playlists`), from the frozen
  * contract `2026-11-16-v4-playlist-contracts.md` in RelistenApi. JSON is
  * snake_case; absent optional fields are left out rather than sent as null.
+ * Guide content (descriptions and text blocks) follows the contract's
+ * 2026-11-18 amendment.
  */
 
 /** A metadata edit. `description: null` clears it; an absent field is unchanged. */
@@ -28,12 +30,14 @@ export interface CreatePlaylistRequest {
   command_id: string;
   playlist_id: string;
   metadata: { name: string; description: string | null };
-  segments: { segment_id: string; entries: WireEntry[] }[];
+  segments: { segment_id: string; description?: string; entries: WireEntry[] }[];
 }
 
+/** A track entry, or a text block when `track_id` is absent. */
 export interface WireEntry {
   entry_id: string;
-  track_id: string;
+  track_id?: string;
+  description?: string;
 }
 
 export interface PlaylistSnapshotResponse {
@@ -45,7 +49,13 @@ export interface PlaylistSnapshotResponse {
   segments: {
     segment_id: string;
     rank: string;
-    entries: { entry_id: string; track_id: string; rank: string }[];
+    description?: string | null;
+    entries: {
+      entry_id: string;
+      track_id: string | null;
+      rank: string;
+      description?: string | null;
+    }[];
   }[];
   created_at: string;
   updated_at: string;
@@ -54,14 +64,16 @@ export interface PlaylistSnapshotResponse {
 
 export type PlaylistChange =
   | { type: 'metadata_updated'; name: string; description: string | null }
-  | { type: 'segment_upserted'; segment_id: string; rank: string }
+  // An upsert carries the full current state: an absent or null description means none.
+  | { type: 'segment_upserted'; segment_id: string; rank: string; description?: string | null }
   | { type: 'segment_deleted'; segment_id: string }
   | {
       type: 'entry_upserted';
       entry_id: string;
       segment_id: string;
-      track_id: string;
+      track_id: string | null;
       rank: string;
+      description?: string | null;
     }
   | { type: 'entry_deleted'; entry_id: string };
 
@@ -102,7 +114,10 @@ export interface ArchiveStateResponse {
 export interface PlaylistSummary {
   playlist_id: string;
   name: string;
+  /** Track entries and text blocks. */
   entry_count: number;
+  /** Track entries only. */
+  track_count?: number;
   archived: boolean;
   revision: number;
   updated_at: string;
@@ -142,8 +157,11 @@ function wirePayload(edit: PlaylistEdit): Record<string, unknown> {
         segment_id: edit.segmentId,
         after_segment_id: edit.afterSegmentId,
         before_segment_id: edit.beforeSegmentId,
+        description: edit.description,
         entries: wireEntries(edit.entries),
       };
+    case 'update_segment':
+      return { segment_id: edit.segmentId, description: edit.description };
     case 'move_segment':
       return {
         segment_id: edit.segmentId,
@@ -177,18 +195,43 @@ function wirePayload(edit: PlaylistEdit): Record<string, unknown> {
               },
       };
     }
+    case 'update_entry':
+      return { entry_id: edit.entryId, description: edit.description };
     case 'delete_entry':
       return { entry_id: edit.entryId };
   }
 }
 
-function wireEntries(entries: NewEntry[]): WireEntry[] {
-  return entries.map((entry) => ({ entry_id: entry.entryId, track_id: entry.trackId }));
+export function wireEntries(entries: NewEntry[]): WireEntry[] {
+  return entries.map((entry) => ({
+    entry_id: entry.entryId,
+    track_id: entry.trackId,
+    description: entry.description,
+  }));
 }
 
-/** Track IDs an edit was adding, kept so a refused addition can be offered again. */
+/**
+ * What a refused edit was adding, so Add Again can offer it back whole: its
+ * tracks and text blocks, and for a new group, the group's intro. A refused
+ * edit stays in the outbox as `needs_attention`, which isn't replayed over the
+ * confirmed state (`OVERLAY_STATES`), so it disappears from the playlist; the
+ * stored operation is the only record of what it held.
+ */
+export interface RefusedAddition {
+  description?: string;
+  entries: NewEntry[];
+}
+
+export function refusedAddition(edit: PlaylistEdit): RefusedAddition | null {
+  if (edit.type === 'insert_segment') {
+    return { description: edit.description, entries: edit.entries };
+  }
+  return edit.type === 'insert_entries' ? { entries: edit.entries } : null;
+}
+
+/** The track IDs an edit was adding, recorded on a refused operation. */
 export function addedTrackIds(edit: PlaylistEdit): string[] {
-  return edit.type === 'insert_segment' || edit.type === 'insert_entries'
-    ? edit.entries.map((entry) => entry.trackId)
-    : [];
+  return (refusedAddition(edit)?.entries ?? []).flatMap((entry) =>
+    entry.trackId ? [entry.trackId] : []
+  );
 }

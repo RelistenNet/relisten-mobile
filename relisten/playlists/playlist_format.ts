@@ -51,3 +51,50 @@ export function singleSourceTrack(entries: PlaylistRowEntry[]): SourceTrack | un
   }
   return entries.every((r) => r.sourceTrack?.sourceUuid === first.sourceUuid) ? first : undefined;
 }
+
+/** An entry inside a sentence or label: its track's title, or "note" for a text block. */
+export const entryTitle = (row: PlaylistRowEntry | undefined) =>
+  row?.status === 'text' ? 'note' : trackTitle(row);
+
+/** "Linked · 3 tracks", or "Linked · 2 tracks, 1 note" when text blocks are linked in. */
+export function linkedEntriesLabel(entries: PlaylistRowEntry[]): string {
+  const notes = entries.filter((row) => row.status === 'text').length;
+  const tracks = entries.length - notes;
+  const parts = [];
+  if (tracks > 0) {
+    parts.push(`${tracks} ${plur('track', tracks)}`);
+  }
+  if (notes > 0) {
+    parts.push(`${notes} ${plur('note', notes)}`);
+  }
+  return `Linked · ${parts.join(', ')}`;
+}
+
+/**
+ * One line of plain text from guide Markdown, for a fixed-height preview row.
+ * It only drops the marks that would read as noise in one line (heading,
+ * quote and list markers, emphasis, link syntax, escapes); it is not a
+ * renderer, so a literal asterisk can be lost.
+ */
+export function markdownPreview(markdown: string | undefined): string {
+  if (!markdown) {
+    return '';
+  }
+
+  return markdown
+    .split('\n')
+    .map((line) =>
+      line
+        .replace(/^\s*(>\s*)+/, '')
+        .replace(/^\s*#{1,6}\s+/, '')
+        .replace(/^\s*([-*+]|\d+[.)])\s+/, '')
+        .replace(/\\([\\`*_{}[\]()#+\-.!>~])/g, '$1')
+        .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+        .replace(/[*~`]+/g, '')
+        .replace(/(^|\s)_+|_+(\s|$)/g, '$1$2')
+        .trim()
+    )
+    .filter((line) => line.length > 0)
+    .join(' ')
+    .replace(/\s+/g, ' ');
+}

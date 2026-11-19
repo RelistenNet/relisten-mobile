@@ -1,3 +1,4 @@
+import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import type { RelistenPlayer } from '@/relisten/player/relisten_player';
 import { PlayerQueueTrack, PlayerShuffleState } from '@/relisten/player/relisten_player_queue';
 import type { PlaylistRowEntry, PlaylistRowGroup } from '@/relisten/playlists/playlist_hooks';
@@ -87,5 +88,46 @@ export function shufflePlaylist(
   player.queue.setShuffleState(PlayerShuffleState.SHUFFLE_ON);
   player.playTrackAtIndex(0);
   sharedStatsigClient().logEvent(playlistActionEvent('shuffle', tracks.length));
+  return true;
+}
+
+/**
+ * Plays an entry from a moment in it, for a guide's timestamp link. If the
+ * queue already holds that entry from this playlist, playback moves there
+ * (or just seeks, when it is already the playing track); otherwise the
+ * playlist is queued from that entry. Returns false when the entry can't play
+ * right now: a text block, a missing entry, or offline without a download.
+ */
+export function playEntryAt(
+  player: RelistenPlayer,
+  playlistId: string,
+  groups: PlaylistRowGroup[],
+  online: boolean,
+  entryId: string,
+  seconds: number
+): boolean {
+  const queued = player.queue.orderedTracks.findIndex(
+    (track) =>
+      track.playlistContext?.playlistId === playlistId && track.playlistContext.entryId === entryId
+  );
+  if (queued >= 0) {
+    const isPlaying =
+      queued === player.queue.currentIndex && player.state === RelistenPlaybackState.Playing;
+    if (isPlaying) {
+      void player.seekToTime(seconds);
+    } else {
+      player.playTrackAtIndex(queued, seconds);
+    }
+    return true;
+  }
+
+  const tracks = queueTracksFor(playlistId, groups, online);
+  const startIndex = tracks.findIndex((track) => track.playlistContext?.entryId === entryId);
+  if (startIndex < 0) {
+    return false;
+  }
+  player.queue.replaceQueue(tracks, undefined, { resetShuffle: true });
+  player.playTrackAtIndex(startIndex, seconds);
+  sharedStatsigClient().logEvent(playlistActionEvent('play', tracks.length));
   return true;
 }

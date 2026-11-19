@@ -30,4 +30,34 @@ describe('toWireOperation', () => {
     expect(JSON.parse(JSON.stringify(cleared)).payload).toEqual({ description: null });
     expect(JSON.parse(JSON.stringify(renamed)).payload).toEqual({ name: 'Dew' });
   });
+
+  it('sends guide text: descriptions, text blocks and description updates', () => {
+    const insert = toWireOperation('op', 2, {
+      type: 'insert_segment',
+      segmentId: 'playlist_segment_s',
+      description: '## Set two',
+      entries: [
+        { entryId: 'playlist_entry_t', trackId: 'track_1', description: 'Listen at 2:00.' },
+        { entryId: 'playlist_entry_x', description: 'A text block' },
+      ],
+    });
+    const clear = toWireOperation('op', 3, {
+      type: 'update_entry',
+      entryId: 'playlist_entry_t',
+      description: null,
+    });
+
+    expect(JSON.parse(JSON.stringify(insert)).payload).toEqual({
+      segment_id: 'playlist_segment_s',
+      description: '## Set two',
+      entries: [
+        { entry_id: 'playlist_entry_t', track_id: 'track_1', description: 'Listen at 2:00.' },
+        { entry_id: 'playlist_entry_x', description: 'A text block' },
+      ],
+    });
+    expect(JSON.parse(JSON.stringify(clear)).payload).toEqual({
+      entry_id: 'playlist_entry_t',
+      description: null,
+    });
+  });
 });

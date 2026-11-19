@@ -9,6 +9,9 @@ vi.mock('@/relisten/events', () => ({
   playlistActionEvent: vi.fn(),
   sharedStatsigClient: () => ({ logEvent: vi.fn() }),
 }));
+vi.mock('@/modules/relisten-audio-player', () => ({
+  RelistenPlaybackState: { Playing: 'Playing' },
+}));
 vi.mock('@/relisten/player/relisten_player_queue', () => ({
   PlayerQueueTrack: { fromSourceTrack: (sourceTrack: unknown) => ({ sourceTrack }) },
   PlayerShuffleState: { SHUFFLE_ON: 1 },

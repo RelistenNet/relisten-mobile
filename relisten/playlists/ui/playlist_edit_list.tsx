@@ -2,6 +2,7 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   measure,
@@ -18,27 +19,48 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useRealm } from '@/relisten/realm/schema';
-import { dropSegment, dropTrack, removeEntry } from '@/relisten/playlists/playlist_actions';
+import {
+  dropSegment,
+  dropTrack,
+  removeEntry,
+  removeSegment,
+} from '@/relisten/playlists/playlist_actions';
 import {
   type DragPlan,
   type DropSlot,
   type EditItem,
   type EditMetrics,
   type LinkPosition,
+  dragLead,
+  dragSource,
   editItems,
   editMetrics,
   gaplessY,
-  itemHeight,
+  isFramed,
   itemTops,
   nearestSlot,
-  planLinkDrag,
+  planGroupDrag,
   planTrackDrag,
+  totalHeight,
 } from '@/relisten/playlists/playlist_drag_slots';
-import type { PlaylistLayout } from '@/relisten/playlists/playlist_hooks';
-import { trackTitle } from '@/relisten/playlists/playlist_format';
+import type {
+  PlaylistLayout,
+  PlaylistRowEntry,
+  PlaylistRowGroup,
+} from '@/relisten/playlists/playlist_hooks';
+import {
+  entryTitle,
+  linkedEntriesLabel,
+  markdownPreview,
+} from '@/relisten/playlists/playlist_format';
+import {
+  type GuideTextPlace,
+  type GuideTextTarget,
+  openGuideTextEditor,
+} from '@/relisten/playlists/guide/guide_text_navigation';
 import { GroupMenu, TrackMenu } from '@/relisten/playlists/ui/playlist_menus';
 import { LinkRail } from '@/relisten/playlists/ui/link_rail';
-import { linkedLabel, showLine } from '@/relisten/playlists/ui/playlist_rows';
+import { showLine } from '@/relisten/playlists/ui/playlist_rows';
 import { removedMessage, toastEdit } from '@/relisten/playlists/ui/playlist_toast';
 
 /**
@@ -73,19 +95,29 @@ const LINK_OVERLAP_ROWS = 0.35;
 /** How far the row moves over its placeholder to step to the other slot at the same spot. */
 const SEAM_STEP_ROWS = 0.3;
 
-type ListItem = EditItem | { kind: 'gap'; key: 'gap'; slot: DropSlot };
+type ListItem =
+  | EditItem
+  | { kind: 'gap'; key: 'gap'; slot: DropSlot }
+  /** Blank space above a drag plan's rows, standing in for the resting rows it drops. */
+  | { kind: 'lead'; key: 'lead'; height: number };
+
+type EntryItem = Extract<EditItem, { kind: 'track' }>;
+/** A row whose handle drags a whole group, or that group folded to one row. */
+type DraggedGroup = Extract<EditItem, { kind: 'link' | 'prose' | 'collapsed' }>;
 
 /** The handle column on the right of every row; a touch that starts here starts a drag. */
 const HANDLE_WIDTH = 48;
 
 interface DragState {
-  kind: 'track' | 'link';
-  /** Entry ID for a track; segment ID for a link. */
+  kind: 'track' | 'group';
+  /** Entry ID for a track or text block; segment ID for a group. */
   id: string;
   plan: DragPlan;
   slot: number;
   /** The row drawn under the finger. */
   dragged: EditItem;
+  /** Height of the `lead` spacer; see `dragLead`. */
+  lead: number;
   /** After a drop, the list shows the result until the playlist updates. */
   settlingFrom?: PlaylistLayout;
 }
@@ -143,20 +175,19 @@ export function PlaylistEditList({
   const hoverMs = useSharedValue(0);
   const slotGapIndexes = useSharedValue<number[]>([]);
   const anchorTop = useSharedValue(0);
-  // Item positions for hit-testing a touch in the handle column.
+  const leadHeight = useSharedValue(0);
+  // Item positions for hit-testing a touch in the handle column. Rows without
+  // a handle (descriptions, Add Text) have an empty ID and never start a drag.
   const itemTopsSV = useSharedValue<number[]>([]);
   const itemIdsSV = useSharedValue<string[]>([]);
-  const itemIsLinkSV = useSharedValue<boolean[]>([]);
+  const itemIsGroupSV = useSharedValue<boolean[]>([]);
   const touchIndex = useSharedValue(-1);
 
   useEffect(() => {
-    const tops = itemTops(items, metrics);
-    const total = items.reduce((sum, item) => sum + itemHeight(item, metrics), 0);
-    itemTopsSV.value = [...tops, total];
-    itemIdsSV.value = items.map((item) =>
-      item.kind === 'track' ? item.row.entry.entryId : item.group.segment.segmentId
-    );
-    itemIsLinkSV.value = items.map((item) => item.kind === 'link');
+    const sources = items.map(dragSource);
+    itemTopsSV.value = [...itemTops(items, metrics), totalHeight(items, metrics)];
+    itemIdsSV.value = sources.map((source) => source?.id ?? '');
+    itemIsGroupSV.value = sources.map((source) => source?.kind === 'group');
   }, [items, metrics]);
 
   // The playlist changed after a drop: the list now shows the real result.
@@ -270,8 +301,14 @@ export function PlaylistEditList({
     }
     const scrolled = autoScroll();
     // Slots are compared with the dragged row's top edge, which is where the
-    // row would sit if dropped.
-    const top = fingerY.value - listPageY.value + scrollY.value - headerHeight.value - grab.value;
+    // row would sit if dropped, in the plan's coordinates (below the lead).
+    const top =
+      fingerY.value -
+      listPageY.value +
+      scrollY.value -
+      headerHeight.value -
+      leadHeight.value -
+      grab.value;
     const gapTop = slotGapTops.value[currentSlot.value] ?? 0;
     const rowTop = gaplessY(top, gapTop, gapHeight.value);
     const next = chooseSlot(top, rowTop, scrolled, info.timeSincePreviousFrame ?? 16);
@@ -282,44 +319,54 @@ export function PlaylistEditList({
     }
   }, false);
 
+  /**
+   * Copies a drag plan to the UI thread. `top` (the dragged row's top edge in
+   * the plan's coordinates) starts at the row's resting top minus the lead,
+   * which `dragLead` makes equal to the starting placeholder's top.
+   */
+  function loadPlan(plan: DragPlan, restingTop: number, lead: number, fingerContentY: number) {
+    const planTops = itemTops(plan.items, metrics);
+    const planHeight = totalHeight(plan.items, metrics);
+    const gapTopOf = (slot: DropSlot) => planTops[slot.gapIndex] ?? planHeight;
+
+    leadHeight.value = lead;
+    anchorTop.value = restingTop - lead;
+    grab.value = Math.min(plan.gapHeight, Math.max(0, fingerContentY - restingTop));
+    gapHeight.value = plan.gapHeight;
+    slotYs.value = plan.slots.map((slot) => slot.y);
+    slotGapTops.value = plan.slots.map(gapTopOf);
+    linkTargets.value = plan.slots.map((slot) => slot.linkTarget === true);
+    slotGapIndexes.value = plan.slots.map((slot) => slot.gapIndex);
+    hoverTops.value = plan.hoverTargets.map((target) => target.top);
+    hoverSlots.value = plan.hoverTargets.map((target) => target.slotIndex);
+    currentSlot.value = plan.initialSlot;
+    hoverIndex.value = -1;
+    hoverMs.value = 0;
+  }
+
   const begin = useCallback(
-    (kind: 'track' | 'link', id: string, startFingerY: number, pageY: number) => {
-      const plan =
-        kind === 'track'
-          ? planTrackDrag(layout.groups, id, metrics)
-          : planLinkDrag(layout.groups, id, metrics);
-      const key = kind === 'track' ? id : `link:${id}`;
-      const index = items.findIndex((item) => item.key === key);
-      if (index < 0) {
+    (kind: 'track' | 'group', id: string, startFingerY: number, pageY: number) => {
+      const index = items.findIndex((item) => {
+        const source = dragSource(item);
+        return source?.kind === kind && source.id === id;
+      });
+      // While a drop settles, the list still shows the old plan, so the rows
+      // the touch was hit-tested against aren't the ones on screen.
+      if (index < 0 || dragRef.current?.settlingFrom) {
         active.value = 0;
         return;
       }
 
-      const contentY = startFingerY - pageY + scrollY.value - headerHeight.value;
-      const planTops = itemTops(plan.items, metrics);
-      const planHeight = plan.items.reduce((sum, item) => sum + itemHeight(item, metrics), 0);
-      const gapTopOf = (slot: DropSlot) => planTops[slot.gapIndex] ?? planHeight;
-
-      const itemTop = itemTops(items, metrics)[index];
-      anchorTop.value = itemTop;
-      grab.value = Math.min(plan.gapHeight, Math.max(0, contentY - itemTop));
-      gapHeight.value = plan.gapHeight;
-      slotYs.value = plan.slots.map((slot) => slot.y);
-      slotGapTops.value = plan.slots.map(gapTopOf);
-      linkTargets.value = plan.slots.map((slot) => slot.linkTarget === true);
-      slotGapIndexes.value = plan.slots.map((slot) => slot.gapIndex);
-      hoverTops.value = plan.hoverTargets.map((target) => target.top);
-      hoverSlots.value = plan.hoverTargets.map((target) => target.slotIndex);
-      currentSlot.value = plan.initialSlot;
-      hoverIndex.value = -1;
-      hoverMs.value = 0;
-
       const item = items[index];
-      const dragged: EditItem =
-        item.kind === 'track'
-          ? { ...item, link: undefined }
-          : { kind: 'collapsed', key: `collapsed:${id}`, group: item.group };
-      setDrag({ kind, id, plan, slot: plan.initialSlot, dragged });
+      const plan =
+        kind === 'track'
+          ? planTrackDrag(layout.groups, id, metrics)
+          : planGroupDrag(layout.groups, id, metrics);
+      const lead = dragLead(items, item.key, plan, metrics);
+      const fingerContentY = startFingerY - pageY + scrollY.value - headerHeight.value;
+      loadPlan(plan, itemTops(items, metrics)[index], lead, fingerContentY);
+
+      setDrag({ kind, id, plan, slot: plan.initialSlot, dragged: draggedRow(item), lead });
       frame.setActive(true);
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     },
@@ -349,14 +396,20 @@ export function PlaylistEditList({
 
   function applyDrop(current: DragState, slot: DropSlot): boolean {
     if (slot.drop.kind === 'segment') {
+      const group = (current.dragged as DraggedGroup).group;
       const changed = dropSegment(realm, playlistId, current.id, slot.drop);
-      toastEdit(realm, playlistId, changed, 'Moved linked tracks');
+      toastEdit(
+        realm,
+        playlistId,
+        changed,
+        group.entries.length === 0 ? 'Moved text' : 'Moved linked tracks'
+      );
       return changed;
     }
 
-    const dragged = current.dragged as Extract<EditItem, { kind: 'track' }>;
-    const title = trackTitle(dragged.row);
-    const wasLinked = dragged.group.entries.length > 1;
+    const dragged = current.dragged as EntryItem;
+    const title = entryTitle(dragged.row);
+    const wasLinked = isFramed(dragged.group);
     const changed = dropTrack(realm, playlistId, current.id, slot.drop.drop);
     const message =
       slot.inLink && !wasLinked
@@ -408,7 +461,8 @@ export function PlaylistEditList({
               break;
             }
           }
-          if (index < 0) {
+          // Descriptions and Add Text rows have no handle (an empty ID).
+          if (index < 0 || itemIdsSV.value[index] === '') {
             manager.fail();
             return;
           }
@@ -431,7 +485,7 @@ export function PlaylistEditList({
         .onStart(() => {
           const index = touchIndex.value;
           runOnJS(begin)(
-            itemIsLinkSV.value[index] ? 'link' : 'track',
+            itemIsGroupSV.value[index] ? 'group' : 'track',
             itemIdsSV.value[index],
             fingerY.value,
             listPageY.value
@@ -510,40 +564,82 @@ export function PlaylistEditList({
   );
 }
 
-/** The rows to show: the plain list, or the drag plan's list with the placeholder at the chosen slot. */
+/** The row drawn under the finger: the entry itself, or its whole group folded to one row. */
+function draggedRow(item: EditItem): EditItem {
+  if (item.kind === 'track') {
+    return { ...item, inFrame: false };
+  }
+  const { group } = item as DraggedGroup;
+  return { kind: 'collapsed', key: `collapsed:${group.segment.segmentId}`, group };
+}
+
+/**
+ * The rows to show: the plain list, or the drag plan's list with the
+ * placeholder at the chosen slot, below the lead spacer.
+ */
 function listData(items: EditItem[], drag: DragState | null): ListItem[] {
   if (!drag) {
     return items;
   }
+
   const slot = drag.plan.slots[drag.slot];
   const rows: ListItem[] = [...drag.plan.items];
   if (slot) {
     rows.splice(slot.gapIndex, 0, { kind: 'gap', key: 'gap', slot });
   }
+  if (drag.lead > 0) {
+    rows.unshift({ kind: 'lead', key: 'lead', height: drag.lead });
+  }
   return rows;
+}
+
+/**
+ * Whether the row after this one is still inside the same frame. Every frame
+ * starts with a link line or a description, so a row that continues one is
+ * never a frame's first row; a placeholder continues it when it sits on the rail.
+ */
+function continuesFrame(next: ListItem | undefined): boolean {
+  switch (next?.kind) {
+    case 'gap':
+      return next.slot.inLink;
+    case 'track':
+      return next.inFrame;
+    case 'description':
+      return !next.startsFrame;
+    default:
+      return false;
+  }
 }
 
 /** How the rail runs through this row, given what comes after it. */
 function railFor(item: ListItem, next: ListItem | undefined): LinkPosition | undefined {
-  const linkGapNext = next?.kind === 'gap' && next.slot.inLink;
+  const continues = continuesFrame(next);
   switch (item.kind) {
+    case 'lead':
+      return undefined;
     case 'link':
-      return 'first';
+      return continues ? 'first' : 'only';
+    case 'description':
+      if (item.startsFrame) {
+        return continues ? 'first' : 'only';
+      }
+      return continues ? 'middle' : 'last';
+    case 'prose':
+      // A track being dropped into a prose-only group starts its rail.
+      return continues ? 'first' : undefined;
     case 'collapsed':
-      return item.group.entries.length > 1 ? 'only' : undefined;
-    case 'gap': {
+      return isFramed(item.group) && item.group.entries.length > 0 ? 'only' : undefined;
+    case 'gap':
       if (!item.slot.inLink) {
         return undefined;
       }
-      const continues = next?.kind === 'track' && next.link !== undefined && !item.slot.linkTarget;
-      return continues ? 'middle' : 'last';
-    }
+      return continues && !item.slot.linkTarget ? 'middle' : 'last';
     case 'track':
-      if (item.link === undefined) {
-        // A single track the drag is about to link onto starts a rail.
-        return linkGapNext && next.slot.linkTarget ? 'first' : undefined;
+      if (item.inFrame) {
+        return continues ? 'middle' : 'last';
       }
-      return item.link === 'last' && !linkGapNext ? 'last' : 'middle';
+      // A single track the drag is about to link onto starts a rail.
+      return next?.kind === 'gap' && next.slot.linkTarget ? 'first' : undefined;
   }
 }
 
@@ -564,73 +660,241 @@ function EditListRow({
 }) {
   const rail = railFor(item, next);
 
-  if (item.kind === 'gap') {
-    return (
-      <View style={{ height: metrics.trackHeight }}>
-        <LinkRail link={rail} active />
-        {settlingRow ? (
-          <RowContent item={settlingRow} metrics={metrics} />
-        ) : (
-          <View style={[styles.placeholder, item.slot.inLink && styles.placeholderInLink]}>
-            {item.slot.label && (
-              <RelistenText
-                className="text-sm font-semibold text-relisten-blue-300"
-                numberOfLines={1}
-                selectable={false}
-              >
-                {item.slot.label}
-              </RelistenText>
-            )}
-          </View>
-        )}
-      </View>
-    );
-  }
-
-  if (item.kind === 'link') {
-    return (
-      <View style={{ height: metrics.linkHeight }} className="flex-row items-center">
-        <LinkRail link={rail} active={false} />
-        <View className="w-12" />
-        <GroupMenu
+  switch (item.kind) {
+    case 'lead':
+      return <View style={{ height: item.height }} />;
+    case 'gap':
+      return (
+        <PlaceholderRow slot={item.slot} rail={rail} metrics={metrics} settlingRow={settlingRow} />
+      );
+    case 'link':
+      return (
+        <LinkLineRow
+          item={item}
+          rail={rail}
+          metrics={metrics}
           playlistId={playlistId}
           layout={layout}
-          group={item.group}
-          style={{ flex: 1, minWidth: 0, alignSelf: 'stretch' }}
-        >
-          <View className="h-full flex-1 justify-center" accessibilityRole="button">
-            <RelistenText className="text-sm text-gray-400" numberOfLines={1} selectable={false}>
-              {linkedLabel(item.group)}
-            </RelistenText>
-          </View>
-        </GroupMenu>
-        <DragHandle label={linkedLabel(item.group)} />
-      </View>
-    );
+        />
+      );
+    case 'description':
+      return (
+        <DescriptionRow group={item.group} rail={rail} metrics={metrics} playlistId={playlistId} />
+      );
+    case 'prose':
+      return <ProseRow group={item.group} rail={rail} metrics={metrics} playlistId={playlistId} />;
+    case 'collapsed':
+      return (
+        <View style={{ height: metrics.trackHeight }}>
+          <LinkRail link={rail} active={false} />
+          <RowContent item={item} metrics={metrics} />
+        </View>
+      );
+    case 'track':
+      return (
+        <EntryRow
+          item={item}
+          rail={rail}
+          metrics={metrics}
+          playlistId={playlistId}
+          layout={layout}
+        />
+      );
   }
+}
 
-  if (item.kind === 'collapsed') {
-    return (
-      <View style={{ height: metrics.trackHeight }}>
-        <LinkRail link={rail} active={false} />
-        <RowContent item={item} metrics={metrics} />
-      </View>
-    );
-  }
+/** The guide text editor, opened at a place in this playlist. */
+function useEditGuideText(playlistId: string) {
+  const router = useRouter();
+  return (place: GuideTextPlace) =>
+    openGuideTextEditor(router, { ...place, playlistId } as GuideTextTarget);
+}
+
+function PlaceholderRow({
+  slot,
+  rail,
+  metrics,
+  settlingRow,
+}: {
+  slot: DropSlot;
+  rail: LinkPosition | undefined;
+  metrics: EditMetrics;
+  settlingRow: EditItem | undefined;
+}) {
+  return (
+    <View style={{ height: metrics.trackHeight }}>
+      <LinkRail link={rail} active />
+      {settlingRow ? (
+        <RowContent item={settlingRow} metrics={metrics} />
+      ) : (
+        <View style={[styles.placeholder, slot.inLink && styles.placeholderInLink]}>
+          {slot.label && (
+            <RelistenText
+              className="text-sm font-semibold text-relisten-blue-300"
+              numberOfLines={1}
+              selectable={false}
+            >
+              {slot.label}
+            </RelistenText>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
+function LinkLineRow({
+  item,
+  rail,
+  metrics,
+  playlistId,
+  layout,
+}: {
+  item: Extract<EditItem, { kind: 'link' }>;
+  rail: LinkPosition | undefined;
+  metrics: EditMetrics;
+  playlistId: string;
+  layout: PlaylistLayout;
+}) {
+  const label = linkedEntriesLabel(item.group.entries);
+  return (
+    <View style={{ height: metrics.linkHeight }} className="flex-row items-center">
+      <LinkRail link={rail} active={false} />
+      <View className="w-12" />
+      <GroupMenu
+        playlistId={playlistId}
+        layout={layout}
+        group={item.group}
+        style={{ flex: 1, minWidth: 0, alignSelf: 'stretch' }}
+      >
+        <View className="h-full flex-1 justify-center" accessibilityRole="button">
+          <RelistenText className="text-sm text-gray-400" numberOfLines={1} selectable={false}>
+            {label}
+          </RelistenText>
+        </View>
+      </GroupMenu>
+      <DragHandle label={label} />
+    </View>
+  );
+}
+
+/**
+ * A framed group's description: tapping edits it. It has no handle: a linked
+ * group moves by its link line, and dragging a described single track takes
+ * the track out and leaves the description as a text-only group.
+ */
+function DescriptionRow({
+  group,
+  rail,
+  metrics,
+  playlistId,
+}: {
+  group: PlaylistRowGroup;
+  rail: LinkPosition | undefined;
+  metrics: EditMetrics;
+  playlistId: string;
+}) {
+  const editText = useEditGuideText(playlistId);
+  return (
+    <View style={{ height: metrics.descriptionHeight }} className="flex-row items-center">
+      <LinkRail link={rail} active={false} />
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel="Edit text"
+        className="h-full min-w-0 flex-1 justify-center pl-12"
+        style={{ paddingRight: HANDLE_WIDTH }}
+        onPress={() => editText({ kind: 'segment', segmentId: group.segment.segmentId })}
+      >
+        <RelistenText className="text-sm italic text-gray-300" numberOfLines={1} selectable={false}>
+          {groupPreview(group)}
+        </RelistenText>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+/** A group with only text: one row that edits on tap, removes, and drags as a group. */
+function ProseRow({
+  group,
+  rail,
+  metrics,
+  playlistId,
+}: {
+  group: PlaylistRowGroup;
+  rail: LinkPosition | undefined;
+  metrics: EditMetrics;
+  playlistId: string;
+}) {
+  const realm = useRealm();
+  const editText = useEditGuideText(playlistId);
+  const segmentId = group.segment.segmentId;
+  const remove = () =>
+    toastEdit(realm, playlistId, removeSegment(realm, playlistId, segmentId), 'Removed text');
 
   return (
     <View style={{ height: metrics.trackHeight }} className="flex-row items-center">
       <LinkRail link={rail} active={false} />
-      <RemoveButton playlistId={playlistId} item={item} />
-      <TrackMenu
-        playlistId={playlistId}
-        layout={layout}
-        row={item.row}
-        style={{ flex: 1, minWidth: 0, alignSelf: 'stretch' }}
+      <RemoveButton label="Remove text" onRemove={remove} />
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel="Edit text"
+        className="h-full min-w-0 flex-1 justify-center"
+        onPress={() => editText({ kind: 'segment', segmentId })}
       >
-        <TrackText item={item} />
-      </TrackMenu>
-      <DragHandle label={trackTitle(item.row)} />
+        <PreviewLines title={groupPreview(group)} subtitle="Text" />
+      </TouchableOpacity>
+      <DragHandle label="text" />
+    </View>
+  );
+}
+
+/** A track, or a text block, which edits on tap instead of opening the track menu. */
+function EntryRow({
+  item,
+  rail,
+  metrics,
+  playlistId,
+  layout,
+}: {
+  item: EntryItem;
+  rail: LinkPosition | undefined;
+  metrics: EditMetrics;
+  playlistId: string;
+  layout: PlaylistLayout;
+}) {
+  const realm = useRealm();
+  const editText = useEditGuideText(playlistId);
+  const { row, group } = item;
+  const isText = row.status === 'text';
+  const title = entryTitle(row);
+  const remove = () =>
+    toastEdit(
+      realm,
+      playlistId,
+      removeEntry(realm, playlistId, row.entry.entryId),
+      isText ? 'Removed note' : removedMessage(row, group)
+    );
+  const body = { flex: 1, minWidth: 0, alignSelf: 'stretch' } as const;
+
+  return (
+    <View style={{ height: metrics.trackHeight }} className="flex-row items-center">
+      <LinkRail link={rail} active={false} />
+      <RemoveButton label={`Remove ${title}`} onRemove={remove} />
+      {isText ? (
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Edit note"
+          style={body}
+          onPress={() => editText({ kind: 'entry', entryId: row.entry.entryId })}
+        >
+          <EntryText item={item} />
+        </TouchableOpacity>
+      ) : (
+        <TrackMenu playlistId={playlistId} layout={layout} row={row} style={body}>
+          <EntryText item={item} />
+        </TrackMenu>
+      )}
+      <DragHandle label={title} />
     </View>
   );
 }
@@ -650,7 +914,7 @@ function RowContent({
     return (
       <View style={{ height: metrics.trackHeight }} className="flex-row items-center">
         <View className="w-12" />
-        <TrackText item={item} />
+        <EntryText item={item} />
         <View className="w-3" />
         {badge && (
           <RelistenText
@@ -665,26 +929,54 @@ function RowContent({
       </View>
     );
   }
-  const group = item.group;
-  const linked = group.entries.length > 1;
+  if (item.kind !== 'collapsed') {
+    return null;
+  }
+
+  const { title, subtitle } = collapsedLines(item.group);
   return (
     <View style={{ height: metrics.trackHeight }} className="justify-center pl-12 pr-11">
-      <RelistenText className="text-lg" numberOfLines={1} selectable={false}>
-        {linked ? linkedLabel(group) : trackTitle(group.entries[0])}
-      </RelistenText>
-      <RelistenText className="text-sm text-gray-400" numberOfLines={1} selectable={false}>
-        {linked ? group.entries.map(trackTitle).join(', ') : showLine(group.entries[0])}
-      </RelistenText>
+      <PreviewLines title={title} subtitle={subtitle} />
     </View>
   );
 }
 
-function TrackText({ item }: { item: Extract<EditItem, { kind: 'track' }> }) {
-  const subtitle = showLine(item.row);
+/** A whole group as two lines, for the folded list while a group is dragged. */
+function collapsedLines(group: PlaylistRowGroup): {
+  title: string;
+  subtitle: string;
+} {
+  const { entries } = group;
+  if (entries.length === 0) {
+    return { title: groupPreview(group), subtitle: 'Text' };
+  }
+  if (entries.length > 1) {
+    return {
+      title: linkedEntriesLabel(entries),
+      subtitle: entries.map(entryTitle).join(', '),
+    };
+  }
+  const row = entries[0];
+  return row.status === 'text'
+    ? { title: entryPreview(row), subtitle: 'Note' }
+    : { title: entryTitle(row), subtitle: showLine(row) };
+}
+
+function EntryText({ item }: { item: EntryItem }) {
+  const { row } = item;
+  if (row.status === 'text') {
+    return (
+      <View className="min-w-0 flex-1 justify-center">
+        <PreviewLines title={entryPreview(row)} subtitle="Note" />
+      </View>
+    );
+  }
+
+  const subtitle = showLine(row);
   return (
     <View className="min-w-0 flex-1 justify-center">
       <RelistenText className="text-lg" numberOfLines={1} selectable={false}>
-        {item.row.sourceTrack ? trackTitle(item.row) : 'Track'}
+        {row.sourceTrack ? entryTitle(row) : 'Track'}
       </RelistenText>
       {subtitle !== '' && (
         <RelistenText className="text-sm text-gray-400" numberOfLines={1} selectable={false}>
@@ -695,30 +987,34 @@ function TrackText({ item }: { item: Extract<EditItem, { kind: 'track' }> }) {
   );
 }
 
-function RemoveButton({
-  playlistId,
-  item,
-}: {
-  playlistId: string;
-  item: Extract<EditItem, { kind: 'track' }>;
-}) {
-  const realm = useRealm();
-  const title = trackTitle(item.row);
+function PreviewLines({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <>
+      <RelistenText className="text-lg" numberOfLines={1} selectable={false}>
+        {title}
+      </RelistenText>
+      {subtitle !== '' && (
+        <RelistenText className="text-sm text-gray-400" numberOfLines={1} selectable={false}>
+          {subtitle}
+        </RelistenText>
+      )}
+    </>
+  );
+}
 
-  const remove = () =>
-    toastEdit(
-      realm,
-      playlistId,
-      removeEntry(realm, playlistId, item.row.entry.entryId),
-      removedMessage(item.row, item.group)
-    );
+const groupPreview = (group: PlaylistRowGroup) =>
+  markdownPreview(group.descriptionMarkdown ?? group.segment.description);
 
+const entryPreview = (row: PlaylistRowEntry) =>
+  markdownPreview(row.descriptionMarkdown ?? row.entry.description);
+
+function RemoveButton({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
     <TouchableOpacity
       accessibilityRole="button"
-      accessibilityLabel={`Remove ${title}`}
+      accessibilityLabel={label}
       className="h-11 w-12 items-center justify-center"
-      onPress={remove}
+      onPress={onRemove}
     >
       <Ionicons name="remove-circle" size={22} color="#e5484d" />
     </TouchableOpacity>

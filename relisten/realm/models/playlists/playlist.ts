@@ -60,7 +60,25 @@ export class Playlist extends Realm.Object<Playlist> {
  */
 export type PlaylistServerState = 'creating' | 'synced' | 'needs_attention';
 
-/** An ordered block of entries that stays together through shuffle. A lone track is a one-entry segment. */
+/**
+ * Guide text on a segment or entry. `description` is the Markdown source the
+ * listener wrote. `descriptionMarkdown` is that source sanitized for the
+ * renderer (see guide_markdown.ts), stored so rendering parses nothing.
+ * `descriptionMarkdownKey` records the sanitizer version and the track duration
+ * it was computed with; a row whose key no longer matches is re-sanitized.
+ */
+const guideTextProperties = {
+  description: 'string?',
+  canonicalDescription: 'string?',
+  descriptionMarkdown: 'string?',
+  descriptionMarkdownKey: 'string?',
+} as const;
+
+/**
+ * An ordered block of entries that stays together through shuffle. A lone
+ * track is a one-entry segment. A segment may have only a description (a
+ * prose-only group) and no entries.
+ */
 export class PlaylistSegment extends Realm.Object<PlaylistSegment> {
   static schema: Realm.ObjectSchema = {
     name: 'PlaylistSegment',
@@ -73,6 +91,7 @@ export class PlaylistSegment extends Realm.Object<PlaylistSegment> {
       live: { type: 'bool', default: true, indexed: true },
       canonicalRank: 'string?',
       canonicalLive: { type: 'bool', default: false },
+      ...guideTextProperties,
     },
   };
 
@@ -82,9 +101,17 @@ export class PlaylistSegment extends Realm.Object<PlaylistSegment> {
   live!: boolean;
   canonicalRank?: string;
   canonicalLive!: boolean;
+  description?: string;
+  canonicalDescription?: string;
+  descriptionMarkdown?: string;
+  descriptionMarkdownKey?: string;
 }
 
-/** One authored position in a playlist. The same track may appear in many entries. */
+/**
+ * One authored position in a playlist. The same track may appear in many
+ * entries. An entry with no `trackId` is a text block: it has a description,
+ * ranks among the tracks, and is never played, downloaded or hydrated.
+ */
 export class PlaylistEntry extends Realm.Object<PlaylistEntry> {
   static schema: Realm.ObjectSchema = {
     name: 'PlaylistEntry',
@@ -93,24 +120,29 @@ export class PlaylistEntry extends Realm.Object<PlaylistEntry> {
       entryId: 'string',
       playlistId: { type: 'string', indexed: true },
       segmentId: { type: 'string', indexed: true },
-      trackId: { type: 'string', indexed: true },
+      trackId: { type: 'string', optional: true, indexed: true },
       rank: 'string',
       live: { type: 'bool', default: true, indexed: true },
       canonicalSegmentId: 'string?',
       canonicalRank: 'string?',
       canonicalLive: { type: 'bool', default: false },
+      ...guideTextProperties,
     },
   };
 
   entryId!: string;
   playlistId!: string;
   segmentId!: string;
-  trackId!: string;
+  trackId?: string;
   rank!: string;
   live!: boolean;
   canonicalSegmentId?: string;
   canonicalRank?: string;
   canonicalLive!: boolean;
+  description?: string;
+  canonicalDescription?: string;
+  descriptionMarkdown?: string;
+  descriptionMarkdownKey?: string;
 }
 
 /**

@@ -2147,6 +2147,29 @@ PODS:
     - React-utils (= 0.88.0)
     - ReactNativeDependencies
   - ReactNativeDependencies (0.88.0)
+  - ReactNativeEnrichedMarkdown (1.2.0):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-bridging
+    - React-Core
+    - React-Core-prebuilt
+    - React-cxxstableapi
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - RealmJS (20.2.0):
     - React
   - RelistenAudioPlayer (2.4.0):
@@ -2656,6 +2679,7 @@ DEPENDENCIES:
   - ReactCodegen (from `build/generated/ios/ReactCodegen`)
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
   - ReactNativeDependencies (from `../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec`)
+  - ReactNativeEnrichedMarkdown (from `../node_modules/react-native-enriched-markdown`)
   - RealmJS (from `../node_modules/realm`)
   - RelistenAudioPlayer (from `../modules/relisten-audio-player/ios`)
   - "RNCAsyncStorage (from `../node_modules/@react-native-async-storage/async-storage`)"
@@ -2939,6 +2963,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon"
   ReactNativeDependencies:
     :podspec: "../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec"
+  ReactNativeEnrichedMarkdown:
+    :path: "../node_modules/react-native-enriched-markdown"
   RealmJS:
     :path: "../node_modules/realm"
   RelistenAudioPlayer:
@@ -3100,6 +3126,7 @@ SPEC CHECKSUMS:
   ReactCodegen: ee45b6b824f99444581b83ba9ee4032d63c0ba44
   ReactCommon: 145a14b942b19fc2fe38927f261955ada56978aa
   ReactNativeDependencies: d3b7423ba1e52525e42085c8470109abde583d2e
+  ReactNativeEnrichedMarkdown: f8e1565ae3ab67b40cc7c1006b0f44270159f19d
   RealmJS: 1c37c6bdfe060f4caa0f9175aa0eedb962622ee1
   RelistenAudioPlayer: bf123bc4d85a55d1b3bc7a8a64b9f55718fc4077
   RNCAsyncStorage: 47ffec1d3f091c4a21881654bbd5e2e7f62efbc9

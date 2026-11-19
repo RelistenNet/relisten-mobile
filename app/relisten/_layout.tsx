@@ -81,6 +81,19 @@ export default function TabLayout() {
         }}
       />
       <Stack.Screen
+        name="guide-text"
+        options={{
+          contentStyle: { backgroundColor: RelistenBlue['900'] },
+          headerShown: true,
+          headerStyle: { backgroundColor: RelistenBlue['900'] },
+          headerTintColor: 'white',
+          // Full screen on Android for the same reason as add-to-playlist.
+          presentation: Platform.OS === 'android' ? 'modal' : 'formSheet',
+          sheetAllowedDetents: [0.92],
+          sheetGrabberVisible: true,
+        }}
+      />
+      <Stack.Screen
         name="audio-adjustments"
         options={{
           contentStyle: { backgroundColor: RelistenBlue['950'] },

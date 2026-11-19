@@ -354,21 +354,22 @@ function segueSuggestion(realm: Realm, playlistId: string) {
   const groups = orderedGroups(readPlaylistSnapshot(realm, playlistId));
   const added = groups[groups.length - 1];
   const previous = groups[groups.length - 2];
-  if (!added || !previous || added.entries.length !== 1) {
+  // The previous group must end with a track: a text-only group, or one ending
+  // in a text block, has no track for the new one to follow.
+  const addedEntry = added?.entries.length === 1 ? added.entries[0] : undefined;
+  const previousEntry = previous?.entries[previous.entries.length - 1];
+  if (!addedEntry?.trackId || !previousEntry?.trackId) {
     return undefined;
   }
 
-  const addedTrack = sourceTrackFor(realm, added.entries[0].trackId);
-  const previousTrack = sourceTrackFor(
-    realm,
-    previous.entries[previous.entries.length - 1].trackId
-  );
+  const addedTrack = sourceTrackFor(realm, addedEntry.trackId);
+  const previousTrack = sourceTrackFor(realm, previousEntry.trackId);
   if (!addedTrack || !previousTrack || !playsRightAfter(previousTrack, addedTrack)) {
     return undefined;
   }
   return {
-    entryId: added.entries[0].entryId,
-    previousEntryId: previous.entries[previous.entries.length - 1].entryId,
+    entryId: addedEntry.entryId,
+    previousEntryId: previousEntry.entryId,
     previousTitle: previousTrack.title,
   };
 }

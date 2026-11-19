@@ -1,5 +1,5 @@
 {
-  "about": "Shared guide description cases. The User Service tests check `server`. Client sanitizer tests check that the sanitized result keeps exactly `links`, renders no image or HTML, and contains each string in `text`. `context` is the description's owner: a track entry (with `durationSeconds`), a segment, or a text block. Copies live in relisten-mobile and relisten-web; update them together.",
+  "about": "Shared guide description cases. The User Service tests check `server`. Client sanitizer tests check that the sanitized result keeps exactly `links`, renders no image or HTML, and contains each string in `text`. `context` is the description's owner: a track entry (with `durationSeconds`), a segment, or a text block. Copies live in relisten-mobile and relisten-web; update them together. `device`, when present, is a client's own save-time verdict where its parser differs from the server's; it may only be stricter.",
   "vectors": [
     {
       "name": "plain prose",
@@ -421,7 +421,8 @@
       "links": [],
       "text": [
         "Relisten"
-      ]
+      ],
+      "device": "reject"
     },
     {
       "name": "a code block ending in blank lines",

@@ -27,6 +27,11 @@ import { isQueueable, queueTrackFor, queueTracksFor } from '@/relisten/playlists
 import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
 import { removedMessage, toastEdit } from '@/relisten/playlists/ui/playlist_toast';
 import { useGroupSegment } from '@/relisten/util/routes';
+import {
+  type GuideTextPlace,
+  type GuideTextTarget,
+  openGuideTextEditor,
+} from '@/relisten/playlists/guide/guide_text_navigation';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 
 /** Where a row sits, which decides which moves make sense. */
@@ -88,17 +93,24 @@ export function TrackMenu({
   children: ReactNode;
 }) {
   const realm = useRealm();
+  const router = useRouter();
   const player = useRelistenPlayer();
   const online = useShouldMakeNetworkRequests();
   const toast = (changed: boolean, message: string) =>
     toastEdit(realm, playlistId, changed, message);
   const goToShow = useGoToShow();
   const entryId = row.entry.entryId;
-  const title = trackTitle(row);
+  const isText = row.status === 'text';
+  const title = isText ? 'note' : trackTitle(row);
   const { groups } = layout;
   const at = position(layout, entryId);
-  const above = !at.inGroup && at.groupIndex > 0 ? groups[at.groupIndex - 1] : undefined;
-  const aboveTitle = above ? trackTitle(above.entries[above.entries.length - 1]) : undefined;
+  // Only a track truly on its own can link up; one with an intro keeps its group
+  // (see `isSingle` in playlist_actions).
+  const canLinkUp = !at.inGroup && !at.group?.segment.description && at.groupIndex > 0;
+  const above = canLinkUp ? groups[at.groupIndex - 1] : undefined;
+  // A text-only group above has no entry to link to.
+  const aboveLast = above?.entries[above.entries.length - 1];
+  const aboveTitle = aboveLast ? trackTitle(aboveLast) : undefined;
   const isFirst = at.inGroup ? at.index === 0 : at.groupIndex === 0;
   const isLast = at.inGroup
     ? at.index === (at.group?.entries.length ?? 0) - 1
@@ -144,12 +156,16 @@ export function TrackMenu({
     links.push(action('go-to-show', 'Go to Show', nativeMenuIcons.goTo));
   }
 
+  const guide = guideActions(row, at.group, at.inGroup);
   const actions = menuSections([
     playback,
+    guide,
     moves,
     links,
     [action('remove', 'Remove from Playlist', nativeMenuIcons.delete, true)],
   ]);
+  const editText = (target: GuideTextPlace) =>
+    openGuideTextEditor(router, { ...target, playlistId } as GuideTextTarget);
 
   const handle = (id: string) => {
     switch (id) {
@@ -181,8 +197,23 @@ export function TrackMenu({
         return toast(keepWithAbove(realm, playlistId, entryId), `Linked ${title} to ${aboveTitle}`);
       case 'go-to-show':
         return goToShow(row.sourceTrack!);
+      case 'note':
+        return editText({ kind: 'entry', entryId });
+      case 'add-text-below':
+        // Inside a linked group the text stays with it; after a lone track it
+        // becomes its own text section, so the track stays unlinked.
+        return editText(
+          at.inGroup
+            ? { kind: 'text', segmentId: at.group!.segment.segmentId, afterEntryId: entryId }
+            : { kind: 'section', afterSegmentId: at.group!.segment.segmentId }
+        );
+      case 'group-intro':
+        return editText({ kind: 'segment', segmentId: at.group!.segment.segmentId });
       case 'remove':
-        return toast(removeEntry(realm, playlistId, entryId), removedMessage(row, at.group!));
+        return toast(
+          removeEntry(realm, playlistId, entryId),
+          isText ? 'Removed note' : removedMessage(row, at.group!)
+        );
     }
   };
 
@@ -196,6 +227,30 @@ export function TrackMenu({
       {children}
     </NativeMenuView>
   );
+}
+
+/**
+ * Writing actions for an entry: its note (or a text block's text), text below
+ * it, and an intro for its linked group when it has none yet.
+ */
+function guideActions(
+  row: PlaylistRowEntry,
+  group: PlaylistRowGroup | undefined,
+  inGroup: boolean
+): MenuAction[] {
+  const actions: MenuAction[] = [];
+  if (row.status === 'text') {
+    actions.push(action('note', 'Edit Text…', nativeMenuIcons.edit));
+  } else {
+    actions.push(
+      action('note', row.entry.description ? 'Edit Note…' : 'Add Note…', nativeMenuIcons.edit)
+    );
+  }
+  actions.push(action('add-text-below', 'Add Text Below…', nativeMenuIcons.add));
+  if (inGroup && group && !group.segment.description) {
+    actions.push(action('group-intro', 'Add Intro to Linked Tracks…', nativeMenuIcons.add));
+  }
+  return actions;
 }
 
 /** The menu for a run of linked tracks, on its line in edit mode. */

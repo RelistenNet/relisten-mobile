@@ -1113,7 +1113,14 @@ Implemented in `relisten/playlists/sync/` against the local User Service on
   optional owners.
 - [x] (2026-11-17) Milestone 1: playlists on the device.
 - [x] (2026-11-18) Cut the Android Auto playlists list (Alec).
-- [ ] Milestone 3: guide content, with the API change.
+- [x] (2026-11-18) Milestone 3 built on `codex/playlist-guide-content-mobile`:
+  Realm schema 25, the engine's description operations, sync, sanitize-on-store,
+  the native renderer, the editor sheet, track-menu guide actions, edit-mode
+  text rows and Add Text, and timestamp playback. Verified on the iOS simulator
+  with a device playlist. Not verified: account sync against a server with
+  guide writes on, and Android.
+- [ ] Ship milestone 3: a store build (the renderer is native), the raised
+  minimum OTA version, then `Accounts__EnablePlaylistGuideContent=true`.
 - [ ] Milestone 4: sharing, after account deletion and takedown ship.
 - [x] (2026-11-17) Milestone 2: saving to an account, shipped by OTA to
   TestFlight 6055.

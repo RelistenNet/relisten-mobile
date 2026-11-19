@@ -146,3 +146,78 @@ describe('applyPlaylistOperation', () => {
     expect(layout(playlist).endsWith('x0 b]')).toBe(true);
   });
 });
+
+describe('guide content', () => {
+  const described = (): PlaylistSnapshot => ({
+    segments: new Map([['s', { segmentId: 's', rank: 'a0', description: 'Intro' }]]),
+    entries: new Map([['t', { entryId: 't', segmentId: 's', trackId: 'track_1', rank: 'a0' }]]),
+  });
+
+  it('keeps a described segment when its last entry moves out', () => {
+    const after = apply(described(), {
+      type: 'move_entry',
+      entryId: 't',
+      destination: { newSegmentId: 'n' },
+    });
+
+    expect(after.segments.get('s')?.description).toBe('Intro');
+    expect(after.entries.get('t')?.segmentId).toBe('n');
+  });
+
+  it('removes a prose-only segment when its description is cleared', () => {
+    const proseOnly = apply(described(), { type: 'delete_entry', entryId: 't' });
+    expect(proseOnly.segments.has('s')).toBe(true);
+
+    const result = applyPlaylistOperation(proseOnly, {
+      type: 'update_segment',
+      segmentId: 's',
+      description: null,
+    });
+    expect(result.status).toBe('applied');
+    expect(result.changes.deleteSegmentIds).toEqual(['s']);
+  });
+
+  it('inserts a prose-only segment and a text block', () => {
+    const withSection = apply(described(), {
+      type: 'insert_segment',
+      segmentId: 'p',
+      description: 'Between the sets',
+      entries: [],
+    });
+    const withText = apply(withSection, {
+      type: 'insert_entries',
+      segmentId: 's',
+      afterEntryId: 't',
+      entries: [{ entryId: 'x', description: 'Then the jam' }],
+    });
+
+    expect(withText.segments.get('p')?.description).toBe('Between the sets');
+    expect(withText.entries.get('x')).toMatchObject({
+      segmentId: 's',
+      description: 'Then the jam',
+    });
+    expect(withText.entries.get('x')?.trackId).toBeUndefined();
+  });
+
+  it('treats an unchanged description as a no-op', () => {
+    expect(
+      applyPlaylistOperation(described(), {
+        type: 'update_segment',
+        segmentId: 's',
+        description: 'Intro',
+      }).status
+    ).toBe('no_op');
+  });
+
+  it('refuses to clear a text block, which can only be deleted', () => {
+    const withText = apply(described(), {
+      type: 'insert_entries',
+      segmentId: 's',
+      entries: [{ entryId: 'x', description: 'Note' }],
+    });
+
+    expect(() =>
+      applyPlaylistOperation(withText, { type: 'update_entry', entryId: 'x', description: null })
+    ).toThrow();
+  });
+});

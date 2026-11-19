@@ -26,6 +26,20 @@ import {
 } from '@/relisten/playlists/sync/playlist_sync_state';
 import type { MetadataEdit } from '@/relisten/playlists/sync/playlist_wire';
 import { createUuidV7TypedId } from '@/relisten/util/typed_uuid_id';
+import {
+  entryStateOf,
+  segmentStateOf,
+  trackCount,
+  writeEntryRow,
+  writeSegmentRow,
+} from '@/relisten/playlists/guide/guide_rows';
+import {
+  assertDescriptionLength,
+  assertGuideLimits,
+  GuideLimitError,
+  normalizeGuideText,
+} from '@/relisten/playlists/guide/guide_text';
+import { guideTextRefusal } from '@/relisten/playlists/guide/guide_markdown';
 
 /** Local playlists follow the server contract's limits so they can be saved to an account later. */
 export const PLAYLIST_LIMITS = {
@@ -78,19 +92,14 @@ export function readPlaylistSnapshot(realm: Realm, playlistId: string): WorkingS
   for (const s of realm
     .objects(PlaylistSegment)
     .filtered('playlistId == $0 AND live == true', playlistId)) {
-    segments.set(s.segmentId, { segmentId: s.segmentId, rank: s.rank });
+    segments.set(s.segmentId, segmentStateOf(s));
   }
 
   const entries = new Map<string, EntryState>();
   for (const e of realm
     .objects(PlaylistEntry)
     .filtered('playlistId == $0 AND live == true', playlistId)) {
-    entries.set(e.entryId, {
-      entryId: e.entryId,
-      segmentId: e.segmentId,
-      trackId: e.trackId,
-      rank: e.rank,
-    });
+    entries.set(e.entryId, entryStateOf(e));
   }
 
   return { segments, entries };
@@ -132,6 +141,78 @@ export function appendSegment(trackIds: string[]): PlaylistOperation {
     entries: trackIds.map((trackId) => ({ entryId: newEntryId(), trackId })),
   };
 }
+
+// region Guide content
+
+/**
+ * Builders for guide edits. Each normalizes the text the way the server stores
+ * it and refuses one that is too long, so the operation replays exactly. The
+ * per-playlist limits are checked when the operation is applied.
+ */
+
+/** Sets or clears a group's description. Clearing a group with no entries removes it. */
+export function segmentDescriptionEdit(
+  segmentId: string,
+  description: string | null
+): PlaylistOperation {
+  return { type: 'update_segment', segmentId, description: guideText(description) ?? null };
+}
+
+/** Sets or clears a track's note, or changes a text block's text (which can't be cleared). */
+export function entryDescriptionEdit(
+  entryId: string,
+  description: string | null
+): PlaylistOperation {
+  return { type: 'update_entry', entryId, description: guideText(description) ?? null };
+}
+
+/** Inserts a text block into a group, after or before an entry. */
+export function insertTextBlock(
+  segmentId: string,
+  text: string,
+  anchors: { afterEntryId?: string; beforeEntryId?: string }
+): PlaylistOperation {
+  return {
+    type: 'insert_entries',
+    segmentId,
+    ...anchors,
+    entries: [{ entryId: newEntryId(), description: requiredGuideText(text) }],
+  };
+}
+
+/** Inserts a group with only a description, between groups. */
+export function insertProseSegment(
+  text: string,
+  anchors: { afterSegmentId?: string; beforeSegmentId?: string }
+): PlaylistOperation {
+  return {
+    type: 'insert_segment',
+    segmentId: newSegmentId(),
+    ...anchors,
+    description: requiredGuideText(text),
+    entries: [],
+  };
+}
+
+function guideText(text: string | null): string | undefined {
+  const normalized = normalizeGuideText(text);
+  assertDescriptionLength(normalized);
+  const refusal = normalized ? guideTextRefusal(normalized) : null;
+  if (refusal) {
+    throw new GuideLimitError(refusal);
+  }
+  return normalized;
+}
+
+function requiredGuideText(text: string): string {
+  const normalized = guideText(text);
+  if (!normalized) {
+    throw new PlaylistLimitError('Write something first.');
+  }
+  return normalized;
+}
+
+// endregion
 
 export interface AppliedEdit {
   changed: boolean;
@@ -184,14 +265,17 @@ function applyInWrite(
     const sizeBefore = snapshot.entries.size;
     applyChanges(snapshot, changes);
     // Only growth is refused: a playlist pushed over the limit (pending additions
-    // plus another device's) can always shrink.
+    // plus another device's) can always shrink. Text blocks count, as on the server.
     if (
       snapshot.entries.size > PLAYLIST_LIMITS.entriesPerPlaylist &&
       snapshot.entries.size > sizeBefore
     ) {
       throw new PlaylistLimitError(
-        `A playlist can hold up to ${PLAYLIST_LIMITS.entriesPerPlaylist.toLocaleString()} tracks.`
+        `A playlist can hold up to ${PLAYLIST_LIMITS.entriesPerPlaylist.toLocaleString()} tracks and notes.`
       );
+    }
+    if (addsGuideText(operation)) {
+      assertGuideLimits(snapshot, playlist.description);
     }
     changed = true;
     const operationId = recordEdit(realm, playlist, operation, changes);
@@ -201,10 +285,25 @@ function applyInWrite(
   }
 
   if (changed) {
-    playlist.entryCount = snapshot.entries.size;
+    playlist.entryCount = trackCount(snapshot);
     playlist.updatedAt = new Date();
   }
   return { changed, operationIds };
+}
+
+/** Operations that can add guide text, so they are checked against the guide limits. */
+function addsGuideText(operation: PlaylistOperation): boolean {
+  switch (operation.type) {
+    case 'insert_segment':
+      return !!operation.description || operation.entries.some((entry) => entry.description);
+    case 'insert_entries':
+      return operation.entries.some((entry) => entry.description);
+    case 'update_segment':
+    case 'update_entry':
+      return !!operation.description;
+    default:
+      return false;
+  }
 }
 
 /**
@@ -237,13 +336,13 @@ export function restoreSnapshot(
       [...current.segments.keys()].filter((id) => !snapshot.segments.has(id))
     );
     for (const segment of snapshot.segments.values()) {
-      realm.create(PlaylistSegment, { ...segment, playlistId }, Realm.UpdateMode.Modified);
+      writeSegmentRow(realm, playlistId, segment);
     }
     for (const entry of snapshot.entries.values()) {
-      realm.create(PlaylistEntry, { ...entry, playlistId }, Realm.UpdateMode.Modified);
+      writeEntryRow(realm, playlistId, entry);
     }
 
-    playlist.entryCount = snapshot.entries.size;
+    playlist.entryCount = trackCount(snapshot);
     playlist.updatedAt = new Date();
     return true;
   });
@@ -270,6 +369,8 @@ export function updatePlaylistDetails(
     if (details.description !== undefined) {
       const description = normalizePlaylistDescription(details.description ?? undefined);
       if ((description ?? null) !== (playlist.description ?? null)) {
+        // The playlist's description counts toward the same total as guide text.
+        assertGuideLimits(readPlaylistSnapshot(realm, playlistId), description);
         playlist.description = description;
         edit.description = description ?? null;
       }

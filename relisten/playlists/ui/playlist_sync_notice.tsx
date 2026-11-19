@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import { useAccountScope } from '@/relisten/accounts/account_context';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { addTracks } from '@/relisten/playlists/playlist_actions';
+import { addAgain } from '@/relisten/playlists/playlist_actions';
 import { PlaylistLimitError } from '@/relisten/playlists/playlist_repository';
+import { GuideLimitError } from '@/relisten/playlists/guide/guide_text';
 import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
 import { usePlaylistLifecycle } from '@/relisten/playlists/ui/playlist_lifecycle';
 import {
@@ -11,7 +12,11 @@ import {
   PlaylistCommand,
   PlaylistOperation,
 } from '@/relisten/realm/models/playlists/playlist';
-import { MAX_BATCH_OPERATIONS } from '@/relisten/playlists/sync/playlist_wire';
+import {
+  refusedAddition,
+  MAX_BATCH_OPERATIONS,
+  type PlaylistEdit,
+} from '@/relisten/playlists/sync/playlist_wire';
 import { usePlaylistSyncService } from '@/relisten/realm/root_services';
 import { useQuery, useRealm } from '@/relisten/realm/schema';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
@@ -47,7 +52,14 @@ export function PlaylistSyncNotice({ playlist }: { playlist: Playlist }) {
   const held = inState('archived_hold');
   const paused = inState('quota_paused');
   const refused = inState('needs_attention');
-  const refusedTracks = refused.flatMap((op) => [...op.failedTrackIds]);
+  // Read from the refused edits themselves, so text blocks come back with their tracks.
+  const refusedAdditions = refused.flatMap((op) => {
+    const addition = refusedAddition(JSON.parse(op.operationJson) as PlaylistEdit);
+    return addition ? [addition] : [];
+  });
+  const refusedTrackCount = refusedAdditions
+    .flatMap((addition) => addition.entries)
+    .filter((entry) => entry.trackId).length;
   // Pending and in-flight edits both count as unsaved.
   const oldestUnsaved = operations
     .filter((op) => op.state === 'pending' || op.state === 'in_flight')
@@ -94,21 +106,23 @@ export function PlaylistSyncNotice({ playlist }: { playlist: Playlist }) {
     );
   }
 
-  if (refusedTracks.length > 0) {
-    const count = refusedTracks.length;
+  if (refusedAdditions.length > 0) {
+    const count = refusedTrackCount;
+    const what = count === 0 ? 'Some notes' : `${count} ${count === 1 ? 'track' : 'tracks'}`;
     return (
       <Notice
-        message={`${count} ${count === 1 ? 'track' : 'tracks'} couldn’t be added because this playlist changed on another device.`}
+        message={`${what} couldn’t be added because this playlist changed on another device.`}
         actions={[
           {
             label: 'Add Again',
             onPress: () => {
-              // Added back as one linked group, as they were refused together.
               try {
-                addTracks(realm, playlistId, [refusedTracks]);
+                addAgain(realm, playlistId, refusedAdditions);
               } catch (error) {
                 showPlaylistToast(
-                  error instanceof PlaylistLimitError ? error.message : 'Couldn’t add them again.'
+                  error instanceof PlaylistLimitError || error instanceof GuideLimitError
+                    ? error.message
+                    : 'Couldn’t add them again.'
                 );
                 return;
               }

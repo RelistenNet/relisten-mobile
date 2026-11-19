@@ -110,6 +110,67 @@ export function sanitizeGuideMarkdown(source: string, context: GuideTextContext)
   }
 }
 
+/**
+ * Why the server would refuse this description, or null if it accepts it. The
+ * same rule as the User Service's `GuideMarkdownPolicy`: no images, no raw
+ * HTML, and links only to `https:` or a timestamp. A bare `#t=` link passes
+ * here as there; it renders as text outside a track's note. Unused link
+ * definitions pass, since they never become links.
+ *
+ * Editors check this when saving, so an edit the device keeps is one the
+ * account will accept. Sanitizing for display is separate and always runs.
+ */
+export function guideTextRefusal(source: string): string | null {
+  let tree: Root;
+  try {
+    tree = fromMarkdown(source);
+  } catch {
+    return 'This text is nested too deeply.';
+  }
+
+  const definitions = new Map<string, string>();
+  const nodes: Nodes[] = [];
+  const collect = (node: Nodes) => {
+    nodes.push(node);
+    if (node.type === 'definition') {
+      definitions.set(node.identifier, node.url);
+    }
+    if ('children' in node) {
+      node.children.forEach(collect);
+    }
+  };
+  collect(tree);
+
+  for (const node of nodes) {
+    switch (node.type) {
+      case 'html':
+        return 'Notes can’t contain HTML.';
+      case 'image':
+        return 'Notes can’t contain images.';
+      case 'imageReference':
+        if (definitions.has(node.identifier)) {
+          return 'Notes can’t contain images.';
+        }
+        break;
+      case 'link':
+        if (!isAllowedGuideLink(node.url, { kind: 'track' })) {
+          return DISALLOWED_LINK;
+        }
+        break;
+      case 'linkReference': {
+        const url = definitions.get(node.identifier);
+        if (url !== undefined && !isAllowedGuideLink(url, { kind: 'track' })) {
+          return DISALLOWED_LINK;
+        }
+        break;
+      }
+    }
+  }
+  return null;
+}
+
+const DISALLOWED_LINK = 'Links in notes must start with https://.';
+
 /** The seconds a `m:ss` or `h:mm:ss` timestamp names. */
 export function timestampSeconds(timestamp: string): number {
   return timestamp.split(':').reduce((total, part) => total * 60 + Number(part), 0);

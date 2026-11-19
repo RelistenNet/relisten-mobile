@@ -6,18 +6,26 @@ import { generateNKeysBetween } from 'fractional-indexing';
  * over an in-memory snapshot, and returns only the rows it changed. Playlists on
  * the device apply those changes directly; account playlists use the same
  * engine for their pending edits and for replaying them after a pull.
+ *
+ * Guide content: segments and entries carry optional Markdown descriptions,
+ * and an entry with no `trackId` is a text block. Descriptions arrive here
+ * already normalized (`normalizeGuideText`), the way the server stores them,
+ * so a replayed edit produces exactly what the server will confirm.
  */
 
 export interface SegmentState {
   segmentId: string;
   rank: string;
+  description?: string;
 }
 
+/** A track entry, or a text block when `trackId` is absent. */
 export interface EntryState {
   entryId: string;
   segmentId: string;
-  trackId: string;
+  trackId?: string;
   rank: string;
+  description?: string;
 }
 
 export interface PlaylistSnapshot {
@@ -25,9 +33,11 @@ export interface PlaylistSnapshot {
   entries: ReadonlyMap<string, EntryState>;
 }
 
+/** A track to add (`trackId`, with an optional note), or a text block (`description` only). */
 export interface NewEntry {
   entryId: string;
-  trackId: string;
+  trackId?: string;
+  description?: string;
 }
 
 export type EntryDestination =
@@ -40,8 +50,12 @@ export type PlaylistOperation =
       segmentId: string;
       afterSegmentId?: string;
       beforeSegmentId?: string;
+      /** A segment with a description may have no entries: a prose-only group. */
+      description?: string;
       entries: NewEntry[];
     }
+  /** `description: null` clears it; clearing a prose-only segment deletes it. */
+  | { type: 'update_segment'; segmentId: string; description: string | null }
   | { type: 'move_segment'; segmentId: string; afterSegmentId?: string; beforeSegmentId?: string }
   | { type: 'delete_segment'; segmentId: string }
   | {
@@ -51,6 +65,8 @@ export type PlaylistOperation =
       beforeEntryId?: string;
       entries: NewEntry[];
     }
+  /** `description: null` clears a track's note. A text block can't be cleared, only deleted. */
+  | { type: 'update_entry'; entryId: string; description: string | null }
   | { type: 'move_entry'; entryId: string; destination: EntryDestination }
   | { type: 'delete_entry'; entryId: string };
 
@@ -144,12 +160,16 @@ export function applyPlaylistOperation(
   switch (operation.type) {
     case 'insert_segment':
       return insertSegment(snapshot, operation);
+    case 'update_segment':
+      return updateSegment(snapshot, operation.segmentId, operation.description ?? undefined);
     case 'move_segment':
       return moveSegment(snapshot, operation);
     case 'delete_segment':
       return deleteSegment(snapshot, operation.segmentId);
     case 'insert_entries':
       return insertEntries(snapshot, operation);
+    case 'update_entry':
+      return updateEntry(snapshot, operation.entryId, operation.description ?? undefined);
     case 'move_entry':
       return moveEntry(snapshot, operation.entryId, operation.destination);
     case 'delete_entry':
@@ -161,8 +181,8 @@ function insertSegment(
   snapshot: PlaylistSnapshot,
   op: Extract<PlaylistOperation, { type: 'insert_segment' }>
 ): OperationResult {
-  if (op.entries.length === 0) {
-    throw new Error('A segment needs at least one entry.');
+  if (op.entries.length === 0 && !op.description) {
+    throw new Error('A segment needs a description or at least one entry.');
   }
 
   const changes = emptyChanges();
@@ -174,13 +194,60 @@ function insertSegment(
     1,
     (segment, newRank) => changes.upsertSegments.push({ ...segment, rank: newRank })
   );
-  changes.upsertSegments.push({ segmentId: op.segmentId, rank });
+  changes.upsertSegments.push(
+    withDescription<SegmentState>({ segmentId: op.segmentId, rank }, op.description)
+  );
   addEntries(
     changes,
     op.segmentId,
     op.entries,
     generateNKeysBetween(null, null, op.entries.length)
   );
+  return result('applied', changes);
+}
+
+function updateSegment(
+  snapshot: PlaylistSnapshot,
+  segmentId: string,
+  description: string | undefined
+): OperationResult {
+  const segment = snapshot.segments.get(segmentId);
+  if (!segment) {
+    return result('target_missing');
+  }
+  if (segment.description === description) {
+    return result('no_op');
+  }
+
+  // A segment needs a description or entries, so clearing a prose-only one removes it.
+  if (!description && sortedEntriesOf(snapshot, segmentId).length === 0) {
+    return deleteSegment(snapshot, segmentId);
+  }
+
+  const changes = emptyChanges();
+  changes.upsertSegments.push(withDescription(segment, description));
+  return result('applied', changes);
+}
+
+function updateEntry(
+  snapshot: PlaylistSnapshot,
+  entryId: string,
+  description: string | undefined
+): OperationResult {
+  const entry = snapshot.entries.get(entryId);
+  if (!entry) {
+    return result('target_missing');
+  }
+  if (!entry.trackId && !description) {
+    // The server refuses this whole batch; the editor deletes the block instead.
+    throw new Error('A text block needs a description. Delete it instead.');
+  }
+  if (entry.description === description) {
+    return result('no_op');
+  }
+
+  const changes = emptyChanges();
+  changes.upsertEntries.push(withDescription(entry, description));
   return result('applied', changes);
 }
 
@@ -325,11 +392,24 @@ function addEntries(
   ranks: string[]
 ) {
   entries.forEach((entry, index) => {
+    if (!entry.trackId && !entry.description) {
+      throw new Error('A text block needs a description.');
+    }
     changes.upsertEntries.push({ ...entry, segmentId, rank: ranks[index] });
   });
 }
 
-/** An empty segment is invalid, so taking out its last entry removes it in the same operation. */
+/** Sets or clears a description without leaving an explicit `undefined` key behind. */
+function withDescription<T extends { description?: string }>(row: T, description?: string): T {
+  const next = { ...row };
+  delete next.description;
+  return description ? { ...next, description } : next;
+}
+
+/**
+ * A segment needs a description or entries, so taking out the last entry of a
+ * segment with no description removes it in the same operation.
+ */
 function removeSegmentIfEmptied(
   snapshot: PlaylistSnapshot,
   sourceSegmentId: string,
@@ -337,6 +417,9 @@ function removeSegmentIfEmptied(
   changes: PlaylistChanges
 ) {
   if (sourceSegmentId === destinationSegmentId) {
+    return;
+  }
+  if (snapshot.segments.get(sourceSegmentId)?.description) {
     return;
   }
   if (sortedEntriesOf(snapshot, sourceSegmentId).length === 1) {

@@ -1,28 +1,52 @@
 import { describe, expect, it } from 'vitest';
-import type { PlaylistRowGroup } from './playlist_hooks';
+import type { PlaylistRowEntry, PlaylistRowGroup } from './playlist_hooks';
 import {
+  dragSource,
   editItems,
   gaplessY,
+  itemTops,
   nearestSlot,
-  planLinkDrag,
+  planGroupDrag,
   planTrackDrag,
+  dragLead,
 } from './playlist_drag_slots';
+import { linkedEntriesLabel, markdownPreview } from './playlist_format';
+
+/** A track entry, or a text block when the ID starts with `note`. */
+function entry(segmentId: string, entryId: string): PlaylistRowEntry {
+  if (entryId.startsWith('note')) {
+    return {
+      entry: { entryId, segmentId, rank: entryId, description: `Text for ${entryId}` },
+      sourceTrack: null,
+      status: 'text',
+    };
+  }
+  return {
+    entry: { entryId, segmentId, trackId: `track_${entryId}`, rank: entryId },
+    sourceTrack: null,
+    status: 'playable',
+  };
+}
 
 function group(segmentId: string, ...entryIds: string[]): PlaylistRowGroup {
   return {
     segment: { segmentId, rank: segmentId },
-    entries: entryIds.map((entryId) => ({
-      entry: { entryId, segmentId, trackId: `track_${entryId}`, rank: entryId },
-      sourceTrack: null,
-      status: 'playable' as const,
-    })),
+    entries: entryIds.map((entryId) => entry(segmentId, entryId)),
   };
 }
 
-const metrics = { trackHeight: 56, linkHeight: 36 };
+function described(segmentId: string, ...entryIds: string[]): PlaylistRowGroup {
+  const base = group(segmentId, ...entryIds);
+  return { ...base, segment: { ...base.segment, description: `About ${segmentId}` } };
+}
+
+const metrics = { trackHeight: 56, linkHeight: 36, descriptionHeight: 40 };
 
 // [scarlet fire] dew tweezer
 const playlist = [group('g', 'scarlet', 'fire'), group('d', 'dew'), group('t', 'tweezer')];
+
+// prose-only p · described d: [a] · described and linked l: [x note]
+const guide = [described('p'), described('d', 'a'), described('l', 'x', 'note')];
 
 const pick = (plan: ReturnType<typeof planTrackDrag>, y: number) =>
   plan.slots[
@@ -36,7 +60,7 @@ const pick = (plan: ReturnType<typeof planTrackDrag>, y: number) =>
   ];
 
 describe('edit items', () => {
-  it('puts a link line above linked tracks and nothing above single tracks', () => {
+  it('puts a link line above linked tracks', () => {
     expect(editItems(playlist).map((i) => i.key)).toEqual([
       'link:g',
       'scarlet',
@@ -44,6 +68,36 @@ describe('edit items', () => {
       'dew',
       'tweezer',
     ]);
+  });
+
+  it('shows a prose-only group as one row and a description at the top of its group', () => {
+    const items = editItems(guide);
+    expect(items.map((i) => i.key)).toEqual([
+      'prose:p',
+      'description:d',
+      'a',
+      'link:l',
+      'description:l',
+      'x',
+      'note',
+    ]);
+    // A description starts the frame only when there is no link line above it.
+    expect(items.find((i) => i.key === 'description:d')).toMatchObject({ startsFrame: true });
+    expect(items.find((i) => i.key === 'description:l')).toMatchObject({ startsFrame: false });
+    expect(items.find((i) => i.key === 'a')).toMatchObject({ kind: 'track', inFrame: true });
+  });
+
+  it('lays rows out at their fixed heights', () => {
+    expect(itemTops(editItems(guide), metrics)).toEqual([0, 56, 96, 152, 188, 228, 284]);
+  });
+
+  it('gives handles only to entries and whole groups', () => {
+    const sources = Object.fromEntries(editItems(guide).map((i) => [i.key, dragSource(i)]));
+    expect(sources['prose:p']).toEqual({ kind: 'group', id: 'p' });
+    expect(sources['link:l']).toEqual({ kind: 'group', id: 'l' });
+    expect(sources['note']).toEqual({ kind: 'track', id: 'note' });
+    expect(sources['description:d']).toBeUndefined();
+    expect(sources['add:section:p']).toBeUndefined();
   });
 });
 
@@ -107,11 +161,103 @@ describe('planTrackDrag', () => {
     });
     expect(pick(plan, target.top + 56).linkTarget).toBeUndefined();
   });
+
+  it('drags a text block like a track and names it "note" in labels', () => {
+    const plan = planTrackDrag(guide, 'note', metrics);
+    expect(plan.slots[plan.initialSlot].drop).toEqual({
+      kind: 'track',
+      drop: { kind: 'in_group', segmentId: 'l', afterEntryId: 'x' },
+    });
+
+    // Moving x away leaves the note first in its link.
+    const withoutX = planTrackDrag(guide, 'x', metrics);
+    expect(withoutX.slots.map((s) => s.label)).toContain('Linked with note');
+  });
+
+  it('keeps a described group whose only track is dragged, with a slot to put it back', () => {
+    const plan = planTrackDrag(guide, 'a', metrics);
+    // prose p 0–56 · description d 56–96 · link l 96–132 · description l 132–172 ·
+    // x 172–228 · note 228–284.
+    expect(plan.items.map((i) => i.key)).toEqual([
+      'prose:p',
+      'description:d',
+      'link:l',
+      'description:l',
+      'x',
+      'note',
+    ]);
+    expect(itemTops(plan.items, metrics)).toEqual([0, 56, 96, 132, 172, 228]);
+
+    // The seam under d's description is at 96; inside sits a quarter row above it.
+    const origin = plan.slots[plan.initialSlot];
+    expect(origin).toMatchObject({
+      y: 96 - 14,
+      gapIndex: 2,
+      inLink: true,
+      label: 'With the text above',
+      drop: { kind: 'track', drop: { kind: 'in_group', segmentId: 'd', afterEntryId: undefined } },
+    });
+    expect(pick(plan, 96 + 14)).toMatchObject({
+      inLink: false,
+      drop: { drop: { kind: 'not_in_group', afterSegmentId: 'd', beforeSegmentId: 'l' } },
+    });
+    // Inside l, the first slot is below both header rows.
+    expect(pick(plan, 172)).toMatchObject({
+      label: 'Linked with track',
+      drop: { drop: { kind: 'in_group', segmentId: 'l', beforeEntryId: 'x' } },
+    });
+  });
+
+  it('lets a track join a prose-only group, just inside its end', () => {
+    const plan = planTrackDrag(guide, 'x', metrics);
+    expect(pick(plan, 56 - 14)).toMatchObject({
+      gapIndex: 1,
+      inLink: true,
+      drop: { drop: { kind: 'in_group', segmentId: 'p', afterEntryId: undefined } },
+    });
+    expect(pick(plan, 0)).toMatchObject({
+      inLink: false,
+      label: 'Not linked',
+      drop: { drop: { kind: 'not_in_group', beforeSegmentId: 'p' } },
+    });
+  });
+
+  it('plans a playlist that is only prose without failing', () => {
+    const plan = planTrackDrag([described('p'), described('q')], 'missing', metrics);
+    expect(plan.items.map((i) => i.kind)).toEqual(['prose', 'prose']);
+    expect(plan.slots.map((s) => s.y)).toEqual([0, 42, 70, 98, 126]);
+    expect(plan.initialSlot).toBe(0);
+  });
 });
 
-describe('planLinkDrag', () => {
+describe('dragLead', () => {
+  it('is zero for an entry drag, whose plan keeps every row above it', () => {
+    const items = editItems(guide);
+    const plan = planTrackDrag(guide, 'note', metrics);
+    expect(dragLead(items, 'note', plan, metrics)).toBe(0);
+  });
+
+  it('keeps the placeholder where the entry was, so the row stays under the finger', () => {
+    const items = editItems(playlist);
+    const plan = planTrackDrag(playlist, 'dew', metrics);
+    const restingTop = itemTops(items, metrics)[items.findIndex((i) => i.key === 'dew')];
+    const gapTop = itemTops(plan.items, metrics)[plan.slots[plan.initialSlot].gapIndex];
+    expect(gapTop + dragLead(items, 'dew', plan, metrics)).toBe(restingTop);
+  });
+});
+
+describe('dragLead for groups', () => {
+  it('also stands in for the rows that fold, so a group starts on its own slot', () => {
+    const items = editItems(guide);
+    const plan = planGroupDrag(guide, 'l', metrics);
+    // link:l rests at 152; folded, the groups above it take two rows.
+    expect(dragLead(items, 'link:l', plan, metrics)).toBe(152 - 2 * 56);
+  });
+});
+
+describe('planGroupDrag', () => {
   it('folds the other links to one row each and drops only between them', () => {
-    const plan = planLinkDrag(playlist, 'g', metrics);
+    const plan = planGroupDrag(playlist, 'g', metrics);
     expect(plan.items.map((i) => i.kind)).toEqual(['collapsed', 'collapsed']);
     expect(plan.slots.map((s) => s.drop)).toEqual([
       { kind: 'segment', afterSegmentId: undefined, beforeSegmentId: 'd' },
@@ -120,6 +266,17 @@ describe('planLinkDrag', () => {
     ]);
     expect(plan.initialSlot).toBe(0);
   });
+
+  it('drags a prose-only group like a link', () => {
+    const plan = planGroupDrag(guide, 'p', metrics);
+    expect(plan.items.map((i) => i.key)).toEqual(['collapsed:d', 'collapsed:l']);
+    expect(plan.slots[plan.initialSlot].drop).toEqual({
+      kind: 'segment',
+      afterSegmentId: undefined,
+      beforeSegmentId: 'd',
+    });
+    expect(plan.slots.map((s) => s.y)).toEqual([0, 56, 112]);
+  });
 });
 
 describe('gaplessY', () => {
@@ -127,5 +284,18 @@ describe('gaplessY', () => {
     expect(gaplessY(10, 100, 56)).toBe(10);
     expect(gaplessY(120, 100, 56)).toBe(100);
     expect(gaplessY(200, 100, 56)).toBe(144);
+  });
+});
+
+describe('edit labels', () => {
+  it('counts notes apart from tracks', () => {
+    expect(linkedEntriesLabel(guide[2].entries)).toBe('Linked · 1 track, 1 note');
+    expect(linkedEntriesLabel(playlist[0].entries)).toBe('Linked · 2 tracks');
+  });
+
+  it('previews Markdown as one line of plain text', () => {
+    expect(
+      markdownPreview('## Set II\n\n> _[Bass enters](#t=6:42)_ here\n- **one**\n2. two `x`')
+    ).toBe('Set II Bass enters here one two x');
   });
 });

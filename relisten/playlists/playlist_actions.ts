@@ -1,6 +1,7 @@
 import Realm from 'realm';
 import { Playlist } from '@/relisten/realm/models/playlists/playlist';
 import {
+  type NewEntry,
   orderedGroups,
   type PlaylistGroup,
   type PlaylistOperation,
@@ -9,11 +10,18 @@ import {
 import {
   appendSegment,
   applyOperations,
+  entryDescriptionEdit,
+  insertProseSegment,
+  insertTextBlock,
+  newEntryId,
   newSegmentId,
   readPlaylistSnapshot,
   restoreSnapshot,
+  segmentDescriptionEdit,
   withdrawEdit,
 } from '@/relisten/playlists/playlist_repository';
+import { rewriteEntryLinks } from '@/relisten/playlists/guide/guide_text';
+import type { RefusedAddition } from '@/relisten/playlists/sync/playlist_wire';
 
 /**
  * User-facing edits, expressed as engine operations. Each edit records an undo
@@ -110,7 +118,14 @@ function locate(snapshot: PlaylistSnapshot, entryId: string) {
   }
   const group = groups[groupIndex];
   const index = group.entries.findIndex((e) => e.entryId === entryId);
-  return { groups, groupIndex, group, index, isSingle: group.entries.length === 1 };
+  // Two ideas of "alone", for a group with one entry and an intro:
+  // - `isOnly`: menu moves (step, to top or bottom) move the whole group, so the
+  //   intro travels with its track, as the menus show it.
+  // - `isSingle`: drag-and-drop and linking treat the intro as part of a group,
+  //   so a dragged track leaves the intro behind, as the edit list shows it.
+  const isOnly = group.entries.length === 1;
+  const isSingle = isOnly && !group.segment.description;
+  return { groups, groupIndex, group, index, isOnly, isSingle };
 }
 
 // region Adding
@@ -125,6 +140,84 @@ export function addTracks(realm: Realm, playlistId: string, groups: string[][]):
     playlistId,
     groups.map((trackIds) => appendSegment(trackIds))
   );
+}
+
+/**
+ * Adds back what the server refused, each refused edit as its own group at the
+ * end, with fresh IDs: the server never accepts an ID it has seen. Text blocks
+ * and group intros come back too, and timestamp links between the restored
+ * entries follow their new IDs.
+ */
+export function addAgain(realm: Realm, playlistId: string, additions: RefusedAddition[]): boolean {
+  const newIds = new Map(
+    additions.flatMap((addition) => addition.entries.map((entry) => [entry.entryId, newEntryId()]))
+  );
+  const relink = (text: string | undefined) => (text ? rewriteEntryLinks(text, newIds) : undefined);
+
+  const operations: PlaylistOperation[] = additions
+    .filter((addition) => addition.entries.length > 0 || addition.description)
+    .map((addition) => ({
+      type: 'insert_segment',
+      segmentId: newSegmentId(),
+      description: relink(addition.description),
+      entries: addition.entries.map((entry) => {
+        const copy: NewEntry = { entryId: newIds.get(entry.entryId)! };
+        if (entry.trackId) {
+          copy.trackId = entry.trackId;
+        }
+        if (entry.description) {
+          copy.description = relink(entry.description);
+        }
+        return copy;
+      }),
+    }));
+
+  return operations.length > 0 && edit(realm, playlistId, operations);
+}
+
+// endregion
+
+// region Guide text
+
+/** Sets or clears a group's description. Clearing a group with no tracks removes it. */
+export function setSegmentDescription(
+  realm: Realm,
+  playlistId: string,
+  segmentId: string,
+  description: string | null
+): boolean {
+  return edit(realm, playlistId, [segmentDescriptionEdit(segmentId, description)]);
+}
+
+/** Sets or clears a track's note, or rewrites a text block. */
+export function setEntryDescription(
+  realm: Realm,
+  playlistId: string,
+  entryId: string,
+  description: string | null
+): boolean {
+  return edit(realm, playlistId, [entryDescriptionEdit(entryId, description)]);
+}
+
+/** Adds a text block inside a group, right after `afterEntryId` (or first). */
+export function addTextBlock(
+  realm: Realm,
+  playlistId: string,
+  segmentId: string,
+  text: string,
+  afterEntryId?: string
+): boolean {
+  return edit(realm, playlistId, [insertTextBlock(segmentId, text, { afterEntryId })]);
+}
+
+/** Adds a text-only group between groups, right after `afterSegmentId` (or first). */
+export function addProseSegment(
+  realm: Realm,
+  playlistId: string,
+  text: string,
+  afterSegmentId?: string
+): boolean {
+  return edit(realm, playlistId, [insertProseSegment(text, { afterSegmentId })]);
 }
 
 // endregion
@@ -148,7 +241,7 @@ export function moveEntryStep(
     return false;
   }
 
-  if (!at.isSingle) {
+  if (!at.isOnly) {
     const neighbor = at.group.entries[at.index + (direction === 'up' ? -1 : 1)];
     if (!neighbor) {
       return false;
@@ -179,7 +272,7 @@ export function moveEntryToEdge(
     return false;
   }
 
-  if (at.isSingle) {
+  if (at.isOnly) {
     return moveSegmentToEdge(realm, playlistId, at.group.segment.segmentId, edge);
   }
 
@@ -200,7 +293,7 @@ export function moveEntryToEdge(
 /** Takes a track out of its group; it lands on its own right after the group. */
 export function takeOutOfGroup(realm: Realm, playlistId: string, entryId: string): boolean {
   const at = locate(readPlaylistSnapshot(realm, playlistId), entryId);
-  if (!at || at.isSingle) {
+  if (!at || at.isOnly) {
     return false;
   }
   return edit(realm, playlistId, [
@@ -221,7 +314,6 @@ function groupAbove(snapshot: PlaylistSnapshot, entryId: string): PlaylistGroup 
   return at.groups[at.groupIndex - 1];
 }
 
-/** Joins a track on its own onto the end of the group (or single track) directly above it. */
 /**
  * Links an entry onto the end of the group above it. With `expectedAboveEntryId`
  * (an action that named that track), it links only if that track is still the

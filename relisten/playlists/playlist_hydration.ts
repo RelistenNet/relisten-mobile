@@ -1,6 +1,7 @@
 import { useIsFocused } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import Realm from 'realm';
+import { refreshStaleGuideMarkdown } from '@/relisten/playlists/guide/guide_rows';
 import type { RelistenApiClient } from '@/relisten/api/client';
 import type { CatalogReferenceResolution } from '@/relisten/api/catalog/resolve';
 import { useRelistenApi } from '@/relisten/api/context';
@@ -49,6 +50,8 @@ export async function resolvePlaylistTracks(
       );
     }
   }
+  // Notes link bare timestamps only once their track's duration is known.
+  refreshStaleGuideMarkdown(realm);
   return availability;
 }
 
@@ -103,10 +106,11 @@ export function usePlaylistHydration(
     if (!online || !focused) {
       return;
     }
+    // Text blocks have no track, so only `loading` tracks are fetched.
     const missing = groups
       .flatMap((g) => g.entries)
-      .filter((row) => row.status === 'loading' && !inFlight.current.has(row.entry.trackId))
-      .map((row) => row.entry.trackId);
+      .flatMap((row) => (row.status === 'loading' && row.entry.trackId ? [row.entry.trackId] : []))
+      .filter((trackId) => !inFlight.current.has(trackId));
     if (missing.length === 0) {
       return;
     }

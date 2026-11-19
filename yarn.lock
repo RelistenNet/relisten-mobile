@@ -8885,6 +8885,11 @@ react-native-drawer-layout@^4.2.12:
     color "^4.2.3"
     use-latest-callback "^0.2.4"
 
+react-native-enriched-markdown@1.2.0:
+  version "1.2.0"
+  resolved "https://registry.yarnpkg.com/react-native-enriched-markdown/-/react-native-enriched-markdown-1.2.0.tgz#9d03925f781ce737767d2fb816fb7788191db6eb"
+  integrity sha512-zu2+Slk7tkEu+9qiGoK644cWWV+dVgkFAUwQtjopyGmPFHr00iA9/drrZuEo93TCoXsWILK1AK/H60QNG8XtQQ==
+
 react-native-flash-message@^0.4.2:
   version "0.4.2"
   resolved "https://registry.yarnpkg.com/react-native-flash-message/-/react-native-flash-message-0.4.2.tgz#ed8ffe60c532bc1274c3b49a60dd0bd2fca59c50"

@@ -1,44 +1,61 @@
 import type { TrackDrop } from '@/relisten/playlists/playlist_actions';
-import { trackTitle } from '@/relisten/playlists/playlist_format';
+import { entryTitle } from '@/relisten/playlists/playlist_format';
 import type { PlaylistRowEntry, PlaylistRowGroup } from '@/relisten/playlists/playlist_hooks';
 
 /**
  * Edit-mode list items and drag targets.
  *
- * Edit mode is one list. Linked tracks sit under a slim "Linked · N tracks"
- * line, joined by a rail. While a track is dragged, the list offers drop
- * slots, and a placeholder opens at the chosen one. Where a link starts or
- * ends there are two slots at the same seam, one inside the link and one
- * outside it, a short finger move apart. Holding a track partly over a single
- * track arms a third kind of slot that links the two.
+ * Edit mode is one list. A group that is more than one plain track is drawn
+ * as a frame: its rows are joined by a rail, under a slim "Linked · N tracks"
+ * line when it has several entries and a description row when it has one.
+ * Entries are tracks or text blocks; both are rows of the same height and drag
+ * the same way. A group with only a description (prose-only) is one row.
+ *
+ * While an entry is dragged, the list offers drop slots, and a placeholder
+ * opens at the chosen one. Where a frame starts or ends there are two slots at
+ * the same seam, one inside the frame and one outside it, a short finger move
+ * apart. Holding an entry partly over a single track arms a third kind of slot
+ * that links the two.
  *
  * Everything here is plain data in content coordinates (0 is the first item,
  * below the list header), so the drag gesture can pick a slot with arithmetic
- * on the UI thread.
+ * on the UI thread. Every item has a fixed height from `EditMetrics`.
  */
 
 /**
- * Where a row sits in a run of linked tracks, which decides how its rail is
- * drawn: `only` is a short rail for a link shown as one row.
+ * Where a row sits in a frame, which decides how its rail is drawn: `only` is
+ * a short rail for a frame shown as one row.
  */
 export type LinkPosition = 'first' | 'middle' | 'last' | 'only';
 
 export type EditItem =
+  /** The "Linked · N" line over a group of several entries; its handle drags the group. */
   | { kind: 'link'; key: string; group: PlaylistRowGroup }
+  /** A framed group's description. Tapping edits it; it has no handle of its own. */
   | {
+      kind: 'description';
+      key: string;
+      group: PlaylistRowGroup;
+      startsFrame: boolean;
+    }
+  /** A group with only a description, as one row; its handle drags the group. */
+  | { kind: 'prose'; key: string; group: PlaylistRowGroup }
+  | {
+      /** A track or a text block (`row.status === 'text'`). */
       kind: 'track';
       key: string;
       group: PlaylistRowGroup;
       row: PlaylistRowEntry;
-      /** Set for tracks in a link; the link line above is always `first`. */
-      link?: 'middle' | 'last';
+      /** Set for entries inside a frame, which never start it. */
+      inFrame: boolean;
     }
-  /** A whole link or single track as one row, while a link is being dragged. */
+  /** A whole group as one row, while a group is being dragged. */
   | { kind: 'collapsed'; key: string; group: PlaylistRowGroup };
 
 export interface EditMetrics {
   trackHeight: number;
   linkHeight: number;
+  descriptionHeight: number;
 }
 
 /** Fixed heights keep slot positions simple arithmetic. They scale with Dynamic Type. */
@@ -46,11 +63,50 @@ export function editMetrics(fontScale: number): EditMetrics {
   return {
     trackHeight: Math.max(56, Math.round(12 + 46 * fontScale)),
     linkHeight: Math.max(36, Math.round(16 + 20 * fontScale)),
+    descriptionHeight: Math.max(40, Math.round(18 + 22 * fontScale)),
   };
 }
 
 export function itemHeight(item: EditItem, metrics: EditMetrics): number {
-  return item.kind === 'link' ? metrics.linkHeight : metrics.trackHeight;
+  switch (item.kind) {
+    case 'link':
+      return metrics.linkHeight;
+    case 'description':
+      return metrics.descriptionHeight;
+    case 'prose':
+    case 'track':
+    case 'collapsed':
+      return metrics.trackHeight;
+  }
+}
+
+/** Whether a group has a description, which frames it and keeps it alive with no entries. */
+export function hasDescription(group: PlaylistRowGroup): boolean {
+  return !!group.segment.description;
+}
+
+/**
+ * Whether a group is drawn as a frame and offers slots inside it: several
+ * entries, or any description. A single plain track is not framed; dragging
+ * onto it links by holding instead.
+ */
+export function isFramed(group: PlaylistRowGroup): boolean {
+  return group.entries.length > 1 || hasDescription(group);
+}
+
+/** What a row's handle drags, or undefined for rows without a handle. */
+export type DragSource = { kind: 'track' | 'group'; id: string };
+
+export function dragSource(item: EditItem): DragSource | undefined {
+  switch (item.kind) {
+    case 'track':
+      return { kind: 'track', id: item.row.entry.entryId };
+    case 'link':
+    case 'prose':
+      return { kind: 'group', id: item.group.segment.segmentId };
+    default:
+      return undefined;
+  }
 }
 
 export type DragDrop =
@@ -62,7 +118,7 @@ export interface DropSlot {
   y: number;
   /** The item index the placeholder is inserted before. */
   gapIndex: number;
-  /** Whether the placeholder sits inside a link, on its rail. */
+  /** Whether the placeholder sits inside a frame, on its rail. */
   inLink: boolean;
   /** Shown in the placeholder where the meaning isn't obvious from position alone. */
   label?: string;
@@ -87,263 +143,315 @@ export interface DragPlan {
 }
 
 /**
- * How far the inside and outside slots at a link's end sit from the seam, as a
- * share of a row. Moving about half a row switches between them. Relative to
+ * How far the inside and outside slots at a frame's end sit from the seam, as
+ * a share of a row. Moving about half a row switches between them. Relative to
  * the row so it holds at large text sizes.
  */
 const EDGE_OFFSET_ROWS = 0.25;
 
-/** The list in edit mode, with nothing being dragged. */
+// region Resting list
+
+/**
+ * The list in edit mode, with nothing being dragged: every group's rows.
+ * Text is added from menus and the Add Text button rather than from rows in
+ * the gaps, which would make the list much taller; a new block is then
+ * dragged into place.
+ */
 export function editItems(groups: PlaylistRowGroup[]): EditItem[] {
-  return groups.flatMap((group) => itemsForGroup(group, group.entries));
-}
-
-function itemsForGroup(
-  group: PlaylistRowGroup,
-  entries: PlaylistRowEntry[],
-  linked = group.entries.length > 1
-): EditItem[] {
-  if (!linked) {
-    return entries.map((row) => trackItem(group, row, undefined));
-  }
-  return [
-    { kind: 'link', key: `link:${group.segment.segmentId}`, group },
-    ...entries.map((row, index) =>
-      trackItem(group, row, index === entries.length - 1 ? 'last' : 'middle')
-    ),
-  ];
-}
-
-function trackItem(
-  group: PlaylistRowGroup,
-  row: PlaylistRowEntry,
-  link: 'middle' | 'last' | undefined
-): EditItem {
-  return {
-    kind: 'track',
-    key: row.entry.entryId,
-    group,
-    row,
-    link,
-  };
+  return groups.flatMap((group) => {
+    const framed = isFramed(group);
+    return [...headerItems(group), ...group.entries.map((row) => entryItem(group, row, framed))];
+  });
 }
 
 /**
- * Drag plan for one track. The track leaves the list and a placeholder takes
- * its place. A link it leaves keeps its line and rail until the drop, so the
- * list doesn't reshape under the finger.
+ * The rows a group shows above its entries. They come from the group as it
+ * is, so a group keeps its header while a drag takes one of its entries away.
+ */
+function headerItems(group: PlaylistRowGroup): EditItem[] {
+  const segmentId = group.segment.segmentId;
+  if (group.entries.length === 0) {
+    return [{ kind: 'prose', key: `prose:${segmentId}`, group }];
+  }
+
+  const items: EditItem[] = [];
+  if (group.entries.length > 1) {
+    items.push({ kind: 'link', key: `link:${segmentId}`, group });
+  }
+  if (hasDescription(group)) {
+    items.push({
+      kind: 'description',
+      key: `description:${segmentId}`,
+      group,
+      startsFrame: items.length === 0,
+    });
+  }
+  return items;
+}
+
+function entryItem(group: PlaylistRowGroup, row: PlaylistRowEntry, inFrame: boolean): EditItem {
+  return { kind: 'track', key: row.entry.entryId, group, row, inFrame };
+}
+
+// endregion
+
+// region Entry drags
+
+interface RemainingGroup {
+  group: PlaylistRowGroup;
+  /** The group's entries without the dragged one. */
+  entries: PlaylistRowEntry[];
+  /** Judged before the drag, so the frame doesn't reshape under the finger. */
+  framed: boolean;
+}
+
+/** Accumulates a plan's items and slots top to bottom, tracking the running content `y`. */
+class PlanBuilder {
+  readonly items: EditItem[] = [];
+  readonly slots: DropSlot[] = [];
+  readonly hoverTargets: HoverTarget[] = [];
+  y = 0;
+
+  constructor(readonly metrics: EditMetrics) {}
+
+  pushItem(item: EditItem) {
+    this.items.push(item);
+    this.y += itemHeight(item, this.metrics);
+  }
+
+  pushSlot(slot: Omit<DropSlot, 'gapIndex'>) {
+    this.slots.push({ ...slot, gapIndex: this.items.length });
+  }
+}
+
+/**
+ * Drag plan for one entry: a track or a text block. The entry leaves the list
+ * and a placeholder takes its place. A frame it leaves keeps its header and
+ * rail until the drop, so the list doesn't reshape under the finger; a framed
+ * group it empties stays too, since a description keeps a group alive.
+ *
+ * Slot `y`s follow the items top to bottom:
+ * - at each seam between groups, an outside slot at the seam, and when the
+ *   group above is framed, an inside slot just above the seam and the outside
+ *   one just below it (`EDGE_OFFSET_ROWS`);
+ * - inside a framed group, a slot at the top of each entry, below the header;
+ * - after each single track, a link slot chosen only by holding over it.
  */
 export function planTrackDrag(
   groups: PlaylistRowGroup[],
   entryId: string,
   metrics: EditMetrics
 ): DragPlan {
-  const remaining = groups
-    .map((group) => ({
-      group,
-      linked: group.entries.length > 1,
-      entries: group.entries.filter((r) => r.entry.entryId !== entryId),
-    }))
-    .filter((g) => g.entries.length > 0);
-  const origin = locateEntry(groups, entryId);
-
+  const remaining = remainingGroups(groups, entryId);
+  const plan = new PlanBuilder(metrics);
   const edgeOffset = metrics.trackHeight * EDGE_OFFSET_ROWS;
-  const items: EditItem[] = [];
-  const slots: DropSlot[] = [];
-  const hoverTargets: HoverTarget[] = [];
-  let y = 0;
-  let initialSlot = 0;
-
-  const addSlot = (slot: DropSlot, isOrigin: boolean) => {
-    if (isOrigin) {
-      initialSlot = slots.length;
-    }
-    slots.push(slot);
-  };
 
   remaining.forEach((current, index) => {
-    const previous = remaining[index - 1];
-    const segmentId = current.group.segment.segmentId;
-    const seam = y;
-    const firstItem = items.length;
-
-    if (previous?.linked) {
-      const last = previous.entries[previous.entries.length - 1];
-      addSlot(
-        {
-          y: seam - edgeOffset,
-          gapIndex: firstItem,
-          inLink: true,
-          label: `Linked with ${trackTitle(last)}`,
-          drop: {
-            kind: 'track',
-            drop: {
-              kind: 'in_group',
-              segmentId: previous.group.segment.segmentId,
-              afterEntryId: last.entry.entryId,
-            },
-          },
-        },
-        origin?.single === false &&
-          origin.segmentId === previous.group.segment.segmentId &&
-          origin.afterEntryId === last.entry.entryId &&
-          origin.beforeEntryId === undefined
-      );
-    }
-
-    addSlot(
-      {
-        y: previous?.linked ? seam + edgeOffset : seam,
-        gapIndex: firstItem,
-        inLink: false,
-        label: previous?.linked || current.linked ? 'Not linked' : undefined,
-        drop: {
-          kind: 'track',
-          drop: {
-            kind: 'not_in_group',
-            afterSegmentId: previous?.group.segment.segmentId,
-            beforeSegmentId: segmentId,
-          },
-        },
-      },
-      origin?.single === true && origin.beforeSegmentId === segmentId
-    );
-
-    const groupItems = itemsForGroup(current.group, current.entries, current.linked);
-    if (current.linked) {
-      items.push(groupItems[0]);
-      y += metrics.linkHeight;
-    }
-
-    current.entries.forEach((row, entryIndex) => {
-      if (current.linked) {
-        const before = current.entries[entryIndex - 1];
-        addSlot(
-          {
-            y,
-            gapIndex: items.length,
-            inLink: true,
-            label: entryIndex === 0 ? `Linked with ${trackTitle(row)}` : undefined,
-            drop: {
-              kind: 'track',
-              drop: {
-                kind: 'in_group',
-                segmentId,
-                afterEntryId: before?.entry.entryId,
-                beforeEntryId: row.entry.entryId,
-              },
-            },
-          },
-          origin?.single === false &&
-            origin.segmentId === segmentId &&
-            origin.beforeEntryId === row.entry.entryId
-        );
-      }
-
-      const top = y;
-      items.push(groupItems[current.linked ? entryIndex + 1 : entryIndex]);
-      y += metrics.trackHeight;
-
-      if (!current.linked) {
-        hoverTargets.push({ top, slotIndex: slots.length });
-        slots.push({
-          y,
-          gapIndex: items.length,
-          inLink: true,
-          linkTarget: true,
-          label: `Linked with ${trackTitle(row)}`,
-          drop: {
-            kind: 'track',
-            drop: {
-              kind: 'in_group',
-              segmentId,
-              afterEntryId: row.entry.entryId,
-            },
-          },
-        });
-      }
-    });
+    addSeamSlots(plan, remaining[index - 1], current, edgeOffset);
+    addGroupRows(plan, current);
   });
-
-  const last = remaining[remaining.length - 1];
-  if (last?.linked) {
-    const lastEntry = last.entries[last.entries.length - 1];
-    addSlot(
-      {
-        y: y - edgeOffset,
-        gapIndex: items.length,
-        inLink: true,
-        label: `Linked with ${trackTitle(lastEntry)}`,
-        drop: {
-          kind: 'track',
-          drop: {
-            kind: 'in_group',
-            segmentId: last.group.segment.segmentId,
-            afterEntryId: lastEntry.entry.entryId,
-          },
-        },
-      },
-      origin?.single === false &&
-        origin.segmentId === last.group.segment.segmentId &&
-        origin.beforeEntryId === undefined
-    );
-  }
-  addSlot(
-    {
-      y: last?.linked ? y + edgeOffset : y,
-      gapIndex: items.length,
-      inLink: false,
-      label: last?.linked ? 'Not linked' : undefined,
-      drop: {
-        kind: 'track',
-        drop: {
-          kind: 'not_in_group',
-          afterSegmentId: last?.group.segment.segmentId,
-        },
-      },
-    },
-    origin?.single === true && origin.beforeSegmentId === undefined
-  );
+  addSeamSlots(plan, remaining[remaining.length - 1], undefined, edgeOffset);
 
   return {
-    items,
-    slots,
-    hoverTargets,
-    initialSlot,
+    items: plan.items,
+    slots: plan.slots,
+    hoverTargets: plan.hoverTargets,
+    initialSlot: originSlot(plan.slots, groups, entryId),
     gapHeight: metrics.trackHeight,
   };
 }
 
-/** Where a track sat, described the way slots describe places, so its own slot can be found. */
-function locateEntry(groups: PlaylistRowGroup[], entryId: string) {
+/** The groups left while an entry is dragged. A group with nothing left to show goes. */
+function remainingGroups(groups: PlaylistRowGroup[], entryId: string): RemainingGroup[] {
+  return groups.flatMap((group) => {
+    const entries = group.entries.filter((r) => r.entry.entryId !== entryId);
+    if (entries.length === 0 && !hasDescription(group)) {
+      return [];
+    }
+    return [{ group, entries, framed: isFramed(group) }];
+  });
+}
+
+/** The slots where `above` ends and `below` starts; either is absent at the list's ends. */
+function addSeamSlots(
+  plan: PlanBuilder,
+  above: RemainingGroup | undefined,
+  below: RemainingGroup | undefined,
+  edgeOffset: number
+) {
+  const seam = plan.y;
+
+  if (above?.framed) {
+    const last = above.entries[above.entries.length - 1];
+    plan.pushSlot({
+      y: seam - edgeOffset,
+      inLink: true,
+      // A framed group with no entries left is its description alone.
+      label: last ? `Linked with ${entryTitle(last)}` : 'With the text above',
+      drop: {
+        kind: 'track',
+        drop: {
+          kind: 'in_group',
+          segmentId: above.group.segment.segmentId,
+          afterEntryId: last?.entry.entryId,
+        },
+      },
+    });
+  }
+
+  plan.pushSlot({
+    y: above?.framed ? seam + edgeOffset : seam,
+    inLink: false,
+    label: above?.framed || below?.framed ? 'Not linked' : undefined,
+    drop: {
+      kind: 'track',
+      drop: {
+        kind: 'not_in_group',
+        afterSegmentId: above?.group.segment.segmentId,
+        beforeSegmentId: below?.group.segment.segmentId,
+      },
+    },
+  });
+}
+
+/** A group's header and entries, with the slots inside a frame or after a single track. */
+function addGroupRows(plan: PlanBuilder, current: RemainingGroup) {
+  const segmentId = current.group.segment.segmentId;
+  headerItems(current.group).forEach((item) => plan.pushItem(item));
+
+  current.entries.forEach((row, index) => {
+    if (current.framed) {
+      plan.pushSlot({
+        y: plan.y,
+        inLink: true,
+        label: index === 0 ? `Linked with ${entryTitle(row)}` : undefined,
+        drop: {
+          kind: 'track',
+          drop: {
+            kind: 'in_group',
+            segmentId,
+            afterEntryId: current.entries[index - 1]?.entry.entryId,
+            beforeEntryId: row.entry.entryId,
+          },
+        },
+      });
+    }
+
+    const top = plan.y;
+    plan.pushItem(entryItem(current.group, row, current.framed));
+
+    if (!current.framed) {
+      plan.hoverTargets.push({ top, slotIndex: plan.slots.length });
+      plan.pushSlot({
+        y: plan.y,
+        inLink: true,
+        linkTarget: true,
+        label: `Linked with ${entryTitle(row)}`,
+        drop: {
+          kind: 'track',
+          drop: {
+            kind: 'in_group',
+            segmentId,
+            afterEntryId: row.entry.entryId,
+          },
+        },
+      });
+    }
+  });
+}
+
+/**
+ * The slot that puts the entry back where it was, so a drag starts there and
+ * dropping in place changes nothing. Inside a frame that is the slot before
+ * its next neighbor, or the frame's inside end; a single entry sits between
+ * its neighboring groups.
+ */
+function originSlot(slots: DropSlot[], groups: PlaylistRowGroup[], entryId: string): number {
+  const origin = originDrop(groups, entryId);
+  const index = origin
+    ? slots.findIndex(
+        (slot) => !slot.linkTarget && slot.drop.kind === 'track' && sameDrop(slot.drop.drop, origin)
+      )
+    : -1;
+  return Math.max(0, index);
+}
+
+function originDrop(groups: PlaylistRowGroup[], entryId: string): TrackDrop | undefined {
   for (let g = 0; g < groups.length; g++) {
-    const entries = groups[g].entries;
-    const index = entries.findIndex((r) => r.entry.entryId === entryId);
+    const group = groups[g];
+    const index = group.entries.findIndex((r) => r.entry.entryId === entryId);
     if (index < 0) {
       continue;
     }
-    if (entries.length === 1) {
+
+    if (isFramed(group)) {
       return {
-        single: true as const,
-        beforeSegmentId: groups[g + 1]?.segment.segmentId,
+        kind: 'in_group',
+        segmentId: group.segment.segmentId,
+        afterEntryId: group.entries[index - 1]?.entry.entryId,
+        beforeEntryId: group.entries[index + 1]?.entry.entryId,
       };
     }
     return {
-      single: false as const,
-      segmentId: groups[g].segment.segmentId,
-      // The neighbor after it, or, for the last track, the one before it.
-      beforeEntryId: entries[index + 1]?.entry.entryId,
-      afterEntryId: entries[index - 1]?.entry.entryId,
+      kind: 'not_in_group',
+      afterSegmentId: groups[g - 1]?.segment.segmentId,
+      beforeSegmentId: groups[g + 1]?.segment.segmentId,
     };
   }
   return undefined;
 }
 
+function sameDrop(a: TrackDrop, b: TrackDrop): boolean {
+  if (a.kind === 'in_group' && b.kind === 'in_group') {
+    return (
+      a.segmentId === b.segmentId &&
+      a.afterEntryId === b.afterEntryId &&
+      a.beforeEntryId === b.beforeEntryId
+    );
+  }
+  if (a.kind === 'not_in_group' && b.kind === 'not_in_group') {
+    return a.afterSegmentId === b.afterSegmentId && a.beforeSegmentId === b.beforeSegmentId;
+  }
+  return false;
+}
+
 /**
- * Drag plan for a whole link. Every other link folds to one row so the list is
- * short enough to move across, and links only land between other items.
+ * How much shorter the list above the dragged row gets when the drag plan
+ * replaces the resting list: for a group drag, the rows above it that fold.
+ * An entry drag keeps every row above it, so its lead is zero. The edit list puts a spacer this tall above the
+ * plan's rows and measures the finger below it.
+ *
+ * Invariant: the dragged row's resting top minus the lead is the top of the
+ * plan's starting placeholder. So on the first frame the row sits exactly on
+ * its own slot, the placeholder opens under the finger, and letting go
+ * without moving changes nothing.
  */
-export function planLinkDrag(
+export function dragLead(
+  restingItems: EditItem[],
+  draggedKey: string,
+  plan: DragPlan,
+  metrics: EditMetrics
+): number {
+  const index = restingItems.findIndex((item) => item.key === draggedKey);
+  const slot = plan.slots[plan.initialSlot];
+  if (index < 0 || !slot) {
+    return 0;
+  }
+  const restingTop = itemTops(restingItems, metrics)[index];
+  const planTop = itemTops(plan.items, metrics)[slot.gapIndex] ?? totalHeight(plan.items, metrics);
+  return Math.max(0, restingTop - planTop);
+}
+
+// endregion
+
+// region Group drags
+
+/**
+ * Drag plan for a whole group: a link, or a prose-only group. Every other
+ * group folds to one row so the list is short enough to move across, and
+ * groups only land between other groups.
+ */
+export function planGroupDrag(
   groups: PlaylistRowGroup[],
   segmentId: string,
   metrics: EditMetrics
@@ -357,6 +465,7 @@ export function planLinkDrag(
   }));
   const slots: DropSlot[] = [];
 
+  // Collapsed rows are all one track tall, so slot `index` sits at its top.
   for (let index = 0; index <= remaining.length; index++) {
     slots.push({
       y: index * metrics.trackHeight,
@@ -379,6 +488,10 @@ export function planLinkDrag(
   };
 }
 
+// endregion
+
+// region Geometry
+
 /** Item tops in content coordinates, for laying out and measuring the list. */
 export function itemTops(items: EditItem[], metrics: EditMetrics): number[] {
   const tops: number[] = [];
@@ -388,6 +501,10 @@ export function itemTops(items: EditItem[], metrics: EditMetrics): number[] {
     y += itemHeight(item, metrics);
   }
   return tops;
+}
+
+export function totalHeight(items: EditItem[], metrics: EditMetrics): number {
+  return items.reduce((sum, item) => sum + itemHeight(item, metrics), 0);
 }
 
 /**
@@ -432,3 +549,5 @@ export function nearestSlot(
   }
   return best;
 }
+
+// endregion

@@ -52,7 +52,7 @@ if (isVerboseProfileLoggingEnabled()) {
   Realm.setLogLevel('debug', 'Realm.Storage.Notification');
 }
 
-export const REALM_SCHEMA_VERSION = 24;
+export const REALM_SCHEMA_VERSION = 25;
 
 export const REALM_SCHEMA = [
   Artist,

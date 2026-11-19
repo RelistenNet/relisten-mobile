@@ -27,20 +27,34 @@ import type {
   PlaylistSummary,
 } from '@/relisten/playlists/sync/playlist_wire';
 import { createUuidV7TypedId } from '@/relisten/util/typed_uuid_id';
+import {
+  entryStateOf,
+  segmentStateOf,
+  trackCount,
+  writeDescription,
+  writeEntryRow,
+  writeSegmentRow,
+} from '@/relisten/playlists/guide/guide_rows';
+import { wireEntries } from '@/relisten/playlists/sync/playlist_wire';
 
 /**
  * Durable sync state for account playlists. Every function here runs inside a
  * Realm write owned by its caller.
  *
  * Each row keeps two states. The canonical fields hold what the server last
- * confirmed. The displayed fields (`segmentId`, `rank`, `live`, and the
- * playlist's `name` and `description`) hold the canonical state with the
- * owner's unconfirmed operations replayed on top, in order. A listener's edit
+ * confirmed. The displayed fields (`segmentId`, `rank`, `live`, a segment's or
+ * entry's `description`, and the playlist's `name` and `description`) hold
+ * the canonical state with the owner's unconfirmed operations replayed on top,
+ * in order. A listener's edit
  * changes the displayed fields directly and appends an operation; a pull
  * changes the canonical fields and rebuilds the displayed ones.
  */
 
-/** Operations still in the overlay: replayed over the canonical state on every rebuild. */
+/**
+ * Operations still in the overlay: replayed over the canonical state on every
+ * rebuild. A refused (`needs_attention`) edit is left out, so it disappears
+ * from the playlist; its stored operation is what Add Again restores from.
+ */
 export const OVERLAY_STATES: PlaylistOperationState[] = [
   'pending',
   'in_flight',
@@ -122,16 +136,18 @@ export function issueCreateCommand(realm: Realm, playlist: Playlist) {
   for (const segment of segments) {
     segment.canonicalRank = segment.rank;
     segment.canonicalLive = true;
+    segment.canonicalDescription = segment.description;
   }
   for (const entry of entries) {
     entry.canonicalSegmentId = entry.segmentId;
     entry.canonicalRank = entry.rank;
     entry.canonicalLive = true;
+    entry.canonicalDescription = entry.description;
   }
 
   const groups = orderedGroups({
-    segments: new Map(segments.map((s) => [s.segmentId, segmentState(s)])),
-    entries: new Map(entries.map((e) => [e.entryId, entryState(e)])),
+    segments: new Map(segments.map((s) => [s.segmentId, segmentStateOf(s)])),
+    entries: new Map(entries.map((e) => [e.entryId, entryStateOf(e)])),
   });
   const commandId = createUuidV7TypedId('command');
   const request: CreatePlaylistRequest = {
@@ -141,7 +157,8 @@ export function issueCreateCommand(realm: Realm, playlist: Playlist) {
     metadata: { name: playlist.name, description: playlist.description ?? null },
     segments: groups.map((group) => ({
       segment_id: group.segment.segmentId,
-      entries: group.entries.map((e) => ({ entry_id: e.entryId, track_id: e.trackId })),
+      description: group.segment.description,
+      entries: wireEntries(group.entries),
     })),
   };
 
@@ -341,14 +358,10 @@ export function discardUnsentPlaylist(realm: Realm, playlist: Playlist): boolean
 function writeDisplayedChanges(realm: Realm, playlist: Playlist, changes: PlaylistChanges) {
   const playlistId = playlist.playlistId;
   for (const segment of changes.upsertSegments) {
-    realm.create(
-      PlaylistSegment,
-      { ...segment, playlistId, live: true },
-      Realm.UpdateMode.Modified
-    );
+    writeSegmentRow(realm, playlistId, segment);
   }
   for (const entry of changes.upsertEntries) {
-    realm.create(PlaylistEntry, { ...entry, playlistId, live: true }, Realm.UpdateMode.Modified);
+    writeEntryRow(realm, playlistId, entry);
   }
   for (const entryId of changes.deleteEntryIds) {
     hideOrDelete(realm, realm.objectForPrimaryKey(PlaylistEntry, entryId));
@@ -406,8 +419,6 @@ export function rebuildDisplayed(realm: Realm, playlistId: string) {
 
   writeRebuilt(
     realm,
-    playlistId,
-    PlaylistSegment,
     segmentRows,
     state.segments,
     (row) => row.segmentId,
@@ -415,12 +426,12 @@ export function rebuildDisplayed(realm: Realm, playlistId: string) {
       if (row.rank !== segment.rank) {
         row.rank = segment.rank;
       }
-    }
+      writeDescription(realm, row, segment.description);
+    },
+    (segment) => writeSegmentRow(realm, playlistId, segment)
   );
   writeRebuilt(
     realm,
-    playlistId,
-    PlaylistEntry,
     entryRows,
     state.entries,
     (row) => row.entryId,
@@ -431,7 +442,9 @@ export function rebuildDisplayed(realm: Realm, playlistId: string) {
       if (row.segmentId !== entry.segmentId) {
         row.segmentId = entry.segmentId;
       }
-    }
+      writeDescription(realm, row, entry.description);
+    },
+    (entry) => writeEntryRow(realm, playlistId, entry)
   );
 
   if (playlist.name !== state.name) {
@@ -440,8 +453,9 @@ export function rebuildDisplayed(realm: Realm, playlistId: string) {
   if ((playlist.description ?? undefined) !== (state.description ?? undefined)) {
     playlist.description = state.description;
   }
-  if (playlist.entryCount !== state.entries.size) {
-    playlist.entryCount = state.entries.size;
+  const tracks = trackCount(state);
+  if (playlist.entryCount !== tracks) {
+    playlist.entryCount = tracks;
   }
 }
 
@@ -461,17 +475,27 @@ function readCanonical(
   const entries = new Map<string, EntryState>();
   for (const row of segmentRows) {
     if (row.canonicalLive) {
-      segments.set(row.segmentId, { segmentId: row.segmentId, rank: row.canonicalRank! });
+      const segment: SegmentState = { segmentId: row.segmentId, rank: row.canonicalRank! };
+      if (row.canonicalDescription) {
+        segment.description = row.canonicalDescription;
+      }
+      segments.set(row.segmentId, segment);
     }
   }
   for (const row of entryRows) {
     if (row.canonicalLive) {
-      entries.set(row.entryId, {
+      const entry: EntryState = {
         entryId: row.entryId,
         segmentId: row.canonicalSegmentId!,
-        trackId: row.trackId,
         rank: row.canonicalRank!,
-      });
+      };
+      if (row.trackId) {
+        entry.trackId = row.trackId;
+      }
+      if (row.canonicalDescription) {
+        entry.description = row.canonicalDescription;
+      }
+      entries.set(row.entryId, entry);
     }
   }
   return {
@@ -495,12 +519,11 @@ function replayOverlay(state: WorkingState, edits: PlaylistEdit[]) {
 
 function writeRebuilt<Row extends PlaylistSegment | PlaylistEntry, State>(
   realm: Realm,
-  playlistId: string,
-  type: typeof PlaylistSegment | typeof PlaylistEntry,
   rows: Row[],
   states: Map<string, State>,
   idOf: (row: Row) => string,
-  update: (row: Row, state: State) => void
+  update: (row: Row, state: State) => void,
+  create: (state: State) => void
 ) {
   const seen = new Set<string>();
   for (const row of rows) {
@@ -527,7 +550,7 @@ function writeRebuilt<Row extends PlaylistSegment | PlaylistEntry, State>(
     if (seen.has(id)) {
       continue;
     }
-    realm.create(type.schema.name, { ...state, playlistId, live: true });
+    create(state);
   }
 }
 
@@ -579,7 +602,7 @@ export function applyPlaylistSummaries(
     realm.create(Playlist, {
       playlistId: summary.playlist_id,
       name: summary.name,
-      entryCount: summary.entry_count,
+      entryCount: summary.track_count ?? summary.entry_count,
       createdAt: updatedAt,
       updatedAt,
       ownerUserId,
@@ -604,16 +627,19 @@ export function applySnapshot(
     row.canonicalLive = false;
   }
   for (const segment of snapshot.segments) {
-    upsertCanonicalSegment(realm, playlistId, segment.segment_id, segment.rank);
+    upsertCanonicalSegment(realm, playlistId, {
+      segmentId: segment.segment_id,
+      rank: segment.rank,
+      description: segment.description ?? undefined,
+    });
     for (const entry of segment.entries) {
-      upsertCanonicalEntry(
-        realm,
-        playlistId,
-        entry.entry_id,
-        segment.segment_id,
-        entry.track_id,
-        entry.rank
-      );
+      upsertCanonicalEntry(realm, playlistId, {
+        entryId: entry.entry_id,
+        segmentId: segment.segment_id,
+        trackId: entry.track_id ?? undefined,
+        rank: entry.rank,
+        description: entry.description ?? undefined,
+      });
     }
   }
 
@@ -661,7 +687,11 @@ export function applyChangesPage(realm: Realm, playlist: Playlist, page: Playlis
           playlist.canonicalDescription = change.description ?? undefined;
           break;
         case 'segment_upserted':
-          upsertCanonicalSegment(realm, playlistId, change.segment_id, change.rank);
+          upsertCanonicalSegment(realm, playlistId, {
+            segmentId: change.segment_id,
+            rank: change.rank,
+            description: change.description ?? undefined,
+          });
           break;
         case 'segment_deleted': {
           const segment = realm.objectForPrimaryKey(PlaylistSegment, change.segment_id);
@@ -680,14 +710,13 @@ export function applyChangesPage(realm: Realm, playlist: Playlist, page: Playlis
           break;
         }
         case 'entry_upserted':
-          upsertCanonicalEntry(
-            realm,
-            playlistId,
-            change.entry_id,
-            change.segment_id,
-            change.track_id,
-            change.rank
-          );
+          upsertCanonicalEntry(realm, playlistId, {
+            entryId: change.entry_id,
+            segmentId: change.segment_id,
+            trackId: change.track_id ?? undefined,
+            rank: change.rank,
+            description: change.description ?? undefined,
+          });
           break;
         case 'entry_deleted': {
           const entry = realm.objectForPrimaryKey(PlaylistEntry, change.entry_id);
@@ -723,31 +752,40 @@ export function applyChangesPage(realm: Realm, playlist: Playlist, page: Playlis
 }
 
 /**
- * New rows start displayed exactly as confirmed; the rebuild that follows
- * places them correctly relative to any pending edits.
+ * Records a segment's confirmed state. A new row starts at the confirmed rank;
+ * the rebuild that follows sets every displayed field, including the
+ * description, relative to any pending edits.
  */
-function upsertCanonicalSegment(realm: Realm, playlistId: string, segmentId: string, rank: string) {
+function upsertCanonicalSegment(realm: Realm, playlistId: string, segment: SegmentState) {
   const row =
-    realm.objectForPrimaryKey(PlaylistSegment, segmentId) ??
-    realm.create(PlaylistSegment, { segmentId, playlistId, rank, live: true });
-  row.canonicalRank = rank;
+    realm.objectForPrimaryKey(PlaylistSegment, segment.segmentId) ??
+    realm.create(PlaylistSegment, {
+      segmentId: segment.segmentId,
+      playlistId,
+      rank: segment.rank,
+      live: true,
+    });
+  row.canonicalRank = segment.rank;
   row.canonicalLive = true;
+  row.canonicalDescription = segment.description;
 }
 
-function upsertCanonicalEntry(
-  realm: Realm,
-  playlistId: string,
-  entryId: string,
-  segmentId: string,
-  trackId: string,
-  rank: string
-) {
+/** Records an entry's confirmed state, like `upsertCanonicalSegment`. A text block has no track. */
+function upsertCanonicalEntry(realm: Realm, playlistId: string, entry: EntryState) {
   const row =
-    realm.objectForPrimaryKey(PlaylistEntry, entryId) ??
-    realm.create(PlaylistEntry, { entryId, playlistId, segmentId, trackId, rank, live: true });
-  row.canonicalSegmentId = segmentId;
-  row.canonicalRank = rank;
+    realm.objectForPrimaryKey(PlaylistEntry, entry.entryId) ??
+    realm.create(PlaylistEntry, {
+      entryId: entry.entryId,
+      playlistId,
+      segmentId: entry.segmentId,
+      trackId: entry.trackId,
+      rank: entry.rank,
+      live: true,
+    });
+  row.canonicalSegmentId = entry.segmentId;
+  row.canonicalRank = entry.rank;
   row.canonicalLive = true;
+  row.canonicalDescription = entry.description;
 }
 
 /**
@@ -818,14 +856,3 @@ function liveRows(
       .filtered('playlistId == $0 AND live == true', playlistId),
   ];
 }
-
-const segmentState = (s: PlaylistSegment): SegmentState => ({
-  segmentId: s.segmentId,
-  rank: s.rank,
-});
-const entryState = (e: PlaylistEntry): EntryState => ({
-  entryId: e.entryId,
-  segmentId: e.segmentId,
-  trackId: e.trackId,
-  rank: e.rank,
-});

@@ -2,10 +2,13 @@ import type { Nodes } from 'mdast';
 import { fromMarkdown } from 'mdast-util-from-markdown';
 import { describe, expect, it } from 'vitest';
 import shared from './guide_markdown_vectors.json';
-import { type GuideTextContext, sanitizeGuideMarkdown } from './guide_markdown';
+import { type GuideTextContext, guideTextRefusal, sanitizeGuideMarkdown } from './guide_markdown';
 
 interface Vector {
   name: string;
+  server: 'accept' | 'reject';
+  /** Where this parser reads the text differently from the server's: stricter only. */
+  device?: 'reject';
   context: GuideTextContext['kind'];
   durationSeconds?: number;
   markdown: string;
@@ -66,6 +69,11 @@ describe('sanitizeGuideMarkdown', () => {
     it('is stable when sanitized again', () => {
       expect(sanitizeGuideMarkdown(sanitized, contextOf(vector))).toBe(sanitized);
     });
+  });
+
+  it.each(vectors)('refuses on the device exactly what the server refuses: $name', (vector) => {
+    const refusal = guideTextRefusal(vector.markdown);
+    expect(refusal === null ? 'accept' : 'reject').toBe(vector.device ?? vector.server);
   });
 
   // Stored results carry GUIDE_MARKDOWN_VERSION. If this snapshot changes, bump

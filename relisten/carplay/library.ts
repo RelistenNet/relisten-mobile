@@ -30,7 +30,7 @@ async function playPlaylistFromCarPlay(ctx: RelistenCarPlayContext, playlistId: 
     const missing = readPlaylistRowGroups(ctx.realm, playlistId)
       .flatMap((group) => group.entries)
       .filter((row) => row.status === 'loading')
-      .map((row) => row.entry.trackId);
+      .flatMap((row) => (row.entry.trackId ? [row.entry.trackId] : []));
     if (missing.length > 0) {
       await resolvePlaylistTracks(ctx.realm, ctx.apiClient, missing);
     }

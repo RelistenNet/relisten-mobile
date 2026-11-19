@@ -1,6 +1,6 @@
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Realm from 'realm';
 import {
@@ -29,15 +29,23 @@ import {
   type PlaylistRowGroup,
 } from '@/relisten/playlists/playlist_hooks';
 import { usePlaylistHydration } from '@/relisten/playlists/playlist_hydration';
-import { isQueueable, playPlaylist, shufflePlaylist } from '@/relisten/playlists/playlist_playback';
+import {
+  isQueueable,
+  playEntryAt,
+  playPlaylist,
+  shufflePlaylist,
+} from '@/relisten/playlists/playlist_playback';
 import { PLAYLIST_LIMITS, updatePlaylistDetails } from '@/relisten/playlists/playlist_repository';
 import { PlaylistEditList } from '@/relisten/playlists/ui/playlist_edit_list';
 import {
+  PlaylistIntroRow,
+  PlaylistTextRow,
   PlaylistTrackRow,
   type PlaylistViewRow,
   playlistViewRows,
   usePlayingEntryId,
 } from '@/relisten/playlists/ui/playlist_rows';
+import { openGuideTextEditor } from '@/relisten/playlists/guide/guide_text_navigation';
 import { usePlaylistLifecycle } from '@/relisten/playlists/ui/playlist_lifecycle';
 import { PlaylistSyncNotice } from '@/relisten/playlists/ui/playlist_sync_notice';
 import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
@@ -47,6 +55,7 @@ import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 export default function PlaylistDetailPage() {
   const { playlistId } = useLocalSearchParams<{ playlistId: string }>();
   const realm = useRealm();
+  const router = useRouter();
   const player = useRelistenPlayer();
   const online = useShouldMakeNetworkRequests();
   const playlist = usePlaylist(playlistId);
@@ -112,6 +121,19 @@ export default function PlaylistDetailPage() {
       showPlaylistToast(entryId ? 'This track isn’t downloaded.' : nothingPlayableMessage(online));
     }
   };
+  const playTimestamp = (entryId: string, seconds: number) => {
+    if (!playEntryAt(player, playlistId, allGroups, online, entryId, seconds)) {
+      showPlaylistToast(
+        online ? 'That part isn’t available right now.' : 'That track isn’t downloaded.'
+      );
+    }
+  };
+  const addTextSection = () =>
+    openGuideTextEditor(router, {
+      kind: 'section',
+      playlistId,
+      afterSegmentId: allGroups[allGroups.length - 1]?.segment.segmentId,
+    });
   const shuffle = () => {
     if (!shufflePlaylist(player, playlistId, allGroups, online)) {
       showPlaylistToast(nothingPlayableMessage(online));
@@ -187,6 +209,9 @@ export default function PlaylistDetailPage() {
             <Stack.Toolbar.MenuAction icon={nativeMenuIcons.edit} onPress={startRename}>
               Rename…
             </Stack.Toolbar.MenuAction>
+            <Stack.Toolbar.MenuAction icon={nativeMenuIcons.add} onPress={addTextSection}>
+              Add Text at End…
+            </Stack.Toolbar.MenuAction>
             <Stack.Toolbar.MenuAction
               icon={nativeMenuIcons.download}
               isOn={downloadedOnly}
@@ -217,6 +242,7 @@ export default function PlaylistDetailPage() {
               onChange={updateDraft}
               nameInput={nameInput}
               focusName={focusName}
+              onAddText={addTextSection}
             />
           }
         />
@@ -224,7 +250,7 @@ export default function PlaylistDetailPage() {
         <DisappearingHeaderScreen
           ScrollableComponent={PlaylistTrackList}
           data={viewRows}
-          keyExtractor={(r) => r.row.entry.entryId}
+          keyExtractor={(r) => r.key}
           ListHeaderComponent={
             <ViewHeader
               name={name}
@@ -245,19 +271,33 @@ export default function PlaylistDetailPage() {
                 : "This playlist is empty. Add songs from any show's ••• menu."}
             </RelistenText>
           }
-          renderItem={({ item }) => (
-            <PlaylistTrackRow
-              playlistId={playlistId}
-              layout={layout}
-              viewRow={item}
-              online={online}
-              playingEntryId={playingEntryId}
-              linkPlaying={
-                item.link !== undefined && item.group.segment.segmentId === playingSegmentId
-              }
-              onPlay={play}
-            />
-          )}
+          renderItem={({ item }) => {
+            if (item.kind === 'intro') {
+              return <PlaylistIntroRow markdown={item.markdown} onTimestamp={playTimestamp} />;
+            }
+            const linkPlaying =
+              item.link !== undefined && item.group.segment.segmentId === playingSegmentId;
+            return item.row.status === 'text' ? (
+              <PlaylistTextRow
+                playlistId={playlistId}
+                layout={layout}
+                viewRow={item}
+                linkPlaying={linkPlaying}
+                onTimestamp={playTimestamp}
+              />
+            ) : (
+              <PlaylistTrackRow
+                playlistId={playlistId}
+                layout={layout}
+                viewRow={item}
+                online={online}
+                playingEntryId={playingEntryId}
+                linkPlaying={linkPlaying}
+                onPlay={play}
+                onTimestamp={playTimestamp}
+              />
+            );
+          }}
           {...scrollProps}
         />
       )}
@@ -396,8 +436,10 @@ function EditHeader({
   onChange,
   nameInput,
   focusName,
+  onAddText,
 }: {
   focusName: boolean;
+  onAddText: () => void;
   draft: { name: string; description: string };
   onChange: (draft: { name: string; description: string }) => void;
   nameInput: React.RefObject<TextInputInstance | null>;
@@ -424,6 +466,19 @@ function EditHeader({
         value={draft.description}
         onChangeText={(description) => onChange({ ...draft, description })}
       />
+      {/* One way in, instead of a control in every gap: new text goes at the end,
+          and its handle drags it into place like a track. */}
+      <View className="mt-3 flex-row items-center" style={{ gap: 12 }}>
+        <RelistenButton
+          icon={<MaterialIcons name="notes" size={18} color="white" />}
+          onPress={onAddText}
+        >
+          Add Text
+        </RelistenButton>
+        <RelistenText className="flex-1 text-sm text-gray-400" selectable={false}>
+          Adds text at the end. Drag it into place.
+        </RelistenText>
+      </View>
     </View>
   );
 }
@@ -432,9 +487,11 @@ function filterDownloaded(groups: PlaylistRowGroup[]): PlaylistRowGroup[] {
   return groups
     .map((group) => ({
       ...group,
+      // Downloaded tracks only; the guide's text around them is dropped too.
       entries: group.entries.filter(
         (row) => row.sourceTrack?.offlineInfo?.isPlayableOffline() === true
       ),
+      descriptionMarkdown: undefined,
     }))
     .filter((group) => group.entries.length > 0);
 }
