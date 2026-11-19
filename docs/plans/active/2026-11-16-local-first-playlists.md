@@ -1119,9 +1119,23 @@ Implemented in `relisten/playlists/sync/` against the local User Service on
   text rows and Add Text, and timestamp playback. Verified on the iOS simulator
   with a device playlist. Not verified: account sync against a server with
   guide writes on, and Android.
-- [ ] Ship milestone 3: a store build (the renderer is native), the raised
-  minimum OTA version, then `Accounts__EnablePlaylistGuideContent=true`.
-- [ ] Milestone 4: sharing, after account deletion and takedown ship.
+- [ ] Ship milestone 3: a store build (the renderer is native), then the
+  raised minimum OTA version, before the User Service that serves guide
+  writes deploys (feature flags are gone).
+- [x] (2026-11-19) Milestone 4 built on `codex/playlist-sharing-mobile`,
+  stacked on guide content and account deletion. Realm schema 27 splits
+  `libraryUserId`/`access` from `ownerUserId` and adds sharing fields, a copy
+  command, and play history destinations. Share/Make Private, the
+  `/playlists/<code>` page (signed out too), Follow/Unfollow, follow sync with
+  heads and 20 snapshots per run, Make a Copy, Report, CarPlay, cloud play
+  uploads, and Connected Apps. Verified end to end on the iOS simulator
+  against local services with two dummy personas: guide round trip, publish,
+  follow, owner edit reaching the follower, private and republish, takedown
+  and lift, copy with rewritten timestamp links, report and its rate limit,
+  following your own playlist, unfollow, signed-out link, anonymous and
+  account plays, ChatGPT disconnect, and account deletion with a Temporal
+  purge. Not verified locally: Cloudflare caching, Apple revocation, real
+  provider sign-in, Android, TestFlight upgrades, and a real ChatGPT grant.
 - [x] (2026-11-17) Milestone 2: saving to an account, shipped by OTA to
   TestFlight 6055.
 - [x] (2026-11-17) Fixed the review's release blockers and follow-ups:
