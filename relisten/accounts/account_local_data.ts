@@ -10,12 +10,13 @@ import {
   forgetAccountPlaylists,
   hideAccountPlaylists,
 } from '@/relisten/playlists/sync/playlist_sync_state';
+import { forgetAccountPlays } from '@/relisten/playback_history_reporter';
 
 /**
  * Removes everything on the device that belongs to a deleted account:
- * favorites and their unsent changes, playlists and their unsent edits, the
- * cached profile, and a pending username. Downloads and listening history
- * belong to the device and stay.
+ * favorites and their unsent changes, playlists and their unsent edits,
+ * plays not yet uploaded, the cached profile, and a pending username.
+ * Downloads and the device's listening history stay.
  *
  * Call this only after the server accepted the deletion (`202`). Every table
  * that stores an account's data needs a line here.
@@ -30,6 +31,7 @@ export function forgetDeletedAccount(realm: Realm, userId: string) {
     );
 
     forgetAccountPlaylists(realm, userId);
+    forgetAccountPlays(realm, userId);
 
     deleteByPrimaryKey(realm, PendingUsernameCommand, userId);
     deleteByPrimaryKey(realm, AccountProfile, userId);

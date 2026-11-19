@@ -1,3 +1,4 @@
+import type Realm from 'realm';
 import Flex from '@/relisten/components/flex';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import { SettingsEnumMenu } from '@/relisten/components/menus/settings_enum_menu';
@@ -15,6 +16,7 @@ import {
   UserSettingsProps,
 } from '@/relisten/realm/models/user_settings';
 import { useRealm, useObject } from '@/relisten/realm/schema';
+import { discardUnreportedPlays } from '@/relisten/playback_history_reporter';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useEffect, useState } from 'react';
 import { Switch, SwitchProps, TextInput, TextInputProps } from 'react-native';
@@ -37,6 +39,8 @@ interface BoolSettingsEntry extends BaseSettings {
   newSettings: (newValue: boolean) => Partial<UserSettingsProps>;
   currentSetting: (settings: UserSettings) => boolean;
   warnOnEnable?: boolean;
+  /** Runs after the new value is saved. */
+  onChanged?: (realm: Realm, newValue: boolean) => void;
 }
 
 interface IntSettingsEntry extends BaseSettings {
@@ -74,6 +78,12 @@ const SETTINGS: Array<Settings> = [
     },
     currentSetting: (settings: UserSettings) => {
       return settings.trackListeningHistoryWithDefault() === TrackListeningHistorySetting.Always;
+    },
+    // Plays recorded before turning it off aren't sent afterward.
+    onChanged: (realm, on) => {
+      if (!on) {
+        discardUnreportedPlays(realm);
+      }
     },
   },
   // This is blocked on upstreaming support for `allowsCellularAccess` on iOS
@@ -355,6 +365,7 @@ export function RelistenSettings() {
     realm.write(() => {
       settings.upsert(setting.newSettings(nextValue));
     });
+    setting.onChanged?.(realm, nextValue);
   };
 
   const onEnumValueChange =

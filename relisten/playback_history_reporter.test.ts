@@ -22,89 +22,99 @@ vi.mock('@/relisten/events', () => ({
 }));
 
 vi.mock('expo-crypto', () => ({
-  randomUUID: vi.fn(),
+  randomUUID: () => globalThis.crypto.randomUUID(),
+  getRandomValues: (bytes: Uint8Array<ArrayBuffer>) => globalThis.crypto.getRandomValues(bytes),
 }));
 
-import { PlaybackHistoryReporter } from '@/relisten/playback_history_reporter';
-import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
+import {
+  discardUnreportedPlays,
+  forgetAccountPlays,
+  PlaybackHistoryReporter,
+} from '@/relisten/playback_history_reporter';
+import {
+  PlaybackFlags,
+  PlaybackHistoryEntry,
+} from '@/relisten/realm/models/history/playback_history_entry';
+import type { SourceTrack } from '@/relisten/realm/models/source_track';
 
 const TEST_REALM_PATH = '/tmp/relisten-playback-history-reporter-test.realm';
-const now = new Date('2026-08-20T00:00:00.000Z');
+const trackUuid = '98615c1f-a84b-de71-5ae0-0e6fff2461f9';
+const accountA = 'user_01890a5dac96774bbcceb302099a8051';
+const accountB = 'user_01890a5dac96774bbcceb302099a8061';
 
 class TestSourceTrack extends Realm.Object<TestSourceTrack> {
   static schema: Realm.ObjectSchema = {
     name: 'SourceTrack',
     primaryKey: 'uuid',
-    properties: { uuid: 'string' },
+    properties: {
+      uuid: 'string',
+      artistUuid: 'string',
+      showUuid: 'string',
+      sourceUuid: 'string',
+      duration: 'double?',
+    },
   };
-
-  uuid!: string;
 }
 
-class TestArtist extends Realm.Object<TestArtist> {
-  static schema: Realm.ObjectSchema = {
-    name: 'Artist',
-    primaryKey: 'uuid',
-    properties: { uuid: 'string' },
-  };
-
-  uuid!: string;
-}
-
-class TestShow extends Realm.Object<TestShow> {
-  static schema: Realm.ObjectSchema = {
-    name: 'Show',
-    primaryKey: 'uuid',
-    properties: { uuid: 'string' },
-  };
-
-  uuid!: string;
-}
-
-class TestSource extends Realm.Object<TestSource> {
-  static schema: Realm.ObjectSchema = {
-    name: 'Source',
-    primaryKey: 'uuid',
-    properties: { uuid: 'string' },
-  };
-
-  uuid!: string;
-}
+const entity = (name: string): Realm.ObjectSchema => ({
+  name,
+  primaryKey: 'uuid',
+  properties: { uuid: 'string' },
+});
 
 const config: Realm.Configuration = {
   path: TEST_REALM_PATH,
-  schema: [TestSourceTrack, TestArtist, TestShow, TestSource, PlaybackHistoryEntry],
+  schema: [
+    TestSourceTrack,
+    entity('Artist'),
+    entity('Show'),
+    entity('Source'),
+    PlaybackHistoryEntry,
+  ],
 };
 
-function createHistoryEntries(realm: Realm, uuids: string[]): PlaybackHistoryEntry[] {
-  return realm.write(() => {
-    const sourceTrack = realm.create(TestSourceTrack, { uuid: 'track' });
-    const artist = realm.create(TestArtist, { uuid: 'artist' });
-    const show = realm.create(TestShow, { uuid: 'show' });
-    const source = realm.create(TestSource, { uuid: 'source' });
-
-    return uuids.map(
-      (uuid) =>
-        realm.create('PlaybackHistoryEntry', {
-          uuid,
-          playbackFlags: 0,
-          createdAt: now,
-          playbackStartedAt: now,
-          sourceTrack,
-          artist,
-          show,
-          source,
-        }) as unknown as PlaybackHistoryEntry
-    );
-  });
+/** A signed-in account that can change between a request and its response. */
+function fakeAccounts(initial: string | null) {
+  let userId = initial;
+  let generation = 0;
+  const request = vi.fn();
+  return {
+    request,
+    signInAs(next: string | null) {
+      userId = next;
+      generation += 1;
+    },
+    accounts: {
+      scopes: {
+        capture: () => ({ isAuthenticated: userId !== null, userId, generation }),
+        isCurrent: (capture: { generation: number }) => capture.generation === generation,
+      },
+      api: { request },
+    } as never,
+  };
 }
 
 describe('PlaybackHistoryReporter', () => {
   let realm: Realm;
+  let sourceTrack: SourceTrack;
+  let recordAnonymously: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     if (Realm.exists(config)) Realm.deleteFile(config);
     realm = new Realm(config);
+    sourceTrack = realm.write(() => {
+      for (const name of ['Artist', 'Show', 'Source']) {
+        realm.create(name, { uuid: name });
+      }
+      return realm.create(TestSourceTrack, {
+        uuid: trackUuid,
+        artistUuid: 'Artist',
+        showUuid: 'Show',
+        sourceUuid: 'Source',
+        duration: 381.4,
+      });
+    }) as unknown as SourceTrack;
+    recordAnonymously = vi.fn(async () => ({}));
   });
 
   afterEach(() => {
@@ -116,53 +126,159 @@ describe('PlaybackHistoryReporter', () => {
     Realm.shutdown();
   });
 
-  it('does not retain a history object while publishing it', async () => {
-    let resolveRequest!: (response: { error?: unknown }) => void;
-    const recordPlayback = vi.fn(
-      () =>
-        new Promise<{ error?: unknown }>((resolve) => {
-          resolveRequest = resolve;
-        })
+  const reporterFor = (accounts: ReturnType<typeof fakeAccounts>) =>
+    new PlaybackHistoryReporter(
+      { recordPlayback: recordAnonymously } as never,
+      realm,
+      accounts.accounts
     );
-    const reporter = new PlaybackHistoryReporter({ recordPlayback } as never, realm);
-    const [entry] = createHistoryEntries(realm, ['history']);
 
-    const reportPromise = (
-      reporter as unknown as {
-        attemptReport(entryUuid: string): Promise<unknown>;
-      }
-    ).attemptReport(entry.uuid);
+  const play = (reporter: PlaybackHistoryReporter, playlist = false) =>
+    reporter.recordPlayback({
+      playbackFlags: PlaybackFlags.Offline,
+      playbackStartedAt: new Date('2026-11-19T01:00:00Z'),
+      sourceTrack,
+      playlistContext: playlist
+        ? {
+            playlistId: 'playlist_01890a5dac96774bbcceb302099a8071',
+            entryId: 'playlist_entry_01890a5dac96774bbcceb302099a8072',
+          }
+        : undefined,
+    })!;
 
-    expect(recordPlayback).toHaveBeenCalledWith('track');
-    realm.write(() => realm.delete(entry));
-    resolveRequest({});
+  const unreported = () => realm.objects(PlaybackHistoryEntry).filtered('publishedAt == null');
 
-    await expect(reportPromise).resolves.toBeDefined();
-    expect(realm.objects(PlaybackHistoryEntry)).toHaveLength(0);
+  it('uploads a signed-in play to that account, and only there', async () => {
+    const signedIn = fakeAccounts(accountA);
+    signedIn.request.mockImplementation(async (_path: string, init: RequestInit) => ({
+      contract_version: 1,
+      results: JSON.parse(String(init.body)).plays.map((p: { play_id: string }) => ({
+        play_id: p.play_id,
+        status: 'accepted',
+      })),
+    }));
+    const reporter = reporterFor(signedIn);
+    const entry = play(reporter, true);
+
+    await reporter.report();
+
+    expect(signedIn.request).toHaveBeenCalledTimes(1);
+    const [path, init] = signedIn.request.mock.calls[0];
+    expect(path).toBe('/v1/history/plays:batch');
+    expect(JSON.parse(init.body)).toEqual({
+      contract_version: 1,
+      plays: [
+        {
+          play_id: entry.playId,
+          track_id: expect.stringMatching(/^track_/),
+          qualified_at: entry.createdAt.toISOString(),
+          started_at: '2026-11-19T01:00:00.000Z',
+          app_type: 1,
+          offline: true,
+          origin: 'live',
+          playlist_id: 'playlist_01890a5dac96774bbcceb302099a8071',
+          playlist_entry_id: 'playlist_entry_01890a5dac96774bbcceb302099a8072',
+          catalog_duration_ms: 381400,
+        },
+      ],
+    });
+    expect(entry.playId).toMatch(/^play_/);
+    expect(recordAnonymously).not.toHaveBeenCalled();
+    expect(unreported()).toHaveLength(0);
   });
 
-  it('skips snapshot entries deleted while publishing', async () => {
-    let resolveRequest!: (response: { error?: unknown }) => void;
-    const recordPlayback = vi.fn(
-      () =>
-        new Promise<{ error?: unknown }>((resolve) => {
-          resolveRequest = resolve;
-        })
-    );
-    const reporter = new PlaybackHistoryReporter({ recordPlayback } as never, realm);
-    createHistoryEntries(realm, ['history-1', 'history-2']);
+  it('resends exactly the same play after a failed upload', async () => {
+    const signedIn = fakeAccounts(accountA);
+    signedIn.request.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({
+      contract_version: 1,
+      results: [{ play_id: null, status: 'rejected' }],
+    });
+    const reporter = reporterFor(signedIn);
+    play(reporter);
 
-    const reportPromise = (
-      reporter as unknown as {
-        reportPlaybackHistory(): Promise<void>;
-      }
-    ).reportPlaybackHistory();
+    await reporter.report();
+    expect(unreported()).toHaveLength(1);
+    await reporter.report();
 
-    expect(recordPlayback).toHaveBeenCalledTimes(1);
-    realm.write(() => realm.delete(realm.objects(PlaybackHistoryEntry)));
-    resolveRequest({});
+    const [first, second] = signedIn.request.mock.calls.map(([, init]) => init.body);
+    expect(second).toBe(first);
+    // Rejected is final too: the account will never take it, so it isn't sent again.
+    expect(unreported()).toHaveLength(0);
+  });
 
-    await expect(reportPromise).resolves.toBeUndefined();
-    expect(recordPlayback).toHaveBeenCalledTimes(1);
+  it("keeps an account's plays waiting while another account is signed in", async () => {
+    const accounts = fakeAccounts(accountA);
+    const reporter = reporterFor(accounts);
+    play(reporter);
+    accounts.signInAs(accountB);
+
+    await reporter.report();
+
+    expect(accounts.request).not.toHaveBeenCalled();
+    expect(recordAnonymously).not.toHaveBeenCalled();
+    expect(unreported()).toHaveLength(1);
+  });
+
+  it('writes nothing for a response that arrives after an account switch', async () => {
+    const accounts = fakeAccounts(accountA);
+    accounts.request.mockImplementation(async () => {
+      accounts.signInAs(accountB);
+      return { contract_version: 1, results: [{ play_id: null, status: 'accepted' }] };
+    });
+    const reporter = reporterFor(accounts);
+    play(reporter);
+
+    await reporter.report();
+
+    expect(unreported()).toHaveLength(1);
+  });
+
+  it('reports a signed-out play anonymously, skipping rows cleared meanwhile', async () => {
+    const reporter = reporterFor(fakeAccounts(null));
+    const entry = play(reporter);
+    play(reporter);
+    recordAnonymously.mockImplementationOnce(async () => {
+      realm.write(() => realm.delete(realm.objects(PlaybackHistoryEntry)));
+      return {};
+    });
+
+    await reporter.report();
+
+    expect(entry.isValid()).toBe(false);
+    expect(recordAnonymously).toHaveBeenCalledTimes(1);
+    expect(recordAnonymously).toHaveBeenCalledWith(trackUuid);
+  });
+
+  it("forgets a deleted account's unsent plays and keeps the rest of history", async () => {
+    const accounts = fakeAccounts(accountA);
+    const reporter = reporterFor(accounts);
+    const sent = play(reporter);
+    realm.write(() => {
+      sent.publishedAt = new Date();
+    });
+    play(reporter);
+    accounts.signInAs(null);
+    play(reporter);
+
+    realm.write(() => forgetAccountPlays(realm, accountA));
+
+    expect(realm.objects(PlaybackHistoryEntry).map((e) => e.destinationUserId ?? null)).toEqual([
+      accountA,
+      null,
+    ]);
+  });
+
+  it('discards every unreported play when history is turned off', () => {
+    const reporter = reporterFor(fakeAccounts(accountA));
+    const sent = play(reporter);
+    realm.write(() => {
+      sent.publishedAt = new Date();
+    });
+    play(reporter);
+
+    discardUnreportedPlays(realm);
+
+    expect(realm.objects(PlaybackHistoryEntry)).toHaveLength(1);
+    expect(unreported()).toHaveLength(0);
   });
 });

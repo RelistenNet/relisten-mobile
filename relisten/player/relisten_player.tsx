@@ -680,6 +680,9 @@ ${indentString(this.queue.debugState(true))}
     this.updateConfirmedProgress(progress);
   };
 
+  /** The playback last reported as a play, by queue occurrence and start time. */
+  private reportedPlayback: string | undefined;
+
   private updateConfirmedProgress(progress: PlaybackContextProgress) {
     if (this.progress && this.queue.currentTrack) {
       const wasEligible = this.progress.elapsed >= 240 || this.progress.percent >= 0.5;
@@ -687,11 +690,14 @@ ${indentString(this.queue.debugState(true))}
 
       if (!wasEligible && nowEligible) {
         const currentTrack = this.queue.currentTrack;
-
-        this.onShouldReportTrack.dispatch({
-          playerQueueTrack: currentTrack,
-          playbackStartedAt: this.queue.currentTrackPlaybackStartedAt || new Date(),
-        });
+        const playbackStartedAt = this.queue.currentTrackPlaybackStartedAt || new Date();
+        // One play per playback: seeking back below the threshold and crossing
+        // it again is the same play, not a second one.
+        const playback = `${currentTrack.identifier}@${playbackStartedAt.getTime()}`;
+        if (playback !== this.reportedPlayback) {
+          this.reportedPlayback = playback;
+          this.onShouldReportTrack.dispatch({ playerQueueTrack: currentTrack, playbackStartedAt });
+        }
       }
     }
 

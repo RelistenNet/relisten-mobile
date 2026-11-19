@@ -14,6 +14,14 @@ export enum PlaybackFlags {
   // TODO: add info on CarPlay, Casting, etc
 }
 
+/**
+ * One play that crossed the listening threshold. Each row is bound when it is
+ * created to where it reports: the account signed in at that moment
+ * (`destinationUserId`, with a `play_` ID the account deduplicates by), or no
+ * account, which reports anonymously to `/live/play`. A row never changes
+ * destination, so a retry goes where the first attempt went. `publishedAt` is
+ * set once the destination has the play.
+ */
 export class PlaybackHistoryEntry extends Realm.Object<PlaybackHistoryEntry> {
   static schema: Realm.ObjectSchema = {
     name: 'PlaybackHistoryEntry',
@@ -21,7 +29,14 @@ export class PlaybackHistoryEntry extends Realm.Object<PlaybackHistoryEntry> {
     properties: {
       uuid: 'string',
       playbackFlags: 'int',
-      publishedAt: 'date?',
+      publishedAt: { type: 'date', optional: true, indexed: true },
+      destinationUserId: { type: 'string', optional: true, indexed: true },
+      playId: 'string?',
+      // Where the play came from, when it was queued from a playlist.
+      playlistId: 'string?',
+      playlistEntryId: 'string?',
+      // The catalog's duration for the track when it was played.
+      catalogDurationMs: 'int?',
 
       createdAt: 'date',
       playbackStartedAt: 'date',
@@ -36,6 +51,11 @@ export class PlaybackHistoryEntry extends Realm.Object<PlaybackHistoryEntry> {
   uuid!: string;
   playbackFlags!: number;
   publishedAt?: Date;
+  destinationUserId?: string;
+  playId?: string;
+  playlistId?: string;
+  playlistEntryId?: string;
+  catalogDurationMs?: number;
 
   createdAt!: Date;
   playbackStartedAt!: Date;

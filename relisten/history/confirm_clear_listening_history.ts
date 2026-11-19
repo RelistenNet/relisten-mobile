@@ -5,7 +5,9 @@ import Realm from 'realm';
 export function confirmClearListeningHistory(realm: Realm) {
   confirmDestructiveAction({
     confirmLabel: 'Clear History',
-    message: 'This will permanently delete your listening history.',
+    // Plays already saved to an account stay there until the account is deleted.
+    message:
+      'This clears listening history on this device. Plays saved to your Relisten account stay there until you delete your account.',
     onConfirm: () => {
       const history = realm.objects(PlaybackHistoryEntry);
       realm.write(() => {

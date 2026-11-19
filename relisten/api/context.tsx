@@ -4,6 +4,12 @@ import { useRealm } from '@/relisten/realm/schema';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import React, { PropsWithChildren, useContext, useEffect, useMemo } from 'react';
 import { RelistenApiClient } from './client';
+import { Platform } from 'react-native';
+import {
+  useAccountScope,
+  useAccountScopeSource,
+  useAccountsApiClient,
+} from '@/relisten/accounts/account_context';
 
 export const RelistenApiContext = React.createContext<
   { apiClient: RelistenApiClient; playbackHistoryReporter: PlaybackHistoryReporter } | undefined
@@ -14,9 +20,20 @@ export const RelistenApiProvider: React.FC<PropsWithChildren> = ({ children }) =
   const apiClient = useMemo(() => new RelistenApiClient(), []);
   const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
 
+  const scopes = useAccountScopeSource();
+  const accountsApi = useAccountsApiClient();
+  const { userId } = useAccountScope();
+
   const playbackHistoryReporter = useMemo(() => {
-    return new PlaybackHistoryReporter(apiClient, realm);
-  }, [realm, apiClient]);
+    return new PlaybackHistoryReporter(apiClient, realm, { scopes, api: accountsApi }, Platform.OS);
+  }, [realm, apiClient, scopes, accountsApi]);
+
+  // Plays saved for an account wait until it is signed in.
+  useEffect(() => {
+    if (userId) {
+      playbackHistoryReporter.onAccountChanged();
+    }
+  }, [playbackHistoryReporter, userId]);
 
   useEffect(() => {
     if (shouldMakeNetworkRequests) {
