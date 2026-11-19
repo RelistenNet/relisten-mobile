@@ -7,11 +7,7 @@ import type { AccountScopeCapture, AccountScopeSource } from '@/relisten/account
 import { Playlist } from '@/relisten/realm/models/playlists/playlist';
 import { recordPublication } from '@/relisten/playlists/sync/playlist_sync_state';
 import { isPermanentRejection } from './accounts_http';
-import {
-  applyFollowChanges,
-  applyFollowedHeads,
-  applyFollowedSnapshot,
-} from './followed_playlists';
+import { applyFollowChanges, storeConfirmedFollow } from './followed_playlists';
 import { copyCommandFor, dropCopyCommand, finishCopy } from './playlist_copies';
 import {
   fetchPublicSnapshot,
@@ -79,7 +75,7 @@ export class PlaylistSharingService {
 
   /** Makes an owned playlist public or private. Returns its link code when public. */
   async setPublished(playlistId: string, published: boolean): Promise<string | null> {
-    const capture = this.signedIn();
+    const capture = this.requireSignedIn();
 
     let response;
     try {
@@ -114,39 +110,26 @@ export class PlaylistSharingService {
    * the followed copy is ready at once, offline included.
    */
   async follow(snapshot: PublicPlaylistSnapshot) {
-    const capture = this.signedIn();
+    const capture = this.requireSignedIn();
     const userId = capture.userId!;
     await this.send(() => requestFollow(this.api, snapshot.public_code));
 
-    const stored = this.writeIfCurrent(capture, () => {
-      applyFollowChanges(this.realm, userId, [
-        { playlistId: snapshot.playlist_id, followed: true },
-      ]);
-      applyFollowedHeads(this.realm, userId, [
-        {
-          playlist_id: snapshot.playlist_id,
-          available: true,
-          public_code: snapshot.public_code,
-          name: snapshot.metadata.name,
-          owner: snapshot.owner,
-          revision: snapshot.revision,
-        },
-      ]);
-      applyFollowedSnapshot(this.realm, userId, snapshot);
-    });
-    if (stored) {
+    const wroteForCurrentAccount = this.writeIfCurrent(capture, () =>
+      storeConfirmedFollow(this.realm, userId, snapshot)
+    );
+    if (wroteForCurrentAccount) {
       this.refreshLibrary();
     }
   }
 
   async unfollow(playlistId: string) {
-    const capture = this.signedIn();
+    const capture = this.requireSignedIn();
     await this.send(() => requestUnfollow(this.api, playlistId));
 
-    const stored = this.writeIfCurrent(capture, () =>
+    const wroteForCurrentAccount = this.writeIfCurrent(capture, () =>
       applyFollowChanges(this.realm, capture.userId!, [{ playlistId, followed: false }])
     );
-    if (stored) {
+    if (wroteForCurrentAccount) {
       this.refreshLibrary();
     }
   }
@@ -161,12 +144,13 @@ export class PlaylistSharingService {
    * the copy already made instead of a second one.
    */
   async copy(publicCode: string, name: string): Promise<string> {
-    const capture = this.signedIn();
+    const capture = this.requireSignedIn();
     const userId = capture.userId!;
     const commandId = this.realm.write(
       () => copyCommandFor(this.realm, userId, publicCode).commandId
     );
 
+    // Not through `send`: whether to keep the command depends on the raw error.
     let created;
     try {
       created = await requestCopy(this.api, publicCode, commandId);
@@ -177,21 +161,21 @@ export class PlaylistSharingService {
       throw toSharingError(error);
     }
 
-    const stored = this.writeIfCurrent(capture, () =>
+    const wroteForCurrentAccount = this.writeIfCurrent(capture, () =>
       finishCopy(this.realm, userId, commandId, created, name)
     );
-    if (stored) {
+    if (wroteForCurrentAccount) {
       this.refreshLibrary();
     }
     return created.playlist_id;
   }
 
   async report(publicCode: string, reason: string) {
-    this.signedIn();
+    this.requireSignedIn();
     await this.send(() => requestReport(this.api, publicCode, reason));
   }
 
-  private signedIn(): AccountScopeCapture {
+  private requireSignedIn(): AccountScopeCapture {
     const capture = this.scopes.capture();
     if (!capture.isAuthenticated || !capture.userId) {
       throw new SharingError('signed_out');

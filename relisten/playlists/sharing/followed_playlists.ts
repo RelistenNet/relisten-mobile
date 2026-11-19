@@ -133,14 +133,43 @@ export function applyFollowedSnapshot(
   const libraryGeneration = realm
     .objects(FavoriteSyncState)
     .filtered('scopeId == $0', userId)[0]?.historyGeneration;
+  // A mismatch is retried until the two agree: the library feed's next pull
+  // records the new generation, or the edge's cached snapshot expires.
   if (libraryGeneration && libraryGeneration !== snapshot.history_generation) {
     return false;
   }
 
+  // An older or equal snapshot is ignored; the check below then reports the
+  // follow still behind its head, so it is fetched again.
   if (playlist.appliedRevision == null || snapshot.revision > playlist.appliedRevision) {
     writeFollowedSnapshot(realm, playlist, snapshot);
   }
   return !followNeedsSnapshot(playlist);
+}
+
+/**
+ * Stores a follow the server just confirmed, from the snapshot the screen
+ * already shows, so the followed copy is ready at once, offline included.
+ * The order matters: heads only update rows that are already follows, and
+ * the head's revision is what lets the snapshot settle the follow.
+ */
+export function storeConfirmedFollow(
+  realm: Realm,
+  userId: string,
+  snapshot: PublicPlaylistSnapshot
+) {
+  applyFollowChanges(realm, userId, [{ playlistId: snapshot.playlist_id, followed: true }]);
+  applyFollowedHeads(realm, userId, [
+    {
+      playlist_id: snapshot.playlist_id,
+      available: true,
+      public_code: snapshot.public_code,
+      name: snapshot.metadata.name,
+      owner: snapshot.owner,
+      revision: snapshot.revision,
+    },
+  ]);
+  applyFollowedSnapshot(realm, userId, snapshot);
 }
 
 /** Replaces a followed playlist's rows and details with a newer public snapshot. */

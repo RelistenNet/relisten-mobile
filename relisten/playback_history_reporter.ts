@@ -150,36 +150,41 @@ export class PlaybackHistoryReporter {
     clearTimeout(this.retryTimer);
     this.retryTimer = undefined;
 
-    let retry = false;
+    // Only the last pass decides: a clean pass after a failed one means nothing is waiting.
+    let lastPassLeftWork = false;
     try {
       do {
         this.reportAgain = false;
+        this.discardTracklessPlays();
 
-        // Both passes run every time, so a failing account can't hold back anonymous plays.
-        const accountPlaysSent = await this.attempt('account', () => this.uploadAccountPlays());
-        const anonymousPlaysSent = await this.attempt('anonymous', () =>
+        // Both destinations run every pass, so a failing account can't hold back anonymous plays.
+        const accountFinished = await this.attempt('account', () => this.uploadAccountPlays());
+        const anonymousFinished = await this.attempt('anonymous', () =>
           this.reportAnonymousPlays()
         );
-        retry = !accountPlaysSent || !anonymousPlaysSent;
+        lastPassLeftWork = !accountFinished || !anonymousFinished;
       } while (this.reportAgain);
     } finally {
       this.reporting = false;
     }
 
     // Offline, the next onNetworkAvailable reports instead.
-    if (retry && this.networkAvailable) {
+    if (lastPassLeftWork && this.networkAvailable) {
       this.retryTimer = setTimeout(() => void this.report(), RETRY_DELAY_MS);
     }
   }
 
-  /** Runs one pass; false means it stopped on a failure worth retrying. */
+  /**
+   * Sends one destination's waiting plays. False means it stopped on a failure
+   * worth retrying; true covers sent, nothing to send, and refused for good.
+   */
   private async attempt(destination: string, pass: () => Promise<void>): Promise<boolean> {
     try {
       await pass();
       return true;
     } catch (error) {
       logger.warn(
-        `Reporting ${destination} plays failed; retrying in 30s: ${error instanceof Error ? error.message : error}`
+        `Reporting ${destination} plays failed: ${error instanceof Error ? error.message : error}`
       );
       return false;
     }
@@ -212,8 +217,6 @@ export class PlaybackHistoryReporter {
     }
 
     for (;;) {
-      this.discardTracklessPlays();
-
       const batch = this.realm
         .objects(PlaybackHistoryEntry)
         .filtered('publishedAt == null AND destinationUserId == $0', capture.userId)
@@ -243,6 +246,7 @@ export class PlaybackHistoryReporter {
           logger.warn(
             `The account refused ${plays.length} plays (status ${error.status}); not sending them again`
           );
+          // Marked as published so the queue moves on; the account will never take these.
           this.markPublished(rowIds);
           continue;
         }
@@ -260,8 +264,6 @@ export class PlaybackHistoryReporter {
 
   /** Reports plays recorded signed out, one at a time, as before accounts. */
   private async reportAnonymousPlays() {
-    this.discardTracklessPlays();
-
     const waiting = this.realm
       .objects(PlaybackHistoryEntry)
       .filtered('publishedAt == null AND destinationUserId == null')

@@ -55,7 +55,9 @@ export default function PublicPlaylistPage() {
   usePlaylistHydration(snapshot?.playlist_id ?? '', groups, online);
 
   // The listener's own copy of this playlist: by code when it is already
-  // known here (offline included), or by ID once the snapshot names it.
+  // known here (offline included), or by ID once the snapshot names it. It
+  // is also how a successful follow leaves this page: the stored follow
+  // redirects to the playlist's own screen.
   const stored = useQuery(
     Playlist,
     (rows) =>
@@ -162,7 +164,6 @@ export default function PublicPlaylistPage() {
             description={snapshot.metadata.description ?? undefined}
             trackCount={publicTrackCount(snapshot)}
             groups={groups}
-            // On success the stored follow redirects this screen to it.
             follow={{ following: false, busy: reader.busy, onPress: () => reader.follow(snapshot) }}
           />
         }

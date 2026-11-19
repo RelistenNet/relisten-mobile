@@ -33,7 +33,7 @@ export function usePlaylistReaderActions() {
   // this screen, and a relaunch shouldn't follow something by surprise.
   const waitingForSignIn = useRef<PendingAction | undefined>(undefined);
 
-  const runOnce = useCallback((run: () => Promise<unknown>) => {
+  const runUnlessBusy = useCallback((run: () => Promise<unknown>) => {
     if (running.current) {
       return;
     }
@@ -45,10 +45,11 @@ export function usePlaylistReaderActions() {
     });
   }, []);
 
-  // The sheet has closed when this screen is focused again. The action runs
-  // only then: following can redirect this screen, and navigating under an
-  // open sheet races the sheet's own dismissal. Still signed out means the
-  // listener closed the sheet, so the action is dropped.
+  // The sign-in sheet always ends with `router.back()`, whether the listener
+  // signed in or chose Not Now, so the first focus after opening it is the
+  // sheet closing. The action runs only then: following can redirect this
+  // screen, and navigating under an open sheet races the sheet's dismissal.
+  // Still signed out means the sheet was closed, so the action is dropped.
   useFocusEffect(
     useCallback(() => {
       const pending = waitingForSignIn.current;
@@ -57,33 +58,33 @@ export function usePlaylistReaderActions() {
         return;
       }
       if (online) {
-        runOnce(pending.run);
+        runUnlessBusy(pending.run);
       } else {
-        alertOffline(pending.action);
+        alertOffline(pending.purpose);
       }
-    }, [signedIn, online, runOnce])
+    }, [signedIn, online, runUnlessBusy])
   );
 
   /**
-   * Runs `run` now, or after signing in. `action` finishes "Sign in to …" and
+   * Runs `run` now, or after signing in. `purpose` finishes "Sign in to …" and
    * "Connect to the internet to …". Offline comes first: signing in needs the
    * internet too.
    */
-  const whenReady = (action: string, run: () => Promise<unknown>) => {
+  const runSignedInAndOnline = (purpose: string, run: () => Promise<unknown>) => {
     if (!online) {
-      alertOffline(action);
+      alertOffline(purpose);
       return;
     }
     if (!signedIn) {
-      waitingForSignIn.current = { action, run };
-      openSignInSheet(router, action);
+      waitingForSignIn.current = { purpose, run };
+      openSignInSheet(router, purpose);
       return;
     }
-    runOnce(run);
+    runUnlessBusy(run);
   };
 
   const follow = (snapshot: PublicPlaylistSnapshot) =>
-    whenReady('follow this playlist', async () => {
+    runSignedInAndOnline('follow this playlist', async () => {
       try {
         await sharing.follow(snapshot);
         showPlaylistToast(`Following ${snapshot.metadata.name}`);
@@ -98,7 +99,7 @@ export function usePlaylistReaderActions() {
    * and can follow it again with one tap; otherwise this goes back.
    */
   const unfollow = (playlistId: string, name: string, publicCode?: string) =>
-    whenReady('unfollow this playlist', async () => {
+    runSignedInAndOnline('unfollow this playlist', async () => {
       try {
         await sharing.unfollow(playlistId);
         if (publicCode) {
@@ -116,7 +117,7 @@ export function usePlaylistReaderActions() {
     });
 
   const copy = (publicCode: string, name: string) =>
-    whenReady('copy this playlist', async () => {
+    runSignedInAndOnline('copy this playlist', async () => {
       try {
         const playlistId = await sharing.copy(publicCode, name);
         openPlaylist(router, playlistId, groupSegment);
@@ -127,7 +128,8 @@ export function usePlaylistReaderActions() {
     });
 
   const report = (publicCode: string, name: string) =>
-    whenReady('report this playlist', async () => {
+    // Async only to fit the gate; opening the report sheet is immediate.
+    runSignedInAndOnline('report this playlist', async () => {
       router.push({ pathname: '/relisten/report-playlist', params: { publicCode, name } });
     });
 
@@ -135,10 +137,11 @@ export function usePlaylistReaderActions() {
 }
 
 interface PendingAction {
-  action: string;
+  /** Finishes "Sign in to …", such as "follow this playlist". */
+  purpose: string;
   run: () => Promise<unknown>;
 }
 
-function alertOffline(action: string) {
-  Alert.alert(`Connect to the internet to ${action}.`);
+function alertOffline(purpose: string) {
+  Alert.alert(`Connect to the internet to ${purpose}.`);
 }

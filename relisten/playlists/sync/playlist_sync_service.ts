@@ -790,6 +790,29 @@ export class PlaylistSyncService {
    * go ahead, and a run is scheduled for when the wait ends.
    */
   private async pullFollowed(capture: AccountScopeCapture, userId: string) {
+    const { due, nextRetryAt: waitingUntil } = this.followsDueNow(userId);
+    let nextRetryAt = waitingUntil;
+
+    for (const playlistId of due) {
+      if (await this.tryFetchFollowedSnapshot(capture, userId, playlistId)) {
+        this.followedRetryAt.delete(playlistId);
+      } else {
+        this.followedRetryAt.set(playlistId, Date.now() + FOLLOWED_RETRY_DELAY_MS);
+        nextRetryAt = Math.min(nextRetryAt, Date.now() + FOLLOWED_RETRY_DELAY_MS);
+      }
+    }
+
+    if (nextRetryAt !== Infinity) {
+      this.schedule(nextRetryAt - Date.now());
+    }
+  }
+
+  /**
+   * The followed playlists to fetch now: opened ones, then the rest up to the
+   * run's budget, skipping any still waiting out a retry. `nextRetryAt` is the
+   * earliest of those waits, or Infinity.
+   */
+  private followsDueNow(userId: string) {
     const opened = this.takeOpenedFollows(userId);
     const now = Date.now();
     const due: string[] = [];
@@ -807,22 +830,14 @@ export class PlaylistSyncService {
         due.push(playlistId);
       }
     }
-
-    for (const playlistId of due) {
-      if (await this.followedSnapshotSettled(capture, userId, playlistId)) {
-        this.followedRetryAt.delete(playlistId);
-      } else {
-        this.followedRetryAt.set(playlistId, Date.now() + FOLLOWED_RETRY_DELAY_MS);
-        nextRetryAt = Math.min(nextRetryAt, Date.now() + FOLLOWED_RETRY_DELAY_MS);
-      }
-    }
-
-    if (nextRetryAt !== Infinity) {
-      this.schedule(nextRetryAt - Date.now());
-    }
+    return { due, nextRetryAt };
   }
 
-  /** Removes the followed playlists from the open checks, which `pull` leaves, and returns them. */
+  /**
+   * Takes the followed playlists out of the open checks and returns them.
+   * `pull` only clears owned playlists' checks, and follows don't record
+   * `lastChecked`, so opening one always asks for a fetch.
+   */
   private takeOpenedFollows(userId: string): Set<string> {
     const opened = new Set<string>();
     for (const playlistId of this.checkRequested) {
@@ -835,8 +850,11 @@ export class PlaylistSyncService {
     return opened;
   }
 
-  /** Fetches one followed playlist. False means it should be fetched again after a wait. */
-  private async followedSnapshotSettled(
+  /**
+   * Fetches one followed playlist, turning a failure into "fetch again after
+   * a wait" (false). An account switch still stops the run.
+   */
+  private async tryFetchFollowedSnapshot(
     capture: AccountScopeCapture,
     userId: string,
     playlistId: string

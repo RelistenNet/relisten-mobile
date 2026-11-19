@@ -17,8 +17,9 @@ export const TAKEN_DOWN_PLAYLIST: [title: string, detail: string] = [
 ];
 
 /**
- * The alert for a sharing failure the listener can act on. Failures not listed
- * here (a dropped connection, a server error) get the caller's "Try again" toast.
+ * The alert for a sharing failure the listener can act on. `retry` (a dropped
+ * connection, a server error) isn't listed, so it gets the caller's "Try
+ * again" toast.
  */
 const FAILURE_ALERTS: FailureAlerts = {
   unavailable: UNAVAILABLE_PLAYLIST,
@@ -27,6 +28,7 @@ const FAILURE_ALERTS: FailureAlerts = {
     'Your account is full.',
     'An account can follow up to 500 playlists and hold up to 250. Remove some, then try again.',
   ],
+  signed_out: ['You’re signed out.', 'Sign in again from your account, then try again.'],
   rate_limited: [
     'You’ve done that several times in the last minute.',
     'Wait a moment, then try again.',
