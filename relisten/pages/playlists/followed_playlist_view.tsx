@@ -1,4 +1,5 @@
 import { Stack, useFocusEffect } from 'expo-router';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useCallback, useState } from 'react';
 import { View } from 'react-native';
 import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
@@ -30,6 +31,7 @@ export function FollowedPlaylistView({
   groups: PlaylistRowGroup[];
 }) {
   const online = useShouldMakeNetworkRequests();
+  const headerHeight = useHeaderHeight();
   const syncService = usePlaylistSyncService();
   const reader = usePlaylistReaderActions();
   const [downloadedOnly, setDownloadedOnly] = useState(false);
@@ -47,7 +49,8 @@ export function FollowedPlaylistView({
 
   return (
     <View className="flex-1 bg-relisten-blue-900">
-      <Stack.Screen options={{ title: name }} />
+      {/* The unavailable notice shows the name itself, below the transparent header. */}
+      <Stack.Screen options={{ title: unavailable ? '' : name }} />
       <Stack.Toolbar placement="right">
         <Stack.Toolbar.Menu accessibilityLabel="Playlist actions" icon={nativeMenuIcons.more}>
           {publicCode && !unavailable ? (
@@ -94,7 +97,10 @@ export function FollowedPlaylistView({
       </Stack.Toolbar>
 
       {unavailable ? (
-        <View className="flex-1 items-center px-8 pt-16" style={{ gap: 16 }}>
+        <View
+          className="flex-1 items-center px-8"
+          style={{ gap: 16, paddingTop: headerHeight + 24 }}
+        >
           <RelistenText className="text-center text-2xl font-bold">{name}</RelistenText>
           <RelistenText className="text-center text-gray-400">
             This playlist isn’t available anymore. Its owner may have made it private.

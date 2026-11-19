@@ -1,4 +1,5 @@
 import { Redirect, Stack, useLocalSearchParams } from 'expo-router';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
@@ -44,6 +45,7 @@ export default function PublicPlaylistPage() {
   const realm = useRealm();
   const groupSegment = useGroupSegment();
   const online = useShouldMakeNetworkRequests();
+  const headerHeight = useHeaderHeight();
   const sharing = usePlaylistSharingService();
   const reader = usePlaylistReaderActions();
   const [load, setLoad] = useState<Load>({ state: 'loading' });
@@ -100,7 +102,10 @@ export default function PublicPlaylistPage() {
 
   if (!snapshot) {
     return (
-      <View className="flex-1 items-center bg-relisten-blue-900 px-8 pt-16" style={{ gap: 16 }}>
+      <View
+        className="flex-1 items-center bg-relisten-blue-900 px-8"
+        style={{ gap: 16, paddingTop: headerHeight + 24 }}
+      >
         <Stack.Screen options={{ title: '' }} />
         {load.state === 'loading' && online ? (
           <ActivityIndicator color="white" />

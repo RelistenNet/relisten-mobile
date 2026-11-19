@@ -224,7 +224,7 @@ export default function PlaylistDetailPage() {
             <PlaylistViewHeader
               playlistId={playlistId}
               name={name}
-              byline={playlist.published ? 'Public' : undefined}
+              byline={sharingLine(playlist)}
               description={playlist.description}
               trackCount={playlist.entryCount}
               groups={allGroups}
@@ -306,4 +306,12 @@ function EditHeader({
 /** An account playlist this device hasn't fetched yet, such as a new copy: its rows are on their way. */
 function isLoading(playlist: Playlist) {
   return playlist.serverState === 'synced' && needsSnapshot(playlist) && playlist.entryCount === 0;
+}
+
+/** Whether others can see the playlist, under its name. */
+function sharingLine(playlist: Playlist) {
+  if (playlist.takenDown) {
+    return 'Removed from public view';
+  }
+  return playlist.published ? 'Public' : undefined;
 }
