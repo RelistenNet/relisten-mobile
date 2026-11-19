@@ -10,7 +10,7 @@ import {
 import { canAccessPlaylist, ownedDeletion } from '@/relisten/playlists/sync/playlist_sync_state';
 import { useAccountPlaylistGate } from '@/relisten/playlists/ui/account_playlist_gate';
 import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
-import type { Playlist } from '@/relisten/realm/models/playlists/playlist';
+import { Playlist } from '@/relisten/realm/models/playlists/playlist';
 import { usePlaylistSyncService } from '@/relisten/realm/root_services';
 import { useRealm } from '@/relisten/realm/schema';
 
@@ -56,11 +56,13 @@ export function usePlaylistLifecycle() {
     return deletion;
   };
 
-  const remove = (playlist: Playlist) => {
-    const { playlistId, name } = playlist;
-    if (!deletionNow(playlist)) {
+  /** Takes the ID and reads the row when pressed, like the share actions. */
+  const remove = (playlistId: string) => {
+    const playlist = realm.objectForPrimaryKey(Playlist, playlistId);
+    if (!playlist || !deletionNow(playlist)) {
       return;
     }
+    const { name } = playlist;
 
     confirmDestructiveAction({
       title: `Delete ${name}?`,

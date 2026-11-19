@@ -40,12 +40,15 @@ export default function PlaylistDetailPage() {
   const allGroups = usePlaylistGroups(playlistId);
   const layout = usePlaylistLayout(allGroups);
   const [editing, setEditing] = useState(false);
-  // Name and description edits are drafts until Done (or leaving the screen) commits them.
-  const [draft, setDraft] = useState({ name: '', description: '' });
-  const draftRef = useRef<typeof draft | null>(null);
+  // Name and description edits are drafts until Done (or leaving the screen)
+  // commits them. The header holds the text as it's typed; this ref keeps the
+  // latest draft for committing, so typing doesn't re-render the page.
+  const draftRef = useRef<Draft | null>(null);
   // What the fields held when editing began. Only fields the listener changed
   // are saved, so an untouched field never undoes another device's edit.
-  const initialDraftRef = useRef<typeof draft>({ name: '', description: '' });
+  const initialDraftRef = useRef<Draft>({ name: '', description: '' });
+  // The same starting values, for the header to start from on render.
+  const [initialDraft, setInitialDraft] = useState<Draft>({ name: '', description: '' });
   const [downloadedOnly, setDownloadedOnly] = useState(false);
   const nameInput = useRef<TextInputInstance>(null);
   const [focusName, setFocusName] = useState(false);
@@ -88,19 +91,20 @@ export default function PlaylistDetailPage() {
     return <FollowedPlaylistView playlist={playlist} groups={allGroups} />;
   }
 
+  // The toolbar's actions read only these primitives (and IDs), so its menu
+  // isn't rebuilt and re-sent to native on every write to the playlist or
+  // every track that loads.
   const name = playlist.name;
+  const description = playlist.description ?? '';
+  const lastSegmentId = allGroups[allGroups.length - 1]?.segment.segmentId;
   const addTextSection = () =>
-    openGuideTextEditor(router, {
-      kind: 'section',
-      playlistId,
-      afterSegmentId: allGroups[allGroups.length - 1]?.segment.segmentId,
-    });
-  const deletePlaylist = () => lifecycle.remove(playlist);
+    openGuideTextEditor(router, { kind: 'section', playlistId, afterSegmentId: lastSegmentId });
+  const deletePlaylist = () => lifecycle.remove(playlistId);
   const startEditing = () => {
-    const initial = { name, description: playlist.description ?? '' };
+    const initial = { name, description };
     draftRef.current = initial;
     initialDraftRef.current = initial;
-    setDraft(initial);
+    setInitialDraft(initial);
     setEditing(true);
   };
   const finishEditing = () => {
@@ -112,9 +116,8 @@ export default function PlaylistDetailPage() {
     setFocusName(false);
     syncService.flush();
   };
-  const updateDraft = (next: typeof draft) => {
+  const updateDraft = (next: Draft) => {
     draftRef.current = next;
-    setDraft(next);
   };
   // Rename opens edit mode with the name field focused as it appears.
   const startRename = () => {
@@ -170,14 +173,14 @@ export default function PlaylistDetailPage() {
           <Stack.Toolbar.Menu inline>
             <Stack.Toolbar.MenuAction
               icon={nativeMenuIcons.share}
-              onPress={() => shareActions.share(playlist)}
+              onPress={() => shareActions.share(playlistId)}
             >
               Share…
             </Stack.Toolbar.MenuAction>
             {playlist.published && (
               <Stack.Toolbar.MenuAction
                 icon={nativeMenuIcons.lock}
-                onPress={() => shareActions.makePrivate(playlist)}
+                onPress={() => shareActions.makePrivate(playlistId)}
               >
                 Make Private
               </Stack.Toolbar.MenuAction>
@@ -201,7 +204,7 @@ export default function PlaylistDetailPage() {
           layout={layout}
           header={
             <EditHeader
-              draft={draft}
+              initialDraft={initialDraft}
               onChange={updateDraft}
               nameInput={nameInput}
               focusName={focusName}
@@ -237,12 +240,7 @@ export default function PlaylistDetailPage() {
   );
 }
 
-function commitDetails(
-  realm: Realm,
-  playlistId: string,
-  draft: { name: string; description: string },
-  initial: { name: string; description: string }
-) {
+function commitDetails(realm: Realm, playlistId: string, draft: Draft, initial: Draft) {
   const nameChanged = draft.name !== initial.name;
   updatePlaylistDetails(realm, playlistId, {
     // An emptied name keeps the old one rather than leaving the playlist unnamed.
@@ -252,7 +250,7 @@ function commitDetails(
 }
 
 function EditHeader({
-  draft,
+  initialDraft,
   onChange,
   nameInput,
   focusName,
@@ -260,10 +258,16 @@ function EditHeader({
 }: {
   focusName: boolean;
   onAddText: () => void;
-  draft: { name: string; description: string };
-  onChange: (draft: { name: string; description: string }) => void;
+  initialDraft: Draft;
+  onChange: (draft: Draft) => void;
   nameInput: React.RefObject<TextInputInstance | null>;
 }) {
+  const [draft, setDraft] = useState(initialDraft);
+  const update = (next: Draft) => {
+    setDraft(next);
+    onChange(next);
+  };
+
   return (
     <View className="px-4 pb-4 pt-2">
       <TextInput
@@ -273,7 +277,7 @@ function EditHeader({
         className="rounded-lg bg-relisten-blue-800 px-3 py-3 text-xl font-bold text-white"
         maxLength={PLAYLIST_LIMITS.nameLength}
         value={draft.name}
-        onChangeText={(name) => onChange({ ...draft, name })}
+        onChangeText={(name) => update({ ...draft, name })}
         returnKeyType="done"
       />
       <TextInput
@@ -284,7 +288,7 @@ function EditHeader({
         placeholder="Add a description"
         placeholderTextColor="#9ca3af"
         value={draft.description}
-        onChangeText={(description) => onChange({ ...draft, description })}
+        onChangeText={(description) => update({ ...draft, description })}
       />
       {/* One way in, instead of a control in every gap: new text goes at the end,
           and its handle drags it into place like a track. */}
@@ -314,4 +318,9 @@ function sharingLine(playlist: Playlist) {
     return 'Removed from public view';
   }
   return playlist.published ? 'Public' : undefined;
+}
+
+interface Draft {
+  name: string;
+  description: string;
 }

@@ -1,5 +1,6 @@
 import { Alert, Platform, Share } from 'react-native';
-import type { Playlist } from '@/relisten/realm/models/playlists/playlist';
+import { Playlist } from '@/relisten/realm/models/playlists/playlist';
+import { useRealm } from '@/relisten/realm/schema';
 import { publicPlaylistUrl } from '@/relisten/playlists/sharing/sharing_wire';
 import { useAccountPlaylistGate } from '@/relisten/playlists/ui/account_playlist_gate';
 import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
@@ -20,8 +21,12 @@ export function sharePlaylistLink(name: string, publicCode: string) {
  * Share… and Make Private for a playlist the listener made. Both need the
  * playlist saved to the signed-in account and the internet, and are never
  * queued; the first share asks to make it public.
+ *
+ * They take the playlist's ID and read the row when pressed, so a screen's
+ * menu doesn't change (and re-send itself to native) on every write to it.
  */
 export function usePlaylistShareActions() {
+  const realm = useRealm();
   const sharing = usePlaylistSharingService();
   const canReachAccount = useAccountPlaylistGate();
 
@@ -56,8 +61,9 @@ export function usePlaylistShareActions() {
     }
   };
 
-  const share = (playlist: Playlist) => {
-    if (!canShare(playlist)) {
+  const share = (playlistId: string) => {
+    const playlist = realm.objectForPrimaryKey(Playlist, playlistId);
+    if (!playlist || !canShare(playlist)) {
       return;
     }
     if (playlist.published && playlist.publicCode) {
@@ -74,11 +80,12 @@ export function usePlaylistShareActions() {
     );
   };
 
-  const makePrivate = (playlist: Playlist) => {
-    if (!canReachAccount(playlist, 'make private')) {
+  const makePrivate = (playlistId: string) => {
+    const playlist = realm.objectForPrimaryKey(Playlist, playlistId);
+    if (!playlist || !canReachAccount(playlist, 'make private')) {
       return;
     }
-    const { playlistId, name } = playlist;
+    const { name } = playlist;
     Alert.alert(
       'Make this playlist private?',
       'Its link stops working, and people who follow it see it as unavailable.',

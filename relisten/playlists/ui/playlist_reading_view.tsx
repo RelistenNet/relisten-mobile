@@ -1,5 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import React, { useMemo } from 'react';
+import React, { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { FlatList, type FlatListProps, useWindowDimensions, View } from 'react-native';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
@@ -12,6 +12,7 @@ import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_
 import { humanDuration, playlistSizeLine } from '@/relisten/playlists/playlist_format';
 import {
   summarizePlaylist,
+  useIdentityReuse,
   usePlaylistLayout,
   type PlaylistRowGroup,
 } from '@/relisten/playlists/playlist_hooks';
@@ -27,8 +28,10 @@ import {
   PlaylistTrackRow,
   type PlaylistViewRow,
   playlistViewRows,
+  reuseUnchangedViewRows,
   usePlayingEntryId,
 } from '@/relisten/playlists/ui/playlist_rows';
+import { trackMenuPlace } from '@/relisten/playlists/ui/playlist_menus';
 import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 
@@ -63,27 +66,48 @@ export function PlaylistReadingList({
   const layout = usePlaylistLayout(groups);
   const playingEntryId = usePlayingEntryId(playlistId);
   const scrollProps = usePlayerBottomScrollViewProps({});
+  const keepUnchangedViewRows = useIdentityReuse(reuseUnchangedViewRows, []);
   // The groups update as downloads finish, which keeps Show Downloaded Only current.
+  // Menus act on the whole playlist, so their places come from every group.
   const viewRows = useMemo(
-    () => playlistViewRows(downloadedOnly ? filterDownloaded(groups) : groups),
-    [groups, downloadedOnly]
+    () =>
+      keepUnchangedViewRows(
+        playlistViewRows(downloadedOnly ? filterDownloaded(groups) : groups, (entryId) =>
+          trackMenuPlace(layout, entryId)
+        )
+      ),
+    [groups, layout, downloadedOnly, keepUnchangedViewRows]
   );
   const playingSegmentId = playingEntryId
     ? layout.groups[layout.entryPositions.get(playingEntryId)?.groupIndex ?? -1]?.segment.segmentId
     : undefined;
 
-  const play = (entryId: string) => {
-    if (!playPlaylist(player, playlistId, groups, online, entryId)) {
-      showPlaylistToast('This track isn’t downloaded.');
-    }
-  };
-  const playTimestamp = (entryId: string, seconds: number) => {
-    if (!playEntryAt(player, playlistId, groups, online, entryId, seconds)) {
-      showPlaylistToast(
-        online ? 'That part isn’t available right now.' : 'That track isn’t downloaded.'
-      );
-    }
-  };
+  // Row callbacks read the playlist when tapped, so they stay the same function
+  // as tracks load and every memoized row isn't re-rendered for a new one.
+  const latest = useRef({ groups, online });
+  useLayoutEffect(() => {
+    latest.current = { groups, online };
+  });
+  const play = useCallback(
+    (entryId: string) => {
+      const { groups, online } = latest.current;
+      if (!playPlaylist(player, playlistId, groups, online, entryId)) {
+        showPlaylistToast('This track isn’t downloaded.');
+      }
+    },
+    [player, playlistId]
+  );
+  const playTimestamp = useCallback(
+    (entryId: string, seconds: number) => {
+      const { groups, online } = latest.current;
+      if (!playEntryAt(player, playlistId, groups, online, entryId, seconds)) {
+        showPlaylistToast(
+          online ? 'That part isn’t available right now.' : 'That track isn’t downloaded.'
+        );
+      }
+    },
+    [player, playlistId]
+  );
 
   return (
     <DisappearingHeaderScreen
@@ -97,8 +121,7 @@ export function PlaylistReadingList({
         </RelistenText>
       }
       renderItem={({ item }) => {
-        const linkPlaying =
-          item.link !== undefined && item.group.segment.segmentId === playingSegmentId;
+        const linkPlaying = item.link !== undefined && item.segmentId === playingSegmentId;
         if (item.kind === 'intro') {
           return (
             <PlaylistIntroRow
@@ -111,7 +134,6 @@ export function PlaylistReadingList({
         return item.row.status === 'text' ? (
           <PlaylistTextRow
             playlistId={playlistId}
-            layout={layout}
             viewRow={item}
             editable={editable}
             linkPlaying={linkPlaying}
@@ -120,7 +142,6 @@ export function PlaylistReadingList({
         ) : (
           <PlaylistTrackRow
             playlistId={playlistId}
-            layout={layout}
             viewRow={item}
             editable={editable}
             online={online}

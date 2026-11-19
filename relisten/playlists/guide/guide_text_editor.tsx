@@ -42,7 +42,9 @@ export default function GuideTextEditorScreen() {
   const sheetHeaderHeight = useHeaderHeight();
   const topInset = Platform.OS === 'ios' ? sheetHeaderHeight : 0;
   const editing = useMemo(() => (target ? describeTarget(realm, target) : null), [realm, target]);
-  const [markdown, setMarkdown] = useState(editing?.initialText ?? '');
+  // The input is uncontrolled, so the text lives in a ref: typing re-renders
+  // nothing, and Save reads the latest text when it's tapped.
+  const markdown = useRef(editing?.initialText ?? '');
   const [panel, setPanel] = useState<'link' | 'timestamp' | null>(null);
   const input = useRef<EnrichedMarkdownTextInputInstance>(null);
 
@@ -63,7 +65,7 @@ export default function GuideTextEditorScreen() {
 
     let changed: boolean;
     try {
-      changed = saveGuideText(realm, target, markdown);
+      changed = saveGuideText(realm, target, markdown.current);
     } catch (error) {
       // An alert, since the sheet covers the toast. The draft stays open.
       Alert.alert(error instanceof Error ? error.message : 'Couldn’t save that.');
@@ -134,7 +136,9 @@ export default function GuideTextEditorScreen() {
           strikethrough: { enabled: false },
           spoiler: { enabled: false },
         }}
-        onChangeMarkdown={setMarkdown}
+        onChangeMarkdown={(text) => {
+          markdown.current = text;
+        }}
       />
     </View>
   );

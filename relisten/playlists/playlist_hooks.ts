@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Realm from 'realm';
 import { useObject, useQuery, useRealm } from '@/relisten/realm/schema';
 import {
@@ -93,51 +93,53 @@ function catalogViewOf(
  * device. Lists show unowned playlists plus that owner's; another account's
  * playlists stay on the device, hidden until it signs in again.
  */
-export function useVisibleOwnerId(): string | null {
+export function useVisibleLibraryUserId(): string | null {
   return useObject(PlaylistDeviceState, PLAYLIST_DEVICE_STATE_ID)?.lastSignedInUserId ?? null;
 }
 
 const VISIBLE = '(libraryUserId == null OR libraryUserId == $0)';
 
 /** The playlists lists show, most recently edited first. Used by screens and CarPlay. */
-export function visiblePlaylists(rows: Realm.Results<Playlist>, owner: string | null) {
+export function visiblePlaylists(rows: Realm.Results<Playlist>, libraryUserId: string | null) {
   return rows
-    .filtered(`${VISIBLE} AND deletedAt == null AND archived == false`, owner)
+    .filtered(`${VISIBLE} AND deletedAt == null AND archived == false`, libraryUserId)
     .sorted('updatedAt', true);
 }
 
 export function usePlaylists() {
-  const owner = useVisibleOwnerId();
-  return useQuery(Playlist, (rows) => visiblePlaylists(rows, owner), [owner]);
+  const libraryUserId = useVisibleLibraryUserId();
+  return useQuery(Playlist, (rows) => visiblePlaylists(rows, libraryUserId), [libraryUserId]);
 }
 
 /** The visible playlists the listener made, which are the ones music can be added to. */
 export function useEditablePlaylists() {
-  const owner = useVisibleOwnerId();
+  const libraryUserId = useVisibleLibraryUserId();
   return useQuery(
     Playlist,
-    (rows) => visiblePlaylists(rows, owner).filtered('access == $0', 'owner'),
-    [owner]
+    (rows) => visiblePlaylists(rows, libraryUserId).filtered('access == $0', 'owner'),
+    [libraryUserId]
   );
 }
 
 /** Deleted device playlists (kept 30 days) and archived account playlists. */
 export function useDeletedPlaylists() {
-  const owner = useVisibleOwnerId();
+  const libraryUserId = useVisibleLibraryUserId();
   return useQuery(
     Playlist,
     (rows) =>
-      rows.filtered(`${VISIBLE} AND (deletedAt != null OR archived == true)`, owner).sorted([
-        ['deletedAt', true],
-        ['updatedAt', true],
-      ]),
-    [owner]
+      rows
+        .filtered(`${VISIBLE} AND (deletedAt != null OR archived == true)`, libraryUserId)
+        .sorted([
+          ['deletedAt', true],
+          ['updatedAt', true],
+        ]),
+    [libraryUserId]
   );
 }
 
 /** The playlist, unless it belongs to an account other than the current one. */
 export function usePlaylist(playlistId: string) {
-  const owner = useVisibleOwnerId();
+  const owner = useVisibleLibraryUserId();
   const playlist = useObject(Playlist, playlistId);
   return playlist && (!playlist.libraryUserId || playlist.libraryUserId === owner)
     ? playlist
@@ -153,6 +155,12 @@ export interface PlaylistRowEntry {
   status: PlaylistTrackStatus;
   /** The description sanitized for rendering: a track's note or a text block's text. */
   descriptionMarkdown?: string;
+  /**
+   * What the row shows from its track (title, duration, download status and
+   * kind) when the row was built. `sourceTrack` is a live object, so this copy
+   * is what tells a reused row apart from one whose track changed.
+   */
+  trackDisplay?: string;
 }
 
 export interface PlaylistRowGroup {
@@ -167,25 +175,133 @@ export function entryTrackIds(entries: Iterable<{ trackId?: string }>): string[]
   return [...entries].flatMap((entry) => (entry.trackId ? [entry.trackId] : []));
 }
 
+/**
+ * The fields rows display. Sync bookkeeping (the `canonical*` fields) is left
+ * out so confirming an edit doesn't rebuild an open playlist; rows leaving or
+ * joining the query always notify, whatever the key paths.
+ */
+const DISPLAYED_SEGMENT_FIELDS = [
+  'segmentId',
+  'rank',
+  'live',
+  'description',
+  'descriptionMarkdown',
+  'descriptionMarkdownKey',
+];
+const DISPLAYED_ENTRY_FIELDS = [...DISPLAYED_SEGMENT_FIELDS, 'entryId', 'trackId'];
+
 /** The playlist's groups in order, with each entry's catalog track and whether it can play. */
 export function usePlaylistGroups(playlistId: string): PlaylistRowGroup[] {
   const realm = useRealm();
   const segments = useQuery(
-    PlaylistSegment,
-    (rows) => rows.filtered('playlistId == $0 AND live == true', playlistId),
+    {
+      type: PlaylistSegment,
+      query: (rows) => rows.filtered('playlistId == $0 AND live == true', playlistId),
+      keyPaths: DISPLAYED_SEGMENT_FIELDS,
+    },
     [playlistId]
   );
   const entries = useQuery(
-    PlaylistEntry,
-    (rows) => rows.filtered('playlistId == $0 AND live == true', playlistId),
+    {
+      type: PlaylistEntry,
+      query: (rows) => rows.filtered('playlistId == $0 AND live == true', playlistId),
+      keyPaths: DISPLAYED_ENTRY_FIELDS,
+    },
     [playlistId]
   );
-  const trackIds = useMemo(() => [...new Set(entryTrackIds(entries))], [entries]);
+  const trackIds = useStableIds(entryTrackIds(entries));
   const { availability, tracks } = useCatalogTracks(trackIds);
+  const keepUnchangedRows = useIdentityReuse(reuseUnchangedRows, []);
 
   return useMemo(
-    () => buildRowGroups(realm, segments, entries, catalogViewOf(availability, tracks)),
-    [realm, segments, entries, availability, tracks]
+    () =>
+      keepUnchangedRows(
+        buildRowGroups(realm, segments, entries, catalogViewOf(availability, tracks))
+      ),
+    [realm, segments, entries, availability, tracks, keepUnchangedRows]
+  );
+}
+
+/**
+ * The same IDs, as an array that only changes when the set does. The catalog
+ * queries take it as a dependency, so a reorder or note edit keeps their
+ * listeners instead of re-subscribing.
+ */
+function useStableIds(ids: Iterable<string>): string[] {
+  const key = [...new Set(ids)].sort().join('\n');
+  return useMemo(() => (key === '' ? [] : key.split('\n')), [key]);
+}
+
+/**
+ * A function that passes each new build through `reuse` with the build before
+ * it, so objects whose content is unchanged keep their identity and memoized
+ * rows skip re-rendering. Call it inside the `useMemo` that builds. The memory
+ * is a closure rather than state: updating it never re-renders, and a render
+ * React discards only changes which equal objects get reused.
+ */
+export function useIdentityReuse<T>(reuse: (previous: T, next: T) => T, initial: T) {
+  const [keep] = useState(() => {
+    let last = initial;
+    return (next: T) => {
+      last = reuse(last, next);
+      return last;
+    };
+  });
+  return keep;
+}
+
+/**
+ * `next`, with each entry row and group that matches the previous build swapped
+ * for the previous object, so identity changes only where content did. The
+ * array itself is always new: the header's totals and Show Downloaded Only
+ * read it as a whole, and must update when any track does.
+ */
+export function reuseUnchangedRows(
+  previous: PlaylistRowGroup[],
+  next: PlaylistRowGroup[]
+): PlaylistRowGroup[] {
+  const previousRows = new Map(
+    previous.flatMap((group) => group.entries.map((row) => [row.entry.entryId, row] as const))
+  );
+  const previousGroups = new Map(previous.map((group) => [group.segment.segmentId, group]));
+
+  return next.map((group) => {
+    const entries = group.entries.map((row) => {
+      const old = previousRows.get(row.entry.entryId);
+      return old && sameRowEntry(old, row) ? old : row;
+    });
+    const old = previousGroups.get(group.segment.segmentId);
+    const unchanged =
+      old !== undefined &&
+      shallowEqual(old.segment, group.segment) &&
+      old.descriptionMarkdown === group.descriptionMarkdown &&
+      old.entries.length === entries.length &&
+      old.entries.every((row, index) => row === entries[index]);
+    return unchanged ? old : { ...group, entries };
+  });
+}
+
+/**
+ * Whether two builds of an entry render the same. A track's catalog fields
+ * (title, show, duration) are compared by the track object's identity, which
+ * Realm keeps until the track is replaced; its download state by the copy taken
+ * at build time.
+ */
+function sameRowEntry(a: PlaylistRowEntry, b: PlaylistRowEntry): boolean {
+  return (
+    shallowEqual(a.entry, b.entry) &&
+    a.sourceTrack === b.sourceTrack &&
+    a.status === b.status &&
+    a.descriptionMarkdown === b.descriptionMarkdown &&
+    a.trackDisplay === b.trackDisplay
+  );
+}
+
+function shallowEqual<T extends object>(a: T, b: T): boolean {
+  const keys = Object.keys(a) as (keyof T)[];
+  return (
+    keys.length === Object.keys(b).length &&
+    keys.every((key) => Object.prototype.hasOwnProperty.call(b, key) && a[key] === b[key])
   );
 }
 
@@ -200,10 +316,11 @@ export function useSnapshotRowGroups(
   const realm = useRealm();
   const snapshot = useMemo(() => snapshotRows(segments), [segments]);
   const { availability, tracks } = useCatalogTracks(snapshot.trackIds);
+  const keepUnchangedRows = useIdentityReuse(reuseUnchangedRows, []);
 
   return useMemo(() => {
     const catalog = catalogViewOf(availability, tracks);
-    return orderedGroups(snapshot.states).map((group) => ({
+    const groups = orderedGroups(snapshot.states).map((group) => ({
       segment: group.segment,
       descriptionMarkdown: snapshot.markdown(group.segment.segmentId, { kind: 'segment' }),
       entries: group.entries.map((entry) =>
@@ -214,7 +331,8 @@ export function useSnapshotRowGroups(
         )
       ),
     }));
-  }, [realm, snapshot, availability, tracks]);
+    return keepUnchangedRows(groups);
+  }, [realm, snapshot, availability, tracks, keepUnchangedRows]);
 }
 
 /**
@@ -278,18 +396,19 @@ function snapshotRows(segments: PlaylistSnapshotResponse['segments']) {
  */
 function useCatalogTracks(trackIds: string[]) {
   // Only this playlist's availability records, so a resolver write for another
-  // playlist doesn't rebuild these rows.
+  // playlist doesn't rebuild these rows. `checkedAt` changes on every recheck
+  // without changing what rows show.
   const availability = useQuery(
-    PlaylistTrackAvailability,
-    (rows) => rows.filtered('trackId IN $0', trackIds),
+    {
+      type: PlaylistTrackAvailability,
+      query: (rows) => rows.filtered('trackId IN $0', trackIds),
+      keyPaths: ['status', 'redirectTrackId'],
+    },
     [trackIds]
   );
   // Entries only hold IDs, so watch the catalog tracks rows actually render: the
   // redirect target when a recording moved, otherwise the entry's own track.
-  const trackUuids = useMemo(
-    () => playableTrackUuids(trackIds, availability),
-    [trackIds, availability]
-  );
+  const trackUuids = useStableIds(playableTrackUuids(trackIds, availability));
   // Rows read download status, soft deletion, and the show, source, and artist
   // links; download progress ticks are left out so they don't re-render.
   const tracks = useQuery(
@@ -387,7 +506,11 @@ function rowEntry(
     : sourceTrack
       ? 'playable'
       : 'loading';
-  return { entry, sourceTrack, status, descriptionMarkdown };
+  const offlineInfo = sourceTrack?.offlineInfo;
+  const trackDisplay = sourceTrack
+    ? `${sourceTrack.title}|${sourceTrack.duration}|${offlineInfo?.status}:${offlineInfo?.type}`
+    : undefined;
+  return { entry, sourceTrack, status, descriptionMarkdown, trackDisplay };
 }
 
 /** Totals for a playlist, shared by list rows and the playlist header. */
@@ -404,6 +527,19 @@ export interface PlaylistSummary {
 }
 
 export function summarizePlaylist(groups: PlaylistRowGroup[]): PlaylistSummary {
+  return summarizeTracks(
+    groups.flatMap((group) =>
+      group.entries.flatMap(({ entry, sourceTrack }) =>
+        entry.trackId ? [{ trackId: entry.trackId, track: sourceTrack }] : []
+      )
+    )
+  );
+}
+
+/** Totals over a playlist's track entries, in any order; text blocks are left out. */
+function summarizeTracks(
+  entries: Iterable<{ trackId: string; track: SourceTrack | null }>
+): PlaylistSummary {
   let durationSeconds = 0;
   let downloadable = 0;
   let downloaded = 0;
@@ -412,36 +548,31 @@ export function summarizePlaylist(groups: PlaylistRowGroup[]): PlaylistSummary {
   const artistCounts = new Map<string, number>();
   const trackIds = new Set<string>();
 
-  for (const group of groups) {
-    for (const { entry, sourceTrack: track } of group.entries) {
-      if (!entry.trackId) {
-        continue;
-      }
-      trackIds.add(entry.trackId);
-      if (!track) {
-        unresolved += 1;
-        continue;
-      }
-      durationSeconds += track.duration ?? 0;
-      artistCounts.set(track.artist.name, (artistCounts.get(track.artist.name) ?? 0) + 1);
-      if (!track.supportsOfflineDownload()) {
-        continue;
-      }
-      downloadable += 1;
-      const status = track.offlineInfo?.status;
-      // Same rule as the show screen: cached streaming audio isn't a download,
-      // so Download stays available to keep it.
-      if (
-        track.offlineInfo?.isPlayableOffline() &&
-        track.offlineInfo.type !== SourceTrackOfflineInfoType.StreamingCache
-      ) {
-        downloaded += 1;
-      } else if (
-        status === SourceTrackOfflineInfoStatus.Queued ||
-        status === SourceTrackOfflineInfoStatus.Downloading
-      ) {
-        downloading += 1;
-      }
+  for (const { trackId, track } of entries) {
+    trackIds.add(trackId);
+    if (!track) {
+      unresolved += 1;
+      continue;
+    }
+    durationSeconds += track.duration ?? 0;
+    artistCounts.set(track.artist.name, (artistCounts.get(track.artist.name) ?? 0) + 1);
+    if (!track.supportsOfflineDownload()) {
+      continue;
+    }
+    downloadable += 1;
+    const status = track.offlineInfo?.status;
+    // Same rule as the show screen: cached streaming audio isn't a download,
+    // so Download stays available to keep it.
+    if (
+      track.offlineInfo?.isPlayableOffline() &&
+      track.offlineInfo.type !== SourceTrackOfflineInfoType.StreamingCache
+    ) {
+      downloaded += 1;
+    } else if (
+      status === SourceTrackOfflineInfoStatus.Queued ||
+      status === SourceTrackOfflineInfoStatus.Downloading
+    ) {
+      downloading += 1;
     }
   }
 
@@ -456,10 +587,31 @@ export function summarizePlaylist(groups: PlaylistRowGroup[]): PlaylistSummary {
   };
 }
 
-/** A list row's summary, updated as tracks load and downloads finish. */
+/**
+ * A list row's summary, updated as tracks load and downloads finish. Lists
+ * mount one per playlist, so this reads only track entries and their catalog
+ * tracks: no segments, grouping or guide text.
+ */
 export function usePlaylistSummary(playlist: Playlist): PlaylistSummary {
-  const groups = usePlaylistGroups(playlist.playlistId);
-  return useMemo(() => summarizePlaylist(groups), [groups]);
+  const playlistId = playlist.playlistId;
+  const entries = useQuery(
+    {
+      type: PlaylistEntry,
+      query: (rows) =>
+        rows.filtered('playlistId == $0 AND live == true AND trackId != null', playlistId),
+      keyPaths: ['trackId'],
+    },
+    [playlistId]
+  );
+  const trackIds = useStableIds(entryTrackIds(entries));
+  const { availability, tracks } = useCatalogTracks(trackIds);
+
+  return useMemo(() => {
+    const catalog = catalogViewOf(availability, tracks);
+    return summarizeTracks(
+      entryTrackIds(entries).map((trackId) => ({ trackId, track: catalog.trackFor(trackId) }))
+    );
+  }, [entries, availability, tracks]);
 }
 
 /**

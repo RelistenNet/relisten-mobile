@@ -87,8 +87,13 @@ export function PlaylistDiagnostics() {
   const phoneOnly = playlists.filter((p) => !p.libraryUserId);
   const count = (rows: { length: number }) => rows.length;
   const byState = (state: string) => operations.filter((op) => op.state === state).length;
+  // One pass over the entries rather than a query per segment.
+  const entriesPerSegment = new Map<string, number>();
+  for (const entry of entries) {
+    entriesPerSegment.set(entry.segmentId, (entriesPerSegment.get(entry.segmentId) ?? 0) + 1);
+  }
   const linkedSegments = [...segments].filter(
-    (segment) => entries.filtered('segmentId == $0', segment.segmentId).length > 1
+    (segment) => (entriesPerSegment.get(segment.segmentId) ?? 0) > 1
   ).length;
   const generations = new Set(owned.map((p) => p.historyGeneration).filter(Boolean));
   const fromPlaylists = queue.filter((track) => track.playlistContext);
