@@ -223,13 +223,18 @@ export class FavoriteSyncService {
     }
   }
 
+  /** Replaces the library base with a fresh snapshot; it always sets a new cursor. */
+  private async pullSnapshot(capture: FavoriteAccountScopeCapture) {
+    const snapshot =
+      await this.accountsApi.request<FavoriteLibrarySnapshot>('/v1/library/snapshot');
+    this.adapter.applySnapshot(capture, snapshot);
+  }
+
   private async pullLibrary(capture: FavoriteAccountScopeCapture) {
     let syncState = this.runState.current(capture.scopeId);
 
     if (!syncState?.libraryCursor) {
-      const snapshot =
-        await this.accountsApi.request<FavoriteLibrarySnapshot>('/v1/library/snapshot');
-      this.adapter.applySnapshot(capture, snapshot);
+      await this.pullSnapshot(capture);
       syncState = this.runState.current(capture.scopeId);
     }
 
@@ -242,22 +247,25 @@ export class FavoriteSyncService {
         );
       } catch (error) {
         if (isExpiredCursor(error)) {
-          const snapshot =
-            await this.accountsApi.request<FavoriteLibrarySnapshot>('/v1/library/snapshot');
-          this.adapter.applySnapshot(capture, snapshot);
+          await this.pullSnapshot(capture);
           return;
         }
         throw error;
       }
 
       this.adapter.applyChanges(capture, page);
+      syncState = this.runState.current(capture.scopeId);
+      if (!syncState?.libraryCursor) {
+        // The page came from a restored server; a snapshot starts over and ends this run.
+        await this.pullSnapshot(capture);
+        return;
+      }
       if (!page.has_more) {
         return;
       }
       if (page.next_cursor === requestedCursor) {
         throw new Error('A paged favorite response did not advance its cursor.');
       }
-      syncState = this.runState.current(capture.scopeId);
     }
   }
 

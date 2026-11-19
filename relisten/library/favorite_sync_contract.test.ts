@@ -100,4 +100,40 @@ describe('typed favorite sync contract', () => {
       })
     ).not.toThrow();
   });
+
+  it('accepts playlist summaries and skips change types it does not know', () => {
+    const changeId = (n: number) =>
+      formatUuidTypedId('library_change', `01890a5d-ac96-774b-bcce-b302099a80${70 + n}`);
+    expect(() =>
+      validateFavoriteChanges({
+        contract_version: 1,
+        library_revision: 9,
+        next_cursor: 'opaque-next',
+        has_more: false,
+        history_generation: 'generation-1',
+        changes: [
+          {
+            change_id: changeId(1),
+            revision: 8,
+            change_type: 'playlist_summary',
+            playlist: {
+              playlist_id: formatUuidTypedId('playlist', '01890a5d-ac96-774b-bcce-b302099a8090'),
+              name: 'Cornell + friends',
+              entry_count: 3,
+              archived: false,
+              revision: 4,
+              updated_at: '2026-11-17T08:00:00Z',
+            },
+            changed_at: '2026-11-17T08:00:00Z',
+          },
+          {
+            change_id: changeId(2),
+            revision: 9,
+            change_type: 'playlist_removed',
+            changed_at: '2026-11-17T08:00:00Z',
+          },
+        ],
+      })
+    ).not.toThrow();
+  });
 });

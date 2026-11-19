@@ -63,4 +63,17 @@ describe('getAccountRuntimeConfig', () => {
       useUniversalLinkCallback: false,
     });
   });
+
+  it('signs a development build in to production auth like a release build', () => {
+    vi.stubGlobal('__DEV__', true);
+    platform.os = 'android';
+    vi.stubEnv('EXPO_PUBLIC_RELISTEN_AUTH_ISSUER', 'https://auth.relisten.net');
+    vi.stubEnv('EXPO_PUBLIC_RELISTEN_ACCOUNTS_ORIGIN', 'https://accounts.relisten.net');
+
+    expect(getAccountRuntimeConfig()).toMatchObject({
+      clientId: 'relisten-mobile-android',
+      redirectUri: 'https://relisten.net/auth/mobile/android/callback',
+      useUniversalLinkCallback: false,
+    });
+  });
 });

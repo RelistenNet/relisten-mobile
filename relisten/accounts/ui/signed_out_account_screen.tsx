@@ -20,15 +20,16 @@ export function SignedOutAccountScreen({
 }: SignedOutAccountScreenProps) {
   return (
     <ScrollView
-      className="flex-1 bg-relisten-blue-950"
-      contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}
+      className="flex-1 bg-relisten-blue-900"
+      contentContainerStyle={{ padding: 24, paddingTop: 40 }}
       keyboardShouldPersistTaps="handled"
     >
       <Flex column>
         <View className="mb-6">
-          <RelistenText className="text-3xl font-bold">Sync your favorites</RelistenText>
+          <RelistenText className="text-3xl font-bold">Sign in to Relisten</RelistenText>
           <RelistenText className="mt-2 text-gray-300">
-            Sign in to keep favorites available on your signed-in devices.
+            Save your favorites and playlists to your account and use them on your other devices.
+            Everything keeps working on this phone without an account.
           </RelistenText>
         </View>
 
@@ -56,7 +57,7 @@ export function SignedOutAccountScreen({
         </View>
 
         <RelistenText className="text-center text-sm text-gray-400">
-          Relisten does not create or store a separate password.
+          No new password needed.
         </RelistenText>
       </Flex>
     </ScrollView>

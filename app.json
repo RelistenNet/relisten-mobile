@@ -43,11 +43,6 @@
           "data": [
             {
               "scheme": "https",
-              "host": "*.relisten.net",
-              "pathPrefix": "/"
-            },
-            {
-              "scheme": "https",
               "host": "relisten.net",
               "pathPrefix": "/"
             }

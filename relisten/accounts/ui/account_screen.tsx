@@ -1,3 +1,4 @@
+import { usernamePath, useAccountTab } from '@/relisten/accounts/ui/account_routes';
 import { useAccount } from '@/relisten/accounts/account_context';
 import type { AccountProvider } from '@/relisten/accounts/auth/account_auth_types';
 import { accountErrorMessage } from '@/relisten/accounts/ui/account_error_notice';
@@ -20,6 +21,7 @@ export function AccountScreen() {
     presentImportPrompt,
   } = usePostSignInPrompts();
   const router = useRouter();
+  const tab = useAccountTab();
   const [actionError, setActionError] = useState<string | null>(null);
   const [openingProvider, setOpeningProvider] = useState<AccountProvider | null>(null);
   const [transitioning, setTransitioning] = useState(false);
@@ -90,7 +92,7 @@ export function AccountScreen() {
 
   if (account.status === 'restoring') {
     return (
-      <View className="flex-1 items-center justify-center gap-3 bg-relisten-blue-950 p-6">
+      <View className="flex-1 items-center justify-center gap-3 bg-relisten-blue-900 p-6">
         <ActivityIndicator color="white" size="large" />
         <RelistenText className="text-gray-300">Checking your account...</RelistenText>
       </View>
@@ -140,7 +142,7 @@ export function AccountScreen() {
       lastSuccessfulSyncAt={syncStatus.lastSuccessfulSyncAt}
       onImportFavorites={presentImportPrompt}
       onDiscardRejectedFavorites={syncStatus.discardRejected}
-      onReviewUsername={() => router.push('/relisten/account/username')}
+      onReviewUsername={() => router.push(usernamePath(tab))}
       onRetryFavoriteSync={syncStatus.retryFailed}
       onSignOut={confirmSignOut}
       onSwitchAccount={confirmSwitchAccount}

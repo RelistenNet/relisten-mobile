@@ -13,16 +13,21 @@ import { useCallback, useMemo } from 'react';
 import { Platform, Share } from 'react-native';
 import { playerTrackAccessibilityLabel } from './player_display_helpers';
 import { useFavorite } from '@/relisten/library/favorite_hooks';
+import { trackIdForSourceTrack } from '@/relisten/playlists/playlist_hooks';
+import { openAddToPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
+import { useRouter } from 'expo-router';
 
 export type PlayShow = (sourceTrack?: SourceTrack) => void;
 
 const ACTION_IDS = {
+  addToPlaylist: 'add-to-playlist',
   addToQueue: 'add-to-queue',
   download: 'download',
   favorite: 'favorite',
   playNext: 'play-next',
   playNow: 'play-now',
   removeDownload: 'remove-download',
+  select: 'select',
   share: 'share',
 } as const;
 
@@ -70,10 +75,17 @@ function downloadActionFor(sourceTrack: SourceTrack): MenuAction {
 type SourceTrackActionsMenuProps = {
   playShow: PlayShow;
   sourceTrack: SourceTrack;
+  /** Starts selecting tracks with this one checked; offered only where selection exists. */
+  onSelect?: () => void;
 };
 
-export function SourceTrackActionsMenu({ playShow, sourceTrack }: SourceTrackActionsMenuProps) {
+export function SourceTrackActionsMenu({
+  playShow,
+  sourceTrack,
+  onSelect,
+}: SourceTrackActionsMenuProps) {
   const player = useRelistenPlayer();
+  const router = useRouter();
   const favorite = useFavorite('track', sourceTrack.uuid);
   const queueTrack = useMemo(() => PlayerQueueTrack.fromSourceTrack(sourceTrack), [sourceTrack]);
   const offlineStatus = sourceTrack.offlineInfo?.status;
@@ -81,34 +93,51 @@ export function SourceTrackActionsMenu({ playShow, sourceTrack }: SourceTrackAct
   const actions = useMemo<MenuAction[]>(
     () => [
       {
-        id: ACTION_IDS.playNow,
-        image: nativeMenuIcons.play,
-        title: 'Play Now',
+        id: 'playback',
+        title: '',
+        displayInline: true,
+        subactions: [
+          { id: ACTION_IDS.playNow, image: nativeMenuIcons.play, title: 'Play Now' },
+          { id: ACTION_IDS.playNext, image: nativeMenuIcons.playNext, title: 'Play Next' },
+          {
+            id: ACTION_IDS.addToQueue,
+            image: nativeMenuIcons.addToQueue,
+            title: 'Add to End of Queue',
+          },
+        ],
       },
       {
-        id: ACTION_IDS.playNext,
-        image: nativeMenuIcons.playNext,
-        title: 'Play Next',
+        id: 'playlists',
+        title: '',
+        displayInline: true,
+        subactions: [
+          {
+            id: ACTION_IDS.addToPlaylist,
+            image: nativeMenuIcons.addToPlaylist,
+            title: 'Add to Playlist…',
+          },
+          ...(onSelect
+            ? [{ id: ACTION_IDS.select, image: nativeMenuIcons.select, title: 'Select Tracks' }]
+            : []),
+        ],
       },
       {
-        id: ACTION_IDS.addToQueue,
-        image: nativeMenuIcons.addToQueue,
-        title: 'Add to End of Queue',
-      },
-      {
-        id: ACTION_IDS.favorite,
-        image: nativeMenuIcons.favorite,
-        title: favorite.isFavorite ? 'Remove from My Library' : 'Add to My Library',
-        state: favorite.isFavorite ? 'on' : 'off',
-      },
-      downloadActionFor(sourceTrack),
-      {
-        id: ACTION_IDS.share,
-        image: nativeMenuIcons.share,
-        title: 'Share Track',
+        id: 'library',
+        title: '',
+        displayInline: true,
+        subactions: [
+          {
+            id: ACTION_IDS.favorite,
+            image: nativeMenuIcons.favorite,
+            title: favorite.isFavorite ? 'Remove from My Library' : 'Add to My Library',
+            state: favorite.isFavorite ? 'on' : 'off',
+          },
+          downloadActionFor(sourceTrack),
+          { id: ACTION_IDS.share, image: nativeMenuIcons.share, title: 'Share Track' },
+        ],
       },
     ],
-    [favorite.isFavorite, offlineStatus, offlineType, sourceTrack]
+    [favorite.isFavorite, offlineStatus, offlineType, onSelect, sourceTrack]
   );
 
   const handleAction = useCallback(
@@ -122,6 +151,12 @@ export function SourceTrackActionsMenu({ playShow, sourceTrack }: SourceTrackAct
           break;
         case ACTION_IDS.addToQueue:
           player.queue.addTrackToEndOfQueue([queueTrack]);
+          break;
+        case ACTION_IDS.addToPlaylist:
+          openAddToPlaylist(router, [trackIdForSourceTrack(sourceTrack)], { linkable: false });
+          break;
+        case ACTION_IDS.select:
+          onSelect?.();
           break;
         case ACTION_IDS.favorite:
           favorite.toggleFavorite();
@@ -144,7 +179,7 @@ export function SourceTrackActionsMenu({ playShow, sourceTrack }: SourceTrackAct
         }
       }
     },
-    [favorite, playShow, player, queueTrack, sourceTrack]
+    [favorite, onSelect, playShow, player, queueTrack, router, sourceTrack]
   );
 
   return (

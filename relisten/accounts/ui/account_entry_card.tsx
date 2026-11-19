@@ -1,57 +1,76 @@
+import { accountPath } from '@/relisten/accounts/ui/account_routes';
 import { useAccount } from '@/relisten/accounts/account_context';
-import { SyncStatusText, isAccountWaitingToRestore } from '@/relisten/accounts/ui/sync_status';
+import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { useFavoriteSyncStatus } from '@/relisten/library/favorite_hooks';
+import { usePlaylists } from '@/relisten/playlists/playlist_hooks';
+import {
+  useFavoriteCatalogUuids,
+  useLibraryShowCatalogUuids,
+} from '@/relisten/realm/root_services';
 import { MaterialIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 
-export function AccountEntryCard() {
-  const { error, pendingUsername, profile, status } = useAccount();
-  const syncStatus = useFavoriteSyncStatus();
-  const router = useRouter();
-  const signedIn = status === 'signedIn' && profile;
-  const syncState =
-    syncStatus.state === 'needsAttention'
-      ? syncStatus.state
-      : isAccountWaitingToRestore(error)
-        ? 'waiting'
-        : syncStatus.state;
+const DISMISSED_KEY = 'myLibrary.signInPromptDismissed';
 
-  const title = signedIn
-    ? `@${profile.username}`
-    : status === 'restoring'
-      ? 'Checking your account...'
-      : 'Sync your favorites';
-  const description = signedIn
-    ? pendingUsername
-      ? `@${pendingUsername} is waiting to sync.`
-      : profile.usernameReviewNeeded
-        ? 'Review the username other listeners will see.'
-        : 'Favorites stay available on your signed-in devices.'
-    : 'Sign in to keep favorites available on your signed-in devices.';
+/**
+ * The account's place in My Library's content: nothing once signed in (the
+ * header's account button covers that), and an offer to sign in otherwise,
+ * shown only once there is something worth saving and until it is dismissed.
+ */
+export function AccountEntryCard() {
+  const { status } = useAccount();
+  return status === 'signedOut' ? <SignInPrompt /> : null;
+}
+
+function SignInPrompt() {
+  const router = useRouter();
+  const playlists = usePlaylists();
+  const shows = useLibraryShowCatalogUuids();
+  const artists = useFavoriteCatalogUuids('artist');
+  const [dismissed, setDismissed] = useState<boolean | undefined>(undefined);
+
+  useEffect(() => {
+    void AsyncStorage.getItem(DISMISSED_KEY).then((value) => setDismissed(value !== null));
+  }, []);
+
+  const hasLibrary = playlists.length > 0 || shows.size > 0 || artists.size > 0;
+  if (dismissed !== false || !hasLibrary) {
+    return null;
+  }
+
+  const dismiss = () => {
+    setDismissed(true);
+    void AsyncStorage.setItem(DISMISSED_KEY, new Date().toISOString());
+  };
 
   return (
-    <View className="px-4 pb-4">
-      <TouchableOpacity
-        accessibilityHint="Opens Relisten account settings"
-        accessibilityLabel={signedIn ? `Account ${title}` : 'Sync your favorites'}
-        accessibilityRole="button"
-        className="rounded-lg border border-white/10 bg-relisten-blue-900 p-4"
-        disabled={status === 'restoring'}
-        onPress={() => router.push('/relisten/account')}
-      >
-        <View className="flex-row items-center justify-between gap-4">
-          <View className="flex-1 gap-1">
-            <RelistenText className="font-semibold">{title}</RelistenText>
-            <RelistenText className="text-sm text-gray-400">{description}</RelistenText>
-          </View>
-          <View className="shrink-0 flex-row items-center gap-2">
-            {signedIn && <SyncStatusText state={syncState} />}
-            <MaterialIcons color="#9ca3af" name="chevron-right" size={24} />
-          </View>
+    <View className="mx-4 mb-4 rounded-lg border border-white/10 bg-relisten-blue-900 p-4">
+      <View className="flex-row items-start">
+        <View className="flex-1 pr-2">
+          <RelistenText className="font-semibold">Keep your library safe</RelistenText>
+          <RelistenText className="mt-1 text-sm text-gray-400">
+            Sign in to save your favorites and playlists and use them on your other devices.
+          </RelistenText>
         </View>
-      </TouchableOpacity>
+        <TouchableOpacity
+          accessibilityLabel="Not now"
+          accessibilityRole="button"
+          className="-mr-2 -mt-2 h-11 w-11 items-center justify-center"
+          onPress={dismiss}
+        >
+          <MaterialIcons color="#9ca3af" name="close" size={20} />
+        </TouchableOpacity>
+      </View>
+      <RelistenButton
+        className="mt-3 self-start"
+        intent="primary"
+        onPress={() => router.push(accountPath('(myLibrary)'))}
+      >
+        Sign In
+      </RelistenButton>
     </View>
   );
 }

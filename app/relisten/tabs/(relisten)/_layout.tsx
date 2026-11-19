@@ -30,6 +30,9 @@ export default function ArtistsLayout() {
             }}
           />
 
+          <Stack.Screen name="account/index" options={{ title: 'Account' }} />
+          <Stack.Screen name="account/username" options={{ title: 'Username' }} />
+
           <Stack.Screen
             name="recently-played"
             options={{

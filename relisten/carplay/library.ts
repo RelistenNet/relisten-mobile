@@ -1,4 +1,5 @@
-import { CarPlay, ListTemplate } from '@g4rb4g3/react-native-carplay';
+import { canAccessPlaylist, visibleOwnerId } from '@/relisten/playlists/sync/playlist_sync_state';
+import { AlertTemplate, CarPlay, ListTemplate } from '@g4rb4g3/react-native-carplay';
 import { ListSection } from '@g4rb4g3/react-native-carplay';
 import { RelistenCarPlayContext } from '@/relisten/carplay/relisten_car_play_context';
 import { carplay_logger } from '@/relisten/carplay/carplay_logger';
@@ -9,13 +10,76 @@ import { OfflineModeSetting } from '@/relisten/realm/models/user_settings';
 import plur from 'plur';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { queuePlaybackHistoryEntry } from '@/relisten/carplay/queue_helpers';
+import NetInfo from '@react-native-community/netinfo';
+import { Playlist, PlaylistDeviceState } from '@/relisten/realm/models/playlists/playlist';
+import { readPlaylistRowGroups, visiblePlaylists } from '@/relisten/playlists/playlist_hooks';
+import { playPlaylist } from '@/relisten/playlists/playlist_playback';
+import { resolvePlaylistTracks } from '@/relisten/playlists/playlist_hydration';
+
+const PLAYLIST_ITEM_PREFIX = 'playlist:';
+
+async function playPlaylistFromCarPlay(ctx: RelistenCarPlayContext, playlistId: string) {
+  // Same rule as the app: offline mode or no connection means downloaded tracks only.
+  const network = await NetInfo.fetch();
+  const online =
+    network.type !== 'none' &&
+    ctx.userSettings.offlineModeWithDefault() !== OfflineModeSetting.AlwaysOffline;
+
+  // A synced playlist can name recordings this device hasn't loaded yet.
+  if (online) {
+    const missing = readPlaylistRowGroups(ctx.realm, playlistId)
+      .flatMap((group) => group.entries)
+      .filter((row) => row.status === 'loading')
+      .map((row) => row.entry.trackId);
+    if (missing.length > 0) {
+      await resolvePlaylistTracks(ctx.realm, ctx.apiClient, missing);
+    }
+  }
+
+  // The account may have changed during the checks above.
+  const playlist = ctx.realm.objectForPrimaryKey(Playlist, playlistId);
+  if (!playlist || !canAccessPlaylist(ctx.realm, playlist)) {
+    carplay_logger.warn('Playlist is no longer available to this account', { playlistId });
+    return;
+  }
+
+  if (playPlaylist(ctx.player, playlistId, readPlaylistRowGroups(ctx.realm, playlistId), online)) {
+    ctx.showNowPlaying?.();
+  } else {
+    carplay_logger.warn('Playlist has no playable tracks', { playlistId });
+    showCarPlayNotice(
+      online
+        ? 'None of these recordings are available right now.'
+        : 'None of these tracks are downloaded.'
+    );
+  }
+}
+
+/** A short message the driver dismisses with one tap. */
+function showCarPlayNotice(message: string) {
+  CarPlay.presentTemplate(
+    new AlertTemplate({
+      titleVariants: [message],
+      actions: [{ id: 'ok', title: 'OK' }],
+      onActionButtonPressed: () => CarPlay.dismissTemplate(true),
+    })
+  );
+}
 
 export function createLibraryTemplate(ctx: RelistenCarPlayContext): ListTemplate {
   carplay_logger.info('createLibraryTemplate');
 
   const showsStream = new RealmQueryValueStream(ctx.realm, ctx.realm.objects(Show));
+  // All of this device's playlists; which ones are visible is decided on each
+  // update, since signing in or switching accounts changes the visible owner.
+  const playlistsStream = new RealmQueryValueStream(
+    ctx.realm,
+    ctx.realm.objects(Playlist).sorted('updatedAt', true)
+  );
+  const deviceStates = ctx.realm.objects(PlaylistDeviceState);
 
   ctx.addTeardown(() => showsStream.tearDown());
+  ctx.addTeardown(() => playlistsStream.tearDown());
 
   const showMap: Map<string, Show> = new Map();
 
@@ -24,6 +88,10 @@ export function createLibraryTemplate(ctx: RelistenCarPlayContext): ListTemplate
     tabTitle: 'Library',
     tabSystemImageName: 'star.circle',
     async onItemSelect({ id }: { templateId: string; index: number; id: string }) {
+      if (String(id).startsWith(PLAYLIST_ITEM_PREFIX)) {
+        await playPlaylistFromCarPlay(ctx, String(id).slice(PLAYLIST_ITEM_PREFIX.length));
+        return;
+      }
       const show = showMap.get(String(id));
       if (!show || !show.artist) {
         carplay_logger.warn('Library show selection missing data', { id });
@@ -44,6 +112,21 @@ export function createLibraryTemplate(ctx: RelistenCarPlayContext): ListTemplate
     );
 
     const sections: ListSection[] = [];
+
+    // Playlists are read-only in the car: choosing one plays it from the top.
+    const playlists = playlistsStream.currentValue
+      ? [...visiblePlaylists(playlistsStream.currentValue, visibleOwnerId(ctx.realm) ?? null)]
+      : [];
+    if (playlists.length > 0) {
+      sections.push({
+        header: 'Playlists',
+        items: playlists.map((playlist) => ({
+          id: `${PLAYLIST_ITEM_PREFIX}${playlist.playlistId}`,
+          text: playlist.name,
+          detailText: `${playlist.entryCount} ${plur('track', playlist.entryCount)}`,
+        })),
+      });
+    }
 
     const groupedByArtist: Map<string, Show[]> = new Map();
 
@@ -100,6 +183,9 @@ export function createLibraryTemplate(ctx: RelistenCarPlayContext): ListTemplate
   };
 
   showsStream.addListener(updateSections);
+  playlistsStream.addListener(updateSections);
+  deviceStates.addListener(updateSections);
+  ctx.addTeardown(() => deviceStates.removeListener(updateSections));
   ctx.addTeardown(ctx.libraryIndex.subscribeLibraryMembership(updateSections));
 
   return template;

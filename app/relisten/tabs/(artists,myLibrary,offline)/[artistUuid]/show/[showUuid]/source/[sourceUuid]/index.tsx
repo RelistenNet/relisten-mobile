@@ -1,4 +1,8 @@
+import { TrackSelectionToolbar } from '@/relisten/components/header_buttons';
 import { ItemSeparator } from '@/relisten/components/item_separator';
+import { trackIdForSourceTrack } from '@/relisten/playlists/playlist_hooks';
+import { openAddToPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
+import { type TrackSelection } from '@/relisten/components/source/source_sets_component';
 import { confirmDestructiveAction } from '@/relisten/components/menus/confirm_destructive_action';
 import { RefreshContextProvider, useRefreshContext } from '@/relisten/components/refresh_context';
 import { RelistenButton } from '@/relisten/components/relisten_button';
@@ -96,6 +100,7 @@ export default function Page() {
 
   const [hasAutoplayed, setHasAutoplayed] = useState(false);
   const [isRemovingDownloads, setIsRemovingDownloads] = useState(false);
+  const [selectedTrackUuids, setSelectedTrackUuids] = useState<ReadonlySet<string> | null>(null);
   const isRemovingDownloadsRef = useRef(false);
   const userSettings = useUserSettings();
   const isOfflineTab = useIsOfflineTab();
@@ -242,6 +247,37 @@ export default function Page() {
     show,
   ]);
 
+  const addShowToPlaylist = () => {
+    if (!selectedSource) return;
+    openAddToPlaylist(router, selectedSource.allSourceTracks().map(trackIdForSourceTrack), {
+      linkable: true,
+    });
+  };
+
+  const addSelectedToPlaylist = () => {
+    if (!selectedSource || !selectedTrackUuids || selectedTrackUuids.size === 0) return;
+    // Keep the show's order, not the order the tracks were tapped in.
+    const ids = selectedSource
+      .allSourceTracks()
+      .filter((t) => selectedTrackUuids.has(t.uuid))
+      .map(trackIdForSourceTrack);
+    setSelectedTrackUuids(null);
+    openAddToPlaylist(router, ids, { linkable: true });
+  };
+
+  const selection: TrackSelection | undefined = selectedTrackUuids
+    ? {
+        selected: selectedTrackUuids,
+        toggle: (uuid) =>
+          setSelectedTrackUuids((current) => {
+            const next = new Set(current);
+            if (next.has(uuid)) next.delete(uuid);
+            else next.add(uuid);
+            return next;
+          }),
+      }
+    : undefined;
+
   const canPlaySelectedSource =
     !!selectedSource &&
     getQueueableSourceTracks(selectedSource, isOfflineTab, offlineMode).length > 0;
@@ -252,16 +288,25 @@ export default function Page() {
   return (
     <>
       <Stack.Screen options={{ title: show?.displayDate ?? '' }} />
-      {show && selectedSource && (
+      {selectedTrackUuids && (
+        <TrackSelectionToolbar
+          count={selectedTrackUuids.size}
+          onCancel={() => setSelectedTrackUuids(null)}
+          onAdd={addSelectedToPlaylist}
+        />
+      )}
+      {show && selectedSource && !selectedTrackUuids && (
         <SourceActionsToolbar
           isFavorite={selectedSourceFavorite.isFavorite}
           isRemovingDownloads={isRemovingDownloads}
           canDownload={canDownloadSelectedSource}
           canPlay={canPlaySelectedSource}
+          onAddToPlaylist={addShowToPlaylist}
           onDownload={downloadShow}
           onFavorite={selectedSourceFavorite.toggleFavorite}
           onPlay={playEntireShow}
           onRemoveDownloads={confirmRemoveDownloads}
+          onSelectTracks={() => setSelectedTrackUuids(new Set())}
           onShare={shareShow}
           onSwitchSource={switchSource}
         />
@@ -277,6 +322,8 @@ export default function Page() {
           selectedSource={selectedSource}
           playShow={playShow}
           downloadShow={downloadShow}
+          selection={selection}
+          onStartSelection={(uuid: string) => setSelectedTrackUuids(new Set([uuid]))}
         />
       </RefreshContextProvider>
     </>
@@ -289,6 +336,8 @@ const SourceComponent = ({
   playShow,
   artist,
   downloadShow,
+  selection,
+  onStartSelection,
   ...props
 }: {
   show: Show | undefined;
@@ -296,6 +345,8 @@ const SourceComponent = ({
   artist?: Artist;
   playShow: PlayShow;
   downloadShow: () => void;
+  selection?: TrackSelection;
+  onStartSelection?: (sourceTrackUuid: string) => void;
 } & ScrollViewProps) => {
   const { refreshing, errors, hasData } = useRefreshContext();
   const userSettings = useUserSettings();
@@ -352,7 +403,12 @@ const SourceComponent = ({
         initialTrackToPlay={initialTrackToPlay}
         hasDownloadableTrack={hasDownloadableTrack}
       />
-      <SourceSets source={selectedSource} playShow={playShow} />
+      <SourceSets
+        source={selectedSource}
+        playShow={playShow}
+        selection={selection}
+        onStartSelection={onStartSelection}
+      />
       <SourceFooter source={selectedSource} />
     </Animated.ScrollView>
   );

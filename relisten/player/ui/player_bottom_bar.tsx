@@ -322,6 +322,15 @@ export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBa
 
   const isOnline = useShouldMakeNetworkRequests();
   const isReduceTransparencyEnabled = useIsReduceTransparencyEnabled();
+  // expo-blur only tints on Android unless the content behind is wrapped as a
+  // blur target, so the rows under the bar showed through. Android draws an
+  // opaque surface in the tab bar's color instead.
+  const opaqueSurfaceColor =
+    Platform.OS === 'android'
+      ? RelistenBlue['950']
+      : isReduceTransparencyEnabled
+        ? REDUCED_TRANSPARENCY_GLASS_COLOR
+        : undefined;
   const { playerBottomBarHeight, setPlayerBottomBarHeight } = useRelistenPlayerBottomBarContext();
   const placementOffset = usePlayerBarPlacementOffset();
   const { isPresentationActive } = usePlayerPresentation();
@@ -410,10 +419,10 @@ export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBa
       <View className={contentContainerClassName}>
         {isOverlay ? (
           <View className="rounded-3xl" style={shellChromeStyle}>
-            {isReduceTransparencyEnabled ? (
+            {opaqueSurfaceColor ? (
               <View
                 className={shellSurfaceClassName}
-                style={{ backgroundColor: REDUCED_TRANSPARENCY_GLASS_COLOR }}
+                style={{ backgroundColor: opaqueSurfaceColor }}
               >
                 {body}
               </View>

@@ -1,3 +1,4 @@
+import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { useRelistenCastStatus } from '@/relisten/casting/cast_ui';
 import {
@@ -178,7 +179,7 @@ export function AudioAdjustmentsScreen() {
       <Stack.Toolbar placement="left">
         <Stack.Toolbar.Button
           accessibilityLabel="Close Audio Equalizer"
-          icon="xmark"
+          icon={nativeMenuIcons.close}
           onPress={requestClose}
         />
       </Stack.Toolbar>

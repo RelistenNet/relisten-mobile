@@ -20,22 +20,11 @@ import { groupByUuid } from '@/relisten/util/group_by';
 import { Realm } from '@realm/react';
 import { v4 as uuid } from 'uuid';
 import { indentString } from '@/relisten/util/string_indent';
+import { endOfGroupIndex, shuffleKeepingGroups } from '@/relisten/player/queue_groups';
 
 export { PlayerRepeatState, PlayerShuffleState } from '@/relisten/player/player_modes';
 
 const logger = log.extend('player-queue');
-
-function shuffleArray<T>(arr: T[]) {
-  // ye old fisher-yates
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-
-    // swap
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-
-  return arr;
-}
 
 const queueInstanceId = uuid();
 let queueTrackId = 0;
@@ -52,8 +41,17 @@ function nextQueueTrackId() {
   return queueInstanceId + '_' + queueTrackId.toFixed(0);
 }
 
+/** Where a queue occurrence came from when it was enqueued from a playlist. */
+export interface PlaylistQueueContext {
+  playlistId: string;
+  entryId: string;
+  /** Shared by the occurrences of one playlist segment in one enqueue; shuffle keeps them together. */
+  segmentInstanceId: string;
+}
+
 export class PlayerQueueTrack {
   public identifier: string;
+  public playlistContext?: PlaylistQueueContext;
 
   renewIdentifier() {
     this.identifier = nextQueueTrackId();
@@ -72,7 +70,7 @@ export class PlayerQueueTrack {
 
   /** Copy playback metadata into a fresh occurrence without changing this entry. */
   newOccurrence(): PlayerQueueTrack {
-    return new PlayerQueueTrack(
+    const occurrence = new PlayerQueueTrack(
       this.sourceTrack,
       this.title,
       this.artist,
@@ -80,6 +78,9 @@ export class PlayerQueueTrack {
       this.albumTitle,
       this.albumArt
     );
+    // Play Next and Add to End keep a playlist group together through shuffle.
+    occurrence.playlistContext = this.playlistContext;
+    return occurrence;
   }
 
   static fromSourceTrack(sourceTrack: SourceTrack) {
@@ -185,8 +186,16 @@ export class RelistenPlayerQueue {
       return arrCopy;
     }
 
-    this.originalTracks = insertNext(this.originalTracks, this.originalTracksCurrentIndex);
-    this.shuffledTracks = insertNext(this.shuffledTracks, this.shuffledTracksCurrentIndex);
+    // Play Next lands after the rest of the current linked group, never inside it.
+    // Both orders get the rule, so turning shuffle off or on can't split the link.
+    this.originalTracks = insertNext(
+      this.originalTracks,
+      endOfGroupIndex(this.originalTracks, this.originalTracksCurrentIndex)
+    );
+    this.shuffledTracks = insertNext(
+      this.shuffledTracks,
+      endOfGroupIndex(this.shuffledTracks, this.shuffledTracksCurrentIndex)
+    );
 
     this.recalculateNextTrack();
     this.onOrderedTracksChanged.dispatch(this.orderedTracks);
@@ -434,13 +443,11 @@ ${indentString(tracks)}
   // region Shuffling
   private reshuffleTracks() {
     if (this.originalTracksCurrentIndex !== undefined) {
-      const originalTracksCopy = [...this.originalTracks];
-      const [currentlyPlayingItem] = originalTracksCopy.splice(this.originalTracksCurrentIndex, 1);
-
-      this.shuffledTracks = [currentlyPlayingItem].concat(shuffleArray(originalTracksCopy));
+      const current = this.originalTracks[this.originalTracksCurrentIndex];
+      this.shuffledTracks = shuffleKeepingGroups(this.originalTracks, current);
       this.shuffledTracksCurrentIndex = 0;
     } else {
-      this.shuffledTracks = shuffleArray([...this.originalTracks]);
+      this.shuffledTracks = shuffleKeepingGroups(this.originalTracks);
     }
   }
 
@@ -657,6 +664,9 @@ ${indentString(tracks)}
       queueEntries: this.originalTracks.map((track) => ({
         id: track.identifier,
         sourceTrackUuid: track.sourceTrack.uuid,
+        playlistId: track.playlistContext?.playlistId ?? null,
+        entryId: track.playlistContext?.entryId ?? null,
+        segmentInstanceId: track.playlistContext?.segmentInstanceId ?? null,
       })),
       shuffleOrder:
         this.shuffleState === PlayerShuffleState.SHUFFLE_ON
@@ -725,6 +735,13 @@ ${indentString(tracks)}
       try {
         const track = PlayerQueueTrack.fromSourceTrack(sourceTrack);
         track.identifier = entry.id;
+        if (entry.playlistId && entry.entryId && entry.segmentInstanceId) {
+          track.playlistContext = {
+            playlistId: entry.playlistId,
+            entryId: entry.entryId,
+            segmentInstanceId: entry.segmentInstanceId,
+          };
+        }
         tracksByEntryId.set(entry.id, track);
       } catch (error) {
         logger.warn('Skipping invalid persisted queue track during restore', {
