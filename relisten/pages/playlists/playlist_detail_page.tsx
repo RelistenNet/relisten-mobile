@@ -39,16 +39,14 @@ export default function PlaylistDetailPage() {
   const playlist = usePlaylist(playlistId);
   const allGroups = usePlaylistGroups(playlistId);
   const layout = usePlaylistLayout(allGroups);
-  const [editing, setEditing] = useState(false);
-  // Name and description edits are drafts until Done (or leaving the screen)
-  // commits them. The header holds the text as it's typed; this ref keeps the
-  // latest draft for committing, so typing doesn't re-render the page.
-  const draftRef = useRef<Draft | null>(null);
-  // What the fields held when editing began. Only fields the listener changed
-  // are saved, so an untouched field never undoes another device's edit.
-  const initialDraftRef = useRef<Draft>({ name: '', description: '' });
-  // The same starting values, for the header to start from on render.
-  const [initialDraft, setInitialDraft] = useState<Draft>({ name: '', description: '' });
+  // What the name and description held when editing began; null when not editing.
+  const [initialDraft, setInitialDraft] = useState<Draft | null>(null);
+  const editing = initialDraft !== null;
+  // The fields the listener changed from `initialDraft`, saved on Done or on
+  // leaving the screen. Only changed fields are saved, so an untouched field
+  // never undoes another device's edit. The inputs are uncontrolled and this
+  // is a ref, so typing doesn't re-render the page.
+  const changedDetails = useRef<Partial<Draft>>({});
   const [downloadedOnly, setDownloadedOnly] = useState(false);
   const nameInput = useRef<TextInputInstance>(null);
   const [focusName, setFocusName] = useState(false);
@@ -69,9 +67,7 @@ export default function PlaylistDetailPage() {
   // Leaving also sends this playlist's pending edits rather than waiting.
   useEffect(
     () => () => {
-      if (draftRef.current) {
-        commitDetails(realm, playlistId, draftRef.current, initialDraftRef.current);
-      }
+      commitDetails(realm, playlistId, changedDetails);
       syncService.flush();
     },
     [playlistId, realm, syncService]
@@ -101,23 +97,22 @@ export default function PlaylistDetailPage() {
     openGuideTextEditor(router, { kind: 'section', playlistId, afterSegmentId: lastSegmentId });
   const deletePlaylist = () => lifecycle.remove(playlistId);
   const startEditing = () => {
-    const initial = { name, description };
-    draftRef.current = initial;
-    initialDraftRef.current = initial;
-    setInitialDraft(initial);
-    setEditing(true);
+    changedDetails.current = {};
+    setInitialDraft({ name, description });
   };
   const finishEditing = () => {
-    if (draftRef.current) {
-      commitDetails(realm, playlistId, draftRef.current, initialDraftRef.current);
-    }
-    draftRef.current = null;
-    setEditing(false);
+    commitDetails(realm, playlistId, changedDetails);
+    setInitialDraft(null);
     setFocusName(false);
     syncService.flush();
   };
-  const updateDraft = (next: Draft) => {
-    draftRef.current = next;
+  const updateDraft = (field: keyof Draft, text: string) => {
+    // A field typed back to how it started is no longer an edit.
+    if (text === initialDraft?.[field]) {
+      delete changedDetails.current[field];
+    } else {
+      changedDetails.current[field] = text;
+    }
   };
   // Rename opens edit mode with the name field focused as it appears.
   const startRename = () => {
@@ -198,7 +193,7 @@ export default function PlaylistDetailPage() {
         </Stack.Toolbar.Menu>
       </Stack.Toolbar>
 
-      {editing ? (
+      {initialDraft ? (
         <PlaylistEditList
           playlistId={playlistId}
           layout={layout}
@@ -240,12 +235,22 @@ export default function PlaylistDetailPage() {
   );
 }
 
-function commitDetails(realm: Realm, playlistId: string, draft: Draft, initial: Draft) {
-  const nameChanged = draft.name !== initial.name;
+/** Saves the changed fields and clears them, so Done and leaving the screen save them once. */
+function commitDetails(
+  realm: Realm,
+  playlistId: string,
+  changedDetails: React.RefObject<Partial<Draft>>
+) {
+  const changed = changedDetails.current;
+  if (changed.name === undefined && changed.description === undefined) {
+    return;
+  }
+
+  changedDetails.current = {};
   updatePlaylistDetails(realm, playlistId, {
     // An emptied name keeps the old one rather than leaving the playlist unnamed.
-    name: nameChanged && draft.name.trim() ? draft.name : undefined,
-    description: draft.description !== initial.description ? draft.description : undefined,
+    name: changed.name?.trim() ? changed.name : undefined,
+    description: changed.description,
   });
 }
 
@@ -259,15 +264,9 @@ function EditHeader({
   focusName: boolean;
   onAddText: () => void;
   initialDraft: Draft;
-  onChange: (draft: Draft) => void;
+  onChange: (field: keyof Draft, text: string) => void;
   nameInput: React.RefObject<TextInputInstance | null>;
 }) {
-  const [draft, setDraft] = useState(initialDraft);
-  const update = (next: Draft) => {
-    setDraft(next);
-    onChange(next);
-  };
-
   return (
     <View className="px-4 pb-4 pt-2">
       <TextInput
@@ -276,8 +275,8 @@ function EditHeader({
         accessibilityLabel="Playlist name"
         className="rounded-lg bg-relisten-blue-800 px-3 py-3 text-xl font-bold text-white"
         maxLength={PLAYLIST_LIMITS.nameLength}
-        value={draft.name}
-        onChangeText={(name) => update({ ...draft, name })}
+        defaultValue={initialDraft.name}
+        onChangeText={(name) => onChange('name', name)}
         returnKeyType="done"
       />
       <TextInput
@@ -287,8 +286,8 @@ function EditHeader({
         multiline
         placeholder="Add a description"
         placeholderTextColor="#9ca3af"
-        value={draft.description}
-        onChangeText={(description) => update({ ...draft, description })}
+        defaultValue={initialDraft.description}
+        onChangeText={(description) => onChange('description', description)}
       />
       {/* One way in, instead of a control in every gap: new text goes at the end,
           and its handle drags it into place like a track. */}
