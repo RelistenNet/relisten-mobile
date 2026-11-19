@@ -51,6 +51,10 @@ vi.mock('expo-crypto', () => ({
   getRandomValues: (bytes: Uint8Array) => bytes,
 }));
 
+vi.mock('./auth/apple_revocation_code', () => ({
+  requestAppleRevocationCode: vi.fn(),
+}));
+
 vi.mock('./account_local_data', () => ({
   forgetDeletedAccount: vi.fn(),
   hideUnconfirmedAccount: vi.fn(),
@@ -123,7 +127,10 @@ describe('AccountSessionCoordinator', () => {
     const userId = 'user_01hx3x56tafay8vvr14d2pf2db';
     const sessionId = 'session_01hx3x56tbfay8vvr14d2pf2db';
 
-    function signedInCoordinator(send: () => Promise<string>) {
+    function signedInCoordinator(
+      send: (payload: object, isCurrent: () => boolean) => Promise<string>,
+      apple: { revocationAvailable?: boolean | Error; code?: () => Promise<string | null> } = {}
+    ) {
       const realmScope = {
         scopeId: userId,
         userId,
@@ -146,8 +153,25 @@ describe('AccountSessionCoordinator', () => {
         clearPersisted: vi.fn().mockResolvedValue(undefined),
       };
       Reflect.set(coordinator, 'credentials', credentials);
-      Reflect.set(coordinator, 'deletionRequest', { send: vi.fn(send) });
-      return { coordinator, credentials, realm, realmScope, transitionEffects };
+      const deletionRequest = { send: vi.fn(send) };
+      Reflect.set(coordinator, 'deletionRequest', deletionRequest);
+      const revocation = apple.revocationAvailable ?? false;
+      coordinator.accountsApi.getMe = vi.fn(() =>
+        revocation instanceof Error
+          ? Promise.reject(revocation)
+          : Promise.resolve({ appleNativeRevocationAvailable: revocation } as never)
+      );
+      const requestAppleCode = vi.fn(apple.code ?? (async () => null));
+      Reflect.set(coordinator, 'requestAppleRevocationCode', requestAppleCode);
+      return {
+        coordinator,
+        credentials,
+        deletionRequest,
+        realm,
+        realmScope,
+        requestAppleCode,
+        transitionEffects,
+      };
     }
 
     it('signs out and forgets the account once the server accepts', async () => {
@@ -166,6 +190,63 @@ describe('AccountSessionCoordinator', () => {
         error: null,
         activeScope: { isAuthenticated: false },
       });
+    });
+
+    it('sends a fresh Apple code when the account can revoke its Apple tokens', async () => {
+      const { coordinator, deletionRequest, requestAppleCode } = signedInCoordinator(
+        async () => 'accepted',
+        { revocationAvailable: true, code: async () => 'apple-code' }
+      );
+
+      await expect(coordinator.deleteAccount()).resolves.toBe('deleting');
+
+      expect(requestAppleCode).toHaveBeenCalledOnce();
+      expect(deletionRequest.send).toHaveBeenCalledExactlyOnceWith(
+        { apple_native_authorization_code: 'apple-code' },
+        expect.any(Function)
+      );
+    });
+
+    it('deletes without a code when the listener cancels Apple', async () => {
+      const { coordinator, deletionRequest } = signedInCoordinator(async () => 'accepted', {
+        revocationAvailable: true,
+        code: async () => null,
+      });
+
+      await expect(coordinator.deleteAccount()).resolves.toBe('deleting');
+
+      expect(deletionRequest.send).toHaveBeenCalledExactlyOnceWith({}, expect.any(Function));
+    });
+
+    it('deletes without asking Apple when the profile lookup fails', async () => {
+      const { coordinator, deletionRequest, requestAppleCode } = signedInCoordinator(
+        async () => 'accepted',
+        { revocationAvailable: new Error('Offline') }
+      );
+
+      await expect(coordinator.deleteAccount()).resolves.toBe('deleting');
+
+      expect(requestAppleCode).not.toHaveBeenCalled();
+      expect(deletionRequest.send).toHaveBeenCalledExactlyOnceWith({}, expect.any(Function));
+    });
+
+    it('sends nothing when the session changes while Apple is asking', async () => {
+      const { coordinator, credentials } = signedInCoordinator(
+        async (_payload, isCurrent) => (isCurrent() ? 'accepted' : 'notSent'),
+        {
+          revocationAvailable: true,
+          code: async () => {
+            coordinator.scopeSource.selectAnonymous(true);
+            return 'apple-code';
+          },
+        }
+      );
+
+      await expect(coordinator.deleteAccount()).rejects.toThrow('nothing was deleted');
+
+      expect(credentials.clearPersisted).not.toHaveBeenCalled();
+      expect(forgetDeletedAccount).not.toHaveBeenCalled();
+      expect(hideUnconfirmedAccount).not.toHaveBeenCalled();
     });
 
     it('keeps the account hidden but intact when the session already ended', async () => {

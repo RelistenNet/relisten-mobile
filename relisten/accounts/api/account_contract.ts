@@ -7,6 +7,8 @@ export interface AccountProfileResponse {
   username_reviewed_at: string | null;
   username_change_available_at: string | null;
   native_session_id?: string | null;
+  /** Present and true only when this account can revoke its Apple tokens from iOS. */
+  apple_native_revocation_available?: boolean;
 }
 
 export interface UpdateUsernameRequest {

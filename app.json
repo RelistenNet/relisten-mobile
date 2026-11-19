@@ -25,6 +25,7 @@
         "webcredentials:relisten.net"
       ],
       "supportsTablet": true,
+      "usesAppleSignIn": true,
       "bundleIdentifier": "com.alecgorge.ios.Listen-to-the-Dead",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,

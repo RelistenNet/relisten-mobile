@@ -10,6 +10,12 @@ export interface AccountProfileSnapshot {
   usernameChangeAvailableAt: Date | null;
   nativeSessionId: string;
   lastSyncedAt: Date;
+  /**
+   * Whether account deletion on iOS should ask Apple for a code, so the server
+   * can revoke Relisten's Apple tokens. Only a profile fetched from the server
+   * has it; the cached profile leaves it out, so deletion fetches a fresh one.
+   */
+  appleNativeRevocationAvailable?: boolean;
 }
 
 const USERNAME_PATTERN = /^[a-z0-9_]{3,30}$/;
@@ -85,5 +91,6 @@ export function parseAccountProfileResponse(value: unknown): AccountProfileSnaps
     ),
     nativeSessionId: requiredAccountId(response.native_session_id, 'session', 'native_session_id'),
     lastSyncedAt: new Date(),
+    appleNativeRevocationAvailable: response.apple_native_revocation_available === true,
   };
 }

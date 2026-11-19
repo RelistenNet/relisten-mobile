@@ -1,4 +1,5 @@
 import Realm from 'realm';
+import { Platform } from 'react-native';
 import { log } from '@/relisten/util/logging';
 import { getAccountRuntimeConfig } from './account_config';
 import {
@@ -26,7 +27,12 @@ import { AccountCredentials, ValidatedCredentials } from './account_credentials'
 import { AccountAccessTokenSource } from './account_access_token_source';
 import { AccountRestoreResult, AccountSessionRestorer } from './account_session_restorer';
 import { AccountLogoutRequest } from './api/account_logout_request';
-import { AccountDeletionOutcome, AccountDeletionRequest } from './api/account_deletion_request';
+import {
+  AccountDeletionOutcome,
+  AccountDeletionPayload,
+  AccountDeletionRequest,
+} from './api/account_deletion_request';
+import { requestAppleRevocationCode } from './auth/apple_revocation_code';
 import { forgetDeletedAccount, hideUnconfirmedAccount } from './account_local_data';
 
 const logger = log.extend('account-session');
@@ -62,6 +68,7 @@ export class AccountSessionCoordinator {
   private readonly usernameService: UsernameService;
   private readonly logoutRequest: AccountLogoutRequest;
   private readonly deletionRequest: AccountDeletionRequest;
+  private readonly requestAppleRevocationCode = requestAppleRevocationCode;
   private readonly sessionRestorer: AccountSessionRestorer;
   private snapshot: AccountSessionSnapshot;
   private startPromise: Promise<void> | null = null;
@@ -243,6 +250,10 @@ export class AccountSessionCoordinator {
    * session has already ended, an earlier attempt may have deleted the account,
    * or the session may simply have expired. The app can't tell which, so the
    * account's data stays on the device, hidden, until it signs in again.
+   *
+   * The whole flow, Apple prompt included, runs under `deletionPromise`, and
+   * belongs to the session that started it. If the listener signs out or
+   * switches accounts while Apple's sheet is open, nothing is sent.
    */
   deleteAccount = (): Promise<AccountDeletionResult> => {
     if (!this.deletionPromise) {
@@ -265,11 +276,22 @@ export class AccountSessionCoordinator {
     }
 
     const userId = scope.userId;
+    const nativeSessionId = scope.nativeSessionId;
+    const isCurrent = () =>
+      this.isSignedInAs(userId) &&
+      this.scopeSource.getSnapshot().nativeSessionId === nativeSessionId;
+
+    const payload = await this.deletionPayload(isCurrent);
 
     // The transition gate stays open during the request, because the session
     // must keep working for it, including a token refresh. Sign-out is refused
     // until the request settles.
-    const outcome = await this.sendDeletionRequest(userId);
+    const outcome = await this.sendDeletionRequest(userId, payload, isCurrent);
+    if (outcome === 'notSent') {
+      throw new Error(
+        'Your session changed before Relisten could delete the account, so nothing was deleted. Sign in and try again.'
+      );
+    }
 
     if (outcome === 'accepted') {
       await this.leaveDeletedAccount(scope);
@@ -287,15 +309,46 @@ export class AccountSessionCoordinator {
    * fails with whatever error the ending caused, often a stale-scope error.
    * Report that as an ended session, so the account is still hidden.
    */
-  private async sendDeletionRequest(userId: string): Promise<AccountDeletionOutcome> {
+  private async sendDeletionRequest(
+    userId: string,
+    payload: AccountDeletionPayload,
+    isCurrent: () => boolean
+  ): Promise<AccountDeletionOutcome> {
     try {
-      return await this.deletionRequest.send();
+      return await this.deletionRequest.send(payload, isCurrent);
     } catch (error) {
       if (!this.isSignedInAs(userId)) {
         return 'sessionEnded';
       }
       throw error;
     }
+  }
+
+  /**
+   * The deletion request body. On iOS, when a fresh profile says this account
+   * can revoke its Apple tokens, it carries a code from Apple's prompt. Any
+   * failure along the way sends the deletion without one: revocation is a
+   * courtesy to Apple, and must never block deleting the account.
+   */
+  private async deletionPayload(isCurrent: () => boolean): Promise<AccountDeletionPayload> {
+    if (Platform.OS !== 'ios') {
+      return {};
+    }
+
+    // The cached profile doesn't keep the flag, so ask the server.
+    let revocationAvailable = false;
+    try {
+      revocationAvailable =
+        (await this.accountsApi.getMe()).appleNativeRevocationAvailable === true;
+    } catch {
+      logger.info('Account deletion continues without checking Apple revocation');
+    }
+    if (!revocationAvailable || !isCurrent()) {
+      return {};
+    }
+
+    const code = await this.requestAppleRevocationCode();
+    return code ? { apple_native_authorization_code: code } : {};
   }
 
   private isSignedInAs(userId: string) {

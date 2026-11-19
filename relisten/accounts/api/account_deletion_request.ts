@@ -10,8 +10,15 @@ const RETRY_DELAYS_MS = [1000, 3000] as const;
  * - `sessionEnded`: the session stopped working. Either an earlier request
  *   already purged the account, or the session expired for another reason.
  *   The app can't tell which.
+ * - `notSent`: the session changed before the first attempt, so nothing was
+ *   sent and the account is untouched.
  */
-export type AccountDeletionOutcome = 'accepted' | 'sessionEnded';
+export type AccountDeletionOutcome = 'accepted' | 'sessionEnded' | 'notSent';
+
+/** The request body. The Apple code, when there is one, lets the server revoke Apple's tokens. */
+export interface AccountDeletionPayload {
+  apple_native_authorization_code?: string;
+}
 
 /**
  * Sends `POST /v1/account-deletions` for the signed-in account.
@@ -20,6 +27,10 @@ export type AccountDeletionOutcome = 'accepted' | 'sessionEnded';
  * and the session stays valid until the purge runs. So a network error or a
  * `503` (Temporal didn't confirm the start) is retried a few times before the
  * error reaches the listener, who can try again.
+ *
+ * Every attempt sends the same payload, so a retry never asks Apple again.
+ * `isCurrent` is checked before each attempt: a deletion confirmed by one
+ * session must never be sent by another.
  */
 export class AccountDeletionRequest {
   constructor(
@@ -28,13 +39,22 @@ export class AccountDeletionRequest {
       new Promise((resolve) => setTimeout(resolve, ms))
   ) {}
 
-  async send(): Promise<AccountDeletionOutcome> {
+  async send(
+    payload: AccountDeletionPayload,
+    isCurrent: () => boolean
+  ): Promise<AccountDeletionOutcome> {
+    const body = JSON.stringify(payload);
     for (let attempt = 0; ; attempt += 1) {
+      if (!isCurrent()) {
+        // After a failed attempt the server may still have accepted it.
+        return attempt === 0 ? 'notSent' : 'sessionEnded';
+      }
+
       try {
         await this.accountsApi.request<unknown>('/v1/account-deletions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: '{}',
+          body,
         });
         logger.info('Account deletion accepted');
         return 'accepted';
