@@ -11,6 +11,7 @@ import { ScrollView, View } from 'react-native';
 import type { FavoriteSyncFailure } from '@/relisten/library/favorite_hooks';
 import { FavoriteDiagnostics } from '@/relisten/accounts/ui/favorite_diagnostics';
 import { PlaylistDiagnostics, PlaylistSyncRow } from '@/relisten/accounts/ui/playlist_diagnostics';
+import { ConnectedAppsGroup } from '@/relisten/accounts/ui/connected_apps';
 
 type SignedInAccountScreenProps = {
   actionError?: string;
@@ -119,6 +120,8 @@ export function SignedInAccountScreen({
         )}
         <PlaylistSyncRow />
       </SettingsGroup>
+
+      <ConnectedAppsGroup />
 
       {(importAvailable || importInProgress) && (
         <View className="mb-4 px-4">
