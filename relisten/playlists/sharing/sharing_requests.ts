@@ -2,7 +2,6 @@ import {
   AccountsApiError,
   type AuthorizedAccountsApiClient,
 } from '@/relisten/accounts/api/accounts_api_client';
-import { createUuidV7TypedId } from '@/relisten/util/typed_uuid_id';
 import { jsonRequest } from './accounts_http';
 import {
   parsePublicSnapshot,
@@ -35,7 +34,10 @@ export async function fetchPublicSnapshot(
   }
 }
 
-/** Makes an owned playlist public or private. A publish returns its stable code. */
+/**
+ * Makes an owned playlist public or private. It sets the state rather than
+ * toggling it, so sending it again is harmless. A publish returns its stable code.
+ */
 export function requestPublication(
   api: AuthorizedAccountsApiClient,
   playlistId: string,
@@ -43,11 +45,7 @@ export function requestPublication(
 ): Promise<PlaylistPublicationResponse> {
   return api.request<PlaylistPublicationResponse>(
     `/v1/playlists/${playlistId}/publication`,
-    jsonRequest('PUT', {
-      contract_version: 1,
-      command_id: createUuidV7TypedId('command'),
-      published,
-    })
+    jsonRequest('PUT', { contract_version: 1, published })
   );
 }
 

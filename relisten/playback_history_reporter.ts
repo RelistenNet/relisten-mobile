@@ -1,9 +1,6 @@
 import type { RelistenApiClient } from '@/relisten/api/client';
 import Realm from 'realm';
-import {
-  AccountsApiError,
-  type AuthorizedAccountsApiClient,
-} from '@/relisten/accounts/api/accounts_api_client';
+import type { AuthorizedAccountsApiClient } from '@/relisten/accounts/api/accounts_api_client';
 import {
   type AccountScopeSource,
   StaleAccountScopeError,
@@ -242,14 +239,11 @@ export class PlaybackHistoryReporter {
         if (error instanceof StaleAccountScopeError) {
           return;
         }
-        if (isRefusedForGood(error)) {
-          logger.warn(
-            `The account refused ${plays.length} plays (status ${error.status}); not sending them again`
-          );
-          // Marked as published so the queue moves on; the account will never take these.
-          this.markPublished(rowIds);
-          continue;
-        }
+        // Any other failure keeps the plays waiting, including a 4xx for the
+        // whole batch: the account reports a bad play in its per-play results,
+        // so a whole-batch refusal means this client and the server disagree on
+        // the contract (a client newer than the server, say), and the plays are
+        // still good once they agree.
         throw error;
       }
 
@@ -294,22 +288,4 @@ export class PlaybackHistoryReporter {
       }
     });
   }
-}
-
-/**
- * A request the account will never accept as sent, so retrying it would block
- * every later play. `retryable` covers network failures, 408, 429 and 5xx. A
- * 401 survived a token refresh, which means the session ended; those plays wait
- * for the account to sign in again. A non-retryable 5xx is an unreadable
- * response, which may come from a proxy, so it is retried too.
- */
-function isRefusedForGood(error: unknown): error is AccountsApiError & { status: number } {
-  return (
-    error instanceof AccountsApiError &&
-    !error.retryable &&
-    error.status !== null &&
-    error.status >= 400 &&
-    error.status < 500 &&
-    error.status !== 401
-  );
 }

@@ -243,7 +243,7 @@ describe('PlaybackHistoryReporter', () => {
     expect(fromB.publishedAt).toBeInstanceOf(Date);
   });
 
-  it('gives up on plays the account refuses for good, but retries a transient failure', async () => {
+  it('keeps account plays waiting after a batch refusal while anonymous plays go out', async () => {
     const accounts = fakeAccounts(accountA);
     const reporter = reporterFor(accounts);
     const refused = play(reporter);
@@ -251,20 +251,13 @@ describe('PlaybackHistoryReporter', () => {
     const anonymous = play(reporter);
     accounts.signInAs(accountA);
     accounts.request.mockRejectedValueOnce(
-      new AccountsApiError('Bad request', 400, 'invalid_request', false)
+      new AccountsApiError('Unsupported contract', 422, 'invalid_request', false)
     );
 
     await reporter.report();
 
-    expect(refused.publishedAt).toBeInstanceOf(Date);
+    expect(refused.publishedAt).toBeNull();
     expect(anonymous.publishedAt).toBeInstanceOf(Date);
-
-    const waiting = play(reporter);
-    accounts.request.mockRejectedValueOnce(new AccountsApiError('Unavailable', 503, null, true));
-
-    await reporter.report();
-
-    expect(waiting.publishedAt).toBeNull();
   });
 
   it('uploads more than one batch of waiting plays, oldest first', async () => {
