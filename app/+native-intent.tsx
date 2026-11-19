@@ -1,3 +1,5 @@
+import { sharedPlaylistRoute } from '@/relisten/playlists/sharing/shared_playlist_link';
+
 const AUTH_CALLBACK_PATH = /\/auth\/mobile\/(ios|android)\/callback(?:[/?#]|$)/;
 
 /**
@@ -13,5 +15,7 @@ export function redirectSystemPath({ path, initial }: { path: string; initial: b
     return null;
   }
 
-  return path;
+  // A shared playlist link opens the playlist inside the tabs. Unhandled, it
+  // would fall through to the web routes, which read "playlists" as an artist.
+  return sharedPlaylistRoute(path) ?? path;
 }

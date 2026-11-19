@@ -88,6 +88,22 @@ export const nativeMenuIcons = {
     ios: 'square.and.arrow.up',
     android: import('@expo/material-symbols/share.xml'),
   }),
+  lock: Icon.select({
+    ios: 'lock',
+    android: import('@expo/material-symbols/lock.xml'),
+  }),
+  copy: Icon.select({
+    ios: 'doc.on.doc',
+    android: import('@expo/material-symbols/content_copy.xml'),
+  }),
+  report: Icon.select({
+    ios: 'flag',
+    android: import('@expo/material-symbols/flag.xml'),
+  }),
+  unfollow: Icon.select({
+    ios: 'minus.circle',
+    android: import('@expo/material-symbols/playlist_remove.xml'),
+  }),
   show: Icon.select({
     ios: 'calendar',
     android: import('@expo/material-symbols/event.xml'),

@@ -35,7 +35,9 @@ export function finishCopy(
   realm: Realm,
   userId: string,
   commandId: string,
-  created: PlaylistCreatedResponse
+  created: PlaylistCreatedResponse,
+  /** The source's name, shown until the copy's snapshot arrives. */
+  name = ''
 ) {
   const command = realm.objectForPrimaryKey(PlaylistCopyCommand, commandId);
   if (command) {
@@ -47,7 +49,7 @@ export function finishCopy(
   const now = new Date();
   realm.create(Playlist, {
     playlistId: created.playlist_id,
-    name: '',
+    name,
     createdAt: now,
     updatedAt: now,
     ownerUserId: userId,

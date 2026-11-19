@@ -161,17 +161,22 @@ export const PlaylistIntroRow = memo(function PlaylistIntroRow({
   );
 });
 
-/** A text block between tracks. It has the same menu as a track, minus playback. */
+/**
+ * A text block between tracks. It has the same menu as a track, minus
+ * playback, so a playlist the listener can't edit shows no menu.
+ */
 export const PlaylistTextRow = memo(function PlaylistTextRow({
   playlistId,
   layout,
   viewRow,
+  editable,
   linkPlaying,
   onTimestamp,
 }: {
   playlistId: string;
   layout: PlaylistLayout;
   viewRow: Extract<PlaylistViewRow, { kind: 'entry' }>;
+  editable: boolean;
   linkPlaying: boolean;
   onTimestamp: TimestampHandler;
 }) {
@@ -186,9 +191,11 @@ export const PlaylistTextRow = memo(function PlaylistTextRow({
             onTimestamp={(entryId, seconds) => entryId && onTimestamp(entryId, seconds)}
           />
         </View>
-        <TrackMenu playlistId={playlistId} layout={layout} row={row}>
-          <OverflowMenuTrigger accessibilityLabel="Actions for note" iconAlignment="trailing" />
-        </TrackMenu>
+        {editable && (
+          <TrackMenu playlistId={playlistId} layout={layout} row={row}>
+            <OverflowMenuTrigger accessibilityLabel="Actions for note" iconAlignment="trailing" />
+          </TrackMenu>
+        )}
       </View>
     </View>
   );
@@ -204,6 +211,7 @@ export const PlaylistTrackRow = memo(function PlaylistTrackRow({
   playlistId,
   layout,
   viewRow,
+  editable,
   online,
   isCurrent,
   linkPlaying,
@@ -213,6 +221,7 @@ export const PlaylistTrackRow = memo(function PlaylistTrackRow({
   playlistId: string;
   layout: PlaylistLayout;
   viewRow: Extract<PlaylistViewRow, { kind: 'entry' }>;
+  editable: boolean;
   online: boolean;
   /** This entry is the one playing. */
   isCurrent: boolean;
@@ -283,7 +292,7 @@ export const PlaylistTrackRow = memo(function PlaylistTrackRow({
             </View>
           )}
         </TouchableOpacity>
-        <TrackMenu playlistId={playlistId} layout={layout} row={row}>
+        <TrackMenu playlistId={playlistId} layout={layout} row={row} editable={editable}>
           <OverflowMenuTrigger
             accessibilityLabel={`Actions for ${trackTitle(row)}`}
             iconAlignment="trailing"

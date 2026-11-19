@@ -66,6 +66,14 @@ export interface PlaylistCreatedResponse {
   revision: number;
 }
 
+/** Tracks in a public playlist, without its text blocks. */
+export function publicTrackCount(snapshot: PublicPlaylistSnapshot) {
+  return snapshot.segments.reduce(
+    (count, segment) => count + segment.entries.filter((entry) => entry.track_id).length,
+    0
+  );
+}
+
 /** The longest report reason the server accepts. */
 export const REPORT_REASON_LENGTH = 300;
 

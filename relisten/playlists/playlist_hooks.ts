@@ -25,10 +25,16 @@ import {
 import { formatUuidTypedId, parseUuidTypedId } from '@/relisten/util/typed_uuid_id';
 import {
   contextOf,
+  entryContext,
   entryStateOf,
   renderableDescription,
   segmentStateOf,
 } from '@/relisten/playlists/guide/guide_rows';
+import {
+  type GuideTextContext,
+  sanitizeGuideMarkdown,
+} from '@/relisten/playlists/guide/guide_markdown';
+import type { PlaylistSnapshotResponse } from '@/relisten/playlists/sync/playlist_wire';
 
 export const trackIdForSourceTrack = (sourceTrack: Pick<SourceTrack, 'uuid'>) =>
   formatUuidTypedId('track', sourceTrack.uuid);
@@ -147,6 +153,90 @@ export function usePlaylistGroups(playlistId: string): PlaylistRowGroup[] {
     [playlistId]
   );
   const trackIds = useMemo(() => [...new Set(entryTrackIds(entries))], [entries]);
+  const { availability, tracks } = useCatalogTracks(trackIds);
+
+  return useMemo(
+    () => buildRowGroups(realm, segments, entries, unavailableIds(availability)),
+    [realm, segments, entries, availability, tracks]
+  );
+}
+
+/**
+ * Groups for a public playlist that isn't stored on this device, read from its
+ * snapshot. Guide text is sanitized here rather than stored; it updates as the
+ * catalog loads its tracks, like a stored playlist's.
+ */
+export function useSnapshotRowGroups(
+  segments: PlaylistSnapshotResponse['segments']
+): PlaylistRowGroup[] {
+  const realm = useRealm();
+  const trackIds = useMemo(
+    () => [
+      ...new Set(
+        segments.flatMap((segment) =>
+          segment.entries.flatMap((entry) => (entry.track_id ? [entry.track_id] : []))
+        )
+      ),
+    ],
+    [segments]
+  );
+  const { availability, tracks } = useCatalogTracks(trackIds);
+
+  return useMemo(() => {
+    const unavailable = unavailableIds(availability);
+    const descriptions = new Map<string, string>();
+    const segmentStates = new Map<string, SegmentState>();
+    const entryStates = new Map<string, EntryState>();
+    for (const segment of segments) {
+      segmentStates.set(segment.segment_id, {
+        segmentId: segment.segment_id,
+        rank: segment.rank,
+      });
+      if (segment.description) {
+        descriptions.set(segment.segment_id, segment.description);
+      }
+      for (const entry of segment.entries) {
+        const state: EntryState = {
+          entryId: entry.entry_id,
+          segmentId: segment.segment_id,
+          rank: entry.rank,
+        };
+        if (entry.track_id) {
+          state.trackId = entry.track_id;
+        }
+        entryStates.set(entry.entry_id, state);
+        if (entry.description) {
+          descriptions.set(entry.entry_id, entry.description);
+        }
+      }
+    }
+    const markdown = (id: string, context: GuideTextContext) => {
+      const description = descriptions.get(id);
+      return description ? sanitizeGuideMarkdown(description, context) : undefined;
+    };
+
+    return orderedGroups({ segments: segmentStates, entries: entryStates }).map((group) => ({
+      segment: group.segment,
+      descriptionMarkdown: markdown(group.segment.segmentId, { kind: 'segment' }),
+      entries: group.entries.map((entry) =>
+        rowEntry(
+          realm,
+          entry,
+          unavailable,
+          markdown(entry.entryId, entryContext(realm, entry.trackId))
+        )
+      ),
+    }));
+    // `tracks` changes as the catalog loads them, which changes each row's status.
+  }, [realm, segments, availability, tracks]);
+}
+
+/**
+ * The catalog records a playlist's rows read: availability for its tracks,
+ * and the tracks themselves. Both are live queries, so rows rebuild as tracks
+ * load and downloads finish.
+ */
+function useCatalogTracks(trackIds: string[]) {
   // Only this playlist's availability records, so a resolver write for another
   // playlist doesn't rebuild these rows.
   const availability = useQuery(
@@ -180,11 +270,7 @@ export function usePlaylistGroups(playlistId: string): PlaylistRowGroup[] {
     },
     [trackUuids]
   );
-
-  return useMemo(
-    () => buildRowGroups(realm, segments, entries, unavailableIds(availability)),
-    [realm, segments, entries, availability, tracks]
-  );
+  return { availability, tracks };
 }
 
 /** The same groups outside React, for CarPlay and other non-UI callers. */
@@ -234,20 +320,28 @@ function buildRowGroups(
   return groups.map(({ segment, entries: groupEntries }) => ({
     segment,
     descriptionMarkdown: markdownOf(segmentRows.get(segment.segmentId)),
-    entries: groupEntries.map((entry): PlaylistRowEntry => {
-      const descriptionMarkdown = markdownOf(entryRows.get(entry.entryId));
-      if (!entry.trackId) {
-        return { entry, sourceTrack: null, status: 'text', descriptionMarkdown };
-      }
-      const sourceTrack = sourceTrackFor(realm, entry.trackId);
-      const status: PlaylistTrackStatus = unavailableIds.has(entry.trackId)
-        ? 'unavailable'
-        : sourceTrack
-          ? 'playable'
-          : 'loading';
-      return { entry, sourceTrack, status, descriptionMarkdown };
-    }),
+    entries: groupEntries.map((entry) =>
+      rowEntry(realm, entry, unavailableIds, markdownOf(entryRows.get(entry.entryId)))
+    ),
   }));
+}
+
+function rowEntry(
+  realm: Realm,
+  entry: EntryState,
+  unavailableIds: ReadonlySet<string>,
+  descriptionMarkdown: string | undefined
+): PlaylistRowEntry {
+  if (!entry.trackId) {
+    return { entry, sourceTrack: null, status: 'text', descriptionMarkdown };
+  }
+  const sourceTrack = sourceTrackFor(realm, entry.trackId);
+  const status: PlaylistTrackStatus = unavailableIds.has(entry.trackId)
+    ? 'unavailable'
+    : sourceTrack
+      ? 'playable'
+      : 'loading';
+  return { entry, sourceTrack, status, descriptionMarkdown };
 }
 
 /** Totals for a playlist, shared by list rows and the playlist header. */

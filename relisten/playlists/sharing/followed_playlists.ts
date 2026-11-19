@@ -5,9 +5,10 @@ import {
   PlaylistSegment,
 } from '@/relisten/realm/models/playlists/playlist';
 import { writeEntryRow, writeSegmentRow } from '@/relisten/playlists/guide/guide_rows';
-import type {
-  FollowedPlaylistHead,
-  PublicPlaylistSnapshot,
+import {
+  type FollowedPlaylistHead,
+  publicTrackCount,
+  type PublicPlaylistSnapshot,
 } from '@/relisten/playlists/sharing/sharing_wire';
 
 /**
@@ -111,7 +112,6 @@ export function writeFollowedSnapshot(
   realm.delete(realm.objects(PlaylistEntry).filtered('playlistId == $0', playlistId));
   realm.delete(realm.objects(PlaylistSegment).filtered('playlistId == $0', playlistId));
 
-  let tracks = 0;
   for (const segment of snapshot.segments) {
     writeSegmentRow(realm, playlistId, {
       segmentId: segment.segment_id,
@@ -126,7 +126,6 @@ export function writeFollowedSnapshot(
         rank: entry.rank,
         description: entry.description ?? undefined,
       });
-      tracks += entry.track_id ? 1 : 0;
     }
   }
 
@@ -136,7 +135,7 @@ export function writeFollowedSnapshot(
   }
   playlist.name = snapshot.metadata.name;
   playlist.description = snapshot.metadata.description ?? undefined;
-  playlist.entryCount = tracks;
+  playlist.entryCount = publicTrackCount(snapshot);
   playlist.ownerUserId = snapshot.owner.id;
   playlist.ownerUsername = snapshot.owner.username;
   playlist.publicCode = snapshot.public_code;

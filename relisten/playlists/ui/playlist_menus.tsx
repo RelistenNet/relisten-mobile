@@ -78,17 +78,23 @@ const menuSections = (sections: MenuAction[][]): MenuAction[] =>
       subactions,
     }));
 
-/** The menu for one track: playback, moves, grouping, then Remove. Shown in view and edit modes. */
+/**
+ * The menu for one track: playback, moves, grouping, then Remove. Shown in
+ * view and edit modes. A playlist the listener can't edit gets playback and
+ * Go to Show only.
+ */
 export function TrackMenu({
   playlistId,
   layout,
   row,
+  editable = true,
   style,
   children,
 }: {
   playlistId: string;
   layout: PlaylistLayout;
   row: PlaylistRowEntry;
+  editable?: boolean;
   style?: StyleProp<ViewStyle>;
   children: ReactNode;
 }) {
@@ -152,18 +158,17 @@ export function TrackMenu({
   if (aboveTitle) {
     links.push(action('keep-with', `Link to ${aboveTitle}`, nativeMenuIcons.group));
   }
-  if (row.sourceTrack) {
-    links.push(action('go-to-show', 'Go to Show', nativeMenuIcons.goTo));
-  }
 
-  const guide = guideActions(row, at.group, at.inGroup);
-  const actions = menuSections([
-    playback,
-    guide,
-    moves,
-    links,
-    [action('remove', 'Remove from Playlist', nativeMenuIcons.delete, true)],
-  ]);
+  const goTo = row.sourceTrack ? [action('go-to-show', 'Go to Show', nativeMenuIcons.goTo)] : [];
+  const actions = editable
+    ? menuSections([
+        playback,
+        guideActions(row, at.group, at.inGroup),
+        moves,
+        [...links, ...goTo],
+        [action('remove', 'Remove from Playlist', nativeMenuIcons.delete, true)],
+      ])
+    : menuSections([playback, goTo]);
   const editText = (target: GuideTextPlace) =>
     openGuideTextEditor(router, { ...target, playlistId } as GuideTextTarget);
 

@@ -6,6 +6,7 @@ import { FavoriteRepository } from '@/relisten/library/favorite_repository';
 import { FavoriteSyncAdapter } from '@/relisten/library/favorite_sync_adapter';
 import { FavoriteSyncService } from '@/relisten/library/favorite_sync_service';
 import { PlaylistSyncService } from '@/relisten/playlists/sync/playlist_sync_service';
+import { PlaylistSharingService } from '@/relisten/playlists/sharing/playlist_sharing_service';
 import { DownloadManager } from '@/relisten/offline/download_manager';
 import { AudioAdjustmentStore } from '@/relisten/player/audio_adjustments/audio_adjustment_store';
 import { LibraryIndex } from '@/relisten/realm/library_index';
@@ -28,6 +29,7 @@ export interface RootServices {
   favoriteSyncAdapter: FavoriteSyncAdapter;
   favoriteSyncService: FavoriteSyncService;
   playlistSyncService: PlaylistSyncService;
+  playlistSharingService: PlaylistSharingService;
   anonymousLibraryImportService: AnonymousLibraryImportService;
   userSettingsStore: UserSettingsStore;
   audioAdjustmentStore: AudioAdjustmentStore;
@@ -47,17 +49,27 @@ export function RootServicesProvider({ children }: PropsWithChildren) {
       favoriteRepository,
       new RelistenApiClient()
     );
+    const favoriteSyncService = new FavoriteSyncService(
+      favoriteRepository,
+      favoriteSyncAdapter,
+      accountsApi
+    );
+    const playlistSyncService = new PlaylistSyncService(realm, accountsApi, accountScopeSource);
     return {
       favoriteMetadataHydrator,
       libraryIndex: new LibraryIndex(realm, accountScopeSource),
       favoriteRepository,
       favoriteSyncAdapter,
-      favoriteSyncService: new FavoriteSyncService(
-        favoriteRepository,
-        favoriteSyncAdapter,
-        accountsApi
+      favoriteSyncService,
+      playlistSyncService,
+      playlistSharingService: new PlaylistSharingService(
+        realm,
+        accountsApi,
+        accountScopeSource,
+        // A library pull is what a retry starts; it carries follows and new copies.
+        () => favoriteSyncService.retryNow(),
+        playlistSyncService.flush
       ),
-      playlistSyncService: new PlaylistSyncService(realm, accountsApi, accountScopeSource),
       anonymousLibraryImportService: new AnonymousLibraryImportService(favoriteRepository),
       userSettingsStore: new UserSettingsStore(realm),
       audioAdjustmentStore: new AudioAdjustmentStore(realm),
@@ -173,6 +185,10 @@ export function useFavoriteSyncService() {
 
 export function usePlaylistSyncService() {
   return useRootServices().playlistSyncService;
+}
+
+export function usePlaylistSharingService() {
+  return useRootServices().playlistSharingService;
 }
 
 export function useAnonymousLibraryImportService() {

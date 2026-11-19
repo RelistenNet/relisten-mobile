@@ -1,54 +1,32 @@
-import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Realm from 'realm';
-import {
-  FlatList,
-  type FlatListProps,
-  TextInput,
-  type TextInputInstance,
-  useWindowDimensions,
-  View,
-} from 'react-native';
+import { TextInput, type TextInputInstance, View } from 'react-native';
 import { AndroidBackHandler, textToolbarButtonProps } from '@/relisten/components/header_buttons';
-import { ItemSeparator } from '@/relisten/components/item_separator';
 import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { DownloadManager } from '@/relisten/offline/download_manager';
-import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
-import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
 import { useRealm } from '@/relisten/realm/schema';
-import { humanDuration, playlistSizeLine } from '@/relisten/playlists/playlist_format';
+import type { Playlist } from '@/relisten/realm/models/playlists/playlist';
 import {
   usePlaylist,
   usePlaylistGroups,
-  summarizePlaylist,
   usePlaylistLayout,
-  type PlaylistRowGroup,
 } from '@/relisten/playlists/playlist_hooks';
 import { usePlaylistHydration } from '@/relisten/playlists/playlist_hydration';
-import {
-  isQueueable,
-  playEntryAt,
-  playPlaylist,
-  shufflePlaylist,
-} from '@/relisten/playlists/playlist_playback';
 import { PLAYLIST_LIMITS, updatePlaylistDetails } from '@/relisten/playlists/playlist_repository';
+import { needsSnapshot } from '@/relisten/playlists/sync/playlist_sync_state';
 import { PlaylistEditList } from '@/relisten/playlists/ui/playlist_edit_list';
-import {
-  PlaylistIntroRow,
-  PlaylistTextRow,
-  PlaylistTrackRow,
-  type PlaylistViewRow,
-  playlistViewRows,
-  usePlayingEntryId,
-} from '@/relisten/playlists/ui/playlist_rows';
 import { openGuideTextEditor } from '@/relisten/playlists/guide/guide_text_navigation';
 import { usePlaylistLifecycle } from '@/relisten/playlists/ui/playlist_lifecycle';
+import {
+  PlaylistReadingList,
+  PlaylistViewHeader,
+} from '@/relisten/playlists/ui/playlist_reading_view';
+import { usePlaylistShareActions } from '@/relisten/playlists/ui/playlist_share_actions';
 import { PlaylistSyncNotice } from '@/relisten/playlists/ui/playlist_sync_notice';
-import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
+import { FollowedPlaylistView } from '@/relisten/pages/playlists/followed_playlist_view';
 import { usePlaylistSyncService } from '@/relisten/realm/root_services';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 
@@ -56,13 +34,10 @@ export default function PlaylistDetailPage() {
   const { playlistId } = useLocalSearchParams<{ playlistId: string }>();
   const realm = useRealm();
   const router = useRouter();
-  const player = useRelistenPlayer();
   const online = useShouldMakeNetworkRequests();
   const playlist = usePlaylist(playlistId);
   const allGroups = usePlaylistGroups(playlistId);
   const layout = usePlaylistLayout(allGroups);
-  const playingEntryId = usePlayingEntryId(playlistId);
-  const scrollProps = usePlayerBottomScrollViewProps({});
   const [editing, setEditing] = useState(false);
   // Name and description edits are drafts until Done (or leaving the screen) commits them.
   const [draft, setDraft] = useState({ name: '', description: '' });
@@ -74,6 +49,7 @@ export default function PlaylistDetailPage() {
   const nameInput = useRef<TextInputInstance>(null);
   const [focusName, setFocusName] = useState(false);
   const lifecycle = usePlaylistLifecycle();
+  const shareActions = usePlaylistShareActions();
   const syncService = usePlaylistSyncService();
 
   usePlaylistHydration(playlistId, allGroups, online);
@@ -95,15 +71,6 @@ export default function PlaylistDetailPage() {
     },
     [playlistId, realm, syncService]
   );
-  // The groups update as downloads finish, which keeps Show Downloaded Only current.
-  const viewRows = useMemo(
-    () => playlistViewRows(downloadedOnly ? filterDownloaded(allGroups) : allGroups),
-    [allGroups, downloadedOnly]
-  );
-  const playingSegmentId = playingEntryId
-    ? layout.groups[layout.entryPositions.get(playingEntryId)?.groupIndex ?? -1]?.segment.segmentId
-    : undefined;
-
   if (!playlist || playlist.deletedAt) {
     return (
       <View className="flex-1 items-center bg-relisten-blue-900 px-8 pt-16">
@@ -115,39 +82,17 @@ export default function PlaylistDetailPage() {
     );
   }
 
+  if (playlist.access === 'follower') {
+    return <FollowedPlaylistView playlist={playlist} groups={allGroups} />;
+  }
+
   const name = playlist.name;
-  const play = (entryId?: string) => {
-    if (!playPlaylist(player, playlistId, allGroups, online, entryId)) {
-      showPlaylistToast(entryId ? 'This track isn’t downloaded.' : nothingPlayableMessage(online));
-    }
-  };
-  const playTimestamp = (entryId: string, seconds: number) => {
-    if (!playEntryAt(player, playlistId, allGroups, online, entryId, seconds)) {
-      showPlaylistToast(
-        online ? 'That part isn’t available right now.' : 'That track isn’t downloaded.'
-      );
-    }
-  };
   const addTextSection = () =>
     openGuideTextEditor(router, {
       kind: 'section',
       playlistId,
       afterSegmentId: allGroups[allGroups.length - 1]?.segment.segmentId,
     });
-  const shuffle = () => {
-    if (!shufflePlaylist(player, playlistId, allGroups, online)) {
-      showPlaylistToast(nothingPlayableMessage(online));
-    }
-  };
-  const download = () => {
-    for (const group of allGroups) {
-      for (const row of group.entries) {
-        if (row.sourceTrack?.supportsOfflineDownload()) {
-          void DownloadManager.SHARED_INSTANCE.downloadTrack(row.sourceTrack);
-        }
-      }
-    }
-  };
   const deletePlaylist = () => lifecycle.remove(playlist);
   const startEditing = () => {
     const initial = { name, description: playlist.description ?? '' };
@@ -222,6 +167,22 @@ export default function PlaylistDetailPage() {
           </Stack.Toolbar.Menu>
           <Stack.Toolbar.Menu inline>
             <Stack.Toolbar.MenuAction
+              icon={nativeMenuIcons.share}
+              onPress={() => shareActions.share(playlist)}
+            >
+              Share…
+            </Stack.Toolbar.MenuAction>
+            {playlist.published && (
+              <Stack.Toolbar.MenuAction
+                icon={nativeMenuIcons.lock}
+                onPress={() => shareActions.makePrivate(playlist)}
+              >
+                Make Private
+              </Stack.Toolbar.MenuAction>
+            )}
+          </Stack.Toolbar.Menu>
+          <Stack.Toolbar.Menu inline>
+            <Stack.Toolbar.MenuAction
               destructive
               icon={nativeMenuIcons.delete}
               onPress={deletePlaylist}
@@ -247,178 +208,31 @@ export default function PlaylistDetailPage() {
           }
         />
       ) : (
-        <DisappearingHeaderScreen
-          ScrollableComponent={PlaylistTrackList}
-          data={viewRows}
-          keyExtractor={(r) => r.key}
-          ListHeaderComponent={
-            <ViewHeader
+        <PlaylistReadingList
+          playlistId={playlistId}
+          groups={allGroups}
+          editable
+          downloadedOnly={downloadedOnly}
+          emptyText={
+            isLoading(playlist)
+              ? online
+                ? 'Loading…'
+                : 'Connect to the internet to load this playlist.'
+              : "This playlist is empty. Add songs from any show's ••• menu."
+          }
+          header={
+            <PlaylistViewHeader
+              playlistId={playlistId}
               name={name}
+              byline={playlist.published ? 'Public' : undefined}
               description={playlist.description}
-              entryCount={playlist.entryCount}
+              trackCount={playlist.entryCount}
               groups={allGroups}
-              online={online}
-              onPlay={() => play()}
-              onShuffle={shuffle}
-              onDownload={download}
               notice={<PlaylistSyncNotice playlist={playlist} />}
             />
           }
-          ListEmptyComponent={
-            <RelistenText className="px-6 py-8 text-center text-gray-400">
-              {downloadedOnly
-                ? 'No downloaded tracks yet.'
-                : "This playlist is empty. Add songs from any show's ••• menu."}
-            </RelistenText>
-          }
-          renderItem={({ item }) => {
-            const linkPlaying =
-              item.link !== undefined && item.group.segment.segmentId === playingSegmentId;
-            if (item.kind === 'intro') {
-              return (
-                <PlaylistIntroRow
-                  viewRow={item}
-                  linkPlaying={linkPlaying}
-                  onTimestamp={playTimestamp}
-                />
-              );
-            }
-            return item.row.status === 'text' ? (
-              <PlaylistTextRow
-                playlistId={playlistId}
-                layout={layout}
-                viewRow={item}
-                linkPlaying={linkPlaying}
-                onTimestamp={playTimestamp}
-              />
-            ) : (
-              <PlaylistTrackRow
-                playlistId={playlistId}
-                layout={layout}
-                viewRow={item}
-                online={online}
-                isCurrent={item.row.entry.entryId === playingEntryId}
-                linkPlaying={linkPlaying}
-                onPlay={play}
-                onTimestamp={playTimestamp}
-              />
-            );
-          }}
-          {...scrollProps}
         />
       )}
-    </View>
-  );
-}
-
-/** The playlist's rows; a FlatList typed for DisappearingHeaderScreen. */
-const PlaylistTrackList = FlatList as React.ComponentType<FlatListProps<PlaylistViewRow>>;
-
-function ViewHeader({
-  name,
-  description,
-  entryCount,
-  groups,
-  online,
-  onPlay,
-  onShuffle,
-  onDownload,
-  notice,
-}: {
-  notice: React.ReactNode;
-  name: string;
-  description?: string;
-  entryCount: number;
-  groups: PlaylistRowGroup[];
-  online: boolean;
-  onPlay: () => void;
-  onShuffle: () => void;
-  onDownload: () => void;
-}) {
-  const { fontScale } = useWindowDimensions();
-  const stats = useMemo(() => summarizePlaylist(groups), [groups]);
-  const queueable = useMemo(
-    () =>
-      groups.reduce((n, g) => n + g.entries.filter((row) => isQueueable(row, online)).length, 0),
-    [groups, online]
-  );
-  const canPlay = queueable > 0;
-  const fullyDownloaded = stats.allDownloaded;
-  const status = fullyDownloaded
-    ? 'Downloaded'
-    : stats.downloading > 0
-      ? `Downloading ${stats.downloaded} of ${stats.downloadable}`
-      : '';
-  const iconSize = 20 * fontScale;
-
-  // Laid out like a show's header: centered title, a quiet details line, then
-  // one row of equal buttons.
-  return (
-    <View className="w-full items-center px-4">
-      <RelistenText className="w-full py-2 text-center text-3xl font-bold" selectable={false}>
-        {name}
-      </RelistenText>
-      {description ? (
-        <RelistenText className="w-full pb-2 text-center text-gray-300">{description}</RelistenText>
-      ) : null}
-      <RelistenText className="w-full pb-4 text-center italic text-gray-400" selectable={false}>
-        {[
-          playlistSizeLine(entryCount, 0),
-          stats.durationSeconds > 0 ? humanDuration(stats.durationSeconds) : '',
-          status,
-        ]
-          .filter(Boolean)
-          .join('\u00A0•\u00A0')}
-      </RelistenText>
-
-      {notice}
-      {entryCount > 0 && (
-        <View className="w-full flex-row pb-4" style={{ gap: 16 }}>
-          <RelistenButton
-            className="flex-1"
-            textClassName="text-l"
-            icon={<MaterialIcons name="play-arrow" size={iconSize} color="white" />}
-            disabled={!canPlay}
-            onPress={onPlay}
-          >
-            Play
-          </RelistenButton>
-          <RelistenButton
-            className="flex-1"
-            textClassName="text-l"
-            icon={<MaterialIcons name="shuffle" size={iconSize} color="white" />}
-            disabled={!canPlay}
-            onPress={onShuffle}
-          >
-            Shuffle
-          </RelistenButton>
-          <RelistenButton
-            accessibilityLabel="Download"
-            className="basis-1/5"
-            disabled={fullyDownloaded || stats.downloadable === 0}
-            disabledPopoverText={
-              fullyDownloaded
-                ? 'Every track is downloaded'
-                : 'None of these tracks can be downloaded'
-            }
-            onPress={onDownload}
-          >
-            <MaterialIcons name="file-download" size={iconSize} color="white" />
-          </RelistenButton>
-        </View>
-      )}
-      {entryCount > 0 && !canPlay && (
-        <RelistenText className="pb-3 text-center text-sm text-gray-400">
-          {nothingPlayableMessage(online)}
-        </RelistenText>
-      )}
-      {!online && canPlay && queueable < entryCount && (
-        <RelistenText className="pb-3 text-center text-sm text-gray-400">
-          Playing {queueable} downloaded {queueable === 1 ? 'track' : 'tracks'}. The rest need
-          internet.
-        </RelistenText>
-      )}
-      <ItemSeparator />
     </View>
   );
 }
@@ -489,21 +303,7 @@ function EditHeader({
   );
 }
 
-function filterDownloaded(groups: PlaylistRowGroup[]): PlaylistRowGroup[] {
-  return groups
-    .map((group) => ({
-      ...group,
-      // Downloaded tracks only; the guide's text around them is dropped too.
-      entries: group.entries.filter(
-        (row) => row.sourceTrack?.offlineInfo?.isPlayableOffline() === true
-      ),
-      descriptionMarkdown: undefined,
-    }))
-    .filter((group) => group.entries.length > 0);
-}
-
-function nothingPlayableMessage(online: boolean) {
-  return online
-    ? 'None of these recordings are available right now.'
-    : 'None of these tracks are downloaded.';
+/** An account playlist this device hasn't fetched yet, such as a new copy: its rows are on their way. */
+function isLoading(playlist: Playlist) {
+  return playlist.serverState === 'synced' && needsSnapshot(playlist) && playlist.entryCount === 0;
 }

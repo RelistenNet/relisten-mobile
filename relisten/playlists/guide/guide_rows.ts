@@ -149,13 +149,14 @@ export function renderableDescription(
 
 /** Who owns a row's description, which decides how timestamps link. */
 export function contextOf(realm: Realm, row: PlaylistSegment | PlaylistEntry): GuideTextContext {
-  if (!isEntry(row)) {
-    return { kind: 'segment' };
-  }
-  if (!row.trackId) {
-    return { kind: 'text' };
-  }
-  return { kind: 'track', durationSeconds: trackDurationSeconds(realm, row.trackId) };
+  return isEntry(row) ? entryContext(realm, row.trackId) : { kind: 'segment' };
+}
+
+/** The context of an entry's description: a track's note, or a text block when there's no track. */
+export function entryContext(realm: Realm, trackId: string | undefined): GuideTextContext {
+  return trackId
+    ? { kind: 'track', durationSeconds: trackDurationSeconds(realm, trackId) }
+    : { kind: 'text' };
 }
 
 function isEntry(row: PlaylistSegment | PlaylistEntry): row is PlaylistEntry {

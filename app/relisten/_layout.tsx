@@ -94,6 +94,18 @@ export default function TabLayout() {
         }}
       />
       <Stack.Screen
+        name="report-playlist"
+        options={{
+          contentStyle: { backgroundColor: RelistenBlue['900'] },
+          headerShown: true,
+          headerStyle: { backgroundColor: RelistenBlue['900'] },
+          headerTintColor: 'white',
+          presentation: Platform.OS === 'android' ? 'modal' : 'formSheet',
+          sheetAllowedDetents: [0.6],
+          sheetGrabberVisible: true,
+        }}
+      />
+      <Stack.Screen
         name="audio-adjustments"
         options={{
           contentStyle: { backgroundColor: RelistenBlue['950'] },

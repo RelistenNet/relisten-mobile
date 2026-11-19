@@ -7,7 +7,10 @@ import { artistLine, playlistSizeLine } from '@/relisten/playlists/playlist_form
 import { usePlaylistSummary } from '@/relisten/playlists/playlist_hooks';
 import { useGroupSegment } from '@/relisten/util/routes';
 
-/** A playlist in a list: name, size, and who's in it. No artwork; the app uses none. */
+/**
+ * A playlist in a list: name, size, and who's in it. No artwork; the app uses
+ * none. A followed playlist also says whose it is, or that it's unavailable.
+ */
 export function PlaylistListRow({
   playlist,
   compact = false,
@@ -18,7 +21,14 @@ export function PlaylistListRow({
   const groupSegment = useGroupSegment();
   const summary = usePlaylistSummary(playlist);
   const artists = artistLine(summary.artistNames);
-  const size = playlistSizeLine(playlist.entryCount, summary.durationSeconds);
+  const followed = playlist.access === 'follower';
+  // Named once its details arrive: a new follow's head, or a new copy's snapshot.
+  const name = playlist.name || (playlist.unavailable ? 'Unavailable playlist' : 'Loading…');
+  const size = playlist.unavailable
+    ? 'No longer available'
+    : playlistSizeLine(playlist.entryCount, summary.durationSeconds);
+  const owner = followed && playlist.ownerUsername ? `@${playlist.ownerUsername}` : '';
+  const details = [owner, artists].filter(Boolean).join(' · ');
 
   return (
     <Link
@@ -29,16 +39,11 @@ export function PlaylistListRow({
       asChild
     >
       <ListRow
-        accessibilityLabel={[
-          playlist.name,
-          size,
-          artists,
-          summary.allDownloaded ? 'Downloaded' : '',
-        ]
+        accessibilityLabel={[name, size, owner, artists, summary.allDownloaded ? 'Downloaded' : '']
           .filter(Boolean)
           .join(', ')}
-        title={playlist.name}
-        subtitle={!compact && artists !== '' ? `${size}\n${artists}` : size}
+        title={name}
+        subtitle={!compact && details !== '' ? `${size}\n${details}` : size}
         accessory={
           summary.allDownloaded ? (
             <Ionicons name="checkmark-circle-outline" size={18} color={RelistenBlue[400]} />
