@@ -29,7 +29,7 @@ export function usePlaylistLifecycle() {
 
   /** Explains why an account playlist can't change right now, or returns true. */
   const canReachAccount = (playlist: Playlist, action: 'delete' | 'restore') => {
-    if (account.userId !== playlist.ownerUserId || !account.isAuthenticated) {
+    if (account.userId !== playlist.libraryUserId || !account.isAuthenticated) {
       Alert.alert(`Sign in to ${action} this playlist.`, 'It’s saved to your account.');
       return false;
     }
@@ -57,7 +57,7 @@ export function usePlaylistLifecycle() {
    * unreachable account and returns undefined.
    */
   const deletionNow = (playlist: Playlist): 'local' | 'archive' | undefined => {
-    const deletion = playlist.ownerUserId ? ownedDeletion(realm, playlist) : 'local';
+    const deletion = playlist.libraryUserId ? ownedDeletion(realm, playlist) : 'local';
     if (deletion === 'pending') {
       Alert.alert('This playlist is still being saved.', 'Try again in a moment.');
       service.flush();

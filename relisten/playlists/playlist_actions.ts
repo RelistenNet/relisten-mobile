@@ -98,7 +98,7 @@ export function undoForLatestEdit(
  */
 function edit(realm: Realm, playlistId: string, operations: PlaylistOperation[]): boolean {
   // Only a device playlist undoes by snapshot; an account playlist withdraws operations.
-  const owned = !!realm.objectForPrimaryKey(Playlist, playlistId)?.ownerUserId;
+  const owned = !!realm.objectForPrimaryKey(Playlist, playlistId)?.libraryUserId;
   const before = owned ? undefined : readPlaylistSnapshot(realm, playlistId);
   const { changed, operationIds } = applyOperations(realm, playlistId, operations);
   if (changed) {

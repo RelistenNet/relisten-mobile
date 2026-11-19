@@ -24,7 +24,12 @@ export function PlaylistSyncRow() {
   const saveState = usePlaylistSaveState(userId ?? undefined);
   const playlists = useQuery(
     Playlist,
-    (rows) => rows.filtered('ownerUserId == $0 AND archived == false AND deletedAt == null', owner),
+    (rows) =>
+      rows.filtered(
+        'libraryUserId == $0 AND access == $1 AND archived == false AND deletedAt == null',
+        owner,
+        'owner'
+      ),
     [owner]
   );
   const unsent = useQuery(
@@ -73,7 +78,10 @@ export function PlaylistDiagnostics() {
   const device = useObject(PlaylistDeviceState, PLAYLIST_DEVICE_STATE_ID);
   const queue = useRelistenPlayerQueueOrderedTracks();
 
-  const owned = playlists.filter((p) => p.ownerUserId === owner);
+  const inLibrary = playlists.filter((p) => p.libraryUserId === owner);
+  const owned = inLibrary.filter((p) => p.access === 'owner');
+  const followed = inLibrary.length - owned.length;
+  const phoneOnly = playlists.filter((p) => !p.libraryUserId);
   const count = (rows: { length: number }) => rows.length;
   const byState = (state: string) => operations.filter((op) => op.state === state).length;
   const linkedSegments = [...segments].filter(
@@ -93,9 +101,10 @@ export function PlaylistDiagnostics() {
           label="Playlists"
           value={[
             `${owned.filter((p) => !p.archived && !p.deletedAt).length} on account`,
-            `${playlists.filter((p) => !p.ownerUserId && !p.deletedAt).length} phone only`,
+            `${followed} followed`,
+            `${phoneOnly.filter((p) => !p.deletedAt).length} phone only`,
             `${playlists.filter((p) => p.archived || p.deletedAt).length} deleted`,
-            `${playlists.length - owned.length - playlists.filter((p) => !p.ownerUserId).length} other accounts`,
+            `${playlists.length - inLibrary.length - phoneOnly.length} other accounts`,
           ].join(' · ')}
         />
         <DiagnosticRow

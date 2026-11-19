@@ -63,7 +63,7 @@ export function useVisibleOwnerId(): string | null {
   return useObject(PlaylistDeviceState, PLAYLIST_DEVICE_STATE_ID)?.lastSignedInUserId ?? null;
 }
 
-const VISIBLE = '(ownerUserId == null OR ownerUserId == $0)';
+const VISIBLE = '(libraryUserId == null OR libraryUserId == $0)';
 
 /** The playlists lists show, most recently edited first. Used by screens and CarPlay. */
 export function visiblePlaylists(rows: Realm.Results<Playlist>, owner: string | null) {
@@ -75,6 +75,16 @@ export function visiblePlaylists(rows: Realm.Results<Playlist>, owner: string | 
 export function usePlaylists() {
   const owner = useVisibleOwnerId();
   return useQuery(Playlist, (rows) => visiblePlaylists(rows, owner), [owner]);
+}
+
+/** The visible playlists the listener made, which are the ones music can be added to. */
+export function useEditablePlaylists() {
+  const owner = useVisibleOwnerId();
+  return useQuery(
+    Playlist,
+    (rows) => visiblePlaylists(rows, owner).filtered('access == $0', 'owner'),
+    [owner]
+  );
 }
 
 /** Deleted device playlists (kept 30 days) and archived account playlists. */
@@ -95,7 +105,9 @@ export function useDeletedPlaylists() {
 export function usePlaylist(playlistId: string) {
   const owner = useVisibleOwnerId();
   const playlist = useObject(Playlist, playlistId);
-  return playlist && (!playlist.ownerUserId || playlist.ownerUserId === owner) ? playlist : null;
+  return playlist && (!playlist.libraryUserId || playlist.libraryUserId === owner)
+    ? playlist
+    : null;
 }
 
 /** `text` is a text block: it has no track and is never played, downloaded or loaded. */

@@ -123,7 +123,7 @@ export class PlaylistSyncService {
   ) {
     this.operations = realm.objects(PlaylistOperation);
     this.commands = realm.objects(PlaylistCommand);
-    this.playlists = realm.objects(Playlist).filtered('ownerUserId != null');
+    this.playlists = realm.objects(Playlist).filtered('libraryUserId != null');
   }
 
   start() {
@@ -472,7 +472,7 @@ export class PlaylistSyncService {
       return;
     }
     if (playlist.historyGeneration && playlist.historyGeneration !== response.history_generation) {
-      startRestoreRecovery(this.realm, playlist.ownerUserId!);
+      startRestoreRecovery(this.realm, playlist.libraryUserId!);
       return;
     }
 
@@ -499,7 +499,7 @@ export class PlaylistSyncService {
       }
     }
     if (deleted) {
-      resumeAfterDeletion(this.realm, playlist.ownerUserId!);
+      resumeAfterDeletion(this.realm, playlist.libraryUserId!);
     }
     playlist.summaryRevision = Math.max(playlist.summaryRevision ?? 0, response.head_revision);
     rebuildDisplayed(this.realm, playlistId);
@@ -578,8 +578,9 @@ export class PlaylistSyncService {
     const requested = new Set(this.checkRequested);
     const candidates = [
       ...this.playlists.filtered(
-        'ownerUserId == $0 AND serverState == $1 AND archived == false',
+        'libraryUserId == $0 AND access == $1 AND serverState == $2 AND archived == false',
         userId,
+        'owner',
         'synced'
       ),
     ];
@@ -644,7 +645,7 @@ export class PlaylistSyncService {
         snapshot.history_generation
       );
       if (staleAcknowledgements.length > 0) {
-        startRestoreRecovery(this.realm, playlist.ownerUserId!);
+        startRestoreRecovery(this.realm, playlist.libraryUserId!);
         return;
       }
       applySnapshot(this.realm, playlist, snapshot);
@@ -673,7 +674,7 @@ export class PlaylistSyncService {
           throw error;
         }
         // The server's history is behind this device: treat it as a restore.
-        this.write(capture, () => startRestoreRecovery(this.realm, playlist.ownerUserId!));
+        this.write(capture, () => startRestoreRecovery(this.realm, playlist.libraryUserId!));
         return;
       }
 
@@ -683,7 +684,7 @@ export class PlaylistSyncService {
           return false;
         }
         if (current.historyGeneration !== page.history_generation) {
-          startRestoreRecovery(this.realm, current.ownerUserId!);
+          startRestoreRecovery(this.realm, current.libraryUserId!);
           return false;
         }
         applyChangesPage(this.realm, current, page);

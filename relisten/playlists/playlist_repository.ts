@@ -14,7 +14,7 @@ import {
   type WorkingSnapshot,
 } from '@/relisten/playlists/playlist_operations';
 import {
-  canAccessPlaylist,
+  canEditPlaylist,
   deleteNeverCreated,
   discardUnsentPlaylist,
   ownedDeletion,
@@ -127,6 +127,7 @@ export function createPlaylist(realm: Realm, name: string, groups: string[][] = 
     const owner = visibleOwnerId(realm);
     if (owner) {
       playlist.ownerUserId = owner;
+      playlist.libraryUserId = owner;
       issueCreateCommand(realm, playlist);
     }
     return playlist;
@@ -320,7 +321,7 @@ export function restoreSnapshot(
   return realm.write(() => {
     const playlist = accessiblePlaylist(realm, playlistId);
     // A playlist saved to an account since the snapshot can't go back to it.
-    if (!playlist || playlist.ownerUserId) {
+    if (!playlist || playlist.libraryUserId) {
       return false;
     }
     const current = readPlaylistSnapshot(realm, playlistId);
@@ -394,7 +395,7 @@ export function deletePlaylistPermanently(realm: Realm, playlistId: string): boo
     if (!playlist) {
       return true;
     }
-    if (playlist.ownerUserId && !discardUnsentPlaylist(realm, playlist)) {
+    if (playlist.libraryUserId && !discardUnsentPlaylist(realm, playlist)) {
       return false;
     }
     realm.delete(realm.objects(PlaylistEntry).filtered('playlistId == $0', playlistId));
@@ -411,7 +412,7 @@ export function deletePlaylistOnDevice(realm: Realm, playlistId: string) {
     if (!playlist) {
       return;
     }
-    if (playlist.ownerUserId) {
+    if (playlist.libraryUserId) {
       // Only a playlist the server has never seen may vanish from the device alone.
       if (ownedDeletion(realm, playlist) === 'local') {
         deleteNeverCreated(realm, playlist);
@@ -467,8 +468,11 @@ function deleteByIds(
   }
 }
 
-/** The playlist if the current listener may edit it; another account's playlist reads as missing. */
+/**
+ * The playlist if the current listener may edit it. Another account's
+ * playlist, or one they only follow, reads as missing.
+ */
 function accessiblePlaylist(realm: Realm, playlistId: string): Playlist | null {
   const playlist = realm.objectForPrimaryKey(Playlist, playlistId);
-  return playlist && canAccessPlaylist(realm, playlist) ? playlist : null;
+  return playlist && canEditPlaylist(realm, playlist) ? playlist : null;
 }

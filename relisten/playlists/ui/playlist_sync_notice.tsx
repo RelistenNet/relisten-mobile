@@ -66,7 +66,7 @@ export function PlaylistSyncNotice({ playlist }: { playlist: Playlist }) {
     .reduce((oldest, op) => Math.min(oldest, op.createdAt.getTime()), Number.POSITIVE_INFINITY);
   const slowSave = useIsSlow(oldestUnsaved);
 
-  if (!playlist.ownerUserId) {
+  if (!playlist.libraryUserId || playlist.access !== 'owner') {
     return null;
   }
 
@@ -144,7 +144,7 @@ export function PlaylistSyncNotice({ playlist }: { playlist: Playlist }) {
     );
   }
 
-  const signedInAsOwner = account.isAuthenticated && account.userId === playlist.ownerUserId;
+  const signedInAsOwner = account.isAuthenticated && account.userId === playlist.libraryUserId;
   if (signedInAsOwner && online && slowSave) {
     return <Notice message="Still saving your changes…" quiet />;
   }

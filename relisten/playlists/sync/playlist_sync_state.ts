@@ -3,6 +3,7 @@ import { FavoriteSyncState } from '@/relisten/realm/models/library/favorite_sync
 import {
   Playlist,
   PlaylistCommand,
+  PlaylistCopyCommand,
   PLAYLIST_DEVICE_STATE_ID,
   PlaylistDeviceState,
   PlaylistEntry,
@@ -23,6 +24,7 @@ import type {
   MetadataEdit,
   PlaylistChangesResponse,
   PlaylistEdit,
+  PlaylistPublicationState,
   PlaylistSnapshotResponse,
   PlaylistSummary,
 } from '@/relisten/playlists/sync/playlist_wire';
@@ -81,12 +83,17 @@ export function visibleOwnerId(realm: Realm): string | undefined {
 }
 
 /**
- * Whether the current listener may see, edit, or play a playlist: one saved to
- * their account (or the last signed-in account, while signed out), or one not
+ * Whether the current listener may see or play a playlist: one in their
+ * library (or the last signed-in account's, while signed out), or one not
  * saved to any account. Lists, by-ID screens, edits, and CarPlay share it.
  */
 export function canAccessPlaylist(realm: Realm, playlist: Playlist): boolean {
-  return !playlist.ownerUserId || playlist.ownerUserId === visibleOwnerId(realm);
+  return !playlist.libraryUserId || playlist.libraryUserId === visibleOwnerId(realm);
+}
+
+/** Whether the current listener may change a playlist: one they can see and made. */
+export function canEditPlaylist(realm: Realm, playlist: Playlist): boolean {
+  return playlist.access === 'owner' && canAccessPlaylist(realm, playlist);
 }
 
 /**
@@ -99,28 +106,31 @@ export function claimUnownedPlaylists(realm: Realm, userId: string): number {
   deviceState(realm).lastSignedInUserId = userId;
 
   const unowned = [
-    ...realm.objects(Playlist).filtered('ownerUserId == null AND deletedAt == null'),
+    ...realm.objects(Playlist).filtered('libraryUserId == null AND deletedAt == null'),
   ];
   for (const playlist of unowned) {
     playlist.ownerUserId = userId;
+    playlist.libraryUserId = userId;
     issueCreateCommand(realm, playlist);
   }
   return unowned.length;
 }
 
 /**
- * The account was deleted: removes its playlists from the device, along with
- * their rows and unsent work. Call this only after the server accepted the
- * deletion. When deletion can't be confirmed, use `hideAccountPlaylists`.
+ * The account was deleted: removes its library from the device, the
+ * playlists it made and the ones it followed, along with their rows and
+ * unsent work. Call this only after the server accepted the deletion. When
+ * deletion can't be confirmed, use `hideAccountPlaylists`.
  */
 export function forgetAccountPlaylists(realm: Realm, userId: string) {
-  const playlists = realm.objects(Playlist).filtered('ownerUserId == $0', userId);
+  const playlists = realm.objects(Playlist).filtered('libraryUserId == $0', userId);
   const playlistIds = playlists.map((playlist) => playlist.playlistId);
 
   realm.delete(realm.objects(PlaylistEntry).filtered('playlistId IN $0', playlistIds));
   realm.delete(realm.objects(PlaylistSegment).filtered('playlistId IN $0', playlistIds));
   realm.delete(realm.objects(PlaylistOperation).filtered('ownerUserId == $0', userId));
   realm.delete(realm.objects(PlaylistCommand).filtered('ownerUserId == $0', userId));
+  realm.delete(realm.objects(PlaylistCopyCommand).filtered('userId == $0', userId));
   realm.delete(playlists);
 
   // Nothing of the deleted account remains on the device, so it stops being
@@ -198,7 +208,7 @@ export function issueCreateCommand(realm: Realm, playlist: Playlist) {
   realm.create(PlaylistCommand, {
     commandId,
     playlistId: playlist.playlistId,
-    ownerUserId: playlist.ownerUserId!,
+    ownerUserId: playlist.libraryUserId!,
     requestJson: JSON.stringify(request),
     state: 'pending',
     createdAt: new Date(),
@@ -288,7 +298,7 @@ export function appendOperation(realm: Realm, playlist: Playlist, edit: Playlist
   realm.create(PlaylistOperation, {
     operationId,
     playlistId: playlist.playlistId,
-    ownerUserId: playlist.ownerUserId!,
+    ownerUserId: playlist.libraryUserId!,
     localSequence: state.nextOperationSequence,
     operationJson: JSON.stringify(edit),
     baseRevision: playlist.appliedRevision ?? 0,
@@ -320,7 +330,7 @@ export function recordEdit(
   if (changes) {
     writeDisplayedChanges(realm, playlist, changes);
   }
-  return playlist.ownerUserId ? appendOperation(realm, playlist, edit) : undefined;
+  return playlist.libraryUserId ? appendOperation(realm, playlist, edit) : undefined;
 }
 
 /**
@@ -362,9 +372,10 @@ export function restoreDeletedOnDevice(
   signedInUserId: string | undefined
 ) {
   playlist.deletedAt = undefined;
-  const owner = playlist.ownerUserId ?? signedInUserId;
+  const owner = playlist.libraryUserId ?? signedInUserId;
   if (owner) {
     playlist.ownerUserId = owner;
+    playlist.libraryUserId = owner;
     issueCreateCommand(realm, playlist);
   }
 }
@@ -623,12 +634,15 @@ export function applyPlaylistSummaries(
   for (const summary of summaries) {
     const playlist = realm.objectForPrimaryKey(Playlist, summary.playlist_id);
     if (playlist) {
-      if (playlist.ownerUserId !== ownerUserId) {
+      // A row in another library is that account's; a followed row with this
+      // ID can't be the owner's summary.
+      if (playlist.libraryUserId !== ownerUserId || playlist.access !== 'owner') {
         continue;
       }
       playlist.summaryRevision = Math.max(playlist.summaryRevision ?? 0, summary.revision);
-      // Archive is online-only, so the server's flag is always current.
+      // Archive and publication are online-only, so the server's flags are current.
       setArchived(realm, playlist, summary.archived);
+      recordPublication(playlist, summary);
       continue;
     }
     const updatedAt = new Date(summary.updated_at);
@@ -639,10 +653,30 @@ export function applyPlaylistSummaries(
       createdAt: updatedAt,
       updatedAt,
       ownerUserId,
+      libraryUserId: ownerUserId,
       archived: summary.archived,
       serverState: 'synced',
       summaryRevision: summary.revision,
+      publicCode: summary.public_code ?? undefined,
+      published: summary.published ?? false,
+      takenDown: summary.taken_down ?? false,
     });
+  }
+}
+
+/** Records the server's sharing state for an owned playlist, writing only what changed. */
+export function recordPublication(playlist: Playlist, publication: PlaylistPublicationState) {
+  const publicCode = publication.public_code ?? undefined;
+  const published = publication.published ?? false;
+  const takenDown = publication.taken_down ?? false;
+  if ((playlist.publicCode ?? undefined) !== publicCode) {
+    playlist.publicCode = publicCode;
+  }
+  if (playlist.published !== published) {
+    playlist.published = published;
+  }
+  if (playlist.takenDown !== takenDown) {
+    playlist.takenDown = takenDown;
   }
 }
 
@@ -679,6 +713,7 @@ export function applySnapshot(
   playlist.canonicalName = snapshot.metadata.name;
   playlist.canonicalDescription = snapshot.metadata.description ?? undefined;
   setArchived(realm, playlist, snapshot.archived);
+  recordPublication(playlist, snapshot);
   playlist.serverState = 'synced';
   playlist.appliedRevision = snapshot.revision;
   playlist.summaryRevision = Math.max(playlist.summaryRevision ?? 0, snapshot.revision);
@@ -769,8 +804,8 @@ export function applyChangesPage(realm: Realm, playlist: Playlist, page: Playlis
       (change) => change.type === 'entry_deleted' || change.type === 'segment_deleted'
     )
   );
-  if (deleted && playlist.ownerUserId) {
-    resumeAfterDeletion(realm, playlist.ownerUserId);
+  if (deleted && playlist.libraryUserId) {
+    resumeAfterDeletion(realm, playlist.libraryUserId);
   }
 
   playlist.appliedRevision = page.next_after_revision;
@@ -858,7 +893,8 @@ export function startRestoreRecovery(realm: Realm, ownerUserId: string) {
   for (const syncState of realm.objects(FavoriteSyncState).filtered('scopeId == $0', ownerUserId)) {
     syncState.libraryCursor = undefined;
   }
-  for (const playlist of realm.objects(Playlist).filtered('ownerUserId == $0', ownerUserId)) {
+  // Followed playlists too: their stored revisions are from the old history.
+  for (const playlist of realm.objects(Playlist).filtered('libraryUserId == $0', ownerUserId)) {
     markNeedsSnapshot(playlist);
   }
   for (const op of realm

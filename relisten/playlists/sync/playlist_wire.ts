@@ -60,7 +60,19 @@ export interface PlaylistSnapshotResponse {
   created_at: string;
   updated_at: string;
   history_generation: string;
+  public_code?: string | null;
+  published?: boolean;
+  taken_down?: boolean;
 }
+
+/**
+ * Sharing state on an owned playlist's summary and snapshot. The code is kept
+ * once issued, so making a playlist private and public again keeps its link.
+ */
+export type PlaylistPublicationState = Pick<
+  PlaylistSnapshotResponse,
+  'public_code' | 'published' | 'taken_down'
+>;
 
 export type PlaylistChange =
   | { type: 'metadata_updated'; name: string; description: string | null }
@@ -121,6 +133,9 @@ export interface PlaylistSummary {
   archived: boolean;
   revision: number;
   updated_at: string;
+  public_code?: string | null;
+  published?: boolean;
+  taken_down?: boolean;
 }
 
 /** The contract's cap on operations per batch request. */

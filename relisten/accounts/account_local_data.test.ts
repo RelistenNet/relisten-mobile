@@ -19,6 +19,7 @@ import {
 import {
   Playlist,
   PlaylistCommand,
+  PlaylistCopyCommand,
   PLAYLIST_DEVICE_STATE_ID,
   PLAYLIST_REALM_MODELS,
   PlaylistDeviceState,
@@ -82,10 +83,39 @@ describe('account local data', () => {
     expect(lastSignedInUserId(realm)).toBeNull();
   });
 
+  it('removes the playlists the account followed, which someone else owns', () => {
+    realm.write(() => {
+      const now = new Date();
+      realm.create(Playlist, {
+        playlistId: 'playlist_followed',
+        name: 'Followed',
+        createdAt: now,
+        updatedAt: now,
+        ownerUserId: 'user_01890a5dac96774bbcceb302099a8071',
+        libraryUserId: deleted,
+        access: 'follower',
+      });
+      seedRows(realm, 'playlist_followed');
+    });
+
+    forgetDeletedAccount(realm, deleted);
+
+    expect(realm.objectForPrimaryKey(Playlist, 'playlist_followed')).toBeNull();
+    expect(
+      realm.objects(PlaylistEntry).filtered('playlistId == $0', 'playlist_followed')
+    ).toHaveLength(0);
+  });
+
   // Account data lives in these three model groups. The app's full schema
   // can't load under Vitest, since other models import React Native.
   it('covers every account, favorite and playlist table with an account field', () => {
-    const accountFields = new Set(['scopeId', 'userId', 'ownerUserId', 'destinationScopeId']);
+    const accountFields = new Set([
+      'scopeId',
+      'userId',
+      'ownerUserId',
+      'libraryUserId',
+      'destinationScopeId',
+    ]);
     const withAccountField = [
       ...ACCOUNT_REALM_MODELS,
       ...FAVORITE_REALM_MODELS,
@@ -133,9 +163,10 @@ const accountTables = [
   [FavoriteSyncState, 'scopeId'],
   [AccountProfile, 'scopeId'],
   [PendingUsernameCommand, 'scopeId'],
-  [Playlist, 'ownerUserId'],
+  [Playlist, 'libraryUserId'],
   [PlaylistOperation, 'ownerUserId'],
   [PlaylistCommand, 'ownerUserId'],
+  [PlaylistCopyCommand, 'userId'],
 ] as const;
 
 function lastSignedInUserId(realm: Realm) {
@@ -197,6 +228,7 @@ function seedAccount(realm: Realm, userId: string) {
     createdAt: now,
     updatedAt: now,
     ownerUserId: userId,
+    libraryUserId: userId,
     serverState: 'synced',
   });
   seedRows(realm, playlistId);
@@ -216,6 +248,12 @@ function seedAccount(realm: Realm, userId: string) {
     ownerUserId: userId,
     requestJson: '{}',
     state: 'pending',
+    createdAt: now,
+  });
+  realm.create(PlaylistCopyCommand, {
+    commandId: `copy_${userId}`,
+    publicCode: '0123456789abcdef0123456789abcdef',
+    userId,
     createdAt: now,
   });
 }

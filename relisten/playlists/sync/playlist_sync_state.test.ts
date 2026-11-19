@@ -42,6 +42,7 @@ describe('restore recovery', () => {
         createdAt: now,
         updatedAt: now,
         ownerUserId: owner,
+        libraryUserId: owner,
         serverState: 'synced',
         appliedRevision: 43,
         summaryRevision: 43,

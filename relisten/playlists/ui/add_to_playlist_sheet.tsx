@@ -16,7 +16,7 @@ import { orderedGroups } from '@/relisten/playlists/playlist_operations';
 import { artistLine, playlistSizeLine } from '@/relisten/playlists/playlist_format';
 import {
   sourceTrackFor,
-  usePlaylists,
+  useEditablePlaylists,
   usePlaylistSummary,
 } from '@/relisten/playlists/playlist_hooks';
 import {
@@ -49,7 +49,7 @@ export default function AddToPlaylistSheet() {
         : trackIds.map((trackId) => [trackId]),
     [linkBackToBack, linkable, realm, trackIds]
   );
-  const playlists = usePlaylists();
+  const playlists = useEditablePlaylists();
   const presentation = usePlayerPresentation();
   const fullPlayer = {
     isOpen: presentation.isPresentationActive,

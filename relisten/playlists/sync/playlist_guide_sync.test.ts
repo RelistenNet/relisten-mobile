@@ -77,6 +77,7 @@ describe('guide content sync', () => {
         createdAt: now,
         updatedAt: now,
         ownerUserId: owner,
+        libraryUserId: owner,
         serverState: 'synced',
       });
       applySnapshot(realm, playlist, snapshot);

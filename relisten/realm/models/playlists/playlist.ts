@@ -1,14 +1,18 @@
 import Realm from 'realm';
 
 /**
- * A listener's playlist. It works without an account; signing in gives it an
- * owner and saves it to that account. Catalog tracks are referenced by typed
+ * A playlist in a listener's library: one they made, or one they follow. A
+ * playlist they made works without an account; signing in gives it an owner
+ * and saves it to that account. Catalog tracks are referenced by typed
  * `track_` IDs, not Realm links, so entries survive catalog eviction and
  * recordings that later disappear.
  *
- * Account playlists keep two states on the same rows: the canonical fields hold
- * the last state the server confirmed, and the displayed fields hold that state
- * with the owner's unconfirmed edits replayed on top (see playlist_sync_state).
+ * Owned account playlists keep two states on the same rows: the canonical
+ * fields hold the last state the server confirmed, and the displayed fields
+ * hold that state with the owner's unconfirmed edits replayed on top (see
+ * playlist_sync_state). A followed playlist is read-only and has only the
+ * displayed fields, replaced whole from its public snapshot (see
+ * followed_playlists).
  */
 export class Playlist extends Realm.Object<Playlist> {
   static schema: Realm.ObjectSchema = {
@@ -24,8 +28,25 @@ export class Playlist extends Realm.Object<Playlist> {
       deletedAt: { type: 'date', optional: true, indexed: true },
       createdAt: 'date',
       updatedAt: { type: 'date', indexed: true },
-      // Account playlists. Unowned playlists leave these empty.
+      // Whose library the row is in on this device: the owner of a playlist
+      // they made, or the follower. Null for a device playlist not yet saved
+      // to an account. Visibility, sync and account isolation go by this.
+      libraryUserId: { type: 'string', optional: true, indexed: true },
+      // What `libraryUserId` may do with it. Only an owner edits, syncs an
+      // outbox, archives or deletes.
+      access: { type: 'string', default: 'owner' },
+      // Who made the playlist, as data. Equal to `libraryUserId` for an owner.
       ownerUserId: { type: 'string', optional: true, indexed: true },
+      // A followed playlist's owner, shown as "@username".
+      ownerUsername: 'string?',
+      // Sharing. The code is stable once issued, even while private.
+      publicCode: 'string?',
+      published: { type: 'bool', default: false },
+      // Removed after a report: it can't be shared until a moderator lifts it.
+      takenDown: { type: 'bool', default: false },
+      // A followed playlist whose owner made it private, or that was taken
+      // down or deleted. It keeps the last name it had until unfollowed.
+      unavailable: { type: 'bool', default: false },
       // Deleting an account playlist archives it on the server.
       archived: { type: 'bool', default: false },
       serverState: 'string?',
@@ -44,7 +65,14 @@ export class Playlist extends Realm.Object<Playlist> {
   deletedAt?: Date;
   createdAt!: Date;
   updatedAt!: Date;
+  libraryUserId?: string;
+  access!: PlaylistAccess;
   ownerUserId?: string;
+  ownerUsername?: string;
+  publicCode?: string;
+  published!: boolean;
+  takenDown!: boolean;
+  unavailable!: boolean;
   archived!: boolean;
   serverState?: PlaylistServerState;
   appliedRevision?: number;
@@ -53,6 +81,9 @@ export class Playlist extends Realm.Object<Playlist> {
   canonicalName?: string;
   canonicalDescription?: string;
 }
+
+/** Collaboration may later add `editor` and `viewer`. */
+export type PlaylistAccess = 'owner' | 'follower';
 
 /**
  * `creating` until the account has the playlist, then `synced`.
@@ -273,6 +304,30 @@ export class PlaylistCommand extends Realm.Object<PlaylistCommand> {
 }
 
 /**
+ * Copies a public playlist into the listener's account. It is written before
+ * the request is sent and kept until the outcome is known, so a retry after a
+ * network error or a restart reuses the command ID, and the server returns the
+ * copy it already made instead of making another.
+ */
+export class PlaylistCopyCommand extends Realm.Object<PlaylistCopyCommand> {
+  static schema: Realm.ObjectSchema = {
+    name: 'PlaylistCopyCommand',
+    primaryKey: 'commandId',
+    properties: {
+      commandId: 'string',
+      publicCode: 'string',
+      userId: { type: 'string', indexed: true },
+      createdAt: 'date',
+    },
+  };
+
+  commandId!: string;
+  publicCode!: string;
+  userId!: string;
+  createdAt!: Date;
+}
+
+/**
  * Device-wide playlist settings. The last signed-in account stays the visible
  * owner after signing out, so its playlists stay listed and editable.
  */
@@ -301,5 +356,6 @@ export const PLAYLIST_REALM_MODELS = [
   PlaylistTrackAvailability,
   PlaylistOperation,
   PlaylistCommand,
+  PlaylistCopyCommand,
   PlaylistDeviceState,
 ];
