@@ -1,4 +1,4 @@
-import { useSegments } from 'expo-router';
+import { type useRouter, useSegments } from 'expo-router';
 
 /**
  * Account screens live inside the My Library and Relisten tabs, so they open
@@ -18,4 +18,13 @@ export function usernamePath(tab: AccountTab) {
 export function useAccountTab(): AccountTab {
   const segments: string[] = useSegments();
   return segments.includes('(myLibrary)') ? '(myLibrary)' : '(relisten)';
+}
+
+/**
+ * Asks to sign in over the current screen, for an action that needs an
+ * account, such as following a playlist. `reason` finishes "Sign in to …".
+ * The sheet closes once the listener is signed in.
+ */
+export function openSignInSheet(router: ReturnType<typeof useRouter>, reason: string) {
+  router.push({ pathname: '/relisten/sign-in', params: { reason } });
 }

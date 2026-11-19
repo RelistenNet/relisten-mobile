@@ -1,7 +1,8 @@
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useRef } from 'react';
 import { Alert } from 'react-native';
 import { useAccountScope } from '@/relisten/accounts/account_context';
-import { accountPath } from '@/relisten/accounts/ui/account_routes';
+import { openSignInSheet } from '@/relisten/accounts/ui/account_routes';
 import {
   SharingError,
   type SharingFailure,
@@ -15,8 +16,9 @@ import { useGroupSegment } from '@/relisten/util/routes';
 
 /**
  * What a listener can do with someone else's public playlist: follow or
- * unfollow it, copy it into their own playlists, or report it. Each needs the internet and
- * a signed-in account, and explains itself when one is missing.
+ * unfollow it, copy it into their own playlists, or report it. Each needs the
+ * internet and a signed-in account. Signed out, an action opens the sign-in
+ * sheet and runs once the listener signs in; closing the sheet drops it.
  */
 export function usePlaylistReaderActions() {
   const router = useRouter();
@@ -25,89 +27,89 @@ export function usePlaylistReaderActions() {
   const online = useShouldMakeNetworkRequests();
   const sharing = usePlaylistSharingService();
   const signedIn = account.isAuthenticated && !!account.userId;
+  // The action waiting on the sign-in sheet. In memory only: it belongs to
+  // this screen, and a relaunch shouldn't follow something by surprise.
+  const waitingForSignIn = useRef<(() => unknown) | undefined>(undefined);
 
-  const ready = (action: string) => {
+  // The sheet has closed when this screen is focused again. The action runs
+  // only then: following can redirect this screen, and navigating under an
+  // open sheet races the sheet's own dismissal. Still signed out means the
+  // listener closed the sheet, so the action is dropped.
+  useFocusEffect(
+    useCallback(() => {
+      const run = waitingForSignIn.current;
+      waitingForSignIn.current = undefined;
+      if (run && signedIn) {
+        void run();
+      }
+    }, [signedIn])
+  );
+
+  /**
+   * Runs `run` now and returns what it returns, or runs it after signing in.
+   * `action` finishes "Sign in to …" and "Connect to the internet to …".
+   */
+  const whenReady = async (action: string, run: () => unknown) => {
     if (!signedIn) {
-      Alert.alert(`Sign in to ${action}.`, 'Following and copying playlists need an account.', [
-        { text: 'Not Now', style: 'cancel' },
-        { text: 'Sign In', onPress: () => router.push(accountPath('(myLibrary)')) },
-      ]);
-      return false;
+      waitingForSignIn.current = run;
+      openSignInSheet(router, action);
+      return;
     }
     if (!online) {
       Alert.alert(`Connect to the internet to ${action}.`);
-      return false;
-    }
-    return true;
-  };
-
-  const follow = async (snapshot: PublicPlaylistSnapshot) => {
-    if (!ready('follow this playlist')) {
       return;
     }
-    try {
-      await sharing.follow(snapshot);
-      showPlaylistToast(`Following ${snapshot.metadata.name}`);
-    } catch (error) {
-      explain(error, `Couldn’t follow ${snapshot.metadata.name}. Try again.`);
-    }
+    await run();
   };
+
+  const follow = (snapshot: PublicPlaylistSnapshot) =>
+    whenReady('follow this playlist', async () => {
+      try {
+        await sharing.follow(snapshot);
+        showPlaylistToast(`Following ${snapshot.metadata.name}`);
+      } catch (error) {
+        explain(error, `Couldn’t follow ${snapshot.metadata.name}. Try again.`);
+      }
+    });
 
   /**
-   * Asks first, since the Following button sits right under the title. A
-   * playlist that is still public reopens as its public page, so the listener
-   * stays where they were and can follow it again; otherwise this goes back.
+   * Like un-favoriting, this doesn't ask first. A playlist that is still
+   * public reopens as its public page, so the listener stays where they were
+   * and can follow it again with one tap; otherwise this goes back.
    */
-  const unfollow = (playlistId: string, name: string, publicCode?: string) => {
-    Alert.alert(`Unfollow ${name}?`, 'It will be removed from your library.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Unfollow',
-        style: 'destructive',
-        onPress: () => void confirmedUnfollow(playlistId, name, publicCode),
-      },
-    ]);
-  };
-
-  const confirmedUnfollow = async (playlistId: string, name: string, publicCode?: string) => {
-    if (!ready('unfollow this playlist')) {
-      return;
-    }
-    try {
-      await sharing.unfollow(playlistId);
-      if (publicCode) {
-        router.replace({
-          pathname: `/relisten/tabs/${groupSegment}/playlists/shared/[publicCode]`,
-          params: { publicCode },
-        });
-      } else {
-        router.back();
+  const unfollow = (playlistId: string, name: string, publicCode?: string) =>
+    whenReady('unfollow this playlist', async () => {
+      try {
+        await sharing.unfollow(playlistId);
+        if (publicCode) {
+          router.replace({
+            pathname: `/relisten/tabs/${groupSegment}/playlists/shared/[publicCode]`,
+            params: { publicCode },
+          });
+        } else {
+          router.back();
+        }
+        showPlaylistToast(`Unfollowed ${name}`);
+      } catch (error) {
+        explain(error, `Couldn’t unfollow ${name}. Try again.`);
       }
-      showPlaylistToast(`Unfollowed ${name}`);
-    } catch (error) {
-      explain(error, `Couldn’t unfollow ${name}. Try again.`);
-    }
-  };
+    });
 
-  const copy = async (publicCode: string, name: string) => {
-    if (!ready('copy this playlist')) {
-      return;
-    }
-    try {
-      const playlistId = await sharing.copy(publicCode, name);
-      openPlaylist(router, playlistId, groupSegment);
-      showPlaylistToast(`Copied ${name} to your playlists`);
-    } catch (error) {
-      explain(error, `Couldn’t copy ${name}. Try again.`);
-    }
-  };
+  const copy = (publicCode: string, name: string) =>
+    whenReady('copy this playlist', async () => {
+      try {
+        const playlistId = await sharing.copy(publicCode, name);
+        openPlaylist(router, playlistId, groupSegment);
+        showPlaylistToast(`Copied ${name} to your playlists`);
+      } catch (error) {
+        explain(error, `Couldn’t copy ${name}. Try again.`);
+      }
+    });
 
-  const report = (publicCode: string, name: string) => {
-    if (!ready('report this playlist')) {
-      return;
-    }
-    router.push({ pathname: '/relisten/report-playlist', params: { publicCode, name } });
-  };
+  const report = (publicCode: string, name: string) =>
+    whenReady('report this playlist', () =>
+      router.push({ pathname: '/relisten/report-playlist', params: { publicCode, name } })
+    );
 
   return { signedIn, follow, unfollow, copy, report };
 }

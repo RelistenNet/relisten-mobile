@@ -94,6 +94,17 @@ export default function TabLayout() {
         }}
       />
       <Stack.Screen
+        name="sign-in"
+        options={{
+          contentStyle: { backgroundColor: RelistenBlue['900'] },
+          headerShown: false,
+          // Full screen on Android for the same reason as add-to-playlist.
+          presentation: Platform.OS === 'android' ? 'modal' : 'formSheet',
+          sheetAllowedDetents: [0.6, 0.92],
+          sheetGrabberVisible: true,
+        }}
+      />
+      <Stack.Screen
         name="report-playlist"
         options={{
           contentStyle: { backgroundColor: RelistenBlue['900'] },

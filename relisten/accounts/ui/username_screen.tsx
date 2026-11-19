@@ -29,10 +29,15 @@ function changeAvailableAt(value: Date | string | null | undefined) {
   return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
-export function UsernameScreen() {
+/**
+ * `onDone` closes the screen when it is shown inside the sign-in sheet;
+ * otherwise saving returns to the Account screen.
+ */
+export function UsernameScreen({ onDone }: { onDone?: () => void } = {}) {
   const account = useAccount();
   const router = useRouter();
   const tab = useAccountTab();
+  const done = onDone ?? (() => router.dismissTo(accountPath(tab)));
   const [username, setUsername] = useState(
     account.pendingUsername ?? account.profile?.username ?? ''
   );
@@ -95,7 +100,7 @@ export function UsernameScreen() {
 
     try {
       await account.updateUsername(normalizedUsername);
-      router.dismissTo(accountPath(tab));
+      done();
     } catch (error) {
       setActionError(accountErrorMessage(error));
     }
@@ -192,11 +197,7 @@ export function UsernameScreen() {
           </RelistenButton>
 
           {isReview && (
-            <RelistenButton
-              disabled={submitting}
-              intent="outline"
-              onPress={() => router.dismissTo(accountPath(tab))}
-            >
+            <RelistenButton disabled={submitting} intent="outline" onPress={done}>
               {hasPendingUsername ? 'Finish later' : `Use @${account.profile.username} for now`}
             </RelistenButton>
           )}

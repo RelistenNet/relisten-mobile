@@ -3,6 +3,7 @@ import { useAccount } from '@/relisten/accounts/account_context';
 import type { AccountProvider } from '@/relisten/accounts/auth/account_auth_types';
 import { accountErrorMessage } from '@/relisten/accounts/ui/account_error_notice';
 import { usePostSignInPrompts } from '@/relisten/accounts/ui/post_sign_in_prompts';
+import { useProviderSignIn } from '@/relisten/accounts/ui/provider_sign_in';
 import { SignedInAccountScreen } from '@/relisten/accounts/ui/signed_in_account_screen';
 import { SignedOutAccountScreen } from '@/relisten/accounts/ui/signed_out_account_screen';
 import { isAccountWaitingToRestore } from '@/relisten/accounts/ui/sync_status';
@@ -24,30 +25,17 @@ export function AccountScreen() {
   const router = useRouter();
   const tab = useAccountTab();
   const [actionError, setActionError] = useState<string | null>(null);
-  const [openingProvider, setOpeningProvider] = useState<AccountProvider | null>(null);
+  const [switchingProvider, setSwitchingProvider] = useState<AccountProvider | null>(null);
+  const providerSignIn = useProviderSignIn();
   const [transitioning, setTransitioning] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const accountData = useAccountDataCounts(account.profile?.userId ?? null);
-
-  const signIn = async (provider: AccountProvider) => {
-    setActionError(null);
-    account.clearError();
-    setOpeningProvider(provider);
-
-    try {
-      await account.signIn(provider);
-    } catch (error) {
-      setActionError(accountErrorMessage(error));
-    }
-
-    setOpeningProvider(null);
-  };
 
   const switchAccount = async (provider: AccountProvider) => {
     setTransitioning(true);
     setActionError(null);
     account.clearError();
-    setOpeningProvider(provider);
+    setSwitchingProvider(provider);
 
     try {
       await account.switchAccount(provider);
@@ -55,7 +43,7 @@ export function AccountScreen() {
       setActionError(accountErrorMessage(error));
     }
 
-    setOpeningProvider(null);
+    setSwitchingProvider(null);
     setTransitioning(false);
   };
 
@@ -139,10 +127,15 @@ export function AccountScreen() {
       <SignedOutAccountScreen
         busy={account.status === 'signingIn' || transitioning}
         errorMessage={
-          actionError ?? (account.error ? accountErrorMessage(account.error) : undefined)
+          providerSignIn.error ??
+          actionError ??
+          (account.error ? accountErrorMessage(account.error) : undefined)
         }
-        onSignIn={signIn}
-        openingProvider={openingProvider}
+        onSignIn={async (provider) => {
+          setActionError(null);
+          await providerSignIn.signIn(provider);
+        }}
+        openingProvider={providerSignIn.openingProvider ?? switchingProvider}
       />
     );
   }

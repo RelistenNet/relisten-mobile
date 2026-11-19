@@ -96,7 +96,7 @@ export function FollowedPlaylistView({
           <RelistenText className="text-center text-gray-400">
             This playlist isn’t available anymore. Its owner may have made it private.
           </RelistenText>
-          <RelistenButton onPress={() => reader.unfollow(playlistId, name)}>
+          <RelistenButton onPress={() => void reader.unfollow(playlistId, name)}>
             Unfollow
           </RelistenButton>
         </View>
@@ -123,7 +123,7 @@ export function FollowedPlaylistView({
               groups={groups}
               follow={{
                 following: true,
-                onPress: () => reader.unfollow(playlistId, name, publicCode),
+                onPress: () => void reader.unfollow(playlistId, name, publicCode),
               }}
             />
           }

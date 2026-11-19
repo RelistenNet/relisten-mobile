@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { Alert, Platform, Share } from 'react-native';
 import { useAccountScope } from '@/relisten/accounts/account_context';
-import { accountPath } from '@/relisten/accounts/ui/account_routes';
+import { openSignInSheet } from '@/relisten/accounts/ui/account_routes';
 import type { Playlist } from '@/relisten/realm/models/playlists/playlist';
 import { publicPlaylistUrl } from '@/relisten/playlists/sharing/sharing_wire';
 import { SharingError } from '@/relisten/playlists/sharing/playlist_sharing_service';
@@ -35,7 +35,7 @@ export function usePlaylistShareActions() {
         'Sharing needs a Relisten account. Signing in saves your playlists to it.',
         [
           { text: 'Not Now', style: 'cancel' },
-          { text: 'Sign In', onPress: () => router.push(accountPath('(myLibrary)')) },
+          { text: 'Sign In', onPress: () => openSignInSheet(router, 'share this playlist') },
         ]
       );
       return false;

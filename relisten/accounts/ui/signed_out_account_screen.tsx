@@ -6,6 +6,8 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import { ScrollView, View } from 'react-native';
 
 type SignedOutAccountScreenProps = {
+  /** What signing in is for, when it was asked for by an action. */
+  title?: string;
   busy: boolean;
   errorMessage?: string;
   onSignIn: (provider: AccountProvider) => Promise<void>;
@@ -13,6 +15,7 @@ type SignedOutAccountScreenProps = {
 };
 
 export function SignedOutAccountScreen({
+  title = 'Sign in to Relisten',
   busy,
   errorMessage,
   onSignIn,
@@ -26,7 +29,7 @@ export function SignedOutAccountScreen({
     >
       <Flex column>
         <View className="mb-6">
-          <RelistenText className="text-3xl font-bold">Sign in to Relisten</RelistenText>
+          <RelistenText className="text-3xl font-bold">{title}</RelistenText>
           <RelistenText className="mt-2 text-gray-300">
             Save your favorites and playlists to your account and use them on your other devices.
             Everything keeps working on this phone without an account.

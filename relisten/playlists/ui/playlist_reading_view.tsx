@@ -139,8 +139,8 @@ export function PlaylistReadingList({
 const PlaylistTrackList = FlatList as React.ComponentType<FlatListProps<PlaylistViewRow>>;
 
 /**
- * Following someone else's playlist, shown beside its owner. `following`
- * marks it as in the listener's library; pressing it then offers to unfollow.
+ * Following someone else's playlist: a heart in the action row, red once the
+ * playlist is in the listener's library, the same as favoriting a show.
  */
 export interface PlaylistFollowControl {
   following: boolean;
@@ -216,15 +216,10 @@ export function PlaylistViewHeader({
       <RelistenText className="w-full pt-2 text-center text-3xl font-bold" selectable={false}>
         {name}
       </RelistenText>
-      {byline || follow ? (
-        <View className="flex-row items-center justify-center pt-1" style={{ gap: 12 }}>
-          {byline ? (
-            <RelistenText className="shrink text-center text-gray-300" selectable={false}>
-              {byline}
-            </RelistenText>
-          ) : null}
-          {follow ? <FollowButton {...follow} /> : null}
-        </View>
+      {byline ? (
+        <RelistenText className="w-full text-center text-gray-300" selectable={false}>
+          {byline}
+        </RelistenText>
       ) : null}
       <View className="h-2" />
       {description ? (
@@ -241,7 +236,7 @@ export function PlaylistViewHeader({
       </RelistenText>
 
       {notice}
-      {trackCount > 0 && (
+      {(trackCount > 0 || follow) && (
         <View className="w-full flex-row pb-4" style={{ gap: 16 }}>
           <RelistenButton
             className="flex-1"
@@ -252,15 +247,27 @@ export function PlaylistViewHeader({
           >
             Play
           </RelistenButton>
-          <RelistenButton
-            className="flex-1"
-            textClassName="text-l"
-            icon={<MaterialIcons name="shuffle" size={iconSize} color="white" />}
-            disabled={!canPlay}
-            onPress={shuffle}
-          >
-            Shuffle
-          </RelistenButton>
+          {/* The heart takes the room Shuffle's label would. */}
+          {follow ? (
+            <RelistenButton
+              accessibilityLabel="Shuffle"
+              className="basis-1/5"
+              disabled={!canPlay}
+              onPress={shuffle}
+            >
+              <MaterialIcons name="shuffle" size={iconSize} color="white" />
+            </RelistenButton>
+          ) : (
+            <RelistenButton
+              className="flex-1"
+              textClassName="text-l"
+              icon={<MaterialIcons name="shuffle" size={iconSize} color="white" />}
+              disabled={!canPlay}
+              onPress={shuffle}
+            >
+              Shuffle
+            </RelistenButton>
+          )}
           <RelistenButton
             accessibilityLabel="Download"
             className="basis-1/5"
@@ -274,6 +281,7 @@ export function PlaylistViewHeader({
           >
             <MaterialIcons name="file-download" size={iconSize} color="white" />
           </RelistenButton>
+          {follow ? <FollowButton {...follow} iconSize={iconSize} /> : null}
         </View>
       )}
       {trackCount > 0 && !canPlay && (
@@ -292,20 +300,25 @@ export function PlaylistViewHeader({
   );
 }
 
-function FollowButton({ following, busy = false, onPress }: PlaylistFollowControl) {
+function FollowButton({
+  following,
+  busy = false,
+  onPress,
+  iconSize,
+}: PlaylistFollowControl & { iconSize: number }) {
   return (
     <RelistenButton
-      size="sm"
-      rounded="full"
-      intent={following ? 'outline' : 'primary'}
-      textClassName="text-sm"
+      accessibilityLabel={following ? 'Unfollow' : 'Follow'}
       accessibilityState={{ selected: following, busy }}
-      accessibilityHint={following ? 'Offers to unfollow this playlist.' : undefined}
-      icon={<MaterialIcons name={following ? 'check' : 'add'} size={16} color="white" />}
+      className="basis-1/5"
       disabled={busy}
       onPress={onPress}
     >
-      {following ? 'Following' : 'Follow'}
+      <MaterialIcons
+        name={following ? 'favorite' : 'favorite-outline'}
+        size={iconSize}
+        color={following ? 'red' : 'white'}
+      />
     </RelistenButton>
   );
 }
