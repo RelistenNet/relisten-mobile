@@ -69,6 +69,13 @@ Each milestone is releasable on its own.
    downloads the account's playlists. Built against the User Service's
    delivery-1 implementation, deployed to production 2026-11-17.
 
+3. **Guide content.** Group and track descriptions, text blocks between tracks,
+   and timestamp links that play a moment in a specific entry. Works without an
+   account. See [Guide content](#guide-content-milestone-3).
+4. **Sharing.** Publish a playlist, open a shared link, follow it, or make a
+   copy. Needs an account for everything except opening a link. See
+   [Sharing](#sharing-milestone-4).
+
 Milestone 1's end-to-end proof: create a playlist from a show, edit it offline,
 restart the app, and play it with group shuffle. Milestone 2 extends that proof
 with signing in and syncing to a second device.
@@ -740,6 +747,160 @@ finishes after an account switch writes nothing.
 - If the paused outbox exceeds one batch, keep every edit, show an alert asking
   the user to contact team@relisten.net, and record a diagnostic event.
 
+## Guide content (milestone 3)
+
+[Playlist guide content](../../../../RelistenApi-v4-playlists/docs/design/2026-11-18-playlist-guide-content.md) owns
+the behavior. Section 2 of the
+[API playlist plan](../../../../RelistenApi-v4-playlists/docs/plans/active/2026-11-06-v4-playlists.md) owns the wire
+changes. TestFlight 6055 writes every entry's track into a required Realm
+string, so one text entry synced from an updated device would break it. Ship in
+this order:
+1. A build that reads text entries.
+2. A raised minimum OTA version, so 6055 updates.
+3. Only then does the server switch that allows text writes turn on.
+
+**Realm.** Bump the schema version.
+- `PlaylistSegment` and `PlaylistEntry` gain `description?`.
+- `PlaylistEntry.trackId` becomes optional. An entry without one is a text block.
+- Owned playlists also get `canonicalDescription?` on both.
+- The startup purge and the visibility rules are unchanged.
+
+**Operation engine.** `applyPlaylistOperation` gains the contract's
+`update_segment` and `update_entry` operations, optional descriptions on
+`insert_segment`, and text entries in entry inputs. Emptying a segment removes it
+only if it has no description, and clearing an empty segment's description
+removes it. Unowned playlists use the same engine, so text works without an
+account. Enforce the API plan's limits locally:
+- 2,000 characters per description;
+- 100 prose-only groups per playlist;
+- 200 KB of descriptions in total per playlist.
+
+The total cap keeps any guide that's valid on the device small enough to send as
+one create when the listener signs in.
+
+Entries with no track are skipped by downloads, catalog hydration and
+availability checks. When an insert is rejected and its tracks go into
+`failedTrackIds`, keep its text entries too, so **Add Again** restores them.
+**Add Again** mints fresh entry IDs, so it also rewrites `#entry=<old-id>&t=`
+links in the restored descriptions to the new IDs, using the same plain text
+replace as a copy.
+
+A prose-only group has no entries. Code that assumes every group has a last
+entry or appears in drag slots needs fixing. That includes adding a track after
+a group in `add_to_playlist_sheet.tsx` and slot generation in
+`playlist_drag_slots.ts`. Nullable warnings won't find these.
+Outbox compaction doesn't exist yet. If it's added, `update_segment` and
+`update_entry` count as references to their target.
+
+**Editing.**
+- A track's ••• menu gains **Add Note**, which edits that track's description.
+  It moves with the track.
+- In edit mode, an **Add Text** control appears in each gap:
+  - at the top of a group, it edits the group's description;
+  - between two tracks in a group, it inserts a text block;
+  - between groups, it inserts a new group with only a description.
+- **Insert timestamp** picks a track in this playlist and writes
+  `[label](#entry=<entry_id>&t=m:ss)`.
+- Text blocks drag like tracks. Deleting a text block works like deleting a track.
+
+**Reading.**
+- Render the CommonMark subset from the design doc, with the playlist name as the
+  page title. Use a renderer configured with only those elements, and show
+  anything else as plain text.
+- Text blocks and prose-only groups render as rows in the detail screen.
+
+**Timestamp links.**
+- A bare timestamp in a track description links only if it falls within that
+  track's duration. In a group description or text block, bare timestamps stay
+  plain text, and a `#t=` link with no `entry=` shows its label as plain text.
+- Tapping a link plays the playlist from that entry and seeks to the time. If
+  the current queue already has an occurrence with that `entryId` from this
+  playlist, seek within it instead of re-enqueueing.
+- A link to a missing or unplayable entry shows its label as text.
+
+**Playback.** Text entries never become queue occurrences, and a group with no
+tracks enqueues nothing. Group shuffle is unchanged.
+
+## Sharing (milestone 4)
+
+[Playlist sharing](../../../../RelistenApi-v4-playlists/docs/design/2026-11-18-playlist-sharing.md) owns the
+behavior. Section 3 of the API playlist plan owns the server work. This milestone
+waits for account deletion and for reporting and takedown.
+
+**Publishing.** The owner's ••• menu gains **Share…**. The first share asks to
+make the playlist public, then opens the system share sheet with
+`relisten.net/playlists/<code>`. **Make Private** reverses it. A playlist without
+an owner must be saved to an account before it can be shared. If the summary's
+`taken_down` flag is set, **Share…** explains that the playlist was removed after
+a report and can't be shared.
+
+**Opening a link.**
+- Add the `/playlists/<code>` universal link and Android App Link route. Test it
+  on older installed builds, which may claim the link without handling it.
+- The route opens a read-only playlist screen from the public snapshot, hydrated
+  through the catalog resolver like any playlist. It works signed out, and has
+  Play, Shuffle and timestamp links, but no editing.
+- A **Report** action sends a report to the server.
+
+**Following.**
+- Signed in, the read-only screen offers **Follow**. Followed playlists appear in
+  the one Playlists list with the owner's `@username`, and open the read-only
+  screen.
+- **Which playlists are followed** comes only from the library feed:
+  `playlist_followed` and `playlist_unfollowed` changes, applied with their page
+  like favorites. A library snapshot, an expired cursor or a new
+  `historyGeneration` replaces the whole follow list.
+- **Heads** come in `followed_playlists`, on a library snapshot and on the last
+  page of a changes pull. They update stored follows and never add or remove
+  one. A public head carries the name, owner, revision and `public_code`. An
+  unavailable head carries only `available: false`, so the list keeps the last
+  name it knew and marks the playlist unavailable until the listener unfollows.
+- Store followed playlists in the same `Playlist`, segment and entry tables.
+  Split two meanings that `ownerUserId` carries today:
+  - `ownerUserId` is who owns the playlist, as data. Public responses and
+    followed heads return `owner {id, username}`, so a followed playlist stores
+    the real owner. Add `ownerUsername` and `publicCode`.
+  - A new `libraryUserId` is whose library the row belongs to on this device:
+    the owner for an authored playlist, the follower for a followed one, and
+    null for a device-only playlist that hasn't been saved to an account yet.
+  - A new `access` says what that account can do: `owner` or `follower`.
+    Collaboration later adds `editor` and `viewer`.
+- Move every sync, visibility and claim rule from `ownerUserId` to
+  `libraryUserId`. That includes the visibility query in `playlist_hooks.ts`,
+  the sign-in claim in `playlist_sync_state.ts`, account isolation and the
+  diagnostics screen.
+  - Edits, the outbox, archiving and deletion require `access = owner`.
+  - The sign-in claim takes only live device-only rows (`libraryUserId == null`,
+    not deleted) and sets both `ownerUserId` and `libraryUserId`.
+  - The schema migration sets `libraryUserId = ownerUserId` and
+    `access = owner` on existing rows. Today the two are always equal, so
+    behavior doesn't change. The migration test switches A → B → A and recovers
+    A's pending edit.
+- A followed playlist's segments and entries use the displayed fields only. Its
+  canonical fields stay empty, and it never goes through the outbox.
+- Use the same pull rule as owned playlists. A head sets `summaryRevision`. A
+  fetched snapshot, read by `publicCode`, sets `appliedRevision` and
+  `historyGeneration`. After a sync, fetch the snapshot only for followed
+  playlists whose `summaryRevision` differs from `appliedRevision` or whose
+  stored generation is out of date, at most 20 per sync, so edits are ready
+  offline. Anything left over is fetched when the playlist is opened. Nothing
+  else triggers a fetch.
+- Replace a followed playlist's segment and entry rows in one Realm write when a
+  new snapshot arrives. Like owned playlists, a track that becomes unavailable
+  is re-checked when it fails to play, not by refetching.
+- **Two edge cases on one device.** If the listener follows their own public
+  playlist, keep the authored row and don't store a second one. If the playlist
+  ID is already stored for another account on this device, store nothing for
+  the follower. The follow still exists on the server and appears on the
+  follower's other devices, and here once the other account's rows are gone.
+  The other account's rows and outbox are never touched.
+
+**Copying.** **Make a Copy** creates a playlist owned by the signed-in account
+through the server's copy command, then opens it for editing. Persist the copy
+command ID before sending it, and keep it until the outcome is known. A network
+error or a restart retries with the same ID, which returns the original copy
+and never makes a second one.
+
 ## Platform surfaces
 
 - **CarPlay** (`relisten/carplay/library.ts`) and **Android Auto**
@@ -930,6 +1091,8 @@ Implemented in `relisten/playlists/sync/` against the local User Service on
   optional owners.
 - [x] (2026-11-17) Milestone 1: playlists on the device, except Android Auto.
 - [ ] Android Auto playlists list (needs a JDK 17 or 21 to build and verify).
+- [ ] Milestone 3: guide content, with the API change.
+- [ ] Milestone 4: sharing, after account deletion and takedown ship.
 - [x] (2026-11-17) Milestone 2: saving to an account, shipped by OTA to
   TestFlight 6055.
 - [x] (2026-11-17) Fixed the review's release blockers and follow-ups:
