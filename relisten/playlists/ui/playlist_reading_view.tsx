@@ -139,6 +139,16 @@ export function PlaylistReadingList({
 const PlaylistTrackList = FlatList as React.ComponentType<FlatListProps<PlaylistViewRow>>;
 
 /**
+ * Following someone else's playlist, shown beside its owner. `following`
+ * marks it as in the listener's library; pressing it then offers to unfollow.
+ */
+export interface PlaylistFollowControl {
+  following: boolean;
+  busy?: boolean;
+  onPress: () => void;
+}
+
+/**
  * The top of a playlist, laid out like a show's header: centered title, a
  * quiet details line, then one row of equal buttons.
  */
@@ -150,7 +160,7 @@ export function PlaylistViewHeader({
   trackCount,
   groups,
   notice,
-  actions,
+  follow,
 }: {
   playlistId: string;
   name: string;
@@ -160,8 +170,8 @@ export function PlaylistViewHeader({
   trackCount: number;
   groups: PlaylistRowGroup[];
   notice?: React.ReactNode;
-  /** Below the playback buttons, such as Follow. */
-  actions?: React.ReactNode;
+  /** For someone else's playlist: Follow, or Following once it is followed. */
+  follow?: PlaylistFollowControl;
 }) {
   const { fontScale } = useWindowDimensions();
   const player = useRelistenPlayer();
@@ -206,10 +216,15 @@ export function PlaylistViewHeader({
       <RelistenText className="w-full pt-2 text-center text-3xl font-bold" selectable={false}>
         {name}
       </RelistenText>
-      {byline ? (
-        <RelistenText className="w-full text-center text-gray-300" selectable={false}>
-          {byline}
-        </RelistenText>
+      {byline || follow ? (
+        <View className="flex-row items-center justify-center pt-1" style={{ gap: 12 }}>
+          {byline ? (
+            <RelistenText className="shrink text-center text-gray-300" selectable={false}>
+              {byline}
+            </RelistenText>
+          ) : null}
+          {follow ? <FollowButton {...follow} /> : null}
+        </View>
       ) : null}
       <View className="h-2" />
       {description ? (
@@ -272,9 +287,26 @@ export function PlaylistViewHeader({
           internet.
         </RelistenText>
       )}
-      {actions}
       <ItemSeparator />
     </View>
+  );
+}
+
+function FollowButton({ following, busy = false, onPress }: PlaylistFollowControl) {
+  return (
+    <RelistenButton
+      size="sm"
+      rounded="full"
+      intent={following ? 'outline' : 'primary'}
+      textClassName="text-sm"
+      accessibilityState={{ selected: following, busy }}
+      accessibilityHint={following ? 'Offers to unfollow this playlist.' : undefined}
+      icon={<MaterialIcons name={following ? 'check' : 'add'} size={16} color="white" />}
+      disabled={busy}
+      onPress={onPress}
+    >
+      {following ? 'Following' : 'Follow'}
+    </RelistenButton>
   );
 }
 

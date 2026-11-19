@@ -51,9 +51,9 @@ export function FollowedPlaylistView({
     <View className="flex-1 bg-relisten-blue-900">
       {/* The unavailable notice shows the name itself, below the transparent header. */}
       <Stack.Screen options={{ title: unavailable ? '' : name }} />
-      <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Menu accessibilityLabel="Playlist actions" icon={nativeMenuIcons.more}>
-          {publicCode && !unavailable ? (
+      {publicCode && !unavailable ? (
+        <Stack.Toolbar placement="right">
+          <Stack.Toolbar.Menu accessibilityLabel="Playlist actions" icon={nativeMenuIcons.more}>
             <Stack.Toolbar.Menu inline>
               <Stack.Toolbar.MenuAction
                 icon={nativeMenuIcons.share}
@@ -75,26 +75,17 @@ export function FollowedPlaylistView({
                 Show Downloaded Only
               </Stack.Toolbar.MenuAction>
             </Stack.Toolbar.Menu>
-          ) : null}
-          <Stack.Toolbar.Menu inline>
-            {publicCode && !unavailable ? (
+            <Stack.Toolbar.Menu inline>
               <Stack.Toolbar.MenuAction
                 icon={nativeMenuIcons.report}
                 onPress={() => reader.report(publicCode, name)}
               >
                 Report…
               </Stack.Toolbar.MenuAction>
-            ) : null}
-            <Stack.Toolbar.MenuAction
-              destructive
-              icon={nativeMenuIcons.unfollow}
-              onPress={() => void reader.unfollow(playlistId, name)}
-            >
-              Unfollow
-            </Stack.Toolbar.MenuAction>
+            </Stack.Toolbar.Menu>
           </Stack.Toolbar.Menu>
-        </Stack.Toolbar.Menu>
-      </Stack.Toolbar>
+        </Stack.Toolbar>
+      ) : null}
 
       {unavailable ? (
         <View
@@ -105,7 +96,7 @@ export function FollowedPlaylistView({
           <RelistenText className="text-center text-gray-400">
             This playlist isn’t available anymore. Its owner may have made it private.
           </RelistenText>
-          <RelistenButton onPress={() => void reader.unfollow(playlistId, name)}>
+          <RelistenButton onPress={() => reader.unfollow(playlistId, name)}>
             Unfollow
           </RelistenButton>
         </View>
@@ -130,6 +121,10 @@ export function FollowedPlaylistView({
               description={playlist.description}
               trackCount={playlist.entryCount}
               groups={groups}
+              follow={{
+                following: true,
+                onPress: () => reader.unfollow(playlistId, name, publicCode),
+              }}
             />
           }
         />

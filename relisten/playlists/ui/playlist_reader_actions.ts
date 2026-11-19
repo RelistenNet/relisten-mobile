@@ -14,8 +14,8 @@ import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { useGroupSegment } from '@/relisten/util/routes';
 
 /**
- * What a listener can do with someone else's public playlist: follow it,
- * copy it into their own playlists, or report it. Each needs the internet and
+ * What a listener can do with someone else's public playlist: follow or
+ * unfollow it, copy it into their own playlists, or report it. Each needs the internet and
  * a signed-in account, and explains itself when one is missing.
  */
 export function usePlaylistReaderActions() {
@@ -53,13 +53,36 @@ export function usePlaylistReaderActions() {
     }
   };
 
-  const unfollow = async (playlistId: string, name: string) => {
+  /**
+   * Asks first, since the Following button sits right under the title. A
+   * playlist that is still public reopens as its public page, so the listener
+   * stays where they were and can follow it again; otherwise this goes back.
+   */
+  const unfollow = (playlistId: string, name: string, publicCode?: string) => {
+    Alert.alert(`Unfollow ${name}?`, 'It will be removed from your library.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Unfollow',
+        style: 'destructive',
+        onPress: () => void confirmedUnfollow(playlistId, name, publicCode),
+      },
+    ]);
+  };
+
+  const confirmedUnfollow = async (playlistId: string, name: string, publicCode?: string) => {
     if (!ready('unfollow this playlist')) {
       return;
     }
     try {
       await sharing.unfollow(playlistId);
-      router.back();
+      if (publicCode) {
+        router.replace({
+          pathname: `/relisten/tabs/${groupSegment}/playlists/shared/[publicCode]`,
+          params: { publicCode },
+        });
+      } else {
+        router.back();
+      }
       showPlaylistToast(`Unfollowed ${name}`);
     } catch (error) {
       explain(error, `Couldn’t unfollow ${name}. Try again.`);

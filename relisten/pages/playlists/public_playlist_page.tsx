@@ -178,13 +178,7 @@ export default function PublicPlaylistPage() {
             description={snapshot.metadata.description ?? undefined}
             trackCount={publicTrackCount(snapshot)}
             groups={groups}
-            actions={
-              <View className="w-full pb-4">
-                <RelistenButton disabled={following} onPress={() => void follow()}>
-                  {reader.signedIn ? 'Follow' : 'Sign In to Follow'}
-                </RelistenButton>
-              </View>
-            }
+            follow={{ following: false, busy: following, onPress: () => void follow() }}
           />
         }
       />

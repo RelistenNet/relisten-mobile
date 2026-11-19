@@ -100,10 +100,6 @@ export const nativeMenuIcons = {
     ios: 'flag',
     android: import('@expo/material-symbols/flag.xml'),
   }),
-  unfollow: Icon.select({
-    ios: 'minus.circle',
-    android: import('@expo/material-symbols/playlist_remove.xml'),
-  }),
   show: Icon.select({
     ios: 'calendar',
     android: import('@expo/material-symbols/event.xml'),
