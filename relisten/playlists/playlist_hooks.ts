@@ -325,7 +325,8 @@ function useCatalogTracks(trackIds: string[]) {
   // redirect target when a recording moved, otherwise the entry's own track.
   const trackUuids = useStableIds(playableTrackUuids(trackIds, availability));
   // Rows read download status, soft deletion, and the show, source, and artist
-  // links; download progress ticks are left out so they don't re-render.
+  // links. Download progress is left out so ticks don't rebuild the playlist;
+  // the row's download pie watches `percent` itself.
   const tracks = useQuery(
     {
       type: SourceTrack,

@@ -286,7 +286,10 @@ export const PlaylistTrackRow = memo(function PlaylistTrackRow({
           </View>
           {canPlay && (
             <View className="ml-2 flex-row items-center">
-              <SourceTrackOfflineIndicator offlineInfo={row.sourceTrack!.offlineInfo} />
+              <SourceTrackOfflineIndicator
+                offlineInfo={row.sourceTrack!.offlineInfo}
+                observeProgress
+              />
               <View className="ml-2">
                 <TrackDuration duration={row.sourceTrack!.humanizedDuration} />
               </View>
