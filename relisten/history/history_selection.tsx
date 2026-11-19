@@ -1,7 +1,7 @@
 import { trackIdForSourceTrack } from '@/relisten/playlists/playlist_hooks';
 import { openAddToPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
-import { Stack, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 
 /** Checkbox selection of history entries, to add several plays to a playlist at once. */
@@ -54,28 +54,4 @@ export function useHistorySelection(entries: readonly PlaybackHistoryEntry[]) {
     cancel: () => setSelected(null),
     addToPlaylist,
   };
-}
-
-/** The header while selecting: Cancel on the left, Add N to Playlist on the right. */
-export function HistorySelectionToolbar({
-  count,
-  onCancel,
-  onAdd,
-}: {
-  count: number;
-  onCancel: () => void;
-  onAdd: () => void;
-}) {
-  return (
-    <>
-      <Stack.Toolbar placement="left">
-        <Stack.Toolbar.Button onPress={onCancel}>Cancel</Stack.Toolbar.Button>
-      </Stack.Toolbar>
-      <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Button disabled={count === 0} onPress={onAdd}>
-          {count === 0 ? 'Add to Playlist' : `Add ${count} to Playlist`}
-        </Stack.Toolbar.Button>
-      </Stack.Toolbar>
-    </>
-  );
 }

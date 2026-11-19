@@ -3,7 +3,7 @@ import { useHeaderHeight } from 'expo-router/react-navigation';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import plur from 'plur';
 import { useMemo, useState } from 'react';
-import { Alert, FlatList, Switch, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Platform, Switch, TextInput, TouchableOpacity, View } from 'react-native';
 import Realm from 'realm';
 import { ItemSeparator } from '@/relisten/components/item_separator';
 import { RelistenText } from '@/relisten/components/relisten_text';
@@ -56,8 +56,10 @@ export default function AddToPlaylistSheet() {
     close: presentation.closePlayer,
   };
   const [naming, setNaming] = useState(trackIds.length === 0);
-  // A form sheet lays its content out under the native header, not below it.
-  const headerHeight = useHeaderHeight();
+  // An iOS form sheet lays its content out under the native header, not below
+  // it. Android opens this screen full screen, below an opaque header.
+  const sheetHeaderHeight = useHeaderHeight();
+  const headerHeight = Platform.OS === 'ios' ? sheetHeaderHeight : 0;
 
   const addToExisting = (playlist: Playlist) => {
     const { playlistId, name } = playlist;

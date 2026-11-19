@@ -11,6 +11,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { AndroidBackHandler, textToolbarButtonProps } from '@/relisten/components/header_buttons';
 import { ItemSeparator } from '@/relisten/components/item_separator';
 import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
 import { RelistenButton } from '@/relisten/components/relisten_button';
@@ -172,10 +173,15 @@ export default function PlaylistDetailPage() {
             : { title: name }
         }
       />
+      {/* Back while editing finishes editing, like Done; edits apply as they're made. */}
+      {editing && <AndroidBackHandler onBack={finishEditing} />}
       <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Button onPress={editing ? finishEditing : startEditing}>
-          {editing ? 'Done' : 'Edit'}
-        </Stack.Toolbar.Button>
+        <Stack.Toolbar.Button
+          {...(editing
+            ? textToolbarButtonProps('Done', nativeMenuIcons.done)
+            : textToolbarButtonProps('Edit', nativeMenuIcons.edit))}
+          onPress={editing ? finishEditing : startEditing}
+        />
         <Stack.Toolbar.Menu accessibilityLabel="Playlist actions" icon={nativeMenuIcons.more}>
           <Stack.Toolbar.Menu inline>
             <Stack.Toolbar.MenuAction icon={nativeMenuIcons.edit} onPress={startRename}>
