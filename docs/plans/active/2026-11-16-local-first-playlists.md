@@ -805,8 +805,32 @@ Outbox compaction doesn't exist yet. If it's added, `update_segment` and
 
 **Reading.**
 - Render the CommonMark subset from the design doc, with the playlist name as the
-  page title. Use a renderer configured with only those elements, and show
-  anything else as plain text.
+  page title, using `react-native-enriched-markdown` (native text). Build it with
+  `enableVideo`, `enableMath` and `enableCodeHighlight` off, use the
+  `commonmark` flavor, and turn off link previews. It is a native module, so
+  guide content ships in a new store build, not an OTA to 6055.
+- The renderer can't be limited to the subset, so `guide_markdown.ts` sanitizes
+  first: it parses the source with mdast and writes back only the subset.
+  Images become their alt text and are never fetched. Raw HTML and code become
+  text. Only `https:` links and `#entry=…&t=…` / `#t=…` links survive. The same
+  pass adds bare-timestamp links to track descriptions.
+- Sanitize once, when a description is written to Realm (sync apply or a local
+  edit), and store the result beside the source with a sanitizer version.
+  Rendering reads the stored result. Plain prose skips the parser. Measured cost
+  is about 5 ms for a 2,000-character description with the JIT off, so parsing
+  every description on every render would cost about half a second for a guide
+  at the 200 KB limit.
+- `onLinkPress` is a second allowlist: entry links seek, `https:` opens in the
+  browser, anything else does nothing. The renderer turns bare URLs and e-mail
+  addresses into links in every flavor (md4c permissive autolinks, with no prop
+  to turn them off), so `markdownStyle.linkVariants` styles links that aren't
+  allowed as plain text.
+- When nesting is too deep to parse, the sanitizer shows the source as plain
+  text. Unused link definitions, such as `[Encore]: Brokedown`, stay as text.
+- The server refuses images, raw HTML and other link destinations at write time
+  but never rewrites text. The shared vectors in the API's
+  `RelistenUserServiceTests/Fixtures/playlists/guide-markdown-vectors.json` are copied
+  into the mobile sanitizer tests.
 - Text blocks and prose-only groups render as rows in the detail screen.
 
 **Timestamp links.**

@@ -1,0 +1,56 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`sanitizeGuideMarkdown > produces the pinned output for every shared vector 1`] = `
+{
+  "a code block ending in blank lines": "a",
+  "a data link": "file",
+  "a definition-shaped prose line": "\\[Encore]: Brokedown",
+  "a fenced code block": "\\<video src="https://cdn.example/clip.mp4">",
+  "a javascript link": "click",
+  "a labeled timestamp in a track description": "[Bass enters](#t=6:42)",
+  "a less-than sign in prose": "Shorter than 5 minutes: x\\<y and a < b.",
+  "a link title": "[Relisten](https://relisten.net)",
+  "a malformed timestamp fragment": "later",
+  "a nested quote": "> outer
+>
+> > inner [ok](https://relisten.net)",
+  "a next-line character in a URL": "Relisten",
+  "a reference link to a javascript destination": "click",
+  "a reference link to an https destination": "[Relisten](https://relisten.net)",
+  "a reference-style image": "poster",
+  "a relative link": "elsewhere",
+  "a setext heading": "Big title",
+  "a timestamp in a code span in a track description": "Count in at [2:00](#t=2:00).",
+  "a timestamp in an image's alt text": "drop at [2:00](#t=2:00)",
+  "a timestamp link to another entry": "[Hear the transition](#entry=playlist_entry_01k8000000e008000000000004&t=6:42)",
+  "a tracking pixel": "Great show pixel",
+  "a video block": "\\<video src="https://cdn.example/clip.mp4">\\</video>",
+  "an HTML comment": "Before \\<!-- hidden --> after",
+  "an email autolink": "Write team@relisten.net.",
+  "an entry-less timestamp outside a track description is text": "Bass enters",
+  "an escaped image marker before a link": "\\![not an image](https://relisten.net)",
+  "an hour timestamp link": "[The peak](#entry=playlist_entry_01k8000000e008000000000004&t=1:02:03)",
+  "an http link": "old site",
+  "an https autolink": "See [https://relisten.net](https://relisten.net).",
+  "an https link": "Notes from [Relisten](https://relisten.net/grateful-dead).",
+  "an image inside a link": "[poster](https://relisten.net)",
+  "an uppercase https scheme": "[Relisten](HTTPS://relisten.net)",
+  "another fragment": "jump",
+  "bare timestamps in a text block stay text": "Try 2:00.",
+  "bare timestamps within the track link": "Try [2:00](#t=2:00) and then [6:42](#t=6:42), but not 20:00.",
+  "image syntax inside a code span": "Write !\\[alt]\\(https://cdn.example/a.png) to embed.",
+  "indented code with HTML": "Note:
+
+\\<video src="https://cdn.example/clip.mp4">",
+  "inline HTML": "Hello \\<img src="https://tracker.example/p.gif"> there",
+  "plain prose": "The second set of 5/8/77, start to finish.",
+  "the supported subset": "## The opening run
+
+**Bold**, *italic*, and a list:
+
+- one
+- two
+
+> A quote",
+}
+`;
