@@ -50,18 +50,12 @@ export function SignedOutAccountScreen({
             provider="apple"
           />
         </View>
-        <View className="mb-6">
-          <ProviderButton
-            disabled={busy}
-            opening={openingProvider === 'google'}
-            onPress={() => onSignIn('google')}
-            provider="google"
-          />
-        </View>
-
-        <RelistenText className="text-center text-sm text-gray-400">
-          No new password needed.
-        </RelistenText>
+        <ProviderButton
+          disabled={busy}
+          opening={openingProvider === 'google'}
+          onPress={() => onSignIn('google')}
+          provider="google"
+        />
       </Flex>
     </ScrollView>
   );
