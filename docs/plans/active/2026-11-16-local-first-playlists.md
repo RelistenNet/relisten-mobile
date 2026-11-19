@@ -2,7 +2,7 @@
 
 Status: approved 2026-11-16; revised 2026-11-17 to one list of playlists with
 optional owners. Milestones 1 and 2 are built and shipped to TestFlight 6055 by
-OTA (2026-11-17); Android Auto is still open. Branch `codex/v4-playlists-mobile`,
+OTA (2026-11-17). The Android Auto list was cut (2026-11-18). Branch `codex/v4-playlists-mobile`,
 cut from `codex/v4-mobile-pilot` at `535ec16` (Realm schema 23, now 24).
 
 ## Purpose and current decisions
@@ -903,14 +903,13 @@ and never makes a second one.
 
 ## Platform surfaces
 
-- **CarPlay** (`relisten/carplay/library.ts`) and **Android Auto**
-  (`RelistenMediaLibrary.kt`): a read-only **Playlists** list of visible
-  playlists that plays a playlist, in milestone 1. Editing stays on the phone.
-  CarPlay already browses from TypeScript. Android Auto's native media library
-  exposes only the current and preloaded next tracks, so milestone 1 adds a
-  browse-and-select bridge from the native library to the TypeScript queue owner:
-  list playlists, and on selection hand the playlist ID to TypeScript, which builds
-  the queue.
+- **CarPlay** (`relisten/carplay/library.ts`): a read-only **Playlists** list of
+  visible playlists that plays a playlist, in milestone 1. Editing stays on the
+  phone.
+- **Android Auto** gets no playlists list (cut, Alec, 2026-11-18). Its native
+  media library exposes only the current and preloaded next tracks; a list would
+  have needed a browse-and-select bridge from `RelistenMediaLibrary.kt` to the
+  TypeScript queue owner.
 - **Cast:** playlist playback uses the existing queue, so Cast needs no new work;
   verify it once in milestone 1.
 - **Offline library, search and analytics:** milestone 1 adds a "downloaded only"
@@ -981,8 +980,9 @@ Follow `AGENTS.md`: run affected Vitest files, `yarn ts:check` and `yarn lint`.
 2. **A second account on the device sees only unowned playlists and its own.**
    Other accounts' playlists stay on the device, hidden until they sign in again
    (Alec, 2026-11-17).
-3. **CarPlay and Android Auto get a read-only Playlists list in milestone 1** that
-   plays a playlist. Editing stays on the phone (Alec, 2026-11-16).
+3. **CarPlay gets a read-only Playlists list in milestone 1** that plays a
+   playlist. Editing stays on the phone (Alec, 2026-11-16). Android Auto was
+   planned the same way, then cut (Alec, 2026-11-18).
 4. **Save queue as playlist was deferred** past milestone 1 (Alec, 2026-11-16),
    then built as **Add Queue to Playlist…** in the player's menu (2026-11-17). It
    adds the queue's tracks in order, each as its own entry, without links.
@@ -1032,10 +1032,8 @@ notes win:
   subtitles; native menu items have no subtitle support.
 - **New playlist** shows the suggested name as a placeholder; Create uses it when
   the field is empty.
-- **Not built yet:** the first-time shuffle hint, the Now Playing jump pill,
-  and **Android Auto**. The
-  Android Auto bridge needs native Kotlin, and no JDK 17 or 21 was available to
-  compile it.
+- **Not built yet:** the first-time shuffle hint and the Now Playing jump pill.
+  The Android Auto list was cut (2026-11-18).
 - **Verified by hand:** dragging, with slow simulator swipes: inside and outside a
   link's edge, holding to link, dragging a whole link, and auto-scroll. Not run:
   CarPlay (type-checked only).
@@ -1089,8 +1087,8 @@ Implemented in `relisten/playlists/sync/` against the local User Service on
 - [x] (2026-11-16) Alec accepted the first round of decisions.
 - [x] (2026-11-17) Replaced separate local and account lists with one list and
   optional owners.
-- [x] (2026-11-17) Milestone 1: playlists on the device, except Android Auto.
-- [ ] Android Auto playlists list (needs a JDK 17 or 21 to build and verify).
+- [x] (2026-11-17) Milestone 1: playlists on the device.
+- [x] (2026-11-18) Cut the Android Auto playlists list (Alec).
 - [ ] Milestone 3: guide content, with the API change.
 - [ ] Milestone 4: sharing, after account deletion and takedown ship.
 - [x] (2026-11-17) Milestone 2: saving to an account, shipped by OTA to
