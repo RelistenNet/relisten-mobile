@@ -36,14 +36,7 @@ export default function ReportPlaylistSheet() {
     } catch (error) {
       setSending(false);
       // An alert, since the sheet covers the toast. The reason stays for another try.
-      Alert.alert(
-        ...(sharingFailureAlert(error, {
-          rate_limited: [
-            'You’ve sent several reports in the last minute.',
-            'Wait a moment, then try again.',
-          ],
-        }) ?? ['Couldn’t send the report. Try again.'])
-      );
+      Alert.alert(...(sharingFailureAlert(error) ?? ['Couldn’t send the report. Try again.']));
     }
   };
 

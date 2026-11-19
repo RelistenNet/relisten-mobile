@@ -29,8 +29,9 @@ const FAILURE_ALERTS: FailureAlerts = {
     'An account can follow up to 500 playlists and hold up to 250. Remove some, then try again.',
   ],
   signed_out: ['You’re signed out.', 'Sign in again from your account, then try again.'],
+  // Only reporting a playlist is rate limited.
   rate_limited: [
-    'You’ve done that several times in the last minute.',
+    'You’ve sent several reports in the last minute.',
     'Wait a moment, then try again.',
   ],
 };
