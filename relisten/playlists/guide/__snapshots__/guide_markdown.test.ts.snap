@@ -19,6 +19,8 @@ exports[`sanitizeGuideMarkdown > produces the pinned output for every shared vec
   "a reference link to an https destination": "[Relisten](https://relisten.net)",
   "a reference-style image": "poster",
   "a relative link": "elsewhere",
+  "a repeated definition uses the first: https, then javascript": "[Relisten](https://relisten.net)",
+  "a repeated definition uses the first: javascript, then https": "Relisten",
   "a setext heading": "Big title",
   "a timestamp in a code span in a track description": "Count in at [2:00](#t=2:00).",
   "a timestamp in an image's alt text": "drop at [2:00](#t=2:00)",

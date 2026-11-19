@@ -1,4 +1,4 @@
-import { timestampSeconds } from './guide_markdown';
+import { isHttpsLink, isTimestamp, timestampSeconds } from './guide_markdown';
 
 /**
  * What tapping a guide link does. Sanitized descriptions only contain the two
@@ -12,18 +12,16 @@ export type GuideLinkAction =
   | { kind: 'web'; url: string }
   | { kind: 'none' };
 
-const TIMESTAMP_LINK =
-  /^#(?:entry=(playlist_entry_[0-9a-z]{26})&)?t=([0-9]+:[0-5][0-9]:[0-5][0-9]|[0-9]+:[0-5][0-9])$/;
-const HTTPS_LINK = /^https:\/\/\S+$/i;
+const TIMESTAMP_LINK = /^#(?:entry=(playlist_entry_[0-9a-z]{26})&)?t=(.*)$/;
 
 export function guideLinkAction(url: string): GuideLinkAction {
   const timestamp = TIMESTAMP_LINK.exec(url);
-  if (timestamp) {
+  if (timestamp && isTimestamp(timestamp[2])) {
     return {
       kind: 'timestamp',
       entryId: timestamp[1],
       seconds: timestampSeconds(timestamp[2]),
     };
   }
-  return HTTPS_LINK.test(url) ? { kind: 'web', url } : { kind: 'none' };
+  return isHttpsLink(url) ? { kind: 'web', url } : { kind: 'none' };
 }

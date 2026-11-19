@@ -80,7 +80,9 @@ function guideStyle(fontScale: number, secondary: boolean): MarkdownStyle {
     },
     link: { color: RelistenBlue[400], underline: false },
     linkVariants: {
-      '^(?!https://|#)': { color, underline: false },
+      // The sanitizer keeps `HTTPS://` links too. Patterns take no flags on the
+      // native side, so the scheme's case is spelled out.
+      '^(?![Hh][Tt][Tt][Pp][Ss]://|#)': { color, underline: false },
     },
   };
 }

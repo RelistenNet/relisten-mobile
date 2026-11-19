@@ -23,7 +23,7 @@ import {
 import { type PlaylistRowEntry, usePlaylistGroups } from '@/relisten/playlists/playlist_hooks';
 import { trackTitle } from '@/relisten/playlists/playlist_format';
 import { toastEdit } from '@/relisten/playlists/ui/playlist_toast';
-import { timestampSeconds } from './guide_markdown';
+import { isHttpsLink, isTimestamp, isTimestampWithin } from './guide_markdown';
 import { normalizeGuideText } from './guide_text';
 import { type GuideTextTarget, guideTextTargetFromParams } from './guide_text_navigation';
 
@@ -55,6 +55,12 @@ export default function GuideTextEditorScreen() {
   }
 
   const save = () => {
+    if (!targetExists(realm, target)) {
+      // Sync removed it while the sheet was open. Closing would lose the draft.
+      Alert.alert('This was deleted while you were editing.', 'Copy your text to keep it.');
+      return;
+    }
+
     let changed: boolean;
     try {
       changed = saveGuideText(realm, target, markdown);
@@ -202,11 +208,40 @@ function describeTarget(realm: Realm, target: GuideTextTarget): EditingTarget | 
             initialText: entry.description ?? '',
             ownTrackEntryId: entry.entryId,
           }
-        : { title: 'Text', noun: 'text', placeholder: '', initialText: entry.description ?? '' };
+        : {
+            title: 'Note',
+            noun: 'note',
+            placeholder: '',
+            initialText: entry.description ?? '',
+          };
     }
     case 'text':
+      return {
+        title: 'Note',
+        noun: 'note',
+        placeholder: 'Write something',
+        initialText: '',
+      };
     case 'section':
-      return { title: 'Text', noun: 'text', placeholder: 'Write something', initialText: '' };
+      return {
+        title: 'Text',
+        noun: 'text',
+        placeholder: 'Write something',
+        initialText: '',
+      };
+  }
+}
+
+/** Whether what saving writes into is still there. A new section only needs the playlist. */
+function targetExists(realm: Realm, target: GuideTextTarget): boolean {
+  switch (target.kind) {
+    case 'segment':
+    case 'text':
+      return !!realm.objectForPrimaryKey(PlaylistSegment, target.segmentId)?.live;
+    case 'entry':
+      return !!realm.objectForPrimaryKey(PlaylistEntry, target.entryId)?.live;
+    case 'section':
+      return true;
   }
 }
 
@@ -294,7 +329,7 @@ function FormattingBar({
 function LinkPanel({ onInsert }: { onInsert: (label: string, url: string) => void }) {
   const [url, setUrl] = useState('');
   const [label, setLabel] = useState('');
-  const valid = /^https:\/\/\S+$/i.test(url.trim());
+  const valid = isHttpsLink(url.trim());
 
   return (
     <View className="gap-2 border-b border-white/10 p-3">
@@ -392,11 +427,11 @@ function TimestampPanel({
 
 /** Why a typed time can't be inserted, or null when it can. */
 function timestampProblem(time: string, row: PlaylistRowEntry | undefined): string | null {
-  if (!/^(?:[0-9]+:[0-5][0-9]:[0-5][0-9]|[0-9]+:[0-5][0-9])$/.test(time)) {
+  if (!isTimestamp(time)) {
     return 'Use minutes and seconds, like 6:42, or hours, like 1:02:03.';
   }
   const duration = row?.sourceTrack?.duration;
-  if (duration && timestampSeconds(time) >= duration) {
+  if (duration && !isTimestampWithin(time, duration)) {
     return 'That’s past the end of the track.';
   }
   return null;

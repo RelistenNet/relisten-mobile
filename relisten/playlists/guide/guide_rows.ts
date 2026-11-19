@@ -187,10 +187,6 @@ function keyOf(context: GuideTextContext) {
  * timestamps name whole seconds.
  */
 function trackDurationSeconds(realm: Realm, trackId: string): number | undefined {
-  if (!hasSourceTracks(realm)) {
-    return undefined;
-  }
-
   const redirect = realm.objectForPrimaryKey(PlaylistTrackAvailability, trackId);
   const playableId =
     redirect?.status === 'redirected' && redirect.redirectTrackId
@@ -202,23 +198,6 @@ function trackDurationSeconds(realm: Realm, trackId: string): number | undefined
     : undefined;
   return typeof duration === 'number' && duration > 0 ? Math.floor(duration) : undefined;
 }
-
-/**
- * Tests open Realms with only the playlist models. Looking the catalog up by
- * name, behind this check, keeps those Realms usable without catalog models.
- */
-function hasSourceTracks(realm: Realm) {
-  // `realm.schema` rebuilds the whole schema description on every read (about
-  // 0.1 ms), and this runs per described row, so the answer is kept per Realm.
-  let known = sourceTracksByRealm.get(realm);
-  if (known === undefined) {
-    known = realm.schema.some((model) => model.name === 'SourceTrack');
-    sourceTracksByRealm.set(realm, known);
-  }
-  return known;
-}
-
-const sourceTracksByRealm = new WeakMap<Realm, boolean>();
 
 function withOptional<T extends { description?: string }>(state: T, description?: string): T {
   if (description) {

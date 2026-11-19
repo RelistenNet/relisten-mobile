@@ -26,6 +26,7 @@ import {
   removeSegment,
 } from '@/relisten/playlists/playlist_actions';
 import {
+  type DisplayItem,
   type DragPlan,
   type DropSlot,
   type EditItem,
@@ -41,6 +42,7 @@ import {
   nearestSlot,
   planGroupDrag,
   planTrackDrag,
+  railFor,
   totalHeight,
 } from '@/relisten/playlists/playlist_drag_slots';
 import type {
@@ -95,12 +97,6 @@ const LINK_OVERLAP_ROWS = 0.35;
 /** How far the row moves over its placeholder to step to the other slot at the same spot. */
 const SEAM_STEP_ROWS = 0.3;
 
-type ListItem =
-  | EditItem
-  | { kind: 'gap'; key: 'gap'; slot: DropSlot }
-  /** Blank space above a drag plan's rows, standing in for the resting rows it drops. */
-  | { kind: 'lead'; key: 'lead'; height: number };
-
 type EntryItem = Extract<EditItem, { kind: 'track' }>;
 /** A row whose handle drags a whole group, or that group folded to one row. */
 type DraggedGroup = Extract<EditItem, { kind: 'link' | 'prose' | 'collapsed' }>;
@@ -136,7 +132,7 @@ export function PlaylistEditList({
   const { fontScale } = useWindowDimensions();
   const metrics = useMemo(() => editMetrics(fontScale), [fontScale]);
   const scrollProps = usePlayerBottomScrollViewProps({});
-  const listRef = useAnimatedRef<Animated.FlatList<ListItem>>();
+  const listRef = useAnimatedRef<Animated.FlatList<DisplayItem>>();
   const headerRef = useAnimatedRef<Animated.View>();
   // Content sits under the translucent navigation bar, so the resting offset is negative.
   const topInset = useHeaderHeight();
@@ -177,7 +173,7 @@ export function PlaylistEditList({
   const anchorTop = useSharedValue(0);
   const leadHeight = useSharedValue(0);
   // Item positions for hit-testing a touch in the handle column. Rows without
-  // a handle (descriptions, Add Text) have an empty ID and never start a drag.
+  // a handle (group descriptions) have an empty ID and never start a drag.
   const itemTopsSV = useSharedValue<number[]>([]);
   const itemIdsSV = useSharedValue<string[]>([]);
   const itemIsGroupSV = useSharedValue<boolean[]>([]);
@@ -461,7 +457,7 @@ export function PlaylistEditList({
               break;
             }
           }
-          // Descriptions and Add Text rows have no handle (an empty ID).
+          // Group descriptions have no handle (an empty ID).
           if (index < 0 || itemIdsSV.value[index] === '') {
             manager.fail();
             return;
@@ -512,7 +508,7 @@ export function PlaylistEditList({
   const settlingRow = drag?.settlingFrom ? drag.dragged : undefined;
 
   const renderItem = useCallback(
-    ({ item, index }: { item: ListItem; index: number }) => (
+    ({ item, index }: { item: DisplayItem; index: number }) => (
       <EditListRow
         item={item}
         next={data[index + 1]}
@@ -577,13 +573,13 @@ function draggedRow(item: EditItem): EditItem {
  * The rows to show: the plain list, or the drag plan's list with the
  * placeholder at the chosen slot, below the lead spacer.
  */
-function listData(items: EditItem[], drag: DragState | null): ListItem[] {
+function listData(items: EditItem[], drag: DragState | null): DisplayItem[] {
   if (!drag) {
     return items;
   }
 
   const slot = drag.plan.slots[drag.slot];
-  const rows: ListItem[] = [...drag.plan.items];
+  const rows: DisplayItem[] = [...drag.plan.items];
   if (slot) {
     rows.splice(slot.gapIndex, 0, { kind: 'gap', key: 'gap', slot });
   }
@@ -591,56 +587,6 @@ function listData(items: EditItem[], drag: DragState | null): ListItem[] {
     rows.unshift({ kind: 'lead', key: 'lead', height: drag.lead });
   }
   return rows;
-}
-
-/**
- * Whether the row after this one is still inside the same frame. Every frame
- * starts with a link line or a description, so a row that continues one is
- * never a frame's first row; a placeholder continues it when it sits on the rail.
- */
-function continuesFrame(next: ListItem | undefined): boolean {
-  switch (next?.kind) {
-    case 'gap':
-      return next.slot.inLink;
-    case 'track':
-      return next.inFrame;
-    case 'description':
-      return !next.startsFrame;
-    default:
-      return false;
-  }
-}
-
-/** How the rail runs through this row, given what comes after it. */
-function railFor(item: ListItem, next: ListItem | undefined): LinkPosition | undefined {
-  const continues = continuesFrame(next);
-  switch (item.kind) {
-    case 'lead':
-      return undefined;
-    case 'link':
-      return continues ? 'first' : 'only';
-    case 'description':
-      if (item.startsFrame) {
-        return continues ? 'first' : 'only';
-      }
-      return continues ? 'middle' : 'last';
-    case 'prose':
-      // A track being dropped into a prose-only group starts its rail.
-      return continues ? 'first' : undefined;
-    case 'collapsed':
-      return isFramed(item.group) && item.group.entries.length > 0 ? 'only' : undefined;
-    case 'gap':
-      if (!item.slot.inLink) {
-        return undefined;
-      }
-      return continues && !item.slot.linkTarget ? 'middle' : 'last';
-    case 'track':
-      if (item.inFrame) {
-        return continues ? 'middle' : 'last';
-      }
-      // A single track the drag is about to link onto starts a rail.
-      return next?.kind === 'gap' && next.slot.linkTarget ? 'first' : undefined;
-  }
 }
 
 function EditListRow({
@@ -651,8 +597,8 @@ function EditListRow({
   layout,
   settlingRow,
 }: {
-  item: ListItem;
-  next: ListItem | undefined;
+  item: DisplayItem;
+  next: DisplayItem | undefined;
   metrics: EditMetrics;
   playlistId: string;
   layout: PlaylistLayout;
@@ -800,7 +746,7 @@ function DescriptionRow({
       <LinkRail link={rail} active={false} />
       <TouchableOpacity
         accessibilityRole="button"
-        accessibilityLabel="Edit text"
+        accessibilityLabel="Edit intro"
         className="h-full min-w-0 flex-1 justify-center pl-12"
         style={{ paddingRight: HANDLE_WIDTH }}
         onPress={() => editText({ kind: 'segment', segmentId: group.segment.segmentId })}
@@ -872,7 +818,7 @@ function EntryRow({
       realm,
       playlistId,
       removeEntry(realm, playlistId, row.entry.entryId),
-      isText ? 'Removed note' : removedMessage(row, group)
+      removedMessage(row, group)
     );
   const body = { flex: 1, minWidth: 0, alignSelf: 'stretch' } as const;
 

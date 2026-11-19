@@ -50,6 +50,7 @@ export type GuideTextContext =
 
 /** `m:ss` or `h:mm:ss`. Seconds are always two digits. The server uses the same grammar. */
 const TIMESTAMP = String.raw`(?:[0-9]+:[0-5][0-9]:[0-5][0-9]|[0-9]+:[0-5][0-9])`;
+const WHOLE_TIMESTAMP = new RegExp(`^${TIMESTAMP}$`);
 const ENTRY_TIMESTAMP_LINK = new RegExp(`^#entry=playlist_entry_[0-9a-z]{26}&t=${TIMESTAMP}$`);
 const OWN_TIMESTAMP_LINK = new RegExp(`^#t=${TIMESTAMP}$`);
 /** A timestamp standing on its own, not part of a longer number or word. */
@@ -63,6 +64,29 @@ const MAY_HAVE_TIMESTAMP = /[0-9]:[0-5][0-9]/;
  */
 // eslint-disable-next-line no-control-regex -- control characters are what it rejects
 const HTTPS_LINK = /^https:\/\/[^\s\x00-\x1f\x7f-\x9f]+$/i;
+
+/** Whether this is a whole `m:ss` or `h:mm:ss` timestamp. */
+export function isTimestamp(value: string): boolean {
+  return WHOLE_TIMESTAMP.test(value);
+}
+
+/** Whether this is an https URL the guide keeps as a link. The scheme's case doesn't matter. */
+export function isHttpsLink(url: string): boolean {
+  return HTTPS_LINK.test(url);
+}
+
+/** The seconds a `m:ss` or `h:mm:ss` timestamp names. */
+export function timestampSeconds(timestamp: string): number {
+  return timestamp.split(':').reduce((total, part) => total * 60 + Number(part), 0);
+}
+
+/**
+ * Whether a timestamp starts before the track ends. Timestamps name whole
+ * seconds, so `3:49` is past the end of a 229.5-second track.
+ */
+export function isTimestampWithin(timestamp: string, durationSeconds: number): boolean {
+  return timestampSeconds(timestamp) < Math.floor(durationSeconds);
+}
 
 // endregion
 
@@ -82,7 +106,7 @@ const LIST_MARKER = /^\s*(?:[-+*]|[0-9]+[.)])(?:\s|$)/m;
 /** Setext heading underlines and thematic breaks. */
 const UNDERLINE = /^\s*[-=]{2,}\s*$/m;
 
-function isPlainProse(source: string) {
+export function isPlainProse(source: string) {
   return (
     !INLINE_MARKUP.test(source) &&
     !INDENTED_CODE.test(source) &&
@@ -97,7 +121,11 @@ export function sanitizeGuideMarkdown(source: string, context: GuideTextContext)
   if (isPlainProse(source) && !linksTimestamps(context, source)) {
     return source;
   }
+  return sanitizeParsedGuideMarkdown(source, context);
+}
 
+/** `sanitizeGuideMarkdown` without the plain-prose fast path. */
+export function sanitizeParsedGuideMarkdown(source: string, context: GuideTextContext): string {
   try {
     const tree = fromMarkdown(source);
     const sanitizer = new GuideSanitizer(context, tree);
@@ -132,7 +160,8 @@ export function guideTextRefusal(source: string): string | null {
   const nodes: Nodes[] = [];
   const collect = (node: Nodes) => {
     nodes.push(node);
-    if (node.type === 'definition') {
+    // The first definition of a label is the one links use.
+    if (node.type === 'definition' && !definitions.has(node.identifier)) {
       definitions.set(node.identifier, node.url);
     }
     if ('children' in node) {
@@ -171,15 +200,10 @@ export function guideTextRefusal(source: string): string | null {
 
 const DISALLOWED_LINK = 'Links in notes must start with https://.';
 
-/** The seconds a `m:ss` or `h:mm:ss` timestamp names. */
-export function timestampSeconds(timestamp: string): number {
-  return timestamp.split(':').reduce((total, part) => total * 60 + Number(part), 0);
-}
-
 /** Whether a link may stay a link in this context. Anything else renders as its label. */
 export function isAllowedGuideLink(url: string, context: GuideTextContext): boolean {
   return (
-    HTTPS_LINK.test(url) ||
+    isHttpsLink(url) ||
     ENTRY_TIMESTAMP_LINK.test(url) ||
     (context.kind === 'track' && OWN_TIMESTAMP_LINK.test(url))
   );
@@ -331,7 +355,7 @@ class GuideSanitizer {
     let copied = 0;
     for (const match of value.matchAll(BARE_TIMESTAMP)) {
       const timestamp = match[0];
-      if (timestampSeconds(timestamp) >= duration) {
+      if (!isTimestampWithin(timestamp, duration)) {
         continue;
       }
 

@@ -153,9 +153,9 @@ const EDGE_OFFSET_ROWS = 0.25;
 
 /**
  * The list in edit mode, with nothing being dragged: every group's rows.
- * Text is added from menus and the Add Text button rather than from rows in
- * the gaps, which would make the list much taller; a new block is then
- * dragged into place.
+ * Notes are added from the track and group menus rather than from rows in
+ * the gaps, which would make the list much taller; a new one is then dragged
+ * into place.
  */
 export function editItems(groups: PlaylistRowGroup[]): EditItem[] {
   return groups.flatMap((group) => {
@@ -418,8 +418,9 @@ function sameDrop(a: TrackDrop, b: TrackDrop): boolean {
 /**
  * How much shorter the list above the dragged row gets when the drag plan
  * replaces the resting list: for a group drag, the rows above it that fold.
- * An entry drag keeps every row above it, so its lead is zero. The edit list puts a spacer this tall above the
- * plan's rows and measures the finger below it.
+ * An entry drag keeps every row above it, so its lead is zero. The edit list
+ * puts a spacer this tall above the plan's rows and measures the finger below
+ * it.
  *
  * Invariant: the dragged row's resting top minus the lead is the top of the
  * plan's starting placeholder. So on the first frame the row sits exactly on
@@ -520,7 +521,10 @@ export function gaplessY(y: number, gapTop: number, gapHeight: number): number {
   return y >= gapTop + gapHeight ? y - gapHeight : gapTop;
 }
 
-/** Switching slots needs a little extra distance (a tenth of a row), so a finger resting on a boundary doesn't flicker. */
+/**
+ * Switching slots needs a little extra distance (a tenth of a row), so a
+ * finger resting on a boundary doesn't flicker.
+ */
 const HYSTERESIS_ROWS = 0.1;
 
 /** The positional slot nearest `y`, keeping `current` unless another is clearly closer. */
@@ -548,6 +552,70 @@ export function nearestSlot(
     }
   }
   return best;
+}
+
+// endregion
+
+// region Rails
+
+/** A row the edit list shows: an item, or one of the drag's stand-ins. */
+export type DisplayItem =
+  | EditItem
+  | { kind: 'gap'; key: 'gap'; slot: DropSlot }
+  /** Blank space above a drag plan's rows, standing in for the resting rows it drops. */
+  | { kind: 'lead'; key: 'lead'; height: number };
+
+/** How the rail runs through this row, given what comes after it. */
+export function railFor(
+  item: DisplayItem,
+  next: DisplayItem | undefined
+): LinkPosition | undefined {
+  const continues = continuesFrame(next);
+  switch (item.kind) {
+    case 'lead':
+      return undefined;
+    case 'link':
+      return continues ? 'first' : 'only';
+    case 'description':
+      if (item.startsFrame) {
+        return continues ? 'first' : 'only';
+      }
+      return continues ? 'middle' : 'last';
+    case 'prose':
+      // A track being dropped into a prose-only group starts its rail.
+      return continues ? 'first' : undefined;
+    case 'collapsed':
+      return isFramed(item.group) && item.group.entries.length > 0 ? 'only' : undefined;
+    case 'gap':
+      if (!item.slot.inLink) {
+        return undefined;
+      }
+      return continues && !item.slot.linkTarget ? 'middle' : 'last';
+    case 'track':
+      if (item.inFrame) {
+        return continues ? 'middle' : 'last';
+      }
+      // A single track the drag is about to link onto starts a rail.
+      return next?.kind === 'gap' && next.slot.linkTarget ? 'first' : undefined;
+  }
+}
+
+/**
+ * Whether the row after this one is still inside the same frame. Every frame
+ * starts with a link line or a description, so a row that continues one is
+ * never a frame's first row; a placeholder continues it when it sits on the rail.
+ */
+function continuesFrame(next: DisplayItem | undefined): boolean {
+  switch (next?.kind) {
+    case 'gap':
+      return next.slot.inLink;
+    case 'track':
+      return next.inFrame;
+    case 'description':
+      return !next.startsFrame;
+    default:
+      return false;
+  }
 }
 
 // endregion

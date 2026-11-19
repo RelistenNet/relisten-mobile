@@ -10,9 +10,16 @@ import { orderedGroups } from '@/relisten/playlists/playlist_operations';
 import {
   addAgain,
   moveEntryStep,
+  removeEntry,
   setSegmentDescription,
 } from '@/relisten/playlists/playlist_actions';
-import { createPlaylist, readPlaylistSnapshot } from '@/relisten/playlists/playlist_repository';
+import {
+  applyOperations,
+  createPlaylist,
+  insertProseSegment,
+  readPlaylistSnapshot,
+} from '@/relisten/playlists/playlist_repository';
+import { GuideLimitError, MAX_PROSE_ONLY_SEGMENTS } from './guide_text';
 
 vi.mock('expo-crypto', () => ({
   getRandomValues: (bytes: Uint8Array<ArrayBuffer>) => globalThis.crypto.getRandomValues(bytes),
@@ -85,5 +92,22 @@ describe('guide edits', () => {
     const [restoredTrack, restoredText] = groups[1].entries;
     expect(restoredTrack.entryId).not.toBe(OLD_ENTRY);
     expect(restoredText.description).toBe(`[Later](#entry=${restoredTrack.entryId}&t=1:00)`);
+  });
+
+  it('refuses removing the last track of a described group when that leaves too many text-only groups', () => {
+    const { playlistId } = createPlaylist(realm, 'Guide', [['track_a']]);
+    const [group] = orderedGroups(readPlaylistSnapshot(realm, playlistId));
+    setSegmentDescription(realm, playlistId, group.segment.segmentId, 'Opener');
+    applyOperations(
+      realm,
+      playlistId,
+      Array.from({ length: MAX_PROSE_ONLY_SEGMENTS }, (_, i) =>
+        insertProseSegment(`Section ${i}`, {})
+      )
+    );
+    const before = layout(playlistId);
+
+    expect(() => removeEntry(realm, playlistId, group.entries[0].entryId)).toThrow(GuideLimitError);
+    expect(layout(playlistId)).toEqual(before);
   });
 });

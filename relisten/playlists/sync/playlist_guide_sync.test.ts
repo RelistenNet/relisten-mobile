@@ -12,7 +12,8 @@ import {
   PLAYLIST_REALM_MODELS,
   PlaylistSegment,
 } from '@/relisten/realm/models/playlists/playlist';
-import { GUIDE_MARKDOWN_VERSION } from '@/relisten/playlists/guide/guide_markdown';
+import { refreshStaleGuideMarkdown } from '@/relisten/playlists/guide/guide_rows';
+import { parseUuidTypedId } from '@/relisten/util/typed_uuid_id';
 import {
   appendOperation,
   applySnapshot,
@@ -30,6 +31,14 @@ const playlistId = 'playlist_01890a5dac96774bbcceb302099a8052';
 const segmentId = 'playlist_segment_01890a5dac96774bbcceb302099a8053';
 const trackEntryId = 'playlist_entry_01890a5dac96774bbcceb302099a8054';
 const textEntryId = 'playlist_entry_01890a5dac96774bbcceb302099a8055';
+const trackId = 'track_01k8000000e008000000000006';
+
+/** The one catalog field guide rows read, standing in for the full catalog models. */
+const SourceTrackDuration: Realm.ObjectSchema = {
+  name: 'SourceTrack',
+  primaryKey: 'uuid',
+  properties: { uuid: 'string', duration: 'double?' },
+};
 
 const snapshot: PlaylistSnapshotResponse = {
   contract_version: 1,
@@ -45,7 +54,7 @@ const snapshot: PlaylistSnapshotResponse = {
       entries: [
         {
           entry_id: trackEntryId,
-          track_id: 'track_01890a5dac96774bbcceb302099a8056',
+          track_id: trackId,
           rank: 'a0',
           description: 'Listen at 2:00.',
         },
@@ -67,7 +76,7 @@ describe('guide content sync', () => {
     realm = await Realm.open({
       path: join(directory, 'playlists.realm'),
       schemaVersion: 1,
-      schema: [...PLAYLIST_REALM_MODELS, ...FAVORITE_REALM_MODELS],
+      schema: [...PLAYLIST_REALM_MODELS, ...FAVORITE_REALM_MODELS, SourceTrackDuration],
     });
     realm.write(() => {
       const now = new Date();
@@ -96,7 +105,6 @@ describe('guide content sync', () => {
     expect(segment.canonicalDescription).toBe(snapshot.segments[0].description);
     expect(segment.description).toBe(snapshot.segments[0].description);
     expect(segment.descriptionMarkdown).toBe('## Set two x');
-    expect(segment.descriptionMarkdownKey).toBe(`${GUIDE_MARKDOWN_VERSION}:segment`);
     expect(text.trackId).toBeNull();
     expect(text.descriptionMarkdown).toBe('Then the jam.');
     // A text block isn't a track.
@@ -120,6 +128,18 @@ describe('guide content sync', () => {
     expect(entry.descriptionMarkdown).toBeNull();
   });
 
+  it('links a track note’s timestamps once the track’s duration loads, not before', () => {
+    const entry = realm.objectForPrimaryKey(PlaylistEntry, trackEntryId)!;
+    refreshStaleGuideMarkdown(realm);
+    expect(entry.descriptionMarkdown).toBe('Listen at 2:00.');
+
+    realm.write(() => {
+      realm.create('SourceTrack', { uuid: parseUuidTypedId(trackId, 'track'), duration: 300.5 });
+    });
+    refreshStaleGuideMarkdown(realm);
+    expect(entry.descriptionMarkdown).toBe('Listen at [2:00](#t=2:00).');
+  });
+
   it('includes descriptions and text blocks when creating the playlist on an account', () => {
     realm.write(() => {
       issueCreateCommand(realm, realm.objectForPrimaryKey(Playlist, playlistId)!);
@@ -134,7 +154,7 @@ describe('guide content sync', () => {
         entries: [
           {
             entry_id: trackEntryId,
-            track_id: 'track_01890a5dac96774bbcceb302099a8056',
+            track_id: trackId,
             description: 'Listen at 2:00.',
           },
           { entry_id: textEntryId, description: 'Then the jam.' },

@@ -2,7 +2,13 @@ import type { Nodes } from 'mdast';
 import { fromMarkdown } from 'mdast-util-from-markdown';
 import { describe, expect, it } from 'vitest';
 import shared from './guide_markdown_vectors.json';
-import { type GuideTextContext, guideTextRefusal, sanitizeGuideMarkdown } from './guide_markdown';
+import {
+  type GuideTextContext,
+  guideTextRefusal,
+  isPlainProse,
+  sanitizeGuideMarkdown,
+  sanitizeParsedGuideMarkdown,
+} from './guide_markdown';
 
 interface Vector {
   name: string;
@@ -96,10 +102,14 @@ describe('sanitizeGuideMarkdown', () => {
     }
   });
 
-  it('returns plain prose unchanged without parsing', () => {
-    const prose = 'The second set, start to finish.\n\nThen the encore.';
-    expect(sanitizeGuideMarkdown(prose, { kind: 'segment' })).toBe(prose);
-  });
+  it.each(vectors.filter((vector) => isPlainProse(vector.markdown)))(
+    'skips parsing only where parsing would change nothing: $name',
+    (vector) => {
+      expect(sanitizeGuideMarkdown(vector.markdown, contextOf(vector))).toBe(
+        sanitizeParsedGuideMarkdown(vector.markdown, contextOf(vector))
+      );
+    }
+  );
 
   it('leaves bare timestamps alone until the track duration is known', () => {
     expect(sanitizeGuideMarkdown('Listen at 2:00.', { kind: 'track' })).toBe('Listen at 2:00.');

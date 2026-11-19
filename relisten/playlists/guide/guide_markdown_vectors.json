@@ -255,6 +255,28 @@
       ]
     },
     {
+      "name": "a repeated definition uses the first: javascript, then https",
+      "context": "segment",
+      "markdown": "[Relisten][r]\n\n[r]: javascript:alert(1)\n[r]: https://relisten.net",
+      "server": "reject",
+      "links": [],
+      "text": [
+        "Relisten"
+      ]
+    },
+    {
+      "name": "a repeated definition uses the first: https, then javascript",
+      "context": "segment",
+      "markdown": "[Relisten][r]\n\n[r]: https://relisten.net\n[r]: javascript:alert(1)",
+      "server": "accept",
+      "links": [
+        "https://relisten.net"
+      ],
+      "text": [
+        "Relisten"
+      ]
+    },
+    {
       "name": "an https autolink",
       "context": "segment",
       "markdown": "See <https://relisten.net>.",
