@@ -3,6 +3,7 @@ import { Stack, useRouter } from 'expo-router';
 import type { ReactNode } from 'react';
 import {
   ActivityIndicator,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -140,12 +141,16 @@ function SonosSection() {
         ) : connection.groups.length === 0 ? (
           <OutputRow icon={speaker} title="No Sonos rooms found" />
         ) : (
-          <SonosHouseholds
-            groups={connection.groups}
-            handoff={handoff}
-            hasQueue={hasQueue}
-            playOn={playOn}
-          />
+          <>
+            <SonosHouseholds
+              groups={connection.groups}
+              handoff={handoff}
+              hasQueue={hasQueue}
+              playOn={playOn}
+            />
+            <ItemSeparator />
+            <GroupInSonosRow />
+          </>
         );
       break;
   }
@@ -222,6 +227,31 @@ function SonosRoomRow({
       subtitleTone={status.tone}
       trailing={status.trailing}
       onPress={hasQueue && !busy && !active ? onPress : undefined}
+    />
+  );
+}
+
+const SONOS_APP_URL = 'sonos://';
+const SONOS_STORE_URL = Platform.select({
+  ios: 'https://apps.apple.com/app/sonos/id1488977981',
+  default: 'https://play.google.com/store/apps/details?id=com.sonos.acr2',
+});
+
+/**
+ * Sonos's control API can play on a room but can't group or ungroup rooms, so
+ * this sends people to the Sonos app for that, or to its store page when the
+ * app isn't installed.
+ */
+function GroupInSonosRow() {
+  return (
+    <OutputRow
+      icon={<MaterialCommunityIcons name="speaker-multiple" size={22} color={ICON_COLOR} />}
+      title="Group Rooms in Sonos"
+      subtitle="Grouping or ungrouping speakers can only be done in the Sonos app."
+      trailing={<MaterialIcons name="open-in-new" size={18} color={ICON_COLOR} />}
+      onPress={() => {
+        Linking.openURL(SONOS_APP_URL).catch(() => Linking.openURL(SONOS_STORE_URL));
+      }}
     />
   );
 }
