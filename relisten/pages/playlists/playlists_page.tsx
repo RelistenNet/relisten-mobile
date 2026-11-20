@@ -1,20 +1,137 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Link, Stack, useRouter } from 'expo-router';
-import { FlatList, TouchableOpacity, View } from 'react-native';
+import { useMemo } from 'react';
+import { TouchableOpacity, View } from 'react-native';
+import { FilterableList } from '@/relisten/components/filtering/filterable_list';
+import {
+  type Filter,
+  type FilteringOptions,
+  FilteringProvider,
+  searchForSubstring,
+  SortDirection,
+} from '@/relisten/components/filtering/filters';
 import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
 import { ItemSeparator } from '@/relisten/components/item_separator';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
-import { useDeletedPlaylists, usePlaylists } from '@/relisten/playlists/playlist_hooks';
+import type { Playlist } from '@/relisten/realm/models/playlists/playlist';
+import { playlistDisplayName } from '@/relisten/playlists/playlist_format';
+import {
+  type PlaylistSummary,
+  useDeletedPlaylists,
+  useIsFavoritePlaylist,
+  usePlaylistSummaries,
+  usePlaylists,
+} from '@/relisten/playlists/playlist_hooks';
 import { PlaylistListRow } from '@/relisten/playlists/ui/playlist_list_row';
 import { openNewPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
 import { useGroupSegment } from '@/relisten/util/routes';
 
+/** A row on the page, with what its sorts and filters read. */
+interface PlaylistListItem {
+  /** The playlist ID, which the shared filtering list keys rows by. */
+  uuid: string;
+  playlist: Playlist;
+  summary: PlaylistSummary;
+  favorite: boolean;
+}
+
+enum PlaylistFilterKey {
+  Modified = 'modified',
+  Name = 'name',
+  Tracks = 'tracks',
+  Duration = 'duration',
+  Favorites = 'favorites',
+  Search = 'search',
+}
+
+const byName = (a: PlaylistListItem, b: PlaylistListItem) =>
+  playlistDisplayName(a.playlist).localeCompare(playlistDisplayName(b.playlist));
+
+// Sorts run ascending and the filtering list reverses them for Descending.
+// The numeric sorts default to Descending, so they break ties with names
+// reversed (`byName(b, a)`): after the reversal, tied playlists read A to Z.
+const filters: Filter<PlaylistFilterKey, PlaylistListItem>[] = [
+  {
+    persistenceKey: PlaylistFilterKey.Modified,
+    title: 'Modified',
+    sortDirection: SortDirection.Descending,
+    active: true,
+    sort: (items) =>
+      items.sort((a, b) => a.playlist.updatedAt.getTime() - b.playlist.updatedAt.getTime()),
+  },
+  {
+    persistenceKey: PlaylistFilterKey.Name,
+    title: 'Name',
+    sortDirection: SortDirection.Ascending,
+    active: false,
+    sort: (items) => items.sort(byName),
+  },
+  {
+    persistenceKey: PlaylistFilterKey.Tracks,
+    title: 'Tracks',
+    sortDirection: SortDirection.Descending,
+    active: false,
+    isNumeric: true,
+    sort: (items) =>
+      items.sort((a, b) => a.playlist.entryCount - b.playlist.entryCount || byName(b, a)),
+  },
+  {
+    persistenceKey: PlaylistFilterKey.Duration,
+    title: 'Duration',
+    sortDirection: SortDirection.Descending,
+    active: false,
+    isNumeric: true,
+    sort: (items) =>
+      items.sort((a, b) => a.summary.durationSeconds - b.summary.durationSeconds || byName(b, a)),
+  },
+  {
+    persistenceKey: PlaylistFilterKey.Favorites,
+    title: 'Favorites',
+    active: false,
+    filter: (item) => item.favorite,
+  },
+  {
+    persistenceKey: PlaylistFilterKey.Search,
+    title: 'Search',
+    active: false,
+    searchFilter: (item, searchText) => {
+      const search = searchText.toLowerCase();
+      return (
+        searchForSubstring(playlistDisplayName(item.playlist), search) ||
+        searchForSubstring(item.playlist.description, search) ||
+        searchForSubstring(item.playlist.ownerUsername, search) ||
+        searchForSubstring(item.summary.artistNames.join(' '), search)
+      );
+    },
+  },
+];
+
+const filteringOptions: FilteringOptions<PlaylistFilterKey, PlaylistListItem> = {
+  persistence: { key: 'myLibrary/playlists' },
+  // Favorites list first under every sort, the same as on My Library.
+  prioritize: (item) => item.favorite,
+};
+
+/**
+ * Every playlist in the library, the ones the listener made and the ones
+ * they follow, with the filter bar's sorts, search and Favorites filter.
+ */
 export default function PlaylistsPage() {
   const router = useRouter();
   const playlists = usePlaylists();
-  const scrollProps = usePlayerBottomScrollViewProps({});
+  const isFavorite = useIsFavoritePlaylist();
+  const summaryOf = usePlaylistSummaries(playlists);
+  const items = useMemo(
+    () =>
+      playlists.map((playlist) => ({
+        uuid: playlist.playlistId,
+        playlist,
+        summary: summaryOf(playlist.playlistId),
+        favorite: isFavorite(playlist),
+      })),
+    [playlists, summaryOf, isFavorite]
+  );
 
   return (
     <View className="flex-1 bg-relisten-blue-900">
@@ -26,15 +143,23 @@ export default function PlaylistsPage() {
           onPress={() => openNewPlaylist(router)}
         />
       </Stack.Toolbar>
-      <FlatList
-        data={playlists}
-        keyExtractor={(p) => p.playlistId}
-        renderItem={({ item }) => <PlaylistListRow playlist={item} />}
-        ItemSeparatorComponent={ItemSeparator}
-        ListEmptyComponent={<EmptyPlaylists onCreate={() => openNewPlaylist(router)} />}
-        ListFooterComponent={<PlaylistsFooter />}
-        {...scrollProps}
-      />
+      {items.length === 0 ? (
+        <View>
+          <EmptyPlaylists onCreate={() => openNewPlaylist(router)} />
+          <PlaylistsFooter />
+        </View>
+      ) : (
+        <FilteringProvider filters={filters} options={filteringOptions}>
+          <FilterableList
+            data={[{ data: items }]}
+            pullToRefresh={false}
+            renderItem={({ item }) => (
+              <PlaylistListRow playlist={item.playlist} summary={item.summary} />
+            )}
+            ListFooterComponent={<PlaylistsFooter />}
+          />
+        </FilteringProvider>
+      )}
     </View>
   );
 }

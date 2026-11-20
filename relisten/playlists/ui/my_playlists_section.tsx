@@ -5,21 +5,28 @@ import { TouchableOpacity, View } from 'react-native';
 import { ItemSeparator } from '@/relisten/components/item_separator';
 import { SectionHeader } from '@/relisten/components/section_header';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { usePlaylists } from '@/relisten/playlists/playlist_hooks';
+import { prioritized } from '@/relisten/components/filtering/filters';
+import {
+  useIsFavoritePlaylist,
+  usePlaylistSummaries,
+  usePlaylists,
+} from '@/relisten/playlists/playlist_hooks';
 import { PlaylistListRow } from '@/relisten/playlists/ui/playlist_list_row';
 import { openNewPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
 
 const PREVIEW_COUNT = 3;
 
 /**
- * Playlists on My Library: the three most recently edited, a + in the header
- * to make one, and See All only when there are more than fit. With none yet,
- * the section offers to make the first.
+ * Playlists on My Library: the three most recently edited, favorites first
+ * as on the full list, a + in the header to make one, and See All only when
+ * there are more than fit. With none yet, the section offers to make the first.
  */
 export function MyPlaylistsSection() {
   const router = useRouter();
   const playlists = usePlaylists();
-  const preview = playlists.slice(0, PREVIEW_COUNT);
+  const isFavorite = useIsFavoritePlaylist();
+  const preview = prioritized(playlists, isFavorite).slice(0, PREVIEW_COUNT);
+  const summaryOf = usePlaylistSummaries(preview);
 
   return (
     <View>
@@ -45,7 +52,7 @@ export function MyPlaylistsSection() {
       {preview.map((playlist, index) => (
         <View key={playlist.playlistId}>
           {index > 0 && <ItemSeparator />}
-          <PlaylistListRow playlist={playlist} />
+          <PlaylistListRow playlist={playlist} summary={summaryOf(playlist.playlistId)} />
         </View>
       ))}
       {playlists.length > PREVIEW_COUNT && (

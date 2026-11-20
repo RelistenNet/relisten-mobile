@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import Realm from 'realm';
 import { useObject, useQuery, useRealm } from '@/relisten/realm/schema';
+import { useFavoriteCatalogUuids } from '@/relisten/realm/root_services';
 import {
   Playlist,
   PLAYLIST_DEVICE_STATE_ID,
@@ -109,6 +110,19 @@ export function visiblePlaylists(rows: Realm.Results<Playlist>, libraryUserId: s
 export function usePlaylists() {
   const libraryUserId = useVisibleLibraryUserId();
   return useQuery(Playlist, (rows) => visiblePlaylists(rows, libraryUserId), [libraryUserId]);
+}
+
+/**
+ * Whether a playlist is one of the listener's favorites: one they made and
+ * hearted, or one they follow, since the heart on someone else's playlist
+ * follows it. Lists put favorites first.
+ */
+export function useIsFavoritePlaylist(): (playlist: Playlist) => boolean {
+  const favoriteIds = useFavoriteCatalogUuids('playlist');
+  return useCallback(
+    (playlist: Playlist) => playlist.access === 'follower' || favoriteIds.has(playlist.playlistId),
+    [favoriteIds]
+  );
 }
 
 /** The visible playlists the listener made, which are the ones music can be added to. */
@@ -500,30 +514,49 @@ function summarizeTracks(
 }
 
 /**
- * A list row's summary, updated as tracks load and downloads finish. Lists
- * mount one per playlist, so this reads only track entries and their catalog
- * tracks: no segments, grouping or guide text.
+ * Each playlist's summary by playlist ID, updated as tracks load and downloads
+ * finish. Lists build every row's summary from one query over the playlists'
+ * track entries and their catalog tracks, rather than one per row: no
+ * segments, grouping or guide text. A playlist with no tracks yet gets an
+ * empty summary.
  */
-export function usePlaylistSummary(playlist: Playlist): PlaylistSummary {
-  const playlistId = playlist.playlistId;
+export function usePlaylistSummaries(
+  playlists: Iterable<Playlist>
+): (playlistId: string) => PlaylistSummary {
+  const playlistIds = useStableIds([...playlists].map((playlist) => playlist.playlistId));
   const entries = useQuery(
     {
       type: PlaylistEntry,
       query: (rows) =>
-        rows.filtered('playlistId == $0 AND live == true AND trackId != null', playlistId),
+        rows.filtered('playlistId IN $0 AND live == true AND trackId != null', playlistIds),
       keyPaths: ['trackId'],
     },
-    [playlistId]
+    [playlistIds]
   );
   const trackIds = useStableIds(entryTrackIds(entries));
   const { availability, tracks } = useCatalogTracks(trackIds);
 
   return useMemo(() => {
     const catalog = catalogViewOf(availability, tracks);
-    return summarizeTracks(
-      entryTrackIds(entries).map((trackId) => ({ trackId, track: catalog.trackFor(trackId) }))
+    const tracksByPlaylist = new Map<string, { trackId: string; track: SourceTrack | null }[]>();
+    for (const { playlistId, trackId } of entries) {
+      if (trackId) {
+        const rows = tracksByPlaylist.get(playlistId) ?? [];
+        rows.push({ trackId, track: catalog.trackFor(trackId) });
+        tracksByPlaylist.set(playlistId, rows);
+      }
+    }
+    const summaries = new Map(
+      [...tracksByPlaylist].map(([playlistId, rows]) => [playlistId, summarizeTracks(rows)])
     );
-  }, [entries, availability, tracks]);
+    const empty = summarizeTracks([]);
+    return (playlistId: string) => summaries.get(playlistId) ?? empty;
+  }, [playlistIds, entries, availability, tracks]);
+}
+
+/** One playlist's summary, for a screen that shows a single row. */
+export function usePlaylistSummary(playlist: Playlist): PlaylistSummary {
+  return usePlaylistSummaries([playlist])(playlist.playlistId);
 }
 
 /**

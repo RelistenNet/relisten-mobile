@@ -8,22 +8,25 @@ import {
   playlistDisplayName,
   playlistSizeLine,
 } from '@/relisten/playlists/playlist_format';
-import { usePlaylistSummary } from '@/relisten/playlists/playlist_hooks';
+import type { PlaylistSummary } from '@/relisten/playlists/playlist_hooks';
 import { useGroupSegment } from '@/relisten/util/routes';
 
 /**
  * A playlist in a list: name, size, and who's in it. No artwork; the app uses
  * none. A followed playlist also says whose it is, or that it's unavailable.
+ * The list supplies the summary from usePlaylistSummaries, which reads every
+ * row's tracks in one query.
  */
 export function PlaylistListRow({
   playlist,
+  summary,
   compact = false,
 }: {
   playlist: Playlist;
+  summary: PlaylistSummary;
   compact?: boolean;
 }) {
   const groupSegment = useGroupSegment();
-  const summary = usePlaylistSummary(playlist);
   const artists = artistLine(summary.artistNames);
   const followed = playlist.access === 'follower';
   // Named once its details arrive: a new follow's head, or a new copy's snapshot.
