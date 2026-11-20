@@ -142,6 +142,10 @@ export class LibraryIndex {
     return this.favoriteProjection.isFavorite(targetKind, catalogUuid);
   }
 
+  favoriteTrackUuidsForShow(showUuid: string) {
+    return this.favoriteProjection.favoriteTrackUuidsForShow(showUuid);
+  }
+
   favoriteCatalogUuids(targetKind: FavoriteTargetKind): ReadonlySet<string> {
     return this.favoriteUuids[targetKind];
   }

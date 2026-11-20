@@ -60,6 +60,50 @@ export function useFavorite(targetKind: FavoriteTargetKind, catalogId: string): 
   return { isFavorite, setFavorite, toggleFavorite };
 }
 
+/**
+ * The heart on a show's page. Favoriting saves the tape being shown.
+ *
+ * A show is also in Favorites when the show itself or one of its tracks is
+ * favorited. Earlier versions of the app saved those, and no screen toggles
+ * them, so the heart is filled for them too and unfavoriting clears them with
+ * this tape. Another favorited tape keeps the show in Favorites; its own page
+ * shows a filled heart.
+ */
+export function useShowPageFavorite(showUuid: string, sourceUuid: string): FavoriteState {
+  const repository = useFavoriteRepository();
+  const library = useRootLibraryIndex();
+  const show = useFavorite('show', showUuid);
+  const source = useFavorite('source', sourceUuid);
+  const getHasFavoriteTracks = useCallback(
+    () => library.favoriteTrackUuidsForShow(showUuid).size > 0,
+    [library, showUuid]
+  );
+  const hasFavoriteTracks = useSyncExternalStore(
+    library.subscribeLibraryMembership,
+    getHasFavoriteTracks,
+    getHasFavoriteTracks
+  );
+  const isFavorite = show.isFavorite || source.isFavorite || hasFavoriteTracks;
+
+  const setFavorite = (present: boolean) => {
+    if (present) {
+      source.setFavorite(true);
+      return;
+    }
+    if (show.isFavorite) {
+      show.setFavorite(false);
+    }
+    if (source.isFavorite) {
+      source.setFavorite(false);
+    }
+    for (const trackUuid of library.favoriteTrackUuidsForShow(showUuid)) {
+      setCatalogFavorite(repository, 'track', trackUuid, false);
+    }
+  };
+
+  return { isFavorite, setFavorite, toggleFavorite: () => setFavorite(!isFavorite) };
+}
+
 export type FavoriteSyncStatus = {
   state: 'saved' | 'waiting' | 'syncing' | 'needsAttention';
   pendingCount: number;

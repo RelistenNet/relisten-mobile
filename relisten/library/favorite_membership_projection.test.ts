@@ -20,7 +20,7 @@ import { FavoriteMembershipProjection } from './favorite_membership_projection';
 import { UserFavorite } from '@/relisten/realm/models/library/user_favorite';
 import { NormalizedVenue, NormalizedVenueName } from '@/relisten/realm/models/catalog';
 import { FavoriteRepository } from './favorite_repository';
-import { useFavorite } from './favorite_hooks';
+import { useFavorite, useShowPageFavorite } from './favorite_hooks';
 import { FAVORITE_REALM_MODELS, FavoriteMutation } from '@/relisten/realm/models/library';
 
 const hookContext = vi.hoisted(() => ({
@@ -41,6 +41,8 @@ vi.mock('@/relisten/realm/root_services', () => ({
     subscribeLibraryMembership: hookContext.projection!.subscribe,
     isFavorite: (kind: Parameters<FavoriteMembershipProjection['isFavorite']>[0], id: string) =>
       hookContext.projection!.isFavorite(kind, id),
+    favoriteTrackUuidsForShow: (showUuid: string) =>
+      hookContext.projection!.favoriteTrackUuidsForShow(showUuid),
   }),
 }));
 
@@ -220,6 +222,41 @@ describe('FavoriteMembershipProjection canonical targets', () => {
         .sort()
     ).toEqual(['venue_0abc1234', 'venue_0abc5678']);
     expect(realm.objects(FavoriteMutation).map((m) => m.desiredPresent)).toEqual([false, false]);
+  });
+
+  it('lets the show page heart clear the older show and track favorites that list a show', async () => {
+    const showUuid = '00000000-0000-4000-8000-000000000010';
+    const sourceUuid = '00000000-0000-4000-8000-000000000011';
+    const trackUuid = '00000000-0000-4000-8000-000000000012';
+    realm.write(() => {
+      const artist = realm.create('Artist', { uuid: artistUuid });
+      realm.create('Show', { uuid: showUuid, artistUuid, artist });
+      realm.create('Source', { uuid: sourceUuid, showUuid });
+      realm.create('SourceTrack', { uuid: trackUuid, showUuid });
+      addFavorite('scope-a', favoriteTargetForCatalogId('show', showUuid));
+      addFavorite('scope-a', favoriteTargetForCatalogId('track', trackUuid));
+    });
+    hookContext.repository = new FavoriteRepository(realm, accountScope);
+    projection = new FavoriteMembershipProjection(realm, accountScope);
+    hookContext.projection = projection;
+
+    // This tape isn't favorited, but the show is listed in Favorites.
+    const heart = useShowPageFavorite(showUuid, sourceUuid);
+    expect(heart.isFavorite).toBe(true);
+    expect(projection.favoriteShowUuidsForLibrary()).toEqual(new Set([showUuid]));
+
+    heart.toggleFavorite();
+
+    await vi.waitFor(() => expect(projection.favoriteShowUuidsForLibrary()).toEqual(new Set()));
+    expect(
+      realm
+        .objects(FavoriteMutation)
+        .map((mutation) => [mutation.targetKind, mutation.desiredPresent])
+        .sort()
+    ).toEqual([
+      ['show', false],
+      ['track', false],
+    ]);
   });
 
   it('resolves a merged venue once while retaining its original saved favorite', async () => {

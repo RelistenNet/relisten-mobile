@@ -40,6 +40,7 @@ export class FavoriteMembershipProjection {
   private readonly venues: Realm.Results<ArtistChildProjection>;
   private readonly favoriteUuidsByType = new Map<FavoriteTargetKind, Set<string>>();
   private readonly libraryShowUuids = new Set<string>();
+  private readonly favoriteTrackUuidsByShow = new Map<string, Set<string>>();
   private readonly favoriteContentByArtist = new Map<string, number>();
   private readonly favoriteContentByYear = new Map<string, number>();
   private readonly unsubscribeAccountScope: () => void;
@@ -116,6 +117,15 @@ export class FavoriteMembershipProjection {
     return this.favoriteUuidsByType.get(targetKind) ?? EMPTY_SET;
   }
 
+  /**
+   * The favorited tracks that put a show in My Library. No screen favorites a
+   * single track; these come from earlier versions of the app, and the show
+   * page's heart clears them with the show.
+   */
+  favoriteTrackUuidsForShow(showUuid: string): ReadonlySet<string> {
+    return this.favoriteTrackUuidsByShow.get(showUuid) ?? EMPTY_SET;
+  }
+
   favoriteShowUuidsForLibrary(): ReadonlySet<string> {
     return this.libraryShowUuids;
   }
@@ -156,6 +166,7 @@ export class FavoriteMembershipProjection {
     const identity = new CatalogIdentity(this.redirects);
     this.identity = identity;
     this.libraryShowUuids.clear();
+    this.favoriteTrackUuidsByShow.clear();
     this.favoriteContentByArtist.clear();
     this.favoriteContentByYear.clear();
 
@@ -197,9 +208,19 @@ export class FavoriteMembershipProjection {
       );
     }
     for (const trackUuid of this.favoriteUuids('track')) {
-      this.addLibraryShow(
-        this.realm.objectForPrimaryKey<SourceTrackProjection>('SourceTrack', trackUuid)?.showUuid
-      );
+      const showUuid = this.realm.objectForPrimaryKey<SourceTrackProjection>(
+        'SourceTrack',
+        trackUuid
+      )?.showUuid;
+      if (showUuid) {
+        let tracks = this.favoriteTrackUuidsByShow.get(showUuid);
+        if (!tracks) {
+          tracks = new Set<string>();
+          this.favoriteTrackUuidsByShow.set(showUuid, tracks);
+        }
+        tracks.add(trackUuid);
+      }
+      this.addLibraryShow(showUuid);
     }
     for (const songUuid of this.favoriteUuids('imported_song')) {
       this.addLibraryArtist(

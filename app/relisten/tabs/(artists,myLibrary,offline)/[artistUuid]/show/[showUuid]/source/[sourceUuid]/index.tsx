@@ -54,7 +54,7 @@ import {
   SourceTrackOfflineInfoStatus,
   SourceTrackOfflineInfoType,
 } from '@/relisten/realm/models/source_track_offline_info';
-import { useFavorite } from '@/relisten/library/favorite_hooks';
+import { useShowPageFavorite } from '@/relisten/library/favorite_hooks';
 import { normalizedVenueLocation } from '@/relisten/components/venue_presenters';
 
 const logger = log.extend('source screen');
@@ -110,7 +110,10 @@ export default function Page() {
     String(showUuid),
     String(sourceUuid)
   );
-  const selectedSourceFavorite = useFavorite('source', selectedSource?.uuid ?? '__missing__');
+  const selectedSourceFavorite = useShowPageFavorite(
+    String(showUuid),
+    selectedSource?.uuid ?? '__missing__'
+  );
 
   const playShow = ((sourceTrack?: SourceTrack) => {
     if (!sourceTrack || !sourceTrack.uuid || !selectedSource) {
@@ -440,7 +443,7 @@ export const SourceHeader = ({
   hasDownloadableTrack: boolean;
 }) => {
   const router = useRouter();
-  const sourceFavorite = useFavorite('source', source.uuid);
+  const sourceFavorite = useShowPageFavorite(show.uuid, source.uuid);
   const groupSegment = useGroupSegment();
   const { fontScale } = useWindowDimensions();
   const displayVenueName = show.venue?.name ?? show.artistVenue?.venue.name;
