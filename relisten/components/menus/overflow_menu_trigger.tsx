@@ -11,7 +11,7 @@ type OverflowMenuTriggerProps = {
  * Quieter than a row's title, but a step brighter than its duration
  * (gray-400), so the menu stays easy to find without competing with the text.
  */
-const ICON_COLOR = colors.gray[300];
+const ICON_COLOR = colors.gray[200];
 
 export function OverflowMenuTrigger({
   accessibilityLabel,
