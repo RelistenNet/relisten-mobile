@@ -26,10 +26,10 @@ const APPEAR_MS = 160;
 const LEAVE_MS = 140;
 const DISMISS_DISTANCE = 16;
 /** The gap between the toast and the player, or the bottom of the screen. */
-const GAP = 12;
+const GAP = 20;
 
 const TONE_BORDER: Record<ToastTone, string> = {
-  info: 'rgba(255, 255, 255, 0.12)',
+  info: 'rgba(255, 255, 255, 0.22)',
   warning: 'rgba(229, 192, 123, 0.55)',
   error: 'rgba(240, 113, 120, 0.6)',
 };
@@ -120,7 +120,7 @@ export function ToastHost() {
           style={[
             {
               alignSelf: 'center',
-              backgroundColor: RelistenBlue[900],
+              backgroundColor: RelistenBlue[800],
               borderColor: TONE_BORDER[toast.tone],
               borderWidth: 1,
               boxShadow: '0 6px 18px rgba(0, 0, 0, 0.4)',
