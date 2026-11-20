@@ -22,6 +22,7 @@ import {
   entryTitle,
   linkedEntriesLabel,
   markdownPreview,
+  showLine,
 } from '@/relisten/playlists/playlist_format';
 import {
   type GuideTextPlace,
@@ -30,7 +31,6 @@ import {
 } from '@/relisten/playlists/guide/guide_text_navigation';
 import { GroupMenu, TrackMenu } from '@/relisten/playlists/ui/playlist_menus';
 import { LinkRail } from '@/relisten/playlists/ui/link_rail';
-import { showLine } from '@/relisten/playlists/ui/playlist_rows';
 import { removedMessage, toastEdit } from '@/relisten/playlists/ui/playlist_toast';
 
 /**

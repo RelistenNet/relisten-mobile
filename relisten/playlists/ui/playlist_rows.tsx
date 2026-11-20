@@ -14,23 +14,12 @@ import type {
   PlaylistRowEntry,
   PlaylistRowGroup,
 } from '@/relisten/playlists/playlist_hooks';
-import { trackTitle } from '@/relisten/playlists/playlist_format';
+import { showLine, trackTitle } from '@/relisten/playlists/playlist_format';
 import type { LinkPosition } from '@/relisten/playlists/playlist_drag_slots';
 import { TrackMenu } from '@/relisten/playlists/ui/playlist_menus';
 import { isQueueable } from '@/relisten/playlists/playlist_playback';
 import { tw } from '@/relisten/util/tw';
 import { GuideMarkdown } from '@/relisten/playlists/guide/guide_markdown_view';
-
-/** "Grateful Dead · 1977-05-08 · Barton Hall". The venue is last, so it is what truncates. */
-export function showLine(row: PlaylistRowEntry): string {
-  const track = row.sourceTrack;
-  if (!track) {
-    return '';
-  }
-  return [track.artist.name, track.show.displayDate, track.show.venue?.name]
-    .filter(Boolean)
-    .join(' · ');
-}
 
 /** The queue occurrence playing from this playlist, if any. */
 export function usePlayingEntryId(playlistId: string) {

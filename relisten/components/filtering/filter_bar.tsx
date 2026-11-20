@@ -35,11 +35,13 @@ export function SearchFilterBar({
   exitSearch,
   innerRef,
   searchText,
+  placeholder = 'Search',
 }: {
   search: (input: string) => void;
   exitSearch: () => void;
   innerRef: Ref<TextInputInstance>;
   searchText?: string;
+  placeholder?: string;
 }) {
   const onChangeText = (input: string) => {
     search(input);
@@ -50,7 +52,7 @@ export function SearchFilterBar({
       <View className="flex-grow">
         <TextInput
           className="rounded-lg border border-relisten-blue-600/30 p-2 px-2 text-lg text-white"
-          placeholder="Search"
+          placeholder={placeholder}
           placeholderTextColor="lightgray"
           onChangeText={onChangeText}
           value={searchText}

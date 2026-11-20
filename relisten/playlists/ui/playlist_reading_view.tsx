@@ -1,7 +1,14 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import React, { useMemo } from 'react';
-import { FlatList, type FlatListProps, useWindowDimensions, View } from 'react-native';
+import React, { useMemo, useRef, useState } from 'react';
+import {
+  FlatList,
+  type FlatListProps,
+  type TextInputInstance,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { useHeaderHeight } from 'expo-router/react-navigation';
+import { SearchFilterBar } from '@/relisten/components/filtering/filter_bar';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { ItemSeparator } from '@/relisten/components/item_separator';
 import { RelistenButton } from '@/relisten/components/relisten_button';
@@ -10,6 +17,7 @@ import { DownloadManager } from '@/relisten/offline/download_manager';
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
 import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
 import { humanDuration, playlistSizeLine } from '@/relisten/playlists/playlist_format';
+import { downloadedGroups, searchedGroups } from '@/relisten/playlists/playlist_group_filters';
 import {
   summarizePlaylist,
   usePlaylistLayout,
@@ -63,11 +71,15 @@ export function PlaylistReadingList({
   const layout = usePlaylistLayout(groups);
   const playingEntryId = usePlayingEntryId(playlistId);
   const scrollProps = usePlayerBottomScrollViewProps({});
+  const [query, setQuery] = useState('');
+  const searchInputRef = useRef<TextInputInstance>(null);
   // The groups update as downloads finish, which keeps Show Downloaded Only current.
   const viewRows = useMemo(
-    () => playlistViewRows(downloadedOnly ? filterDownloaded(groups) : groups),
-    [groups, downloadedOnly]
+    () =>
+      playlistViewRows(searchedGroups(downloadedOnly ? downloadedGroups(groups) : groups, query)),
+    [groups, downloadedOnly, query]
   );
+  const searching = query.trim() !== '';
   const playingSegmentId = playingEntryId
     ? layout.groups[layout.entryPositions.get(playingEntryId)?.groupIndex ?? -1]?.segment.segmentId
     : undefined;
@@ -91,10 +103,33 @@ export function PlaylistReadingList({
       ScrollableComponent={PlaylistTrackList}
       data={viewRows}
       keyExtractor={(r) => r.key}
-      ListHeaderComponent={header}
+      ListHeaderComponent={
+        <>
+          {header}
+          {/* Search narrows the rows like Show Downloaded Only; Play still queues everything. */}
+          {groups.length > 0 && (
+            <SearchFilterBar
+              search={setQuery}
+              exitSearch={() => {
+                setQuery('');
+                searchInputRef.current?.blur();
+              }}
+              searchText={query}
+              innerRef={searchInputRef}
+              placeholder="Search this playlist"
+            />
+          )}
+        </>
+      }
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
       ListEmptyComponent={
         <RelistenText className="px-6 py-8 text-center text-gray-400">
-          {downloadedOnly ? 'No downloaded tracks yet.' : emptyText}
+          {searching
+            ? `Nothing in this playlist matches “${query.trim()}”.`
+            : downloadedOnly
+              ? 'No downloaded tracks yet.'
+              : emptyText}
         </RelistenText>
       }
       renderItem={({ item }) => {
@@ -358,19 +393,6 @@ export function PlaylistScreenNotice({ children }: { children: React.ReactNode }
 /** The empty-list text for a playlist whose rows haven't arrived yet. */
 export function notLoadedText(online: boolean) {
   return online ? 'Loading…' : 'Connect to the internet to load this playlist.';
-}
-
-function filterDownloaded(groups: PlaylistRowGroup[]): PlaylistRowGroup[] {
-  return groups
-    .map((group) => ({
-      ...group,
-      // Downloaded tracks only; the guide's text around them is dropped too.
-      entries: group.entries.filter(
-        (row) => row.sourceTrack?.offlineInfo?.isPlayableOffline() === true
-      ),
-      descriptionMarkdown: undefined,
-    }))
-    .filter((group) => group.entries.length > 0);
 }
 
 function nothingPlayableMessage(online: boolean) {

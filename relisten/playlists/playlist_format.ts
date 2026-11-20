@@ -43,6 +43,17 @@ export function deletedAgo(deletedAt: Date, now = new Date()): string {
 /** A track's title inside a sentence or label; lowercase "track" before its details load. */
 export const trackTitle = (row: PlaylistRowEntry | undefined) => row?.sourceTrack?.title ?? 'track';
 
+/** "Grateful Dead · 1977-05-08 · Barton Hall". The venue is last, so it is what truncates. */
+export function showLine(row: PlaylistRowEntry): string {
+  const track = row.sourceTrack;
+  if (!track) {
+    return '';
+  }
+  return [track.artist.name, track.show.displayDate, track.show.venue?.name]
+    .filter(Boolean)
+    .join(' · ');
+}
+
 /** The loaded track when every entry comes from the same recording, for "one show" labels. */
 export function singleSourceTrack(entries: PlaylistRowEntry[]): SourceTrack | undefined {
   const first = entries[0]?.sourceTrack;
