@@ -13,11 +13,9 @@ import {
   useRelistenPlayerShuffleState,
 } from '@/relisten/player/relisten_player_queue_hooks';
 import { PlayerRepeatState, PlayerShuffleState } from '@/relisten/player/relisten_player_queue';
-import {
-  useIsRemotePlayback,
-  usePlaybackSource,
-} from '@/relisten/player/native_playback_state_hooks';
-import { PlaybackSource } from '@/relisten/player/shared_state';
+import { useIsRemotePlayback } from '@/relisten/player/native_playback_state_hooks';
+import { nextSonosRepeatMode, type SonosRepeatMode } from '@/relisten/sonos/sonos_playback';
+import { sonosRoom, useSonosRepeat } from '@/relisten/sonos/sonos_room_store';
 import { PlayerAudioVisualizer } from '@/relisten/player/ui/player_audio_visualizer';
 import { PlayerActionsMenu } from '@/relisten/player/ui/player_actions_menu';
 import {
@@ -352,12 +350,16 @@ export function PlayerControls({ compact = false }: { compact?: boolean }) {
 
 function PlayerSecondaryControls({ historyButton }: { historyButton?: ReactNode }) {
   const queue = useRelistenPlayerQueue();
-  // A Sonos room plays the queue's order as it is, so shuffle and repeat wait until the phone plays again.
-  const sonosActive = usePlaybackSource() === PlaybackSource.Sonos;
+  // On Sonos, repeat is the room's own setting, kept apart from the phone's.
+  // Shuffle reorders the phone's queue, which is saved to the room.
+  const sonosRepeat = useSonosRepeat();
   const [shuffleState] = useRelistenPlayerShuffleState();
-  const [repeatState] = useRelistenPlayerRepeatState();
+  const [phoneRepeatState] = useRelistenPlayerRepeatState();
   const audioEqualizerConfiguration = useAudioAdjustmentConfiguration();
 
+  const sonosNextRepeat = sonosRepeat ? nextSonosRepeatMode(sonosRepeat) : undefined;
+  const repeatState = sonosRepeat ? repeatStateOfSonos(sonosRepeat.repeatMode) : phoneRepeatState;
+  const repeatDisabled = sonosRepeat !== undefined && sonosNextRepeat === undefined;
   const isShuffleOn = shuffleState === PlayerShuffleState.SHUFFLE_ON;
   const isRepeatTrack = repeatState === PlayerRepeatState.REPEAT_TRACK;
   const isRepeatQueue = repeatState === PlayerRepeatState.REPEAT_QUEUE;
@@ -374,6 +376,13 @@ function PlayerSecondaryControls({ historyButton }: { historyButton?: ReactNode 
   };
 
   const toggleRepeat = () => {
+    if (sonosRepeat) {
+      if (sonosNextRepeat) {
+        void sonosRoom.setRepeat(sonosNextRepeat);
+        void Haptics.selectionAsync();
+      }
+      return;
+    }
     const nextRepeatState =
       repeatState === PlayerRepeatState.REPEAT_OFF
         ? PlayerRepeatState.REPEAT_QUEUE
@@ -390,9 +399,8 @@ function PlayerSecondaryControls({ historyButton }: { historyButton?: ReactNode 
       <TouchableOpacity
         accessibilityLabel={isShuffleOn ? 'Turn shuffle off' : 'Turn shuffle on'}
         accessibilityRole="button"
-        accessibilityState={{ selected: isShuffleOn, disabled: sonosActive }}
-        className={tw('h-11 w-11 items-center justify-center', sonosActive && 'opacity-40')}
-        disabled={sonosActive}
+        accessibilityState={{ selected: isShuffleOn }}
+        className="h-11 w-11 items-center justify-center"
         onPress={toggleShuffle}
       >
         <MaterialCommunityIcons
@@ -408,9 +416,9 @@ function PlayerSecondaryControls({ historyButton }: { historyButton?: ReactNode 
         }}
         accessibilityHint="Cycles through all tracks, one track, and off."
         accessibilityRole="button"
-        accessibilityState={{ selected: isRepeatOn, disabled: sonosActive }}
-        className={tw('h-11 w-11 items-center justify-center', sonosActive && 'opacity-40')}
-        disabled={sonosActive}
+        accessibilityState={{ selected: isRepeatOn, disabled: repeatDisabled }}
+        className={tw('h-11 w-11 items-center justify-center', repeatDisabled && 'opacity-40')}
+        disabled={repeatDisabled}
         onPress={toggleRepeat}
       >
         <MaterialCommunityIcons
@@ -438,6 +446,14 @@ function PlayerSecondaryControls({ historyButton }: { historyButton?: ReactNode 
       <PlayOnButton activeColor={RelistenBlue['300']} inactiveColor={inactiveColor} />
     </View>
   );
+}
+
+function repeatStateOfSonos(mode: SonosRepeatMode | null): PlayerRepeatState {
+  return mode === 'all'
+    ? PlayerRepeatState.REPEAT_QUEUE
+    : mode === 'one'
+      ? PlayerRepeatState.REPEAT_TRACK
+      : PlayerRepeatState.REPEAT_OFF;
 }
 
 type PlayerNowPlayingProps = {

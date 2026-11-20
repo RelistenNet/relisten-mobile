@@ -52,7 +52,7 @@ vi.mock('@react-native-async-storage/async-storage', () => ({ default: {} }));
 
 import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import { RelistenPlayer } from '@/relisten/player/relisten_player';
-import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
+import { PlayerQueueTrack, PlayerShuffleState } from '@/relisten/player/relisten_player_queue';
 import {
   currentTrackIdentifier,
   PlaybackSource,
@@ -231,6 +231,9 @@ class FakeRoom {
       positionMillis: this.positionMillis,
       observedAt: Date.now(),
       queueVersion: this.queue.version,
+      repeatMode: 'off',
+      canRepeat: true,
+      canRepeatOne: true,
       occurrence: {
         itemId: `item-${this.occurrenceId}`,
         occurrenceId: this.occurrenceId,
@@ -802,6 +805,86 @@ describe('SonosSession', () => {
 
       expect(room.queue.entries).toEqual([entry(tracks[0]), entry(tracks[1])]);
       expect(messages()).toEqual(['Couldn’t update the Sonos queue yet.']);
+    });
+  });
+
+  describe('shuffle', () => {
+    it('shuffles only the tracks after the playing one, and saves that order', async () => {
+      const more = [addedElsewhere('Jack Straw'), addedElsewhere('Dire Wolf')];
+      player.queue.addTrackToEndOfQueue(more);
+      await settle();
+      room.plays(tracks[1].identifier);
+      await settle();
+
+      player.queue.setShuffleState(PlayerShuffleState.SHUFFLE_ON);
+      await settle();
+
+      const saved = room.queue.entries.map((row) => row.occurrenceId);
+      expect(saved.slice(0, 2)).toEqual([tracks[0].identifier, tracks[1].identifier]);
+      expect([...saved.slice(2)].sort()).toEqual(
+        [tracks[2], ...player.queue.orderedTracks.slice(3)].map((t) => t.identifier).sort()
+      );
+      expect(messages()).toEqual([]);
+    });
+
+    it('keeps the track the room just moved to in place when shuffling', async () => {
+      room.plays(tracks[0].identifier);
+      await settle();
+      const save = room.saveQueue.getMockImplementation()!;
+      room.saveQueue.mockImplementationOnce(async () => {
+        // The room moved on before the shuffled order reached it. Like the
+        // real store, the fake answers only after a request goes out.
+        await Promise.resolve();
+        room.plays(tracks[1].identifier);
+        return { kind: 'trackMoved' } as never;
+      });
+      room.saveQueue.mockImplementation(save);
+
+      player.queue.setShuffleState(PlayerShuffleState.SHUFFLE_ON);
+      await settle();
+
+      expect(room.queue.entries.slice(0, 2)).toEqual([entry(tracks[0]), entry(tracks[1])]);
+      expect(player.queue.orderedTracks.slice(0, 2)).toEqual([tracks[0], tracks[1]]);
+      expect(messages()).toEqual([]);
+    });
+
+    it('keeps a playlist group together when shuffle is turned off', async () => {
+      const [x, a1, a2] = tracks;
+      for (const grouped of [a1, a2]) {
+        grouped.playlistContext = { segmentInstanceId: 'segment-a' } as never;
+      }
+      // Shuffled on the phone with A1 selected: [A1, A2, X], A1's group kept together.
+      player.queue.replaceQueue([x, a1, a2], 1);
+      currentTrackIdentifier.setState(a1.identifier);
+      player.queue.setShuffleState(PlayerShuffleState.SHUFFLE_ON);
+      await settle();
+      room.queue = { version: 1, entries: player.queue.orderedTracks.map(entry) };
+      room.plays(a1.identifier);
+      await settle();
+      expect(player.queue.orderedTracks).toEqual([a1, a2, x]);
+
+      player.queue.setShuffleState(PlayerShuffleState.SHUFFLE_OFF);
+      await settle();
+
+      expect(player.queue.orderedTracks).toEqual([a1, a2, x]);
+    });
+
+    it('puts the upcoming tracks back in order when shuffle is turned off', async () => {
+      room.plays(tracks[0].identifier);
+      await settle();
+      player.queue.setShuffleState(PlayerShuffleState.SHUFFLE_ON);
+      await settle();
+      room.plays(player.queue.orderedTracks[1].identifier);
+      await settle();
+      const played = player.queue.orderedTracks.slice(0, 2);
+
+      player.queue.setShuffleState(PlayerShuffleState.SHUFFLE_OFF);
+      await settle();
+
+      const rest = tracks.filter((t) => !played.includes(t));
+      expect(player.queue.orderedTracks).toEqual([...played, ...rest]);
+      expect(room.queue.entries).toEqual([...played, ...rest].map(entry));
+      expect(messages()).toEqual([]);
     });
   });
 

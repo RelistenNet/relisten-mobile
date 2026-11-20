@@ -26,6 +26,9 @@ export interface SonosOccurrence {
  */
 export type SonosPlaybackStatus = 'active' | 'unconfirmed' | 'evicted' | 'failed' | 'revoked';
 
+/** The room's repeat setting, which applies to its whole group. */
+export type SonosRepeatMode = 'off' | 'all' | 'one';
+
 /** A room's playback, as of `observedAt`. The server reads the room on each request. */
 export interface SonosPlayback {
   handle: string;
@@ -40,6 +43,11 @@ export interface SonosPlayback {
   observedAt: number | null;
   /** Changes with every saved queue edit, from any device, and never goes back. */
   queueVersion: number | null;
+  /** Null when the room didn't say, as from a server without repeat support. */
+  repeatMode: SonosRepeatMode | null;
+  /** Whether the room offers repeating the queue, and one track; false when it didn't say. */
+  canRepeat: boolean;
+  canRepeatOne: boolean;
 }
 
 /** Group volume. `fixed` means the group won't take volume changes. */
@@ -207,7 +215,39 @@ export function parsePlayback(value: unknown): SonosPlayback | undefined {
     positionMillis: typeof body.position_millis === 'number' ? body.position_millis : null,
     observedAt: Number.isFinite(observedAt) ? observedAt : null,
     queueVersion: typeof body.queue_version === 'number' ? body.queue_version : null,
+    repeatMode: REPEAT_MODES.includes(body.repeat_mode as SonosRepeatMode)
+      ? (body.repeat_mode as SonosRepeatMode)
+      : null,
+    canRepeat: body.can_repeat === true,
+    canRepeatOne: body.can_repeat_one === true,
   };
+}
+
+const REPEAT_MODES: readonly SonosRepeatMode[] = ['off', 'all', 'one'];
+
+/** What a room's repeat button shows and can do. */
+export type SonosRepeat = Pick<SonosPlayback, 'repeatMode' | 'canRepeat' | 'canRepeatOne'>;
+
+/**
+ * The mode the repeat button moves to: off, then all, then one, skipping a
+ * mode the room doesn't offer. Undefined when the room didn't report its mode
+ * or offers nothing else, so the button rests.
+ */
+export function nextSonosRepeatMode(repeat: SonosRepeat): SonosRepeatMode | undefined {
+  const current = repeat.repeatMode;
+  if (current === null) {
+    return undefined;
+  }
+  const offered = (mode: SonosRepeatMode) =>
+    mode === 'off' || (mode === 'all' ? repeat.canRepeat : repeat.canRepeatOne);
+  const start = REPEAT_MODES.indexOf(current);
+  for (let step = 1; step < REPEAT_MODES.length; step += 1) {
+    const mode = REPEAT_MODES[(start + step) % REPEAT_MODES.length];
+    if (offered(mode)) {
+      return mode;
+    }
+  }
+  return undefined;
 }
 
 function parseOccurrence(value: unknown): SonosOccurrence | null {

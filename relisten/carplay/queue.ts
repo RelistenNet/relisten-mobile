@@ -13,6 +13,8 @@ import {
 import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import plur from 'plur';
 import { carplay_logger } from '@/relisten/carplay/carplay_logger';
+import { nextSonosRepeatMode } from '@/relisten/sonos/sonos_playback';
+import { sonosRepeat, sonosRoom } from '@/relisten/sonos/sonos_room_store';
 
 const ACTION_CLEAR = 'action-clear';
 const ACTION_NOW_PLAYING = 'action-open-now-playing';
@@ -110,6 +112,15 @@ export function createNowPlayingTemplate(ctx: RelistenCarPlayContext): NowPlayin
       }
 
       if (id === 'repeat') {
+        // On Sonos, repeat is the room's setting, kept apart from the phone's.
+        const room = sonosRepeat();
+        if (room) {
+          const next = nextSonosRepeatMode(room);
+          if (next) {
+            void sonosRoom.setRepeat(next);
+          }
+          return;
+        }
         const currentRepeat = ctx.player.queue.repeatState;
         const nextRepeatState =
           currentRepeat === PlayerRepeatState.REPEAT_OFF

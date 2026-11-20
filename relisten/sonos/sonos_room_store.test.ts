@@ -14,7 +14,8 @@ vi.mock('@react-native-async-storage/async-storage', () => ({ default: {} }));
 
 import { AccountsApiError } from '@/relisten/accounts/api/accounts_api_client';
 import { handoffRequest } from './sonos_handoff';
-import { SonosRoomStore, sonosRoomName } from './sonos_room_store';
+import { nextSonosRepeatMode } from './sonos_playback';
+import { roomRepeatOf, SonosRoomStore, sonosRoomName } from './sonos_room_store';
 import { FakeUserService, HANDLE_UUID, lost } from './testing/fake_user_service';
 
 function store(rememberedRoom?: string) {
@@ -392,6 +393,82 @@ describe('SonosRoomStore', () => {
       expect(shown(remote)?.pending).toBe('pause');
       release();
       expect(await pause).toBe(true);
+    });
+  });
+
+  describe('repeat', () => {
+    it('sets the room’s repeat mode and reads it back', async () => {
+      const { server, remote } = await adopted();
+
+      await remote.setRepeat('all');
+
+      expect(server.commands()).toEqual([
+        { action: 'repeat', command_id: expect.any(String), repeat_mode: 'all' },
+      ]);
+      expect(shown(remote)?.playback.repeatMode).toBe('all');
+    });
+
+    it('keeps showing a tapped mode when a poll sent before it answers', async () => {
+      const { server, remote } = await adopted();
+      const releasePoll = server.holdNext('GET /v1/integrations/sonos/playback/h1');
+      const poll = remote.refresh();
+      await flush();
+
+      const set = remote.setRepeat('all');
+      await flush();
+      expect(shown(remote)?.playback.repeatMode).toBe('all');
+      releasePoll();
+      await poll;
+      expect(shown(remote)?.playback.repeatMode).toBe('all');
+      await set;
+
+      expect(shown(remote)?.playback.repeatMode).toBe('all');
+    });
+
+    it('ignores another tap while a repeat change is on its way', async () => {
+      const { server, remote } = await adopted();
+      const release = server.holdNext('POST /v1/integrations/sonos/playback/h1/commands');
+
+      const first = remote.setRepeat('all');
+      await flush();
+      await remote.setRepeat('one');
+      release();
+      await first;
+
+      expect(server.commands().map((command) => command.repeat_mode)).toEqual(['all']);
+    });
+
+    it('reports no mode while the room is unconfirmed, so controls rest', () => {
+      const { remote } = store();
+      remote.adopt('h1', 'Office');
+
+      expect(roomRepeatOf(remote.getState())).toEqual({
+        repeatMode: null,
+        canRepeat: false,
+        canRepeatOne: false,
+      });
+    });
+
+    it('explains a mode the room refuses and shows its real one', async () => {
+      const { server, remote } = await adopted();
+      server.room.canRepeatOne = false;
+
+      await remote.setRepeat('one');
+
+      expect(shown(remote)?.commandError).toBe('That isn’t available for this track.');
+      expect(shown(remote)?.playback.repeatMode).toBe('off');
+    });
+
+    it.each([
+      ['off', true, true, 'all'],
+      ['all', true, true, 'one'],
+      ['one', true, true, 'off'],
+      ['off', false, true, 'one'],
+      ['all', true, false, 'off'],
+      ['off', false, false, undefined],
+      [null, true, true, undefined],
+    ] as const)('moves from %s (all %s, one %s) to %s', (mode, canRepeat, canRepeatOne, next) => {
+      expect(nextSonosRepeatMode({ repeatMode: mode, canRepeat, canRepeatOne })).toBe(next);
     });
   });
 

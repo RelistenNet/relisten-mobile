@@ -22,6 +22,11 @@ export interface PlaybackDriver {
    * first would leave it paused.
    */
   readonly pausesBeforeSwitching: boolean;
+  /**
+   * Whether the player keeps every track through the playing one in place,
+   * as a Sonos room does. Shuffling then moves only the upcoming tracks.
+   */
+  readonly keepsPlayedOrder?: boolean;
   isActive(): boolean;
   /**
    * Starts the selected occurrence. The player keeps this play request open

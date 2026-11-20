@@ -12,6 +12,8 @@ import {
   type SonosPlayback,
   type SonosQueue,
   type SonosQueueEntry,
+  type SonosRepeat,
+  type SonosRepeatMode,
   type SonosTransport,
   type SonosTransportAction,
   type SonosVolume,
@@ -121,6 +123,12 @@ export class SonosRoomStore {
   private isCurrentScope: () => boolean = () => true;
   private state: SonosRoomState = { kind: 'none' };
   private handoffInFlight: SonosHandoffInFlight | undefined;
+  /**
+   * A repeat mode sent but not yet confirmed by a reading taken after it. It
+   * is shown over readings meanwhile, since a poll sent before the command
+   * still reports the old mode.
+   */
+  private repeatSent: SonosRepeatMode | undefined;
   /** The order the last handoff sent, by the handle it returned, until the session takes it. */
   private handedOff: { handle: string; occurrenceIds: readonly string[] } | undefined;
   /** The read of the current handle in flight; polls and confirmations share it. */
@@ -505,6 +513,38 @@ export class SonosRoomStore {
     await this.refreshVolume();
   }
 
+  /**
+   * Sets the room's repeat mode, which applies to its whole group. The mode
+   * shows at once and is read back afterwards; a refusal is shown and the
+   * read puts the room's real mode back.
+   */
+  async setRepeat(mode: SonosRepeatMode) {
+    const room = this.roomScope();
+    const current = this.state;
+    if (!room || current.kind !== 'active' || this.repeatSent !== undefined) {
+      return;
+    }
+    this.repeatSent = mode;
+    this.set({ ...current, playback: { ...current.playback, repeatMode: mode } });
+
+    try {
+      const sent = await this.send(room, {
+        action: 'repeat',
+        command_id: randomUUID(),
+        repeat_mode: mode,
+      });
+      const latest = this.state;
+      if (sent.kind === 'refused' && room.stillCurrent() && latest.kind === 'active') {
+        this.set({ ...latest, commandError: sent.message });
+      }
+      // A read already in flight was sent before the command; the one after it shows the result.
+      await this.reading?.playback;
+    } finally {
+      this.repeatSent = undefined;
+    }
+    await this.refresh();
+  }
+
   /** Sends a command body, retrying a lost response once with the same body. */
   private async send(room: RoomScope, body: Record<string, unknown>): Promise<SendResult> {
     try {
@@ -589,10 +629,14 @@ export class SonosRoomStore {
    */
   private applyNewerReading(current: ActiveRoom, reading: SonosPlayback): SonosPlayback {
     const shownVersion = current.playback.queueVersion;
-    const playback =
-      shownVersion !== null && (reading.queueVersion ?? -1) < shownVersion
-        ? { ...reading, queueVersion: shownVersion }
-        : reading;
+    const playback = {
+      ...reading,
+      queueVersion:
+        shownVersion !== null && (reading.queueVersion ?? -1) < shownVersion
+          ? shownVersion
+          : reading.queueVersion,
+      repeatMode: this.repeatSent ?? reading.repeatMode,
+    };
     this.set({ ...current, playback });
     return playback;
   }
@@ -717,6 +761,47 @@ const roomNameSnapshot = () => sonosRoomName(sonosRoom.getState());
  */
 export function useSonosRoomName(): string | undefined {
   return useSyncExternalStore(sonosRoom.subscribe, roomNameSnapshot, roomNameSnapshot);
+}
+
+/**
+ * The repeat setting of the room in `state`; undefined when no room is
+ * controlled. Until the room is read, it reports no mode, so controls rest
+ * rather than fall back to the phone's own setting.
+ */
+export function roomRepeatOf(state: SonosRoomState): SonosRepeat | undefined {
+  switch (state.kind) {
+    case 'active':
+      return {
+        repeatMode: state.playback.repeatMode,
+        canRepeat: state.playback.canRepeat,
+        canRepeatOne: state.playback.canRepeatOne,
+      };
+    case 'checking':
+      return { repeatMode: null, canRepeat: false, canRepeatOne: false };
+    case 'none':
+      return undefined;
+  }
+}
+
+let shownRepeat: SonosRepeat | undefined;
+
+/** The repeat setting of the room this device controls (see `roomRepeatOf`). */
+export const sonosRepeat = (): SonosRepeat | undefined => {
+  const next = roomRepeatOf(sonosRoom.getState());
+  // Kept while unchanged, so a poll doesn't re-render the controls.
+  if (
+    next?.repeatMode !== shownRepeat?.repeatMode ||
+    next?.canRepeat !== shownRepeat?.canRepeat ||
+    next?.canRepeatOne !== shownRepeat?.canRepeatOne
+  ) {
+    shownRepeat = next;
+  }
+  return shownRepeat;
+};
+
+/** The repeat mode of the room this device controls, and what it offers. */
+export function useSonosRepeat(): SonosRepeat | undefined {
+  return useSyncExternalStore(sonosRoom.subscribe, sonosRepeat, sonosRepeat);
 }
 
 /** The handoff in flight from this device, so a second room can't be chosen meanwhile. */

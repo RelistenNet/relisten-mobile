@@ -771,13 +771,28 @@ export class SonosSession {
         continue;
       }
       if (outcome.kind === 'trackMoved' && !rereadRoom) {
-        // The room moved on since it was read; the edit still applies to the new track.
+        // The room moved on since it was read. The edit still applies, but
+        // Sonos now keeps the track it moved to, and those before it, so the
+        // phone's order puts them back in the room's order first.
         rereadRoom = true;
         await this.store.refresh();
+        this.keepRoomPlayedOrder();
         continue;
       }
       return outcome.kind === 'trackMoved' ? { kind: 'notSaved' } : outcome;
     }
+  }
+
+  /** Puts the room's tracks through its playing one first in the phone's order, as in the room's. */
+  private keepRoomPlayedOrder() {
+    const room = this.store.getState();
+    const agreed = room.kind === 'active' ? this.agreedFor(room.playback.handle) : undefined;
+    const playingIndex = agreed?.occurrenceIds.indexOf(this.roomOccurrenceId() ?? '') ?? -1;
+    if (!agreed || playingIndex < 0) {
+      return;
+    }
+    this.publishLatestRoom();
+    this.player.queue.keepPlayedOrder(agreed.occurrenceIds.slice(0, playingIndex + 1));
   }
 
   private async saveQueueOnce(): Promise<SessionSave | { kind: 'trackMoved' }> {

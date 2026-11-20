@@ -25,6 +25,9 @@ export class FakeUserService {
       ] as SonosQueueEntry[],
     },
     volume: { volume: 30, muted: false, fixed: false },
+    repeatMode: 'off' as 'off' | 'all' | 'one',
+    canRepeat: true,
+    canRepeatOne: true,
   };
   /** When false, playback readings leave out `queue_version`, as an older server might. */
   reportsQueueVersion = true;
@@ -136,6 +139,9 @@ export class FakeUserService {
       position_millis: room.positionMillis,
       observed_at: new Date(this.clock).toISOString(),
       queue_version: this.reportsQueueVersion ? room.queue.version : undefined,
+      repeat_mode: room.repeatMode,
+      can_repeat: room.canRepeat,
+      can_repeat_one: room.canRepeatOne,
       current_occurrence:
         room.status === 'active'
           ? {
@@ -188,6 +194,14 @@ export class FakeUserService {
       case 'mute':
         room.volume = { ...room.volume, muted: body.muted === true };
         break;
+      case 'repeat': {
+        const mode = body.repeat_mode as 'off' | 'all' | 'one';
+        if ((mode === 'all' && !room.canRepeat) || (mode === 'one' && !room.canRepeatOne)) {
+          throw new AccountsApiError('', 409, 'sonos_command_unavailable', false);
+        }
+        room.repeatMode = mode;
+        break;
+      }
     }
     return { status: 'accepted' };
   }

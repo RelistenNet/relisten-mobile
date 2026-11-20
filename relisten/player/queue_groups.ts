@@ -10,7 +10,7 @@ export interface GroupedOccurrence {
  * Runs of consecutive occurrences that share a playlist segment instance; every
  * other occurrence is its own run. Shuffle moves runs, never splitting a group.
  */
-function groupRuns<T extends GroupedOccurrence>(tracks: T[]): T[][] {
+export function groupRuns<T extends GroupedOccurrence>(tracks: T[]): T[][] {
   const runs: T[][] = [];
   for (const track of tracks) {
     const groupId = track.playlistContext?.segmentInstanceId;

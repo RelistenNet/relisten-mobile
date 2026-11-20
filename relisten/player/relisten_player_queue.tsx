@@ -20,7 +20,7 @@ import { groupByUuid } from '@/relisten/util/group_by';
 import { Realm } from '@realm/react';
 import { v4 as uuid } from 'uuid';
 import { indentString } from '@/relisten/util/string_indent';
-import { endOfGroupIndex, shuffleKeepingGroups } from '@/relisten/player/queue_groups';
+import { endOfGroupIndex, groupRuns, shuffleKeepingGroups } from '@/relisten/player/queue_groups';
 
 export { PlayerRepeatState, PlayerShuffleState } from '@/relisten/player/player_modes';
 
@@ -420,7 +420,9 @@ export class RelistenPlayerQueue {
 
   setShuffleState(shuffleState: PlayerShuffleState) {
     if (this._shuffleState != shuffleState) {
-      if (
+      if (this.player.keepsPlayedOrder && this.currentTrack) {
+        this.reorderUpcoming(shuffleState, this.currentTrack);
+      } else if (
         this._shuffleState == PlayerShuffleState.SHUFFLE_OFF &&
         shuffleState == PlayerShuffleState.SHUFFLE_ON
       ) {
@@ -482,6 +484,60 @@ ${indentString(tracks)}
   // endregion
 
   // region Shuffling
+  /**
+   * Shuffle for a player that keeps every track through the playing one in
+   * place (a Sonos room): the played tracks and `current` stay where they
+   * are in both orders, and only the upcoming tracks move. Shuffling keeps
+   * playlist groups together and the rest of the current group next;
+   * unshuffling puts the upcoming tracks back in their original order, again
+   * with the rest of the current group next.
+   */
+  private reorderUpcoming(shuffleState: PlayerShuffleState, current: PlayerQueueTrack) {
+    const ordered = this.orderedTracks;
+    const kept = ordered.slice(0, ordered.indexOf(current) + 1);
+    const keptIds = new Set(kept.map((track) => track.identifier));
+    const currentGroup = groupRuns(this.originalTracks).find((run) => run.includes(current)) ?? [];
+    const groupRest = currentGroup.filter((track) => !keptIds.has(track.identifier));
+    const upcoming = [
+      ...groupRest,
+      ...this.originalTracks.filter(
+        (track) => !keptIds.has(track.identifier) && !groupRest.includes(track)
+      ),
+    ];
+
+    this.originalTracks = [...kept, ...upcoming];
+    if (shuffleState === PlayerShuffleState.SHUFFLE_ON) {
+      // Shuffled from the current track, which stays first, so its group's rest follows it.
+      const shuffled = shuffleKeepingGroups([current, ...upcoming], current).slice(1);
+      this.shuffledTracks = [...kept, ...shuffled];
+    }
+    this.recalculateTrackIndexes(current.identifier);
+  }
+
+  /**
+   * Puts `playedIds` first, in that order, in both the original and shuffled
+   * orders, keeping everything else in its order after them. A remote player
+   * that keeps played tracks in place (Sonos) asks for this when it moved on
+   * before an edit reached it, so the edit stops reordering what has played.
+   */
+  keepPlayedOrder(playedIds: readonly string[]) {
+    const played = new Set(playedIds);
+    const keepFirst = (tracks: PlayerQueueTrack[]) => [
+      ...playedIds.flatMap((id) => tracks.find((track) => track.identifier === id) ?? []),
+      ...tracks.filter((track) => !played.has(track.identifier)),
+    ];
+    const currentIdentifier = this.currentTrack?.identifier;
+
+    this.originalTracks = keepFirst(this.originalTracks);
+    this.shuffledTracks = keepFirst(this.shuffledTracks);
+    if (currentIdentifier) {
+      this.recalculateTrackIndexes(currentIdentifier);
+    }
+    this.recalculateNextTrack();
+    this.onOrderedTracksChanged.dispatch(this.orderedTracks);
+    this.savePlayerState(true);
+  }
+
   private reshuffleTracks() {
     if (this.originalTracksCurrentIndex !== undefined) {
       const current = this.originalTracks[this.originalTracksCurrentIndex];

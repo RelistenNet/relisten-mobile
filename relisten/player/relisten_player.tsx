@@ -150,6 +150,11 @@ export class RelistenPlayer {
     playbackSource.setState(PlaybackSource.Native);
   }
 
+  /** Whether the player keeps played tracks in place (see `PlaybackDriver.keepsPlayedOrder`). */
+  get keepsPlayedOrder(): boolean {
+    return this.playbackDriver.keepsPlayedOrder ?? false;
+  }
+
   /**
    * Whether the driver moved on from the selected occurrence rather than let
    * the queue remove it (see `PlaybackDriver.moveOnFromSelected`).

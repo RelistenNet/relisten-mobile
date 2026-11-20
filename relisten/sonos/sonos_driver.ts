@@ -10,6 +10,7 @@ import type { SonosSession } from './sonos_session';
 export class SonosPlaybackDriver implements PlaybackDriver {
   readonly name = 'sonos';
   readonly pausesBeforeSwitching = false;
+  readonly keepsPlayedOrder = true;
 
   constructor(private readonly session: SonosSession) {}
 
