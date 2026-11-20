@@ -9,6 +9,7 @@ import {
   isFollowedPlaylistHead,
 } from '@/relisten/playlists/sharing/sharing_wire';
 import { isUuidV7TypedId } from '@/relisten/util/typed_uuid_id';
+import { isFavoriteTargetKind } from '@/relisten/realm/models/library/favorite_catalog_type';
 
 export type FavoriteDesiredState = 'favorite' | 'not_favorite';
 
@@ -129,6 +130,21 @@ export function isPlaylistSummaryChange(change: LibraryChange): change is Playli
   return change.change_type === 'playlist_summary';
 }
 
+/**
+ * A well-formed target of a kind this version of the app doesn't know, such as
+ * one added by a later server. It is skipped rather than rejected, so a new
+ * kind never stops the rest of the library from syncing. A malformed target of
+ * a known kind is still an error.
+ */
+export function isUnknownFavoriteKind(target: unknown): boolean {
+  const candidate = target as { kind?: unknown; id?: unknown } | null;
+  return (
+    typeof candidate?.kind === 'string' &&
+    typeof candidate.id === 'string' &&
+    !isFavoriteTargetKind(candidate.kind)
+  );
+}
+
 export function isPlaylistFollowChange(change: LibraryChange): change is PlaylistFollowChange {
   return change.change_type === 'playlist_followed' || change.change_type === 'playlist_unfollowed';
 }
@@ -216,6 +232,9 @@ export function validateFavoriteSnapshot(snapshot: FavoriteLibrarySnapshot) {
   const targets = new Set<string>();
   const favoriteIds = new Set<string>();
   for (const item of snapshot.favorites) {
+    if (isUnknownFavoriteKind(item.target)) {
+      continue;
+    }
     assertTarget(item.target);
     assertAccountId(item.favorite_id, 'favorite');
     parseFavoriteServerDate(item.created_at);
@@ -247,8 +266,10 @@ export function validateFavoriteChanges(page: FavoriteLibraryChanges) {
     assertRevision(change.revision);
     parseFavoriteServerDate(change.changed_at);
     if (isFavoriteChange(change)) {
-      assertTarget(change.target);
-      assertAccountId(change.favorite_id, 'favorite');
+      if (!isUnknownFavoriteKind(change.target)) {
+        assertTarget(change.target);
+        assertAccountId(change.favorite_id, 'favorite');
+      }
     } else if (isPlaylistSummaryChange(change)) {
       assertPlaylistSummary(change.playlist);
     } else if (

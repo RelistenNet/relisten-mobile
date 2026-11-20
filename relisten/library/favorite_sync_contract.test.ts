@@ -137,6 +137,48 @@ describe('typed favorite sync contract', () => {
     ).not.toThrow();
   });
 
+  it('skips favorite kinds it does not know, and still refuses a malformed known kind', () => {
+    const newKind = { kind: 'playlist', id: 'playlist_01m7rkvwv4e5jbjvat8pr001qq' };
+    const snapshot = (favoriteTarget: unknown) => ({
+      contract_version: 1 as const,
+      library_revision: 4,
+      next_cursor: 'opaque-next',
+      history_generation: 'generation-1',
+      favorites: [
+        {
+          favorite_id: favoriteId,
+          target: favoriteTarget as typeof target,
+          created_at: '2026-11-17T08:00:00Z',
+          updated_at: '2026-11-17T08:00:00Z',
+        },
+      ],
+    });
+
+    expect(() => validateFavoriteSnapshot(snapshot(newKind))).not.toThrow();
+    expect(() =>
+      validateFavoriteChanges({
+        contract_version: 1,
+        library_revision: 4,
+        next_cursor: 'opaque-next',
+        has_more: false,
+        history_generation: 'generation-1',
+        changes: [
+          {
+            change_id: formatUuidTypedId('library_change', '01890a5d-ac96-774b-bcce-b302099a8079'),
+            revision: 4,
+            change_type: 'favorite_added',
+            favorite_id: favoriteId,
+            target: newKind as typeof target,
+            changed_at: '2026-11-17T08:00:00Z',
+          },
+        ],
+      })
+    ).not.toThrow();
+    expect(() => validateFavoriteSnapshot(snapshot({ kind: 'artist', id: 'not-an-id' }))).toThrow(
+      'invalid catalog target'
+    );
+  });
+
   it('accepts follow changes with heads, and refuses a malformed head', () => {
     const followedId = formatUuidTypedId('playlist', '01890a5d-ac96-774b-bcce-b302099a8091');
     const page = (head: unknown) => ({

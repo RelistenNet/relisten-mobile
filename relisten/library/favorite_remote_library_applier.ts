@@ -20,6 +20,7 @@ import {
   isPlaylistFollowChange,
   isPlaylistSummaryChange,
   parseFavoriteServerDate,
+  isUnknownFavoriteKind,
   validateFavoriteChanges,
   validateFavoriteMutationResponse,
   validateFavoriteSnapshot,
@@ -125,7 +126,7 @@ export class FavoriteRemoteLibraryApplier {
         }
       }
 
-      for (const item of snapshot.favorites) {
+      for (const item of snapshot.favorites.filter((i) => !isUnknownFavoriteKind(i.target))) {
         const favorite = this.ensureCanonicalFavorite(
           capture.scopeId,
           item.target,
@@ -179,7 +180,9 @@ export class FavoriteRemoteLibraryApplier {
     validateFavoriteChanges(page);
     const realm = this.repository.realm;
     const ordered = [...page.changes].sort((left, right) => left.revision - right.revision);
-    const orderedChanges = ordered.filter(isFavoriteChange);
+    const orderedChanges = ordered
+      .filter(isFavoriteChange)
+      .filter((change) => !isUnknownFavoriteKind(change.target));
     const playlistSummaries = ordered.filter(isPlaylistSummaryChange).map((c) => c.playlist);
     const followChanges = ordered.filter(isPlaylistFollowChange).map((change) => ({
       playlistId: change.followed_playlist_id,
