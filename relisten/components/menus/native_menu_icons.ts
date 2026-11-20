@@ -84,6 +84,10 @@ export const nativeMenuIcons = {
     ios: 'arrow.clockwise.circle',
     android: import('@expo/material-symbols/refresh.xml'),
   }),
+  search: Icon.select({
+    ios: 'magnifyingglass',
+    android: import('@expo/material-symbols/search.xml'),
+  }),
   share: Icon.select({
     ios: 'square.and.arrow.up',
     android: import('@expo/material-symbols/share.xml'),

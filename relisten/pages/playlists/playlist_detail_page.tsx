@@ -29,6 +29,7 @@ import { usePlaylistLifecycle } from '@/relisten/playlists/ui/playlist_lifecycle
 import {
   notLoadedText,
   PlaylistReadingList,
+  usePlaylistSearch,
   PlaylistViewHeader,
 } from '@/relisten/playlists/ui/playlist_reading_view';
 import { openPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
@@ -58,6 +59,7 @@ export default function PlaylistDetailPage() {
   // is a ref, so typing doesn't re-render the page.
   const changedDetails = useRef<Partial<Draft>>({});
   const [downloadedOnly, setDownloadedOnly] = useState(false);
+  const search = usePlaylistSearch();
   const nameInput = useRef<TextInputInstance>(null);
   const [focusName, setFocusName] = useState(false);
   const lifecycle = usePlaylistLifecycle();
@@ -179,6 +181,13 @@ export default function PlaylistDetailPage() {
       {/* Back while editing finishes editing, like Done; edits apply as they're made. */}
       {editing && <AndroidBackHandler onBack={finishEditing} />}
       <Stack.Toolbar placement="right">
+        {!editing && (
+          <Stack.Toolbar.Button
+            accessibilityLabel="Search this playlist"
+            icon={nativeMenuIcons.search}
+            onPress={search.open}
+          />
+        )}
         <Stack.Toolbar.Button
           {...(editing
             ? textToolbarButtonProps('Done', nativeMenuIcons.done)
@@ -252,6 +261,7 @@ export default function PlaylistDetailPage() {
           groups={allGroups}
           editable
           downloadedOnly={downloadedOnly}
+          search={search}
           emptyText={
             isLoading(playlist)
               ? notLoadedText(online)

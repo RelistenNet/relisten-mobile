@@ -9,6 +9,7 @@ import type { PlaylistRowGroup } from '@/relisten/playlists/playlist_hooks';
 import {
   notLoadedText,
   PlaylistReadingList,
+  usePlaylistSearch,
   PlaylistScreenNotice,
   PlaylistViewHeader,
 } from '@/relisten/playlists/ui/playlist_reading_view';
@@ -34,6 +35,7 @@ export function FollowedPlaylistView({
   const online = useShouldMakeNetworkRequests();
   const reader = usePlaylistReaderActions();
   const [downloadedOnly, setDownloadedOnly] = useState(false);
+  const search = usePlaylistSearch();
   const { playlistId, publicCode, unavailable } = playlist;
   const name = playlistDisplayName(playlist);
   // Sharing and copying go through the playlist's public link. A followed
@@ -67,6 +69,7 @@ export function FollowedPlaylistView({
           reader={reader}
           downloadedOnly={downloadedOnly}
           onToggleDownloadedOnly={() => setDownloadedOnly(!downloadedOnly)}
+          onSearch={search.open}
         />
       ) : null}
       <PlaylistReadingList
@@ -74,6 +77,7 @@ export function FollowedPlaylistView({
         groups={groups}
         editable={false}
         downloadedOnly={downloadedOnly}
+        search={search}
         emptyText={
           playlist.appliedRevision != null ? 'This playlist is empty.' : notLoadedText(online)
         }

@@ -15,6 +15,7 @@ import {
 import { canAccessPlaylist } from '@/relisten/playlists/sync/playlist_sync_state';
 import {
   PlaylistReadingList,
+  usePlaylistSearch,
   PlaylistScreenNotice,
   PlaylistViewHeader,
 } from '@/relisten/playlists/ui/playlist_reading_view';
@@ -50,6 +51,7 @@ export default function PublicPlaylistPage() {
   const reader = usePlaylistReaderActions();
   const [load, setLoad] = useState<Load>({ state: 'loading' });
   const [downloadedOnly, setDownloadedOnly] = useState(false);
+  const search = usePlaylistSearch();
 
   const snapshot = load.state === 'ready' ? load.snapshot : undefined;
   const groups = useSnapshotRowGroups(snapshot?.segments ?? NO_SEGMENTS);
@@ -149,6 +151,7 @@ export default function PublicPlaylistPage() {
         reader={reader}
         downloadedOnly={downloadedOnly}
         onToggleDownloadedOnly={() => setDownloadedOnly(!downloadedOnly)}
+        onSearch={search.open}
       />
 
       <PlaylistReadingList
@@ -156,6 +159,7 @@ export default function PublicPlaylistPage() {
         groups={groups}
         editable={false}
         downloadedOnly={downloadedOnly}
+        search={search}
         emptyText="This playlist is empty."
         header={
           <PlaylistViewHeader

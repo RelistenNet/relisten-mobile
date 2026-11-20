@@ -4,7 +4,7 @@ import type { usePlaylistReaderActions } from '@/relisten/playlists/ui/playlist_
 import { sharePlaylistLink } from '@/relisten/playlists/ui/playlist_share_actions';
 
 /**
- * The ••• menu for someone else's public playlist, followed or not: share its
+ * The search button and ••• menu for someone else's public playlist, followed or not: share its
  * link, copy it, show only downloaded tracks, or report it. Share and Make a
  * Copy are also header buttons; the menu keeps them so they're where people
  * already look.
@@ -15,15 +15,22 @@ export function ReaderPlaylistMenu({
   reader,
   downloadedOnly,
   onToggleDownloadedOnly,
+  onSearch,
 }: {
   name: string;
   publicCode: string;
   reader: ReturnType<typeof usePlaylistReaderActions>;
   downloadedOnly: boolean;
   onToggleDownloadedOnly: () => void;
+  onSearch: () => void;
 }) {
   return (
     <Stack.Toolbar placement="right">
+      <Stack.Toolbar.Button
+        accessibilityLabel="Search this playlist"
+        icon={nativeMenuIcons.search}
+        onPress={onSearch}
+      />
       <Stack.Toolbar.Menu accessibilityLabel="Playlist actions" icon={nativeMenuIcons.more}>
         <Stack.Toolbar.Menu inline>
           <Stack.Toolbar.MenuAction

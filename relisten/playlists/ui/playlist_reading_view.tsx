@@ -1,5 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   type FlatListProps,
@@ -54,6 +54,7 @@ export function PlaylistReadingList({
   groups,
   editable,
   downloadedOnly = false,
+  search,
   header,
   emptyText,
 }: {
@@ -63,6 +64,7 @@ export function PlaylistReadingList({
   editable: boolean;
   /** Shows only downloaded tracks, and drops the guide text around them. */
   downloadedOnly?: boolean;
+  search: PlaylistSearch;
   header: React.ReactElement;
   emptyText: string;
 }) {
@@ -71,8 +73,17 @@ export function PlaylistReadingList({
   const layout = usePlaylistLayout(groups);
   const playingEntryId = usePlayingEntryId(playlistId);
   const scrollProps = usePlayerBottomScrollViewProps({});
-  const [query, setQuery] = useState('');
+  const listRef = useRef<FlatList<PlaylistViewRow>>(null);
   const searchInputRef = useRef<TextInputInstance>(null);
+  const { query } = search;
+
+  // The field sits under the header, so opening search scrolls up to it.
+  useEffect(() => {
+    if (search.isOpen) {
+      listRef.current?.scrollToOffset({ offset: 0, animated: true });
+      searchInputRef.current?.focus();
+    }
+  }, [search.isOpen]);
   // The groups update as downloads finish, which keeps Show Downloaded Only current.
   const viewRows = useMemo(
     () =>
@@ -101,19 +112,17 @@ export function PlaylistReadingList({
   return (
     <DisappearingHeaderScreen
       ScrollableComponent={PlaylistTrackList}
+      ref={listRef}
       data={viewRows}
       keyExtractor={(r) => r.key}
       ListHeaderComponent={
         <>
           {header}
           {/* Search narrows the rows like Show Downloaded Only; Play still queues everything. */}
-          {groups.length > 0 && (
+          {search.isOpen && (
             <SearchFilterBar
-              search={setQuery}
-              exitSearch={() => {
-                setQuery('');
-                searchInputRef.current?.blur();
-              }}
+              search={search.setQuery}
+              exitSearch={search.close}
               searchText={query}
               innerRef={searchInputRef}
               placeholder="Search this playlist"
@@ -171,8 +180,40 @@ export function PlaylistReadingList({
   );
 }
 
-/** The playlist's rows; a FlatList typed for DisappearingHeaderScreen. */
-const PlaylistTrackList = FlatList as React.ComponentType<FlatListProps<PlaylistViewRow>>;
+/**
+ * Search inside a playlist. The screen's toolbar opens it, which shows a
+ * field above the rows; cancelling clears the query and hides the field.
+ */
+export interface PlaylistSearch {
+  isOpen: boolean;
+  query: string;
+  setQuery: (query: string) => void;
+  open: () => void;
+  close: () => void;
+}
+
+export function usePlaylistSearch(): PlaylistSearch {
+  const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  return {
+    isOpen,
+    query,
+    setQuery,
+    open: () => setIsOpen(true),
+    close: () => {
+      setQuery('');
+      setIsOpen(false);
+    },
+  };
+}
+
+/**
+ * The playlist's rows; a FlatList typed for DisappearingHeaderScreen, which
+ * passes `ref` through to it so opening search can scroll to the top.
+ */
+const PlaylistTrackList = FlatList as React.ComponentType<
+  FlatListProps<PlaylistViewRow> & { ref?: React.Ref<FlatList<PlaylistViewRow>> }
+>;
 
 /**
  * The header's heart, Share and Make a Copy, which every playlist shows in
