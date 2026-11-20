@@ -74,6 +74,7 @@ export default function TabLayout() {
         options={{ ...sheetOptions([0.6, 0.92]), headerShown: false }}
       />
       <Stack.Screen name="report-playlist" options={sheetOptions([0.6])} />
+      <Stack.Screen name="play-on" options={sheetOptions([0.6, 0.92])} />
       <Stack.Screen
         name="audio-adjustments"
         options={{

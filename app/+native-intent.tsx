@@ -1,6 +1,7 @@
 import { sharedPlaylistRoute } from '@/relisten/playlists/sharing/shared_playlist_link';
 
 const AUTH_CALLBACK_PATH = /\/auth\/mobile\/(ios|android)\/callback(?:[/?#]|$)/;
+const SONOS_CALLBACK_PATH = /^net\.relisten\.mobile:\/sonos\/callback(?:[?#]|$)/;
 
 /**
  * Android returns from sign-in through a relisten.net callback link. While the
@@ -11,6 +12,10 @@ const AUTH_CALLBACK_PATH = /\/auth\/mobile\/(ios|android)\/callback(?:[/?#]|$)/;
  * to the callback screen, which finishes the pending sign-in.
  */
 export function redirectSystemPath({ path, initial }: { path: string; initial: boolean }) {
+  if (SONOS_CALLBACK_PATH.test(path)) {
+    return initial ? '/' : null;
+  }
+
   if (!initial && AUTH_CALLBACK_PATH.test(path)) {
     return null;
   }

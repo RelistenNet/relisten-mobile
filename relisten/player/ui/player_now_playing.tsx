@@ -1,10 +1,6 @@
 import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import {
-  RelistenCastButton,
-  useRelistenCastStatus,
-  useShouldRenderCastButton,
-} from '@/relisten/casting/cast_ui';
+import { useRelistenCastStatus } from '@/relisten/casting/cast_ui';
 import { audioAdjustmentNative } from '@/relisten/player/audio_adjustments/audio_adjustment_native';
 import { useAudioAdjustmentConfiguration } from '@/relisten/player/audio_adjustments/audio_adjustment_repo';
 import {
@@ -42,7 +38,7 @@ import {
   View,
   type ViewInstance,
 } from 'react-native';
-import AirPlayButton from 'react-native-airplay-button';
+import { PlayOnButton } from '@/relisten/player/ui/play_on_button';
 import * as Progress from 'react-native-progress';
 
 function ShowIdentity({ visualizerActive }: { visualizerActive: boolean }) {
@@ -350,18 +346,11 @@ export function PlayerControls({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function PlayerSecondaryControls({
-  isCasting,
-  historyButton,
-}: {
-  isCasting: boolean;
-  historyButton?: ReactNode;
-}) {
+function PlayerSecondaryControls({ historyButton }: { historyButton?: ReactNode }) {
   const queue = useRelistenPlayerQueue();
   const [shuffleState] = useRelistenPlayerShuffleState();
   const [repeatState] = useRelistenPlayerRepeatState();
   const audioEqualizerConfiguration = useAudioAdjustmentConfiguration();
-  const shouldRenderCastButton = useShouldRenderCastButton();
 
   const isShuffleOn = shuffleState === PlayerShuffleState.SHUFFLE_ON;
   const isRepeatTrack = repeatState === PlayerRepeatState.REPEAT_TRACK;
@@ -438,22 +427,7 @@ function PlayerSecondaryControls({
         </TouchableOpacity>
       )}
       {historyButton}
-      {/* These frames belong to the native controls, so the full 44pt area responds. */}
-      {shouldRenderCastButton && (
-        <RelistenCastButton
-          className="h-11 w-11"
-          tintColor={isCasting ? RelistenBlue['300'] : inactiveColor}
-        />
-      )}
-      {Platform.OS === 'ios' && (
-        <AirPlayButton
-          activeTintColor={RelistenBlue['300']}
-          // UIKit insets its internal button vertically; leave room for a 44pt target.
-          className="h-12 w-11"
-          prioritizesVideoDevices={false}
-          tintColor={inactiveColor}
-        />
-      )}
+      <PlayOnButton activeColor={RelistenBlue['300']} inactiveColor={inactiveColor} />
     </View>
   );
 }
@@ -504,7 +478,6 @@ export function PlayerNowPlaying({
       </View>
       <View className="mt-3 pb-1 pt-1">
         <PlayerSecondaryControls
-          isCasting={castStatus.isCasting}
           historyButton={
             onOpenHistory ? (
               <TouchableOpacity

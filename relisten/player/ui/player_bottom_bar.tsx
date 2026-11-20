@@ -23,16 +23,12 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { usePlayerOutputRoute } from './player_output_route';
 import { ScrubberRow } from './player_scrubber';
 import { playerQueueDate, playerTrackAccessibilityLabel } from './player_display_helpers';
 import * as Progress from 'react-native-progress';
-import AirPlayButton from 'react-native-airplay-button';
-import {
-  RelistenCastButton,
-  useRelistenCastStatus,
-  useShouldRenderCastButton,
-} from '@/relisten/casting/cast_ui';
+import { PlayOnButton } from '@/relisten/player/ui/play_on_button';
+import { useSonosRemote } from '@/relisten/sonos/sonos_remote';
+import { SonosMiniPlayer } from '@/relisten/sonos/ui/sonos_now_playing';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import {
@@ -110,13 +106,15 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
   const player = useRelistenPlayer();
   const { height } = useWindowDimensions();
   const { beginInteractivePresentation, closePlayer, openPlayer } = usePlayerPresentation();
-  const shouldRenderCastButton = useShouldRenderCastButton();
-  const { isCasting } = useRelistenCastStatus();
-  const outputRoute = usePlayerOutputRoute();
-  const hasExternalAudioRoute = Boolean(outputRoute) && !isCasting;
   const gesturePresentationStarted = useSharedValue(false);
   const gestureStartProgress = useSharedValue(0);
   const gestureDistance = Math.max(height * 0.72, 1);
+  const sonos = useSonosRemote();
+
+  // While a Sonos room plays this account's queue, the bar shows and controls the room.
+  if (sonos.kind !== 'none') {
+    return <SonosMiniPlayer remote={sonos} />;
+  }
 
   if (!currentTrack) {
     return <></>;
@@ -139,7 +137,6 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
   const transportButtonClassName = isAccessory
     ? 'h-11 w-11 items-center justify-center rounded-full bg-white/15'
     : 'h-10 w-10 items-center justify-center rounded-full bg-white/10';
-  const utilityButtonShellClassName = 'h-11 w-11 items-center justify-center';
 
   let playbackLabel = 'Play';
   let playbackStateIcon = <MaterialIcons name="play-arrow" size={playbackIconSize} color="white" />;
@@ -253,31 +250,10 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
           </Animated.View>
         </GestureDetector>
         <Flex cn={isAccessory ? 'ml-2 items-center self-center' : 'ml-2 items-center'}>
-          {Platform.OS === 'ios' && (
-            <View className="h-12 w-11 items-center justify-center">
-              <AirPlayButton
-                activeTintColor={RelistenBlue['200']}
-                tintColor={
-                  hasExternalAudioRoute ? RelistenBlue['200'] : 'rgba(226, 232, 240, 0.72)'
-                }
-                accessibilityLabel={
-                  hasExternalAudioRoute ? `Audio output: ${outputRoute}` : 'AirPlay'
-                }
-                prioritizesVideoDevices={false}
-                // UIKit's internal route button is shorter than the native view.
-                className="h-12 w-11"
-              />
-            </View>
-          )}
-          {shouldRenderCastButton && (
-            <View className={utilityButtonShellClassName}>
-              <RelistenCastButton
-                tintColor={isCasting ? RelistenBlue['200'] : 'rgba(226, 232, 240, 0.78)'}
-                accessibilityLabel={isCasting ? `Casting to ${outputRoute}` : 'Chromecast'}
-                className="h-11 w-11"
-              />
-            </View>
-          )}
+          <PlayOnButton
+            activeColor={RelistenBlue['200']}
+            inactiveColor="rgba(226, 232, 240, 0.78)"
+          />
         </Flex>
       </Flex>
       <PlayerBottomBarProgress placementBackend={placementBackend} />
