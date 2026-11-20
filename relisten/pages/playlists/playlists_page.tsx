@@ -150,7 +150,11 @@ export default function PlaylistsPage() {
             data={[{ data: items }]}
             pullToRefresh={false}
             renderItem={({ item }) => (
-              <PlaylistListRow playlist={item.playlist} summary={item.summary} />
+              <PlaylistListRow
+                playlist={item.playlist}
+                summary={item.summary}
+                favorite={item.favorite}
+              />
             )}
             ListFooterComponent={<PlaylistsFooter />}
           />

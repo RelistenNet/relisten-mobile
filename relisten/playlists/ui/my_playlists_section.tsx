@@ -54,7 +54,11 @@ export function MyPlaylistsSection() {
       {preview.map((playlist, index) => (
         <View key={playlist.playlistId}>
           {index > 0 && <ItemSeparator />}
-          <PlaylistListRow playlist={playlist} summary={summaryOf(playlist.playlistId)} />
+          <PlaylistListRow
+            playlist={playlist}
+            summary={summaryOf(playlist.playlistId)}
+            favorite={isFavorite(playlist)}
+          />
         </View>
       ))}
       {playlists.length > PREVIEW_COUNT && (
