@@ -4,13 +4,13 @@
 import { nativePlayer } from '@/modules/relisten-audio-player';
 import { useRelistenCastStatus } from '@/relisten/casting/cast_ui';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { useSonosRemote } from '@/relisten/sonos/sonos_remote';
+import { useSonosRoomName } from '@/relisten/sonos/sonos_room_store';
 import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 
 /** Destination name for a Sonos room, Cast or external iOS audio; null for local listening. */
 export function usePlayerOutputRoute(): string | null {
-  const sonos = useSonosRemote();
+  const sonosRoomName = useSonosRoomName();
   const { isCasting, deviceName } = useRelistenCastStatus();
   const [route, setRoute] = useState(() =>
     Platform.OS === 'ios' ? nativePlayer.getAudioOutputRoute() : null
@@ -27,8 +27,8 @@ export function usePlayerOutputRoute(): string | null {
     return () => subscription.remove();
   }, []);
 
-  if (sonos.kind !== 'none') {
-    return sonos.kind === 'active' ? sonos.playback.groupName : sonos.groupName;
+  if (sonosRoomName !== undefined) {
+    return sonosRoomName;
   }
 
   if (isCasting) {

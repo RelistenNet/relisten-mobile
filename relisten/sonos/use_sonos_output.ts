@@ -20,8 +20,8 @@ import {
   SONOS_CALLBACK_URL,
   type SonosGroup,
 } from './sonos_api';
-import { handoffRequest, type SonosHandoffOutcome } from './sonos_handoff';
-import { sonosRemote } from './sonos_remote';
+import { handoffRequest, phoneMayResumeAfter, type SonosHandoffOutcome } from './sonos_handoff';
+import { sonosRoom, useSonosHandoffInFlight } from './sonos_room_store';
 
 /**
  * What the Play on sheet can show for Sonos:
@@ -38,7 +38,10 @@ export type SonosConnection =
   | { kind: 'linked'; groups: SonosGroup[] | undefined; error?: string }
   | { kind: 'error'; message: string };
 
-/** The handoff the listener started from this sheet, by room. */
+/**
+ * A room's handoff as the sheet shows it: still connecting (from any sheet
+ * this run, since the store holds it), or how the one started here ended.
+ */
 export type SonosHandoffState =
   | { groupId: string; phase: 'connecting' }
   | { groupId: string; phase: 'done'; outcome: SonosHandoffOutcome };
@@ -57,8 +60,9 @@ export function useSonosOutput() {
   const currentTrack = useRelistenPlayerCurrentTrack();
   const signedIn = account.status === 'signedIn';
   const [connection, setConnection] = useState<SonosConnection>({ kind: 'loading' });
-  const [handoff, setHandoff] = useState<
-    (SonosHandoffState & { generation: number }) | undefined
+  const inFlight = useSonosHandoffInFlight();
+  const [finished, setFinished] = useState<
+    { groupId: string; outcome: SonosHandoffOutcome; generation: number } | undefined
   >();
   const mounted = useRef(true);
 
@@ -121,15 +125,21 @@ export function useSonosOutput() {
   }, [api, refresh]);
 
   /**
-   * Moves the queue to `group`. Phone playback pauses only now, the explicit
-   * choice; it resumes if Sonos refuses before taking over, and stays paused
-   * when the room plays or the outcome is uncertain, so music never plays in
-   * two places.
+   * Moves the queue to `group`. Whatever plays now, the phone or another
+   * room, pauses only at this explicit choice. It resumes if Sonos refuses
+   * before taking over, and stays paused when the room plays or the outcome
+   * is uncertain, so music never plays in two places. Nothing happens while
+   * another handoff is still settling.
    */
   const playOn = useCallback(
     async (group: SonosGroup) => {
+      // A sheet rendered for an earlier account can't start a handoff for this one.
       const capture = scope.capture();
-      if (!capture.isAuthenticated || capture.generation !== generation) {
+      if (
+        !capture.isAuthenticated ||
+        capture.generation !== generation ||
+        sonosRoom.getHandoffInFlight()
+      ) {
         return;
       }
       const request = handoffRequest({
@@ -145,23 +155,24 @@ export function useSonosOutput() {
 
       const wasPlaying = player.state === RelistenPlaybackState.Playing;
       player.pause();
-      setHandoff({ groupId: group.id, phase: 'connecting', generation: capture.generation });
+      setFinished(undefined);
 
-      // Once the room takes the queue, the player plays through it.
-      const outcome = await sonosRemote.handOff(request, group.name);
+      // Once the room takes the queue, the store controls it and the session
+      // routes the player there, so this phone's controls reach the room.
+      const outcome = await sonosRoom.handOff(request, group.name);
       if (!scope.isCurrent(capture)) {
         return;
       }
-      if (outcome.kind === 'refused' && wasPlaying) {
+      if (wasPlaying && phoneMayResumeAfter(outcome)) {
         player.resume();
       }
-      if (outcome.kind === 'refused' && outcome.reconnect) {
+      if (outcome.kind !== 'playing' && outcome.reconnect) {
         setConnection({ kind: 'notLinked' });
       } else if (outcome.kind === 'uncertain' && mounted.current) {
         void refresh();
       }
       if (mounted.current) {
-        setHandoff({ groupId: group.id, phase: 'done', outcome, generation: capture.generation });
+        setFinished({ groupId: group.id, outcome, generation: capture.generation });
       }
     },
     [generation, player, refresh, scope]
@@ -169,9 +180,15 @@ export function useSonosOutput() {
 
   const hasQueue = currentTrack !== undefined;
 
+  const handoff: SonosHandoffState | undefined = inFlight
+    ? { groupId: inFlight.groupId, phase: 'connecting' }
+    : finished?.generation === generation
+      ? { groupId: finished.groupId, phase: 'done', outcome: finished.outcome }
+      : undefined;
+
   return {
     connection,
-    handoff: handoff?.generation === generation ? handoff : undefined,
+    handoff,
     hasQueue,
     refresh,
     connect,

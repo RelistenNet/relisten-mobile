@@ -13,7 +13,10 @@ import {
   useRelistenPlayerShuffleState,
 } from '@/relisten/player/relisten_player_queue_hooks';
 import { PlayerRepeatState, PlayerShuffleState } from '@/relisten/player/relisten_player_queue';
-import { usePlaybackSource } from '@/relisten/player/native_playback_state_hooks';
+import {
+  useIsRemotePlayback,
+  usePlaybackSource,
+} from '@/relisten/player/native_playback_state_hooks';
 import { PlaybackSource } from '@/relisten/player/shared_state';
 import { PlayerAudioVisualizer } from '@/relisten/player/ui/player_audio_visualizer';
 import { PlayerActionsMenu } from '@/relisten/player/ui/player_actions_menu';
@@ -453,11 +456,9 @@ export function PlayerNowPlaying({
   onScrubbingChange,
 }: PlayerNowPlayingProps) {
   const currentTrack = useRelistenPlayerCurrentTrack();
-  const playbackSource = usePlaybackSource();
+  const remote = useIsRemotePlayback();
   const { fontScale } = useWindowDimensions();
   const showDecorativeIdentity = fontScale < 1.4;
-  // The visualizer follows the phone's own audio, so it rests while another device plays.
-  const remote = playbackSource !== undefined && playbackSource !== PlaybackSource.Native;
 
   if (!currentTrack) {
     return (

@@ -251,12 +251,7 @@ export function useRelistenCastSession(player: RelistenPlayer) {
     shouldLoadFromLocalRef.current = wasPlaying || player.playbackIntentStarted;
     isAdoptingCastSessionRef.current = !shouldLoadFromLocalRef.current;
     hasInitializedCastRef.current = true;
-    sharedStates.playbackSource.setState(PlaybackSource.Cast);
-    player.setPlaybackDriver(castDriver);
-    player
-      .getNativePlaybackDriver()
-      .pause()
-      .then(() => {});
+    player.routeToRemote(castDriver, PlaybackSource.Cast);
     resetCastResumeState();
     lastQueueSignatureRef.current = undefined;
     const existingQueueItems = mediaStatus?.queueItems ?? [];
@@ -346,7 +341,7 @@ export function useRelistenCastSession(player: RelistenPlayer) {
     }
 
     const playbackState = mapMediaPlayerState(mediaStatus.playerState);
-    sharedStates.state.setState(playbackState);
+    player.publishPlayState(playbackState);
     lastCastStateRef.current = playbackState;
     lastCastWasPlayingRef.current = playbackState === RelistenPlaybackState.Playing;
 
@@ -482,8 +477,7 @@ export function useRelistenCastSession(player: RelistenPlayer) {
         return;
       }
 
-      sharedStates.playbackSource.setState(PlaybackSource.Native);
-      player.setPlaybackDriver(player.getNativePlaybackDriver());
+      player.routeToNative();
 
       const elapsed = lastCastElapsedRef.current;
       const lastIdentifier = lastCastIdentifierRef.current;

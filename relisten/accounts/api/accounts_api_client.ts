@@ -22,6 +22,14 @@ export class AccountsApiError extends Error {
   }
 }
 
+/**
+ * A request's options. `routine` marks a request repeated on a timer, such as
+ * a poll; its progress is logged at debug level so it doesn't crowd crash
+ * reports' breadcrumbs. A request that never reaches the server is logged as
+ * a warning either way.
+ */
+export type AccountRequestOptions = RequestInit & { routine?: boolean };
+
 export interface AccountTokenSource {
   getAccessToken(capture: AccountScopeCapture, forceRefresh?: boolean): Promise<string>;
 }
@@ -44,11 +52,17 @@ export class AccountsApiTransport {
   }
 
   /** Sends a request with the account's token, or anonymously when `accessToken` is null. */
-  async request<T>(path: string, accessToken: string | null, options: RequestInit): Promise<T> {
+  async request<T>(
+    path: string,
+    accessToken: string | null,
+    { routine = false, ...options }: AccountRequestOptions
+  ): Promise<T> {
     assertRelativeAccountPath(path);
     const method = options.method ?? 'GET';
     const logPath = path.split(/[?#]/, 1)[0];
-    logger.info(`${method} ${logPath}`);
+    const logProgress = (message: string) =>
+      routine ? logger.debug(message) : logger.info(message);
+    logProgress(`${method} ${logPath}`);
     const headers = new Headers(options.headers);
     headers.set('Accept', 'application/json');
     if (accessToken !== null) {
@@ -68,7 +82,7 @@ export class AccountsApiTransport {
       throw new AccountsApiError('The account service could not be reached.', null, null, true);
     }
 
-    logger.info(`${method} ${logPath} completed status=${response.status}`);
+    logProgress(`${method} ${logPath} completed status=${response.status}`);
 
     if (!response.ok) {
       const problem = await this.readProblem(response);
@@ -119,7 +133,7 @@ export class AuthorizedAccountsApiClient {
     private readonly tokenSource: AccountTokenSource
   ) {}
 
-  async request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  async request<T>(path: string, options: AccountRequestOptions = {}): Promise<T> {
     const capture = this.scopeSource.capture();
 
     if (!capture.isAuthenticated) {

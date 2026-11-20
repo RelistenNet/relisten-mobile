@@ -34,6 +34,7 @@ import {
 } from './api/account_deletion_request';
 import { requestAppleRevocationCode } from './auth/apple_revocation_code';
 import { forgetDeletedAccount, hideUnconfirmedAccount } from './account_local_data';
+import { forgetSonosRoom } from '@/relisten/sonos/sonos_room_memory';
 
 const logger = log.extend('account-session');
 const LOGOUT_TOKEN_WAIT_MS = 1500;
@@ -296,6 +297,8 @@ export class AccountSessionCoordinator {
     if (outcome === 'accepted') {
       await this.leaveDeletedAccount(scope);
       forgetDeletedAccount(this.realm, userId);
+      // Kept outside Realm, so `forgetDeletedAccount` can't reach it.
+      void forgetSonosRoom(userId).catch(() => {});
       this.publish({ status: 'signedOut', profile: null, error: null });
       return 'deleting';
     }

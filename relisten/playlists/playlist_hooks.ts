@@ -14,6 +14,11 @@ import {
 } from '@/relisten/realm/models/playlists/playlist';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import {
+  completeSourceTrack,
+  storedSourceTrack,
+  trackIdForSourceTrack,
+} from '@/relisten/realm/source_track_lookup';
+import {
   SourceTrackOfflineInfoStatus,
   SourceTrackOfflineInfoType,
 } from '@/relisten/realm/models/source_track_offline_info';
@@ -23,7 +28,7 @@ import {
   type PlaylistGroup,
   type SegmentState,
 } from '@/relisten/playlists/playlist_operations';
-import { formatUuidTypedId, parseUuidTypedId } from '@/relisten/util/typed_uuid_id';
+import { parseUuidTypedId } from '@/relisten/util/typed_uuid_id';
 import {
   contextOf,
   entryContext,
@@ -37,8 +42,7 @@ import {
 } from '@/relisten/playlists/guide/guide_markdown';
 import type { PlaylistSnapshotResponse } from '@/relisten/playlists/sync/playlist_wire';
 
-export const trackIdForSourceTrack = (sourceTrack: Pick<SourceTrack, 'uuid'>) =>
-  formatUuidTypedId('track', sourceTrack.uuid);
+export { trackIdForSourceTrack };
 
 /**
  * The catalog track for an entry, following a recorded redirect, or null when it
@@ -50,18 +54,7 @@ export function sourceTrackFor(realm: Realm, trackId: string): SourceTrack | nul
     redirect?.status === 'redirected' && redirect.redirectTrackId
       ? redirect.redirectTrackId
       : trackId;
-  const uuid = parseUuidTypedId(playableId, 'track');
-  if (!uuid) {
-    return null;
-  }
-  return renderable(realm.objectForPrimaryKey(SourceTrack, uuid));
-}
-
-/** Playlist rows read the show, source and artist, so a track without them can't render yet. */
-function renderable(track: SourceTrack | null | undefined): SourceTrack | null {
-  return track && track.deletedAt == null && track.show && track.source && track.artist
-    ? track
-    : null;
+  return storedSourceTrack(realm, playableId);
 }
 
 /**
@@ -84,7 +77,7 @@ function catalogViewOf(
     unavailable: unavailableIds(availability),
     trackFor: (trackId) => {
       const uuid = parseUuidTypedId(redirects.get(trackId) ?? trackId, 'track');
-      return uuid ? renderable(byUuid.get(uuid)) : null;
+      return uuid ? completeSourceTrack(byUuid.get(uuid)) : null;
     },
   };
 }

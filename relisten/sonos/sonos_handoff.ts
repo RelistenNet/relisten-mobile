@@ -2,7 +2,6 @@ import {
   AccountsApiError,
   type AuthorizedAccountsApiClient,
 } from '@/relisten/accounts/api/accounts_api_client';
-import { formatUuidTypedId } from '@/relisten/util/typed_uuid_id';
 import {
   fetchSonosHandoff,
   needsSonosReconnect,
@@ -10,6 +9,7 @@ import {
   type SonosHandoffRequest,
   startSonosHandoff,
 } from './sonos_api';
+import { type QueueOccurrence, sonosQueueEntry, wireOccurrences } from './sonos_playback';
 
 /**
  * Moving the phone's queue to a Sonos room.
@@ -21,18 +21,25 @@ import {
  * - `refused`: nothing reached the room, so the phone resumes what it was doing.
  * - `uncertain`: the room may or may not have taken over. The phone stays
  *   paused rather than risk playing in two places.
+ * `reconnect` means the account's Sonos link has to be made again.
  */
 export type SonosHandoffOutcome =
-  | { kind: 'playing'; receipt: SonosHandoffReceipt }
+  | { kind: 'playing'; handle: string }
   | { kind: 'refused'; message: string; reconnect: boolean }
-  | { kind: 'uncertain' };
+  | { kind: 'uncertain'; reconnect: boolean };
 
-/** One queue occurrence, as the player holds it. */
-export interface HandoffQueueTrack {
-  /** The occurrence's identity; the same recording can appear more than once. */
-  identifier: string;
-  sourceTrack: { uuid: string };
+/**
+ * Whether the phone may play again after a handoff. Only a refusal proves the
+ * room never took the queue; otherwise the phone stays paused, so the queue
+ * never plays in two places.
+ */
+export function phoneMayResumeAfter(outcome: SonosHandoffOutcome): boolean {
+  return outcome.kind === 'refused';
 }
+
+/** What to tell the user when a handoff's outcome is uncertain. */
+export const HANDOFF_UNCONFIRMED_MESSAGE =
+  'Sonos didn’t confirm. Check the room before trying again.';
 
 /**
  * The request for the queue as it plays now. The start is found by the
@@ -48,7 +55,7 @@ export function handoffRequest({
 }: {
   requestId: string;
   groupId: string;
-  tracks: readonly HandoffQueueTrack[];
+  tracks: readonly QueueOccurrence[];
   currentIdentifier: string | undefined;
   positionSeconds: number;
 }): SonosHandoffRequest | undefined {
@@ -60,10 +67,7 @@ export function handoffRequest({
   return {
     request_id: requestId,
     group_id: groupId,
-    occurrences: tracks.map((track) => ({
-      occurrence_id: track.identifier,
-      track_id: formatUuidTypedId('track', track.sourceTrack.uuid),
-    })),
+    occurrences: wireOccurrences(tracks.map(sonosQueueEntry)),
     start_index: startIndex,
     position_millis: Math.max(0, Math.round(positionSeconds * 1000)),
   };
@@ -71,7 +75,6 @@ export function handoffRequest({
 
 export interface HandoffTiming {
   wait: (ms: number) => Promise<void>;
-  isCurrent?: () => boolean;
   /** Pause between status checks while the room hasn't confirmed. */
   pollIntervalMs?: number;
   /** Status checks before the outcome is left uncertain. */
@@ -80,30 +83,28 @@ export interface HandoffTiming {
   maxRetries?: number;
 }
 
-/** Sends the handoff and follows it until the room confirms or the checks run out. */
+/**
+ * Sends the handoff and follows it until the room confirms or the checks run
+ * out. `isCurrent` turns false when the account changes; the handoff is then
+ * left uncertain rather than followed under another account.
+ */
 export async function runSonosHandoff(
   api: AuthorizedAccountsApiClient,
   request: SonosHandoffRequest,
-  {
-    wait,
-    isCurrent = () => true,
-    pollIntervalMs = 1000,
-    maxPolls = 45,
-    maxRetries = 2,
-  }: HandoffTiming
+  isCurrent: () => boolean,
+  { wait, pollIntervalMs = 1000, maxPolls = 45, maxRetries = 2 }: HandoffTiming
 ): Promise<SonosHandoffOutcome> {
-  const submitted = await submit(api, request, { wait, isCurrent, pollIntervalMs, maxRetries });
-  if (!isReceipt(submitted)) {
+  const submitted = await submit(api, request, isCurrent, { wait, pollIntervalMs, maxRetries });
+  if (submitted.kind !== 'submitted') {
     return submitted;
   }
 
-  const settled = await followUntilSettled(api, submitted, {
+  const settled = await followUntilSettled(api, submitted.receipt, isCurrent, {
     wait,
-    isCurrent,
     pollIntervalMs,
     maxPolls,
   });
-  return settled ? outcomeOf(settled) : { kind: 'uncertain' };
+  return settled ? outcomeOf(settled) : { kind: 'uncertain', reconnect: false };
 }
 
 /**
@@ -114,48 +115,62 @@ export async function runSonosHandoff(
 async function submit(
   api: AuthorizedAccountsApiClient,
   request: SonosHandoffRequest,
-  { wait, isCurrent, pollIntervalMs, maxRetries }: Required<Omit<HandoffTiming, 'maxPolls'>>
-): Promise<SonosHandoffReceipt | SonosHandoffOutcome> {
+  isCurrent: () => boolean,
+  { wait, pollIntervalMs, maxRetries }: Required<Omit<HandoffTiming, 'maxPolls'>>
+): Promise<{ kind: 'submitted'; receipt: SonosHandoffReceipt } | SonosHandoffOutcome> {
   for (let attempt = 0; ; attempt += 1) {
     if (!isCurrent()) {
-      return { kind: 'uncertain' };
+      return { kind: 'uncertain', reconnect: false };
     }
     try {
-      return await startSonosHandoff(api, request);
+      return { kind: 'submitted', receipt: await startSonosHandoff(api, request) };
     } catch (error) {
       if (!(error instanceof AccountsApiError) || !error.retryable) {
-        // A malformed success can arrive after the room has changed.
-        return attempt === 0 &&
-          error instanceof AccountsApiError &&
-          error.status !== null &&
-          error.status >= 400 &&
-          error.status < 500
+        return isDefiniteRefusal(error, attempt)
           ? refusal(error)
-          : { kind: 'uncertain' };
+          : { kind: 'uncertain', reconnect: false };
       }
       if (attempt < maxRetries) {
         await wait(pollIntervalMs);
         continue;
       }
+      // Out of retries: fall through to ask whether any attempt arrived.
     }
 
     // Every attempt failed in a way that may have reached the server.
     if (!isCurrent()) {
-      return { kind: 'uncertain' };
+      return { kind: 'uncertain', reconnect: false };
     }
     try {
-      return await fetchSonosHandoff(api, request.request_id);
+      return { kind: 'submitted', receipt: await fetchSonosHandoff(api, request.request_id) };
     } catch {
-      return { kind: 'uncertain' };
+      return { kind: 'uncertain', reconnect: false };
     }
   }
+}
+
+/**
+ * Whether a failed submission proves the room never took the queue. Only a
+ * client error on the first attempt does: after a lost attempt, the server may
+ * have started the handoff, and a later 4xx (a busy room, say) can describe
+ * that handoff rather than a refusal. A malformed success is never a refusal.
+ */
+function isDefiniteRefusal(error: unknown, attempt: number): error is AccountsApiError {
+  return (
+    attempt === 0 &&
+    error instanceof AccountsApiError &&
+    error.status !== null &&
+    error.status >= 400 &&
+    error.status < 500
+  );
 }
 
 /** Re-checks a `dispatching` handoff; undefined when it never settles in time. */
 async function followUntilSettled(
   api: AuthorizedAccountsApiClient,
   receipt: SonosHandoffReceipt,
-  { wait, isCurrent, pollIntervalMs, maxPolls }: Required<Omit<HandoffTiming, 'maxRetries'>>
+  isCurrent: () => boolean,
+  { wait, pollIntervalMs, maxPolls }: Required<Omit<HandoffTiming, 'maxRetries'>>
 ): Promise<SonosHandoffReceipt | undefined> {
   let current = receipt;
   for (let poll = 0; current.status === 'dispatching'; poll += 1) {
@@ -181,19 +196,21 @@ async function followUntilSettled(
 function outcomeOf(receipt: SonosHandoffReceipt): SonosHandoffOutcome {
   switch (receipt.status) {
     case 'loaded':
-      return { kind: 'playing', receipt };
+      return { kind: 'playing', handle: receipt.playbackHandle };
     case 'failed':
       return { kind: 'refused', message: 'Sonos couldn’t start playing.', reconnect: false };
     case 'revoked':
+      // The link ended during the handoff, which may already have reached the room.
+      return { kind: 'uncertain', reconnect: true };
     case 'dispatching':
     case 'evicted':
     case 'interrupted':
-      return { kind: 'uncertain' };
+      return { kind: 'uncertain', reconnect: false };
   }
 }
 
 /** A failure that guarantees nothing reached the room. */
-function refusal(error: unknown): SonosHandoffOutcome {
+function refusal(error: AccountsApiError): SonosHandoffOutcome {
   if (needsSonosReconnect(error)) {
     return {
       kind: 'refused',
@@ -201,14 +218,14 @@ function refusal(error: unknown): SonosHandoffOutcome {
       reconnect: true,
     };
   }
-  if (error instanceof AccountsApiError && error.code === 'sonos_handoff_busy') {
+  if (error.code === 'sonos_handoff_busy') {
     return {
       kind: 'refused',
       message: 'A handoff is still finishing in that room. Try again shortly.',
       reconnect: false,
     };
   }
-  if (error instanceof AccountsApiError && error.status === 422) {
+  if (error.status === 422) {
     return {
       kind: 'refused',
       message:
@@ -218,16 +235,8 @@ function refusal(error: unknown): SonosHandoffOutcome {
       reconnect: false,
     };
   }
-  if (error instanceof AccountsApiError && error.status === 404) {
-    return {
-      kind: 'refused',
-      message: 'That room isn’t available anymore.',
-      reconnect: false,
-    };
+  if (error.status === 404) {
+    return { kind: 'refused', message: 'That room isn’t available anymore.', reconnect: false };
   }
   return { kind: 'refused', message: 'Couldn’t reach Sonos. Try again.', reconnect: false };
-}
-
-function isReceipt(value: SonosHandoffReceipt | SonosHandoffOutcome): value is SonosHandoffReceipt {
-  return 'requestId' in value;
 }

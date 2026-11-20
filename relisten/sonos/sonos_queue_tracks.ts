@@ -5,77 +5,97 @@ import {
   MAX_REFERENCES_PER_REQUEST,
   resolveCatalogBatch,
 } from '@/relisten/realm/catalog_resolution';
-import { SourceTrack } from '@/relisten/realm/models/source_track';
-import { formatUuidTypedId, parseUuidTypedId } from '@/relisten/util/typed_uuid_id';
+import { storedSourceTrack, trackIdForSourceTrack } from '@/relisten/realm/source_track_lookup';
 import type { SonosQueueEntry } from './sonos_playback';
+
+/**
+ * The phone's queue for a room's order:
+ * - `built`: one entry per occurrence, in the room's order.
+ * - `unavailable`: the catalog says these occurrences' recordings are gone
+ *   (taken down or retired), so the phone can't show them.
+ * - `unreachable`: a catalog lookup failed; asking again later may work.
+ */
+export type RoomQueueTracks =
+  | { kind: 'built'; tracks: PlayerQueueTrack[] }
+  | { kind: 'unavailable'; occurrenceIds: string[] }
+  | { kind: 'unreachable' };
 
 /**
  * Phone queue entries for a room's order, each keeping the room's occurrence
  * ID as its identifier. An occurrence the phone already holds keeps its entry
- * (and its playlist context); one added on another device is built from the
- * catalog, which is asked about any recording this device hasn't stored.
- * Returns undefined if any recording can't be found, so the phone never
- * shows a queue that differs from the room's.
+ * (and its playlist context). One added on another device is built from the
+ * stored recording, and the catalog is asked about any recording this device
+ * hasn't stored completely. The phone never shows a queue that differs from
+ * the room's, so anything missing means no queue is built.
  */
 export async function queueTracksForRoom(
   realm: Realm,
   catalogApi: RelistenApiClient,
   entries: readonly SonosQueueEntry[],
   phoneTracks: readonly PlayerQueueTrack[]
-): Promise<PlayerQueueTrack[] | undefined> {
+): Promise<RoomQueueTracks> {
   const phoneTrackById = new Map(phoneTracks.map((track) => [track.identifier, track]));
   // The phone's own entry for an occurrence, unless that ID now names another recording.
-  const phoneTrack = (entry: SonosQueueEntry) => {
+  const phoneTrackFor = (entry: SonosQueueEntry) => {
     const track = phoneTrackById.get(entry.occurrenceId);
-    return track && formatUuidTypedId('track', track.sourceTrack.uuid) === entry.trackId
-      ? track
-      : undefined;
+    return track && trackIdForSourceTrack(track.sourceTrack) === entry.trackId ? track : undefined;
   };
 
-  const added = entries.filter((entry) => !phoneTrack(entry));
-  await storeMissingRecordings(realm, catalogApi, added);
+  const missing = entries.filter(
+    (entry) => !phoneTrackFor(entry) && !storedSourceTrack(realm, entry.trackId)
+  );
+  const lookup = await storeMissingRecordings(realm, catalogApi, missing);
+  if (lookup.kind === 'unreachable') {
+    return lookup;
+  }
+  const unavailable = entries.filter((entry) => lookup.gone.has(entry.trackId));
+  if (unavailable.length > 0) {
+    return { kind: 'unavailable', occurrenceIds: unavailable.map((entry) => entry.occurrenceId) };
+  }
 
   const tracks: PlayerQueueTrack[] = [];
   for (const entry of entries) {
-    const existing = phoneTrack(entry);
+    const existing = phoneTrackFor(entry);
+    const sourceTrack = existing ? undefined : storedSourceTrack(realm, entry.trackId);
     if (existing) {
       tracks.push(existing);
-      continue;
+    } else if (sourceTrack) {
+      tracks.push(PlayerQueueTrack.fromSourceTrack(sourceTrack, entry.occurrenceId));
+    } else {
+      // The catalog answered but the recording still isn't stored completely.
+      return { kind: 'unreachable' };
     }
-
-    const sourceTrack = storedRecording(realm, entry);
-    if (!sourceTrack) {
-      return undefined;
-    }
-    const track = PlayerQueueTrack.fromSourceTrack(sourceTrack);
-    track.identifier = entry.occurrenceId;
-    tracks.push(track);
   }
-  return tracks;
+  return { kind: 'built', tracks };
 }
 
-/** Asks the catalog about recordings this device hasn't stored, in resolver-sized batches. */
+/**
+ * Asks the catalog about recordings this device hasn't stored, in
+ * resolver-sized batches, and stores what it returns. Stops at the first
+ * failed batch, since the queue can't be built without every recording.
+ */
 async function storeMissingRecordings(
   realm: Realm,
   catalogApi: RelistenApiClient,
   entries: readonly SonosQueueEntry[]
-) {
-  const missing = [
-    ...new Set(
-      entries.filter((entry) => !storedRecording(realm, entry)).map((entry) => entry.trackId)
-    ),
-  ];
+): Promise<{ kind: 'stored'; gone: Set<string> } | { kind: 'unreachable' }> {
+  const trackIds = [...new Set(entries.map((entry) => entry.trackId))];
+  const gone = new Set<string>();
 
-  for (let offset = 0; offset < missing.length; offset += MAX_REFERENCES_PER_REQUEST) {
-    const batch = missing
+  for (let offset = 0; offset < trackIds.length; offset += MAX_REFERENCES_PER_REQUEST) {
+    const batch = trackIds
       .slice(offset, offset + MAX_REFERENCES_PER_REQUEST)
       .map((id) => ({ kind: 'track' as const, id, scheme: 'v4' as const }));
-    // A batch that fails leaves its recordings missing, and the room's queue isn't adopted.
-    await resolveCatalogBatch(realm, catalogApi, batch).catch(() => undefined);
+    try {
+      const references = (await resolveCatalogBatch(realm, catalogApi, batch)) ?? [];
+      for (const reference of references) {
+        if (reference.availability === 'unavailable' || reference.availability === 'retired') {
+          gone.add(reference.id);
+        }
+      }
+    } catch {
+      return { kind: 'unreachable' };
+    }
   }
-}
-
-function storedRecording(realm: Realm, entry: SonosQueueEntry): SourceTrack | null {
-  const uuid = parseUuidTypedId(entry.trackId, 'track');
-  return uuid ? realm.objectForPrimaryKey(SourceTrack, uuid) : null;
+  return { kind: 'stored', gone };
 }

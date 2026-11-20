@@ -44,4 +44,8 @@ export class SonosPlaybackDriver implements PlaybackDriver {
   setNextStream() {
     // Sonos reads ahead in its own queue.
   }
+
+  moveOnFromSelected(identifier: string): boolean {
+    return this.session.moveOnFromSelected(identifier);
+  }
 }

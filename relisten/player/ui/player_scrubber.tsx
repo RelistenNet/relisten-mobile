@@ -2,9 +2,8 @@ import Flex from '@/relisten/components/flex';
 import {
   useNativeActiveTrackDownloadProgress,
   useNativePlaybackProgress,
-  usePlaybackSource,
+  useIsRemotePlayback,
 } from '@/relisten/player/native_playback_state_hooks';
-import { PlaybackSource } from '@/relisten/player/shared_state';
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { trackDuration } from '@/relisten/util/duration';
@@ -33,7 +32,7 @@ export function ScrubberRow({
   const downloadProgress = useNativeActiveTrackDownloadProgress();
   const player = useRelistenPlayer();
   // A remote player confirms a seek only on its next report.
-  const isRemote = usePlaybackSource() !== PlaybackSource.Native;
+  const isRemote = useIsRemotePlayback();
   const timeDisplay = useSyncExternalStore(
     playbackTimePreference.subscribe,
     playbackTimePreference.getSnapshot,

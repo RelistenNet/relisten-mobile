@@ -83,7 +83,12 @@ export class PlayerQueueTrack {
     return occurrence;
   }
 
-  static fromSourceTrack(sourceTrack: SourceTrack) {
+  /**
+   * A queue entry for `sourceTrack`. `identifier` names an occurrence that
+   * already exists elsewhere, such as in a Sonos room's queue; without it the
+   * entry is a new occurrence.
+   */
+  static fromSourceTrack(sourceTrack: SourceTrack, identifier?: string) {
     const artist = sourceTrack.artist;
     const source = sourceTrack.source;
     const venue = sourceTrack.show.venue;
@@ -92,7 +97,7 @@ export class PlayerQueueTrack {
 
     const albumArtUrl = `https://sonos.relisten.net/album-art/${artist?.slug}/years/${year}/${year}-${month}-${day}/${source.uuid}/550.png`;
 
-    return new PlayerQueueTrack(
+    const track = new PlayerQueueTrack(
       sourceTrack,
       sourceTrack.title,
       [artist.name, source.displayDate, venue?.name].filter((part) => !!part).join(' • ') || '',
@@ -102,6 +107,10 @@ export class PlayerQueueTrack {
       [source.displayDate, venue?.name].filter((part) => !!part).join(' • ') || '',
       albumArtUrl
     );
+    if (identifier !== undefined) {
+      track.identifier = identifier;
+    }
+    return track;
   }
 
   toStreamable(
@@ -299,6 +308,7 @@ export class RelistenPlayerQueue {
     this.clearCurrentTrack();
     this.prevNextTrackIndexIntentOffset = 0;
 
+    // The remote order is the order; reshuffling it here would show a queue the room doesn't play.
     if (this._shuffleState !== PlayerShuffleState.SHUFFLE_OFF) {
       this._shuffleState = PlayerShuffleState.SHUFFLE_OFF;
       this.onShuffleStateChanged.dispatch(this._shuffleState);
@@ -322,6 +332,10 @@ export class RelistenPlayerQueue {
       return false;
     }
     const currentIdentifier = this.currentTrack?.identifier;
+    if (identifier === currentIdentifier && this.player.moveOnFromSelected(identifier)) {
+      // A remote player moved on and keeps the occurrence as played (Sonos).
+      return true;
+    }
 
     this.applyPlaybackCheckpoint(() => {
       const stoppedPlayback = this.player.onQueueTrackRemoving(removed.identifier);

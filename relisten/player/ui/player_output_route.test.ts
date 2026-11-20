@@ -8,14 +8,16 @@ const { renderToStaticMarkup } = await vi.importActual<{
 const state = vi.hoisted(() => ({
   platform: 'ios',
   cast: { isCasting: false, deviceName: undefined as string | undefined },
-  sonos: { kind: 'none' } as { kind: string; groupName?: string },
+  sonosRoomName: undefined as string | undefined,
   getAudioOutputRoute: vi.fn(),
 }));
 vi.mock('@/modules/relisten-audio-player', () => ({
   nativePlayer: { getAudioOutputRoute: state.getAudioOutputRoute },
 }));
 vi.mock('@/relisten/casting/cast_ui', () => ({ useRelistenCastStatus: () => state.cast }));
-vi.mock('@/relisten/sonos/sonos_remote', () => ({ useSonosRemote: () => state.sonos }));
+vi.mock('@/relisten/sonos/sonos_room_store', () => ({
+  useSonosRoomName: () => state.sonosRoomName,
+}));
 vi.mock('react-native', () => ({
   Platform: {
     get OS() {
@@ -36,7 +38,7 @@ function visibleRoute() {
 beforeEach(() => {
   state.platform = 'ios';
   state.cast = { isCasting: false, deviceName: undefined };
-  state.sonos = { kind: 'none' };
+  state.sonosRoomName = undefined;
   state.getAudioOutputRoute.mockReset().mockReturnValue({ name: '', isExternal: false });
 });
 
@@ -62,7 +64,7 @@ describe('player output feedback', () => {
 
   it('names the Sonos room playing this queue ahead of the phone output', () => {
     state.getAudioOutputRoute.mockReturnValue({ name: 'Headphones', isExternal: true });
-    state.sonos = { kind: 'checking', groupName: 'Office' };
+    state.sonosRoomName = 'Office';
     expect(visibleRoute()).toContain('Office');
     expect(visibleRoute()).not.toContain('Headphones');
   });

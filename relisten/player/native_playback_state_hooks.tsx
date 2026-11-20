@@ -7,7 +7,7 @@ import {
   RelistenRemoteControlEvent,
   RelistenTrackStreamingCacheCompleteEvent,
 } from '@/modules/relisten-audio-player';
-import { isRemotePlayback, sharedStates } from '@/relisten/player/shared_state';
+import { isRemotePlayback, isRemoteSource, sharedStates } from '@/relisten/player/shared_state';
 import { SharedState } from '@/relisten/util/shared_state';
 import { useEffect, useState } from 'react';
 
@@ -104,3 +104,8 @@ export const useNativeActiveTrackDownloadProgress = createPlaybackHook(
 );
 /** Where the queue plays: this phone, a Cast receiver or a Sonos room. */
 export const usePlaybackSource = createPlaybackHook(sharedStates.playbackSource);
+
+/** Whether another device plays the queue, so phone-only controls rest. */
+export function useIsRemotePlayback(): boolean {
+  return isRemoteSource(usePlaybackSource());
+}

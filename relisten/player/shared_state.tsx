@@ -36,7 +36,11 @@ export const playbackSource = new SharedState<PlaybackSource>();
 
 /** Whether another device plays the queue, so the phone's own player must not report state. */
 export function isRemotePlayback(): boolean {
-  const source = playbackSource.lastState();
+  return isRemoteSource(playbackSource.lastState());
+}
+
+/** A source not yet published means the phone, as before any remote player connects. */
+export function isRemoteSource(source: PlaybackSource | undefined): boolean {
   return source !== undefined && source !== PlaybackSource.Native;
 }
 

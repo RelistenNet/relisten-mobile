@@ -1,15 +1,15 @@
+// The account service's Sonos routes for the account link, rooms and
+// handoffs. Sonos credentials stay on the server; the app sends its own
+// account token. The routes answer 404 when the server has no Sonos
+// configuration, which the app treats as the feature being unavailable
+// rather than as an error.
+
 import {
   AccountsApiError,
   type AuthorizedAccountsApiClient,
 } from '@/relisten/accounts/api/accounts_api_client';
+import type { wireOccurrences } from './sonos_playback';
 
-/**
- * The account service's Sonos routes. Sonos credentials stay on the server;
- * the app sends its own account token and works with rooms and handoffs.
- *
- * The routes answer 404 when the server has no Sonos configuration, which the
- * app treats as the feature being unavailable rather than as an error.
- */
 const BASE = '/v1/integrations/sonos';
 
 /** A Sonos group: one room, or rooms playing together. */
@@ -35,14 +35,10 @@ export type SonosHandoffStatus =
 
 export const SONOS_CALLBACK_URL = 'net.relisten.mobile:/sonos/callback';
 
-export interface SonosHandoffReceipt {
-  requestId: string;
-  status: SonosHandoffStatus;
-  /** The room's last reported playback state, as Sonos names it, once it reports one. */
-  playbackEventState: string | null;
-  /** Addresses the room's playback for Now Playing and Play/Pause, once the queue loads. */
-  playbackHandle: string | null;
-}
+/** A handoff's status. Once the queue loads, `playbackHandle` addresses the room's playback. */
+export type SonosHandoffReceipt =
+  | { requestId: string; status: Exclude<SonosHandoffStatus, 'loaded'> }
+  | { requestId: string; status: 'loaded'; playbackHandle: string };
 
 export interface SonosHandoffRequest {
   /** Fresh for each explicit handoff, reused with the identical body on retry. */
@@ -53,7 +49,7 @@ export interface SonosHandoffRequest {
    * keeps the phone's identifier, so the room's current occurrence names the
    * phone's queue entry.
    */
-  occurrences: { occurrence_id: string; track_id: string }[];
+  occurrences: ReturnType<typeof wireOccurrences>;
   start_index: number;
   position_millis: number;
 }
@@ -159,22 +155,18 @@ function parseReceipt(value: unknown, requestId: string): SonosHandoffReceipt {
   const body = value as {
     request_id?: unknown;
     status?: unknown;
-    playback_event_state?: unknown;
     playback_handle?: unknown;
   } | null;
-  if (
-    body?.request_id !== requestId ||
-    !STATUSES.includes(body.status as SonosHandoffStatus) ||
-    (body.status === 'loaded' &&
-      (typeof body.playback_handle !== 'string' || !PLAYBACK_HANDLE.test(body.playback_handle)))
-  ) {
+  const status = body?.status as SonosHandoffStatus;
+  if (body?.request_id !== requestId || !STATUSES.includes(status)) {
     throw new Error('The Sonos handoff response is invalid.');
   }
-  return {
-    requestId,
-    status: body.status as SonosHandoffStatus,
-    playbackEventState:
-      typeof body.playback_event_state === 'string' ? body.playback_event_state : null,
-    playbackHandle: typeof body.playback_handle === 'string' ? body.playback_handle : null,
-  };
+
+  if (status !== 'loaded') {
+    return { requestId, status };
+  }
+  if (typeof body.playback_handle !== 'string' || !PLAYBACK_HANDLE.test(body.playback_handle)) {
+    throw new Error('The Sonos handoff response is invalid.');
+  }
+  return { requestId, status, playbackHandle: body.playback_handle };
 }

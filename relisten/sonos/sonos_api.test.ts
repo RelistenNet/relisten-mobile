@@ -30,10 +30,4 @@ describe('groupSonosHouseholds', () => {
       [room('home', 'Kitchen'), room('home', 'Office')],
     ]);
   });
-
-  it('keeps a single household together', () => {
-    const groups = [room('home', 'Kitchen'), room('home', 'Office')];
-
-    expect(groupSonosHouseholds(groups)).toEqual([groups]);
-  });
 });

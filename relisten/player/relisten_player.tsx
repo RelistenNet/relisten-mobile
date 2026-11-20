@@ -36,16 +36,16 @@ import { shouldStartStalledTimerForSeek } from '@/relisten/player/seek_stall_pol
 
 const logger = log.extend('player');
 
-enum NativePlayRequestPhase {
+enum PlayRequestPhase {
   WaitingToIssue,
   Issued,
   AwaitingConfirmation,
 }
 
-interface NativePlayRequest {
+interface PlayRequest {
   identifier: string;
   version: number;
-  phase: NativePlayRequestPhase;
+  phase: PlayRequestPhase;
   failed: boolean;
 }
 
@@ -132,6 +132,32 @@ export class RelistenPlayer {
     return this.nativeDriver;
   }
 
+  /**
+   * Plays through a remote driver. The phone never plays alongside a remote
+   * player, so its own stream pauses, and the download progress it showed no
+   * longer applies.
+   */
+  routeToRemote(driver: PlaybackDriver, source: PlaybackSource) {
+    playbackSource.setState(source);
+    this.setPlaybackDriver(driver);
+    void this.nativeDriver.pause();
+    activeTrackDownloadProgress.setState({ downloadedBytes: 0, totalBytes: 1, percent: 0 });
+  }
+
+  /** Plays on the phone again. */
+  routeToNative() {
+    this.setPlaybackDriver(this.nativeDriver);
+    playbackSource.setState(PlaybackSource.Native);
+  }
+
+  /**
+   * Whether the driver moved on from the selected occurrence rather than let
+   * the queue remove it (see `PlaybackDriver.moveOnFromSelected`).
+   */
+  moveOnFromSelected(identifier: string): boolean {
+    return this.playbackDriver.moveOnFromSelected?.(identifier) ?? false;
+  }
+
   setNextStream(streamable?: ReturnType<PlayerQueueTrack['toStreamable']>) {
     this.playbackDriver.setNextStream(streamable);
   }
@@ -169,12 +195,12 @@ export class RelistenPlayer {
     this.addPlayerListeners();
 
     if (
-      this.nativePlayRequest &&
-      this.nativePlayRequest.phase !== NativePlayRequestPhase.WaitingToIssue
+      this.activePlayRequest &&
+      this.activePlayRequest.phase !== PlayRequestPhase.WaitingToIssue
     ) {
       // An issued stream may still confirm; Pause cancels only the queued successor.
       this.nextPlayRequest = undefined;
-      this.requestedTrackIdentifier = this.nativePlayRequest.identifier;
+      this.requestedTrackIdentifier = this.activePlayRequest.identifier;
     } else {
       this.cancelPendingPlayRequests('pause');
     }
@@ -187,7 +213,7 @@ export class RelistenPlayer {
   private currentlyProcessingPlayRequest: Promise<void> | undefined = undefined;
   private nextPlayRequest?: QueuedPlayRequest;
   private playRequestVersion = 0;
-  private nativePlayRequest?: NativePlayRequest;
+  private activePlayRequest?: PlayRequest;
   private requestedTrackIdentifier?: string;
 
   /**
@@ -208,12 +234,12 @@ export class RelistenPlayer {
   public cancelPendingPlayRequests(reason: string) {
     const currentTrack = this._queue.currentTrack;
     const hasUnconfirmedPreview =
-      this.nativePlayRequest !== undefined &&
-      this.nativePlayRequest.identifier !== currentTrack?.identifier;
+      this.activePlayRequest !== undefined &&
+      this.activePlayRequest.identifier !== currentTrack?.identifier;
     const confirmedProgress = this.progress;
     this.playRequestVersion += 1;
     this.currentlyProcessingPlayRequest = undefined;
-    this.nativePlayRequest = undefined;
+    this.activePlayRequest = undefined;
     this.nextPlayRequest = undefined;
     this.requestedTrackIdentifier = undefined;
 
@@ -232,7 +258,7 @@ export class RelistenPlayer {
 
   private maybeStartNextPlayRequest() {
     this.currentlyProcessingPlayRequest = undefined;
-    this.nativePlayRequest = undefined;
+    this.activePlayRequest = undefined;
 
     if (!this.nextPlayRequest) {
       this.requestedTrackIdentifier = undefined;
@@ -264,7 +290,7 @@ export class RelistenPlayer {
     if (this.currentlyProcessingPlayRequest !== request) {
       return;
     }
-    if (this.nativePlayRequest?.failed && !this.nextPlayRequest) {
+    if (this.activePlayRequest?.failed && !this.nextPlayRequest) {
       this.cancelPendingPlayRequests('failedPlay');
     } else {
       this.maybeStartNextPlayRequest();
@@ -275,7 +301,7 @@ export class RelistenPlayer {
   onQueueTrackRemoving(identifier: string): boolean {
     const affected =
       identifier === this._queue.currentTrack?.identifier ||
-      identifier === this.nativePlayRequest?.identifier ||
+      identifier === this.activePlayRequest?.identifier ||
       identifier === this.nextPlayRequest?.identifier;
     if (affected) {
       void this.stop();
@@ -329,10 +355,10 @@ export class RelistenPlayer {
     }
 
     // Record the target before publishing its timing, so late events from the previous track are rejected.
-    this.nativePlayRequest = {
+    this.activePlayRequest = {
       identifier: track.identifier,
       version: playRequestVersion,
-      phase: NativePlayRequestPhase.WaitingToIssue,
+      phase: PlayRequestPhase.WaitingToIssue,
       failed: false,
     };
     this.optimisticallyUpdateCurrentTrack(track, seekToTime);
@@ -372,16 +398,16 @@ export class RelistenPlayer {
           shuffleState: this.queue.shuffleState,
           autoplay: true,
         };
-        logger.debug('Issuing native play request', {
+        logger.debug('Issuing play request', {
           identifier: track.identifier,
           playRequestVersion,
           queueLength: queueContext.orderedTracks.length,
           startIndex: queueContext.startIndex,
         });
-        this.nativePlayRequest = {
+        this.activePlayRequest = {
           identifier: track.identifier,
           version: playRequestVersion,
-          phase: NativePlayRequestPhase.Issued,
+          phase: PlayRequestPhase.Issued,
           failed: false,
         };
         // Even a stopped selection needs a new confirmation to prepare its successor.
@@ -394,12 +420,12 @@ export class RelistenPlayer {
       .then(() => {
         if (
           this.currentlyProcessingPlayRequest === request &&
-          this.nativePlayRequest?.version === playRequestVersion
+          this.activePlayRequest?.version === playRequestVersion
         ) {
-          this.nativePlayRequest.phase = NativePlayRequestPhase.AwaitingConfirmation;
+          this.activePlayRequest.phase = PlayRequestPhase.AwaitingConfirmation;
           if (
-            this.nativePlayRequest.failed ||
-            this.nativePlayRequest.identifier === currentTrackIdentifier.lastState()
+            this.activePlayRequest.failed ||
+            this.activePlayRequest.identifier === currentTrackIdentifier.lastState()
           ) {
             this.finishPlayRequest(request);
           }
@@ -534,7 +560,7 @@ export class RelistenPlayer {
   /** Publish the seek and report whether the active driver can apply it now. */
   private prepareSeek(elapsed: number, duration: number): boolean {
     const progress = { elapsed, duration, percent: duration > 0 ? elapsed / duration : 0 };
-    const pendingIdentifier = this.nativePlayRequest?.identifier;
+    const pendingIdentifier = this.activePlayRequest?.identifier;
     if (pendingIdentifier !== undefined) {
       const pendingIndex = this.queue.orderedTracks.findIndex(
         (track) => track.identifier === pendingIdentifier
@@ -672,8 +698,8 @@ ${indentString(this.queue.debugState(true))}
     // Keep the confirmed timing while buffering or displaying an unconfirmed request.
     if (
       this._stalledTimer !== undefined ||
-      (this.nativePlayRequest !== undefined &&
-        this.nativePlayRequest.identifier !== this._queue.currentTrack?.identifier)
+      (this.activePlayRequest !== undefined &&
+        this.activePlayRequest.identifier !== this._queue.currentTrack?.identifier)
     ) {
       return;
     }
@@ -708,7 +734,7 @@ ${indentString(this.queue.debugState(true))}
       return;
     }
 
-    if (track.identifier === this.nativePlayRequest?.identifier) {
+    if (track.identifier === this.activePlayRequest?.identifier) {
       // The queue confirmed the request, so the timing shown in the UI can now be saved.
       this.progress = sharedStateProgress.lastState();
     } else if (track.identifier !== this.confirmedTrackIdentifier) {
@@ -752,7 +778,7 @@ ${indentString(this.queue.debugState(true))}
       // An empty native player retains the selected queue entry for the next Play.
       this.nativeSequence = snapshot.sequence;
       this._queue.forgetPreparedNextTrack();
-      this.publishNativeState(snapshot.playbackState);
+      this.publishPlayState(snapshot.playbackState);
       this._queue.flushPlayerState();
     }
   };
@@ -772,7 +798,7 @@ ${indentString(this.queue.debugState(true))}
     }
 
     if (snapshot.sessionId !== this.nativeSessionId) {
-      const startsRequestedTrack = snapshot.identifier === this.nativePlayRequest?.identifier;
+      const startsRequestedTrack = snapshot.identifier === this.activePlayRequest?.identifier;
       if (this.nativeSessionId && !startsRequestedTrack) {
         return false;
       }
@@ -788,16 +814,16 @@ ${indentString(this.queue.debugState(true))}
 
   private applyNativeTrackSnapshot(snapshot: RelistenPlaybackSnapshot, track: PlayerQueueTrack) {
     const selectionChanged = track.identifier !== this._queue.currentTrack?.identifier;
-    const request = this.nativePlayRequest;
+    const request = this.activePlayRequest;
     const unexpectedTrack =
       selectionChanged && request !== undefined && track.identifier !== request.identifier;
 
     // Auto-advance during pause must not complete a Play that has not been issued yet.
-    if (unexpectedTrack && request.phase === NativePlayRequestPhase.WaitingToIssue) {
+    if (unexpectedTrack && request.phase === PlayRequestPhase.WaitingToIssue) {
       return;
     }
     if (unexpectedTrack) {
-      this.nativePlayRequest = undefined;
+      this.activePlayRequest = undefined;
       this.requestedTrackIdentifier = undefined;
     }
 
@@ -857,7 +883,7 @@ ${indentString(this.queue.debugState(true))}
     progress: PlaybackContextProgress,
     saveImmediately: boolean
   ) {
-    const request = this.nativePlayRequest;
+    const request = this.activePlayRequest;
     const previewingAnotherTrack =
       request !== undefined && request.identifier !== snapshot.identifier;
     const published = sharedStateProgress.lastState();
@@ -875,18 +901,15 @@ ${indentString(this.queue.debugState(true))}
     if (saveImmediately || elapsedSecondChanged || durationChanged || playbackStateChanged) {
       sharedStateProgress.setState(progress);
     }
-    this.publishNativeState(snapshot.playbackState);
+    this.publishPlayState(snapshot.playbackState);
   }
 
   /**
-   * A remote player's play state, published as a native report would be: it
-   * clears the stall timer, so buffering shown for a pending command ends.
+   * Publishes the play state the native player or a remote player reports.
+   * A report other than Stalled clears the stall timer, so buffering shown
+   * for a pending command ends.
    */
-  publishRemoteState(playbackState: RelistenPlaybackState) {
-    this.publishNativeState(playbackState);
-  }
-
-  private publishNativeState(playbackState: RelistenPlaybackState) {
+  publishPlayState(playbackState: RelistenPlaybackState) {
     // Native completion ends buffering even when SharedState deduplicates the state value.
     if (playbackState !== RelistenPlaybackState.Stalled) {
       this.clearStalledTimer();
@@ -919,16 +942,16 @@ ${indentString(this.queue.debugState(true))}
   private onCurrentTrackIdentifierChanged = (newIdentifier?: string) => {
     if (
       !newIdentifier ||
-      !this.nativePlayRequest ||
-      this.nativePlayRequest.phase === NativePlayRequestPhase.WaitingToIssue ||
-      newIdentifier !== this.nativePlayRequest.identifier
+      !this.activePlayRequest ||
+      this.activePlayRequest.phase === PlayRequestPhase.WaitingToIssue ||
+      newIdentifier !== this.activePlayRequest.identifier
     ) {
       return;
     }
 
     logger.debug('native track change completed active play request', {
       newIdentifier,
-      activeNativePlayRequestVersion: this.nativePlayRequest.version,
+      activePlayRequestVersion: this.activePlayRequest.version,
       playRequestVersion: this.playRequestVersion,
     });
 
@@ -977,14 +1000,14 @@ ${indentString(this.queue.debugState(true))}
     const request = this.currentlyProcessingPlayRequest;
     if (
       request &&
-      this.nativePlayRequest &&
-      this.nativePlayRequest.phase !== NativePlayRequestPhase.WaitingToIssue &&
-      this.nativePlayRequest.identifier === error.identifier
+      this.activePlayRequest &&
+      this.activePlayRequest.phase !== PlayRequestPhase.WaitingToIssue &&
+      this.activePlayRequest.identifier === error.identifier
     ) {
       // Occurrence IDs survive Stop/Resume. An error alone cannot acknowledge
       // a new command for the same occurrence; wait for that command's result.
-      this.nativePlayRequest.failed = true;
-      if (this.nativePlayRequest.phase === NativePlayRequestPhase.AwaitingConfirmation) {
+      this.activePlayRequest.failed = true;
+      if (this.activePlayRequest.phase === PlayRequestPhase.AwaitingConfirmation) {
         this.finishPlayRequest(request);
       }
     }

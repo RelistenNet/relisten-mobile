@@ -23,6 +23,13 @@ export interface PlaybackDriver {
    */
   readonly pausesBeforeSwitching: boolean;
   isActive(): boolean;
+  /**
+   * Starts the selected occurrence. The player keeps this play request open
+   * (`activePlayRequest`) until `currentTrackIdentifier` publishes the selected
+   * identifier, and queues any later selection behind it. The native player
+   * publishes it when the stream starts; a remote driver must publish it once
+   * the remote player has moved, or has refused, or the request never ends.
+   */
   play(streamable: RelistenStreamable, queueContext?: PlaybackQueueContext): Promise<void>;
   pause(): Promise<void>;
   resume(): Promise<void>;
@@ -30,6 +37,13 @@ export interface PlaybackDriver {
   seekTo(pct: number): Promise<void>;
   seekToTime(timeMs: number): Promise<void>;
   setNextStream(streamable?: RelistenStreamable): void;
+  /**
+   * Called before the queue removes the selected occurrence. A driver that
+   * can't remove it, as Sonos keeps every track through the playing one, may
+   * move on to the next instead and keep the occurrence; it returns true when
+   * it has. Otherwise the player stops and the occurrence is removed.
+   */
+  moveOnFromSelected?(identifier: string): boolean;
 }
 
 export class NativePlaybackDriver implements PlaybackDriver {

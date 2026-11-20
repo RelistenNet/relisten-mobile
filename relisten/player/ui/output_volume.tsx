@@ -6,7 +6,12 @@ import { useCastSession } from 'react-native-google-cast';
 import colors from 'tailwindcss/colors';
 import { useRelistenCastStatus } from '@/relisten/casting/cast_ui';
 import { RelistenBlue } from '@/relisten/relisten_blue';
-import { sonosRemote, type SonosRemoteState, useSonosRemote } from '@/relisten/sonos/sonos_remote';
+import {
+  sonosRoom,
+  sonosRoomName,
+  type SonosRoomState,
+  useSonosRoom,
+} from '@/relisten/sonos/sonos_room_store';
 import { hasSystemVolumeSlider, SystemVolumeSlider } from './system_volume_slider';
 
 const ICON_COLOR = 'rgba(255, 255, 255, 0.62)';
@@ -17,7 +22,7 @@ const ICON_COLOR = 'rgba(255, 255, 255, 0.62)';
  * every output, so the list below it never moves.
  */
 export function OutputVolumeRow() {
-  const sonos = useSonosRemote();
+  const sonos = useSonosRoom();
   const { isCasting } = useRelistenCastStatus();
 
   if (sonos.kind !== 'none') {
@@ -86,9 +91,9 @@ function VolumeSlider({
  * only the final slider value is sent. The store shows the group's last
  * known level until the room answers; a fixed-volume group can't change.
  */
-function SonosVolume({ remote }: { remote: Exclude<SonosRemoteState, { kind: 'none' }> }) {
+function SonosVolume({ remote }: { remote: Exclude<SonosRoomState, { kind: 'none' }> }) {
   const volume = remote.kind === 'active' ? remote.volume : undefined;
-  const roomName = remote.kind === 'active' ? remote.playback.groupName : remote.groupName;
+  const roomName = sonosRoomName(remote);
 
   if (!volume) {
     return <VolumeRow />;
@@ -104,7 +109,7 @@ function SonosVolume({ remote }: { remote: Exclude<SonosRemoteState, { kind: 'no
           accessibilityState={{ disabled: fixed }}
           disabled={fixed}
           className="h-11 w-11 items-center justify-center"
-          onPress={() => void sonosRemote.setVolume({ muted: !muted })}
+          onPress={() => void sonosRoom.setVolume({ muted: !muted })}
         >
           <MaterialIcons name={muted ? 'volume-off' : 'volume-down'} size={20} color={ICON_COLOR} />
         </TouchableOpacity>
@@ -116,7 +121,7 @@ function SonosVolume({ remote }: { remote: Exclude<SonosRemoteState, { kind: 'no
           maximumValue={100}
           dimmed={muted}
           disabled={fixed}
-          onChange={(value) => void sonosRemote.setVolume({ volume: value })}
+          onChange={(value) => void sonosRoom.setVolume({ volume: value })}
         />
       }
     />

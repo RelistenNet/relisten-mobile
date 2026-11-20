@@ -20,7 +20,8 @@ import { useRelistenCastStatus, useShouldRenderCastButton } from '@/relisten/cas
 import { OutputVolumeRow } from '@/relisten/player/ui/output_volume';
 import { usePlayerOutputRoute } from '@/relisten/player/ui/player_output_route';
 import { groupSonosHouseholds, type SonosGroup } from '@/relisten/sonos/sonos_api';
-import { useSonosRemote } from '@/relisten/sonos/sonos_remote';
+import { HANDOFF_UNCONFIRMED_MESSAGE } from '@/relisten/sonos/sonos_handoff';
+import { useSonosRoom } from '@/relisten/sonos/sonos_room_store';
 import { sonosSession } from '@/relisten/sonos/sonos_session';
 import { type SonosHandoffState, useSonosOutput } from '@/relisten/sonos/use_sonos_output';
 
@@ -60,7 +61,7 @@ export default function PlayOnSheet() {
 function ThisPhoneRow() {
   const router = useRouter();
   const outputRoute = usePlayerOutputRoute();
-  const sonosPlaying = useSonosRemote().kind === 'active';
+  const sonosPlaying = useSonosRoom().kind === 'active';
   const here = !outputRoute;
   return (
     <OutputRow
@@ -168,7 +169,7 @@ function SonosHouseholds({
   hasQueue: boolean;
   playOn: (group: SonosGroup) => Promise<void>;
 }) {
-  const remote = useSonosRemote();
+  const remote = useSonosRoom();
   const activeGroupId = remote.kind === 'active' ? remote.playback.groupId : undefined;
 
   return groupSonosHouseholds(groups).map((rooms, index) => (
@@ -236,7 +237,7 @@ function roomStatus(
   if (handoff?.phase === 'done' && handoff.outcome.kind !== 'playing') {
     return handoff.outcome.kind === 'refused'
       ? { text: handoff.outcome.message, tone: 'error' }
-      : { text: 'Sonos didn’t confirm. Check the room before trying again.', tone: 'error' };
+      : { text: HANDOFF_UNCONFIRMED_MESSAGE, tone: 'error' };
   }
   if (active || handoff?.phase === 'done') {
     return {

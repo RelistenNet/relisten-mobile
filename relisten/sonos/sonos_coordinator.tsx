@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import {
@@ -10,8 +10,9 @@ import { useRelistenApi } from '@/relisten/api/context';
 import { RelistenPlayer } from '@/relisten/player/relisten_player';
 import { isRemotePlayback } from '@/relisten/player/shared_state';
 import { useRealm } from '@/relisten/realm/schema';
+import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { queueTracksForRoom } from './sonos_queue_tracks';
-import { sonosRemote, useSonosRemote } from './sonos_remote';
+import { sonosRoom, useSonosRoomName } from './sonos_room_store';
 import { sonosSession } from './sonos_session';
 
 const POLL_INTERVAL_MS = 4000;
@@ -20,23 +21,30 @@ const POLL_INTERVAL_MS = 4000;
 const canRestoreRoom = () =>
   !isRemotePlayback() && RelistenPlayer.DEFAULT_INSTANCE.state !== RelistenPlaybackState.Playing;
 
+/** The handle of the room that has been read; a new one means its volume should be read. */
+const playingHandle = () => {
+  const room = sonosRoom.getState();
+  return room.kind === 'active' ? room.playback.handle : undefined;
+};
+
 /**
  * Keeps Sonos playback in step with the account and the room. Signed in, it
  * restores the room this device was playing on at launch and re-reads it
  * whenever the app returns, and re-reads it every few seconds while a room
  * plays and the app is in front. It reads a newly playing room's volume
- * straight away, so Play On shows it on opening. Signing out ends remote control.
+ * straight away, so Play On shows it on opening. Signing out ends remote
+ * control. In offline mode, or without a network, it reads nothing.
  */
-export function SonosRemoteCoordinator() {
+export function SonosCoordinator() {
   const scope = useAccountScope();
   const scopeSource = useAccountScopeSource();
   const api = useAccountsApiClient();
   const realm = useRealm();
   const { apiClient: catalogApi } = useRelistenApi();
   const signedIn = scope.isAuthenticated;
-  const remote = useSonosRemote();
-  const active = remote.kind !== 'none';
-  const playingHandle = remote.kind === 'active' ? remote.playback.handle : undefined;
+  const online = useShouldMakeNetworkRequests();
+  const active = useSonosRoomName() !== undefined;
+  const handle = useSyncExternalStore(sonosRoom.subscribe, playingHandle, playingHandle);
 
   useEffect(
     () =>
@@ -47,40 +55,46 @@ export function SonosRemoteCoordinator() {
   );
 
   useEffect(() => {
-    sonosRemote.bind(
+    sonosRoom.bind(
       signedIn ? api : undefined,
       () => scopeSource.isCurrent(scope),
       scope.userId ?? undefined
     );
-    if (!signedIn) {
-      return;
-    }
-    void sonosRemote.discover(canRestoreRoom);
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') {
-        void sonosRemote.discover(canRestoreRoom);
-      }
-    });
-    return () => subscription.remove();
   }, [api, scope, scopeSource, signedIn]);
 
   useEffect(() => {
-    if (!active) {
+    if (!signedIn || !online) {
+      return;
+    }
+    void sonosRoom.discover(canRestoreRoom);
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void sonosRoom.discover(canRestoreRoom);
+      }
+    });
+    return () => subscription.remove();
+    // Every change of the account scope tries again: on a cold launch the first
+    // try runs before the account's token is ready and fails, and a new
+    // account restores its own room.
+  }, [api, online, scope, signedIn]);
+
+  useEffect(() => {
+    if (!active || !online) {
       return;
     }
     const timer = setInterval(() => {
       if (AppState.currentState === 'active') {
-        void sonosRemote.refresh();
+        void sonosRoom.refresh();
       }
     }, POLL_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, [active]);
+  }, [active, online]);
 
   useEffect(() => {
-    if (playingHandle) {
-      void sonosRemote.refreshVolume();
+    if (handle && online) {
+      void sonosRoom.refreshVolume();
     }
-  }, [playingHandle]);
+  }, [handle, online]);
 
   return null;
 }

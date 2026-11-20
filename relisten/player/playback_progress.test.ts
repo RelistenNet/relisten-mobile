@@ -51,7 +51,14 @@ import { RelistenPlaybackErrorKind, RelistenPlaybackState } from '@/modules/reli
 import { RelistenPlayer } from './relisten_player';
 import { PlayerQueueTrack, PlayerShuffleState } from './relisten_player_queue';
 import type { PlayerStateProps } from '@/relisten/realm/models/player_state';
-import { currentTrackIdentifier, latestError, progress, state } from './shared_state';
+import {
+  currentTrackIdentifier,
+  latestError,
+  PlaybackSource,
+  playbackSource,
+  progress,
+  state,
+} from './shared_state';
 import type { SourceTrack } from '@/relisten/realm/models/source_track';
 import type Realm from 'realm';
 import { PlayerRepeatState } from './player_modes';
@@ -525,6 +532,29 @@ describe('progress publication and listening history', () => {
     scenario.emit({ elapsed: 200, duration: 381 });
     expect(report).toHaveBeenCalledTimes(1);
     expect(report.mock.calls[0][0].playerQueueTrack).toBe(minglewood);
+  });
+
+  describe('while a Sonos room plays the queue', () => {
+    beforeEach(() => playbackSource.setState(PlaybackSource.Sonos));
+    afterEach(() => playbackSource.setState(PlaybackSource.Native));
+
+    it('doesn’t count the room’s progress as a play on this phone', () => {
+      const report = vi.fn();
+      player.onShouldReportTrack.addListener(report);
+
+      progress.setState({ elapsed: 200, duration: 381, percent: 200 / 381 });
+
+      expect(report).not.toHaveBeenCalled();
+    });
+
+    it('ignores the phone’s own player, which isn’t playing', () => {
+      state.setState(RelistenPlaybackState.Playing);
+
+      scenario.emit({ playbackState: RelistenPlaybackState.Paused, elapsed: 5, duration: 381 });
+
+      expect(state.lastState()).toBe(RelistenPlaybackState.Playing);
+      expect(progress.lastState()?.elapsed).not.toBe(5);
+    });
   });
 });
 
