@@ -93,9 +93,9 @@ export class PlayerQueueTrack {
     const source = sourceTrack.source;
     const venue = sourceTrack.show.venue;
 
-    const [year, month, day] = source.displayDate.split('-');
-
-    const albumArtUrl = `https://sonos.relisten.net/album-art/${artist?.slug}/years/${year}/${year}-${month}-${day}/${source.uuid}/550.png`;
+    // The show's artwork, the same URL the User Service gives a Sonos room,
+    // so the phone, the lock screen, Cast and Sonos all show the same image.
+    const albumArtUrl = `https://relisten.net/album-art/${sourceTrack.show.uuid}.png`;
 
     const track = new PlayerQueueTrack(
       sourceTrack,
