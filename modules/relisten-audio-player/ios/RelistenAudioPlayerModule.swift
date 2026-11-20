@@ -109,6 +109,12 @@ public class RelistenAudioPlayerModule: Module {
             }
         }
 
+        View(RelistenSystemVolumeView.self) {
+            Prop("tint") { (view: RelistenSystemVolumeView, tint: UIColor?) in
+                view.tint = tint
+            }
+        }
+
         Function("currentDuration") {
             return player?.currentDurationSnapshot
         }

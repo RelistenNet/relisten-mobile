@@ -24,7 +24,8 @@ const canRestoreRoom = () =>
  * Keeps Sonos playback in step with the account and the room. Signed in, it
  * restores the room this device was playing on at launch and re-reads it
  * whenever the app returns, and re-reads it every few seconds while a room
- * plays and the app is in front. Signing out ends remote control.
+ * plays and the app is in front. It reads a newly playing room's volume
+ * straight away, so Play On shows it on opening. Signing out ends remote control.
  */
 export function SonosRemoteCoordinator() {
   const scope = useAccountScope();
@@ -33,7 +34,9 @@ export function SonosRemoteCoordinator() {
   const realm = useRealm();
   const { apiClient: catalogApi } = useRelistenApi();
   const signedIn = scope.isAuthenticated;
-  const active = useSonosRemote().kind !== 'none';
+  const remote = useSonosRemote();
+  const active = remote.kind !== 'none';
+  const playingHandle = remote.kind === 'active' ? remote.playback.handle : undefined;
 
   useEffect(
     () =>
@@ -72,6 +75,12 @@ export function SonosRemoteCoordinator() {
     }, POLL_INTERVAL_MS);
     return () => clearInterval(timer);
   }, [active]);
+
+  useEffect(() => {
+    if (playingHandle) {
+      void sonosRemote.refreshVolume();
+    }
+  }, [playingHandle]);
 
   return null;
 }

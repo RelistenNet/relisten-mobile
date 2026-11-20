@@ -17,10 +17,10 @@ import { SectionHeader } from '@/relisten/components/section_header';
 import { ItemSeparator } from '@/relisten/components/item_separator';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useRelistenCastStatus, useShouldRenderCastButton } from '@/relisten/casting/cast_ui';
+import { OutputVolumeRow } from '@/relisten/player/ui/output_volume';
 import { usePlayerOutputRoute } from '@/relisten/player/ui/player_output_route';
 import { groupSonosHouseholds, type SonosGroup } from '@/relisten/sonos/sonos_api';
 import { useSonosRemote } from '@/relisten/sonos/sonos_remote';
-import { SonosVolumeControl } from '@/relisten/sonos/ui/sonos_volume_control';
 import { sonosSession } from '@/relisten/sonos/sonos_session';
 import { type SonosHandoffState, useSonosOutput } from '@/relisten/sonos/use_sonos_output';
 
@@ -44,6 +44,7 @@ export default function PlayOnSheet() {
         style={{ flex: 1, backgroundColor: RelistenBlue[900] }}
         contentContainerStyle={{ paddingTop: Platform.OS === 'ios' ? headerHeight : 0 }}
       >
+        <OutputVolumeRow />
         <ThisPhoneRow />
         <SonosSection />
         <OtherDevicesSection />
@@ -193,8 +194,8 @@ function SonosHouseholds({
 
 /**
  * A room. Tapping it moves the queue there; the row then shows the handoff
- * until it settles. The room playing this device's queue is checked and holds
- * the volume, and tapping it again would only restart the queue, so it is inert.
+ * until it settles. The room playing this device's queue is checked, and
+ * tapping it again would only restart the queue, so it is inert.
  */
 function SonosRoomRow({
   group,
@@ -213,21 +214,14 @@ function SonosRoomRow({
 }) {
   const status = roomStatus(handoff, hasQueue, active);
   return (
-    <View>
-      <OutputRow
-        icon={<MaterialCommunityIcons name="speaker" size={22} color={ICON_COLOR} />}
-        title={group.name}
-        subtitle={status.text}
-        subtitleTone={status.tone}
-        trailing={status.trailing}
-        onPress={hasQueue && !busy && !active ? onPress : undefined}
-      />
-      {active && (
-        <View className="pb-2 pl-11 pr-4">
-          <SonosVolumeControl />
-        </View>
-      )}
-    </View>
+    <OutputRow
+      icon={<MaterialCommunityIcons name="speaker" size={22} color={ICON_COLOR} />}
+      title={group.name}
+      subtitle={status.text}
+      subtitleTone={status.tone}
+      trailing={status.trailing}
+      onPress={hasQueue && !busy && !active ? onPress : undefined}
+    />
   );
 }
 

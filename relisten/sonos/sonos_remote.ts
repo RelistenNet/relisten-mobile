@@ -33,7 +33,7 @@ import {
  *   couldn't confirm its current item; controls wait.
  * - `active`: the last room state read, plus a command waiting for the room
  *   to show it (`pending`) or one that didn't take (`commandError`), and the
- *   group's volume once the controls have read it.
+ *   group's volume: the last level read for that group until the room answers.
  */
 export type SonosRemoteState =
   | { kind: 'none'; endedRoom?: string }
@@ -98,6 +98,8 @@ const asyncStorageRoomMemory: SonosRoomMemory = {
 export class SonosRemoteStore {
   private isCurrentScope = currentScope;
   private state: SonosRemoteState = { kind: 'none' };
+  /** Each group's last volume this run, shown while the room is read again. */
+  private readonly volumes = new Map<string, SonosVolume>();
   private readonly listeners = new Set<Listener>();
   private api: AuthorizedAccountsApiClient | undefined;
   private account: string | undefined;
@@ -373,7 +375,7 @@ export class SonosRemoteStore {
       const volume = await fetchSonosVolume(api, handle);
       const current = this.state;
       if (api === this.api && current.kind === 'active' && current.playback.handle === handle) {
-        this.set({ ...current, volume });
+        this.showVolume(current, volume);
       }
     } catch {
       // The controls keep the last volume they read.
@@ -398,7 +400,7 @@ export class SonosRemoteStore {
         ? { action: 'volume', command_id: randomUUID(), volume: Math.round(change.volume) }
         : { action: 'mute', command_id: randomUUID(), muted: change.muted };
     if (current.volume) {
-      this.set({ ...current, volume: { ...current.volume, ...change } });
+      this.showVolume(current, { ...current.volume, ...change });
     }
 
     const sendError = await this.send(api, handle, body, isCurrent);
@@ -476,11 +478,14 @@ export class SonosRemoteStore {
       });
       return;
     }
-    const volume =
-      current.kind === 'active' && current.playback.handle === playback.handle
-        ? current.volume
-        : undefined;
+    const sameRoom = current.kind === 'active' && current.playback.handle === playback.handle;
+    const volume = sameRoom ? current.volume : this.volumes.get(playback.groupId);
     this.set({ kind: 'active', playback, pending, volume });
+  }
+
+  private showVolume(current: Extract<SonosRemoteState, { kind: 'active' }>, volume: SonosVolume) {
+    this.volumes.set(current.playback.groupId, volume);
+    this.set({ ...current, volume });
   }
 
   /** The handle no longer plays this device's queue; the device forgets the room. */

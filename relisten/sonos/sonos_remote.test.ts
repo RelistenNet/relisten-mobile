@@ -389,4 +389,26 @@ describe('SonosRemoteStore', () => {
     const state = remote.getState();
     expect(state.kind === 'active' && state.volume?.volume).toBe(45);
   });
+
+  it('shows a group’s last volume when a new handle plays on it', async () => {
+    const { api, remote } = store();
+    api.request
+      .mockResolvedValueOnce(playback('h1'))
+      .mockResolvedValueOnce({ volume: 30, muted: true, fixed: false })
+      .mockResolvedValueOnce(playback('h2'));
+
+    remote.adopt('h1', 'Office');
+    await flush();
+    await remote.refreshVolume();
+    remote.adopt('h2', 'Office');
+    await flush();
+
+    const state = remote.getState();
+    expect(state.kind === 'active' && state.playback.handle).toBe('h2');
+    expect(state.kind === 'active' && state.volume).toEqual({
+      volume: 30,
+      muted: true,
+      fixed: false,
+    });
+  });
 });

@@ -10,8 +10,10 @@ type NativeSpectrumViewProps = ViewProps & {
   color: string;
 };
 
-const NativeSpectrumView: ComponentType<NativeSpectrumViewProps> =
-  requireNativeViewManager('RelistenAudioPlayer');
+const NativeSpectrumView: ComponentType<NativeSpectrumViewProps> = requireNativeViewManager(
+  'RelistenAudioPlayer',
+  'RelistenAudioSpectrumView'
+);
 
 export function PlayerAudioVisualizer({
   active = true,
