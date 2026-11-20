@@ -18,7 +18,7 @@ import { ItemSeparator } from '@/relisten/components/item_separator';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useRelistenCastStatus, useShouldRenderCastButton } from '@/relisten/casting/cast_ui';
 import { usePlayerOutputRoute } from '@/relisten/player/ui/player_output_route';
-import type { SonosGroup } from '@/relisten/sonos/sonos_api';
+import { groupSonosHouseholds, type SonosGroup } from '@/relisten/sonos/sonos_api';
 import { type SonosHandoffState, useSonosOutput } from '@/relisten/sonos/use_sonos_output';
 
 const ICON_COLOR = 'rgba(255, 255, 255, 0.78)';
@@ -145,34 +145,24 @@ function SonosHouseholds({
   hasQueue: boolean;
   playOn: (group: SonosGroup) => Promise<void>;
 }) {
-  const households = new Map<string, SonosGroup[]>();
-  for (const group of groups) {
-    const rooms = households.get(group.householdId);
-    if (rooms) {
-      rooms.push(group);
-    } else {
-      households.set(group.householdId, [group]);
-    }
-  }
-
-  return [...households]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([id, rooms], index) => (
-      <View key={id} className={index > 0 ? 'mt-3' : undefined}>
-        {rooms.map((group, roomIndex) => (
-          <View key={group.id}>
-            {roomIndex > 0 && <ItemSeparator />}
-            <SonosRoomRow
-              group={group}
-              handoff={handoff?.groupId === group.id ? handoff : undefined}
-              busy={handoff?.phase === 'connecting'}
-              hasQueue={hasQueue}
-              onPress={() => void playOn(group)}
-            />
-          </View>
-        ))}
-      </View>
-    ));
+  return groupSonosHouseholds(groups).map((rooms, index) => (
+    <View key={rooms[0].householdId}>
+      {/* Sonos doesn't name households, so a band sets each home's rooms apart. */}
+      {index > 0 && <View className="h-3 bg-relisten-blue-800" />}
+      {rooms.map((group, roomIndex) => (
+        <View key={group.id}>
+          {roomIndex > 0 && <ItemSeparator />}
+          <SonosRoomRow
+            group={group}
+            handoff={handoff?.groupId === group.id ? handoff : undefined}
+            busy={handoff?.phase === 'connecting'}
+            hasQueue={hasQueue}
+            onPress={() => void playOn(group)}
+          />
+        </View>
+      ))}
+    </View>
+  ));
 }
 
 /**

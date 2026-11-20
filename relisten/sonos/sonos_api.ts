@@ -83,6 +83,25 @@ export async function beginSonosConnect(api: AuthorizedAccountsApiClient): Promi
   return body.authorization_url;
 }
 
+/**
+ * Rooms split by Sonos household, for listing each home on its own. Sonos
+ * doesn't name households, so a household is placed by its first room's name
+ * (rooms arrive sorted by name), which keeps the order stable between reads.
+ */
+export function groupSonosHouseholds(groups: readonly SonosGroup[]): SonosGroup[][] {
+  const households = new Map<string, SonosGroup[]>();
+  for (const group of groups) {
+    const rooms = households.get(group.householdId);
+    if (rooms) {
+      rooms.push(group);
+    } else {
+      households.set(group.householdId, [group]);
+    }
+  }
+
+  return [...households.values()].sort((left, right) => left[0].name.localeCompare(right[0].name));
+}
+
 export async function fetchSonosGroups(api: AuthorizedAccountsApiClient): Promise<SonosGroup[]> {
   const body = await api.request<unknown>(`${BASE}/groups`);
   if (!Array.isArray(body)) {
