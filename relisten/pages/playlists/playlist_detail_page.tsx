@@ -201,16 +201,25 @@ export default function PlaylistDetailPage() {
               Show Downloaded Only
             </Stack.Toolbar.MenuAction>
           </Stack.Toolbar.Menu>
-          {playlist.published && (
-            <Stack.Toolbar.Menu inline>
+          <Stack.Toolbar.Menu inline>
+            <Stack.Toolbar.MenuAction
+              icon={nativeMenuIcons.share}
+              onPress={() => shareActions.share(playlistId)}
+            >
+              Share…
+            </Stack.Toolbar.MenuAction>
+            <Stack.Toolbar.MenuAction icon={nativeMenuIcons.copy} onPress={makeCopy}>
+              Make a Copy
+            </Stack.Toolbar.MenuAction>
+            {playlist.published && (
               <Stack.Toolbar.MenuAction
                 icon={nativeMenuIcons.lock}
                 onPress={() => shareActions.makePrivate(playlistId)}
               >
                 Make Private
               </Stack.Toolbar.MenuAction>
-            </Stack.Toolbar.Menu>
-          )}
+            )}
+          </Stack.Toolbar.Menu>
           <Stack.Toolbar.Menu inline>
             <Stack.Toolbar.MenuAction
               destructive
