@@ -159,8 +159,10 @@ function PlaylistRowFrame({
   linkPlaying: boolean;
   children: ReactNode;
 }) {
-  // A bare row's right padding equals a card's margin plus its padding
-  // (mx-2.5 + pr-1), so durations and ••• buttons line up in one column.
+  // A card's margin plus its padding equals a bare row's padding on each side
+  // (6 + 10 = 16 on the left, 6 + 8 = 14 on the right), so text, durations
+  // and ••• buttons sit in the same place on every row; the card's fill just
+  // reaches past them.
   if (!link) {
     return <View className="pl-4 pr-3.5">{children}</View>;
   }
@@ -168,7 +170,7 @@ function PlaylistRowFrame({
   const opensCard = link === 'first' || link === 'only';
   return (
     <View
-      className={tw('mx-2.5 pl-3 pr-1', {
+      className={tw('mx-1.5 pl-2.5 pr-2', {
         'mt-1 rounded-t-xl': opensCard,
         'mb-1 rounded-b-xl': closesCard(link),
       })}
