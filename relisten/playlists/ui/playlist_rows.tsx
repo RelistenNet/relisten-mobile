@@ -1,6 +1,6 @@
 import { TrackDuration } from '@/relisten/components/track_duration';
 import { Ionicons } from '@expo/vector-icons';
-import { memo } from 'react';
+import { memo, type ReactNode } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import { OverflowMenuTrigger } from '@/relisten/components/menus/overflow_menu_trigger';
@@ -17,7 +17,6 @@ import type {
 import { trackTitle } from '@/relisten/playlists/playlist_format';
 import type { LinkPosition } from '@/relisten/playlists/playlist_drag_slots';
 import { TrackMenu } from '@/relisten/playlists/ui/playlist_menus';
-import { LinkRail } from '@/relisten/playlists/ui/link_rail';
 import { isQueueable } from '@/relisten/playlists/playlist_playback';
 import { tw } from '@/relisten/util/tw';
 import { GuideMarkdown } from '@/relisten/playlists/guide/guide_markdown_view';
@@ -70,8 +69,8 @@ function StatusLine({ row, online }: { row: PlaylistRowEntry; online: boolean })
 
 /**
  * One row of the playlist view: a group's description (its intro, above its
- * entries), or an entry (a track or a text block) and whether it is linked to
- * its neighbors. A group with only a description is just its intro row.
+ * entries), or an entry (a track or a text block) and where it sits in its
+ * group's card. A group with only a description is just its intro row.
  */
 export type PlaylistViewRow =
   | {
@@ -92,8 +91,9 @@ export type PlaylistViewRow =
 export function playlistViewRows(groups: PlaylistRowGroup[]): PlaylistViewRow[] {
   const rows: PlaylistViewRow[] = [];
   for (const group of groups) {
-    // An intro belongs to its tracks, so it starts their rail. A rail needs
-    // something to join: the intro and at least one entry, or several entries.
+    // An intro belongs to its tracks, so it opens their card. A card needs
+    // something to hold together: the intro and at least one entry, or
+    // several entries. Everything else is drawn bare.
     const hasIntro = !!group.descriptionMarkdown;
     const count = group.entries.length + (hasIntro ? 1 : 0);
     const linkAt = (index: number): LinkPosition | undefined =>
@@ -127,17 +127,66 @@ export function playlistViewRows(groups: PlaylistRowGroup[]): PlaylistViewRow[] 
   return rows;
 }
 
+/** Separates rows that stand apart: lone tracks, and the rows inside a card. */
+const HAIRLINE = 'border-b border-white/10';
+
 /**
- * Vertical padding shared by guide text rows (intros, text blocks and track
- * notes). The renderer drops the last block's bottom margin, so the row's own
+ * Text standing on its own between tracks gets a little more room than a
+ * track row. The renderer drops the last block's bottom margin, so this
  * padding sets the space below, whether the text ends in a paragraph or a list.
  */
-const GUIDE_ROW_PADDING = 'py-3';
+const PROSE_PADDING = 'py-4';
+
+/** A card's fill, and a slightly brighter one while a track in its run plays. */
+const CARD_BACKGROUND = 'rgba(255,255,255,0.055)';
+const CARD_BACKGROUND_PLAYING = 'rgba(255,255,255,0.09)';
+
+/** The last row of a card has the card's edge below it instead of a hairline. */
+function closesCard(link: LinkPosition | undefined) {
+  return link === 'last' || link === 'only';
+}
+
+/**
+ * Where a reading-view row draws. Rows in a linked run or under an intro
+ * (`link` set) are slices of one card: the list renders a row per item, so
+ * each slice paints the card's fill and side margins itself, the first one
+ * rounds the top corners and the last the bottom, and the gaps they add
+ * keep neighboring cards apart. Rows without a link are drawn bare.
+ */
+function PlaylistRowFrame({
+  link,
+  linkPlaying,
+  children,
+}: {
+  link: LinkPosition | undefined;
+  linkPlaying: boolean;
+  children: ReactNode;
+}) {
+  if (!link) {
+    return <View className="pl-4 pr-2">{children}</View>;
+  }
+
+  const opensCard = link === 'first' || link === 'only';
+  return (
+    <View
+      className={tw('mx-2.5 pl-3 pr-1', {
+        'mt-1.5 rounded-t-xl': opensCard,
+        'mb-1.5 rounded-b-xl': closesCard(link),
+      })}
+      style={{ backgroundColor: linkPlaying ? CARD_BACKGROUND_PLAYING : CARD_BACKGROUND }}
+    >
+      {children}
+    </View>
+  );
+}
 
 /** Handles a tapped timestamp link: which entry (defaulting to the note's own track) and when. */
 export type TimestampHandler = (entryId: string, seconds: number) => void;
 
-/** A group's intro, above its entries. Edited from the menu or in edit mode. */
+/**
+ * A group's intro. With tracks under it, it opens their card; a group that is
+ * only a description is bare prose. Edited from the menu or in edit mode.
+ */
 export const PlaylistIntroRow = memo(function PlaylistIntroRow({
   viewRow,
   linkPlaying,
@@ -147,23 +196,26 @@ export const PlaylistIntroRow = memo(function PlaylistIntroRow({
   linkPlaying: boolean;
   onTimestamp: TimestampHandler;
 }) {
+  const inCard = viewRow.link !== undefined;
   return (
-    <View className="pl-4 pr-2">
-      <LinkRail link={viewRow.link} active={linkPlaying} />
-      <View className={tw('border-b border-white/10 pr-2', GUIDE_ROW_PADDING)}>
+    <PlaylistRowFrame link={viewRow.link} linkPlaying={linkPlaying}>
+      {/* In a card, the intro leads straight into its first track, without a hairline. */}
+      <View className={tw('pr-2', inCard ? 'pb-1 pt-3' : PROSE_PADDING)}>
         <GuideMarkdown
           markdown={viewRow.markdown}
+          variant={inCard ? 'card' : 'prose'}
           // Sanitizing turns entry-less timestamps outside a track's note into text.
           onTimestamp={(entryId, seconds) => entryId && onTimestamp(entryId, seconds)}
         />
       </View>
-    </View>
+    </PlaylistRowFrame>
   );
 });
 
 /**
- * A text block between tracks. It has the same menu as a track, minus
- * playback, so a playlist the listener can't edit shows no menu.
+ * A text block between tracks: bare prose, or part of the card when it sits
+ * in a linked run. It has the same menu as a track, minus playback, so a
+ * playlist the listener can't edit shows no menu.
  */
 export const PlaylistTextRow = memo(function PlaylistTextRow({
   playlistId,
@@ -181,13 +233,18 @@ export const PlaylistTextRow = memo(function PlaylistTextRow({
   onTimestamp: TimestampHandler;
 }) {
   const { row, link } = viewRow;
+  const inCard = link !== undefined;
   return (
-    <View className="pl-4 pr-2">
-      <LinkRail link={link} active={linkPlaying} />
-      <View className="min-h-[52px] flex-row items-start border-b border-white/10">
-        <View className={tw('min-w-0 flex-1', GUIDE_ROW_PADDING)}>
+    <PlaylistRowFrame link={link} linkPlaying={linkPlaying}>
+      <View
+        className={tw('min-h-[52px] flex-row items-start', {
+          [HAIRLINE]: inCard && !closesCard(link),
+        })}
+      >
+        <View className={tw('min-w-0 flex-1', inCard ? 'py-3' : PROSE_PADDING)}>
           <GuideMarkdown
             markdown={row.descriptionMarkdown ?? ''}
+            variant={inCard ? 'card' : 'prose'}
             onTimestamp={(entryId, seconds) => entryId && onTimestamp(entryId, seconds)}
           />
         </View>
@@ -197,7 +254,7 @@ export const PlaylistTextRow = memo(function PlaylistTextRow({
           </TrackMenu>
         )}
       </View>
-    </View>
+    </PlaylistRowFrame>
   );
 });
 
@@ -226,7 +283,7 @@ export const PlaylistTrackRow = memo(function PlaylistTrackRow({
   online: boolean;
   /** This entry is the one playing. */
   isCurrent: boolean;
-  /** True when a track in this row's linked run is playing; the rail lights up. */
+  /** True when a track in this row's card is playing; the card brightens. */
   linkPlaying: boolean;
   onPlay: (entryId: string) => void;
   onTimestamp: TimestampHandler;
@@ -236,15 +293,14 @@ export const PlaylistTrackRow = memo(function PlaylistTrackRow({
   const canPlay = isQueueable(row, online);
   const title = row.sourceTrack ? row.sourceTrack.title : 'Track';
   const subtitle = showLine(row);
+  // A track and its note read as one unit, so the hairline goes below the note.
+  const hairlineBelow = !closesCard(link);
 
   return (
-    <View className="pl-4 pr-2">
-      <LinkRail link={link} active={linkPlaying} />
-      {/* Every row, the last included, ends in a hairline, so a link's rail sits evenly
-          between lines. A track with a note ends below the note instead. */}
+    <PlaylistRowFrame link={link} linkPlaying={linkPlaying}>
       <View
         className={tw('min-h-[52px] flex-row items-center', {
-          'border-b border-white/10': !row.descriptionMarkdown,
+          [HAIRLINE]: hairlineBelow && !row.descriptionMarkdown,
         })}
       >
         <TouchableOpacity
@@ -305,14 +361,24 @@ export const PlaylistTrackRow = memo(function PlaylistTrackRow({
       </View>
       {row.descriptionMarkdown && (
         // The note sits under the track, outside its play button, so its links stay tappable.
-        <View className="border-b border-white/10 pb-3 pr-2">
-          <GuideMarkdown
-            markdown={row.descriptionMarkdown}
-            secondary
-            onTimestamp={(entryId, seconds) => onTimestamp(entryId ?? row.entry.entryId, seconds)}
-          />
+        <View className={tw('flex-row pb-3 pl-1 pr-2', { [HAIRLINE]: hairlineBelow })}>
+          <RelistenText
+            className="mr-1.5 text-sm text-gray-400"
+            selectable={false}
+            accessibilityElementsHidden
+            importantForAccessibility="no"
+          >
+            ↳
+          </RelistenText>
+          <View className="min-w-0 flex-1">
+            <GuideMarkdown
+              markdown={row.descriptionMarkdown}
+              variant="note"
+              onTimestamp={(entryId, seconds) => onTimestamp(entryId ?? row.entry.entryId, seconds)}
+            />
+          </View>
         </View>
       )}
-    </View>
+    </PlaylistRowFrame>
   );
 });

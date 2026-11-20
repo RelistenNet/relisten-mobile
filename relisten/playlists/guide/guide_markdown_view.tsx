@@ -16,16 +16,15 @@ import { guideLinkAction } from './guide_links';
 export function GuideMarkdown({
   markdown,
   onTimestamp,
-  secondary = false,
+  variant = 'prose',
 }: {
   markdown: string;
   /** A timestamp link was tapped. `entryId` is absent for a track's own `#t=` link. */
   onTimestamp: (entryId: string | undefined, seconds: number) => void;
-  /** Quieter text, for a track's note under its title. */
-  secondary?: boolean;
+  variant?: GuideTextVariant;
 }) {
   const { fontScale } = useWindowDimensions();
-  const markdownStyle = useMemo(() => guideStyle(fontScale, secondary), [fontScale, secondary]);
+  const markdownStyle = useMemo(() => guideStyle(fontScale, variant), [fontScale, variant]);
 
   return (
     <EnrichedMarkdownText
@@ -52,13 +51,28 @@ export function GuideMarkdown({
 const GUIDE_MD4C_FLAGS = { hardSoftBreaks: true, admonitions: false, latexMath: false };
 
 /**
+ * How loud guide text is, by where it sits:
+ * - `prose`: text standing on its own between tracks, read like an article.
+ * - `card`: text inside a group's card, such as its intro, which sets up the
+ *   tracks under it rather than competing with their titles.
+ * - `note`: a track's note, quieter still, so it reads as part of the track.
+ */
+export type GuideTextVariant = 'prose' | 'card' | 'note';
+
+const VARIANT_TEXT: Record<GuideTextVariant, { size: number; color: string }> = {
+  prose: { size: 16, color: 'white' },
+  card: { size: 14, color: '#cbd5e1' },
+  note: { size: 12.5, color: '#9ca3af' },
+};
+
+/**
  * Text sizes follow the rest of the playlist screen. Links the guide doesn't
  * allow, such as a bare `http://` URL the renderer links on its own, are drawn
  * as plain text: tapping them does nothing (`guideLinkAction`).
  */
-function guideStyle(fontScale: number, secondary: boolean): MarkdownStyle {
-  const body = (secondary ? 14 : 16) * fontScale;
-  const color = secondary ? '#d1d5db' : '#f3f4f6';
+function guideStyle(fontScale: number, variant: GuideTextVariant): MarkdownStyle {
+  const body = VARIANT_TEXT[variant].size * fontScale;
+  const color = VARIANT_TEXT[variant].color;
   const text = { fontSize: body, color, lineHeight: body * 1.4 };
 
   return {
