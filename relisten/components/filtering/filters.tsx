@@ -37,14 +37,9 @@ export interface FilterControl<K extends string> extends PersistedFilter<K> {
   hasSearchFilter?: boolean;
 }
 
-export interface FilteringOptions<K extends string, T = unknown> {
+export interface FilteringOptions<K extends string> {
   persistence?: { key: string };
   default?: { persistenceKey: K; active: boolean; sortDirection?: SortDirection };
-  /**
-   * Rows that list ahead of the rest whatever the sort or its direction, such
-   * as favorites. Each part keeps the active sort's order.
-   */
-  prioritize?: (data: T) => boolean;
 }
 
 export interface FilteringContextProps<K extends string, T extends RelistenObject> {
@@ -64,16 +59,12 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
   children,
   filters,
   options,
-}: PropsWithChildren<{
-  filters: ReadonlyArray<Filter<K, T>>;
-  options?: FilteringOptions<K, T>;
-}>) => {
+}: PropsWithChildren<{ filters: ReadonlyArray<Filter<K, T>>; options?: FilteringOptions<K> }>) => {
   const realm = useRealm();
   const [textFilter, setTextFilter] = useState<string | undefined>(undefined);
 
   const filterPersistenceKey = options?.persistence?.key;
   const defaultFilter = options?.default;
-  const prioritize = options?.prioritize;
 
   const routeFilterConfig = useObject(RouteFilterConfig, filterPersistenceKey || '__no_object__');
   const globalFilterConfig = useObject(RouteFilterConfig, GLOBAL_FILTER_KEY);
@@ -153,9 +144,9 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
         }
       }
 
-      return prioritize ? prioritized(filteredData, prioritize) : filteredData;
+      return filteredData;
     },
-    [preparedFilters, prioritize]
+    [preparedFilters]
   );
 
   const onFilterButtonPress = useCallback(
@@ -285,16 +276,6 @@ export const FilteringProvider = <K extends string, T extends RelistenObject>({
     <FilteringContext.Provider value={typedContextValue}>{children}</FilteringContext.Provider>
   );
 };
-
-/** The items `isPriority` picks, then the rest, each in their original order. */
-export function prioritized<T>(items: Iterable<T>, isPriority: (item: T) => boolean): T[] {
-  const first: T[] = [];
-  const rest: T[] = [];
-  for (const item of items) {
-    (isPriority(item) ? first : rest).push(item);
-  }
-  return [...first, ...rest];
-}
 
 export function searchForSubstring(haystack: string | undefined, lowercaseNeedle: string): boolean {
   if (!haystack) {

@@ -5,7 +5,6 @@ import { TouchableOpacity, View } from 'react-native';
 import { ItemSeparator } from '@/relisten/components/item_separator';
 import { SectionHeader } from '@/relisten/components/section_header';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { prioritized } from '@/relisten/components/filtering/filters';
 import {
   useIsFavoritePlaylist,
   usePlaylistSummaries,
@@ -17,15 +16,18 @@ import { openNewPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
 const PREVIEW_COUNT = 3;
 
 /**
- * Playlists on My Library: the three most recently edited, favorites first
- * as on the full list, a + in the header to make one, and See All only when
- * there are more than fit. With none yet, the section offers to make the first.
+ * Playlists on My Library: favorites first, then the most recently edited, up
+ * to three; a + in the header to make one, and See All only when there are
+ * more than fit. With none yet, the section offers to make the first.
  */
 export function MyPlaylistsSection() {
   const router = useRouter();
   const playlists = usePlaylists();
   const isFavorite = useIsFavoritePlaylist();
-  const preview = prioritized(playlists, isFavorite).slice(0, PREVIEW_COUNT);
+  const preview = [
+    ...playlists.filter((playlist) => isFavorite(playlist)),
+    ...playlists.filter((playlist) => !isFavorite(playlist)),
+  ].slice(0, PREVIEW_COUNT);
   const summaryOf = usePlaylistSummaries(preview);
 
   return (

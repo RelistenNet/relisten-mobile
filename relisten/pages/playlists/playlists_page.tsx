@@ -5,7 +5,6 @@ import { TouchableOpacity, View } from 'react-native';
 import { FilterableList } from '@/relisten/components/filtering/filterable_list';
 import {
   type Filter,
-  type FilteringOptions,
   FilteringProvider,
   searchForSubstring,
   SortDirection,
@@ -53,6 +52,12 @@ const byName = (a: PlaylistListItem, b: PlaylistListItem) =>
 // reversed (`byName(b, a)`): after the reversal, tied playlists read A to Z.
 const filters: Filter<PlaylistFilterKey, PlaylistListItem>[] = [
   {
+    persistenceKey: PlaylistFilterKey.Favorites,
+    title: 'Favorites',
+    active: false,
+    filter: (item) => item.favorite,
+  },
+  {
     persistenceKey: PlaylistFilterKey.Modified,
     title: 'Modified',
     sortDirection: SortDirection.Descending,
@@ -86,12 +91,6 @@ const filters: Filter<PlaylistFilterKey, PlaylistListItem>[] = [
       items.sort((a, b) => a.summary.durationSeconds - b.summary.durationSeconds || byName(b, a)),
   },
   {
-    persistenceKey: PlaylistFilterKey.Favorites,
-    title: 'Favorites',
-    active: false,
-    filter: (item) => item.favorite,
-  },
-  {
     persistenceKey: PlaylistFilterKey.Search,
     title: 'Search',
     active: false,
@@ -107,15 +106,9 @@ const filters: Filter<PlaylistFilterKey, PlaylistListItem>[] = [
   },
 ];
 
-const filteringOptions: FilteringOptions<PlaylistFilterKey, PlaylistListItem> = {
-  persistence: { key: 'myLibrary/playlists' },
-  // Favorites list first under every sort, the same as on My Library.
-  prioritize: (item) => item.favorite,
-};
-
 /**
  * Every playlist in the library, the ones the listener made and the ones
- * they follow, with the filter bar's sorts, search and Favorites filter.
+ * they follow, with the filter bar's Favorites filter, sorts and search.
  */
 export default function PlaylistsPage() {
   const router = useRouter();
@@ -149,7 +142,10 @@ export default function PlaylistsPage() {
           <PlaylistsFooter />
         </View>
       ) : (
-        <FilteringProvider filters={filters} options={filteringOptions}>
+        <FilteringProvider
+          filters={filters}
+          options={{ persistence: { key: 'myLibrary/playlists' } }}
+        >
           <FilterableList
             data={[{ data: items }]}
             pullToRefresh={false}
