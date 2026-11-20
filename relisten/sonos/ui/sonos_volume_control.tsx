@@ -21,8 +21,12 @@ export function SonosVolumeControl() {
     }
   }, [handle]);
 
-  if (remote.kind !== 'active' || !remote.volume) {
+  if (remote.kind !== 'active') {
     return null;
+  }
+  if (!remote.volume) {
+    // Holds the row's height until the level arrives, so the list doesn't shift.
+    return <View className="h-11" />;
   }
   const { volume, muted, fixed } = remote.volume;
   const roomName = remote.playback.groupName;
