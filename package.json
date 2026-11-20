@@ -72,7 +72,6 @@
     "react-native-blob-util": "^0.25.1",
     "react-native-draggable-flatlist": "^4.0.3",
     "react-native-enriched-markdown": "1.2.0",
-    "react-native-flash-message": "^0.4.2",
     "react-native-gesture-handler": "~3.3.0",
     "react-native-get-random-values": "~1.11.0",
     "react-native-google-cast": "^4.9.1",

@@ -1,6 +1,6 @@
 import { randomUUID } from 'expo-crypto';
 import { AppState } from 'react-native';
-import { showMessage } from 'react-native-flash-message';
+import { showToast } from '@/relisten/components/toast';
 import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import type { PlaybackQueueContext } from '@/relisten/player/playback_driver';
 import { RelistenPlayer } from '@/relisten/player/relisten_player';
@@ -234,10 +234,9 @@ export class SonosSession {
   moveOnFromSelected(identifier: string): boolean {
     const room = this.store.getState();
     if (room.kind !== 'active' || identifier !== this.roomOccurrenceId()) {
-      showMessage({
-        message: `The queue is still catching up with ${room.kind === 'none' ? 'Sonos' : sonosRoomName(room)}.`,
-        type: 'info',
-      });
+      showToast(
+        `The queue is still catching up with ${room.kind === 'none' ? 'Sonos' : sonosRoomName(room)}.`
+      );
       return true;
     }
 
@@ -265,7 +264,7 @@ export class SonosSession {
     });
     this.publishLatestRoom();
     if (moved) {
-      showMessage({ message: 'Sonos keeps tracks once they’ve played.', type: 'info' });
+      showToast('Sonos keeps tracks once they’ve played.');
     }
   }
 
@@ -281,10 +280,7 @@ export class SonosSession {
     const inFlight = this.store.getHandoffInFlight();
     if (inFlight) {
       // That handoff decides the room's queue; following the old room now would undo this choice.
-      showMessage({
-        message: `Your queue is still moving to ${inFlight.groupName}.`,
-        type: 'info',
-      });
+      showToast(`Your queue is still moving to ${inFlight.groupName}.`);
       return;
     }
 
@@ -304,9 +300,8 @@ export class SonosSession {
       return;
     }
 
-    showMessage({
-      message: outcome.kind === 'refused' ? outcome.message : HANDOFF_UNCONFIRMED_MESSAGE,
-      type: 'warning',
+    showToast(outcome.kind === 'refused' ? outcome.message : HANDOFF_UNCONFIRMED_MESSAGE, [], {
+      tone: 'warning',
     });
     await this.followRoom();
   }
@@ -343,7 +338,7 @@ export class SonosSession {
     }
 
     if (room.commandError && room.commandError !== commandErrorOf(previous)) {
-      showMessage({ message: room.commandError, type: 'warning' });
+      showToast(room.commandError, [], { tone: 'warning' });
     }
     this.publishRoom(room.playback);
     this.reconcileQueue(room.playback);
@@ -373,13 +368,11 @@ export class SonosSession {
     // Stopped, so Play starts the phone's stream at the saved position.
     void this.player.stop();
     if (ended) {
-      showMessage({
-        message:
-          ended.reason === 'reconnect'
-            ? `Connect Sonos again to control ${ended.roomName}.`
-            : `${ended.roomName} is no longer playing your queue.`,
-        type: 'info',
-      });
+      showToast(
+        ended.reason === 'reconnect'
+          ? `Connect Sonos again to control ${ended.roomName}.`
+          : `${ended.roomName} is no longer playing your queue.`
+      );
     }
   }
 
@@ -636,9 +629,8 @@ export class SonosSession {
     this.baseline = confirmed;
     this.player.queue.adoptRemoteQueue(tracks, current);
     if (phoneEdited) {
-      showMessage({
-        message: 'Your queue change was replaced by one from another device.',
-        type: 'warning',
+      showToast('Your queue change was replaced by one from another device.', [], {
+        tone: 'warning',
       });
     }
     return 'adopted';
@@ -675,10 +667,11 @@ export class SonosSession {
 
     if (!goneAreAllUpcoming) {
       this.waitBeforeFollowing(handle, queue, UNTIL_THE_QUEUE_CHANGES);
-      showMessage({
-        message: 'The room’s queue has a track that’s no longer available, so it can’t be shown.',
-        type: 'warning',
-      });
+      showToast(
+        'The room’s queue has a track that’s no longer available, so it can’t be shown.',
+        [],
+        { tone: 'warning' }
+      );
       return 'notTaken';
     }
 
@@ -688,13 +681,11 @@ export class SonosSession {
       this.waitBeforeFollowing(handle, queue, LOOKUP_RETRY_MS);
       return 'notTaken';
     }
-    showMessage({
-      message:
-        gone.size === 1
-          ? 'Removed a track that’s no longer available.'
-          : `Removed ${gone.size} tracks that are no longer available.`,
-      type: 'info',
-    });
+    showToast(
+      gone.size === 1
+        ? 'Removed a track that’s no longer available.'
+        : `Removed ${gone.size} tracks that are no longer available.`
+    );
     return this.readRoomQueue();
   }
 
@@ -753,7 +744,7 @@ export class SonosSession {
    * phone's, whatever the phone edited since.
    */
   private roomRefusedOrder(message: string) {
-    showMessage({ message, type: 'warning' });
+    showToast(message, [], { tone: 'warning' });
     // Without a baseline the room's order already wins at the next read.
     const handle = this.baseline?.handle;
     if (handle !== undefined) {
@@ -826,7 +817,7 @@ export class SonosSession {
         this.unconfirmedSave = { handle: agreed.handle, occurrenceIds };
         if (!this.saveFailureShown) {
           this.saveFailureShown = true;
-          showMessage({ message: 'Couldn’t update the Sonos queue yet.', type: 'warning' });
+          showToast('Couldn’t update the Sonos queue yet.', [], { tone: 'warning' });
         }
         return { kind: 'notSaved' };
     }
@@ -859,7 +850,7 @@ export class SonosSession {
     );
     if (!stoppedAt || index < 0) {
       this.publishLatestRoom();
-      showMessage({ message: `Couldn’t move playback from ${roomName}.`, type: 'warning' });
+      showToast(`Couldn’t move playback from ${roomName}.`, [], { tone: 'warning' });
       return;
     }
 

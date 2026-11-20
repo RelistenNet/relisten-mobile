@@ -5,7 +5,7 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import { addAgain } from '@/relisten/playlists/playlist_actions';
 import { PlaylistLimitError } from '@/relisten/playlists/playlist_repository';
 import { GuideLimitError } from '@/relisten/playlists/guide/guide_text';
-import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
+import { showToast } from '@/relisten/components/toast';
 import { usePlaylistLifecycle } from '@/relisten/playlists/ui/playlist_lifecycle';
 import {
   Playlist,
@@ -119,7 +119,7 @@ export function PlaylistSyncNotice({ playlist }: { playlist: Playlist }) {
               try {
                 addAgain(realm, playlistId, refusedAdditions);
               } catch (error) {
-                showPlaylistToast(
+                showToast(
                   error instanceof PlaylistLimitError || error instanceof GuideLimitError
                     ? error.message
                     : 'Couldn’t add them again.'

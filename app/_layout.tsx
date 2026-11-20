@@ -30,15 +30,14 @@ import { PlayerPresentationProvider } from '@/relisten/player/ui/player_presenta
 import { PlayerPresentationOverlay } from '@/relisten/player/ui/player_presentation_overlay';
 import { AudioAdjustmentCoordinator } from '@/relisten/player/audio_adjustments/audio_adjustment_coordinator';
 import { RelistenCastProvider } from '@/relisten/casting/cast_provider';
-import FlashMessage from 'react-native-flash-message';
-import { PlaylistToastHost } from '@/relisten/playlists/ui/playlist_toast';
+import { ToastHost } from '@/relisten/components/toast_host';
 import { PlaybackHistoryReporterComponent } from '@/relisten/components/playback_history_reporter';
 import { LastFmReporterComponent } from '@/relisten/lastfm/lastfm_reporter_component';
 import { LastFmAuthListener } from '@/relisten/lastfm/lastfm_auth_listener';
 import * as Sentry from '@sentry/react-native';
 import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
 import { enableFreeze } from 'react-native-screens';
-import { AppState, LogBox, StyleSheet, View } from 'react-native';
+import { AppState, LogBox } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useCarPlaySetup } from '@/relisten/carplay/useCarPlaySetup';
 import {
@@ -253,15 +252,7 @@ function TabLayout() {
                             <StatusBar style="light" />
                             <Slot />
                             <PlayerPresentationOverlay />
-                            <View
-                              pointerEvents="box-none"
-                              // NativeWind v2 doesn't apply `inset-0`, which left the
-                              // message host with no width.
-                              style={[StyleSheet.absoluteFill, { elevation: 2000, zIndex: 2000 }]}
-                            >
-                              <FlashMessage position="top" />
-                            </View>
-                            <PlaylistToastHost />
+                            <ToastHost />
                           </SafeAreaProvider>
                         </GestureHandlerRootView>
                       </PlayerPresentationProvider>

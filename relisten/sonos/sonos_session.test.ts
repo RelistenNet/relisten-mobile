@@ -42,7 +42,7 @@ vi.mock('@/relisten/events', () => ({
 vi.mock('@/relisten/util/logging', () => ({
   log: { debug: vi.fn(), extend: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn() }) },
 }));
-vi.mock('react-native-flash-message', () => ({ showMessage: mocks.showMessage }));
+vi.mock('@/relisten/components/toast', () => ({ showToast: mocks.showMessage }));
 vi.mock('react-native', () => ({ AppState: { currentState: 'active' } }));
 vi.mock('expo-crypto', () => ({
   getRandomValues: (bytes: Uint8Array) => bytes,
@@ -249,7 +249,7 @@ const settle = async () => {
   }
 };
 
-const messages = () => mocks.showMessage.mock.calls.map(([options]) => options.message);
+const messages = () => mocks.showMessage.mock.calls.map(([message]) => message);
 
 describe('SonosSession', () => {
   let player: RelistenPlayer;

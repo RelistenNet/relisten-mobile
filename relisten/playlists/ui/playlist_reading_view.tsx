@@ -37,7 +37,7 @@ import {
   playlistViewRows,
   usePlayingEntryId,
 } from '@/relisten/playlists/ui/playlist_rows';
-import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
+import { showToast } from '@/relisten/components/toast';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 
 /**
@@ -98,14 +98,12 @@ export function PlaylistReadingList({
   // Playback queues every group, even when only downloaded tracks show.
   const play = (entryId: string) => {
     if (!playPlaylist(player, playlistId, groups, online, entryId)) {
-      showPlaylistToast('This track isn’t downloaded.');
+      showToast('This track isn’t downloaded.');
     }
   };
   const playTimestamp = (entryId: string, seconds: number) => {
     if (!playEntryAt(player, playlistId, groups, online, entryId, seconds)) {
-      showPlaylistToast(
-        online ? 'That part isn’t available right now.' : 'That track isn’t downloaded.'
-      );
+      showToast(online ? 'That part isn’t available right now.' : 'That track isn’t downloaded.');
     }
   };
 
@@ -285,12 +283,12 @@ export function PlaylistViewHeader({
 
   const play = () => {
     if (!playPlaylist(player, playlistId, groups, online)) {
-      showPlaylistToast(nothingPlayableMessage(online));
+      showToast(nothingPlayableMessage(online));
     }
   };
   const shuffle = () => {
     if (!shufflePlaylist(player, playlistId, groups, online)) {
-      showPlaylistToast(nothingPlayableMessage(online));
+      showToast(nothingPlayableMessage(online));
     }
   };
   const download = () => {

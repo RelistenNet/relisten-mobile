@@ -11,7 +11,7 @@ import { SettingsGroup } from '@/relisten/accounts/ui/settings_list';
 import { ListRow } from '@/relisten/components/list_row';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
+import { showToast } from '@/relisten/components/toast';
 
 /**
  * Apps the listener connected to their account, with Disconnect. Loaded each
@@ -57,8 +57,8 @@ export function ConnectedAppsGroup() {
           style: 'destructive',
           onPress: () =>
             void disconnectClient(api, client.id)
-              .then(() => showPlaylistToast(`Disconnected ${client.name}`))
-              .catch(() => showPlaylistToast(`Couldn’t disconnect ${client.name}. Try again.`))
+              .then(() => showToast(`Disconnected ${client.name}`))
+              .catch(() => showToast(`Couldn’t disconnect ${client.name}. Try again.`))
               .finally(load),
         },
       ]

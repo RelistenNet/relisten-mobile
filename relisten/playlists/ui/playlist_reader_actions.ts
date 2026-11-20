@@ -5,7 +5,7 @@ import { useAccountScope } from '@/relisten/accounts/account_context';
 import { openSignInSheet } from '@/relisten/accounts/ui/account_routes';
 import type { PublicPlaylistSnapshot } from '@/relisten/playlists/sharing/sharing_wire';
 import { openPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
-import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
+import { showToast } from '@/relisten/components/toast';
 import { explainSharingFailure } from '@/relisten/playlists/ui/sharing_messages';
 import { usePlaylistSharingService } from '@/relisten/realm/root_services';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
@@ -87,7 +87,7 @@ export function usePlaylistReaderActions() {
     runSignedInAndOnline('follow this playlist', async () => {
       try {
         await sharing.follow(snapshot);
-        showPlaylistToast(`Following ${snapshot.metadata.name}`);
+        showToast(`Following ${snapshot.metadata.name}`);
       } catch (error) {
         explainSharingFailure(error, `Couldn’t follow ${snapshot.metadata.name}. Try again.`);
       }
@@ -110,7 +110,7 @@ export function usePlaylistReaderActions() {
         } else {
           router.back();
         }
-        showPlaylistToast(`Unfollowed ${name}`);
+        showToast(`Unfollowed ${name}`);
       } catch (error) {
         explainSharingFailure(error, `Couldn’t unfollow ${name}. Try again.`);
       }
@@ -121,7 +121,7 @@ export function usePlaylistReaderActions() {
       try {
         const playlistId = await sharing.copy(publicCode, name);
         openPlaylist(router, playlistId, groupSegment);
-        showPlaylistToast(`Copied ${name} to your playlists`);
+        showToast(`Copied ${name} to your playlists`);
       } catch (error) {
         explainSharingFailure(error, `Couldn’t copy ${name}. Try again.`);
       }

@@ -34,7 +34,7 @@ import {
 } from '@/relisten/playlists/ui/playlist_reading_view';
 import { openPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
 import { usePlaylistShareActions } from '@/relisten/playlists/ui/playlist_share_actions';
-import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
+import { showToast } from '@/relisten/components/toast';
 import { PlaylistSyncNotice } from '@/relisten/playlists/ui/playlist_sync_notice';
 import { FollowedPlaylistView } from '@/relisten/pages/playlists/followed_playlist_view';
 import { usePlaylistSyncService } from '@/relisten/realm/root_services';
@@ -117,14 +117,14 @@ export default function PlaylistDetailPage() {
   const deletePlaylist = () => lifecycle.remove(playlistId);
   const makeCopy = () => {
     if (isLoading(playlist)) {
-      showPlaylistToast('Wait for this playlist to load, then copy it.');
+      showToast('Wait for this playlist to load, then copy it.');
       return;
     }
     let copy: Playlist;
     try {
       copy = duplicatePlaylist(realm, playlistId);
     } catch (error) {
-      showPlaylistToast(
+      showToast(
         error instanceof PlaylistLimitError || error instanceof GuideLimitError
           ? error.message
           : 'Couldn’t copy this playlist.'
@@ -132,7 +132,7 @@ export default function PlaylistDetailPage() {
       return;
     }
     openPlaylist(router, copy.playlistId, groupSegment);
-    showPlaylistToast(`Made a copy of ${name}`);
+    showToast(`Made a copy of ${name}`);
   };
   const startEditing = () => {
     changedDetails.current = {};

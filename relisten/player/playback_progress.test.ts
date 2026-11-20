@@ -45,7 +45,7 @@ vi.mock('@/relisten/events', () => ({
 vi.mock('@/relisten/util/logging', () => ({
   log: { debug: vi.fn(), extend: () => ({ debug: vi.fn(), warn: vi.fn() }) },
 }));
-vi.mock('react-native-flash-message', () => ({ showMessage: vi.fn() }));
+vi.mock('@/relisten/components/toast', () => ({ showToast: vi.fn() }));
 
 import { RelistenPlaybackErrorKind, RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import { RelistenPlayer } from './relisten_player';

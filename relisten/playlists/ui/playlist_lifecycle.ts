@@ -9,7 +9,7 @@ import {
 } from '@/relisten/playlists/playlist_repository';
 import { canAccessPlaylist, ownedDeletion } from '@/relisten/playlists/sync/playlist_sync_state';
 import { useAccountPlaylistGate } from '@/relisten/playlists/ui/account_playlist_gate';
-import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
+import { showToast } from '@/relisten/components/toast';
 import { Playlist } from '@/relisten/realm/models/playlists/playlist';
 import { usePlaylistSyncService } from '@/relisten/realm/root_services';
 import { useRealm } from '@/relisten/realm/schema';
@@ -33,7 +33,7 @@ export function usePlaylistLifecycle() {
       await service.setArchived(playlist.playlistId, archived);
       return true;
     } catch {
-      showPlaylistToast(`Couldn’t ${archived ? 'delete' : 'restore'} ${name}. Try again.`);
+      showToast(`Couldn’t ${archived ? 'delete' : 'restore'} ${name}. Try again.`);
       return false;
     }
   };
@@ -87,7 +87,7 @@ export function usePlaylistLifecycle() {
           deletePlaylistOnDevice(realm, playlistId);
         }
         router.back();
-        showPlaylistToast(`Deleted ${name}`, [
+        showToast(`Deleted ${name}`, [
           {
             label: 'Undo',
             onPress: () =>

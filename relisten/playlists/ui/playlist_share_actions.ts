@@ -3,7 +3,7 @@ import { Playlist } from '@/relisten/realm/models/playlists/playlist';
 import { useRealm } from '@/relisten/realm/schema';
 import { publicPlaylistUrl } from '@/relisten/playlists/sharing/sharing_wire';
 import { useAccountPlaylistGate } from '@/relisten/playlists/ui/account_playlist_gate';
-import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
+import { showToast } from '@/relisten/components/toast';
 import {
   explainSharingFailure,
   TAKEN_DOWN_PLAYLIST,
@@ -100,7 +100,7 @@ export function usePlaylistShareActions() {
           onPress: () =>
             void sharing
               .setPublished(playlistId, false)
-              .then(() => showPlaylistToast(`${name} is private`))
+              .then(() => showToast(`${name} is private`))
               .catch((error) =>
                 explainSharingFailure(
                   error,

@@ -24,7 +24,7 @@ import type {
   PlaylistRowGroup,
 } from '@/relisten/playlists/playlist_hooks';
 import { isQueueable, queueTrackFor, queueTracksFor } from '@/relisten/playlists/playlist_playback';
-import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
+import { showToast } from '@/relisten/components/toast';
 import { removedMessage, toastEdit } from '@/relisten/playlists/ui/playlist_toast';
 import { useGroupSegment } from '@/relisten/util/routes';
 import {
@@ -312,7 +312,7 @@ export function GroupMenu({
         if (tracks.length > 0) {
           player.queue.replaceQueue(tracks, 0, { resetShuffle: true });
         } else {
-          showPlaylistToast(
+          showToast(
             online
               ? 'These recordings aren’t available right now.'
               : 'These tracks aren’t downloaded.'

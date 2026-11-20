@@ -23,7 +23,7 @@ import { addPlayerListeners } from '@/relisten/player/native_playback_state_hook
 import { PlayerQueueTrack, RelistenPlayerQueue } from '@/relisten/player/relisten_player_queue';
 import { EventSource } from '@/relisten/util/event_source';
 import { DownloadManager } from '@/relisten/offline/download_manager';
-import { showMessage } from 'react-native-flash-message';
+import { showToast } from '@/relisten/components/toast';
 import { log } from '@/relisten/util/logging';
 import { indentString } from '@/relisten/util/string_indent';
 import { sharedStatsigClient, trackPlaybackErrorEvent } from '@/relisten/events';
@@ -1021,12 +1021,11 @@ ${indentString(this.queue.debugState(true))}
       trackPlaybackErrorEvent(this.queue.currentTrack?.sourceTrack, error.error)
     );
 
-    showMessage({
-      message: 'Error: ' + error.error.message,
-      description: error.error.description,
-      type: 'danger',
-      duration: 10_000,
-    });
+    showToast(
+      [`Error: ${error.error.message}`, error.error.description].filter(Boolean).join('\n'),
+      [],
+      { tone: 'error' }
+    );
   };
   // endregion
 }

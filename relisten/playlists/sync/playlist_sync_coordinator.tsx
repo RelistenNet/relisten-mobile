@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 import { useAccountScope } from '@/relisten/accounts/account_context';
 import { claimDevicePlaylists } from '@/relisten/playlists/sync/playlist_sync_state';
-import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
+import { showToast } from '@/relisten/components/toast';
 import { usePlaylistSyncService } from '@/relisten/realm/root_services';
 import { useRealm } from '@/relisten/realm/schema';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
@@ -31,7 +31,7 @@ export function PlaylistSyncCoordinator() {
     }
     const claimed = realm.write(() => claimDevicePlaylists(realm, userId));
     if (claimed > 0) {
-      showPlaylistToast('Saving your playlists to your account.');
+      showToast('Saving your playlists to your account.');
       service.flush();
     }
   }, [realm, service, userId]);

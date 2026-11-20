@@ -5,7 +5,7 @@ import { Alert, Platform, TextInput, View } from 'react-native';
 import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { REPORT_REASON_LENGTH } from '@/relisten/playlists/sharing/sharing_wire';
-import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
+import { showToast } from '@/relisten/components/toast';
 import { sharingFailureAlert } from '@/relisten/playlists/ui/sharing_messages';
 import { usePlaylistSharingService } from '@/relisten/realm/root_services';
 
@@ -32,7 +32,7 @@ export default function ReportPlaylistSheet() {
     try {
       await sharing.report(publicCode, trimmed);
       router.back();
-      showPlaylistToast('Thanks. We’ll take a look.');
+      showToast('Thanks. We’ll take a look.');
     } catch (error) {
       setSending(false);
       // An alert, since the sheet covers the toast. The reason stays for another try.

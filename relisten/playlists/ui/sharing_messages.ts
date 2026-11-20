@@ -3,7 +3,7 @@ import {
   SharingError,
   type SharingFailure,
 } from '@/relisten/playlists/sharing/playlist_sharing_service';
-import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
+import { showToast } from '@/relisten/components/toast';
 
 /** Why a playlist someone shared can't be shown: shared by every screen that reads one. */
 export const UNAVAILABLE_PLAYLIST: [title: string, detail: string] = [
@@ -58,6 +58,6 @@ export function explainSharingFailure(
   if (alert) {
     Alert.alert(...alert);
   } else {
-    showPlaylistToast(fallback);
+    showToast(fallback);
   }
 }

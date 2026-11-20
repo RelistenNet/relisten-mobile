@@ -28,7 +28,8 @@ import {
 } from '@/relisten/playlists/playlist_repository';
 import { openPlaylist, showPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
 import { usePlayerPresentation } from '@/relisten/player/ui/player_presentation';
-import { showPlaylistToast, undoAction } from '@/relisten/playlists/ui/playlist_toast';
+import { showToast } from '@/relisten/components/toast';
+import { undoAction } from '@/relisten/playlists/ui/playlist_toast';
 import { playlistActionEvent, sharedStatsigClient } from '@/relisten/events';
 
 /** "Add 3 tracks to" sheet. With no tracks it only creates a new playlist. */
@@ -76,7 +77,7 @@ export default function AddToPlaylistSheet() {
     sharedStatsigClient().logEvent(playlistActionEvent('add', trackIds.length));
 
     const segueEntry = trackIds.length === 1 ? segueSuggestion(realm, playlistId) : undefined;
-    showPlaylistToast(`Added ${addedLabel(realm, groups)} to ${name}`, [
+    showToast(`Added ${addedLabel(realm, groups)} to ${name}`, [
       undoAction(realm, playlistId),
       segueEntry
         ? {
@@ -107,14 +108,12 @@ export default function AddToPlaylistSheet() {
       openPlaylist(router, playlistId);
       return;
     }
-    showPlaylistToast(`Added ${addedLabel(realm, groups)} to ${playlist.name}`, [
+    showToast(`Added ${addedLabel(realm, groups)} to ${playlist.name}`, [
       {
         label: 'Undo',
         onPress: () => {
           if (!deletePlaylistPermanently(realm, playlistId)) {
-            showPlaylistToast(
-              'It’s already saved to your account. Delete it from the playlist’s menu.'
-            );
+            showToast('It’s already saved to your account. Delete it from the playlist’s menu.');
           }
         },
       },
