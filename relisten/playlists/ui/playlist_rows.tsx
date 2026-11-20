@@ -86,6 +86,8 @@ export type PlaylistViewRow =
       segmentId: string;
       row: PlaylistRowEntry;
       link?: LinkPosition;
+      /** A bare row directly above a card, which needs no hairline: the card's edge separates them. */
+      beforeCard?: boolean;
     };
 
 export function playlistViewRows(groups: PlaylistRowGroup[]): PlaylistViewRow[] {
@@ -124,6 +126,12 @@ export function playlistViewRows(groups: PlaylistRowGroup[]): PlaylistViewRow[] 
       });
     });
   }
+
+  rows.forEach((row, index) => {
+    if (row.kind === 'entry' && !row.link && rows[index + 1]?.link) {
+      row.beforeCard = true;
+    }
+  });
   return rows;
 }
 
@@ -170,8 +178,8 @@ function PlaylistRowFrame({
   return (
     <View
       className={tw('mx-2.5 pl-3 pr-1', {
-        'mt-1.5 rounded-t-xl': opensCard,
-        'mb-1.5 rounded-b-xl': closesCard(link),
+        'mt-1 rounded-t-xl': opensCard,
+        'mb-1 rounded-b-xl': closesCard(link),
       })}
       style={{ backgroundColor: linkPlaying ? CARD_BACKGROUND_PLAYING : CARD_BACKGROUND }}
     >
@@ -294,7 +302,7 @@ export const PlaylistTrackRow = memo(function PlaylistTrackRow({
   const title = row.sourceTrack ? row.sourceTrack.title : 'Track';
   const subtitle = showLine(row);
   // A track and its note read as one unit, so the hairline goes below the note.
-  const hairlineBelow = !closesCard(link);
+  const hairlineBelow = !closesCard(link) && !viewRow.beforeCard;
 
   return (
     <PlaylistRowFrame link={link} linkPlaying={linkPlaying}>
