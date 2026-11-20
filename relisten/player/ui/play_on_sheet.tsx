@@ -120,18 +120,12 @@ function SonosSection() {
         ) : connection.groups.length === 0 ? (
           <OutputRow icon={speaker} title="No Sonos rooms found" />
         ) : (
-          connection.groups.map((group, index) => (
-            <View key={group.id}>
-              {index > 0 && <ItemSeparator />}
-              <SonosRoomRow
-                group={group}
-                handoff={handoff?.groupId === group.id ? handoff : undefined}
-                busy={handoff?.phase === 'connecting'}
-                hasQueue={hasQueue}
-                onPress={() => void playOn(group)}
-              />
-            </View>
-          ))
+          <SonosHouseholds
+            groups={connection.groups}
+            handoff={handoff}
+            hasQueue={hasQueue}
+            playOn={playOn}
+          />
         );
       break;
   }
@@ -142,6 +136,59 @@ function SonosSection() {
       {rows}
     </View>
   );
+}
+
+function SonosHouseholds({
+  groups,
+  handoff,
+  hasQueue,
+  playOn,
+}: {
+  groups: SonosGroup[];
+  handoff: SonosHandoffState | undefined;
+  hasQueue: boolean;
+  playOn: (group: SonosGroup) => Promise<void>;
+}) {
+  const households = new Map<string, SonosGroup[]>();
+  for (const group of groups) {
+    const rooms = households.get(group.householdId);
+    if (rooms) {
+      rooms.push(group);
+    } else {
+      households.set(group.householdId, [group]);
+    }
+  }
+
+  const nameCounts = new Map<string, number>();
+  for (const [firstRoom] of households.values()) {
+    const name = firstRoom.householdName ?? 'Sonos System';
+    nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1);
+  }
+
+  return Array.from(households.keys())
+    .sort()
+    .map((id, index) => {
+      const rooms = households.get(id)!;
+      const name = rooms[0].householdName ?? 'Sonos System';
+      const title = (nameCounts.get(name) ?? 0) > 1 ? `${name} (${index + 1})` : name;
+      return (
+        <View key={id}>
+          {households.size > 1 && <SectionHeader title={title} />}
+          {rooms.map((group, roomIndex) => (
+            <View key={group.id}>
+              {roomIndex > 0 && <ItemSeparator />}
+              <SonosRoomRow
+                group={group}
+                handoff={handoff?.groupId === group.id ? handoff : undefined}
+                busy={handoff?.phase === 'connecting'}
+                hasQueue={hasQueue}
+                onPress={() => void playOn(group)}
+              />
+            </View>
+          ))}
+        </View>
+      );
+    });
 }
 
 /**
