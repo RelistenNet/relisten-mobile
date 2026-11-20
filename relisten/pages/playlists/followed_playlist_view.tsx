@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
 import { useState } from 'react';
-import { View } from 'react-native';
+import { Alert, View } from 'react-native';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import type { Playlist } from '@/relisten/realm/models/playlists/playlist';
@@ -14,6 +14,7 @@ import {
 } from '@/relisten/playlists/ui/playlist_reading_view';
 import { usePlaylistReaderActions } from '@/relisten/playlists/ui/playlist_reader_actions';
 import { ReaderPlaylistMenu } from '@/relisten/playlists/ui/reader_playlist_menu';
+import { sharePlaylistLink } from '@/relisten/playlists/ui/playlist_share_actions';
 import { UNAVAILABLE_PLAYLIST } from '@/relisten/playlists/ui/sharing_messages';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 
@@ -35,6 +36,10 @@ export function FollowedPlaylistView({
   const [downloadedOnly, setDownloadedOnly] = useState(false);
   const { playlistId, publicCode, unavailable } = playlist;
   const name = playlistDisplayName(playlist);
+  // Sharing and copying go through the playlist's public link. A followed
+  // playlist that is still available has one; without it, say why not.
+  const withPublicCode = (run: (code: string) => void) => () =>
+    publicCode ? run(publicCode) : Alert.alert(...UNAVAILABLE_PLAYLIST);
 
   if (unavailable) {
     return (
@@ -80,10 +85,15 @@ export function FollowedPlaylistView({
             description={playlist.description}
             trackCount={playlist.entryCount}
             groups={groups}
-            follow={{
-              following: true,
+            actions={{
+              heart: {
+                label: 'Follow',
+                isOn: true,
+                onPress: () => reader.unfollow(playlistId, name, publicCode),
+              },
+              share: withPublicCode((code) => sharePlaylistLink(name, code)),
+              copy: withPublicCode((code) => reader.copy(code, name)),
               busy: reader.busy,
-              onPress: () => reader.unfollow(playlistId, name, publicCode),
             }}
           />
         }

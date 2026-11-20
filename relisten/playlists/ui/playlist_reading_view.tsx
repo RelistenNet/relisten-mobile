@@ -140,18 +140,30 @@ export function PlaylistReadingList({
 const PlaylistTrackList = FlatList as React.ComponentType<FlatListProps<PlaylistViewRow>>;
 
 /**
- * Following someone else's playlist: a heart in the action row, red once the
- * playlist is in the listener's library, the same as favoriting a show.
+ * The header's heart, Share and Make a Copy, which every playlist shows in
+ * the same places. What they do depends on whose playlist it is, so each
+ * screen supplies them.
  */
-export interface PlaylistFollowControl {
-  following: boolean;
+export interface PlaylistHeaderActions {
+  heart: PlaylistHeart;
+  share: () => void;
+  copy: () => void;
+  /** An account action is in flight; the heart and Make a Copy wait for it. */
   busy?: boolean;
+}
+
+/** A heart in the action row: outlined, or filled red once it is on. */
+export interface PlaylistHeart {
+  /** What the heart does, for VoiceOver: "Favorite" or "Follow". */
+  label: string;
+  isOn: boolean;
   onPress: () => void;
 }
 
 /**
  * The top of a playlist, laid out like a show's header: centered title, a
- * quiet details line, then one row of equal buttons.
+ * quiet details line, then two rows of buttons. Play, Download, the heart and
+ * Share are equal in the first; Shuffle and Make a Copy share the second.
  */
 export function PlaylistViewHeader({
   playlistId,
@@ -161,7 +173,7 @@ export function PlaylistViewHeader({
   trackCount,
   groups,
   notice,
-  follow,
+  actions,
 }: {
   playlistId: string;
   name: string;
@@ -171,8 +183,7 @@ export function PlaylistViewHeader({
   trackCount: number;
   groups: PlaylistRowGroup[];
   notice?: React.ReactNode;
-  /** For someone else's playlist: the follow heart, filled once followed. */
-  follow?: PlaylistFollowControl;
+  actions: PlaylistHeaderActions;
 }) {
   const { fontScale } = useWindowDimensions();
   const player = useRelistenPlayer();
@@ -191,6 +202,7 @@ export function PlaylistViewHeader({
       ? `Downloading ${stats.downloaded} of ${stats.downloadable}`
       : '';
   const iconSize = 20 * fontScale;
+  const busy = actions.busy ?? false;
 
   const play = () => {
     if (!playPlaylist(player, playlistId, groups, online)) {
@@ -233,58 +245,60 @@ export function PlaylistViewHeader({
           status,
         ]
           .filter(Boolean)
-          .join(' • ')}
+          .join(' • ')}
       </RelistenText>
 
       {notice}
-      {(trackCount > 0 || follow) && (
-        <View className="w-full flex-row pb-4" style={{ gap: 16 }}>
-          <RelistenButton
-            className="flex-1"
-            textClassName="text-l"
-            icon={<MaterialIcons name="play-arrow" size={iconSize} color="white" />}
-            disabled={!canPlay}
-            onPress={play}
-          >
-            Play
-          </RelistenButton>
-          {/* The heart takes the room Shuffle's label would. */}
-          {follow ? (
-            <RelistenButton
-              accessibilityLabel="Shuffle"
-              className="basis-1/5"
-              disabled={!canPlay}
-              onPress={shuffle}
-            >
-              <MaterialIcons name="shuffle" size={iconSize} color="white" />
-            </RelistenButton>
-          ) : (
-            <RelistenButton
-              className="flex-1"
-              textClassName="text-l"
-              icon={<MaterialIcons name="shuffle" size={iconSize} color="white" />}
-              disabled={!canPlay}
-              onPress={shuffle}
-            >
-              Shuffle
-            </RelistenButton>
-          )}
-          <RelistenButton
-            accessibilityLabel="Download"
-            className="basis-1/5"
-            disabled={fullyDownloaded || stats.downloadable === 0}
-            disabledPopoverText={
-              fullyDownloaded
-                ? 'Every track is downloaded'
-                : 'None of these tracks can be downloaded'
-            }
-            onPress={download}
-          >
-            <MaterialIcons name="file-download" size={iconSize} color="white" />
-          </RelistenButton>
-          {follow ? <FollowButton {...follow} iconSize={iconSize} /> : null}
-        </View>
-      )}
+      <View className="w-full flex-row pb-4" style={{ gap: 16 }}>
+        <RelistenButton
+          className="shrink basis-1/4"
+          textClassName="text-l"
+          icon={<MaterialIcons name="play-arrow" size={iconSize} color="white" />}
+          disabled={!canPlay}
+          onPress={play}
+        >
+          Play
+        </RelistenButton>
+        <RelistenButton
+          accessibilityLabel="Download"
+          className="shrink basis-1/4"
+          disabled={fullyDownloaded || stats.downloadable === 0}
+          disabledPopoverText={
+            fullyDownloaded ? 'Every track is downloaded' : 'None of these tracks can be downloaded'
+          }
+          onPress={download}
+        >
+          <MaterialIcons name="file-download" size={iconSize} color="white" />
+        </RelistenButton>
+        <HeartButton {...actions.heart} busy={busy} iconSize={iconSize} />
+        <RelistenButton
+          accessibilityLabel="Share"
+          className="shrink basis-1/4"
+          onPress={actions.share}
+        >
+          <MaterialIcons name="ios-share" size={iconSize} color="white" />
+        </RelistenButton>
+      </View>
+      <View className="w-full flex-row pb-4" style={{ gap: 16 }}>
+        <RelistenButton
+          className="flex-1"
+          textClassName="text-l"
+          icon={<MaterialIcons name="shuffle" size={iconSize} color="white" />}
+          disabled={!canPlay}
+          onPress={shuffle}
+        >
+          Shuffle
+        </RelistenButton>
+        <RelistenButton
+          className="flex-1"
+          textClassName="text-l"
+          icon={<MaterialIcons name="content-copy" size={iconSize} color="white" />}
+          disabled={busy}
+          onPress={actions.copy}
+        >
+          Make a Copy
+        </RelistenButton>
+      </View>
       {trackCount > 0 && !canPlay && (
         <RelistenText className="pb-3 text-center text-sm text-gray-400">
           {nothingPlayableMessage(online)}
@@ -301,24 +315,25 @@ export function PlaylistViewHeader({
   );
 }
 
-function FollowButton({
-  following,
-  busy = false,
+function HeartButton({
+  label,
+  isOn,
   onPress,
+  busy,
   iconSize,
-}: PlaylistFollowControl & { iconSize: number }) {
+}: PlaylistHeart & { busy: boolean; iconSize: number }) {
   return (
     <RelistenButton
-      accessibilityLabel="Follow"
-      accessibilityState={{ selected: following, busy }}
-      className="basis-1/5"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: isOn, busy }}
+      className="shrink basis-1/4"
       disabled={busy}
       onPress={onPress}
     >
       <MaterialIcons
-        name={following ? 'favorite' : 'favorite-outline'}
+        name={isOn ? 'favorite' : 'favorite-outline'}
         size={iconSize}
-        color={following ? 'red' : 'white'}
+        color={isOn ? 'red' : 'white'}
       />
     </RelistenButton>
   );

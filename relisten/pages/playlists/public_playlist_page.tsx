@@ -20,6 +20,7 @@ import {
 } from '@/relisten/playlists/ui/playlist_reading_view';
 import { usePlaylistReaderActions } from '@/relisten/playlists/ui/playlist_reader_actions';
 import { ReaderPlaylistMenu } from '@/relisten/playlists/ui/reader_playlist_menu';
+import { sharePlaylistLink } from '@/relisten/playlists/ui/playlist_share_actions';
 import { UNAVAILABLE_PLAYLIST } from '@/relisten/playlists/ui/sharing_messages';
 import { usePlaylistSharingService } from '@/relisten/realm/root_services';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
@@ -164,7 +165,12 @@ export default function PublicPlaylistPage() {
             description={snapshot.metadata.description ?? undefined}
             trackCount={publicTrackCount(snapshot)}
             groups={groups}
-            follow={{ following: false, busy: reader.busy, onPress: () => reader.follow(snapshot) }}
+            actions={{
+              heart: { label: 'Follow', isOn: false, onPress: () => reader.follow(snapshot) },
+              share: () => sharePlaylistLink(name, publicCode),
+              copy: () => reader.copy(publicCode, name),
+              busy: reader.busy,
+            }}
           />
         }
       />

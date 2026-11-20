@@ -15,7 +15,13 @@ import {
   usePlaylistLayout,
 } from '@/relisten/playlists/playlist_hooks';
 import { usePlaylistHydration } from '@/relisten/playlists/playlist_hydration';
-import { PLAYLIST_LIMITS, updatePlaylistDetails } from '@/relisten/playlists/playlist_repository';
+import {
+  duplicatePlaylist,
+  PLAYLIST_LIMITS,
+  PlaylistLimitError,
+  updatePlaylistDetails,
+} from '@/relisten/playlists/playlist_repository';
+import { GuideLimitError } from '@/relisten/playlists/guide/guide_text';
 import { needsSnapshot } from '@/relisten/playlists/sync/playlist_sync_state';
 import { PlaylistEditList } from '@/relisten/playlists/ui/playlist_edit_list';
 import { openGuideTextEditor } from '@/relisten/playlists/guide/guide_text_navigation';
@@ -25,11 +31,15 @@ import {
   PlaylistReadingList,
   PlaylistViewHeader,
 } from '@/relisten/playlists/ui/playlist_reading_view';
+import { openPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
 import { usePlaylistShareActions } from '@/relisten/playlists/ui/playlist_share_actions';
+import { showPlaylistToast } from '@/relisten/playlists/ui/playlist_toast';
 import { PlaylistSyncNotice } from '@/relisten/playlists/ui/playlist_sync_notice';
 import { FollowedPlaylistView } from '@/relisten/pages/playlists/followed_playlist_view';
 import { usePlaylistSyncService } from '@/relisten/realm/root_services';
+import { useFavorite } from '@/relisten/library/favorite_hooks';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
+import { useGroupSegment } from '@/relisten/util/routes';
 
 export default function PlaylistDetailPage() {
   const { playlistId } = useLocalSearchParams<{ playlistId: string }>();
@@ -53,6 +63,13 @@ export default function PlaylistDetailPage() {
   const lifecycle = usePlaylistLifecycle();
   const shareActions = usePlaylistShareActions();
   const syncService = usePlaylistSyncService();
+  const groupSegment = useGroupSegment();
+  // The heart on your own playlist favorites it; someone else's playlist uses
+  // the heart to follow it (FollowedPlaylistView), since following is how a
+  // playlist you don't own gets into your library and yours is already there.
+  // Until the server adds the `playlist` favorite kind it refuses these, and
+  // the refused favorite shows as needing attention in favorites sync.
+  const favorite = useFavorite('playlist', playlistId);
 
   // A followed playlist its owner made private keeps its last rows, hidden; don't fetch them.
   usePlaylistHydration(playlistId, playlist?.unavailable ? [] : allGroups, online);
@@ -96,6 +113,25 @@ export default function PlaylistDetailPage() {
   const addTextSection = () =>
     openGuideTextEditor(router, { kind: 'section', playlistId, afterSegmentId: lastSegmentId });
   const deletePlaylist = () => lifecycle.remove(playlistId);
+  const makeCopy = () => {
+    if (isLoading(playlist)) {
+      showPlaylistToast('Wait for this playlist to load, then copy it.');
+      return;
+    }
+    let copy: Playlist;
+    try {
+      copy = duplicatePlaylist(realm, playlistId);
+    } catch (error) {
+      showPlaylistToast(
+        error instanceof PlaylistLimitError || error instanceof GuideLimitError
+          ? error.message
+          : 'Couldn’t copy this playlist.'
+      );
+      return;
+    }
+    openPlaylist(router, copy.playlistId, groupSegment);
+    showPlaylistToast(`Made a copy of ${name}`);
+  };
   const startEditing = () => {
     changedDetails.current = {};
     setInitialDraft({ name, description });
@@ -165,22 +201,16 @@ export default function PlaylistDetailPage() {
               Show Downloaded Only
             </Stack.Toolbar.MenuAction>
           </Stack.Toolbar.Menu>
-          <Stack.Toolbar.Menu inline>
-            <Stack.Toolbar.MenuAction
-              icon={nativeMenuIcons.share}
-              onPress={() => shareActions.share(playlistId)}
-            >
-              Share…
-            </Stack.Toolbar.MenuAction>
-            {playlist.published && (
+          {playlist.published && (
+            <Stack.Toolbar.Menu inline>
               <Stack.Toolbar.MenuAction
                 icon={nativeMenuIcons.lock}
                 onPress={() => shareActions.makePrivate(playlistId)}
               >
                 Make Private
               </Stack.Toolbar.MenuAction>
-            )}
-          </Stack.Toolbar.Menu>
+            </Stack.Toolbar.Menu>
+          )}
           <Stack.Toolbar.Menu inline>
             <Stack.Toolbar.MenuAction
               destructive
@@ -227,6 +257,15 @@ export default function PlaylistDetailPage() {
               trackCount={playlist.entryCount}
               groups={allGroups}
               notice={<PlaylistSyncNotice playlist={playlist} />}
+              actions={{
+                heart: {
+                  label: 'Favorite',
+                  isOn: favorite.isFavorite,
+                  onPress: favorite.toggleFavorite,
+                },
+                share: () => shareActions.share(playlistId),
+                copy: makeCopy,
+              }}
             />
           }
         />
