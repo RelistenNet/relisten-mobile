@@ -1,7 +1,6 @@
 import Realm from 'realm';
 import { Playlist } from '@/relisten/realm/models/playlists/playlist';
 import {
-  type NewEntry,
   orderedGroups,
   type PlaylistGroup,
   type PlaylistOperation,
@@ -11,16 +10,15 @@ import {
   appendSegment,
   applyOperations,
   entryDescriptionEdit,
+  groupCopies,
   insertProseSegment,
   insertTextBlock,
-  newEntryId,
   newSegmentId,
   readPlaylistSnapshot,
   restoreSnapshot,
   segmentDescriptionEdit,
   withdrawEdit,
 } from '@/relisten/playlists/playlist_repository';
-import { rewriteEntryLinks } from '@/relisten/playlists/guide/guide_text';
 import type { RefusedAddition } from '@/relisten/playlists/sync/playlist_wire';
 
 /**
@@ -149,29 +147,7 @@ export function addTracks(realm: Realm, playlistId: string, groups: string[][]):
  * entries follow their new IDs.
  */
 export function addAgain(realm: Realm, playlistId: string, additions: RefusedAddition[]): boolean {
-  const newIds = new Map(
-    additions.flatMap((addition) => addition.entries.map((entry) => [entry.entryId, newEntryId()]))
-  );
-  const relink = (text: string | undefined) => (text ? rewriteEntryLinks(text, newIds) : undefined);
-
-  const operations: PlaylistOperation[] = additions
-    .filter((addition) => addition.entries.length > 0 || addition.description)
-    .map((addition) => ({
-      type: 'insert_segment',
-      segmentId: newSegmentId(),
-      description: relink(addition.description),
-      entries: addition.entries.map((entry) => {
-        const copy: NewEntry = { entryId: newIds.get(entry.entryId)! };
-        if (entry.trackId) {
-          copy.trackId = entry.trackId;
-        }
-        if (entry.description) {
-          copy.description = relink(entry.description);
-        }
-        return copy;
-      }),
-    }));
-
+  const operations = groupCopies(additions);
   return operations.length > 0 && edit(realm, playlistId, operations);
 }
 

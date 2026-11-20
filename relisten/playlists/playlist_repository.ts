@@ -8,6 +8,8 @@ import {
   applyChanges,
   applyPlaylistOperation,
   type EntryState,
+  type NewEntry,
+  orderedGroups,
   type PlaylistOperation,
   type PlaylistSnapshot,
   type SegmentState,
@@ -39,6 +41,7 @@ import {
   assertGuideLimits,
   GuideLimitError,
   normalizeGuideText,
+  rewriteEntryLinks,
 } from '@/relisten/playlists/guide/guide_text';
 import { guideTextRefusal } from '@/relisten/playlists/guide/guide_markdown';
 
@@ -112,19 +115,102 @@ export function readPlaylistSnapshot(realm: Realm, playlistId: string): WorkingS
  * initial structure.
  */
 export function createPlaylist(realm: Realm, name: string, groups: string[][] = []): Playlist {
+  return insertPlaylist(realm, { name }, groups.map(appendSegment));
+}
+
+/**
+ * Makes a new playlist from one of the listener's own, named "<name> copy":
+ * its description, every group in order with its intro, and every track and
+ * text block with its note. It is a new playlist with fresh IDs, created like
+ * any other, so an account copy syncs as its own create. Timestamp links in
+ * its text point at the copy's entries.
+ */
+export function duplicatePlaylist(realm: Realm, playlistId: string): Playlist {
+  const original = accessiblePlaylist(realm, playlistId);
+  if (!original) {
+    throw new Error('Playlist not found.');
+  }
+
+  const groups = orderedGroups(readPlaylistSnapshot(realm, playlistId)).map((group) => ({
+    description: group.segment.description,
+    entries: group.entries,
+  }));
+  return insertPlaylist(
+    realm,
+    // Realm reads an unset description as null.
+    { name: copyName(original.name), description: original.description ?? undefined },
+    groupCopies(groups)
+  );
+}
+
+/**
+ * Inserts operations that re-create these groups at the end of a playlist,
+ * with fresh IDs: the server never accepts an ID it has seen. Timestamp links
+ * between the copied entries follow their new IDs. A group with neither
+ * entries nor an intro is dropped, since a segment can't be empty.
+ */
+export function groupCopies(groups: GroupToCopy[]): PlaylistOperation[] {
+  const newIds = new Map(
+    groups.flatMap((group) => group.entries.map((entry) => [entry.entryId, newEntryId()]))
+  );
+  const relink = (text: string | undefined) => (text ? rewriteEntryLinks(text, newIds) : undefined);
+
+  return groups
+    .filter((group) => group.entries.length > 0 || group.description)
+    .map((group) => ({
+      type: 'insert_segment',
+      segmentId: newSegmentId(),
+      description: relink(group.description),
+      entries: group.entries.map((entry) => {
+        const copy: NewEntry = { entryId: newIds.get(entry.entryId)! };
+        if (entry.trackId) {
+          copy.trackId = entry.trackId;
+        }
+        if (entry.description) {
+          copy.description = relink(entry.description);
+        }
+        return copy;
+      }),
+    }));
+}
+
+/** A group's intro and entries, as `groupCopies` re-creates them. */
+export interface GroupToCopy {
+  description?: string;
+  entries: NewEntry[];
+}
+
+const COPY_SUFFIX = ' copy';
+
+/** "<name> copy", shortening the name rather than the suffix to fit the limit. */
+function copyName(name: string): string {
+  const room = PLAYLIST_LIMITS.nameLength - COPY_SUFFIX.length;
+  return Array.from(name).slice(0, room).join('').trim() + COPY_SUFFIX;
+}
+
+/**
+ * Writes a new playlist and applies its first operations. The rows are
+ * written before an account owner is set, so they go into the create
+ * command rather than the outbox as separate edits.
+ */
+function insertPlaylist(
+  realm: Realm,
+  details: { name: string; description?: string },
+  operations: PlaylistOperation[]
+): Playlist {
   const now = new Date();
-  const playlistId = newPlaylistId();
-  const normalized = normalizePlaylistName(name) || 'New Playlist';
+  const name = normalizePlaylistName(details.name) || 'New Playlist';
 
   return realm.write(() => {
     const playlist = realm.create(Playlist, {
-      playlistId,
-      name: normalized,
+      playlistId: newPlaylistId(),
+      name,
+      description: normalizePlaylistDescription(details.description),
       entryCount: 0,
       createdAt: now,
       updatedAt: now,
     });
-    applyInWrite(realm, playlist, groups.map(appendSegment));
+    applyInWrite(realm, playlist, operations);
     const owner = visibleLibraryUserId(realm);
     if (owner) {
       playlist.ownerUserId = owner;
