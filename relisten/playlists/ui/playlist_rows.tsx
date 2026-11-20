@@ -159,8 +159,10 @@ function PlaylistRowFrame({
   linkPlaying: boolean;
   children: ReactNode;
 }) {
+  // A bare row's right padding equals a card's margin plus its padding
+  // (mx-2.5 + pr-1), so durations and ••• buttons line up in one column.
   if (!link) {
-    return <View className="pl-4 pr-2">{children}</View>;
+    return <View className="pl-4 pr-3.5">{children}</View>;
   }
 
   const opensCard = link === 'first' || link === 'only';
