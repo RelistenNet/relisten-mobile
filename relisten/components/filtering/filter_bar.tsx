@@ -56,6 +56,10 @@ export function SearchFilterBar({
           placeholderTextColor="lightgray"
           onChangeText={onChangeText}
           value={searchText}
+          // Searches match names and titles, so corrections only get in the way, and
+          // one committing as the field closes would reapply a cleared search.
+          autoCorrect={false}
+          autoCapitalize="none"
           ref={innerRef}
         />
       </View>

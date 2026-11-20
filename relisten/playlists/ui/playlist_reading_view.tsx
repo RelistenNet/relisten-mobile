@@ -197,13 +197,16 @@ export function usePlaylistSearch(): PlaylistSearch {
   const [query, setQuery] = useState('');
   return {
     isOpen,
-    query,
+    // A closed search never filters. The keyboard can still deliver a change
+    // after the field closes (an autocorrection committing as it blurs), and
+    // that text must not hide rows behind a field the listener can't see.
+    query: isOpen ? query : '',
     setQuery,
-    open: () => setIsOpen(true),
-    close: () => {
+    open: () => {
       setQuery('');
-      setIsOpen(false);
+      setIsOpen(true);
     },
+    close: () => setIsOpen(false),
   };
 }
 
