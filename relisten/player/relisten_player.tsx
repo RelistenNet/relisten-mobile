@@ -11,6 +11,7 @@ import {
   currentTrackIdentifier,
   latestError,
   PlaybackContextProgress,
+  isRemotePlayback,
   PlaybackSource,
   playbackSource,
   progress as sharedStateProgress,
@@ -339,7 +340,7 @@ export class RelistenPlayer {
     let pausePromise = Promise.resolve();
 
     // stop any playing sound while the next http request is buffering
-    if (this.state !== RelistenPlaybackState.Stopped) {
+    if (this.state !== RelistenPlaybackState.Stopped && this.playbackDriver.pausesBeforeSwitching) {
       pausePromise = this.playbackDriver.pause();
     }
     this.startStalledTimer();
@@ -686,8 +687,9 @@ ${indentString(this.queue.debugState(true))}
       const nowEligible = progress.elapsed >= 240 || progress.percent >= 0.5;
 
       // Every crossing is a play, including one after seeking back below the
-      // threshold, a Repeat One loop, or restarting the track.
-      if (!wasEligible && nowEligible) {
+      // threshold, a Repeat One loop, or restarting the track. Sonos reports
+      // its own plays, so its progress never counts here.
+      if (!wasEligible && nowEligible && playbackSource.lastState() !== PlaybackSource.Sonos) {
         this.onShouldReportTrack.dispatch({
           playerQueueTrack: this.queue.currentTrack,
           playbackStartedAt: this.queue.currentTrackPlaybackStartedAt || new Date(),
@@ -728,7 +730,7 @@ ${indentString(this.queue.debugState(true))}
   }
 
   private onNativeSnapshot = (snapshot: RelistenPlaybackSnapshot) => {
-    if (playbackSource.lastState() === PlaybackSource.Cast) {
+    if (isRemotePlayback()) {
       return;
     }
 
@@ -874,6 +876,14 @@ ${indentString(this.queue.debugState(true))}
       sharedStateProgress.setState(progress);
     }
     this.publishNativeState(snapshot.playbackState);
+  }
+
+  /**
+   * A remote player's play state, published as a native report would be: it
+   * clears the stall timer, so buffering shown for a pending command ends.
+   */
+  publishRemoteState(playbackState: RelistenPlaybackState) {
+    this.publishNativeState(playbackState);
   }
 
   private publishNativeState(playbackState: RelistenPlaybackState) {

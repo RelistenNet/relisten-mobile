@@ -4,7 +4,7 @@ import { RelistenApiClient } from '@/relisten/api/client';
 import { setupCarPlay } from '@/relisten/carplay/templates';
 import { openRealm } from '@/relisten/realm/schema';
 import { Realm } from '@realm/react';
-import { PlaybackSource, sharedStates } from '@/relisten/player/shared_state';
+import { isRemotePlayback, PlaybackSource, sharedStates } from '@/relisten/player/shared_state';
 import { RelistenPlayer } from '@/relisten/player/relisten_player';
 import { LibraryIndex } from '@/relisten/realm/library_index';
 import { UserSettingsStore } from '@/relisten/realm/user_settings_store';
@@ -187,7 +187,7 @@ const registerCarPlayBootstrap = () => {
   }
 
   const prepareNativeAudioSession = () => {
-    if (sharedStates.playbackSource.lastState() === PlaybackSource.Cast) {
+    if (isRemotePlayback()) {
       return;
     }
 
@@ -198,7 +198,7 @@ const registerCarPlayBootstrap = () => {
 
   const handleConnect = () => {
     connected = true;
-    if (sharedStates.playbackSource.lastState() !== PlaybackSource.Cast) {
+    if (!isRemotePlayback()) {
       sharedStates.playbackSource.setState(PlaybackSource.Native);
     }
     prepareNativeAudioSession();

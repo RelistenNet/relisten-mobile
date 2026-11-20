@@ -982,6 +982,7 @@ describe('seeking', () => {
       seekTo: vi.fn(async () => {}),
       seekToTime: vi.fn(async () => {}),
       setNextStream: vi.fn(),
+      pausesBeforeSwitching: true,
     };
     player.setPlaybackDriver(driver);
 

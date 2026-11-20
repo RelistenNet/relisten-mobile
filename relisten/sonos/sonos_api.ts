@@ -48,8 +48,12 @@ export interface SonosHandoffRequest {
   /** Fresh for each explicit handoff, reused with the identical body on retry. */
   request_id: string;
   group_id: string;
-  /** One typed track ID per queue occurrence, duplicates included. */
-  track_ids: string[];
+  /**
+   * The queue in order, one entry per occurrence, duplicates included. Each
+   * keeps the phone's identifier, so the room's current occurrence names the
+   * phone's queue entry.
+   */
+  occurrences: { occurrence_id: string; track_id: string }[];
   start_index: number;
   position_millis: number;
 }

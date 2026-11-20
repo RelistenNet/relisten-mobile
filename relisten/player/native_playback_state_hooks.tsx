@@ -7,7 +7,7 @@ import {
   RelistenRemoteControlEvent,
   RelistenTrackStreamingCacheCompleteEvent,
 } from '@/modules/relisten-audio-player';
-import { PlaybackSource, sharedStates } from '@/relisten/player/shared_state';
+import { isRemotePlayback, sharedStates } from '@/relisten/player/shared_state';
 import { SharedState } from '@/relisten/util/shared_state';
 import { useEffect, useState } from 'react';
 
@@ -30,8 +30,7 @@ export function addPlayerListeners() {
   }
   listenersRegisters = true;
 
-  const shouldUseNativeUpdates = () =>
-    sharedStates.playbackSource.lastState() !== PlaybackSource.Cast;
+  const shouldUseNativeUpdates = () => !isRemotePlayback();
 
   const download = nativePlayer.addDownloadProgressListener(
     (download: RelistenDownloadProgressChangedEvent) => {
@@ -103,3 +102,5 @@ export const useNativePlaybackProgress = createPlaybackHook(sharedStates.progres
 export const useNativeActiveTrackDownloadProgress = createPlaybackHook(
   sharedStates.activeTrackDownloadProgress
 );
+/** Where the queue plays: this phone, a Cast receiver or a Sonos room. */
+export const usePlaybackSource = createPlaybackHook(sharedStates.playbackSource);

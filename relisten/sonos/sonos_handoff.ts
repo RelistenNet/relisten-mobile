@@ -60,7 +60,10 @@ export function handoffRequest({
   return {
     request_id: requestId,
     group_id: groupId,
-    track_ids: tracks.map((track) => formatUuidTypedId('track', track.sourceTrack.uuid)),
+    occurrences: tracks.map((track) => ({
+      occurrence_id: track.identifier,
+      track_id: formatUuidTypedId('track', track.sourceTrack.uuid),
+    })),
     start_index: startIndex,
     position_millis: Math.max(0, Math.round(positionSeconds * 1000)),
   };

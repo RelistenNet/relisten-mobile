@@ -1,6 +1,11 @@
 import Flex from '@/relisten/components/flex';
-import { useNativeActiveTrackDownloadProgress } from '@/relisten/player/native_playback_state_hooks';
-import { usePlaybackView } from '@/relisten/player/playback_view';
+import {
+  useNativeActiveTrackDownloadProgress,
+  useNativePlaybackProgress,
+  usePlaybackSource,
+} from '@/relisten/player/native_playback_state_hooks';
+import { PlaybackSource } from '@/relisten/player/shared_state';
+import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { trackDuration } from '@/relisten/util/duration';
 import * as Haptics from 'expo-haptics';
@@ -8,7 +13,6 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { HapticModeEnum, Slider } from 'react-native-awesome-slider';
 import { useSharedValue } from 'react-native-reanimated';
-import { useRelistenCastStatus } from '@/relisten/casting/cast_ui';
 import { playbackTimePreference } from './playback_time_preference';
 
 type ScrubberRowProps = {
@@ -25,13 +29,11 @@ export function ScrubberRow({
 }: ScrubberRowProps) {
   'use no memo';
 
-  // The phone's playhead, or a Sonos room's while one plays this queue.
-  const view = usePlaybackView();
-  const progressObj = view.progress;
+  const progressObj = useNativePlaybackProgress();
   const downloadProgress = useNativeActiveTrackDownloadProgress();
-  const { isCasting } = useRelistenCastStatus();
-  // A remote device confirms a seek slower than the phone does.
-  const isRemote = isCasting || view.roomName !== undefined;
+  const player = useRelistenPlayer();
+  // A remote player confirms a seek only on its next report.
+  const isRemote = usePlaybackSource() !== PlaybackSource.Native;
   const timeDisplay = useSyncExternalStore(
     playbackTimePreference.subscribe,
     playbackTimePreference.getSnapshot,
@@ -47,10 +49,8 @@ export function ScrubberRow({
     void playbackTimePreference.load();
   }, []);
 
-  // Buffering progress belongs to the phone's audio, not a Sonos room's.
-  const cacheValue = view.roomName
-    ? 0
-    : Math.max(0, Math.min(1, downloadProgress?.percent ?? 0)) * (progressObj?.duration ?? 0);
+  const cacheValue =
+    Math.max(0, Math.min(1, downloadProgress?.percent ?? 0)) * (progressObj?.duration ?? 0);
 
   const progress = useSharedValue(progressObj?.elapsed ?? 0);
   const min = useSharedValue(0);
@@ -68,9 +68,9 @@ export function ScrubberRow({
       value = Math.max(0, Math.min(duration, value));
       progress.value = value;
       pendingSeekRef.current = { value, startedAt: Date.now() };
-      view.seekTo(value);
+      void player.seekTo(value / duration);
     },
-    [duration, view, progress]
+    [duration, player, progress]
   );
 
   useEffect(() => {

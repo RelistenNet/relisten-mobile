@@ -1,6 +1,12 @@
+import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import Flex from '@/relisten/components/flex';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { usePlaybackView } from '@/relisten/player/playback_view';
+import {
+  useRelistenPlayer,
+  useRelistenPlayerPlaybackState,
+} from '@/relisten/player/relisten_player_hooks';
+import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player_queue_hooks';
+import { useNativePlaybackProgress } from '@/relisten/player/native_playback_state_hooks';
 import {
   playerPresentationProgress,
   playerPresentationContentReady,
@@ -60,7 +66,7 @@ interface PlayerBottomBarContentsProps {
 }
 
 function NativeTabsAccessoryProgress() {
-  const progress = usePlaybackView().progress;
+  const progress = useNativePlaybackProgress();
   const percent =
     progress?.duration && progress.duration > 0
       ? Math.max(0, Math.min(1, progress.elapsed / progress.duration))
@@ -93,21 +99,20 @@ function PlayerBottomBarProgress({
 function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsProps) {
   'use no memo';
 
-  // The phone's playback, or a Sonos room's while one plays this queue: same bar either way.
-  const view = usePlaybackView();
+  const currentTrack = useRelistenPlayerCurrentTrack();
+  const playbackState = useRelistenPlayerPlaybackState();
+  const player = useRelistenPlayer();
   const { height } = useWindowDimensions();
   const { beginInteractivePresentation, closePlayer, openPlayer } = usePlayerPresentation();
   const gesturePresentationStarted = useSharedValue(false);
   const gestureStartProgress = useSharedValue(0);
   const gestureDistance = Math.max(height * 0.72, 1);
-  const track = view.track?.sourceTrack;
-  const title = track?.title ?? view.fallback?.title;
-  if (title === undefined) {
+
+  if (!currentTrack) {
     return <></>;
   }
 
-  const artistName = track?.artist.name ?? view.fallback?.artist ?? '';
-  const trackLabel = track ? playerTrackAccessibilityLabel(track) : title;
+  const track = currentTrack.sourceTrack;
   const isAccessory = placementBackend === 'nativeTabsAccessory';
   // The fixed-height native accessory must fit controls and two metadata lines.
   // Keep its text at the designed size; the expanded player supports Dynamic Type.
@@ -128,10 +133,10 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
   let playbackLabel = 'Play';
   let playbackStateIcon = <MaterialIcons name="play-arrow" size={playbackIconSize} color="white" />;
 
-  if (view.state === 'playing') {
+  if (playbackState == RelistenPlaybackState.Playing) {
     playbackLabel = 'Pause';
     playbackStateIcon = <MaterialIcons name="pause" size={playbackIconSize} color="white" />;
-  } else if (view.state === 'buffering') {
+  } else if (playbackState == RelistenPlaybackState.Stalled) {
     playbackLabel = 'Buffering';
     playbackStateIcon = (
       <Progress.CircleSnail indeterminate={true} size={isAccessory ? 22 : 28} color="white" />
@@ -190,18 +195,19 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
     <Flex column cn={rootContainerCn}>
       <Flex cn={headerRowCn}>
         <TouchableOpacity
-          accessibilityLabel={`${playbackLabel} ${trackLabel}`}
+          accessibilityLabel={`${playbackLabel} ${playerTrackAccessibilityLabel(track)}`}
           accessibilityRole="button"
           className={transportButtonClassName}
-          disabled={view.busy}
-          onPress={view.togglePlayPause}
+          onPress={() => {
+            player.togglePauseResume();
+          }}
         >
           {playbackStateIcon}
         </TouchableOpacity>
         <GestureDetector gesture={metadataGesture}>
           <Animated.View
             accessible
-            accessibilityLabel={`Open player for ${trackLabel}`}
+            accessibilityLabel={`Open player for ${playerTrackAccessibilityLabel(track)}`}
             accessibilityRole="button"
             className={`${isAccessory ? 'ml-2' : 'ml-3'} min-w-0 flex-1`}
             onAccessibilityTap={openPlayer}
@@ -212,7 +218,7 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
                 maxFontSizeMultiplier={metadataFontSizeLimit}
                 numberOfLines={1}
               >
-                {title}
+                {track?.title ?? ''}
               </RelistenText>
               {/* Reserve space for the date even when the artist name is long. */}
               <View className="min-w-0 flex-row items-baseline">
@@ -221,18 +227,16 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
                   maxFontSizeMultiplier={metadataFontSizeLimit}
                   numberOfLines={1}
                 >
-                  {artistName}
+                  {track.artist.name}
                 </RelistenText>
-                {track && (
-                  <RelistenText
-                    className={`${subtitleClassName} shrink-0`}
-                    maxFontSizeMultiplier={metadataFontSizeLimit}
-                    numberOfLines={1}
-                  >
-                    {' · '}
-                    {playerQueueDate(track.show.displayDate)}
-                  </RelistenText>
-                )}
+                <RelistenText
+                  className={`${subtitleClassName} shrink-0`}
+                  maxFontSizeMultiplier={metadataFontSizeLimit}
+                  numberOfLines={1}
+                >
+                  {' · '}
+                  {playerQueueDate(track.show.displayDate)}
+                </RelistenText>
               </View>
             </Flex>
           </Animated.View>

@@ -17,7 +17,10 @@ const UUID_B = '7f1d1d55-0000-4000-8000-000000000002';
 const request = {
   request_id: 'req-1',
   group_id: 'group-1',
-  track_ids: ['track_a', 'track_b'],
+  occurrences: [
+    { occurrence_id: 'q1', track_id: 'track_a' },
+    { occurrence_id: 'q2', track_id: 'track_b' },
+  ],
   start_index: 1,
   position_millis: 12000,
 };
@@ -63,8 +66,9 @@ describe('handoffRequest', () => {
     });
 
     expect(result?.start_index).toBe(2);
-    expect(result?.track_ids).toHaveLength(3);
-    expect(result?.track_ids[0]).toBe(result?.track_ids[2]);
+    // Each occurrence keeps its own identifier, even when the recording repeats.
+    expect(result?.occurrences.map((entry) => entry.occurrence_id)).toEqual(['q1', 'q2', 'q3']);
+    expect(result?.occurrences[0].track_id).toBe(result?.occurrences[2].track_id);
     expect(result?.position_millis).toBe(12400);
   });
 

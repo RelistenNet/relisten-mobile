@@ -16,6 +16,12 @@ export interface PlaybackQueueContext {
 
 export interface PlaybackDriver {
   name: string;
+  /**
+   * Whether the player pauses the current stream before asking for another.
+   * A Sonos room switches tracks itself and keeps play or pause, so pausing
+   * first would leave it paused.
+   */
+  readonly pausesBeforeSwitching: boolean;
   isActive(): boolean;
   play(streamable: RelistenStreamable, queueContext?: PlaybackQueueContext): Promise<void>;
   pause(): Promise<void>;
@@ -28,6 +34,7 @@ export interface PlaybackDriver {
 
 export class NativePlaybackDriver implements PlaybackDriver {
   name = 'native';
+  readonly pausesBeforeSwitching = true;
 
   isActive() {
     return true;

@@ -9,6 +9,8 @@ vi.mock('expo-crypto', () => ({
   randomUUID: () => 'test-command-id',
 }));
 
+vi.mock('@react-native-async-storage/async-storage', () => ({ default: {} }));
+
 import { AccountsApiError } from '@/relisten/accounts/api/accounts_api_client';
 import { SonosRemoteStore } from './sonos_remote';
 
@@ -21,8 +23,10 @@ function playback(handle: string, extra: Record<string, unknown> = {}) {
     playback_state: 'PLAYBACK_STATE_PAUSED',
     position_millis: 1000,
     observed_at: '2026-11-20T06:00:00Z',
+    queue_version: 1,
     current_occurrence: {
       item_id: 'item-1',
+      occurrence_id: 'q1',
       queue_index: 0,
       track_id: 'track_x',
       name: 'Loser',
@@ -35,15 +39,22 @@ function playback(handle: string, extra: Record<string, unknown> = {}) {
   };
 }
 
-function store() {
+function store(rememberedRoom?: string) {
   const api = { request: vi.fn() };
-  const remote = new SonosRemoteStore({
-    wait: () => Promise.resolve(),
-    confirmIntervalMs: 0,
-    confirmAttempts: 3,
-  });
-  remote.bind(api as never);
-  return { api, remote };
+  const rooms = {
+    load: vi.fn(async () => rememberedRoom),
+    save: vi.fn(async () => {}),
+  };
+  const remote = new SonosRemoteStore(
+    {
+      wait: () => Promise.resolve(),
+      confirmIntervalMs: 0,
+      confirmAttempts: 3,
+    },
+    rooms
+  );
+  remote.bind(api as never, undefined, 'user-1');
+  return { api, remote, rooms };
 }
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -89,7 +100,7 @@ describe('SonosRemoteStore', () => {
     await flush();
     await remote.refresh();
 
-    expect(remote.getState()).toEqual({ kind: 'none' });
+    expect(remote.getState()).toEqual({ kind: 'none', endedRoom: 'Alec’s Office' });
   });
 
   it('clears remote controls when the handle is gone', async () => {
@@ -102,7 +113,7 @@ describe('SonosRemoteStore', () => {
     await flush();
     await remote.refresh();
 
-    expect(remote.getState()).toEqual({ kind: 'none' });
+    expect(remote.getState()).toEqual({ kind: 'none', endedRoom: 'Alec’s Office' });
   });
 
   it('disables controls while the room is unconfirmed', async () => {
@@ -182,16 +193,49 @@ describe('SonosRemoteStore', () => {
     expect(state.kind === 'active' && state.commandError).toBe('Sonos didn’t confirm. Try again.');
   });
 
-  it('restores active playback found on launch without sending commands', async () => {
-    const { api, remote } = store();
-    api.request.mockResolvedValueOnce([playback('h9')]);
+  it('restores the room this device chose on launch, without sending commands', async () => {
+    const { api, remote } = store('h9');
+    api.request.mockResolvedValueOnce(playback('h9'));
 
-    await remote.discover();
+    await remote.discover(() => true);
 
     const state = remote.getState();
     expect(state.kind === 'active' && state.playback.handle).toBe('h9');
     expect(api.request).toHaveBeenCalledTimes(1);
-    expect(api.request).toHaveBeenCalledWith('/v1/integrations/sonos/playback');
+    expect(api.request).toHaveBeenCalledWith('/v1/integrations/sonos/playback/h9');
+  });
+
+  it('leaves the remembered room alone while something else plays', async () => {
+    const { api, remote } = store('h9');
+
+    await remote.discover(() => false);
+
+    expect(remote.getState()).toEqual({ kind: 'none' });
+    expect(api.request).not.toHaveBeenCalled();
+  });
+
+  it('takes over no room on launch when this device chose none', async () => {
+    const { api, remote } = store(undefined);
+
+    await remote.discover(() => true);
+
+    expect(remote.getState()).toEqual({ kind: 'none' });
+    expect(api.request).not.toHaveBeenCalled();
+  });
+
+  it('remembers an adopted room and forgets one that ended', async () => {
+    const { api, remote, rooms } = store();
+    api.request
+      .mockResolvedValueOnce(playback('h1'))
+      .mockResolvedValueOnce(playback('h1', { status: 'evicted', current_occurrence: null }));
+
+    remote.adopt('h1', 'Office');
+    await flush();
+    await remote.refresh();
+
+    expect(rooms.save).toHaveBeenNthCalledWith(1, 'user-1', 'h1');
+    expect(rooms.save).toHaveBeenLastCalledWith('user-1', undefined);
+    expect(remote.getState()).toEqual({ kind: 'none', endedRoom: 'Alec’s Office' });
   });
 
   it('ends remote control on sign-out', async () => {
@@ -205,12 +249,13 @@ describe('SonosRemoteStore', () => {
     expect(remote.getState()).toEqual({ kind: 'none' });
   });
 
-  it('confirms Next once the room is on another occurrence', async () => {
+  it('jumps to an occurrence and confirms once the room is on it', async () => {
     const { api, remote } = store();
     const moved = playback('h1', {
       current_occurrence: {
         ...playback('h1').current_occurrence,
         item_id: 'item-2',
+        occurrence_id: 'q2',
         queue_index: 1,
       },
     });
@@ -221,10 +266,16 @@ describe('SonosRemoteStore', () => {
 
     remote.adopt('h1', 'Office');
     await flush();
-    await remote.command({ action: 'next' });
+    const confirmed = await remote.command({ action: 'skip', occurrenceId: 'q2' });
 
     const body = JSON.parse(api.request.mock.calls[1][1].body);
-    expect(body).toMatchObject({ action: 'next', expected_item_id: 'item-1' });
+    expect(body).toMatchObject({
+      action: 'skip',
+      expected_item_id: 'item-1',
+      expected_queue_version: 1,
+      target_occurrence_id: 'q2',
+    });
+    expect(confirmed).toBe(true);
     const state = remote.getState();
     expect(state.kind === 'active' && state.playback.occurrence?.itemId).toBe('item-2');
     expect(state.kind === 'active' && state.commandError).toBeUndefined();
@@ -260,12 +311,64 @@ describe('SonosRemoteStore', () => {
 
     remote.adopt('h1', 'Office');
     await flush();
-    await remote.command({ action: 'previous' });
+    await remote.command({ action: 'seek', positionMillis: 999999 });
 
     const state = remote.getState();
     expect(state.kind === 'active' && state.commandError).toBe(
       'That isn’t available for this track.'
     );
+  });
+
+  it('names the version a queue edit saved when it next jumps', async () => {
+    const { api, remote } = store();
+    const moved = playback('h1', {
+      queue_version: 2,
+      current_occurrence: {
+        ...playback('h1').current_occurrence,
+        item_id: 'item-2',
+        occurrence_id: 'q2',
+      },
+    });
+    api.request
+      .mockResolvedValueOnce(playback('h1'))
+      .mockResolvedValueOnce({ queue_version: 2 })
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(moved);
+
+    remote.adopt('h1', 'Office');
+    await flush();
+    const saved = await remote.saveQueue(
+      [
+        { occurrenceId: 'q1', trackId: 'track_x' },
+        { occurrenceId: 'q2', trackId: 'track_y' },
+      ],
+      1
+    );
+    await remote.command({ action: 'skip', occurrenceId: 'q2' });
+
+    expect(saved).toEqual({ kind: 'saved', version: 2 });
+    expect(JSON.parse(api.request.mock.calls[2][1].body)).toMatchObject({
+      action: 'skip',
+      expected_queue_version: 2,
+    });
+  });
+
+  it('tells a queue edit the room moved on from one it refused', async () => {
+    const { api, remote } = store();
+    api.request
+      .mockResolvedValueOnce(playback('h1'))
+      .mockRejectedValueOnce(new AccountsApiError('', 409, 'sonos_playback_changed', false))
+      .mockRejectedValueOnce(new AccountsApiError('', 409, 'sonos_queue_current_protected', false));
+
+    remote.adopt('h1', 'Office');
+    await flush();
+    const entries = [{ occurrenceId: 'q1', trackId: 'track_x' }];
+
+    expect(await remote.saveQueue(entries, 1)).toEqual({ kind: 'trackMoved' });
+    expect(await remote.saveQueue(entries, 1)).toEqual({
+      kind: 'refused',
+      message: 'Sonos keeps the tracks through the one playing.',
+    });
   });
 
   it('sets the group volume and reads it back', async () => {

@@ -19,6 +19,8 @@ import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useRelistenCastStatus, useShouldRenderCastButton } from '@/relisten/casting/cast_ui';
 import { usePlayerOutputRoute } from '@/relisten/player/ui/player_output_route';
 import { groupSonosHouseholds, type SonosGroup } from '@/relisten/sonos/sonos_api';
+import { useSonosRemote } from '@/relisten/sonos/sonos_remote';
+import { sonosSession } from '@/relisten/sonos/sonos_session';
 import { type SonosHandoffState, useSonosOutput } from '@/relisten/sonos/use_sonos_output';
 
 const ICON_COLOR = 'rgba(255, 255, 255, 0.78)';
@@ -49,17 +51,36 @@ export default function PlayOnSheet() {
   );
 }
 
-/** This phone, checked while it is where music plays. */
+/**
+ * This phone, checked while it is where music plays. While a Sonos room
+ * plays, tapping it moves playback back here at the same track and position.
+ */
 function ThisPhoneRow() {
+  const router = useRouter();
   const outputRoute = usePlayerOutputRoute();
+  const sonosPlaying = useSonosRemote().kind === 'active';
   const here = !outputRoute;
   return (
     <OutputRow
       icon={<MaterialIcons name="smartphone" size={22} color={ICON_COLOR} />}
       title={Platform.OS === 'ios' ? 'This iPhone' : 'This Phone'}
-      subtitle={outputRoute ? `Music is playing on ${outputRoute}` : undefined}
+      subtitle={
+        sonosPlaying
+          ? `Tap to move playback from ${outputRoute}`
+          : outputRoute
+            ? `Music is playing on ${outputRoute}`
+            : undefined
+      }
       trailing={
         here ? <MaterialIcons name="check" size={20} color={RelistenBlue[300]} /> : undefined
+      }
+      onPress={
+        sonosPlaying
+          ? () => {
+              void sonosSession.transferToPhone();
+              router.back();
+            }
+          : undefined
       }
     />
   );

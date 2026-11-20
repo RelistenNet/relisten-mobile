@@ -9,8 +9,10 @@ const BASE = '/v1/integrations/sonos/playback';
 
 /** The queue occurrence the room is playing, with what to display for it. */
 export interface SonosOccurrence {
-  /** Stable for this occurrence, even when the same recording is queued twice. */
+  /** Sonos's item for this occurrence; commands name it to say which track they were meant for. */
   itemId: string;
+  /** The phone queue's identifier for this occurrence, sent with the handoff or queue edit. */
+  occurrenceId: string;
   queueIndex: number;
   trackId: string;
   name: string;
@@ -36,8 +38,9 @@ export interface SonosPlayback {
   occurrence: SonosOccurrence | null;
   positionMillis: number | null;
   observedAt: number | null;
-  /** Occurrences in the room's queue, for disabling Next and Previous at its ends. */
   queueLength: number | null;
+  /** Changes with every saved queue edit, from any device. */
+  queueVersion: number | null;
 }
 
 /** Group volume. `fixed` means the group won't take volume changes. */
@@ -51,11 +54,13 @@ export interface SonosVolume {
  * A transport command for the room's current occurrence. Each is sent with
  * the occurrence it was meant for (`expected_item_id`), so a command that
  * arrives after the track changed is refused rather than applied to the
- * wrong track.
+ * wrong track. `skip` moves to an occurrence in the queue, starting it at
+ * zero and keeping play or pause.
  */
 export type SonosTransport =
-  | { action: 'play' | 'pause' | 'next' | 'previous' }
-  | { action: 'seek'; positionMillis: number };
+  | { action: 'play' | 'pause' }
+  | { action: 'seek'; positionMillis: number }
+  | { action: 'skip'; occurrenceId: string };
 
 export type SonosTransportAction = SonosTransport['action'];
 
@@ -89,9 +94,8 @@ export function reachedTransport(
     return false;
   }
   switch (transport.action) {
-    case 'next':
-    case 'previous':
-      return itemId !== fromItemId;
+    case 'skip':
+      return playback.occurrence?.occurrenceId === transport.occurrenceId;
     case 'play':
     case 'pause':
       return (
@@ -106,31 +110,31 @@ export function reachedTransport(
   }
 }
 
-/** Whether Next has somewhere to go. */
-export function hasNextOccurrence(playback: SonosPlayback): boolean {
-  const index = playback.occurrence?.queueIndex;
-  return index !== undefined && playback.queueLength !== null && index < playback.queueLength - 1;
-}
-
-/** Whether Previous has somewhere to go. */
-export function hasPreviousOccurrence(playback: SonosPlayback): boolean {
-  return (playback.occurrence?.queueIndex ?? 0) > 0;
-}
-
-/** The request body for `transport` on the occurrence `itemId`. */
+/**
+ * The request body for `transport` on `playback`'s current occurrence. A skip
+ * also names the queue version it was chosen from, so the server refuses it
+ * if the queue changed in the meantime.
+ */
 export function transportBody(
   transport: SonosTransport,
   commandId: string,
-  itemId: string
+  playback: { itemId: string; queueVersion: number | null }
 ): Record<string, unknown> {
-  return {
+  const body: Record<string, unknown> = {
     action: transport.action,
     command_id: commandId,
-    expected_item_id: itemId,
-    ...(transport.action === 'seek'
-      ? { position_millis: Math.round(transport.positionMillis) }
-      : {}),
+    expected_item_id: playback.itemId,
   };
+  if (transport.action === 'seek') {
+    body.position_millis = Math.round(transport.positionMillis);
+  }
+  if (transport.action === 'skip') {
+    body.target_occurrence_id = transport.occurrenceId;
+    if (playback.queueVersion !== null) {
+      body.expected_queue_version = playback.queueVersion;
+    }
+  }
+  return body;
 }
 
 /** The playhead now, advancing from the last observation while the room plays. */
@@ -181,6 +185,78 @@ export function sendSonosCommand(
   });
 }
 
+/** One occurrence of the room's queue: the phone's identifier and the recording. */
+export interface SonosQueueEntry {
+  occurrenceId: string;
+  trackId: string;
+}
+
+/** The room's queue in order, as of `version`. */
+export interface SonosQueue {
+  version: number;
+  entries: SonosQueueEntry[];
+}
+
+export async function fetchSonosQueue(
+  api: AuthorizedAccountsApiClient,
+  handle: string
+): Promise<SonosQueue> {
+  const body = await api.request<Record<string, unknown> | null>(
+    `${BASE}/${encodeURIComponent(handle)}/queue`
+  );
+  const rows = Array.isArray(body?.occurrences) ? body.occurrences : undefined;
+  if (typeof body?.queue_version !== 'number' || !rows) {
+    throw new Error('The Sonos queue response is invalid.');
+  }
+  const entries = rows.flatMap((row: Record<string, unknown> | null) =>
+    typeof row?.occurrence_id === 'string' && typeof row.track_id === 'string'
+      ? [{ occurrenceId: row.occurrence_id, trackId: row.track_id }]
+      : []
+  );
+  if (entries.length !== rows.length) {
+    throw new Error('The Sonos queue response is invalid.');
+  }
+  return { version: body.queue_version, entries };
+}
+
+/**
+ * Replaces the room's queue with `entries`, the full order through its end.
+ * Saved only if the queue is still at `expectedVersion` and the room is still
+ * on `expectedItemId`; returns the new version. A retry must reuse the same
+ * `commandId` and entries.
+ */
+export async function saveSonosQueue(
+  api: AuthorizedAccountsApiClient,
+  handle: string,
+  edit: {
+    commandId: string;
+    expectedVersion: number;
+    expectedItemId: string;
+    entries: readonly SonosQueueEntry[];
+  }
+): Promise<number> {
+  const body = await api.request<Record<string, unknown> | null>(
+    `${BASE}/${encodeURIComponent(handle)}/queue`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        command_id: edit.commandId,
+        expected_version: edit.expectedVersion,
+        expected_item_id: edit.expectedItemId,
+        occurrences: edit.entries.map((entry) => ({
+          occurrence_id: entry.occurrenceId,
+          track_id: entry.trackId,
+        })),
+      }),
+    }
+  );
+  if (typeof body?.queue_version !== 'number') {
+    throw new Error('The Sonos queue edit response is invalid.');
+  }
+  return body.queue_version;
+}
+
 export async function fetchSonosVolume(
   api: AuthorizedAccountsApiClient,
   handle: string
@@ -214,17 +290,23 @@ export function parsePlayback(value: unknown): SonosPlayback | undefined {
     positionMillis: typeof body.position_millis === 'number' ? body.position_millis : null,
     observedAt: Number.isFinite(observedAt) ? observedAt : null,
     queueLength: typeof body.queue_length === 'number' ? body.queue_length : null,
+    queueVersion: typeof body.queue_version === 'number' ? body.queue_version : null,
   };
 }
 
 function parseOccurrence(value: unknown): SonosOccurrence | null {
   const item = value as Record<string, unknown> | null;
-  if (typeof item?.item_id !== 'string' || typeof item.name !== 'string') {
+  if (
+    typeof item?.item_id !== 'string' ||
+    typeof item.occurrence_id !== 'string' ||
+    typeof item.name !== 'string'
+  ) {
     return null;
   }
   const text = (key: string) => (typeof item[key] === 'string' ? (item[key] as string) : null);
   return {
     itemId: item.item_id,
+    occurrenceId: item.occurrence_id,
     queueIndex: typeof item.queue_index === 'number' ? item.queue_index : 0,
     trackId: text('track_id') ?? '',
     name: item.name,

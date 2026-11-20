@@ -21,6 +21,7 @@ export interface PlaybackContextProgress {
 export enum PlaybackSource {
   Native = 'native',
   Cast = 'cast',
+  Sonos = 'sonos',
 }
 
 export const latestError = new SharedState<RelistenErrorEvent>();
@@ -32,6 +33,12 @@ export const remoteControlEvent = new SharedState<RelistenRemoteControlEvent>();
 export const trackStreamingCacheComplete =
   new SharedState<RelistenTrackStreamingCacheCompleteEvent>();
 export const playbackSource = new SharedState<PlaybackSource>();
+
+/** Whether another device plays the queue, so the phone's own player must not report state. */
+export function isRemotePlayback(): boolean {
+  const source = playbackSource.lastState();
+  return source !== undefined && source !== PlaybackSource.Native;
+}
 
 export const sharedStates = {
   latestError,

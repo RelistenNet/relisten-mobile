@@ -88,6 +88,7 @@ export function buildQueueData(queueContext: PlaybackQueueContext): MediaQueueDa
 
 export class CastPlaybackDriver implements PlaybackDriver {
   name = 'cast';
+  readonly pausesBeforeSwitching = true;
 
   constructor(private client: RemoteMediaClient) {}
 

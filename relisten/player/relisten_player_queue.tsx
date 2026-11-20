@@ -284,6 +284,33 @@ export class RelistenPlayerQueue {
     this.savePlayerState(true);
   }
 
+  /**
+   * Takes a remote player's order as this queue, as when a Sonos room's queue
+   * was edited on another device. Unlike `replaceQueue`, each occurrence keeps
+   * its identifier, so the phone and the room keep naming the same entries,
+   * and `currentIdentifier` is selected without playing, since the room is
+   * already playing it. The order is already the effective one, so shuffle
+   * turns off.
+   */
+  adoptRemoteQueue(tracks: PlayerQueueTrack[], currentIdentifier: string | undefined) {
+    this.player.cancelPendingPlayRequests('adoptRemoteQueue');
+    this.originalTracks = [...tracks];
+    this.shuffledTracks = [...tracks];
+    this.clearCurrentTrack();
+    this.prevNextTrackIndexIntentOffset = 0;
+
+    if (this._shuffleState !== PlayerShuffleState.SHUFFLE_OFF) {
+      this._shuffleState = PlayerShuffleState.SHUFFLE_OFF;
+      this.onShuffleStateChanged.dispatch(this._shuffleState);
+      nativePlayer.setShuffleMode(this._shuffleState);
+    }
+
+    // Selects the occurrence, prepares nothing (the remote driver has no next stream), and saves.
+    this.onCurrentTrackIdentifierChanged(currentIdentifier);
+    this.onOrderedTracksChanged.dispatch(this.orderedTracks);
+    this.savePlayerState(true);
+  }
+
   removeTrackAtIndex(index: number) {
     const identifier = this.orderedTracks[index]?.identifier;
     return identifier ? this.removeTrackWithIdentifier(identifier) : false;

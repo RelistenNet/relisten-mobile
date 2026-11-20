@@ -20,7 +20,7 @@ import {
   SONOS_CALLBACK_URL,
   type SonosGroup,
 } from './sonos_api';
-import { handoffRequest, runSonosHandoff, type SonosHandoffOutcome } from './sonos_handoff';
+import { handoffRequest, type SonosHandoffOutcome } from './sonos_handoff';
 import { sonosRemote } from './sonos_remote';
 
 /**
@@ -42,8 +42,6 @@ export type SonosConnection =
 export type SonosHandoffState =
   | { groupId: string; phase: 'connecting' }
   | { groupId: string; phase: 'done'; outcome: SonosHandoffOutcome };
-
-const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /**
  * Sonos for the Play on sheet. It reads the account's link and rooms when the
@@ -134,7 +132,6 @@ export function useSonosOutput() {
       if (!capture.isAuthenticated || capture.generation !== generation) {
         return;
       }
-      const isCurrent = () => scope.isCurrent(capture);
       const request = handoffRequest({
         requestId: randomUUID(),
         groupId: group.id,
@@ -150,13 +147,10 @@ export function useSonosOutput() {
       player.pause();
       setHandoff({ groupId: group.id, phase: 'connecting', generation: capture.generation });
 
-      const outcome = await runSonosHandoff(api, request, { wait, isCurrent });
-      if (!isCurrent()) {
+      // Once the room takes the queue, the player plays through it.
+      const outcome = await sonosRemote.handOff(request, group.name);
+      if (!scope.isCurrent(capture)) {
         return;
-      }
-      if (outcome.kind === 'playing' && outcome.receipt.playbackHandle) {
-        // From here the room's Now Playing and Play/Pause replace the phone's.
-        sonosRemote.adopt(outcome.receipt.playbackHandle, group.name);
       }
       if (outcome.kind === 'refused' && wasPlaying) {
         player.resume();
@@ -170,7 +164,7 @@ export function useSonosOutput() {
         setHandoff({ groupId: group.id, phase: 'done', outcome, generation: capture.generation });
       }
     },
-    [api, generation, player, refresh, scope]
+    [generation, player, refresh, scope]
   );
 
   const hasQueue = currentTrack !== undefined;
