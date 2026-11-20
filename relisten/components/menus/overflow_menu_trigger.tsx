@@ -7,6 +7,12 @@ type OverflowMenuTriggerProps = {
   iconAlignment?: 'center' | 'trailing';
 };
 
+/**
+ * Quieter than a row's title, but a step brighter than its duration
+ * (gray-400), so the menu stays easy to find without competing with the text.
+ */
+const ICON_COLOR = colors.gray[300];
+
 export function OverflowMenuTrigger({
   accessibilityLabel,
   iconAlignment = 'center',
@@ -23,9 +29,9 @@ export function OverflowMenuTrigger({
       }
     >
       {Platform.OS === 'ios' ? (
-        <Ionicons color={colors.white} name="ellipsis-horizontal-circle-outline" size={20} />
+        <Ionicons color={ICON_COLOR} name="ellipsis-horizontal-circle-outline" size={20} />
       ) : (
-        <MaterialIcons color={colors.white} name="more-vert" size={20} />
+        <MaterialIcons color={ICON_COLOR} name="more-vert" size={20} />
       )}
     </View>
   );
