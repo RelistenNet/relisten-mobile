@@ -138,7 +138,7 @@ describe('typed favorite sync contract', () => {
   });
 
   it('skips favorite kinds it does not know, and still refuses a malformed known kind', () => {
-    const newKind = { kind: 'playlist', id: 'playlist_01m7rkvwv4e5jbjvat8pr001qq' };
+    const newKind = { kind: 'setlist', id: 'setlist_01m7rkvwv4e5jbjvat8pr001qq' };
     const snapshot = (favoriteTarget: unknown) => ({
       contract_version: 1 as const,
       library_revision: 4,
@@ -177,6 +177,34 @@ describe('typed favorite sync contract', () => {
     expect(() => validateFavoriteSnapshot(snapshot({ kind: 'artist', id: 'not-an-id' }))).toThrow(
       'invalid catalog target'
     );
+  });
+
+  it('validates playlist favorites as a known kind', () => {
+    const snapshot = (favoriteTarget: unknown) => ({
+      contract_version: 1 as const,
+      library_revision: 4,
+      next_cursor: 'opaque-next',
+      history_generation: 'generation-1',
+      favorites: [
+        {
+          favorite_id: favoriteId,
+          target: favoriteTarget as typeof target,
+          created_at: '2026-11-17T08:00:00Z',
+          updated_at: '2026-11-17T08:00:00Z',
+        },
+      ],
+    });
+    const playlistId = formatUuidTypedId('playlist', '01890a5d-ac96-774b-bcce-b302099a8092');
+
+    expect(() =>
+      validateFavoriteSnapshot(snapshot({ kind: 'playlist', id: playlistId }))
+    ).not.toThrow();
+    // A raw UUID isn't a playlist ID, and now that the kind is known it's refused, not skipped.
+    expect(() =>
+      validateFavoriteSnapshot(
+        snapshot({ kind: 'playlist', id: '01890a5d-ac96-774b-bcce-b302099a8092' })
+      )
+    ).toThrow('invalid catalog target');
   });
 
   it('accepts follow changes with heads, and refuses a malformed head', () => {

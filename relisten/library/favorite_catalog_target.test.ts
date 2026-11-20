@@ -9,6 +9,7 @@ import {
   favoriteTargetForCatalogUuid,
   isFavoriteTarget,
 } from './favorite_catalog_target';
+import { formatUuidTypedId } from '@/relisten/util/typed_uuid_id';
 
 const catalogUuid = '8bf22e27-11de-96e8-4653-964ff9faae2d';
 
@@ -45,6 +46,19 @@ describe('favorite catalog target boundary', () => {
     expect(catalogIdForFavoriteTarget(venue)).toBe(venue.id);
     expect(favoriteTargetForCatalogId('song', song.id)).toEqual(song);
     expect(favoriteTargetForCatalogId('venue', venue.id)).toEqual(venue);
+  });
+
+  it('keys a playlist by its own playlist_ ID, outside the v3 catalog', () => {
+    const playlistId = formatUuidTypedId('playlist', '01890a5d-ac96-774b-bcce-b302099a8092');
+    const playlist = { kind: 'playlist' as const, id: playlistId };
+
+    expect(isFavoriteTarget(playlist)).toBe(true);
+    expect(catalogReferenceForFavoriteTarget(playlist)).toBeNull();
+    expect(catalogIdForFavoriteTarget(playlist)).toBe(playlistId);
+    expect(favoriteTargetForCatalogId('playlist', playlistId)).toEqual(playlist);
+    expect(isFavoriteTarget({ kind: 'playlist', id: formatUuidTypedId('show', catalogUuid) })).toBe(
+      false
+    );
   });
 
   it('uses the decoded Realm UUID as the local ID for imported targets', () => {

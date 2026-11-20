@@ -139,6 +139,10 @@ export class FavoriteMetadataHydrator {
         const tour = realm.objectForPrimaryKey(Tour, id);
         return isActive(tour) && this.hasArtist(tour.artistUuid);
       }
+      case 'playlist':
+        // Not a catalog item: there's nothing to fetch, and the playlist's
+        // own rows arrive through playlist sync.
+        return true;
     }
   }
 

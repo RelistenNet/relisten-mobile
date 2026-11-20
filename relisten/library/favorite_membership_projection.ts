@@ -199,6 +199,8 @@ export class FavoriteMembershipProjection {
       }
     }
 
+    // Only catalog kinds put shows and artists in My Library. A favorited
+    // playlist is in the sets above, for its heart, and nowhere else.
     for (const showUuid of this.favoriteUuids('show')) {
       this.addLibraryShow(showUuid);
     }

@@ -8,6 +8,8 @@ export const FAVORITE_TARGET_KINDS = [
   'song',
   'tour',
   'venue',
+  // A listener's own playlist, by its playlist_ typed ID. Not a catalog item.
+  'playlist',
 ] as const;
 
 export type FavoriteTargetKind = (typeof FAVORITE_TARGET_KINDS)[number];

@@ -18,6 +18,7 @@ import { Source } from '@/relisten/realm/models/source';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { Tour } from '@/relisten/realm/models/tour';
 import { Venue } from '@/relisten/realm/models/venue';
+import { Playlist } from '@/relisten/realm/models/playlists/playlist';
 import {
   catalogIdForFavoriteTarget,
   catalogReferenceForFavoriteTarget,
@@ -115,6 +116,9 @@ function favoriteCatalogObjectExists(
   }
   if (targetKind === 'venue') {
     return !!realm.objectForPrimaryKey(NormalizedVenue, catalogId);
+  }
+  if (targetKind === 'playlist') {
+    return !!realm.objectForPrimaryKey(Playlist, catalogId);
   }
 
   const reference = catalogReferenceForFavoriteTarget(target);

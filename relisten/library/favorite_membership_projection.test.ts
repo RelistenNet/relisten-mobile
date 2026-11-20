@@ -22,6 +22,7 @@ import { NormalizedVenue, NormalizedVenueName } from '@/relisten/realm/models/ca
 import { FavoriteRepository } from './favorite_repository';
 import { useFavorite, useShowPageFavorite } from './favorite_hooks';
 import { FAVORITE_REALM_MODELS, FavoriteMutation } from '@/relisten/realm/models/library';
+import { formatUuidTypedId } from '@/relisten/util/typed_uuid_id';
 
 const hookContext = vi.hoisted(() => ({
   repository: undefined as FavoriteRepository | undefined,
@@ -257,6 +258,22 @@ describe('FavoriteMembershipProjection canonical targets', () => {
       ['show', false],
       ['track', false],
     ]);
+  });
+
+  it('favorites a playlist by its ID without adding it to My Library', async () => {
+    const playlistId = formatUuidTypedId('playlist', '01890a5d-ac96-774b-bcce-b302099a8092');
+    hookContext.repository = new FavoriteRepository(realm, accountScope);
+    projection = new FavoriteMembershipProjection(realm, accountScope);
+    hookContext.projection = projection;
+
+    useFavorite('playlist', playlistId).toggleFavorite();
+
+    await vi.waitFor(() => expect(projection.isFavorite('playlist', playlistId)).toBe(true));
+    expect(
+      realm.objects(FavoriteMutation).map((m) => [m.targetKind, m.targetId, m.desiredPresent])
+    ).toEqual([['playlist', playlistId, true]]);
+    expect(projection.favoriteShowUuidsForLibrary()).toEqual(new Set());
+    expect(new Set(projection.libraryArtistUuids())).toEqual(new Set());
   });
 
   it('resolves a merged venue once while retaining its original saved favorite', async () => {

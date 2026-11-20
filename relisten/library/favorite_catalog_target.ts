@@ -5,7 +5,11 @@ import {
   isFavoriteTargetKind,
 } from '@/relisten/realm/models/library/favorite_catalog_type';
 import { isPostgresUuid } from '@/relisten/util/postgres_uuid';
-import { formatUuidTypedId, parseUuidTypedId } from '@/relisten/util/typed_uuid_id';
+import {
+  formatUuidTypedId,
+  isUuidV7TypedId,
+  parseUuidTypedId,
+} from '@/relisten/util/typed_uuid_id';
 
 /** Props consumed by favorite controls; UUID-backed kinds use their local raw UUID. */
 export interface FavoriteCatalogTarget {
@@ -61,15 +65,18 @@ export function favoriteTargetForCatalogUuid(
   return { kind, id: formatUuidTypedId(kind, catalogUuid) };
 }
 
-/** Builds the durable favorite target for either a UUID-backed or canonical catalog ID. */
+/**
+ * Builds the durable favorite target for a UUID-backed catalog ID, or for an
+ * ID that is already the target's own (a canonical song or venue, a playlist).
+ */
 export function favoriteTargetForCatalogId(
   kind: FavoriteTargetKind,
   catalogId: string
 ): FavoriteTarget {
-  if (kind === 'song' || kind === 'venue') {
+  if (isSelfIdentifiedKind(kind)) {
     const target = { kind, id: catalogId };
     if (!isFavoriteTarget(target)) {
-      throw new Error(`Expected a canonical ${kind} ID.`);
+      throw new Error(`Expected a ${kind} ID.`);
     }
     return target;
   }
@@ -86,7 +93,7 @@ export function favoriteTargetForCatalogReference(
   );
 }
 
-/** Returns null for normalized song_/venue_ targets and malformed imported IDs. */
+/** Returns null for song_/venue_/playlist_ targets, which aren't v3 catalog items, and malformed imported IDs. */
 export function catalogReferenceForFavoriteTarget(
   target: FavoriteTarget
 ): V3FavoriteCatalogReference | null {
@@ -107,7 +114,7 @@ export function catalogReferenceForFavoriteTarget(
 
 /** Returns the ID used by the matching local Realm model without requiring v3 resolution. */
 export function catalogIdForFavoriteTarget(target: FavoriteTarget): string | null {
-  if (target.kind === 'song' || target.kind === 'venue') {
+  if (isSelfIdentifiedKind(target.kind)) {
     return isFavoriteTarget(target) ? target.id : null;
   }
 
@@ -128,6 +135,9 @@ export function isFavoriteTarget(value: unknown): value is FavoriteTarget {
     return false;
   }
 
+  if (candidate.kind === 'playlist') {
+    return isUuidV7TypedId(candidate.id, 'playlist');
+  }
   if (candidate.kind === 'song' || candidate.kind === 'venue') {
     return isShortTargetId(candidate.id, candidate.kind);
   }
@@ -141,6 +151,14 @@ export function favoriteTargetKey(target: FavoriteTarget) {
 
 function isCatalogFavoriteTargetKind(kind: FavoriteTargetKind): kind is CatalogFavoriteTargetKind {
   return Object.hasOwn(V3_TYPE_BY_TARGET_KIND, kind);
+}
+
+/**
+ * Kinds whose target ID is the same ID the app stores locally: canonical
+ * song_/venue_ IDs, and playlist_ IDs, which the app mints itself.
+ */
+function isSelfIdentifiedKind(kind: FavoriteTargetKind): kind is 'song' | 'venue' | 'playlist' {
+  return kind === 'song' || kind === 'venue' || kind === 'playlist';
 }
 
 function isShortTargetId(value: string, expectedKind: 'song' | 'venue') {
