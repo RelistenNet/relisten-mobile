@@ -363,6 +363,41 @@ describe('SonosSession', () => {
     expect(mocks.native.play.mock.calls[0][1]).toBe(42000);
   });
 
+  it('brings back the room’s latest order when moving playback to the phone', async () => {
+    const session = new SonosSession(player, room as never);
+    stop();
+    stop = session.start(queueTracksForRoom);
+    room.plays(tracks[1].identifier, { paused: true, positionMillis: 42000 });
+    await settle();
+    // Another device removed the last track; this phone hasn't polled since.
+    room.queue = { version: 2, entries: [entry(tracks[0]), entry(tracks[1])] };
+
+    await session.transferToPhone();
+    await settle();
+
+    expect(playbackSource.lastState()).toBe(PlaybackSource.Native);
+    expect(player.queue.orderedTracks).toEqual([tracks[0], tracks[1]]);
+    expect(currentTrackIdentifier.lastState()).toBe(tracks[1].identifier);
+  });
+
+  it('keeps playback on the room when its queue can’t be read for the move', async () => {
+    const session = new SonosSession(player, room as never);
+    stop();
+    stop = session.start(queueTracksForRoom);
+    room.plays(tracks[1].identifier, { paused: true });
+    await settle();
+    room.fetchQueue.mockResolvedValueOnce(undefined as never);
+
+    await session.transferToPhone();
+    await settle();
+
+    expect(room.release).not.toHaveBeenCalled();
+    expect(playbackSource.lastState()).toBe(PlaybackSource.Sonos);
+    expect(mocks.showMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Couldn’t move playback from Office.' })
+    );
+  });
+
   it('returns to the phone, stopped, when the room stops playing the queue', async () => {
     room.plays(tracks[1].identifier);
     await settle();

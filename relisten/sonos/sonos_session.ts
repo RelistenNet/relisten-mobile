@@ -365,17 +365,20 @@ export class SonosSession {
     this.publishLatestRoom();
   }
 
-  /** Reads the room's queue and, if the phone's order differs, takes the room's. */
-  private async loadRoomQueue() {
+  /**
+   * Reads the room's queue and, if the phone's order differs, takes the
+   * room's. Resolves whether the phone now holds the room's order.
+   */
+  private async loadRoomQueue(): Promise<boolean> {
     const read = await this.store.fetchQueue();
     if (!read || !this.active) {
-      return;
+      return false;
     }
     const occurrenceIds = read.queue.entries.map((entry) => entry.occurrenceId);
     const confirmed = { handle: read.handle, version: read.queue.version, occurrenceIds };
     if (sameOrder(this.phoneOccurrenceIds(), occurrenceIds)) {
       this.roomQueue = confirmed;
-      return;
+      return true;
     }
 
     const tracks = await this.queueTracksForRoom?.(
@@ -385,13 +388,14 @@ export class SonosSession {
     if (!tracks || !this.active) {
       // Left unconfirmed, so the next reconcile reads the room again.
       logger.warn('The room’s queue has a recording this device couldn’t find');
-      return;
+      return false;
     }
     const room = this.store.getState();
     const current = room.kind === 'active' ? room.playback.occurrence?.occurrenceId : undefined;
     // Confirmed first: adopting announces the new order, which must not be saved back.
     this.roomQueue = confirmed;
     this.player.queue.adoptRemoteQueue(tracks, current);
+    return true;
   }
 
   /**
@@ -522,9 +526,10 @@ export class SonosSession {
   }
 
   /**
-   * Pauses the room if it plays, then reads where it stopped. Undefined
-   * unless the room is confirmed paused at a known position; the phone's
-   * queue takes the room's order if it doesn't hold that occurrence.
+   * Pauses the room if it plays, then reads where it stopped and the room's
+   * queue. Undefined unless the room is confirmed paused at a known position
+   * and the phone holds the room's current order: another device may have
+   * edited the upcoming tracks since the phone's last poll.
    */
   private async pauseRoomForTransfer(
     wasPlaying: boolean
@@ -538,8 +543,8 @@ export class SonosSession {
       return undefined;
     }
 
-    if (!this.phoneHas(identifier)) {
-      await this.loadRoomQueue();
+    if (!(await this.loadRoomQueue())) {
+      return undefined;
     }
     return { identifier, seconds: latest.positionMillis / 1000 };
   }
