@@ -7,7 +7,7 @@ import { RelistenBlue } from '@/relisten/relisten_blue';
 import { sonosRemote, useSonosRemote } from '@/relisten/sonos/sonos_remote';
 
 /**
- * The Sonos group's volume and mute, for the full player while a room plays.
+ * The Sonos group's volume and mute, under the active room in Play On.
  * Changes apply to the whole group, so only the final slider value is sent,
  * and the level is read back afterwards. A fixed-volume group can't change.
  */

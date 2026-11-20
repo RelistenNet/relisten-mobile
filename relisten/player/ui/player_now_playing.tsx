@@ -15,7 +15,6 @@ import {
 import { PlayerRepeatState, PlayerShuffleState } from '@/relisten/player/relisten_player_queue';
 import { usePlaybackSource } from '@/relisten/player/native_playback_state_hooks';
 import { PlaybackSource } from '@/relisten/player/shared_state';
-import { SonosVolumeControl } from '@/relisten/sonos/ui/sonos_now_playing';
 import { PlayerAudioVisualizer } from '@/relisten/player/ui/player_audio_visualizer';
 import { PlayerActionsMenu } from '@/relisten/player/ui/player_actions_menu';
 import {
@@ -482,11 +481,6 @@ export function PlayerNowPlaying({
       <View className="mt-1">
         <PlayerControls />
       </View>
-      {playbackSource === PlaybackSource.Sonos && (
-        <View className="mt-2 px-5">
-          <SonosVolumeControl />
-        </View>
-      )}
       <View className="mt-3 pb-1 pt-1">
         <PlayerSecondaryControls
           historyButton={

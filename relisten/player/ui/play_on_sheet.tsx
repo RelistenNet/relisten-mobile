@@ -20,6 +20,7 @@ import { useRelistenCastStatus, useShouldRenderCastButton } from '@/relisten/cas
 import { usePlayerOutputRoute } from '@/relisten/player/ui/player_output_route';
 import { groupSonosHouseholds, type SonosGroup } from '@/relisten/sonos/sonos_api';
 import { useSonosRemote } from '@/relisten/sonos/sonos_remote';
+import { SonosVolumeControl } from '@/relisten/sonos/ui/sonos_volume_control';
 import { sonosSession } from '@/relisten/sonos/sonos_session';
 import { type SonosHandoffState, useSonosOutput } from '@/relisten/sonos/use_sonos_output';
 
@@ -166,6 +167,9 @@ function SonosHouseholds({
   hasQueue: boolean;
   playOn: (group: SonosGroup) => Promise<void>;
 }) {
+  const remote = useSonosRemote();
+  const activeGroupId = remote.kind === 'active' ? remote.playback.groupId : undefined;
+
   return groupSonosHouseholds(groups).map((rooms, index) => (
     <View key={rooms[0].householdId}>
       {/* Sonos doesn't name households, so a band sets each home's rooms apart. */}
@@ -178,6 +182,7 @@ function SonosHouseholds({
             handoff={handoff?.groupId === group.id ? handoff : undefined}
             busy={handoff?.phase === 'connecting'}
             hasQueue={hasQueue}
+            active={group.id === activeGroupId}
             onPress={() => void playOn(group)}
           />
         </View>
@@ -188,53 +193,62 @@ function SonosHouseholds({
 
 /**
  * A room. Tapping it moves the queue there; the row then shows the handoff
- * until it settles.
+ * until it settles. The room playing this device's queue is checked and holds
+ * the volume, and tapping it again would only restart the queue, so it is inert.
  */
 function SonosRoomRow({
   group,
   handoff,
   busy,
   hasQueue,
+  active,
   onPress,
 }: {
   group: SonosGroup;
   handoff: SonosHandoffState | undefined;
   busy: boolean;
   hasQueue: boolean;
+  active: boolean;
   onPress: () => void;
 }) {
-  const status = roomStatus(handoff, hasQueue);
+  const status = roomStatus(handoff, hasQueue, active);
   return (
-    <OutputRow
-      icon={<MaterialCommunityIcons name="speaker" size={22} color={ICON_COLOR} />}
-      title={group.name}
-      subtitle={status.text}
-      subtitleTone={status.tone}
-      trailing={status.trailing}
-      onPress={hasQueue && !busy ? onPress : undefined}
-    />
+    <View>
+      <OutputRow
+        icon={<MaterialCommunityIcons name="speaker" size={22} color={ICON_COLOR} />}
+        title={group.name}
+        subtitle={status.text}
+        subtitleTone={status.tone}
+        trailing={status.trailing}
+        onPress={hasQueue && !busy && !active ? onPress : undefined}
+      />
+      {active && (
+        <View className="pb-2 pl-11 pr-4">
+          <SonosVolumeControl />
+        </View>
+      )}
+    </View>
   );
 }
 
 function roomStatus(
   handoff: SonosHandoffState | undefined,
-  hasQueue: boolean
+  hasQueue: boolean,
+  active: boolean
 ): { text?: string; tone?: 'error'; trailing?: ReactNode } {
   if (handoff?.phase === 'connecting') {
     return { text: 'Connecting…', trailing: <Spinner /> };
   }
-  if (handoff?.phase === 'done') {
-    switch (handoff.outcome.kind) {
-      case 'playing':
-        return {
-          text: 'Playing on Sonos',
-          trailing: <MaterialIcons name="check" size={20} color={RelistenBlue[300]} />,
-        };
-      case 'refused':
-        return { text: handoff.outcome.message, tone: 'error' };
-      case 'uncertain':
-        return { text: 'Sonos didn’t confirm. Check the room before trying again.', tone: 'error' };
-    }
+  if (handoff?.phase === 'done' && handoff.outcome.kind !== 'playing') {
+    return handoff.outcome.kind === 'refused'
+      ? { text: handoff.outcome.message, tone: 'error' }
+      : { text: 'Sonos didn’t confirm. Check the room before trying again.', tone: 'error' };
+  }
+  if (active || handoff?.phase === 'done') {
+    return {
+      text: 'Playing your queue',
+      trailing: <MaterialIcons name="check" size={20} color={RelistenBlue[300]} />,
+    };
   }
   return hasQueue ? {} : { text: 'Play something first, then choose a room.' };
 }
