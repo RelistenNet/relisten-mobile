@@ -481,18 +481,26 @@ export class SonosRoomStore {
     if (!room || current.kind !== 'active' || current.volume?.fixed) {
       return;
     }
-    const body =
+    // Moving the volume of a muted room unmutes it, as the Sonos app does.
+    const unmutes = 'volume' in change && current.volume?.muted === true;
+    const bodies =
       'volume' in change
-        ? { action: 'volume', command_id: randomUUID(), volume: Math.round(change.volume) }
-        : { action: 'mute', command_id: randomUUID(), muted: change.muted };
+        ? [
+            { action: 'volume', command_id: randomUUID(), volume: Math.round(change.volume) },
+            ...(unmutes ? [{ action: 'mute', command_id: randomUUID(), muted: false }] : []),
+          ]
+        : [{ action: 'mute', command_id: randomUUID(), muted: change.muted }];
     if (current.volume) {
-      this.showVolume(current, { ...current.volume, ...change });
+      this.showVolume(current, { ...current.volume, ...change, ...(unmutes && { muted: false }) });
     }
 
-    const sent = await this.send(room, body);
-    const latest = this.state;
-    if (sent.kind === 'refused' && room.stillCurrent() && latest.kind === 'active') {
-      this.set({ ...latest, commandError: sent.message });
+    for (const body of bodies) {
+      const sent = await this.send(room, body);
+      const latest = this.state;
+      if (sent.kind === 'refused' && room.stillCurrent() && latest.kind === 'active') {
+        this.set({ ...latest, commandError: sent.message });
+        break;
+      }
     }
     await this.refreshVolume();
   }

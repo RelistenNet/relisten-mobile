@@ -350,6 +350,17 @@ describe('SonosRoomStore', () => {
       expect(shown(remote)?.volume?.volume).toBe(45);
     });
 
+    it('unmutes a muted room when its volume moves', async () => {
+      const { server, remote } = await adopted();
+      server.room.volume = { volume: 30, muted: true, fixed: false };
+      await remote.refreshVolume();
+
+      await remote.setVolume({ volume: 40 });
+
+      expect(server.room.volume).toEqual({ volume: 40, muted: false, fixed: false });
+      expect(shown(remote)?.volume).toEqual({ volume: 40, muted: false, fixed: false });
+    });
+
     it('shows a group’s last volume when a new handle plays on it', async () => {
       const { server, remote } = await adopted();
       server.room.volume = { volume: 30, muted: true, fixed: false };
