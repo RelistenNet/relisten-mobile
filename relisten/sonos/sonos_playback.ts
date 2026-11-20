@@ -36,9 +36,28 @@ export interface SonosPlayback {
   occurrence: SonosOccurrence | null;
   positionMillis: number | null;
   observedAt: number | null;
+  /** Occurrences in the room's queue, for disabling Next and Previous at its ends. */
+  queueLength: number | null;
 }
 
-export type SonosTransportAction = 'play' | 'pause';
+/** Group volume. `fixed` means the group won't take volume changes. */
+export interface SonosVolume {
+  volume: number;
+  muted: boolean;
+  fixed: boolean;
+}
+
+/**
+ * A transport command for the room's current occurrence. Each is sent with
+ * the occurrence it was meant for (`expected_item_id`), so a command that
+ * arrives after the track changed is refused rather than applied to the
+ * wrong track.
+ */
+export type SonosTransport =
+  | { action: 'play' | 'pause' | 'next' | 'previous' }
+  | { action: 'seek'; positionMillis: number };
+
+export type SonosTransportAction = SonosTransport['action'];
 
 export function isSonosPlaying(playback: SonosPlayback): boolean {
   return (
@@ -52,13 +71,66 @@ export function isSonosPlaybackLive(playback: SonosPlayback): boolean {
   return playback.status === 'active' || playback.status === 'unconfirmed';
 }
 
-/** Whether the room shows the state `action` asked for. */
-export function reachedAction(playback: SonosPlayback, action: SonosTransportAction): boolean {
-  return (
-    playback.status === 'active' &&
-    playback.playbackState ===
-      (action === 'play' ? 'PLAYBACK_STATE_PLAYING' : 'PLAYBACK_STATE_PAUSED')
-  );
+/** How far a confirmed seek may land from its target, since the room keeps playing. */
+const SEEK_TOLERANCE_MILLIS = 5000;
+
+/**
+ * Whether the room shows what `transport` asked for, given the occurrence it
+ * was sent for. Next and Previous are confirmed by a different occurrence;
+ * the others by the same occurrence in the requested state or position.
+ */
+export function reachedTransport(
+  playback: SonosPlayback,
+  transport: SonosTransport,
+  fromItemId: string
+): boolean {
+  const itemId = playback.occurrence?.itemId;
+  if (playback.status !== 'active' || !itemId) {
+    return false;
+  }
+  switch (transport.action) {
+    case 'next':
+    case 'previous':
+      return itemId !== fromItemId;
+    case 'play':
+    case 'pause':
+      return (
+        itemId === fromItemId &&
+        playback.playbackState ===
+          (transport.action === 'play' ? 'PLAYBACK_STATE_PLAYING' : 'PLAYBACK_STATE_PAUSED')
+      );
+    case 'seek': {
+      const offset = (playback.positionMillis ?? -Infinity) - transport.positionMillis;
+      return itemId === fromItemId && offset >= -1000 && offset <= SEEK_TOLERANCE_MILLIS;
+    }
+  }
+}
+
+/** Whether Next has somewhere to go. */
+export function hasNextOccurrence(playback: SonosPlayback): boolean {
+  const index = playback.occurrence?.queueIndex;
+  return index !== undefined && playback.queueLength !== null && index < playback.queueLength - 1;
+}
+
+/** Whether Previous has somewhere to go. */
+export function hasPreviousOccurrence(playback: SonosPlayback): boolean {
+  return (playback.occurrence?.queueIndex ?? 0) > 0;
+}
+
+/** The request body for `transport` on the occurrence `itemId`. */
+export function transportBody(
+  transport: SonosTransport,
+  commandId: string,
+  itemId: string
+): Record<string, unknown> {
+  return {
+    action: transport.action,
+    command_id: commandId,
+    expected_item_id: itemId,
+    ...(transport.action === 'seek'
+      ? { position_millis: Math.round(transport.positionMillis) }
+      : {}),
+  };
 }
 
 /** The playhead now, advancing from the last observation while the room plays. */
@@ -92,17 +164,34 @@ export async function fetchSonosPlayback(
   return playback;
 }
 
-/** Sends play or pause. Acceptance means Sonos took the command, not that the room changed. */
+/**
+ * Sends a command body. Acceptance means Sonos took the command, not that
+ * the room changed; the caller reads the room to confirm. A retry must reuse
+ * the same `command_id` and body.
+ */
 export function sendSonosCommand(
   api: AuthorizedAccountsApiClient,
   handle: string,
-  request: { action: SonosTransportAction; command_id: string; expected_item_id: string }
-): Promise<void> {
-  return api.request<void>(`${BASE}/${encodeURIComponent(handle)}/commands`, {
+  request: Record<string, unknown>
+): Promise<unknown> {
+  return api.request<unknown>(`${BASE}/${encodeURIComponent(handle)}/commands`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request),
   });
+}
+
+export async function fetchSonosVolume(
+  api: AuthorizedAccountsApiClient,
+  handle: string
+): Promise<SonosVolume> {
+  const body = await api.request<Record<string, unknown> | null>(
+    `${BASE}/${encodeURIComponent(handle)}/volume`
+  );
+  if (typeof body?.volume !== 'number') {
+    throw new Error('The Sonos volume response is invalid.');
+  }
+  return { volume: body.volume, muted: body.muted === true, fixed: body.fixed === true };
 }
 
 export function parsePlayback(value: unknown): SonosPlayback | undefined {
@@ -124,6 +213,7 @@ export function parsePlayback(value: unknown): SonosPlayback | undefined {
     occurrence: parseOccurrence(body.current_occurrence),
     positionMillis: typeof body.position_millis === 'number' ? body.position_millis : null,
     observedAt: Number.isFinite(observedAt) ? observedAt : null,
+    queueLength: typeof body.queue_length === 'number' ? body.queue_length : null,
   };
 }
 

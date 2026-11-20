@@ -88,11 +88,14 @@ export async function fetchSonosGroups(api: AuthorizedAccountsApiClient): Promis
   if (!Array.isArray(body)) {
     throw new Error('The Sonos rooms response is invalid.');
   }
-  return body.flatMap((group) =>
-    typeof group?.id === 'string' && typeof group.name === 'string'
-      ? [{ householdId: String(group.household_id ?? ''), id: group.id, name: group.name }]
-      : []
-  );
+  // Sorted by name, so rooms keep their places between reads.
+  return body
+    .flatMap((group) =>
+      typeof group?.id === 'string' && typeof group.name === 'string'
+        ? [{ householdId: String(group.household_id ?? ''), id: group.id, name: group.name }]
+        : []
+    )
+    .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
 }
 
 export async function startSonosHandoff(

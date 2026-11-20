@@ -117,7 +117,7 @@ describe('SonosRemoteStore', () => {
 
     const state = remote.getState();
     expect(state.kind).toBe('checking');
-    await remote.command('play');
+    await remote.command({ action: 'play' });
     expect(api.request).toHaveBeenCalledTimes(2);
   });
 
@@ -131,7 +131,7 @@ describe('SonosRemoteStore', () => {
 
     remote.adopt('h1', 'Office');
     await flush();
-    await remote.command('play');
+    await remote.command({ action: 'play' });
 
     expect(api.request).toHaveBeenNthCalledWith(
       2,
@@ -160,7 +160,7 @@ describe('SonosRemoteStore', () => {
 
     remote.adopt('h1', 'Office');
     await flush();
-    await remote.command('play');
+    await remote.command({ action: 'play' });
 
     expect(api.request.mock.calls[1]).toEqual(api.request.mock.calls[2]);
     const state = remote.getState();
@@ -176,7 +176,7 @@ describe('SonosRemoteStore', () => {
 
     remote.adopt('h1', 'Office');
     await flush();
-    await remote.command('play');
+    await remote.command({ action: 'play' });
 
     const state = remote.getState();
     expect(state.kind === 'active' && state.commandError).toBe('Sonos didn’t confirm. Try again.');
@@ -203,5 +203,87 @@ describe('SonosRemoteStore', () => {
     remote.bind(undefined);
 
     expect(remote.getState()).toEqual({ kind: 'none' });
+  });
+
+  it('confirms Next once the room is on another occurrence', async () => {
+    const { api, remote } = store();
+    const moved = playback('h1', {
+      current_occurrence: {
+        ...playback('h1').current_occurrence,
+        item_id: 'item-2',
+        queue_index: 1,
+      },
+    });
+    api.request
+      .mockResolvedValueOnce(playback('h1'))
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(moved);
+
+    remote.adopt('h1', 'Office');
+    await flush();
+    await remote.command({ action: 'next' });
+
+    const body = JSON.parse(api.request.mock.calls[1][1].body);
+    expect(body).toMatchObject({ action: 'next', expected_item_id: 'item-1' });
+    const state = remote.getState();
+    expect(state.kind === 'active' && state.playback.occurrence?.itemId).toBe('item-2');
+    expect(state.kind === 'active' && state.commandError).toBeUndefined();
+  });
+
+  it('seeks to an absolute position on the current occurrence', async () => {
+    const { api, remote } = store();
+    api.request
+      .mockResolvedValueOnce(playback('h1'))
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(playback('h1', { position_millis: 42500 }));
+
+    remote.adopt('h1', 'Office');
+    await flush();
+    await remote.command({ action: 'seek', positionMillis: 42000 });
+
+    const body = JSON.parse(api.request.mock.calls[1][1].body);
+    expect(body).toMatchObject({
+      action: 'seek',
+      expected_item_id: 'item-1',
+      position_millis: 42000,
+    });
+    const state = remote.getState();
+    expect(state.kind === 'active' && state.commandError).toBeUndefined();
+  });
+
+  it('explains a command Sonos refuses', async () => {
+    const { api, remote } = store();
+    api.request
+      .mockResolvedValueOnce(playback('h1'))
+      .mockRejectedValueOnce(new AccountsApiError('', 409, 'sonos_command_unavailable', false))
+      .mockResolvedValueOnce(playback('h1'));
+
+    remote.adopt('h1', 'Office');
+    await flush();
+    await remote.command({ action: 'previous' });
+
+    const state = remote.getState();
+    expect(state.kind === 'active' && state.commandError).toBe(
+      'That isn’t available for this track.'
+    );
+  });
+
+  it('sets the group volume and reads it back', async () => {
+    const { api, remote } = store();
+    api.request
+      .mockResolvedValueOnce(playback('h1'))
+      .mockResolvedValueOnce({ volume: 30, muted: false, fixed: false })
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ volume: 45, muted: false, fixed: false });
+
+    remote.adopt('h1', 'Office');
+    await flush();
+    await remote.refreshVolume();
+    await remote.setVolume({ volume: 45.4 });
+
+    const body = JSON.parse(api.request.mock.calls[2][1].body);
+    expect(body).toMatchObject({ action: 'volume', volume: 45 });
+    const state = remote.getState();
+    expect(state.kind === 'active' && state.volume?.volume).toBe(45);
   });
 });

@@ -7,11 +7,15 @@ import {
 import {
   fetchActiveSonosPlayback,
   fetchSonosPlayback,
+  fetchSonosVolume,
   isSonosPlaybackLive,
-  reachedAction,
+  reachedTransport,
   sendSonosCommand,
   type SonosPlayback,
+  type SonosTransport,
   type SonosTransportAction,
+  type SonosVolume,
+  transportBody,
 } from './sonos_playback';
 
 /**
@@ -19,8 +23,9 @@ import {
  *
  * - `checking`: a handle is known but the room hasn't been read yet, or it
  *   couldn't confirm its current item; the UI says so and controls wait.
- * - `active`: the last room state read, plus a play/pause waiting for the
- *   room to show it (`pending`) or one that didn't take (`commandError`).
+ * - `active`: the last room state read, plus a command waiting for the room
+ *   to show it (`pending`) or one that didn't take (`commandError`), and the
+ *   group's volume once the controls have read it.
  */
 export type SonosRemoteState =
   | { kind: 'none' }
@@ -30,6 +35,7 @@ export type SonosRemoteState =
       playback: SonosPlayback;
       pending?: SonosTransportAction;
       commandError?: string;
+      volume?: SonosVolume;
     };
 
 type Listener = () => void;
@@ -145,11 +151,13 @@ export class SonosRemoteStore {
   }
 
   /**
-   * Plays or pauses the room, then reads it until the room shows the request.
-   * A lost response may still have reached Sonos, so it is checked the same
-   * way before the listener is offered a retry.
+   * Sends a transport command for the current occurrence, then reads the room
+   * until it shows the result. A lost response may still have reached Sonos,
+   * so it is retried once with the same command ID and body (the server
+   * reconciles rather than repeats it) and then checked the same way before
+   * the listener is offered a retry. One command runs at a time.
    */
-  async command(action: SonosTransportAction) {
+  async command(transport: SonosTransport) {
     const api = this.api;
     const isCurrent = this.isCurrentScope;
     const current = this.state;
@@ -161,40 +169,17 @@ export class SonosRemoteStore {
     if (!itemId) {
       return;
     }
-    const request = { action, command_id: randomUUID(), expected_item_id: itemId };
-    this.set({ ...current, pending: action, commandError: undefined });
+    const body = transportBody(transport, randomUUID(), itemId);
+    this.set({ ...current, pending: transport.action, commandError: undefined });
 
-    try {
-      await sendSonosCommand(api, handle, request).catch((error: unknown) => {
-        if (
-          error instanceof AccountsApiError &&
-          error.retryable &&
-          api === this.api &&
-          isCurrent() &&
-          handle === this.currentHandle()
-        ) {
-          return sendSonosCommand(api, handle, request);
-        }
-        throw error;
-      });
-    } catch (error) {
-      if (api !== this.api || !isCurrent()) {
-        return;
-      }
-      if (error instanceof AccountsApiError && error.code === 'sonos_playback_inactive') {
-        await this.refresh();
-        this.finishCommand(handle, 'The room is playing something else.');
-        return;
-      }
-      if (error instanceof AccountsApiError && error.code === 'sonos_playback_changed') {
-        await this.refresh();
-        this.finishCommand(handle, 'The track changed. Try again.');
-        return;
-      }
-      if (!(error instanceof AccountsApiError) || !error.retryable) {
-        this.finishCommand(handle, 'Sonos didn’t take that. Try again.');
-        return;
-      }
+    const sendError = await this.send(api, handle, body, isCurrent);
+    if (api !== this.api || !isCurrent()) {
+      return;
+    }
+    if (sendError !== undefined) {
+      await this.refresh();
+      this.finishCommand(handle, sendError);
+      return;
     }
 
     for (let attempt = 0; attempt < this.timing.confirmAttempts; attempt += 1) {
@@ -206,7 +191,7 @@ export class SonosRemoteStore {
       if (handle !== this.currentHandle()) {
         return;
       }
-      if (playback?.occurrence?.itemId === itemId && reachedAction(playback, action)) {
+      if (playback && reachedTransport(playback, transport, itemId)) {
         this.finishCommand(handle);
         return;
       }
@@ -214,10 +199,98 @@ export class SonosRemoteStore {
     this.finishCommand(handle, 'Sonos didn’t confirm. Try again.');
   }
 
+  /** Reads the group's volume for the controls. */
+  async refreshVolume() {
+    const api = this.api;
+    const handle = this.currentHandle();
+    if (!api || handle === undefined) {
+      return;
+    }
+    try {
+      const volume = await fetchSonosVolume(api, handle);
+      const current = this.state;
+      if (api === this.api && current.kind === 'active' && current.playback.handle === handle) {
+        this.set({ ...current, volume });
+      }
+    } catch {
+      // The controls keep the last volume they read.
+    }
+  }
+
+  /**
+   * Sets the group's volume (0 to 100) or mute. These apply to the whole
+   * group, whatever it is playing, so the controls send only the final value
+   * and then read the volume back.
+   */
+  async setVolume(change: { volume: number } | { muted: boolean }) {
+    const api = this.api;
+    const isCurrent = this.isCurrentScope;
+    const current = this.state;
+    if (!api || !isCurrent() || current.kind !== 'active' || current.volume?.fixed) {
+      return;
+    }
+    const handle = current.playback.handle;
+    const body =
+      'volume' in change
+        ? { action: 'volume', command_id: randomUUID(), volume: Math.round(change.volume) }
+        : { action: 'mute', command_id: randomUUID(), muted: change.muted };
+    if (current.volume) {
+      this.set({ ...current, volume: { ...current.volume, ...change } });
+    }
+
+    const sendError = await this.send(api, handle, body, isCurrent);
+    if (sendError !== undefined) {
+      this.finishCommand(handle, sendError);
+    }
+    await this.refreshVolume();
+  }
+
+  /**
+   * Sends a command body, retrying a lost response once with the same body.
+   * Returns a message for the listener when the command was refused, or
+   * undefined when it was accepted or may have been.
+   */
+  private async send(
+    api: AuthorizedAccountsApiClient,
+    handle: string,
+    body: Record<string, unknown>,
+    isCurrent: () => boolean
+  ): Promise<string | undefined> {
+    try {
+      await sendSonosCommand(api, handle, body).catch((error: unknown) => {
+        if (
+          error instanceof AccountsApiError &&
+          error.retryable &&
+          api === this.api &&
+          isCurrent() &&
+          handle === this.currentHandle()
+        ) {
+          return sendSonosCommand(api, handle, body);
+        }
+        throw error;
+      });
+      return undefined;
+    } catch (error) {
+      if (!(error instanceof AccountsApiError)) {
+        return 'Sonos didn’t take that. Try again.';
+      }
+      if (error.retryable) {
+        // Lost twice: the room is read to find out whether it took.
+        return undefined;
+      }
+      return commandRefusal(error.code);
+    }
+  }
+
   private finishCommand(handle: string, commandError?: string) {
     const current = this.state;
     if (current.kind === 'active' && current.playback.handle === handle) {
-      this.set({ kind: 'active', playback: current.playback, commandError });
+      this.set({
+        kind: 'active',
+        playback: current.playback,
+        commandError,
+        volume: current.volume,
+      });
     } else if (current.kind === 'checking' && current.handle === handle && current.pending) {
       this.set({ ...current, pending: undefined });
     }
@@ -240,7 +313,11 @@ export class SonosRemoteStore {
       });
       return;
     }
-    this.set({ kind: 'active', playback, pending });
+    const volume =
+      current.kind === 'active' && current.playback.handle === playback.handle
+        ? current.volume
+        : undefined;
+    this.set({ kind: 'active', playback, pending, volume });
   }
 
   private currentHandle(): string | undefined {
@@ -255,6 +332,26 @@ export class SonosRemoteStore {
   private set(next: SonosRemoteState) {
     this.state = next;
     this.listeners.forEach((listener) => listener());
+  }
+}
+
+/** What to tell the listener when Sonos refuses a command, by the server's code. */
+function commandRefusal(code: string | null): string {
+  switch (code) {
+    case 'sonos_playback_inactive':
+      return 'The room is playing something else.';
+    case 'sonos_playback_changed':
+      return 'The track changed. Try again.';
+    case 'sonos_command_unavailable':
+      return 'That isn’t available for this track.';
+    case 'sonos_command_superseded':
+      return 'Another change took over.';
+    case 'sonos_volume_fixed':
+      return 'This room’s volume is fixed.';
+    case 'sonos_reconnect_required':
+      return 'Connect Sonos again to control this room.';
+    default:
+      return 'Sonos didn’t take that. Try again.';
   }
 }
 
