@@ -23,20 +23,24 @@ final class RelistenSystemVolumeView: ExpoView {
     override func layoutSubviews() {
         super.layoutSubviews()
 
-        // MPVolumeView draws its slider at the top; center it in the row.
-        let height = volumeView.sizeThatFits(bounds.size).height
-        volumeView.frame = CGRect(
-            x: 0,
-            y: (bounds.height - height) / 2,
-            width: bounds.width,
-            height: height
-        )
+        // MPVolumeView places its slider itself, not at its own vertical center,
+        // so lay it out first, then shift it until the slider sits on the row's
+        // center line, level with the icons beside it.
+        volumeView.frame = bounds
+        volumeView.layoutIfNeeded()
+        if let slider = volumeSlider() {
+            volumeView.frame.origin.y = bounds.midY - slider.frame.midY
+        }
         applyTint()
     }
 
     /// The slider is a private subview, only reachable once laid out.
+    private func volumeSlider() -> UISlider? {
+        volumeView.subviews.compactMap { $0 as? UISlider }.first
+    }
+
     private func applyTint() {
-        guard let slider = volumeView.subviews.compactMap({ $0 as? UISlider }).first else {
+        guard let slider = volumeSlider() else {
             return
         }
         slider.minimumTrackTintColor = tint
