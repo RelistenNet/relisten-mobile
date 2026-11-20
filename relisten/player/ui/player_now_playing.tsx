@@ -1,19 +1,21 @@
-import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { useRelistenCastStatus } from '@/relisten/casting/cast_ui';
 import { audioAdjustmentNative } from '@/relisten/player/audio_adjustments/audio_adjustment_native';
 import { useAudioAdjustmentConfiguration } from '@/relisten/player/audio_adjustments/audio_adjustment_repo';
 import {
-  useRelistenPlayer,
-  useRelistenPlayerPlaybackState,
-} from '@/relisten/player/relisten_player_hooks';
-import {
-  useRelistenPlayerCurrentTrack,
   useRelistenPlayerQueue,
   useRelistenPlayerRepeatState,
   useRelistenPlayerShuffleState,
 } from '@/relisten/player/relisten_player_queue_hooks';
-import { PlayerRepeatState, PlayerShuffleState } from '@/relisten/player/relisten_player_queue';
+import {
+  type PlayerQueueTrack,
+  PlayerRepeatState,
+  PlayerShuffleState,
+} from '@/relisten/player/relisten_player_queue';
+import { usePlaybackView } from '@/relisten/player/playback_view';
+import type { SourceTrack } from '@/relisten/realm/models/source_track';
+import { useSonosRemote } from '@/relisten/sonos/sonos_remote';
+import { SonosVolumeControl } from '@/relisten/sonos/ui/sonos_now_playing';
 import { PlayerAudioVisualizer } from '@/relisten/player/ui/player_audio_visualizer';
 import { PlayerActionsMenu } from '@/relisten/player/ui/player_actions_menu';
 import {
@@ -41,8 +43,13 @@ import {
 import { PlayOnButton } from '@/relisten/player/ui/play_on_button';
 import * as Progress from 'react-native-progress';
 
-function ShowIdentity({ visualizerActive }: { visualizerActive: boolean }) {
-  const currentTrack = useRelistenPlayerCurrentTrack()?.sourceTrack;
+function ShowIdentity({
+  currentTrack,
+  visualizerActive,
+}: {
+  currentTrack: SourceTrack | undefined;
+  visualizerActive: boolean;
+}) {
   const { width } = useWindowDimensions();
 
   if (!currentTrack) {
@@ -157,13 +164,14 @@ function ShowIdentity({ visualizerActive }: { visualizerActive: boolean }) {
 }
 
 function CurrentTrackInfo({
+  currentPlayerTrack,
   headingRef,
   onBeforeNavigate,
 }: {
+  currentPlayerTrack: PlayerQueueTrack | undefined;
   headingRef?: Ref<ViewInstance>;
   onBeforeNavigate: (navigate: () => void) => void;
 }) {
-  const currentPlayerTrack = useRelistenPlayerCurrentTrack();
   const { fontScale } = useWindowDimensions();
   const isAccessibilityLayout = fontScale >= 1.4;
 
@@ -277,19 +285,19 @@ function CurrentTrackInfo({
 
 /** Shared transport for the expanded player and its compact scrolling header. */
 export function PlayerControls({ compact = false }: { compact?: boolean }) {
-  const player = useRelistenPlayer();
-  const playbackState = useRelistenPlayerPlaybackState();
-  const track = useRelistenPlayerCurrentTrack()?.sourceTrack;
+  // The phone's transport, or a Sonos room's while one plays this queue.
+  const view = usePlaybackView();
+  const track = view.track?.sourceTrack;
 
   let playbackStateIcon = (
     <MaterialIcons color="white" name="play-arrow" size={compact ? 28 : 46} />
   );
   let playbackLabel = 'Play';
 
-  if (playbackState === RelistenPlaybackState.Playing) {
+  if (view.state === 'playing') {
     playbackStateIcon = <MaterialIcons color="white" name="pause" size={compact ? 28 : 46} />;
     playbackLabel = 'Pause';
-  } else if (playbackState === RelistenPlaybackState.Stalled) {
+  } else if (view.state === 'buffering') {
     playbackStateIcon = (
       <Progress.CircleSnail color="white" indeterminate size={compact ? 24 : 34} />
     );
@@ -305,9 +313,14 @@ export function PlayerControls({ compact = false }: { compact?: boolean }) {
       <TouchableOpacity
         accessibilityLabel="Previous track"
         accessibilityRole="button"
-        className="min-h-[44px] min-w-[44px] items-center justify-center"
+        accessibilityState={{ disabled: !view.canPrevious }}
+        className={tw(
+          'min-h-[44px] min-w-[44px] items-center justify-center',
+          !view.canPrevious && 'opacity-40'
+        )}
+        disabled={!view.canPrevious}
         onPress={() => {
-          player.back();
+          view.previous();
           void Haptics.selectionAsync();
         }}
       >
@@ -322,21 +335,22 @@ export function PlayerControls({ compact = false }: { compact?: boolean }) {
           'items-center justify-center rounded-full border border-white/30 bg-white/5',
           compact ? 'h-11 w-11' : 'h-16 w-16'
         )}
-        onPress={() => player.togglePauseResume()}
+        disabled={view.busy}
+        onPress={() => view.togglePlayPause()}
       >
         {playbackStateIcon}
       </TouchableOpacity>
       <TouchableOpacity
         accessibilityLabel="Next track"
         accessibilityRole="button"
-        accessibilityState={{ disabled: player.queue.isCurrentTrackLast }}
+        accessibilityState={{ disabled: !view.canNext }}
         className={tw(
           'min-h-[44px] min-w-[44px] items-center justify-center',
-          player.queue.isCurrentTrackLast && 'opacity-40'
+          !view.canNext && 'opacity-40'
         )}
-        disabled={player.queue.isCurrentTrackLast}
+        disabled={!view.canNext}
         onPress={() => {
-          player.next();
+          view.next();
           void Haptics.selectionAsync();
         }}
       >
@@ -348,6 +362,8 @@ export function PlayerControls({ compact = false }: { compact?: boolean }) {
 
 function PlayerSecondaryControls({ historyButton }: { historyButton?: ReactNode }) {
   const queue = useRelistenPlayerQueue();
+  // A Sonos room plays the order it was handed, so shuffle and repeat wait until the phone plays again.
+  const sonosActive = useSonosRemote().kind !== 'none';
   const [shuffleState] = useRelistenPlayerShuffleState();
   const [repeatState] = useRelistenPlayerRepeatState();
   const audioEqualizerConfiguration = useAudioAdjustmentConfiguration();
@@ -384,8 +400,9 @@ function PlayerSecondaryControls({ historyButton }: { historyButton?: ReactNode 
       <TouchableOpacity
         accessibilityLabel={isShuffleOn ? 'Turn shuffle off' : 'Turn shuffle on'}
         accessibilityRole="button"
-        accessibilityState={{ selected: isShuffleOn }}
-        className="h-11 w-11 items-center justify-center"
+        accessibilityState={{ selected: isShuffleOn, disabled: sonosActive }}
+        className={tw('h-11 w-11 items-center justify-center', sonosActive && 'opacity-40')}
+        disabled={sonosActive}
         onPress={toggleShuffle}
       >
         <MaterialCommunityIcons
@@ -401,8 +418,9 @@ function PlayerSecondaryControls({ historyButton }: { historyButton?: ReactNode 
         }}
         accessibilityHint="Cycles through all tracks, one track, and off."
         accessibilityRole="button"
-        accessibilityState={{ selected: isRepeatOn }}
-        className="h-11 w-11 items-center justify-center"
+        accessibilityState={{ selected: isRepeatOn, disabled: sonosActive }}
+        className={tw('h-11 w-11 items-center justify-center', sonosActive && 'opacity-40')}
+        disabled={sonosActive}
         onPress={toggleRepeat}
       >
         <MaterialCommunityIcons
@@ -432,6 +450,31 @@ function PlayerSecondaryControls({ historyButton }: { historyButton?: ReactNode 
   );
 }
 
+/** The scrubber and transport, plus the group's volume while a Sonos room plays. */
+function NowPlayingTransport({
+  onScrubbingChange,
+  remote,
+}: {
+  onScrubbingChange?: (scrubbing: boolean) => void;
+  remote: boolean;
+}) {
+  return (
+    <>
+      <View className="mt-4 px-5">
+        <ScrubberRow subduedCache onScrubbingChange={onScrubbingChange} />
+      </View>
+      <View className="mt-1">
+        <PlayerControls />
+      </View>
+      {remote && (
+        <View className="mt-2 px-5">
+          <SonosVolumeControl />
+        </View>
+      )}
+    </>
+  );
+}
+
 type PlayerNowPlayingProps = {
   headingRef?: Ref<ViewInstance>;
   onOpenHistory?: () => void;
@@ -447,10 +490,32 @@ export function PlayerNowPlaying({
   visualizerActive = true,
   onScrubbingChange,
 }: PlayerNowPlayingProps) {
-  const currentTrack = useRelistenPlayerCurrentTrack();
+  // The phone's track, or the one a Sonos room is playing from this queue.
+  const view = usePlaybackView();
+  const currentTrack = view.track;
   const castStatus = useRelistenCastStatus();
   const { fontScale } = useWindowDimensions();
   const showDecorativeIdentity = fontScale < 1.4;
+  const remote = view.roomName !== undefined;
+
+  if (!currentTrack && view.fallback) {
+    // The room plays something the phone's queue no longer holds: show what Sonos reports.
+    return (
+      <View className="pb-4 pt-7">
+        <View className="px-5">
+          <RelistenText className="text-2xl font-bold leading-tight" numberOfLines={2}>
+            {view.fallback.title}
+          </RelistenText>
+          {view.fallback.artist && (
+            <RelistenText className="mt-1 text-lg" numberOfLines={1}>
+              {view.fallback.artist}
+            </RelistenText>
+          )}
+        </View>
+        <NowPlayingTransport onScrubbingChange={onScrubbingChange} remote />
+      </View>
+    );
+  }
 
   if (!currentTrack) {
     return (
@@ -465,17 +530,20 @@ export function PlayerNowPlaying({
   return (
     <View className={tw('pb-4', showDecorativeIdentity ? 'pt-4' : 'pt-7')}>
       {showDecorativeIdentity && (
-        <ShowIdentity visualizerActive={visualizerActive && !castStatus.isCasting} />
+        <ShowIdentity
+          currentTrack={currentTrack.sourceTrack}
+          // The phone's audio drives the visualizer, so it rests while another device plays.
+          visualizerActive={visualizerActive && !castStatus.isCasting && !remote}
+        />
       )}
       <View className={showDecorativeIdentity ? 'mt-3' : undefined}>
-        <CurrentTrackInfo headingRef={headingRef} onBeforeNavigate={onBeforeNavigate} />
+        <CurrentTrackInfo
+          currentPlayerTrack={currentTrack}
+          headingRef={headingRef}
+          onBeforeNavigate={onBeforeNavigate}
+        />
       </View>
-      <View className="mt-4 px-5">
-        <ScrubberRow subduedCache onScrubbingChange={onScrubbingChange} />
-      </View>
-      <View className="mt-1">
-        <PlayerControls />
-      </View>
+      <NowPlayingTransport onScrubbingChange={onScrubbingChange} remote={remote} />
       <View className="mt-3 pb-1 pt-1">
         <PlayerSecondaryControls
           historyButton={

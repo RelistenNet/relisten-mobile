@@ -1,13 +1,16 @@
 // Show an external destination without adding noise for the phone's own speaker.
-// Cast has its own connection state; the iOS audio session describes local playback.
+// A Sonos room or Cast has its own connection state; the iOS audio session describes
+// local playback.
 import { nativePlayer } from '@/modules/relisten-audio-player';
 import { useRelistenCastStatus } from '@/relisten/casting/cast_ui';
 import { RelistenText } from '@/relisten/components/relisten_text';
+import { useSonosRemote } from '@/relisten/sonos/sonos_remote';
 import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 
-/** Destination name for Cast or external iOS audio; null for local listening. */
+/** Destination name for a Sonos room, Cast or external iOS audio; null for local listening. */
 export function usePlayerOutputRoute(): string | null {
+  const sonos = useSonosRemote();
   const { isCasting, deviceName } = useRelistenCastStatus();
   const [route, setRoute] = useState(() =>
     Platform.OS === 'ios' ? nativePlayer.getAudioOutputRoute() : null
@@ -23,6 +26,10 @@ export function usePlayerOutputRoute(): string | null {
     setRoute(nativePlayer.getAudioOutputRoute());
     return () => subscription.remove();
   }, []);
+
+  if (sonos.kind !== 'none') {
+    return sonos.kind === 'active' ? sonos.playback.groupName : sonos.groupName;
+  }
 
   if (isCasting) {
     return deviceName || 'Cast device';

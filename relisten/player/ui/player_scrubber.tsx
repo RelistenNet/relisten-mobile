@@ -1,9 +1,6 @@
 import Flex from '@/relisten/components/flex';
-import {
-  useNativeActiveTrackDownloadProgress,
-  useNativePlaybackProgress,
-} from '@/relisten/player/native_playback_state_hooks';
-import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
+import { useNativeActiveTrackDownloadProgress } from '@/relisten/player/native_playback_state_hooks';
+import { usePlaybackView } from '@/relisten/player/playback_view';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { trackDuration } from '@/relisten/util/duration';
 import * as Haptics from 'expo-haptics';
@@ -28,10 +25,13 @@ export function ScrubberRow({
 }: ScrubberRowProps) {
   'use no memo';
 
-  const progressObj = useNativePlaybackProgress();
+  // The phone's playhead, or a Sonos room's while one plays this queue.
+  const view = usePlaybackView();
+  const progressObj = view.progress;
   const downloadProgress = useNativeActiveTrackDownloadProgress();
-  const player = useRelistenPlayer();
   const { isCasting } = useRelistenCastStatus();
+  // A remote device confirms a seek slower than the phone does.
+  const isRemote = isCasting || view.roomName !== undefined;
   const timeDisplay = useSyncExternalStore(
     playbackTimePreference.subscribe,
     playbackTimePreference.getSnapshot,
@@ -47,8 +47,10 @@ export function ScrubberRow({
     void playbackTimePreference.load();
   }, []);
 
-  const cacheValue =
-    Math.max(0, Math.min(1, downloadProgress?.percent ?? 0)) * (progressObj?.duration ?? 0);
+  // Buffering progress belongs to the phone's audio, not a Sonos room's.
+  const cacheValue = view.roomName
+    ? 0
+    : Math.max(0, Math.min(1, downloadProgress?.percent ?? 0)) * (progressObj?.duration ?? 0);
 
   const progress = useSharedValue(progressObj?.elapsed ?? 0);
   const min = useSharedValue(0);
@@ -66,9 +68,9 @@ export function ScrubberRow({
       value = Math.max(0, Math.min(duration, value));
       progress.value = value;
       pendingSeekRef.current = { value, startedAt: Date.now() };
-      void player.seekTo(value / duration);
+      view.seekTo(value);
     },
-    [duration, player, progress]
+    [duration, view, progress]
   );
 
   useEffect(() => {
@@ -81,7 +83,7 @@ export function ScrubberRow({
         }
         const elapsedDelta = Math.abs(elapsed - pendingSeek.value);
         const elapsedMs = Date.now() - pendingSeek.startedAt;
-        const maxPendingMs = isCasting ? 10000 : 3000;
+        const maxPendingMs = isRemote ? 10000 : 3000;
         if (elapsedDelta <= 1 || elapsedMs > maxPendingMs) {
           pendingSeekRef.current = null;
         } else {

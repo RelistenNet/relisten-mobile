@@ -20,8 +20,6 @@ import { useRelistenCastStatus, useShouldRenderCastButton } from '@/relisten/cas
 import { usePlayerOutputRoute } from '@/relisten/player/ui/player_output_route';
 import type { SonosGroup } from '@/relisten/sonos/sonos_api';
 import { type SonosHandoffState, useSonosOutput } from '@/relisten/sonos/use_sonos_output';
-import { useSonosRemote } from '@/relisten/sonos/sonos_remote';
-import { SonosNowPlayingPanel } from '@/relisten/sonos/ui/sonos_now_playing';
 
 const ICON_COLOR = 'rgba(255, 255, 255, 0.78)';
 
@@ -34,7 +32,6 @@ const ICON_COLOR = 'rgba(255, 255, 255, 0.78)';
 export default function PlayOnSheet() {
   // An iOS form sheet lays content out under its native header.
   const headerHeight = useHeaderHeight();
-  const sonos = useSonosRemote();
 
   return (
     <>
@@ -44,8 +41,7 @@ export default function PlayOnSheet() {
         style={{ flex: 1, backgroundColor: RelistenBlue[900] }}
         contentContainerStyle={{ paddingTop: Platform.OS === 'ios' ? headerHeight : 0 }}
       >
-        {sonos.kind !== 'none' && <SonosNowPlayingPanel remote={sonos} />}
-        <ThisPhoneRow sonosActive={sonos.kind !== 'none'} />
+        <ThisPhoneRow />
         <SonosSection />
         <OtherDevicesSection />
       </ScrollView>
@@ -54,14 +50,14 @@ export default function PlayOnSheet() {
 }
 
 /** This phone, checked while it is where music plays. */
-function ThisPhoneRow({ sonosActive }: { sonosActive: boolean }) {
+function ThisPhoneRow() {
   const outputRoute = usePlayerOutputRoute();
-  const here = !outputRoute && !sonosActive;
+  const here = !outputRoute;
   return (
     <OutputRow
       icon={<MaterialIcons name="smartphone" size={22} color={ICON_COLOR} />}
       title={Platform.OS === 'ios' ? 'This iPhone' : 'This Phone'}
-      subtitle={outputRoute ? `Playing through ${outputRoute}` : undefined}
+      subtitle={outputRoute ? `Music is playing on ${outputRoute}` : undefined}
       trailing={
         here ? <MaterialIcons name="check" size={20} color={RelistenBlue[300]} /> : undefined
       }
