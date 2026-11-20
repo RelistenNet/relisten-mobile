@@ -6,7 +6,7 @@ import type { PlaylistRowEntry, PlaylistRowGroup } from '@/relisten/playlists/pl
  * Edit-mode list items and drag targets.
  *
  * Edit mode is one list. A group that is more than one plain track is drawn
- * as a frame: its rows are joined by a rail, under a slim "Linked · N tracks"
+ * as a frame: its rows share one card, under a slim "Linked · N tracks"
  * line when it has several entries and a description row when it has one.
  * Entries are tracks or text blocks; both are rows of the same height and drag
  * the same way. A group with only a description (prose-only) is one row.
@@ -23,8 +23,8 @@ import type { PlaylistRowEntry, PlaylistRowGroup } from '@/relisten/playlists/pl
  */
 
 /**
- * Where a row sits in a frame, which decides how its rail is drawn: `only` is
- * a short rail for a frame shown as one row.
+ * Where a row sits in a card of linked rows, which decides which slice of the
+ * card it draws: `only` is a card that is a single row.
  */
 export type LinkPosition = 'first' | 'middle' | 'last' | 'only';
 
@@ -118,7 +118,7 @@ export interface DropSlot {
   y: number;
   /** The item index the placeholder is inserted before. */
   gapIndex: number;
-  /** Whether the placeholder sits inside a frame, on its rail. */
+  /** Whether the placeholder sits inside a frame, on its card. */
   inLink: boolean;
   /** Shown in the placeholder where the meaning isn't obvious from position alone. */
   label?: string;
@@ -227,7 +227,7 @@ class PlanBuilder {
 /**
  * Drag plan for one entry: a track or a text block. The entry leaves the list
  * and a placeholder takes its place. A frame it leaves keeps its header and
- * rail until the drop, so the list doesn't reshape under the finger; a framed
+ * card until the drop, so the list doesn't reshape under the finger; a framed
  * group it empties stays too, since a description keeps a group alive.
  *
  * Slot `y`s follow the items top to bottom:
@@ -556,7 +556,7 @@ export function nearestSlot(
 
 // endregion
 
-// region Rails
+// region Cards
 
 /** A row the edit list shows: an item, or one of the drag's stand-ins. */
 export type DisplayItem =
@@ -565,8 +565,8 @@ export type DisplayItem =
   /** Blank space above a drag plan's rows, standing in for the resting rows it drops. */
   | { kind: 'lead'; key: 'lead'; height: number };
 
-/** How the rail runs through this row, given what comes after it. */
-export function railFor(
+/** Which slice of a card this row draws, given what comes after it. */
+export function linkPositionFor(
   item: DisplayItem,
   next: DisplayItem | undefined
 ): LinkPosition | undefined {
@@ -582,7 +582,7 @@ export function railFor(
       }
       return continues ? 'middle' : 'last';
     case 'prose':
-      // A track being dropped into a prose-only group starts its rail.
+      // A track being dropped into a prose-only group starts its card.
       return continues ? 'first' : undefined;
     case 'collapsed':
       return isFramed(item.group) && item.group.entries.length > 0 ? 'only' : undefined;
@@ -595,7 +595,7 @@ export function railFor(
       if (item.inFrame) {
         return continues ? 'middle' : 'last';
       }
-      // A single track the drag is about to link onto starts a rail.
+      // A single track the drag is about to link onto starts a card.
       return next?.kind === 'gap' && next.slot.linkTarget ? 'first' : undefined;
   }
 }
@@ -603,7 +603,7 @@ export function railFor(
 /**
  * Whether the row after this one is still inside the same frame. Every frame
  * starts with a link line or a description, so a row that continues one is
- * never a frame's first row; a placeholder continues it when it sits on the rail.
+ * never a frame's first row; a placeholder continues it when it sits in the card.
  */
 function continuesFrame(next: DisplayItem | undefined): boolean {
   switch (next?.kind) {

@@ -1,4 +1,5 @@
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import type { ReactNode } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { RelistenText } from '@/relisten/components/relisten_text';
@@ -11,7 +12,7 @@ import {
   type EditItem,
   type EditMetrics,
   type LinkPosition,
-  railFor,
+  linkPositionFor,
 } from '@/relisten/playlists/playlist_drag_slots';
 import type {
   PlaylistLayout,
@@ -30,7 +31,7 @@ import {
   openGuideTextEditor,
 } from '@/relisten/playlists/guide/guide_text_navigation';
 import { GroupMenu, TrackMenu } from '@/relisten/playlists/ui/playlist_menus';
-import { LinkRail } from '@/relisten/playlists/ui/link_rail';
+import { CARD_MARGIN, LinkCardRow } from '@/relisten/playlists/ui/link_card';
 import { removedMessage, toastEdit } from '@/relisten/playlists/ui/playlist_toast';
 
 /**
@@ -59,20 +60,20 @@ export function EditListRow({
   layout: PlaylistLayout;
   settlingRow: EditItem | undefined;
 }) {
-  const rail = railFor(item, next);
+  const link = linkPositionFor(item, next);
 
   switch (item.kind) {
     case 'lead':
       return <View style={{ height: item.height }} />;
     case 'gap':
       return (
-        <PlaceholderRow slot={item.slot} rail={rail} metrics={metrics} settlingRow={settlingRow} />
+        <PlaceholderRow slot={item.slot} link={link} metrics={metrics} settlingRow={settlingRow} />
       );
     case 'link':
       return (
         <LinkLineRow
           item={item}
-          rail={rail}
+          link={link}
           metrics={metrics}
           playlistId={playlistId}
           layout={layout}
@@ -80,28 +81,56 @@ export function EditListRow({
       );
     case 'description':
       return (
-        <DescriptionRow group={item.group} rail={rail} metrics={metrics} playlistId={playlistId} />
+        <DescriptionRow group={item.group} link={link} metrics={metrics} playlistId={playlistId} />
       );
     case 'prose':
-      return <ProseRow group={item.group} rail={rail} metrics={metrics} playlistId={playlistId} />;
+      return <ProseRow group={item.group} link={link} metrics={metrics} playlistId={playlistId} />;
     case 'collapsed':
       return (
-        <View style={{ height: metrics.trackHeight }}>
-          <LinkRail link={rail} active={false} />
+        <EditCardRow link={link} height={metrics.trackHeight}>
           <RowContent item={item} metrics={metrics} />
-        </View>
+        </EditCardRow>
       );
     case 'track':
       return (
         <EntryRow
           item={item}
-          rail={rail}
+          link={link}
           metrics={metrics}
           playlistId={playlistId}
           layout={layout}
         />
       );
   }
+}
+
+/**
+ * An editor row at its fixed height, drawn as a slice of its group's card when
+ * it is in one. Every row, bare or carded, sits a card's margin in from each
+ * edge, so remove buttons, text and handles line up.
+ */
+function EditCardRow({
+  link,
+  height,
+  row = false,
+  children,
+}: {
+  link: LinkPosition | undefined;
+  height: number;
+  /** Lays the row's parts out side by side, centered. */
+  row?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <LinkCardRow
+      link={link}
+      paddingLeft={CARD_MARGIN}
+      paddingRight={CARD_MARGIN}
+      style={[{ height }, row && styles.row]}
+    >
+      {children}
+    </LinkCardRow>
+  );
 }
 
 /** The guide text editor, opened at a place in this playlist. */
@@ -113,22 +142,21 @@ function useEditGuideText(playlistId: string) {
 
 function PlaceholderRow({
   slot,
-  rail,
+  link,
   metrics,
   settlingRow,
 }: {
   slot: DropSlot;
-  rail: LinkPosition | undefined;
+  link: LinkPosition | undefined;
   metrics: EditMetrics;
   settlingRow: EditItem | undefined;
 }) {
   return (
-    <View style={{ height: metrics.trackHeight }}>
-      <LinkRail link={rail} active />
+    <EditCardRow link={link} height={metrics.trackHeight}>
       {settlingRow ? (
         <RowContent item={settlingRow} metrics={metrics} />
       ) : (
-        <View style={[styles.placeholder, slot.inLink && styles.placeholderInLink]}>
+        <View style={styles.placeholder}>
           {slot.label && (
             <RelistenText
               className="text-sm font-semibold text-relisten-blue-300"
@@ -140,27 +168,26 @@ function PlaceholderRow({
           )}
         </View>
       )}
-    </View>
+    </EditCardRow>
   );
 }
 
 function LinkLineRow({
   item,
-  rail,
+  link,
   metrics,
   playlistId,
   layout,
 }: {
   item: Extract<EditItem, { kind: 'link' }>;
-  rail: LinkPosition | undefined;
+  link: LinkPosition | undefined;
   metrics: EditMetrics;
   playlistId: string;
   layout: PlaylistLayout;
 }) {
   const label = linkedEntriesLabel(item.group.entries);
   return (
-    <View style={{ height: metrics.linkHeight }} className="flex-row items-center">
-      <LinkRail link={rail} active={false} />
+    <EditCardRow link={link} height={metrics.linkHeight} row>
       <View className="w-12" />
       <GroupMenu
         playlistId={playlistId}
@@ -175,7 +202,7 @@ function LinkLineRow({
         </View>
       </GroupMenu>
       <DragHandle label={label} />
-    </View>
+    </EditCardRow>
   );
 }
 
@@ -186,19 +213,18 @@ function LinkLineRow({
  */
 function DescriptionRow({
   group,
-  rail,
+  link,
   metrics,
   playlistId,
 }: {
   group: PlaylistRowGroup;
-  rail: LinkPosition | undefined;
+  link: LinkPosition | undefined;
   metrics: EditMetrics;
   playlistId: string;
 }) {
   const editText = useEditGuideText(playlistId);
   return (
-    <View style={{ height: metrics.descriptionHeight }} className="flex-row items-center">
-      <LinkRail link={rail} active={false} />
+    <EditCardRow link={link} height={metrics.descriptionHeight} row>
       <TouchableOpacity
         accessibilityRole="button"
         accessibilityLabel="Edit intro"
@@ -210,19 +236,19 @@ function DescriptionRow({
           {groupPreview(group)}
         </RelistenText>
       </TouchableOpacity>
-    </View>
+    </EditCardRow>
   );
 }
 
 /** A group with only text: one row that edits on tap, removes, and drags as a group. */
 function ProseRow({
   group,
-  rail,
+  link,
   metrics,
   playlistId,
 }: {
   group: PlaylistRowGroup;
-  rail: LinkPosition | undefined;
+  link: LinkPosition | undefined;
   metrics: EditMetrics;
   playlistId: string;
 }) {
@@ -233,8 +259,7 @@ function ProseRow({
     toastEdit(realm, playlistId, removeSegment(realm, playlistId, segmentId), 'Removed text');
 
   return (
-    <View style={{ height: metrics.trackHeight }} className="flex-row items-center">
-      <LinkRail link={rail} active={false} />
+    <EditCardRow link={link} height={metrics.trackHeight} row>
       <RemoveButton label="Remove text" onRemove={remove} />
       <TouchableOpacity
         accessibilityRole="button"
@@ -245,20 +270,20 @@ function ProseRow({
         <PreviewLines title={groupPreview(group)} subtitle="Text" />
       </TouchableOpacity>
       <DragHandle label="text" />
-    </View>
+    </EditCardRow>
   );
 }
 
 /** A track, or a text block, which edits on tap instead of opening the track menu. */
 function EntryRow({
   item,
-  rail,
+  link,
   metrics,
   playlistId,
   layout,
 }: {
   item: EntryItem;
-  rail: LinkPosition | undefined;
+  link: LinkPosition | undefined;
   metrics: EditMetrics;
   playlistId: string;
   layout: PlaylistLayout;
@@ -278,8 +303,7 @@ function EntryRow({
   const body = { flex: 1, minWidth: 0, alignSelf: 'stretch' } as const;
 
   return (
-    <View style={{ height: metrics.trackHeight }} className="flex-row items-center">
-      <LinkRail link={rail} active={false} />
+    <EditCardRow link={link} height={metrics.trackHeight} row>
       <RemoveButton label={`Remove ${title}`} onRemove={remove} />
       {isText ? (
         <TouchableOpacity
@@ -296,7 +320,7 @@ function EntryRow({
         </TrackMenu>
       )}
       <DragHandle label={title} />
-    </View>
+    </EditCardRow>
   );
 }
 
@@ -452,5 +476,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 12,
   },
-  placeholderInLink: { marginLeft: 20 },
+  row: { flexDirection: 'row', alignItems: 'center' },
 });

@@ -646,7 +646,7 @@ export function PlayerQueueTray({
   );
 }
 
-/** Whether a linked row belongs to the run that is playing; its rail lights up. */
+/** Whether a linked row belongs to the run that is playing; its card brightens. */
 function isInRun(link: QueueLink | undefined, currentRun: number | undefined): boolean {
   return link?.position !== undefined && link.run === currentRun;
 }

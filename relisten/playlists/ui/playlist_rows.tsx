@@ -19,6 +19,7 @@ import type { LinkPosition } from '@/relisten/playlists/playlist_drag_slots';
 import { TrackMenu } from '@/relisten/playlists/ui/playlist_menus';
 import { isQueueable } from '@/relisten/playlists/playlist_playback';
 import { tw } from '@/relisten/util/tw';
+import { closesCard, LinkCardRow } from '@/relisten/playlists/ui/link_card';
 import { GuideMarkdown } from '@/relisten/playlists/guide/guide_markdown_view';
 
 /** The queue occurrence playing from this playlist, if any. */
@@ -134,21 +135,13 @@ const HAIRLINE = 'border-b border-white/10';
  */
 const PROSE_PADDING = 'py-4';
 
-/** A card's fill, and a slightly brighter one while a track in its run plays. */
-const CARD_BACKGROUND = 'rgba(255,255,255,0.055)';
-const CARD_BACKGROUND_PLAYING = 'rgba(255,255,255,0.09)';
-
-/** The last row of a card has the card's edge below it instead of a hairline. */
-function closesCard(link: LinkPosition | undefined) {
-  return link === 'last' || link === 'only';
-}
+/** Content inset from the screen's edges, on bare rows and inside cards alike. */
+const ROW_PADDING_LEFT = 16;
+const ROW_PADDING_RIGHT = 14;
 
 /**
- * Where a reading-view row draws. Rows in a linked run or under an intro
- * (`link` set) are slices of one card: the list renders a row per item, so
- * each slice paints the card's fill and side margins itself, the first one
- * rounds the top corners and the last the bottom, and the gaps they add
- * keep neighboring cards apart. Rows without a link are drawn bare.
+ * Where a reading-view row draws: a slice of its group's card when `link` is
+ * set (a linked run, or tracks under an intro), otherwise bare.
  */
 function PlaylistRowFrame({
   link,
@@ -159,25 +152,15 @@ function PlaylistRowFrame({
   linkPlaying: boolean;
   children: ReactNode;
 }) {
-  // A card's margin plus its padding equals a bare row's padding on each side
-  // (6 + 10 = 16 on the left, 6 + 8 = 14 on the right), so text, durations
-  // and ••• buttons sit in the same place on every row; the card's fill just
-  // reaches past them.
-  if (!link) {
-    return <View className="pl-4 pr-3.5">{children}</View>;
-  }
-
-  const opensCard = link === 'first' || link === 'only';
   return (
-    <View
-      className={tw('mx-1.5 pl-2.5 pr-2', {
-        'mt-1 rounded-t-xl': opensCard,
-        'mb-1 rounded-b-xl': closesCard(link),
-      })}
-      style={{ backgroundColor: linkPlaying ? CARD_BACKGROUND_PLAYING : CARD_BACKGROUND }}
+    <LinkCardRow
+      link={link}
+      playing={linkPlaying}
+      paddingLeft={ROW_PADDING_LEFT}
+      paddingRight={ROW_PADDING_RIGHT}
     >
       {children}
-    </View>
+    </LinkCardRow>
   );
 }
 

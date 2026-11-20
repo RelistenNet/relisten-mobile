@@ -374,7 +374,7 @@ heart, which adds to My Library.
 **Groups**
 
 - A one-track group is a plain row with no card.
-- A multi-track group is a card joined by a thin rail down its left edge, the
+- A multi-track group is a rounded card shared by the group's rows, the
   visual equivalent of "Scarlet > Fire". Its header is plain secondary text, not
   accent, so it doesn't look like a link:
   - one source: "Grateful Dead · 1977-05-08 · Barton Hall"; its rows show

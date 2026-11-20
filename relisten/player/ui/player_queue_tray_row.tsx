@@ -8,7 +8,7 @@ import {
 } from '@/relisten/player/relisten_player_hooks';
 import { type PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
 import { MaterialIcons } from '@expo/vector-icons';
-import { TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import {
   playerDisplayTitle,
   playerTrackAccessibilityLabel,
@@ -16,7 +16,7 @@ import {
 } from './player_display_helpers';
 import { PlayerQueueActionsMenu } from './player_queue_actions_menu';
 import type { LinkPosition } from '@/relisten/playlists/playlist_drag_slots';
-import { LinkRail } from '@/relisten/playlists/ui/link_rail';
+import { LinkCardRow } from '@/relisten/playlists/ui/link_card';
 import { QueueDragHandle } from './player_queue_row';
 
 function CurrentTrackPlaybackButton() {
@@ -62,8 +62,13 @@ export function PlayerQueueTrayRow({
   const { fontScale } = useWindowDimensions();
   const stackControls = fontScale >= 1.4;
   return (
-    <View className={stackControls ? 'pl-4 pr-0.5' : 'flex-row items-center pl-4 pr-0.5'}>
-      <LinkRail link={link} active={linkPlaying} />
+    <LinkCardRow
+      link={link}
+      playing={linkPlaying}
+      paddingLeft={16}
+      paddingRight={8}
+      style={stackControls ? undefined : styles.inline}
+    >
       <TouchableOpacity
         accessibilityRole="button"
         accessibilityLabel={playerTrackAccessibilityLabel(source)}
@@ -124,6 +129,10 @@ export function PlayerQueueTrayRow({
           <QueueDragHandle drag={drag} label={playerTrackAccessibilityLabel(source)} />
         </View>
       </View>
-    </View>
+    </LinkCardRow>
   );
 }
+
+const styles = StyleSheet.create({
+  inline: { flexDirection: 'row', alignItems: 'center' },
+});
