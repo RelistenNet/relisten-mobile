@@ -159,36 +159,24 @@ function SonosHouseholds({
     }
   }
 
-  const nameCounts = new Map<string, number>();
-  for (const [firstRoom] of households.values()) {
-    const name = firstRoom.householdName ?? 'Sonos System';
-    nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1);
-  }
-
-  return Array.from(households.keys())
-    .sort()
-    .map((id, index) => {
-      const rooms = households.get(id)!;
-      const name = rooms[0].householdName ?? 'Sonos System';
-      const title = (nameCounts.get(name) ?? 0) > 1 ? `${name} (${index + 1})` : name;
-      return (
-        <View key={id}>
-          {households.size > 1 && <SectionHeader title={title} />}
-          {rooms.map((group, roomIndex) => (
-            <View key={group.id}>
-              {roomIndex > 0 && <ItemSeparator />}
-              <SonosRoomRow
-                group={group}
-                handoff={handoff?.groupId === group.id ? handoff : undefined}
-                busy={handoff?.phase === 'connecting'}
-                hasQueue={hasQueue}
-                onPress={() => void playOn(group)}
-              />
-            </View>
-          ))}
-        </View>
-      );
-    });
+  return [...households]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([id, rooms], index) => (
+      <View key={id} className={index > 0 ? 'mt-3' : undefined}>
+        {rooms.map((group, roomIndex) => (
+          <View key={group.id}>
+            {roomIndex > 0 && <ItemSeparator />}
+            <SonosRoomRow
+              group={group}
+              handoff={handoff?.groupId === group.id ? handoff : undefined}
+              busy={handoff?.phase === 'connecting'}
+              hasQueue={hasQueue}
+              onPress={() => void playOn(group)}
+            />
+          </View>
+        ))}
+      </View>
+    ));
 }
 
 /**

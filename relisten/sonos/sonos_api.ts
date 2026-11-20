@@ -15,7 +15,6 @@ const BASE = '/v1/integrations/sonos';
 /** A Sonos group: one room, or rooms playing together. */
 export interface SonosGroup {
   householdId: string;
-  householdName?: string;
   id: string;
   name: string;
 }
@@ -93,15 +92,7 @@ export async function fetchSonosGroups(api: AuthorizedAccountsApiClient): Promis
   return body
     .flatMap((group) =>
       typeof group?.id === 'string' && typeof group.name === 'string'
-        ? [
-            {
-              householdId: String(group.household_id ?? ''),
-              householdName:
-                typeof group.household_name === 'string' ? group.household_name : undefined,
-              id: group.id,
-              name: group.name,
-            },
-          ]
+        ? [{ householdId: String(group.household_id ?? ''), id: group.id, name: group.name }]
         : []
     )
     .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
