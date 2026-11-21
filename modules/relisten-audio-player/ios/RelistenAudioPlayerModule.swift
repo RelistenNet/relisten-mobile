@@ -287,8 +287,26 @@ public class RelistenAudioPlayerModule: Module {
         }
         return [
             "name": externalOutputs.map(\.portName).joined(separator: ", "),
-            "isExternal": !externalOutputs.isEmpty
+            "isExternal": !externalOutputs.isEmpty,
+            "kind": externalOutputs.first.map { Self.outputKind($0.portType) } ?? "builtIn"
         ]
+    }
+
+    /// The kind of output, so the player can show an AirPlay or Bluetooth icon
+    /// rather than one that could be mistaken for a Sonos room.
+    private static func outputKind(_ portType: AVAudioSession.Port) -> String {
+        switch portType {
+        case .airPlay:
+            return "airplay"
+        case .bluetoothA2DP, .bluetoothLE, .bluetoothHFP:
+            return "bluetooth"
+        case .headphones, .usbAudio, .lineOut:
+            return "wired"
+        case .carAudio:
+            return "car"
+        default:
+            return "other"
+        }
     }
 }
 

@@ -138,7 +138,11 @@ export interface PlaybackProgress {
 export interface AudioOutputRoute {
   name: string;
   isExternal: boolean;
+  /** Missing from binaries built before it was added. */
+  kind?: AudioOutputKind;
 }
+
+export type AudioOutputKind = 'builtIn' | 'airplay' | 'bluetooth' | 'wired' | 'car' | 'other';
 
 class RelistenGaplessPlayer {
   /** iOS only. Read the route without starting playback or activating the audio session. */
@@ -167,7 +171,9 @@ class RelistenGaplessPlayer {
     return emitter.addListener('onPlaybackProgressChanged', listener);
   }
 
-  addPlaybackSnapshotListener(listener: (event: RelistenPlaybackSnapshot) => void): EventSubscription {
+  addPlaybackSnapshotListener(
+    listener: (event: RelistenPlaybackSnapshot) => void
+  ): EventSubscription {
     return emitter.addListener('onPlaybackSnapshot', listener);
   }
 
