@@ -117,3 +117,23 @@ export function markdownPreview(markdown: string | undefined): string {
 export function playlistDisplayName(playlist: { name: string; unavailable: boolean }) {
   return playlist.name || (playlist.unavailable ? 'Unavailable playlist' : 'Loading…');
 }
+
+/**
+ * The warning before adding tracks a playlist already has: the track's title
+ * when adding one, otherwise how many of them repeat.
+ */
+export function duplicateTracksMessage(
+  duplicateCount: number,
+  total: number,
+  singleTitle?: string
+): string {
+  if (total === 1) {
+    return singleTitle
+      ? `“${singleTitle}” is already on this playlist.`
+      : 'This track is already on this playlist.';
+  }
+  if (duplicateCount === total) {
+    return `All ${total} tracks are already on this playlist.`;
+  }
+  return `${duplicateCount} of these ${total} tracks are already on this playlist.`;
+}

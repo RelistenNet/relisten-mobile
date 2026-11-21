@@ -13,7 +13,11 @@ import { useRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { addTracks, keepWithAbove } from '@/relisten/playlists/playlist_actions';
 import { orderedGroups } from '@/relisten/playlists/playlist_operations';
-import { artistLine, playlistSizeLine } from '@/relisten/playlists/playlist_format';
+import {
+  artistLine,
+  duplicateTracksMessage,
+  playlistSizeLine,
+} from '@/relisten/playlists/playlist_format';
 import {
   sourceTrackFor,
   useEditablePlaylists,
@@ -62,8 +66,41 @@ export default function AddToPlaylistSheet() {
   const sheetHeaderHeight = useHeaderHeight();
   const headerHeight = Platform.OS === 'ios' ? sheetHeaderHeight : 0;
 
+  /**
+   * Adds the tracks, first asking when some are already on the playlist: add
+   * them again, add only the new ones, or cancel.
+   */
   const addToExisting = (playlist: Playlist) => {
+    const onPlaylist = playlistTrackIds(realm, playlist.playlistId);
+    const duplicates = trackIds.filter((trackId) => onPlaylist.has(trackId));
+    if (duplicates.length === 0) {
+      addGroups(playlist, groups);
+      return;
+    }
+
+    const newGroups = groups
+      .map((group) => group.filter((trackId) => !onPlaylist.has(trackId)))
+      .filter((group) => group.length > 0);
+    Alert.alert(
+      `Already on ${playlist.name}`,
+      duplicateTracksMessage(
+        duplicates.length,
+        trackIds.length,
+        sourceTrackFor(realm, duplicates[0])?.title
+      ),
+      [
+        { text: 'Cancel', style: 'cancel' },
+        ...(newGroups.length > 0
+          ? [{ text: 'Add Only New Tracks', onPress: () => addGroups(playlist, newGroups) }]
+          : []),
+        { text: 'Add Anyway', onPress: () => addGroups(playlist, groups) },
+      ]
+    );
+  };
+
+  const addGroups = (playlist: Playlist, groups: string[][]) => {
     const { playlistId, name } = playlist;
+    const addedCount = groups.flat().length;
     try {
       addTracks(realm, playlistId, groups);
     } catch (error) {
@@ -74,9 +111,9 @@ export default function AddToPlaylistSheet() {
       return;
     }
     router.back();
-    sharedStatsigClient().logEvent(playlistActionEvent('add', trackIds.length));
+    sharedStatsigClient().logEvent(playlistActionEvent('add', addedCount));
 
-    const segueEntry = trackIds.length === 1 ? segueSuggestion(realm, playlistId) : undefined;
+    const segueEntry = addedCount === 1 ? segueSuggestion(realm, playlistId) : undefined;
     showToast(`Added ${addedLabel(realm, groups)} to ${name}`, [
       undoAction(realm, playlistId),
       segueEntry
@@ -281,6 +318,17 @@ function NewPlaylistForm({
       />
     </View>
   );
+}
+
+/** The tracks already on a playlist, to warn before adding one again. */
+function playlistTrackIds(realm: Realm, playlistId: string): Set<string> {
+  const trackIds = new Set<string>();
+  for (const entry of readPlaylistSnapshot(realm, playlistId).entries.values()) {
+    if (entry.trackId) {
+      trackIds.add(entry.trackId);
+    }
+  }
+  return trackIds;
 }
 
 function countLabel(count: number) {
