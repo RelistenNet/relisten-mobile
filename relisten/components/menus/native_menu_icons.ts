@@ -156,6 +156,10 @@ export const nativeMenuIcons = {
     ios: 'rectangle.split.3x1',
     android: import('@expo/material-symbols/link_off.xml'),
   }),
+  song: Icon.select({
+    ios: 'music.note',
+    android: import('@expo/material-symbols/music_note.xml'),
+  }),
   goTo: Icon.select({
     ios: 'arrow.forward',
     android: import('@expo/material-symbols/arrow_forward.xml'),

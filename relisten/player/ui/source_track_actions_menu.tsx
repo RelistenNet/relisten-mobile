@@ -16,6 +16,8 @@ import { useFavorite } from '@/relisten/library/favorite_hooks';
 import { trackIdForSourceTrack } from '@/relisten/playlists/playlist_hooks';
 import { openAddToPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
 import { useRouter } from 'expo-router';
+import { useGroupSegment } from '@/relisten/util/routes';
+import { GO_TO_SONG_PREFIX, goToSongActions, songsOf } from './track_songs';
 
 export type PlayShow = (sourceTrack?: SourceTrack) => void;
 
@@ -86,10 +88,12 @@ export function SourceTrackActionsMenu({
 }: SourceTrackActionsMenuProps) {
   const player = useRelistenPlayer();
   const router = useRouter();
+  const groupSegment = useGroupSegment();
   const favorite = useFavorite('track', sourceTrack.uuid);
   const queueTrack = useMemo(() => PlayerQueueTrack.fromSourceTrack(sourceTrack), [sourceTrack]);
   const offlineStatus = sourceTrack.offlineInfo?.status;
   const offlineType = sourceTrack.offlineInfo?.type;
+  const songs = useMemo(() => songsOf(sourceTrack), [sourceTrack]);
   const actions = useMemo<MenuAction[]>(
     () => [
       {
@@ -136,8 +140,28 @@ export function SourceTrackActionsMenu({
           { id: ACTION_IDS.share, image: nativeMenuIcons.share, title: 'Share Track' },
         ],
       },
+      ...(songs.length > 0
+        ? [
+            {
+              id: 'songs',
+              title: '',
+              displayInline: true,
+              subactions: goToSongActions(songs),
+            },
+          ]
+        : []),
     ],
-    [favorite.isFavorite, offlineStatus, offlineType, onSelect, sourceTrack]
+    [favorite.isFavorite, offlineStatus, offlineType, onSelect, songs, sourceTrack]
+  );
+
+  const goToSong = useCallback(
+    (songId: string) => {
+      router.push({
+        pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/song/[songUuid]/` as const,
+        params: { artistUuid: sourceTrack.artistUuid, songUuid: songId },
+      });
+    },
+    [groupSegment, router, sourceTrack]
   );
 
   const handleAction = useCallback(
@@ -186,7 +210,12 @@ export function SourceTrackActionsMenu({
     <NativeMenuView
       actions={actions}
       onPressAction={({ nativeEvent }) => {
-        void handleAction(nativeEvent.event as SourceTrackActionId);
+        const actionId = nativeEvent.event;
+        if (actionId.startsWith(GO_TO_SONG_PREFIX)) {
+          goToSong(actionId.slice(GO_TO_SONG_PREFIX.length));
+          return;
+        }
+        void handleAction(actionId as SourceTrackActionId);
       }}
     >
       <OverflowMenuTrigger
