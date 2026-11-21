@@ -1,4 +1,5 @@
-import { PropsWithChildren, Ref, useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { PropsWithChildren, Ref, useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, TextInput, TextInputInstance, TouchableOpacity, View } from 'react-native';
 import { FilterBarButtons } from '@/relisten/components/filtering/filter_bar_buttons';
 import type { RelistenObject } from '@/relisten/realm/relisten_object';
@@ -82,6 +83,15 @@ export function FilterBar<K extends string, T extends RelistenObject>({
       searchInputRef.current?.focus();
     }
   }, [searchInputRef, isTextFiltering]);
+
+  // Leaving with the field focused (tapping a result while typing) would have
+  // the native stack refocus it on the way back, scrolling the list to the top
+  // to show it. Dropping focus as the screen goes away keeps the scroll place.
+  useFocusEffect(
+    useCallback(() => {
+      return () => searchInputRef.current?.blur();
+    }, [])
+  );
 
   return (
     <>
