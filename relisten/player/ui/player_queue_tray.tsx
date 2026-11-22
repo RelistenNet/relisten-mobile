@@ -301,12 +301,10 @@ function QueuePeekGesture({ onOpen, label }: { onOpen: () => void; label: string
 }
 
 export function PlayerQueueTray({
-  onBeforeNavigate,
   onOpenHistory,
   visualizerActive,
   dismissOnPull,
 }: {
-  onBeforeNavigate: (navigate: () => void) => void;
   onOpenHistory: () => void;
   visualizerActive: boolean;
   dismissOnPull: boolean;
@@ -534,7 +532,6 @@ export function PlayerQueueTray({
             >
               <View style={{ minHeight: Math.max(0, height - peekHeight - 16) }}>
                 <PlayerNowPlaying
-                  onBeforeNavigate={onBeforeNavigate}
                   onOpenHistory={onOpenHistory}
                   visualizerActive={visualizerActive && !expanded}
                 />

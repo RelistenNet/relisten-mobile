@@ -63,10 +63,9 @@ export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) 
       <PlayerBackground backdropProgress={backdropProgress} />
       <SafeAreaView edges={isEmbedded || isOverlay ? ['top'] : []} style={{ flex: 1, zIndex: 10 }}>
         {isOverlay && <PlayerOverlayHeader interactive />}
-        {/* Track menus in the queue close the player before going to a song. */}
+        {/* Every menu in the player closes it before navigating. */}
         <TrackNavigationProvider beforeNavigate={navigateFromPlayer}>
           <PlayerQueueTray
-            onBeforeNavigate={navigateFromPlayer}
             onOpenHistory={openHistory}
             visualizerActive={visualizerActive}
             dismissOnPull={isOverlay && isPresentationActive && !isCoveredByRoute}

@@ -1,10 +1,10 @@
 import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
-import { NativeMenuView, type MenuAction } from '@/relisten/components/menus/native_menu_view';
+import { type MenuAction } from '@/relisten/components/menus/native_menu_view';
 import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player_queue_hooks';
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { useGroupSegment } from '@/relisten/util/routes';
-import { router, useNavigation } from 'expo-router';
-import { type ReactNode, useCallback, useMemo } from 'react';
+import { router } from 'expo-router';
+import { useCallback, useMemo } from 'react';
 import type { GoToSongActionId } from './track_songs';
 import { useGoToSong, useLeaveScreen } from './track_navigation';
 
@@ -19,10 +19,10 @@ export type CurrentTrackNavigationActionId =
 
 /**
  * Go-to actions for the playing track: its artist, show, and songs. They all
- * leave the screen through `useLeaveScreen`: `onBeforeNavigate` (closing the
- * player) when given, else the screen's `TrackNavigationProvider`.
+ * leave the screen through `useLeaveScreen`, so inside the player they close
+ * it first.
  */
-export function useCurrentTrackNavigation(onBeforeNavigate?: (navigate: () => void) => void) {
+export function useCurrentTrackNavigation() {
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
   const groupSegment = useGroupSegment();
   const { pushShow } = usePushShowRespectingUserSettings();
@@ -30,10 +30,9 @@ export function useCurrentTrackNavigation(onBeforeNavigate?: (navigate: () => vo
   const artist = currentPlayerTrack?.sourceTrack.artist;
   const show = currentPlayerTrack?.sourceTrack.show;
   const source = currentPlayerTrack?.sourceTrack.source;
-  const leaveScreen = useLeaveScreen(onBeforeNavigate);
+  const leaveScreen = useLeaveScreen();
   const { actions: songActions, handleAction: handleSongAction } = useGoToSong(
-    currentPlayerTrack?.sourceTrack,
-    onBeforeNavigate
+    currentPlayerTrack?.sourceTrack
   );
 
   const actions = useMemo<MenuAction[]>(
@@ -82,48 +81,4 @@ export function useCurrentTrackNavigation(onBeforeNavigate?: (navigate: () => vo
   );
 
   return { actions, handleAction };
-}
-
-type CurrentTrackNavigationMenuProps = {
-  children: ReactNode;
-  dismissOnNavigate?: boolean;
-  onBeforeNavigate?: (navigate: () => void) => void;
-};
-
-export function CurrentTrackNavigationMenu({
-  children,
-  dismissOnNavigate = true,
-  onBeforeNavigate,
-}: CurrentTrackNavigationMenuProps) {
-  const navigation = useNavigation();
-  const handleBeforeNavigate = useCallback(
-    (navigate: () => void) => {
-      if (onBeforeNavigate) {
-        onBeforeNavigate(navigate);
-      } else if (dismissOnNavigate) {
-        navigation.goBack();
-        requestIdleCallback(navigate);
-      } else {
-        navigate();
-      }
-    },
-    [dismissOnNavigate, navigation, onBeforeNavigate]
-  );
-  const { actions, handleAction } = useCurrentTrackNavigation(handleBeforeNavigate);
-
-  if (actions.length === 0) {
-    return children;
-  }
-
-  return (
-    <NativeMenuView
-      actions={actions}
-      // The native menu reports back the ids of `actions`, built above.
-      onPressAction={({ nativeEvent }) =>
-        handleAction(nativeEvent.event as CurrentTrackNavigationActionId)
-      }
-    >
-      {children}
-    </NativeMenuView>
-  );
 }

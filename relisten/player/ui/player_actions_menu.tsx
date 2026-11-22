@@ -24,9 +24,9 @@ type PlayerActionId =
   | typeof AUDIO_ADJUSTMENTS_ACTION_ID
   | (typeof PLAYLIST_ACTION_IDS)[keyof typeof PLAYLIST_ACTION_IDS];
 
-function usePlayerActions(onBeforeNavigate?: (navigate: () => void) => void) {
+function usePlayerActions() {
   const { actions: navigationActions, handleAction: handleNavigationAction } =
-    useCurrentTrackNavigation(onBeforeNavigate);
+    useCurrentTrackNavigation();
   const player = useRelistenPlayer();
   const hasCurrentTrack = !!useRelistenPlayerCurrentTrack();
   const actions = useMemo<MenuAction[]>(
@@ -114,13 +114,8 @@ function usePlayerActions(onBeforeNavigate?: (navigate: () => void) => void) {
   return { actions, handleAction };
 }
 
-type PlayerActionsMenuProps = {
-  children: ReactNode;
-  onBeforeNavigate?: (navigate: () => void) => void;
-};
-
-export function PlayerActionsMenu({ children, onBeforeNavigate }: PlayerActionsMenuProps) {
-  const { actions, handleAction } = usePlayerActions(onBeforeNavigate);
+export function PlayerActionsMenu({ children }: { children: ReactNode }) {
+  const { actions, handleAction } = usePlayerActions();
 
   if (actions.length === 0) {
     return children;

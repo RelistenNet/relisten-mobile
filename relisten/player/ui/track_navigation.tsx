@@ -12,6 +12,7 @@ type BeforeNavigate = (navigate: () => void) => void;
  * it, the player has to close first; elsewhere a menu navigates in place.
  */
 const TrackNavigationContext = createContext<BeforeNavigate | undefined>(undefined);
+TrackNavigationContext.displayName = 'TrackNavigation';
 
 export function TrackNavigationProvider({
   beforeNavigate,
@@ -25,13 +26,11 @@ export function TrackNavigationProvider({
 }
 
 /**
- * How a menu leaves its screen: through `beforeNavigate` when the menu knows
- * (the full player's own menus), else through the screen's
- * `TrackNavigationProvider`, else in place.
+ * How a menu leaves its screen: through the screen's `TrackNavigationProvider`,
+ * else in place.
  */
-export function useLeaveScreen(beforeNavigate?: BeforeNavigate): BeforeNavigate {
-  const providedBeforeNavigate = useContext(TrackNavigationContext);
-  const leave = beforeNavigate ?? providedBeforeNavigate;
+export function useLeaveScreen(): BeforeNavigate {
+  const leave = useContext(TrackNavigationContext);
 
   return useCallback(
     (navigate: () => void) => {
@@ -50,8 +49,8 @@ export function useLeaveScreen(beforeNavigate?: BeforeNavigate): BeforeNavigate 
  * `handleAction` returns false for any other action, so a menu can try it
  * before its own switch.
  */
-export function useGoToSong(sourceTrack: SourceTrack | undefined, beforeNavigate?: BeforeNavigate) {
-  const leaveScreen = useLeaveScreen(beforeNavigate);
+export function useGoToSong(sourceTrack: SourceTrack | undefined) {
+  const leaveScreen = useLeaveScreen();
   const groupSegment = useGroupSegment();
   const songs = useMemo(() => (sourceTrack ? songsOf(sourceTrack) : []), [sourceTrack]);
   const actions = useMemo<MenuAction[]>(() => goToSongActions(songs), [songs]);

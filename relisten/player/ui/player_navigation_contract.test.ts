@@ -13,6 +13,8 @@ const harness = vi.hoisted(() => ({
   push: vi.fn(),
   pushShow: vi.fn(),
   hapticImpact: vi.fn(),
+  /** What the player's `TrackNavigationProvider` would supply. */
+  leaveScreen: undefined as ((navigate: () => void) => void) | undefined,
   track: {
     sourceTrack: {
       artist: { uuid: 'artist-id', name: 'Phish' },
@@ -31,8 +33,10 @@ vi.mock('react', async (importOriginal) => {
   return {
     ...actual,
     useCallback: (callback: unknown) => callback,
-    // No provider in this harness: a context reads as its default value.
-    useContext: (context: { _currentValue: unknown }) => context._currentValue,
+    // Nothing renders here, so no provider runs: the player's track navigation
+    // comes from the harness, and every other context reads as its default.
+    useContext: (context: { _currentValue: unknown; displayName?: string }) =>
+      context.displayName === 'TrackNavigation' ? harness.leaveScreen : context._currentValue,
     useMemo: (factory: () => unknown) => factory(),
     useRef: (current: unknown) => ({ current }),
     useState: (initial: unknown) => [initial, harness.state],
@@ -81,16 +85,14 @@ vi.mock('@/relisten/util/push_show', () => ({
 vi.mock('@/relisten/util/routes', () => ({ useGroupSegment: () => '(artists)' }));
 
 import { PlayerActionsMenu } from './player_actions_menu';
-import {
-  type CurrentTrackNavigationActionId,
-  useCurrentTrackNavigation,
-} from './current_track_navigation_menu';
+import { useCurrentTrackNavigation } from './current_track_navigation_menu';
 import { PlayerPresentationProvider, playerPresentationContentReady } from './player_presentation';
 
 function mountPlayer() {
   const element = PlayerPresentationProvider({ children: null });
   const presentation = element.props.value;
-  const menu = useCurrentTrackNavigation(presentation.closePlayer);
+  harness.leaveScreen = presentation.closePlayer;
+  const menu = useCurrentTrackNavigation();
   presentation.openPlayer();
   presentation.markPlayerContentReady();
   return { presentation, menu };
@@ -113,6 +115,7 @@ beforeEach(() => {
   harness.springs.length = 0;
   harness.queuedCallbacks.length = 0;
   harness.bridgedCallbacks.length = 0;
+  harness.leaveScreen = undefined;
 });
 
 describe('player presentation and menu navigation contract', () => {
@@ -238,29 +241,11 @@ describe('player presentation and menu navigation contract', () => {
     }
   );
 
-  it('offers the current track’s song and defers it until closing completes', () => {
-    const { menu } = mountPlayer();
-    expect(menu.actions.map((action) => action.title)).toContain('Go to Simple');
-
-    const goToSimple = menu.actions.find((action) => action.title === 'Go to Simple')!;
-    menu.handleAction(goToSimple.id as CurrentTrackNavigationActionId);
-    expect(harness.push).not.toHaveBeenCalled();
-    finishLatestClose();
-    deliverCallbacks();
-    expect(harness.push).toHaveBeenCalledWith({
-      pathname: '/relisten/tabs/(artists)/[artistUuid]/song/[songUuid]/',
-      params: { artistUuid: 'artist-id', songUuid: 'song_simple' },
-    });
-  });
-
   it.each(['artist', 'show'] as const)(
     'dispatches the grouped More menu %s action after closing',
     (actionId) => {
-      const { presentation } = mountPlayer();
-      const element = PlayerActionsMenu({
-        children: null,
-        onBeforeNavigate: presentation.closePlayer,
-      }) as JSX.Element;
+      mountPlayer();
+      const element = PlayerActionsMenu({ children: null }) as JSX.Element;
       const action = element.props.actions
         .flatMap((section: { subactions: { id: string }[] }) => section.subactions)
         .find(({ id }: { id: string }) => id === actionId);
@@ -274,11 +259,8 @@ describe('player presentation and menu navigation contract', () => {
   );
 
   it('opens the equalizer from the grouped More menu without dismissing the player', () => {
-    const { presentation } = mountPlayer();
-    const element = PlayerActionsMenu({
-      children: null,
-      onBeforeNavigate: presentation.closePlayer,
-    }) as JSX.Element;
+    mountPlayer();
+    const element = PlayerActionsMenu({ children: null }) as JSX.Element;
     const action = element.props.actions
       .flatMap((section: { subactions: { id: string }[] }) => section.subactions)
       .find(({ id }: { id: string }) => id === 'audio-adjustments');

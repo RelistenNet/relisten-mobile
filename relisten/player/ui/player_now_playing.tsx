@@ -162,13 +162,7 @@ function ShowIdentity({ visualizerActive }: { visualizerActive: boolean }) {
   );
 }
 
-function CurrentTrackInfo({
-  headingRef,
-  onBeforeNavigate,
-}: {
-  headingRef?: Ref<ViewInstance>;
-  onBeforeNavigate: (navigate: () => void) => void;
-}) {
+function CurrentTrackInfo({ headingRef }: { headingRef?: Ref<ViewInstance> }) {
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
   const { fontScale } = useWindowDimensions();
   const isAccessibilityLayout = fontScale >= 1.4;
@@ -218,7 +212,7 @@ function CurrentTrackInfo({
     <View className="flex-row items-center gap-2">
       {shareButton}
       <View className="h-11 w-11">
-        <PlayerActionsMenu onBeforeNavigate={onBeforeNavigate}>
+        <PlayerActionsMenu>
           {/* The iOS menu host offsets its child 8pt left. */}
           <View
             accessible
@@ -441,7 +435,6 @@ function PlayerSecondaryControls({ historyButton }: { historyButton?: ReactNode 
 type PlayerNowPlayingProps = {
   headingRef?: Ref<ViewInstance>;
   onOpenHistory?: () => void;
-  onBeforeNavigate: (navigate: () => void) => void;
   visualizerActive?: boolean;
   onScrubbingChange?: (scrubbing: boolean) => void;
 };
@@ -449,7 +442,6 @@ type PlayerNowPlayingProps = {
 export function PlayerNowPlaying({
   headingRef,
   onOpenHistory,
-  onBeforeNavigate,
   visualizerActive = true,
   onScrubbingChange,
 }: PlayerNowPlayingProps) {
@@ -472,7 +464,7 @@ export function PlayerNowPlaying({
     <View className={tw('pb-4', showDecorativeIdentity ? 'pt-4' : 'pt-7')}>
       {showDecorativeIdentity && <ShowIdentity visualizerActive={visualizerActive && !remote} />}
       <View className={showDecorativeIdentity ? 'mt-3' : undefined}>
-        <CurrentTrackInfo headingRef={headingRef} onBeforeNavigate={onBeforeNavigate} />
+        <CurrentTrackInfo headingRef={headingRef} />
       </View>
       <View className="mt-4 px-5">
         <ScrubberRow subduedCache onScrubbingChange={onScrubbingChange} />
