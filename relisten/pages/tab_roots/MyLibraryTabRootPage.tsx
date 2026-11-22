@@ -148,9 +148,7 @@ function RecentListening() {
         {recentlyPlayedShows.length > 0 && (
           <Link href={{ pathname: '/relisten/tabs/(myLibrary)/history/tracks' }} asChild>
             <TouchableOpacity accessibilityRole="button" hitSlop={8}>
-              <RelistenText className="font-semibold text-gray-300" selectable={false}>
-                See All&nbsp;›
-              </RelistenText>
+              <RelistenText className="font-semibold text-gray-300">See All&nbsp;›</RelistenText>
             </TouchableOpacity>
           </Link>
         )}

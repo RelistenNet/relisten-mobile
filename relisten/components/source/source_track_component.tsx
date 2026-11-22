@@ -64,7 +64,7 @@ export const SourceTrackComponent = ({
         >
           {shouldShowTrackNumber && !isPlayingThisTrack && (
             <View className="self-center" style={{ width: leadingColumnWidth }}>
-              <RelistenText className="text-lg text-gray-400" selectable={false}>
+              <RelistenText className="text-lg text-gray-400">
                 {sourceTrack.trackPosition}
               </RelistenText>
             </View>
@@ -80,9 +80,7 @@ export const SourceTrackComponent = ({
           )}
 
           <View className="min-w-0 flex-1 flex-row items-center">
-            <RelistenText className="shrink py-2 pr-2 text-lg" selectable={false}>
-              {sourceTrack.title}
-            </RelistenText>
+            <RelistenText className="shrink py-2 pr-2 text-lg">{sourceTrack.title}</RelistenText>
             <View className="flex-1" />
             <View className="shrink-0 flex-row items-center">
               <SourceTrackOfflineIndicator offlineInfo={sourceTrack.offlineInfo} />

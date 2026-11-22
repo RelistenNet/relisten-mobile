@@ -7,10 +7,8 @@ import { RelistenText } from './relisten_text';
 export const RelistenLink: FC<TextProps> = (props) => {
   return (
     <Flex cn="items-center justify-start">
-      <RelistenText selectable={false} {...props}>
-        {props.children}
-      </RelistenText>
-      <RelistenText selectable={false} {...props}>
+      <RelistenText {...props}>{props.children}</RelistenText>
+      <RelistenText {...props}>
         <MaterialIcons name="chevron-right" />
       </RelistenText>
     </Flex>

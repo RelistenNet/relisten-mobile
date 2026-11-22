@@ -356,7 +356,7 @@ function EditHeader({
         >
           Add Text
         </RelistenButton>
-        <RelistenText className="flex-1 text-sm text-gray-400" selectable={false}>
+        <RelistenText className="flex-1 text-sm text-gray-400">
           Adds text at the end. Drag it into place.
         </RelistenText>
       </View>

@@ -493,15 +493,12 @@ export const SourceHeader = ({
   return (
     <View className="flex w-full items-center px-4">
       <View className="w-full">
-        <RelistenText
-          className="w-full py-2 text-center text-4xl font-bold text-white"
-          selectable={false}
-        >
+        <RelistenText className="w-full py-2 text-center text-4xl font-bold text-white">
           {show.displayDate}
         </RelistenText>
         {displayVenueName && (
           <TouchableOpacity onPress={pushVenue}>
-            <RelistenText className="w-full pb-2 text-center text-xl" selectable={false}>
+            <RelistenText className="w-full pb-2 text-center text-xl">
               {[displayVenueName, displayVenueLocation].filter(Boolean).join(', ')}
               &nbsp;›
             </RelistenText>
@@ -515,7 +512,7 @@ export const SourceHeader = ({
       </View>
       <TouchableOpacity onPress={pushSourceDetails} className="w-full">
         <SourceSummary source={source}>
-          <RelistenText className="pb-3 pt-2 text-center text-sm" selectable={false}>
+          <RelistenText className="pb-3 pt-2 text-center text-sm">
             See details, taper notes & more
             <DisclosureIndicator />
           </RelistenText>

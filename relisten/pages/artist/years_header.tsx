@@ -65,10 +65,7 @@ const OnlineYearsHeader: React.FC<YearsHeaderContentProps> = ({
     <>
       <View className="flex w-full items-center pb-1">
         <View className="w-full px-4 pb-2">
-          <RelistenText
-            className="w-full py-2 text-center text-4xl font-bold text-white"
-            selectable={false}
-          >
+          <RelistenText className="w-full py-2 text-center text-4xl font-bold text-white">
             {artist.name}
           </RelistenText>
 
@@ -96,10 +93,7 @@ const OfflineYearsHeader: React.FC<Pick<YearsHeaderContentProps, 'artist'>> = ({
     <>
       <View className="flex w-full items-center pb-1">
         <View className="w-full px-4 pb-2">
-          <RelistenText
-            className="w-full py-2 text-center text-4xl font-bold text-white"
-            selectable={false}
-          >
+          <RelistenText className="w-full py-2 text-center text-4xl font-bold text-white">
             {artist.name}
           </RelistenText>
 

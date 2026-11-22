@@ -122,19 +122,14 @@ export function AudioAdjustmentSliderRow({
         }}
       >
         <View style={{ flex: 1, gap: 2 }}>
-          <RelistenText className="font-semibold" selectable={false}>
-            {props.accessibilityLabel}
-          </RelistenText>
+          <RelistenText className="font-semibold">{props.accessibilityLabel}</RelistenText>
           {description && (
-            <RelistenText className="text-sm text-gray-400" selectable={false}>
-              {description}
-            </RelistenText>
+            <RelistenText className="text-sm text-gray-400">{description}</RelistenText>
           )}
         </View>
         <RelistenText
           className="text-relisten-blue-200"
           style={{ minWidth: 64, textAlign: 'right' }}
-          selectable={false}
         >
           {props.valueDb > 0 ? '+' : ''}
           {props.valueDb} dB

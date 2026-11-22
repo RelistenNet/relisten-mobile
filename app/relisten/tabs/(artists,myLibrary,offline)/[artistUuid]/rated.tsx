@@ -47,10 +47,7 @@ export default function Page() {
 const ShowHeader = () => {
   return (
     <>
-      <RelistenText
-        className="w-full py-2 text-center text-4xl font-bold text-white"
-        selectable={false}
-      >
+      <RelistenText className="w-full py-2 text-center text-4xl font-bold text-white">
         Top Shows
       </RelistenText>
     </>

@@ -119,10 +119,7 @@ export const RelistenButton = React.forwardRef<TouchableOpacityRef, ButtonProps>
         <Popover
           from={
             <TouchableOpacity ref={ref} accessibilityRole="button" className={cls} {...props}>
-              <RelistenText
-                selectable={false}
-                className={tw('text-center font-bold', textClassName)}
-              >
+              <RelistenText className={tw('text-center font-bold', textClassName)}>
                 {children}
               </RelistenText>
             </TouchableOpacity>
@@ -145,7 +142,7 @@ export const RelistenButton = React.forwardRef<TouchableOpacityRef, ButtonProps>
         disabled={disabled}
       >
         {icon && <View className="pr-1">{icon}</View>}
-        <RelistenText selectable={false} className={tw('text-center font-bold', textClassName)}>
+        <RelistenText className={tw('text-center font-bold', textClassName)}>
           {children}
         </RelistenText>
       </TouchableOpacity>

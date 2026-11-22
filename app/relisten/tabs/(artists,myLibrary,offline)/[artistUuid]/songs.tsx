@@ -95,10 +95,7 @@ interface SongHeaderProps {
 const SongHeader = ({ songs }: SongHeaderProps) => {
   return (
     <>
-      <RelistenText
-        className="w-full py-2 text-center text-4xl font-bold text-white"
-        selectable={false}
-      >
+      <RelistenText className="w-full py-2 text-center text-4xl font-bold text-white">
         Songs
       </RelistenText>
       <RelistenText className="text-l w-full pb-2 text-center italic text-gray-400">

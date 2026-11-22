@@ -32,7 +32,7 @@ export const SourceProperty: React.FC<
         titleComponent
       )}
       {value ? (
-        <RelistenText className="bg w-full grow" selectable={true}>
+        <RelistenText className="bg w-full grow" selectable>
           {value}
         </RelistenText>
       ) : (
@@ -49,7 +49,7 @@ function SourceDetailsLine({
 }: PropsWithChildren<{ title: ReactNode } & ViewProps>) {
   return (
     <View className="w-full" {...props}>
-      <RelistenText selectable={false}>
+      <RelistenText>
         <RelistenText className="font-bold">{title}:</RelistenText> {children}
       </RelistenText>
     </View>
@@ -123,7 +123,7 @@ export const SourceFooter: React.FC<{ source: Source }> = ({ source }) => {
       <RelistenText className="text-l py-1 text-gray-400">
         Source last updated: {dayjs(source.updatedAt).format('YYYY-MM-DD')}
       </RelistenText>
-      <RelistenText className="text-l py-1 text-gray-400">
+      <RelistenText className="text-l py-1 text-gray-400" selectable>
         Identifier: {source.upstreamIdentifier}
       </RelistenText>
       {source.links().map((l) => (

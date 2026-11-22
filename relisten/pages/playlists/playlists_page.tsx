@@ -202,12 +202,8 @@ function PlaylistsFooter() {
               className="min-h-[52px] flex-row items-center px-4"
             >
               <Ionicons name="trash-outline" size={16} color="#9ca3af" />
-              <RelistenText className="ml-2 flex-1 text-gray-400" selectable={false}>
-                Recently Deleted
-              </RelistenText>
-              <RelistenText className="text-gray-400" selectable={false}>
-                {deleted.length} ›
-              </RelistenText>
+              <RelistenText className="ml-2 flex-1 text-gray-400">Recently Deleted</RelistenText>
+              <RelistenText className="text-gray-400">{deleted.length} ›</RelistenText>
             </TouchableOpacity>
           </Link>
         </>

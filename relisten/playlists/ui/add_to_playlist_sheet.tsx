@@ -209,10 +209,7 @@ export default function AddToPlaylistSheet() {
               className="min-h-[52px] flex-row items-center px-4"
               onPress={() => setNaming(true)}
             >
-              <RelistenText
-                className="text-lg font-semibold text-relisten-blue-400"
-                selectable={false}
-              >
+              <RelistenText className="text-lg font-semibold text-relisten-blue-400">
                 + New Playlist
               </RelistenText>
             </TouchableOpacity>
@@ -278,10 +275,10 @@ function PickerRow({
       className="min-h-[56px] justify-center px-4 py-3"
       onPress={onPress}
     >
-      <RelistenText className="text-lg font-semibold" numberOfLines={2} selectable={false}>
+      <RelistenText className="text-lg font-semibold" numberOfLines={2}>
         {playlist.name}
       </RelistenText>
-      <RelistenText className="text-sm text-gray-400" numberOfLines={2} selectable={false}>
+      <RelistenText className="text-sm text-gray-400" numberOfLines={2}>
         {detail}
       </RelistenText>
     </TouchableOpacity>

@@ -110,10 +110,7 @@ const OfflineHeader = ({ downloads }: { downloads: Realm.Results<SourceTrackOffl
 
   return (
     <>
-      <RelistenText
-        className="w-full pb-2 text-center text-4xl font-bold text-white"
-        selectable={false}
-      >
+      <RelistenText className="w-full pb-2 text-center text-4xl font-bold text-white">
         Downloading
       </RelistenText>
       <RelistenText className="text-l w-full pb-4 text-center italic text-gray-400">

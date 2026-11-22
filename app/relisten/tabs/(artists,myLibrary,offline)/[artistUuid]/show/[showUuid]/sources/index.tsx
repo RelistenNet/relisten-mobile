@@ -103,10 +103,7 @@ const SourcesList = ({
   return (
     <Animated.ScrollView style={{ flex: 1 }} {...props} {...playerBottomScrollViewProps}>
       <View className="w-full">
-        <RelistenText
-          className="w-full py-2 text-center text-4xl font-bold text-white"
-          selectable={false}
-        >
+        <RelistenText className="w-full py-2 text-center text-4xl font-bold text-white">
           {show.displayDate}
         </RelistenText>
         <RelistenText className="text-l w-full pb-2 text-center italic text-gray-400">
@@ -157,11 +154,9 @@ export const SourceDetail: FC<{
       <View className="flex w-full items-center px-4">
         <ShowLink show={{ artist, showUuid: show.uuid, sourceUuid: source.uuid }}>
           <SourceSummary source={source}>
-            <RelistenText className="mt-2 text-sm" selectable={false}>
-              {source.upstreamIdentifier}
-            </RelistenText>
+            <RelistenText className="mt-2 text-sm">{source.upstreamIdentifier}</RelistenText>
             <View className="mb-1 mt-1 w-full">
-              <RelistenText className="text-sm" selectable={false}>
+              <RelistenText className="text-sm">
                 Updated on {dayjs(source.updatedAt).format('YYYY-MM-DD')}
               </RelistenText>
             </View>

@@ -26,14 +26,11 @@ export function TrackDuration({
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
         className={textClassName}
-        selectable={false}
         style={{ height: 0, opacity: 0 }}
       >
         {widest}
       </RelistenText>
-      <RelistenText className={textClassName} selectable={false}>
-        {duration}
-      </RelistenText>
+      <RelistenText className={textClassName}>{duration}</RelistenText>
     </View>
   );
 }

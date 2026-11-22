@@ -136,9 +136,7 @@ export function UsernameScreen({ onDone }: { onDone?: () => void } = {}) {
           <View className="gap-2">
             <RelistenText className="text-sm font-semibold text-gray-300">Username</RelistenText>
             <View className="flex-row items-center rounded-lg border border-relisten-blue-700 bg-relisten-blue-800 px-4">
-              <RelistenText className="text-lg text-gray-400" selectable={false}>
-                @
-              </RelistenText>
+              <RelistenText className="text-lg text-gray-400">@</RelistenText>
               <TextInput
                 accessibilityLabel="Relisten username"
                 autoCapitalize="none"

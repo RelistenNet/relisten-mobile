@@ -48,7 +48,7 @@ export function AdvancedEqualizerScreen() {
           ))}
         </AudioAdjustmentCard>
 
-        <RelistenText className="text-sm text-gray-400" selectable={false}>
+        <RelistenText className="text-sm text-gray-400">
           Relisten automatically lowers the overall level when frequencies are boosted to reduce
           clipping.
         </RelistenText>

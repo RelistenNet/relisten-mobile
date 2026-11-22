@@ -41,15 +41,13 @@ function StatusLine({ row, online }: { row: PlaylistRowEntry; online: boolean })
     return (
       <View className="flex-row items-center">
         <Ionicons name="ban-outline" size={13} color="#e5c07b" />
-        <RelistenText className="ml-1 text-sm text-[#e5c07b]" selectable={false}>
-          No longer available
-        </RelistenText>
+        <RelistenText className="ml-1 text-sm text-[#e5c07b]">No longer available</RelistenText>
       </View>
     );
   }
   if (row.status === 'loading') {
     return (
-      <RelistenText className="text-sm text-gray-400" selectable={false}>
+      <RelistenText className="text-sm text-gray-400">
         {online ? 'Loading track details…' : 'Needs internet to load'}
       </RelistenText>
     );
@@ -313,12 +311,11 @@ export const PlaylistTrackRow = memo(function PlaylistTrackRow({
                 'text-gray-300': !canPlay,
               })}
               numberOfLines={2}
-              selectable={false}
             >
               {title}
             </RelistenText>
             {subtitle !== '' && canPlay && (
-              <RelistenText className="text-sm text-gray-400" numberOfLines={1} selectable={false}>
+              <RelistenText className="text-sm text-gray-400" numberOfLines={1}>
                 {subtitle}
               </RelistenText>
             )}
@@ -348,7 +345,6 @@ export const PlaylistTrackRow = memo(function PlaylistTrackRow({
         <View className={tw('flex-row pb-3 pl-1 pr-2', { [HAIRLINE]: hairlineBelow })}>
           <RelistenText
             className="mr-1.5 text-sm text-gray-400"
-            selectable={false}
             accessibilityElementsHidden
             importantForAccessibility="no"
           >

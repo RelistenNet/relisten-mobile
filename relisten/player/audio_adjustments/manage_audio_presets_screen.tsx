@@ -40,10 +40,8 @@ export function ManageAudioPresetsScreen() {
       >
         {presets.length === 0 ? (
           <View className="items-center gap-2 py-12">
-            <RelistenText className="text-xl font-bold" selectable={false}>
-              No Saved Presets
-            </RelistenText>
-            <RelistenText className="text-center text-gray-400" selectable={false}>
+            <RelistenText className="text-xl font-bold">No Saved Presets</RelistenText>
+            <RelistenText className="text-center text-gray-400">
               Customize the equalizer, then save the changes when closing Audio Equalizer.
             </RelistenText>
           </View>
@@ -54,10 +52,8 @@ export function ManageAudioPresetsScreen() {
                 {index > 0 && <View className="h-px bg-relisten-blue-200/10" />}
                 <View className="min-h-[58px] flex-row items-center p-3.5">
                   <View className="flex-1 gap-0.5">
-                    <RelistenText className="font-semibold" selectable={false}>
-                      {preset.name}
-                    </RelistenText>
-                    <RelistenText className="text-sm text-gray-400" selectable={false}>
+                    <RelistenText className="font-semibold">{preset.name}</RelistenText>
+                    <RelistenText className="text-sm text-gray-400">
                       {preset.extraVolumeReductionDb === 0
                         ? '0 dB volume gain'
                         : `${preset.extraVolumeReductionDb > 0 ? '+' : ''}${preset.extraVolumeReductionDb} dB volume gain`}
@@ -107,7 +103,7 @@ export function ManageAudioPresetsScreen() {
             ))}
           </AudioAdjustmentCard>
         )}
-        <RelistenText className="text-center text-xs text-gray-500" selectable={false}>
+        <RelistenText className="text-center text-xs text-gray-500">
           Preset names do not need to be unique.
         </RelistenText>
       </ScrollView>

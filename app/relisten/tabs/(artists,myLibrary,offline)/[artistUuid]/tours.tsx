@@ -95,10 +95,7 @@ interface TourHeaderProps {
 const TourHeader = ({ tours }: TourHeaderProps) => {
   return (
     <>
-      <RelistenText
-        className="w-full py-2 text-center text-4xl font-bold text-white"
-        selectable={false}
-      >
+      <RelistenText className="w-full py-2 text-center text-4xl font-bold text-white">
         Tours
       </RelistenText>
       <RelistenText className="text-l w-full pb-2 text-center italic text-gray-400">

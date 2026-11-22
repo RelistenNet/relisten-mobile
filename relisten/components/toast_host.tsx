@@ -164,7 +164,6 @@ export function ToastHost() {
               <RelistenText
                 className="text-[15px] font-semibold"
                 numberOfLines={1}
-                selectable={false}
                 style={{ color: RelistenBlue[300] }}
               >
                 {action.label}

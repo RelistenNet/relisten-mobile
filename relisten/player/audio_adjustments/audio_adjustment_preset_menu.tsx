@@ -89,21 +89,13 @@ export function AudioAdjustmentPresetMenu({ disabled = false }: { disabled?: boo
         style={{ padding: AUDIO_ADJUSTMENT_CARD_PADDING, opacity: disabled ? 0.45 : 1 }}
       >
         <View style={{ flex: 1, gap: 2 }}>
-          <RelistenText className="font-semibold" selectable={false}>
-            Preset
-          </RelistenText>
+          <RelistenText className="font-semibold">Preset</RelistenText>
           {currentPreset?.subtitle && (
-            <RelistenText className="text-xs text-gray-500" selectable={false}>
-              {currentPreset.subtitle}
-            </RelistenText>
+            <RelistenText className="text-xs text-gray-500">{currentPreset.subtitle}</RelistenText>
           )}
         </View>
         <View className="max-w-[50%] flex-row items-center self-stretch justify-end gap-1.5 pl-3">
-          <RelistenText
-            className="shrink text-right text-gray-400"
-            numberOfLines={2}
-            selectable={false}
-          >
+          <RelistenText className="shrink text-right text-gray-400" numberOfLines={2}>
             {currentName}
           </RelistenText>
           <Ionicons color={RelistenBlue[300]} name="chevron-forward" size={18} />

@@ -90,14 +90,12 @@ export function PlayerQueueTrayRow({
               : 'min-w-0 text-base font-semibold'
           }
           numberOfLines={stackControls ? undefined : 2}
-          selectable={false}
         >
           {playerDisplayTitle(source.title)}
         </RelistenText>
         <RelistenText
           className="mt-[3px] text-sm text-gray-300/70"
           numberOfLines={stackControls ? undefined : 1}
-          selectable={false}
         >
           {[playerQueueDate(source.show.displayDate), source.show.venue?.name]
             .filter(Boolean)
@@ -107,7 +105,6 @@ export function PlayerQueueTrayRow({
           <RelistenText
             className="mt-[3px] text-sm text-gray-300/70"
             numberOfLines={stackControls ? undefined : 1}
-            selectable={false}
           >
             {source.artist.name}
           </RelistenText>

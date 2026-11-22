@@ -1,5 +1,5 @@
 import React, { PropsWithChildren } from 'react';
-import { Platform, StyleProp, Text, TextProps, TextStyle } from 'react-native';
+import { Text, TextProps } from 'react-native';
 import { tw } from '../util/tw';
 
 export const RelistenText: React.FC<PropsWithChildren<TextProps> & { cn?: string }> = ({
@@ -8,16 +8,17 @@ export const RelistenText: React.FC<PropsWithChildren<TextProps> & { cn?: string
   className,
   ...props
 }) => {
-  const fontProps: StyleProp<TextStyle> = Platform.OS === 'android' ? { fontFamily: 'Roboto' } : {};
-
+  // Not selectable unless a screen opts in where copying is useful (taper
+  // notes, reviews, error details). Android also ignores `numberOfLines` on
+  // selectable text, so a truncated title would wrap and clip instead.
   return (
     <Text
       className={tw('text-base tabular-nums text-white', cn, className)}
-      selectable={true}
+      selectable={false}
       {...props}
     >
       {/* TODO: find a way to solve tabular nums with only 1 text component */}
-      <Text style={{ fontVariant: ['tabular-nums'], ...fontProps }}>{children}</Text>
+      <Text style={{ fontVariant: ['tabular-nums'] }}>{children}</Text>
     </Text>
   );
 };

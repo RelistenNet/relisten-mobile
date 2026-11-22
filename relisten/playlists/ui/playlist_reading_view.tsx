@@ -303,19 +303,17 @@ export function PlaylistViewHeader({
 
   return (
     <View className="w-full items-center px-4">
-      <RelistenText className="w-full pt-2 text-center text-3xl font-bold" selectable={false}>
-        {name}
-      </RelistenText>
+      <RelistenText className="w-full pt-2 text-center text-3xl font-bold">{name}</RelistenText>
       {byline ? (
-        <RelistenText className="w-full text-center text-gray-300" selectable={false}>
-          {byline}
-        </RelistenText>
+        <RelistenText className="w-full text-center text-gray-300">{byline}</RelistenText>
       ) : null}
       <View className="h-2" />
       {description ? (
-        <RelistenText className="w-full pb-2 text-center text-gray-300">{description}</RelistenText>
+        <RelistenText className="w-full pb-2 text-center text-gray-300" selectable>
+          {description}
+        </RelistenText>
       ) : null}
-      <RelistenText className="w-full pb-4 text-center italic text-gray-400" selectable={false}>
+      <RelistenText className="w-full pb-4 text-center italic text-gray-400">
         {[
           playlistSizeLine(trackCount, 0),
           stats.durationSeconds > 0 ? humanDuration(stats.durationSeconds) : '',

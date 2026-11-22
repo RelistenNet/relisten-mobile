@@ -20,45 +20,35 @@ function SourceDetails({ source, ...props }: { source: Source } & ScrollViewProp
         {source.taper && (
           <View className="mb-2">
             <SourceProperty title="Taper">
-              <RelistenText numberOfLines={undefined} selectable={true}>
-                {source.taper}
-              </RelistenText>
+              <RelistenText selectable>{source.taper}</RelistenText>
             </SourceProperty>
           </View>
         )}
         {source.transferrer && (
           <View className="mb-2">
             <SourceProperty title="Transferrer">
-              <RelistenText numberOfLines={undefined} selectable={true}>
-                {source.transferrer}
-              </RelistenText>
+              <RelistenText selectable>{source.transferrer}</RelistenText>
             </SourceProperty>
           </View>
         )}
         {source.source && (
           <View className="mb-2">
             <SourceProperty title="Source">
-              <RelistenText numberOfLines={undefined} selectable={true}>
-                {source.source}
-              </RelistenText>
+              <RelistenText selectable>{source.source}</RelistenText>
             </SourceProperty>
           </View>
         )}
         {source.lineage && (
           <View className="mb-2">
             <SourceProperty title="Lineage">
-              <RelistenText numberOfLines={undefined} selectable={true}>
-                {source.lineage}
-              </RelistenText>
+              <RelistenText selectable>{source.lineage}</RelistenText>
             </SourceProperty>
           </View>
         )}
         {source.taperNotes && (
           <View className="mb-2">
             <SourceProperty title="Taper Notes">
-              <RelistenText numberOfLines={undefined} selectable={true}>
-                {source.taperNotes}
-              </RelistenText>
+              <RelistenText selectable>{source.taperNotes}</RelistenText>
             </SourceProperty>
           </View>
         )}

@@ -24,24 +24,17 @@ export const ListRow = React.forwardRef<
   const content = (
     <>
       <View className="min-w-0 flex-1">
-        <RelistenText className="text-lg font-semibold" numberOfLines={2} selectable={false}>
+        <RelistenText className="text-lg font-semibold" numberOfLines={2}>
           {title}
         </RelistenText>
         {subtitle !== undefined && (
-          <RelistenText
-            className={tw('text-sm text-gray-400', subtitleClassName)}
-            selectable={false}
-          >
+          <RelistenText className={tw('text-sm text-gray-400', subtitleClassName)}>
             {subtitle}
           </RelistenText>
         )}
       </View>
       {accessory}
-      {disclosure && (
-        <RelistenText className="ml-2 text-lg text-gray-400" selectable={false}>
-          ›
-        </RelistenText>
-      )}
+      {disclosure && <RelistenText className="ml-2 text-lg text-gray-400">›</RelistenText>}
     </>
   );
 

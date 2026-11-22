@@ -192,7 +192,7 @@ function Notice({
               className="min-h-[44px] justify-center pl-4"
               onPress={action.onPress}
             >
-              <RelistenText className="font-semibold text-relisten-blue-300" selectable={false}>
+              <RelistenText className="font-semibold text-relisten-blue-300">
                 {action.label}
               </RelistenText>
             </TouchableOpacity>

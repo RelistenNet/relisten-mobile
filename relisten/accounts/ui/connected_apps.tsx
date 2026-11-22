@@ -74,11 +74,7 @@ export function ConnectedAppsGroup() {
           title={client.name}
           subtitle={client.state === 'connected' ? 'Connected' : 'Signed out'}
           disclosure={false}
-          accessory={
-            <RelistenText className="ml-2 text-red-400" selectable={false}>
-              Disconnect
-            </RelistenText>
-          }
+          accessory={<RelistenText className="ml-2 text-red-400">Disconnect</RelistenText>}
           accessibilityHint={`Disconnects ${client.name} from your account.`}
           onPress={() => disconnect(client)}
         />

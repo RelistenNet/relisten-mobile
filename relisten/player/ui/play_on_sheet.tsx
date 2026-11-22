@@ -360,15 +360,12 @@ function OutputRow({
     <View className="min-h-[56px] flex-row items-center px-4 py-2">
       <View className="w-9">{icon}</View>
       <View className="min-w-0 flex-1">
-        <RelistenText className="text-base" selectable={false}>
-          {title}
-        </RelistenText>
+        <RelistenText className="text-base">{title}</RelistenText>
         {subtitle && (
           <RelistenText
             className={
               subtitleTone === 'error' ? 'text-sm text-[#e5c07b]' : 'text-sm text-gray-400'
             }
-            selectable={false}
           >
             {subtitle}
           </RelistenText>

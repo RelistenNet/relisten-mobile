@@ -72,7 +72,6 @@ function QueueTrackRow({
           <RelistenText
             className="shrink text-lg font-semibold"
             numberOfLines={stackMetadata ? undefined : 2}
-            selectable={false}
           >
             {displayTitle}
           </RelistenText>
@@ -81,11 +80,10 @@ function QueueTrackRow({
             <RelistenText
               className="min-w-0 shrink text-sm text-gray-300/70"
               numberOfLines={stackMetadata ? undefined : 1}
-              selectable={false}
             >
               {sourceTrack.artist.name}
             </RelistenText>
-            <RelistenText className="shrink-0 text-sm text-gray-300/70" selectable={false}>
+            <RelistenText className="shrink-0 text-sm text-gray-300/70">
               {stackMetadata ? '' : ' · '}
               {playerQueueDate(sourceTrack.show.displayDate)}
             </RelistenText>

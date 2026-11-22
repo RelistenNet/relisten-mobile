@@ -53,9 +53,7 @@ export default function RecentlyDeletedPage() {
               className="min-h-[44px] justify-center px-3"
               onPress={() => void restore(item)}
             >
-              <RelistenText className="font-semibold text-relisten-blue-400" selectable={false}>
-                Restore
-              </RelistenText>
+              <RelistenText className="font-semibold text-relisten-blue-400">Restore</RelistenText>
             </TouchableOpacity>
           </View>
         )}

@@ -161,7 +161,6 @@ function PlaceholderRow({
             <RelistenText
               className="text-sm font-semibold text-relisten-blue-300"
               numberOfLines={1}
-              selectable={false}
             >
               {slot.label}
             </RelistenText>
@@ -196,7 +195,7 @@ function LinkLineRow({
         style={{ flex: 1, minWidth: 0, alignSelf: 'stretch' }}
       >
         <View className="h-full flex-1 justify-center" accessibilityRole="button">
-          <RelistenText className="text-sm text-gray-400" numberOfLines={1} selectable={false}>
+          <RelistenText className="text-sm text-gray-400" numberOfLines={1}>
             {label}
           </RelistenText>
         </View>
@@ -232,7 +231,7 @@ function DescriptionRow({
         style={{ paddingRight: HANDLE_WIDTH }}
         onPress={() => editText({ kind: 'segment', segmentId: group.segment.segmentId })}
       >
-        <RelistenText className="text-sm italic text-gray-300" numberOfLines={1} selectable={false}>
+        <RelistenText className="text-sm italic text-gray-300" numberOfLines={1}>
           {groupPreview(group)}
         </RelistenText>
       </TouchableOpacity>
@@ -345,7 +344,6 @@ export function RowContent({
           <RelistenText
             className="max-w-[45%] text-sm font-semibold text-relisten-blue-300"
             numberOfLines={1}
-            selectable={false}
           >
             {badge}
           </RelistenText>
@@ -400,11 +398,11 @@ function EntryText({ item }: { item: EntryItem }) {
   const subtitle = showLine(row);
   return (
     <View className="min-w-0 flex-1 justify-center">
-      <RelistenText className="text-lg" numberOfLines={1} selectable={false}>
+      <RelistenText className="text-lg" numberOfLines={1}>
         {row.sourceTrack ? entryTitle(row) : 'Track'}
       </RelistenText>
       {subtitle !== '' && (
-        <RelistenText className="text-sm text-gray-400" numberOfLines={1} selectable={false}>
+        <RelistenText className="text-sm text-gray-400" numberOfLines={1}>
           {subtitle}
         </RelistenText>
       )}
@@ -415,11 +413,11 @@ function EntryText({ item }: { item: EntryItem }) {
 function PreviewLines({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <>
-      <RelistenText className="text-lg" numberOfLines={1} selectable={false}>
+      <RelistenText className="text-lg" numberOfLines={1}>
         {title}
       </RelistenText>
       {subtitle !== '' && (
-        <RelistenText className="text-sm text-gray-400" numberOfLines={1} selectable={false}>
+        <RelistenText className="text-sm text-gray-400" numberOfLines={1}>
           {subtitle}
         </RelistenText>
       )}

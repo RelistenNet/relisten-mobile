@@ -63,7 +63,7 @@ const YearHeader = ({ year }: { artist: Artist | null; year: Year | null }) => {
 const OnlineYearHeader = ({ year }: { year: Year | null }) => {
   return (
     <View className="flex w-full flex-col items-center gap-1 py-2">
-      <RelistenText className="w-full text-center text-4xl font-bold text-white" selectable={false}>
+      <RelistenText className="w-full text-center text-4xl font-bold text-white">
         {year?.year}
       </RelistenText>
 
@@ -80,7 +80,7 @@ const OfflineYearHeader = ({ year }: { year: Year | null }) => {
 
   return (
     <View className="flex w-full flex-col items-center gap-1 py-2">
-      <RelistenText className="w-full text-center text-4xl font-bold text-white" selectable={false}>
+      <RelistenText className="w-full text-center text-4xl font-bold text-white">
         {year?.year}
       </RelistenText>
 

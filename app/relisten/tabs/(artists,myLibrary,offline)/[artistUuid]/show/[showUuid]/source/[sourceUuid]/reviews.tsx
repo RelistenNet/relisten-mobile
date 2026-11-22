@@ -53,7 +53,7 @@ const ReviewItem = memo(({ review }: { review: SourceReview }) => {
               {review.title.trim()}
             </RelistenText>
           )}
-          <RelistenText className="shrink-0" selectable={false}>
+          <RelistenText className="shrink-0">
             {review.rating ? `${review.rating}★` : ''}
           </RelistenText>
         </View>
@@ -62,11 +62,11 @@ const ReviewItem = memo(({ review }: { review: SourceReview }) => {
         {review.author && (
           <RelistenText className="min-w-0 flex-1 italic">{review.author.trim()}</RelistenText>
         )}
-        <RelistenText className="shrink-0 text-gray-400" selectable={false}>
+        <RelistenText className="shrink-0 text-gray-400">
           {dayjs(review.updated_at).format('LL')}
         </RelistenText>
       </View>
-      <RelistenText>{review.review.trim()}</RelistenText>
+      <RelistenText selectable>{review.review.trim()}</RelistenText>
     </View>
   );
 });

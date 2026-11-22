@@ -69,10 +69,7 @@ interface RecentHeaderProps {
 const RecentHeader = ({ activeTab, setActiveTab }: RecentHeaderProps) => {
   return (
     <>
-      <RelistenText
-        className="w-full py-2 text-center text-4xl font-bold text-white"
-        selectable={false}
-      >
+      <RelistenText className="w-full py-2 text-center text-4xl font-bold text-white">
         Recent Shows
       </RelistenText>
       <Flex cn="m-2 rounded-sm">

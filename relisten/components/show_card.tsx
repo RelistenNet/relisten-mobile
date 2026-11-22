@@ -59,9 +59,7 @@ export function ShowCardTitle({
   textClassName?: string;
 }) {
   return (
-    <RelistenText selectable={false} className={tw('text-base font-semibold', textClassName)}>
-      {children}
-    </RelistenText>
+    <RelistenText className={tw('text-base font-semibold', textClassName)}>{children}</RelistenText>
   );
 }
 
@@ -84,7 +82,6 @@ export function ShowCardContents({
       {title}
       {subtitle && (
         <RelistenText
-          selectable={false}
           className={tw('pt-0.5 text-sm text-gray-200', textClassName)}
           numberOfLines={1}
           ellipsizeMode="tail"
@@ -96,7 +93,6 @@ export function ShowCardContents({
         <RelistenText
           numberOfLines={1}
           key={idx}
-          selectable={false}
           className={tw('pt-0.5 text-xs text-gray-200', textClassName)}
         >
           {d}
@@ -177,11 +173,7 @@ export function ShowCard({
                 <View className="flex-row items-center pt-1">
                   <View className="flex-1 flex-row items-center pr-2">
                     <ShowCardMetaChip>
-                      <RelistenText
-                        numberOfLines={1}
-                        selectable={false}
-                        className="text-xs text-gray-100"
-                      >
+                      <RelistenText numberOfLines={1} className="text-xs text-gray-100">
                         <Plur word="tape" count={show.sourceCount} />
                       </RelistenText>
                     </ShowCardMetaChip>
@@ -191,7 +183,6 @@ export function ShowCard({
                         <ShowCardMetaChip>
                           <RelistenText
                             numberOfLines={1}
-                            selectable={false}
                             className="text-xs font-semibold text-gray-100"
                           >
                             SBD
@@ -271,32 +262,20 @@ export function ShowCardLoader({
           <View className="flex-row items-center pt-1 opacity-0">
             <View className="flex-1 flex-row items-center pr-2">
               <ShowCardMetaChip className="mr-1">
-                <RelistenText
-                  numberOfLines={1}
-                  selectable={false}
-                  className="text-xs text-gray-100"
-                >
+                <RelistenText numberOfLines={1} className="text-xs text-gray-100">
                   99 tapes
                 </RelistenText>
               </ShowCardMetaChip>
               <View className="w-1" />
               <ShowCardMetaChip>
-                <RelistenText
-                  numberOfLines={1}
-                  selectable={false}
-                  className="text-xs font-semibold text-gray-100"
-                >
+                <RelistenText numberOfLines={1} className="text-xs font-semibold text-gray-100">
                   SBD
                 </RelistenText>
               </ShowCardMetaChip>
             </View>
             <View className="ml-auto items-end">
               <ShowCardMetaChip>
-                <RelistenText
-                  numberOfLines={1}
-                  selectable={false}
-                  className="text-xs text-gray-100"
-                >
+                <RelistenText numberOfLines={1} className="text-xs text-gray-100">
                   0.0k 30d
                 </RelistenText>
               </ShowCardMetaChip>

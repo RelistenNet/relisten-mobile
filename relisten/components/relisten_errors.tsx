@@ -11,17 +11,11 @@ export const RelistenErrorBox: React.FC<{
   return (
     <View className="w-full flex-col rounded-md bg-red-800 p-4">
       <View className="w-full flex-row justify-between">
-        {heading && (
-          <RelistenText className="font-bold text-gray-200" selectable={false}>
-            {heading}
-          </RelistenText>
-        )}
-        <RelistenText className="font-bold text-gray-200" selectable={false}>
-          {title}
-        </RelistenText>
+        {heading && <RelistenText className="font-bold text-gray-200">{heading}</RelistenText>}
+        <RelistenText className="font-bold text-gray-200">{title}</RelistenText>
       </View>
       {description && (
-        <RelistenText className="font-ui-monospace pt-2 text-sm text-gray-300">
+        <RelistenText className="font-ui-monospace pt-2 text-sm text-gray-300" selectable>
           {description}
         </RelistenText>
       )}

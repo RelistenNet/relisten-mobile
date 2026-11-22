@@ -47,10 +47,10 @@ export function AudioAdjustmentsScreen() {
             className="gap-1 rounded-[14px] border border-relisten-blue-200/15 bg-relisten-blue-900 p-3.5"
             style={{ borderCurve: 'continuous' }}
           >
-            <RelistenText className="font-bold" selectable={false}>
+            <RelistenText className="font-bold">
               Unavailable while casting{deviceName ? ` to ${deviceName}` : ''}
             </RelistenText>
-            <RelistenText className="text-gray-300" selectable={false}>
+            <RelistenText className="text-gray-300">
               Audio Equalizer affects local playback only. Your saved settings resume when casting
               ends.
             </RelistenText>
@@ -63,10 +63,8 @@ export function AudioAdjustmentsScreen() {
             style={{ padding: AUDIO_ADJUSTMENT_CARD_PADDING }}
           >
             <View style={{ flex: 1, gap: 2 }}>
-              <RelistenText className="font-semibold" selectable={false}>
-                Audio Equalizer
-              </RelistenText>
-              <RelistenText className="text-sm text-gray-400" selectable={false}>
+              <RelistenText className="font-semibold">Audio Equalizer</RelistenText>
+              <RelistenText className="text-sm text-gray-400">
                 {configuration.enabled ? 'On for local playback' : 'Off — your settings are saved'}
               </RelistenText>
             </View>
@@ -103,9 +101,7 @@ export function AudioAdjustmentsScreen() {
                 opacity: pressed ? 0.7 : 1,
               })}
             >
-              <RelistenText className="flex-1 font-semibold" selectable={false}>
-                Customize Equalizer
-              </RelistenText>
+              <RelistenText className="flex-1 font-semibold">Customize Equalizer</RelistenText>
               <Ionicons color={RelistenBlue[300]} name="chevron-forward" size={18} />
             </Pressable>
           </View>
@@ -125,24 +121,18 @@ export function AudioAdjustmentsScreen() {
             valueDb={configuration.extraVolumeReductionDb}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <RelistenText
-                className="text-xs text-gray-400"
-                style={{ flex: 1 }}
-                selectable={false}
-              >
+              <RelistenText className="text-xs text-gray-400" style={{ flex: 1 }}>
                 −30 dB
               </RelistenText>
               <RelistenText
                 className="text-xs text-gray-300"
                 style={{ flex: 1, textAlign: 'center' }}
-                selectable={false}
               >
                 0 dB
               </RelistenText>
               <RelistenText
                 className="text-xs text-gray-400"
                 style={{ flex: 1, textAlign: 'right' }}
-                selectable={false}
               >
                 +12 dB
               </RelistenText>
@@ -169,9 +159,7 @@ export function AudioAdjustmentsScreen() {
             opacity: isCasting ? 0.45 : pressed ? 0.7 : 1,
           })}
         >
-          <RelistenText className="font-semibold" selectable={false}>
-            Reset Equalizer…
-          </RelistenText>
+          <RelistenText className="font-semibold">Reset Equalizer…</RelistenText>
         </Pressable>
       </ScrollView>
 

@@ -320,9 +320,7 @@ function FormattingBar({
           className="min-h-[44px] min-w-[44px] items-center justify-center px-2"
           onPress={button.onPress}
         >
-          <RelistenText className="text-base font-semibold" selectable={false}>
-            {button.text}
-          </RelistenText>
+          <RelistenText className="text-base font-semibold">{button.text}</RelistenText>
         </TouchableOpacity>
       ))}
     </View>

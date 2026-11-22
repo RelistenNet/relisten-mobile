@@ -27,12 +27,10 @@ export function HistoryEntryContent({
     <View className="min-w-0 flex-row items-center">
       {leading}
       <View className="min-w-0 flex-1 py-2">
-        <RelistenText className="shrink text-base font-semibold" selectable={false}>
+        <RelistenText className="shrink text-base font-semibold">
           {playerDisplayTitle(sourceTrack.title)}
         </RelistenText>
-        <RelistenText className="mt-[3px] text-sm text-gray-300/70" selectable={false}>
-          {metadata}
-        </RelistenText>
+        <RelistenText className="mt-[3px] text-sm text-gray-300/70">{metadata}</RelistenText>
       </View>
       {/* Centered in the row beside the timestamp, as show rows place it beside the duration. */}
       <SourceTrackOfflineIndicator offlineInfo={sourceTrack.offlineInfo} />

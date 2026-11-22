@@ -76,7 +76,7 @@ export default function ReportPlaylistSheet() {
         value={reason}
         onChangeText={setReason}
       />
-      <RelistenText className="pt-2 text-right text-sm text-gray-400" selectable={false}>
+      <RelistenText className="pt-2 text-right text-sm text-gray-400">
         {REPORT_REASON_LENGTH - reason.length}
       </RelistenText>
     </View>

@@ -80,7 +80,6 @@ function ShowIdentity({ visualizerActive }: { visualizerActive: boolean }) {
             className="min-w-0 shrink font-semibold uppercase text-relisten-blue-200/75"
             minimumFontScale={0.6}
             numberOfLines={1}
-            selectable={false}
             style={{ fontSize: 13 * posterScale, letterSpacing: 5 * posterScale }}
           >
             {currentTrack.artist.name}
@@ -92,7 +91,6 @@ function ShowIdentity({ visualizerActive }: { visualizerActive: boolean }) {
           <RelistenText
             allowFontScaling={false}
             className="font-semibold text-relisten-blue-200/75"
-            selectable={false}
             style={{ fontSize: 22 * posterScale, letterSpacing: 3 * posterScale }}
           >
             {month}
@@ -101,7 +99,6 @@ function ShowIdentity({ visualizerActive }: { visualizerActive: boolean }) {
           <RelistenText
             allowFontScaling={false}
             className="font-light leading-none text-relisten-blue-100/80"
-            selectable={false}
             style={{ fontSize: 72 * posterScale }}
           >
             {day}
@@ -110,7 +107,6 @@ function ShowIdentity({ visualizerActive }: { visualizerActive: boolean }) {
           <RelistenText
             allowFontScaling={false}
             className="font-semibold text-relisten-blue-200/75"
-            selectable={false}
             style={{ fontSize: 22 * posterScale, letterSpacing: 2 * posterScale }}
           >
             {year}
@@ -125,7 +121,6 @@ function ShowIdentity({ visualizerActive }: { visualizerActive: boolean }) {
                 allowFontScaling={false}
                 className="shrink text-center font-light uppercase text-relisten-blue-200"
                 numberOfLines={2}
-                selectable={false}
                 style={{
                   fontSize: 14 * posterScale,
                   letterSpacing: 3 * posterScale,
@@ -143,7 +138,6 @@ function ShowIdentity({ visualizerActive }: { visualizerActive: boolean }) {
               className="mt-1 w-full px-7 text-center uppercase text-relisten-blue-300/65"
               minimumFontScale={0.6}
               numberOfLines={1}
-              selectable={false}
               style={{
                 fontSize: 12 * posterScale,
                 letterSpacing: 3 * posterScale,
@@ -246,16 +240,11 @@ function CurrentTrackInfo({ headingRef }: { headingRef?: Ref<ViewInstance> }) {
           <RelistenText
             className="text-2xl font-bold leading-tight"
             numberOfLines={fontScale < 1.4 ? 2 : undefined}
-            selectable={false}
           >
             {displayTitle}
           </RelistenText>
         </View>
-        <RelistenText
-          className="mt-1 text-lg"
-          numberOfLines={fontScale < 1.4 ? 1 : undefined}
-          selectable={false}
-        >
+        <RelistenText className="mt-1 text-lg" numberOfLines={fontScale < 1.4 ? 1 : undefined}>
           {artist.name}
           {isAccessibilityLayout ? ` · ${playerDisplayDate(show.displayDate)}` : ''}
         </RelistenText>
@@ -263,7 +252,6 @@ function CurrentTrackInfo({ headingRef }: { headingRef?: Ref<ViewInstance> }) {
           <RelistenText
             className="mt-0.5 text-base text-gray-400"
             numberOfLines={fontScale < 1.4 ? 1 : undefined}
-            selectable={false}
           >
             {show.venue.name} · {show.venue.location}
           </RelistenText>

@@ -125,10 +125,7 @@ function LibraryVenueList({
         renderItem={({ item }) => <LibraryVenueRow item={item} />}
         ListHeaderComponent={
           <View className="w-full py-2">
-            <RelistenText
-              className="w-full text-center text-4xl font-bold text-white"
-              selectable={false}
-            >
+            <RelistenText className="w-full text-center text-4xl font-bold text-white">
               Venues
             </RelistenText>
             <RelistenText className="text-l w-full text-center italic text-gray-400">

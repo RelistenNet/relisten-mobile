@@ -217,16 +217,10 @@ function QueueTrayHandle() {
       </View>
       <View className="min-h-[56px] flex-row items-center pl-4 pr-0.5">
         <View className="min-w-0 flex-1 justify-center">
-          <RelistenText
-            accessibilityRole="header"
-            className="text-lg font-semibold"
-            selectable={false}
-          >
+          <RelistenText accessibilityRole="header" className="text-lg font-semibold">
             {title}
           </RelistenText>
-          <RelistenText className="mt-0.5 text-sm text-gray-300" selectable={false}>
-            {subtitle}
-          </RelistenText>
+          <RelistenText className="mt-0.5 text-sm text-gray-300">{subtitle}</RelistenText>
         </View>
         <TouchableOpacity
           accessibilityRole="button"

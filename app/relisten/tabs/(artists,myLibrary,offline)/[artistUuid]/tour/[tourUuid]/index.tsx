@@ -51,7 +51,7 @@ const TourHeader = ({ tour }: { tour: TourShows | null }) => {
   const totalShows = tour?.shows.length;
   return (
     <View className="flex w-full flex-col items-center gap-1 py-2">
-      <RelistenText className="w-full text-center text-4xl font-bold text-white" selectable={false}>
+      <RelistenText className="w-full text-center text-4xl font-bold text-white">
         {tour?.tour?.name}
       </RelistenText>
 
