@@ -153,7 +153,7 @@ export class RelistenPlayer {
 
   /** Whether the player keeps played tracks in place (see `PlaybackDriver.keepsPlayedOrder`). */
   get keepsPlayedOrder(): boolean {
-    return this.playbackDriver.keepsPlayedOrder ?? false;
+    return this.playbackDriver.keepsPlayedOrder;
   }
 
   /**
