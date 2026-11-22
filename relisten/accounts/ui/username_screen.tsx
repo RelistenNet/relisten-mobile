@@ -7,6 +7,7 @@ import {
 import Flex from '@/relisten/components/flex';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RelistenText } from '@/relisten/components/relisten_text';
+import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
 import { Redirect, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -47,6 +48,10 @@ export function UsernameScreen({ onDone }: { onDone?: () => void } = {}) {
     ? `${account.profile.userId}:${account.profile.usernameVersion}`
     : null;
   const previousProfileIdentity = useRef(profileIdentity);
+  // Keeps the title below the translucent header and the button above the mini player.
+  const scrollProps = usePlayerBottomScrollViewProps({
+    contentContainerStyle: { flexGrow: 1, padding: 24 },
+  });
 
   useEffect(() => {
     const profileChanged = previousProfileIdentity.current !== profileIdentity;
@@ -119,10 +124,7 @@ export function UsernameScreen({ onDone }: { onDone?: () => void } = {}) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       className="flex-1 bg-relisten-blue-900"
     >
-      <ScrollView
-        contentContainerStyle={{ flexGrow: 1, padding: 24 }}
-        keyboardShouldPersistTaps="handled"
-      >
+      <ScrollView keyboardShouldPersistTaps="handled" {...scrollProps}>
         <Flex column className="gap-5">
           <View className="gap-2">
             <RelistenText className="text-3xl font-bold">
