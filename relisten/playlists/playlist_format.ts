@@ -135,5 +135,6 @@ export function duplicateTracksMessage(
   if (duplicateCount === total) {
     return `All ${total} tracks are already on this playlist.`;
   }
-  return `${duplicateCount} of these ${total} tracks are already on this playlist.`;
+  const verb = duplicateCount === 1 ? 'is' : 'are';
+  return `${duplicateCount} of these ${total} tracks ${verb} already on this playlist.`;
 }

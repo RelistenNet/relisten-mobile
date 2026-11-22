@@ -36,6 +36,7 @@ describe('duplicate tracks warning', () => {
     [1, 1, 'Simple', '“Simple” is already on this playlist.'],
     [1, 1, undefined, 'This track is already on this playlist.'],
     [3, 3, undefined, 'All 3 tracks are already on this playlist.'],
+    [1, 3, undefined, '1 of these 3 tracks is already on this playlist.'],
     [2, 5, undefined, '2 of these 5 tracks are already on this playlist.'],
   ])('%i of %i repeated (title %s): %s', (duplicates, total, title, message) => {
     expect(duplicateTracksMessage(duplicates, total, title)).toBe(message);
