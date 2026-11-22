@@ -353,7 +353,12 @@ export function PlayerBottomBar({ placementBackend = 'overlay' }: PlayerBottomBa
 
   const isOverlay = placementBackend === 'overlay';
   const containerClassName = isOverlay ? 'absolute w-full' : 'h-full w-full';
-  const contentContainerClassName = isOverlay ? 'w-full flex-1 px-6 pb-2' : 'h-full w-full px-1.5';
+  // iOS insets the bar to match its floating tab bar; Android's tab bar spans
+  // the screen, so the bar only keeps a small margin there.
+  const overlayInsetClassName = Platform.OS === 'android' ? 'px-2' : 'px-6';
+  const contentContainerClassName = isOverlay
+    ? `w-full flex-1 ${overlayInsetClassName} pb-2`
+    : 'h-full w-full px-1.5';
   const mainSurfaceClassName = isOverlay ? 'px-3 pb-3 pt-2' : 'h-full';
   const shellChromeStyle =
     Platform.OS === 'ios'
