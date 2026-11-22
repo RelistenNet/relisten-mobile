@@ -120,3 +120,8 @@ export function queueLinks(tracks: readonly LinkedQueueTrack[]): QueueLink[] {
   });
   return links;
 }
+
+/** Whether a linked row belongs to the run that is playing; its card brightens. */
+export function isInRun(link: QueueLink | undefined, currentRun: number | undefined): boolean {
+  return link?.position !== undefined && link.run === currentRun;
+}

@@ -47,9 +47,8 @@ import {
 import { PlayOnButton } from '@/relisten/player/ui/play_on_button';
 import * as Progress from 'react-native-progress';
 
-function ShowIdentity({ visualizerActive }: { visualizerActive: boolean }) {
+function ShowIdentity({ visualizerActive, width }: { visualizerActive: boolean; width: number }) {
   const currentTrack = useRelistenPlayerCurrentTrack()?.sourceTrack;
-  const { width } = useWindowDimensions();
 
   if (!currentTrack) {
     return null;
@@ -432,6 +431,8 @@ type PlayerNowPlayingProps = {
   onOpenHistory?: () => void;
   visualizerActive?: boolean;
   onScrubbingChange?: (scrubbing: boolean) => void;
+  /** The width the player is drawn in; the side rail is narrower than its window. */
+  width?: number;
 };
 
 export function PlayerNowPlaying({
@@ -439,10 +440,11 @@ export function PlayerNowPlaying({
   onOpenHistory,
   visualizerActive = true,
   onScrubbingChange,
+  width,
 }: PlayerNowPlayingProps) {
   const currentTrack = useRelistenPlayerCurrentTrack();
   const remote = useIsRemotePlayback();
-  const { fontScale } = useWindowDimensions();
+  const { fontScale, width: windowWidth } = useWindowDimensions();
   const showDecorativeIdentity = fontScale < 1.4;
 
   if (!currentTrack) {
@@ -457,7 +459,9 @@ export function PlayerNowPlaying({
 
   return (
     <View className={tw('pb-4', showDecorativeIdentity ? 'pt-4' : 'pt-7')}>
-      {showDecorativeIdentity && <ShowIdentity visualizerActive={visualizerActive && !remote} />}
+      {showDecorativeIdentity && (
+        <ShowIdentity visualizerActive={visualizerActive && !remote} width={width ?? windowWidth} />
+      )}
       <View className={showDecorativeIdentity ? 'mt-3' : undefined}>
         <CurrentTrackInfo headingRef={headingRef} />
       </View>

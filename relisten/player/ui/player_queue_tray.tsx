@@ -49,7 +49,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { usePlayerDismissGesture } from './use_player_dismiss_gesture';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { type QueueLink, queueLinks } from './player_display_helpers';
+import { isInRun, queueLinks } from './player_display_helpers';
 import { PlayerNowPlaying } from './player_now_playing';
 import { usePlayerPresentation } from './player_presentation';
 import { isQueueReorderCurrent } from './player_queue_reorder';
@@ -633,9 +633,4 @@ export function PlayerQueueTray({
       )}
     </View>
   );
-}
-
-/** Whether a linked row belongs to the run that is playing; its card brightens. */
-function isInRun(link: QueueLink | undefined, currentRun: number | undefined): boolean {
-  return link?.position !== undefined && link.run === currentRun;
 }

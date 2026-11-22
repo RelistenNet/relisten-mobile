@@ -1,6 +1,7 @@
 import { useRelistenPlayerPlaybackState } from '@/relisten/player/relisten_player_hooks';
 import { useRelistenPlayerQueueOrderedTracks } from '@/relisten/player/relisten_player_queue_hooks';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
+import { useIsWideLayout } from '@/relisten/util/wide_layout';
 import React, { PropsWithChildren, useContext, useState } from 'react';
 import {
   Platform,
@@ -59,11 +60,31 @@ export const useRelistenPlayerBottomBarContext = () => {
   return context;
 };
 
-export const useIsPlayerBottomBarVisible = () => {
+/** Whether the player has anything to show, wherever it is drawn. */
+const useHasPlayerContent = () => {
   const playbackState = useRelistenPlayerPlaybackState();
   const tracks = useRelistenPlayerQueueOrderedTracks();
 
   return playbackState !== undefined && tracks.length > 0;
+};
+
+/**
+ * A wide window keeps the player in a rail beside the content, so the mini
+ * player, the full-screen overlay it opens, and the space screens reserve for
+ * it all step aside there.
+ */
+export const useIsPlayerBottomBarVisible = () => {
+  const hasContent = useHasPlayerContent();
+  const isWide = useIsWideLayout();
+
+  return hasContent && !isWide;
+};
+
+export const useIsPlayerRailVisible = () => {
+  const hasContent = useHasPlayerContent();
+  const isWide = useIsWideLayout();
+
+  return hasContent && isWide;
 };
 
 export const usePlayerBarVisualHeight = () => {
