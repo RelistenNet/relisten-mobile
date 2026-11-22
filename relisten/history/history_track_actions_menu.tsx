@@ -11,7 +11,7 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { trackIdForSourceTrack } from '@/relisten/playlists/playlist_hooks';
 import { openAddToPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
-import { useGoToSong } from '@/relisten/player/ui/track_navigation';
+import { goToShowTitle, useGoToShow, useGoToSong } from '@/relisten/player/ui/track_navigation';
 import { type ReactNode, useCallback, useMemo } from 'react';
 import { type AccessibilityRole } from 'react-native';
 
@@ -20,12 +20,16 @@ const ACTION_IDS = {
   addToQueue: 'add-to-queue',
   playNext: 'play-next',
   select: 'select',
-  viewShow: 'view-show',
+  goToShow: 'go-to-show',
 } as const;
 
 type HistoryTrackActionId = (typeof ACTION_IDS)[keyof typeof ACTION_IDS];
 
-function historyActions(canSelect: boolean, songActions: MenuAction[]): MenuAction[] {
+function historyActions(
+  sourceTrack: SourceTrack,
+  canSelect: boolean,
+  songActions: MenuAction[]
+): MenuAction[] {
   return [
     {
       id: 'playback',
@@ -60,7 +64,7 @@ function historyActions(canSelect: boolean, songActions: MenuAction[]): MenuActi
       title: '',
       displayInline: true,
       subactions: [
-        { id: ACTION_IDS.viewShow, image: nativeMenuIcons.show, title: 'View Show' },
+        { id: ACTION_IDS.goToShow, image: nativeMenuIcons.show, title: goToShowTitle(sourceTrack) },
         ...songActions,
       ],
     },
@@ -72,7 +76,6 @@ type HistoryTrackActionsMenuProps = {
   accessibilityLabel?: string;
   accessibilityRole?: AccessibilityRole;
   children: ReactNode;
-  onViewShow: () => void;
   /** Starts selecting with this entry checked; offered only where selection exists. */
   onSelect?: () => void;
   sourceTrack: SourceTrack;
@@ -83,16 +86,16 @@ export function HistoryTrackActionsMenu({
   accessibilityLabel,
   accessibilityRole,
   children,
-  onViewShow,
   onSelect,
   sourceTrack,
 }: HistoryTrackActionsMenuProps) {
   const player = useRelistenPlayer();
   const router = useRouter();
+  const goToShow = useGoToShow();
   const { actions: songActions, handleAction: handleSongAction } = useGoToSong(sourceTrack);
   const actions = useMemo(
-    () => historyActions(onSelect !== undefined, songActions),
-    [onSelect, songActions]
+    () => historyActions(sourceTrack, onSelect !== undefined, songActions),
+    [onSelect, songActions, sourceTrack]
   );
 
   const addToQueue = useCallback(
@@ -135,12 +138,12 @@ export function HistoryTrackActionsMenu({
         case ACTION_IDS.select:
           onSelect?.();
           break;
-        case ACTION_IDS.viewShow:
-          onViewShow();
+        case ACTION_IDS.goToShow:
+          goToShow(sourceTrack);
           break;
       }
     },
-    [addToQueue, onSelect, onViewShow, router, sourceTrack]
+    [addToQueue, goToShow, onSelect, router, sourceTrack]
   );
 
   return (

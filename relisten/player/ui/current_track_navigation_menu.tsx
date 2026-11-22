@@ -1,12 +1,11 @@
 import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
 import { type MenuAction } from '@/relisten/components/menus/native_menu_view';
 import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player_queue_hooks';
-import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { router } from 'expo-router';
 import { useCallback, useMemo } from 'react';
 import type { GoToSongActionId } from './track_songs';
-import { useGoToSong, useLeaveScreen } from './track_navigation';
+import { goToShowTitle, useGoToShow, useGoToSong, useLeaveScreen } from './track_navigation';
 
 const ACTION_IDS = {
   artist: 'artist',
@@ -23,61 +22,49 @@ export type CurrentTrackNavigationActionId =
  * it first.
  */
 export function useCurrentTrackNavigation() {
-  const currentPlayerTrack = useRelistenPlayerCurrentTrack();
+  const sourceTrack = useRelistenPlayerCurrentTrack()?.sourceTrack;
   const groupSegment = useGroupSegment();
-  const { pushShow } = usePushShowRespectingUserSettings();
-
-  const artist = currentPlayerTrack?.sourceTrack.artist;
-  const show = currentPlayerTrack?.sourceTrack.show;
-  const source = currentPlayerTrack?.sourceTrack.source;
   const leaveScreen = useLeaveScreen();
-  const { actions: songActions, handleAction: handleSongAction } = useGoToSong(
-    currentPlayerTrack?.sourceTrack
-  );
+  const goToShow = useGoToShow();
+  const { actions: songActions, handleAction: handleSongAction } = useGoToSong(sourceTrack);
+
+  const artist = sourceTrack?.artist;
+  const show = sourceTrack?.show;
 
   const actions = useMemo<MenuAction[]>(
     () =>
-      artist && show
+      sourceTrack && artist && show
         ? [
             {
               id: ACTION_IDS.artist,
               image: nativeMenuIcons.artist,
               title: `Go to ${artist.name}`,
             },
-            {
-              id: ACTION_IDS.show,
-              image: nativeMenuIcons.show,
-              title: `Go to ${show.displayDate}`,
-            },
+            { id: ACTION_IDS.show, image: nativeMenuIcons.show, title: goToShowTitle(sourceTrack) },
             ...songActions,
           ]
         : [],
-    [artist, songActions, show]
+    [artist, show, songActions, sourceTrack]
   );
 
   const handleAction = useCallback(
     (actionId: CurrentTrackNavigationActionId) => {
-      if (!artist || !show || handleSongAction(actionId)) {
+      if (!sourceTrack || !artist || handleSongAction(actionId)) {
         return;
       }
 
-      leaveScreen(() => {
-        if (actionId === ACTION_IDS.artist) {
+      if (actionId === ACTION_IDS.show) {
+        goToShow(sourceTrack);
+      } else if (actionId === ACTION_IDS.artist) {
+        leaveScreen(() =>
           router.push({
             pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/`,
             params: { artistUuid: artist.uuid },
-          });
-        } else if (actionId === ACTION_IDS.show) {
-          pushShow({
-            artist,
-            showUuid: show.uuid,
-            sourceUuid: source?.uuid,
-            overrideGroupSegment: '(artists)',
-          });
-        }
-      });
+          })
+        );
+      }
     },
-    [artist, groupSegment, handleSongAction, leaveScreen, pushShow, show, source]
+    [artist, goToShow, groupSegment, handleSongAction, leaveScreen, sourceTrack]
   );
 
   return { actions, handleAction };

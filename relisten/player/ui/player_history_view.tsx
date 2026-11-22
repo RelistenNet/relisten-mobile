@@ -6,7 +6,6 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import { confirmClearListeningHistory } from '@/relisten/history/confirm_clear_listening_history';
 import { ListeningHistoryList } from '@/relisten/history/listening_history_list';
 import { usePagedListeningHistory } from '@/relisten/history/use_paged_listening_history';
-import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { useRealm } from '@/relisten/realm/schema';
 import { router, Stack } from 'expo-router';
 import { View } from 'react-native';
@@ -35,11 +34,7 @@ function PlayerHistorySectionHeader({ title }: { title: string }) {
   );
 }
 
-export function PlayerHistoryView({
-  onViewShow,
-}: {
-  onViewShow: (entry: PlaybackHistoryEntry) => void;
-}) {
+export function PlayerHistoryView() {
   const realm = useRealm();
   const history = usePagedListeningHistory();
   const insets = useSafeAreaInsets();
@@ -93,7 +88,6 @@ export function PlayerHistoryView({
         contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 24) }}
         contentInsetAdjustmentBehavior="automatic"
         history={history}
-        onViewShow={onViewShow}
         selection={selecting.selection}
         onStartSelection={selecting.start}
         renderSectionHeader={(section) => (

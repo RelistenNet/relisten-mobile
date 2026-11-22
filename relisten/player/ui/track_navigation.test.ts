@@ -9,6 +9,9 @@ const push = vi.hoisted(() => vi.fn());
 vi.mock('expo-router', () => ({ router: { push } }));
 vi.mock('@/relisten/util/routes', () => ({ useGroupSegment: () => '(artists)' }));
 vi.mock('@/relisten/components/menus/native_menu_icons', () => ({ nativeMenuIcons: {} }));
+vi.mock('@/relisten/util/push_show', () => ({
+  usePushShowRespectingUserSettings: () => ({ pushShow: vi.fn() }),
+}));
 
 import type { SourceTrack } from '@/relisten/realm/models/source_track';
 import { TrackNavigationProvider, useGoToSong } from './track_navigation';

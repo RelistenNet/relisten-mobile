@@ -5,12 +5,12 @@ import { RelistenBlue } from '@/relisten/relisten_blue';
 import { OverflowMenuTrigger } from '@/relisten/components/menus/overflow_menu_trigger';
 import { HistoryEntryContent } from '@/relisten/history/history_entry_content';
 import { HistoryTrackActionsMenu } from '@/relisten/history/history_track_actions_menu';
+import { useGoToShow } from '@/relisten/player/ui/track_navigation';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { Pressable, View } from 'react-native';
 
 type ListeningHistoryRowProps = {
   entry: PlaybackHistoryEntry;
-  onViewShow: (entry: PlaybackHistoryEntry) => void;
   /** Present while selecting entries. */
   selection?: HistorySelection;
   onStartSelection?: (entryUuid: string) => void;
@@ -18,13 +18,13 @@ type ListeningHistoryRowProps = {
 
 export function ListeningHistoryRow({
   entry,
-  onViewShow,
   selection,
   onStartSelection,
 }: ListeningHistoryRowProps) {
   const sourceTrack = entry.sourceTrack;
   const venue = sourceTrack.show.venue;
-  const viewShow = () => onViewShow(entry);
+  const goToShow = useGoToShow();
+  const viewShow = () => goToShow(sourceTrack);
   const accessibilityLabel = [
     `View show for ${sourceTrack.title}`,
     sourceTrack.artist.name,
@@ -80,11 +80,7 @@ export function ListeningHistoryRow({
         />
       </Pressable>
       <View className="ml-1">
-        <HistoryTrackActionsMenu
-          onViewShow={viewShow}
-          onSelect={startSelection}
-          sourceTrack={sourceTrack}
-        >
+        <HistoryTrackActionsMenu onSelect={startSelection} sourceTrack={sourceTrack}>
           <OverflowMenuTrigger accessibilityLabel={`Actions for ${sourceTrack.title}`} />
         </HistoryTrackActionsMenu>
       </View>

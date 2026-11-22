@@ -6,7 +6,6 @@ import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
 import { NativeMenuView, type MenuAction } from '@/relisten/components/menus/native_menu_view';
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
 import { useRealm } from '@/relisten/realm/schema';
-import type { SourceTrack } from '@/relisten/realm/models/source_track';
 import {
   keepWithAbove,
   moveEntryStep,
@@ -26,8 +25,7 @@ import type {
 import { isQueueable, queueTrackFor, queueTracksFor } from '@/relisten/playlists/playlist_playback';
 import { showToast } from '@/relisten/components/toast';
 import { removedMessage, toastEdit } from '@/relisten/playlists/ui/playlist_toast';
-import { useGroupSegment } from '@/relisten/util/routes';
-import { useGoToSong } from '@/relisten/player/ui/track_navigation';
+import { goToShowTitle, useGoToShow, useGoToSong } from '@/relisten/player/ui/track_navigation';
 import {
   type GuideTextPlace,
   type GuideTextTarget,
@@ -40,20 +38,6 @@ function position(layout: PlaylistLayout, entryId: string) {
   const { groupIndex = -1, index = -1 } = layout.entryPositions.get(entryId) ?? {};
   const group = layout.groups[groupIndex];
   return { groupIndex, group, index, inGroup: (group?.entries.length ?? 0) > 1 };
-}
-
-function useGoToShow() {
-  const router = useRouter();
-  const groupSegment = useGroupSegment();
-  return (track: SourceTrack) =>
-    router.push({
-      pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/source/[sourceUuid]`,
-      params: {
-        artistUuid: track.artistUuid,
-        showUuid: track.showUuid,
-        sourceUuid: track.sourceUuid,
-      },
-    });
 }
 
 const action = (
@@ -82,7 +66,7 @@ const menuSections = (sections: MenuAction[][]): MenuAction[] =>
 /**
  * The menu for one track: playback, moves, grouping, then Remove. Shown in
  * view and edit modes. A playlist the listener can't edit gets playback and
- * Go to Show only.
+ * the Go To actions only.
  */
 export function TrackMenu({
   playlistId,
@@ -163,7 +147,7 @@ export function TrackMenu({
   }
 
   const goTo = row.sourceTrack
-    ? [action('go-to-show', 'Go to Show', nativeMenuIcons.goTo), ...songActions]
+    ? [action('go-to-show', goToShowTitle(row.sourceTrack), nativeMenuIcons.show), ...songActions]
     : [];
   const actions = editable
     ? menuSections([
@@ -304,7 +288,7 @@ export function GroupMenu({
 
   const links: MenuAction[] = [action('ungroup', 'Unlink All', nativeMenuIcons.ungroup)];
   if (showTrack) {
-    links.push(action('go-to-show', 'Go to Show', nativeMenuIcons.goTo));
+    links.push(action('go-to-show', goToShowTitle(showTrack), nativeMenuIcons.show));
   }
 
   const actions = menuSections([

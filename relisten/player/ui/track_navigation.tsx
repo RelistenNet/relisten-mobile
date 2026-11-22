@@ -1,5 +1,6 @@
 import type { MenuAction } from '@/relisten/components/menus/native_menu_view';
 import type { SourceTrack } from '@/relisten/realm/models/source_track';
+import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { router } from 'expo-router';
 import { createContext, type PropsWithChildren, useCallback, useContext, useMemo } from 'react';
@@ -74,4 +75,32 @@ export function useGoToSong(sourceTrack: SourceTrack | undefined) {
   );
 
   return { actions, handleAction };
+}
+
+/** The label for going to a track's show: its date, as the player shows it. */
+export function goToShowTitle(sourceTrack: SourceTrack) {
+  return `Go to ${sourceTrack.show.displayDate}`;
+}
+
+/**
+ * Opens a track's show, at the track's source, in the Artists tab. Wherever
+ * the menu was (a playlist in My Library, history), switching tabs then goes
+ * back to it.
+ */
+export function useGoToShow() {
+  const leaveScreen = useLeaveScreen();
+  const { pushShow } = usePushShowRespectingUserSettings();
+
+  return useCallback(
+    (sourceTrack: SourceTrack) =>
+      leaveScreen(() =>
+        pushShow({
+          artist: sourceTrack.artist,
+          showUuid: sourceTrack.showUuid,
+          sourceUuid: sourceTrack.sourceUuid,
+          overrideGroupSegment: '(artists)',
+        })
+      ),
+    [leaveScreen, pushShow]
+  );
 }

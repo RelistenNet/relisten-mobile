@@ -19,8 +19,9 @@ const harness = vi.hoisted(() => ({
     sourceTrack: {
       artist: { uuid: 'artist-id', name: 'Phish' },
       show: { uuid: 'show-id', displayDate: '1998-07-19' },
-      source: { uuid: 'source-id' },
       artistUuid: 'artist-id',
+      showUuid: 'show-id',
+      sourceUuid: 'source-id',
       normalization: {
         parts: [{ ordinal: 1, song: { id: 'song_simple', name: 'Simple' } }],
       },

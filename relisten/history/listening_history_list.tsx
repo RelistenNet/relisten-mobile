@@ -16,14 +16,12 @@ type ListeningHistoryListProps = Omit<
   'data' | 'onEndReached' | 'renderItem'
 > & {
   history: PagedListeningHistory;
-  onViewShow: (entry: PlaybackHistoryEntry) => void;
   selection?: HistorySelection;
   onStartSelection?: (entryUuid: string) => void;
 };
 
 export function ListeningHistoryList({
   history,
-  onViewShow,
   selection,
   onStartSelection,
   stickySectionHeadersEnabled = true,
@@ -57,14 +55,9 @@ export function ListeningHistoryList({
 
   const renderItem = useCallback(
     ({ item }: Parameters<ListRenderItem<PlaybackHistoryEntry>>[0]): ReactElement => (
-      <ListeningHistoryRow
-        entry={item}
-        onViewShow={onViewShow}
-        selection={selection}
-        onStartSelection={onStartSelection}
-      />
+      <ListeningHistoryRow entry={item} selection={selection} onStartSelection={onStartSelection} />
     ),
-    [onStartSelection, onViewShow, selection]
+    [onStartSelection, selection]
   );
 
   return (

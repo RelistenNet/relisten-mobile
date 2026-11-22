@@ -8,11 +8,8 @@ import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappea
 import { confirmClearListeningHistory } from '@/relisten/history/confirm_clear_listening_history';
 import { ListeningHistoryList } from '@/relisten/history/listening_history_list';
 import { usePagedListeningHistory } from '@/relisten/history/use_paged_listening_history';
-import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';
 import { useRealm } from '@/relisten/realm/schema';
-import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { Stack } from 'expo-router';
-import { useCallback } from 'react';
 import { View } from 'react-native';
 
 function HistoryHeader({ totalPlayed }: { totalPlayed: number }) {
@@ -53,17 +50,6 @@ function HistoryToolbar({ disabled, onClear }: { disabled: boolean; onClear: () 
 export default function Page() {
   const realm = useRealm();
   const history = usePagedListeningHistory();
-  const { pushShow } = usePushShowRespectingUserSettings();
-  const viewShow = useCallback(
-    (entry: PlaybackHistoryEntry) => {
-      pushShow({
-        artist: entry.artist,
-        showUuid: entry.show.uuid,
-        sourceUuid: entry.source.uuid,
-      });
-    },
-    [pushShow]
-  );
 
   const selecting = useHistorySelection(history.entries);
 
@@ -86,7 +72,6 @@ export default function Page() {
           ScrollableComponent={ListeningHistoryList}
           ListHeaderComponent={<HistoryHeader totalPlayed={history.totalCount} />}
           history={history}
-          onViewShow={viewShow}
           selection={selecting.selection}
           onStartSelection={selecting.start}
           pullToRefresh
