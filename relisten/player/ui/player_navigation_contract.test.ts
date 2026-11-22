@@ -18,7 +18,13 @@ const harness = vi.hoisted(() => ({
   track: {
     sourceTrack: {
       artist: { uuid: 'artist-id', name: 'Phish' },
-      show: { uuid: 'show-id', displayDate: '1998-07-19' },
+      show: {
+        uuid: 'show-id',
+        displayDate: '1998-07-19',
+        artistUuid: 'artist-id',
+        venue: { name: 'Alpine Valley' },
+        venueUuid: 'venue-id',
+      },
       artistUuid: 'artist-id',
       showUuid: 'show-id',
       sourceUuid: 'source-id',
@@ -241,6 +247,20 @@ describe('player presentation and menu navigation contract', () => {
       }
     }
   );
+
+  it('goes to the venue after closing', () => {
+    const { menu } = mountPlayer();
+    expect(menu.actions.map((action) => action.title)).toContain('Go to Alpine Valley');
+
+    menu.handleAction('venue');
+    finishLatestClose();
+    expect(harness.push).not.toHaveBeenCalled();
+    deliverCallbacks();
+    expect(harness.push).toHaveBeenCalledWith({
+      pathname: '/relisten/tabs/(artists)/[artistUuid]/venue/[venueUuid]/',
+      params: { artistUuid: 'artist-id', venueUuid: 'venue-id', venueKind: 'imported_venue' },
+    });
+  });
 
   it.each(['artist', 'show'] as const)(
     'dispatches the grouped More menu %s action after closing',

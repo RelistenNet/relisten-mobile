@@ -160,8 +160,8 @@ export const nativeMenuIcons = {
     ios: 'music.note',
     android: import('@expo/material-symbols/music_note.xml'),
   }),
-  goTo: Icon.select({
-    ios: 'arrow.forward',
-    android: import('@expo/material-symbols/arrow_forward.xml'),
+  venue: Icon.select({
+    ios: 'mappin.and.ellipse',
+    android: import('@expo/material-symbols/location_on.xml'),
   }),
 } as const;

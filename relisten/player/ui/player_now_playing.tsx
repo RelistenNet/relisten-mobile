@@ -21,6 +21,7 @@ import {
   repeatStateOfSonos,
 } from '@/relisten/player/ui/repeat_control';
 import { PlayerAudioVisualizer } from '@/relisten/player/ui/player_audio_visualizer';
+import { CurrentTrackNavigationMenu } from '@/relisten/player/ui/current_track_navigation_menu';
 import { PlayerActionsMenu } from '@/relisten/player/ui/player_actions_menu';
 import {
   playerDisplayDate,
@@ -228,8 +229,10 @@ function CurrentTrackInfo({ headingRef }: { headingRef?: Ref<ViewInstance> }) {
     </View>
   );
 
+  // VoiceOver reaches the same Go To actions through the More menu, so the
+  // heading keeps its own label rather than announcing a menu.
   const trackDetails = (
-    <View>
+    <CurrentTrackNavigationMenu>
       <View>
         <View
           ref={headingRef}
@@ -248,31 +251,37 @@ function CurrentTrackInfo({ headingRef }: { headingRef?: Ref<ViewInstance> }) {
             {displayTitle}
           </RelistenText>
         </View>
-        <View className={isAccessibilityLayout ? 'mt-2' : 'absolute right-0 top-0'}>
-          {actionButtons}
-        </View>
-      </View>
-      <RelistenText
-        className="mt-1 text-lg"
-        numberOfLines={fontScale < 1.4 ? 1 : undefined}
-        selectable={false}
-      >
-        {artist.name}
-        {isAccessibilityLayout ? ` · ${playerDisplayDate(show.displayDate)}` : ''}
-      </RelistenText>
-      {show.venue ? (
         <RelistenText
-          className="mt-0.5 text-base text-gray-400"
+          className="mt-1 text-lg"
           numberOfLines={fontScale < 1.4 ? 1 : undefined}
           selectable={false}
         >
-          {show.venue.name} · {show.venue.location}
+          {artist.name}
+          {isAccessibilityLayout ? ` · ${playerDisplayDate(show.displayDate)}` : ''}
         </RelistenText>
-      ) : null}
-    </View>
+        {show.venue ? (
+          <RelistenText
+            className="mt-0.5 text-base text-gray-400"
+            numberOfLines={fontScale < 1.4 ? 1 : undefined}
+            selectable={false}
+          >
+            {show.venue.name} · {show.venue.location}
+          </RelistenText>
+        ) : null}
+      </View>
+    </CurrentTrackNavigationMenu>
   );
 
-  return <View className="px-5">{trackDetails}</View>;
+  // The buttons sit beside the title, outside the Go To menu, so tapping them
+  // opens their own action rather than that menu.
+  return (
+    <View className="px-5">
+      {trackDetails}
+      <View className={isAccessibilityLayout ? 'mt-2' : 'absolute right-5 top-0'}>
+        {actionButtons}
+      </View>
+    </View>
+  );
 }
 
 /** Shared transport for the expanded player and its compact scrolling header. */

@@ -1,4 +1,5 @@
 import { TrackSelectionToolbar } from '@/relisten/components/header_buttons';
+import { showVenueName, showVenueRoute } from '@/relisten/util/venue_route';
 import { ItemSeparator } from '@/relisten/components/item_separator';
 import { trackIdForSourceTrack } from '@/relisten/playlists/playlist_hooks';
 import { openAddToPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
@@ -446,28 +447,14 @@ export const SourceHeader = ({
   const sourceFavorite = useShowPageFavorite(show.uuid, source.uuid);
   const groupSegment = useGroupSegment();
   const { fontScale } = useWindowDimensions();
-  const displayVenueName = show.venue?.name ?? show.artistVenue?.venue.name;
+  const displayVenueName = showVenueName(show);
   const displayVenueLocation =
     show.venue?.location ?? normalizedVenueLocation(show.artistVenue?.venue);
 
   const pushVenue = () => {
-    if (show.artistVenue) {
-      router.push({
-        pathname: `/relisten/tabs/${groupSegment}/venue/[venueId]/` as const,
-        params: { venueId: show.artistVenue.venue.id },
-      });
-      return;
-    }
-
-    if (show.venueUuid) {
-      router.push({
-        pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/venue/[venueUuid]/` as const,
-        params: {
-          artistUuid: show.artistUuid,
-          venueUuid: show.venueUuid,
-          venueKind: 'imported_venue',
-        },
-      });
+    const venueRoute = showVenueRoute(show, groupSegment);
+    if (venueRoute) {
+      router.push(venueRoute);
     }
   };
 
