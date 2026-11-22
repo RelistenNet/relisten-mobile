@@ -303,6 +303,7 @@ export class RelistenPlayerQueue {
    */
   adoptRemoteQueue(tracks: PlayerQueueTrack[], currentIdentifier: string | undefined) {
     this.player.cancelPendingPlayRequests('adoptRemoteQueue');
+    const selected = remoteSelection(tracks, currentIdentifier, this.currentTrack?.identifier);
     this.originalTracks = [...tracks];
     this.shuffledTracks = [...tracks];
     this.clearCurrentTrack();
@@ -316,7 +317,12 @@ export class RelistenPlayerQueue {
     }
 
     // Selects the occurrence, prepares nothing (the remote driver has no next stream), and saves.
-    this.onCurrentTrackIdentifierChanged(currentIdentifier);
+    if (selected) {
+      this.onCurrentTrackIdentifierChanged(selected);
+    } else {
+      // Only an empty queue has nothing to select; say so, or the bar keeps the old track.
+      this.onCurrentTrackChanged.dispatch(undefined);
+    }
     this.onOrderedTracksChanged.dispatch(this.orderedTracks);
     this.savePlayerState(true);
   }
@@ -917,4 +923,28 @@ ${indentString(tracks)}
     sharedStateProgress.setState(progress);
   }
   // endregion
+}
+
+/**
+ * The track to select in an adopted remote queue: the one the room says is
+ * playing, if this reading of its queue holds it. A reading can trail the
+ * room's playing track by a moment, so otherwise the phone keeps its own
+ * selection, or the first track, and the next reading corrects it. Selecting
+ * nothing would leave queued tracks with an empty player bar.
+ */
+export function remoteSelection(
+  tracks: readonly PlayerQueueTrack[],
+  roomIdentifier: string | undefined,
+  previousIdentifier: string | undefined
+): string | undefined {
+  const held = (identifier: string | undefined) =>
+    identifier !== undefined && tracks.some((track) => track.identifier === identifier);
+
+  if (held(roomIdentifier)) {
+    return roomIdentifier;
+  }
+  if (held(previousIdentifier)) {
+    return previousIdentifier;
+  }
+  return tracks[0]?.identifier;
 }

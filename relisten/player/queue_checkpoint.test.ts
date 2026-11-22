@@ -14,7 +14,7 @@ vi.mock('@/relisten/util/logging', () => ({
   log: { debug: vi.fn(), extend: () => ({ debug: vi.fn(), warn: vi.fn() }) },
 }));
 
-import { RelistenPlayerQueue, PlayerQueueTrack } from './relisten_player_queue';
+import { RelistenPlayerQueue, PlayerQueueTrack, remoteSelection } from './relisten_player_queue';
 import type { RelistenPlayer } from './relisten_player';
 import type { SourceTrack } from '@/relisten/realm/models/source_track';
 
@@ -87,5 +87,79 @@ describe('queue checkpoint write boundaries', () => {
 
     expect(mocks.save).toHaveBeenCalledTimes(1);
     expect(savedCheckpoint()?.elapsedSeconds).toBe(123);
+  });
+});
+
+describe('adopting a remote queue', () => {
+  function track(name: string) {
+    const sourceTrack = {
+      uuid: name,
+      duration: 300,
+      streamingUrl: () => 'unused',
+      downloadedFileLocation: () => 'unused',
+    } as unknown as SourceTrack;
+    return new PlayerQueueTrack(sourceTrack, name, '', '', '', '');
+  }
+
+  function queueWith(tracks: PlayerQueueTrack[], current: PlayerQueueTrack) {
+    const player = {
+      checkpointProgress: () => undefined,
+      setNextStream: vi.fn(),
+      cancelPendingPlayRequests: vi.fn(),
+    };
+    const queue = new RelistenPlayerQueue(player as unknown as RelistenPlayer);
+    queue.replaceQueue(tracks, undefined);
+    queue.onCurrentTrackIdentifierChanged(current.identifier);
+    return queue;
+  }
+
+  it('selects the room’s playing track', () => {
+    const [scarlet, fire] = [track('Scarlet'), track('Fire')];
+    const queue = queueWith([scarlet, fire], scarlet);
+
+    queue.adoptRemoteQueue([scarlet, fire], fire.identifier);
+
+    expect(queue.currentTrack).toBe(fire);
+  });
+
+  it('keeps the phone’s selection, and says so, when the reading lacks the room’s track', () => {
+    const [scarlet, fire] = [track('Scarlet'), track('Fire')];
+    const queue = queueWith([scarlet, fire], fire);
+    const announced = vi.fn();
+    queue.onCurrentTrackChanged.addListener(announced);
+
+    queue.adoptRemoteQueue([scarlet, fire], 'not-in-this-reading');
+
+    expect(queue.currentTrack).toBe(fire);
+    expect(announced).toHaveBeenLastCalledWith(fire);
+  });
+
+  it('never leaves queued tracks with nothing selected', () => {
+    const queue = queueWith([track('Scarlet')], track('Scarlet'));
+    const [estimated, saint] = [track('Estimated'), track('Saint Stephen')];
+
+    queue.adoptRemoteQueue([estimated, saint], undefined);
+
+    expect(queue.currentTrack).toBe(estimated);
+  });
+
+  it('announces no track for an empty remote queue', () => {
+    const scarlet = track('Scarlet');
+    const queue = queueWith([scarlet], scarlet);
+    const announced = vi.fn();
+    queue.onCurrentTrackChanged.addListener(announced);
+
+    queue.adoptRemoteQueue([], undefined);
+
+    expect(queue.currentTrack).toBeUndefined();
+    expect(announced).toHaveBeenLastCalledWith(undefined);
+  });
+
+  it('prefers the room, then the phone, then the first track', () => {
+    const [a, b] = [track('a'), track('b')];
+    expect(remoteSelection([a, b], b.identifier, a.identifier)).toBe(b.identifier);
+    expect(remoteSelection([a, b], 'gone', b.identifier)).toBe(b.identifier);
+    expect(remoteSelection([a, b], 'gone', 'also-gone')).toBe(a.identifier);
+    expect(remoteSelection([], 'gone', undefined)).toBeUndefined();
   });
 });
