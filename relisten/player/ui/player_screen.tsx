@@ -1,9 +1,10 @@
 import { PlayerBackground } from '@/relisten/player/ui/player_background';
+import { usePlayerCoveredByRoute } from '@/relisten/player/ui/player_covering_route';
 import { PlayerOverlayHeader } from '@/relisten/player/ui/player_overlay_header';
 import { usePlayerPresentation } from '@/relisten/player/ui/player_presentation';
 import { PlayerQueueTray } from '@/relisten/player/ui/player_queue_tray';
 import { TrackNavigationProvider } from '@/relisten/player/ui/track_navigation';
-import { router, useNavigation, usePathname } from 'expo-router';
+import { router, useNavigation } from 'expo-router';
 import { useCallback, useEffect } from 'react';
 import { BackHandler, Platform, View } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
@@ -23,10 +24,7 @@ export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) 
   const isOverlay = variant === 'overlay';
   const closePlayer = onClose ?? (() => navigation.goBack());
   const { closePlayer: closePresentedPlayer, isPresentationActive } = usePlayerPresentation();
-  const pathname = usePathname();
-  const isCoveredByRoute =
-    pathname.startsWith('/relisten/audio-adjustments') ||
-    pathname.startsWith('/relisten/player-history');
+  const isCoveredByRoute = usePlayerCoveredByRoute();
   const visualizerActive = (!isOverlay || isPresentationActive) && !isCoveredByRoute;
 
   const openHistory = useCallback(() => {

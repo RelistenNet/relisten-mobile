@@ -6,9 +6,9 @@ import {
 } from '@/relisten/player/ui/player_presentation';
 import { PlayerScreen } from '@/relisten/player/ui/player_screen';
 import { RelistenNavigationProvider } from '@/relisten/util/routes';
-import { usePathname } from 'expo-router';
+import { usePlayerCoveredByRoute } from '@/relisten/player/ui/player_covering_route';
 import { useCallback, useEffect } from 'react';
-import { StyleSheet, useWindowDimensions } from 'react-native';
+import { Platform, StyleSheet, useWindowDimensions } from 'react-native';
 import Animated, { Extrapolation, interpolate, useAnimatedStyle } from 'react-native-reanimated';
 import {
   usePlayerBarPlacementOffset,
@@ -17,7 +17,6 @@ import {
 
 export function PlayerPresentationOverlay() {
   const { height } = useWindowDimensions();
-  const pathname = usePathname();
   const { playerBottomBarHeight } = useRelistenPlayerBottomBarContext();
   const placementOffset = usePlayerBarPlacementOffset();
   const isPlayerVisible = useIsPlayerBottomBarVisible();
@@ -25,9 +24,7 @@ export function PlayerPresentationOverlay() {
     usePlayerPresentation();
   const handleClose = useCallback(() => closePlayer(), [closePlayer]);
   const collapsedTop = Math.max(height - playerBottomBarHeight - placementOffset, 0);
-  const isCoveredByRoute =
-    pathname.startsWith('/relisten/audio-adjustments') ||
-    pathname.startsWith('/relisten/player-history');
+  const isCoveredByRoute = usePlayerCoveredByRoute();
   const isInteractive = isPresentationActive && !isCoveredByRoute;
 
   useEffect(() => {
@@ -89,6 +86,8 @@ export function PlayerPresentationOverlay() {
           zIndex: 1000,
         },
         overlayStyle,
+        // Android draws the covering screen beneath this overlay, so it hides.
+        isCoveredByRoute && Platform.OS === 'android' && { display: 'none' },
       ]}
     >
       {isPresentationMounted && (
