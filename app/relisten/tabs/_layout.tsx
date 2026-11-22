@@ -19,6 +19,7 @@ import {
   renderPlayerBarNativeTabsAccessory,
 } from '@/relisten/player/ui/player_bar_host';
 import {
+  useHasPlayerContent,
   useIsPlayerBottomBarVisible,
   useIsPlayerRailVisible,
   usePlayerBarPlacementBackend,
@@ -210,13 +211,16 @@ export default function TabLayout() {
  */
 function TabsWithSidePanes({ children }: PropsWithChildren) {
   const isWide = useIsWideLayout();
+  const hasPlayerContent = useHasPlayerContent();
   const isPlayerRailVisible = useIsPlayerRailVisible();
 
   return (
     <View className="flex-1 flex-row">
       {isWide ? <LibrarySidebar /> : null}
       <View className="flex-1">{children}</View>
-      {isPlayerRailVisible ? <PlayerRail /> : null}
+      {/* Hiding the rail slides it shut rather than unmounting it, so the
+          queue sheet keeps its measured layout for when it comes back. */}
+      {isWide && hasPlayerContent ? <PlayerRail visible={isPlayerRailVisible} /> : null}
     </View>
   );
 }

@@ -16,6 +16,8 @@ export type PlayerScreenVariant = 'modal' | 'embedded' | 'overlay';
 type PlayerScreenProps = {
   onClose?: () => void;
   variant?: PlayerScreenVariant;
+  /** False while a mounted player is out of sight, as the hidden rail is. */
+  visible?: boolean;
 };
 
 /** The rail's own way out; the mini player brings it back. */
@@ -34,7 +36,7 @@ function PlayerRailHeader({ onHide }: { onHide: () => void }) {
   );
 }
 
-export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) {
+export function PlayerScreen({ onClose, variant = 'modal', visible = true }: PlayerScreenProps) {
   const navigation = useNavigation();
   const backdropProgress = useSharedValue(0);
   const isEmbedded = variant === 'embedded';
@@ -42,7 +44,7 @@ export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) 
   const closePlayer = onClose ?? (() => navigation.goBack());
   const { closePlayer: closePresentedPlayer, isPresentationActive } = usePlayerPresentation();
   const isCoveredByRoute = usePlayerCoveredByRoute();
-  const visualizerActive = (!isOverlay || isPresentationActive) && !isCoveredByRoute;
+  const visualizerActive = visible && (!isOverlay || isPresentationActive) && !isCoveredByRoute;
 
   const openHistory = useCallback(() => {
     router.push('/relisten/player-history');

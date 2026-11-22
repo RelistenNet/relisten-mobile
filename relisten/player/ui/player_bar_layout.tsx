@@ -62,7 +62,7 @@ export const useRelistenPlayerBottomBarContext = () => {
 };
 
 /** Whether the player has anything to show, wherever it is drawn. */
-const useHasPlayerContent = () => {
+export const useHasPlayerContent = () => {
   const playbackState = useRelistenPlayerPlaybackState();
   const tracks = useRelistenPlayerQueueOrderedTracks();
 
