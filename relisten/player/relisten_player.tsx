@@ -167,6 +167,13 @@ export class RelistenPlayer {
     this.playbackDriver.setNextStream(streamable);
   }
 
+  /** Whether audio is playing or about to (buffering), as opposed to paused or stopped. */
+  get isPlayingOrBuffering() {
+    return (
+      this.state === RelistenPlaybackState.Playing || this.state === RelistenPlaybackState.Stalled
+    );
+  }
+
   togglePauseResume() {
     this.addPlayerListeners();
 

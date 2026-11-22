@@ -155,11 +155,11 @@ describe('adopting a remote queue', () => {
     expect(announced).toHaveBeenLastCalledWith(undefined);
   });
 
-  it('prefers the room, then the phone, then the first track', () => {
+  it('prefers the room, then the phone', () => {
     const [a, b] = [track('a'), track('b')];
     expect(remoteSelection([a, b], b.identifier, a.identifier)).toBe(b.identifier);
     expect(remoteSelection([a, b], 'gone', b.identifier)).toBe(b.identifier);
-    expect(remoteSelection([a, b], 'gone', 'also-gone')).toBe(a.identifier);
+    expect(remoteSelection([a, b], 'gone', 'also-gone')).toBeUndefined();
     expect(remoteSelection([], 'gone', undefined)).toBeUndefined();
   });
 });

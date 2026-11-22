@@ -5,10 +5,7 @@ import {
   useRelistenPlayer,
   useRelistenPlayerPlaybackState,
 } from '@/relisten/player/relisten_player_hooks';
-import {
-  useRelistenPlayerCurrentTrack,
-  useRelistenPlayerQueueOrderedTracks,
-} from '@/relisten/player/relisten_player_queue_hooks';
+import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player_queue_hooks';
 import { useNativePlaybackProgress } from '@/relisten/player/native_playback_state_hooks';
 import {
   playerPresentationProgress,
@@ -99,51 +96,6 @@ function PlayerBottomBarProgress({
   );
 }
 
-/**
- * The bar while the queue has tracks but none is selected, such as after
- * removing the playing track. It says so and opens the player, where any
- * queued track can be picked, instead of drawing an empty bar.
- */
-function NothingPlayingContents({ placementBackend }: PlayerBottomBarContentsProps) {
-  const queuedCount = useRelistenPlayerQueueOrderedTracks().length;
-  const { openPlayer } = usePlayerPresentation();
-  const isAccessory = placementBackend === 'nativeTabsAccessory';
-  const queued = `${queuedCount} ${queuedCount === 1 ? 'track' : 'tracks'} in queue`;
-
-  return (
-    <Flex cn={isAccessory ? 'h-full items-center' : 'min-h-[40px] flex-1 items-center'}>
-      <TouchableOpacity
-        accessibilityLabel={`Nothing playing, ${queued}. Open player`}
-        accessibilityRole="button"
-        className="ml-3 min-w-0 flex-1"
-        onPress={openPlayer}
-      >
-        <RelistenText
-          className={
-            isAccessory
-              ? 'text-[15px] font-semibold text-white'
-              : 'text-base font-semibold text-white'
-          }
-          maxFontSizeMultiplier={isAccessory ? 1 : undefined}
-          numberOfLines={1}
-        >
-          Nothing playing
-        </RelistenText>
-        <RelistenText
-          className={isAccessory ? 'text-xs text-slate-200' : 'text-sm text-slate-200'}
-          maxFontSizeMultiplier={isAccessory ? 1 : undefined}
-          numberOfLines={1}
-        >
-          {queued}
-        </RelistenText>
-      </TouchableOpacity>
-      <Flex cn="ml-2 items-center">
-        <PlayOnButton activeColor={RelistenBlue['200']} inactiveColor="rgba(226, 232, 240, 0.78)" />
-      </Flex>
-    </Flex>
-  );
-}
-
 function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsProps) {
   'use no memo';
 
@@ -157,7 +109,7 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
   const gestureDistance = Math.max(height * 0.72, 1);
 
   if (!currentTrack) {
-    return <NothingPlayingContents placementBackend={placementBackend} />;
+    return <></>;
   }
 
   const track = currentTrack.sourceTrack;

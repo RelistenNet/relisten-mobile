@@ -625,32 +625,47 @@ describe('checkpoint persistence and queue edits', () => {
     }
   );
 
-  it.each([RelistenPlaybackState.Playing, RelistenPlaybackState.Paused])(
-    'stops native playback when the selected entry is removed while %s',
-    async (playbackState) => {
-      scenario.emit({ playbackState });
-      const removedSnapshot = scenario.capture({ elapsed: 121, duration: 381 });
+  it('moves on to the next track, still playing, when the playing entry is removed', async () => {
+    scenario.emit({ playbackState: RelistenPlaybackState.Playing });
+    const removedSnapshot = scenario.capture({ elapsed: 121, duration: 381 });
 
-      player.queue.removeTrackAtIndex(0);
-      expect(mocks.native.stop).toHaveBeenCalledTimes(1);
-      expect(player.state).toBe(RelistenPlaybackState.Stopped);
-      expect(player.queue.currentTrack).toBeUndefined();
-      expect(player.queue.orderedTracks).toEqual([loser]);
-      expect(player.queue.nextTrack).toBeUndefined();
-      expect(scenario.savedCheckpoint).toBeNull();
-      scenario.deliver(removedSnapshot);
-      expect(player.state).toBe(RelistenPlaybackState.Stopped);
+    player.queue.removeTrackAtIndex(0);
+    expect(mocks.native.stop).toHaveBeenCalledTimes(1);
+    expect(player.queue.orderedTracks).toEqual([loser]);
+    expect(player.queue.currentTrack).toBe(loser);
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+    expect(scenario.lastNativePlay).toMatchObject({ entryId: loser.identifier });
 
-      player.resume();
-      await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
-      expect(scenario.lastNativePlay).toMatchObject({
-        entryId: loser.identifier,
-        startTimeMs: undefined,
-      });
-      scenario.emit({ identifier: loser.identifier, elapsed: 3, duration: 410 });
-      expect(player.progress?.elapsed).toBe(3);
-    }
-  );
+    // A late observation of the removed entry changes nothing.
+    scenario.deliver(removedSnapshot);
+    expect(player.queue.currentTrack).toBe(loser);
+  });
+
+  it('selects the next track, stopped, when the paused entry is removed', async () => {
+    scenario.emit({ playbackState: RelistenPlaybackState.Paused });
+    const removedSnapshot = scenario.capture({ elapsed: 121, duration: 381 });
+
+    player.queue.removeTrackAtIndex(0);
+    expect(mocks.native.stop).toHaveBeenCalledTimes(1);
+    expect(player.state).toBe(RelistenPlaybackState.Stopped);
+    expect(player.queue.currentTrack).toBe(loser);
+    expect(player.queue.nextTrack).toBeUndefined();
+    expect(mocks.native.play).not.toHaveBeenCalled();
+    scenario.deliver(removedSnapshot);
+    expect(player.state).toBe(RelistenPlaybackState.Stopped);
+
+    player.resume();
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+    expect(scenario.lastNativePlay).toMatchObject({ entryId: loser.identifier });
+    expect(scenario.lastNativePlay.startTimeMs ?? 0).toBe(0);
+  });
+
+  it('selects the previous track when the selected last entry is removed', () => {
+    scenario.emit({ identifier: loser.identifier, playbackState: RelistenPlaybackState.Paused });
+
+    player.queue.removeTrackAtIndex(1);
+    expect(player.queue.currentTrack).toBe(minglewood);
+  });
 
   it('removes the displayed occurrence when shuffled order differs from original order', () => {
     player.queue.addTrackToEndOfQueue([track('third', 430)]);
@@ -1037,11 +1052,9 @@ describe('saved queue restoration', () => {
 
     player.resume();
     await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
-    expect(scenario.lastNativePlay).toEqual({
-      entryId: 'B',
-      sourceTrackUuid: 'loser',
-      startTimeMs: undefined,
-    });
+    // B starts from its beginning, not from A's restored 120 s.
+    expect(scenario.lastNativePlay).toMatchObject({ entryId: 'B', sourceTrackUuid: 'loser' });
+    expect(scenario.lastNativePlay.startTimeMs ?? 0).toBe(0);
   });
 
   it.each([
@@ -1184,11 +1197,10 @@ describe('saved queue restoration', () => {
     expect(player.queue.nextTrack?.identifier).toBe('C');
   });
 
-  it('restores a queue without inventing a selection when its checkpoint is null', async () => {
+  it('selects the first track, stopped, when a queue is restored without a selection', async () => {
     await scenario.restore({ checkpoint: null });
     expect(player.queue.orderedTracks.map((track) => track.identifier)).toEqual(['A', 'B']);
-    expect(player.queue.currentTrack).toBeUndefined();
-    expect(scenario.savedCheckpoint).toBeNull();
+    expect(player.queue.currentTrack?.identifier).toBe('A');
     expect(mocks.native.play).not.toHaveBeenCalled();
   });
 

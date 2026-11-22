@@ -281,7 +281,9 @@ export class RelistenPlayerQueue {
     if (playingTrackAtIndex !== undefined) {
       this.player.playTrackAtIndex(playingTrackAtIndex);
     } else {
-      // recalculates next track
+      // No selection yet: the caller starts playback next (a shuffled start, a
+      // timestamp link), or the queue is being cleared. Selecting the first
+      // track here would pin it in front when shuffle turns on.
       this.onCurrentTrackIdentifierChanged(undefined);
 
       if (this.player.playbackIntentStarted) {
@@ -320,8 +322,7 @@ export class RelistenPlayerQueue {
     if (selected) {
       this.onCurrentTrackIdentifierChanged(selected);
     } else {
-      // Only an empty queue has nothing to select; say so, or the bar keeps the old track.
-      this.onCurrentTrackChanged.dispatch(undefined);
+      this.ensureSelection();
     }
     this.onOrderedTracksChanged.dispatch(this.orderedTracks);
     this.savePlayerState(true);
@@ -332,16 +333,26 @@ export class RelistenPlayerQueue {
     return identifier ? this.removeTrackWithIdentifier(identifier) : false;
   }
 
+  /**
+   * Removes one occurrence. Removing the selected track moves on the way a
+   * skip does: the track after it (or before it, at the end) is selected, and
+   * keeps playing if the removed one was playing. A remote player moves on
+   * itself instead (`moveOnFromSelected`).
+   */
   removeTrackWithIdentifier(identifier: string) {
     const removed = this.originalTracks.find((track) => track.identifier === identifier);
     if (!removed) {
       return false;
     }
     const currentIdentifier = this.currentTrack?.identifier;
-    if (identifier === currentIdentifier && this.player.moveOnFromSelected(identifier)) {
+    const removingSelected = identifier === currentIdentifier;
+    if (removingSelected && this.player.moveOnFromSelected(identifier)) {
       // A remote player moved on and keeps the occurrence as played (Sonos).
       return true;
     }
+
+    const successor = removingSelected ? this.trackReplacing(identifier) : undefined;
+    const keepPlaying = removingSelected && this.player.isPlayingOrBuffering;
 
     this.applyPlaybackCheckpoint(() => {
       const stoppedPlayback = this.player.onQueueTrackRemoving(removed.identifier);
@@ -351,19 +362,30 @@ export class RelistenPlayerQueue {
       this.shuffledTracks = this.shuffledTracks.filter(
         (entry) => entry.identifier !== removed.identifier
       );
-      if (currentIdentifier) {
-        this.recalculateTrackIndexes(currentIdentifier);
-      }
 
+      const selectedIdentifier = removingSelected ? successor?.identifier : currentIdentifier;
+      if (selectedIdentifier) {
+        this.recalculateTrackIndexes(selectedIdentifier);
+      }
       if (!stoppedPlayback) {
         this.recalculateNextTrack();
       }
       this.onOrderedTracksChanged.dispatch(this.orderedTracks);
-      if (removed.identifier === currentIdentifier) {
-        this.onCurrentTrackChanged.dispatch(undefined);
+
+      if (removingSelected) {
+        this.onCurrentTrackChanged.dispatch(successor);
+        if (successor && keepPlaying) {
+          this.player.playTrackAtIndex(this.currentIndex!);
+        }
       }
     }, true);
     return true;
+  }
+
+  /** The track that takes a removed selected track's place: the next, or the previous at the end. */
+  private trackReplacing(identifier: string): PlayerQueueTrack | undefined {
+    const index = this.orderedTracks.findIndex((track) => track.identifier === identifier);
+    return this.orderedTracks[index + 1] ?? this.orderedTracks[index - 1];
   }
 
   get shuffleState() {
@@ -631,6 +653,25 @@ ${indentString(tracks)}
     this.shuffledTracksCurrentIndex = undefined;
   }
 
+  /**
+   * A queue at rest with tracks always has one selected, so the player never
+   * shows tracks with nothing playing. (`replaceQueue` without a start index is
+   * the one brief exception: its caller starts playback right after.) With none selected, the first is selected,
+   * stopped: listeners hear of it, and no native stream is prepared until an
+   * explicit Play. An empty queue announces that nothing is selected.
+   */
+  private ensureSelection() {
+    if (this.currentTrack) {
+      return;
+    }
+    const first = this.orderedTracks[0];
+    if (first) {
+      this.recalculateTrackIndexes(first.identifier);
+    }
+    this.forgetPreparedNextTrack();
+    this.onCurrentTrackChanged.dispatch(first);
+  }
+
   // endregion
 
   // region Native player listeners
@@ -884,8 +925,8 @@ ${indentString(tracks)}
     tracksByEntryId: Map<string, PlayerQueueTrack>
   ) {
     if (!checkpoint) {
-      // A saved queue can intentionally have no selection.
-      this.forgetPreparedNextTrack();
+      // A queue saved without a selection gets one, stopped at its first track.
+      this.ensureSelection();
       return;
     }
 
@@ -929,8 +970,8 @@ ${indentString(tracks)}
  * The track to select in an adopted remote queue: the one the room says is
  * playing, if this reading of its queue holds it. A reading can trail the
  * room's playing track by a moment, so otherwise the phone keeps its own
- * selection, or the first track, and the next reading corrects it. Selecting
- * nothing would leave queued tracks with an empty player bar.
+ * selection until the next reading corrects it. Undefined when neither is
+ * held; the queue then selects its first track (`ensureSelection`).
  */
 export function remoteSelection(
   tracks: readonly PlayerQueueTrack[],
@@ -943,8 +984,5 @@ export function remoteSelection(
   if (held(roomIdentifier)) {
     return roomIdentifier;
   }
-  if (held(previousIdentifier)) {
-    return previousIdentifier;
-  }
-  return tracks[0]?.identifier;
+  return held(previousIdentifier) ? previousIdentifier : undefined;
 }
