@@ -28,7 +28,10 @@ export function useCurrentTrackNavigation(onBeforeNavigate?: (navigate: () => vo
   const artist = currentPlayerTrack?.sourceTrack.artist;
   const show = currentPlayerTrack?.sourceTrack.show;
   const source = currentPlayerTrack?.sourceTrack.source;
-  const goToSong = useGoToSong(currentPlayerTrack?.sourceTrack, onBeforeNavigate);
+  const { actions: songActions, handleAction: handleSongAction } = useGoToSong(
+    currentPlayerTrack?.sourceTrack,
+    onBeforeNavigate
+  );
 
   const actions = useMemo<MenuAction[]>(
     () =>
@@ -44,15 +47,15 @@ export function useCurrentTrackNavigation(onBeforeNavigate?: (navigate: () => vo
               image: nativeMenuIcons.show,
               title: `Go to ${show.displayDate}`,
             },
-            ...goToSong.actions,
+            ...songActions,
           ]
         : [],
-    [artist, goToSong.actions, show]
+    [artist, songActions, show]
   );
 
   const handleAction = useCallback(
     (actionId: CurrentTrackNavigationActionId) => {
-      if (!artist || !show || goToSong.handleAction(actionId)) {
+      if (!artist || !show || handleSongAction(actionId)) {
         return;
       }
 
@@ -74,7 +77,7 @@ export function useCurrentTrackNavigation(onBeforeNavigate?: (navigate: () => vo
       if (onBeforeNavigate) onBeforeNavigate(navigate);
       else navigate();
     },
-    [artist, goToSong.handleAction, groupSegment, onBeforeNavigate, pushShow, show, source]
+    [artist, groupSegment, handleSongAction, onBeforeNavigate, pushShow, show, source]
   );
 
   return { actions, handleAction };
