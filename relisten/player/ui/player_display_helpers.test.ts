@@ -26,16 +26,16 @@ describe('spoken performance identity', () => {
     );
 
     expect(cornell).toBe(
-      'Scarlet Begonias > Fire on the Mountain, Grateful Dead, May 8, 1977, Barton Hall, Ithaca, NY'
+      'Scarlet Begonias>Fire on the Mountain, Grateful Dead, May 8, 1977, Barton Hall, Ithaca, NY'
     );
     expect(buffalo).toBe(
-      'Scarlet Begonias > Fire on the Mountain, Grateful Dead, May 9, 1977, Buffalo Memorial Auditorium, Buffalo, NY'
+      'Scarlet Begonias>Fire on the Mountain, Grateful Dead, May 9, 1977, Buffalo Memorial Auditorium, Buffalo, NY'
     );
   });
 
   it('keeps the artist and show date when the catalog has no venue', () => {
     expect(playerTrackAccessibilityLabel(performance('2026-10-15'))).toBe(
-      'Scarlet Begonias > Fire on the Mountain, Grateful Dead, Oct 15, 2026'
+      'Scarlet Begonias>Fire on the Mountain, Grateful Dead, Oct 15, 2026'
     );
   });
 });

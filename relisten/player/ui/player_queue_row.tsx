@@ -4,7 +4,6 @@ import { SourceTrackOfflineIndicator } from '@/relisten/components/source/source
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
 import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
 import {
-  playerDisplayTitle,
   playerQueueDate,
   playerTrackAccessibilityLabel,
 } from '@/relisten/player/ui/player_display_helpers';
@@ -53,7 +52,6 @@ function QueueTrackRow({
   const stackMetadata = fontScale > 1.2;
   const { isFirst, isLast, queueIndex, queueTrack } = entry;
   const sourceTrack = queueTrack.sourceTrack;
-  const displayTitle = playerDisplayTitle(sourceTrack.title);
   const performanceLabel = playerTrackAccessibilityLabel(sourceTrack);
 
   return (
@@ -73,7 +71,7 @@ function QueueTrackRow({
             className="shrink text-lg font-semibold"
             numberOfLines={stackMetadata ? undefined : 2}
           >
-            {displayTitle}
+            {sourceTrack.title}
           </RelistenText>
           {/* Reserve the date at normal sizes; stack it when both labels need room to wrap. */}
           <View className={`mt-[3px] min-w-0 ${stackMetadata ? '' : 'flex-row items-baseline'}`}>

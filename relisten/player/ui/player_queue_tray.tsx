@@ -49,7 +49,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { usePlayerDismissGesture } from './use_player_dismiss_gesture';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { playerDisplayTitle, type QueueLink, queueLinks } from './player_display_helpers';
+import { type QueueLink, queueLinks } from './player_display_helpers';
 import { PlayerNowPlaying } from './player_now_playing';
 import { usePlayerPresentation } from './player_presentation';
 import { isQueueReorderCurrent } from './player_queue_reorder';
@@ -624,9 +624,7 @@ export function PlayerQueueTray({
               {!expanded && (
                 <QueuePeekGesture
                   onOpen={openQueue}
-                  label={
-                    next ? `Open queue, up next: ${playerDisplayTitle(next.title)}` : 'Open queue'
-                  }
+                  label={next ? `Open queue, up next: ${next.title}` : 'Open queue'}
                 />
               )}
             </View>

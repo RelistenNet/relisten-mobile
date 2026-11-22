@@ -9,11 +9,7 @@ import {
 import { type PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
-import {
-  playerDisplayTitle,
-  playerTrackAccessibilityLabel,
-  playerQueueDate,
-} from './player_display_helpers';
+import { playerTrackAccessibilityLabel, playerQueueDate } from './player_display_helpers';
 import { PlayerQueueActionsMenu } from './player_queue_actions_menu';
 import type { LinkPosition } from '@/relisten/playlists/playlist_drag_slots';
 import { LinkCardRow } from '@/relisten/playlists/ui/link_card';
@@ -91,7 +87,7 @@ export function PlayerQueueTrayRow({
           }
           numberOfLines={stackControls ? undefined : 2}
         >
-          {playerDisplayTitle(source.title)}
+          {source.title}
         </RelistenText>
         <RelistenText
           className="mt-[3px] text-sm text-gray-300/70"

@@ -1,9 +1,6 @@
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { SourceTrackOfflineIndicator } from '@/relisten/components/source/source_track_offline_indicator';
-import {
-  playerDisplayTitle,
-  playerTrackMetadata,
-} from '@/relisten/player/ui/player_display_helpers';
+import { playerTrackMetadata } from '@/relisten/player/ui/player_display_helpers';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { type ReactNode } from 'react';
 import { View } from 'react-native';
@@ -27,9 +24,7 @@ export function HistoryEntryContent({
     <View className="min-w-0 flex-row items-center">
       {leading}
       <View className="min-w-0 flex-1 py-2">
-        <RelistenText className="shrink text-base font-semibold">
-          {playerDisplayTitle(sourceTrack.title)}
-        </RelistenText>
+        <RelistenText className="shrink text-base font-semibold">{sourceTrack.title}</RelistenText>
         <RelistenText className="mt-[3px] text-sm text-gray-300/70">{metadata}</RelistenText>
       </View>
       {/* Centered in the row beside the timestamp, as show rows place it beside the duration. */}

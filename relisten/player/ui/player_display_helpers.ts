@@ -58,10 +58,6 @@ export function playerQueueDate(displayDate: string) {
   return `${monthName} ${Number(day)}, ${year}`;
 }
 
-export function playerDisplayTitle(title: string) {
-  return title.replace(/\s*>\s*/g, ' > ');
-}
-
 /** Artist, date, and venue summary used by history rows. */
 export function playerTrackMetadata(sourceTrack: SourceTrack) {
   return [
@@ -76,7 +72,7 @@ export function playerTrackMetadata(sourceTrack: SourceTrack) {
 /** Names a performance for spoken controls, including same-title songs in a mixed-show queue. */
 export function playerTrackAccessibilityLabel(sourceTrack: SourceTrack) {
   return [
-    playerDisplayTitle(sourceTrack.title),
+    sourceTrack.title,
     sourceTrack.artist.name,
     playerQueueDate(sourceTrack.show.displayDate),
     sourceTrack.show.venue?.name,

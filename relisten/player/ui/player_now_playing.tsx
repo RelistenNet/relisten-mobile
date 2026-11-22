@@ -25,7 +25,6 @@ import { CurrentTrackNavigationMenu } from '@/relisten/player/ui/current_track_n
 import { PlayerActionsMenu } from '@/relisten/player/ui/player_actions_menu';
 import {
   playerDisplayDate,
-  playerDisplayTitle,
   playerPosterDate,
   playerTrackAccessibilityLabel,
 } from '@/relisten/player/ui/player_display_helpers';
@@ -171,10 +170,9 @@ function CurrentTrackInfo({ headingRef }: { headingRef?: Ref<ViewInstance> }) {
     return null;
   }
 
-  const displayTitle = playerDisplayTitle(track.title);
   const accessibilityLabel = [
     'Now Playing',
-    displayTitle,
+    track.title,
     artist.name,
     playerDisplayDate(show.displayDate),
     show.venue?.name,
@@ -241,7 +239,7 @@ function CurrentTrackInfo({ headingRef }: { headingRef?: Ref<ViewInstance> }) {
             className="text-2xl font-bold leading-tight"
             numberOfLines={fontScale < 1.4 ? 2 : undefined}
           >
-            {displayTitle}
+            {track.title}
           </RelistenText>
         </View>
         <RelistenText className="mt-1 text-lg" numberOfLines={fontScale < 1.4 ? 1 : undefined}>
