@@ -134,7 +134,7 @@ export interface PlaybackProgress {
   activeTrackDownloadProgress: RelistenDownloadProgressChangedEvent;
 }
 
-/** iOS system output. Local speaker/receiver output has an empty name. */
+/** The system's media output. The phone's own speaker or earpiece has an empty name. */
 export interface AudioOutputRoute {
   name: string;
   isExternal: boolean;
@@ -145,12 +145,12 @@ export interface AudioOutputRoute {
 export type AudioOutputKind = 'builtIn' | 'airplay' | 'bluetooth' | 'wired' | 'car' | 'other';
 
 class RelistenGaplessPlayer {
-  /** iOS only. Read the route without starting playback or activating the audio session. */
+  /** Read the route without starting playback or activating the audio session. */
   getAudioOutputRoute(): AudioOutputRoute {
     return RelistenAudioPlayerModule.getAudioOutputRoute();
   }
 
-  /** iOS only. Observe route snapshots, including changes while playback is paused. */
+  /** Observe route snapshots, including changes while playback is paused. */
   addAudioOutputRouteListener(listener: (route: AudioOutputRoute) => void): EventSubscription {
     return emitter.addListener('onAudioOutputRouteChanged', listener);
   }

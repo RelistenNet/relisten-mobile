@@ -1,5 +1,5 @@
 // Show an external destination without adding noise for the phone's own speaker.
-// A Sonos room or Cast has its own connection state; the iOS audio session describes
+// A Sonos room or Cast has its own connection state; the native module describes
 // local playback.
 import { type AudioOutputKind, nativePlayer } from '@/modules/relisten-audio-player';
 import { useRelistenCastStatus } from '@/relisten/casting/cast_ui';
@@ -7,6 +7,9 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import { useSonosRoomName } from '@/relisten/sonos/sonos_room_store';
 import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
+
+// The native module reports the system route on iOS and Android.
+const HAS_NATIVE_ROUTE = Platform.OS === 'ios' || Platform.OS === 'android';
 
 /** Where music goes besides this phone's speaker, for picking an icon. */
 export type PlayerOutputKind = 'sonos' | 'cast' | Exclude<AudioOutputKind, 'builtIn'>;
@@ -21,11 +24,11 @@ export function usePlayerOutput(): PlayerOutput | null {
   const sonosRoomName = useSonosRoomName();
   const { isCasting, deviceName } = useRelistenCastStatus();
   const [route, setRoute] = useState(() =>
-    Platform.OS === 'ios' ? nativePlayer.getAudioOutputRoute() : null
+    HAS_NATIVE_ROUTE ? nativePlayer.getAudioOutputRoute() : null
   );
 
   useEffect(() => {
-    if (Platform.OS !== 'ios') {
+    if (!HAS_NATIVE_ROUTE) {
       return;
     }
 

@@ -50,6 +50,7 @@ class RelistenStreamable : Record {
 
 class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
     var player: RelistenGaplessAudioPlayer? = null
+    private var outputRoute: RelistenAudioOutputRoute? = null
     private val remoteControlListener = RelistenRemoteControlListener { method ->
         if (player == null) {
             return@RelistenRemoteControlListener
@@ -75,11 +76,21 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
             player = RelistenGaplessAudioPlayer(appContext)
             player?.delegate = this@RelistenAudioPlayerModule
             RelistenRemoteControlEvents.addListener(remoteControlListener)
+
+            // The route is reported before the first Play and while paused, like on iOS.
+            outputRoute = appContext.reactContext?.let { context ->
+                RelistenAudioOutputRoute(context) { route ->
+                    sendEvent("onAudioOutputRouteChanged", route)
+                }
+            }
+            outputRoute?.start()
         }
 
         OnDestroy {
             val thisPlayer = player
             RelistenRemoteControlEvents.removeListener(remoteControlListener)
+            outputRoute?.stop()
+            outputRoute = null
 
             if (thisPlayer != null) {
                 thisPlayer.stop()
@@ -89,7 +100,11 @@ class RelistenAudioPlayerModule : Module(), RelistenGaplessAudioPlayerDelegate {
             player = null
         }
 
-        Events("onPlaybackSnapshot", "onError", "onPlaybackStateChanged", "onPlaybackProgressChanged", "onDownloadProgressChanged", "onTrackChanged", "onRemoteControl")
+        Events("onPlaybackSnapshot", "onError", "onPlaybackStateChanged", "onPlaybackProgressChanged", "onDownloadProgressChanged", "onTrackChanged", "onRemoteControl", "onAudioOutputRouteChanged")
+
+        Function("getAudioOutputRoute") {
+            outputRoute?.current() ?: mapOf("name" to "", "isExternal" to false, "kind" to "builtIn")
+        }
 
         OnActivityEntersBackground { player?.requestPlaybackSnapshot() }
 
