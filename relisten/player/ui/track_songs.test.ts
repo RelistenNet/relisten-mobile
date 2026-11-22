@@ -43,22 +43,15 @@ describe('Go to Song actions', () => {
     expect(goToSongActions([])).toEqual([]);
   });
 
-  it('names the one song directly', () => {
-    const [action] = goToSongActions([{ id: 'song_fire', name: 'Fire on the Mountain' }]);
-    expect(action.title).toBe('Go to Fire on the Mountain');
-    expect(action.id).toBe(`${GO_TO_SONG_PREFIX}song_fire`);
-    expect(action.subactions).toBeUndefined();
-  });
-
-  it('puts several songs in a submenu, one item each', () => {
-    const [menu] = goToSongActions([
-      { id: 'song_scarlet', name: 'Scarlet Begonias' },
-      { id: 'song_fire', name: 'Fire on the Mountain' },
+  it('names each song, one item per song, never nested', () => {
+    const actions = goToSongActions([
+      { id: 'song_lazy', name: 'Lazy Lightning' },
+      { id: 'song_supplication', name: 'Supplication' },
     ]);
-    expect(menu.title).toBe('Go to Song');
-    expect(menu.subactions?.map((action) => [action.id, action.title])).toEqual([
-      [`${GO_TO_SONG_PREFIX}song_scarlet`, 'Scarlet Begonias'],
-      [`${GO_TO_SONG_PREFIX}song_fire`, 'Fire on the Mountain'],
+    expect(actions.map((action) => [action.id, action.title])).toEqual([
+      [`${GO_TO_SONG_PREFIX}song_lazy`, 'Go to Lazy Lightning'],
+      [`${GO_TO_SONG_PREFIX}song_supplication`, 'Go to Supplication'],
     ]);
+    expect(actions.every((action) => action.subactions === undefined)).toBe(true);
   });
 });

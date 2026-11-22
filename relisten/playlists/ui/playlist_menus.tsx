@@ -27,6 +27,7 @@ import { isQueueable, queueTrackFor, queueTracksFor } from '@/relisten/playlists
 import { showToast } from '@/relisten/components/toast';
 import { removedMessage, toastEdit } from '@/relisten/playlists/ui/playlist_toast';
 import { useGroupSegment } from '@/relisten/util/routes';
+import { useGoToSong } from '@/relisten/player/ui/go_to_song';
 import {
   type GuideTextPlace,
   type GuideTextTarget,
@@ -105,6 +106,7 @@ export function TrackMenu({
   const toast = (changed: boolean, message: string) =>
     toastEdit(realm, playlistId, changed, message);
   const goToShow = useGoToShow();
+  const goToSong = useGoToSong(row.sourceTrack ?? undefined);
   const entryId = row.entry.entryId;
   const title = entryTitle(row);
   const { groups } = layout;
@@ -158,7 +160,9 @@ export function TrackMenu({
     links.push(action('keep-with', `Link to ${aboveTitle}`, nativeMenuIcons.group));
   }
 
-  const goTo = row.sourceTrack ? [action('go-to-show', 'Go to Show', nativeMenuIcons.goTo)] : [];
+  const goTo = row.sourceTrack
+    ? [action('go-to-show', 'Go to Show', nativeMenuIcons.goTo), ...goToSong.actions]
+    : [];
   const actions = editable
     ? menuSections([
         playback,
@@ -172,6 +176,9 @@ export function TrackMenu({
     openGuideTextEditor(router, { ...target, playlistId } as GuideTextTarget);
 
   const handle = (id: string) => {
+    if (goToSong.handleAction(id)) {
+      return;
+    }
     switch (id) {
       case 'play-next':
       case 'add-to-queue': {

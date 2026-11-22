@@ -56,7 +56,7 @@ function usePlayerActions(onBeforeNavigate?: (navigate: () => void) => void) {
         ? [
             {
               id: 'performance',
-              title: 'Artist and Show',
+              title: 'Go To',
               displayInline: true,
               subactions: navigationActions,
             },

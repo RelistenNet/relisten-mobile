@@ -18,6 +18,10 @@ const harness = vi.hoisted(() => ({
       artist: { uuid: 'artist-id', name: 'Phish' },
       show: { uuid: 'show-id', displayDate: '1998-07-19' },
       source: { uuid: 'source-id' },
+      artistUuid: 'artist-id',
+      normalization: {
+        parts: [{ ordinal: 1, song: { id: 'song_simple', name: 'Simple' } }],
+      },
     },
   },
 }));
@@ -27,6 +31,8 @@ vi.mock('react', async (importOriginal) => {
   return {
     ...actual,
     useCallback: (callback: unknown) => callback,
+    // No provider in this harness: a context reads as its default value.
+    useContext: (context: { _currentValue: unknown }) => context._currentValue,
     useMemo: (factory: () => unknown) => factory(),
     useRef: (current: unknown) => ({ current }),
     useState: (initial: unknown) => [initial, harness.state],
@@ -228,6 +234,20 @@ describe('player presentation and menu navigation contract', () => {
       }
     }
   );
+
+  it('offers the current track’s song and defers it until closing completes', () => {
+    const { menu } = mountPlayer();
+    expect(menu.actions.map((action) => action.title)).toContain('Go to Simple');
+
+    menu.handleAction('go-to-song:song_simple');
+    expect(harness.push).not.toHaveBeenCalled();
+    finishLatestClose();
+    deliverCallbacks();
+    expect(harness.push).toHaveBeenCalledWith({
+      pathname: '/relisten/tabs/(artists)/[artistUuid]/song/[songUuid]/',
+      params: { artistUuid: 'artist-id', songUuid: 'song_simple' },
+    });
+  });
 
   it.each(['artist', 'show'] as const)(
     'dispatches the grouped More menu %s action after closing',

@@ -11,7 +11,8 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { trackIdForSourceTrack } from '@/relisten/playlists/playlist_hooks';
 import { openAddToPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
-import { type ReactNode, useCallback } from 'react';
+import { useGoToSong } from '@/relisten/player/ui/go_to_song';
+import { type ReactNode, useCallback, useMemo } from 'react';
 import { type AccessibilityRole } from 'react-native';
 
 const ACTION_IDS = {
@@ -24,7 +25,7 @@ const ACTION_IDS = {
 
 type HistoryTrackActionId = (typeof ACTION_IDS)[keyof typeof ACTION_IDS];
 
-function historyActions(canSelect: boolean): MenuAction[] {
+function historyActions(canSelect: boolean, songActions: MenuAction[]): MenuAction[] {
   return [
     {
       id: 'playback',
@@ -58,7 +59,10 @@ function historyActions(canSelect: boolean): MenuAction[] {
       id: 'show',
       title: '',
       displayInline: true,
-      subactions: [{ id: ACTION_IDS.viewShow, image: nativeMenuIcons.show, title: 'View Show' }],
+      subactions: [
+        { id: ACTION_IDS.viewShow, image: nativeMenuIcons.show, title: 'View Show' },
+        ...songActions,
+      ],
     },
   ];
 }
@@ -85,6 +89,11 @@ export function HistoryTrackActionsMenu({
 }: HistoryTrackActionsMenuProps) {
   const player = useRelistenPlayer();
   const router = useRouter();
+  const goToSong = useGoToSong(sourceTrack);
+  const actions = useMemo(
+    () => historyActions(onSelect !== undefined, goToSong.actions),
+    [goToSong.actions, onSelect]
+  );
 
   const addToQueue = useCallback(
     (placement: 'next' | 'end') => {
@@ -139,8 +148,12 @@ export function HistoryTrackActionsMenu({
       accessibilityHint={accessibilityHint}
       accessibilityLabel={accessibilityLabel}
       accessibilityRole={accessibilityRole}
-      actions={historyActions(onSelect !== undefined)}
-      onPressAction={({ nativeEvent }) => handleAction(nativeEvent.event as HistoryTrackActionId)}
+      actions={actions}
+      onPressAction={({ nativeEvent }) => {
+        if (!goToSong.handleAction(nativeEvent.event)) {
+          handleAction(nativeEvent.event as HistoryTrackActionId);
+        }
+      }}
       shouldOpenOnLongPress={false}
     >
       {children}

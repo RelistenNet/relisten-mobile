@@ -2,6 +2,7 @@ import { PlayerBackground } from '@/relisten/player/ui/player_background';
 import { PlayerOverlayHeader } from '@/relisten/player/ui/player_overlay_header';
 import { usePlayerPresentation } from '@/relisten/player/ui/player_presentation';
 import { PlayerQueueTray } from '@/relisten/player/ui/player_queue_tray';
+import { TrackNavigationProvider } from '@/relisten/player/ui/go_to_song';
 import { router, useNavigation, usePathname } from 'expo-router';
 import { useCallback, useEffect } from 'react';
 import { BackHandler, Platform, View } from 'react-native';
@@ -62,12 +63,15 @@ export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) 
       <PlayerBackground backdropProgress={backdropProgress} />
       <SafeAreaView edges={isEmbedded || isOverlay ? ['top'] : []} style={{ flex: 1, zIndex: 10 }}>
         {isOverlay && <PlayerOverlayHeader interactive />}
-        <PlayerQueueTray
-          onBeforeNavigate={navigateFromPlayer}
-          onOpenHistory={openHistory}
-          visualizerActive={visualizerActive}
-          dismissOnPull={isOverlay && isPresentationActive && !isCoveredByRoute}
-        />
+        {/* Track menus in the queue close the player before going to a song. */}
+        <TrackNavigationProvider beforeNavigate={navigateFromPlayer}>
+          <PlayerQueueTray
+            onBeforeNavigate={navigateFromPlayer}
+            onOpenHistory={openHistory}
+            visualizerActive={visualizerActive}
+            dismissOnPull={isOverlay && isPresentationActive && !isCoveredByRoute}
+          />
+        </TrackNavigationProvider>
       </SafeAreaView>
     </View>
   );

@@ -27,29 +27,14 @@ export function songsOf(sourceTrack: Pick<SourceTrack, 'normalization'>): TrackS
 }
 
 /**
- * One song is a direct action; several become a submenu listing each, since
- * there's no one song to pick for the whole track.
+ * One "Go to <song>" action per song, meant to sit inside one of a menu's
+ * inline sections. Not a submenu: the iOS menu shows only one level of
+ * nesting, so a submenu inside a section would lose its songs.
  */
 export function goToSongActions(songs: TrackSong[]): MenuAction[] {
-  if (songs.length === 0) {
-    return [];
-  }
-
-  const songAction = (song: TrackSong, title: string): MenuAction => ({
+  return songs.map((song) => ({
     id: GO_TO_SONG_PREFIX + song.id,
     image: nativeMenuIcons.song,
-    title,
-  });
-
-  if (songs.length === 1) {
-    return [songAction(songs[0], `Go to ${songs[0].name}`)];
-  }
-  return [
-    {
-      id: 'go-to-song',
-      image: nativeMenuIcons.song,
-      title: 'Go to Song',
-      subactions: songs.map((song) => songAction(song, song.name)),
-    },
-  ];
+    title: `Go to ${song.name}`,
+  }));
 }

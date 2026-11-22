@@ -5,15 +5,21 @@ import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { router, useNavigation } from 'expo-router';
 import { type ReactNode, useCallback, useMemo } from 'react';
+import { useGoToSong } from './go_to_song';
 
 const ACTION_IDS = {
   artist: 'artist',
   show: 'show',
 } as const;
 
-export type CurrentTrackNavigationActionId = (typeof ACTION_IDS)[keyof typeof ACTION_IDS];
-type CurrentTrackNavigationAction = MenuAction & { id: CurrentTrackNavigationActionId };
+/** Artist, show, or one of the track's songs (`go-to-song:<id>`). */
+export type CurrentTrackNavigationActionId = string;
 
+/**
+ * Go-to actions for the playing track: its artist, show, and songs. Every one
+ * leaves through `onBeforeNavigate` (closing the player first), not through a
+ * `TrackNavigationProvider`, so callers inside the player must pass it.
+ */
 export function useCurrentTrackNavigation(onBeforeNavigate?: (navigate: () => void) => void) {
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
   const groupSegment = useGroupSegment();
@@ -22,8 +28,9 @@ export function useCurrentTrackNavigation(onBeforeNavigate?: (navigate: () => vo
   const artist = currentPlayerTrack?.sourceTrack.artist;
   const show = currentPlayerTrack?.sourceTrack.show;
   const source = currentPlayerTrack?.sourceTrack.source;
+  const goToSong = useGoToSong(currentPlayerTrack?.sourceTrack, onBeforeNavigate);
 
-  const actions = useMemo<CurrentTrackNavigationAction[]>(
+  const actions = useMemo<MenuAction[]>(
     () =>
       artist && show
         ? [
@@ -37,14 +44,15 @@ export function useCurrentTrackNavigation(onBeforeNavigate?: (navigate: () => vo
               image: nativeMenuIcons.show,
               title: `Go to ${show.displayDate}`,
             },
+            ...goToSong.actions,
           ]
         : [],
-    [artist, show]
+    [artist, goToSong.actions, show]
   );
 
   const handleAction = useCallback(
     (actionId: CurrentTrackNavigationActionId) => {
-      if (!artist || !show) {
+      if (!artist || !show || goToSong.handleAction(actionId)) {
         return;
       }
 
@@ -66,7 +74,7 @@ export function useCurrentTrackNavigation(onBeforeNavigate?: (navigate: () => vo
       if (onBeforeNavigate) onBeforeNavigate(navigate);
       else navigate();
     },
-    [artist, groupSegment, onBeforeNavigate, pushShow, show, source]
+    [artist, goToSong.handleAction, groupSegment, onBeforeNavigate, pushShow, show, source]
   );
 
   return { actions, handleAction };
@@ -106,9 +114,7 @@ export function CurrentTrackNavigationMenu({
   return (
     <NativeMenuView
       actions={actions}
-      onPressAction={({ nativeEvent }) =>
-        handleAction(nativeEvent.event as CurrentTrackNavigationActionId)
-      }
+      onPressAction={({ nativeEvent }) => handleAction(nativeEvent.event)}
     >
       {children}
     </NativeMenuView>
