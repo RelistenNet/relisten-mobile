@@ -1,6 +1,6 @@
 import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import { useIsWideLayout } from '@/relisten/util/wide_layout';
-import { setPlayerInspectorOpen } from './player_inspector';
+import { setPlayerRailOpen } from './player_rail_state';
 import Flex from '@/relisten/components/flex';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import {
@@ -112,8 +112,8 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
   } = usePlayerPresentation();
   const isWide = useIsWideLayout();
   // A wide window has no full-screen player: the mini bar shows only while the
-  // inspector is hidden, and opening the player brings the inspector back.
-  const openPlayer = isWide ? () => setPlayerInspectorOpen(true) : openFullScreenPlayer;
+  // rail is hidden, and opening the player brings the rail back.
+  const openPlayer = isWide ? () => setPlayerRailOpen(true) : openFullScreenPlayer;
   const gesturePresentationStarted = useSharedValue(false);
   const gestureStartProgress = useSharedValue(0);
   const gestureDistance = Math.max(height * 0.72, 1);

@@ -18,8 +18,8 @@ type PlayerScreenProps = {
   variant?: PlayerScreenVariant;
 };
 
-/** The inspector's own way out; the mini player brings it back. */
-function PlayerInspectorHeader({ onHide }: { onHide: () => void }) {
+/** The rail's own way out; the mini player brings it back. */
+function PlayerRailHeader({ onHide }: { onHide: () => void }) {
   return (
     <View className="h-12 flex-row items-center justify-end px-2">
       <TouchableOpacity
@@ -78,7 +78,7 @@ export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) 
       <PlayerBackground backdropProgress={backdropProgress} />
       <SafeAreaView edges={isEmbedded || isOverlay ? ['top'] : []} style={{ flex: 1, zIndex: 10 }}>
         {isOverlay && <PlayerOverlayHeader interactive />}
-        {isEmbedded && onClose && <PlayerInspectorHeader onHide={onClose} />}
+        {isEmbedded && onClose && <PlayerRailHeader onHide={onClose} />}
         {/* Every menu in the player closes it before navigating. */}
         <TrackNavigationProvider beforeNavigate={navigateFromPlayer}>
           <PlayerQueueTray

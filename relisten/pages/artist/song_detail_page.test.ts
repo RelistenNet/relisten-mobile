@@ -71,7 +71,7 @@ beforeEach(() => {
   state.headerOptions = null;
 });
 
-import SongDetailPage from '@/app/relisten/(main)/tabs/(artists,myLibrary,offline)/[artistUuid]/song/[songUuid]/index';
+import SongDetailPage from '@/app/relisten/tabs/(artists,myLibrary,offline)/[artistUuid]/song/[songUuid]/index';
 
 describe('song detail header', () => {
   it('leaves song metadata empty while the online selection is loading', () => {

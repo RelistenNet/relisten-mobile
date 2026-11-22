@@ -20,10 +20,14 @@ import {
 } from '@/relisten/player/ui/player_bar_host';
 import {
   useIsPlayerBottomBarVisible,
+  useIsPlayerRailVisible,
   usePlayerBarPlacementBackend,
   useRelistenPlayerBottomBarContext,
 } from '@/relisten/player/ui/player_bar_layout';
-import { useCallback } from 'react';
+import { LibrarySidebar } from '@/relisten/pages/sidebar/library_sidebar';
+import { PlayerRail } from '@/relisten/player/ui/player_rail';
+import { useIsWideLayout } from '@/relisten/util/wide_layout';
+import { type PropsWithChildren, useCallback } from 'react';
 import { Image, type LayoutChangeEvent, Platform, View } from 'react-native';
 
 const ACTIVE_TINT = '#009DC1';
@@ -97,7 +101,7 @@ export default function TabLayout() {
 
   if (Platform.OS === 'android') {
     return (
-      <View className="flex-1">
+      <TabsWithSidePanes>
         <Tabs
           key={offlineTabVisibilityKey}
           tabBar={(props) => <MeasuredAndroidTabBar {...props} />}
@@ -135,12 +139,12 @@ export default function TabLayout() {
           <Tabs.Screen name="(relisten)" options={{ lazy: true, title: 'Relisten' }} />
         </Tabs>
         <PlayerBarHost placementBackend={playerBarPlacementBackend} />
-      </View>
+      </TabsWithSidePanes>
     );
   }
 
   return (
-    <View className="flex-1">
+    <TabsWithSidePanes>
       <NativeTabs
         key={offlineTabVisibilityKey}
         backgroundColor={RelistenBlue['950']}
@@ -191,6 +195,28 @@ export default function TabLayout() {
         </NativeTabs.Trigger>
       </NativeTabs>
       <PlayerBarHost placementBackend={playerBarPlacementBackend} />
+    </TabsWithSidePanes>
+  );
+}
+
+/**
+ * Wide windows put the library sidebar to the left of the tabs and the player
+ * rail to the right. All three are plain views in one row. Expo Router's
+ * split view was tried and dropped: React Native content in tabs nested inside
+ * its columns kept a stale layout whenever a column moved or resized.
+ *
+ * The tabs stay the second child whatever else shows, so a window resize does
+ * not remount them and lose each tab's navigation stack.
+ */
+function TabsWithSidePanes({ children }: PropsWithChildren) {
+  const isWide = useIsWideLayout();
+  const isPlayerRailVisible = useIsPlayerRailVisible();
+
+  return (
+    <View className="flex-1 flex-row">
+      {isWide ? <LibrarySidebar /> : null}
+      <View className="flex-1">{children}</View>
+      {isPlayerRailVisible ? <PlayerRail /> : null}
     </View>
   );
 }
