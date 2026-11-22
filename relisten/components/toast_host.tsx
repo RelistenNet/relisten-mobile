@@ -34,6 +34,14 @@ const TONE_BORDER: Record<ToastTone, string> = {
   error: 'rgba(240, 113, 120, 0.6)',
 };
 
+/** How long a toast stays: errors longest, and long enough to reach an action. */
+function visibleMsFor(toast: Toast): number {
+  if (toast.tone === 'error') {
+    return VISIBLE_ERROR_MS;
+  }
+  return toast.actions.length > 0 ? VISIBLE_WITH_ACTIONS_MS : VISIBLE_MS;
+}
+
 /** Shows `showToast`'s toasts, just above the player. Mounted once, at the app root. */
 export function ToastHost() {
   const [toast, setToast] = useState<Toast | null>(null);
@@ -41,20 +49,29 @@ export function ToastHost() {
   // 0 is shown; RISE is hidden below its resting place.
   const offset = useSharedValue(RISE);
   const opacity = useSharedValue(0);
-  const handled = useRef(0);
+  const actedOnToastId = useRef(0);
+  const shownId = toast?.id ?? 0;
 
-  function dismiss() {
+  // Removes toast `id` once it has faded out, unless a newer one replaced it
+  // while it faded: the fade's last frame can land after the next toast arrives.
+  function hide(id: number) {
+    setToast((shown) => (shown?.id === id ? null : shown));
+  }
+
+  // Fades toast `id` out. A fade cancelled midway (a newer toast's entrance
+  // restarts the animation) never finishes, so it never hides that newer toast.
+  function dismiss(id: number) {
     offset.set(withTiming(RISE, { duration: LEAVE_MS }));
     opacity.set(
       withTiming(0, { duration: LEAVE_MS }, (finished) => {
         if (finished) {
-          runOnJS(setToast)(null);
+          runOnJS(hide)(id);
         }
       })
     );
   }
 
-  useEffect(() => subscribeToToasts((next) => (next ? setToast(next) : dismiss())), []);
+  useEffect(() => subscribeToToasts(setToast), []);
 
   useEffect(() => {
     if (!toast) {
@@ -73,13 +90,8 @@ export function ToastHost() {
       if (cancelled) {
         return;
       }
-      const visibleMs =
-        toast.tone === 'error'
-          ? VISIBLE_ERROR_MS
-          : toast.actions.length > 0
-            ? VISIBLE_WITH_ACTIONS_MS
-            : VISIBLE_MS;
-      timer = setTimeout(() => dismiss(), screenReader ? visibleMs * 3 : visibleMs);
+      const visibleMs = visibleMsFor(toast);
+      timer = setTimeout(() => dismiss(toast.id), screenReader ? visibleMs * 3 : visibleMs);
     });
     return () => {
       cancelled = true;
@@ -93,7 +105,7 @@ export function ToastHost() {
     })
     .onEnd((event) => {
       if (event.translationY > DISMISS_DISTANCE || event.velocityY > 500) {
-        runOnJS(dismiss)();
+        runOnJS(dismiss)(shownId);
       } else {
         offset.set(withTiming(0, { duration: APPEAR_MS }));
       }
@@ -140,11 +152,11 @@ export function ToastHost() {
               className="ml-4"
               onPress={() => {
                 // A toast's actions run at most once, even if tapped again while it leaves.
-                if (handled.current === toast.id) {
+                if (actedOnToastId.current === toast.id) {
                   return;
                 }
-                handled.current = toast.id;
-                dismiss();
+                actedOnToastId.current = toast.id;
+                dismiss(toast.id);
                 action.onPress();
               }}
               style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}

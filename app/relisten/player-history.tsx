@@ -1,4 +1,4 @@
-import { TrackNavigationProvider } from '@/relisten/player/ui/go_to_song';
+import { TrackNavigationProvider } from '@/relisten/player/ui/track_navigation';
 import { PlayerHistoryView } from '@/relisten/player/ui/player_history_view';
 import { usePlayerPresentation } from '@/relisten/player/ui/player_presentation';
 import { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playback_history_entry';

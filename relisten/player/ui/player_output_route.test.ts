@@ -92,21 +92,18 @@ describe('player output feedback', () => {
 });
 
 describe('player output kind', () => {
-  it('has none while playing on the phone speaker', () => {
-    expect(outputKind()).toBeUndefined();
+  it('passes through the kind the native side reports', () => {
+    state.getAudioOutputRoute.mockReturnValue({
+      name: 'AirPods',
+      isExternal: true,
+      kind: 'bluetooth',
+    });
+    expect(outputKind()).toBe('bluetooth');
   });
 
-  it.each(['airplay', 'bluetooth', 'wired', 'car', 'other'] as const)(
-    'passes through the native kind: %s',
-    (kind) => {
-      state.getAudioOutputRoute.mockReturnValue({ name: 'Out', isExternal: true, kind });
-      expect(outputKind()).toBe(kind);
-    }
-  );
-
-  it('treats a route from an older binary, with no kind, as AirPlay rather than Sonos', () => {
+  it('shows a route from an older binary, with no kind, as a generic output, not Sonos', () => {
     state.getAudioOutputRoute.mockReturnValue({ name: "Alex's AirPods", isExternal: true });
-    expect(outputKind()).toBe('airplay');
+    expect(outputKind()).toBe('other');
   });
 
   it('marks a Sonos room and a Cast device by their own kind', () => {

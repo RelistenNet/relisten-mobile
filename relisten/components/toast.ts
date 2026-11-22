@@ -22,10 +22,10 @@ export interface Toast {
 // can show one. This module imports no UI, so the player and services can use
 // it without import cycles.
 let nextToastId = 1;
-let listener: ((toast: Toast | null) => void) | null = null;
+let listener: ((toast: Toast) => void) | null = null;
 
-/** Called by `ToastHost`: receives each toast, or null to hide the current one. */
-export function subscribeToToasts(next: (toast: Toast | null) => void): () => void {
+/** Called by `ToastHost`: receives each toast. */
+export function subscribeToToasts(next: (toast: Toast) => void): () => void {
   listener = next;
   return () => {
     if (listener === next) {
@@ -41,8 +41,7 @@ export function subscribeToToasts(next: (toast: Toast | null) => void): () => vo
  */
 export function showToast(
   message: string,
-  actions: ToastAction[] = [],
-  { tone = 'info' }: { tone?: ToastTone } = {}
+  { actions = [], tone = 'info' }: { actions?: ToastAction[]; tone?: ToastTone } = {}
 ) {
   listener?.({ id: nextToastId++, message, actions, tone });
 }

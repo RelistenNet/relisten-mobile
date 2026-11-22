@@ -489,17 +489,24 @@ export class SonosRoomStore {
     if (!room || current.kind !== 'active' || current.volume?.fixed) {
       return;
     }
-    // Moving the volume of a muted room unmutes it, as the Sonos app does.
-    const unmutes = 'volume' in change && current.volume?.muted === true;
-    const bodies =
-      'volume' in change
-        ? [
-            { action: 'volume', command_id: randomUUID(), volume: Math.round(change.volume) },
-            ...(unmutes ? [{ action: 'mute', command_id: randomUUID(), muted: false }] : []),
-          ]
-        : [{ action: 'mute', command_id: randomUUID(), muted: change.muted }];
+    const bodies: Record<string, unknown>[] = [];
+    let shown = change;
+    if ('volume' in change) {
+      bodies.push({
+        action: 'volume',
+        command_id: randomUUID(),
+        volume: Math.round(change.volume),
+      });
+      // Moving the volume of a muted room unmutes it, as the Sonos app does.
+      if (current.volume?.muted) {
+        bodies.push({ action: 'mute', command_id: randomUUID(), muted: false });
+        shown = { ...change, muted: false };
+      }
+    } else {
+      bodies.push({ action: 'mute', command_id: randomUUID(), muted: change.muted });
+    }
     if (current.volume) {
-      this.showVolume(current, { ...current.volume, ...change, ...(unmutes && { muted: false }) });
+      this.showVolume(current, { ...current.volume, ...shown });
     }
 
     for (const body of bodies) {
@@ -785,8 +792,8 @@ export function roomRepeatOf(state: SonosRoomState): SonosRepeat | undefined {
 
 let shownRepeat: SonosRepeat | undefined;
 
-/** The repeat setting of the room this device controls (see `roomRepeatOf`). */
-export const sonosRepeat = (): SonosRepeat | undefined => {
+/** `roomRepeatOf` the current state, kept as one object while unchanged for `useSyncExternalStore`. */
+const repeatSnapshot = (): SonosRepeat | undefined => {
   const next = roomRepeatOf(sonosRoom.getState());
   // Kept while unchanged, so a poll doesn't re-render the controls.
   if (
@@ -801,7 +808,7 @@ export const sonosRepeat = (): SonosRepeat | undefined => {
 
 /** The repeat mode of the room this device controls, and what it offers. */
 export function useSonosRepeat(): SonosRepeat | undefined {
-  return useSyncExternalStore(sonosRoom.subscribe, sonosRepeat, sonosRepeat);
+  return useSyncExternalStore(sonosRoom.subscribe, repeatSnapshot, repeatSnapshot);
 }
 
 /** The handoff in flight from this device, so a second room can't be chosen meanwhile. */

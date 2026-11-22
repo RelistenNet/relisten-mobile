@@ -10,15 +10,19 @@ export function showHistoryQueueConfirmation({
   message: string;
   onUndo: () => HistoryQueueUndoResult;
 }) {
-  showToast(message, [
-    {
-      label: 'Undo',
-      onPress: () => {
-        const result = onUndo();
-        if (result !== 'removed') {
-          showToast(result === 'already-playing' ? 'Already playing' : 'No longer in queue');
-        }
+  showToast(message, {
+    actions: [
+      {
+        label: 'Undo',
+        onPress: () => {
+          const result = onUndo();
+          if (result !== 'removed') {
+            showToast(result === 'already-playing' ? 'Already playing' : 'No longer in queue', {
+              tone: 'warning',
+            });
+          }
+        },
       },
-    },
-  ]);
+    ],
+  });
 }

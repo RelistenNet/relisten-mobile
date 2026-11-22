@@ -11,7 +11,7 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { trackIdForSourceTrack } from '@/relisten/playlists/playlist_hooks';
 import { openAddToPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
-import { useGoToSong } from '@/relisten/player/ui/go_to_song';
+import { useGoToSong } from '@/relisten/player/ui/track_navigation';
 import { type ReactNode, useCallback, useMemo } from 'react';
 import { type AccessibilityRole } from 'react-native';
 
@@ -89,10 +89,10 @@ export function HistoryTrackActionsMenu({
 }: HistoryTrackActionsMenuProps) {
   const player = useRelistenPlayer();
   const router = useRouter();
-  const goToSong = useGoToSong(sourceTrack);
+  const { actions: songActions, handleAction: handleSongAction } = useGoToSong(sourceTrack);
   const actions = useMemo(
-    () => historyActions(onSelect !== undefined, goToSong.actions),
-    [goToSong.actions, onSelect]
+    () => historyActions(onSelect !== undefined, songActions),
+    [onSelect, songActions]
   );
 
   const addToQueue = useCallback(
@@ -150,7 +150,7 @@ export function HistoryTrackActionsMenu({
       accessibilityRole={accessibilityRole}
       actions={actions}
       onPressAction={({ nativeEvent }) => {
-        if (!goToSong.handleAction(nativeEvent.event)) {
+        if (!handleSongAction(nativeEvent.event)) {
           handleAction(nativeEvent.event as HistoryTrackActionId);
         }
       }}

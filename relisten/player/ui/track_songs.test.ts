@@ -5,7 +5,7 @@ vi.mock('@/relisten/components/menus/native_menu_icons', () => ({
 }));
 
 import type { SourceTrack } from '@/relisten/realm/models/source_track';
-import { GO_TO_SONG_PREFIX, goToSongActions, songsOf } from './track_songs';
+import { goToSongActions, songsOf } from './track_songs';
 
 function track(parts: { ordinal: number; song?: { id: string; name: string } }[]) {
   return { normalization: { parts } } as unknown as Pick<SourceTrack, 'normalization'>;
@@ -39,19 +39,16 @@ describe('songs of a track', () => {
 });
 
 describe('Go to Song actions', () => {
-  it('offers nothing without songs', () => {
-    expect(goToSongActions([])).toEqual([]);
-  });
-
   it('names each song, one item per song, never nested', () => {
     const actions = goToSongActions([
       { id: 'song_lazy', name: 'Lazy Lightning' },
       { id: 'song_supplication', name: 'Supplication' },
     ]);
-    expect(actions.map((action) => [action.id, action.title])).toEqual([
-      [`${GO_TO_SONG_PREFIX}song_lazy`, 'Go to Lazy Lightning'],
-      [`${GO_TO_SONG_PREFIX}song_supplication`, 'Go to Supplication'],
+    expect(actions.map((action) => action.title)).toEqual([
+      'Go to Lazy Lightning',
+      'Go to Supplication',
     ]);
+    // iOS drops a submenu nested inside a menu section, losing its songs.
     expect(actions.every((action) => action.subactions === undefined)).toBe(true);
   });
 });

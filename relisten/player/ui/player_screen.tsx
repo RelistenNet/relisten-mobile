@@ -2,7 +2,7 @@ import { PlayerBackground } from '@/relisten/player/ui/player_background';
 import { PlayerOverlayHeader } from '@/relisten/player/ui/player_overlay_header';
 import { usePlayerPresentation } from '@/relisten/player/ui/player_presentation';
 import { PlayerQueueTray } from '@/relisten/player/ui/player_queue_tray';
-import { TrackNavigationProvider } from '@/relisten/player/ui/go_to_song';
+import { TrackNavigationProvider } from '@/relisten/player/ui/track_navigation';
 import { router, useNavigation, usePathname } from 'expo-router';
 import { useCallback, useEffect } from 'react';
 import { BackHandler, Platform, View } from 'react-native';

@@ -16,9 +16,11 @@ export function undoAction(realm: Realm, playlistId: string): ToastAction {
     onPress: () => {
       const result = undo(realm);
       if (result === 'sent') {
-        showToast('That change is already saved to your account, so it can’t be undone.');
+        showToast('That change is already saved to your account, so it can’t be undone.', {
+          tone: 'warning',
+        });
       } else if (result === 'gone') {
-        showToast('That change can no longer be undone.');
+        showToast('That change can no longer be undone.', { tone: 'warning' });
       }
     },
   };
@@ -33,7 +35,7 @@ export function toastEdit(
   extra: ToastAction[] = []
 ) {
   if (changed) {
-    showToast(message, [undoAction(realm, playlistId), ...extra]);
+    showToast(message, { actions: [undoAction(realm, playlistId), ...extra] });
   }
 }
 

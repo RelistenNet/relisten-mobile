@@ -14,7 +14,7 @@ vi.mock('@/relisten/util/logging', () => ({
   log: { debug: vi.fn(), extend: () => ({ debug: vi.fn(), warn: vi.fn() }) },
 }));
 
-import { RelistenPlayerQueue, PlayerQueueTrack, remoteSelection } from './relisten_player_queue';
+import { RelistenPlayerQueue, PlayerQueueTrack } from './relisten_player_queue';
 import type { RelistenPlayer } from './relisten_player';
 import type { SourceTrack } from '@/relisten/realm/models/source_track';
 
@@ -134,8 +134,9 @@ describe('adopting a remote queue', () => {
     expect(announced).toHaveBeenLastCalledWith(fire);
   });
 
-  it('never leaves queued tracks with nothing selected', () => {
-    const queue = queueWith([track('Scarlet')], track('Scarlet'));
+  it('selects the first track when the reading holds neither the room’s nor the phone’s', () => {
+    const scarlet = track('Scarlet');
+    const queue = queueWith([scarlet], scarlet);
     const [estimated, saint] = [track('Estimated'), track('Saint Stephen')];
 
     queue.adoptRemoteQueue([estimated, saint], undefined);
@@ -153,13 +154,5 @@ describe('adopting a remote queue', () => {
 
     expect(queue.currentTrack).toBeUndefined();
     expect(announced).toHaveBeenLastCalledWith(undefined);
-  });
-
-  it('prefers the room, then the phone', () => {
-    const [a, b] = [track('a'), track('b')];
-    expect(remoteSelection([a, b], b.identifier, a.identifier)).toBe(b.identifier);
-    expect(remoteSelection([a, b], 'gone', b.identifier)).toBe(b.identifier);
-    expect(remoteSelection([a, b], 'gone', 'also-gone')).toBeUndefined();
-    expect(remoteSelection([], 'gone', undefined)).toBeUndefined();
   });
 });

@@ -16,11 +16,6 @@ export interface PlayerOutput {
   kind: PlayerOutputKind;
 }
 
-/** Destination name for a Sonos room, Cast or external iOS audio; null for local listening. */
-export function usePlayerOutputRoute(): string | null {
-  return usePlayerOutput()?.name ?? null;
-}
-
 /** The destination and its kind; null while playing on this phone's speaker. */
 export function usePlayerOutput(): PlayerOutput | null {
   const sonosRoomName = useSonosRoomName();
@@ -51,9 +46,10 @@ export function usePlayerOutput(): PlayerOutput | null {
   if (!route?.isExternal) {
     return null;
   }
-  // Binaries built before the native side reported a kind show AirPlay's icon:
-  // it reads as "a system output", never as a Sonos room.
-  const kind = route.kind && route.kind !== 'builtIn' ? route.kind : 'airplay';
+  // Binaries built before the native side reported a kind show the generic
+  // output icon (AirPlay's), never the speaker that means a Sonos room. An
+  // external route is never `builtIn`.
+  const kind = route.kind && route.kind !== 'builtIn' ? route.kind : 'other';
   return { name: route.name, kind };
 }
 
@@ -64,7 +60,7 @@ export function PlayerOutputRoute({
   /** `cn`, not `className`: NativeWind v2 rewrites className on custom components into style. */
   cn?: string;
 }) {
-  const name = usePlayerOutputRoute();
+  const name = usePlayerOutput()?.name;
   if (!name) {
     return null;
   }

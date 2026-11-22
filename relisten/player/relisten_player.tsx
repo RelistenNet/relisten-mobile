@@ -44,6 +44,7 @@ enum PlayRequestPhase {
 
 interface PlayRequest {
   identifier: string;
+  seekToTime?: number;
   version: number;
   phase: PlayRequestPhase;
   failed: boolean;
@@ -167,11 +168,35 @@ export class RelistenPlayer {
     this.playbackDriver.setNextStream(streamable);
   }
 
-  /** Whether audio is playing or about to (buffering), as opposed to paused or stopped. */
-  get isPlayingOrBuffering() {
+  /**
+   * Whether audio is playing or about to: buffering, or a Play not yet
+   * confirmed by native playback (the state stays Paused or Stopped for a
+   * moment after Play is pressed).
+   */
+  get isPlayingOrStarting() {
     return (
-      this.state === RelistenPlaybackState.Playing || this.state === RelistenPlaybackState.Stalled
+      this.state === RelistenPlaybackState.Playing ||
+      this.state === RelistenPlaybackState.Stalled ||
+      this.activePlayRequest !== undefined ||
+      this.nextPlayRequest !== undefined
     );
+  }
+
+  /** Where a still-pending play of `identifier` was asked to start, in seconds. */
+  pendingSeekToTime(identifier: string): number | undefined {
+    const pending = [this.nextPlayRequest, this.activePlayRequest].find(
+      (request) => request?.identifier === identifier
+    );
+    return pending?.seekToTime;
+  }
+
+  /**
+   * The track the listener sees as playing. A tapped track shows before
+   * native playback confirms it, so while that play is pending it is the
+   * requested track, not the queue's selection.
+   */
+  get shownTrackIdentifier(): string | undefined {
+    return this.requestedTrackIdentifier ?? this._queue.currentTrack?.identifier;
   }
 
   togglePauseResume() {
@@ -309,7 +334,10 @@ export class RelistenPlayer {
     }
   }
 
-  /** Stop before an edit removes a selected or requested occurrence. */
+  /**
+   * Stops before an edit removes a selected or requested occurrence. Returns
+   * whether it stopped playback, which also cancels any play still pending.
+   */
   onQueueTrackRemoving(identifier: string): boolean {
     const affected =
       identifier === this._queue.currentTrack?.identifier ||
@@ -369,6 +397,7 @@ export class RelistenPlayer {
     // Record the target before publishing its timing, so late events from the previous track are rejected.
     this.activePlayRequest = {
       identifier: track.identifier,
+      seekToTime,
       version: playRequestVersion,
       phase: PlayRequestPhase.WaitingToIssue,
       failed: false,
@@ -418,6 +447,7 @@ export class RelistenPlayer {
         });
         this.activePlayRequest = {
           identifier: track.identifier,
+          seekToTime,
           version: playRequestVersion,
           phase: PlayRequestPhase.Issued,
           failed: false,
@@ -1030,7 +1060,6 @@ ${indentString(this.queue.debugState(true))}
 
     showToast(
       [`Error: ${error.error.message}`, error.error.description].filter(Boolean).join('\n'),
-      [],
       { tone: 'error' }
     );
   };

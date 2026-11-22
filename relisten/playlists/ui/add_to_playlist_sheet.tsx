@@ -13,6 +13,7 @@ import { useRealm } from '@/relisten/realm/schema';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { addTracks, keepWithAbove } from '@/relisten/playlists/playlist_actions';
 import { orderedGroups } from '@/relisten/playlists/playlist_operations';
+import { withoutTracks } from '@/relisten/playlists/track_groups';
 import {
   artistLine,
   duplicateTracksMessage,
@@ -78,9 +79,7 @@ export default function AddToPlaylistSheet() {
       return;
     }
 
-    const newGroups = groups
-      .map((group) => group.filter((trackId) => !onPlaylist.has(trackId)))
-      .filter((group) => group.length > 0);
+    const newGroups = withoutTracks(groups, onPlaylist);
     Alert.alert(
       `Already on ${playlist.name}`,
       duplicateTracksMessage(
@@ -98,11 +97,11 @@ export default function AddToPlaylistSheet() {
     );
   };
 
-  const addGroups = (playlist: Playlist, groups: string[][]) => {
+  const addGroups = (playlist: Playlist, groupsToAdd: string[][]) => {
     const { playlistId, name } = playlist;
-    const addedCount = groups.flat().length;
+    const addedCount = groupsToAdd.flat().length;
     try {
-      addTracks(realm, playlistId, groups);
+      addTracks(realm, playlistId, groupsToAdd);
     } catch (error) {
       // An alert, since the sheet covers the toast.
       Alert.alert(
@@ -114,16 +113,18 @@ export default function AddToPlaylistSheet() {
     sharedStatsigClient().logEvent(playlistActionEvent('add', addedCount));
 
     const segueEntry = addedCount === 1 ? segueSuggestion(realm, playlistId) : undefined;
-    showToast(`Added ${addedLabel(realm, groups)} to ${name}`, [
-      undoAction(realm, playlistId),
-      segueEntry
-        ? {
-            label: `Link to ${segueEntry.previousTitle}`,
-            onPress: () =>
-              keepWithAbove(realm, playlistId, segueEntry.entryId, segueEntry.previousEntryId),
-          }
-        : { label: 'Open', onPress: () => showPlaylist(router, playlistId, fullPlayer) },
-    ]);
+    showToast(`Added ${addedLabel(realm, groupsToAdd)} to ${name}`, {
+      actions: [
+        undoAction(realm, playlistId),
+        segueEntry
+          ? {
+              label: `Link to ${segueEntry.previousTitle}`,
+              onPress: () =>
+                keepWithAbove(realm, playlistId, segueEntry.entryId, segueEntry.previousEntryId),
+            }
+          : { label: 'Open', onPress: () => showPlaylist(router, playlistId, fullPlayer) },
+      ],
+    });
   };
 
   const create = (name: string) => {
@@ -145,17 +146,21 @@ export default function AddToPlaylistSheet() {
       openPlaylist(router, playlistId);
       return;
     }
-    showToast(`Added ${addedLabel(realm, groups)} to ${playlist.name}`, [
-      {
-        label: 'Undo',
-        onPress: () => {
-          if (!deletePlaylistPermanently(realm, playlistId)) {
-            showToast('It’s already saved to your account. Delete it from the playlist’s menu.');
-          }
+    showToast(`Added ${addedLabel(realm, groups)} to ${playlist.name}`, {
+      actions: [
+        {
+          label: 'Undo',
+          onPress: () => {
+            if (!deletePlaylistPermanently(realm, playlistId)) {
+              showToast('It’s already saved to your account. Delete it from the playlist’s menu.', {
+                tone: 'warning',
+              });
+            }
+          },
         },
-      },
-      { label: 'Open', onPress: () => showPlaylist(router, playlistId, fullPlayer) },
-    ]);
+        { label: 'Open', onPress: () => showPlaylist(router, playlistId, fullPlayer) },
+      ],
+    });
   };
 
   if (naming) {

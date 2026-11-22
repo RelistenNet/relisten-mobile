@@ -58,7 +58,9 @@ export function ConnectedAppsGroup() {
           onPress: () =>
             void disconnectClient(api, client.id)
               .then(() => showToast(`Disconnected ${client.name}`))
-              .catch(() => showToast(`Couldn’t disconnect ${client.name}. Try again.`))
+              .catch(() =>
+                showToast(`Couldn’t disconnect ${client.name}. Try again.`, { tone: 'error' })
+              )
               .finally(load),
         },
       ]

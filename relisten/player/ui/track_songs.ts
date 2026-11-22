@@ -4,6 +4,7 @@ import type { SourceTrack } from '@/relisten/realm/models/source_track';
 
 /** A "Go to Song" action names its song: `go-to-song:<song id>`. */
 export const GO_TO_SONG_PREFIX = 'go-to-song:';
+export type GoToSongActionId = `${typeof GO_TO_SONG_PREFIX}${string}`;
 
 export interface TrackSong {
   id: string;
@@ -33,7 +34,7 @@ export function songsOf(sourceTrack: Pick<SourceTrack, 'normalization'>): TrackS
  */
 export function goToSongActions(songs: TrackSong[]): MenuAction[] {
   return songs.map((song) => ({
-    id: GO_TO_SONG_PREFIX + song.id,
+    id: `${GO_TO_SONG_PREFIX}${song.id}` satisfies GoToSongActionId,
     image: nativeMenuIcons.song,
     title: `Go to ${song.name}`,
   }));

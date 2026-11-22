@@ -19,7 +19,7 @@ import { ItemSeparator } from '@/relisten/components/item_separator';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useRelistenCastStatus, useShouldRenderCastButton } from '@/relisten/casting/cast_ui';
 import { OutputVolumeRow } from '@/relisten/player/ui/output_volume';
-import { usePlayerOutputRoute } from '@/relisten/player/ui/player_output_route';
+import { usePlayerOutput } from '@/relisten/player/ui/player_output_route';
 import { groupSonosHouseholds, type SonosGroup } from '@/relisten/sonos/sonos_api';
 import { HANDOFF_UNCONFIRMED_MESSAGE } from '@/relisten/sonos/sonos_handoff';
 import { useSonosRoom } from '@/relisten/sonos/sonos_room_store';
@@ -61,7 +61,7 @@ export default function PlayOnSheet() {
  */
 function ThisPhoneRow() {
   const router = useRouter();
-  const outputRoute = usePlayerOutputRoute();
+  const outputRoute = usePlayerOutput()?.name;
   const sonosPlaying = useSonosRoom().kind === 'active';
   const here = !outputRoute;
   return (

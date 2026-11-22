@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
     setRepeatMode: vi.fn(),
     addPlaybackSnapshotListener: vi.fn(() => ({ remove: vi.fn() })),
   },
-  showMessage: vi.fn(),
+  showToast: vi.fn(),
 }));
 vi.mock('@/modules/relisten-audio-player', () => ({
   nativePlayer: mocks.native,
@@ -42,7 +42,7 @@ vi.mock('@/relisten/events', () => ({
 vi.mock('@/relisten/util/logging', () => ({
   log: { debug: vi.fn(), extend: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn() }) },
 }));
-vi.mock('@/relisten/components/toast', () => ({ showToast: mocks.showMessage }));
+vi.mock('@/relisten/components/toast', () => ({ showToast: mocks.showToast }));
 vi.mock('react-native', () => ({ AppState: { currentState: 'active' } }));
 vi.mock('expo-crypto', () => ({
   getRandomValues: (bytes: Uint8Array) => bytes,
@@ -249,7 +249,7 @@ const settle = async () => {
   }
 };
 
-const messages = () => mocks.showMessage.mock.calls.map(([message]) => message);
+const messages = () => mocks.showToast.mock.calls.map(([message]) => message);
 
 describe('SonosSession', () => {
   let player: RelistenPlayer;
@@ -810,20 +810,23 @@ describe('SonosSession', () => {
 
   describe('shuffle', () => {
     it('shuffles only the tracks after the playing one, and saves that order', async () => {
-      const more = [addedElsewhere('Jack Straw'), addedElsewhere('Dire Wolf')];
-      player.queue.addTrackToEndOfQueue(more);
-      await settle();
       room.plays(tracks[1].identifier);
       await settle();
+      // Added once the phone follows the room, so both hold three upcoming tracks.
+      player.queue.addTrackToEndOfQueue([
+        addedElsewhere('Jack Straw'),
+        addedElsewhere('Dire Wolf'),
+      ]);
+      await settle();
+      const upcoming = player.queue.orderedTracks.slice(2).map((t) => t.identifier);
+      expect(upcoming).toHaveLength(3);
 
       player.queue.setShuffleState(PlayerShuffleState.SHUFFLE_ON);
       await settle();
 
       const saved = room.queue.entries.map((row) => row.occurrenceId);
       expect(saved.slice(0, 2)).toEqual([tracks[0].identifier, tracks[1].identifier]);
-      expect([...saved.slice(2)].sort()).toEqual(
-        [tracks[2], ...player.queue.orderedTracks.slice(3)].map((t) => t.identifier).sort()
-      );
+      expect([...saved.slice(2)].sort()).toEqual([...upcoming].sort());
       expect(messages()).toEqual([]);
     });
 
@@ -872,6 +875,12 @@ describe('SonosSession', () => {
     it('puts the upcoming tracks back in order when shuffle is turned off', async () => {
       room.plays(tracks[0].identifier);
       await settle();
+      player.queue.addTrackToEndOfQueue([
+        addedElsewhere('Jack Straw'),
+        addedElsewhere('Dire Wolf'),
+      ]);
+      await settle();
+      const original = [...player.queue.orderedTracks];
       player.queue.setShuffleState(PlayerShuffleState.SHUFFLE_ON);
       await settle();
       room.plays(player.queue.orderedTracks[1].identifier);
@@ -881,7 +890,9 @@ describe('SonosSession', () => {
       player.queue.setShuffleState(PlayerShuffleState.SHUFFLE_OFF);
       await settle();
 
-      const rest = tracks.filter((t) => !played.includes(t));
+      // Three tracks are left upcoming, so their original order is checkable.
+      const rest = original.filter((t) => !played.includes(t));
+      expect(rest).toHaveLength(3);
       expect(player.queue.orderedTracks).toEqual([...played, ...rest]);
       expect(room.queue.entries).toEqual([...played, ...rest].map(entry));
       expect(messages()).toEqual([]);

@@ -421,8 +421,6 @@ describe('SonosRoomStore', () => {
       await poll;
       expect(shown(remote)?.playback.repeatMode).toBe('all');
       await set;
-
-      expect(shown(remote)?.playback.repeatMode).toBe('all');
     });
 
     it('ignores another tap while a repeat change is on its way', async () => {

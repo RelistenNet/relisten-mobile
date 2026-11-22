@@ -300,7 +300,7 @@ export class SonosSession {
       return;
     }
 
-    showToast(outcome.kind === 'refused' ? outcome.message : HANDOFF_UNCONFIRMED_MESSAGE, [], {
+    showToast(outcome.kind === 'refused' ? outcome.message : HANDOFF_UNCONFIRMED_MESSAGE, {
       tone: 'warning',
     });
     await this.followRoom();
@@ -338,7 +338,7 @@ export class SonosSession {
     }
 
     if (room.commandError && room.commandError !== commandErrorOf(previous)) {
-      showToast(room.commandError, [], { tone: 'warning' });
+      showToast(room.commandError, { tone: 'warning' });
     }
     this.publishRoom(room.playback);
     this.reconcileQueue(room.playback);
@@ -629,9 +629,7 @@ export class SonosSession {
     this.baseline = confirmed;
     this.player.queue.adoptRemoteQueue(tracks, current);
     if (phoneEdited) {
-      showToast('Your queue change was replaced by one from another device.', [], {
-        tone: 'warning',
-      });
+      showToast('Your queue change was replaced by one from another device.', { tone: 'warning' });
     }
     return 'adopted';
   }
@@ -667,11 +665,9 @@ export class SonosSession {
 
     if (!goneAreAllUpcoming) {
       this.waitBeforeFollowing(handle, queue, UNTIL_THE_QUEUE_CHANGES);
-      showToast(
-        'The room’s queue has a track that’s no longer available, so it can’t be shown.',
-        [],
-        { tone: 'warning' }
-      );
+      showToast('The room’s queue has a track that’s no longer available, so it can’t be shown.', {
+        tone: 'warning',
+      });
       return 'notTaken';
     }
 
@@ -744,7 +740,7 @@ export class SonosSession {
    * phone's, whatever the phone edited since.
    */
   private roomRefusedOrder(message: string) {
-    showToast(message, [], { tone: 'warning' });
+    showToast(message, { tone: 'warning' });
     // Without a baseline the room's order already wins at the next read.
     const handle = this.baseline?.handle;
     if (handle !== undefined) {
@@ -767,7 +763,7 @@ export class SonosSession {
         // phone's order puts them back in the room's order first.
         rereadRoom = true;
         await this.store.refresh();
-        this.keepRoomPlayedOrder();
+        this.moveRoomPlayedToFront();
         continue;
       }
       return outcome.kind === 'trackMoved' ? { kind: 'notSaved' } : outcome;
@@ -775,7 +771,7 @@ export class SonosSession {
   }
 
   /** Puts the room's tracks through its playing one first in the phone's order, as in the room's. */
-  private keepRoomPlayedOrder() {
+  private moveRoomPlayedToFront() {
     const room = this.store.getState();
     const agreed = room.kind === 'active' ? this.agreedFor(room.playback.handle) : undefined;
     const playingIndex = agreed?.occurrenceIds.indexOf(this.roomOccurrenceId() ?? '') ?? -1;
@@ -783,7 +779,7 @@ export class SonosSession {
       return;
     }
     this.publishLatestRoom();
-    this.player.queue.keepPlayedOrder(agreed.occurrenceIds.slice(0, playingIndex + 1));
+    this.player.queue.movePlayedToFront(agreed.occurrenceIds.slice(0, playingIndex + 1));
   }
 
   private async saveQueueOnce(): Promise<SessionSave | { kind: 'trackMoved' }> {
@@ -817,7 +813,7 @@ export class SonosSession {
         this.unconfirmedSave = { handle: agreed.handle, occurrenceIds };
         if (!this.saveFailureShown) {
           this.saveFailureShown = true;
-          showToast('Couldn’t update the Sonos queue yet.', [], { tone: 'warning' });
+          showToast('Couldn’t update the Sonos queue yet.', { tone: 'warning' });
         }
         return { kind: 'notSaved' };
     }
@@ -850,7 +846,7 @@ export class SonosSession {
     );
     if (!stoppedAt || index < 0) {
       this.publishLatestRoom();
-      showToast(`Couldn’t move playback from ${roomName}.`, [], { tone: 'warning' });
+      showToast(`Couldn’t move playback from ${roomName}.`, { tone: 'warning' });
       return;
     }
 

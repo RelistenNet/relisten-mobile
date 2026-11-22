@@ -33,7 +33,9 @@ export function usePlaylistLifecycle() {
       await service.setArchived(playlist.playlistId, archived);
       return true;
     } catch {
-      showToast(`Couldn’t ${archived ? 'delete' : 'restore'} ${name}. Try again.`);
+      showToast(`Couldn’t ${archived ? 'delete' : 'restore'} ${name}. Try again.`, {
+        tone: 'error',
+      });
       return false;
     }
   };
@@ -87,15 +89,17 @@ export function usePlaylistLifecycle() {
           deletePlaylistOnDevice(realm, playlistId);
         }
         router.back();
-        showToast(`Deleted ${name}`, [
-          {
-            label: 'Undo',
-            onPress: () =>
-              archive
-                ? void restore(playlist)
-                : restorePlaylistOnDevice(realm, playlistId, signedIn()),
-          },
-        ]);
+        showToast(`Deleted ${name}`, {
+          actions: [
+            {
+              label: 'Undo',
+              onPress: () =>
+                archive
+                  ? void restore(playlist)
+                  : restorePlaylistOnDevice(realm, playlistId, signedIn()),
+            },
+          ],
+        });
       },
     });
   };

@@ -16,7 +16,7 @@ import { useFavorite } from '@/relisten/library/favorite_hooks';
 import { trackIdForSourceTrack } from '@/relisten/playlists/playlist_hooks';
 import { openAddToPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
 import { useRouter } from 'expo-router';
-import { useGoToSong } from './go_to_song';
+import { useGoToSong } from './track_navigation';
 
 export type PlayShow = (sourceTrack?: SourceTrack) => void;
 
@@ -91,7 +91,7 @@ export function SourceTrackActionsMenu({
   const queueTrack = useMemo(() => PlayerQueueTrack.fromSourceTrack(sourceTrack), [sourceTrack]);
   const offlineStatus = sourceTrack.offlineInfo?.status;
   const offlineType = sourceTrack.offlineInfo?.type;
-  const goToSong = useGoToSong(sourceTrack);
+  const { actions: songActions, handleAction: handleSongAction } = useGoToSong(sourceTrack);
   const actions = useMemo<MenuAction[]>(
     () => [
       {
@@ -138,11 +138,11 @@ export function SourceTrackActionsMenu({
           { id: ACTION_IDS.share, image: nativeMenuIcons.share, title: 'Share Track' },
         ],
       },
-      ...(goToSong.actions.length > 0
-        ? [{ id: 'songs', title: '', displayInline: true, subactions: goToSong.actions }]
+      ...(songActions.length > 0
+        ? [{ id: 'songs', title: '', displayInline: true, subactions: songActions }]
         : []),
     ],
-    [favorite.isFavorite, goToSong.actions, offlineStatus, offlineType, onSelect, sourceTrack]
+    [favorite.isFavorite, offlineStatus, offlineType, onSelect, songActions, sourceTrack]
   );
 
   const handleAction = useCallback(
@@ -191,7 +191,7 @@ export function SourceTrackActionsMenu({
     <NativeMenuView
       actions={actions}
       onPressAction={({ nativeEvent }) => {
-        if (!goToSong.handleAction(nativeEvent.event)) {
+        if (!handleSongAction(nativeEvent.event)) {
           void handleAction(nativeEvent.event as SourceTrackActionId);
         }
       }}

@@ -5,20 +5,22 @@ import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { useGroupSegment } from '@/relisten/util/routes';
 import { router, useNavigation } from 'expo-router';
 import { type ReactNode, useCallback, useMemo } from 'react';
-import { useGoToSong } from './go_to_song';
+import type { GoToSongActionId } from './track_songs';
+import { useGoToSong, useLeaveScreen } from './track_navigation';
 
 const ACTION_IDS = {
   artist: 'artist',
   show: 'show',
 } as const;
 
-/** Artist, show, or one of the track's songs (`go-to-song:<id>`). */
-export type CurrentTrackNavigationActionId = string;
+export type CurrentTrackNavigationActionId =
+  | (typeof ACTION_IDS)[keyof typeof ACTION_IDS]
+  | GoToSongActionId;
 
 /**
- * Go-to actions for the playing track: its artist, show, and songs. Every one
- * leaves through `onBeforeNavigate` (closing the player first), not through a
- * `TrackNavigationProvider`, so callers inside the player must pass it.
+ * Go-to actions for the playing track: its artist, show, and songs. They all
+ * leave the screen through `useLeaveScreen`: `onBeforeNavigate` (closing the
+ * player) when given, else the screen's `TrackNavigationProvider`.
  */
 export function useCurrentTrackNavigation(onBeforeNavigate?: (navigate: () => void) => void) {
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
@@ -28,6 +30,7 @@ export function useCurrentTrackNavigation(onBeforeNavigate?: (navigate: () => vo
   const artist = currentPlayerTrack?.sourceTrack.artist;
   const show = currentPlayerTrack?.sourceTrack.show;
   const source = currentPlayerTrack?.sourceTrack.source;
+  const leaveScreen = useLeaveScreen(onBeforeNavigate);
   const { actions: songActions, handleAction: handleSongAction } = useGoToSong(
     currentPlayerTrack?.sourceTrack,
     onBeforeNavigate
@@ -59,7 +62,7 @@ export function useCurrentTrackNavigation(onBeforeNavigate?: (navigate: () => vo
         return;
       }
 
-      const navigate = () => {
+      leaveScreen(() => {
         if (actionId === ACTION_IDS.artist) {
           router.push({
             pathname: `/relisten/tabs/${groupSegment}/[artistUuid]/`,
@@ -73,11 +76,9 @@ export function useCurrentTrackNavigation(onBeforeNavigate?: (navigate: () => vo
             overrideGroupSegment: '(artists)',
           });
         }
-      };
-      if (onBeforeNavigate) onBeforeNavigate(navigate);
-      else navigate();
+      });
     },
-    [artist, groupSegment, handleSongAction, onBeforeNavigate, pushShow, show, source]
+    [artist, groupSegment, handleSongAction, leaveScreen, pushShow, show, source]
   );
 
   return { actions, handleAction };
@@ -117,7 +118,10 @@ export function CurrentTrackNavigationMenu({
   return (
     <NativeMenuView
       actions={actions}
-      onPressAction={({ nativeEvent }) => handleAction(nativeEvent.event)}
+      // The native menu reports back the ids of `actions`, built above.
+      onPressAction={({ nativeEvent }) =>
+        handleAction(nativeEvent.event as CurrentTrackNavigationActionId)
+      }
     >
       {children}
     </NativeMenuView>

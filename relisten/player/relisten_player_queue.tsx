@@ -334,10 +334,10 @@ export class RelistenPlayerQueue {
   }
 
   /**
-   * Removes one occurrence. Removing the selected track moves on the way a
-   * skip does: the track after it (or before it, at the end) is selected, and
-   * keeps playing if the removed one was playing. A remote player moves on
-   * itself instead (`moveOnFromSelected`).
+   * Removes one occurrence. Removing the track the listener sees as playing
+   * moves on the way a skip does: the track after it (or before it, at the
+   * end) is selected, and keeps playing if playback was playing or starting.
+   * A remote player moves on itself instead (`moveOnFromSelected`).
    */
   removeTrackWithIdentifier(identifier: string) {
     const removed = this.originalTracks.find((track) => track.identifier === identifier);
@@ -345,14 +345,22 @@ export class RelistenPlayerQueue {
       return false;
     }
     const currentIdentifier = this.currentTrack?.identifier;
-    const removingSelected = identifier === currentIdentifier;
-    if (removingSelected && this.player.moveOnFromSelected(identifier)) {
+    if (identifier === currentIdentifier && this.player.moveOnFromSelected(identifier)) {
       // A remote player moved on and keeps the occurrence as played (Sonos).
       return true;
     }
 
-    const successor = removingSelected ? this.trackReplacing(identifier) : undefined;
-    const keepPlaying = removingSelected && this.player.isPlayingOrBuffering;
+    // Removing the shown track moves past it. Removing the selection while a
+    // tapped track is still starting keeps that track: stopping for the
+    // removal cancels its play, so it is played again, from where it was
+    // asked to start. Read all of this before the removal stops playback.
+    const shownIdentifier = this.player.shownTrackIdentifier;
+    const nextShown =
+      identifier === shownIdentifier
+        ? this.trackReplacing(identifier)
+        : this.originalTracks.find((track) => track.identifier === shownIdentifier);
+    const keepPlaying = this.player.isPlayingOrStarting;
+    const startAt = nextShown ? this.player.pendingSeekToTime(nextShown.identifier) : undefined;
 
     this.applyPlaybackCheckpoint(() => {
       const stoppedPlayback = this.player.onQueueTrackRemoving(removed.identifier);
@@ -363,26 +371,29 @@ export class RelistenPlayerQueue {
         (entry) => entry.identifier !== removed.identifier
       );
 
-      const selectedIdentifier = removingSelected ? successor?.identifier : currentIdentifier;
-      if (selectedIdentifier) {
-        this.recalculateTrackIndexes(selectedIdentifier);
-      }
       if (!stoppedPlayback) {
+        // Neither selected nor starting: the selection and playback are untouched.
+        if (currentIdentifier) {
+          this.recalculateTrackIndexes(currentIdentifier);
+        }
         this.recalculateNextTrack();
+        this.onOrderedTracksChanged.dispatch(this.orderedTracks);
+        return;
+      }
+
+      if (nextShown) {
+        this.recalculateTrackIndexes(nextShown.identifier);
       }
       this.onOrderedTracksChanged.dispatch(this.orderedTracks);
-
-      if (removingSelected) {
-        this.onCurrentTrackChanged.dispatch(successor);
-        if (successor && keepPlaying) {
-          this.player.playTrackAtIndex(this.currentIndex!);
-        }
+      this.onCurrentTrackChanged.dispatch(nextShown);
+      if (nextShown && keepPlaying) {
+        this.player.playTrackAtIndex(this.orderedTracks.indexOf(nextShown), startAt);
       }
     }, true);
     return true;
   }
 
-  /** The track that takes a removed selected track's place: the next, or the previous at the end. */
+  /** The track that takes a removed playing track's place: the next, or the previous at the end. */
   private trackReplacing(identifier: string): PlayerQueueTrack | undefined {
     const index = this.orderedTracks.findIndex((track) => track.identifier === identifier);
     return this.orderedTracks[index + 1] ?? this.orderedTracks[index - 1];
@@ -456,9 +467,9 @@ export class RelistenPlayerQueue {
       ) {
         // If we turn on shuffling while something is playing (could be paused), we should reshuffle so that the
         // currently playing item is the first track in the queue after shuffling.
+        // Turning it off needs nothing here: the shuffled order simply stops being read.
         this.reshuffleTracks();
       }
-      // When disabling shuffle we don't need to do anything because the shuffled list won't be accessed.
 
       this._shuffleState = shuffleState;
 
@@ -548,7 +559,7 @@ ${indentString(tracks)}
    * that keeps played tracks in place (Sonos) asks for this when it moved on
    * before an edit reached it, so the edit stops reordering what has played.
    */
-  keepPlayedOrder(playedIds: readonly string[]) {
+  movePlayedToFront(playedIds: readonly string[]) {
     const played = new Set(playedIds);
     const keepFirst = (tracks: PlayerQueueTrack[]) => [
       ...playedIds.flatMap((id) => tracks.find((track) => track.identifier === id) ?? []),
@@ -655,10 +666,12 @@ ${indentString(tracks)}
 
   /**
    * A queue at rest with tracks always has one selected, so the player never
-   * shows tracks with nothing playing. (`replaceQueue` without a start index is
-   * the one brief exception: its caller starts playback right after.) With none selected, the first is selected,
-   * stopped: listeners hear of it, and no native stream is prepared until an
-   * explicit Play. An empty queue announces that nothing is selected.
+   * shows tracks with nothing playing. With none selected, this selects the
+   * first track, stopped: listeners hear of it, and no native stream is
+   * prepared until an explicit Play. An empty queue announces no selection.
+   *
+   * `replaceQueue` without a start index is the one brief exception (see the
+   * comment there): its caller starts playback right after.
    */
   private ensureSelection() {
     if (this.currentTrack) {
@@ -973,7 +986,7 @@ ${indentString(tracks)}
  * selection until the next reading corrects it. Undefined when neither is
  * held; the queue then selects its first track (`ensureSelection`).
  */
-export function remoteSelection(
+function remoteSelection(
   tracks: readonly PlayerQueueTrack[],
   roomIdentifier: string | undefined,
   previousIdentifier: string | undefined

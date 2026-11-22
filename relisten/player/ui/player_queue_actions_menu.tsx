@@ -9,7 +9,7 @@ import { openAddToPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useCallback, useMemo } from 'react';
-import { useGoToSong } from './go_to_song';
+import { useGoToSong } from './track_navigation';
 
 const ACTION_IDS = {
   addToPlaylist: 'add-to-playlist',
@@ -68,16 +68,18 @@ export function PlayerQueueActionsMenu({
   queueTrack,
 }: PlayerQueueActionsMenuProps) {
   const player = useRelistenPlayer();
-  const goToSong = useGoToSong(queueTrack.sourceTrack);
+  const { actions: songActions, handleAction: handleSongAction } = useGoToSong(
+    queueTrack.sourceTrack
+  );
   const actions = useMemo<MenuAction[]>(
     () =>
-      goToSong.actions.length > 0
+      songActions.length > 0
         ? [
             ...BASE_ACTIONS,
-            { id: 'songs', title: '', displayInline: true, subactions: goToSong.actions },
+            { id: 'songs', title: '', displayInline: true, subactions: songActions },
           ]
         : BASE_ACTIONS,
-    [goToSong.actions]
+    [songActions]
   );
 
   const handleAction = useCallback(
@@ -112,7 +114,7 @@ export function PlayerQueueActionsMenu({
     <NativeMenuView
       actions={actions}
       onPressAction={({ nativeEvent }) => {
-        if (!goToSong.handleAction(nativeEvent.event)) {
+        if (!handleSongAction(nativeEvent.event)) {
           handleAction(nativeEvent.event as PlayerQueueActionId);
         }
       }}

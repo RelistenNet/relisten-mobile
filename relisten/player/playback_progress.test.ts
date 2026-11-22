@@ -630,7 +630,6 @@ describe('checkpoint persistence and queue edits', () => {
     const removedSnapshot = scenario.capture({ elapsed: 121, duration: 381 });
 
     player.queue.removeTrackAtIndex(0);
-    expect(mocks.native.stop).toHaveBeenCalledTimes(1);
     expect(player.queue.orderedTracks).toEqual([loser]);
     expect(player.queue.currentTrack).toBe(loser);
     await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
@@ -682,7 +681,7 @@ describe('checkpoint persistence and queue edits', () => {
     expect(player.queue.orderedTracks).toEqual([minglewood, loser]);
   });
 
-  it('cancels a removed pending target and can resume the retained entry and its successor', async () => {
+  it('moves past a skipped-to track removed before it starts, and keeps playing', async () => {
     player.queue.addTrackToEndOfQueue([track('third', 430)]);
     const third = player.queue.orderedTracks[2];
     const pause = deferredOperation();
@@ -691,24 +690,28 @@ describe('checkpoint persistence and queue edits', () => {
 
     player.queue.removeTrackAtIndex(1);
     pause.complete();
-    await vi.advanceTimersByTimeAsync(0);
-    expect(mocks.native.play).not.toHaveBeenCalled();
-    expect(mocks.native.stop).toHaveBeenCalledTimes(1);
-    expect(player.state).toBe(RelistenPlaybackState.Stopped);
-    expect(player.queue.currentTrack).toBe(minglewood);
+    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
+    // The removed track never plays; the one after it does.
+    expect(scenario.lastNativePlay.entryId).toBe(third.identifier);
+    expect(player.queue.currentTrack).toBe(third);
+  });
 
-    player.resume();
+  it('keeps a tapped track starting, where it was asked to, when the playing track is removed', async () => {
+    player.queue.addTrackToEndOfQueue([track('third', 430)]);
+    const third = player.queue.orderedTracks[2];
+    const pause = deferredOperation();
+    mocks.native.pause.mockReturnValueOnce(pause.promise);
+    player.playTrackAtIndex(2, 30);
+
+    // Not the removed track's neighbor (Loser): the track that was tapped.
+    player.queue.removeTrackAtIndex(0);
+    pause.complete();
     await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(1));
     expect(scenario.lastNativePlay).toMatchObject({
-      entryId: minglewood.identifier,
-      startTimeMs: 120000,
+      entryId: third.identifier,
+      startTimeMs: 30000,
     });
-    scenario.emit({ identifier: minglewood.identifier, elapsed: 120, duration: 381 });
-    const [preparedStream] = mocks.native.setNextStream.mock.lastCall!;
-    expect(preparedStream?.identifier).toBe(third.identifier);
-    player.next();
-    await vi.waitFor(() => expect(mocks.native.play).toHaveBeenCalledTimes(2));
-    expect(scenario.lastNativePlay.entryId).toBe(third.identifier);
+    expect(player.queue.currentTrack).toBe(third);
   });
 
   it('stops and persists an empty queue when its last selected entry is removed', () => {

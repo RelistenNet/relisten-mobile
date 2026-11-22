@@ -81,7 +81,10 @@ vi.mock('@/relisten/util/push_show', () => ({
 vi.mock('@/relisten/util/routes', () => ({ useGroupSegment: () => '(artists)' }));
 
 import { PlayerActionsMenu } from './player_actions_menu';
-import { useCurrentTrackNavigation } from './current_track_navigation_menu';
+import {
+  type CurrentTrackNavigationActionId,
+  useCurrentTrackNavigation,
+} from './current_track_navigation_menu';
 import { PlayerPresentationProvider, playerPresentationContentReady } from './player_presentation';
 
 function mountPlayer() {
@@ -239,7 +242,8 @@ describe('player presentation and menu navigation contract', () => {
     const { menu } = mountPlayer();
     expect(menu.actions.map((action) => action.title)).toContain('Go to Simple');
 
-    menu.handleAction('go-to-song:song_simple');
+    const goToSimple = menu.actions.find((action) => action.title === 'Go to Simple')!;
+    menu.handleAction(goToSimple.id as CurrentTrackNavigationActionId);
     expect(harness.push).not.toHaveBeenCalled();
     finishLatestClose();
     deliverCallbacks();
