@@ -27,7 +27,7 @@ import {
 } from '@/relisten/player/ui/player_bar_layout';
 import { LibrarySidebar } from '@/relisten/pages/sidebar/library_sidebar';
 import { PlayerRail } from '@/relisten/player/ui/player_rail';
-import { useIsWideLayout } from '@/relisten/util/wide_layout';
+import { useIsSidebarLayout, useIsWideLayout } from '@/relisten/util/wide_layout';
 import { type PropsWithChildren, useCallback } from 'react';
 import { Image, type LayoutChangeEvent, Platform, View } from 'react-native';
 
@@ -201,8 +201,8 @@ export default function TabLayout() {
 }
 
 /**
- * Wide windows put the library sidebar to the left of the tabs and the player
- * rail to the right. All three are plain views in one row. Expo Router's
+ * Wide windows put the library sidebar to the left of the tabs and, wider
+ * still, the player rail to the right (see `wide_layout`). All three are plain views in one row. Expo Router's
  * split view was tried and dropped: React Native content in tabs nested inside
  * its columns kept a stale layout whenever a column moved or resized.
  *
@@ -211,12 +211,13 @@ export default function TabLayout() {
  */
 function TabsWithSidePanes({ children }: PropsWithChildren) {
   const isWide = useIsWideLayout();
+  const showSidebar = useIsSidebarLayout();
   const hasPlayerContent = useHasPlayerContent();
   const isPlayerRailVisible = useIsPlayerRailVisible();
 
   return (
     <View className="flex-1 flex-row">
-      {isWide ? <LibrarySidebar /> : null}
+      {showSidebar ? <LibrarySidebar /> : null}
       <View className="flex-1">{children}</View>
       {/* Hiding the rail slides it shut rather than unmounting it, so the
           queue sheet keeps its measured layout for when it comes back. */}

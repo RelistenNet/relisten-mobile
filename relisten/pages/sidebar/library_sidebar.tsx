@@ -47,6 +47,7 @@ export function LibrarySidebar() {
   }, [contentOpacity, open]);
 
   const contentStyle = useAnimatedStyle(() => ({ opacity: contentOpacity.value }));
+  const collapsedStyle = useAnimatedStyle(() => ({ opacity: 1 - contentOpacity.value }));
 
   return (
     <SidePane
@@ -65,7 +66,11 @@ export function LibrarySidebar() {
             accessibilityLabel={open ? 'Hide sidebar' : 'Show sidebar'}
             accessibilityRole="button"
             accessibilityState={{ expanded: open }}
-            className="h-11 w-11 items-center justify-center"
+            className={
+              open
+                ? 'h-11 w-11 items-center justify-center rounded-lg'
+                : 'h-11 w-11 items-center justify-center rounded-lg bg-white/10'
+            }
             onPress={() => setLibrarySidebarOpen(!open)}
           >
             <MaterialCommunityIcons color="rgba(255, 255, 255, 0.8)" name="dock-left" size={22} />
@@ -76,23 +81,66 @@ export function LibrarySidebar() {
             </RelistenText>
           </Animated.View>
         </View>
-        <Animated.View
-          style={contentStyle}
-          className="flex-1"
-          pointerEvents={open ? 'auto' : 'none'}
-          accessibilityElementsHidden={!open}
-          importantForAccessibility={open ? 'auto' : 'no-hide-descendants'}
-        >
-          <ScrollView contentContainerStyle={{ paddingBottom: 16 }}>
-            <AccountRow />
-            <ActiveDownloadsRow />
-            <SidebarPlaylists />
-            <FavoriteArtists />
-            <RecentlyPlayedShows />
-          </ScrollView>
-        </Animated.View>
+        {/* The open list and the collapsed icons share this area and cross-fade. */}
+        <View className="flex-1">
+          <Animated.View
+            style={contentStyle}
+            className="flex-1"
+            pointerEvents={open ? 'auto' : 'none'}
+            accessibilityElementsHidden={!open}
+            importantForAccessibility={open ? 'auto' : 'no-hide-descendants'}
+          >
+            <ScrollView contentContainerStyle={{ paddingBottom: 16 }}>
+              <AccountRow />
+              <ActiveDownloadsRow />
+              <SidebarPlaylists />
+              <FavoriteArtists />
+              <RecentlyPlayedShows />
+            </ScrollView>
+          </Animated.View>
+          <Animated.View
+            style={[
+              collapsedStyle,
+              { position: 'absolute', left: 0, top: 0, width: COLLAPSED_SIDEBAR_WIDTH },
+            ]}
+            pointerEvents={open ? 'none' : 'auto'}
+            accessibilityElementsHidden={open}
+            importantForAccessibility={open ? 'no-hide-descendants' : 'auto'}
+          >
+            <CollapsedSectionIcons />
+          </Animated.View>
+        </View>
       </SafeAreaView>
     </SidePane>
+  );
+}
+
+const COLLAPSED_SECTIONS = [
+  { icon: 'account-circle', label: 'Account' },
+  { icon: 'playlist-music', label: 'Playlists' },
+  { icon: 'heart-outline', label: 'Favorite Artists' },
+  { icon: 'history', label: 'Recently Played' },
+] as const;
+
+/**
+ * The collapsed strip shows one icon per section so it still reads as the
+ * library; any of them opens the sidebar.
+ */
+function CollapsedSectionIcons() {
+  return (
+    <View className="items-center pt-2" style={{ gap: 4 }}>
+      {COLLAPSED_SECTIONS.map((section) => (
+        <TouchableOpacity
+          key={section.label}
+          accessibilityLabel={`Show sidebar: ${section.label}`}
+          accessibilityRole="button"
+          className="h-11 w-11 items-center justify-center rounded-lg"
+          onPress={() => setLibrarySidebarOpen(true)}
+        >
+          <MaterialCommunityIcons color="rgba(255, 255, 255, 0.7)" name={section.icon} size={22} />
+        </TouchableOpacity>
+      ))}
+    </View>
   );
 }
 
