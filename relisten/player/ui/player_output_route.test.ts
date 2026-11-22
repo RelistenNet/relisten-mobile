@@ -82,11 +82,17 @@ describe('player output feedback', () => {
     expect(visibleRoute()).toContain('Cast device');
   });
 
-  it('does not call iOS methods on Android and retains Cast feedback', () => {
+  it('reads the system route on Android too, with Cast still ahead of it', () => {
     state.platform = 'android';
-    expect(visibleRoute()).toBe('');
+    state.getAudioOutputRoute.mockReturnValue({ name: 'Pixel Buds', isExternal: true });
+    expect(visibleRoute()).toContain('Pixel Buds');
     state.cast = { isCasting: true, deviceName: 'Kitchen speaker' };
     expect(visibleRoute()).toContain('Kitchen speaker');
+  });
+
+  it('has no system route on web', () => {
+    state.platform = 'web';
+    expect(visibleRoute()).toBe('');
     expect(state.getAudioOutputRoute).not.toHaveBeenCalled();
   });
 });

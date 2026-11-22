@@ -8,9 +8,6 @@ import { useSonosRoomName } from '@/relisten/sonos/sonos_room_store';
 import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 
-// The native module reports the system route on iOS and Android.
-const HAS_NATIVE_ROUTE = Platform.OS === 'ios' || Platform.OS === 'android';
-
 /** Where music goes besides this phone's speaker, for picking an icon. */
 export type PlayerOutputKind = 'sonos' | 'cast' | Exclude<AudioOutputKind, 'builtIn'>;
 
@@ -23,12 +20,14 @@ export interface PlayerOutput {
 export function usePlayerOutput(): PlayerOutput | null {
   const sonosRoomName = useSonosRoomName();
   const { isCasting, deviceName } = useRelistenCastStatus();
+  // The native module reports the system route on iOS and Android, not on web.
+  const hasNativeRoute = Platform.OS !== 'web';
   const [route, setRoute] = useState(() =>
-    HAS_NATIVE_ROUTE ? nativePlayer.getAudioOutputRoute() : null
+    hasNativeRoute ? nativePlayer.getAudioOutputRoute() : null
   );
 
   useEffect(() => {
-    if (!HAS_NATIVE_ROUTE) {
+    if (!hasNativeRoute) {
       return;
     }
 
@@ -36,7 +35,7 @@ export function usePlayerOutput(): PlayerOutput | null {
     // Subscribe before reading so a route changed during mounting cannot be missed.
     setRoute(nativePlayer.getAudioOutputRoute());
     return () => subscription.remove();
-  }, []);
+  }, [hasNativeRoute]);
 
   if (sonosRoomName !== undefined) {
     return { name: sonosRoomName, kind: 'sonos' };
@@ -69,12 +68,7 @@ export function PlayerOutputRoute({
   }
 
   return (
-    <RelistenText
-      cn={cn}
-      numberOfLines={1}
-      selectable={false}
-      accessibilityLabel={`Audio output: ${name}`}
-    >
+    <RelistenText cn={cn} numberOfLines={1} accessibilityLabel={`Audio output: ${name}`}>
       {name}
     </RelistenText>
   );
