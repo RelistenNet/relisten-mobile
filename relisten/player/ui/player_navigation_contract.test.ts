@@ -13,6 +13,8 @@ const harness = vi.hoisted(() => ({
   push: vi.fn(),
   pushShow: vi.fn(),
   hapticImpact: vi.fn(),
+  /** The route showing under the player. */
+  segments: [] as string[],
   /** What the player's `TrackNavigationProvider` would supply. */
   leaveScreen: undefined as ((navigate: () => void) => void) | undefined,
   track: {
@@ -75,7 +77,11 @@ vi.mock('expo-haptics', () => ({
   impactAsync: harness.hapticImpact,
   ImpactFeedbackStyle: { Light: 'light' },
 }));
-vi.mock('expo-router', () => ({ router: { push: harness.push }, useNavigation: vi.fn() }));
+vi.mock('expo-router', () => ({
+  router: { push: harness.push },
+  useNavigation: vi.fn(),
+  useSegments: () => harness.segments,
+}));
 vi.mock('@/relisten/components/menus/native_menu_icons', () => ({ nativeMenuIcons: {} }));
 vi.mock('@/relisten/components/menus/native_menu_view', () => ({ NativeMenuView: vi.fn() }));
 vi.mock('@/relisten/player/audio_adjustments/audio_adjustment_native', () => ({
@@ -123,6 +129,7 @@ beforeEach(() => {
   harness.queuedCallbacks.length = 0;
   harness.bridgedCallbacks.length = 0;
   harness.leaveScreen = undefined;
+  harness.segments = [];
 });
 
 describe('player presentation and menu navigation contract', () => {
@@ -260,6 +267,20 @@ describe('player presentation and menu navigation contract', () => {
       pathname: '/relisten/tabs/(artists)/[artistUuid]/venue/[venueUuid]/',
       params: { artistUuid: 'artist-id', venueUuid: 'venue-id', venueKind: 'imported_venue' },
     });
+  });
+
+  it('opens the venue in the tab showing under the player', () => {
+    harness.segments = ['relisten', 'tabs', '(myLibrary)', 'playlists', '[playlistId]'];
+    const { menu } = mountPlayer();
+
+    menu.handleAction('venue');
+    finishLatestClose();
+    deliverCallbacks();
+    expect(harness.push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pathname: '/relisten/tabs/(myLibrary)/[artistUuid]/venue/[venueUuid]/',
+      })
+    );
   });
 
   it.each(['artist', 'show'] as const)(

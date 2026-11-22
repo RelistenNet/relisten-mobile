@@ -2,15 +2,21 @@ import {
   MenuView as ExpoMenuView,
   type MenuAction,
   type MenuComponentProps,
+  type MenuComponentRef,
 } from '@expo/ui/community/menu';
 import {
   MenuView as ReactNativeMenuView,
   type MenuAction as ReactNativeMenuAction,
 } from '@react-native-menu/menu';
-import { useMemo } from 'react';
+import { type Ref, useMemo } from 'react';
 import { type AccessibilityRole, Platform } from 'react-native';
 
-export type { MenuAction, MenuComponentProps } from '@expo/ui/community/menu';
+export type {
+  MenuAction,
+  MenuComponentProps,
+  MenuComponentRef,
+  NativeActionEvent,
+} from '@expo/ui/community/menu';
 
 const IOS_MENU_ICON_COLOR = '#f8fafc';
 const IOS_DESTRUCTIVE_MENU_ICON_COLOR = '#ff453a';
@@ -37,9 +43,11 @@ type NativeMenuViewProps = MenuComponentProps & {
   accessibilityHint?: string;
   accessibilityLabel?: string;
   accessibilityRole?: AccessibilityRole;
+  /** Android only: lets a caller open the menu with `show()`. */
+  ref?: Ref<MenuComponentRef>;
 };
 
-export function NativeMenuView({ actions, children, ...props }: NativeMenuViewProps) {
+export function NativeMenuView({ actions, children, ref, ...props }: NativeMenuViewProps) {
   const iosActions = useMemo(
     () => (Platform.OS === 'ios' ? actions.map(reactNativeMenuAction) : undefined),
     [actions]
@@ -54,7 +62,7 @@ export function NativeMenuView({ actions, children, ...props }: NativeMenuViewPr
   }
 
   return (
-    <ExpoMenuView actions={actions} {...props}>
+    <ExpoMenuView actions={actions} ref={ref} {...props}>
       {children}
     </ExpoMenuView>
   );
