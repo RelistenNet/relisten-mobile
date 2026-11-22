@@ -527,6 +527,7 @@ export function PlayerQueueTray({
               <View style={{ minHeight: Math.max(0, height - peekHeight - 16) }}>
                 <PlayerNowPlaying
                   onOpenHistory={onOpenHistory}
+                  width={width > 0 ? width : undefined}
                   visualizerActive={visualizerActive && !expanded}
                 />
               </View>

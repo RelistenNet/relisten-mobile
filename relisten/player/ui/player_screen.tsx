@@ -6,7 +6,8 @@ import { PlayerQueueTray } from '@/relisten/player/ui/player_queue_tray';
 import { TrackNavigationProvider } from '@/relisten/player/ui/track_navigation';
 import { router, useNavigation } from 'expo-router';
 import { useCallback, useEffect } from 'react';
-import { BackHandler, Platform, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { BackHandler, Platform, TouchableOpacity, View } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -16,6 +17,22 @@ type PlayerScreenProps = {
   onClose?: () => void;
   variant?: PlayerScreenVariant;
 };
+
+/** The inspector's own way out; the mini player brings it back. */
+function PlayerInspectorHeader({ onHide }: { onHide: () => void }) {
+  return (
+    <View className="h-12 flex-row items-center justify-end px-2">
+      <TouchableOpacity
+        accessibilityLabel="Hide player"
+        accessibilityRole="button"
+        className="h-11 w-11 items-center justify-center"
+        onPress={onHide}
+      >
+        <MaterialCommunityIcons color="rgba(255, 255, 255, 0.8)" name="dock-right" size={22} />
+      </TouchableOpacity>
+    </View>
+  );
+}
 
 export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) {
   const navigation = useNavigation();
@@ -61,6 +78,7 @@ export function PlayerScreen({ onClose, variant = 'modal' }: PlayerScreenProps) 
       <PlayerBackground backdropProgress={backdropProgress} />
       <SafeAreaView edges={isEmbedded || isOverlay ? ['top'] : []} style={{ flex: 1, zIndex: 10 }}>
         {isOverlay && <PlayerOverlayHeader interactive />}
+        {isEmbedded && onClose && <PlayerInspectorHeader onHide={onClose} />}
         {/* Every menu in the player closes it before navigating. */}
         <TrackNavigationProvider beforeNavigate={navigateFromPlayer}>
           <PlayerQueueTray

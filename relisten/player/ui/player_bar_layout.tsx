@@ -2,6 +2,7 @@ import { useRelistenPlayerPlaybackState } from '@/relisten/player/relisten_playe
 import { useRelistenPlayerQueueOrderedTracks } from '@/relisten/player/relisten_player_queue_hooks';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { useIsWideLayout } from '@/relisten/util/wide_layout';
+import { usePlayerInspectorOpen } from './player_inspector';
 import React, { PropsWithChildren, useContext, useState } from 'react';
 import {
   Platform,
@@ -69,22 +70,24 @@ const useHasPlayerContent = () => {
 };
 
 /**
- * A wide window keeps the player in a rail beside the content, so the mini
- * player, the full-screen overlay it opens, and the space screens reserve for
- * it all step aside there.
+ * A wide window shows the player in the split view's inspector column. While
+ * the inspector is open, the mini player, the full-screen overlay it opens,
+ * and the space screens reserve for it all step aside. Hiding the inspector
+ * brings the mini player back.
  */
-export const useIsPlayerBottomBarVisible = () => {
+export const useIsPlayerInspectorVisible = () => {
   const hasContent = useHasPlayerContent();
   const isWide = useIsWideLayout();
+  const inspectorOpen = usePlayerInspectorOpen();
 
-  return hasContent && !isWide;
+  return hasContent && isWide && inspectorOpen;
 };
 
-export const useIsPlayerRailVisible = () => {
+export const useIsPlayerBottomBarVisible = () => {
   const hasContent = useHasPlayerContent();
-  const isWide = useIsWideLayout();
+  const isInspectorVisible = useIsPlayerInspectorVisible();
 
-  return hasContent && isWide;
+  return hasContent && !isInspectorVisible;
 };
 
 export const usePlayerBarVisualHeight = () => {

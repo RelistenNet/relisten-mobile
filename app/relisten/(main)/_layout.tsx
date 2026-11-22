@@ -1,0 +1,108 @@
+import 'react-native-gesture-handler';
+import 'react-native-reanimated';
+
+import { RelistenBlue } from '@/relisten/relisten_blue';
+import { Stack } from 'expo-router/stack';
+import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
+import { useEffect } from 'react';
+import { Platform } from 'react-native';
+import { DownloadManager } from '@/relisten/offline/download_manager';
+
+export const unstable_settings = {
+  anchor: 'tabs',
+};
+
+export default function TabLayout() {
+  const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
+
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    if (shouldMakeNetworkRequests) {
+      timeoutId = setTimeout(() => {
+        // wait a few seconds before resume downloads to prevent doing too much right at app launch
+        DownloadManager.SHARED_INSTANCE.resumeExistingDownloads().then(() => {});
+      }, 5000);
+
+      return () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      };
+    }
+  }, [shouldMakeNetworkRequests]);
+
+  // Test accessing old schema
+  // useEffect(() => {
+  //   (async () => {
+  //     console.log('TRYING OLD SCHEMA');
+  //     await oldIosSchema.exampleUsage();
+  //   })();
+  // }, []);
+
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="tabs" />
+      <Stack.Screen
+        name="player"
+        options={{
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
+          gestureEnabled: true,
+          headerShown: true,
+          headerStyle: { backgroundColor: RelistenBlue['900'] },
+          headerTintColor: 'white',
+          title: 'Now Playing',
+        }}
+      />
+      <Stack.Screen
+        name="player-history"
+        options={{
+          contentStyle: { backgroundColor: RelistenBlue['950'] },
+          headerBackButtonDisplayMode: 'minimal',
+          headerShown: true,
+          headerStyle: { backgroundColor: RelistenBlue['900'] },
+          headerTintColor: 'white',
+          presentation: 'modal',
+          title: 'Listening History',
+        }}
+      />
+      <Stack.Screen name="add-to-playlist" options={sheetOptions([0.6, 0.92])} />
+      <Stack.Screen name="guide-text" options={sheetOptions([0.92])} />
+      <Stack.Screen
+        name="sign-in"
+        // The sheet has no header; Not Now (and on iOS, a swipe down) closes it.
+        options={{ ...sheetOptions([0.6, 0.92]), headerShown: false }}
+      />
+      <Stack.Screen name="report-playlist" options={sheetOptions([0.6])} />
+      <Stack.Screen name="play-on" options={sheetOptions([0.6, 0.92])} />
+      <Stack.Screen
+        name="audio-adjustments"
+        options={{
+          contentStyle: { backgroundColor: RelistenBlue['950'] },
+          gestureEnabled: false,
+          headerShown: false,
+          presentation: 'formSheet',
+          sheetAllowedDetents: [0.92, 1],
+          sheetGrabberVisible: false,
+        }}
+      />
+    </Stack>
+  );
+}
+
+/**
+ * A sheet over the current screen, with a header for its title and buttons.
+ * Android draws a form sheet as a Material bottom sheet with no header, which
+ * would hide them, so it opens full screen there.
+ */
+function sheetOptions(detents: number[]) {
+  return {
+    contentStyle: { backgroundColor: RelistenBlue['900'] },
+    headerShown: true,
+    headerStyle: { backgroundColor: RelistenBlue['900'] },
+    headerTintColor: 'white',
+    presentation: Platform.OS === 'android' ? 'modal' : 'formSheet',
+    sheetAllowedDetents: detents,
+    sheetGrabberVisible: true,
+  } as const;
+}

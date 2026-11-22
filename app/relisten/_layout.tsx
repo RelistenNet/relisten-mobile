@@ -1,108 +1,72 @@
-import 'react-native-gesture-handler';
-import 'react-native-reanimated';
-
+import { PlayerScreen } from '@/relisten/player/ui/player_screen';
+import { useIsPlayerInspectorVisible } from '@/relisten/player/ui/player_bar_layout';
+import { setPlayerInspectorOpen } from '@/relisten/player/ui/player_inspector';
 import { RelistenBlue } from '@/relisten/relisten_blue';
-import { Stack } from 'expo-router/stack';
-import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
-import { useEffect } from 'react';
-import { Platform } from 'react-native';
-import { DownloadManager } from '@/relisten/offline/download_manager';
+import { RelistenNavigationProvider } from '@/relisten/util/routes';
+import { SplitView } from 'expo-router/unstable-split-view';
+import { useCallback, useLayoutEffect, useRef } from 'react';
+import { View } from 'react-native';
 
-export const unstable_settings = {
-  anchor: 'tabs',
-};
+/**
+ * The app inside a native split view. Its main column is the tabs and the
+ * screens presented over them; in a wide window the player sits in the
+ * trailing inspector column. Narrow windows and iPhone show only the main
+ * column, where the mini player and full-screen player work as before.
+ * Android has no split view and renders the main column alone.
+ */
+export default function RelistenSplitLayout() {
+  const showInspector = useIsPlayerInspectorVisible();
+  // UIKit also reports a hide when this layout stops showing the inspector
+  // (the window narrowed, or the queue emptied). Only a hide the listener
+  // made should close it for when the window widens again.
+  const inspectorShownByLayout = useRef(showInspector);
 
-export default function TabLayout() {
-  const shouldMakeNetworkRequests = useShouldMakeNetworkRequests();
+  useLayoutEffect(() => {
+    inspectorShownByLayout.current = showInspector;
+  }, [showInspector]);
 
-  useEffect(() => {
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    if (shouldMakeNetworkRequests) {
-      timeoutId = setTimeout(() => {
-        // wait a few seconds before resume downloads to prevent doing too much right at app launch
-        DownloadManager.SHARED_INSTANCE.resumeExistingDownloads().then(() => {});
-      }, 5000);
-
-      return () => {
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-        }
-      };
+  const onInspectorHide = useCallback(() => {
+    if (inspectorShownByLayout.current) {
+      setPlayerInspectorOpen(false);
     }
-  }, [shouldMakeNetworkRequests]);
-
-  // Test accessing old schema
-  // useEffect(() => {
-  //   (async () => {
-  //     console.log('TRYING OLD SCHEMA');
-  //     await oldIosSchema.exampleUsage();
-  //   })();
-  // }, []);
+  }, []);
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="tabs" />
-      <Stack.Screen
-        name="player"
-        options={{
-          presentation: 'modal',
-          animation: 'slide_from_bottom',
-          gestureEnabled: true,
-          headerShown: true,
-          headerStyle: { backgroundColor: RelistenBlue['900'] },
-          headerTintColor: 'white',
-          title: 'Now Playing',
-        }}
-      />
-      <Stack.Screen
-        name="player-history"
-        options={{
-          contentStyle: { backgroundColor: RelistenBlue['950'] },
-          headerBackButtonDisplayMode: 'minimal',
-          headerShown: true,
-          headerStyle: { backgroundColor: RelistenBlue['900'] },
-          headerTintColor: 'white',
-          presentation: 'modal',
-          title: 'Listening History',
-        }}
-      />
-      <Stack.Screen name="add-to-playlist" options={sheetOptions([0.6, 0.92])} />
-      <Stack.Screen name="guide-text" options={sheetOptions([0.92])} />
-      <Stack.Screen
-        name="sign-in"
-        // The sheet has no header; Not Now (and on iOS, a swipe down) closes it.
-        options={{ ...sheetOptions([0.6, 0.92]), headerShown: false }}
-      />
-      <Stack.Screen name="report-playlist" options={sheetOptions([0.6])} />
-      <Stack.Screen name="play-on" options={sheetOptions([0.6, 0.92])} />
-      <Stack.Screen
-        name="audio-adjustments"
-        options={{
-          contentStyle: { backgroundColor: RelistenBlue['950'] },
-          gestureEnabled: false,
-          headerShown: false,
-          presentation: 'formSheet',
-          sheetAllowedDetents: [0.92, 1],
-          sheetGrabberVisible: false,
-        }}
-      />
-    </Stack>
+    <SplitView
+      // UIKit has no split view without a sidebar column, so this keeps an
+      // empty one permanently hidden: no toggle button, no swipe to reveal,
+      // and a collapsed split (iPhone, narrow windows) shows the main column.
+      preferredDisplayMode="secondaryOnly"
+      displayModeButtonVisibility="never"
+      presentsWithGesture={false}
+      topColumnForCollapsing="secondary"
+      showInspector={showInspector}
+      onInspectorHide={onInspectorHide}
+      columnMetrics={{
+        minimumInspectorColumnWidth: 320,
+        preferredInspectorColumnWidthOrFraction: 360,
+        maximumInspectorColumnWidth: 420,
+      }}
+    >
+      <SplitView.Column>
+        <View />
+      </SplitView.Column>
+      <SplitView.Inspector>
+        <PlayerInspector />
+      </SplitView.Inspector>
+    </SplitView>
   );
 }
 
-/**
- * A sheet over the current screen, with a header for its title and buttons.
- * Android draws a form sheet as a Material bottom sheet with no header, which
- * would hide them, so it opens full screen there.
- */
-function sheetOptions(detents: number[]) {
-  return {
-    contentStyle: { backgroundColor: RelistenBlue['900'] },
-    headerShown: true,
-    headerStyle: { backgroundColor: RelistenBlue['900'] },
-    headerTintColor: 'white',
-    presentation: Platform.OS === 'android' ? 'modal' : 'formSheet',
-    sheetAllowedDetents: detents,
-    sheetGrabberVisible: true,
-  } as const;
+function PlayerInspector() {
+  const hideInspector = useCallback(() => setPlayerInspectorOpen(false), []);
+
+  return (
+    <View style={{ flex: 1, backgroundColor: RelistenBlue['950'] }}>
+      {/* Menus in the player navigate into the Artists tab, as the full-screen player does. */}
+      <RelistenNavigationProvider groupSegment="(artists)">
+        <PlayerScreen onClose={hideInspector} variant="embedded" />
+      </RelistenNavigationProvider>
+    </View>
+  );
 }

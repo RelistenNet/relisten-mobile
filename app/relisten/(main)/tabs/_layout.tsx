@@ -18,14 +18,12 @@ import {
   PlayerBarHost,
   renderPlayerBarNativeTabsAccessory,
 } from '@/relisten/player/ui/player_bar_host';
-import { PlayerRail } from '@/relisten/player/ui/player_rail';
 import {
   useIsPlayerBottomBarVisible,
-  useIsPlayerRailVisible,
   usePlayerBarPlacementBackend,
   useRelistenPlayerBottomBarContext,
 } from '@/relisten/player/ui/player_bar_layout';
-import { type PropsWithChildren, useCallback } from 'react';
+import { useCallback } from 'react';
 import { Image, type LayoutChangeEvent, Platform, View } from 'react-native';
 
 const ACTIVE_TINT = '#009DC1';
@@ -90,7 +88,6 @@ export default function TabLayout() {
   const offline = !useShouldMakeNetworkRequests();
   const playerBarPlacementBackend = usePlayerBarPlacementBackend();
   const isPlayerBottomBarVisible = useIsPlayerBottomBarVisible();
-  const isPlayerRailVisible = useIsPlayerRailVisible();
   const showOfflineTabSetting =
     liveSettings?.showOfflineTabWithDefault() ?? ShowOfflineTabSetting.Always;
   const showOfflineTabOnCompactMobile = shouldShowOfflineTab(showOfflineTabSetting, offline);
@@ -100,7 +97,7 @@ export default function TabLayout() {
 
   if (Platform.OS === 'android') {
     return (
-      <TabsWithPlayerRail isPlayerRailVisible={isPlayerRailVisible}>
+      <View className="flex-1">
         <Tabs
           key={offlineTabVisibilityKey}
           tabBar={(props) => <MeasuredAndroidTabBar {...props} />}
@@ -138,12 +135,12 @@ export default function TabLayout() {
           <Tabs.Screen name="(relisten)" options={{ lazy: true, title: 'Relisten' }} />
         </Tabs>
         <PlayerBarHost placementBackend={playerBarPlacementBackend} />
-      </TabsWithPlayerRail>
+      </View>
     );
   }
 
   return (
-    <TabsWithPlayerRail isPlayerRailVisible={isPlayerRailVisible}>
+    <View className="flex-1">
       <NativeTabs
         key={offlineTabVisibilityKey}
         backgroundColor={RelistenBlue['950']}
@@ -194,23 +191,6 @@ export default function TabLayout() {
         </NativeTabs.Trigger>
       </NativeTabs>
       <PlayerBarHost placementBackend={playerBarPlacementBackend} />
-    </TabsWithPlayerRail>
-  );
-}
-
-/**
- * Wide windows keep the player in a rail to the right of the tabs. The tabs
- * stay the first child either way, so the rail appearing or leaving as the
- * window resizes does not remount them and lose each tab's navigation stack.
- */
-function TabsWithPlayerRail({
-  children,
-  isPlayerRailVisible,
-}: PropsWithChildren<{ isPlayerRailVisible: boolean }>) {
-  return (
-    <View className="flex-1 flex-row">
-      <View className="flex-1">{children}</View>
-      {isPlayerRailVisible ? <PlayerRail /> : null}
     </View>
   );
 }
