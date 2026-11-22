@@ -332,9 +332,23 @@ process.exit(result.status ?? 1);
 
 build_ios() {
   local profile="$1"
+  local build_number ipa
+  build_number="$(node -p 'require("./app.json").expo.ios.buildNumber')"
+  ipa="build-ios-${profile}-${build_number}.ipa"
   ensure_sentry_token
   echo "Building iOS ($profile)..."
-  env PATH="$XCODE_SAFE_PATH" SENTRY_AUTH_TOKEN="$SENTRY_AUTH_TOKEN" npx eas-cli@latest build -p ios --profile "$profile" --local
+  # Non-interactive, so a missing credential fails the build instead of waiting on a prompt.
+  env PATH="$XCODE_SAFE_PATH" SENTRY_AUTH_TOKEN="$SENTRY_AUTH_TOKEN" npx eas-cli@latest build -p ios --profile "$profile" --local --non-interactive --output "$ipa"
+  submit_ios "$profile" "$ipa"
+}
+
+# Uploads to App Store Connect with the API key stored in EAS; eas.json's
+# submit profiles name the app. Local builds can't use --auto-submit.
+submit_ios() {
+  local profile="$1"
+  local ipa="$2"
+  echo "Uploading $ipa to App Store Connect ($profile)..."
+  npx eas-cli@latest submit -p ios --profile "$profile" --path "$ipa" --non-interactive
 }
 
 build_android() {
