@@ -2,6 +2,9 @@ import type { SearchMode, SearchRequest, SearchResponse, SearchScope } from './s
 
 export const SEARCH_DEBOUNCE_MS = 120;
 
+/** How many empty playlist pages one scroll to the end follows before waiting for the next. */
+const MAX_EMPTY_PLAYLIST_PAGES = 5;
+
 /** An explicit artist filter, shown as a removable chip. */
 export interface SearchArtistFilter {
   artistId: string;
@@ -56,6 +59,8 @@ export interface SearchSessionState {
   pending: boolean;
   /** The latest request failed before the server answered; `retry` sends it again. */
   failed: boolean;
+  /** The next page of playlists is loading (Playlists scope only). */
+  loadingMorePlaylists: boolean;
 }
 
 export type SearchFetcher = (
@@ -92,6 +97,7 @@ export class SearchSession {
     responseInputs: null,
     pending: false,
     failed: false,
+    loadingMorePlaylists: false,
   };
   private context: SearchContext | null = null;
   private generation = 0;
@@ -172,6 +178,62 @@ export class SearchSession {
     this.restart();
   }
 
+  /**
+   * Appends the next page of playlists. The server filters hidden playlists
+   * after paging, so a page can come back empty while later ones still have
+   * cards. An empty page doesn't change the list's length, so the list won't
+   * ask again on its own; this keeps going, up to a few pages, until one has
+   * cards or there are no more. Any input change drops a page in flight.
+   */
+  async loadMorePlaylists() {
+    const { response, responseInputs, inputs, pending, loadingMorePlaylists } = this.state;
+    const context = this.context;
+    const answersCurrentScope =
+      inputs.scope === 'playlists' && responseInputs?.scope === inputs.scope && !pending;
+    if (
+      !response?.playlist_next_page ||
+      !answersCurrentScope ||
+      loadingMorePlaylists ||
+      !context?.online
+    ) {
+      return;
+    }
+
+    const generation = this.generation;
+    this.update({ loadingMorePlaylists: true });
+
+    try {
+      let current = response;
+      for (let hop = 0; hop < MAX_EMPTY_PLAYLIST_PAGES && current.playlist_next_page; hop++) {
+        this.requestCount += 1;
+        const request = {
+          ...this.request(responseInputs, context, false),
+          page: current.playlist_next_page,
+        };
+        const next = await this.fetcher(request, context.signedIn, new AbortController().signal);
+        if (generation !== this.generation || this.state.response !== current) {
+          return;
+        }
+
+        current = {
+          ...current,
+          playlists: [...current.playlists, ...next.playlists],
+          playlist_next_page: next.playlist_next_page,
+        };
+        this.update({ response: current });
+        if (next.playlists.length > 0) {
+          return;
+        }
+      }
+    } catch {
+      // The cards already shown stay; scrolling to the end again retries.
+    } finally {
+      if (generation === this.generation) {
+        this.update({ loadingMorePlaylists: false });
+      }
+    }
+  }
+
   dispose() {
     this.invalidate();
     this.listeners.clear();
@@ -179,14 +241,18 @@ export class SearchSession {
 
   private changeInputs(change: Partial<SearchInputs>, { typing }: { typing: boolean }) {
     this.invalidate();
-    this.update({ inputs: { ...this.state.inputs, ...change }, failed: false });
+    this.update({
+      inputs: { ...this.state.inputs, ...change },
+      failed: false,
+      loadingMorePlaylists: false,
+    });
     this.schedule(typing);
   }
 
   /** Sends the current inputs again, now: after a retry, reconnect or account switch. */
   private restart() {
     this.invalidate();
-    this.update({ failed: false });
+    this.update({ failed: false, loadingMorePlaylists: false });
     this.schedule(false);
   }
 

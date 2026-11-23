@@ -145,7 +145,17 @@ export function useFullShow(
   return useNetworkBackedBehavior(behavior);
 }
 
-export function useFullShowWithSelectedSource(showUuid: string, selectedSourceUuid: string) {
+/**
+ * A show and the source to show. `initial` picks a favorite source, else the
+ * first. A named source that is missing falls back to the first too, unless
+ * `exactSource` is set: a search result names an exact recording, so a gone
+ * one reads as unavailable instead of quietly opening another.
+ */
+export function useFullShowWithSelectedSource(
+  showUuid: string,
+  selectedSourceUuid: string,
+  { exactSource = false }: { exactSource?: boolean } = {}
+) {
   const results = useFullShow(String(showUuid));
   const show = results.data?.show;
   const sources = results.data?.sources;
@@ -166,14 +176,14 @@ export function useFullShowWithSelectedSource(showUuid: string, selectedSourceUu
     return sortSources(sources, libraryIndex);
   }, [libraryIndex, libraryMembershipRevision, sources]);
 
-  // default sourceUuid is initial which will just fall back to sortedSources[0]
+  const firstSource =
+    sortedSources.find((source) => libraryIndex.isFavorite('source', source.uuid)) ??
+    sortedSources[0];
+  const namedSource = sortedSources.find((source) => source.uuid === selectedSourceUuid);
   const selectedSource =
-    sortedSources.find(
-      (source) =>
-        source.uuid === selectedSourceUuid ||
-        // Prioritize favorited sources by default
-        (selectedSourceUuid === 'initial' && libraryIndex.isFavorite('source', source.uuid))
-    ) ?? sortedSources[0];
+    selectedSourceUuid === 'initial'
+      ? firstSource
+      : (namedSource ?? (exactSource ? undefined : sortedSources[0]));
 
   return {
     results,

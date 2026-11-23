@@ -58,6 +58,7 @@ function state(
     responseInputs: answer ? INPUTS : null,
     pending: false,
     failed: false,
+    loadingMorePlaylists: false,
     ...change,
   };
 }
@@ -160,6 +161,19 @@ describe('presentSearch', () => {
     expect(
       presentation.playlists.kind === 'cards' && presentation.playlists.cards.map((c) => c.id)
     ).toEqual(['playlist_synced', 'playlist_public']);
+  });
+
+  it('searches the device offline in every scope, Playlists included', () => {
+    const playlistsScope = state(null, { inputs: { ...INPUTS, scope: 'playlists' } });
+    expect(presentSearch(playlistsScope, { ...explore, online: false }).catalog).toEqual({
+      kind: 'local',
+      retryable: false,
+    });
+  });
+
+  it('marks playlists as loading, not empty, before the first answer', () => {
+    const loading = state(null, { inputs: { ...INPUTS, scope: 'playlists' }, pending: true });
+    expect(presentSearch(loading, explore).playlists).toEqual({ kind: 'waiting' });
   });
 
   it('searches the device while offline', () => {

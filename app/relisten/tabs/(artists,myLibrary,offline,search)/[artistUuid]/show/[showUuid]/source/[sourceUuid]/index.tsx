@@ -17,7 +17,7 @@ import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Link, Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { PropsWithChildren, useEffect, useRef, useState } from 'react';
+import React, { PropsWithChildren, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import {
   Animated,
@@ -95,7 +95,16 @@ export const SourceList = ({ sources }: { sources: Source[] }) => {
 
 export default function Page() {
   const player = useRelistenPlayer();
-  const { showUuid, sourceUuid, playTrackUuid } = useLocalSearchParams();
+  // `playTrackUuid` starts playback at a file. A search result instead sends
+  // `focusTrackUuid`, which only scrolls to the file and highlights it, and
+  // `exactSource`, so a gone recording reads as unavailable.
+  const { showUuid, sourceUuid, playTrackUuid, focusTrackUuid, exactSource } =
+    useLocalSearchParams();
+  const focusedTrackUuids = useMemo(
+    () =>
+      typeof focusTrackUuid === 'string' && focusTrackUuid ? new Set([focusTrackUuid]) : undefined,
+    [focusTrackUuid]
+  );
   const router = useRouter();
   const groupSegment = useGroupSegment();
 
@@ -107,9 +116,10 @@ export default function Page() {
   const isOfflineTab = useIsOfflineTab();
   const offlineMode = userSettings.offlineModeWithDefault();
 
-  const { results, show, artist, selectedSource } = useFullShowWithSelectedSource(
+  const { results, show, artist, sources, selectedSource } = useFullShowWithSelectedSource(
     String(showUuid),
-    String(sourceUuid)
+    String(sourceUuid),
+    { exactSource: exactSource === '1' }
   );
   const selectedSourceFavorite = useShowPageFavorite(
     String(showUuid),
@@ -317,7 +327,9 @@ export default function Page() {
       )}
       <RefreshContextProvider
         networkBackedResults={results}
-        extraRefreshingConsideration={() => !selectedSource}
+        // Loading lasts until the show's sources arrive; after that, a missing
+        // named source is unavailable, not still loading.
+        extraRefreshingConsideration={() => !selectedSource && sources.length === 0}
       >
         <DisappearingHeaderScreen
           ScrollableComponent={SourceComponent}
@@ -328,6 +340,7 @@ export default function Page() {
           downloadShow={downloadShow}
           selection={selection}
           onStartSelection={(uuid: string) => setSelectedTrackUuids(new Set([uuid]))}
+          focusedTrackUuids={focusedTrackUuids}
         />
       </RefreshContextProvider>
     </>
@@ -342,6 +355,7 @@ const SourceComponent = ({
   downloadShow,
   selection,
   onStartSelection,
+  focusedTrackUuids,
   ...props
 }: {
   show: Show | undefined;
@@ -351,8 +365,10 @@ const SourceComponent = ({
   downloadShow: () => void;
   selection?: TrackSelection;
   onStartSelection?: (sourceTrackUuid: string) => void;
+  focusedTrackUuids?: ReadonlySet<string>;
 } & ScrollViewProps) => {
   const { refreshing, errors, hasData } = useRefreshContext();
+  const { scrollRef, contentRef, attachFocusedRow } = useScrollFocusedRowIntoView();
   const userSettings = useUserSettings();
   const isOfflineTab = useIsOfflineTab();
   const playerBottomScrollViewProps = usePlayerBottomScrollViewProps({
@@ -381,11 +397,7 @@ const SourceComponent = ({
   }
 
   if (!selectedSource) {
-    return (
-      <View className="w-full p-4">
-        <RelistenText>There was an error...</RelistenText>
-      </View>
-    );
+    return <UnavailableRecording show={show} />;
   }
 
   const initialTrackToPlay = getQueueableSourceTracks(
@@ -396,27 +408,96 @@ const SourceComponent = ({
   const hasDownloadableTrack = sourceHasDownloadableTrack(selectedSource);
 
   return (
-    <Animated.ScrollView style={{ flex: 1 }} {...props} {...playerBottomScrollViewProps}>
-      {/*<SelectedSource sources={sortedSources} sourceIndex={selectedSourceIndex} />*/}
-      <SourceHeader
-        source={selectedSource}
-        show={show}
-        downloadShow={downloadShow}
-        playShow={playShow}
-        artist={artist}
-        initialTrackToPlay={initialTrackToPlay}
-        hasDownloadableTrack={hasDownloadableTrack}
-      />
-      <SourceSets
-        source={selectedSource}
-        playShow={playShow}
-        selection={selection}
-        onStartSelection={onStartSelection}
-      />
-      <SourceFooter source={selectedSource} />
+    <Animated.ScrollView
+      ref={scrollRef}
+      style={{ flex: 1 }}
+      {...props}
+      {...playerBottomScrollViewProps}
+    >
+      <View ref={contentRef}>
+        <SourceHeader
+          source={selectedSource}
+          show={show}
+          downloadShow={downloadShow}
+          playShow={playShow}
+          artist={artist}
+          initialTrackToPlay={initialTrackToPlay}
+          hasDownloadableTrack={hasDownloadableTrack}
+        />
+        <SourceSets
+          source={selectedSource}
+          playShow={playShow}
+          selection={selection}
+          onStartSelection={onStartSelection}
+          focusedTrackUuids={focusedTrackUuids}
+          firstFocusedRowRef={attachFocusedRow}
+        />
+        <SourceFooter source={selectedSource} />
+      </View>
     </Animated.ScrollView>
   );
 };
+
+/** Room left above the focused file, so the set header above it stays in view. */
+const FOCUSED_ROW_TOP_MARGIN = 96;
+
+/**
+ * Scrolls a focused file into view once, after it has laid out. The row is
+ * measured against the scroll view's content, so header height and set
+ * headers above it are accounted for.
+ */
+function useScrollFocusedRowIntoView() {
+  const scrollRef = useRef<React.ElementRef<typeof Animated.ScrollView>>(null);
+  const contentRef = useRef<React.ComponentRef<typeof View>>(null);
+  const hasScrolled = useRef(false);
+
+  const attachFocusedRow = useCallback((row: React.ComponentRef<typeof View> | null) => {
+    if (!row || hasScrolled.current) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      const content = contentRef.current;
+      if (!content || hasScrolled.current) {
+        return;
+      }
+      row.measureLayout(content, (_x: number, y: number) => {
+        hasScrolled.current = true;
+        scrollRef.current?.scrollTo({ y: Math.max(0, y - FOCUSED_ROW_TOP_MARGIN), animated: true });
+      });
+    });
+  }, []);
+
+  return { scrollRef, contentRef, attachFocusedRow };
+}
+
+/** A named recording that is gone upstream. The show's other recordings may still play. */
+function UnavailableRecording({ show }: { show: Show }) {
+  const router = useRouter();
+  const groupSegment = useGroupSegment();
+
+  return (
+    <View className="w-full gap-3 p-4">
+      <RelistenText className="text-lg font-semibold">
+        This recording is no longer available.
+      </RelistenText>
+      <RelistenText className="text-gray-400">
+        Other recordings of {show.displayDate} may still be.
+      </RelistenText>
+      <RelistenButton
+        onPress={() =>
+          router.replace({
+            pathname:
+              `/relisten/tabs/${groupSegment}/[artistUuid]/show/[showUuid]/sources/` as const,
+            params: { artistUuid: show.artistUuid, showUuid: show.uuid },
+          })
+        }
+      >
+        Other Recordings
+      </RelistenButton>
+    </View>
+  );
+}
 
 function sourceRatingText(source: Source) {
   if (!source.avgRating) {

@@ -5,6 +5,7 @@ import type {
   SearchInterpretationChip,
   SearchMode,
   SearchPlaylistCard,
+  SearchResponse,
 } from './search_types';
 
 /**
@@ -29,8 +30,10 @@ export type CatalogPresentation =
  */
 export type PlaylistPresentation =
   | { kind: 'none' }
+  | { kind: 'waiting' }
   | { kind: 'unavailable' }
-  | { kind: 'cards'; cards: SearchPlaylistCard[] };
+  /** `hasMore`: later pages may still have cards, even when this one showed none. */
+  | { kind: 'cards'; cards: SearchPlaylistCard[]; hasMore: boolean };
 
 export interface SearchPresentation {
   catalog: CatalogPresentation;
@@ -70,8 +73,9 @@ export function presentSearch(
   if (!inputs.query.trim()) {
     return { catalog: { kind: 'recent' }, playlists: { kind: 'none' } };
   }
+  // Offline, On this device covers every scope, local playlists included.
   if (!online) {
-    return { catalog: catalogOr({ kind: 'local', retryable: false }), playlists: { kind: 'none' } };
+    return { catalog: { kind: 'local', retryable: false }, playlists: { kind: 'none' } };
   }
   if (state.failed) {
     return {
@@ -80,14 +84,12 @@ export function presentSearch(
     };
   }
   if (!response || responseInputs?.scope !== inputs.scope) {
-    return { catalog: catalogOr({ kind: 'waiting' }), playlists: { kind: 'none' } };
+    return { catalog: catalogOr({ kind: 'waiting' }), playlists: playlistsOr({ kind: 'waiting' }) };
   }
 
   return {
     catalog: catalogOr(presentCatalog(response.catalog_availability, response.catalog)),
-    playlists: playlistsOr(
-      presentPlaylists(response.playlist_availability, response.playlists, hasLocalPlaylist)
-    ),
+    playlists: playlistsOr(presentPlaylists(response, hasLocalPlaylist)),
   };
 }
 
@@ -124,15 +126,18 @@ function presentCatalog(
 }
 
 function presentPlaylists(
-  availability: SearchAvailability,
-  cards: SearchPlaylistCard[],
+  response: SearchResponse,
   hasLocalPlaylist: (playlistId: string) => boolean
 ): PlaylistPresentation {
-  if (availability === 'unavailable') {
+  if (response.playlist_availability === 'unavailable') {
     return { kind: 'unavailable' };
   }
 
-  return { kind: 'cards', cards: cards.filter((card) => isOpenable(card, hasLocalPlaylist)) };
+  return {
+    kind: 'cards',
+    cards: response.playlists.filter((card) => isOpenable(card, hasLocalPlaylist)),
+    hasMore: response.playlist_next_page !== null,
+  };
 }
 
 /** A public playlist opens by code; anything else needs its row on this device. */

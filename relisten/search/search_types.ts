@@ -46,6 +46,8 @@ interface SearchRowBase {
   artist_slug: string;
   /** Missing on recording, review and passage rows; load the artist by slug instead. */
   artist_id?: string;
+  /** A shared venue's artists. Imported venue rows leave it empty and set `artist_id`. */
+  artist_slugs?: string[];
   /** `yyyymmdd`, or 0. */
   date: number;
   venue_label: string;
@@ -58,6 +60,8 @@ interface SearchRowBase {
   source_upstream: string;
   soundboard: boolean;
   soundcheck: boolean;
+  /** Matching text, with `<mark>` around the match. Review rows have no label, only this. */
+  highlights?: { review_text?: string };
 }
 
 export interface SearchArtistRow extends SearchRowBase {

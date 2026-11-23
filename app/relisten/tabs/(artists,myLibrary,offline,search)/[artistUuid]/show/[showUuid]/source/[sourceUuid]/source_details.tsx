@@ -98,6 +98,14 @@ export default function Page() {
     );
   }
 
+  if (!source) {
+    return (
+      <View className="w-full p-4">
+        <RelistenText>This recording is no longer available.</RelistenText>
+      </View>
+    );
+  }
+
   return (
     <ScrollScreen>
       <SourceDetails source={source} {...playerBottomScrollViewProps} />

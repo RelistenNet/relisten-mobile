@@ -1,0 +1,252 @@
+import { describe, expect, it } from 'vitest';
+import { buildRecentListItems, buildRemoteListItems } from './search_list_items';
+import type { SearchPresentation } from './search_presentation';
+import { describeSearchRow, searchDate, searchDuration } from './search_rows';
+import type { SearchCatalogBody, SearchCatalogRow, SearchPlaylistCard } from './search_types';
+
+function row(id: string, change: Partial<SearchCatalogRow> = {}): SearchCatalogRow {
+  return {
+    id,
+    kind: 'show',
+    label: id,
+    artist_label: 'Phish',
+    artist_slug: 'phish',
+    date: 20170725,
+    venue_label: 'Madison Square Garden',
+    city_label: 'New York',
+    venue_id: '',
+    show_id: '',
+    tour_label: '',
+    song_id: '',
+    source_id: '',
+    source_upstream: '',
+    soundboard: false,
+    soundcheck: false,
+    ...change,
+  } as SearchCatalogRow;
+}
+
+function catalog(change: Partial<SearchCatalogBody>): SearchCatalogBody {
+  return {
+    availability: 'full',
+    interpretation: { terms: '', chips: [] },
+    counts: { artists: 0, songs: 0, venues: 0, shows: 0, sources: 0 },
+    ...change,
+  };
+}
+
+const card = (id: string): SearchPlaylistCard => ({
+  kind: 'playlist',
+  id,
+  label: id,
+  description: null,
+  track_count: 1,
+  owned: false,
+  public_code: 'code',
+  curator: null,
+});
+
+describe('buildRemoteListItems', () => {
+  it('lists top rows, then sources, reviews and passages, then at most six playlists', () => {
+    const presentation: SearchPresentation = {
+      catalog: {
+        kind: 'remote',
+        catalog: catalog({
+          top: [row('show_a')],
+          sections: {
+            sources: [row('source_a', { kind: 'recording' })],
+            reviews: [row('review_a', { kind: 'review' })],
+            passages: [],
+          },
+        }),
+      },
+      playlists: {
+        kind: 'cards',
+        cards: Array.from({ length: 8 }, (_, n) => card(`playlist_${n}`)),
+        hasMore: false,
+      },
+    };
+
+    const items = buildRemoteListItems(presentation, 'all', 'lawn boy');
+    expect(items.map((item) => (item.type === 'header' ? `# ${item.title}` : item.type))).toEqual([
+      'row',
+      '# Sources',
+      'row',
+      '# Reviews',
+      'row',
+      '# Playlists',
+      ...Array(6).fill('playlist'),
+    ]);
+    // Section headers that have a scope link to it; Passages would not.
+    expect(items.find((item) => item.type === 'header' && item.title === 'Sources')).toMatchObject({
+      scope: 'sources',
+    });
+  });
+
+  it('keeps two performances from one show as separate rows', () => {
+    const preview = (track: string) => ({
+      track_id: track,
+      source_id: 'source_x',
+      set: 'Set 1',
+      set_index: 0,
+      position: 1,
+      duration: 60,
+      soundboard: false,
+      soundcheck: false,
+      label: 'Lawn Boy',
+    });
+    const presentation: SearchPresentation = {
+      catalog: {
+        kind: 'remote',
+        catalog: catalog({
+          results: [
+            row('perf_1', {
+              kind: 'performance',
+              preview: preview('track_long'),
+            } as Partial<SearchCatalogRow>),
+            row('perf_1', {
+              kind: 'performance',
+              preview: preview('track_short'),
+            } as Partial<SearchCatalogRow>),
+          ],
+        }),
+      },
+      playlists: { kind: 'none' },
+    };
+
+    expect(
+      buildRemoteListItems(presentation, 'songs', 'lawn boy').filter((i) => i.type === 'row')
+    ).toHaveLength(2);
+  });
+
+  it('says there are no results only for a real, empty answer', () => {
+    const empty: SearchPresentation = {
+      catalog: { kind: 'remote', catalog: catalog({ top: [], sections: {} }) },
+      playlists: { kind: 'cards', cards: [], hasMore: false },
+    };
+    expect(buildRemoteListItems(empty, 'all', ' zzz ')).toEqual([
+      { type: 'message', key: 'empty', text: 'No results for “zzz”.' },
+    ]);
+
+    const waiting: SearchPresentation = {
+      catalog: { kind: 'waiting' },
+      playlists: { kind: 'none' },
+    };
+    expect(buildRemoteListItems(waiting, 'all', 'zzz')).toEqual([
+      { type: 'loading', key: 'loading' },
+    ]);
+  });
+});
+
+describe('buildRemoteListItems in the Playlists scope', () => {
+  it('waits instead of saying “No results” while playlists load or more pages remain', () => {
+    const loading: SearchPresentation = {
+      catalog: { kind: 'none' },
+      playlists: { kind: 'waiting' },
+    };
+    expect(buildRemoteListItems(loading, 'playlists', 'jams')).toEqual([
+      { type: 'loading', key: 'loading' },
+    ]);
+
+    const emptyPageWithMore: SearchPresentation = {
+      catalog: { kind: 'none' },
+      playlists: { kind: 'cards', cards: [], hasMore: true },
+    };
+    expect(buildRemoteListItems(emptyPageWithMore, 'playlists', 'jams')).toEqual([
+      { type: 'loading', key: 'loading' },
+    ]);
+  });
+});
+
+describe('buildRemoteListItems sections', () => {
+  it('drops a section header whose rows all repeat rows already listed', () => {
+    const presentation: SearchPresentation = {
+      catalog: {
+        kind: 'remote',
+        catalog: catalog({ top: [row('show_a')], sections: { sources: [row('show_a')] } }),
+      },
+      playlists: { kind: 'none' },
+    };
+    expect(buildRemoteListItems(presentation, 'all', 'x').map((item) => item.type)).toEqual([
+      'row',
+    ]);
+  });
+});
+
+describe('buildRecentListItems', () => {
+  it('offers a hint instead of a blank screen when nothing was played yet', () => {
+    expect(buildRecentListItems([], 'Search for shows.')).toEqual([
+      { type: 'message', key: 'recent-empty', text: 'Search for shows.' },
+    ]);
+  });
+});
+
+describe('search row text', () => {
+  it('titles a review by its date and shows the matching passage, since reviews have no label', () => {
+    const text = describeSearchRow(
+      row('review_1', {
+        kind: 'review',
+        label: '',
+        date: 20000610,
+        venue_label: 'Zepp',
+        highlights: { review_text: 'Nice <mark>Twist</mark>\r\n tease' },
+      })
+    );
+    expect(text).toMatchObject({
+      title: 'Review · 2000-06-10',
+      subtitle: 'Phish · Zepp',
+      detail: '“Nice Twist tease”',
+    });
+  });
+
+  it('formats dates and durations as the app does elsewhere', () => {
+    expect(searchDate(19770508)).toBe('1977-05-08');
+    expect(searchDuration(1798)).toBe('29:58');
+    expect(searchDuration(3725)).toBe('1:02:05');
+  });
+
+  it('tells performances apart by set and duration, and marks soundboards', () => {
+    const text = describeSearchRow(
+      row('perf', {
+        kind: 'performance',
+        preview: {
+          track_id: 't',
+          source_id: 's',
+          set: 'Encore',
+          set_index: 2,
+          position: 19,
+          duration: 88,
+          soundboard: true,
+          soundcheck: false,
+          label: 'Lawn Boy',
+        },
+      } as Partial<SearchCatalogRow>)
+    );
+    expect(text).toMatchObject({ title: 'Lawn Boy', detail: 'Encore · 1:28', badges: ['SBD'] });
+    expect(text.subtitle).toBe('Phish · 2017-07-25 · Madison Square Garden · New York');
+  });
+
+  it('names a venue’s artists from the device when the row carries only IDs or slugs', () => {
+    const names = {
+      byId: (id: string) => (id === 'artist_x' ? 'Grace Potter' : undefined),
+      bySlug: (slug: string) =>
+        ({ 'grateful-dead': 'Grateful Dead', 'dead-and-co': 'Dead & Company' })[slug],
+    };
+    expect(
+      describeSearchRow(
+        row('v1', { kind: 'venue', artist_label: '', artist_id: 'artist_x' }),
+        names
+      ).subtitle
+    ).toBe('Venue · New York · Grace Potter');
+    expect(
+      describeSearchRow(
+        row('v2', {
+          kind: 'venue',
+          artist_label: '',
+          artist_slugs: ['dead-and-co', 'grateful-dead', 'other'],
+        }),
+        names
+      ).subtitle
+    ).toBe('Venue · New York · Dead & Company, Grateful Dead +1');
+  });
+});

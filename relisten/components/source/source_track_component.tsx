@@ -8,7 +8,7 @@ import { useRelistenPlayerPlaybackState } from '@/relisten/player/relisten_playe
 import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player_queue_hooks';
 import type { PlayShow } from '@/relisten/player/ui/source_track_actions_menu';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
-import { type ReactNode } from 'react';
+import { type ComponentRef, type ReactNode, type Ref } from 'react';
 import {
   type AccessibilityRole,
   type AccessibilityState,
@@ -29,6 +29,10 @@ interface SourceTrackProps {
   onLongPress?: () => void;
   showTrackNumber?: boolean;
   disabled?: boolean;
+  /** Marks a file a search pointed at, without playing it. */
+  highlighted?: boolean;
+  /** Attached to the row so a screen can scroll it into view. */
+  rowRef?: Ref<ComponentRef<typeof View>>;
 }
 
 export const SourceTrackComponent = ({
@@ -41,6 +45,8 @@ export const SourceTrackComponent = ({
   onLongPress,
   showTrackNumber,
   disabled,
+  highlighted = false,
+  rowRef,
 }: SourceTrackProps) => {
   const currentPlayerTrack = useRelistenPlayerCurrentTrack();
   const playbackState = useRelistenPlayerPlaybackState();
@@ -53,7 +59,11 @@ export const SourceTrackComponent = ({
   const PressableView = disabled ? View : TouchableOpacity;
 
   return (
-    <View className={tw('pl-6 pr-4', { 'opacity-60': disabled })}>
+    <View
+      ref={rowRef}
+      className={tw('pl-6 pr-4', { 'opacity-60': disabled, 'bg-relisten-blue-800': highlighted })}
+      accessibilityHint={highlighted ? 'Matches your search' : undefined}
+    >
       <View className="flex-row items-center">
         <PressableView
           accessibilityRole={accessibilityRole}

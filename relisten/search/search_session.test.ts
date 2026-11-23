@@ -186,6 +186,42 @@ describe('SearchSession', () => {
     expect(session.getSnapshot().inputs.removedChipKeys).toEqual([]);
   });
 
+  it('follows playlist pages past an empty one, since hidden cards are filtered after paging', async () => {
+    session.setScope('playlists');
+    session.setQuery('jams');
+    session.submit();
+    fetches.at(-1)!.resolve({ ...response('jams', ['First']), playlist_next_page: 2 });
+    await vi.advanceTimersByTimeAsync(0);
+
+    // One call to the end of the list keeps going past the empty page 2.
+    void session.loadMorePlaylists();
+    expect(fetches.at(-1)?.request).toMatchObject({ page: 2, scope: 'playlists' });
+    fetches.at(-1)!.resolve({ ...response('jams', []), playlist_next_page: 3 });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(fetches.at(-1)?.request.page).toBe(3);
+    fetches.at(-1)!.resolve({ ...response('jams', ['Third']), playlist_next_page: null });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(session.getSnapshot().response?.playlists.map((card) => card.label)).toEqual([
+      'First',
+      'Third',
+    ]);
+    expect(session.getSnapshot().loadingMorePlaylists).toBe(false);
+  });
+
+  it('doesn’t page an All answer after switching to Playlists', async () => {
+    session.setQuery('jams');
+    session.submit();
+    fetches.at(-1)!.resolve({ ...response('jams', ['First']), playlist_next_page: 2 });
+    await vi.advanceTimersByTimeAsync(0);
+
+    session.setScope('playlists');
+    const before = fetches.length;
+    void session.loadMorePlaylists();
+    expect(fetches).toHaveLength(before);
+  });
+
   it('reports a failed request so the screen can offer a retry', async () => {
     const failing = new SearchSession('explore', () => Promise.reject(new Error('offline')));
     failing.setContext(context());
