@@ -298,6 +298,12 @@ export interface TrackResource {
   created_at: string;
   updated_at: string;
   normalization: TrackNormalizationResource;
+  /**
+   * Whether the catalog would let a playlist add this track now. The server
+   * refuses an add without it, so the app checks it before adding a search
+   * result. Optional because older responses and cached fixtures omit it.
+   */
+  playable?: boolean;
 }
 
 export interface SourceSetResource {

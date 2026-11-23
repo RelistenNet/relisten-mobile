@@ -18,9 +18,11 @@ export const MAX_REFERENCES_PER_REQUEST = 500;
  * plus whatever `applyAlso` records, all in one write.
  *
  * The reply must answer exactly the requested references, in order, or nothing
- * is written. `isCurrent` is checked after the network calls; when it returns
- * false (the realm closed or the account changed) nothing is written and the
- * result is undefined. Request and validation failures throw.
+ * is written. `checkBeforeApply` sees the validated reply before anything
+ * reaches Realm and can refuse it by throwing; nothing is written then.
+ * `isCurrent` is checked after the network calls; when it returns false (the
+ * realm closed or the account changed) nothing is written and the result is
+ * undefined. Request and validation failures throw.
  */
 export async function resolveCatalogBatch(
   realm: Realm,
@@ -28,6 +30,7 @@ export async function resolveCatalogBatch(
   batch: CatalogReferenceRequest[],
   options: {
     isCurrent?: () => boolean;
+    checkBeforeApply?: (response: CatalogResolveResponse) => void;
     applyAlso?: (references: CatalogReferenceResolution[]) => void;
   } = {}
 ): Promise<CatalogReferenceResolution[] | undefined> {
@@ -36,6 +39,7 @@ export async function resolveCatalogBatch(
     throw response.error?.error ?? new Error('Catalog resolver request failed.');
   }
   validateResolverResponse(batch, response.data);
+  options.checkBeforeApply?.(response.data);
 
   const { entities, references } = response.data;
   await ensureResolverArtists(realm, catalogApi, entities);

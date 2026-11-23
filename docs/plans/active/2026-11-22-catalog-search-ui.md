@@ -128,7 +128,7 @@ Rows show what tells results apart: artist, date, venue, set and duration, and s
 
 Today every add starts from a complete Realm `SourceTrack`. Search results carry only a `track_` ID, and a file cached on the device may have been withdrawn upstream since. Every online add from the sheet therefore resolves first.
 
-`addSearchTrack(realm, catalogApi, playlistId, trackId)` in `relisten/playlists/playlist_actions.ts` adds one file. It passes `[[trackId]]` to the existing `addTracks`:
+`addSearchTrack(realm, catalogApi, playlistId, trackId)` in `relisten/playlists/playlist_search_add.ts` adds one file. (Plan change, Task 3: it lives beside `playlist_actions.ts` rather than in it, because the resolver import pulls React Native into every importer of `playlist_actions.ts`, and that broke `guide_actions.test.ts`.) It passes `[[trackId]]` to the existing `addTracks`:
 1. **Resolve and check.** `resolveCatalogBatch` gains a pre-apply check that runs before any entity reaches Realm, because the Realm mapper throws on a track with no audio URL. It mirrors `PlaylistTrackResolver.cs` and passes a track only when all of these hold:
    - the reference is `available`;
    - the target ID equals the requested ID;
