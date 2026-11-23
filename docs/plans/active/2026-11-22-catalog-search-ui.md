@@ -188,6 +188,9 @@ An `imported_song_…` hit can't match a canonical normalization part. It focuse
 Run `yarn lint`, `yarn ts:check` and the affected Vitest files with every task. Each task ends with something a reviewer can check.
 
 1. **Navigator probe.** Before feature code, build a throwaway two-screen stack in a form sheet, plus the `(search)` tab with the folder rename. Check keyboard, push and back on the iOS simulator and an Android emulator. If the form sheet can't host the stack, switch the sheet to full screen now. Delete the probe screens.
+   - **Result, 2026-11-22 (iOS 27 simulator only; Android deferred by Alec):** the iOS form sheet hosts the stack, so the sheet stays a form sheet. Its inner header shows, the field autofocuses and the sheet grows to the large detent with the keyboard. Push and back keep the typed query. Two findings for Task 5:
+     - `router.dismiss()` from a pushed screen only pops the inner stack. Closing the whole sheet (Open full page, Done) needs `navigation.getParent()?.goBack()`, which the probe confirmed.
+     - Results run under the keyboard, so the results list needs `automaticallyAdjustKeyboardInsets`.
 2. **Request layer and local search.** `search_types.ts`, `search_client.ts`, `search_boosts.ts`, `search_local.ts`, `use_search_session.ts`. Tests:
    - **Stale response during the debounce:** a response for the old query arrives after the query changes but before the new request is sent, and is not rendered.
    - **Account switch:** a response completing after an account switch is discarded, and the rendered list is cleared.
