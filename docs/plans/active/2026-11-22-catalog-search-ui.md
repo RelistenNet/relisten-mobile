@@ -187,8 +187,10 @@ An `imported_song_…` hit can't match a canonical normalization part. It focuse
 
 Run `yarn lint`, `yarn ts:check` and the affected Vitest files with every task. Each task ends with something a reviewer can check.
 
-1. **Navigator probe.** Before feature code, build a throwaway two-screen stack in a form sheet, plus the `(search)` tab with the folder rename. Check keyboard, push and back on the iOS simulator and an Android emulator. If the form sheet can't host the stack, switch the sheet to full screen now. Delete the probe screens.
-   - **Result, 2026-11-22 (iOS 27 simulator only; Android deferred by Alec):** the iOS form sheet hosts the stack, so the sheet stays a form sheet. Its inner header shows, the field autofocuses and the sheet grows to the large detent with the keyboard. Push and back keep the typed query. Two findings for Task 5:
+**Android testing is deferred** (Alec, 2026-11-22). Every device check, journey and measurement below runs on iOS: the simulator, or an iPhone where a task needs a real phone. The Android code paths in the design (the plain tab, the full-screen modal sheet) are still built, but nobody runs them on an Android device or emulator until Alec asks for that pass.
+
+1. **Navigator probe.** Before feature code, build a throwaway two-screen stack in a form sheet, plus the `(search)` tab with the folder rename. Check keyboard, push and back on the iOS simulator. If the form sheet can't host the stack, switch the sheet to full screen now. Delete the probe screens.
+   - **Result, 2026-11-22 (iOS 27 simulator):** the iOS form sheet hosts the stack, so the sheet stays a form sheet. Its inner header shows, the field autofocuses and the sheet grows to the large detent with the keyboard. Push and back keep the typed query. Two findings for Task 5:
      - `router.dismiss()` from a pushed screen only pops the inner stack. Closing the whole sheet (Open full page, Done) needs `navigation.getParent()?.goBack()`, which the probe confirmed.
      - Results run under the keyboard, so the results list needs `automaticallyAdjustKeyboardInsets`.
 2. **Request layer and local search.** `search_types.ts`, `search_client.ts`, `search_boosts.ts`, `search_local.ts`, `use_search_session.ts`. Tests:
@@ -207,11 +209,11 @@ Run `yarn lint`, `yarn ts:check` and the affected Vitest files with every task. 
    - a private playlist created on another device appears in search after sync;
    - existing deep links still open the same screens.
 5. **Add Tracks sheet.** The four sheet screens, Open full page, the playlist entry points, Recently Played, and On this device. Run PHONE02–04 and PHONE06–09 against production, using the local stack for PHONE08. Check the exact `track_` IDs in order on the playlist page and on a second device after sync.
-6. **Measure.** Time from last keystroke to rendered results on a phone over cellular, for 20 common eval queries. The journeys target a **500 ms p95**, against the server's measured **59 ms** API p95. Record results in a Verification section here. If the target is missed, look at the debounce and payload size first.
+6. **Measure.** Time from last keystroke to rendered results on an iPhone over cellular, for 20 common eval queries. The journeys target a **500 ms p95**, against the server's measured **59 ms** API p95. Record results in a Verification section here. If the target is missed, look at the debounce and payload size first.
 
 ## Acceptance
 
-The design's phone journeys pass, with these specifics:
+The design's phone journeys pass on iOS, with these specifics (Android runs wait for the deferred pass):
 - **PHONE03:** search returns one July 25 `Lawn Boy` preview, the long Set 1 file. The short encore is added from that show's setlist, where both files are highlighted with set and duration.
 - **PHONE04:** from the Dead's 1977-05-08 `Scarlet Begonias` result, open Other recordings, choose the source whose upstream ID ends `117026.flac16`, and add its highlighted file.
 - **PHONE06:** start in a Phish-only playlist with no artist filter.
