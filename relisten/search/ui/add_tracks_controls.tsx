@@ -1,6 +1,10 @@
-import { MaterialIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { router, useNavigation, type Href } from 'expo-router';
 import { ActivityIndicator, Keyboard, TouchableOpacity, View } from 'react-native';
+import {
+  ROW_ACCESSORY_ICON_COLOR,
+  ROW_ACCESSORY_ICON_SIZE,
+} from '@/relisten/components/menus/overflow_menu_trigger';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useAddTracks, usePendingAddTrackId } from './add_tracks_context';
@@ -87,13 +91,14 @@ export function AddTrackButton({
       }}
       style={{ opacity: disabled ? 0.4 : 1 }}
     >
+      {/* Sized and colored like the rows' ⋯ menu, so it doesn't outshine the title. */}
       {isPending ? (
-        <ActivityIndicator color="white" />
+        <ActivityIndicator size="small" color={ROW_ACCESSORY_ICON_COLOR} />
       ) : (
-        <MaterialIcons
-          name={isAdded ? 'check-circle' : 'add-circle-outline'}
-          size={26}
-          color={isAdded ? RelistenBlue[300] : 'white'}
+        <Ionicons
+          name={isAdded ? 'checkmark-circle-outline' : 'add-circle-outline'}
+          size={ROW_ACCESSORY_ICON_SIZE}
+          color={ROW_ACCESSORY_ICON_COLOR}
         />
       )}
     </TouchableOpacity>
