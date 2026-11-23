@@ -95,7 +95,10 @@ vi.mock('@/relisten/playlists/playlist_hooks', () => ({ trackIdForSourceTrack: v
 vi.mock('@/relisten/util/push_show', () => ({
   usePushShowRespectingUserSettings: () => ({ pushShow: harness.pushShow }),
 }));
-vi.mock('@/relisten/util/routes', () => ({ useGroupSegment: () => '(artists)' }));
+vi.mock('@/relisten/util/routes', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/relisten/util/routes')>()),
+  useGroupSegment: () => '(artists)',
+}));
 
 import { PlayerActionsMenu } from './player_actions_menu';
 import { useCurrentTrackNavigation } from './current_track_navigation_menu';

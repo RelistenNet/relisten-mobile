@@ -10,7 +10,7 @@ import {
   RealmQueryValueStream,
   ValueStream,
 } from '@/relisten/realm/value_streams';
-import { useGroupSegment } from '@/relisten/util/routes';
+import { useIncludesDeletedCatalog } from '@/relisten/util/routes';
 import { useMemo } from 'react';
 import Realm from 'realm';
 import { firstBy } from 'thenby';
@@ -137,7 +137,7 @@ export function useFullShow(
   showUuid: string | undefined
 ): NetworkBackedResults<ShowWithSources | undefined> {
   const realm = useRealm();
-  const includeDeleted = useGroupSegment() !== '(artists)';
+  const includeDeleted = useIncludesDeletedCatalog();
   const behavior = useMemo(() => {
     return new ShowWithFullSourcesNetworkBackedBehavior(realm, showUuid, undefined, includeDeleted);
   }, [realm, showUuid, includeDeleted]);

@@ -59,6 +59,10 @@ function renderTabIcon({
     return <MaterialIcons color={color} name="library-music" size={size} />;
   }
 
+  if (routeName === '(search)') {
+    return <MaterialIcons color={color} name="search" size={size} />;
+  }
+
   if (routeName === '(offline)') {
     return <MaterialIcons color={color} name="check-circle" size={size} />;
   }
@@ -137,6 +141,7 @@ export default function TabLayout() {
               title: 'Offline',
             }}
           />
+          <Tabs.Screen name="(search)" options={{ lazy: true, title: 'Search' }} />
           <Tabs.Screen name="(relisten)" options={{ lazy: true, title: 'Relisten' }} />
         </Tabs>
         <PlayerBarHost placementBackend={playerBarPlacementBackend} />
@@ -193,6 +198,11 @@ export default function TabLayout() {
             selectedColor={ACTIVE_TINT}
           />
           <NativeTabs.Trigger.Label>Relisten</NativeTabs.Trigger.Label>
+        </NativeTabs.Trigger>
+
+        {/* iOS draws the search role apart from the other tabs, at the trailing edge. */}
+        <NativeTabs.Trigger name="(search)" role="search">
+          <NativeTabs.Trigger.Label>Search</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
       </NativeTabs>
       <PlayerBarHost placementBackend={playerBarPlacementBackend} />

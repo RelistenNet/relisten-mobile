@@ -13,6 +13,7 @@ const TITLES = {
   '(artists)': 'Artists',
   '(myLibrary)': 'My Library',
   '(offline)': 'Offline',
+  '(search)': 'Search',
 };
 
 export default function TabRootStackLayout() {
