@@ -17,15 +17,17 @@ import type { SearchCatalogRow } from './search_types';
 const logger = log.extend('search');
 
 /**
- * Opens a search result in the current tab's stack, so Back returns to the
- * query, scope and scroll position. The row's artist is loaded first: a show
+ * Opens a search result in the current tab's stack (or `tabOverride`'s), so
+ * Back returns to the query, scope and scroll position. The row's artist is loaded first: a show
  * opens through `pushShow`, which reads the artist's source settings, and
  * every catalog path is keyed by the artist.
  */
-export function useOpenSearchResult() {
+export function useOpenSearchResult(tabOverride?: RelistenTabGroupSegment) {
   const realm = useRealm();
   const router = useRouter();
-  const tab = useGroupSegment();
+  const currentTab = useGroupSegment();
+  // Add Tracks sits outside the tabs, so its Open full page names the playlist's tab.
+  const tab = tabOverride ?? currentTab;
   const { apiClient } = useRelistenApi();
   const { pushShow } = usePushShowRespectingUserSettings();
 

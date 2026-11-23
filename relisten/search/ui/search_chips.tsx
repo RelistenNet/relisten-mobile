@@ -46,6 +46,7 @@ export function SearchScopeChips({
       showsHorizontalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       style={CHIP_ROW_STYLE}
+      contentInsetAdjustmentBehavior="never"
       contentContainerStyle={{
         gap: 8,
         paddingHorizontal: 16,
@@ -92,6 +93,7 @@ export function SearchInterpretationChips({
       showsHorizontalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       style={CHIP_ROW_STYLE}
+      contentInsetAdjustmentBehavior="never"
       contentContainerStyle={{
         gap: 8,
         paddingHorizontal: 16,

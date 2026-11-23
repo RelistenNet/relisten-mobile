@@ -4,9 +4,8 @@ import { useMemo, useState } from 'react';
 import { Keyboard, TouchableOpacity, View } from 'react-native';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
-import { usePlaylists, useVisibleLibraryUserId } from '@/relisten/playlists/playlist_hooks';
+import { usePlaylists } from '@/relisten/playlists/playlist_hooks';
 import { useHistoryRecentlyPlayedShows } from '@/relisten/realm/models/history/playback_history_entry_repo';
-import { useRealm } from '@/relisten/realm/schema';
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { useGroupSegment } from '@/relisten/util/routes';
@@ -16,9 +15,10 @@ import {
   buildRemoteListItems,
   type SearchListItem,
 } from '../search_list_items';
-import { searchLocal, type LocalNarrowing } from '../search_local';
+import type { LocalNarrowing } from '../search_local';
 import { presentSearch, visibleChips } from '../search_presentation';
 import { localPlaylistHref, localTrackHref, playlistCardHref } from '../search_routes';
+import { useLocalSearchResults } from '../use_local_search_results';
 import { useOpenSearchResult } from '../use_open_search_result';
 import { useSearchSession } from '../use_search_session';
 import { SearchInterpretationChips, SearchScopeChips } from './search_chips';
@@ -33,14 +33,12 @@ const RECENT_SHOW_COUNT = 10;
  */
 export function SearchTabScreen() {
   const router = useRouter();
-  const realm = useRealm();
   const tab = useGroupSegment();
   const online = useShouldMakeNetworkRequests();
   const { session, state } = useSearchSession('explore');
   const openResult = useOpenSearchResult();
   const { pushShow } = usePushShowRespectingUserSettings();
   const recentEntries = useHistoryRecentlyPlayedShows(RECENT_SHOW_COUNT);
-  const libraryUserId = useVisibleLibraryUserId();
   const localPlaylists = usePlaylists();
   const scrollProps = usePlayerBottomScrollViewProps();
   const [narrowing, setNarrowing] = useState<LocalNarrowing & { label?: string }>({});
@@ -57,6 +55,11 @@ export function SearchTabScreen() {
   const { query, scope } = state.inputs;
 
   const isLocal = presentation.catalog.kind === 'local';
+  const local = useLocalSearchResults(query, {
+    enabled: isLocal,
+    narrowing,
+    includePlaylists: true,
+  });
 
   const items = useMemo((): SearchListItem[] => {
     if (presentation.catalog.kind === 'recent') {
@@ -69,13 +72,12 @@ export function SearchTabScreen() {
     }
 
     // A playlist on this device is listed once, as the local row.
-    const local = searchLocal(realm, query, { narrowing, includePlaylists: true, libraryUserId });
     const localIds = new Set(local.playlists.map((playlist) => playlist.playlistId));
     return [
       ...buildLocalListItems(local, { retryable: presentation.catalog.retryable, query }),
       ...remote.filter((item) => item.type !== 'playlist' || !localIds.has(item.card.id)),
     ];
-  }, [libraryUserId, narrowing, presentation, query, realm, recentEntries, scope]);
+  }, [local, presentation, query, recentEntries, scope]);
 
   // Every way out of the list dismisses the keyboard, so Back returns to the
   // results rather than to a keyboard covering them.

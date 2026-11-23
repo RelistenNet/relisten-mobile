@@ -151,7 +151,7 @@ Today every add starts from a complete Realm `SourceTrack`. Search results carry
 
 `app/relisten/add-tracks/` is a stack registered in `app/relisten/_layout.tsx`, with `playlistId` as its param. The inner stack owns the header, because `sheetOptions` turns on the outer one.
 
-**Open full page.** Every in-sheet screen other than results has an **Open full page** header action, and a long-press on any result row offers the same thing.
+**Open full page.** Every in-sheet screen other than results has an **Open full page** header action, and a long-press on any catalog result row offers the same thing. *(Task 5 note: On this device and Recently Played rows have no long-press; a tap opens their setlist in the sheet, whose header has the action.)*
 - **What it does:** it closes the sheet and pushes the matching full screen (artist, venue, song, show or source) in the tab the sheet was opened from.
 - **What it costs:** the full screens have no **+**, so the listener reopens Add Tracks to keep adding.
 - **Why this way:** Add Tracks stays limited to its own small screens, and none of the full screens learn about the destination playlist.
@@ -160,7 +160,7 @@ Today every add starts from a complete Realm `SourceTrack`. Search results carry
 | --- | --- | --- |
 | `index.tsx` | search session, local search | Field, chips, Recently Played, results or On this device |
 | `shows.tsx` | `useGlobalVenueShows`, `useArtistVenueShows` or `useArtistSongShows` | A venue's or song's shows. Each opens `source.tsx`, focused on the song when there is one. |
-| `source.tsx` | `useFullShow` | One source's setlist with **+** on each file. Its header opens Other recordings. |
+| `source.tsx` | `useFullShow` | One source's setlist with **+** on each file. A link under the source summary opens Other recordings. |
 | `recordings.tsx` | `useFullShow` | The show's sources with their credits and upstream IDs. Choosing one opens `source.tsx` focused on the same song. |
 
 **Focus on a song.** Files whose normalization parts include the hit's `song_id` are highlighted. Codex checked this against the live full-show data:
@@ -171,6 +171,13 @@ Today every add starts from a complete Realm `SourceTrack`. Search results carry
 An `imported_song_…` hit can't match a canonical normalization part. It focuses on the imported song's `normalizedSongId` when it has one. A hit with no usable song ID keeps its exact preview, and other sources open without a focus.
 
 **Recently Played** reuses the existing recent-shows hook and keeps each entry's last-played source.
+
+> **Note (Task 5, iOS form sheet layout).** The plan assumed ordinary screens inside the sheet. On iOS, a form sheet takes a scroll view that is its screen's first child as the sheet's own, and then draws it blank or over the views above it. So:
+> - every sheet screen puts a zero-height `SheetScrollAnchor` before its list;
+> - on the results screen the field and chips are the list's header rather than views above it;
+> - sheet lists use `contentInsetAdjustmentBehavior="automatic"` and leave keyboard insets to the sheet, which resizes for the keyboard itself.
+>
+> The Search tab keeps its field above the list. A pinned (sticky) list header remounts when the rows change and drops the field's focus mid-word, so neither surface pins it.
 
 ### Search tab
 

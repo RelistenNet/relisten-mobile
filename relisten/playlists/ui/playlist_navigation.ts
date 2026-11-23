@@ -55,3 +55,11 @@ export function showPlaylist(
     navigate();
   }
 }
+
+/**
+ * Opens Add Tracks for a playlist. `tab` is the tab the playlist is in, where
+ * the sheet's Open full page pushes.
+ */
+export function openAddTracks(router: Router, playlistId: string, tab: RelistenTabGroupSegment) {
+  router.push({ pathname: '/relisten/add-tracks', params: { playlistId, tab } });
+}

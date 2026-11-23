@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { ActivityIndicator, FlatList, TouchableOpacity, View } from 'react-native';
 import { ItemSeparator } from '@/relisten/components/item_separator';
@@ -39,8 +39,9 @@ export interface SearchListHandlers {
 
 /**
  * One scrolling list for every state of a search: Recently Played, remote
- * results, On this device, or a mix of the last two. The field and chips sit
- * above it, so the keyboard keeps its focus while results change.
+ * results, On this device, or a mix of the last two. On a tab the field and
+ * chips sit above it. In the Add Tracks sheet they are its header instead,
+ * because the list must be the sheet's only scroll content.
  */
 export function SearchResultsList({
   items,
@@ -48,12 +49,18 @@ export function SearchResultsList({
   onEndReached,
   loadingMore = false,
   contentContainerStyle,
+  header,
+  inSheet = false,
 }: {
   items: SearchListItem[];
   handlers: SearchListHandlers;
   onEndReached?: () => void;
   loadingMore?: boolean;
   contentContainerStyle?: StyleProp<ViewStyle>;
+  /** The field and chips, which scroll with the results. Only for the sheet. */
+  header?: ReactElement;
+  /** Inside the Add Tracks sheet; its screen puts a `SheetScrollAnchor` first. */
+  inSheet?: boolean;
 }) {
   const artistNames = useSearchArtistNames();
 
@@ -67,7 +74,14 @@ export function SearchResultsList({
       ItemSeparatorComponent={ItemSeparator}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
-      automaticallyAdjustKeyboardInsets
+      // Not pinned: a sticky header remounts when the rows change, which
+      // takes focus from the field mid-word.
+      ListHeaderComponent={header}
+      // A form sheet lays content out under its header, which the automatic
+      // inset clears; it also resizes for the keyboard itself, so adjusting
+      // for the keyboard here too would scroll the list past its end.
+      contentInsetAdjustmentBehavior={inSheet ? 'automatic' : 'never'}
+      automaticallyAdjustKeyboardInsets={!inSheet}
       onEndReached={onEndReached}
       onEndReachedThreshold={0.5}
       contentContainerStyle={contentContainerStyle}

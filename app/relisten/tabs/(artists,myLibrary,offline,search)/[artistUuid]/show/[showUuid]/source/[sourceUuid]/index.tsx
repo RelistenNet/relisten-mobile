@@ -12,12 +12,13 @@ import { RelistenText } from '@/relisten/components/relisten_text';
 import { DisappearingHeaderScreen } from '@/relisten/components/screens/disappearing_title_screen';
 import { Show } from '@/relisten/realm/models/show';
 import { useFullShowWithSelectedSource } from '@/relisten/realm/models/show_repo';
+import { useScrollFocusedRowIntoView } from '@/relisten/components/source/use_scroll_focused_row';
 import { Source } from '@/relisten/realm/models/source';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Link, Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { PropsWithChildren, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { PropsWithChildren, useEffect, useMemo, useRef, useState } from 'react';
 import { List as ListContentLoader } from 'react-content-loader/native';
 import {
   Animated,
@@ -437,39 +438,6 @@ const SourceComponent = ({
     </Animated.ScrollView>
   );
 };
-
-/** Room left above the focused file, so the set header above it stays in view. */
-const FOCUSED_ROW_TOP_MARGIN = 96;
-
-/**
- * Scrolls a focused file into view once, after it has laid out. The row is
- * measured against the scroll view's content, so header height and set
- * headers above it are accounted for.
- */
-function useScrollFocusedRowIntoView() {
-  const scrollRef = useRef<React.ElementRef<typeof Animated.ScrollView>>(null);
-  const contentRef = useRef<React.ComponentRef<typeof View>>(null);
-  const hasScrolled = useRef(false);
-
-  const attachFocusedRow = useCallback((row: React.ComponentRef<typeof View> | null) => {
-    if (!row || hasScrolled.current) {
-      return;
-    }
-
-    requestAnimationFrame(() => {
-      const content = contentRef.current;
-      if (!content || hasScrolled.current) {
-        return;
-      }
-      row.measureLayout(content, (_x: number, y: number) => {
-        hasScrolled.current = true;
-        scrollRef.current?.scrollTo({ y: Math.max(0, y - FOCUSED_ROW_TOP_MARGIN), animated: true });
-      });
-    });
-  }, []);
-
-  return { scrollRef, contentRef, attachFocusedRow };
-}
 
 /** A named recording that is gone upstream. The show's other recordings may still play. */
 function UnavailableRecording({ show }: { show: Show }) {

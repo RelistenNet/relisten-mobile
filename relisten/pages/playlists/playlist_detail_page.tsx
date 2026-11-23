@@ -32,7 +32,7 @@ import {
   usePlaylistSearch,
   PlaylistViewHeader,
 } from '@/relisten/playlists/ui/playlist_reading_view';
-import { openPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
+import { openAddTracks, openPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
 import { usePlaylistShareActions } from '@/relisten/playlists/ui/playlist_share_actions';
 import { showToast } from '@/relisten/components/toast';
 import { PlaylistSyncNotice } from '@/relisten/playlists/ui/playlist_sync_notice';
@@ -115,6 +115,7 @@ export default function PlaylistDetailPage() {
   const addTextSection = () =>
     openGuideTextEditor(router, { kind: 'section', playlistId, afterSegmentId: lastSegmentId });
   const deletePlaylist = () => lifecycle.remove(playlistId);
+  const addTracks = () => openAddTracks(router, playlistId, groupSegment);
   const makeCopy = () => {
     if (isLoading(playlist)) {
       showToast('Wait for this playlist to load, then copy it.');
@@ -181,6 +182,13 @@ export default function PlaylistDetailPage() {
       {/* Back while editing finishes editing, like Done; edits apply as they're made. */}
       {editing && <AndroidBackHandler onBack={finishEditing} />}
       <Stack.Toolbar placement="right">
+        {!editing && (
+          <Stack.Toolbar.Button
+            accessibilityLabel="Add Tracks"
+            icon={nativeMenuIcons.add}
+            onPress={addTracks}
+          />
+        )}
         {!editing && (
           <Stack.Toolbar.Button
             accessibilityLabel="Search this playlist"
@@ -252,6 +260,7 @@ export default function PlaylistDetailPage() {
               nameInput={nameInput}
               focusName={focusName}
               onAddText={addTextSection}
+              onAddTracks={addTracks}
             />
           }
         />
@@ -265,7 +274,10 @@ export default function PlaylistDetailPage() {
           emptyText={
             isLoading(playlist)
               ? notLoadedText(online)
-              : "This playlist is empty. Add songs from any show's ••• menu."
+              : 'This playlist is empty. Search for songs to add, or use any show’s ••• menu.'
+          }
+          emptyAction={
+            isLoading(playlist) ? undefined : { label: 'Add Tracks', onPress: addTracks }
           }
           header={
             <PlaylistViewHeader
@@ -318,9 +330,11 @@ function EditHeader({
   nameInput,
   focusName,
   onAddText,
+  onAddTracks,
 }: {
   focusName: boolean;
   onAddText: () => void;
+  onAddTracks: () => void;
   initialDraft: Draft;
   onChange: (field: keyof Draft, text: string) => void;
   nameInput: React.RefObject<TextInputInstance | null>;
@@ -350,6 +364,12 @@ function EditHeader({
       {/* One way in, instead of a control in every gap: new text goes at the end,
           and its handle drags it into place like a track. */}
       <View className="mt-3 flex-row items-center" style={{ gap: 12 }}>
+        <RelistenButton
+          icon={<MaterialIcons name="add" size={18} color="white" />}
+          onPress={onAddTracks}
+        >
+          Add Tracks
+        </RelistenButton>
         <RelistenButton
           icon={<MaterialIcons name="notes" size={18} color="white" />}
           onPress={onAddText}

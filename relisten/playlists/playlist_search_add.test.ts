@@ -24,7 +24,10 @@ import { Tour } from '@/relisten/realm/models/tour';
 import { Song } from '@/relisten/realm/models/song';
 import { Source } from '@/relisten/realm/models/source';
 import { SourceSet } from '@/relisten/realm/models/source_set';
-import { SourceTrackOfflineInfo } from '@/relisten/realm/models/source_track_offline_info';
+import {
+  SourceTrackOfflineInfo,
+  SourceTrackOfflineInfoStatus,
+} from '@/relisten/realm/models/source_track_offline_info';
 import {
   Popularity,
   PopularityWindow,
@@ -38,7 +41,11 @@ import {
   PlaylistTrackAvailability,
 } from '@/relisten/realm/models/playlists/playlist';
 import { createPlaylist, readPlaylistSnapshot } from '@/relisten/playlists/playlist_repository';
-import { addSearchTrack, TrackUnavailableError } from '@/relisten/playlists/playlist_search_add';
+import {
+  addDownloadedTrack,
+  addSearchTrack,
+  TrackUnavailableError,
+} from '@/relisten/playlists/playlist_search_add';
 import { OnePendingAdd } from '@/relisten/playlists/one_pending_add';
 
 const TEST_REALM_PATH = '/tmp/relisten-playlist-search-add-test.realm';
@@ -427,5 +434,50 @@ describe('addSearchTrack', () => {
     fail(new TrackUnavailableError('track_a'));
     await expect(pending).rejects.toBeInstanceOf(TrackUnavailableError);
     await expect(lock.run('track_b', async () => 'added')).resolves.toBe('added');
+  });
+
+  describe('a downloaded file, offline', () => {
+    async function cacheTrack(status: SourceTrackOfflineInfoStatus) {
+      const { api } = catalogReturning(resolved('available', trackResource()));
+      const scratch = createPlaylist(realm, 'Scratch', []).playlistId;
+      await addSearchTrack(realm, api, scratch, trackId, { isCurrent });
+      const track = realm.objectForPrimaryKey(SourceTrack, trackUuid)!;
+      realm.write(() => {
+        track.offlineInfo = realm.create(SourceTrackOfflineInfo, {
+          sourceTrackUuid: trackUuid,
+          status,
+          type: 1,
+          queuedAt: new Date(timestamp),
+        });
+      });
+      return track;
+    }
+
+    it('adds a completed download whose file is on disk, without asking the catalog', async () => {
+      const track = await cacheTrack(SourceTrackOfflineInfoStatus.Succeeded);
+
+      expect(
+        addDownloadedTrack(realm, playlistId, track, trackId, { isCurrent, fileExists: () => true })
+      ).toBe('added');
+      expect(playlistTrackIds()).toEqual([trackId]);
+    });
+
+    it('refuses a download whose file is gone, or that never finished', async () => {
+      const track = await cacheTrack(SourceTrackOfflineInfoStatus.Succeeded);
+      expect(() =>
+        addDownloadedTrack(realm, playlistId, track, trackId, {
+          isCurrent,
+          fileExists: () => false,
+        })
+      ).toThrow(TrackUnavailableError);
+
+      realm.write(() => {
+        track.offlineInfo!.status = SourceTrackOfflineInfoStatus.Downloading;
+      });
+      expect(() =>
+        addDownloadedTrack(realm, playlistId, track, trackId, { isCurrent, fileExists: () => true })
+      ).toThrow(TrackUnavailableError);
+      expect(playlistTrackIds()).toEqual([]);
+    });
   });
 });

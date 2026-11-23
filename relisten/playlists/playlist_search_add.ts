@@ -1,3 +1,4 @@
+import { File } from 'expo-file-system';
 import type Realm from 'realm';
 import type { RelistenApiClient } from '@/relisten/api/client';
 import type { CatalogResolveResponse } from '@/relisten/api/catalog/resolve';
@@ -10,6 +11,8 @@ import {
 } from '@/relisten/realm/models/playlists/playlist';
 import { addTracks } from '@/relisten/playlists/playlist_actions';
 import { readPlaylistSnapshot } from '@/relisten/playlists/playlist_repository';
+import type { SourceTrack } from '@/relisten/realm/models/source_track';
+import { SourceTrackOfflineInfoStatus } from '@/relisten/realm/models/source_track_offline_info';
 
 /** The catalog says this file can't be added: it is gone, retired or not playable. */
 export class TrackUnavailableError extends Error {
@@ -74,6 +77,46 @@ export async function addSearchTrack(
   }
 
   // `addTracks` reports false when nothing changed, and then records no undo.
+  const changed = addTracks(realm, playlistId, [[trackId]]);
+
+  return changed ? 'added' : 'destination_changed';
+}
+
+/**
+ * Adds a downloaded file from On this device, without the network. Offline,
+ * the device can't ask the catalog, so it checks what it can: the track is
+ * still in Realm and not deleted, its download completed, and the file is on
+ * disk. Online with the catalog unavailable, the sheet calls `addSearchTrack`
+ * instead, so the catalog check still runs first.
+ */
+export function addDownloadedTrack(
+  realm: Realm,
+  playlistId: string,
+  track: SourceTrack,
+  trackId: string,
+  {
+    isCurrent,
+    allowDuplicate = false,
+    fileExists = (path: string) => new File(path).exists,
+  }: { isCurrent: () => boolean; allowDuplicate?: boolean; fileExists?: (path: string) => boolean }
+): SearchTrackAddResult {
+  const downloaded =
+    track.isValid() &&
+    !track.deletedAt &&
+    track.offlineInfo?.status === SourceTrackOfflineInfoStatus.Succeeded &&
+    fileExists(track.downloadedFileLocation());
+  if (!downloaded) {
+    throw new TrackUnavailableError(trackId);
+  }
+
+  if (!isCurrent() || !isEditablePlaylist(realm, playlistId)) {
+    return 'destination_changed';
+  }
+
+  if (!allowDuplicate && playlistHasTrack(realm, playlistId, trackId)) {
+    return 'duplicate';
+  }
+
   const changed = addTracks(realm, playlistId, [[trackId]]);
 
   return changed ? 'added' : 'destination_changed';

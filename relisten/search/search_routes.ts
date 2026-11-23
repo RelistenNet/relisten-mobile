@@ -23,7 +23,11 @@ export function searchArtistRef(row: SearchCatalogRow): SearchArtistRef | null {
   return { slug: row.artist_slug };
 }
 
-const isSharedVenue = (venueId: string) => venueId.startsWith('venue_');
+/**
+ * A shared venue (`venue_…`) spans artists and has its own page; an imported
+ * venue belongs to one artist and opens under it.
+ */
+export const isSharedVenue = (venueId: string) => venueId.startsWith('venue_');
 
 /**
  * Where a Search-tab tap goes, once the row's artist is loaded:
