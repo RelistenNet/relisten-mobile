@@ -1,3 +1,4 @@
+import { normalizedVenueLocation } from '@/relisten/components/venue_presenters';
 import type { Show } from '@/relisten/realm/models/show';
 import type { RelistenTabGroupSegment } from '@/relisten/util/routes';
 import type { Href } from 'expo-router';
@@ -5,6 +6,16 @@ import type { Href } from 'expo-router';
 /** The name of a show's venue, from the artist's import or the shared venue. */
 export function showVenueName(show: Show): string | undefined {
   return show.venue?.name ?? show.artistVenue?.venue.name;
+}
+
+/** Where a show's venue is: the artist's import, or the shared venue's place. */
+export function showVenueLocation(show: Show): string | undefined {
+  return show.venue?.location ?? normalizedVenueLocation(show.artistVenue?.venue);
+}
+
+/** Venue and city, as show rows print them. */
+export function showVenueLabel(show: Show): string {
+  return [showVenueName(show), showVenueLocation(show)].filter(Boolean).join(', ');
 }
 
 /**

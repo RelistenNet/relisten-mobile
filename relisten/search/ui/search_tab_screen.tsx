@@ -1,7 +1,6 @@
 import { Stack, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Keyboard, View } from 'react-native';
-import { RelistenBlue } from '@/relisten/relisten_blue';
 import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
 import { usePlaylists } from '@/relisten/playlists/playlist_hooks';
 import { useHistoryRecentlyPlayedShows } from '@/relisten/realm/models/history/playback_history_entry_repo';
@@ -120,20 +119,8 @@ export function SearchTabScreen() {
 
   return (
     <View className="flex-1 bg-relisten-blue-900">
-      <Stack.Screen
-        options={{
-          headerLargeTitle: true,
-          headerLargeTitleShadowVisible: false,
-          headerLargeStyle: { backgroundColor: RelistenBlue[900] },
-          headerLargeTitleStyle: { color: 'white' },
-          headerStyle: { backgroundColor: RelistenBlue[900] },
-          headerTitleStyle: { color: 'white' },
-          headerTitleAlign: 'left',
-          // The stack's centered title component would block the large title.
-          headerTitle: 'Search',
-          headerSearchBarOptions: searchBar,
-        }}
-      />
+      {/* The stack draws the logo header; this screen adds its search bar. */}
+      <Stack.Screen options={{ headerSearchBarOptions: searchBar }} />
       <SearchResultsList
         header={
           <>

@@ -2,7 +2,6 @@ import type { ReactElement, ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { ActivityIndicator, FlatList, TouchableOpacity, View } from 'react-native';
 import { ItemSeparator } from '@/relisten/components/item_separator';
-import { ListRow } from '@/relisten/components/list_row';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { SectionHeader } from '@/relisten/components/section_header';
 import type { Artist } from '@/relisten/realm/models/artist';
@@ -10,9 +9,16 @@ import type { PlaybackHistoryEntry } from '@/relisten/realm/models/history/playb
 import type { Playlist } from '@/relisten/realm/models/playlists/playlist';
 import type { Show } from '@/relisten/realm/models/show';
 import type { SourceTrack } from '@/relisten/realm/models/source_track';
-import { showVenueName } from '@/relisten/util/venue_route';
 import type { SearchListItem } from '../search_list_items';
-import { describePlaylistCard, describeSearchRow, type SearchArtistNames } from '../search_rows';
+import {
+  describeLocalArtist,
+  describeLocalPlaylist,
+  describeLocalShow,
+  describeLocalTrack,
+  describePlaylistCard,
+  describeSearchRow,
+  type SearchArtistNames,
+} from '../search_rows';
 import { useSearchArtistNames } from '../use_search_artist_names';
 import type { SearchCatalogRow, SearchPlaylistCard, SearchScope } from '../search_types';
 import { SearchResultRow } from './search_result_row';
@@ -40,9 +46,8 @@ export interface SearchListHandlers {
 /**
  * One scrolling list for every state of a search: Recently Played, remote
  * results, On this device, or a mix of the last two. The search bar is in the
- * screen's header; the chips are the list's header, because the list must be
- * the screen's first child for the large title to collapse and for the sheet
- * to lay it out.
+ * screen's header; the chips are the list's header, so they scroll with the
+ * results.
  */
 export function SearchResultsList({
   items,
@@ -78,8 +83,8 @@ export function SearchResultsList({
       keyboardDismissMode="on-drag"
       // Not pinned: a sticky header remounts whenever the rows change.
       ListHeaderComponent={header}
-      // A large title and a form sheet both lay content out under the header,
-      // which the automatic inset clears.
+      // The header and its search bar overlap the content, in a tab and in a
+      // form sheet alike; the automatic inset clears them.
       contentInsetAdjustmentBehavior="automatic"
       onEndReached={onEndReached}
       onEndReachedThreshold={0.5}
@@ -121,7 +126,7 @@ function SearchListItemView({
     case 'row':
       return (
         <SearchResultRow
-          text={describeSearchRow(item.row, artistNames)}
+          view={describeSearchRow(item.row, artistNames)}
           onPress={() => handlers.onPressRow(item.row)}
           onLongPress={bound(handlers.onLongPressRow, item.row)}
           trailing={handlers.trailingForRow?.(item.row)}
@@ -130,62 +135,47 @@ function SearchListItemView({
     case 'playlist':
       return (
         <SearchResultRow
-          text={describePlaylistCard(item.card)}
+          view={describePlaylistCard(item.card)}
           onPress={bound(handlers.onPressPlaylist, item.card)}
         />
       );
     case 'local-artist':
       return (
-        <ListRow
-          title={item.artist.name}
-          subtitle="Artist"
+        <SearchResultRow
+          view={describeLocalArtist(item.artist.name)}
           onPress={() => handlers.onPressLocalArtist(item.artist)}
         />
       );
     case 'local-show':
       return (
-        <ListRow
-          title={[item.show.displayDate, showVenueName(item.show)].filter(Boolean).join(' · ')}
-          subtitle={item.show.artist?.name}
+        <SearchResultRow
+          view={describeLocalShow(item.show, item.show.hasSoundboardSource)}
           onPress={() => handlers.onPressLocalShow(item.show)}
         />
       );
     case 'local-track':
-      return <LocalTrackRow track={item.track} handlers={handlers} />;
+      return (
+        <SearchResultRow
+          view={describeLocalTrack(item.track)}
+          onPress={() => handlers.onPressLocalTrack(item.track)}
+          trailing={handlers.trailingForLocalTrack?.(item.track)}
+        />
+      );
     case 'local-playlist':
       return (
-        <ListRow
-          title={item.playlist.name}
-          subtitle={`${item.playlist.entryCount} tracks`}
+        <SearchResultRow
+          view={describeLocalPlaylist(item.playlist.name, item.playlist.entryCount)}
           onPress={bound(handlers.onPressLocalPlaylist, item.playlist)}
         />
       );
     case 'recent':
       return (
-        <ListRow
-          title={item.entry.show.displayDate}
-          subtitle={[item.entry.artist.name, showVenueName(item.entry.show)]
-            .filter(Boolean)
-            .join(' · ')}
+        <SearchResultRow
+          view={describeLocalShow(item.entry.show, item.entry.source.isSoundboard)}
           onPress={() => handlers.onPressRecent(item.entry)}
         />
       );
   }
-}
-
-/** A downloaded file, labeled with its artist, show and recording. */
-function LocalTrackRow({ track, handlers }: { track: SourceTrack; handlers: SearchListHandlers }) {
-  const subtitle = [track.artist?.name, track.show?.displayDate, track.source?.upstreamIdentifier]
-    .filter(Boolean)
-    .join(' · ');
-
-  return (
-    <SearchResultRow
-      text={{ title: track.title, subtitle, badges: [] }}
-      onPress={() => handlers.onPressLocalTrack(track)}
-      trailing={handlers.trailingForLocalTrack?.(track)}
-    />
-  );
 }
 
 /** A section title; a section with its own scope links to it ("See All"). */

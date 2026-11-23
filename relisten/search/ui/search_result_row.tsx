@@ -1,58 +1,100 @@
 import type { ReactNode } from 'react';
-import { TouchableOpacity, View } from 'react-native';
+import { View } from 'react-native';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import type { SearchRowText } from '../search_rows';
+import RowTitle from '@/relisten/components/row_title';
+import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
+import { SubtitleText } from '@/relisten/components/row_subtitle';
+import { tw } from '@/relisten/util/tw';
+import { searchRowAccessibilityLabel, type SearchRowView } from '../search_rows';
 
 /**
- * A search result: title, the facts that tell it apart, and an optional
- * accessory at the end (Add Tracks' **+**). The accessory sits outside the
- * row's own button, so tapping it never opens the row.
+ * A search result. Every kind stacks the same lines (see `SearchRowView`),
+ * built from the app's own row pieces, so the artist, the place and the stats
+ * are always where the eye expects them. The accessory at the end (Add Tracks' **+**) sits outside the row's
+ * button, so tapping it never opens the row.
  */
 export function SearchResultRow({
-  text,
+  view,
   onPress,
   onLongPress,
   trailing,
 }: {
-  text: SearchRowText;
+  view: SearchRowView;
   onPress?: () => void;
   onLongPress?: () => void;
   trailing?: ReactNode;
 }) {
-  const label = [text.title, text.subtitle, text.detail, ...text.badges].filter(Boolean).join(', ');
+  const [titleAside, bylineAside, placeAside] = view.aside;
 
   return (
-    <View className="min-h-[56px] flex-row items-center pr-2">
-      <TouchableOpacity
-        accessibilityLabel={label}
+    <View className="flex-row items-center">
+      <SectionedListItem
+        accessibilityLabel={searchRowAccessibilityLabel(view)}
         accessibilityRole="button"
-        className="min-w-0 flex-1 py-3 pl-4 pr-2"
+        cn="w-auto min-w-0 flex-1"
         disabled={!onPress}
         onLongPress={onLongPress}
         onPress={onPress}
       >
-        <RelistenText className="text-lg font-semibold" numberOfLines={2}>
-          {text.title}
-        </RelistenText>
-        {text.subtitle ? (
-          <RelistenText className="text-sm text-gray-400" numberOfLines={2}>
-            {text.subtitle}
-          </RelistenText>
-        ) : null}
-        {text.detail || text.badges.length > 0 ? (
-          <View className="mt-0.5 flex-row flex-wrap items-center" style={{ gap: 6 }}>
-            {text.detail ? (
-              <RelistenText className="text-sm text-gray-300">{text.detail}</RelistenText>
-            ) : null}
-            {text.badges.map((badge) => (
-              <View key={badge} className="rounded bg-relisten-blue-700 px-1.5">
-                <RelistenText className="text-xs font-semibold">{badge}</RelistenText>
-              </View>
+        <SearchRowLine aside={titleAside}>
+          <View className="min-w-0 flex-1 flex-row flex-wrap items-center" style={{ columnGap: 8 }}>
+            <SearchRowTitle view={view} />
+            {view.badges.map((badge) => (
+              <RelistenText key={badge} className="text-xs font-bold text-relisten-blue-600">
+                {badge}
+              </RelistenText>
             ))}
           </View>
+        </SearchRowLine>
+
+        <SearchRowLine aside={bylineAside}>
+          <SubtitleText className="min-w-0 flex-1" numberOfLines={1}>
+            {view.byline}
+          </SubtitleText>
+        </SearchRowLine>
+
+        {view.place || placeAside ? (
+          <SearchRowLine aside={placeAside}>
+            <SubtitleText className="min-w-0 flex-1" numberOfLines={2}>
+              {view.place}
+            </SubtitleText>
+          </SearchRowLine>
         ) : null}
-      </TouchableOpacity>
-      {trailing}
+
+        {view.note ? (
+          <SubtitleText className={tw('pt-0.5', { italic: view.noteItalic })} numberOfLines={2}>
+            {view.note}
+          </SubtitleText>
+        ) : null}
+      </SectionedListItem>
+      {trailing && <View className="pr-2">{trailing}</View>}
     </View>
   );
+}
+
+/** One line of a row: its text, and a gray value at the end that lines up from row to row. */
+function SearchRowLine({ aside, children }: { aside?: string; children: ReactNode }) {
+  return (
+    <View className="flex-row items-center pt-0.5" style={{ gap: 8 }}>
+      {children}
+      {aside ? <SubtitleText numberOfLines={1}>{aside}</SubtitleText> : null}
+    </View>
+  );
+}
+
+/**
+ * The title in the style of the app row for that kind of thing: a bold date
+ * as in the show list, a song in regular weight as in a playlist, or a bold
+ * name as in the artist, song and venue lists.
+ */
+function SearchRowTitle({ view }: { view: SearchRowView }) {
+  if (view.titleStyle === 'track') {
+    return (
+      <RelistenText className="shrink text-lg" numberOfLines={2}>
+        {view.title}
+      </RelistenText>
+    );
+  }
+
+  return <RowTitle numberOfLines={2}>{view.title}</RowTitle>;
 }

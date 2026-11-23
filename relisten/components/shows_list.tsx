@@ -28,19 +28,7 @@ import {
   useShowHasOfflineTracks,
 } from '@/relisten/realm/root_services';
 import { useFavorite } from '@/relisten/library/favorite_hooks';
-import { normalizedVenueLocation } from '@/relisten/components/venue_presenters';
-
-function showVenueName(show: Show) {
-  return show.venue?.name ?? show.artistVenue?.venue.name;
-}
-
-function showVenueLocation(show: Show) {
-  return show.venue?.location ?? normalizedVenueLocation(show.artistVenue?.venue);
-}
-
-function showVenueLabel(show: Show) {
-  return [showVenueName(show), showVenueLocation(show)].filter(Boolean).join(', ');
-}
+import { showVenueLabel, showVenueLocation, showVenueName } from '@/relisten/util/venue_route';
 
 interface ShowListItemProps {
   show: Show;

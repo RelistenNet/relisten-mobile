@@ -3,7 +3,6 @@ import { useMemo } from 'react';
 import { ActivityIndicator, FlatList, View } from 'react-native';
 import { decodeUuidCatalogId } from '@/relisten/api/catalog/identity';
 import { ItemSeparator } from '@/relisten/components/item_separator';
-import { ListRow } from '@/relisten/components/list_row';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import type { NetworkBackedResults } from '@/relisten/realm/network_backed_results';
 import type { Show } from '@/relisten/realm/models/show';
@@ -12,9 +11,10 @@ import {
   useArtistVenueShows,
   useGlobalVenueShows,
 } from '@/relisten/realm/models/shows/venue_shows_repo';
-import { showVenueName } from '@/relisten/util/venue_route';
 import { useAddTracks } from './add_tracks_context';
 import { OpenFullPageButton, SheetScrollAnchor } from './add_tracks_controls';
+import { SearchResultRow } from './search_result_row';
+import { describeLocalShow } from '../search_rows';
 
 type ShowsParams =
   | { kind: 'venue'; venueId: string; artistUuid?: string }
@@ -156,9 +156,8 @@ function ShowList({
           // Content starts under the sheet's header; the inset clears it.
           contentInsetAdjustmentBehavior="automatic"
           renderItem={({ item: show }) => (
-            <ListRow
-              title={show.displayDate}
-              subtitle={[show.artist?.name, showVenueName(show)].filter(Boolean).join(' · ')}
+            <SearchResultRow
+              view={describeLocalShow(show, show.hasSoundboardSource)}
               onPress={() =>
                 router.push({
                   pathname: '/relisten/add-tracks/source',

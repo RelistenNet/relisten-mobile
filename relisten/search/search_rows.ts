@@ -1,18 +1,56 @@
+import type { Show } from '@/relisten/realm/models/show';
+import type { SourceTrack } from '@/relisten/realm/models/source_track';
+import { showVenueLabel } from '@/relisten/util/venue_route';
 import type { SearchCatalogRow, SearchPlaylistCard } from './search_types';
 
 /**
- * How one result reads in a list: what it is, and the facts that tell it
- * apart from its neighbors (artist, date, venue, and for a performance its
- * set and duration). Two performances from one show stay separate rows, so
- * the set and duration are what distinguish them.
+ * How one result reads in a list. Every result stacks the same lines, so the
+ * eye finds the same thing in the same place whatever the result is:
+ *
+ *     title  marks                 rating or duration
+ *     artist · date                plays, or a track's set
+ *     venue, location              a track's plays
+ *     note
+ *
+ * The title takes the style of the app row for that kind of thing: a bold
+ * date as in the show list, a song in regular weight as in a playlist, or a
+ * bold name as in the artist, song and venue lists.
  */
-export interface SearchRowText {
+export interface SearchRowView {
   title: string;
-  subtitle: string;
-  /** Set, position and duration of the exact file a performance row adds. */
-  detail?: string;
+  titleStyle: 'date' | 'track' | 'name';
   /** Short marks such as SBD or Soundcheck. */
   badges: string[];
+  /** The artist, then the date unless the date is the title. */
+  byline: string;
+  /** Venue and location. */
+  place?: string;
+  /** What tells this row apart from its neighbors: a recording's ID, a review's passage. */
+  note?: string;
+  /** The note is quoted text or an identifier rather than a plain fact. */
+  noteItalic?: boolean;
+  /** What sits at the end of the title, byline and place lines, in that order. */
+  aside: [title?: string, byline?: string, place?: string];
+}
+
+/** VoiceOver would spell "SBD" letter by letter. */
+const spokenBadge = (badge: string) => (badge === 'SBD' ? 'Soundboard' : badge);
+
+/** Everything a row shows, for VoiceOver. */
+export function searchRowAccessibilityLabel(view: SearchRowView): string {
+  const [titleAside, bylineAside, placeAside] = view.aside;
+  return [
+    view.title,
+    ...view.badges.map(spokenBadge),
+    titleAside,
+    view.byline,
+    bylineAside,
+    view.place,
+    placeAside,
+    view.note,
+  ]
+    .filter(Boolean)
+    .join(', ');
 }
 
 /** `20170725` reads as the app writes dates elsewhere: `2017-07-25`. */
@@ -66,94 +104,221 @@ function venueArtists(row: SearchCatalogRow & { kind: 'venue' }, names: SearchAr
   return more > 0 ? `${shown} +${more}` : shown;
 }
 
+/** Venue and city, as show rows print them; a venue name that already contains its city keeps one. */
+function venuePlace(venue: string, city: string): string {
+  if (city && venue.toLowerCase().includes(city.toLowerCase())) {
+    return venue;
+  }
+  return [venue, city].filter(Boolean).join(', ');
+}
+
+/**
+ * A set's name, unless it says nothing the row doesn't: the generic "Set" a
+ * source with one unnamed set gets, or a soundcheck the badge already marks.
+ */
+function namedSet(set: string, soundcheck: boolean): string | undefined {
+  const name = set.trim().toLowerCase();
+  if (!name || name === 'set' || (soundcheck && name === 'soundcheck')) {
+    return undefined;
+  }
+  return set;
+}
+
+const marks = (soundboard: boolean, soundcheck: boolean) =>
+  [soundboard && 'SBD', soundcheck && 'Soundcheck'].filter((mark): mark is string => Boolean(mark));
+
+/** A 0–10 rating as show rows print it: `8.25 ★`. Unrated is left blank. */
+export function searchRating(rating: number | undefined): string | undefined {
+  return rating && rating > 0 ? `${rating.toFixed(2)} ★` : undefined;
+}
+
+/**
+ * `736 plays/yr`, `3.3k plays/yr`. The index counts the year before it was
+ * built, so the label says so. None is left blank.
+ */
+export function searchPlays(plays: number | undefined): string | undefined {
+  if (!plays || plays <= 0) {
+    return undefined;
+  }
+  const short = (value: number, unit: string) => `${value.toFixed(1).replace(/\.0$/, '')}${unit}`;
+  const count =
+    plays >= 1_000_000
+      ? short(plays / 1_000_000, 'M')
+      : plays >= 1_000
+        ? short(plays / 1_000, 'k')
+        : String(plays);
+  return `${count} ${plays === 1 ? 'play' : 'plays'}/yr`;
+}
+
 export function describeSearchRow(
   row: SearchCatalogRow,
   names: SearchArtistNames = NO_ARTIST_NAMES
-): SearchRowText {
+): SearchRowView {
   if (row.kind === 'sequence') {
+    // Passages carry only the artist's slug and the venue's name.
     return {
-      title: `Passage · ${row.song_ids.length} songs`,
-      subtitle: joined(searchDate(row.date), row.venue),
-      detail: row.set || undefined,
+      title: searchDate(row.date),
+      titleStyle: 'date',
       badges: [],
+      byline: names.bySlug(row.artist_slug) ?? '',
+      place: row.venue,
+      note: joined(`Passage of ${row.song_ids.length} songs`, namedSet(row.set, false)),
+      aside: [],
     };
   }
 
-  const badges = [row.soundboard && 'SBD', row.soundcheck && 'Soundcheck'].filter(
-    (badge): badge is string => Boolean(badge)
-  );
-  const place = joined(row.venue_label, row.city_label);
+  // The device's spelling of the artist, which the rest of the app shows.
+  const artist = (row.artist_id && names.byId(row.artist_id)) || row.artist_label || undefined;
+  // Older indexes have only the city.
+  const place = venuePlace(row.venue_label, row.location_label || row.city_label);
   const date = searchDate(row.date);
+  const showLike = (note?: string): SearchRowView => ({
+    title: date,
+    titleStyle: 'date',
+    badges: marks(row.soundboard, row.soundcheck),
+    byline: artist ?? '',
+    place,
+    note,
+    noteItalic: true,
+    aside: [searchRating(row.avg_rating), searchPlays(row.track_plays)],
+  });
+  const named = (byline: string, namedPlace?: string): SearchRowView => ({
+    title: row.label,
+    titleStyle: 'name',
+    badges: [],
+    byline,
+    place: namedPlace,
+    aside: [],
+  });
 
   switch (row.kind) {
     case 'artist':
-      return { title: row.label, subtitle: 'Artist', badges: [] };
+      return named('Artist');
     case 'song':
-      return { title: row.label, subtitle: joined('Song', row.artist_label), badges: [] };
+      return named(joined(artist, 'Song'));
+    case 'tour':
+      return named(joined(artist, 'Tour'));
     case 'venue':
       return {
-        title: row.venue_label || row.label,
-        subtitle: joined('Venue', row.city_label, venueArtists(row, names)),
-        badges: [],
-      };
-    case 'tour':
-      return { title: row.label, subtitle: joined('Tour', row.artist_label), badges: [] };
-    case 'show':
-      return {
-        title: joined(date, row.venue_label),
-        subtitle: joined(row.artist_label, row.city_label),
-        badges,
-      };
-    case 'performance': {
-      const { preview } = row;
-      const fileBadges = [preview.soundboard && 'SBD', preview.soundcheck && 'Soundcheck'].filter(
-        (badge): badge is string => Boolean(badge)
-      );
-      return {
-        title: preview.label || row.label,
-        subtitle: joined(row.artist_label, date, place),
-        detail: joined(
-          preview.set,
-          preview.duration ? searchDuration(preview.duration) : undefined
+        ...named(
+          joined(venueArtists(row, names), 'Venue'),
+          row.location_label || row.city_label || undefined
         ),
-        badges: fileBadges,
+        title: row.venue_label || row.label,
       };
-    }
+    case 'show':
+      return showLike();
     case 'recording':
-      return {
-        title: row.source_upstream || row.label,
-        subtitle: joined(row.artist_label, date, place),
-        badges,
-      };
+      return showLike(recordingNote(row));
     case 'review':
       // Reviews have no title of their own; the matching passage tells them apart.
+      return { ...showLike(reviewSnippet(row.highlights?.review_text)), badges: [] };
+    case 'performance': {
+      const { preview } = row;
       return {
-        title: joined('Review', date),
-        subtitle: joined(row.artist_label, row.venue_label),
-        detail: reviewSnippet(row.highlights?.review_text),
-        badges: [],
+        title: preview.label || row.label,
+        titleStyle: 'track',
+        badges: marks(preview.soundboard, preview.soundcheck),
+        byline: joined(artist, date),
+        place,
+        aside: [
+          preview.duration ? searchDuration(preview.duration) : undefined,
+          namedSet(preview.set, preview.soundcheck),
+          searchPlays(preview.plays),
+        ],
       };
+    }
   }
 }
 
-/** The matched passage as plain text: marks dropped, whitespace collapsed. */
-function reviewSnippet(text: string | undefined): string | undefined {
+/**
+ * What tells a recording apart from the show's others: the passage of its
+ * notes the query matched, or else who taped and transferred it. Its
+ * identifier says neither, so it isn't shown.
+ */
+function recordingNote(row: SearchCatalogRow & { kind: 'recording' }): string | undefined {
+  const matched = plainSnippet(row.highlights?.notes);
+  if (matched) {
+    return `“${matched}”`;
+  }
+
+  return (
+    joined(
+      row.taper_label ? `Taper: ${row.taper_label}` : undefined,
+      row.transferrer_label ? `Transfer: ${row.transferrer_label}` : undefined
+    ) || undefined
+  );
+}
+
+/** Highlighted text as plain text: marks dropped, whitespace collapsed. */
+function plainSnippet(text: string | undefined): string | undefined {
   const plain = text
     ?.replace(/<\/?mark>/g, '')
     .replace(/\s+/g, ' ')
     .trim();
+  return plain || undefined;
+}
+
+/** A review's matching passage, quoted. */
+function reviewSnippet(text: string | undefined): string | undefined {
+  const plain = plainSnippet(text);
   return plain ? `“${plain}”` : undefined;
 }
 
-export function describePlaylistCard(card: SearchPlaylistCard): SearchRowText {
-  const tracks = `${card.track_count} ${card.track_count === 1 ? 'track' : 'tracks'}`;
+const trackCount = (count: number) => `${count} ${count === 1 ? 'track' : 'tracks'}`;
+
+export function describePlaylistCard(card: SearchPlaylistCard): SearchRowView {
   return {
     title: card.label,
-    subtitle: joined(
-      card.curator ? `@${card.curator}` : card.owned ? 'Your playlist' : undefined,
-      tracks
-    ),
+    titleStyle: 'name',
     badges: [],
+    byline: joined(
+      card.curator ? `@${card.curator}` : card.owned ? 'Yours' : undefined,
+      'Playlist',
+      trackCount(card.track_count)
+    ),
+    aside: [],
+  };
+}
+
+/**
+ * A show on the device, as a remote show row. Its soundboard flag is passed
+ * in: a show knows whether any recording is one, a history entry knows its own.
+ */
+export function describeLocalShow(show: Show, soundboard: boolean): SearchRowView {
+  return {
+    title: show.displayDate,
+    titleStyle: 'date',
+    badges: soundboard ? ['SBD'] : [],
+    byline: show.artist?.name ?? '',
+    place: showVenueLabel(show),
+    aside: [searchRating(show.avgRating)],
+  };
+}
+
+/** A downloaded file, as a remote performance row. */
+export function describeLocalTrack(track: SourceTrack): SearchRowView {
+  return {
+    title: track.title,
+    titleStyle: 'track',
+    badges: track.source?.isSoundboard ? ['SBD'] : [],
+    byline: joined(track.artist?.name, track.show?.displayDate),
+    place: track.show ? showVenueLabel(track.show) : undefined,
+    aside: [track.humanizedDuration],
+  };
+}
+
+export function describeLocalArtist(name: string): SearchRowView {
+  return { title: name, titleStyle: 'name', badges: [], byline: 'Artist', aside: [] };
+}
+
+export function describeLocalPlaylist(name: string, entryCount: number): SearchRowView {
+  return {
+    title: name,
+    titleStyle: 'name',
+    badges: [],
+    byline: joined('Playlist', trackCount(entryCount)),
+    aside: [],
   };
 }
 

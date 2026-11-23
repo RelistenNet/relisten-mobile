@@ -54,16 +54,30 @@ interface SearchRowBase {
   date: number;
   venue_label: string;
   city_label: string;
+  /** Venue location as the app's venue rows print it. Missing from older indexes. */
+  location_label?: string;
   venue_id: string;
   show_id: string;
   tour_label: string;
   song_id: string;
   source_id: string;
   source_upstream: string;
+  /** A show's or recording's total plays; 0 on other rows. */
+  track_plays?: number;
+  /** A show's or recording's 0–10 rating, or 0 when unrated. Missing from older indexes. */
+  avg_rating?: number;
+  /** A recording's review count. */
+  num_reviews?: number;
   soundboard: boolean;
   soundcheck: boolean;
-  /** Matching text, with `<mark>` around the match. Review rows have no label, only this. */
-  highlights?: { review_text?: string };
+  /**
+   * Matching text, with `<mark>` around the match. Review rows have no label,
+   * only this; a recording's matches its notes or its credits.
+   */
+  highlights?: { review_text?: string; notes?: string; credits?: string };
+  /** A recording's taper and transferrer. Missing from older indexes. */
+  taper_label?: string;
+  transferrer_label?: string;
 }
 
 export interface SearchArtistRow extends SearchRowBase {
@@ -93,6 +107,8 @@ export interface SearchPerformancePreview {
   position: number;
   /** Seconds. */
   duration: number;
+  /** How often this file was played. */
+  plays?: number;
   soundboard: boolean;
   soundcheck: boolean;
   label: string;

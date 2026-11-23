@@ -79,6 +79,15 @@ describe('searchTapTarget', () => {
     });
   });
 
+  it('opens a review on the reviewed recording, where the show and its reviews are', () => {
+    const row = base({ kind: 'review', source_id: encodeUuidCatalogId(SOURCE, 'source') });
+    const target = searchTapTarget(row, artist, '(search)');
+    expect(target.kind === 'push' && target.href).toMatchObject({
+      pathname: '/relisten/tabs/(search)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/',
+      params: { showUuid: SHOW, sourceUuid: SOURCE, exactSource: '1' },
+    });
+  });
+
   it('opens a passage at its first file', () => {
     const row: SearchCatalogRow = {
       kind: 'sequence',

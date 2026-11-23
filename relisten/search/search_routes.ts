@@ -106,15 +106,8 @@ export function searchTapTarget(
     case 'sequence':
       return source(row.show_id, row.source_id, row.track_ids[0]);
     case 'review':
-      return push({
-        pathname:
-          `/relisten/tabs/${tab}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/reviews` as const,
-        params: {
-          artistUuid,
-          showUuid: decodeUuidCatalogId(row.show_id, 'show'),
-          sourceUuid: decodeUuidCatalogId(row.source_id, 'source'),
-        },
-      });
+      // The reviewed recording's page, which has the show and its Reviews button.
+      return source(row.show_id, row.source_id);
   }
 }
 
