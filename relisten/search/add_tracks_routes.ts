@@ -16,7 +16,15 @@ const SHEET = '/relisten/add-tracks' as const;
  */
 export type AddTracksTapTarget =
   | { kind: 'narrow-artist'; artistId: string; label: string }
-  | { kind: 'narrow-tour'; label: string; artistId?: string; artistLabel: string }
+  | {
+      kind: 'narrow-tour';
+      label: string;
+      artistId?: string;
+      /** The display name; some tour rows leave it empty. */
+      artistLabel: string;
+      /** The lowercase search name, for when there is no display name. */
+      artistName?: string;
+    }
   | { kind: 'push'; href: Href };
 
 export function addTracksTapTarget(row: SearchCatalogRow, playlistId: string): AddTracksTapTarget {
@@ -44,6 +52,7 @@ export function addTracksTapTarget(row: SearchCatalogRow, playlistId: string): A
         label: row.label,
         artistId: row.artist_id,
         artistLabel: row.artist_label,
+        artistName: row.artist,
       };
     case 'song':
       return push(`${SHEET}/shows`, {

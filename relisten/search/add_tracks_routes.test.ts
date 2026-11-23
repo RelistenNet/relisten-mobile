@@ -66,12 +66,13 @@ describe('addTracksTapTarget', () => {
   });
 
   it('narrows a tour to its shows under its artist', () => {
-    const row = base({ kind: 'tour', label: 'Summer Tour 2000' });
+    const row = base({ kind: 'tour', label: 'Summer Tour 2000', artist: 'phish' });
     expect(addTracksTapTarget(row, PLAYLIST)).toEqual({
       kind: 'narrow-tour',
       label: 'Summer Tour 2000',
       artistId: encodeUuidCatalogId(ARTIST, 'artist'),
       artistLabel: 'Phish',
+      artistName: 'phish',
     });
   });
 

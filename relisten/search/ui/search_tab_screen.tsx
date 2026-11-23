@@ -1,8 +1,7 @@
-import { MaterialIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Keyboard, TouchableOpacity, View } from 'react-native';
-import { RelistenText } from '@/relisten/components/relisten_text';
+import { Keyboard, View } from 'react-native';
+import { RelistenBlue } from '@/relisten/relisten_blue';
 import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
 import { usePlaylists } from '@/relisten/playlists/playlist_hooks';
 import { useHistoryRecentlyPlayedShows } from '@/relisten/realm/models/history/playback_history_entry_repo';
@@ -21,9 +20,9 @@ import { localPlaylistHref, localTrackHref, playlistCardHref } from '../search_r
 import { useLocalSearchResults } from '../use_local_search_results';
 import { useOpenSearchResult } from '../use_open_search_result';
 import { useSearchSession } from '../use_search_session';
-import { SearchInterpretationChips, SearchScopeChips } from './search_chips';
-import { SearchField } from './search_field';
+import { NarrowingChip, SearchInterpretationChips, SearchScopeChips } from './search_chips';
 import { SearchResultsList, type SearchListHandlers } from './search_results_list';
+import { useNativeSearchBar } from './use_native_search_bar';
 
 const RECENT_SHOW_COUNT = 10;
 
@@ -109,61 +108,58 @@ export function SearchTabScreen() {
       ),
   };
 
+  const searchBar = useNativeSearchBar({
+    value: query,
+    placeholder: 'Artists, songs, venues, shows',
+    onChangeText: (text) => {
+      setNarrowing({});
+      session.setQuery(text);
+    },
+    onSubmit: () => session.submit(),
+  });
+
   return (
     <View className="flex-1 bg-relisten-blue-900">
-      <SearchField
-        value={query}
-        placeholder="Artists, songs, venues, shows…"
-        onChangeText={(text) => {
-          setNarrowing({});
-          session.setQuery(text);
+      <Stack.Screen
+        options={{
+          headerLargeTitle: true,
+          headerLargeTitleShadowVisible: false,
+          headerLargeStyle: { backgroundColor: RelistenBlue[900] },
+          headerLargeTitleStyle: { color: 'white' },
+          headerStyle: { backgroundColor: RelistenBlue[900] },
+          headerTitleStyle: { color: 'white' },
+          headerTitleAlign: 'left',
+          // The stack's centered title component would block the large title.
+          headerTitle: 'Search',
+          headerSearchBarOptions: searchBar,
         }}
-        onSubmit={() => session.submit()}
       />
-      {query.trim() !== '' && (
-        <SearchScopeChips
-          scope={scope}
-          counts={state.response?.catalog?.counts}
-          includePlaylists
-          onSelect={(next) => session.setScope(next)}
-        />
-      )}
-      <SearchInterpretationChips
-        chips={visibleChips(state)}
-        onRemove={(key) => session.removeChip(key)}
-      />
-      {isLocal && narrowing.label && (
-        <NarrowingChip label={narrowing.label} onClear={() => setNarrowing({})} />
-      )}
       <SearchResultsList
+        header={
+          <>
+            {query.trim() !== '' && (
+              <SearchScopeChips
+                scope={scope}
+                counts={state.response?.catalog?.counts}
+                includePlaylists
+                onSelect={(next) => session.setScope(next)}
+              />
+            )}
+            <SearchInterpretationChips
+              chips={visibleChips(state)}
+              onRemove={(key) => session.removeChip(key)}
+            />
+            {isLocal && narrowing.label && (
+              <NarrowingChip label={narrowing.label} onClear={() => setNarrowing({})} />
+            )}
+          </>
+        }
         items={items}
         handlers={handlers}
         contentContainerStyle={scrollProps.contentContainerStyle}
         loadingMore={state.loadingMorePlaylists}
         onEndReached={scope === 'playlists' ? () => void session.loadMorePlaylists() : undefined}
       />
-    </View>
-  );
-}
-
-/** The On this device list is narrowed to one artist's or show's downloads. */
-function NarrowingChip({ label, onClear }: { label: string; onClear: () => void }) {
-  return (
-    <View className="flex-row px-4 py-1">
-      <TouchableOpacity
-        accessibilityLabel={`Show all downloads, not only ${label}`}
-        accessibilityRole="button"
-        className="flex-row items-center rounded-full bg-relisten-blue-700 py-1 pl-3 pr-2"
-        onPress={onClear}
-      >
-        <RelistenText className="text-sm">Downloads: {label}</RelistenText>
-        <MaterialIcons
-          name="close"
-          size={14}
-          color="rgba(255,255,255,0.7)"
-          style={{ marginLeft: 4 }}
-        />
-      </TouchableOpacity>
     </View>
   );
 }

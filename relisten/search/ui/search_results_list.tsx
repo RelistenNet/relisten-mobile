@@ -39,9 +39,10 @@ export interface SearchListHandlers {
 
 /**
  * One scrolling list for every state of a search: Recently Played, remote
- * results, On this device, or a mix of the last two. On a tab the field and
- * chips sit above it. In the Add Tracks sheet they are its header instead,
- * because the list must be the sheet's only scroll content.
+ * results, On this device, or a mix of the last two. The search bar is in the
+ * screen's header; the chips are the list's header, because the list must be
+ * the screen's first child for the large title to collapse and for the sheet
+ * to lay it out.
  */
 export function SearchResultsList({
   items,
@@ -50,17 +51,14 @@ export function SearchResultsList({
   loadingMore = false,
   contentContainerStyle,
   header,
-  inSheet = false,
 }: {
   items: SearchListItem[];
   handlers: SearchListHandlers;
   onEndReached?: () => void;
   loadingMore?: boolean;
   contentContainerStyle?: StyleProp<ViewStyle>;
-  /** The field and chips, which scroll with the results. Only for the sheet. */
+  /** The chips, which scroll with the results. */
   header?: ReactElement;
-  /** Inside the Add Tracks sheet; its screen puts a `SheetScrollAnchor` first. */
-  inSheet?: boolean;
 }) {
   const artistNames = useSearchArtistNames();
 
@@ -73,15 +71,16 @@ export function SearchResultsList({
       )}
       ItemSeparatorComponent={ItemSeparator}
       keyboardShouldPersistTaps="handled"
+      // Dragging the list closes the keyboard, which uncovers its last rows.
+      // Insetting for the keyboard instead (`automaticallyAdjustKeyboardInsets`)
+      // shifted the list when the keyboard closed on Search, hiding the chips;
+      // in the sheet it scrolled past the end, since the sheet resizes itself.
       keyboardDismissMode="on-drag"
-      // Not pinned: a sticky header remounts when the rows change, which
-      // takes focus from the field mid-word.
+      // Not pinned: a sticky header remounts whenever the rows change.
       ListHeaderComponent={header}
-      // A form sheet lays content out under its header, which the automatic
-      // inset clears; it also resizes for the keyboard itself, so adjusting
-      // for the keyboard here too would scroll the list past its end.
-      contentInsetAdjustmentBehavior={inSheet ? 'automatic' : 'never'}
-      automaticallyAdjustKeyboardInsets={!inSheet}
+      // A large title and a form sheet both lay content out under the header,
+      // which the automatic inset clears.
+      contentInsetAdjustmentBehavior="automatic"
       onEndReached={onEndReached}
       onEndReachedThreshold={0.5}
       contentContainerStyle={contentContainerStyle}

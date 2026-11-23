@@ -1,4 +1,3 @@
-import { MaterialIcons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Alert, Keyboard, TouchableOpacity, View } from 'react-native';
@@ -20,12 +19,13 @@ import { presentSearch, visibleChips } from '../search_presentation';
 import type { SearchCatalogRow } from '../search_types';
 import { useLocalSearchResults } from '../use_local_search_results';
 import { useOpenSearchResult } from '../use_open_search_result';
+import { useSearchArtistNames } from '../use_search_artist_names';
 import { useSearchSession } from '../use_search_session';
 import { useAddTracks } from './add_tracks_context';
 import { AddTrackButton, SheetScrollAnchor, useCloseAddTracks } from './add_tracks_controls';
-import { SearchInterpretationChips, SearchScopeChips } from './search_chips';
-import { SearchField } from './search_field';
+import { NarrowingChip, SearchInterpretationChips, SearchScopeChips } from './search_chips';
 import { SearchResultsList, type SearchListHandlers } from './search_results_list';
+import { useNativeSearchBar } from './use_native_search_bar';
 
 const RECENT_SHOW_COUNT = 10;
 const NO_PLAYLISTS = () => false;
@@ -44,6 +44,7 @@ export function AddTracksResultsScreen() {
   const { session, state } = useSearchSession('add_tracks', playlistArtistUuids);
   const openResultInTab = useOpenSearchResult(tab);
   const recentEntries = useHistoryRecentlyPlayedShows(RECENT_SHOW_COUNT);
+  const artistNames = useSearchArtistNames();
   const [narrowing, setNarrowing] = useState<LocalNarrowing & { label?: string }>({});
 
   const presentation = presentSearch(state, {
@@ -88,8 +89,15 @@ export function AddTracksResultsScreen() {
         return;
       case 'narrow-tour':
         // A tour narrows to its shows, under its artist when the row names one.
+        // Some tour rows carry no display name for their artist; the name on
+        // this device is next best, then the lowercase search name.
         if (target.artistId) {
-          session.setArtistFilter({ artistId: target.artistId, label: target.artistLabel });
+          const label =
+            target.artistLabel ||
+            artistNames.byId(target.artistId) ||
+            target.artistName ||
+            'Artist';
+          session.setArtistFilter({ artistId: target.artistId, label });
         }
         session.setQuery(target.label);
         session.setScope('shows');
@@ -159,29 +167,33 @@ export function AddTracksResultsScreen() {
       }),
   };
 
+  const searchBar = useNativeSearchBar({
+    value: query,
+    placeholder: 'Songs, shows, venues',
+    focusOnMount: true,
+    // Under the title, as in other add-to sheets; integrated placements would
+    // put it in a toolbar the sheet doesn't have.
+    placement: 'stacked',
+    onChangeText: (text) => {
+      setNarrowing({});
+      session.setQuery(text);
+    },
+    onSubmit: () => session.submit(),
+  });
+
   return (
     <View className="flex-1 bg-relisten-blue-900">
       <Stack.Screen
         options={{
           title: playlist ? `Add to ${playlist.name}` : 'Add Tracks',
           headerRight: () => <DoneButton onPress={closeSheet} />,
+          headerSearchBarOptions: searchBar,
         }}
       />
       <SheetScrollAnchor />
       <SearchResultsList
-        inSheet
         header={
           <>
-            <SearchField
-              value={query}
-              placeholder="Songs, shows, venues…"
-              autoFocus
-              onChangeText={(text) => {
-                setNarrowing({});
-                session.setQuery(text);
-              }}
-              onSubmit={() => session.submit()}
-            />
             {query.trim() !== '' && (
               <SearchScopeChips
                 scope={scope}
@@ -195,19 +207,7 @@ export function AddTracksResultsScreen() {
               onRemove={(key) => session.removeChip(key)}
             />
             {isLocal && narrowing.label && (
-              <TouchableOpacity
-                accessibilityRole="button"
-                className="mx-4 my-1 self-start flex-row items-center rounded-full bg-relisten-blue-700 py-1 pl-3 pr-2"
-                onPress={() => setNarrowing({})}
-              >
-                <RelistenText className="text-sm">Downloads: {narrowing.label}</RelistenText>
-                <MaterialIcons
-                  name="close"
-                  size={14}
-                  color="rgba(255,255,255,0.7)"
-                  style={{ marginLeft: 4 }}
-                />
-              </TouchableOpacity>
+              <NarrowingChip label={narrowing.label} onClear={() => setNarrowing({})} />
             )}
           </>
         }

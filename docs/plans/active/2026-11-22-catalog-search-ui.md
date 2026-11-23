@@ -174,10 +174,12 @@ An `imported_song_…` hit can't match a canonical normalization part. It focuse
 
 > **Note (Task 5, iOS form sheet layout).** The plan assumed ordinary screens inside the sheet. On iOS, a form sheet takes a scroll view that is its screen's first child as the sheet's own, and then draws it blank or over the views above it. So:
 > - every sheet screen puts a zero-height `SheetScrollAnchor` before its list;
-> - on the results screen the field and chips are the list's header rather than views above it;
+> - on the results screen the chips are the list's header rather than views above it;
 > - sheet lists use `contentInsetAdjustmentBehavior="automatic"` and leave keyboard insets to the sheet, which resizes for the keyboard itself.
 >
-> The Search tab keeps its field above the list. A pinned (sticky) list header remounts when the rows change and drops the field's focus mid-word, so neither surface pins it.
+> Neither surface pins the list header: a pinned header remounts whenever the rows change.
+
+> **Note (system search bar).** Both surfaces use the system search bar (`headerSearchBarOptions`, a `UISearchController`) rather than a custom field, per the HIG. The Search tab has a large "Search" title with the bar under it. The sheet uses the `stacked` placement under its title, and focuses the bar once it has slid in. The chips stay below the bar, in the list header, because react-native-screens has no search tokens or scope bar. The bar is treated as uncontrolled: the screen hears about typing and writes the bar's text only when the query changes from outside it, as a tour narrowing does (`use_native_search_bar.ts`). On iOS 26+ the system doesn't move this tab's bar into the tab bar, as some Apple apps do; that would need native support for the search tab's own bar.
 
 ### Search tab
 

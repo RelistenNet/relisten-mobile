@@ -43,6 +43,8 @@ interface SearchRowBase {
   id: string;
   label: string;
   artist_label: string;
+  /** The artist's lowercase search name. */
+  artist?: string;
   artist_slug: string;
   /** Missing on recording, review and passage rows; load the artist by slug instead. */
   artist_id?: string;
