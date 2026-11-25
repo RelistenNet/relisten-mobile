@@ -139,7 +139,8 @@ export function SearchTabScreen() {
             {query.trim() !== '' && (
               <SearchScopeChips
                 scope={scope}
-                counts={state.response?.counts}
+                counts={state.tabTotals?.counts}
+                moreScopes={state.response?.more_scopes ?? []}
                 includePlaylists
                 onSelect={(next) => session.setScope(next)}
               />
@@ -150,6 +151,7 @@ export function SearchTabScreen() {
             />
             <SearchReadingChips
               readings={visibleReadings(state)}
+              query={query}
               selected={state.response?.readings.applied?.id ?? null}
               onSelect={(id) => session.selectReading(id)}
             />

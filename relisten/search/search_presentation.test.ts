@@ -62,6 +62,7 @@ function state(
     pending: false,
     failed: false,
     loadingMore: false,
+    tabTotals: null,
     ...change,
   };
 }

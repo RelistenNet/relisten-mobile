@@ -1,3 +1,4 @@
+import { nextTabTotals, type SearchTabTotals } from './search_tab_counts';
 import type { SearchMode, SearchRequest, SearchResponse, SearchScope } from './search_types';
 
 export const SEARCH_DEBOUNCE_MS = 120;
@@ -60,8 +61,10 @@ export interface SearchSessionState {
   pending: boolean;
   /** The latest request failed before the server answered; `retry` sends it again. */
   failed: boolean;
-  /** The next page of playlists is loading (Playlists scope only). */
+  /** The next page of a tab is loading. */
   loadingMore: boolean;
+  /** Tab totals merged across the tabs visited for the current query. */
+  tabTotals: SearchTabTotals | null;
 }
 
 export type SearchFetcher = (
@@ -100,6 +103,7 @@ export class SearchSession {
     pending: false,
     failed: false,
     loadingMore: false,
+    tabTotals: null,
   };
   private context: SearchContext | null = null;
   private generation = 0;
@@ -137,7 +141,7 @@ export class SearchSession {
       return;
     }
     if (previous.accountKey !== context.accountKey) {
-      this.update({ response: null, responseInputs: null });
+      this.update({ response: null, responseInputs: null, tabTotals: null });
       this.restart();
     } else if (previous.online !== context.online) {
       this.restart();
@@ -291,7 +295,7 @@ export class SearchSession {
     const hasQuery = this.state.inputs.query.trim() !== '';
 
     if (!hasQuery) {
-      this.update({ pending: false, response: null, responseInputs: null });
+      this.update({ pending: false, response: null, responseInputs: null, tabTotals: null });
       return;
     }
     if (!context?.online) {
@@ -332,6 +336,7 @@ export class SearchSession {
           responseInputs: inputs,
           pending: false,
           failed: false,
+          tabTotals: nextTabTotals(this.state.tabTotals, inputs, response),
         });
       }
     } catch {

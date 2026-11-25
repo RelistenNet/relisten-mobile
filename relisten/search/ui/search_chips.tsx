@@ -2,12 +2,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { ScrollView, TouchableOpacity, View } from 'react-native';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { tw } from '@/relisten/util/tw';
-import type {
-  SearchCatalogCounts,
-  SearchInterpretationChip,
-  SearchReading,
-  SearchScope,
-} from '../search_types';
+import { showsTabChip, tabCountLabel, type SearchTabCounts } from '../search_tab_counts';
+import type { SearchInterpretationChip, SearchReading, SearchScope } from '../search_types';
 
 // A horizontal scroll view in a column either grows to fill it or clips its
 // chips while the keyboard animates, so each chip row gets a fixed height.
@@ -25,24 +21,26 @@ const SCOPE_LABELS: { scope: SearchScope; label: string }[] = [
 ];
 
 /**
- * The scopes a search can narrow to. Reviews shows only when the response
- * counts reviews, and Add Tracks leaves Playlists out.
+ * The tabs a search can narrow to, each with its total when the server gave
+ * one (see `showsTabChip` for which show). Add Tracks leaves Playlists out.
  */
 export function SearchScopeChips({
   scope,
   counts,
+  moreScopes,
   includePlaylists,
   onSelect,
 }: {
   scope: SearchScope;
-  counts: SearchCatalogCounts | undefined;
+  counts: SearchTabCounts | undefined;
+  moreScopes: readonly SearchScope[];
   includePlaylists: boolean;
   onSelect: (scope: SearchScope) => void;
 }) {
   const scopes = SCOPE_LABELS.filter(
     (entry) =>
       (entry.scope !== 'playlists' || includePlaylists) &&
-      (entry.scope !== 'reviews' || counts?.reviews !== undefined || scope === 'reviews')
+      showsTabChip(entry.scope, { selected: scope, counts, moreScopes })
   );
 
   return (
@@ -61,6 +59,7 @@ export function SearchScopeChips({
     >
       {scopes.map((entry) => {
         const selected = entry.scope === scope;
+        const count = entry.scope === 'all' ? undefined : counts?.[entry.scope];
         return (
           <TouchableOpacity
             key={entry.scope}
@@ -72,7 +71,14 @@ export function SearchScopeChips({
             })}
             onPress={() => onSelect(entry.scope)}
           >
-            <RelistenText className="text-sm font-semibold">{entry.label}</RelistenText>
+            <RelistenText className="text-sm font-semibold">
+              {entry.label}
+              {count && count.count > 0 ? (
+                <RelistenText className="text-sm font-normal text-gray-300">
+                  {` ${tabCountLabel(count)}`}
+                </RelistenText>
+              ) : null}
+            </RelistenText>
           </TouchableOpacity>
         );
       })}
@@ -130,10 +136,12 @@ export function SearchInterpretationChips({
 /** Select the reading without changing the query text. */
 export function SearchReadingChips({
   readings,
+  query,
   selected,
   onSelect,
 }: {
   readings: SearchReading[];
+  query: string;
   selected: string | null;
   onSelect: (id: string | null) => void;
 }) {
@@ -155,7 +163,9 @@ export function SearchReadingChips({
     >
       {readings.map((reading) => {
         const active = selected === reading.id;
-        const label = reading.chips.map((chip) => chip.label).join(' · ') || 'Exact words';
+        // The literal reading has no chips: it searches the words as typed.
+        const label =
+          reading.chips.map((chip) => chip.label).join(' · ') || `Exactly “${query.trim()}”`;
         return (
           <TouchableOpacity
             key={reading.id}

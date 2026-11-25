@@ -55,7 +55,8 @@ export interface SearchReadings {
 
 interface SearchRowBase {
   key: string;
-  popularity?: PopularityResource;
+  /** Null when the thing has no listening activity yet. */
+  popularity?: PopularityResource | null;
   match?: {
     reading?: string;
     highlights?: Record<string, string>;
@@ -72,7 +73,10 @@ interface ShowRow extends ArtistRow {
 
 export interface SearchPerformanceRow extends ShowRow {
   kind: 'performance';
+  /** The matched catalog song. Absent when the file's title matches no song. */
   performance?: CatalogPerformanceSummary;
+  /** Every song in the file, in order, when it holds more than one (Scarlet > Fire). */
+  songs?: SongResource[];
   preview_track: TrackResource;
 }
 
@@ -120,11 +124,15 @@ export interface SearchResponse {
   request_id: string | null;
   scope: SearchScope;
   availability: { catalog: SearchAvailability; playlists: SearchAvailability };
+  /** Exact tab totals. */
   counts: SearchCatalogCounts;
+  /** Minimum totals for tabs whose exact total wasn't available; may hold zeros. */
+  count_lower_bounds?: SearchCatalogCounts;
   readings: SearchReadings;
   results: SearchResult[];
   next_page: number | null;
-  more_scopes: ('shows' | 'sources')[];
+  /** Tabs with more results than All shows (All only). */
+  more_scopes: SearchScope[];
 }
 
 /** What the app asks for. `ignore` and `boostArtistIds` are sent comma-separated. */
