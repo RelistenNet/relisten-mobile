@@ -49,7 +49,7 @@ export function searchRowAccessibilityLabel(view: SearchRowView): string {
     bylineAside,
     view.place,
     placeAside,
-    view.note,
+    view.note && withoutMarks(view.note),
   ]
     .filter(Boolean)
     .join(', ');
@@ -102,7 +102,6 @@ export function searchPlays(plays: number | undefined): string | undefined {
 export function describeSearchRow(row: SearchCatalogRow): SearchRowView {
   const artist = row.artist?.name;
   const plays = searchPlays(row.popularity?.windows['1y']?.plays);
-  const highlights = row.match?.highlights;
   const named = (title: string, byline: string, place?: string): SearchRowView => ({
     title,
     titleStyle: 'name',
@@ -131,7 +130,7 @@ export function describeSearchRow(row: SearchCatalogRow): SearchRowView {
       return {
         ...describeShow(row.show, row.artist.name, plays, row.source),
         badges: [],
-        note: reviewSnippet(highlights?.review_text ?? row.review.title ?? row.review.review),
+        note: reviewNote(row),
       };
     case 'performance': {
       const track = row.preview_track;
@@ -139,7 +138,11 @@ export function describeSearchRow(row: SearchCatalogRow): SearchRowView {
         part.qualifiers.includes('soundcheck')
       );
       return {
-        title: row.performance?.song ?? track.title,
+        // One file can hold several songs (Scarlet > Fire); name them all.
+        title:
+          row.songs && row.songs.length > 1
+            ? row.songs.map((song) => song.name).join(' → ')
+            : (row.performance?.song ?? track.title),
         titleStyle: 'track',
         badges: soundcheck ? ['Soundcheck'] : [],
         byline: joined(artist, row.show.display_date),
@@ -178,15 +181,23 @@ function describeShow(
   };
 }
 
-/** A recording is identified by its matching notes or credits, not its upstream ID. */
+/** Source fields whose matching passage identifies a recording, most telling first. */
+const SOURCE_NOTE_FIELDS = ['source.description', 'source.taper_notes', 'source.source'] as const;
+
+/**
+ * A recording is identified by the passage of its notes the query matched, or
+ * else by who taped and transferred it (with the match marked when the query
+ * named them). Its upstream identifier says neither, so it isn't shown.
+ */
 function recordingNote(row: Extract<SearchCatalogRow, { kind: 'show' | 'recording' }>) {
   const highlights = row.match?.highlights;
-  const matched = plainSnippet(highlights?.notes || highlights?.credits);
+  const matched = SOURCE_NOTE_FIELDS.map((field) => highlights?.[field]).find(Boolean);
   if (matched) {
-    return `“${matched}”`;
+    return quotedSnippet(matched);
   }
 
-  const { taper, transferrer } = row.source ?? {};
+  const taper = highlights?.['source.taper'] ?? row.source?.taper;
+  const transferrer = highlights?.['source.transferrer'] ?? row.source?.transferrer;
   return (
     joined(
       taper ? `Taper: ${taper}` : undefined,
@@ -195,19 +206,42 @@ function recordingNote(row: Extract<SearchCatalogRow, { kind: 'show' | 'recordin
   );
 }
 
-/** Highlighted text as plain text: marks dropped, whitespace collapsed. */
-function plainSnippet(text: string | undefined): string | undefined {
-  const plain = text
-    ?.replace(/<\/?mark>/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return plain || undefined;
+/**
+ * Highlighted text with its `<mark>` tags kept for the row to emphasize, and
+ * whitespace collapsed. The text is listener-written, so it is never parsed
+ * as HTML: the row splits on the two tags and renders everything else as text.
+ */
+function quotedSnippet(text: string | undefined): string | undefined {
+  const snippet = text?.replace(/\s+/g, ' ').trim();
+  return snippet ? `“${snippet}”` : undefined;
 }
 
-/** A review's matching passage, quoted. */
-function reviewSnippet(text: string | undefined): string | undefined {
-  const plain = plainSnippet(text);
-  return plain ? `“${plain}”` : undefined;
+/** A review's matching passage, else its title, else its text. */
+function reviewNote(row: Extract<SearchCatalogRow, { kind: 'review' }>) {
+  const highlights = row.match?.highlights;
+  return quotedSnippet(
+    highlights?.['review.review'] ??
+      highlights?.['review.title'] ??
+      row.review.title ??
+      row.review.review
+  );
+}
+
+/** Text without the `<mark>` tags a highlight carries, for VoiceOver. */
+export function withoutMarks(text: string): string {
+  return text.replace(/<\/?mark>/g, '');
+}
+
+/** Splits highlighted text into plain and matched runs, in order. */
+export function markedRuns(text: string): { text: string; marked: boolean }[] {
+  return text
+    .split(/(<mark>[\s\S]*?<\/mark>)/)
+    .filter(Boolean)
+    .map((part) =>
+      part.startsWith('<mark>') && part.endsWith('</mark>')
+        ? { text: part.slice(6, -7), marked: true }
+        : { text: withoutMarks(part), marked: false }
+    );
 }
 
 const trackCount = (count: number) => `${count} ${count === 1 ? 'track' : 'tracks'}`;

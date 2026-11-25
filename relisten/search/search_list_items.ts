@@ -36,11 +36,12 @@ export function buildRemoteListItems(
       : { type: 'row', key: row.key, row }
   );
 
+  // All shows a sample; each header links to a tab with more than it showed.
   for (const moreScope of presentation.moreScopes ?? []) {
     items.push({
       type: 'header',
       key: `more:${moreScope}`,
-      title: moreScope === 'shows' ? 'More versions' : 'More recordings',
+      title: `More ${moreScope}`,
       scope: moreScope,
     });
   }

@@ -5,6 +5,7 @@ import {
   describeLocalPlaylist,
   describePlaylistCard,
   describeSearchRow,
+  markedRuns,
   searchDuration,
   searchPlays,
   searchRowAccessibilityLabel,
@@ -19,6 +20,7 @@ import {
   sequenceRow,
   show,
   showRow,
+  song,
   songRow,
   source,
   yearlyPlays,
@@ -60,8 +62,8 @@ describe('buildRemoteListItems', () => {
       'more:sources',
     ]);
     expect(items.slice(1)).toMatchObject([
-      { type: 'header', title: 'More versions', scope: 'shows' },
-      { type: 'header', title: 'More recordings', scope: 'sources' },
+      { type: 'header', title: 'More shows', scope: 'shows' },
+      { type: 'header', title: 'More sources', scope: 'sources' },
     ]);
   });
 
@@ -133,16 +135,22 @@ describe('search row text', () => {
     expect(
       describeSearchRow({
         ...credited,
-        match: { highlights: { notes: 'the <mark>Twist</mark> jam' } },
+        match: { highlights: { 'source.taper_notes': 'the <mark>Twist</mark>\n jam' } },
       }).note
-    ).toBe('“the Twist jam”');
+    ).toBe('“the <mark>Twist</mark> jam”');
+    expect(
+      describeSearchRow({
+        ...credited,
+        match: { highlights: { 'source.transferrer': '<mark>Charlie Miller</mark>' } },
+      }).note
+    ).toBe('Taper: Betty Cantor · Transfer: <mark>Charlie Miller</mark>');
     expect(describeSearchRow(recordingRow).note).toBeUndefined();
     expect(
       describeSearchRow({
         ...reviewRow,
-        match: { highlights: { review_text: 'Nice <mark>Twist</mark>\r\n tease' } },
+        match: { highlights: { 'review.review': 'Nice <mark>Twist</mark>\r\n tease' } },
       })
-    ).toMatchObject({ title: '2000-06-14', note: '“Nice Twist tease”' });
+    ).toMatchObject({ title: '2000-06-14', note: '“Nice <mark>Twist</mark> tease”' });
   });
 
   it('formats durations and plays as the app does elsewhere', () => {
@@ -166,6 +174,25 @@ describe('search row text', () => {
     expect(describeSearchRow({ ...performanceRow, performance: undefined }).title).toBe(
       'Twist -> Jam'
     );
+  });
+
+  it('names every song in a file that holds several', () => {
+    const songs = [
+      { ...song, id: 'song_scarlet' as const, name: 'Scarlet Begonias' },
+      { ...song, id: 'song_fire' as const, name: 'Fire On The Mountain' },
+    ];
+    expect(describeSearchRow({ ...performanceRow, songs }).title).toBe(
+      'Scarlet Begonias → Fire On The Mountain'
+    );
+    expect(describeSearchRow({ ...performanceRow, songs: songs.slice(0, 1) }).title).toBe('Twist');
+  });
+
+  it('splits highlighted text into matched runs without reading it as HTML', () => {
+    expect(markedRuns('“the <mark>Twist</mark> <b>jam</b>”')).toEqual([
+      { text: '“the ', marked: false },
+      { text: 'Twist', marked: true },
+      { text: ' <b>jam</b>”', marked: false },
+    ]);
   });
 
   it('shows ordered passage titles even when two parts share a file', () => {

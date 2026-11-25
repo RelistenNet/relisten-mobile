@@ -5,7 +5,7 @@ import RowTitle from '@/relisten/components/row_title';
 import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { SubtitleText } from '@/relisten/components/row_subtitle';
 import { tw } from '@/relisten/util/tw';
-import { searchRowAccessibilityLabel, type SearchRowView } from '../search_rows';
+import { markedRuns, searchRowAccessibilityLabel, type SearchRowView } from '../search_rows';
 
 /**
  * A search result. Every kind stacks the same lines (see `SearchRowView`),
@@ -63,7 +63,15 @@ export function SearchResultRow({
 
         {view.note ? (
           <SubtitleText className={tw('pt-0.5', { italic: view.noteItalic })} numberOfLines={2}>
-            {view.note}
+            {markedRuns(view.note).map((run, index) =>
+              run.marked ? (
+                <RelistenText key={index} className="text-s font-semibold text-gray-200">
+                  {run.text}
+                </RelistenText>
+              ) : (
+                run.text
+              )
+            )}
           </SubtitleText>
         ) : null}
       </SectionedListItem>
