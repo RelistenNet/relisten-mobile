@@ -19,7 +19,7 @@ vi.mock('expo-crypto', () => ({
 }));
 
 import { AccountAccessTokenSource } from './account_access_token_source';
-import { AccountScopeCapture } from './account_scope_store';
+import { AccountScopeCapture, StaleAccountScopeError } from './account_scope_store';
 import { AccountsApiError } from './api/accounts_api_client';
 
 const capture: AccountScopeCapture = Object.freeze({
@@ -29,6 +29,33 @@ const capture: AccountScopeCapture = Object.freeze({
   nativeSessionId: 'session_01hx3x56tbfay8vvr14d2pf2db',
   isAuthenticated: true,
 });
+
+/** The coordinator's side of the token source: no transition or restore running. */
+function lifecycle(
+  overrides: Partial<ConstructorParameters<typeof AccountAccessTokenSource>[2]> = {}
+) {
+  return {
+    currentEpoch: vi.fn(() => 1),
+    isTransitioning: vi.fn(() => false),
+    restoreFinished: vi.fn((): Promise<void> | null => null),
+    profileRefreshed: vi.fn(),
+    sessionExpired: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
+}
+
+/** A launch restore that the test finishes, optionally changing the scope as it does. */
+function launchRestore() {
+  let finish!: () => void;
+  let running = true;
+  const done = new Promise<void>((resolve) => {
+    finish = () => {
+      running = false;
+      resolve();
+    };
+  });
+  return { finished: () => (running ? done : null), finish: () => finish() };
+}
 
 describe('AccountAccessTokenSource', () => {
   it('shares a terminal refresh and expires the session once', async () => {
@@ -48,18 +75,11 @@ describe('AccountAccessTokenSource', () => {
       isCurrent: vi.fn(() => true),
       updateProfile: vi.fn(),
     };
-    const lifecycle = {
-      currentEpoch: vi.fn(() => 1),
-      isTransitioning: vi.fn(() => false),
-      isRestoring: vi.fn(() => false),
-      restoreFinished: vi.fn(() => null),
-      profileRefreshed: vi.fn(),
-      sessionExpired: vi.fn().mockResolvedValue(undefined),
-    };
+    const coordinator = lifecycle();
     const source = new AccountAccessTokenSource(
       credentials as never,
       scopeStore as never,
-      lifecycle
+      coordinator
     );
 
     const first = source.getAccessToken(capture);
@@ -70,68 +90,45 @@ describe('AccountAccessTokenSource', () => {
 
     expect(results.map((result) => result.status)).toEqual(['rejected', 'rejected']);
     expect(credentials.rotate).toHaveBeenCalledOnce();
-    expect(lifecycle.sessionExpired).toHaveBeenCalledOnce();
-    expect(lifecycle.sessionExpired).toHaveBeenCalledWith('session_01hx3x56tbfay8vvr14d2pf2db');
+    expect(coordinator.sessionExpired).toHaveBeenCalledOnce();
+    expect(coordinator.sessionExpired).toHaveBeenCalledWith('session_01hx3x56tbfay8vvr14d2pf2db');
     expect(scopeStore.updateProfile).not.toHaveBeenCalled();
     expect(credentials.activate).not.toHaveBeenCalled();
-    expect(lifecycle.profileRefreshed).not.toHaveBeenCalled();
+    expect(coordinator.profileRefreshed).not.toHaveBeenCalled();
   });
 
   it('waits for the launch restore instead of failing a request made during it', async () => {
-    let finishRestore!: () => void;
-    let restoring = true;
+    const restore = launchRestore();
     let token: string | null = null;
-    const restore = new Promise<void>((resolve) => {
-      finishRestore = () => {
-        restoring = false;
-        token = 'restored-token';
-        resolve();
-      };
-    });
-    const credentials = {
-      freshAccessToken: vi.fn(() => token),
-      activeEnvelope: vi.fn(),
-      rotate: vi.fn(),
-      activate: vi.fn(),
-    };
-    const lifecycle = {
-      currentEpoch: vi.fn(() => 1),
-      isTransitioning: vi.fn(() => false),
-      isRestoring: vi.fn(() => restoring),
-      restoreFinished: vi.fn(() => (restoring ? restore : null)),
-      profileRefreshed: vi.fn(),
-      sessionExpired: vi.fn(),
-    };
+    const credentials = { freshAccessToken: vi.fn(() => token), rotate: vi.fn() };
     const source = new AccountAccessTokenSource(
       credentials as never,
-      { isCurrent: vi.fn(() => true), updateProfile: vi.fn() } as never,
-      lifecycle
+      { isCurrent: vi.fn(() => true) } as never,
+      lifecycle({ restoreFinished: vi.fn(restore.finished) })
     );
 
     const pending = source.getAccessToken(capture);
-    finishRestore();
+    token = 'restored-token';
+    restore.finish();
 
     await expect(pending).resolves.toBe('restored-token');
     // The restore did the one rotation; the waiting request didn't start another.
     expect(credentials.rotate).not.toHaveBeenCalled();
   });
 
-  it('reports a restore that is running without a promise to wait on', async () => {
+  it('fails a waiting request as stale when the restore moves to a new scope generation', async () => {
+    const restore = launchRestore();
+    let current = true;
     const source = new AccountAccessTokenSource(
       { freshAccessToken: vi.fn(() => null) } as never,
-      { isCurrent: vi.fn(() => true) } as never,
-      {
-        currentEpoch: vi.fn(() => 1),
-        isTransitioning: vi.fn(() => false),
-        isRestoring: vi.fn(() => true),
-        restoreFinished: vi.fn(() => null),
-        profileRefreshed: vi.fn(),
-        sessionExpired: vi.fn(),
-      }
+      { isCurrent: vi.fn(() => current) } as never,
+      lifecycle({ restoreFinished: vi.fn(restore.finished) })
     );
 
-    await expect(source.getAccessToken(capture)).rejects.toMatchObject({
-      code: 'session_restore_in_progress',
-    });
+    const pending = source.getAccessToken(capture);
+    current = false;
+    restore.finish();
+
+    await expect(pending).rejects.toBeInstanceOf(StaleAccountScopeError);
   });
 });

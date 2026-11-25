@@ -13,8 +13,7 @@ const ACCESS_TOKEN_REFRESH_MARGIN_MS = 60 * 1000;
 interface AccountTokenLifecycle {
   currentEpoch(): number;
   isTransitioning(): boolean;
-  isRestoring(): boolean;
-  /** Settles when the launch restore finishes, or null when none is running. */
+  /** Settles when the launch restore finishes; null when none is running. */
   restoreFinished(): Promise<void> | null;
   profileRefreshed(profile: AccountProfileSnapshot): void;
   sessionExpired(nativeSessionId: string): Promise<void>;
@@ -60,19 +59,10 @@ export class AccountAccessTokenSource implements AccountTokenSource {
     // rotation instead of failing, which would otherwise park sync behind its
     // 30-second retry. Afterwards the token is checked again from the top: the
     // restore may have signed out or switched scope.
-    const restoreFinished = this.lifecycle.isRestoring() ? this.lifecycle.restoreFinished() : null;
+    const restoreFinished = this.lifecycle.restoreFinished();
     if (restoreFinished) {
       await restoreFinished.catch(() => undefined);
       return this.getAccessToken(capture, forceRefresh);
-    }
-
-    if (this.lifecycle.isRestoring()) {
-      throw new AccountsApiError(
-        'Relisten is restoring protected account credentials.',
-        null,
-        'session_restore_in_progress',
-        true
-      );
     }
 
     if (this.refreshOperation && capturesSameScope(this.refreshOperation.capture, capture)) {

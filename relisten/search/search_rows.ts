@@ -3,10 +3,7 @@ import type { ShowSummaryResource, SourceSummaryResource } from '@/relisten/api/
 import type { ShowRowFields } from '@/relisten/components/shows_list';
 import type { TrackWithArtistFields } from '@/relisten/components/source/source_track_with_artist';
 import { normalizedVenueLocation } from '@/relisten/components/venue_presenters';
-import {
-  catalogPopularitySnapshot,
-  type PopularitySnapshot,
-} from '@/relisten/realm/models/popularity';
+import { playlistSizeLine } from '@/relisten/playlists/playlist_format';
 import { duration, trackDuration } from '@/relisten/util/duration';
 import type { SearchCatalogRow, SearchPerformanceRow, SearchPlaylistCard } from './search_types';
 
@@ -46,20 +43,6 @@ export function searchShowFields(
     sourceCount: show.source_count,
     avgDurationLabel: show.avg_duration ? duration(show.avg_duration) : undefined,
   };
-}
-
-/**
- * The show's listening activity, which show rows print as "5.4k 30d". The
- * result row carries popularity only for some kinds, so every show-like row
- * reads it from its embedded show.
- */
-export function searchShowPopularity(show: ShowSummaryResource): PopularitySnapshot | undefined {
-  return catalogPopularitySnapshot(show.popularity) ?? undefined;
-}
-
-/** A file's own song popularity, which only performance results carry. */
-export function searchRowPopularity(row: SearchCatalogRow): PopularitySnapshot | undefined {
-  return catalogPopularitySnapshot(row.popularity) ?? undefined;
 }
 
 /**
@@ -132,7 +115,7 @@ export function namedRowSubtitle(
 /** A playlist result's subtitle, worded as playlist rows word it. */
 export function playlistCardSubtitle(card: SearchPlaylistCard): string {
   return joined(
-    `${card.track_count} ${card.track_count === 1 ? 'track' : 'tracks'}`,
+    playlistSizeLine(card.track_count, 0),
     card.curator ? `@${card.curator}` : card.owned ? 'Yours' : undefined
   );
 }

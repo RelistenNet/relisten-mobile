@@ -13,7 +13,7 @@ import {
 } from '@/relisten/realm/models/shows/venue_shows_repo';
 import { useAddTracks } from './add_tracks_context';
 import { OpenFullPageButton, SheetScrollAnchor } from './add_tracks_controls';
-import { ShowRow, showRowFields } from '@/relisten/components/shows_list';
+import { SearchLocalShowRow } from './search_result_row';
 
 type ShowsParams =
   | { kind: 'venue'; venueId: string; artistUuid?: string }
@@ -155,11 +155,8 @@ function ShowList({
           // Content starts under the sheet's header; the inset clears it.
           contentInsetAdjustmentBehavior="automatic"
           renderItem={({ item: show }) => (
-            <ShowRow
-              fields={showRowFields(show)}
-              popularity={show.popularity?.snapshot()}
-              byline={show.artist?.name}
-              accessibilityRole="button"
+            <SearchLocalShowRow
+              show={show}
               onPress={() =>
                 router.push({
                   pathname: '/relisten/add-tracks/source',

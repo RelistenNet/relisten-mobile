@@ -3,16 +3,19 @@ import { View } from 'react-native';
 import { decodeUuidCatalogId } from '@/relisten/api/catalog/identity';
 import { ArtistRow } from '@/relisten/components/artist_rows';
 import { ListRow } from '@/relisten/components/list_row';
-import { PopularityIndicator } from '@/relisten/components/popularity_indicator';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { SubtitleText } from '@/relisten/components/row_subtitle';
-import { ShowRow } from '@/relisten/components/shows_list';
+import { ShowRow, showRowFields } from '@/relisten/components/shows_list';
 import {
   TrackWithArtistRow,
   type TrackWithArtistFields,
 } from '@/relisten/components/source/source_track_with_artist';
-import type { PopularitySnapshot } from '@/relisten/realm/models/popularity';
+import {
+  catalogPopularitySnapshot,
+  type PopularitySnapshot,
+} from '@/relisten/realm/models/popularity';
 import { Artist } from '@/relisten/realm/models/artist';
+import type { Show } from '@/relisten/realm/models/show';
 import { useObject } from '@/relisten/realm/schema';
 import {
   markedRuns,
@@ -22,9 +25,7 @@ import {
   recordingNote,
   reviewNote,
   searchPassageFields,
-  searchRowPopularity,
   searchShowFields,
-  searchShowPopularity,
   searchTrackFields,
   showPlace,
   showRowAccessibilityLabel,
@@ -70,10 +71,12 @@ export function SearchCatalogResult({
     case 'review': {
       const fields = searchShowFields(row.show, row.source);
       const note = row.kind === 'review' ? reviewNote(row) : recordingNote(row);
+      // Recording and review results carry no popularity of their own; the
+      // embedded show's activity is what show rows print anyway.
       return (
         <ShowRow
           fields={fields}
-          popularity={searchShowPopularity(row.show)}
+          popularity={catalogPopularitySnapshot(row.show.popularity)}
           byline={row.artist.name}
           accessibilityLabel={showRowAccessibilityLabel(fields, row.artist.name, note)}
           {...pressable}
@@ -87,7 +90,8 @@ export function SearchCatalogResult({
         <SearchTrackResult
           fields={searchTrackFields(row)}
           place={showPlace(row.show)}
-          popularity={searchRowPopularity(row)}
+          // A file's own song-level activity; only performance results carry it.
+          popularity={catalogPopularitySnapshot(row.popularity)}
           trailing={trailing}
           {...pressable}
         />
@@ -97,7 +101,7 @@ export function SearchCatalogResult({
         <SearchTrackResult
           fields={searchPassageFields(row)}
           place={showPlace(row.show)}
-          popularity={searchShowPopularity(row.show)}
+          popularity={catalogPopularitySnapshot(row.show.popularity)}
           {...pressable}
         />
       );
@@ -119,7 +123,7 @@ export function SearchTrackResult({
 }: {
   fields: TrackWithArtistFields;
   place?: string;
-  popularity?: PopularitySnapshot;
+  popularity?: PopularitySnapshot | null;
   trailing?: ReactNode;
   onPress?: () => void;
   onLongPress?: () => void;
@@ -131,7 +135,7 @@ export function SearchTrackResult({
         fields={fields}
         cn="w-auto min-w-0 flex-1"
         subtitleColumn
-        trailingDetail={<PopularityIndicator popularity={popularity} isTrendingSort={false} />}
+        popularity={popularity ?? null}
         accessibilityRole="button"
         accessibilityLabel={trackRowAccessibilityLabel(fields, place)}
         {...pressable}
@@ -148,9 +152,9 @@ export function SearchTrackResult({
 }
 
 /**
- * An artist result as the Artists tab draws it, heart and activity included.
- * The device loads every artist at launch, so it is almost always there; a
- * brand-new artist falls back to a plain row.
+ * An artist result as the Artists tab draws it, with its activity and without
+ * the favorite heart. The device loads every artist at launch, so it is
+ * almost always there; a brand-new artist falls back to a plain row.
  */
 function SearchArtistResult({
   row,
@@ -165,13 +169,51 @@ function SearchArtistResult({
   if (!artist) {
     return <ListRow title={row.artist.name} subtitle="Artist" {...pressable} />;
   }
+  return <SearchArtistRow artist={artist} {...pressable} />;
+}
 
+/** An artist on the device, as search draws artists: no favorite heart. */
+export function SearchArtistRow({
+  artist,
+  ...pressable
+}: {
+  artist: Artist;
+  onPress?: () => void;
+  onLongPress?: () => void;
+  disabled?: boolean;
+}) {
   return (
     <ArtistRow
       artist={artist}
       showFavorite={false}
       metadata={{ shows: artist.showCount, sources: artist.sourceCount }}
+      accessibilityRole="button"
       {...pressable}
+    />
+  );
+}
+
+/**
+ * A show on the device (a download, a recent play, a venue's or song's show)
+ * as a search show row. A recent play passes the played recording's
+ * soundboard mark, since the show's own mark says whether any recording is one.
+ */
+export function SearchLocalShowRow({
+  show,
+  hasSoundboardSource = show.hasSoundboardSource,
+  onPress,
+}: {
+  show: Show;
+  hasSoundboardSource?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <ShowRow
+      fields={{ ...showRowFields(show), hasSoundboardSource }}
+      popularity={show.popularity?.snapshot()}
+      byline={show.artist?.name}
+      accessibilityRole="button"
+      onPress={onPress}
     />
   );
 }

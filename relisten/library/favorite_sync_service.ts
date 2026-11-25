@@ -353,9 +353,8 @@ function isStaleScopeError(error: unknown) {
 
 /** The error's class and, for account API errors, its code (no message, which may name the account). */
 function errorName(error: unknown) {
-  if (!(error instanceof Error)) {
-    return 'unknown_error';
+  if (error instanceof AccountsApiError && error.code) {
+    return `${error.name} (${error.code})`;
   }
-  const code = (error as { code?: unknown }).code;
-  return typeof code === 'string' && code ? `${error.name} (${code})` : error.name;
+  return error instanceof Error ? error.name : 'unknown_error';
 }

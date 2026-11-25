@@ -2,12 +2,18 @@ import Flex from '@/relisten/components/flex';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
 import RowTitle from '@/relisten/components/row_title';
-import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
+import {
+  SectionedListItem,
+  type SectionedListItemProps,
+  type TouchableOpacityRef,
+} from '@/relisten/components/sectioned_list_item';
+import { PopularityIndicator } from '@/relisten/components/popularity_indicator';
+import type { PopularitySnapshot } from '@/relisten/realm/models/popularity';
 import { SourceTrackSucceededIndicator } from '@/relisten/components/source/source_track_offline_indicator';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { ShowLink } from '@/relisten/util/push_show';
 import React, { PropsWithChildren } from 'react';
-import { TouchableOpacity, type TouchableOpacityProps, View } from 'react-native';
+import { View } from 'react-native';
 
 /**
  * What a track row prints. A file on the device supplies it through
@@ -33,8 +39,6 @@ export function trackWithArtistFields(sourceTrack: SourceTrack): TrackWithArtist
   };
 }
 
-type TouchableOpacityRef = React.ElementRef<typeof TouchableOpacity>;
-
 /**
  * The track row itself, without its link: `TrackWithArtist` wraps it in a
  * `ShowLink`, and search passes its own `onPress`. `children` add to the
@@ -42,29 +46,24 @@ type TouchableOpacityRef = React.ElementRef<typeof TouchableOpacity>;
  */
 export const TrackWithArtistRow = React.forwardRef<
   TouchableOpacityRef,
-  PropsWithChildren<
-    TouchableOpacityProps & {
-      fields: TrackWithArtistFields;
-      /** Classes for the row's touchable, e.g. to share a line with an accessory beside it. */
-      cn?: string;
-      offlineIndicator?: boolean;
-      /**
-       * Shown at the end of the title line with the duration beside it, as
-       * show rows pair their activity with the rating.
-       */
-      trailingDetail?: React.ReactNode;
-      indicatorComponent?: React.ReactNode;
-      subtitleColumn?: boolean;
-    }
-  >
+  SectionedListItemProps & {
+    fields: TrackWithArtistFields;
+    offlineIndicator?: boolean;
+    /**
+     * The file's listening activity. When given, it ends the title line with
+     * the duration beside it, as show rows pair their activity with the rating.
+     */
+    popularity?: PopularitySnapshot | null;
+    indicatorComponent?: React.ReactNode;
+    subtitleColumn?: boolean;
+  }
 >(
   (
     {
       fields,
-      cn,
       children,
       offlineIndicator = true,
-      trailingDetail,
+      popularity,
       indicatorComponent,
       subtitleColumn,
       ...pressable
@@ -72,7 +71,7 @@ export const TrackWithArtistRow = React.forwardRef<
     ref
   ) => {
     return (
-      <SectionedListItem ref={ref} cn={cn} {...pressable}>
+      <SectionedListItem ref={ref} {...pressable}>
         <Flex className="flex items-center justify-between" full>
           <Flex className="flex-1 pr-2" column>
             <Flex className="items-center" style={{ gap: 8 }}>
@@ -84,9 +83,9 @@ export const TrackWithArtistRow = React.forwardRef<
               )}
               {offlineIndicator && fields.isPlayableOffline && <SourceTrackSucceededIndicator />}
               <View className="grow" />
-              {trailingDetail ? (
+              {popularity !== undefined ? (
                 <Flex className="items-center" style={{ gap: 8 }}>
-                  {trailingDetail}
+                  <PopularityIndicator popularity={popularity} isTrendingSort={false} />
                   <SubtitleText>{fields.durationLabel}</SubtitleText>
                 </Flex>
               ) : null}
@@ -100,7 +99,7 @@ export const TrackWithArtistRow = React.forwardRef<
               {children}
             </SubtitleRow>
           </Flex>
-          {trailingDetail ? null : <SubtitleText>{fields.durationLabel}</SubtitleText>}
+          {popularity !== undefined ? null : <SubtitleText>{fields.durationLabel}</SubtitleText>}
 
           {indicatorComponent}
         </Flex>

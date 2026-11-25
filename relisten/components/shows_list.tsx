@@ -1,11 +1,6 @@
 import { ListRenderItem } from '@shopify/flash-list';
 import React, { ReactNode, useMemo } from 'react';
-import {
-  TouchableOpacity,
-  type TouchableOpacityProps,
-  useWindowDimensions,
-  View,
-} from 'react-native';
+import { useWindowDimensions, View } from 'react-native';
 import { Popularity, type PopularitySnapshot } from '../realm/models/popularity';
 import { Show } from '../realm/models/show';
 import { FilterableList, FilterableListProps } from './filtering/filterable_list';
@@ -22,7 +17,11 @@ import Plur from './plur';
 import { RelistenText } from './relisten_text';
 import { SubtitleRow, SubtitleText } from './row_subtitle';
 import RowTitle from './row_title';
-import { SectionedListItem } from './sectioned_list_item';
+import {
+  SectionedListItem,
+  type SectionedListItemProps,
+  type TouchableOpacityRef,
+} from './sectioned_list_item';
 import { SourceTrackSucceededIndicator } from './source/source_track_offline_indicator';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import colors from 'tailwindcss/colors';
@@ -74,8 +73,6 @@ export function showRowFields(show: Show): ShowRowFields {
   };
 }
 
-type TouchableOpacityRef = React.ElementRef<typeof TouchableOpacity>;
-
 /**
  * The show row itself, without its link: a show list wraps it in a
  * `ShowLink`, and search passes its own `onPress`. `byline` adds a line for
@@ -83,9 +80,9 @@ type TouchableOpacityRef = React.ElementRef<typeof TouchableOpacity>;
  */
 export const ShowRow = React.forwardRef<
   TouchableOpacityRef,
-  TouchableOpacityProps & {
+  SectionedListItemProps & {
     fields: ShowRowFields;
-    popularity?: PopularitySnapshot;
+    popularity?: PopularitySnapshot | null;
     isTrendingSort?: boolean;
     venueLineCount?: number;
     byline?: string;
@@ -255,8 +252,8 @@ export function useShowFilters(byShow?: ShowPopularity): Filter<ShowFilterKey, S
         sort: (shows) =>
           shows.sort(
             (a, b) =>
-              (showPopularity(a, byShow)?.windows.days30d.hotScore ?? 0) -
-              (showPopularity(b, byShow)?.windows.days30d.hotScore ?? 0)
+              (showPopularity(a, byShow)?.windows?.days30d?.hotScore ?? 0) -
+              (showPopularity(b, byShow)?.windows?.days30d?.hotScore ?? 0)
           ),
       },
       {

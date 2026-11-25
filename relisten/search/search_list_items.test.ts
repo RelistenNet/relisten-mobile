@@ -16,8 +16,9 @@ import {
   reviewNote,
   searchPassageFields,
   searchShowFields,
-  searchShowPopularity,
   searchTrackFields,
+  showPlace,
+  showRowAccessibilityLabel,
 } from './search_rows';
 import type { SearchResult } from './search_types';
 import {
@@ -116,9 +117,19 @@ describe('search results as app rows', () => {
       venueLabel: 'Drum Logos, Fukuoka, Japan',
       sourceCount: show.source_count,
     });
-    // Recording and review rows carry no popularity of their own.
-    expect(searchShowPopularity(popular)).toBeDefined();
-    expect(searchShowPopularity({ ...show, popularity: null })).toBeUndefined();
+  });
+
+  it('names a venue once when its name already contains its city', () => {
+    const named = { ...importedVenue, name: 'Fukuoka Sunpalace', location: 'Fukuoka' };
+    expect(showPlace({ ...show, imported_venue: named })).toBe('Fukuoka Sunpalace');
+  });
+
+  it('reads SBD aloud as Soundboard and drops highlight marks', () => {
+    expect(
+      showRowAccessibilityLabel(searchShowFields(show), 'Phish', '“the <mark>Twist</mark> jam”')
+    ).toBe(
+      '2000-06-14, Soundboard, Phish, Drum Logos, Fukuoka, Japan, rated 8.25, “the Twist jam”'
+    );
   });
 
   it('reports a named recording’s own soundboard mark and rating', () => {

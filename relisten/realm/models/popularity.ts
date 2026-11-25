@@ -79,34 +79,15 @@ export class Popularity
   windows!: PopularityWindows;
 
   snapshot(): PopularitySnapshot {
+    const { hours48h, days7d, days30d, days1y } = this.windows;
     return {
       momentumScore: this.momentumScore,
       trendRatio: this.trendRatio,
       windows: {
-        hours48h: {
-          plays: this.windows.hours48h.plays,
-          hours: this.windows.hours48h.hours,
-          hotScore: this.windows.hours48h.hotScore,
-        },
-        days7d: {
-          plays: this.windows.days7d.plays,
-          hours: this.windows.days7d.hours,
-          hotScore: this.windows.days7d.hotScore,
-        },
-        days30d: {
-          plays: this.windows.days30d.plays,
-          hours: this.windows.days30d.hours,
-          hotScore: this.windows.days30d.hotScore,
-        },
-        ...(this.windows.days1y
-          ? {
-              days1y: {
-                plays: this.windows.days1y.plays,
-                hours: this.windows.days1y.hours,
-                hotScore: this.windows.days1y.hotScore,
-              },
-            }
-          : {}),
+        hours48h: storedWindow(hours48h),
+        days7d: storedWindow(days7d),
+        days30d: storedWindow(days30d),
+        ...(days1y ? { days1y: storedWindow(days1y) } : {}),
       },
     };
   }
@@ -134,6 +115,34 @@ export interface PopularitySnapshot {
   };
 }
 
+/**
+ * How rows print listening activity: the past year's plays ("16.4M 1y").
+ * A row stored before the app kept that window shows its 30-day plays,
+ * labelled 30d, until the catalog refreshes it. Undefined when there are none.
+ */
+export function popularityPlaysLabel(popularity?: PopularitySnapshot | null): string | undefined {
+  const year = popularity?.windows.days1y;
+  const { plays, label } = year
+    ? { plays: year.plays, label: '1y' }
+    : { plays: popularity?.windows.days30d.plays, label: '30d' };
+  const count = shortCount(plays);
+  return count ? `${count} ${label}` : undefined;
+}
+
+/** `1.4M`, `16.4k`, `0.3k` from 100 up, else the count itself. */
+function shortCount(plays: number | undefined): string | undefined {
+  if (!plays || plays <= 0) {
+    return undefined;
+  }
+  if (plays >= 1_000_000) {
+    return `${(plays / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+  }
+  if (plays >= 100) {
+    return `${(plays / 1_000).toFixed(1).replace(/\.0$/, '')}k`;
+  }
+  return plays.toFixed(0);
+}
+
 export function catalogPopularitySnapshot(
   popularity: PopularityResource | null | undefined
 ): PopularitySnapshot | null {
@@ -141,34 +150,27 @@ export function catalogPopularitySnapshot(
     return null;
   }
 
+  const { windows } = popularity;
   return {
     momentumScore: popularity.momentum_score,
     trendRatio: popularity.trend_ratio,
     windows: {
-      hours48h: {
-        plays: popularity.windows['48h'].plays,
-        hours: popularity.windows['48h'].hours,
-        hotScore: popularity.windows['48h'].hot_score,
-      },
-      days7d: {
-        plays: popularity.windows['7d'].plays,
-        hours: popularity.windows['7d'].hours,
-        hotScore: popularity.windows['7d'].hot_score,
-      },
-      days30d: {
-        plays: popularity.windows['30d'].plays,
-        hours: popularity.windows['30d'].hours,
-        hotScore: popularity.windows['30d'].hot_score,
-      },
-      ...(popularity.windows['1y']
-        ? {
-            days1y: {
-              plays: popularity.windows['1y'].plays,
-              hours: popularity.windows['1y'].hours,
-              hotScore: popularity.windows['1y'].hot_score,
-            },
-          }
-        : {}),
+      hours48h: resourceWindow(windows['48h']),
+      days7d: resourceWindow(windows['7d']),
+      days30d: resourceWindow(windows['30d']),
+      ...(windows['1y'] ? { days1y: resourceWindow(windows['1y']) } : {}),
     },
   };
+}
+
+function storedWindow(window: PopularityWindow): PopularityWindowRequiredProperties {
+  return { plays: window.plays, hours: window.hours, hotScore: window.hotScore };
+}
+
+function resourceWindow(window: {
+  plays: number;
+  hours: number;
+  hot_score: number;
+}): PopularityWindowRequiredProperties {
+  return { plays: window.plays, hours: window.hours, hotScore: window.hot_score };
 }

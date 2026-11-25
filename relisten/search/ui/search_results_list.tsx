@@ -11,13 +11,17 @@ import type { Show } from '@/relisten/realm/models/show';
 import type { SourceTrack } from '@/relisten/realm/models/source_track';
 import type { SearchListItem } from '../search_list_items';
 import type { SearchCatalogRow, SearchPlaylistCard, SearchScope } from '../search_types';
-import { ArtistRow } from '@/relisten/components/artist_rows';
 import { ListRow } from '@/relisten/components/list_row';
-import { ShowRow, showRowFields } from '@/relisten/components/shows_list';
 import { trackWithArtistFields } from '@/relisten/components/source/source_track_with_artist';
 import { showVenueLabel } from '@/relisten/util/venue_route';
 import { playlistSizeLine } from '@/relisten/playlists/playlist_format';
-import { SearchCatalogResult, SearchPlaylistResult, SearchTrackResult } from './search_result_row';
+import {
+  SearchArtistRow,
+  SearchCatalogResult,
+  SearchLocalShowRow,
+  SearchPlaylistResult,
+  SearchTrackResult,
+} from './search_result_row';
 
 /**
  * What a surface does with each kind of item. The Search tab opens screens;
@@ -131,23 +135,14 @@ function SearchListItemView({
       );
     case 'local-artist':
       return (
-        <ArtistRow
+        <SearchArtistRow
           artist={item.artist}
-          showFavorite={false}
-          metadata={{ shows: item.artist.showCount, sources: item.artist.sourceCount }}
-          accessibilityRole="button"
           onPress={() => handlers.onPressLocalArtist(item.artist)}
         />
       );
     case 'local-show':
       return (
-        <ShowRow
-          fields={showRowFields(item.show)}
-          popularity={item.show.popularity?.snapshot()}
-          byline={item.show.artist?.name}
-          accessibilityRole="button"
-          onPress={() => handlers.onPressLocalShow(item.show)}
-        />
+        <SearchLocalShowRow show={item.show} onPress={() => handlers.onPressLocalShow(item.show)} />
       );
     case 'local-track':
       return (
@@ -169,14 +164,9 @@ function SearchListItemView({
       );
     case 'recent':
       return (
-        <ShowRow
-          fields={{
-            ...showRowFields(item.entry.show),
-            hasSoundboardSource: item.entry.source.isSoundboard,
-          }}
-          popularity={item.entry.show.popularity?.snapshot()}
-          byline={item.entry.show.artist?.name}
-          accessibilityRole="button"
+        <SearchLocalShowRow
+          show={item.entry.show}
+          hasSoundboardSource={item.entry.source.isSoundboard}
           onPress={() => handlers.onPressRecent(item.entry)}
         />
       );
