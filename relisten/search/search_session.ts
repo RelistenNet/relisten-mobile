@@ -3,6 +3,13 @@ import type { SearchMode, SearchRequest, SearchResponse, SearchScope } from './s
 
 export const SEARCH_DEBOUNCE_MS = 120;
 
+/**
+ * How long typing must pause before the session asks for full results. The
+ * server's typing answer is quick but leaves out slower parts, such as
+ * reviews and their tab count; the full answer replaces it once typing stops.
+ */
+export const SEARCH_SETTLE_MS = 700;
+
 /** How many empty playlist pages one scroll to the end follows before waiting for the next. */
 const MAX_EMPTY_SEARCH_PAGES = 5;
 
@@ -109,12 +116,14 @@ export class SearchSession {
   private generation = 0;
   private requestCount = 0;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  private settleTimer: ReturnType<typeof setTimeout> | null = null;
   private inFlight: AbortController | null = null;
 
   constructor(
     private readonly mode: SearchMode,
     private readonly fetcher: SearchFetcher,
-    private readonly debounceMs = SEARCH_DEBOUNCE_MS
+    private readonly debounceMs = SEARCH_DEBOUNCE_MS,
+    private readonly settleMs = SEARCH_SETTLE_MS
   ) {}
 
   subscribe = (listener: () => void) => {
@@ -280,6 +289,10 @@ export class SearchSession {
       clearTimeout(this.timer);
       this.timer = null;
     }
+    if (this.settleTimer !== null) {
+      clearTimeout(this.settleTimer);
+      this.settleTimer = null;
+    }
     this.inFlight?.abort();
     this.inFlight = null;
   }
@@ -314,6 +327,16 @@ export class SearchSession {
       this.timer = null;
       void this.send(generation, true);
     }, this.debounceMs);
+
+    // Typing has stopped: replace the typing answer with the full one. The
+    // typing request may still be in flight; it is aborted so it can't land
+    // over the full answer.
+    this.settleTimer = setTimeout(() => {
+      this.settleTimer = null;
+      this.inFlight?.abort();
+      this.update({ pending: true });
+      void this.send(generation, false);
+    }, this.settleMs);
   }
 
   private async send(generation: number, typing: boolean) {
@@ -330,7 +353,9 @@ export class SearchSession {
 
     try {
       const response = await this.fetcher(request, context.signedIn, controller.signal);
-      if (generation === this.generation) {
+      // An aborted request can still resolve; the full search aborts the
+      // typing one within the same generation, so check both.
+      if (generation === this.generation && !controller.signal.aborted) {
         this.update({
           response,
           responseInputs: inputs,

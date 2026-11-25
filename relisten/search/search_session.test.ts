@@ -83,6 +83,33 @@ describe('SearchSession', () => {
     expect(session.getSnapshot().pending).toBe(false);
   });
 
+  it('replaces the typing answer with the full one once typing stops', async () => {
+    session.setQuery('cornell 77');
+    await vi.advanceTimersByTimeAsync(120);
+    expect(fetches[0].request.typing).toBe(true);
+
+    // The typing request is still out when typing settles; it gives way.
+    await vi.advanceTimersByTimeAsync(580);
+    expect(fetches[0].signal.aborted).toBe(true);
+    expect(fetches[1].request).toMatchObject({ q: 'cornell 77', typing: false });
+
+    // Even if the aborted typing answer lands last, it isn't shown.
+    fetches[1].resolve(response('cornell 77'));
+    await vi.advanceTimersByTimeAsync(0);
+    fetches[0].resolve(response('typing answer'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(session.getSnapshot().response?.q).toBe('cornell 77');
+    expect(session.getSnapshot().pending).toBe(false);
+  });
+
+  it('sends no full search while the listener keeps typing', async () => {
+    session.setQuery('corn');
+    await vi.advanceTimersByTimeAsync(500);
+    session.setQuery('cornell');
+    await vi.advanceTimersByTimeAsync(500);
+    expect(fetches.map((fetch) => fetch.request.typing)).toEqual([true, true]);
+  });
+
   it('keeps the current results on screen until the next answer replaces them', async () => {
     session.setQuery('tweezer');
     session.submit();
