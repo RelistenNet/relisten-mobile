@@ -48,7 +48,10 @@ export const TrackWithArtistRow = React.forwardRef<
       /** Classes for the row's touchable, e.g. to share a line with an accessory beside it. */
       cn?: string;
       offlineIndicator?: boolean;
-      /** Shown above the duration, at the top right, as show rows place their activity. */
+      /**
+       * Shown at the end of the title line with the duration beside it, as
+       * show rows pair their activity with the rating.
+       */
       trailingDetail?: React.ReactNode;
       indicatorComponent?: React.ReactNode;
       subtitleColumn?: boolean;
@@ -81,6 +84,12 @@ export const TrackWithArtistRow = React.forwardRef<
               )}
               {offlineIndicator && fields.isPlayableOffline && <SourceTrackSucceededIndicator />}
               <View className="grow" />
+              {trailingDetail ? (
+                <Flex className="items-center" style={{ gap: 8 }}>
+                  {trailingDetail}
+                  <SubtitleText>{fields.durationLabel}</SubtitleText>
+                </Flex>
+              ) : null}
             </Flex>
             <SubtitleRow {...{ column: !!subtitleColumn }}>
               <SubtitleText>
@@ -91,10 +100,7 @@ export const TrackWithArtistRow = React.forwardRef<
               {children}
             </SubtitleRow>
           </Flex>
-          <Flex className="items-end" column>
-            {trailingDetail}
-            <SubtitleText>{fields.durationLabel}</SubtitleText>
-          </Flex>
+          {trailingDetail ? null : <SubtitleText>{fields.durationLabel}</SubtitleText>}
 
           {indicatorComponent}
         </Flex>
