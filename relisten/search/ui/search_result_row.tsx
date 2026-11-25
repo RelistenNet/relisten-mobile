@@ -200,7 +200,7 @@ export function SearchArtistRow({
  */
 export function SearchLocalShowRow({
   show,
-  hasSoundboardSource = show.hasSoundboardSource,
+  hasSoundboardSource,
   onPress,
 }: {
   show: Show;
@@ -209,7 +209,10 @@ export function SearchLocalShowRow({
 }) {
   return (
     <ShowRow
-      fields={{ ...showRowFields(show), hasSoundboardSource }}
+      fields={{
+        ...showRowFields(show),
+        hasSoundboardSource: hasSoundboardSource ?? show.hasSoundboardSource,
+      }}
       popularity={show.popularity?.snapshot()}
       byline={show.artist?.name}
       accessibilityRole="button"
