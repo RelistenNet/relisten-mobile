@@ -25,7 +25,7 @@ const getMomentumBucket = (momentumScore?: number) => {
   return 4;
 };
 
-const formatPlays30d = (plays?: number) => {
+const formatPlays = (plays?: number) => {
   if (!plays || plays <= 0) {
     return undefined;
   }
@@ -83,9 +83,14 @@ export const PopularityIndicator = ({
   if (isTrendingSort) {
     detailText = formatMomentumPercent(momentumScore);
   } else {
-    const plays30d = popularity?.windows?.days30d?.plays;
-    const plays30dText = formatPlays30d(plays30d);
-    detailText = plays30dText ? `${plays30dText}${compact30d ? '' : ' 30d'}` : undefined;
+    // Plays over the past year. A row stored before the app kept that window
+    // shows its 30-day plays, labelled as such, until the catalog refreshes it.
+    const year = popularity?.windows?.days1y;
+    const window = year
+      ? { plays: year.plays, label: '1y' }
+      : { plays: popularity?.windows?.days30d?.plays, label: '30d' };
+    const playsText = formatPlays(window.plays);
+    detailText = playsText ? `${playsText}${compact30d ? '' : ` ${window.label}`}` : undefined;
   }
 
   if (!bucket && !detailText) {

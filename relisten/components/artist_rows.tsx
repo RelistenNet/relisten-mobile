@@ -59,8 +59,10 @@ export const ArtistRow = React.forwardRef<
     artist: Artist;
     metadata: ArtistMetadataSummary;
     isTrendingSort?: boolean;
+    /** The favorite heart at the end; search leaves it off. */
+    showFavorite?: boolean;
   }
->(({ artist, metadata, isTrendingSort = false, ...pressable }, ref) => {
+>(({ artist, metadata, isTrendingSort = false, showFavorite = true, ...pressable }, ref) => {
   const hasOfflineTracks = useArtistHasOfflineTracks(artist.uuid);
 
   return (
@@ -90,7 +92,7 @@ export const ArtistRow = React.forwardRef<
             </SubtitleText>
           </SubtitleRow>
         </Flex>
-        <ArtistRowActions artist={artist} />
+        {showFavorite && <ArtistRowActions artist={artist} />}
       </Flex>
     </SectionedListItem>
   );

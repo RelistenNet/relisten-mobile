@@ -276,7 +276,7 @@ export function ShowCardLoader({
             <View className="ml-auto items-end">
               <ShowCardMetaChip>
                 <RelistenText numberOfLines={1} className="text-xs text-gray-100">
-                  0.0k 30d
+                  0.0k 1y
                 </RelistenText>
               </ShowCardMetaChip>
             </View>

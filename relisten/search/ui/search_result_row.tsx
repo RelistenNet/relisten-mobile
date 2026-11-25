@@ -131,11 +131,16 @@ export function SearchTrackResult({
         fields={fields}
         cn="w-auto min-w-0 flex-1"
         subtitleColumn
+        trailingDetail={<PopularityIndicator popularity={popularity} isTrendingSort={false} />}
         accessibilityRole="button"
         accessibilityLabel={trackRowAccessibilityLabel(fields, place)}
         {...pressable}
       >
-        <VenueLine place={place} popularity={popularity} />
+        {place ? (
+          <SubtitleText className="flex-shrink" numberOfLines={2}>
+            {place}
+          </SubtitleText>
+        ) : null}
       </TrackWithArtistRow>
       {trailing ? <View className="pr-2">{trailing}</View> : null}
     </View>
@@ -164,6 +169,7 @@ function SearchArtistResult({
   return (
     <ArtistRow
       artist={artist}
+      showFavorite={false}
       metadata={{ shows: artist.showCount, sources: artist.sourceCount }}
       {...pressable}
     />
@@ -184,28 +190,6 @@ export function SearchPlaylistResult({
       disabled={!onPress}
       onPress={onPress}
     />
-  );
-}
-
-/** A file's venue, with its own listening activity where the catalog has it. */
-export function VenueLine({
-  place,
-  popularity,
-}: {
-  place?: string;
-  popularity?: PopularitySnapshot;
-}) {
-  if (!place && !popularity) {
-    return null;
-  }
-
-  return (
-    <View className="flex-row items-center justify-between" style={{ gap: 8 }}>
-      <SubtitleText className="flex-shrink" numberOfLines={2}>
-        {place}
-      </SubtitleText>
-      <PopularityIndicator popularity={popularity} isTrendingSort={false} />
-    </View>
   );
 }
 

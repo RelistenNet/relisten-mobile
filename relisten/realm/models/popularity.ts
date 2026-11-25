@@ -49,12 +49,15 @@ export class PopularityWindows
       hours48h: 'PopularityWindow',
       days7d: 'PopularityWindow',
       days30d: 'PopularityWindow',
+      // Added in schema 29; rows stored before the next catalog refresh lack it.
+      days1y: 'PopularityWindow',
     },
   };
 
   hours48h!: PopularityWindow;
   days7d!: PopularityWindow;
   days30d!: PopularityWindow;
+  days1y?: PopularityWindow;
 }
 
 export class Popularity
@@ -95,6 +98,15 @@ export class Popularity
           hours: this.windows.days30d.hours,
           hotScore: this.windows.days30d.hotScore,
         },
+        ...(this.windows.days1y
+          ? {
+              days1y: {
+                plays: this.windows.days1y.plays,
+                hours: this.windows.days1y.hours,
+                hotScore: this.windows.days1y.hotScore,
+              },
+            }
+          : {}),
       },
     };
   }
@@ -117,6 +129,8 @@ export interface PopularitySnapshot {
     hours48h: PopularityWindowRequiredProperties;
     days7d: PopularityWindowRequiredProperties;
     days30d: PopularityWindowRequiredProperties;
+    /** Missing on rows stored before schema 29 until their next refresh. */
+    days1y?: PopularityWindowRequiredProperties;
   };
 }
 
@@ -146,6 +160,15 @@ export function catalogPopularitySnapshot(
         hours: popularity.windows['30d'].hours,
         hotScore: popularity.windows['30d'].hot_score,
       },
+      ...(popularity.windows['1y']
+        ? {
+            days1y: {
+              plays: popularity.windows['1y'].plays,
+              hours: popularity.windows['1y'].hours,
+              hotScore: popularity.windows['1y'].hot_score,
+            },
+          }
+        : {}),
     },
   };
 }

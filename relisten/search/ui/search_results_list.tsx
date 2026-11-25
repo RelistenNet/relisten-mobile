@@ -133,6 +133,7 @@ function SearchListItemView({
       return (
         <ArtistRow
           artist={item.artist}
+          showFavorite={false}
           metadata={{ shows: item.artist.showCount, sources: item.artist.sourceCount }}
           accessibilityRole="button"
           onPress={() => handlers.onPressLocalArtist(item.artist)}
