@@ -248,10 +248,30 @@ describe('visibleReadings', () => {
     ]);
   });
 
-  it('offers nothing once the text has changed since the answer', () => {
-    const current = state(response({ readings: phish }), {
+  it('keeps the last answer’s readings while the next answer is on its way', () => {
+    const typingOn = state(response({ readings: phish }), {
       inputs: { ...INPUTS, query: 'phish 97' },
+      pending: true,
     });
-    expect(visibleReadings(current)).toEqual([]);
+    expect(visibleReadings(typingOn).map((reading) => reading.id)).toEqual([
+      'literal',
+      'artist:artist_6aaf',
+    ]);
+  });
+
+  it('doesn’t swap the clue chips in while the next answer is on its way', () => {
+    const cornell = {
+      applied: { id: 'query', chips: [{ key: 'year', label: '1977', value: '1977' }] },
+      alternatives: [{ id: 'literal', chips: [] }],
+    };
+    const typingOn = state(response({ readings: cornell }), {
+      inputs: { ...INPUTS, query: 'cornell 77 s' },
+      pending: true,
+    });
+    expect(visibleChips(typingOn)).toEqual([]);
+  });
+
+  it('offers nothing once the field is cleared', () => {
+    expect(visibleReadings(state(null, { inputs: { ...INPUTS, query: '' } }))).toEqual([]);
   });
 });

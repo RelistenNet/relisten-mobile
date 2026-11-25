@@ -56,7 +56,8 @@ export function SearchChipsHeader({
       />
       <SearchReadingChips
         readings={visibleReadings(state)}
-        query={query}
+        // The text those readings were read from, until the next answer.
+        query={state.responseInputs?.query ?? query}
         selected={state.response?.readings.applied?.id ?? null}
         onSelect={(id) => session.selectReading(id)}
       />

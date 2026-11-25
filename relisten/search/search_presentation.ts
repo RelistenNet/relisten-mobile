@@ -147,18 +147,18 @@ export function visibleChips(state: SearchSessionState): SearchInterpretationChi
 export const LITERAL_READING_ID = 'literal';
 
 /**
- * The readings the listener can pick, while the answer still matches the
- * text and tab they were read from. A reading is shown by its chips, so one
- * without chips can't be told apart from another; only the literal reading
- * gets a chip without them ("Exactly …"). Tapping the selected reading again
- * returns to the server's default, so hiding a chipless default loses nothing.
+ * The readings the listener can pick, from the latest answer. While the next
+ * answer is on its way they stay as they were, like the results, so the chip
+ * rows don't vanish and come back on every keystroke. Picking one meanwhile
+ * is harmless: the server ignores a reading that doesn't fit the new text.
+ *
+ * A reading is shown by its chips, so one without chips can't be told apart
+ * from another; only the literal reading gets a chip without them
+ * ("Exactly …"). Tapping the selected reading again returns to the server's
+ * default, so hiding a chipless default loses nothing.
  */
-export function visibleReadings({ inputs, response, responseInputs }: SearchSessionState) {
-  if (
-    !response ||
-    responseInputs?.query !== inputs.query ||
-    responseInputs.scope !== inputs.scope
-  ) {
+export function visibleReadings({ response }: SearchSessionState) {
+  if (!response) {
     return [];
   }
   const { applied, alternatives } = response.readings;
