@@ -124,24 +124,16 @@ export function presentSearch(
 /**
  * The chips above the results: the clues the server read, minus any the
  * listener removed (the previous answer may still carry one), plus an
- * explicit artist filter. A clue that a reading chip already offers isn't
- * repeated as a removable chip. Removing a chip goes through
- * `SearchSession.removeChip`.
+ * explicit artist filter. While readings are offered, the applied reading's
+ * chip already shows its clues, so they aren't repeated as removable chips.
+ * Removing a chip goes through `SearchSession.removeChip`.
  */
 export function visibleChips(state: SearchSessionState): SearchInterpretationChip[] {
   const { inputs, response } = state;
-  // Keys the reading chips cover. A place reading ("Barton Hall") stands for
-  // the venue clue the server reads from the same words.
-  const offeredByReadings = new Set(
-    visibleReadings(state).flatMap((reading) =>
-      reading.chips.flatMap((chip) => (chip.key === 'place' ? ['place', 'venue'] : [chip.key]))
-    )
-  );
-  const read = (response?.readings.applied?.chips ?? []).filter(
+  const clues = visibleReadings(state).length > 0 ? [] : (response?.readings.applied?.chips ?? []);
+  const read = clues.filter(
     (chip) =>
-      !inputs.removedChipKeys.includes(chip.key) &&
-      !(chip.key === 'artist' && inputs.artistFilter) &&
-      !offeredByReadings.has(chip.key)
+      !inputs.removedChipKeys.includes(chip.key) && !(chip.key === 'artist' && inputs.artistFilter)
   );
 
   if (!inputs.artistFilter) {

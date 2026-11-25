@@ -5,7 +5,8 @@ import {
   visibleReadings,
   type PresentSearchOptions,
 } from './search_presentation';
-import type { SearchInputs, SearchSessionState } from './search_session';
+import type { SearchSessionState } from './search_session';
+import { SEARCH_INPUTS, searchResponse } from './search_test_fixtures';
 import type {
   SearchInterpretationChip,
   SearchResult,
@@ -34,27 +35,10 @@ function readings(chips: SearchInterpretationChip[] = []) {
 }
 
 function response(change: Partial<SearchResponse> = {}): SearchResponse {
-  return {
-    q: 'jam',
-    request_id: null,
-    scope: 'all',
-    availability: { catalog: 'full', playlists: 'full' },
-    counts: {},
-    readings: readings(),
-    results: [],
-    next_page: null,
-    more_scopes: [],
-    ...change,
-  };
+  return searchResponse({ readings: readings(), ...change });
 }
 
-const INPUTS: SearchInputs = {
-  query: 'jam',
-  scope: 'all',
-  removedChipKeys: [],
-  artistFilter: null,
-  readingId: null,
-};
+const INPUTS = SEARCH_INPUTS;
 
 function state(
   answer: SearchResponse | null,
@@ -199,11 +183,11 @@ describe('presentSearch', () => {
     });
   });
 
-  it('searches the device while offline', () => {
-    expect(presentSearch(state(null), { ...explore, online: false }).catalog).toEqual({
-      kind: 'local',
-      retryable: false,
-    });
+  it('leaves playlist cards out of Add Tracks', () => {
+    const answer = response({ results: [card({ id: 'playlist_public' })] });
+    const presentation = presentSearch(state(answer), { ...explore, mode: 'add_tracks' });
+    expect(presentation.rows).toEqual([]);
+    expect(presentation.playlists).toEqual({ kind: 'none' });
   });
 
   it('shows Recently Played for an empty field', () => {
@@ -223,6 +207,13 @@ describe('visibleChips', () => {
       inputs: { ...INPUTS, removedChipKeys: ['year'] },
     });
     expect(visibleChips(current).map((chip) => chip.label)).toEqual(['Phish']);
+  });
+
+  it('leaves the clues to the reading chips while readings are offered', () => {
+    const answer = response({
+      readings: { applied: { id: 'query', chips }, alternatives: [{ id: 'literal', chips: [] }] },
+    });
+    expect(visibleChips(state(answer))).toEqual([]);
   });
 
   it('shows an explicit artist filter in place of the artist the server read', () => {

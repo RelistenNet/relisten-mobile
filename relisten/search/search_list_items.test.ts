@@ -6,7 +6,11 @@ vi.mock('expo-crypto', () => ({
 
 // Track durations format through dayjs, which the app sets up at launch.
 import '@/relisten/util/dayjs_setup';
-import { buildRecentListItems, buildRemoteListItems } from './search_list_items';
+import {
+  buildLocalListItems,
+  buildRecentListItems,
+  buildRemoteListItems,
+} from './search_list_items';
 import type { SearchPresentation } from './search_presentation';
 import {
   markedRuns,
@@ -76,6 +80,22 @@ describe('buildRemoteListItems', () => {
     ]);
   });
 
+  it('offers a retry for playlists that couldn’t load, never "No results"', () => {
+    const items = buildRemoteListItems(
+      { rows: [], catalog: { kind: 'remote' }, playlists: { kind: 'unavailable' } },
+      'all',
+      'jams'
+    );
+    expect(items).toEqual([
+      {
+        type: 'message',
+        key: 'playlists-unavailable',
+        text: 'Playlists couldn’t load.',
+        retry: true,
+      },
+    ]);
+  });
+
   it('says there are no results only for a real, empty answer', () => {
     const empty: SearchPresentation = {
       rows: [],
@@ -97,6 +117,25 @@ describe('buildRemoteListItems', () => {
     expect(buildRemoteListItems(page, 'playlists', 'jams')).toEqual([
       { type: 'loading', key: 'loading' },
     ]);
+  });
+});
+
+describe('buildLocalListItems', () => {
+  const nothingDownloaded = { artists: [], shows: [], tracks: [], playlists: [] };
+
+  it('explains a catalog it couldn’t reach, and says when nothing downloaded matches', () => {
+    expect(
+      buildLocalListItems(nothingDownloaded, { retryable: true, query: ' jams ' })
+    ).toMatchObject([
+      { type: 'header', title: 'On This Device' },
+      { type: 'message', key: 'catalog-unavailable', retry: true },
+      { type: 'message', key: 'local-empty', text: 'Nothing downloaded matches “jams”.' },
+    ]);
+  });
+
+  it('says nothing about the catalog when the device is simply offline', () => {
+    const items = buildLocalListItems(nothingDownloaded, { retryable: false, query: 'jams' });
+    expect(items.map((item) => item.key)).toEqual(['header:local', 'local-empty']);
   });
 });
 

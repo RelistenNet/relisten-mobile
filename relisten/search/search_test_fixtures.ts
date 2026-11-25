@@ -9,12 +9,42 @@ import type {
   TrackResource,
   VenueResource,
 } from '@/relisten/api/catalog/resources';
-import type { SearchCatalogRow, SearchPerformanceRow } from './search_types';
+import type { SearchInputs } from './search_session';
+import type { SearchCatalogRow, SearchPerformanceRow, SearchResponse } from './search_types';
 
 const date = '2000-06-14T00:00:00Z';
 const timestamps = { created_at: date, updated_at: date };
 
 // Sequential UUIDs make the show, source and track route targets easy to distinguish.
+export const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+/** The UUIDs the fixtures' catalog IDs decode to, as routes carry them. */
+export const UUIDS = { artist: uuid(1), show: uuid(2), source: uuid(3), track: uuid(4) };
+
+/** A search answer with nothing in it, for tests to fill in. */
+export function searchResponse(change: Partial<SearchResponse> = {}): SearchResponse {
+  return {
+    q: 'jam',
+    request_id: null,
+    scope: 'all',
+    availability: { catalog: 'full', playlists: 'full' },
+    counts: {},
+    readings: { applied: null, alternatives: [] },
+    results: [],
+    next_page: null,
+    more_scopes: [],
+    ...change,
+  };
+}
+
+/** A typed query in All, with no filters or chips removed. */
+export const SEARCH_INPUTS: SearchInputs = {
+  query: 'jam',
+  scope: 'all',
+  removedChipKeys: [],
+  artistFilter: null,
+  readingId: null,
+};
+
 export const artist: ArtistResource = {
   id: 'artist_00000000008008000000000001',
   name: 'Phish',

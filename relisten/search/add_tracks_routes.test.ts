@@ -17,13 +17,11 @@ import {
   source,
   track,
   venue,
+  UUIDS,
+  uuid,
 } from './search_test_fixtures';
 
-const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
-const ARTIST = uuid(1);
-const SHOW = uuid(2);
-const SOURCE = uuid(3);
-const TRACK = uuid(4);
+const { artist: ARTIST, show: SHOW, source: SOURCE, track: TRACK } = UUIDS;
 const PLAYLIST = 'playlist_01m836fykfetx92xm6rwxdtt3s';
 
 describe('addTracksTapTarget', () => {

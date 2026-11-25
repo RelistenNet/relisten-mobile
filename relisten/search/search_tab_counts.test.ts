@@ -2,29 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { SearchInputs } from './search_session';
 import { nextTabTotals, responseTabCounts, showsTabChip, tabCountLabel } from './search_tab_counts';
 import type { SearchResponse } from './search_types';
+import { SEARCH_INPUTS, searchResponse } from './search_test_fixtures';
 
-const inputs: SearchInputs = {
-  query: 'cornell 77',
-  scope: 'all',
-  removedChipKeys: [],
-  artistFilter: null,
-  readingId: null,
-};
-
-function response(change: Partial<SearchResponse>): SearchResponse {
-  return {
-    q: inputs.query,
-    request_id: null,
-    scope: 'all',
-    availability: { catalog: 'full', playlists: 'full' },
-    counts: {},
-    readings: { applied: null, alternatives: [] },
-    results: [],
-    next_page: null,
-    more_scopes: [],
-    ...change,
-  };
-}
+const inputs: SearchInputs = { ...SEARCH_INPUTS, query: 'cornell 77' };
+const response = (change: Partial<SearchResponse>) =>
+  searchResponse({ q: inputs.query, ...change });
 
 // Production's reply to `cornell 77` in All, 2026-11-25.
 const cornell = response({

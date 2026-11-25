@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SearchSession, type SearchContext } from './search_session';
 import type { SearchRequest, SearchResponse } from './search_types';
+import { searchResponse } from './search_test_fixtures';
 
 interface PendingFetch {
   request: SearchRequest;
@@ -10,21 +11,14 @@ interface PendingFetch {
 }
 
 function response(q: string, playlistLabels: string[] = []): SearchResponse {
-  return {
+  return searchResponse({
     q,
-    request_id: null,
-    scope: 'all',
-    availability: { catalog: 'full', playlists: 'full' },
-    counts: {},
-    readings: { applied: null, alternatives: [] },
     results: playlistLabels.map((label) => ({
       kind: 'playlist',
       key: `playlist:${label}`,
       playlist: { id: `playlist_${label}`, name: label, track_count: 1, owned: true },
     })),
-    next_page: null,
-    more_scopes: [],
-  };
+  });
 }
 
 function context(change: Partial<SearchContext> = {}): SearchContext {
@@ -266,6 +260,42 @@ describe('SearchSession', () => {
       'playlist:Third',
     ]);
     expect(session.getSnapshot().loadingMore).toBe(false);
+  });
+
+  it('waits for the next scroll after five pages that add nothing', async () => {
+    session.setScope('playlists');
+    session.setQuery('jams');
+    session.submit();
+    fetches.at(-1)!.resolve({ ...response('jams', ['First']), next_page: 2 });
+    await vi.advanceTimersByTimeAsync(0);
+
+    void session.loadMore();
+    for (let page = 2; page <= 6; page++) {
+      expect(fetches.at(-1)?.request.page).toBe(page);
+      fetches.at(-1)!.resolve({ ...response('jams', []), next_page: page + 1 });
+      await vi.advanceTimersByTimeAsync(0);
+    }
+
+    expect(fetches.at(-1)?.request.page).toBe(6);
+    expect(session.getSnapshot()).toMatchObject({ loadingMore: false });
+    expect(session.getSnapshot().response?.next_page).toBe(7);
+  });
+
+  it('keeps the pages shown and retries the same page after a failed one', async () => {
+    session.setScope('playlists');
+    session.setQuery('jams');
+    session.submit();
+    fetches.at(-1)!.resolve({ ...response('jams', ['First']), next_page: 2 });
+    await vi.advanceTimersByTimeAsync(0);
+
+    void session.loadMore();
+    fetches.at(-1)!.reject(new Error('timeout'));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(session.getSnapshot()).toMatchObject({ failed: false, loadingMore: false });
+    expect(session.getSnapshot().response?.results).toHaveLength(1);
+    void session.loadMore();
+    expect(fetches.at(-1)?.request.page).toBe(2);
   });
 
   it('refetches a selected reading and clears it on an edit', () => {
