@@ -102,6 +102,26 @@ describe('SearchSession', () => {
     expect(session.getSnapshot().pending).toBe(false);
   });
 
+  it('keeps the typing answer when the full search fails', async () => {
+    session.setQuery('cornell 77');
+    await vi.advanceTimersByTimeAsync(120);
+    fetches[0].resolve(response('cornell 77'));
+    await vi.advanceTimersByTimeAsync(580);
+
+    fetches[1].reject(new Error('timeout'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(session.getSnapshot()).toMatchObject({ failed: false, pending: false });
+    expect(session.getSnapshot().response?.q).toBe('cornell 77');
+  });
+
+  it('sends no second full search in a tab, which asks for full results already', async () => {
+    session.setScope('shows');
+    await vi.advanceTimersByTimeAsync(0);
+    session.setQuery('scarlet fire');
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetches.filter((fetch) => fetch.request.q === 'scarlet fire')).toHaveLength(1);
+  });
+
   it('sends no full search while the listener keeps typing', async () => {
     session.setQuery('corn');
     await vi.advanceTimersByTimeAsync(500);

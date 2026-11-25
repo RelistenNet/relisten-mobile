@@ -45,6 +45,8 @@ export const TrackWithArtistRow = React.forwardRef<
   PropsWithChildren<
     TouchableOpacityProps & {
       fields: TrackWithArtistFields;
+      /** Classes for the row's touchable, e.g. to share a line with an accessory beside it. */
+      cn?: string;
       offlineIndicator?: boolean;
       indicatorComponent?: React.ReactNode;
       subtitleColumn?: boolean;
@@ -52,11 +54,19 @@ export const TrackWithArtistRow = React.forwardRef<
   >
 >(
   (
-    { fields, children, offlineIndicator = true, indicatorComponent, subtitleColumn, ...pressable },
+    {
+      fields,
+      cn,
+      children,
+      offlineIndicator = true,
+      indicatorComponent,
+      subtitleColumn,
+      ...pressable
+    },
     ref
   ) => {
     return (
-      <SectionedListItem ref={ref} {...pressable}>
+      <SectionedListItem ref={ref} cn={cn} {...pressable}>
         <Flex className="flex items-center justify-between" full>
           <Flex className="flex-1 pr-2" column>
             <Flex className="items-center" style={{ gap: 8 }}>

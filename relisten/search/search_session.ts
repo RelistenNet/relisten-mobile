@@ -328,18 +328,30 @@ export class SearchSession {
       void this.send(generation, true);
     }, this.debounceMs);
 
-    // Typing has stopped: replace the typing answer with the full one. The
-    // typing request may still be in flight; it is aborted so it can't land
-    // over the full answer.
-    this.settleTimer = setTimeout(() => {
-      this.settleTimer = null;
-      this.inFlight?.abort();
-      this.update({ pending: true });
-      void this.send(generation, false);
-    }, this.settleMs);
+    // Only All asks the server for its quick typing answer (see `request`),
+    // so only All needs the full answer once typing stops.
+    if (this.state.inputs.scope === 'all') {
+      this.settleTimer = setTimeout(() => this.settle(generation), this.settleMs);
+    }
   }
 
-  private async send(generation: number, typing: boolean) {
+  /**
+   * Typing has stopped: ask for the full answer to replace the typing one.
+   * Only the typing request can be in flight here (All has no `loadMore`),
+   * and it is aborted so it can't land over the full answer. If the full
+   * request fails while the typing answer is showing, the typing answer stays.
+   */
+  private settle(generation: number) {
+    this.settleTimer = null;
+    this.inFlight?.abort();
+    void this.send(generation, false, { keepAnswerOnFailure: true });
+  }
+
+  private async send(
+    generation: number,
+    typing: boolean,
+    { keepAnswerOnFailure = false }: { keepAnswerOnFailure?: boolean } = {}
+  ) {
     const context = this.context;
     if (!context?.online) {
       return;
@@ -368,7 +380,12 @@ export class SearchSession {
       // The transport wraps an abort as an ordinary error, and a stale account
       // throws its own; both belong to a generation that is no longer current.
       if (!controller.signal.aborted && generation === this.generation) {
-        this.update({ pending: false, failed: true });
+        const answerShowing = this.state.responseInputs === inputs;
+        this.update(
+          keepAnswerOnFailure && answerShowing
+            ? { pending: false }
+            : { pending: false, failed: true }
+        );
       }
     } finally {
       if (this.inFlight === controller) {

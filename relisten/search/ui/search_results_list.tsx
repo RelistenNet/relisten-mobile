@@ -14,12 +14,10 @@ import type { SearchCatalogRow, SearchPlaylistCard, SearchScope } from '../searc
 import { ArtistRow } from '@/relisten/components/artist_rows';
 import { ListRow } from '@/relisten/components/list_row';
 import { ShowRow, showRowFields } from '@/relisten/components/shows_list';
-import {
-  TrackWithArtistRow,
-  trackWithArtistFields,
-} from '@/relisten/components/source/source_track_with_artist';
+import { trackWithArtistFields } from '@/relisten/components/source/source_track_with_artist';
 import { showVenueLabel } from '@/relisten/util/venue_route';
-import { SearchCatalogResult, SearchPlaylistResult, VenueLine } from './search_result_row';
+import { playlistSizeLine } from '@/relisten/playlists/playlist_format';
+import { SearchCatalogResult, SearchPlaylistResult, SearchTrackResult } from './search_result_row';
 
 /**
  * What a surface does with each kind of item. The Search tab opens screens;
@@ -152,21 +150,18 @@ function SearchListItemView({
       );
     case 'local-track':
       return (
-        <TrackWithArtistRow
+        <SearchTrackResult
           fields={trackWithArtistFields(item.track)}
-          subtitleColumn
-          indicatorComponent={handlers.trailingForLocalTrack?.(item.track)}
-          accessibilityRole="button"
+          place={item.track.show ? showVenueLabel(item.track.show) : undefined}
+          trailing={handlers.trailingForLocalTrack?.(item.track)}
           onPress={() => handlers.onPressLocalTrack(item.track)}
-        >
-          <VenueLine place={item.track.show ? showVenueLabel(item.track.show) : undefined} />
-        </TrackWithArtistRow>
+        />
       );
     case 'local-playlist':
       return (
         <ListRow
           title={item.playlist.name}
-          subtitle={`${item.playlist.entryCount} ${item.playlist.entryCount === 1 ? 'track' : 'tracks'}`}
+          subtitle={playlistSizeLine(item.playlist.entryCount, 0)}
           disabled={!handlers.onPressLocalPlaylist}
           onPress={bound(handlers.onPressLocalPlaylist, item.playlist)}
         />

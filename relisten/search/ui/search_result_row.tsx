@@ -7,7 +7,11 @@ import { PopularityIndicator } from '@/relisten/components/popularity_indicator'
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { SubtitleText } from '@/relisten/components/row_subtitle';
 import { ShowRow } from '@/relisten/components/shows_list';
-import { TrackWithArtistRow } from '@/relisten/components/source/source_track_with_artist';
+import {
+  TrackWithArtistRow,
+  type TrackWithArtistFields,
+} from '@/relisten/components/source/source_track_with_artist';
+import type { PopularitySnapshot } from '@/relisten/realm/models/popularity';
 import { Artist } from '@/relisten/realm/models/artist';
 import { useObject } from '@/relisten/realm/schema';
 import {
@@ -23,6 +27,8 @@ import {
   searchShowPopularity,
   searchTrackFields,
   showPlace,
+  showRowAccessibilityLabel,
+  trackRowAccessibilityLabel,
 } from '../search_rows';
 import type { SearchCatalogRow, SearchPlaylistCard } from '../search_types';
 
@@ -61,45 +67,79 @@ export function SearchCatalogResult({
       return <ListRow title={namedRowTitle(row)} subtitle={namedRowSubtitle(row)} {...pressable} />;
     case 'show':
     case 'recording':
+    case 'review': {
+      const fields = searchShowFields(row.show, row.source);
+      const note = row.kind === 'review' ? reviewNote(row) : recordingNote(row);
       return (
         <ShowRow
-          fields={searchShowFields(row.show, row.source)}
+          fields={fields}
           popularity={searchShowPopularity(row.show)}
           byline={row.artist.name}
+          accessibilityLabel={showRowAccessibilityLabel(fields, row.artist.name, note)}
           {...pressable}
         >
-          <SearchNote text={recordingNote(row)} />
+          <SearchNote text={note} />
         </ShowRow>
       );
-    case 'review':
-      return (
-        <ShowRow
-          fields={searchShowFields(row.show, row.source)}
-          popularity={searchShowPopularity(row.show)}
-          byline={row.artist.name}
-          {...pressable}
-        >
-          <SearchNote text={reviewNote(row)} />
-        </ShowRow>
-      );
+    }
     case 'performance':
       return (
-        <TrackWithArtistRow
+        <SearchTrackResult
           fields={searchTrackFields(row)}
-          subtitleColumn
-          indicatorComponent={trailing}
+          place={showPlace(row.show)}
+          popularity={searchRowPopularity(row)}
+          trailing={trailing}
           {...pressable}
-        >
-          <VenueLine place={showPlace(row.show)} popularity={searchRowPopularity(row)} />
-        </TrackWithArtistRow>
+        />
       );
     case 'sequence':
       return (
-        <TrackWithArtistRow fields={searchPassageFields(row)} subtitleColumn {...pressable}>
-          <VenueLine place={showPlace(row.show)} popularity={searchShowPopularity(row.show)} />
-        </TrackWithArtistRow>
+        <SearchTrackResult
+          fields={searchPassageFields(row)}
+          place={showPlace(row.show)}
+          popularity={searchShowPopularity(row.show)}
+          {...pressable}
+        />
       );
   }
+}
+
+/**
+ * A file as the download list's track row. Add Tracks' **+** sits beside the
+ * row rather than inside its button: a disabled **+** (another add is
+ * running) would otherwise pass the tap through to the row, and VoiceOver
+ * couldn't reach it inside the row's single element.
+ */
+export function SearchTrackResult({
+  fields,
+  place,
+  popularity,
+  trailing,
+  ...pressable
+}: {
+  fields: TrackWithArtistFields;
+  place?: string;
+  popularity?: PopularitySnapshot;
+  trailing?: ReactNode;
+  onPress?: () => void;
+  onLongPress?: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <View className="flex-row items-center">
+      <TrackWithArtistRow
+        fields={fields}
+        cn="w-auto min-w-0 flex-1"
+        subtitleColumn
+        accessibilityRole="button"
+        accessibilityLabel={trackRowAccessibilityLabel(fields, place)}
+        {...pressable}
+      >
+        <VenueLine place={place} popularity={popularity} />
+      </TrackWithArtistRow>
+      {trailing ? <View className="pr-2">{trailing}</View> : null}
+    </View>
+  );
 }
 
 /**
@@ -153,7 +193,7 @@ export function VenueLine({
   popularity,
 }: {
   place?: string;
-  popularity?: Parameters<typeof PopularityIndicator>[0]['popularity'];
+  popularity?: PopularitySnapshot;
 }) {
   if (!place && !popularity) {
     return null;

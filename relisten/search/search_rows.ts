@@ -186,6 +186,36 @@ function quotedSnippet(text: string | undefined): string | undefined {
   return snippet ? `“${snippet}”` : undefined;
 }
 
+/** What VoiceOver reads for a show row: "SBD" spelled out, marks dropped. */
+export function showRowAccessibilityLabel(
+  fields: ShowRowFields,
+  byline: string | undefined,
+  note: string | undefined
+): string {
+  return [
+    fields.displayDate,
+    fields.hasSoundboardSource ? 'Soundboard' : undefined,
+    byline,
+    fields.venueLabel,
+    fields.avgRating > 0 ? `rated ${fields.avgRating.toFixed(2)}` : undefined,
+    note ? withoutMarks(note) : undefined,
+  ]
+    .filter(Boolean)
+    .join(', ');
+}
+
+/** What VoiceOver reads for a track row. */
+export function trackRowAccessibilityLabel(
+  fields: TrackWithArtistFields,
+  place: string | undefined
+): string {
+  return [fields.title, fields.artistName, fields.displayDate, place, fields.durationLabel]
+    .filter(Boolean)
+    .join(', ');
+}
+
+const withoutMarks = (text: string) => text.replace(/<\/?mark>/g, '');
+
 /** Splits highlighted text into plain and matched runs, in order. */
 export function markedRuns(text: string): { text: string; marked: boolean }[] {
   return text
@@ -194,7 +224,7 @@ export function markedRuns(text: string): { text: string; marked: boolean }[] {
     .map((part) =>
       part.startsWith('<mark>') && part.endsWith('</mark>')
         ? { text: part.slice(6, -7), marked: true }
-        : { text: part.replace(/<\/?mark>/g, ''), marked: false }
+        : { text: withoutMarks(part), marked: false }
     );
 }
 
