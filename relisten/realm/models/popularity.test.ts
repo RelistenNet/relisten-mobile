@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { catalogPopularitySnapshot, popularityPlaysLabel } from './popularity';
+import { catalogPopularitySnapshot, popularityPlaysLabel, popularSortValue } from './popularity';
 
 const window = (plays: number) => ({ plays, hours: 0, hot_score: 0 });
 
@@ -44,5 +44,15 @@ describe('popularityPlaysLabel', () => {
     expect(popularityPlaysLabel(snapshot(0, 42))).toBe('42 1y');
     expect(popularityPlaysLabel(snapshot(0, 0))).toBeUndefined();
     expect(popularityPlaysLabel(null)).toBeUndefined();
+  });
+});
+
+describe('popularSortValue', () => {
+  it('sorts by the plays the row shows: the year, or 30 days for an older row', () => {
+    expect(
+      popularSortValue({ windows: { days30d: { plays: 900 }, days1y: { plays: 5_000 } } })
+    ).toBe(5_000);
+    expect(popularSortValue({ windows: { days30d: { plays: 900 } } })).toBe(900);
+    expect(popularSortValue(undefined)).toBe(0);
   });
 });

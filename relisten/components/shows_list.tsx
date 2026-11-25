@@ -1,7 +1,7 @@
 import { ListRenderItem } from '@shopify/flash-list';
 import React, { ReactNode, useMemo } from 'react';
 import { useWindowDimensions, View } from 'react-native';
-import { Popularity, type PopularitySnapshot } from '../realm/models/popularity';
+import { Popularity, popularSortValue, type PopularitySnapshot } from '../realm/models/popularity';
 import { Show } from '../realm/models/show';
 import { FilterableList, FilterableListProps } from './filtering/filterable_list';
 import {
@@ -252,8 +252,8 @@ export function useShowFilters(byShow?: ShowPopularity): Filter<ShowFilterKey, S
         sort: (shows) =>
           shows.sort(
             (a, b) =>
-              (showPopularity(a, byShow)?.windows?.days30d?.hotScore ?? 0) -
-              (showPopularity(b, byShow)?.windows?.days30d?.hotScore ?? 0)
+              popularSortValue(showPopularity(a, byShow)) -
+              popularSortValue(showPopularity(b, byShow))
           ),
       },
       {

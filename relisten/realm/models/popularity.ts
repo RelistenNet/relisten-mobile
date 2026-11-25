@@ -115,18 +115,39 @@ export interface PopularitySnapshot {
   };
 }
 
+/** The windows `displayedPlays` reads; a stored `Popularity` and a snapshot both have them. */
+interface PlaysWindows {
+  windows?: {
+    days1y?: { plays: number } | null;
+    days30d?: { plays: number } | null;
+  } | null;
+}
+
 /**
- * How rows print listening activity: the past year's plays ("16.4M 1y").
- * A row stored before the app kept that window shows its 30-day plays,
- * labelled 30d, until the catalog refreshes it. Undefined when there are none.
+ * The plays rows show and the Popular sorts rank by: the past year's. A row
+ * stored before the app kept that window falls back to its 30 days until the
+ * catalog refreshes it.
  */
-export function popularityPlaysLabel(popularity?: PopularitySnapshot | null): string | undefined {
-  const year = popularity?.windows.days1y;
-  const { plays, label } = year
-    ? { plays: year.plays, label: '1y' }
-    : { plays: popularity?.windows.days30d.plays, label: '30d' };
-  const count = shortCount(plays);
-  return count ? `${count} ${label}` : undefined;
+export function displayedPlays(
+  popularity?: PlaysWindows | null
+): { plays: number; window: '1y' | '30d' } | undefined {
+  const { days1y, days30d } = popularity?.windows ?? {};
+  if (days1y) {
+    return { plays: days1y.plays, window: '1y' };
+  }
+  return days30d ? { plays: days30d.plays, window: '30d' } : undefined;
+}
+
+/** How rows print listening activity: "16.4M 1y", or "0.3k 30d" for an older row. */
+export function popularityPlaysLabel(popularity?: PlaysWindows | null): string | undefined {
+  const shown = displayedPlays(popularity);
+  const count = shortCount(shown?.plays);
+  return count && shown ? `${count} ${shown.window}` : undefined;
+}
+
+/** The value the Popular sorts compare: the displayed plays, 0 when there are none. */
+export function popularSortValue(popularity?: PlaysWindows | null): number {
+  return displayedPlays(popularity)?.plays ?? 0;
 }
 
 /** `1.4M`, `16.4k`, `0.3k` from 100 up, else the count itself. */

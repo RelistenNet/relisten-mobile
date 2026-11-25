@@ -1,3 +1,4 @@
+import { popularSortValue } from '@/relisten/realm/models/popularity';
 import { searchForSubstring } from '@/relisten/components/filtering/filters';
 import { Artist } from '@/relisten/realm/models/artist';
 import { Filter, SortDirection } from '@/relisten/components/filtering/filters';
@@ -27,11 +28,7 @@ export const ARTIST_SORT_FILTERS: Filter<ArtistSortKey, Artist>[] = [
     active: false,
     isNumeric: true,
     sort: (artists) =>
-      artists.sort(
-        (a, b) =>
-          (a.popularity?.windows?.days30d?.hotScore ?? 0) -
-          (b.popularity?.windows?.days30d?.hotScore ?? 0)
-      ),
+      artists.sort((a, b) => popularSortValue(a.popularity) - popularSortValue(b.popularity)),
   },
   {
     persistenceKey: ArtistSortKey.Trending,
