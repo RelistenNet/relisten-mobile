@@ -1,72 +1,25 @@
+import { decodeUuidCatalogId } from '@/relisten/api/catalog/identity';
 import type { ShowSummaryResource, SourceSummaryResource } from '@/relisten/api/catalog/resources';
+import type { ShowRowFields } from '@/relisten/components/shows_list';
+import type { TrackWithArtistFields } from '@/relisten/components/source/source_track_with_artist';
 import { normalizedVenueLocation } from '@/relisten/components/venue_presenters';
-import type { Show } from '@/relisten/realm/models/show';
-import type { SourceTrack } from '@/relisten/realm/models/source_track';
-import { showVenueLabel } from '@/relisten/util/venue_route';
-import type { SearchCatalogRow, SearchPlaylistCard } from './search_types';
+import {
+  catalogPopularitySnapshot,
+  type PopularitySnapshot,
+} from '@/relisten/realm/models/popularity';
+import { duration, trackDuration } from '@/relisten/util/duration';
+import type { SearchCatalogRow, SearchPerformanceRow, SearchPlaylistCard } from './search_types';
 
-/**
- * How one result reads in a list. Every result stacks the same lines, so the
- * eye finds the same thing in the same place whatever the result is:
- *
- *     title  marks                 rating or duration
- *     artist · date                a show's plays
- *     venue, location              a track's plays
- *     note
- *
- * The title takes the style of the app row for that kind of thing: a bold
- * date as in the show list, a song in regular weight as in a playlist, or a
- * bold name as in the artist, song and venue lists.
+/*
+ * Search results render with the app's own rows: shows as the show list's
+ * `ShowRow`, files as the download list's `TrackWithArtistRow`, artists as
+ * the Artists tab's `ArtistRow`, and names (songs, tours, venues, playlists)
+ * as the library's `ListRow`. These functions turn the catalog's response
+ * into what those rows print.
  */
-export interface SearchRowView {
-  title: string;
-  titleStyle: 'date' | 'track' | 'name';
-  /** Short marks such as SBD or Soundcheck. */
-  badges: string[];
-  /** The artist, then the date unless the date is the title. */
-  byline: string;
-  /** Venue and location. */
-  place?: string;
-  /** What tells this row apart from its neighbors: a taper credit or a review excerpt. */
-  note?: string;
-  /** The note is quoted text or an identifier rather than a plain fact. */
-  noteItalic?: boolean;
-  /** What sits at the end of the title, byline and place lines, in that order. */
-  aside: [title?: string, byline?: string, place?: string];
-}
 
-/** VoiceOver would spell "SBD" letter by letter. */
-const spokenBadge = (badge: string) => (badge === 'SBD' ? 'Soundboard' : badge);
-
-/** Everything a row shows, for VoiceOver. */
-export function searchRowAccessibilityLabel(view: SearchRowView): string {
-  const [titleAside, bylineAside, placeAside] = view.aside;
-  return [
-    view.title,
-    ...view.badges.map(spokenBadge),
-    titleAside,
-    view.byline,
-    bylineAside,
-    view.place,
-    placeAside,
-    view.note && withoutMarks(view.note),
-  ]
-    .filter(Boolean)
-    .join(', ');
-}
-
-/** Seconds as `m:ss`, or `h:mm:ss` for an hour or more. */
-export function searchDuration(seconds: number): string {
-  const whole = Math.max(0, Math.round(seconds));
-  const hours = Math.floor(whole / 3600);
-  const minutes = Math.floor((whole % 3600) / 60);
-  const secs = String(whole % 60).padStart(2, '0');
-  return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${secs}` : `${minutes}:${secs}`;
-}
-
-const joined = (...parts: (string | undefined)[]) => parts.filter(Boolean).join(' · ');
-
-function showPlace(show: ShowSummaryResource): string {
+/** Venue and location, as show rows print them; a venue name that contains its city keeps one. */
+export function showPlace(show: ShowSummaryResource): string {
   const venue = show.imported_venue;
   const canonical = show.artist_venue?.venue;
   const name = venue?.name ?? canonical?.name;
@@ -76,120 +29,123 @@ function showPlace(show: ShowSummaryResource): string {
     : [name, location].filter(Boolean).join(', ');
 }
 
-/** A 0–10 rating as show rows print it: `8.25 ★`. Unrated is left blank. */
-export function searchRating(rating: number | undefined): string | undefined {
-  return rating && rating > 0 ? `${rating.toFixed(2)} ★` : undefined;
-}
-
 /**
- * `736 plays/yr`, `3.3k plays/yr`. The index counts the year before it was
- * built, so the label says so. None is left blank.
+ * A show row for a show, recording or review result. A result that names a
+ * recording reports that recording's soundboard mark and rating.
  */
-export function searchPlays(plays: number | undefined): string | undefined {
-  if (!plays || plays <= 0) {
-    return undefined;
-  }
-  const short = (value: number, unit: string) => `${value.toFixed(1).replace(/\.0$/, '')}${unit}`;
-  const count =
-    plays >= 1_000_000
-      ? short(plays / 1_000_000, 'M')
-      : plays >= 1_000
-        ? short(plays / 1_000, 'k')
-        : String(plays);
-  return `${count} ${plays === 1 ? 'play' : 'plays'}/yr`;
-}
-
-export function describeSearchRow(row: SearchCatalogRow): SearchRowView {
-  const artist = row.artist?.name;
-  const plays = searchPlays(row.popularity?.windows['1y']?.plays);
-  const named = (title: string, byline: string, place?: string): SearchRowView => ({
-    title,
-    titleStyle: 'name',
-    badges: [],
-    byline,
-    place,
-    aside: [],
-  });
-
-  switch (row.kind) {
-    case 'artist':
-      return named(row.artist.name, 'Artist');
-    case 'song':
-      return named(row.song.name, joined(artist, 'Song'));
-    case 'tour':
-      return named(row.tour.name, joined(artist, 'Tour'));
-    case 'venue': {
-      const venue = row.venue;
-      const location = 'artist_id' in venue ? venue.location : normalizedVenueLocation(venue);
-      return named(venue.name ?? 'Unknown venue', joined(artist, 'Venue'), location ?? undefined);
-    }
-    case 'show':
-    case 'recording':
-      return describeShow(row.show, row.artist.name, plays, row.source, recordingNote(row));
-    case 'review':
-      return {
-        ...describeShow(row.show, row.artist.name, plays, row.source),
-        badges: [],
-        note: reviewNote(row),
-      };
-    case 'performance': {
-      const track = row.preview_track;
-      const soundcheck = track.normalization.parts.some((part) =>
-        part.qualifiers.includes('soundcheck')
-      );
-      return {
-        // One file can hold several songs (Scarlet > Fire); name them all.
-        title:
-          row.songs && row.songs.length > 1
-            ? row.songs.map((song) => song.name).join(' → ')
-            : (row.performance?.song ?? track.title),
-        titleStyle: 'track',
-        badges: soundcheck ? ['Soundcheck'] : [],
-        byline: joined(artist, row.show.display_date),
-        place: showPlace(row.show),
-        aside: [track.duration ? searchDuration(track.duration) : undefined, undefined, plays],
-      };
-    }
-    case 'sequence':
-      return {
-        title: row.passage.parts.map((part) => part.song.name).join(' → '),
-        titleStyle: 'track',
-        badges: [],
-        byline: joined(artist, row.show.display_date),
-        place: showPlace(row.show),
-        aside: [plays],
-      };
-  }
-}
-
-function describeShow(
+export function searchShowFields(
   show: ShowSummaryResource,
-  artist: string,
-  plays: string | undefined,
-  source: SourceSummaryResource | undefined,
-  note?: string
-): SearchRowView {
+  source?: SourceSummaryResource
+): ShowRowFields {
   return {
-    title: show.display_date,
-    titleStyle: 'date',
-    badges: (source?.is_soundboard ?? show.has_soundboard_source) ? ['SBD'] : [],
-    byline: artist,
-    place: showPlace(show),
-    note,
-    noteItalic: true,
-    aside: [searchRating(source?.avg_rating ?? show.avg_rating), plays],
+    uuid: decodeUuidCatalogId(show.id, 'show'),
+    displayDate: show.display_date,
+    hasSoundboardSource: source?.is_soundboard ?? show.has_soundboard_source,
+    avgRating: source?.avg_rating || show.avg_rating,
+    venueLabel: showPlace(show),
+    sourceCount: show.source_count,
+    avgDurationLabel: show.avg_duration ? duration(show.avg_duration) : undefined,
   };
 }
 
-/** Source fields whose matching passage identifies a recording, most telling first. */
-const SOURCE_NOTE_FIELDS = ['source.description', 'source.taper_notes', 'source.source'] as const;
+/**
+ * The show's listening activity, which show rows print as "5.4k 30d". The
+ * result row carries popularity only for some kinds, so every show-like row
+ * reads it from its embedded show.
+ */
+export function searchShowPopularity(show: ShowSummaryResource): PopularitySnapshot | undefined {
+  return catalogPopularitySnapshot(show.popularity) ?? undefined;
+}
+
+/** A file's own song popularity, which only performance results carry. */
+export function searchRowPopularity(row: SearchCatalogRow): PopularitySnapshot | undefined {
+  return catalogPopularitySnapshot(row.popularity) ?? undefined;
+}
 
 /**
- * A recording is identified by the passage of its notes the query matched, or
- * else by who taped and transferred it (with the match marked when the query
- * named them). Its upstream identifier says neither, so it isn't shown.
+ * A performance's file as a track row. One file can hold several songs
+ * (Scarlet > Fire), and then the row names them all; a file whose title
+ * matches no catalog song keeps its own title.
  */
-function recordingNote(row: Extract<SearchCatalogRow, { kind: 'show' | 'recording' }>) {
+export function searchTrackFields(row: SearchPerformanceRow): TrackWithArtistFields {
+  const track = row.preview_track;
+  const title =
+    row.songs && row.songs.length > 1
+      ? row.songs.map((song) => song.name).join(' → ')
+      : (row.performance?.song ?? track.title);
+
+  return {
+    title,
+    isSoundboard: false,
+    isPlayableOffline: false,
+    artistName: row.artist.name,
+    displayDate: row.show.display_date,
+    durationLabel: track.duration ? trackDuration(track.duration) : undefined,
+  };
+}
+
+/** A passage (songs played in sequence, such as Scarlet > Fire) as a track row. */
+export function searchPassageFields(
+  row: Extract<SearchCatalogRow, { kind: 'sequence' }>
+): TrackWithArtistFields {
+  const seconds = row.passage.tracks.reduce((total, track) => total + (track.duration ?? 0), 0);
+  return {
+    title: row.passage.parts.map((part) => part.song.name).join(' → '),
+    isSoundboard: false,
+    isPlayableOffline: false,
+    artistName: row.artist.name,
+    displayDate: row.show.display_date,
+    durationLabel: seconds > 0 ? trackDuration(seconds) : undefined,
+  };
+}
+
+/** The title of a song, tour or venue result, which open as plain list rows. */
+export function namedRowTitle(
+  row: Extract<SearchCatalogRow, { kind: 'song' | 'tour' | 'venue' }>
+): string {
+  switch (row.kind) {
+    case 'song':
+      return row.song.name;
+    case 'tour':
+      return row.tour.name;
+    case 'venue':
+      return row.venue.name ?? 'Unknown venue';
+  }
+}
+
+export function namedRowSubtitle(
+  row: Extract<SearchCatalogRow, { kind: 'song' | 'tour' | 'venue' }>
+): string {
+  switch (row.kind) {
+    case 'song':
+      return joined(row.artist.name, 'Song');
+    case 'tour':
+      return joined(row.artist.name, 'Tour');
+    case 'venue': {
+      const venue = row.venue;
+      const location = 'artist_id' in venue ? venue.location : normalizedVenueLocation(venue);
+      return joined('Venue', row.artist?.name, location || undefined);
+    }
+  }
+}
+
+/** A playlist result's subtitle, worded as playlist rows word it. */
+export function playlistCardSubtitle(card: SearchPlaylistCard): string {
+  return joined(
+    `${card.track_count} ${card.track_count === 1 ? 'track' : 'tracks'}`,
+    card.curator ? `@${card.curator}` : card.owned ? 'Yours' : undefined
+  );
+}
+
+/**
+ * What tells a recording apart from the show's others: the passage of its
+ * notes the query matched, or else who taped and transferred it (with the
+ * match marked when the query named them). Its upstream identifier says
+ * neither, so it isn't shown.
+ */
+export function recordingNote(
+  row: Extract<SearchCatalogRow, { kind: 'show' | 'recording' }>
+): string | undefined {
   const highlights = row.match?.highlights;
   const matched = SOURCE_NOTE_FIELDS.map((field) => highlights?.[field]).find(Boolean);
   if (matched) {
@@ -206,6 +162,20 @@ function recordingNote(row: Extract<SearchCatalogRow, { kind: 'show' | 'recordin
   );
 }
 
+/** A review's matching passage, else its title, else its text. */
+export function reviewNote(row: Extract<SearchCatalogRow, { kind: 'review' }>): string | undefined {
+  const highlights = row.match?.highlights;
+  return quotedSnippet(
+    highlights?.['review.review'] ??
+      highlights?.['review.title'] ??
+      row.review.title ??
+      row.review.review
+  );
+}
+
+/** Source fields whose matching passage identifies a recording, most telling first. */
+const SOURCE_NOTE_FIELDS = ['source.description', 'source.taper_notes', 'source.source'] as const;
+
 /**
  * Highlighted text with its `<mark>` tags kept for the row to emphasize, and
  * whitespace collapsed. The text is listener-written, so it is never parsed
@@ -216,22 +186,6 @@ function quotedSnippet(text: string | undefined): string | undefined {
   return snippet ? `“${snippet}”` : undefined;
 }
 
-/** A review's matching passage, else its title, else its text. */
-function reviewNote(row: Extract<SearchCatalogRow, { kind: 'review' }>) {
-  const highlights = row.match?.highlights;
-  return quotedSnippet(
-    highlights?.['review.review'] ??
-      highlights?.['review.title'] ??
-      row.review.title ??
-      row.review.review
-  );
-}
-
-/** Text without the `<mark>` tags a highlight carries, for VoiceOver. */
-export function withoutMarks(text: string): string {
-  return text.replace(/<\/?mark>/g, '');
-}
-
 /** Splits highlighted text into plain and matched runs, in order. */
 export function markedRuns(text: string): { text: string; marked: boolean }[] {
   return text
@@ -240,63 +194,8 @@ export function markedRuns(text: string): { text: string; marked: boolean }[] {
     .map((part) =>
       part.startsWith('<mark>') && part.endsWith('</mark>')
         ? { text: part.slice(6, -7), marked: true }
-        : { text: withoutMarks(part), marked: false }
+        : { text: part.replace(/<\/?mark>/g, ''), marked: false }
     );
 }
 
-const trackCount = (count: number) => `${count} ${count === 1 ? 'track' : 'tracks'}`;
-
-export function describePlaylistCard(card: SearchPlaylistCard): SearchRowView {
-  return {
-    title: card.name,
-    titleStyle: 'name',
-    badges: [],
-    byline: joined(
-      card.curator ? `@${card.curator}` : card.owned ? 'Yours' : undefined,
-      'Playlist',
-      trackCount(card.track_count)
-    ),
-    aside: [],
-  };
-}
-
-/**
- * A show on the device, as a remote show row. Its soundboard flag is passed
- * in: a show knows whether any recording is one, a history entry knows its own.
- */
-export function describeLocalShow(show: Show, soundboard: boolean): SearchRowView {
-  return {
-    title: show.displayDate,
-    titleStyle: 'date',
-    badges: soundboard ? ['SBD'] : [],
-    byline: show.artist?.name ?? '',
-    place: showVenueLabel(show),
-    aside: [searchRating(show.avgRating)],
-  };
-}
-
-/** A downloaded file, as a remote performance row. */
-export function describeLocalTrack(track: SourceTrack): SearchRowView {
-  return {
-    title: track.title,
-    titleStyle: 'track',
-    badges: track.source?.isSoundboard ? ['SBD'] : [],
-    byline: joined(track.artist?.name, track.show?.displayDate),
-    place: track.show ? showVenueLabel(track.show) : undefined,
-    aside: [track.humanizedDuration],
-  };
-}
-
-export function describeLocalArtist(name: string): SearchRowView {
-  return { title: name, titleStyle: 'name', badges: [], byline: 'Artist', aside: [] };
-}
-
-export function describeLocalPlaylist(name: string, entryCount: number): SearchRowView {
-  return {
-    title: name,
-    titleStyle: 'name',
-    badges: [],
-    byline: joined('Playlist', trackCount(entryCount)),
-    aside: [],
-  };
-}
+const joined = (...parts: (string | undefined)[]) => parts.filter(Boolean).join(' · ');

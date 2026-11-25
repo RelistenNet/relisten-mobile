@@ -1,6 +1,11 @@
 import { ListRenderItem } from '@shopify/flash-list';
 import React, { ReactNode, useMemo } from 'react';
-import { useWindowDimensions, View } from 'react-native';
+import {
+  TouchableOpacity,
+  type TouchableOpacityProps,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { Popularity, type PopularitySnapshot } from '../realm/models/popularity';
 import { Show } from '../realm/models/show';
 import { FilterableList, FilterableListProps } from './filtering/filterable_list';
@@ -42,30 +47,73 @@ interface ShowListItemViewProps extends ShowListItemProps {
   popularity?: PopularitySnapshot;
 }
 
-const ShowListItemView = ({
-  show,
-  children,
-  isTrendingSort,
-  venueLineCount,
-  popularity,
-}: ShowListItemViewProps) => {
-  const hasOfflineTracks = useShowHasOfflineTracks(show.uuid);
-  const favorite = useFavorite('show', show.uuid);
+/**
+ * What a show row prints. A show on the device supplies it through
+ * `showRowFields`; a search result builds it from the catalog's response.
+ */
+export interface ShowRowFields {
+  uuid: string;
+  displayDate: string;
+  hasSoundboardSource: boolean;
+  /** 0 when unrated. */
+  avgRating: number;
+  venueLabel: string;
+  sourceCount: number;
+  avgDurationLabel?: string;
+}
 
-  return (
-    <ShowLink
-      show={{
-        artist: show.artist,
-        showUuid: show.uuid,
-      }}
-      asChild
-    >
-      <SectionedListItem>
+export function showRowFields(show: Show): ShowRowFields {
+  return {
+    uuid: show.uuid,
+    displayDate: show.displayDate,
+    hasSoundboardSource: show.hasSoundboardSource,
+    avgRating: show.avgRating,
+    venueLabel: showVenueLabel(show),
+    sourceCount: show.sourceCount,
+    avgDurationLabel: show.humanizedAvgDuration(),
+  };
+}
+
+type TouchableOpacityRef = React.ElementRef<typeof TouchableOpacity>;
+
+/**
+ * The show row itself, without its link: a show list wraps it in a
+ * `ShowLink`, and search passes its own `onPress`. `byline` adds a line for
+ * lists that mix artists; `children` adds lines below the venue.
+ */
+export const ShowRow = React.forwardRef<
+  TouchableOpacityRef,
+  TouchableOpacityProps & {
+    fields: ShowRowFields;
+    popularity?: PopularitySnapshot;
+    isTrendingSort?: boolean;
+    venueLineCount?: number;
+    byline?: string;
+    children?: ReactNode;
+  }
+>(
+  (
+    {
+      fields,
+      popularity,
+      isTrendingSort = false,
+      venueLineCount = 2,
+      byline,
+      children,
+      ...pressable
+    },
+    ref
+  ) => {
+    const hasOfflineTracks = useShowHasOfflineTracks(fields.uuid);
+    const favorite = useFavorite('show', fields.uuid);
+
+    return (
+      <SectionedListItem ref={ref} {...pressable}>
         <Flex className="flex justify-between" full>
           <Flex className="flex-1 pr-2 grow" column>
             <Flex className="items-center flex-wrap" style={{ gap: 8 }}>
-              <RowTitle>{show.displayDate}</RowTitle>
-              {show.hasSoundboardSource && (
+              <RowTitle>{fields.displayDate}</RowTitle>
+              {fields.hasSoundboardSource && (
                 <RelistenText className="text-xs font-bold text-relisten-blue-600">
                   SBD
                 </RelistenText>
@@ -78,24 +126,55 @@ const ShowListItemView = ({
                 <Flex className="items-center justify-end">
                   <PopularityIndicator popularity={popularity} isTrendingSort={isTrendingSort} />
                   <SubtitleText>
-                    {show.avgRating != 0 && '\u00A0\u00A0' + show.humanizedAvgRating() + '\u00A0★'}
+                    {fields.avgRating != 0 &&
+                      '\u00A0\u00A0' + fields.avgRating.toFixed(2) + '\u00A0★'}
                   </SubtitleText>
                 </Flex>
               </View>
             </Flex>
-            <SubtitleRow className="flex-row flex-1">
+            {byline ? <SubtitleText numberOfLines={1}>{byline}</SubtitleText> : null}
+            <SubtitleRow className="flex-row">
               <SubtitleText numberOfLines={venueLineCount} className="flex-shrink">
-                {showVenueLabel(show)}
+                {fields.venueLabel}
               </SubtitleText>
               <SubtitleText className="text-right pl-2">
-                <Plur word="tape" count={show.sourceCount} />
-                {'\u00A0•\u00A0' + show.humanizedAvgDuration()}
+                <Plur word="tape" count={fields.sourceCount} />
+                {fields.avgDurationLabel ? '\u00A0•\u00A0' + fields.avgDurationLabel : ''}
               </SubtitleText>
             </SubtitleRow>
             {children}
           </Flex>
         </Flex>
       </SectionedListItem>
+    );
+  }
+);
+
+ShowRow.displayName = 'ShowRow';
+
+const ShowListItemView = ({
+  show,
+  children,
+  isTrendingSort,
+  venueLineCount,
+  popularity,
+}: ShowListItemViewProps) => {
+  return (
+    <ShowLink
+      show={{
+        artist: show.artist,
+        showUuid: show.uuid,
+      }}
+      asChild
+    >
+      <ShowRow
+        fields={showRowFields(show)}
+        popularity={popularity}
+        isTrendingSort={isTrendingSort}
+        venueLineCount={venueLineCount}
+      >
+        {children}
+      </ShowRow>
     </ShowLink>
   );
 };

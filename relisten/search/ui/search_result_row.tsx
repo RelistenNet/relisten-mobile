@@ -1,108 +1,195 @@
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
+import { decodeUuidCatalogId } from '@/relisten/api/catalog/identity';
+import { ArtistRow } from '@/relisten/components/artist_rows';
+import { ListRow } from '@/relisten/components/list_row';
+import { PopularityIndicator } from '@/relisten/components/popularity_indicator';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import RowTitle from '@/relisten/components/row_title';
-import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
 import { SubtitleText } from '@/relisten/components/row_subtitle';
-import { tw } from '@/relisten/util/tw';
-import { markedRuns, searchRowAccessibilityLabel, type SearchRowView } from '../search_rows';
+import { ShowRow } from '@/relisten/components/shows_list';
+import { TrackWithArtistRow } from '@/relisten/components/source/source_track_with_artist';
+import { Artist } from '@/relisten/realm/models/artist';
+import { useObject } from '@/relisten/realm/schema';
+import {
+  markedRuns,
+  namedRowSubtitle,
+  namedRowTitle,
+  playlistCardSubtitle,
+  recordingNote,
+  reviewNote,
+  searchPassageFields,
+  searchRowPopularity,
+  searchShowFields,
+  searchShowPopularity,
+  searchTrackFields,
+  showPlace,
+} from '../search_rows';
+import type { SearchCatalogRow, SearchPlaylistCard } from '../search_types';
+
+interface RowActions {
+  onPress?: () => void;
+  onLongPress?: () => void;
+  /** Add Tracks' **+**, at the end of rows that name a file. */
+  trailing?: ReactNode;
+}
 
 /**
- * A search result. Every kind stacks the same lines (see `SearchRowView`),
- * built from the app's own row pieces, so the artist, the place and the stats
- * are always where the eye expects them. The accessory at the end (Add Tracks' **+**) sits outside the row's
- * button, so tapping it never opens the row.
+ * A catalog result, drawn with the app's own row for that kind of thing (see
+ * `search_rows.ts`). Shows, recordings and reviews are show rows; files and
+ * passages are track rows; artists are artist rows; songs, tours and venues
+ * are plain list rows.
  */
-export function SearchResultRow({
-  view,
+export function SearchCatalogResult({
+  row,
   onPress,
   onLongPress,
   trailing,
+}: RowActions & { row: SearchCatalogRow }) {
+  const pressable = {
+    onPress,
+    onLongPress,
+    disabled: !onPress,
+    accessibilityRole: 'button' as const,
+  };
+
+  switch (row.kind) {
+    case 'artist':
+      return <SearchArtistResult row={row} {...pressable} />;
+    case 'song':
+    case 'tour':
+    case 'venue':
+      return <ListRow title={namedRowTitle(row)} subtitle={namedRowSubtitle(row)} {...pressable} />;
+    case 'show':
+    case 'recording':
+      return (
+        <ShowRow
+          fields={searchShowFields(row.show, row.source)}
+          popularity={searchShowPopularity(row.show)}
+          byline={row.artist.name}
+          {...pressable}
+        >
+          <SearchNote text={recordingNote(row)} />
+        </ShowRow>
+      );
+    case 'review':
+      return (
+        <ShowRow
+          fields={searchShowFields(row.show, row.source)}
+          popularity={searchShowPopularity(row.show)}
+          byline={row.artist.name}
+          {...pressable}
+        >
+          <SearchNote text={reviewNote(row)} />
+        </ShowRow>
+      );
+    case 'performance':
+      return (
+        <TrackWithArtistRow
+          fields={searchTrackFields(row)}
+          subtitleColumn
+          indicatorComponent={trailing}
+          {...pressable}
+        >
+          <VenueLine place={showPlace(row.show)} popularity={searchRowPopularity(row)} />
+        </TrackWithArtistRow>
+      );
+    case 'sequence':
+      return (
+        <TrackWithArtistRow fields={searchPassageFields(row)} subtitleColumn {...pressable}>
+          <VenueLine place={showPlace(row.show)} popularity={searchShowPopularity(row.show)} />
+        </TrackWithArtistRow>
+      );
+  }
+}
+
+/**
+ * An artist result as the Artists tab draws it, heart and activity included.
+ * The device loads every artist at launch, so it is almost always there; a
+ * brand-new artist falls back to a plain row.
+ */
+function SearchArtistResult({
+  row,
+  ...pressable
 }: {
-  view: SearchRowView;
+  row: Extract<SearchCatalogRow, { kind: 'artist' }>;
   onPress?: () => void;
   onLongPress?: () => void;
-  trailing?: ReactNode;
+  disabled: boolean;
 }) {
-  const [titleAside, bylineAside, placeAside] = view.aside;
+  const artist = useObject(Artist, decodeUuidCatalogId(row.artist.id, 'artist'));
+  if (!artist) {
+    return <ListRow title={row.artist.name} subtitle="Artist" {...pressable} />;
+  }
 
   return (
-    <View className="flex-row items-center">
-      <SectionedListItem
-        accessibilityLabel={searchRowAccessibilityLabel(view)}
-        accessibilityRole="button"
-        cn="w-auto min-w-0 flex-1"
-        disabled={!onPress}
-        onLongPress={onLongPress}
-        onPress={onPress}
-      >
-        <SearchRowLine aside={titleAside}>
-          <View className="min-w-0 flex-1 flex-row flex-wrap items-center" style={{ columnGap: 8 }}>
-            <SearchRowTitle view={view} />
-            {view.badges.map((badge) => (
-              <RelistenText key={badge} className="text-xs font-bold text-relisten-blue-600">
-                {badge}
-              </RelistenText>
-            ))}
-          </View>
-        </SearchRowLine>
-
-        <SearchRowLine aside={bylineAside}>
-          <SubtitleText className="min-w-0 flex-1" numberOfLines={1}>
-            {view.byline}
-          </SubtitleText>
-        </SearchRowLine>
-
-        {view.place || placeAside ? (
-          <SearchRowLine aside={placeAside}>
-            <SubtitleText className="min-w-0 flex-1" numberOfLines={2}>
-              {view.place}
-            </SubtitleText>
-          </SearchRowLine>
-        ) : null}
-
-        {view.note ? (
-          <SubtitleText className={tw('pt-0.5', { italic: view.noteItalic })} numberOfLines={2}>
-            {markedRuns(view.note).map((run, index) =>
-              run.marked ? (
-                <RelistenText key={index} className="text-s font-semibold text-gray-200">
-                  {run.text}
-                </RelistenText>
-              ) : (
-                run.text
-              )
-            )}
-          </SubtitleText>
-        ) : null}
-      </SectionedListItem>
-      {trailing && <View className="pr-2">{trailing}</View>}
-    </View>
+    <ArtistRow
+      artist={artist}
+      metadata={{ shows: artist.showCount, sources: artist.sourceCount }}
+      {...pressable}
+    />
   );
 }
 
-/** One line of a row: its text, and a gray value at the end that lines up from row to row. */
-function SearchRowLine({ aside, children }: { aside?: string; children: ReactNode }) {
+export function SearchPlaylistResult({
+  card,
+  onPress,
+}: {
+  card: SearchPlaylistCard;
+  onPress?: () => void;
+}) {
   return (
-    <View className="flex-row items-center pt-0.5" style={{ gap: 8 }}>
-      {children}
-      {aside ? <SubtitleText numberOfLines={1}>{aside}</SubtitleText> : null}
+    <ListRow
+      title={card.name}
+      subtitle={playlistCardSubtitle(card)}
+      disabled={!onPress}
+      onPress={onPress}
+    />
+  );
+}
+
+/** A file's venue, with its own listening activity where the catalog has it. */
+export function VenueLine({
+  place,
+  popularity,
+}: {
+  place?: string;
+  popularity?: Parameters<typeof PopularityIndicator>[0]['popularity'];
+}) {
+  if (!place && !popularity) {
+    return null;
+  }
+
+  return (
+    <View className="flex-row items-center justify-between" style={{ gap: 8 }}>
+      <SubtitleText className="flex-shrink" numberOfLines={2}>
+        {place}
+      </SubtitleText>
+      <PopularityIndicator popularity={popularity} isTrendingSort={false} />
     </View>
   );
 }
 
 /**
- * The title in the style of the app row for that kind of thing: a bold date
- * as in the show list, a song in regular weight as in a playlist, or a bold
- * name as in the artist, song and venue lists.
+ * The quoted passage that tells a recording or review apart, with the words
+ * the query matched in bold. The text is split on `<mark>` tags, never
+ * parsed as markup, since listeners wrote it.
  */
-function SearchRowTitle({ view }: { view: SearchRowView }) {
-  if (view.titleStyle === 'track') {
-    return (
-      <RelistenText className="shrink text-lg" numberOfLines={2}>
-        {view.title}
-      </RelistenText>
-    );
+function SearchNote({ text }: { text?: string }) {
+  if (!text) {
+    return null;
   }
 
-  return <RowTitle numberOfLines={2}>{view.title}</RowTitle>;
+  return (
+    <SubtitleText className="pt-0.5 italic" numberOfLines={2}>
+      {markedRuns(text).map((run, index) =>
+        run.marked ? (
+          <RelistenText key={index} className="text-s font-semibold text-gray-200">
+            {run.text}
+          </RelistenText>
+        ) : (
+          run.text
+        )
+      )}
+    </SubtitleText>
+  );
 }

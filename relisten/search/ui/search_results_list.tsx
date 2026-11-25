@@ -10,16 +10,16 @@ import type { Playlist } from '@/relisten/realm/models/playlists/playlist';
 import type { Show } from '@/relisten/realm/models/show';
 import type { SourceTrack } from '@/relisten/realm/models/source_track';
 import type { SearchListItem } from '../search_list_items';
-import {
-  describeLocalArtist,
-  describeLocalPlaylist,
-  describeLocalShow,
-  describeLocalTrack,
-  describePlaylistCard,
-  describeSearchRow,
-} from '../search_rows';
 import type { SearchCatalogRow, SearchPlaylistCard, SearchScope } from '../search_types';
-import { SearchResultRow } from './search_result_row';
+import { ArtistRow } from '@/relisten/components/artist_rows';
+import { ListRow } from '@/relisten/components/list_row';
+import { ShowRow, showRowFields } from '@/relisten/components/shows_list';
+import {
+  TrackWithArtistRow,
+  trackWithArtistFields,
+} from '@/relisten/components/source/source_track_with_artist';
+import { showVenueLabel } from '@/relisten/util/venue_route';
+import { SearchCatalogResult, SearchPlaylistResult, VenueLine } from './search_result_row';
 
 /**
  * What a surface does with each kind of item. The Search tab opens screens;
@@ -117,8 +117,8 @@ function SearchListItemView({
       return <SearchMessage text={item.text} onRetry={item.retry ? handlers.onRetry : undefined} />;
     case 'row':
       return (
-        <SearchResultRow
-          view={describeSearchRow(item.row)}
+        <SearchCatalogResult
+          row={item.row}
           onPress={() => handlers.onPressRow(item.row)}
           onLongPress={bound(handlers.onLongPressRow, item.row)}
           trailing={handlers.trailingForRow?.(item.row)}
@@ -126,44 +126,61 @@ function SearchListItemView({
       );
     case 'playlist':
       return (
-        <SearchResultRow
-          view={describePlaylistCard(item.card)}
+        <SearchPlaylistResult
+          card={item.card}
           onPress={bound(handlers.onPressPlaylist, item.card)}
         />
       );
     case 'local-artist':
       return (
-        <SearchResultRow
-          view={describeLocalArtist(item.artist.name)}
+        <ArtistRow
+          artist={item.artist}
+          metadata={{ shows: item.artist.showCount, sources: item.artist.sourceCount }}
+          accessibilityRole="button"
           onPress={() => handlers.onPressLocalArtist(item.artist)}
         />
       );
     case 'local-show':
       return (
-        <SearchResultRow
-          view={describeLocalShow(item.show, item.show.hasSoundboardSource)}
+        <ShowRow
+          fields={showRowFields(item.show)}
+          popularity={item.show.popularity?.snapshot()}
+          byline={item.show.artist?.name}
+          accessibilityRole="button"
           onPress={() => handlers.onPressLocalShow(item.show)}
         />
       );
     case 'local-track':
       return (
-        <SearchResultRow
-          view={describeLocalTrack(item.track)}
+        <TrackWithArtistRow
+          fields={trackWithArtistFields(item.track)}
+          subtitleColumn
+          indicatorComponent={handlers.trailingForLocalTrack?.(item.track)}
+          accessibilityRole="button"
           onPress={() => handlers.onPressLocalTrack(item.track)}
-          trailing={handlers.trailingForLocalTrack?.(item.track)}
-        />
+        >
+          <VenueLine place={item.track.show ? showVenueLabel(item.track.show) : undefined} />
+        </TrackWithArtistRow>
       );
     case 'local-playlist':
       return (
-        <SearchResultRow
-          view={describeLocalPlaylist(item.playlist.name, item.playlist.entryCount)}
+        <ListRow
+          title={item.playlist.name}
+          subtitle={`${item.playlist.entryCount} ${item.playlist.entryCount === 1 ? 'track' : 'tracks'}`}
+          disabled={!handlers.onPressLocalPlaylist}
           onPress={bound(handlers.onPressLocalPlaylist, item.playlist)}
         />
       );
     case 'recent':
       return (
-        <SearchResultRow
-          view={describeLocalShow(item.entry.show, item.entry.source.isSoundboard)}
+        <ShowRow
+          fields={{
+            ...showRowFields(item.entry.show),
+            hasSoundboardSource: item.entry.source.isSoundboard,
+          }}
+          popularity={item.entry.show.popularity?.snapshot()}
+          byline={item.entry.show.artist?.name}
+          accessibilityRole="button"
           onPress={() => handlers.onPressRecent(item.entry)}
         />
       );
