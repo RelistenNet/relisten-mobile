@@ -809,7 +809,7 @@ describe('SonosSession', () => {
   });
 
   describe('shuffle', () => {
-    it('shuffles only the tracks after the playing one, and saves that order', async () => {
+    it('keeps what has played in place and shuffles the rest with the songs before it again', async () => {
       room.plays(tracks[1].identifier);
       await settle();
       // Added once the phone follows the room, so both hold three upcoming tracks.
@@ -824,10 +824,60 @@ describe('SonosSession', () => {
       player.queue.setShuffleState(PlayerShuffleState.SHUFFLE_ON);
       await settle();
 
-      const saved = room.queue.entries.map((row) => row.occurrenceId);
-      expect(saved.slice(0, 2)).toEqual([tracks[0].identifier, tracks[1].identifier]);
-      expect([...saved.slice(2)].sort()).toEqual([...upcoming].sort());
+      const saved = room.queue.entries;
+      // The room can't move what it has played, so tracks 0 and 1 stay first.
+      expect(saved.slice(0, 2)).toEqual([entry(tracks[0]), entry(tracks[1])]);
+      // After them: the three upcoming tracks and a new occurrence of track 0.
+      const shuffled = saved.slice(2);
+      expect(shuffled).toHaveLength(4);
+      expect(shuffled.filter((row) => upcoming.includes(row.occurrenceId))).toHaveLength(3);
+      const replay = shuffled.find((row) => !upcoming.includes(row.occurrenceId))!;
+      expect(replay.trackId).toBe(entry(tracks[0]).trackId);
+      expect(replay.occurrenceId).not.toBe(tracks[0].identifier);
       expect(messages()).toEqual([]);
+    });
+
+    it('shuffles a whole playlist when shuffle is turned on at its last track', async () => {
+      room.plays(tracks[2].identifier);
+      await settle();
+
+      player.queue.setShuffleState(PlayerShuffleState.SHUFFLE_ON);
+      await settle();
+
+      const after = room.queue.entries.slice(3).map((row) => row.trackId);
+      expect([...after].sort()).toEqual(
+        [entry(tracks[0]).trackId, entry(tracks[1]).trackId].sort()
+      );
+    });
+
+    it('removes the replayed songs not yet played when shuffle is turned off', async () => {
+      room.plays(tracks[2].identifier);
+      await settle();
+      player.queue.setShuffleState(PlayerShuffleState.SHUFFLE_ON);
+      await settle();
+
+      player.queue.setShuffleState(PlayerShuffleState.SHUFFLE_OFF);
+      await settle();
+
+      expect(room.queue.entries).toEqual(tracks.map(entry));
+      expect(player.queue.orderedTracks).toEqual(tracks);
+    });
+
+    it('doesn’t queue a song twice when shuffle is turned on, off and on again', async () => {
+      room.plays(tracks[2].identifier);
+      await settle();
+      for (const state of [
+        PlayerShuffleState.SHUFFLE_ON,
+        PlayerShuffleState.SHUFFLE_OFF,
+        PlayerShuffleState.SHUFFLE_ON,
+      ]) {
+        player.queue.setShuffleState(state);
+        await settle();
+      }
+
+      const after = room.queue.entries.slice(3).map((row) => row.trackId);
+      expect(after).toHaveLength(2);
+      expect(new Set(after).size).toBe(2);
     });
 
     it('keeps the track the room just moved to in place when shuffling', async () => {
