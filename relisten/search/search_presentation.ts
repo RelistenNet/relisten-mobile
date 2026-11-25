@@ -148,7 +148,16 @@ export function visibleChips(state: SearchSessionState): SearchInterpretationChi
   return [{ key: 'artist', label, value: artistId }, ...read];
 }
 
-/** Keep chips tied to the text that generated their selectable readings. */
+/** The reading that searches the words exactly as typed, with no guessed clues. */
+export const LITERAL_READING_ID = 'literal';
+
+/**
+ * The readings the listener can pick, while the answer still matches the
+ * text and tab they were read from. A reading is shown by its chips, so one
+ * without chips can't be told apart from another; only the literal reading
+ * gets a chip without them ("Exactly …"). Tapping the selected reading again
+ * returns to the server's default, so hiding a chipless default loses nothing.
+ */
 export function visibleReadings({ inputs, response, responseInputs }: SearchSessionState) {
   if (
     !response ||
@@ -161,5 +170,7 @@ export function visibleReadings({ inputs, response, responseInputs }: SearchSess
   if (alternatives.length === 0) {
     return [];
   }
-  return applied ? [applied, ...alternatives] : alternatives;
+  return (applied ? [applied, ...alternatives] : alternatives).filter(
+    (reading) => reading.chips.length > 0 || reading.id === LITERAL_READING_ID
+  );
 }

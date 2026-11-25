@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { presentSearch, visibleChips, type PresentSearchOptions } from './search_presentation';
+import {
+  presentSearch,
+  visibleChips,
+  visibleReadings,
+  type PresentSearchOptions,
+} from './search_presentation';
 import type { SearchInputs, SearchSessionState } from './search_session';
 import type {
   SearchInterpretationChip,
@@ -228,5 +233,34 @@ describe('visibleChips', () => {
       },
     });
     expect(visibleChips(current).map((chip) => chip.label)).toEqual(['Billy Strings', '2017']);
+  });
+});
+
+describe('visibleReadings', () => {
+  // Production's readings for `phish`, 2026-11-25: the default reading has no chips.
+  const phish = {
+    applied: { id: 'query', chips: [] },
+    alternatives: [
+      { id: 'literal', chips: [] },
+      {
+        id: 'artist:artist_6aaf',
+        chips: [{ key: 'artist', label: 'Phish', value: 'artist_6aaf' }],
+      },
+    ],
+  };
+
+  it('offers the literal reading and readings with clues, not a chipless default', () => {
+    const current = state(response({ readings: phish }));
+    expect(visibleReadings(current).map((reading) => reading.id)).toEqual([
+      'literal',
+      'artist:artist_6aaf',
+    ]);
+  });
+
+  it('offers nothing once the text has changed since the answer', () => {
+    const current = state(response({ readings: phish }), {
+      inputs: { ...INPUTS, query: 'phish 97' },
+    });
+    expect(visibleReadings(current)).toEqual([]);
   });
 });

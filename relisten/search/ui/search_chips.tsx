@@ -2,6 +2,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { ScrollView, TouchableOpacity, View } from 'react-native';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { tw } from '@/relisten/util/tw';
+import { LITERAL_READING_ID } from '../search_presentation';
 import { showsTabChip, tabCountLabel, type SearchTabCounts } from '../search_tab_counts';
 import type { SearchInterpretationChip, SearchReading, SearchScope } from '../search_types';
 
@@ -163,9 +164,10 @@ export function SearchReadingChips({
     >
       {readings.map((reading) => {
         const active = selected === reading.id;
-        // The literal reading has no chips: it searches the words as typed.
         const label =
-          reading.chips.map((chip) => chip.label).join(' · ') || `Exactly “${query.trim()}”`;
+          reading.id === LITERAL_READING_ID
+            ? `Exactly “${query.trim()}”`
+            : reading.chips.map((chip) => chip.label).join(' · ');
         return (
           <TouchableOpacity
             key={reading.id}
