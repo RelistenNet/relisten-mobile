@@ -191,8 +191,12 @@ export class FavoriteSyncService {
         this.scheduleRetryTimer();
       } while (this.rerunRequested && this.canRun(this.environment));
     } catch (error) {
-      logger.warn(`favorite sync paused: ${errorName(error)}`);
       const staleScope = isStaleScopeError(error);
+      // A stale scope is the account fence working: the launch restore and
+      // account switches start a new generation, and the run for it follows.
+      if (!staleScope) {
+        logger.warn(`favorite sync paused: ${errorName(error)}`);
+      }
       if (activeCapture && !staleScope) {
         const hasLocalSnapshot = !!this.runState.current(activeCapture.scopeId)
           ?.lastSuccessfulSyncAt;
@@ -347,6 +351,11 @@ function isStaleScopeError(error: unknown) {
   return error instanceof StaleAccountScopeError || error instanceof StaleFavoriteAccountScopeError;
 }
 
+/** The error's class and, for account API errors, its code (no message, which may name the account). */
 function errorName(error: unknown) {
-  return error instanceof Error ? error.name : 'unknown_error';
+  if (!(error instanceof Error)) {
+    return 'unknown_error';
+  }
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'string' && code ? `${error.name} (${code})` : error.name;
 }

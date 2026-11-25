@@ -52,6 +52,7 @@ describe('AccountAccessTokenSource', () => {
       currentEpoch: vi.fn(() => 1),
       isTransitioning: vi.fn(() => false),
       isRestoring: vi.fn(() => false),
+      restoreFinished: vi.fn(() => null),
       profileRefreshed: vi.fn(),
       sessionExpired: vi.fn().mockResolvedValue(undefined),
     };
@@ -74,5 +75,63 @@ describe('AccountAccessTokenSource', () => {
     expect(scopeStore.updateProfile).not.toHaveBeenCalled();
     expect(credentials.activate).not.toHaveBeenCalled();
     expect(lifecycle.profileRefreshed).not.toHaveBeenCalled();
+  });
+
+  it('waits for the launch restore instead of failing a request made during it', async () => {
+    let finishRestore!: () => void;
+    let restoring = true;
+    let token: string | null = null;
+    const restore = new Promise<void>((resolve) => {
+      finishRestore = () => {
+        restoring = false;
+        token = 'restored-token';
+        resolve();
+      };
+    });
+    const credentials = {
+      freshAccessToken: vi.fn(() => token),
+      activeEnvelope: vi.fn(),
+      rotate: vi.fn(),
+      activate: vi.fn(),
+    };
+    const lifecycle = {
+      currentEpoch: vi.fn(() => 1),
+      isTransitioning: vi.fn(() => false),
+      isRestoring: vi.fn(() => restoring),
+      restoreFinished: vi.fn(() => (restoring ? restore : null)),
+      profileRefreshed: vi.fn(),
+      sessionExpired: vi.fn(),
+    };
+    const source = new AccountAccessTokenSource(
+      credentials as never,
+      { isCurrent: vi.fn(() => true), updateProfile: vi.fn() } as never,
+      lifecycle
+    );
+
+    const pending = source.getAccessToken(capture);
+    finishRestore();
+
+    await expect(pending).resolves.toBe('restored-token');
+    // The restore did the one rotation; the waiting request didn't start another.
+    expect(credentials.rotate).not.toHaveBeenCalled();
+  });
+
+  it('reports a restore that is running without a promise to wait on', async () => {
+    const source = new AccountAccessTokenSource(
+      { freshAccessToken: vi.fn(() => null) } as never,
+      { isCurrent: vi.fn(() => true) } as never,
+      {
+        currentEpoch: vi.fn(() => 1),
+        isTransitioning: vi.fn(() => false),
+        isRestoring: vi.fn(() => true),
+        restoreFinished: vi.fn(() => null),
+        profileRefreshed: vi.fn(),
+        sessionExpired: vi.fn(),
+      }
+    );
+
+    await expect(source.getAccessToken(capture)).rejects.toMatchObject({
+      code: 'session_restore_in_progress',
+    });
   });
 });

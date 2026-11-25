@@ -101,6 +101,7 @@ export class AccountSessionCoordinator {
       currentEpoch: () => this.sessionEpoch,
       isTransitioning: () => this.transitioning,
       isRestoring: () => this.restoringCredentials,
+      restoreFinished: () => this.restorePromise,
       profileRefreshed: (profile) => {
         this.publish({ status: 'signedIn', profile, error: null });
         void this.retryPendingUsername();
