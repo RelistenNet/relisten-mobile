@@ -1,3 +1,4 @@
+import type { PopularityResource } from '@/relisten/api/catalog/resources';
 import Realm from 'realm';
 
 export interface PopularityRequiredProperties {
@@ -116,5 +117,35 @@ export interface PopularitySnapshot {
     hours48h: PopularityWindowRequiredProperties;
     days7d: PopularityWindowRequiredProperties;
     days30d: PopularityWindowRequiredProperties;
+  };
+}
+
+export function catalogPopularitySnapshot(
+  popularity: PopularityResource | null | undefined
+): PopularitySnapshot | null {
+  if (!popularity) {
+    return null;
+  }
+
+  return {
+    momentumScore: popularity.momentum_score,
+    trendRatio: popularity.trend_ratio,
+    windows: {
+      hours48h: {
+        plays: popularity.windows['48h'].plays,
+        hours: popularity.windows['48h'].hours,
+        hotScore: popularity.windows['48h'].hot_score,
+      },
+      days7d: {
+        plays: popularity.windows['7d'].plays,
+        hours: popularity.windows['7d'].hours,
+        hotScore: popularity.windows['7d'].hot_score,
+      },
+      days30d: {
+        plays: popularity.windows['30d'].plays,
+        hours: popularity.windows['30d'].hours,
+        hotScore: popularity.windows['30d'].hot_score,
+      },
+    },
   };
 }

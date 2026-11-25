@@ -13,32 +13,28 @@ function response(q: string, playlistLabels: string[] = []): SearchResponse {
   return {
     q,
     request_id: null,
-    catalog_availability: 'full',
-    playlist_availability: 'full',
-    catalog: {
-      availability: 'full',
-      interpretation: { terms: q, chips: [] },
-      counts: { artists: 0, songs: 0, venues: 0, shows: 0, sources: 0 },
-      top: [],
-      sections: {},
-    },
-    playlists: playlistLabels.map((label, index) => ({
+    scope: 'all',
+    availability: { catalog: 'full', playlists: 'full' },
+    counts: {},
+    readings: { applied: null, alternatives: [] },
+    results: playlistLabels.map((label) => ({
       kind: 'playlist',
-      id: `playlist_${index}`,
-      label,
-      description: null,
-      track_count: 1,
-      owned: true,
-      public_code: null,
-      curator: null,
+      key: `playlist:${label}`,
+      playlist: { id: `playlist_${label}`, name: label, track_count: 1, owned: true },
     })),
-    page: 1,
-    playlist_next_page: null,
+    next_page: null,
+    more_scopes: [],
   };
 }
 
 function context(change: Partial<SearchContext> = {}): SearchContext {
-  return { accountKey: 'alice', signedIn: true, online: true, boostArtistIds: [], ...change };
+  return {
+    accountKey: 'alice',
+    signedIn: true,
+    online: true,
+    boostArtistIds: [],
+    ...change,
+  };
 }
 
 describe('SearchSession', () => {
@@ -103,7 +99,7 @@ describe('SearchSession', () => {
     session.submit();
     fetches[0].resolve(response('jam', ['Alice private jams']));
     await vi.advanceTimersByTimeAsync(0);
-    expect(session.getSnapshot().response?.playlists).toHaveLength(1);
+    expect(session.getSnapshot().response?.results).toHaveLength(1);
 
     session.submit();
     session.setContext(context({ accountKey: 'bob' }));
@@ -117,7 +113,9 @@ describe('SearchSession', () => {
 
     fetches[2].resolve(response('jam', ['Bob public jams']));
     await vi.advanceTimersByTimeAsync(0);
-    expect(session.getSnapshot().response?.playlists[0].label).toBe('Bob public jams');
+    expect(session.getSnapshot().response?.results[0]).toMatchObject({
+      playlist: { name: 'Bob public jams' },
+    });
   });
 
   it('sends removed chips and Add Tracks’ playlist exclusion in ignore', async () => {
@@ -190,35 +188,52 @@ describe('SearchSession', () => {
     session.setScope('playlists');
     session.setQuery('jams');
     session.submit();
-    fetches.at(-1)!.resolve({ ...response('jams', ['First']), playlist_next_page: 2 });
+    fetches.at(-1)!.resolve({ ...response('jams', ['First']), next_page: 2 });
     await vi.advanceTimersByTimeAsync(0);
 
     // One call to the end of the list keeps going past the empty page 2.
-    void session.loadMorePlaylists();
-    expect(fetches.at(-1)?.request).toMatchObject({ page: 2, scope: 'playlists' });
-    fetches.at(-1)!.resolve({ ...response('jams', []), playlist_next_page: 3 });
+    void session.loadMore();
+    expect(fetches.at(-1)?.request).toMatchObject({
+      page: 2,
+      scope: 'playlists',
+    });
+    fetches.at(-1)!.resolve({ ...response('jams', []), next_page: 3 });
     await vi.advanceTimersByTimeAsync(0);
 
     expect(fetches.at(-1)?.request.page).toBe(3);
-    fetches.at(-1)!.resolve({ ...response('jams', ['Third']), playlist_next_page: null });
+    fetches.at(-1)!.resolve({ ...response('jams', ['Third']), next_page: null });
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(session.getSnapshot().response?.playlists.map((card) => card.label)).toEqual([
-      'First',
-      'Third',
+    expect(session.getSnapshot().response?.results.map((row) => row.key)).toEqual([
+      'playlist:First',
+      'playlist:Third',
     ]);
-    expect(session.getSnapshot().loadingMorePlaylists).toBe(false);
+    expect(session.getSnapshot().loadingMore).toBe(false);
+  });
+
+  it('refetches a selected reading and clears it on an edit', () => {
+    session.setQuery('capitol theatre');
+    session.selectReading('venue:passaic');
+    expect(fetches.at(-1)?.request).toMatchObject({
+      q: 'capitol theatre',
+      readingId: 'venue:passaic',
+      typing: false,
+    });
+
+    session.setQuery('capitol');
+    session.submit();
+    expect(fetches.at(-1)?.request.readingId).toBeUndefined();
   });
 
   it('doesn’t page an All answer after switching to Playlists', async () => {
     session.setQuery('jams');
     session.submit();
-    fetches.at(-1)!.resolve({ ...response('jams', ['First']), playlist_next_page: 2 });
+    fetches.at(-1)!.resolve({ ...response('jams', ['First']), next_page: 2 });
     await vi.advanceTimersByTimeAsync(0);
 
     session.setScope('playlists');
     const before = fetches.length;
-    void session.loadMorePlaylists();
+    void session.loadMore();
     expect(fetches).toHaveLength(before);
   });
 
@@ -244,11 +259,17 @@ describe('SearchSession', () => {
     fetches.at(-1)!.reject(new Error('offline'));
     await vi.advanceTimersByTimeAsync(0);
     // The old answer is still held, so the screen must check `failed` first.
-    expect(session.getSnapshot()).toMatchObject({ failed: true, pending: false });
+    expect(session.getSnapshot()).toMatchObject({
+      failed: true,
+      pending: false,
+    });
     expect(session.getSnapshot().responseInputs?.query).toBe('lawn');
 
     session.retry();
-    expect(session.getSnapshot()).toMatchObject({ failed: false, pending: true });
+    expect(session.getSnapshot()).toMatchObject({
+      failed: false,
+      pending: true,
+    });
     expect(fetches.at(-1)?.request.q).toBe('lawn boy');
   });
 });

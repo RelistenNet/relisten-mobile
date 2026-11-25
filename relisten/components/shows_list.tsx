@@ -1,6 +1,7 @@
 import { ListRenderItem } from '@shopify/flash-list';
 import React, { ReactNode, useMemo } from 'react';
 import { useWindowDimensions, View } from 'react-native';
+import { Popularity, type PopularitySnapshot } from '../realm/models/popularity';
 import { Show } from '../realm/models/show';
 import { FilterableList, FilterableListProps } from './filtering/filterable_list';
 import {
@@ -38,6 +39,7 @@ interface ShowListItemProps {
 interface ShowListItemViewProps extends ShowListItemProps {
   isTrendingSort: boolean;
   venueLineCount: number;
+  popularity?: PopularitySnapshot;
 }
 
 const ShowListItemView = ({
@@ -45,6 +47,7 @@ const ShowListItemView = ({
   children,
   isTrendingSort,
   venueLineCount,
+  popularity,
 }: ShowListItemViewProps) => {
   const hasOfflineTracks = useShowHasOfflineTracks(show.uuid);
   const favorite = useFavorite('show', show.uuid);
@@ -73,10 +76,7 @@ const ShowListItemView = ({
               {hasOfflineTracks && <SourceTrackSucceededIndicator />}
               <View className="grow">
                 <Flex className="items-center justify-end">
-                  <PopularityIndicator
-                    popularity={show.popularity?.snapshot()}
-                    isTrendingSort={isTrendingSort}
-                  />
+                  <PopularityIndicator popularity={popularity} isTrendingSort={isTrendingSort} />
                   <SubtitleText>
                     {show.avgRating != 0 && '\u00A0\u00A0' + show.humanizedAvgRating() + '\u00A0★'}
                   </SubtitleText>
@@ -109,7 +109,12 @@ export const ShowListItem = ({ show, children }: ShowListItemProps) => {
   const venueLineCount = fontScale > 1.5 ? 3 : 2;
 
   return (
-    <ShowListItemView show={show} isTrendingSort={isTrendingSort} venueLineCount={venueLineCount}>
+    <ShowListItemView
+      show={show}
+      isTrendingSort={isTrendingSort}
+      venueLineCount={venueLineCount}
+      popularity={show.popularity?.snapshot()}
+    >
       {children}
     </ShowListItemView>
   );
@@ -129,7 +134,13 @@ export enum ShowFilterKey {
   Search = 'search',
 }
 
-export function useShowFilters(): Filter<ShowFilterKey, Show>[] {
+type ShowPopularity = ReadonlyMap<string, PopularitySnapshot | null>;
+
+function showPopularity(show: Show, byShow?: ShowPopularity) {
+  return byShow ? byShow.get(show.uuid) : show.popularity;
+}
+
+export function useShowFilters(byShow?: ShowPopularity): Filter<ShowFilterKey, Show>[] {
   const libraryIndex = useRootLibraryIndex();
   const libraryMembershipRevision = useLibraryMembershipRevision();
 
@@ -165,8 +176,8 @@ export function useShowFilters(): Filter<ShowFilterKey, Show>[] {
         sort: (shows) =>
           shows.sort(
             (a, b) =>
-              (a.popularity?.windows?.days30d?.hotScore ?? 0) -
-              (b.popularity?.windows?.days30d?.hotScore ?? 0)
+              (showPopularity(a, byShow)?.windows.days30d.hotScore ?? 0) -
+              (showPopularity(b, byShow)?.windows.days30d.hotScore ?? 0)
           ),
       },
       {
@@ -177,7 +188,9 @@ export function useShowFilters(): Filter<ShowFilterKey, Show>[] {
         isNumeric: true,
         sort: (shows) =>
           shows.sort(
-            (a, b) => (a.popularity?.momentumScore ?? 0) - (b.popularity?.momentumScore ?? 0)
+            (a, b) =>
+              (showPopularity(a, byShow)?.momentumScore ?? 0) -
+              (showPopularity(b, byShow)?.momentumScore ?? 0)
           ),
       },
       {
@@ -221,7 +234,7 @@ export function useShowFilters(): Filter<ShowFilterKey, Show>[] {
         },
       },
     ];
-  }, [libraryIndex, libraryMembershipRevision]);
+  }, [byShow, libraryIndex, libraryMembershipRevision]);
 }
 
 const DEFAULT_SHOW_FILTER = {
@@ -233,6 +246,7 @@ const DEFAULT_SHOW_FILTER = {
 interface ShowListProps {
   filterOptions?: FilteringOptions<ShowFilterKey>;
   ListHeaderComponent?: React.ReactElement;
+  popularityByShow?: ShowPopularity;
   renderItem?: ListRenderItem<Show>;
   filters?: Filter<ShowFilterKey, Show>[];
 }
@@ -240,7 +254,7 @@ interface ShowListProps {
 export const ShowListContainer = (
   props: ShowListProps & Omit<FilterableListProps<Show>, 'renderItem'>
 ) => {
-  const filters = useShowFilters();
+  const filters = useShowFilters(props.popularityByShow);
 
   return (
     <FilteringProvider
@@ -255,6 +269,7 @@ export const ShowListContainer = (
 export const ShowList = ({
   data,
   renderItem,
+  popularityByShow,
   ...props
 }: ShowListProps & Omit<FilterableListProps<Show>, 'renderItem'>) => {
   const { fontScale } = useWindowDimensions();
@@ -269,11 +284,12 @@ export const ShowList = ({
         show={info.item}
         isTrendingSort={isTrendingSort}
         venueLineCount={venueLineCount}
+        popularity={Popularity.snapshot(showPopularity(info.item, popularityByShow))}
       />
     );
 
     return renderShowListItem;
-  }, [isTrendingSort, venueLineCount]);
+  }, [isTrendingSort, popularityByShow, venueLineCount]);
 
   return (
     <FilterableList data={data} renderItem={renderItem || showListRenderItemDefault} {...props} />

@@ -1,10 +1,8 @@
 import type { SearchSessionState } from './search_session';
 import type {
-  SearchAvailability,
-  SearchCatalogBody,
   SearchInterpretationChip,
   SearchMode,
-  SearchPlaylistCard,
+  SearchResult,
   SearchResponse,
 } from './search_types';
 
@@ -21,7 +19,7 @@ export type CatalogPresentation =
   | { kind: 'recent' }
   | { kind: 'waiting' }
   | { kind: 'none' }
-  | { kind: 'remote'; catalog: SearchCatalogBody }
+  | { kind: 'remote' }
   | { kind: 'local'; retryable: boolean };
 
 /**
@@ -33,9 +31,12 @@ export type PlaylistPresentation =
   | { kind: 'waiting' }
   | { kind: 'unavailable' }
   /** `hasMore`: later pages may still have cards, even when this one showed none. */
-  | { kind: 'cards'; cards: SearchPlaylistCard[]; hasMore: boolean };
+  | { kind: 'available'; hasMore: boolean };
 
 export interface SearchPresentation {
+  rows: SearchResult[];
+  hasMore?: boolean;
+  moreScopes?: SearchResponse['more_scopes'];
   catalog: CatalogPresentation;
   playlists: PlaylistPresentation;
 }
@@ -71,25 +72,54 @@ export function presentSearch(
     wantsPlaylists ? playlists : { kind: 'none' };
 
   if (!inputs.query.trim()) {
-    return { catalog: { kind: 'recent' }, playlists: { kind: 'none' } };
+    return {
+      rows: [],
+      catalog: { kind: 'recent' },
+      playlists: { kind: 'none' },
+    };
   }
   // Offline, On this device covers every scope, local playlists included.
   if (!online) {
-    return { catalog: { kind: 'local', retryable: false }, playlists: { kind: 'none' } };
+    return {
+      rows: [],
+      catalog: { kind: 'local', retryable: false },
+      playlists: { kind: 'none' },
+    };
   }
   if (state.failed) {
     return {
+      rows: [],
       catalog: catalogOr({ kind: 'local', retryable: true }),
       playlists: playlistsOr({ kind: 'unavailable' }),
     };
   }
   if (!response || responseInputs?.scope !== inputs.scope) {
-    return { catalog: catalogOr({ kind: 'waiting' }), playlists: playlistsOr({ kind: 'waiting' }) };
+    return {
+      rows: [],
+      catalog: catalogOr({ kind: 'waiting' }),
+      playlists: playlistsOr({ kind: 'waiting' }),
+    };
   }
 
+  const { availability } = response;
   return {
-    catalog: catalogOr(presentCatalog(response.catalog_availability, response.catalog)),
-    playlists: playlistsOr(presentPlaylists(response, hasLocalPlaylist)),
+    catalog: catalogOr(
+      availability.catalog === 'unavailable'
+        ? { kind: 'local', retryable: true }
+        : { kind: 'remote' }
+    ),
+    playlists: playlistsOr(
+      availability.playlists === 'unavailable'
+        ? { kind: 'unavailable' }
+        : { kind: 'available', hasMore: response.next_page !== null }
+    ),
+    hasMore: response.next_page !== null,
+    moreScopes: response.more_scopes,
+    rows: response.results.filter((row) =>
+      row.kind === 'playlist'
+        ? wantsPlaylists && (Boolean(row.playlist.public_code) || hasLocalPlaylist(row.playlist.id))
+        : wantsCatalog && availability.catalog !== 'unavailable'
+    ),
   };
 }
 
@@ -100,9 +130,15 @@ export function presentSearch(
  */
 export function visibleChips(state: SearchSessionState): SearchInterpretationChip[] {
   const { inputs, response } = state;
-  const read = (response?.catalog?.interpretation.chips ?? []).filter(
+  const read = (response?.readings.applied?.chips ?? []).filter(
     (chip) =>
-      !inputs.removedChipKeys.includes(chip.key) && !(chip.key === 'artist' && inputs.artistFilter)
+      !inputs.removedChipKeys.includes(chip.key) &&
+      !(chip.key === 'artist' && inputs.artistFilter) &&
+      !visibleReadings(state).some((reading) =>
+        reading.chips.some(
+          (option) => option.key === chip.key || (option.key === 'place' && chip.key === 'venue')
+        )
+      )
   );
 
   if (!inputs.artistFilter) {
@@ -112,35 +148,18 @@ export function visibleChips(state: SearchSessionState): SearchInterpretationChi
   return [{ key: 'artist', label, value: artistId }, ...read];
 }
 
-function presentCatalog(
-  availability: SearchAvailability,
-  catalog: SearchCatalogBody | null
-): CatalogPresentation {
-  // The merged response drops the body whenever the catalog failed, so a
-  // missing body means unavailable whatever the label says.
-  if (availability === 'unavailable' || !catalog) {
-    return { kind: 'local', retryable: true };
+/** Keep chips tied to the text that generated their selectable readings. */
+export function visibleReadings({ inputs, response, responseInputs }: SearchSessionState) {
+  if (
+    !response ||
+    responseInputs?.query !== inputs.query ||
+    responseInputs.scope !== inputs.scope
+  ) {
+    return [];
   }
-
-  return { kind: 'remote', catalog };
-}
-
-function presentPlaylists(
-  response: SearchResponse,
-  hasLocalPlaylist: (playlistId: string) => boolean
-): PlaylistPresentation {
-  if (response.playlist_availability === 'unavailable') {
-    return { kind: 'unavailable' };
+  const { applied, alternatives } = response.readings;
+  if (alternatives.length === 0) {
+    return [];
   }
-
-  return {
-    kind: 'cards',
-    cards: response.playlists.filter((card) => isOpenable(card, hasLocalPlaylist)),
-    hasMore: response.playlist_next_page !== null,
-  };
-}
-
-/** A public playlist opens by code; anything else needs its row on this device. */
-function isOpenable(card: SearchPlaylistCard, hasLocalPlaylist: (playlistId: string) => boolean) {
-  return card.public_code !== null || hasLocalPlaylist(card.id);
+  return applied ? [applied, ...alternatives] : alternatives;
 }

@@ -17,9 +17,7 @@ import {
   describeLocalTrack,
   describePlaylistCard,
   describeSearchRow,
-  type SearchArtistNames,
 } from '../search_rows';
-import { useSearchArtistNames } from '../use_search_artist_names';
 import type { SearchCatalogRow, SearchPlaylistCard, SearchScope } from '../search_types';
 import { SearchResultRow } from './search_result_row';
 
@@ -65,15 +63,11 @@ export function SearchResultsList({
   /** The chips, which scroll with the results. */
   header?: ReactElement;
 }) {
-  const artistNames = useSearchArtistNames();
-
   return (
     <FlatList
       data={items}
       keyExtractor={(item) => item.key}
-      renderItem={({ item }) => (
-        <SearchListItemView item={item} handlers={handlers} artistNames={artistNames} />
-      )}
+      renderItem={({ item }) => <SearchListItemView item={item} handlers={handlers} />}
       ItemSeparatorComponent={ItemSeparator}
       keyboardShouldPersistTaps="handled"
       // Dragging the list closes the keyboard, which uncovers its last rows.
@@ -104,11 +98,9 @@ function bound<T>(handler: ((arg: T) => void) | undefined, arg: T) {
 function SearchListItemView({
   item,
   handlers,
-  artistNames,
 }: {
   item: SearchListItem;
   handlers: SearchListHandlers;
-  artistNames: SearchArtistNames;
 }) {
   switch (item.type) {
     case 'header':
@@ -126,7 +118,7 @@ function SearchListItemView({
     case 'row':
       return (
         <SearchResultRow
-          view={describeSearchRow(item.row, artistNames)}
+          view={describeSearchRow(item.row)}
           onPress={() => handlers.onPressRow(item.row)}
           onLongPress={bound(handlers.onLongPressRow, item.row)}
           trailing={handlers.trailingForRow?.(item.row)}

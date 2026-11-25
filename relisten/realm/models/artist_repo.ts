@@ -86,34 +86,6 @@ export async function ensureCatalogArtist(
   if (!hasArtist()) throw new Error(`Missing artist ${artistUuid} after catalog refresh.`);
 }
 
-/**
- * The artist with this slug, loading the artist list if this device doesn't
- * have it yet. Search rows for recordings, reviews and passages carry only a
- * slug, and opening a show needs the loaded artist's source settings.
- */
-export async function ensureCatalogArtistBySlug(
-  realm: Realm,
-  api: RelistenApiClient,
-  slug: string
-): Promise<Artist> {
-  const find = () =>
-    realm.objects(Artist).filtered('slug == $0 AND deletedAt == nil', slug)[0] as
-      | Artist
-      | undefined;
-
-  const cached = find();
-  if (cached) {
-    return cached;
-  }
-
-  await refreshArtistList(realm, api);
-  const loaded = find();
-  if (!loaded) {
-    throw new Error(`Missing artist ${slug} after catalog refresh.`);
-  }
-  return loaded;
-}
-
 type AutomaticallyCreatedArtistVisibility = ReadonlySet<string> | 'all';
 
 export interface ArtistMetadataSummary {

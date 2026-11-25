@@ -1,9 +1,19 @@
-/**
- * The fields of a `GET /v1/search` response that the app reads. The merged
- * response comes from `RelistenUserService/Search/MergedSearch.cs`; its
- * `catalog` body is the catalog index's own response, passed through. Fields
- * the app doesn't read are left out, so an added server field never breaks it.
- */
+import type {
+  ArtistResource,
+  CatalogPerformanceSummary,
+  ImportedSongResource,
+  ImportedVenueResource,
+  PopularityResource,
+  ShowSummaryResource,
+  SongResource,
+  SourceId,
+  SourceReviewResource,
+  SourceSummaryResource,
+  TourResource,
+  TrackId,
+  TrackResource,
+  VenueResource,
+} from '@/relisten/api/catalog/resources';
 
 export type SearchScope =
   | 'all'
@@ -33,178 +43,88 @@ export interface SearchInterpretationChip {
   value: string;
 }
 
-export interface SearchInterpretation {
-  terms: string;
+export interface SearchReading {
+  id: string;
   chips: SearchInterpretationChip[];
 }
 
-/** Fields every catalog row carries. Empty strings and zeros mean "not set". */
+export interface SearchReadings {
+  applied: SearchReading | null;
+  alternatives: SearchReading[];
+}
+
 interface SearchRowBase {
-  id: string;
-  label: string;
-  artist_label: string;
-  /** The artist's lowercase search name. */
-  artist?: string;
-  artist_slug: string;
-  /** Missing on recording, review and passage rows; load the artist by slug instead. */
-  artist_id?: string;
-  /** A shared venue's artists. Imported venue rows leave it empty and set `artist_id`. */
-  artist_slugs?: string[];
-  /** `yyyymmdd`, or 0. */
-  date: number;
-  venue_label: string;
-  city_label: string;
-  /** Venue location as the app's venue rows print it. Missing from older indexes. */
-  location_label?: string;
-  venue_id: string;
-  show_id: string;
-  tour_label: string;
-  song_id: string;
-  source_id: string;
-  source_upstream: string;
-  /** A show's or recording's total plays; 0 on other rows. */
-  track_plays?: number;
-  /** A show's or recording's 0–10 rating, or 0 when unrated. Missing from older indexes. */
-  avg_rating?: number;
-  /** A recording's review count. */
-  num_reviews?: number;
-  soundboard: boolean;
-  soundcheck: boolean;
-  /**
-   * Matching text, with `<mark>` around the match. Review rows have no label,
-   * only this; a recording's matches its notes or its credits.
-   */
-  highlights?: { review_text?: string; notes?: string; credits?: string };
-  /** A recording's taper and transferrer. Missing from older indexes. */
-  taper_label?: string;
-  transferrer_label?: string;
+  key: string;
+  popularity?: PopularityResource;
+  match?: {
+    reading?: string;
+    highlights?: Record<string, string>;
+  };
 }
 
-export interface SearchArtistRow extends SearchRowBase {
-  kind: 'artist';
+interface ArtistRow extends SearchRowBase {
+  artist: ArtistResource;
 }
 
-/** `id` is a `song_` short ID or an `imported_song_` UUID ID. */
-export interface SearchSongRow extends SearchRowBase {
-  kind: 'song';
+interface ShowRow extends ArtistRow {
+  show: ShowSummaryResource;
 }
 
-/** `venue_id` is a `venue_` short ID or an `imported_venue_` UUID ID. */
-export interface SearchVenueRow extends SearchRowBase {
-  kind: 'venue';
-}
-
-export interface SearchShowRow extends SearchRowBase {
-  kind: 'show';
-}
-
-/** The file a performance row labels: the exact track its **+** adds. */
-export interface SearchPerformancePreview {
-  track_id: string;
-  source_id: string;
-  set: string;
-  set_index: number;
-  position: number;
-  /** Seconds. */
-  duration: number;
-  /** How often this file was played. */
-  plays?: number;
-  soundboard: boolean;
-  soundcheck: boolean;
-  label: string;
-}
-
-/** One song played at one show. Two rows from one show stay separate. */
-export interface SearchPerformanceRow extends SearchRowBase {
+export interface SearchPerformanceRow extends ShowRow {
   kind: 'performance';
-  preview: SearchPerformancePreview;
+  performance?: CatalogPerformanceSummary;
+  preview_track: TrackResource;
 }
 
-/** A recording. Its `id` is the `source_` ID; `source_id` is empty. */
-export interface SearchRecordingRow extends SearchRowBase {
-  kind: 'recording';
-}
-
-export interface SearchReviewRow extends SearchRowBase {
-  kind: 'review';
-}
-
-export interface SearchTourRow extends SearchRowBase {
-  kind: 'tour';
-}
-
-/** A passage: songs played back to back in one source, in order. */
-export interface SearchSequenceRow {
-  kind: 'sequence';
-  artist_slug: string;
-  show_id: string;
-  source_id: string;
-  set: string;
-  date: number;
-  venue: string;
-  song_ids: string[];
-  track_ids: string[];
+interface PassageResource {
+  source_id: SourceId;
+  tracks: TrackResource[];
+  parts: { song: SongResource; track_id: TrackId; ordinal: number }[];
 }
 
 export type SearchCatalogRow =
-  | SearchArtistRow
-  | SearchSongRow
-  | SearchVenueRow
-  | SearchShowRow
+  | (ArtistRow & { kind: 'artist' })
+  | (ArtistRow & { kind: 'song'; song: SongResource | ImportedSongResource })
+  | (SearchRowBase & {
+      kind: 'venue';
+    } & (
+        | { venue: VenueResource; artist?: ArtistResource }
+        | { venue: ImportedVenueResource; artist: ArtistResource }
+      ))
+  | (ShowRow & { kind: 'show'; source?: SourceSummaryResource })
   | SearchPerformanceRow
-  | SearchRecordingRow
-  | SearchReviewRow
-  | SearchTourRow
-  | SearchSequenceRow;
+  | (ShowRow & { kind: 'recording'; source: SourceSummaryResource })
+  | (ShowRow & { kind: 'review'; source: SourceSummaryResource; review: SourceReviewResource })
+  | (ArtistRow & { kind: 'tour'; tour: TourResource })
+  | (ShowRow & { kind: 'sequence'; passage: PassageResource });
 
-export interface SearchCatalogCounts {
-  artists: number;
-  songs: number;
-  venues: number;
-  shows: number;
-  sources: number;
-  /** Present only when the query can match reviews; the Reviews chip shows only then. */
-  reviews?: number;
-}
+export type SearchCatalogCounts = Partial<Record<SearchScope, number>>;
 
-/**
- * The catalog half. The All scope returns `top` and `sections`; a single
- * scope returns `results` instead.
- */
-export interface SearchCatalogBody {
-  availability: SearchAvailability;
-  interpretation: SearchInterpretation;
-  counts: SearchCatalogCounts;
-  top?: SearchCatalogRow[];
-  sections?: {
-    sources?: SearchCatalogRow[];
-    reviews?: SearchCatalogRow[];
-    passages?: SearchCatalogRow[];
-  };
-  results?: SearchCatalogRow[];
-}
-
-/** A playlist card. `public_code` is set only while the playlist is public. */
+/** Metadata for a playlist the caller can currently view. */
 export interface SearchPlaylistCard {
-  kind: 'playlist';
   id: string;
-  label: string;
-  description: string | null;
+  name: string;
   track_count: number;
   owned: boolean;
-  public_code: string | null;
-  curator: string | null;
+  description?: string;
+  public_code?: string;
+  curator?: string;
 }
+
+export type SearchResult =
+  | SearchCatalogRow
+  | (SearchRowBase & { kind: 'playlist'; playlist: SearchPlaylistCard });
 
 export interface SearchResponse {
   q: string;
   request_id: string | null;
-  catalog_availability: SearchAvailability;
-  playlist_availability: SearchAvailability;
-  catalog: SearchCatalogBody | null;
-  playlists: SearchPlaylistCard[];
-  page: number;
-  playlist_next_page: number | null;
+  scope: SearchScope;
+  availability: { catalog: SearchAvailability; playlists: SearchAvailability };
+  counts: SearchCatalogCounts;
+  readings: SearchReadings;
+  results: SearchResult[];
+  next_page: number | null;
+  more_scopes: ('shows' | 'sources')[];
 }
 
 /** What the app asks for. `ignore` and `boostArtistIds` are sent comma-separated. */
@@ -215,6 +135,7 @@ export interface SearchRequest {
   typing: boolean;
   requestId: string;
   artistId?: string;
+  readingId?: string;
   boostArtistIds?: readonly string[];
   ignore?: readonly string[];
   page?: number;

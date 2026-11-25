@@ -4,26 +4,6 @@ import type { RelistenTabGroupSegment } from '@/relisten/util/routes';
 import type { SearchCatalogRow, SearchPlaylistCard } from './search_types';
 
 /**
- * How to find a row's artist, or null when the tap doesn't need one (a shared
- * venue page lists every artist's shows). Recording, review and passage rows
- * carry only the slug; the rest carry the `artist_` ID.
- */
-export type SearchArtistRef = { uuid: string } | { slug: string };
-
-export function searchArtistRef(row: SearchCatalogRow): SearchArtistRef | null {
-  if (row.kind === 'artist') {
-    return { uuid: decodeUuidCatalogId(row.id, 'artist') };
-  }
-  if (row.kind === 'venue' && isSharedVenue(row.venue_id)) {
-    return null;
-  }
-  if (row.kind !== 'sequence' && row.artist_id) {
-    return { uuid: decodeUuidCatalogId(row.artist_id, 'artist') };
-  }
-  return { slug: row.artist_slug };
-}
-
-/**
  * A shared venue (`venue_…`) spans artists and has its own page; an imported
  * venue belongs to one artist and opens under it.
  */
@@ -44,12 +24,12 @@ export function searchTapTarget(
   artist: { uuid: string } | null,
   tab: RelistenTabGroupSegment
 ): SearchTapTarget {
-  if (row.kind === 'venue' && isSharedVenue(row.venue_id)) {
+  if (row.kind === 'venue' && isSharedVenue(row.venue.id)) {
     return {
       kind: 'push',
       href: {
         pathname: `/relisten/tabs/${tab}/venue/[venueId]/` as const,
-        params: { venueId: row.venue_id },
+        params: { venueId: row.venue.id },
       },
     };
   }
@@ -81,33 +61,35 @@ export function searchTapTarget(
       // The song page takes `song_` and `imported_song_` IDs as they are.
       return push({
         pathname: `/relisten/tabs/${tab}/[artistUuid]/song/[songUuid]/` as const,
-        params: { artistUuid, songUuid: row.id },
+        params: { artistUuid, songUuid: row.song.id },
       });
     case 'venue':
       return push({
         pathname: `/relisten/tabs/${tab}/[artistUuid]/venue/[venueUuid]/` as const,
         params: {
           artistUuid,
-          venueUuid: decodeUuidCatalogId(row.venue_id, 'imported_venue'),
+          venueUuid: decodeUuidCatalogId(row.venue.id, 'imported_venue'),
           venueKind: 'imported_venue',
         },
       });
     case 'tour':
       return push({
         pathname: `/relisten/tabs/${tab}/[artistUuid]/tour/[tourUuid]/` as const,
-        params: { artistUuid, tourUuid: decodeUuidCatalogId(row.id, 'tour') },
+        params: { artistUuid, tourUuid: decodeUuidCatalogId(row.tour.id, 'tour') },
       });
     case 'show':
-      return { kind: 'show', showUuid: decodeUuidCatalogId(row.show_id, 'show') };
-    case 'performance':
-      return source(row.show_id, row.preview.source_id, row.preview.track_id);
-    case 'recording':
-      return source(row.show_id, row.id);
+      return row.source
+        ? source(row.show.id, row.source.id)
+        : { kind: 'show', showUuid: decodeUuidCatalogId(row.show.id, 'show') };
+    case 'performance': {
+      const track = row.preview_track;
+      return source(track.show_id, track.source_id, track.id);
+    }
     case 'sequence':
-      return source(row.show_id, row.source_id, row.track_ids[0]);
+      return source(row.show.id, row.passage.source_id, row.passage.tracks[0]?.id);
+    case 'recording':
     case 'review':
-      // The reviewed recording's page, which has the show and its Reviews button.
-      return source(row.show_id, row.source_id);
+      return source(row.show.id, row.source.id);
   }
 }
 

@@ -1,42 +1,44 @@
 import { describe, expect, it } from 'vitest';
 import { presentSearch, visibleChips, type PresentSearchOptions } from './search_presentation';
 import type { SearchInputs, SearchSessionState } from './search_session';
-import type { SearchCatalogBody, SearchPlaylistCard, SearchResponse } from './search_types';
+import type {
+  SearchInterpretationChip,
+  SearchResult,
+  SearchPlaylistCard,
+  SearchResponse,
+} from './search_types';
 
-function card(change: Partial<SearchPlaylistCard>): SearchPlaylistCard {
+function card(change: Partial<SearchPlaylistCard>): SearchResult {
   return {
     kind: 'playlist',
-    id: 'playlist_a',
-    label: 'Jams',
-    description: null,
-    track_count: 3,
-    owned: false,
-    public_code: 'code',
-    curator: 'someone',
-    ...change,
+    key: `playlist:${change.id ?? 'playlist_a'}`,
+    playlist: {
+      id: 'playlist_a',
+      name: 'Jams',
+      track_count: 3,
+      owned: false,
+      public_code: 'code',
+      curator: 'someone',
+      ...change,
+    },
   };
 }
 
-function catalog(chips: SearchCatalogBody['interpretation']['chips'] = []): SearchCatalogBody {
-  return {
-    availability: 'full',
-    interpretation: { terms: 'jam', chips },
-    counts: { artists: 0, songs: 0, venues: 0, shows: 0, sources: 0 },
-    top: [],
-    sections: {},
-  };
+function readings(chips: SearchInterpretationChip[] = []) {
+  return { applied: { id: 'query', chips }, alternatives: [] };
 }
 
 function response(change: Partial<SearchResponse> = {}): SearchResponse {
   return {
     q: 'jam',
     request_id: null,
-    catalog_availability: 'full',
-    playlist_availability: 'full',
-    catalog: catalog(),
-    playlists: [],
-    page: 1,
-    playlist_next_page: null,
+    scope: 'all',
+    availability: { catalog: 'full', playlists: 'full' },
+    counts: {},
+    readings: readings(),
+    results: [],
+    next_page: null,
+    more_scopes: [],
     ...change,
   };
 }
@@ -46,6 +48,7 @@ const INPUTS: SearchInputs = {
   scope: 'all',
   removedChipKeys: [],
   artistFilter: null,
+  readingId: null,
 };
 
 function state(
@@ -58,7 +61,7 @@ function state(
     responseInputs: answer ? INPUTS : null,
     pending: false,
     failed: false,
-    loadingMorePlaylists: false,
+    loadingMore: false,
     ...change,
   };
 }
@@ -74,35 +77,38 @@ describe('presentSearch', () => {
     const presentation = presentSearch(
       state(
         response({
-          catalog_availability: 'unavailable',
-          catalog: null,
-          playlists: [card({ label: 'Public jams' })],
+          availability: { catalog: 'unavailable', playlists: 'full' },
+          results: [card({ name: 'Public jams' })],
         })
       ),
       explore
     );
 
     expect(presentation.catalog).toEqual({ kind: 'local', retryable: true });
-    expect(presentation.playlists).toMatchObject({
-      kind: 'cards',
-      cards: [{ label: 'Public jams' }],
-    });
+    expect(presentation.playlists.kind).toBe('available');
+    expect(presentation.rows).toMatchObject([{ playlist: { name: 'Public jams' } }]);
   });
 
   it('keeps a successful empty answer empty, and offers a retry for an unavailable half', () => {
-    const empty = catalog();
     const presentation = presentSearch(
-      state(response({ catalog: empty, playlist_availability: 'unavailable' })),
+      state(
+        response({
+          availability: { catalog: 'full', playlists: 'unavailable' },
+        })
+      ),
       explore
     );
 
-    expect(presentation.catalog).toEqual({ kind: 'remote', catalog: empty });
+    expect(presentation.catalog).toEqual({ kind: 'remote' });
     expect(presentation.playlists).toEqual({ kind: 'unavailable' });
   });
 
   it('never shows an older answer as the result of a request that failed', () => {
     const presentation = presentSearch(
-      state(response(), { inputs: { ...INPUTS, query: 'jam band' }, failed: true }),
+      state(response(), {
+        inputs: { ...INPUTS, query: 'jam band' },
+        failed: true,
+      }),
       explore
     );
 
@@ -130,7 +136,10 @@ describe('presentSearch', () => {
 
   it('keeps the previous answer on screen while the text changes', () => {
     const presentation = presentSearch(
-      state(response(), { inputs: { ...INPUTS, query: 'jam b' }, pending: true }),
+      state(response(), {
+        inputs: { ...INPUTS, query: 'jam b' },
+        pending: true,
+      }),
       explore
     );
 
@@ -141,11 +150,11 @@ describe('presentSearch', () => {
     const presentation = presentSearch(
       state(
         response({
-          catalog_availability: 'not_requested',
-          catalog: null,
-          playlists: [
-            card({ id: 'playlist_unsynced', owned: true, public_code: null }),
-            card({ id: 'playlist_synced', owned: true, public_code: null }),
+          scope: 'playlists',
+          availability: { catalog: 'not_requested', playlists: 'full' },
+          results: [
+            card({ id: 'playlist_unsynced', owned: true, public_code: undefined }),
+            card({ id: 'playlist_synced', owned: true, public_code: undefined }),
             card({ id: 'playlist_public', public_code: 'abc' }),
           ],
         }),
@@ -158,13 +167,16 @@ describe('presentSearch', () => {
     );
 
     expect(presentation.catalog).toEqual({ kind: 'none' });
-    expect(
-      presentation.playlists.kind === 'cards' && presentation.playlists.cards.map((c) => c.id)
-    ).toEqual(['playlist_synced', 'playlist_public']);
+    expect(presentation.rows.map((row) => row.key)).toEqual([
+      'playlist:playlist_synced',
+      'playlist:playlist_public',
+    ]);
   });
 
   it('searches the device offline in every scope, Playlists included', () => {
-    const playlistsScope = state(null, { inputs: { ...INPUTS, scope: 'playlists' } });
+    const playlistsScope = state(null, {
+      inputs: { ...INPUTS, scope: 'playlists' },
+    });
     expect(presentSearch(playlistsScope, { ...explore, online: false }).catalog).toEqual({
       kind: 'local',
       retryable: false,
@@ -172,8 +184,13 @@ describe('presentSearch', () => {
   });
 
   it('marks playlists as loading, not empty, before the first answer', () => {
-    const loading = state(null, { inputs: { ...INPUTS, scope: 'playlists' }, pending: true });
-    expect(presentSearch(loading, explore).playlists).toEqual({ kind: 'waiting' });
+    const loading = state(null, {
+      inputs: { ...INPUTS, scope: 'playlists' },
+      pending: true,
+    });
+    expect(presentSearch(loading, explore).playlists).toEqual({
+      kind: 'waiting',
+    });
   });
 
   it('searches the device while offline', () => {
@@ -196,15 +213,18 @@ describe('visibleChips', () => {
   ];
 
   it('hides a chip the listener removed before the next answer drops it', () => {
-    const current = state(response({ catalog: catalog(chips) }), {
+    const current = state(response({ readings: readings(chips) }), {
       inputs: { ...INPUTS, removedChipKeys: ['year'] },
     });
     expect(visibleChips(current).map((chip) => chip.label)).toEqual(['Phish']);
   });
 
   it('shows an explicit artist filter in place of the artist the server read', () => {
-    const current = state(response({ catalog: catalog(chips) }), {
-      inputs: { ...INPUTS, artistFilter: { artistId: 'artist_b', label: 'Billy Strings' } },
+    const current = state(response({ readings: readings(chips) }), {
+      inputs: {
+        ...INPUTS,
+        artistFilter: { artistId: 'artist_b', label: 'Billy Strings' },
+      },
     });
     expect(visibleChips(current).map((chip) => chip.label)).toEqual(['Billy Strings', '2017']);
   });

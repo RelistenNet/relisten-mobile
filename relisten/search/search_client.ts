@@ -12,6 +12,9 @@ export function searchPath(request: SearchRequest): string {
   params.set('typing', request.typing ? 'true' : 'false');
   params.set('request_id', request.requestId);
 
+  if (request.readingId) {
+    params.set('reading_id', request.readingId);
+  }
   if (request.artistId) {
     params.set('artist_id', request.artistId);
   }

@@ -2,7 +2,12 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { ScrollView, TouchableOpacity, View } from 'react-native';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { tw } from '@/relisten/util/tw';
-import type { SearchCatalogCounts, SearchInterpretationChip, SearchScope } from '../search_types';
+import type {
+  SearchCatalogCounts,
+  SearchInterpretationChip,
+  SearchReading,
+  SearchScope,
+} from '../search_types';
 
 // A horizontal scroll view in a column either grows to fill it or clips its
 // chips while the keyboard animates, so each chip row gets a fixed height.
@@ -118,6 +123,54 @@ export function SearchInterpretationChips({
           />
         </TouchableOpacity>
       ))}
+    </ScrollView>
+  );
+}
+
+/** Select the reading without changing the query text. */
+export function SearchReadingChips({
+  readings,
+  selected,
+  onSelect,
+}: {
+  readings: SearchReading[];
+  selected: string | null;
+  onSelect: (id: string | null) => void;
+}) {
+  if (!readings.some((reading) => reading.chips.length > 0)) {
+    return null;
+  }
+
+  return (
+    <ScrollView
+      horizontal
+      keyboardShouldPersistTaps="handled"
+      showsHorizontalScrollIndicator={false}
+      style={CHIP_ROW_STYLE}
+      contentContainerStyle={{
+        gap: 8,
+        paddingHorizontal: 16,
+        alignItems: 'center',
+      }}
+    >
+      {readings.map((reading) => {
+        const active = selected === reading.id;
+        const label = reading.chips.map((chip) => chip.label).join(' · ') || 'Exact words';
+        return (
+          <TouchableOpacity
+            key={reading.id}
+            accessibilityRole="button"
+            accessibilityState={{ selected: active }}
+            className={tw('rounded-full border px-3 py-1.5', {
+              'border-relisten-blue-500 bg-relisten-blue-600': active,
+              'border-relisten-blue-700': !active,
+            })}
+            onPress={() => onSelect(active ? null : reading.id)}
+          >
+            <RelistenText className="text-sm">{label}</RelistenText>
+          </TouchableOpacity>
+        );
+      })}
     </ScrollView>
   );
 }

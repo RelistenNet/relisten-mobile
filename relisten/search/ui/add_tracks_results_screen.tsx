@@ -15,15 +15,19 @@ import {
   type SearchListItem,
 } from '../search_list_items';
 import type { LocalNarrowing } from '../search_local';
-import { presentSearch, visibleChips } from '../search_presentation';
+import { presentSearch, visibleChips, visibleReadings } from '../search_presentation';
 import type { SearchCatalogRow } from '../search_types';
 import { useLocalSearchResults } from '../use_local_search_results';
 import { useOpenSearchResult } from '../use_open_search_result';
-import { useSearchArtistNames } from '../use_search_artist_names';
 import { useSearchSession } from '../use_search_session';
 import { useAddTracks } from './add_tracks_context';
 import { AddTrackButton, SheetScrollAnchor, useCloseAddTracks } from './add_tracks_controls';
-import { NarrowingChip, SearchInterpretationChips, SearchScopeChips } from './search_chips';
+import {
+  NarrowingChip,
+  SearchInterpretationChips,
+  SearchReadingChips,
+  SearchScopeChips,
+} from './search_chips';
 import { SearchResultsList, type SearchListHandlers } from './search_results_list';
 import { useNativeSearchBar } from './use_native_search_bar';
 
@@ -44,7 +48,6 @@ export function AddTracksResultsScreen() {
   const { session, state } = useSearchSession('add_tracks', playlistArtistUuids);
   const openResultInTab = useOpenSearchResult(tab);
   const recentEntries = useHistoryRecentlyPlayedShows(RECENT_SHOW_COUNT);
-  const artistNames = useSearchArtistNames();
   const [narrowing, setNarrowing] = useState<LocalNarrowing & { label?: string }>({});
 
   const presentation = presentSearch(state, {
@@ -71,7 +74,10 @@ export function AddTracksResultsScreen() {
     }
 
     return [
-      ...buildLocalListItems(local, { retryable: presentation.catalog.retryable, query }),
+      ...buildLocalListItems(local, {
+        retryable: presentation.catalog.retryable,
+        query,
+      }),
       ...remote,
     ];
   }, [local, presentation, query, recentEntries, scope]);
@@ -85,20 +91,13 @@ export function AddTracksResultsScreen() {
     const target = addTracksTapTarget(row, playlistId);
     switch (target.kind) {
       case 'narrow-artist':
-        session.setArtistFilter({ artistId: target.artistId, label: target.label });
+        session.setArtistFilter({
+          artistId: target.artistId,
+          label: target.label,
+        });
         return;
       case 'narrow-tour':
-        // A tour narrows to its shows, under its artist when the row names one.
-        // Some tour rows carry no display name for their artist; the name on
-        // this device is next best, then the lowercase search name.
-        if (target.artistId) {
-          const label =
-            target.artistLabel ||
-            artistNames.byId(target.artistId) ||
-            target.artistName ||
-            'Artist';
-          session.setArtistFilter({ artistId: target.artistId, label });
-        }
+        session.setArtistFilter({ artistId: target.artistId, label: target.artistLabel });
         session.setQuery(target.label);
         session.setScope('shows');
         return;
@@ -163,7 +162,11 @@ export function AddTracksResultsScreen() {
     onPressRecent: (entry) =>
       pushInSheet({
         pathname: '/relisten/add-tracks/source',
-        params: { playlistId, showUuid: entry.show.uuid, sourceUuid: entry.source.uuid },
+        params: {
+          playlistId,
+          showUuid: entry.show.uuid,
+          sourceUuid: entry.source.uuid,
+        },
       }),
   };
 
@@ -197,7 +200,7 @@ export function AddTracksResultsScreen() {
             {query.trim() !== '' && (
               <SearchScopeChips
                 scope={scope}
-                counts={state.response?.catalog?.counts}
+                counts={state.response?.counts}
                 includePlaylists={false}
                 onSelect={(next) => session.setScope(next)}
               />
@@ -206,6 +209,11 @@ export function AddTracksResultsScreen() {
               chips={visibleChips(state)}
               onRemove={(key) => session.removeChip(key)}
             />
+            <SearchReadingChips
+              readings={visibleReadings(state)}
+              selected={state.response?.readings.applied?.id ?? null}
+              onSelect={(id) => session.selectReading(id)}
+            />
             {isLocal && narrowing.label && (
               <NarrowingChip label={narrowing.label} onClear={() => setNarrowing({})} />
             )}
@@ -213,6 +221,8 @@ export function AddTracksResultsScreen() {
         }
         items={items}
         handlers={handlers}
+        loadingMore={state.loadingMore}
+        onEndReached={scope !== 'all' ? () => void session.loadMore() : undefined}
         contentContainerStyle={{ paddingBottom: 96 }}
       />
     </View>

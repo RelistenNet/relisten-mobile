@@ -5,8 +5,20 @@ vi.mock('expo-crypto', () => ({
 }));
 
 import { encodeUuidCatalogId } from '@/relisten/api/catalog/identity';
-import { playlistCardHref, searchArtistRef, searchTapTarget } from './search_routes';
-import type { SearchCatalogRow, SearchPlaylistCard } from './search_types';
+import { playlistCardHref, searchTapTarget } from './search_routes';
+import type { SearchPlaylistCard } from './search_types';
+import {
+  artist as catalogArtist,
+  importedVenue,
+  performanceRow,
+  recordingRow,
+  reviewRow,
+  sequenceRow,
+  showRow,
+  songRow,
+  source,
+  venue,
+} from './search_test_fixtures';
 
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const ARTIST = uuid(1);
@@ -14,49 +26,11 @@ const SHOW = uuid(2);
 const SOURCE = uuid(3);
 const TRACK = uuid(4);
 
-function base(change: Partial<SearchCatalogRow>): SearchCatalogRow {
-  return {
-    id: '',
-    kind: 'show',
-    label: '',
-    artist_label: 'Phish',
-    artist_slug: 'phish',
-    artist_id: encodeUuidCatalogId(ARTIST, 'artist'),
-    date: 20000614,
-    venue_label: 'Drum Logos',
-    city_label: 'Fukuoka',
-    venue_id: '',
-    show_id: encodeUuidCatalogId(SHOW, 'show'),
-    tour_label: '',
-    song_id: '',
-    source_id: '',
-    source_upstream: '',
-    soundboard: false,
-    soundcheck: false,
-    ...change,
-  } as SearchCatalogRow;
-}
-
 const artist = { uuid: ARTIST };
 
 describe('searchTapTarget', () => {
   it('opens a performance at its exact source, focused on the file, not played', () => {
-    const row = base({
-      kind: 'performance',
-      preview: {
-        track_id: encodeUuidCatalogId(TRACK, 'track'),
-        source_id: encodeUuidCatalogId(SOURCE, 'source'),
-        set: 'Set 2',
-        set_index: 1,
-        position: 10,
-        duration: 1108,
-        soundboard: false,
-        soundcheck: false,
-        label: 'Twist',
-      },
-    } as Partial<SearchCatalogRow>);
-
-    expect(searchTapTarget(row, artist, '(search)')).toEqual({
+    expect(searchTapTarget(performanceRow, artist, '(search)')).toEqual({
       kind: 'push',
       href: {
         pathname: '/relisten/tabs/(search)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/',
@@ -71,51 +45,39 @@ describe('searchTapTarget', () => {
     });
   });
 
-  it('opens a recording by its own ID, since its source_id is empty', () => {
-    const row = base({ kind: 'recording', id: encodeUuidCatalogId(SOURCE, 'source') });
-    const target = searchTapTarget(row, artist, '(search)');
-    expect(target.kind === 'push' && target.href).toMatchObject({
-      params: { sourceUuid: SOURCE, showUuid: SHOW },
-    });
-  });
-
-  it('opens a review on the reviewed recording, where the show and its reviews are', () => {
-    const row = base({ kind: 'review', source_id: encodeUuidCatalogId(SOURCE, 'source') });
-    const target = searchTapTarget(row, artist, '(search)');
-    expect(target.kind === 'push' && target.href).toMatchObject({
-      pathname: '/relisten/tabs/(search)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/',
-      params: { showUuid: SHOW, sourceUuid: SOURCE, exactSource: '1' },
-    });
+  it('opens a recording and its review at their nested source ID', () => {
+    for (const row of [recordingRow, reviewRow]) {
+      const target = searchTapTarget(row, artist, '(search)');
+      expect(target.kind === 'push' && target.href).toMatchObject({
+        pathname: '/relisten/tabs/(search)/[artistUuid]/show/[showUuid]/source/[sourceUuid]/',
+        params: { showUuid: SHOW, sourceUuid: SOURCE, exactSource: '1' },
+      });
+    }
   });
 
   it('opens a passage at its first file', () => {
-    const row: SearchCatalogRow = {
-      kind: 'sequence',
-      artist_slug: 'grateful-dead',
-      show_id: encodeUuidCatalogId(SHOW, 'show'),
-      source_id: encodeUuidCatalogId(SOURCE, 'source'),
-      set: 'Set 2',
-      date: 19770508,
-      venue: 'Barton Hall',
-      song_ids: ['song_aaaaaaaa', 'song_bbbbbbbb'],
-      track_ids: [encodeUuidCatalogId(TRACK, 'track'), encodeUuidCatalogId(uuid(5), 'track')],
-    };
-    const target = searchTapTarget(row, artist, '(search)');
+    const target = searchTapTarget(sequenceRow, artist, '(search)');
     expect(target.kind === 'push' && target.href).toMatchObject({
-      params: { focusTrackUuid: TRACK },
+      params: { showUuid: SHOW, sourceUuid: SOURCE, focusTrackUuid: TRACK, exactSource: '1' },
     });
   });
 
   it('opens a show without a named source through the source settings', () => {
-    expect(searchTapTarget(base({ kind: 'show' }), artist, '(search)')).toEqual({
+    expect(searchTapTarget(showRow, artist, '(search)')).toEqual({
       kind: 'show',
       showUuid: SHOW,
     });
   });
 
+  it('opens a show at the source that matched the search', () => {
+    const target = searchTapTarget({ ...showRow, source }, artist, '(search)');
+    expect(target.kind === 'push' && target.href).toMatchObject({
+      params: { showUuid: SHOW, sourceUuid: SOURCE, exactSource: '1' },
+    });
+  });
+
   it('sends a shared venue to the shared page with no artist, and an imported one to the artist’s', () => {
-    const shared = base({ kind: 'venue', venue_id: 'venue_bvhfka1g', artist_id: undefined });
-    expect(searchArtistRef(shared)).toBeNull();
+    const shared = { kind: 'venue', key: `venue:${venue.id}`, venue } as const;
     expect(searchTapTarget(shared, null, '(search)')).toEqual({
       kind: 'push',
       href: {
@@ -124,37 +86,39 @@ describe('searchTapTarget', () => {
       },
     });
 
-    const imported = base({
-      kind: 'venue',
-      venue_id: encodeUuidCatalogId(uuid(9), 'imported_venue'),
-    });
+    const imported = { ...shared, venue: importedVenue, artist: catalogArtist };
     const target = searchTapTarget(imported, artist, '(search)');
     expect(target.kind === 'push' && target.href).toMatchObject({
-      params: { artistUuid: ARTIST, venueUuid: uuid(9), venueKind: 'imported_venue' },
+      params: { artistUuid: ARTIST, venueUuid: uuid(5), venueKind: 'imported_venue' },
     });
   });
 
-  it('passes song IDs to the song page as they are', () => {
-    const target = searchTapTarget(base({ kind: 'song', id: 'song_hf5bcx7b' }), artist, '(search)');
-    expect(target.kind === 'push' && target.href).toMatchObject({
-      params: { songUuid: 'song_hf5bcx7b' },
-    });
-  });
-
-  it('loads recording, review and passage artists by slug', () => {
-    expect(searchArtistRef(base({ kind: 'recording', artist_id: undefined }))).toEqual({
-      slug: 'phish',
-    });
-    expect(searchArtistRef(base({ kind: 'show' }))).toEqual({ uuid: ARTIST });
+  it('passes canonical and imported song IDs to the song page as they are', () => {
+    const id = encodeUuidCatalogId(uuid(9), 'imported_song');
+    const imported = {
+      id,
+      artist_id: catalogArtist.id,
+      name: 'Twist',
+      normalized_song_id: null,
+      slug: 'twist',
+      upstream_identifier: 'twist',
+      setlist_show_count: 4,
+      created_at: catalogArtist.created_at,
+      updated_at: catalogArtist.updated_at,
+    };
+    for (const song of [songRow.song, imported]) {
+      const target = searchTapTarget({ ...songRow, song }, artist, '(search)');
+      expect(target.kind === 'push' && target.href).toMatchObject({
+        params: { songUuid: song.id },
+      });
+    }
   });
 });
 
 describe('playlistCardHref', () => {
   const card: SearchPlaylistCard = {
-    kind: 'playlist',
     id: 'playlist_x',
-    label: 'Jams',
-    description: null,
+    name: 'Jams',
     track_count: 2,
     owned: false,
     public_code: 'abc',
@@ -168,6 +132,8 @@ describe('playlistCardHref', () => {
     expect(playlistCardHref(card, false, '(search)')).toMatchObject({
       params: { publicCode: 'abc' },
     });
-    expect(playlistCardHref({ ...card, public_code: null }, false, '(search)')).toBeUndefined();
+    expect(
+      playlistCardHref({ ...card, public_code: undefined }, false, '(search)')
+    ).toBeUndefined();
   });
 });

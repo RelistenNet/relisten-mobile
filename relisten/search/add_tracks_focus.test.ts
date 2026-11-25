@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/relisten/components/menus/native_menu_icons', () => ({ nativeMenuIcons: {} }));
 
-import { focusedTrackUuids } from './add_tracks_focus';
+import { focusSetlistTracks } from './add_tracks_focus';
 
 function track(uuid: string, songIds: string[]) {
   return {
@@ -13,7 +13,7 @@ function track(uuid: string, songIds: string[]) {
   } as never;
 }
 
-describe('focusedTrackUuids', () => {
+describe('focusSetlistTracks', () => {
   const setlist = [
     track('set1-lawn-boy', ['song_lawnboy']),
     track('set1-other', ['song_other']),
@@ -22,21 +22,35 @@ describe('focusedTrackUuids', () => {
   ];
 
   it('highlights every file of the song, Set 1 and Encore alike', () => {
-    expect([...focusedTrackUuids(setlist, { songId: 'song_lawnboy' })]).toEqual([
-      'set1-lawn-boy',
-      'encore-lawn-boy',
-    ]);
+    const { highlighted, scrollTargetUuid } = focusSetlistTracks(setlist, {
+      songId: 'song_lawnboy',
+    });
+    expect([...highlighted]).toEqual(['set1-lawn-boy', 'encore-lawn-boy']);
+    expect(scrollTargetUuid).toBe('set1-lawn-boy');
+  });
+
+  it('scrolls to the exact preview even when the same song has an earlier file', () => {
+    const focus = focusSetlistTracks(setlist, {
+      songId: 'song_lawnboy',
+      trackUuid: 'encore-lawn-boy',
+    });
+    expect(focus.scrollTargetUuid).toBe('encore-lawn-boy');
+    expect(focus.highlighted.has('set1-lawn-boy')).toBe(true);
   });
 
   it('matches a song inside a medley', () => {
-    expect([...focusedTrackUuids(setlist, { songId: 'song_fire' })]).toEqual(['medley']);
+    expect([...focusSetlistTracks(setlist, { songId: 'song_fire' }).highlighted]).toEqual([
+      'medley',
+    ]);
   });
 
   it('keeps an exact file even without a song', () => {
-    expect([...focusedTrackUuids(setlist, { trackUuid: 'set1-other' })]).toEqual(['set1-other']);
+    expect([...focusSetlistTracks(setlist, { trackUuid: 'set1-other' }).highlighted]).toEqual([
+      'set1-other',
+    ]);
   });
 
   it('highlights nothing for a source with no matching file', () => {
-    expect(focusedTrackUuids(setlist, { songId: 'song_missing' }).size).toBe(0);
+    expect(focusSetlistTracks(setlist, { songId: 'song_missing' }).highlighted.size).toBe(0);
   });
 });

@@ -14,12 +14,17 @@ import {
   type SearchListItem,
 } from '../search_list_items';
 import type { LocalNarrowing } from '../search_local';
-import { presentSearch, visibleChips } from '../search_presentation';
+import { presentSearch, visibleChips, visibleReadings } from '../search_presentation';
 import { localPlaylistHref, localTrackHref, playlistCardHref } from '../search_routes';
 import { useLocalSearchResults } from '../use_local_search_results';
 import { useOpenSearchResult } from '../use_open_search_result';
 import { useSearchSession } from '../use_search_session';
-import { NarrowingChip, SearchInterpretationChips, SearchScopeChips } from './search_chips';
+import {
+  NarrowingChip,
+  SearchInterpretationChips,
+  SearchReadingChips,
+  SearchScopeChips,
+} from './search_chips';
 import { SearchResultsList, type SearchListHandlers } from './search_results_list';
 import { useNativeSearchBar } from './use_native_search_bar';
 
@@ -72,7 +77,10 @@ export function SearchTabScreen() {
     // A playlist on this device is listed once, as the local row.
     const localIds = new Set(local.playlists.map((playlist) => playlist.playlistId));
     return [
-      ...buildLocalListItems(local, { retryable: presentation.catalog.retryable, query }),
+      ...buildLocalListItems(local, {
+        retryable: presentation.catalog.retryable,
+        query,
+      }),
       ...remote.filter((item) => item.type !== 'playlist' || !localIds.has(item.card.id)),
     ];
   }, [local, presentation, query, recentEntries, scope]);
@@ -103,7 +111,11 @@ export function SearchTabScreen() {
     // Recently Played reopens the source that was last played.
     onPressRecent: (entry) =>
       leave(() =>
-        pushShow({ artist: entry.artist, showUuid: entry.show.uuid, sourceUuid: entry.source.uuid })
+        pushShow({
+          artist: entry.artist,
+          showUuid: entry.show.uuid,
+          sourceUuid: entry.source.uuid,
+        })
       ),
   };
 
@@ -127,7 +139,7 @@ export function SearchTabScreen() {
             {query.trim() !== '' && (
               <SearchScopeChips
                 scope={scope}
-                counts={state.response?.catalog?.counts}
+                counts={state.response?.counts}
                 includePlaylists
                 onSelect={(next) => session.setScope(next)}
               />
@@ -135,6 +147,11 @@ export function SearchTabScreen() {
             <SearchInterpretationChips
               chips={visibleChips(state)}
               onRemove={(key) => session.removeChip(key)}
+            />
+            <SearchReadingChips
+              readings={visibleReadings(state)}
+              selected={state.response?.readings.applied?.id ?? null}
+              onSelect={(id) => session.selectReading(id)}
             />
             {isLocal && narrowing.label && (
               <NarrowingChip label={narrowing.label} onClear={() => setNarrowing({})} />
@@ -144,8 +161,8 @@ export function SearchTabScreen() {
         items={items}
         handlers={handlers}
         contentContainerStyle={scrollProps.contentContainerStyle}
-        loadingMore={state.loadingMorePlaylists}
-        onEndReached={scope === 'playlists' ? () => void session.loadMorePlaylists() : undefined}
+        loadingMore={state.loadingMore}
+        onEndReached={scope !== 'all' ? () => void session.loadMore() : undefined}
       />
     </View>
   );

@@ -14,10 +14,10 @@ export interface AddTracksFocus {
   songId?: string;
 }
 
-export function focusedTrackUuids(
+export function focusSetlistTracks(
   tracks: Iterable<Pick<SourceTrack, 'uuid' | 'normalization'>>,
   focus: AddTracksFocus
-): Set<string> {
+) {
   const focused = new Set<string>();
 
   for (const track of tracks) {
@@ -28,5 +28,11 @@ export function focusedTrackUuids(
     }
   }
 
-  return focused;
+  return {
+    highlighted: focused,
+    scrollTargetUuid:
+      focus.trackUuid && focused.has(focus.trackUuid)
+        ? focus.trackUuid
+        : focused.values().next().value,
+  };
 }

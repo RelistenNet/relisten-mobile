@@ -1,6 +1,5 @@
 import type { Href } from 'expo-router';
 import { decodeUuidCatalogId } from '@/relisten/api/catalog/identity';
-import { isSharedVenue } from './search_routes';
 import type { SearchCatalogRow } from './search_types';
 
 /** The sheet's own screens, pushed inside its stack. */
@@ -16,15 +15,7 @@ const SHEET = '/relisten/add-tracks' as const;
  */
 export type AddTracksTapTarget =
   | { kind: 'narrow-artist'; artistId: string; label: string }
-  | {
-      kind: 'narrow-tour';
-      label: string;
-      artistId?: string;
-      /** The display name; some tour rows leave it empty. */
-      artistLabel: string;
-      /** The lowercase search name, for when there is no display name. */
-      artistName?: string;
-    }
+  | { kind: 'narrow-tour'; label: string; artistId: string; artistLabel: string }
   | { kind: 'push'; href: Href };
 
 export function addTracksTapTarget(row: SearchCatalogRow, playlistId: string): AddTracksTapTarget {
@@ -45,53 +36,56 @@ export function addTracksTapTarget(row: SearchCatalogRow, playlistId: string): A
 
   switch (row.kind) {
     case 'artist':
-      return { kind: 'narrow-artist', artistId: row.id, label: row.label };
+      return { kind: 'narrow-artist', artistId: row.artist.id, label: row.artist.name };
     case 'tour':
       return {
         kind: 'narrow-tour',
-        label: row.label,
-        artistId: row.artist_id,
-        artistLabel: row.artist_label,
-        artistName: row.artist,
+        label: row.tour.name,
+        artistId: row.artist.id,
+        artistLabel: row.artist.name,
       };
     case 'song':
       return push(`${SHEET}/shows`, {
         kind: 'song',
-        artistUuid: decodeUuidCatalogId(row.artist_id!, 'artist'),
-        songId: row.id,
+        artistUuid: decodeUuidCatalogId(row.artist.id, 'artist'),
+        songId: row.song.id,
       });
     case 'venue':
       return push(`${SHEET}/shows`, {
         kind: 'venue',
-        venueId: row.venue_id,
-        ...(isSharedVenue(row.venue_id) || !row.artist_id
+        venueId: row.venue.id,
+        ...(!('artist_id' in row.venue)
           ? {}
-          : { artistUuid: decodeUuidCatalogId(row.artist_id, 'artist') }),
+          : { artistUuid: decodeUuidCatalogId(row.venue.artist_id, 'artist') }),
       });
     case 'show':
-      return setlist(row.show_id, 'initial');
-    case 'performance':
-      // The setlist highlights every file of the song, so a short encore
-      // reprise shows next to the long set file the row names.
-      return setlist(row.show_id, row.preview.source_id, {
-        focusTrackUuid: decodeUuidCatalogId(row.preview.track_id, 'track'),
-        ...(row.song_id ? { focusSongId: row.song_id } : {}),
+      return setlist(row.show.id, row.source?.id ?? 'initial');
+    case 'performance': {
+      const track = row.preview_track;
+      // Focus the exact file and any other files of the matched song.
+      return setlist(track.show_id, track.source_id, {
+        focusTrackUuid: decodeUuidCatalogId(track.id, 'track'),
+        ...(row.performance ? { focusSongId: row.performance.song_id } : {}),
       });
+    }
+    case 'sequence': {
+      const firstTrack = row.passage.tracks[0];
+      return setlist(
+        row.show.id,
+        row.passage.source_id,
+        firstTrack ? { focusTrackUuid: decodeUuidCatalogId(firstTrack.id, 'track') } : {}
+      );
+    }
     case 'recording':
-      return setlist(row.show_id, row.id);
-    case 'sequence':
-      return setlist(row.show_id, row.source_id, {
-        focusTrackUuid: decodeUuidCatalogId(row.track_ids[0], 'track'),
-      });
     case 'review':
-      return setlist(row.show_id, row.source_id);
+      return setlist(row.show.id, row.source.id);
   }
 }
 
 /** The file a row's **+** adds: a performance's preview. Other rows add from a setlist. */
 export function addableTrack(row: SearchCatalogRow): { trackId: string; title: string } | null {
-  if (row.kind !== 'performance') {
+  if (row.kind !== 'performance' || row.preview_track.playable === false) {
     return null;
   }
-  return { trackId: row.preview.track_id, title: row.preview.label || row.label };
+  return { trackId: row.preview_track.id, title: row.preview_track.title };
 }

@@ -5,178 +5,85 @@ import {
   describeLocalPlaylist,
   describePlaylistCard,
   describeSearchRow,
-  searchDate,
   searchDuration,
   searchPlays,
   searchRowAccessibilityLabel,
 } from './search_rows';
-import type { SearchCatalogBody, SearchCatalogRow, SearchPlaylistCard } from './search_types';
+import type { SearchResult } from './search_types';
+import {
+  artist,
+  importedVenue,
+  performanceRow,
+  recordingRow,
+  reviewRow,
+  sequenceRow,
+  show,
+  showRow,
+  songRow,
+  source,
+  yearlyPlays,
+} from './search_test_fixtures';
 
-function row(id: string, change: Partial<SearchCatalogRow> = {}): SearchCatalogRow {
-  return {
-    id,
-    kind: 'show',
-    label: id,
-    artist_label: 'Phish',
-    artist_slug: 'phish',
-    date: 20170725,
-    venue_label: 'Madison Square Garden',
-    city_label: 'New York',
-    venue_id: '',
-    show_id: '',
-    tour_label: '',
-    song_id: '',
-    source_id: '',
-    source_upstream: '',
-    soundboard: false,
-    soundcheck: false,
-    ...change,
-  } as SearchCatalogRow;
-}
-
-function catalog(change: Partial<SearchCatalogBody>): SearchCatalogBody {
-  return {
-    availability: 'full',
-    interpretation: { terms: '', chips: [] },
-    counts: { artists: 0, songs: 0, venues: 0, shows: 0, sources: 0 },
-    ...change,
-  };
-}
-
-const card = (id: string): SearchPlaylistCard => ({
+const card = (id: string): SearchResult => ({
   kind: 'playlist',
-  id,
-  label: id,
-  description: null,
-  track_count: 1,
-  owned: false,
-  public_code: 'code',
-  curator: null,
+  key: `playlist:${id}`,
+  playlist: { id, name: id, track_count: 1, owned: false, public_code: 'code' },
 });
 
 describe('buildRemoteListItems', () => {
-  it('lists top rows, then sources, reviews and passages, then at most six playlists', () => {
+  it('preserves the server order of interleaved catalog and playlist rows', () => {
+    const rows = [songRow, card('playlist_a'), performanceRow, reviewRow];
     const presentation: SearchPresentation = {
-      catalog: {
-        kind: 'remote',
-        catalog: catalog({
-          top: [row('show_a')],
-          sections: {
-            sources: [row('source_a', { kind: 'recording' })],
-            reviews: [row('review_a', { kind: 'review' })],
-            passages: [],
-          },
-        }),
-      },
-      playlists: {
-        kind: 'cards',
-        cards: Array.from({ length: 8 }, (_, n) => card(`playlist_${n}`)),
-        hasMore: false,
-      },
+      rows,
+      catalog: { kind: 'remote' },
+      playlists: { kind: 'available', hasMore: false },
     };
-
     const items = buildRemoteListItems(presentation, 'all', 'lawn boy');
-    expect(items.map((item) => (item.type === 'header' ? `# ${item.title}` : item.type))).toEqual([
-      'row',
-      '# Sources',
-      'row',
-      '# Reviews',
-      'row',
-      '# Playlists',
-      ...Array(6).fill('playlist'),
-    ]);
-    // Section headers that have a scope link to it; Passages would not.
-    expect(items.find((item) => item.type === 'header' && item.title === 'Sources')).toMatchObject({
-      scope: 'sources',
-    });
+    expect(items.map((item) => item.key)).toEqual(rows.map((row) => row.key));
+    expect(items.map((item) => item.type)).toEqual(['row', 'playlist', 'row', 'row']);
   });
 
-  it('keeps two performances from one show as separate rows', () => {
-    const preview = (track: string) => ({
-      track_id: track,
-      source_id: 'source_x',
-      set: 'Set 1',
-      set_index: 0,
-      position: 1,
-      duration: 60,
-      soundboard: false,
-      soundcheck: false,
-      label: 'Lawn Boy',
-    });
-    const presentation: SearchPresentation = {
-      catalog: {
-        kind: 'remote',
-        catalog: catalog({
-          results: [
-            row('perf_1', {
-              kind: 'performance',
-              preview: preview('track_long'),
-            } as Partial<SearchCatalogRow>),
-            row('perf_1', {
-              kind: 'performance',
-              preview: preview('track_short'),
-            } as Partial<SearchCatalogRow>),
-          ],
-        }),
+  it('links overflow to the scoped lists without rearranging ranked rows', () => {
+    const items = buildRemoteListItems(
+      {
+        rows: [card('playlist_a')],
+        catalog: { kind: 'remote' },
+        playlists: { kind: 'available', hasMore: false },
+        moreScopes: ['shows', 'sources'],
       },
-      playlists: { kind: 'none' },
-    };
-
-    expect(
-      buildRemoteListItems(presentation, 'songs', 'lawn boy').filter((i) => i.type === 'row')
-    ).toHaveLength(2);
+      'all',
+      'dark star'
+    );
+    expect(items.map((item) => item.key)).toEqual([
+      'playlist:playlist_a',
+      'more:shows',
+      'more:sources',
+    ]);
+    expect(items.slice(1)).toMatchObject([
+      { type: 'header', title: 'More versions', scope: 'shows' },
+      { type: 'header', title: 'More recordings', scope: 'sources' },
+    ]);
   });
 
   it('says there are no results only for a real, empty answer', () => {
     const empty: SearchPresentation = {
-      catalog: { kind: 'remote', catalog: catalog({ top: [], sections: {} }) },
-      playlists: { kind: 'cards', cards: [], hasMore: false },
+      rows: [],
+      catalog: { kind: 'remote' },
+      playlists: { kind: 'available', hasMore: false },
     };
     expect(buildRemoteListItems(empty, 'all', ' zzz ')).toEqual([
       { type: 'message', key: 'empty', text: 'No results for “zzz”.' },
     ]);
-
-    const waiting: SearchPresentation = {
-      catalog: { kind: 'waiting' },
-      playlists: { kind: 'none' },
-    };
-    expect(buildRemoteListItems(waiting, 'all', 'zzz')).toEqual([
-      { type: 'loading', key: 'loading' },
-    ]);
   });
-});
 
-describe('buildRemoteListItems in the Playlists scope', () => {
-  it('waits instead of saying “No results” while playlists load or more pages remain', () => {
-    const loading: SearchPresentation = {
+  it('waits when an empty scoped page still has a continuation', () => {
+    const page: SearchPresentation = {
+      rows: [],
       catalog: { kind: 'none' },
-      playlists: { kind: 'waiting' },
+      playlists: { kind: 'available', hasMore: true },
     };
-    expect(buildRemoteListItems(loading, 'playlists', 'jams')).toEqual([
+    expect(buildRemoteListItems(page, 'playlists', 'jams')).toEqual([
       { type: 'loading', key: 'loading' },
-    ]);
-
-    const emptyPageWithMore: SearchPresentation = {
-      catalog: { kind: 'none' },
-      playlists: { kind: 'cards', cards: [], hasMore: true },
-    };
-    expect(buildRemoteListItems(emptyPageWithMore, 'playlists', 'jams')).toEqual([
-      { type: 'loading', key: 'loading' },
-    ]);
-  });
-});
-
-describe('buildRemoteListItems sections', () => {
-  it('drops a section header whose rows all repeat rows already listed', () => {
-    const presentation: SearchPresentation = {
-      catalog: {
-        kind: 'remote',
-        catalog: catalog({ top: [row('show_a')], sections: { sources: [row('show_a')] } }),
-      },
-      playlists: { kind: 'none' },
-    };
-    expect(buildRemoteListItems(presentation, 'all', 'x').map((item) => item.type)).toEqual([
-      'row',
     ]);
   });
 });
@@ -190,79 +97,55 @@ describe('buildRecentListItems', () => {
 });
 
 describe('search row text', () => {
-  const names = (artist: string) => ({ byId: () => artist, bySlug: () => artist });
-
-  it('starts the line under every title with the artist', () => {
-    const kinds = ['show', 'recording', 'review', 'performance', 'song', 'tour'] as const;
-    for (const kind of kinds) {
-      const view = describeSearchRow(
-        row(kind, { kind, preview: PREVIEW } as Partial<SearchCatalogRow>),
-        names('Phish')
-      );
-      expect(view.byline.startsWith('Phish'), kind).toBe(true);
+  it('starts each show and song byline with its embedded artist', () => {
+    for (const row of [showRow, recordingRow, reviewRow, performanceRow, sequenceRow, songRow]) {
+      expect(describeSearchRow(row).byline.startsWith('Phish'), row.kind).toBe(true);
     }
   });
 
-  it('stacks a show as date, artist, then venue and location, with its rating and plays', () => {
-    const view = describeSearchRow(
-      row('s1', {
-        kind: 'show',
-        soundboard: true,
-        avg_rating: 8.254,
-        track_plays: 3324,
-        location_label: 'New York, NY',
-      })
-    );
-    expect(view).toEqual({
-      title: '2017-07-25',
+  it('shows the show’s date, location and plays even when it opens a particular recording', () => {
+    const view = describeSearchRow({
+      ...showRow,
+      source,
+      popularity: yearlyPlays(3324),
+    });
+    expect(view).toMatchObject({
+      title: '2000-06-14',
       titleStyle: 'date',
       badges: ['SBD'],
       byline: 'Phish',
-      place: 'Madison Square Garden, New York, NY',
-      note: undefined,
-      noteItalic: true,
-      aside: ['8.25 ★', '3.3k plays/yr'],
+      place: 'Drum Logos, Fukuoka, Japan',
+      aside: ['8.00 ★', '3.3k plays/yr'],
     });
   });
 
-  it('falls back to the city, and leaves the rating and plays out, on an older index', () => {
-    const view = describeSearchRow(row('s0', { kind: 'show', track_plays: 0 }));
-    expect(view.place).toBe('Madison Square Garden, New York');
+  it('leaves ratings and plays off an unrated show without activity', () => {
+    const view = describeSearchRow({ ...showRow, show: { ...show, avg_rating: 0 } });
     expect(view.aside).toEqual([undefined, undefined]);
   });
 
-  it('notes a recording by its matching notes or its credits, never its ID, and a review by its passage', () => {
-    const credited = row('r1', {
-      kind: 'recording',
-      source_upstream: 'gd77.sbd',
-      taper_label: 'Betty Cantor',
-      transferrer_label: 'Charlie Miller',
-    });
+  it('notes a recording by its matching notes or its credits, and a review by its passage', () => {
+    const credited = {
+      ...recordingRow,
+      source: { ...source, taper: 'Betty Cantor', transferrer: 'Charlie Miller' },
+    };
     expect(describeSearchRow(credited).note).toBe('Taper: Betty Cantor · Transfer: Charlie Miller');
     expect(
-      describeSearchRow(
-        row('r1', {
-          kind: 'recording',
-          taper_label: 'Betty Cantor',
-          highlights: { notes: 'the <mark>Twist</mark> jam' },
-        })
-      ).note
+      describeSearchRow({
+        ...credited,
+        match: { highlights: { notes: 'the <mark>Twist</mark> jam' } },
+      }).note
     ).toBe('“the Twist jam”');
+    expect(describeSearchRow(recordingRow).note).toBeUndefined();
     expect(
-      describeSearchRow(row('r2', { kind: 'recording', source_upstream: 'gd77.sbd' })).note
-    ).toBe(undefined);
-    const review = describeSearchRow(
-      row('review_1', {
-        kind: 'review',
-        label: '',
-        highlights: { review_text: 'Nice <mark>Twist</mark>\r\n tease' },
+      describeSearchRow({
+        ...reviewRow,
+        match: { highlights: { review_text: 'Nice <mark>Twist</mark>\r\n tease' } },
       })
-    );
-    expect(review).toMatchObject({ title: '2017-07-25', note: '“Nice Twist tease”' });
+    ).toMatchObject({ title: '2000-06-14', note: '“Nice Twist tease”' });
   });
 
-  it('formats dates, durations and plays as the app does elsewhere', () => {
-    expect(searchDate(19770508)).toBe('1977-05-08');
+  it('formats durations and plays as the app does elsewhere', () => {
     expect(searchDuration(1798)).toBe('29:58');
     expect(searchDuration(3725)).toBe('1:02:05');
     expect(searchPlays(1)).toBe('1 play/yr');
@@ -271,117 +154,46 @@ describe('search row text', () => {
     expect(searchPlays(1_250_000)).toBe('1.3M plays/yr');
   });
 
-  it('stacks a performance as song, artist and date, then venue; duration, set and plays on the right', () => {
-    const view = describeSearchRow(
-      row('perf', { kind: 'performance', preview: PREVIEW } as Partial<SearchCatalogRow>)
-    );
-    expect(view).toEqual({
-      title: 'Lawn Boy',
+  it('labels a performance by its matched song, with the exact file’s duration', () => {
+    expect(describeSearchRow({ ...performanceRow, popularity: yearlyPlays(42) })).toEqual({
+      title: 'Twist',
       titleStyle: 'track',
-      badges: ['SBD'],
-      byline: 'Phish · 2017-07-25',
-      place: 'Madison Square Garden, New York',
-      aside: ['1:28', 'Encore', '42 plays/yr'],
+      badges: [],
+      byline: 'Phish · 2000-06-14',
+      place: 'Drum Logos, Fukuoka, Japan',
+      aside: ['1:28', undefined, '42 plays/yr'],
     });
+    expect(describeSearchRow({ ...performanceRow, performance: undefined }).title).toBe(
+      'Twist -> Jam'
+    );
   });
 
-  it('leaves out a generic set name', () => {
-    const view = describeSearchRow(
-      row('perf2', {
-        kind: 'performance',
-        preview: { ...PREVIEW, set: 'Set' },
-      } as Partial<SearchCatalogRow>)
-    );
-    expect(view.aside[1]).toBeUndefined();
-  });
-
-  it('names a passage’s artist from its slug and drops a generic set name', () => {
-    const view = describeSearchRow(
-      {
-        kind: 'sequence',
-        artist_slug: 'grateful-dead',
-        show_id: 'show_1',
-        source_id: 'source_1',
-        set: 'Set',
-        date: 19770508,
-        venue: 'Barton Hall',
-        song_ids: ['song_a', 'song_b'],
-        track_ids: ['track_a', 'track_b'],
-      },
-      names('Grateful Dead')
-    );
+  it('shows ordered passage titles even when two parts share a file', () => {
+    const view = describeSearchRow({ ...sequenceRow, popularity: yearlyPlays(1450) });
     expect(view).toMatchObject({
-      byline: 'Grateful Dead',
-      place: 'Barton Hall',
-      note: 'Passage of 2 songs',
+      title: 'Twist → Jam',
+      byline: 'Phish · 2000-06-14',
+      place: 'Drum Logos, Fukuoka, Japan',
+      aside: ['1.4k plays/yr'],
     });
   });
 
   it('counts one playlist track as a track, remote or local', () => {
     expect(describeLocalPlaylist('Mix', 1).byline).toBe('Playlist · 1 track');
-    expect(
-      describePlaylistCard({
-        kind: 'playlist',
-        id: 'p',
-        label: 'Mix',
-        description: null,
-        track_count: 1,
-        owned: true,
-        public_code: null,
-        curator: null,
-      }).byline
-    ).toBe('Yours · Playlist · 1 track');
+    expect(describePlaylistCard({ id: 'p', name: 'Mix', track_count: 1, owned: true }).byline).toBe(
+      'Yours · Playlist · 1 track'
+    );
   });
 
   it('reads SBD aloud as Soundboard', () => {
-    const view = describeSearchRow(row('s2', { kind: 'show', soundboard: true }));
-    expect(searchRowAccessibilityLabel(view)).toBe(
-      '2017-07-25, Soundboard, Phish, Madison Square Garden, New York'
+    expect(searchRowAccessibilityLabel(describeSearchRow(showRow))).toBe(
+      '2000-06-14, Soundboard, 8.25 ★, Phish, Drum Logos, Fukuoka, Japan'
     );
   });
 
-  it('spells the artist as the device does when it knows the artist', () => {
-    const view = describeSearchRow(
-      row('s1', { kind: 'show', artist_label: 'mars mushrooms', artist_id: 'artist_m' }),
-      names('Mars Mushrooms')
-    );
-    expect(view.byline).toBe('Mars Mushrooms');
-  });
-
-  it('names a venue’s artists from the device when the row carries only IDs or slugs', () => {
-    const deviceNames = {
-      byId: (id: string) => (id === 'artist_x' ? 'Grace Potter' : undefined),
-      bySlug: (slug: string) =>
-        ({ 'grateful-dead': 'Grateful Dead', 'dead-and-co': 'Dead & Company' })[slug],
-    };
+  it('names the embedded artist and location on artist-specific venue results', () => {
     expect(
-      describeSearchRow(
-        row('v1', { kind: 'venue', artist_label: '', artist_id: 'artist_x' }),
-        deviceNames
-      )
-    ).toMatchObject({ byline: 'Grace Potter · Venue', place: 'New York' });
-    expect(
-      describeSearchRow(
-        row('v2', {
-          kind: 'venue',
-          artist_label: '',
-          artist_slugs: ['dead-and-co', 'grateful-dead', 'other'],
-        }),
-        deviceNames
-      ).byline
-    ).toBe('Dead & Company, Grateful Dead +1 · Venue');
+      describeSearchRow({ kind: 'venue', key: 'v1', venue: importedVenue, artist })
+    ).toMatchObject({ byline: 'Phish · Venue', place: 'Fukuoka, Japan' });
   });
 });
-
-const PREVIEW = {
-  track_id: 't',
-  source_id: 's',
-  set: 'Encore',
-  set_index: 2,
-  position: 19,
-  duration: 88,
-  plays: 42,
-  soundboard: true,
-  soundcheck: false,
-  label: 'Lawn Boy',
-};

@@ -2,16 +2,15 @@ import { type Href, useRouter } from 'expo-router';
 import { useCallback, useRef } from 'react';
 import { useRelistenApi } from '@/relisten/api/context';
 import { showToast } from '@/relisten/components/toast';
+import { decodeUuidCatalogId } from '@/relisten/api/catalog/identity';
+import { seedCatalogSearchArtist } from '@/relisten/realm/catalog_apply';
 import { Artist } from '@/relisten/realm/models/artist';
-import {
-  ensureCatalogArtist,
-  ensureCatalogArtistBySlug,
-} from '@/relisten/realm/models/artist_repo';
+import { ensureCatalogArtist } from '@/relisten/realm/models/artist_repo';
 import { useRealm } from '@/relisten/realm/schema';
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { type RelistenTabGroupSegment, useGroupSegment } from '@/relisten/util/routes';
 import { log } from '@/relisten/util/logging';
-import { type SearchArtistRef, searchArtistRef, searchTapTarget } from './search_routes';
+import { searchTapTarget } from './search_routes';
 import type { SearchCatalogRow } from './search_types';
 
 const logger = log.extend('search');
@@ -32,20 +31,29 @@ export function useOpenSearchResult(tabOverride?: RelistenTabGroupSegment) {
   const { pushShow } = usePushShowRespectingUserSettings();
 
   const loadArtist = useCallback(
-    async (ref: SearchArtistRef | null): Promise<Artist | null> => {
-      if (!ref) {
+    async (row: SearchCatalogRow): Promise<Artist | null> => {
+      const { artist } = row;
+      if (!artist) {
         return null;
       }
-      if ('slug' in ref) {
-        return ensureCatalogArtistBySlug(realm, apiClient, ref.slug);
+
+      try {
+        realm.write(() => seedCatalogSearchArtist(realm, artist));
+      } catch (error) {
+        // The detail route still works from its own full catalog response.
+        logger.warn(
+          `Search snapshot could not be cached: ${error instanceof Error ? error.name : 'unknown'}`
+        );
       }
-      await ensureCatalogArtist(realm, apiClient, ref.uuid);
-      return realm.objectForPrimaryKey(Artist, ref.uuid)!;
+
+      const uuid = decodeUuidCatalogId(artist.id, 'artist');
+      await ensureCatalogArtist(realm, apiClient, uuid);
+      return realm.objectForPrimaryKey(Artist, uuid);
     },
     [apiClient, realm]
   );
 
-  // Loading a slug-only artist can take a moment; a second tap meanwhile is ignored.
+  // Ignore a second tap while the first one loads its artist.
   const opening = useRef(false);
 
   return useCallback(
@@ -53,7 +61,7 @@ export function useOpenSearchResult(tabOverride?: RelistenTabGroupSegment) {
       followSearchTap(row, opening, {
         loadArtist,
         push: (href) => router.push(href),
-        pushShow: (artist, showUuid) => pushShow({ artist, showUuid }),
+        pushShow: (artist, showUuid) => pushShow({ artist, showUuid, overrideGroupSegment: tab }),
         tab,
       }),
     [loadArtist, pushShow, router, tab]
@@ -73,7 +81,7 @@ async function followSearchTap(
     pushShow,
     tab,
   }: {
-    loadArtist: (ref: SearchArtistRef | null) => Promise<Artist | null>;
+    loadArtist: (row: SearchCatalogRow) => Promise<Artist | null>;
     push: (href: Href) => void;
     pushShow: (artist: Artist, showUuid: string) => void;
     tab: RelistenTabGroupSegment;
@@ -85,7 +93,7 @@ async function followSearchTap(
 
   opening.current = true;
   try {
-    const artist = await loadArtist(searchArtistRef(row));
+    const artist = await loadArtist(row);
     const target = searchTapTarget(row, artist, tab);
     if (target.kind === 'push') {
       push(target.href);

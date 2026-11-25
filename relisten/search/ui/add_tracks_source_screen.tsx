@@ -18,7 +18,7 @@ import type { SourceTrack } from '@/relisten/realm/models/source_track';
 import { useRealm } from '@/relisten/realm/schema';
 import type { RelistenTabGroupSegment } from '@/relisten/util/routes';
 import { showVenueName } from '@/relisten/util/venue_route';
-import { focusedTrackUuids } from '../add_tracks_focus';
+import { focusSetlistTracks } from '../add_tracks_focus';
 import { useAddTracks } from './add_tracks_context';
 import { AddTrackButton, OpenFullPageButton, SheetScrollAnchor } from './add_tracks_controls';
 
@@ -46,8 +46,8 @@ export function AddTracksSourceScreen() {
   );
 
   const tracks = useMemo(() => selectedSource?.allSourceTracks() ?? [], [selectedSource]);
-  const focused = useMemo(
-    () => focusedTrackUuids(tracks, { trackUuid: focusTrackUuid, songId }),
+  const { highlighted, scrollTargetUuid } = useMemo(
+    () => focusSetlistTracks(tracks, { trackUuid: focusTrackUuid, songId }),
     [focusTrackUuid, songId, tracks]
   );
 
@@ -120,8 +120,9 @@ export function AddTracksSourceScreen() {
           />
           <Setlist
             source={selectedSource}
-            focused={focused}
-            attachFirstFocused={attachFocusedRow}
+            highlighted={highlighted}
+            scrollTargetUuid={scrollTargetUuid}
+            attachFocusedRow={attachFocusedRow}
             onAdd={(track) => void addTrack(trackIdForSourceTrack(track), track.title)}
           />
         </View>
@@ -199,19 +200,20 @@ function SourceSummary({
 
 function Setlist({
   source,
-  focused,
-  attachFirstFocused,
+  highlighted,
+  scrollTargetUuid,
+  attachFocusedRow,
   onAdd,
 }: {
   source: Source;
-  focused: ReadonlySet<string>;
-  attachFirstFocused: (row: ComponentRef<typeof View> | null) => void;
+  highlighted: ReadonlySet<string>;
+  scrollTargetUuid?: string;
+  attachFocusedRow: (row: ComponentRef<typeof View> | null) => void;
   onAdd: (track: SourceTrack) => void;
 }) {
   const player = useRelistenPlayer();
   const sets = [...source.sourceSets].sort((a, b) => a.index - b.index);
   const allTracks = source.allSourceTracks();
-  const firstFocusedUuid = allTracks.find((track) => focused.has(track.uuid))?.uuid;
 
   const playFrom = (track: SourceTrack | undefined) => {
     if (!track) {
@@ -240,8 +242,8 @@ function Setlist({
                 key={track.uuid}
                 sourceTrack={track}
                 isLastTrackInSet={index === tracks.length - 1}
-                highlighted={focused.has(track.uuid)}
-                rowRef={track.uuid === firstFocusedUuid ? attachFirstFocused : undefined}
+                highlighted={highlighted.has(track.uuid)}
+                rowRef={track.uuid === scrollTargetUuid ? attachFocusedRow : undefined}
                 onPress={playFrom}
                 actions={
                   <AddTrackButton
