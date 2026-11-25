@@ -8,6 +8,7 @@ import { isSonosUnavailable, needsSonosReconnect, type SonosHandoffRequest } fro
 import { runSonosHandoff, type SonosHandoffOutcome } from './sonos_handoff';
 import {
   isSonosPlaybackLive,
+  isSonosPlaying,
   reachedTransport,
   type SonosPlayback,
   type SonosQueue,
@@ -246,6 +247,11 @@ export class SonosRoomStore {
    * controlling, or restores the room it chose before the app closed when
    * `canRestore` allows (nothing else is playing). Another device's rooms
    * are never taken over here. Reading state never sends a command.
+   *
+   * Only a room that is playing right now is restored. A paused room still
+   * holds our queue, but the listener may be far from it (paused at home,
+   * opening the app on the bus), and restoring would send the next Play
+   * there. A paused room stays remembered; Play On still offers it.
    */
   async discover(canRestore: () => boolean) {
     if (this.handoffInFlight) {
@@ -274,11 +280,11 @@ export class SonosRoomStore {
       }
       if (!isSonosPlaybackLive(playback)) {
         this.remember(undefined);
-      } else if (canRestore()) {
+      } else if (isSonosPlaying(playback) && canRestore()) {
         this.apply(playback);
       }
-      // A live room that can't be restored now (the phone started playing
-      // meanwhile) stays remembered for the next launch.
+      // A live room that isn't restored now (paused, or the phone started
+      // playing meanwhile) stays remembered for the next launch.
     } catch (error) {
       if (isSonosUnavailable(error)) {
         this.remember(undefined);

@@ -525,13 +525,38 @@ describe('SonosRoomStore', () => {
   });
 
   describe('the room this device chose', () => {
-    it('restores it on launch, without sending commands', async () => {
+    it('restores it on launch while it plays, without sending commands', async () => {
       const { server, remote } = store('h1');
+      server.room.playbackState = 'PLAYBACK_STATE_PLAYING';
 
       await remote.discover(() => true);
 
       expect(shown(remote)?.playback.handle).toBe('h1');
       expect(server.commands()).toEqual([]);
+    });
+
+    it('leaves a paused room alone, so Play stays on the phone, and keeps it remembered', async () => {
+      // Paused at home last night, opened on the bus today.
+      const { server, remote, rooms } = store('h1');
+      server.room.playbackState = 'PLAYBACK_STATE_PAUSED';
+
+      await remote.discover(() => true);
+
+      expect(remote.getState()).toEqual({ kind: 'none' });
+      expect(rooms.save).not.toHaveBeenCalled();
+      expect(server.commands()).toEqual([]);
+    });
+
+    it('restores the same room on a later launch once it plays again', async () => {
+      const { server, remote } = store('h1');
+      server.room.playbackState = 'PLAYBACK_STATE_STOPPED';
+      await remote.discover(() => true);
+      expect(remote.getState()).toEqual({ kind: 'none' });
+
+      server.room.playbackState = 'PLAYBACK_STATE_BUFFERING';
+      await remote.discover(() => true);
+
+      expect(shown(remote)?.playback.handle).toBe('h1');
     });
 
     it('leaves it alone while something else plays', async () => {
